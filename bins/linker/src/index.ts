@@ -19,7 +19,7 @@ import isWindows from 'is-windows'
 import normalizePath from 'normalize-path'
 import { groupBy, isEmpty, partition, unnest } from 'ramda'
 import semver from 'semver'
-import symlinkDir from 'symlink-dir'
+import { symlinkDir } from 'symlink-dir'
 
 import { getBinNodePaths } from './getBinNodePaths.js'
 
@@ -207,33 +207,33 @@ async function getPackageBins (
     // There is a probably a better way to do this.
     // It isn't good to have these hardcoded here.
     switch (path.basename(target)) {
-    case 'node':
-      return [{
-        name: 'node',
-        path: path.join(target, getNodeBinLocationForCurrentOS()),
-        ownName: true,
-        pkgName: '',
-        pkgVersion: '',
-        makePowerShellShim: false,
-      }]
-    case 'deno':
-      return [{
-        name: 'deno',
-        path: path.join(target, getDenoBinLocationForCurrentOS()),
-        ownName: true,
-        pkgName: '',
-        pkgVersion: '',
-        makePowerShellShim: false,
-      }]
-    case 'bun':
-      return [{
-        name: 'bun',
-        path: path.join(target, getBunBinLocationForCurrentOS()),
-        ownName: true,
-        pkgName: '',
-        pkgVersion: '',
-        makePowerShellShim: false,
-      }]
+      case 'node':
+        return [{
+          name: 'node',
+          path: path.join(target, getNodeBinLocationForCurrentOS()),
+          ownName: true,
+          pkgName: '',
+          pkgVersion: '',
+          makePowerShellShim: false,
+        }]
+      case 'deno':
+        return [{
+          name: 'deno',
+          path: path.join(target, getDenoBinLocationForCurrentOS()),
+          ownName: true,
+          pkgName: '',
+          pkgVersion: '',
+          makePowerShellShim: false,
+        }]
+      case 'bun':
+        return [{
+          name: 'bun',
+          path: path.join(target, getBunBinLocationForCurrentOS()),
+          ownName: true,
+          pkgName: '',
+          pkgVersion: '',
+          makePowerShellShim: false,
+        }]
     }
     // There's a directory in node_modules without package.json: ${target}.
     // This used to be a warning but it didn't really cause any issues.

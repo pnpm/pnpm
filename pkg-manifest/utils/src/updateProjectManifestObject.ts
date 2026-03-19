@@ -32,15 +32,15 @@ function createVersionSpecFromResolvedVersion (resolvedVersion: string, pinnedVe
   if (parsed.prerelease.length) return resolvedVersion
 
   switch (pinnedVersion ?? 'major') {
-  case 'none':
-  case 'major':
-    return `^${resolvedVersion}`
-  case 'minor':
-    return `~${resolvedVersion}`
-  case 'patch':
-    return resolvedVersion
-  default:
-    return `^${resolvedVersion}`
+    case 'none':
+    case 'major':
+      return `^${resolvedVersion}`
+    case 'minor':
+      return `~${resolvedVersion}`
+    case 'patch':
+      return resolvedVersion
+    default:
+      return `^${resolvedVersion}`
   }
 }
 

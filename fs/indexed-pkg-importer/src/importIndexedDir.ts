@@ -182,16 +182,16 @@ function moveOrMergeModulesDirs (src: string, dest: string): void {
     renameEvenAcrossDevices(src, dest)
   } catch (err: unknown) {
     switch (util.types.isNativeError(err) && 'code' in err && err.code) {
-    case 'ENOENT':
+      case 'ENOENT':
       // If src directory doesn't exist, there is nothing to do
-      return
-    case 'ENOTEMPTY':
-    case 'EPERM': // This error code is thrown on Windows
+        return
+      case 'ENOTEMPTY':
+      case 'EPERM': // This error code is thrown on Windows
       // The newly added dependency might have node_modules if it has bundled dependencies.
-      mergeModulesDirs(src, dest)
-      return
-    default:
-      throw err
+        mergeModulesDirs(src, dest)
+        return
+      default:
+        throw err
     }
   }
 }

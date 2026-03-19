@@ -154,15 +154,15 @@ function sanitizeSpdxId (value: string): string {
 
 function spdxHashAlgorithm (algo: string): string {
   switch (algo) {
-  case 'SHA-1':
-    return 'SHA1'
-  case 'SHA-256':
-    return 'SHA256'
-  case 'SHA-384':
-    return 'SHA384'
-  case 'SHA-512':
-    return 'SHA512'
-  default:
-    return algo
+    case 'SHA-1':
+      return 'SHA1'
+    case 'SHA-256':
+      return 'SHA256'
+    case 'SHA-384':
+      return 'SHA384'
+    case 'SHA-512':
+      return 'SHA512'
+    default:
+      return algo
   }
 }

@@ -202,15 +202,15 @@ export async function recursive (
     if (importers.length === 0) return true
     let mutation: 'install' | 'installSome' | 'uninstallSome'
     switch (cmdFullName) {
-    case 'remove':
-      mutation = 'uninstallSome'
-      break
-    case 'import':
-      mutation = 'install'
-      break
-    default:
-      mutation = (params.length === 0 && !updateToLatest ? 'install' : 'installSome')
-      break
+      case 'remove':
+        mutation = 'uninstallSome'
+        break
+      case 'import':
+        mutation = 'install'
+        break
+      default:
+        mutation = (params.length === 0 && !updateToLatest ? 'install' : 'installSome')
+        break
     }
     const mutatedImporters = [] as MutatedProject[]
     await Promise.all(importers.map(async ({ rootDir }) => {
@@ -236,45 +236,45 @@ export async function recursive (
         }
       }
       switch (mutation) {
-      case 'uninstallSome':
-        mutatedImporters.push({
-          dependencyNames: currentInput,
-          modulesDir,
-          mutation,
-          rootDir,
-          targetDependenciesField,
-        } as MutatedProject)
-        return
-      case 'installSome':
-        mutatedImporters.push({
-          allowNew: cmdFullName === 'install' || cmdFullName === 'add',
-          dependencySelectors: currentInput,
-          modulesDir,
-          mutation,
-          peer: opts.savePeer,
-          pinnedVersion: getPinnedVersion({
-            saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
-            savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
-          }),
-          rootDir,
-          targetDependenciesField,
-          update: opts.update,
-          updateMatching: opts.updateMatching,
-          updatePackageManifest: opts.updatePackageManifest,
-          updateToLatest: opts.latest,
-        } as MutatedProject)
-        return
-      case 'install':
-        mutatedImporters.push({
-          modulesDir,
-          mutation,
-          pruneDirectDependencies: opts.pruneDirectDependencies,
-          rootDir,
-          update: opts.update,
-          updateMatching: opts.updateMatching,
-          updatePackageManifest: opts.updatePackageManifest,
-          updateToLatest: opts.latest,
-        } as MutatedProject)
+        case 'uninstallSome':
+          mutatedImporters.push({
+            dependencyNames: currentInput,
+            modulesDir,
+            mutation,
+            rootDir,
+            targetDependenciesField,
+          } as MutatedProject)
+          return
+        case 'installSome':
+          mutatedImporters.push({
+            allowNew: cmdFullName === 'install' || cmdFullName === 'add',
+            dependencySelectors: currentInput,
+            modulesDir,
+            mutation,
+            peer: opts.savePeer,
+            pinnedVersion: getPinnedVersion({
+              saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
+              savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
+            }),
+            rootDir,
+            targetDependenciesField,
+            update: opts.update,
+            updateMatching: opts.updateMatching,
+            updatePackageManifest: opts.updatePackageManifest,
+            updateToLatest: opts.latest,
+          } as MutatedProject)
+          return
+        case 'install':
+          mutatedImporters.push({
+            modulesDir,
+            mutation,
+            pruneDirectDependencies: opts.pruneDirectDependencies,
+            rootDir,
+            update: opts.update,
+            updateMatching: opts.updateMatching,
+            updatePackageManifest: opts.updatePackageManifest,
+            updateToLatest: opts.latest,
+          } as MutatedProject)
       }
     }))
     if (!opts.selectedProjectsGraph[opts.workspaceDir as ProjectRootDir] && manifestsByPath[opts.workspaceDir as ProjectRootDir] != null) {
@@ -369,27 +369,27 @@ export async function recursive (
 
         let action: ActionFunction
         switch (cmdFullName) {
-        case 'remove':
-          action = async (manifest, opts) => {
-            const mutationResult = await mutateModules([
-              {
-                dependencyNames: currentInput,
-                mutation: 'uninstallSome',
-                rootDir,
-              },
-            ], opts)
-            return {
-              updatedCatalogs: undefined, // there's no reason to add new or update catalogs on `pnpm remove`
-              updatedManifest: mutationResult.updatedProjects[0].manifest,
-              ignoredBuilds: mutationResult.ignoredBuilds,
+          case 'remove':
+            action = async (manifest, opts) => {
+              const mutationResult = await mutateModules([
+                {
+                  dependencyNames: currentInput,
+                  mutation: 'uninstallSome',
+                  rootDir,
+                },
+              ], opts)
+              return {
+                updatedCatalogs: undefined, // there's no reason to add new or update catalogs on `pnpm remove`
+                updatedManifest: mutationResult.updatedProjects[0].manifest,
+                ignoredBuilds: mutationResult.ignoredBuilds,
+              }
             }
-          }
-          break
-        default:
-          action = currentInput.length === 0
-            ? install
-            : async (manifest, opts) => addDependenciesToPackage(manifest, currentInput, opts)
-          break
+            break
+          default:
+            action = currentInput.length === 0
+              ? install
+              : async (manifest, opts) => addDependenciesToPackage(manifest, currentInput, opts)
+            break
         }
 
         const localConfig = getProjectConfig(manifest) ?? {}

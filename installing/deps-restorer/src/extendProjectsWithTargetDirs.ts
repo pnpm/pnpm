@@ -6,7 +6,7 @@ export function extendProjectsWithTargetDirs<T> (
   injectionTargetsByDepPath: Map<string, string[]>
 ): Array<T & { id: ProjectId, stages: string[], targetDirs: string[] }> {
   const projectsById: Record<ProjectId, T & { id: ProjectId, targetDirs: string[], stages?: string[] }> =
-        Object.fromEntries(projects.map((project) => [project.id, { ...project, targetDirs: [] as string[] }]))
+    Object.fromEntries(projects.map((project) => [project.id, { ...project, targetDirs: [] as string[] }]))
 
   for (const [depPath, locations] of injectionTargetsByDepPath) {
     const parsed = parseDepPath(depPath)

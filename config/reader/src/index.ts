@@ -534,15 +534,15 @@ export async function getConfig (opts: {
   }
   if (typeof pnpmConfig['color'] === 'boolean') {
     switch (pnpmConfig['color']) {
-    case true:
-      pnpmConfig.color = 'always'
-      break
-    case false:
-      pnpmConfig.color = 'never'
-      break
-    default:
-      pnpmConfig.color = 'auto'
-      break
+      case true:
+        pnpmConfig.color = 'always'
+        break
+      case false:
+        pnpmConfig.color = 'never'
+        break
+      default:
+        pnpmConfig.color = 'auto'
+        break
     }
   }
   if (!pnpmConfig.httpsProxy) {
@@ -556,14 +556,14 @@ export async function getConfig (opts: {
     pnpmConfig.noProxy = pnpmConfig['noproxy'] ?? getProcessEnv('no_proxy')
   }
   switch (pnpmConfig.nodeLinker) {
-  case 'pnp':
-    pnpmConfig.enablePnp = pnpmConfig.nodeLinker === 'pnp'
-    break
-  case 'hoisted':
-    if (pnpmConfig.preferSymlinkedExecutables == null) {
-      pnpmConfig.preferSymlinkedExecutables = true
-    }
-    break
+    case 'pnp':
+      pnpmConfig.enablePnp = pnpmConfig.nodeLinker === 'pnp'
+      break
+    case 'hoisted':
+      if (pnpmConfig.preferSymlinkedExecutables == null) {
+        pnpmConfig.preferSymlinkedExecutables = true
+      }
+      break
   }
   if (!pnpmConfig.userConfig) {
     pnpmConfig.userConfig = npmConfig.sources.user?.data

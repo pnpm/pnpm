@@ -21,7 +21,7 @@ import type { WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reade
 import { rimrafSync } from '@zkochan/rimraf'
 import { safeExeca as execa } from 'execa'
 import { readYamlFileSync } from 'read-yaml-file'
-import symlink from 'symlink-dir'
+import { symlinkDir } from 'symlink-dir'
 import { temporaryDirectory } from 'tempy'
 import { writeYamlFileSync } from 'write-yaml-file'
 
@@ -945,7 +945,7 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
     },
   ])
 
-  await symlink('workspace-2/package-2', 'workspace-1/package-2')
+  await symlinkDir('workspace-2/package-2', 'workspace-1/package-2')
 
   writeYamlFileSync('workspace-1/pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   writeYamlFileSync('workspace-2/pnpm-workspace.yaml', { packages: ['**', '!store/**'] })

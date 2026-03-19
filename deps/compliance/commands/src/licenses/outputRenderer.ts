@@ -19,12 +19,12 @@ function sortLicensesPackages (licensePackages: readonly LicensePackage[]): Lice
 
 function renderPackageName ({ belongsTo, name: packageName }: LicensePackage): string {
   switch (belongsTo) {
-  case 'devDependencies':
-    return `${packageName} ${chalk.dim('(dev)')}`
-  case 'optionalDependencies':
-    return `${packageName} ${chalk.dim('(optional)')}`
-  default:
-    return packageName as string
+    case 'devDependencies':
+      return `${packageName} ${chalk.dim('(dev)')}`
+    case 'optionalDependencies':
+      return `${packageName} ${chalk.dim('(optional)')}`
+    default:
+      return packageName as string
   }
 }
 

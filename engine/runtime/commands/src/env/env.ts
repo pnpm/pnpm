@@ -79,16 +79,16 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]): P
     })
   }
   switch (params[0]) {
-  case 'use': {
-    await envUse(opts, params.slice(1))
-    return
-  }
-  case 'list':
-  case 'ls': {
-    return envList(opts, params.slice(1))
-  }
-  default: {
-    throw new PnpmError('ENV_UNKNOWN_SUBCOMMAND', 'This subcommand is not known')
-  }
+    case 'use': {
+      await envUse(opts, params.slice(1))
+      return
+    }
+    case 'list':
+    case 'ls': {
+      return envList(opts, params.slice(1))
+    }
+    default: {
+      throw new PnpmError('ENV_UNKNOWN_SUBCOMMAND', 'This subcommand is not known')
+    }
   }
 }

@@ -43,9 +43,9 @@ export async function readWantedLockfileAndAutofixConflicts (
     mergeGitBranchLockfiles?: boolean
   }
 ): Promise<{
-    lockfile: LockfileObject | null
-    hadConflicts: boolean
-  }> {
+  lockfile: LockfileObject | null
+  hadConflicts: boolean
+}> {
   return _readWantedLockfile(pkgPath, {
     ...opts,
     autofixMergeConflicts: true,
@@ -73,9 +73,9 @@ async function _read (
     ignoreIncompatible: boolean
   }
 ): Promise<{
-    lockfile: LockfileObject | null
-    hadConflicts: boolean
-  }> {
+  lockfile: LockfileObject | null
+  hadConflicts: boolean
+}> {
   let lockfileRawContent
   try {
     lockfileRawContent = stripBom(await fs.readFile(lockfilePath, 'utf8'))
@@ -180,9 +180,9 @@ async function _readWantedLockfile (
     autofixMergeConflicts?: boolean
   }
 ): Promise<{
-    lockfile: LockfileObject | null
-    hadConflicts: boolean
-  }> {
+  lockfile: LockfileObject | null
+  hadConflicts: boolean
+}> {
   const lockfileNames: string[] = [WANTED_LOCKFILE]
   if (opts.useGitBranchLockfile) {
     const gitBranchLockfileName: string = await getWantedLockfileName(opts)
@@ -241,9 +241,9 @@ async function _readGitBranchLockfiles (
     ignoreIncompatible: boolean
   }
 ): Promise<Array<{
-    lockfile: LockfileObject | null
-    hadConflicts: boolean
-  }>> {
+  lockfile: LockfileObject | null
+  hadConflicts: boolean
+}>> {
   const files = await getGitBranchLockfileNames(lockfileDir)
 
   return Promise.all(files.map((file) => _read(path.join(lockfileDir, file), prefix, opts)))

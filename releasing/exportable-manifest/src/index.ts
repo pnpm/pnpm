@@ -130,9 +130,9 @@ function resolveCatalogProtocol (catalogResolver: CatalogResolver, alias: string
   const result = catalogResolver({ alias, bareSpecifier })
 
   switch (result.type) {
-  case 'found': return result.resolution.specifier
-  case 'unused': return bareSpecifier
-  case 'misconfiguration': throw result.error
+    case 'found': return result.resolution.specifier
+    case 'unused': return bareSpecifier
+    case 'misconfiguration': throw result.error
   }
 }
 

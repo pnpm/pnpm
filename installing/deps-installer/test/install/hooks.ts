@@ -18,12 +18,12 @@ test('readPackage, afterAllResolved hooks', async () => {
 
   function readPackageHook (manifest: PackageManifest) {
     switch (manifest.name) {
-    case '@pnpm.e2e/pkg-with-1-dep':
-      if (manifest.dependencies == null) {
-        throw new Error('@pnpm.e2e/pkg-with-1-dep expected to have a dependencies field')
-      }
-      manifest.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.0.0'
-      break
+      case '@pnpm.e2e/pkg-with-1-dep':
+        if (manifest.dependencies == null) {
+          throw new Error('@pnpm.e2e/pkg-with-1-dep expected to have a dependencies field')
+        }
+        manifest.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.0.0'
+        break
     }
     return manifest
   }
@@ -56,12 +56,12 @@ test('readPackage, afterAllResolved async hooks', async () => {
 
   async function readPackageHook (manifest: PackageManifest) {
     switch (manifest.name) {
-    case '@pnpm.e2e/pkg-with-1-dep':
-      if (manifest.dependencies == null) {
-        throw new Error('@pnpm.e2e/pkg-with-1-dep expected to have a dependencies field')
-      }
-      manifest.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.0.0'
-      break
+      case '@pnpm.e2e/pkg-with-1-dep':
+        if (manifest.dependencies == null) {
+          throw new Error('@pnpm.e2e/pkg-with-1-dep expected to have a dependencies field')
+        }
+        manifest.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.0.0'
+        break
     }
     return manifest
   }
@@ -94,24 +94,24 @@ test('readPackage hooks array', async () => {
 
   function readPackageHook1 (manifest: PackageManifest) {
     switch (manifest.name) {
-    case '@pnpm.e2e/pkg-with-1-dep':
-      if (manifest.dependencies == null) {
-        throw new Error('@pnpm.e2e/pkg-with-1-dep expected to have a dependencies field')
-      }
-      manifest.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '50.0.0'
-      break
+      case '@pnpm.e2e/pkg-with-1-dep':
+        if (manifest.dependencies == null) {
+          throw new Error('@pnpm.e2e/pkg-with-1-dep expected to have a dependencies field')
+        }
+        manifest.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '50.0.0'
+        break
     }
     return manifest
   }
 
   function readPackageHook2 (manifest: PackageManifest) {
     switch (manifest.name) {
-    case '@pnpm.e2e/pkg-with-1-dep':
-      if (manifest.dependencies == null) {
-        throw new Error('@pnpm.e2e/pkg-with-1-dep expected to have a dependencies field')
-      }
-      manifest.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.0.0'
-      break
+      case '@pnpm.e2e/pkg-with-1-dep':
+        if (manifest.dependencies == null) {
+          throw new Error('@pnpm.e2e/pkg-with-1-dep expected to have a dependencies field')
+        }
+        manifest.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.0.0'
+        break
     }
     return manifest
   }

@@ -22,56 +22,56 @@ const keyNormalizer = (
   const range = parseRange(descriptor.range)
   const protocol = range.protocol
   switch (protocol) {
-  case 'npm:':
-  case 'file:':
-    descriptors.push(`${name}@${range.selector}`)
-    descriptors.push(`${name}@${protocol}${range.selector}`)
-    break
-  case 'git:':
-  case 'git+ssh:':
-  case 'git+http:':
-  case 'git+https:':
-  case 'github:':
-    if (range.source) {
-      descriptors.push(
-        `${name}@${protocol}${range.source}${
-          range.selector ? '#' + range.selector : ''
-        }`
-      )
-    } else {
-      descriptors.push(`${name}@${protocol}${range.selector}`)
-    }
-    break
-  case 'patch:':
-    if (range.source && range.selector.startsWith(BUILTIN_PLACEHOLDER)) {
-      descriptors.push(range.source)
-    } else {
-      descriptors.push(
-        `${name}@${protocol}${range.source}${
-          range.selector ? '#' + range.selector : ''
-        }`
-      )
-    }
-    break
-  case null:
-  case undefined:
-    if (range.source) {
-      descriptors.push(`${name}@${range.source}#${range.selector}`)
-    } else {
+    case 'npm:':
+    case 'file:':
       descriptors.push(`${name}@${range.selector}`)
-    }
-    break
-  case 'http:':
-  case 'https:':
-  case 'link:':
-  case 'portal:':
-  case 'exec:':
-  case 'workspace:':
-  case 'virtual:':
-  default:
+      descriptors.push(`${name}@${protocol}${range.selector}`)
+      break
+    case 'git:':
+    case 'git+ssh:':
+    case 'git+http:':
+    case 'git+https:':
+    case 'github:':
+      if (range.source) {
+        descriptors.push(
+          `${name}@${protocol}${range.source}${
+            range.selector ? '#' + range.selector : ''
+          }`
+        )
+      } else {
+        descriptors.push(`${name}@${protocol}${range.selector}`)
+      }
+      break
+    case 'patch:':
+      if (range.source && range.selector.startsWith(BUILTIN_PLACEHOLDER)) {
+        descriptors.push(range.source)
+      } else {
+        descriptors.push(
+          `${name}@${protocol}${range.source}${
+            range.selector ? '#' + range.selector : ''
+          }`
+        )
+      }
+      break
+    case null:
+    case undefined:
+      if (range.source) {
+        descriptors.push(`${name}@${range.source}#${range.selector}`)
+      } else {
+        descriptors.push(`${name}@${range.selector}`)
+      }
+      break
+    case 'http:':
+    case 'https:':
+    case 'link:':
+    case 'portal:':
+    case 'exec:':
+    case 'workspace:':
+    case 'virtual:':
+    default:
     // For user defined plugins
-    descriptors.push(`${name}@${protocol}${range.selector}`)
-    break
+      descriptors.push(`${name}@${protocol}${range.selector}`)
+      break
   }
   return descriptors
 }

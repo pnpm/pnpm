@@ -251,53 +251,53 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   let scripts: Record<string, string>
   let preset = '@pnpm/jest-config'
   switch (manifest.name) {
-  case '@pnpm/lockfile.types':
-    scripts = { ...manifest.scripts }
-    break
-  case '@pnpm/building.commands':
-  case '@pnpm/installing.deps-restorer':
-  case '@pnpm/installing.env-installer':
-  case '@pnpm/deps.inspection.outdated':
-  case '@pnpm/installing.package-requester':
-  case '@pnpm/cache.commands':
-  case '@pnpm/plugin-commands-import':
-  case '@pnpm/installing.commands':
-  case '@pnpm/deps.inspection.commands':
-  case '@pnpm/patching.commands':
-  case '@pnpm/releasing.commands':
-  case '@pnpm/exec.commands':
-  case '@pnpm/store.commands':
-  case '@pnpm/deps.compliance.commands':
-  case CLI_PKG_NAME:
-  case '@pnpm/installing.deps-installer': {
-    preset = '@pnpm/jest-config/with-registry'
-    scripts = {
-      ...(manifest.scripts as Record<string, string>),
-    }
-    scripts.test = 'pnpm run compile && pnpm run _test'
-    if (manifest.name === '@pnpm/installing.deps-installer') {
+    case '@pnpm/lockfile.types':
+      scripts = { ...manifest.scripts }
+      break
+    case '@pnpm/building.commands':
+    case '@pnpm/installing.deps-restorer':
+    case '@pnpm/installing.env-installer':
+    case '@pnpm/deps.inspection.outdated':
+    case '@pnpm/installing.package-requester':
+    case '@pnpm/cache.commands':
+    case '@pnpm/plugin-commands-import':
+    case '@pnpm/installing.commands':
+    case '@pnpm/deps.inspection.commands':
+    case '@pnpm/patching.commands':
+    case '@pnpm/releasing.commands':
+    case '@pnpm/exec.commands':
+    case '@pnpm/store.commands':
+    case '@pnpm/deps.compliance.commands':
+    case CLI_PKG_NAME:
+    case '@pnpm/installing.deps-installer': {
+      preset = '@pnpm/jest-config/with-registry'
+      scripts = {
+        ...(manifest.scripts as Record<string, string>),
+      }
+      scripts.test = 'pnpm run compile && pnpm run _test'
+      if (manifest.name === '@pnpm/installing.deps-installer') {
       // @pnpm/installing.deps-installer tests currently works only with port 7769 due to the usage of
       // the next package: pkg-with-tarball-dep-from-registry
-      scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${registryMockPortForCore} NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest`
-    } else {
-      scripts._test = 'cross-env NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest'
-    }
-    break
-  }
-  default:
-    if (fs.existsSync(path.join(dir, 'test'))) {
-      scripts = {
-        ...(manifest.scripts as Record<string, string>),
-        _test: 'cross-env NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest',
-        test: 'pnpm run compile && pnpm run _test',
+        scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${registryMockPortForCore} NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest`
+      } else {
+        scripts._test = 'cross-env NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest'
       }
-    } else {
-      scripts = {
-        ...(manifest.scripts as Record<string, string>),
-        test: 'pnpm run compile',
-      }
+      break
     }
-    break
+    default:
+      if (fs.existsSync(path.join(dir, 'test'))) {
+        scripts = {
+          ...(manifest.scripts as Record<string, string>),
+          _test: 'cross-env NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest',
+          test: 'pnpm run compile && pnpm run _test',
+        }
+      } else {
+        scripts = {
+          ...(manifest.scripts as Record<string, string>),
+          test: 'pnpm run compile',
+        }
+      }
+      break
   }
   if (manifest.name === CLI_PKG_NAME) {
     manifest.publishConfig!.tag = nextTag

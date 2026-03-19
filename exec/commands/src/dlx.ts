@@ -22,7 +22,7 @@ import { lexCompare } from '@pnpm/util.lex-comparator'
 import { safeExeca as execa } from 'execa'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
-import symlinkDir from 'symlink-dir'
+import { symlinkDir } from 'symlink-dir'
 
 import { makeEnv } from './makeEnv.js'
 
@@ -330,8 +330,8 @@ function resolveCatalogProtocol (catalogResolver: CatalogResolver, alias: string
   const result = catalogResolver({ alias, bareSpecifier })
 
   switch (result.type) {
-  case 'found': return result.resolution.specifier
-  case 'unused': return bareSpecifier
-  case 'misconfiguration': throw result.error
+    case 'found': return result.resolution.specifier
+    case 'unused': return bareSpecifier
+    case 'misconfiguration': throw result.error
   }
 }

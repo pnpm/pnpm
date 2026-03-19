@@ -7,7 +7,7 @@ import {
   rootLogger,
 } from '@pnpm/core-loggers'
 import type { DependenciesField } from '@pnpm/types'
-import symlinkDir from 'symlink-dir'
+import { symlinkDir } from 'symlink-dir'
 
 const DEP_TYPE_BY_DEPS_FIELD_NAME = {
   dependencies: 'prod',

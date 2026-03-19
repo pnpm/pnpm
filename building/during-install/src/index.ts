@@ -88,15 +88,15 @@ export async function buildModules<T extends string> (
           if (node.requiresBuild) {
             const allowed = allowBuild(node.name, node.version)
             switch (allowed) {
-            case false:
+              case false:
               // Explicitly disallowed - don't report as ignored
-              ignoreScripts = true
-              break
-            case undefined:
+                ignoreScripts = true
+                break
+              case undefined:
               // Not in allowlist - report as ignored
-              ignoredBuilds.add(node.depPath)
-              ignoreScripts = true
-              break
+                ignoredBuilds.add(node.depPath)
+                ignoreScripts = true
+                break
             }
             // allowed === true means build is permitted
           }

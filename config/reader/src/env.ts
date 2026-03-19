@@ -70,24 +70,24 @@ function parseValueByTypeUnion (schema: readonly UnionVariant[], envVar: string,
   for (const variant of sortUnionVariant(schema)) {
     let value: unknown
     switch (typeof variant) {
-    case 'string':
-      value = parseStringLiteral(variant, envVar)
-      break
-    case 'boolean':
-      value = parseBooleanLiteral(variant, envVar)
-      break
-    case 'function':
-      value = parseValueByConstructor(variant, envVar)
-      break
-    case 'object':
-      value = variant === null
-        ? parseNullLiteral(envVar)
-        : parseValueByModule(variant, envVar, env)
-      break
-    default: {
-      const _typeGuard: never = variant
-      throw new Error(`Invalid schema variant: ${JSON.stringify(_typeGuard)}`)
-    }
+      case 'string':
+        value = parseStringLiteral(variant, envVar)
+        break
+      case 'boolean':
+        value = parseBooleanLiteral(variant, envVar)
+        break
+      case 'function':
+        value = parseValueByConstructor(variant, envVar)
+        break
+      case 'object':
+        value = variant === null
+          ? parseNullLiteral(envVar)
+          : parseValueByModule(variant, envVar, env)
+        break
+      default: {
+        const _typeGuard: never = variant
+        throw new Error(`Invalid schema variant: ${JSON.stringify(_typeGuard)}`)
+      }
     }
     if (value !== undefined) return value
   }
@@ -115,9 +115,9 @@ function parseValueByConstructor (schema: ValueConstructor, envVar: string): unk
 
   if (schema === Boolean) {
     switch (envVar) {
-    case 'true': return true
-    case 'false': return false
-    default: return undefined
+      case 'true': return true
+      case 'false': return false
+      default: return undefined
     }
   }
 

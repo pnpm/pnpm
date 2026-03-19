@@ -515,29 +515,29 @@ export async function mutateModules (
         ...ctx.projects[project.rootDir],
       }
       switch (project.mutation) {
-      case 'uninstallSome':
-        projectsToInstall.push({
-          pruneDirectDependencies: false,
-          ...projectOpts,
-          removePackages: project.dependencyNames,
-          updatePackageManifest: true,
-          wantedDependencies: [],
-        })
-        break
-      case 'install': {
-        await installCase({
-          ...projectOpts,
-          updatePackageManifest: (projectOpts as InstallDepsMutation).updatePackageManifest ?? (projectOpts as InstallDepsMutation).update!,
-        })
-        break
-      }
-      case 'installSome': {
-        await installSome({
-          ...projectOpts as InstallSomeProject,
-          updatePackageManifest: (projectOpts as InstallSomeDepsMutation).updatePackageManifest !== false,
-        })
-        break
-      }
+        case 'uninstallSome':
+          projectsToInstall.push({
+            pruneDirectDependencies: false,
+            ...projectOpts,
+            removePackages: project.dependencyNames,
+            updatePackageManifest: true,
+            wantedDependencies: [],
+          })
+          break
+        case 'install': {
+          await installCase({
+            ...projectOpts,
+            updatePackageManifest: (projectOpts as InstallDepsMutation).updatePackageManifest ?? (projectOpts as InstallDepsMutation).update!,
+          })
+          break
+        }
+        case 'installSome': {
+          await installSome({
+            ...projectOpts as InstallSomeProject,
+            updatePackageManifest: (projectOpts as InstallSomeDepsMutation).updatePackageManifest !== false,
+          })
+          break
+        }
       }
     }
     /* eslint-enable no-await-in-loop */
@@ -676,14 +676,14 @@ export async function mutateModules (
           }
 
           switch (opts.catalogMode) {
-          case 'strict':
-            throw new CatalogVersionMismatchError({ catalogDep: `${wantedDep.alias}@${catalogDepSpecifier}`, wantedDep: `${wantedDep.alias}@${wantedDep.bareSpecifier}` })
+            case 'strict':
+              throw new CatalogVersionMismatchError({ catalogDep: `${wantedDep.alias}@${catalogDepSpecifier}`, wantedDep: `${wantedDep.alias}@${wantedDep.bareSpecifier}` })
 
-          case 'prefer':
-            logger.warn({
-              message: `Catalog version mismatch for "${wantedDep.alias}": using direct version "${wantedDep.bareSpecifier}" instead of catalog version "${catalogDepSpecifier}".`,
-              prefix: opts.lockfileDir,
-            })
+            case 'prefer':
+              logger.warn({
+                message: `Catalog version mismatch for "${wantedDep.alias}": using direct version "${wantedDep.bareSpecifier}" instead of catalog version "${catalogDepSpecifier}".`,
+                prefix: opts.lockfileDir,
+              })
           }
         }
       }

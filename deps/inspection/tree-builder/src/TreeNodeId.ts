@@ -20,17 +20,17 @@ interface TreeNodeIdPackage {
 
 export function serializeTreeNodeId (treeNodeId: TreeNodeId): string {
   switch (treeNodeId.type) {
-  case 'importer': {
+    case 'importer': {
     // Only serialize known fields from TreeNodeId. TypeScript is duck typed and
     // objects can have any number of unknown extra fields.
-    const { type, importerId } = treeNodeId
-    return JSON.stringify({ type, importerId })
-  }
-  case 'package': {
-    const { type, depPath } = treeNodeId
-    return JSON.stringify({ type, depPath })
-  }
-  default:
-    throw new Error(`Unknown TreeNodeId type: ${(treeNodeId as { type: string }).type}`)
+      const { type, importerId } = treeNodeId
+      return JSON.stringify({ type, importerId })
+    }
+    case 'package': {
+      const { type, depPath } = treeNodeId
+      return JSON.stringify({ type, depPath })
+    }
+    default:
+      throw new Error(`Unknown TreeNodeId type: ${(treeNodeId as { type: string }).type}`)
   }
 }

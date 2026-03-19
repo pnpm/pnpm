@@ -706,21 +706,21 @@ test('a dependency is not outdated if it is newer than the latest version', asyn
     currentLockfile: lockfile,
     getLatestManifest: async (packageName) => {
       switch (packageName) {
-      case 'foo':
-        return {
-          name: 'foo',
-          version: '0.1.0',
-        }
-      case 'foo2':
-        return {
-          name: 'foo2',
-          version: '1.0.0',
-        }
-      case 'foo3':
-        return {
-          name: 'foo3',
-          version: '2.0.0',
-        }
+        case 'foo':
+          return {
+            name: 'foo',
+            version: '0.1.0',
+          }
+        case 'foo2':
+          return {
+            name: 'foo2',
+            version: '1.0.0',
+          }
+        case 'foo3':
+          return {
+            name: 'foo3',
+            version: '2.0.0',
+          }
       }
       return null
     },

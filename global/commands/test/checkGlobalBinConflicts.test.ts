@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { checkGlobalBinConflicts } from '@pnpm/global.commands'
 import type { DependencyManifest } from '@pnpm/types'
-import symlinkDir from 'symlink-dir'
+import { symlinkDirSync } from 'symlink-dir'
 
 function makeTempDir (): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-test-'))
@@ -39,7 +39,7 @@ function createExistingGlobalPackage (
   )
   // Create hash symlink so scanGlobalPackages discovers it
   const safeAlias = opts.alias.replace(/\//g, '-')
-  symlinkDir.sync(installDir, path.join(globalDir, `fakehash-${safeAlias}`))
+  symlinkDirSync(installDir, path.join(globalDir, `fakehash-${safeAlias}`))
 }
 
 function makeNewPkg (

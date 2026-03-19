@@ -100,10 +100,10 @@ export async function filterProjectsBySelectorObjects<Pkg extends BaseProject> (
     useGlobDirFiltering?: boolean
   }
 ): Promise<{
-    allProjectsGraph: ProjectGraph<Pkg>
-    selectedProjectsGraph: ProjectGraph<Pkg>
-    unmatchedFilters: string[]
-  }> {
+  allProjectsGraph: ProjectGraph<Pkg>
+  selectedProjectsGraph: ProjectGraph<Pkg>
+  unmatchedFilters: string[]
+}> {
   const [prodProjectSelectors, allProjectSelectors] = partition(({ followProdDepsOnly }) => !!followProdDepsOnly, projectSelectors)
 
   if ((allProjectSelectors.length > 0) || (prodProjectSelectors.length > 0)) {
@@ -158,9 +158,9 @@ export async function filterWorkspaceProjects<Pkg extends BaseProject> (
     useGlobDirFiltering?: boolean
   }
 ): Promise<{
-    selectedProjectsGraph: ProjectGraph<Pkg>
-    unmatchedFilters: string[]
-  }> {
+  selectedProjectsGraph: ProjectGraph<Pkg>
+  unmatchedFilters: string[]
+}> {
   const [excludeSelectors, includeSelectors] = partition<ProjectSelector>(
     (selector: ProjectSelector) => selector.exclude === true,
     projectSelectors
@@ -189,9 +189,9 @@ async function _filterGraph<Pkg extends BaseProject> (
   },
   projectSelectors: ProjectSelector[]
 ): Promise<{
-    selected: ProjectRootDir[]
-    unmatchedFilters: string[]
-  }> {
+  selected: ProjectRootDir[]
+  unmatchedFilters: string[]
+}> {
   const cherryPickedProjects = [] as ProjectRootDir[]
   const walkedDependencies = new Set<ProjectRootDir>()
   const walkedDependents = new Set<ProjectRootDir>()

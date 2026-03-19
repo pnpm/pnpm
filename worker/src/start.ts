@@ -78,94 +78,94 @@ async function handleMessage (
   }
   try {
     switch (message.type) {
-    case 'extract': {
-      parentPort!.postMessage(addTarballToStore(message))
-      break
-    }
-    case 'link': {
-      parentPort!.postMessage(importPackage(message))
-      break
-    }
-    case 'add-dir': {
-      parentPort!.postMessage(addFilesFromDir(message))
-      break
-    }
-    case 'init-store': {
-      parentPort!.postMessage(initStore(message))
-      break
-    }
-    case 'readPkgFromCafs': {
-      const { storeDir, filesIndexFile, verifyStoreIntegrity, expectedPkg, strictStorePkgContentCheck } = message
-      const pkgFilesIndex = getStoreIndex(storeDir).get(filesIndexFile) as PackageFilesIndex | undefined
-      if (!pkgFilesIndex) {
-        parentPort!.postMessage({
-          status: 'success',
-          value: {
-            verified: false,
-            pkgFilesIndex: null,
-          },
-        })
-        return
+      case 'extract': {
+        parentPort!.postMessage(addTarballToStore(message))
+        break
       }
-      const warnings: string[] = []
-      if (expectedPkg) {
-        if (
-          (
-            pkgFilesIndex.manifest?.name != null &&
+      case 'link': {
+        parentPort!.postMessage(importPackage(message))
+        break
+      }
+      case 'add-dir': {
+        parentPort!.postMessage(addFilesFromDir(message))
+        break
+      }
+      case 'init-store': {
+        parentPort!.postMessage(initStore(message))
+        break
+      }
+      case 'readPkgFromCafs': {
+        const { storeDir, filesIndexFile, verifyStoreIntegrity, expectedPkg, strictStorePkgContentCheck } = message
+        const pkgFilesIndex = getStoreIndex(storeDir).get(filesIndexFile) as PackageFilesIndex | undefined
+        if (!pkgFilesIndex) {
+          parentPort!.postMessage({
+            status: 'success',
+            value: {
+              verified: false,
+              pkgFilesIndex: null,
+            },
+          })
+          return
+        }
+        const warnings: string[] = []
+        if (expectedPkg) {
+          if (
+            (
+              pkgFilesIndex.manifest?.name != null &&
             expectedPkg.name != null &&
             pkgFilesIndex.manifest.name.toLowerCase() !== expectedPkg.name.toLowerCase()
-          ) ||
+            ) ||
           (
             pkgFilesIndex.manifest?.version != null &&
             expectedPkg.version != null &&
             !equalOrSemverEqual(pkgFilesIndex.manifest.version, expectedPkg.version)
           )
-        ) {
-          const msg = 'Package name or version mismatch found while reading from the store.'
-          const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. Expected package: ${expectedPkg.name}@${expectedPkg.version}. Actual package in the store: ${pkgFilesIndex.manifest?.name}@${pkgFilesIndex.manifest?.version}.`
-          if (strictStorePkgContentCheck ?? true) {
-            throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', msg, {
-              hint: `${hint}\n\nIf you want to ignore this issue, set strictStorePkgContentCheck to false in your configuration`,
-            })
-          } else {
-            warnings.push(`${msg} ${hint}`)
+          ) {
+            const msg = 'Package name or version mismatch found while reading from the store.'
+            const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. Expected package: ${expectedPkg.name}@${expectedPkg.version}. Actual package in the store: ${pkgFilesIndex.manifest?.name}@${pkgFilesIndex.manifest?.version}.`
+            if (strictStorePkgContentCheck ?? true) {
+              throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', msg, {
+                hint: `${hint}\n\nIf you want to ignore this issue, set strictStorePkgContentCheck to false in your configuration`,
+              })
+            } else {
+              warnings.push(`${msg} ${hint}`)
+            }
           }
         }
-      }
-      let verifyResult: VerifyResult
-      if (verifyStoreIntegrity) {
-        verifyResult = checkPkgFilesIntegrity(storeDir, pkgFilesIndex)
-      } else {
-        verifyResult = buildFileMapsFromIndex(storeDir, pkgFilesIndex)
-      }
-      const bundledManifest = pkgFilesIndex.manifest
-      const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(bundledManifest, verifyResult.filesMap)
+        let verifyResult: VerifyResult
+        if (verifyStoreIntegrity) {
+          verifyResult = checkPkgFilesIntegrity(storeDir, pkgFilesIndex)
+        } else {
+          verifyResult = buildFileMapsFromIndex(storeDir, pkgFilesIndex)
+        }
+        const bundledManifest = pkgFilesIndex.manifest
+        const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(bundledManifest, verifyResult.filesMap)
 
-      parentPort!.postMessage({
-        status: 'success',
-        warnings,
-        value: {
-          verified: verifyResult.passed,
-          bundledManifest,
-          files: {
-            filesMap: verifyResult.filesMap,
-            sideEffectsMaps: verifyResult.sideEffectsMaps,
-            resolvedFrom: 'store',
-            requiresBuild,
+        parentPort!.postMessage({
+          status: 'success',
+          warnings,
+          value: {
+            verified: verifyResult.passed,
+            bundledManifest,
+            files: {
+              filesMap: verifyResult.filesMap,
+              sideEffectsMaps: verifyResult.sideEffectsMaps,
+              resolvedFrom: 'store',
+              requiresBuild,
+            },
           },
-        },
-      })
-      break
-    }
-    case 'symlinkAllModules': {
-      parentPort!.postMessage(symlinkAllModules(message))
-      break
-    }
-    case 'hardLinkDir': {
-      hardLinkDir(message.src, message.destDirs)
-      parentPort!.postMessage({ status: 'success' })
-      break
-    }
+        })
+        break
+      }
+      case 'symlinkAllModules': {
+        parentPort!.postMessage(symlinkAllModules(message))
+        break
+      }
+      case 'hardLinkDir': {
+        hardLinkDir(message.src, message.destDirs)
+        parentPort!.postMessage({ status: 'success' })
+        break
+      }
     }
   } catch (e: any) { // eslint-disable-line
     parentPort!.postMessage({

@@ -10,7 +10,7 @@ import type { DependenciesField, DepPath, HoistedDependencies, ProjectId } from 
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { isSubdir } from 'is-subdir'
 import { resolveLinkTarget } from 'resolve-link-target'
-import symlinkDir from 'symlink-dir'
+import { symlinkDir } from 'symlink-dir'
 
 export interface DependenciesGraphNode<T extends string> {
   dir: string

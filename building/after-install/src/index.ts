@@ -321,11 +321,11 @@ async function _rebuild (
   const _allowBuild = createAllowBuildFunction(opts) ?? (() => undefined)
   const allowBuild = (pkgName: string, version: string, depPath: DepPath) => {
     switch (_allowBuild(pkgName, version)) {
-    case true: return true
-    case undefined: {
-      ignoredPkgs.add(depPath)
-      break
-    }
+      case true: return true
+      case undefined: {
+        ignoredPkgs.add(depPath)
+        break
+      }
     }
     return false
   }

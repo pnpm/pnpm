@@ -73,19 +73,19 @@ Please unset the scriptShell option, or configure it to a .exe instead.
   m.scripts = { ...m.scripts }
 
   switch (stage) {
-  case 'start':
-    if (!m.scripts.start) {
-      if (!existsSync('server.js')) {
-        throw new PnpmError('NO_SCRIPT_OR_SERVER', 'Missing script start or file server.js')
+    case 'start':
+      if (!m.scripts.start) {
+        if (!existsSync('server.js')) {
+          throw new PnpmError('NO_SCRIPT_OR_SERVER', 'Missing script start or file server.js')
+        }
+        m.scripts.start = 'node server.js'
       }
-      m.scripts.start = 'node server.js'
-    }
-    break
-  case 'install':
-    if (!m.scripts.install && !m.scripts.preinstall) {
-      checkBindingGyp(opts.pkgRoot, m.scripts)
-    }
-    break
+      break
+    case 'install':
+      if (!m.scripts.install && !m.scripts.preinstall) {
+        checkBindingGyp(opts.pkgRoot, m.scripts)
+      }
+      break
   }
   if (opts.args?.length && m.scripts?.[stage]) {
     // It is impossible to quote a command line argument that contains newline for Windows cmd.
@@ -145,30 +145,30 @@ Please unset the scriptShell option, or configure it to a .exe instead.
 
   function npmLog (prefix: string, logId: string, stdtype: string, line?: number): void {
     switch (stdtype) {
-    case 'stdout':
-    case 'stderr':
-      lifecycleLogger.debug({
-        depPath: opts.depPath,
-        line: (line ?? 0).toString(),
-        stage,
-        stdio: stdtype,
-        wd: opts.pkgRoot,
-      })
-      return
-    case 'Returned: code:': {
-      if (opts.stdio === 'inherit') {
-        // Preventing the pnpm reporter from overriding the project's script output
+      case 'stdout':
+      case 'stderr':
+        lifecycleLogger.debug({
+          depPath: opts.depPath,
+          line: (line ?? 0).toString(),
+          stage,
+          stdio: stdtype,
+          wd: opts.pkgRoot,
+        })
         return
+      case 'Returned: code:': {
+        if (opts.stdio === 'inherit') {
+          // Preventing the pnpm reporter from overriding the project's script output
+          return
+        }
+        const code = line ?? 1
+        lifecycleLogger.debug({
+          depPath: opts.depPath,
+          exitCode: code,
+          optional,
+          stage,
+          wd: opts.pkgRoot,
+        })
       }
-      const code = line ?? 1
-      lifecycleLogger.debug({
-        depPath: opts.depPath,
-        exitCode: code,
-        optional,
-        stage,
-        wd: opts.pkgRoot,
-      })
-    }
     }
   }
 }

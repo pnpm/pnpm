@@ -41,21 +41,21 @@ export function reportMisc (
       (obj.level !== 'info' || !obj['prefix'] || obj['prefix'] === opts.cwd)),
     map((obj) => {
       switch (obj.level) {
-      case 'warn': {
-        return reportWarning(obj)
-      }
-      case 'error': {
-        const errorOutput = reportError(obj, opts.config)
-        if (!errorOutput) return Rx.NEVER
-        if (obj['prefix'] && obj['prefix'] !== opts.cwd) {
-          return Rx.of({
-            msg: `${obj['prefix'] as string}:` + os.EOL + errorOutput,
-          })
+        case 'warn': {
+          return reportWarning(obj)
         }
-        return Rx.of({ msg: errorOutput })
-      }
-      default:
-        return Rx.of({ msg: obj.message! })
+        case 'error': {
+          const errorOutput = reportError(obj, opts.config)
+          if (!errorOutput) return Rx.NEVER
+          if (obj['prefix'] && obj['prefix'] !== opts.cwd) {
+            return Rx.of({
+              msg: `${obj['prefix'] as string}:` + os.EOL + errorOutput,
+            })
+          }
+          return Rx.of({ msg: errorOutput })
+        }
+        default:
+          return Rx.of({ msg: obj.message! })
       }
     })
   )
