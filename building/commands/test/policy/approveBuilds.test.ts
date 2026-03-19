@@ -218,6 +218,47 @@ test('approve all builds with --all flag', async () => {
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 })
 
+test('approve builds via positional arguments', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+      '@pnpm.e2e/install-script-example': '*',
+    },
+  })
+
+  await execPnpmInstall()
+  const config = await getApproveBuildsConfig()
+
+  prompt.mockClear()
+  await approveBuilds.handler(config, ['@pnpm.e2e/pre-and-postinstall-scripts-example'])
+
+  expect(prompt).not.toHaveBeenCalled()
+
+  const workspaceManifest = readYamlFileSync<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
+  expect(workspaceManifest.allowBuilds).toStrictEqual({
+    '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+  })
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeFalsy()
+})
+
+test('positional arguments with unknown package throws error', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+    },
+  })
+
+  await execPnpmInstall()
+  const config = await getApproveBuildsConfig()
+
+  await expect(
+    approveBuilds.handler(config, ['@pnpm.e2e/nonexistent-package'])
+  ).rejects.toThrow('not awaiting approval')
+})
+
 test('should retain existing allowBuilds entries when approving builds', async () => {
   const temp = tempDir()
 

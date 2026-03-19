@@ -18,7 +18,7 @@ export const commandNames = ['approve-builds']
 export function help (): string {
   return renderHelp({
     description: 'Approve dependencies for running scripts during installation',
-    usages: [],
+    usages: ['pnpm approve-builds [pkg1 pkg2 ...]'],
     descriptionLists: [
       {
         title: 'Options',
@@ -45,7 +45,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
   return {}
 }
 
-export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOpts): Promise<void> {
+export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOpts, params: string[] = []): Promise<void> {
   if (opts.global) {
     throw new PnpmError(
       'APPROVE_BUILDS_NOT_SUPPORTED_WITH_GLOBAL',
@@ -66,7 +66,16 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
     return
   }
   let buildPackages: string[] = []
-  if (opts.all) {
+  if (params.length) {
+    const unknown = params.filter((p) => !automaticallyIgnoredBuilds.includes(p))
+    if (unknown.length) {
+      throw new PnpmError(
+        'APPROVE_BUILDS_UNKNOWN_PACKAGES',
+        `The following packages are not awaiting approval: ${unknown.join(', ')}`
+      )
+    }
+    buildPackages = sortUniqueStrings([...params])
+  } else if (opts.all) {
     buildPackages = sortUniqueStrings([...automaticallyIgnoredBuilds])
   } else {
     const { result } = await enquirer.prompt({
@@ -107,9 +116,9 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
     } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
     buildPackages = result.map(({ value }: { value: string }) => value)
   }
-  const ignoredPackages = automaticallyIgnoredBuilds.filter((automaticallyIgnoredBuild) => !buildPackages.includes(automaticallyIgnoredBuild))
   const allowBuilds: Record<string, boolean | string> = { ...opts.allowBuilds }
-  if (ignoredPackages.length) {
+  if (!params.length) {
+    const ignoredPackages = automaticallyIgnoredBuilds.filter((automaticallyIgnoredBuild) => !buildPackages.includes(automaticallyIgnoredBuild))
     for (const pkg of ignoredPackages) {
       allowBuilds[pkg] = false
     }
@@ -119,7 +128,7 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
       allowBuilds[pkg] = true
     }
   }
-  if (!opts.all) {
+  if (!opts.all && !params.length) {
     if (buildPackages.length) {
       const confirmed = await enquirer.prompt<{ build: boolean }>({
         type: 'confirm',
