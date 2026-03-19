@@ -302,6 +302,7 @@ catalog:
   typescript: 5.9.3
   typescript-eslint: ^8.53.0
   unified: ^11.0.5
+  vfile: ^6.0.0
   validate-npm-package-name: 7.0.2
   verdaccio: 6.3.2
   version-selector-type: ^3.0.0
@@ -438,9 +439,13 @@ packageExtensions:
   remark-parse:
     peerDependencies:
       unified: '*'
+    dependencies:
+      vfile: ^6.0.0
   remark-stringify:
     peerDependencies:
       unified: '*'
+    dependencies:
+      vfile: ^6.0.0
 
 patchedDependencies:
   '@pnpm/npm-lifecycle': __patches__/@pnpm__npm-lifecycle.patch

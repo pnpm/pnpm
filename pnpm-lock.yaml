@@ -901,6 +901,9 @@ catalogs:
     version-selector-type:
       specifier: ^3.0.0
       version: 3.0.0
+    vfile:
+      specifier: ^6.0.0
+      version: 6.0.3
     which:
       specifier: npm:@pnpm/which@^3.0.1
       version: 3.0.1
@@ -969,7 +972,7 @@ overrides:
   validator@<13.15.22: '>=13.15.22'
   yaml@<2.2.2: '>=2.2.2'
 
-packageExtensionsChecksum: sha256-1qxck4M+gjHKVxNHtl5ISCI+egyJsA5Hru0aRTpMm9I=
+packageExtensionsChecksum: sha256-87FOGilaYY8gmnjYsryuV/BI3ZuhaaJd/1fN2oxQwzY=
 
 pnpmfileChecksum: sha256-FyKtfMeHqu9zq1rXAr8P3zdA0NAXUioGdY0esg+SB5s=
 
@@ -1252,6 +1255,9 @@ importers:
       unified:
         specifier: 'catalog:'
         version: 11.0.5
+      vfile:
+        specifier: 'catalog:'
+        version: 6.0.3
     devDependencies:
       '@pnpm/get-release-text':
         specifier: workspace:*
@@ -11147,9 +11153,6 @@ packages:
   '@types/treeify@1.0.3':
     resolution: {integrity: sha512-hx0o7zWEUU4R2Amn+pjCBQQt23Khy/Dk56gQU5xi5jtPL1h83ACJCeFaB2M/+WO1AntvWrSoVnnCAfI1AQH4Cg==}
 
-  '@types/unist@2.0.11':
-    resolution: {integrity: sha512-CmBKiL6NNo/OqgmMn95Fk9Whlp2mtvIv+KNpQKN2F4SjvrEesubTRWGYSg+BnWZOnlCaSTU1sMpsBOzgbYhnsA==}
-
   '@types/unist@3.0.3':
     resolution: {integrity: sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q==}
 
@@ -19321,7 +19324,7 @@ snapshots:
 
   '@types/mdast@4.0.4':
     dependencies:
-      '@types/unist': 2.0.11
+      '@types/unist': 3.0.3
 
   '@types/micromatch@4.0.10':
     dependencies:
@@ -19417,8 +19420,6 @@ snapshots:
       '@types/node': 22.19.15
 
   '@types/treeify@1.0.3': {}
-
-  '@types/unist@2.0.11': {}
 
   '@types/unist@3.0.3': {}
 
@@ -24445,6 +24446,7 @@ snapshots:
       mdast-util-from-markdown: 2.0.3
       micromark-util-types: 2.0.2
       unified: 11.0.5
+      vfile: 6.0.3
     transitivePeerDependencies:
       - supports-color
 
@@ -24453,6 +24455,7 @@ snapshots:
       '@types/mdast': 4.0.4
       mdast-util-to-markdown: 2.1.2
       unified: 11.0.5
+      vfile: 6.0.3
 
   rename-overwrite@6.0.6:
     dependencies:
