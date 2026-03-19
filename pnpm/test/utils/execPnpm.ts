@@ -73,7 +73,7 @@ export function spawnPnpm (
       ...createEnv(opts),
       ...opts?.env,
     } as NodeJS.ProcessEnv,
-    stdio: 'inherit',
+    stdio: 'pipe',
   })
 }
 
@@ -83,13 +83,21 @@ export async function execPnpx (args: string[]): Promise<void> {
 
     const timeoutId = registerProcessTimeout(proc, DEFAULT_EXEC_PNPM_TIMEOUT, reject)
 
+    const output: Buffer[] = []
+    proc.stdout?.on('data', (chunk: Buffer) => {
+      output.push(chunk)
+    })
+    proc.stderr?.on('data', (chunk: Buffer) => {
+      output.push(chunk)
+    })
+
     proc.on('error', reject)
 
     proc.on('close', (code: number) => {
       clearTimeout(timeoutId)
 
       if (code > 0) {
-        reject(new Error(`Exit code ${code}`))
+        reject(new Error(`Exit code ${code}\n\n${Buffer.concat(output).toString()}`))
       } else {
         resolve()
       }
@@ -100,7 +108,7 @@ export async function execPnpx (args: string[]): Promise<void> {
 export function spawnPnpx (args: string[], opts?: { storeDir?: string }): NodeChildProcess {
   return crossSpawn.spawn(process.execPath, [pnpxBinLocation, ...args], {
     env: createEnv(opts),
-    stdio: 'inherit',
+    stdio: 'pipe',
   })
 }
 
@@ -129,7 +137,7 @@ export function execPnpmSync (
       ...createEnv(),
       ...opts?.env,
     } as NodeJS.ProcessEnv,
-    stdio: opts?.stdio,
+    stdio: opts?.stdio ?? 'pipe',
     timeout: opts?.timeout ?? DEFAULT_EXEC_PNPM_TIMEOUT,
   })
   if (execResult.error) throw execResult.error
