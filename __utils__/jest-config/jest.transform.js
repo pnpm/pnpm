@@ -7,7 +7,18 @@ import { transformSync } from '@babel/core'
 
 export default {
   process(sourceText, sourcePath) {
-    const code = stripTypeScriptTypes(sourceText, { mode: 'strip' })
+    const code = stripTypeScriptTypes(sourceText, {
+      // The stripTypeScriptTypes function supports a lightweight 'strip' mode.
+      // Unfortunately 'strip' doesn't support source map generation. Use
+      // 'transform' instead to generate inline source maps.
+      //
+      // Source maps are important for enabling interactive debuggers to match
+      // type-stripped test files to their location on disk. For details, see:
+      // https://github.com/pnpm/pnpm/pull/11024
+      mode: 'transform',
+      sourceMap: true,
+      sourceUrl: sourcePath
+    })
 
     // Using the presence of the DisposableStack global to feature detect
     // whether the current Node.js runtime supports explicit resource
