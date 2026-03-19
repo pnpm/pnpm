@@ -109,7 +109,7 @@ catalog:
   '@types/ini': 4.1.1
   '@types/is-gzip': 2.0.2
   '@types/is-windows': ^1.0.2
-  '@types/isexe': 2.0.2
+  '@types/isexe': 2.0.4
   '@types/jest': ^30.0.0
   '@types/js-yaml': ^4.0.9
   '@types/libnpmpublish': ^9.0.1
@@ -153,7 +153,7 @@ catalog:
   ansi-diff: ^1.2.0
   archy: ^1.0.0
   better-path-resolve: 2.0.0
-  bin-links: ^5.0.0
+  bin-links: ^6.0.0
   bole: ^5.0.17
   boxen: npm:@zkochan/boxen@5.1.2
   c8: ^11.0.0
@@ -164,7 +164,7 @@ catalog:
   chalk: ^5.6.0
   ci-info: ^4.3.0
   cli-columns: ^4.0.0
-  cli-truncate: ^4.0.0
+  cli-truncate: ^5.2.0
   cmd-extension: ^2.0.0
   comver-to-semver: ^2.0.0
   concurrently: 9.2.1
@@ -172,7 +172,7 @@ catalog:
   cross-spawn: ^7.0.6
   cspell: 9.7.0
   deep-require-cwd: 1.0.0
-  delay: ^6.0.0
+  delay: ^7.0.0
   detect-indent: 7.0.2
   detect-libc: ^2.0.3
   didyoumean2: ^7.0.4
@@ -193,8 +193,8 @@ catalog:
   exists-link: 2.0.0
   fast-deep-equal: ^3.1.3
   fast-glob: ^3.3.3
-  filenamify: ^6.0.0
-  find-up: ^7.0.0
+  filenamify: ^7.0.1
+  find-up: ^8.0.0
   fs-extra: ^11.3.1
   fuse-native: ^2.2.6
   get-npm-tarball-url: ^2.1.0
@@ -212,7 +212,7 @@ catalog:
   is-inner-link: ^5.0.0
   is-subdir: ^2.0.0
   is-windows: ^1.0.2
-  isexe: 2.0.0
+  isexe: 4.0.0
   jest: ^30.2.0
   jest-diff: ^30.1.1
   js-yaml: npm:@zkochan/js-yaml@0.0.11
@@ -233,7 +233,7 @@ catalog:
   nm-prune: ^5.0.0
   nock: 14.0.11
   node-fetch: ^3.3.2
-  normalize-newline: 4.1.0
+  normalize-newline: 5.0.0
   normalize-package-data: ^8.0.0
   normalize-path: ^3.0.0
   normalize-registry-url: 2.0.1
@@ -245,7 +245,7 @@ catalog:
   p-limit: ^7.1.0
   p-map-values: ^0.1.0
   p-memoize: 8.0.0
-  p-queue: ^8.1.0
+  p-queue: ^9.1.0
   parse-json: ^8.3.0
   parse-npm-tarball-url: ^4.0.0
   path-absolute: ^2.0.0
@@ -258,7 +258,7 @@ catalog:
   pretty-ms: ^9.2.0
   promise-share: ^2.0.0
   proxyquire: ^2.1.3
-  ps-list: ^8.1.1
+  ps-list: ^9.0.0
   qrcode-terminal: ^0.12.0
   ramda: npm:@pnpm/ramda@0.28.1
   read-ini-file: 5.0.0
@@ -287,14 +287,14 @@ catalog:
   split2: ^4.2.0
   ssri: 13.0.1
   stacktracey: ^2.1.8
-  string-length: ^6.0.0
+  string-length: ^7.0.1
   strip-bom: ^5.0.0
   strip-comments-strings: 1.2.0
-  symlink-dir: ^7.0.0
+  symlink-dir: ^9.0.0
   tar: ^7.5.10
   tar-stream: ^3.1.7
   tempy: 3.2.0
-  terminal-link: ^4.0.0
+  terminal-link: ^5.0.0
   tinyglobby: ^0.2.14
   touch: 3.1.1
   tree-kill: ^1.2.2
