@@ -19,7 +19,7 @@ import isWindows from 'is-windows'
 import normalizePath from 'normalize-path'
 import { groupBy, isEmpty, partition, unnest } from 'ramda'
 import semver from 'semver'
-import symlinkDir from 'symlink-dir'
+import { symlinkDir } from 'symlink-dir'
 
 import { getBinNodePaths } from './getBinNodePaths.js'
 

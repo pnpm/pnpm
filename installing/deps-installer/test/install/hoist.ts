@@ -15,7 +15,7 @@ import { addDistTag } from '@pnpm/registry-mock'
 import type { DepPath, ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import { resolveLinkTarget } from 'resolve-link-target'
-import symlinkDir from 'symlink-dir'
+import { symlinkDir } from 'symlink-dir'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { testDefaults } from '../utils/index.js'

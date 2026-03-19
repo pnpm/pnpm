@@ -4,7 +4,7 @@ import { addDependenciesToPackage, install } from '@pnpm/installing.deps-install
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
-import symlinkDir from 'symlink-dir'
+import { symlinkDirSync } from 'symlink-dir'
 
 import { testDefaults } from './utils/index.js'
 
@@ -44,7 +44,7 @@ test('relative link is not rewritten by argumentless install', async () => {
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   f.copy(linkedPkgName, linkedPkgPath)
-  symlinkDir.sync(linkedPkgPath, path.resolve('node_modules/@pnpm.e2e/hello-world-js-bin'))
+  symlinkDirSync(linkedPkgPath, path.resolve('node_modules/@pnpm.e2e/hello-world-js-bin'))
 
   await install({}, testDefaults())
 
@@ -61,7 +61,7 @@ test('relative link is rewritten by named installation to regular dependency', a
   const opts = testDefaults({ fastUnpack: false })
 
   f.copy(linkedPkgName, linkedPkgPath)
-  symlinkDir.sync(linkedPkgPath, path.resolve('node_modules/@pnpm.e2e/hello-world-js-bin'))
+  symlinkDirSync(linkedPkgPath, path.resolve('node_modules/@pnpm.e2e/hello-world-js-bin'))
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/hello-world-js-bin'], opts)
 

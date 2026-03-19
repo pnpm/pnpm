@@ -22,7 +22,7 @@ import { lexCompare } from '@pnpm/util.lex-comparator'
 import { safeExeca as execa } from 'execa'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
-import symlinkDir from 'symlink-dir'
+import { symlinkDir } from 'symlink-dir'
 
 import { makeEnv } from './makeEnv.js'
 

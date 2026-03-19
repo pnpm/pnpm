@@ -857,8 +857,8 @@ catalogs:
       specifier: 1.2.0
       version: 1.2.0
     symlink-dir:
-      specifier: ^9.0.0
-      version: 9.0.0
+      specifier: ^10.0.0
+      version: 10.0.0
     tar:
       specifier: ^7.5.10
       version: 7.5.11
@@ -1460,7 +1460,7 @@ importers:
         version: 7.7.4
       symlink-dir:
         specifier: 'catalog:'
-        version: 9.0.0
+        version: 10.0.0
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -2514,7 +2514,7 @@ importers:
         version: 3.0.4
       symlink-dir:
         specifier: 'catalog:'
-        version: 9.0.0
+        version: 10.0.0
       write-yaml-file:
         specifier: 'catalog:'
         version: 6.0.0
@@ -3160,7 +3160,7 @@ importers:
         version: safe-execa@0.3.0
       symlink-dir:
         specifier: 'catalog:'
-        version: 9.0.0
+        version: 10.0.0
       write-yaml-file:
         specifier: 'catalog:'
         version: 6.0.0
@@ -3526,7 +3526,7 @@ importers:
         version: 7.7.4
       symlink-dir:
         specifier: 'catalog:'
-        version: 9.0.0
+        version: 10.0.0
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -3853,7 +3853,7 @@ importers:
         version: 2.0.0
       symlink-dir:
         specifier: 'catalog:'
-        version: 9.0.0
+        version: 10.0.0
       which:
         specifier: 'catalog:'
         version: '@pnpm/which@3.0.1'
@@ -4492,7 +4492,7 @@ importers:
         version: link:../../core/types
       symlink-dir:
         specifier: 'catalog:'
-        version: 9.0.0
+        version: 10.0.0
     devDependencies:
       '@pnpm/fs.symlink-dependency':
         specifier: workspace:*
@@ -4553,7 +4553,7 @@ importers:
         version: 2.0.0
       symlink-dir:
         specifier: 'catalog:'
-        version: 9.0.0
+        version: 10.0.0
     devDependencies:
       '@pnpm/global.commands':
         specifier: workspace:*
@@ -5004,7 +5004,7 @@ importers:
         version: 3.0.0
       symlink-dir:
         specifier: 'catalog:'
-        version: 9.0.0
+        version: 10.0.0
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
@@ -5392,7 +5392,7 @@ importers:
         version: 3.0.0
       symlink-dir:
         specifier: 'catalog:'
-        version: 9.0.0
+        version: 10.0.0
       write-json-file:
         specifier: 'catalog:'
         version: 7.0.0
@@ -5784,7 +5784,7 @@ importers:
         version: 2.1.0
       symlink-dir:
         specifier: 'catalog:'
-        version: 9.0.0
+        version: 10.0.0
     devDependencies:
       '@pnpm/installing.env-installer':
         specifier: workspace:*
@@ -5867,7 +5867,7 @@ importers:
         version: 3.0.0
       symlink-dir:
         specifier: 'catalog:'
-        version: 9.0.0
+        version: 10.0.0
     devDependencies:
       '@pnpm/installing.linking.hoist':
         specifier: workspace:*
@@ -7355,7 +7355,7 @@ importers:
         version: 1.1.0
       symlink-dir:
         specifier: 'catalog:'
-        version: 9.0.0
+        version: 10.0.0
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
@@ -8152,7 +8152,7 @@ importers:
         version: 7.7.1
       symlink-dir:
         specifier: 'catalog:'
-        version: 9.0.0
+        version: 10.0.0
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
@@ -8391,7 +8391,7 @@ importers:
         version: 13.0.1
       symlink-dir:
         specifier: 'catalog:'
-        version: 9.0.0
+        version: 10.0.0
     devDependencies:
       '@pnpm/installing.client':
         specifier: workspace:*
@@ -15932,14 +15932,13 @@ packages:
     resolution: {integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==}
     engines: {node: '>= 0.4'}
 
+  symlink-dir@10.0.0:
+    resolution: {integrity: sha512-D1YbDvk0NckoAPhEngbxIb7ukDeJza0w0dVFSoQ7mI3A+31/MsxIf0xtVDpoZk69l9Z+xL0Z767ehAd29+DAsQ==}
+    engines: {node: '>=22.13'}
+
   symlink-dir@6.0.5:
     resolution: {integrity: sha512-xkihq5JPUZqxZbUOrz+fJprx5KZD0vPmesImGpoqFpPwmaFBpxBB4sl8GEwG2tE5/XVekSZw5I1D5NiwNvtwdQ==}
     engines: {node: '>=18.12'}
-    hasBin: true
-
-  symlink-dir@9.0.0:
-    resolution: {integrity: sha512-3i39G70eXo9POjx9RnYAgymfUO3AFrezABaJq0Sh+muMCR3Lx7B9KQR2uWMY+yc1QCwhEelVCGS6N+sR3aKCZg==}
-    engines: {node: '>=20.19'}
     hasBin: true
 
   synckit@0.11.12:
@@ -25012,12 +25011,12 @@ snapshots:
 
   supports-preserve-symlinks-flag@1.0.0: {}
 
-  symlink-dir@6.0.5:
+  symlink-dir@10.0.0:
     dependencies:
       better-path-resolve: 1.0.0
       rename-overwrite: 6.0.6
 
-  symlink-dir@9.0.0:
+  symlink-dir@6.0.5:
     dependencies:
       better-path-resolve: 1.0.0
       rename-overwrite: 6.0.6

@@ -15,7 +15,7 @@ import {
 import { readPackageJsonFromDirRawSync } from '@pnpm/pkg-manifest.reader'
 import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import { isSubdir } from 'is-subdir'
-import symlinkDir from 'symlink-dir'
+import { symlinkDir } from 'symlink-dir'
 
 import { installGlobalPackages } from './installGlobalPackages.js'
 

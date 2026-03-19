@@ -18,7 +18,7 @@ import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import normalizePath from 'normalize-path'
 import { readYamlFileSync } from 'read-yaml-file'
-import symlinkDir from 'symlink-dir'
+import { symlinkDir } from 'symlink-dir'
 
 import { testDefaults } from '../utils/index.js'
 

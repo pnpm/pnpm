@@ -292,7 +292,7 @@ catalog:
   string-length: ^7.0.1
   strip-bom: ^5.0.0
   strip-comments-strings: 1.2.0
-  symlink-dir: ^9.0.0
+  symlink-dir: ^10.0.0
   tar: ^7.5.10
   tar-stream: ^3.1.7
   # tempy >=3.1.0 uses temp-dir 3.x which has an async fs.realpath() in its
@@ -378,6 +378,7 @@ minimumReleaseAgeExclude:
   - run-groups
   - safe-execa
   - safe-promise-defer
+  - symlink-dir
   - tar@7.5.10
   - which-pm
   - which-pm-runs
