@@ -90,7 +90,6 @@
     "@pnpm/config.commands": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/hooks.pnpmfile": "workspace:*",
-    "@pnpm/installing.env-installer": "workspace:*",
     "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
