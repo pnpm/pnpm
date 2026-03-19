@@ -3,7 +3,7 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import type { EnvLockfile, LockfileFile } from '@pnpm/lockfile.types'
+import type { EnvLockfile } from '@pnpm/lockfile.types'
 import yaml from 'js-yaml'
 import writeFileAtomic from 'write-file-atomic'
 
@@ -58,7 +58,7 @@ export async function readEnvLockfile (rootDir: string): Promise<EnvLockfile | n
 
 export async function writeEnvLockfile (rootDir: string, lockfile: EnvLockfile): Promise<void> {
   const lockfilePath = path.join(rootDir, WANTED_LOCKFILE)
-  const sorted = sortLockfileKeys(lockfile as unknown as LockfileFile)
+  const sorted = sortLockfileKeys(lockfile)
   const envYaml = lockfileYamlDump(sorted)
 
   // Read existing main lockfile document to preserve it

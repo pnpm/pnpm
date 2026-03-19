@@ -165,13 +165,15 @@ export type PackageBin = string | { [name: string]: string }
  */
 export type ResolvedDependencies = Record<string, string>
 
+export interface EnvImporterSnapshot {
+  configDependencies: Record<string, SpecifierAndResolution>
+  packageManagerDependencies?: Record<string, SpecifierAndResolution>
+}
+
 export interface EnvLockfile {
   lockfileVersion: string
-  importers: {
-    '.': {
-      configDependencies: Record<string, SpecifierAndResolution>
-      packageManagerDependencies?: Record<string, SpecifierAndResolution>
-    }
+  importers: Record<string, EnvImporterSnapshot> & {
+    '.': EnvImporterSnapshot
   }
   packages: Record<string, LockfilePackageInfo>
   snapshots: Record<string, LockfilePackageSnapshot>
