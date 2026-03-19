@@ -1,5 +1,6 @@
 import { PnpmError } from '@pnpm/error'
-import { type CommandDefinition } from './index.js'
+
+import type { CommandDefinition } from './index.js'
 
 const NOT_IMPLEMENTED_COMMANDS = [
   'access',
