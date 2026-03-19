@@ -1,7 +1,7 @@
 import path from 'node:path'
 import util from 'node:util'
 
-import { type ConfigFileKey, isConfigFileKey, isIniConfigKey, types } from '@pnpm/config.reader'
+import { type ConfigFileKey, isConfigFileKey, types } from '@pnpm/config.reader'
 import { GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { runNpm, type RunNPMOptions } from '@pnpm/exec.run-npm'
@@ -15,34 +15,48 @@ import { writeIniFile } from 'write-ini-file'
 
 import type { ConfigCommandOptions } from './ConfigCommandOptions.js'
 import { getConfigFileInfo } from './getConfigFileInfo.js'
+import { settingShouldFallBackToNpm } from './settingShouldFallBackToNpm.js'
 
 export async function configSet (opts: ConfigCommandOptions, key: string, valueParam: string | null): Promise<void> {
-  let isIniKey = isIniConfigKey(key)
-  if (!isIniKey) {
+  let shouldFallbackToNpm = settingShouldFallBackToNpm(key)
+  if (!shouldFallbackToNpm) {
     key = validateSimpleKey(key)
-    isIniKey = isIniConfigKey(key)
+    shouldFallbackToNpm = settingShouldFallBackToNpm(key)
   }
   let value: unknown = valueParam
   if (valueParam != null && opts.json) {
     value = JSON.parse(valueParam)
   }
 
-  if (isIniKey) {
-    if (value != null && typeof value !== 'string') {
+  if (shouldFallbackToNpm) {
+    if (opts.global) {
+      const configPath = path.join(opts.configDir, 'rc')
+      const runNpmOpts: RunNPMOptions = {
+        location: 'user',
+        userConfigPath: configPath,
+      }
+      const _runNpm = runNpm.bind(null, opts.npmPath)
+      if (value == null) {
+        _runNpm(['config', 'delete', key], runNpmOpts)
+        return
+      }
+      if (typeof value === 'string') {
+        _runNpm(['config', 'set', `${key}=${value}`], runNpmOpts)
+        return
+      }
       throw new PnpmError('CONFIG_SET_AUTH_NON_STRING', `Cannot set ${key} to a non-string value (${JSON.stringify(value)})`)
-    }
-    const configPath = opts.global
-      ? path.join(opts.configDir, 'rc')
-      : path.join(opts.dir, '.npmrc')
-    const settings = await safeReadIniFile(configPath)
-    if (value == null) {
-      if (settings[key] == null) return
-      delete settings[key]
     } else {
-      settings[key] = value
+      const configPath = path.join(opts.dir, '.npmrc')
+      const settings = await safeReadIniFile(configPath)
+      if (value == null) {
+        if (settings[key] == null) return
+        delete settings[key]
+      } else {
+        settings[key] = value
+      }
+      await writeIniFile(configPath, settings)
+      return
     }
-    await writeIniFile(configPath, settings)
-    return
   }
 
   const { configDir, configFileName } = getConfigFileInfo(key, opts)
