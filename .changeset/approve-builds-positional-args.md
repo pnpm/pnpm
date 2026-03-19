@@ -1,9 +1,10 @@
 ---
 "@pnpm/building.commands": minor
-"@pnpm/building.policy": minor
-"@pnpm/building.during-install": minor
-"@pnpm/types": minor
+"@pnpm/installing.deps-installer": patch
+"@pnpm/installing.commands": minor
 "pnpm": minor
 ---
 
-Allow `pnpm approve-builds` to receive positional arguments for approving or denying packages without the interactive prompt. Prefix a package name with `!` to deny it (e.g. `pnpm approve-builds foo !bar`). Packages not explicitly mentioned are set to `warn` — their builds are skipped but `strictDepBuilds` will not fail, only print a warning.
+Allow `pnpm approve-builds` to receive positional arguments for approving the listed packages without the interactive prompt.
+
+During install, packages with ignored builds that are not yet listed in `allowBuilds` are automatically added as `pending`. This makes them visible in `pnpm-workspace.yaml` so users can manually change them to `true` or `false` without running `pnpm approve-builds`.

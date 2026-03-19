@@ -92,11 +92,6 @@ export async function buildModules<T extends string> (
               // Explicitly disallowed - don't report as ignored
               ignoreScripts = true
               break
-            case 'warn':
-              // Don't build, but only warn (don't fail with strictDepBuilds)
-              warn(`Skipping build of ${node.name}@${node.version} — not yet approved. Run "pnpm approve-builds" to approve.`)
-              ignoreScripts = true
-              break
             case undefined:
               // Not in allowlist - report as ignored
               ignoredBuilds.add(node.depPath)

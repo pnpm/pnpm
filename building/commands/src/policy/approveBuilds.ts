@@ -20,7 +20,7 @@ export function help (): string {
     description: 'Approve dependencies for running scripts during installation',
     usages: [
       'pnpm approve-builds',
-      'pnpm approve-builds [<pkg> ...] [!<pkg> ...]',
+      'pnpm approve-builds [<pkg> ...]',
     ],
     descriptionLists: [
       {
@@ -68,19 +68,16 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
     globalInfo('There are no packages awaiting approval')
     return
   }
-  const denied = params.filter((p) => p.startsWith('!')).map((p) => p.slice(1))
-  const approved = params.filter((p) => !p.startsWith('!'))
   let buildPackages: string[] = []
   if (params.length) {
-    const allMentioned = [...approved, ...denied]
-    const unknown = allMentioned.filter((p) => !automaticallyIgnoredBuilds.includes(p))
+    const unknown = params.filter((p) => !automaticallyIgnoredBuilds.includes(p))
     if (unknown.length) {
       throw new PnpmError(
         'APPROVE_BUILDS_UNKNOWN_PACKAGES',
         `The following packages are not awaiting approval: ${unknown.join(', ')}`
       )
     }
-    buildPackages = sortUniqueStrings([...approved])
+    buildPackages = sortUniqueStrings([...params])
   } else if (opts.all) {
     buildPackages = sortUniqueStrings([...automaticallyIgnoredBuilds])
   } else {
@@ -125,11 +122,7 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
   const ignoredPackages = automaticallyIgnoredBuilds.filter((automaticallyIgnoredBuild) => !buildPackages.includes(automaticallyIgnoredBuild))
   const allowBuilds: Record<string, boolean | string> = { ...opts.allowBuilds }
   for (const pkg of ignoredPackages) {
-    if (params.length && !denied.includes(pkg)) {
-      allowBuilds[pkg] ??= 'warn'
-    } else {
-      allowBuilds[pkg] = false
-    }
+    allowBuilds[pkg] = false
   }
   if (buildPackages.length) {
     for (const pkg of buildPackages) {

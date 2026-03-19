@@ -11,7 +11,6 @@ export function createAllowBuildFunction (
   if (opts.allowBuilds != null) {
     const allowedBuilds = new Set<string>()
     const disallowedBuilds = new Set<string>()
-    const warnBuilds = new Set<string>()
     for (const [pkg, value] of Object.entries(opts.allowBuilds)) {
       switch (value) {
       case true:
@@ -20,14 +19,10 @@ export function createAllowBuildFunction (
       case false:
         disallowedBuilds.add(pkg)
         break
-      case 'warn':
-        warnBuilds.add(pkg)
-        break
       }
     }
     const expandedAllowed = expandPackageVersionSpecs(Array.from(allowedBuilds))
     const expandedDisallowed = expandPackageVersionSpecs(Array.from(disallowedBuilds))
-    const expandedWarn = expandPackageVersionSpecs(Array.from(warnBuilds))
     return (pkgName, version) => {
       const pkgWithVersion = `${pkgName}@${version}`
       if (expandedDisallowed.has(pkgName) || expandedDisallowed.has(pkgWithVersion)) {
@@ -35,9 +30,6 @@ export function createAllowBuildFunction (
       }
       if (expandedAllowed.has(pkgName) || expandedAllowed.has(pkgWithVersion)) {
         return true
-      }
-      if (expandedWarn.has(pkgName) || expandedWarn.has(pkgWithVersion)) {
-        return 'warn'
       }
       return undefined
     }

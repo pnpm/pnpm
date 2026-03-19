@@ -10,7 +10,6 @@ import { checkDepsStatus } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
-  IgnoredBuildsError,
   install,
   mutateModulesInSingleProject,
   type MutateModulesOptions,
@@ -39,6 +38,7 @@ import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writ
 
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
+import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
 import {
   type CommandFullName,
   createMatcher,
@@ -355,9 +355,7 @@ when running add/update with the --workspace option')
         configDependencies: opts.configDependencies,
       })
     }
-    if (opts.strictDepBuilds && ignoredBuilds?.size) {
-      throw new IgnoredBuildsError(ignoredBuilds)
-    }
+    await handleIgnoredBuilds(opts, ignoredBuilds)
     return
   }
 
@@ -376,9 +374,7 @@ when running add/update with the --workspace option')
       }),
     ])
   }
-  if (opts.strictDepBuilds && ignoredBuilds?.size) {
-    throw new IgnoredBuildsError(ignoredBuilds)
-  }
+  await handleIgnoredBuilds(opts, ignoredBuilds)
 
   if (opts.linkWorkspacePackages && opts.workspaceDir) {
     const { selectedProjectsGraph } = await filterProjectsBySelectorObjects(allProjects, [

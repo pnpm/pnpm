@@ -20,7 +20,6 @@ import { requireHooks } from '@pnpm/hooks.pnpmfile'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
   addDependenciesToPackage,
-  IgnoredBuildsError,
   install,
   type InstallOptions,
   type MutatedProject,
@@ -52,6 +51,7 @@ import pLimit from 'p-limit'
 
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
+import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
@@ -306,9 +306,7 @@ export async function recursive (
       }))
       await Promise.all(promises)
     }
-    if (opts.strictDepBuilds && ignoredBuilds?.size) {
-      throw new IgnoredBuildsError(ignoredBuilds)
-    }
+    await handleIgnoredBuilds(opts, ignoredBuilds)
     return true
   }
 
@@ -425,9 +423,7 @@ export async function recursive (
             Object.assign(updatedCatalogs, newCatalogsAddition)
           }
         }
-        if (opts.strictDepBuilds && ignoredBuilds?.size) {
-          throw new IgnoredBuildsError(ignoredBuilds)
-        }
+        await handleIgnoredBuilds(opts, ignoredBuilds)
         result[rootDir].status = 'passed'
       } catch (err: any) { // eslint-disable-line
         logger.info(err)
