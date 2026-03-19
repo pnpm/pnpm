@@ -24,7 +24,7 @@ import { isEmpty } from 'ramda'
 import semver from 'semver'
 
 import { checkForUpdates } from './checkForUpdates.js'
-import { pnpmCmds, rcOptionsTypes, skipPackageManagerCheckForCommand } from './cmd/index.js'
+import { NOT_IMPLEMENTED_COMMAND_SET, pnpmCmds, rcOptionsTypes, skipPackageManagerCheckForCommand } from './cmd/index.js'
 import { formatUnknownOptionsError } from './formatError.js'
 import { getConfig, installConfigDepsAndLoadHooks } from './getConfig.js'
 import { parseCliArgs } from './parseCliArgs.js'
@@ -79,7 +79,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     return
   }
 
-  if (unknownOptions.size > 0 && !fallbackCommandUsed) {
+  if (unknownOptions.size > 0 && !fallbackCommandUsed && !(cmd && NOT_IMPLEMENTED_COMMAND_SET.has(cmd))) {
     const unknownOptionsArray = Array.from(unknownOptions.keys())
     if (unknownOptionsArray.every((option) => DEPRECATED_OPTIONS.has(option))) {
       let deprecationMsg = `${chalk.bgYellow.black('\u2009WARN\u2009')}`
