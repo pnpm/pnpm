@@ -47,7 +47,7 @@ export const notImplementedCommandDefinitions: CommandDefinition[] = NOT_IMPLEME
     rcOptionsTypes: () => ({}),
     help: () => `pnpm ${commandName} is not yet implemented`,
     handler: async () => {
-      throw new PnpmError('NOT_IMPLEMENTED', `The "${commandName}" command is not yet implemented in pnpm`)
+      throw new PnpmError('NOT_IMPLEMENTED', `The "${commandName}" command is not yet implemented in pnpm. Use the npm CLI directly: npm ${commandName}`)
     },
     skipPackageManagerCheck: true,
   })
