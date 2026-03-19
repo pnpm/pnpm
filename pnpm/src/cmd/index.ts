@@ -30,7 +30,7 @@ import * as clean from './clean.js'
 import * as ci from './cleanInstall.js'
 import { createHelp } from './help.js'
 import * as installTest from './installTest.js'
-import { notImplementedCommandDefinitions } from './notImplemented.js'
+import { NOT_IMPLEMENTED_COMMAND_SET, notImplementedCommandDefinitions } from './notImplemented.js'
 import * as recursive from './recursive.js'
 import * as root from './root.js'
 
@@ -234,4 +234,4 @@ export function getCommandFullName (commandName: string): string | null {
     (handlerByCommandName[commandName] ? commandName : null)
 }
 
-export { rcOptionsTypes, shorthandsByCommandName }
+export { NOT_IMPLEMENTED_COMMAND_SET, rcOptionsTypes, shorthandsByCommandName }

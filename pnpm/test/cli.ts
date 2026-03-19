@@ -20,7 +20,8 @@ test('commands that were previously passed through to npm now fail', () => {
   const result = execPnpmSync(['dist-tag', 'ls', 'is-positive'])
 
   expect(result.status).not.toBe(0)
-  expect(result.stderr.toString()).toContain('ERR_PNPM_NOT_IMPLEMENTED')
+  const output = result.stdout.toString() + result.stderr.toString()
+  expect(output).toContain('ERR_PNPM_NOT_IMPLEMENTED')
 })
 
 test('installs in the folder where the package.json file is', async () => {
