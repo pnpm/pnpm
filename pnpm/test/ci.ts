@@ -32,7 +32,7 @@ test('pnpm ci removes node_modules and installs from lockfile', () => {
   execPnpmSync(['install'])
 
   // Create a marker file in node_modules to verify it gets deleted
-  const markerPath = path.join(process.cwd(), 'node_modules', '.ci-test-marker')
+  const markerPath = path.join(process.cwd(), 'node_modules', 'ci-test-marker')
   fs.writeFileSync(markerPath, 'test')
 
   // Run ci
