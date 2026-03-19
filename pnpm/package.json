@@ -102,7 +102,6 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.commands": "workspace:*",
     "@pnpm/exec.run-npm": "workspace:*",
-    "@pnpm/fs.msgpack-file": "workspace:*",
     "@pnpm/installing.client": "workspace:*",
     "@pnpm/installing.commands": "workspace:*",
     "@pnpm/installing.env-installer": "workspace:*",

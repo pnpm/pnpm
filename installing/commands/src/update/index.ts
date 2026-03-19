@@ -42,7 +42,6 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'ignore-pnpmfile',
     'ignore-scripts',
     'lockfile-dir',
-    'lockfile-directory',
     'lockfile-only',
     'lockfile',
     'lockfile-include-tarball-url',

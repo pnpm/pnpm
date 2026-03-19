@@ -9,7 +9,6 @@ import {
 import { shorthands as universalShorthands } from './shorthands.js'
 
 const RENAMED_OPTIONS = {
-  'lockfile-directory': 'lockfile-dir',
   prefix: 'dir',
   'shrinkwrap-directory': 'lockfile-dir',
   store: 'store-dir',

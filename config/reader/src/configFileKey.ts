@@ -91,7 +91,6 @@ export const excludedPnpmKeys = [
   'link-workspace-packages',
   'lockfile',
   'lockfile-dir',
-  'lockfile-directory',
   'lockfile-include-tarball-url',
   'lockfile-only',
   'manage-package-manager-versions',

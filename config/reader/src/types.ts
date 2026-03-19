@@ -58,7 +58,6 @@ export const pnpmTypes = {
   'link-workspace-packages': [Boolean, 'deep'],
   lockfile: Boolean,
   'lockfile-dir': String,
-  'lockfile-directory': String, // TODO: deprecate
   'lockfile-include-tarball-url': Boolean,
   'lockfile-only': Boolean,
   loglevel: ['silent', 'error', 'warn', 'info', 'debug'],

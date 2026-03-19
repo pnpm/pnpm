@@ -111,7 +111,7 @@ test('install from any location via the --prefix flag', async () => {
 test('install with external lockfile directory', async () => {
   const project = prepare()
 
-  await execPnpm(['install', 'is-positive', '--lockfile-directory', path.resolve('..')])
+  await execPnpm(['install', 'is-positive', '--lockfile-dir', path.resolve('..')])
 
   project.has('is-positive')
 

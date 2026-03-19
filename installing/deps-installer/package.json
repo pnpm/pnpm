@@ -127,7 +127,6 @@
     "@jest/globals": "catalog:",
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/assert-store": "workspace:*",
-    "@pnpm/fs.msgpack-file": "workspace:*",
     "@pnpm/installing.deps-installer": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/logger": "workspace:*",

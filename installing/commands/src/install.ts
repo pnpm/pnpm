@@ -37,7 +37,6 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'libc',
     'link-workspace-packages',
     'lockfile-dir',
-    'lockfile-directory',
     'lockfile-only',
     'lockfile',
     'merge-git-branch-lockfiles',
