@@ -25,9 +25,6 @@
       "path": "../../core/types"
     },
     {
-      "path": "../../fs/find-packages"
-    },
-    {
       "path": "../../lockfile/types"
     },
     {
@@ -35,6 +32,9 @@
     },
     {
       "path": "../../yaml/document-sync"
+    },
+    {
+      "path": "../projects-reader"
     },
     {
       "path": "../workspace-manifest-reader"

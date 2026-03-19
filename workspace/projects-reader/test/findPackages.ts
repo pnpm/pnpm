@@ -1,7 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'node:path'
 
-import { findPackages } from '@pnpm/fs.find-packages'
+import { findPackages } from '@pnpm/workspace.projects-reader'
 
 function compare (a: string | undefined, b: string | undefined) {
   if (a == null) return 1
@@ -9,7 +9,7 @@ function compare (a: string | undefined, b: string | undefined) {
   return a.localeCompare(b)
 }
 
-const fixtures = path.join(import.meta.dirname, 'fixtures')
+const fixtures = path.join(import.meta.dirname, 'findPackages-fixtures')
 
 test('finds package', async () => {
   const root = path.join(fixtures, 'one-pkg')

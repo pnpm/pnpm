@@ -126,7 +126,6 @@
 "@pnpm/engine.runtime.node-resolver": major
 "@pnpm/installing.linking.hoist": major
 "@pnpm/deps.peer-range": major
-"@pnpm/fs.find-packages": major
 "@pnpm/fs.hard-link-dir": major
 "@pnpm/installing.deps-installer": major
 "@pnpm/store.cafs-types": major

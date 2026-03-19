@@ -1,9 +1,11 @@
 import { packageIsInstallable } from '@pnpm/cli.utils'
-import { findPackages } from '@pnpm/fs.find-packages'
 import { logger } from '@pnpm/logger'
 import type { Project, ProjectManifest, SupportedArchitectures } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 
+import { findPackages } from './findPackages.js'
+
+export { findPackages, type FindPackagesOptions } from './findPackages.js'
 export type { Project }
 
 export interface FindWorkspaceProjectsOpts {
