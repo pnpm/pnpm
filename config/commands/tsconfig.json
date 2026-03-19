@@ -25,6 +25,9 @@
       "path": "../../core/logger"
     },
     {
+      "path": "../../exec/run-npm"
+    },
+    {
       "path": "../../object/key-sorting"
     },
     {
