@@ -71,7 +71,6 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'save-prefix',
     'save-prod',
     'save-workspace-protocol',
-    'shamefully-flatten',
     'shamefully-hoist',
     'shared-workspace-lockfile',
     'side-effects-cache-readonly',

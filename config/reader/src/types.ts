@@ -99,7 +99,6 @@ export const pnpmTypes = {
   'save-catalog-name': String,
   'save-workspace-protocol': Boolean,
   'script-shell': String,
-  'shamefully-flatten': Boolean,
   'shamefully-hoist': Boolean,
   'shared-workspace-lockfile': Boolean,
   'shell-emulator': Boolean,

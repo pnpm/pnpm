@@ -116,7 +116,6 @@ export const excludedPnpmKeys = [
   'save-peer',
   'save-workspace-protocol',
   'script-shell',
-  'shamefully-flatten',
   'shamefully-hoist',
   'shared-workspace-lockfile',
   'shell-emulator',

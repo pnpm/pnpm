@@ -56,7 +56,6 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'reporter',
     'save-workspace-protocol',
     'scripts-prepend-node-path',
-    'shamefully-flatten',
     'shamefully-hoist',
     'shared-workspace-lockfile',
     'side-effects-cache-readonly',
