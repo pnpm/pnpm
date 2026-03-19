@@ -119,9 +119,6 @@ export async function getConfig (opts: {
     if (cliOptions['shamefully-hoist'] === true) {
       throw new PnpmError('CONFIG_CONFLICT_HOIST', '--shamefully-hoist cannot be used with --no-hoist')
     }
-    if (cliOptions['shamefully-flatten'] === true) {
-      throw new PnpmError('CONFIG_CONFLICT_HOIST', '--shamefully-flatten cannot be used with --no-hoist')
-    }
     if (cliOptions['hoist-pattern']) {
       throw new PnpmError('CONFIG_CONFLICT_HOIST', '--hoist-pattern cannot be used with --no-hoist')
     }
@@ -522,10 +519,6 @@ export async function getConfig (opts: {
     pnpmConfig.extraEnv['NODE_PATH'] = pathAbsolute(path.join(virtualStoreDir, 'node_modules'), cwd)
   }
 
-  if (pnpmConfig.shamefullyFlatten) {
-    warnings.push('The "shamefully-flatten" setting has been renamed to "shamefully-hoist". Also, in most cases you won\'t need "shamefully-hoist". Since v4, a semistrict node_modules structure is on by default (via hoist-pattern=[*]).')
-    pnpmConfig.shamefullyHoist = true
-  }
   if (!pnpmConfig.cacheDir) {
     pnpmConfig.cacheDir = getCacheDir(process)
   }

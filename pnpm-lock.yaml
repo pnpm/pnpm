@@ -4443,22 +4443,6 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  fs/msgpack-file:
-    dependencies:
-      '@pnpm/fs.graceful-fs':
-        specifier: workspace:*
-        version: link:../graceful-fs
-      msgpackr:
-        specifier: 'catalog:'
-        version: 1.11.8
-    devDependencies:
-      '@pnpm/fs.msgpack-file':
-        specifier: workspace:*
-        version: 'link:'
-      tempy:
-        specifier: 'catalog:'
-        version: 3.0.0
-
   fs/packlist:
     dependencies:
       npm-packlist:
@@ -5303,9 +5287,6 @@ importers:
       '@pnpm/assert-store':
         specifier: workspace:*
         version: link:../../__utils__/assert-store
-      '@pnpm/fs.msgpack-file':
-        specifier: workspace:*
-        version: link:../../fs/msgpack-file
       '@pnpm/installing.deps-installer':
         specifier: workspace:*
         version: 'link:'
@@ -6059,9 +6040,6 @@ importers:
       '@jest/globals':
         specifier: 'catalog:'
         version: 30.3.0
-      '@pnpm/fs.msgpack-file':
-        specifier: workspace:*
-        version: link:../../fs/msgpack-file
       '@pnpm/installing.client':
         specifier: workspace:*
         version: link:../client
@@ -7143,9 +7121,6 @@ importers:
       '@pnpm/exec.run-npm':
         specifier: workspace:*
         version: link:../exec/run-npm
-      '@pnpm/fs.msgpack-file':
-        specifier: workspace:*
-        version: link:../fs/msgpack-file
       '@pnpm/hooks.pnpmfile':
         specifier: workspace:*
         version: link:../hooks/pnpmfile

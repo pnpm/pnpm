@@ -63,7 +63,6 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/fs.msgpack-file": "workspace:*",
     "@pnpm/installing.client": "workspace:*",
     "@pnpm/installing.package-requester": "workspace:*",
     "@pnpm/logger": "workspace:*",

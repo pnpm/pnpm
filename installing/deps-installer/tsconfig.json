@@ -91,9 +91,6 @@
       "path": "../../exec/lifecycle"
     },
     {
-      "path": "../../fs/msgpack-file"
-    },
-    {
       "path": "../../fs/read-modules-dir"
     },
     {

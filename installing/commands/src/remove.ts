@@ -52,7 +52,6 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'global-pnpmfile',
     'global',
     'lockfile-dir',
-    'lockfile-directory',
     'lockfile-only',
     'lockfile',
     'node-linker',

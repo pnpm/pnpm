@@ -534,26 +534,6 @@ test('extraBinPaths', async () => {
   }
 })
 
-test('convert shamefully-flatten to hoist-pattern=* and warn', async () => {
-  const { config, warnings } = await getConfig({
-    cliOptions: {
-      'shamefully-flatten': true,
-    },
-    packageManager: {
-      name: 'pnpm',
-      version: '1.0.0',
-    },
-  })
-
-  expect(config.hoistPattern).toStrictEqual(['*'])
-  expect(config.shamefullyHoist).toBeTruthy()
-  expect(warnings).toStrictEqual([
-    'The "shamefully-flatten" setting has been renamed to "shamefully-hoist". ' +
-    'Also, in most cases you won\'t need "shamefully-hoist". ' +
-    'Since v4, a semistrict node_modules structure is on by default (via hoist-pattern=[*]).',
-  ])
-})
-
 // hoist → hoistPattern processing is done in @pnpm/cli.utils
 test('hoist-pattern is unchanged if --no-hoist used', async () => {
   const { config } = await getConfig({
@@ -583,22 +563,6 @@ test('throw error if --no-hoist is used with --shamefully-hoist', async () => {
   })).rejects.toMatchObject({
     code: 'ERR_PNPM_CONFIG_CONFLICT_HOIST',
     message: '--shamefully-hoist cannot be used with --no-hoist',
-  })
-})
-
-test('throw error if --no-hoist is used with --shamefully-flatten', async () => {
-  await expect(getConfig({
-    cliOptions: {
-      hoist: false,
-      'shamefully-flatten': true,
-    },
-    packageManager: {
-      name: 'pnpm',
-      version: '1.0.0',
-    },
-  })).rejects.toMatchObject({
-    code: 'ERR_PNPM_CONFIG_CONFLICT_HOIST',
-    message: '--shamefully-flatten cannot be used with --no-hoist',
   })
 })
 
