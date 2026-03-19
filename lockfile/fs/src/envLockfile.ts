@@ -3,11 +3,11 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import type { EnvLockfile } from '@pnpm/lockfile.types'
-import { sortDirectKeys } from '@pnpm/object.key-sorting'
+import type { EnvLockfile, LockfileFile } from '@pnpm/lockfile.types'
 import yaml from 'js-yaml'
 import writeFileAtomic from 'write-file-atomic'
 
+import { sortLockfileKeys } from './sortLockfileKeys.js'
 import { lockfileYamlDump } from './write.js'
 import { extractMainDocument, streamReadFirstYamlDocument } from './yamlDocuments.js'
 
@@ -58,7 +58,7 @@ export async function readEnvLockfile (rootDir: string): Promise<EnvLockfile | n
 
 export async function writeEnvLockfile (rootDir: string, lockfile: EnvLockfile): Promise<void> {
   const lockfilePath = path.join(rootDir, WANTED_LOCKFILE)
-  const sorted = sortEnvLockfile(lockfile)
+  const sorted = sortLockfileKeys(lockfile as unknown as LockfileFile)
   const envYaml = lockfileYamlDump(sorted)
 
   // Read existing main lockfile document to preserve it
@@ -74,21 +74,4 @@ export async function writeEnvLockfile (rootDir: string, lockfile: EnvLockfile):
 
   const combined = `---\n${envYaml}\n---\n${mainDoc}`
   return writeFileAtomic(lockfilePath, combined)
-}
-
-function sortEnvLockfile (lockfile: EnvLockfile): EnvLockfile {
-  const importer: EnvLockfile['importers']['.'] = {
-    configDependencies: sortDirectKeys(lockfile.importers['.']?.configDependencies ?? {}),
-  }
-  if (lockfile.importers['.'].packageManagerDependencies && Object.keys(lockfile.importers['.'].packageManagerDependencies).length > 0) {
-    importer.packageManagerDependencies = sortDirectKeys(lockfile.importers['.'].packageManagerDependencies)
-  }
-  return {
-    lockfileVersion: lockfile.lockfileVersion,
-    importers: {
-      '.': importer,
-    },
-    packages: sortDirectKeys(lockfile.packages),
-    snapshots: sortDirectKeys(lockfile.snapshots),
-  }
 }
