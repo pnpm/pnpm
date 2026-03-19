@@ -266,6 +266,7 @@ export async function installDeps (
     dependencies: true,
     devDependencies: true,
     optionalDependencies: true,
+    peerDependencies: false,
   }
   const allProjects = opts.allProjects ?? (
     opts.workspaceDir

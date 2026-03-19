@@ -81,7 +81,14 @@ export function applyPackageSpecs (
       }
     } else if (packageSpec.bareSpecifier) {
       const usedDepType = guessDependencyType(packageSpec.alias, packageManifest) ?? 'dependencies'
-      if (usedDepType !== 'peerDependencies') {
+      if (usedDepType === 'peerDependencies') {
+        packageManifest.peerDependencies = packageManifest.peerDependencies ?? {}
+        defineDepEntry(
+          packageManifest.peerDependencies,
+          packageSpec.alias,
+          getPeerSpecifier(packageSpec.bareSpecifier, packageSpec.resolvedVersion, packageSpec.rangeSpecStyle)
+        )
+      } else {
         packageManifest[usedDepType] = packageManifest[usedDepType] ?? {}
         defineDepEntry(packageManifest[usedDepType]!, packageSpec.alias, packageSpec.bareSpecifier)
       }
