@@ -21,7 +21,7 @@ import type {
   SupportedArchitectures,
   TrustPolicy,
 } from '@pnpm/types'
-import { partition, zipObj } from 'ramda'
+import { partition } from 'ramda'
 
 import type { WantedDependency } from './getNonDevWantedDependencies.js'
 import { nextNodeId, type NodeId } from './nextNodeId.js'
@@ -264,7 +264,7 @@ export async function resolveDependencyTree<T> (
     }
   })
   const { pkgAddressesByImporters, time } = await resolveRootDependencies(ctx, resolveArgs)
-  const directDepsByImporterId = zipObj(importers.map(({ id }) => id), pkgAddressesByImporters)
+  const directDepsByImporterId = Object.fromEntries(importers.map(({ id }, i) => [id, pkgAddressesByImporters[i]]))
 
   for (const directDependencies of pkgAddressesByImporters) {
     for (const directDep of directDependencies as PkgAddress[]) {

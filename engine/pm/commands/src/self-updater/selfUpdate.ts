@@ -165,9 +165,9 @@ function updateVersionConstraint (current: string | undefined, newVersion: strin
 
 function versionSpecFromPinned (version: string, pinnedVersion: PinnedVersion): string {
   switch (pinnedVersion) {
-  case 'none':
-  case 'major': return `^${version}`
-  case 'minor': return `~${version}`
-  case 'patch': return version
+    case 'none':
+    case 'major': return `^${version}`
+    case 'minor': return `~${version}`
+    case 'patch': return version
   }
 }

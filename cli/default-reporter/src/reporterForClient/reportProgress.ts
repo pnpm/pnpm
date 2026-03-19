@@ -141,18 +141,18 @@ function getProgressStatsPushStreamByRequirer (progress$: Rx.Observable<Progress
         }
       }
       switch (log.status) {
-      case 'resolved':
-        previousProgressStatsByRequirer[log.requester].resolved++
-        break
-      case 'fetched':
-        previousProgressStatsByRequirer[log.requester].fetched++
-        break
-      case 'found_in_store':
-        previousProgressStatsByRequirer[log.requester].reused++
-        break
-      case 'imported':
-        previousProgressStatsByRequirer[log.requester].imported++
-        break
+        case 'resolved':
+          previousProgressStatsByRequirer[log.requester].resolved++
+          break
+        case 'fetched':
+          previousProgressStatsByRequirer[log.requester].fetched++
+          break
+        case 'found_in_store':
+          previousProgressStatsByRequirer[log.requester].reused++
+          break
+        case 'imported':
+          previousProgressStatsByRequirer[log.requester].imported++
+          break
       }
       if (!progressStatsPushStreamByRequirer[log.requester]) {
         progressStatsPushStreamByRequirer[log.requester] = new Rx.Subject<ProgressStats>()

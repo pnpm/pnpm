@@ -155,35 +155,35 @@ interface ReadExactProjectManifestResult {
 export async function readExactProjectManifest (manifestPath: string): Promise<ReadExactProjectManifestResult> {
   const base = path.basename(manifestPath).toLowerCase()
   switch (base) {
-  case 'package.json': {
-    const { data, text } = await readJsonFile(manifestPath)
-    return {
-      manifest: convertManifestAfterRead(data),
-      writeProjectManifest: createManifestWriter({
-        ...detectFileFormatting(text),
-        initialManifest: data,
-        manifestPath,
-      }),
+    case 'package.json': {
+      const { data, text } = await readJsonFile(manifestPath)
+      return {
+        manifest: convertManifestAfterRead(data),
+        writeProjectManifest: createManifestWriter({
+          ...detectFileFormatting(text),
+          initialManifest: data,
+          manifestPath,
+        }),
+      }
     }
-  }
-  case 'package.json5': {
-    const { data, text } = await readJson5File(manifestPath)
-    return {
-      manifest: convertManifestAfterRead(data),
-      writeProjectManifest: createManifestWriter({
-        ...detectFileFormattingAndComments(text),
-        initialManifest: data,
-        manifestPath,
-      }),
+    case 'package.json5': {
+      const { data, text } = await readJson5File(manifestPath)
+      return {
+        manifest: convertManifestAfterRead(data),
+        writeProjectManifest: createManifestWriter({
+          ...detectFileFormattingAndComments(text),
+          initialManifest: data,
+          manifestPath,
+        }),
+      }
     }
-  }
-  case 'package.yaml': {
-    const manifest = await readPackageYaml(manifestPath)
-    return {
-      manifest: convertManifestAfterRead(manifest),
-      writeProjectManifest: createManifestWriter({ initialManifest: manifest, manifestPath }),
+    case 'package.yaml': {
+      const manifest = await readPackageYaml(manifestPath)
+      return {
+        manifest: convertManifestAfterRead(manifest),
+        writeProjectManifest: createManifestWriter({ initialManifest: manifest, manifestPath }),
+      }
     }
-  }
   }
   throw new Error(`Not supported manifest name "${base}"`)
 }

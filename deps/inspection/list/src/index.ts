@@ -221,9 +221,9 @@ type Printer = (packages: PackageDependencyHierarchy[], opts: {
 
 function getPrinter (reportAs: 'parseable' | 'tree' | 'json'): Printer {
   switch (reportAs) {
-  case 'parseable': return renderParseable
-  case 'json': return renderJson
-  case 'tree': return renderTree
+    case 'parseable': return renderParseable
+    case 'json': return renderJson
+    case 'tree': return renderTree
   }
 }
 
@@ -278,8 +278,8 @@ export async function whyForPackages (
   })
 
   switch (reportAs) {
-  case 'json': return renderDependentsJson(trees, { long, depth })
-  case 'parseable': return renderDependentsParseable(trees, { long, depth })
-  case 'tree': return renderDependentsTree(trees, { long, depth })
+    case 'json': return renderDependentsJson(trees, { long, depth })
+    case 'parseable': return renderDependentsParseable(trees, { long, depth })
+    case 'tree': return renderDependentsTree(trees, { long, depth })
   }
 }

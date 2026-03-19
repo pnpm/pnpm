@@ -29,9 +29,9 @@ export function getFilePathByModeInCafs (
 export function contentPathFromHex (fileType: FileType, hex: string): string {
   const p = path.join('files', hex.slice(0, 2), hex.slice(2))
   switch (fileType) {
-  case 'exec':
-    return `${p}-exec`
-  case 'nonexec':
-    return p
+    case 'exec':
+      return `${p}-exec`
+    case 'nonexec':
+      return p
   }
 }

@@ -408,36 +408,36 @@ test('prints progress of big files download', async () => {
 
   output.forEach((output, index) => {
     switch (index) {
-    case 0:
-      expect(output).toBe(`Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}`)
-      return
-    case 1:
-      expect(output).toBe(`\
+      case 0:
+        expect(output).toBe(`Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}`)
+        return
+      case 1:
+        expect(output).toBe(`\
 Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}
 Downloading ${pkgId1}: ${hlValue('0.00 B')}/${hlValue('10.48 MB')}`)
-      return
-    case 2:
-      expect(output).toBe(`\
+        return
+      case 2:
+        expect(output).toBe(`\
 Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}
 Downloading ${pkgId1}: ${hlValue('5.76 MB')}/${hlValue('10.48 MB')}`)
-      return
-    case 4:
-      expect(output).toBe(`\
+        return
+      case 4:
+        expect(output).toBe(`\
 Progress: resolved ${hlValue('2')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}
 Downloading ${pkgId1}: ${hlValue('7.34 MB')}/${hlValue('10.48 MB')}`)
-      return
-    case 7:
-      expect(output).toBe(`\
+        return
+      case 7:
+        expect(output).toBe(`\
 Progress: resolved ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}
 Downloading ${pkgId1}: ${hlValue('7.34 MB')}/${hlValue('10.48 MB')}
 Downloading ${pkgId3}: ${hlValue('19.92 MB')}/${hlValue('20.97 MB')}`)
-      return
-    case 8:
-      expect(output).toBe(`\
+        return
+      case 8:
+        expect(output).toBe(`\
 Downloading ${pkgId1}: ${hlValue('10.48 MB')}/${hlValue('10.48 MB')}, done
 Progress: resolved ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}
 Downloading ${pkgId3}: ${hlValue('19.92 MB')}/${hlValue('20.97 MB')}`)
-      return
+        return
     }
   })
 })

@@ -47,12 +47,12 @@ export async function getChangedProjects (
   const ignoreDependentForPkgs = [] as ProjectRootDir[]
   for (const [changedDir, changeType] of projectChangeTypes.entries()) {
     switch (changeType) {
-    case 'source':
-      changedProjects.push(changedDir)
-      break
-    case 'test':
-      ignoreDependentForPkgs.push(changedDir)
-      break
+      case 'source':
+        changedProjects.push(changedDir)
+        break
+      case 'test':
+        ignoreDependentForPkgs.push(changedDir)
+        break
     }
   }
   return [changedProjects, ignoreDependentForPkgs]

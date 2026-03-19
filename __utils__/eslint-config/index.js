@@ -183,6 +183,7 @@ export default tseslint.config(
       'no-lone-blocks': 'off',
       'no-empty': ['error', { allowEmptyCatch: true }],
       'prefer-const': 'off',
+      'no-useless-assignment': 'off',
 
       // Custom rules
       'conditions/no-dupe-conditions': 'error',

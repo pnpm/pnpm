@@ -66,19 +66,19 @@ export function satisfiesPackageManifest (
 
     let pkgDepNames!: string[]
     switch (depField) {
-    case 'optionalDependencies':
-      pkgDepNames = Object.keys(pkgDeps)
-      break
-    case 'devDependencies':
-      pkgDepNames = Object.keys(pkgDeps)
-        .filter((depName) => !pkg.optionalDependencies?.[depName] && !pkg.dependencies?.[depName])
-      break
-    case 'dependencies':
-      pkgDepNames = Object.keys(pkgDeps)
-        .filter((depName) => !pkg.optionalDependencies?.[depName])
-      break
-    default:
-      throw new Error(`Unknown dependency type "${depField as string}"`)
+      case 'optionalDependencies':
+        pkgDepNames = Object.keys(pkgDeps)
+        break
+      case 'devDependencies':
+        pkgDepNames = Object.keys(pkgDeps)
+          .filter((depName) => !pkg.optionalDependencies?.[depName] && !pkg.dependencies?.[depName])
+        break
+      case 'dependencies':
+        pkgDepNames = Object.keys(pkgDeps)
+          .filter((depName) => !pkg.optionalDependencies?.[depName])
+        break
+      default:
+        throw new Error(`Unknown dependency type "${depField as string}"`)
     }
     if (
       pkgDepNames.length !== Object.keys(importerDeps).length &&

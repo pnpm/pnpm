@@ -30,21 +30,21 @@ export async function readProjectsContext<T> (
     modulesDir?: string
   }
 ): Promise<{
-    currentHoistPattern?: string[]
-    currentPublicHoistPattern?: string[]
-    hoist?: boolean
-    hoistedDependencies: HoistedDependencies
-    projects: Array<{
-      id: ProjectId
-    } & T & Required<ProjectOptions>>
-    include: Record<DependenciesField, boolean>
-    modules: Modules | null
-    pendingBuilds: string[]
-    registries: Registries | null | undefined
-    rootModulesDir: string
-    skipped: Set<DepPath>
-    virtualStoreDirMaxLength?: number
-  }> {
+  currentHoistPattern?: string[]
+  currentPublicHoistPattern?: string[]
+  hoist?: boolean
+  hoistedDependencies: HoistedDependencies
+  projects: Array<{
+    id: ProjectId
+  } & T & Required<ProjectOptions>>
+  include: Record<DependenciesField, boolean>
+  modules: Modules | null
+  pendingBuilds: string[]
+  registries: Registries | null | undefined
+  rootModulesDir: string
+  skipped: Set<DepPath>
+  virtualStoreDirMaxLength?: number
+}> {
   const relativeModulesDir = opts.modulesDir ?? 'node_modules'
   const rootModulesDir = await realpathMissing(path.join(opts.lockfileDir, relativeModulesDir))
   const modules = await readModulesManifest(rootModulesDir)

@@ -410,9 +410,9 @@ function fetchToStore (
   },
   opts: FetchPackageToStoreOptions
 ): {
-    filesIndexFile: string
-    fetching: () => Promise<PkgRequestFetchResult>
-  } {
+  filesIndexFile: string
+  fetching: () => Promise<PkgRequestFetchResult>
+} {
   if (!opts.pkg.name) {
     opts.fetchRawManifest = true
   }

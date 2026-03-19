@@ -118,9 +118,9 @@ function getSnapshot (
   }
 ) {
   switch (treeNodeId.type) {
-  case 'importer':
-    return opts.importers[treeNodeId.importerId]
-  case 'package':
-    return opts.currentPackages[treeNodeId.depPath]
+    case 'importer':
+      return opts.importers[treeNodeId.importerId]
+    case 'package':
+      return opts.currentPackages[treeNodeId.depPath]
   }
 }

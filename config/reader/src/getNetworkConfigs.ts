@@ -24,26 +24,26 @@ export function getNetworkConfigs (rawConfig: Record<string, unknown>): NetworkC
     const parsed = tryParseAuthSetting(configKey) ?? tryParseSslSetting(configKey)
 
     switch (parsed?.target) {
-    case undefined:
-      continue
-    case 'auth': {
-      const { authInputKey, registry } = parsed
-      authInfoInputs[registry] ??= {}
-      authInfoInputs[registry][authInputKey] = value as string
-      continue
-    }
-    case 'ssl': {
-      const { registry, sslConfigKey, isFile } = parsed
-      sslConfigs[registry] ??= { cert: '', key: '' }
-      sslConfigs[registry][sslConfigKey] = isFile
-        ? fs.readFileSync(value as string, 'utf8')
-        : (value as string).replace(/\\n/g, '\n')
-      continue
-    }
-    default: {
-      const _typeGuard: never = parsed
-      throw new Error(`Unhandled variant: ${JSON.stringify(_typeGuard)}`)
-    }
+      case undefined:
+        continue
+      case 'auth': {
+        const { authInputKey, registry } = parsed
+        authInfoInputs[registry] ??= {}
+        authInfoInputs[registry][authInputKey] = value as string
+        continue
+      }
+      case 'ssl': {
+        const { registry, sslConfigKey, isFile } = parsed
+        sslConfigs[registry] ??= { cert: '', key: '' }
+        sslConfigs[registry][sslConfigKey] = isFile
+          ? fs.readFileSync(value as string, 'utf8')
+          : (value as string).replace(/\\n/g, '\n')
+        continue
+      }
+      default: {
+        const _typeGuard: never = parsed
+        throw new Error(`Unhandled variant: ${JSON.stringify(_typeGuard)}`)
+      }
     }
   }
 

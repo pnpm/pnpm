@@ -457,22 +457,22 @@ async function recursiveInstallThenUpdateWorkspaceState (
 
 function severityStringToNumber (severity: VulnerabilitySeverity): number {
   switch (severity) {
-  case 'low': return 0
-  case 'moderate': return 1
-  case 'high': return 2
-  case 'critical': return 3
-  default: return -1
+    case 'low': return 0
+    case 'moderate': return 1
+    case 'high': return 2
+    case 'critical': return 3
+    default: return -1
   }
 }
 
 function getVulnerabilityPenalty (severity: VulnerabilitySeverity): number {
   switch (severity) {
-  case 'low': return -1100 // 100 more than DIRECT_DEP_SELECTOR_WEIGHT from @pnpm/resolving.resolver-base
-  case 'moderate': return -2000
-  case 'high': return -3000
-  case 'critical': return -4000
-  // Treat unrecognized severity as the lowest severity
-  default: return -1100
+    case 'low': return -1100 // 100 more than DIRECT_DEP_SELECTOR_WEIGHT from @pnpm/resolving.resolver-base
+    case 'moderate': return -2000
+    case 'high': return -3000
+    case 'critical': return -4000
+      // Treat unrecognized severity as the lowest severity
+    default: return -1100
   }
 }
 

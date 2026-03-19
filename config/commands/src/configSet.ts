@@ -63,39 +63,39 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
   const configPath = path.join(configDir, configFileName)
 
   switch (configFileName) {
-  case GLOBAL_CONFIG_YAML_FILENAME:
-  case WORKSPACE_MANIFEST_FILENAME: {
-    if (configFileName === GLOBAL_CONFIG_YAML_FILENAME) {
-      key = validateYamlConfigKey(key)
+    case GLOBAL_CONFIG_YAML_FILENAME:
+    case WORKSPACE_MANIFEST_FILENAME: {
+      if (configFileName === GLOBAL_CONFIG_YAML_FILENAME) {
+        key = validateYamlConfigKey(key)
+      }
+      key = validateWorkspaceKey(key)
+      await updateWorkspaceManifest(configDir, {
+        fileName: configFileName,
+        updatedFields: ({
+          [key]: castField(value, kebabCase(key)),
+        }),
+      })
+      break
     }
-    key = validateWorkspaceKey(key)
-    await updateWorkspaceManifest(configDir, {
-      fileName: configFileName,
-      updatedFields: ({
-        [key]: castField(value, kebabCase(key)),
-      }),
-    })
-    break
-  }
 
-  case 'rc':
-  case '.npmrc': {
-    const settings = await safeReadIniFile(configPath)
-    key = validateIniConfigKey(key)
-    if (value == null) {
-      if (settings[key] == null) return
-      delete settings[key]
-    } else {
-      settings[key] = value
+    case 'rc':
+    case '.npmrc': {
+      const settings = await safeReadIniFile(configPath)
+      key = validateIniConfigKey(key)
+      if (value == null) {
+        if (settings[key] == null) return
+        delete settings[key]
+      } else {
+        settings[key] = value
+      }
+      await writeIniFile(configPath, settings)
+      break
     }
-    await writeIniFile(configPath, settings)
-    break
-  }
 
-  default: {
-    const _typeGuard: never = configFileName
-    throw new Error(`Unhandled case: ${JSON.stringify(_typeGuard)}`)
-  }
+    default: {
+      const _typeGuard: never = configFileName
+      throw new Error(`Unhandled case: ${JSON.stringify(_typeGuard)}`)
+    }
   }
 }
 
@@ -111,18 +111,18 @@ function castField (value: unknown, key: string) {
   value = value.trim()
 
   switch (value) {
-  case 'true': {
-    return true
-  }
-  case 'false': {
-    return false
-  }
-  case 'null': {
-    return null
-  }
-  case 'undefined': {
-    return undefined
-  }
+    case 'true': {
+      return true
+    }
+    case 'false': {
+      return false
+    }
+    case 'null': {
+      return null
+    }
+    case 'undefined': {
+      return undefined
+    }
   }
 
   if (isNumber && !isNaN(value as number)) {

@@ -31,9 +31,9 @@ export async function createStoreControllerCached (
 export async function createStoreController (
   opts: CreateStoreControllerOptions
 ): Promise<{
-    ctrl: StoreController
-    dir: string
-  }> {
+  ctrl: StoreController
+  dir: string
+}> {
   const storeDir = await getStorePath({
     pkgRoot: opts.workspaceDir ?? opts.dir,
     storePath: opts.storeDir,

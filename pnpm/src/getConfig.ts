@@ -104,25 +104,25 @@ function applyDerivedConfig (config: Config): void {
     delete config.hoistPattern
   }
   switch (config.shamefullyHoist) {
-  case false:
-    delete config.publicHoistPattern
-    break
-  case true:
-    config.publicHoistPattern = ['*']
-    break
-  default:
-    if (
-      (config.publicHoistPattern == null) ||
+    case false:
+      delete config.publicHoistPattern
+      break
+    case true:
+      config.publicHoistPattern = ['*']
+      break
+    default:
+      if (
+        (config.publicHoistPattern == null) ||
         (config.publicHoistPattern === '') ||
         (
           Array.isArray(config.publicHoistPattern) &&
           config.publicHoistPattern.length === 1 &&
           config.publicHoistPattern[0] === ''
         )
-    ) {
-      delete config.publicHoistPattern
-    }
-    break
+      ) {
+        delete config.publicHoistPattern
+      }
+      break
   }
   if (!config.symlink) {
     delete config.hoistPattern

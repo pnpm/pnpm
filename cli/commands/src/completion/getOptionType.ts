@@ -23,11 +23,11 @@ export function getOptionCompletions (
 function optionTypeToCompletion (optionType: unknown): undefined | string[] {
   switch (optionType) {
   // In this case the option is complete
-  case undefined:
-  case Boolean: return undefined
+    case undefined:
+    case Boolean: return undefined
     // In this case, anything may be the option value
-  case String:
-  case Number: return []
+    case String:
+    case Number: return []
   }
   if (!Array.isArray(optionType)) return []
   if (optionType.length === 1) {

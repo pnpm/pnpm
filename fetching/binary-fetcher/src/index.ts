@@ -32,37 +32,37 @@ export function createBinaryFetcher (ctx: {
 
     let fetchResult!: FetchResult
     switch (resolution.archive) {
-    case 'tarball': {
-      fetchResult = await ctx.fetchFromRemoteTarball(cafs, {
-        tarball: resolution.url,
-        integrity: resolution.integrity,
-      }, {
-        appendManifest: manifest,
-        ...opts,
-      })
-      break
-    }
-    case 'zip': {
-      const tempLocation = await cafs.tempDir()
-      await downloadAndUnpackZip(ctx.fetch, {
-        url: resolution.url,
-        integrity: resolution.integrity,
-        basename: resolution.prefix ?? '',
-      }, tempLocation)
-      fetchResult = await addFilesFromDir({
-        storeDir: cafs.storeDir,
-        storeIndex: ctx.storeIndex,
-        dir: tempLocation,
-        filesIndexFile: opts.filesIndexFile,
-        readManifest: false,
-        appendManifest: manifest,
-        includeNodeModules: true,
-      })
-      break
-    }
-    default: {
-      throw new PnpmError('NOT_SUPPORTED_ARCHIVE', `The binary fetcher doesn't support archive type ${resolution.archive as string}`)
-    }
+      case 'tarball': {
+        fetchResult = await ctx.fetchFromRemoteTarball(cafs, {
+          tarball: resolution.url,
+          integrity: resolution.integrity,
+        }, {
+          appendManifest: manifest,
+          ...opts,
+        })
+        break
+      }
+      case 'zip': {
+        const tempLocation = await cafs.tempDir()
+        await downloadAndUnpackZip(ctx.fetch, {
+          url: resolution.url,
+          integrity: resolution.integrity,
+          basename: resolution.prefix ?? '',
+        }, tempLocation)
+        fetchResult = await addFilesFromDir({
+          storeDir: cafs.storeDir,
+          storeIndex: ctx.storeIndex,
+          dir: tempLocation,
+          filesIndexFile: opts.filesIndexFile,
+          readManifest: false,
+          appendManifest: manifest,
+          includeNodeModules: true,
+        })
+        break
+      }
+      default: {
+        throw new PnpmError('NOT_SUPPORTED_ARCHIVE', `The binary fetcher doesn't support archive type ${resolution.archive as string}`)
+      }
     }
     return {
       ...fetchResult,

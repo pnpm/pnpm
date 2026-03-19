@@ -43,15 +43,15 @@ export async function readLockfiles (
     internalPnpmDir: string
   }
 ): Promise<{
-    currentLockfile: LockfileObject
-    currentLockfileIsUpToDate: boolean
-    existsCurrentLockfile: boolean
-    existsWantedLockfile: boolean
-    existsNonEmptyWantedLockfile: boolean
-    wantedLockfile: LockfileObject
-    wantedLockfileIsModified: boolean
-    lockfileHadConflicts: boolean
-  }> {
+  currentLockfile: LockfileObject
+  currentLockfileIsUpToDate: boolean
+  existsCurrentLockfile: boolean
+  existsWantedLockfile: boolean
+  existsNonEmptyWantedLockfile: boolean
+  wantedLockfile: LockfileObject
+  wantedLockfileIsModified: boolean
+  lockfileHadConflicts: boolean
+}> {
   const wantedLockfileVersion = LOCKFILE_VERSION
   // On CI, avoid breaking builds due to incompatible lockfiles by default.
   // Ignore incompatible lockfiles only for non-frozen CI installs or when `force` is set;

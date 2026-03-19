@@ -81,9 +81,9 @@ export function failIfTrustDowngraded (
 
 function prettyPrintTrustEvidence (trustEvidence: TrustEvidence | undefined): string {
   switch (trustEvidence) {
-  case 'trustedPublisher': return 'trusted publisher'
-  case 'provenance': return 'provenance attestation'
-  default: return 'no trust evidence'
+    case 'trustedPublisher': return 'trusted publisher'
+    case 'provenance': return 'provenance attestation'
+    default: return 'no trust evidence'
   }
 }
 

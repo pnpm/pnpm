@@ -58,15 +58,15 @@ export function prepare (
 
   fs.mkdirSync(dir, { recursive: true })
   switch (opts?.manifestFormat ?? 'JSON') {
-  case 'JSON':
+    case 'JSON':
       writePackageSync(dir, { name: 'project', version: '0.0.0', ...manifest } as any) // eslint-disable-line
-    break
-  case 'JSON5':
+      break
+    case 'JSON5':
       writeJson5FileSync(path.join(dir, 'package.json5'), { name: 'project', version: '0.0.0', ...manifest } as any) // eslint-disable-line
-    break
-  case 'YAML':
+      break
+    case 'YAML':
       writeYamlFileSync(path.join(dir, 'package.yaml'), { name: 'project', version: '0.0.0', ...manifest } as any) // eslint-disable-line
-    break
+      break
   }
   process.chdir(dir)
 

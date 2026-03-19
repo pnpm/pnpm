@@ -82,21 +82,21 @@ export async function resolveFromLocal (
       }
     } else {
       switch (internalErr.code) {
-      case 'ENOTDIR': {
-        throw new PnpmError('NOT_PACKAGE_DIRECTORY',
-          `Could not install from "${spec.fetchSpec}" as it is not a directory.`)
-      }
-      case 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND':
-      case 'ENOENT': {
-        localDependencyManifest = {
-          name: path.basename(spec.fetchSpec),
-          version: '0.0.0',
+        case 'ENOTDIR': {
+          throw new PnpmError('NOT_PACKAGE_DIRECTORY',
+            `Could not install from "${spec.fetchSpec}" as it is not a directory.`)
         }
-        break
-      }
-      default: {
-        throw internalErr
-      }
+        case 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND':
+        case 'ENOENT': {
+          localDependencyManifest = {
+            name: path.basename(spec.fetchSpec),
+            version: '0.0.0',
+          }
+          break
+        }
+        default: {
+          throw internalErr
+        }
       }
     }
   }

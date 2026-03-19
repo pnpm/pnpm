@@ -26,22 +26,22 @@ function createImportPackage (packageImportMethod?: PackageImportMethod): Import
   // - auto: try to clone or hardlink the packages, if it fails, fallback to copy
   // - copy: copy the packages, do not try to link them first
   switch (packageImportMethod ?? 'auto') {
-  case 'clone':
-    packageImportMethodLogger.debug({ method: 'clone' })
-    return clonePkg.bind(null, createCloneFunction())
-  case 'hardlink':
-    packageImportMethodLogger.debug({ method: 'hardlink' })
-    return hardlinkPkg.bind(null, linkOrCopy)
-  case 'auto': {
-    return createAutoImporter()
-  }
-  case 'clone-or-copy':
-    return createCloneOrCopyImporter()
-  case 'copy':
-    packageImportMethodLogger.debug({ method: 'copy' })
-    return copyPkg
-  default:
-    throw new Error(`Unknown package import method ${packageImportMethod as string}`)
+    case 'clone':
+      packageImportMethodLogger.debug({ method: 'clone' })
+      return clonePkg.bind(null, createCloneFunction())
+    case 'hardlink':
+      packageImportMethodLogger.debug({ method: 'hardlink' })
+      return hardlinkPkg.bind(null, linkOrCopy)
+    case 'auto': {
+      return createAutoImporter()
+    }
+    case 'clone-or-copy':
+      return createCloneOrCopyImporter()
+    case 'copy':
+      packageImportMethodLogger.debug({ method: 'copy' })
+      return copyPkg
+    default:
+      throw new Error(`Unknown package import method ${packageImportMethod as string}`)
   }
 }
 

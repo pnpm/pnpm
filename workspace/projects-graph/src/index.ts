@@ -20,9 +20,9 @@ export function createProjectsGraph<Pkg extends BaseProject> (projects: Pkg[], o
   ignoreDevDeps?: boolean
   linkWorkspacePackages?: boolean
 }): {
-    graph: Record<ProjectRootDir, ProjectGraphNode<Pkg>>
-    unmatched: Array<{ pkgName: string, range: string }>
-  } {
+  graph: Record<ProjectRootDir, ProjectGraphNode<Pkg>>
+  unmatched: Array<{ pkgName: string, range: string }>
+} {
   const projectMap = createProjectMap(projects)
   const projectMapValues = Object.values(projectMap)
   let projectMapByManifestName: Record<string, BaseProject[] | undefined> | undefined

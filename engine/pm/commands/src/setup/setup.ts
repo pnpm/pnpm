@@ -149,12 +149,12 @@ export async function handler (
     return renderSetupOutput(report)
   } catch (err: any) { // eslint-disable-line
     switch (err.code) {
-    case 'ERR_PNPM_BAD_ENV_FOUND':
-      err.hint = 'If you want to override the existing env variable, use the --force option'
-      break
-    case 'ERR_PNPM_BAD_SHELL_SECTION':
-      err.hint = 'If you want to override the existing configuration section, use the --force option'
-      break
+      case 'ERR_PNPM_BAD_ENV_FOUND':
+        err.hint = 'If you want to override the existing env variable, use the --force option'
+        break
+      case 'ERR_PNPM_BAD_SHELL_SECTION':
+        err.hint = 'If you want to override the existing configuration section, use the --force option'
+        break
     }
     throw err
   }
@@ -182,9 +182,9 @@ source ${report.configFile.path}
 
 function reportConfigChange (configReport: ConfigReport): string {
   switch (configReport.changeType) {
-  case 'created': return `Created ${configReport.path}`
-  case 'appended': return `Appended new lines to ${configReport.path}`
-  case 'modified': return `Replaced configuration in ${configReport.path}`
-  case 'skipped': return `Configuration already up to date in ${configReport.path}`
+    case 'created': return `Created ${configReport.path}`
+    case 'appended': return `Appended new lines to ${configReport.path}`
+    case 'modified': return `Replaced configuration in ${configReport.path}`
+    case 'skipped': return `Configuration already up to date in ${configReport.path}`
   }
 }

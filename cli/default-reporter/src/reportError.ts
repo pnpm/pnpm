@@ -54,52 +54,52 @@ function getErrorInfo (logObj: Log, config?: Config): ErrorInfo | null {
   if ('err' in logObj && logObj.err) {
     const err = logObj.err as (PnpmError & { stack: object })
     switch (err.code) {
-    case 'ERR_PNPM_UNEXPECTED_STORE':
-      return reportUnexpectedStore(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-    case 'ERR_PNPM_UNEXPECTED_VIRTUAL_STORE':
-      return reportUnexpectedVirtualStoreDir(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-    case 'ERR_PNPM_STORE_BREAKING_CHANGE':
-      return reportStoreBreakingChange(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-    case 'ERR_PNPM_MODULES_BREAKING_CHANGE':
-      return reportModulesBreakingChange(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-    case 'ERR_PNPM_MODIFIED_DEPENDENCY':
-      return reportModifiedDependency(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-    case 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE':
-      return reportLockfileBreakingChange(err, logObj)
-    case 'ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT':
-      return { title: err.message }
-    case 'ERR_PNPM_MISSING_TIME':
-      return { title: err.message, body: 'If you cannot fix this registry issue, then set "resolution-mode" to "highest".' }
-    case 'ERR_PNPM_NO_MATCHING_VERSION':
-    case 'ERR_PNPM_NO_MATURE_MATCHING_VERSION':
-      return formatNoMatchingVersion(err, logObj as unknown as { packageMeta: PackageMeta, immatureVersion?: string })
-    case 'ERR_PNPM_RECURSIVE_FAIL':
-      return formatRecursiveCommandSummary(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-    case 'ERR_PNPM_BAD_TARBALL_SIZE':
-      return reportBadTarballSize(err, logObj)
-    case 'ELIFECYCLE':
-      return reportLifecycleError(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-    case 'ERR_PNPM_UNSUPPORTED_ENGINE':
-      return reportEngineError(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-    case 'ERR_PNPM_PEER_DEP_ISSUES':
-      return reportPeerDependencyIssuesError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-    case 'ERR_PNPM_DEDUPE_CHECK_ISSUES':
-      return reportDedupeCheckIssuesError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-    case 'ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER':
-      return reportSpecNotSupportedByAnyResolverError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-    case 'ERR_PNPM_FETCH_401':
-    case 'ERR_PNPM_FETCH_403':
-      return reportAuthError(err, logObj as any, config) // eslint-disable-line @typescript-eslint/no-explicit-any
-    default: {
+      case 'ERR_PNPM_UNEXPECTED_STORE':
+        return reportUnexpectedStore(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      case 'ERR_PNPM_UNEXPECTED_VIRTUAL_STORE':
+        return reportUnexpectedVirtualStoreDir(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      case 'ERR_PNPM_STORE_BREAKING_CHANGE':
+        return reportStoreBreakingChange(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      case 'ERR_PNPM_MODULES_BREAKING_CHANGE':
+        return reportModulesBreakingChange(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      case 'ERR_PNPM_MODIFIED_DEPENDENCY':
+        return reportModifiedDependency(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      case 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE':
+        return reportLockfileBreakingChange(err, logObj)
+      case 'ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT':
+        return { title: err.message }
+      case 'ERR_PNPM_MISSING_TIME':
+        return { title: err.message, body: 'If you cannot fix this registry issue, then set "resolution-mode" to "highest".' }
+      case 'ERR_PNPM_NO_MATCHING_VERSION':
+      case 'ERR_PNPM_NO_MATURE_MATCHING_VERSION':
+        return formatNoMatchingVersion(err, logObj as unknown as { packageMeta: PackageMeta, immatureVersion?: string })
+      case 'ERR_PNPM_RECURSIVE_FAIL':
+        return formatRecursiveCommandSummary(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      case 'ERR_PNPM_BAD_TARBALL_SIZE':
+        return reportBadTarballSize(err, logObj)
+      case 'ELIFECYCLE':
+        return reportLifecycleError(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      case 'ERR_PNPM_UNSUPPORTED_ENGINE':
+        return reportEngineError(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      case 'ERR_PNPM_PEER_DEP_ISSUES':
+        return reportPeerDependencyIssuesError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      case 'ERR_PNPM_DEDUPE_CHECK_ISSUES':
+        return reportDedupeCheckIssuesError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      case 'ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER':
+        return reportSpecNotSupportedByAnyResolverError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      case 'ERR_PNPM_FETCH_401':
+      case 'ERR_PNPM_FETCH_403':
+        return reportAuthError(err, logObj as any, config) // eslint-disable-line @typescript-eslint/no-explicit-any
+      default: {
       // Errors with unknown error codes are printed with stack trace
-      if (!err.code?.startsWith?.('ERR_PNPM_')) {
-        return formatGenericError(err.message ?? (logObj as { message: string }).message, err.stack)
+        if (!err.code?.startsWith?.('ERR_PNPM_')) {
+          return formatGenericError(err.message ?? (logObj as { message: string }).message, err.stack)
+        }
+        return {
+          title: err.message ?? '',
+          body: (logObj as { hint?: string }).hint,
+        }
       }
-      return {
-        title: err.message ?? '',
-        body: (logObj as { hint?: string }).hint,
-      }
-    }
     }
   }
   return { title: logObj.message! }

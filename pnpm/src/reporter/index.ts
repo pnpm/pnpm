@@ -15,45 +15,45 @@ export function initReporter (
   }
 ): void {
   switch (reporterType) {
-  case 'default':
-    initDefaultReporter({
-      useStderr: opts.config.useStderr,
-      context: {
-        argv: opts.cmd ? [opts.cmd] : [],
-        config: opts.config,
-      },
-      reportingOptions: {
-        appendOnly: false,
-        logLevel: opts.config.loglevel as LogLevel,
-        streamLifecycleOutput: opts.config.stream,
-        throttleProgress: 200,
-        hideAddedPkgsProgress: opts.config.lockfileOnly,
-        hideLifecyclePrefix: opts.config.reporterHidePrefix,
-      },
-      streamParser: streamParser as StreamParser<Log>,
-    })
-    return
-  case 'append-only':
-    initDefaultReporter({
-      useStderr: opts.config.useStderr,
-      context: {
-        argv: opts.cmd ? [opts.cmd] : [],
-        config: opts.config,
-      },
-      reportingOptions: {
-        appendOnly: true,
-        aggregateOutput: opts.config.aggregateOutput,
-        logLevel: opts.config.loglevel as LogLevel,
-        throttleProgress: 1000,
-        hideLifecyclePrefix: opts.config.reporterHidePrefix,
-      },
-      streamParser: streamParser as StreamParser<Log>,
-    })
-    return
-  case 'ndjson':
-    writeToConsole()
-    return
-  case 'silent':
-    silentReporter(streamParser)
+    case 'default':
+      initDefaultReporter({
+        useStderr: opts.config.useStderr,
+        context: {
+          argv: opts.cmd ? [opts.cmd] : [],
+          config: opts.config,
+        },
+        reportingOptions: {
+          appendOnly: false,
+          logLevel: opts.config.loglevel as LogLevel,
+          streamLifecycleOutput: opts.config.stream,
+          throttleProgress: 200,
+          hideAddedPkgsProgress: opts.config.lockfileOnly,
+          hideLifecyclePrefix: opts.config.reporterHidePrefix,
+        },
+        streamParser: streamParser as StreamParser<Log>,
+      })
+      return
+    case 'append-only':
+      initDefaultReporter({
+        useStderr: opts.config.useStderr,
+        context: {
+          argv: opts.cmd ? [opts.cmd] : [],
+          config: opts.config,
+        },
+        reportingOptions: {
+          appendOnly: true,
+          aggregateOutput: opts.config.aggregateOutput,
+          logLevel: opts.config.loglevel as LogLevel,
+          throttleProgress: 1000,
+          hideLifecyclePrefix: opts.config.reporterHidePrefix,
+        },
+        streamParser: streamParser as StreamParser<Log>,
+      })
+      return
+    case 'ndjson':
+      writeToConsole()
+      return
+    case 'silent':
+      silentReporter(streamParser)
   }
 }

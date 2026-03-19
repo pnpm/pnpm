@@ -15,12 +15,12 @@ export function whichVersionIsPinned (spec: string): PinnedVersion | undefined {
   if (parsedRange.length !== 1) return undefined
   const versionObject = parsedRange[0]
   switch (versionObject.operator) {
-  case '~': return 'minor'
-  case '^': return 'major'
-  case undefined:
-    if (versionObject.patch) return 'patch'
-    if (versionObject.minor) return 'minor'
-    if (versionObject.major) return 'major'
+    case '~': return 'minor'
+    case '^': return 'major'
+    case undefined:
+      if (versionObject.patch) return 'patch'
+      if (versionObject.minor) return 'minor'
+      if (versionObject.major) return 'major'
   }
   return undefined
 }

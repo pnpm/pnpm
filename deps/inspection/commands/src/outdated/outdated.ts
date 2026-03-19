@@ -224,21 +224,21 @@ export async function handler (
 
   let output!: string
   switch (opts.format ?? 'table') {
-  case 'table': {
-    output = renderOutdatedTable(outdatedPackages, opts)
-    break
-  }
-  case 'list': {
-    output = renderOutdatedList(outdatedPackages, opts)
-    break
-  }
-  case 'json': {
-    output = renderOutdatedJSON(outdatedPackages, opts)
-    break
-  }
-  default: {
-    throw new PnpmError('BAD_OUTDATED_FORMAT', `Unsupported format: ${opts.format?.toString() ?? 'undefined'}`)
-  }
+    case 'table': {
+      output = renderOutdatedTable(outdatedPackages, opts)
+      break
+    }
+    case 'list': {
+      output = renderOutdatedList(outdatedPackages, opts)
+      break
+    }
+    case 'json': {
+      output = renderOutdatedJSON(outdatedPackages, opts)
+      break
+    }
+    default: {
+      throw new PnpmError('BAD_OUTDATED_FORMAT', `Unsupported format: ${opts.format?.toString() ?? 'undefined'}`)
+    }
   }
   return {
     output,
@@ -376,9 +376,9 @@ export function toOutdatedWithVersionDiff<Pkg extends OutdatedPackage> (outdated
 
 export function renderPackageName ({ belongsTo, packageName }: OutdatedPackage): string {
   switch (belongsTo) {
-  case 'devDependencies': return `${packageName} ${chalk.dim('(dev)')}`
-  case 'optionalDependencies': return `${packageName} ${chalk.dim('(optional)')}`
-  default: return packageName
+    case 'devDependencies': return `${packageName} ${chalk.dim('(dev)')}`
+    case 'optionalDependencies': return `${packageName} ${chalk.dim('(optional)')}`
+    default: return packageName
   }
 }
 
