@@ -3,10 +3,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import mdastToString from 'mdast-util-to-string'
+import { toString as mdastToString } from 'mdast-util-to-string'
 import remarkParse from 'remark-parse'
 import remarkStringify from 'remark-stringify'
-import unified from 'unified'
+import { unified } from 'unified'
 
 export const BumpLevels = {
   dep: 0,
