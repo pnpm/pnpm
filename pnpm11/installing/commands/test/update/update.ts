@@ -102,6 +102,30 @@ test('update with "*" pattern', async () => {
   expect(lockfile.packages['@pnpm.e2e/foo@1.0.0']).toBeTruthy()
 })
 
+test('update --peer updates peer dependency ranges', async () => {
+  prepare({
+    peerDependencies: {
+      '@pnpm.e2e/foo': '^1.0.0',
+    },
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
+
+  await execFileAsync(process.execPath, [
+    pnpmBin,
+    'update',
+    '--latest',
+    '--peer',
+    `--registry=${registry}`,
+  ])
+
+  const manifest = loadJsonFileSync<ProjectManifest>('package.json')
+  expect(manifest.peerDependencies).toStrictEqual({
+    '@pnpm.e2e/foo': '^2.0.0',
+  })
+  expect(manifest.dependencies).toBeUndefined()
+})
+
 test('update to latest should not touch the automatically installed peer dependencies', async () => {
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })

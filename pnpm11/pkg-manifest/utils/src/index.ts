@@ -24,5 +24,6 @@ export function filterDependenciesByType (
     ...(include.devDependencies ? manifest.devDependencies : {}),
     ...(include.dependencies ? manifest.dependencies : {}),
     ...(include.optionalDependencies ? manifest.optionalDependencies : {}),
+    ...(include.peerDependencies ? manifest.peerDependencies : {}),
   }
 }

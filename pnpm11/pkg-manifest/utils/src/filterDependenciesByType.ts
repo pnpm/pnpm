@@ -8,5 +8,6 @@ export function filterDependenciesByType (
     ...(include.dependencies ? manifest.dependencies : {}),
     ...(include.devDependencies ? manifest.devDependencies : {}),
     ...(include.optionalDependencies ? manifest.optionalDependencies : {}),
+    ...(include.peerDependencies ? manifest.peerDependencies : {}),
   }
 }

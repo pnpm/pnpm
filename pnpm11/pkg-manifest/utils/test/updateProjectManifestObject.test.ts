@@ -1,11 +1,10 @@
 import { expect, test } from '@jest/globals'
-import { createVersionSpecFromResolvedVersion, guessDependencyType, updateProjectManifestObject } from '@pnpm/pkg-manifest.utils'
+import { createVersionSpecFromResolvedVersion, filterDependenciesByType, guessDependencyType, updateProjectManifestObject } from '@pnpm/pkg-manifest.utils'
 
 test('createVersionSpecFromResolvedVersion() keeps the explicit equals operator of an exact pin', () => {
   expect(createVersionSpecFromResolvedVersion('3.5.2', 'exact')).toBe('=3.5.2')
   expect(createVersionSpecFromResolvedVersion('3.5.2', 'patch')).toBe('3.5.2')
 })
-
 test('guessDependencyType()', () => {
   expect(
     guessDependencyType('foo', {
@@ -169,6 +168,54 @@ test('writes prototype-conflicting aliases as own data properties without pollut
 
   // Object.prototype hasn't grown a new property.
   expect(Object.getOwnPropertyNames(Object.prototype).sort()).toStrictEqual(protoSnapshotBefore)
+})
+
+test('update existing peerDependencies version range', async () => {
+  const manifest = await updateProjectManifestObject('/project', {
+    peerDependencies: {
+      foo: '^1.0.0',
+    },
+  }, [
+    {
+      alias: 'foo',
+      bareSpecifier: '^2.0.0',
+      resolvedVersion: '2.0.0',
+    },
+  ])
+
+  expect(manifest.peerDependencies).toStrictEqual({
+    foo: '^2.0.0',
+  })
+  // Should NOT be added to dependencies
+  expect(manifest.dependencies).toBeUndefined()
+})
+
+test('filterDependenciesByType includes peerDependencies when enabled', () => {
+  const manifest = {
+    dependencies: { a: '1.0.0' },
+    devDependencies: { b: '2.0.0' },
+    peerDependencies: { c: '^3.0.0' },
+  }
+  const result = filterDependenciesByType(manifest, {
+    dependencies: true,
+    devDependencies: false,
+    optionalDependencies: false,
+    peerDependencies: true,
+  })
+  expect(result).toStrictEqual({ a: '1.0.0', c: '^3.0.0' })
+})
+
+test('filterDependenciesByType excludes peerDependencies by default', () => {
+  const manifest = {
+    dependencies: { a: '1.0.0' },
+    peerDependencies: { c: '^3.0.0' },
+  }
+  const result = filterDependenciesByType(manifest, {
+    dependencies: true,
+    devDependencies: true,
+    optionalDependencies: true,
+  })
+  expect(result).toStrictEqual({ a: '1.0.0' })
 })
 
 test('peer dependencies respect pinned version "patch" and "none"', async () => {
