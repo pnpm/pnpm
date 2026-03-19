@@ -97,6 +97,7 @@ export function refToRelative (
   reference: string,
   pkgName: string
 ): DepPath | null {
+  if (typeof reference !== 'string') return null;
   if (reference.startsWith('link:')) {
     return null
   }
