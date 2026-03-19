@@ -231,7 +231,9 @@ catalog:
   mdast-util-to-string: ^4.0.0
   memoize: ^10.2.0
   micromatch: ^4.0.8
-  msgpackr: ^1.11.9
+  # msgpackr 1.11.9 has broken type definitions (uses Iterable/Iterator without
+  # required type arguments), incompatible with TypeScript 5.9.
+  msgpackr: 1.11.8
   nm-prune: ^5.0.0
   # nock 14 doesn't properly intercept node-fetch requests, causing tests
   # that mock HTTP endpoints (e.g. audit) to hang indefinitely.

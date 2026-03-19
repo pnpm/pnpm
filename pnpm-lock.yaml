@@ -674,8 +674,8 @@ catalogs:
       specifier: ^4.0.8
       version: 4.0.8
     msgpackr:
-      specifier: ^1.11.9
-      version: 1.11.9
+      specifier: 1.11.8
+      version: 1.11.8
     nm-prune:
       specifier: ^5.0.0
       version: 5.0.0
@@ -4450,7 +4450,7 @@ importers:
         version: link:../graceful-fs
       msgpackr:
         specifier: 'catalog:'
-        version: 1.11.9
+        version: 1.11.8
     devDependencies:
       '@pnpm/fs.msgpack-file':
         specifier: workspace:*
@@ -8481,7 +8481,7 @@ importers:
     dependencies:
       msgpackr:
         specifier: 'catalog:'
-        version: 1.11.9
+        version: 1.11.8
     devDependencies:
       '@pnpm/store.index':
         specifier: workspace:*
@@ -14507,8 +14507,8 @@ packages:
     resolution: {integrity: sha512-P0efT1C9jIdVRefqjzOQ9Xml57zpOXnIuS+csaB4MdZbTdmGDLo8XhzBG1N7aO11gKDDkJvBLULeFTo46wwreA==}
     hasBin: true
 
-  msgpackr@1.11.9:
-    resolution: {integrity: sha512-FkoAAyyA6HM8wL882EcEyFZ9s7hVADSwG9xrVx3dxxNQAtgADTrJoEWivID82Iv1zWDsv/OtbrrcZAzGzOMdNw==}
+  msgpackr@1.11.8:
+    resolution: {integrity: sha512-bC4UGzHhVvgDNS7kn9tV8fAucIYUBuGojcaLiz7v+P63Lmtm0Xeji8B/8tYKddALXxJLpwIeBmUN3u64C4YkRA==}
 
   mute-stream@1.0.0:
     resolution: {integrity: sha512-avsJQhyd+680gKXyG/sQc0nXaC6rBkPOfyHYcFb9+hdkqQkR9bdnkJ0AMZhke0oesPqIO+mFFJ+IdBc7mst4IA==}
@@ -23388,7 +23388,7 @@ snapshots:
       '@msgpackr-extract/msgpackr-extract-win32-x64': 3.0.3
     optional: true
 
-  msgpackr@1.11.9:
+  msgpackr@1.11.8:
     optionalDependencies:
       msgpackr-extract: 3.0.3
 
