@@ -87,7 +87,7 @@ test('dlx should work with npm_config_save_dev env variable', async () => {
     env: {
       npm_config_save_dev: 'true',
     },
-    stdio: 'inherit',
+    stdio: 'pipe',
     expectSuccess: true,
   })
 })
@@ -256,7 +256,7 @@ test('dlx read registry from .npmrc in the current directory', async () => {
     'hello-from-needs-auth',
   ], {
     env: {},
-    stdio: [null, 'pipe', 'inherit'],
+    stdio: 'pipe',
     expectSuccess: true,
   })
 
@@ -279,7 +279,7 @@ test('dlx uses the node version specified by --package=node@runtime:<version>', 
     env: {
       PNPM_HOME: pnpmHome,
     },
-    stdio: [null, 'pipe', 'inherit'],
+    stdio: 'pipe',
     expectSuccess: true,
   })
 
@@ -382,7 +382,7 @@ describeOnLinuxOnly('dlx with supportedArchitectures CLI options', () => {
       'dlx',
       'get-optional-dependencies',
     ], {
-      stdio: [null, 'pipe', 'inherit'],
+      stdio: 'pipe',
       expectSuccess: true,
     })
 

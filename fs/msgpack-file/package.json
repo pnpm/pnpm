@@ -29,7 +29,7 @@
     "prepublishOnly": "pnpm run compile",
     "test": "pnpm run compile && pnpm run _test",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest"
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/fs.graceful-fs": "workspace:*",
