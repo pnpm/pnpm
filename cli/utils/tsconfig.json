@@ -10,13 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../__utils__/prepare"
-    },
-    {
       "path": "../../config/package-is-installable"
-    },
-    {
-      "path": "../../config/reader"
     },
     {
       "path": "../../core/error"
@@ -28,22 +22,10 @@
       "path": "../../core/types"
     },
     {
-      "path": "../../hooks/pnpmfile"
-    },
-    {
-      "path": "../../installing/env-installer"
-    },
-    {
       "path": "../../pkg-manifest/utils"
     },
     {
-      "path": "../../store/connection-manager"
-    },
-    {
       "path": "../../workspace/project-manifest-reader"
-    },
-    {
-      "path": "../default-reporter"
     },
     {
       "path": "../meta"

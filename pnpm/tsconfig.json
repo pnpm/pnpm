@@ -102,6 +102,9 @@
       "path": "../fs/msgpack-file"
     },
     {
+      "path": "../hooks/pnpmfile"
+    },
+    {
       "path": "../installing/client"
     },
     {

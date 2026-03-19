@@ -166,8 +166,7 @@ async function updateTSConfig (
         manifest.name === '@pnpm/fetching.tarball-fetcher' ||
         manifest.name === '@pnpm/installing.package-requester'
       ) ||
-      depName === 'pnpm' && manifest.name === '@pnpm/lockfile.make-dedicated-lockfile' ||
-      depName === '@pnpm/workspace.projects-reader' && manifest.name === '@pnpm/workspace.workspace-manifest-writer'
+      depName === 'pnpm' && manifest.name === '@pnpm/lockfile.make-dedicated-lockfile'
     ) {
       // This is to avoid a circular graph (which TypeScript references do not support.
       continue

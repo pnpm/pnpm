@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { jest } from '@jest/globals'
-import { calcPnpmfilePathsOfPluginDeps, getConfig } from '@pnpm/cli.utils'
+import { calcPnpmfilePathsOfPluginDeps, getConfig } from '../src/getConfig.js'
 import { prepare } from '@pnpm/prepare'
 
 beforeEach(() => {

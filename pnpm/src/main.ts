@@ -11,7 +11,7 @@ import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
 import type { ParsedCliArgs } from '@pnpm/cli.parse-cli-args'
-import { getConfig, installConfigDepsAndLoadHooks } from '@pnpm/cli.utils'
+import { getConfig, installConfigDepsAndLoadHooks } from './getConfig.js'
 import type { Config } from '@pnpm/config.reader'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'

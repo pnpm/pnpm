@@ -24,24 +24,17 @@
     "!*.map"
   ],
   "scripts": {
-    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "lint": "eslint \"src/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsgo --build && pnpm run lint --fix",
-    "test": "pnpm run compile && pnpm run _test",
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest"
+    "test": "pnpm run compile"
   },
   "dependencies": {
-    "@pnpm/cli.default-reporter": "workspace:*",
     "@pnpm/cli.meta": "workspace:*",
     "@pnpm/config.package-is-installable": "workspace:*",
-    "@pnpm/config.reader": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/hooks.pnpmfile": "workspace:*",
-    "@pnpm/installing.env-installer": "workspace:*",
     "@pnpm/pkg-manifest.utils": "workspace:*",
-    "@pnpm/store.connection-manager": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "chalk": "catalog:",
     "load-json-file": "catalog:"
@@ -50,11 +43,8 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
-    "@jest/globals": "catalog:",
     "@pnpm/cli.utils": "workspace:*",
-    "@pnpm/logger": "workspace:*",
-    "@pnpm/prepare": "workspace:*",
-    "@types/ramda": "catalog:"
+    "@pnpm/logger": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"
