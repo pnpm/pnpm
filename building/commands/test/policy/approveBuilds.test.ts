@@ -236,7 +236,7 @@ test('approve builds via positional arguments', async () => {
 
   const workspaceManifest = readYamlFileSync<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
   expect(workspaceManifest.allowBuilds).toStrictEqual({
-    '@pnpm.e2e/install-script-example': false,
+    '@pnpm.e2e/install-script-example': 'warn',
     '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
   })
 
