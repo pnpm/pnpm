@@ -18,7 +18,10 @@ export const commandNames = ['approve-builds']
 export function help (): string {
   return renderHelp({
     description: 'Approve dependencies for running scripts during installation',
-    usages: ['pnpm approve-builds [pkg1 pkg2 ...]'],
+    usages: [
+      'pnpm approve-builds',
+      'pnpm approve-builds [<pkg> ...]',
+    ],
     descriptionLists: [
       {
         title: 'Options',
