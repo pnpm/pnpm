@@ -79,6 +79,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
     ...rcOptionsTypes(),
     interactive: Boolean,
     latest: Boolean,
+    peer: Boolean,
     recursive: Boolean,
     workspace: Boolean,
   }
@@ -138,6 +139,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           {
             description: 'Don\'t update packages in "optionalDependencies"',
             name: '--no-optional',
+          },
+          {
+            description: 'Also update packages in "peerDependencies"',
+            name: '--peer',
           },
           {
             description: 'Tries to link all packages from the workspace. \
@@ -326,10 +331,12 @@ function makeIncludeDependenciesFromCLI (opts: {
   production?: boolean
   dev?: boolean
   optional?: boolean
+  peer?: boolean
 }): IncludedDependencies {
   return {
     dependencies: opts.production === true || (opts.dev !== true && opts.optional !== true),
     devDependencies: opts.dev === true || (opts.production !== true && opts.optional !== true),
     optionalDependencies: opts.optional === true || (opts.production !== true && opts.dev !== true),
+    peerDependencies: opts.peer === true,
   }
 }

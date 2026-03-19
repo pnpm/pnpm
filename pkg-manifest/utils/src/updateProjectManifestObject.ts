@@ -71,7 +71,14 @@ export async function updateProjectManifestObject (
       }
     } else if (packageSpec.bareSpecifier) {
       const usedDepType = guessDependencyType(packageSpec.alias, packageManifest) ?? 'dependencies'
-      if (usedDepType !== 'peerDependencies') {
+      if (usedDepType === 'peerDependencies') {
+        packageManifest.peerDependencies = packageManifest.peerDependencies ?? {}
+        packageManifest.peerDependencies[packageSpec.alias] = getPeerSpecifier(
+          packageSpec.bareSpecifier,
+          packageSpec.resolvedVersion,
+          packageSpec.pinnedVersion
+        )
+      } else {
         packageManifest[usedDepType] = packageManifest[usedDepType] ?? {}
         packageManifest[usedDepType]![packageSpec.alias] = packageSpec.bareSpecifier
       }
