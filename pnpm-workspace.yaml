@@ -231,7 +231,7 @@ catalog:
   micromatch: ^4.0.8
   msgpackr: ^1.11.2
   nm-prune: ^5.0.0
-  nock: 14.0.11
+  nock: 13.3.4
   node-fetch: ^3.3.2
   normalize-newline: 5.0.0
   normalize-package-data: ^8.0.0

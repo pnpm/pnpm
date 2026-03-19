@@ -680,8 +680,8 @@ catalogs:
       specifier: ^5.0.0
       version: 5.0.0
     nock:
-      specifier: 14.0.11
-      version: 14.0.11
+      specifier: 13.3.4
+      version: 13.3.4
     node-fetch:
       specifier: ^3.3.2
       version: 3.3.2
@@ -2725,7 +2725,7 @@ importers:
         version: 0.31.1
       nock:
         specifier: 'catalog:'
-        version: 14.0.11
+        version: 13.3.4
 
   deps/compliance/commands:
     dependencies:
@@ -2840,7 +2840,7 @@ importers:
         version: 7.0.1
       nock:
         specifier: 'catalog:'
-        version: 14.0.11
+        version: 13.3.4
       read-yaml-file:
         specifier: 'catalog:'
         version: 3.0.0
@@ -3557,7 +3557,7 @@ importers:
         version: 7.0.6
       nock:
         specifier: 'catalog:'
-        version: 14.0.11
+        version: 13.3.4
 
   engine/runtime/bun-resolver:
     dependencies:
@@ -4241,7 +4241,7 @@ importers:
         version: link:../../__utils__/test-fixtures
       nock:
         specifier: 'catalog:'
-        version: 14.0.11
+        version: 13.3.4
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
@@ -4329,7 +4329,7 @@ importers:
         version: 7.1.5
       nock:
         specifier: 'catalog:'
-        version: 14.0.11
+        version: 13.3.4
       ssri:
         specifier: 'catalog:'
         version: 13.0.1
@@ -4992,7 +4992,7 @@ importers:
         version: 30.2.0
       nock:
         specifier: 'catalog:'
-        version: 14.0.11
+        version: 13.3.4
       path-name:
         specifier: 'catalog:'
         version: 1.0.0
@@ -5380,7 +5380,7 @@ importers:
         version: 1.0.2
       nock:
         specifier: 'catalog:'
-        version: 14.0.11
+        version: 13.3.4
       path-name:
         specifier: 'catalog:'
         version: 1.0.0
@@ -6100,7 +6100,7 @@ importers:
         version: 7.0.0
       nock:
         specifier: 'catalog:'
-        version: 14.0.11
+        version: 13.3.4
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
@@ -6767,7 +6767,7 @@ importers:
         version: 0.1.2
       nock:
         specifier: 'catalog:'
-        version: 14.0.11
+        version: 13.3.4
 
   network/git-utils:
     dependencies:
@@ -8010,7 +8010,7 @@ importers:
         version: 7.0.1
       nock:
         specifier: 'catalog:'
-        version: 14.0.11
+        version: 13.3.4
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
@@ -10179,10 +10179,6 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@mswjs/interceptors@0.41.3':
-    resolution: {integrity: sha512-cXu86tF4VQVfwz8W1SPbhoRyHJkti6mjH/XJIxp40jhO4j2k1m4KYrEykxqWPkFF3vrK4rgQppBh//AwyGSXPA==}
-    engines: {node: '>=18'}
-
   '@napi-rs/wasm-runtime@0.2.12':
     resolution: {integrity: sha512-ZVWUcfwY4E/yPitQJl481FjFo3K22D6qF0DuFH6Y/nbnE11GY5uguDxZMGXPQ8WQ0128MXQD7TnfHyK4oWoIJQ==}
 
@@ -10236,15 +10232,6 @@ packages:
   '@npmcli/redact@4.0.0':
     resolution: {integrity: sha512-gOBg5YHMfZy+TfHArfVogwgfBeQnKbbGo3pSUyK/gSI0AVu+pEiDVcKlQb0D8Mg1LNRZILZ6XG8I5dJ4KuAd9Q==}
     engines: {node: ^20.17.0 || >=22.9.0}
-
-  '@open-draft/deferred-promise@2.2.0':
-    resolution: {integrity: sha512-CecwLWx3rhxVQF6V4bAgPS5t+So2sTbPgAzafKkVizyi7tlwpcFpdFqq+wqF2OwNBmqFuu6tOyouTuxgpMfzmA==}
-
-  '@open-draft/logger@0.3.0':
-    resolution: {integrity: sha512-X2g45fzhxH238HKO4xbSr7+wBS8Fvw6ixhTDuvLd5mqh6bJJCFAPwU9mPDxbcrRtfxv4u5IHCEH77BmxvXmmxQ==}
-
-  '@open-draft/until@2.1.0':
-    resolution: {integrity: sha512-U69T3ItWHvLwGg5eJ0n3I62nWuE6ilHlmz7zM0npLBRvPRd7e6NYmg54vvRtP5mZG7kZqZCFVdsTWo7BPtBujg==}
 
   '@package-json/types@0.0.12':
     resolution: {integrity: sha512-uu43FGU34B5VM9mCNjXCwLaGHYjXdNincqKLaraaCW+7S2+SmiBg1Nv8bPnmschrIfZmfKNY9f3fC376MRrObw==}
@@ -13629,9 +13616,6 @@ packages:
     resolution: {integrity: sha512-5KoIu2Ngpyek75jXodFvnafB6DJgr3u8uuK0LEZJjrU19DrMD3EVERaR8sjz8CCGgpZvxPl9SuE1GMVPFHx1mw==}
     engines: {node: '>= 0.4'}
 
-  is-node-process@1.2.0:
-    resolution: {integrity: sha512-Vg4o6/fqPxIjtxgUH5QLJhwZ7gW5diGCVlXpuUfELC62CuxM1iHcRe51f2W1FDy04Ai4KJkagKjx3XaqyfRKXw==}
-
   is-number-object@1.1.1:
     resolution: {integrity: sha512-lZhclumE1G6VYD8VHe35wFaIif+CTy5SJIi5+3y4psDgWu4wPDoBhF8NxUOinEc7pHgiTsT6MaBb92rKhhD+Xw==}
     engines: {node: '>= 0.4'}
@@ -14589,9 +14573,9 @@ packages:
     engines: {node: '>=10'}
     hasBin: true
 
-  nock@14.0.11:
-    resolution: {integrity: sha512-u5xUnYE+UOOBA6SpELJheMCtj2Laqx15Vl70QxKo43Wz/6nMHXS7PrEioXLjXAwhmawdEMNImwKCcPhBJWbKVw==}
-    engines: {node: '>=18.20.0 <20 || >=20.12.1'}
+  nock@13.3.4:
+    resolution: {integrity: sha512-DDpmn5oLEdCTclEqweOT4U7bEpuoifBMFUXem9sA4turDAZ5tlbrEoWqCorwXey8CaAw44mst5JOQeVNiwtkhw==}
+    engines: {node: '>= 10.13'}
 
   node-domexception@1.0.0:
     resolution: {integrity: sha512-/jKZoMpw0F8GRwl4/eLROPA3cfcXtLApP0QzLmUT/HuPCZWyB7IY9ZrMeKw2O/nFIqPQB3PVM9aYm0F312AXDQ==}
@@ -14812,9 +14796,6 @@ packages:
 
   outdent@0.5.0:
     resolution: {integrity: sha512-/jHxFIzoMXdqPzTaCpFzAAWhpkSjZPF4Vsn6jAfNpmbH/ymsmd7Qc6VE9BGn0L6YMj6uwpQLxCECpus4ukKS9Q==}
-
-  outvariant@1.4.3:
-    resolution: {integrity: sha512-+Sl2UErvtsoajRDKCE5/dBz4DIvHXQQnAxtQTF04OJxY0+DyZXSo5P5Bb7XYWOh81syohlYL24hbDwxedPUJCA==}
 
   own-keys@1.0.1:
     resolution: {integrity: sha512-qFOyK5PjiWZd+QQIh+1jhdb9LpxTF0qs7Pm8o5QHYZ0M3vKqSqzsZaEB6oWlxZ+q2sJBMI/Ktgd2N5ZwQoRHfg==}
@@ -15837,9 +15818,6 @@ packages:
 
   streamx@2.23.0:
     resolution: {integrity: sha512-kn+e44esVfn2Fa/O0CPFcex27fjIL6MkVae0Mm6q+E6f0hWv578YCERbv+4m02cjxvDsPKLnmxral/rR6lBMAg==}
-
-  strict-event-emitter@0.5.1:
-    resolution: {integrity: sha512-vMgjE/GGEPEFnhFub6pa4FmJBRBVOLpIII2hvCZ8Kzb7K0hlHo7mQv6xYrBvCL2LtAIBwFUK8wvuJgTVSQ5MFQ==}
 
   string-length@4.0.2:
     resolution: {integrity: sha512-+l6rNN5fYHNhZZy41RXsYptCjA2Igmq4EG7kZAYFQI1E1VTXarr6ZPXBg6eq7Y6eK4FEhY6AJlyuFIb/v/S0VQ==}
@@ -17890,15 +17868,6 @@ snapshots:
   '@msgpackr-extract/msgpackr-extract-win32-x64@3.0.3':
     optional: true
 
-  '@mswjs/interceptors@0.41.3':
-    dependencies:
-      '@open-draft/deferred-promise': 2.2.0
-      '@open-draft/logger': 0.3.0
-      '@open-draft/until': 2.1.0
-      is-node-process: 1.2.0
-      outvariant: 1.4.3
-      strict-event-emitter: 0.5.1
-
   '@napi-rs/wasm-runtime@0.2.12':
     dependencies:
       '@emnapi/core': 1.8.1
@@ -17976,15 +17945,6 @@ snapshots:
       which: 6.0.1
 
   '@npmcli/redact@4.0.0': {}
-
-  '@open-draft/deferred-promise@2.2.0': {}
-
-  '@open-draft/logger@0.3.0':
-    dependencies:
-      is-node-process: 1.2.0
-      outvariant: 1.4.3
-
-  '@open-draft/until@2.1.0': {}
 
   '@package-json/types@0.0.12': {}
 
@@ -22276,8 +22236,6 @@ snapshots:
 
   is-negative-zero@2.0.3: {}
 
-  is-node-process@1.2.0: {}
-
   is-number-object@1.1.1:
     dependencies:
       call-bound: 1.0.4
@@ -23579,11 +23537,14 @@ snapshots:
       pretty-bytes: 4.0.2
       walk-filtered: 0.9.3
 
-  nock@14.0.11:
+  nock@13.3.4:
     dependencies:
-      '@mswjs/interceptors': 0.41.3
+      debug: 4.4.3
       json-stringify-safe: 5.0.1
+      lodash: 4.17.23
       propagate: 2.0.1
+    transitivePeerDependencies:
+      - supports-color
 
   node-domexception@1.0.0: {}
 
@@ -23852,8 +23813,6 @@ snapshots:
       wcwidth: 1.0.1
 
   outdent@0.5.0: {}
-
-  outvariant@1.4.3: {}
 
   own-keys@1.0.1:
     dependencies:
@@ -24928,8 +24887,6 @@ snapshots:
     transitivePeerDependencies:
       - bare-abort-controller
       - react-native-b4a
-
-  strict-event-emitter@0.5.1: {}
 
   string-length@4.0.2:
     dependencies:
