@@ -29,7 +29,7 @@
     "compile": "tsgo --build && pnpm run lint --fix",
     "prepublishOnly": "pnpm run compile",
     "test": "pnpm run compile && pnpm run _test",
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest"
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/error": "workspace:*"

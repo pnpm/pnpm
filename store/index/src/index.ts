@@ -121,6 +121,12 @@ export class StoreIndex {
     this.stmtHas = this.db.prepare('SELECT 1 FROM package_index WHERE key = ?')
     this.stmtAll = this.db.prepare('SELECT key, data FROM package_index')
     this.exitHandler = () => this.close()
+    // Multiple StoreIndex instances may be created (e.g. in tests), each adding
+    // an exit listener. Raise the limit to avoid MaxListenersExceededWarning.
+    const currentMax = process.getMaxListeners()
+    if (currentMax < openInstances.size + 11) {
+      process.setMaxListeners(currentMax + 10)
+    }
     process.on('exit', this.exitHandler)
     openInstances.add(this)
   }
