@@ -34,9 +34,6 @@
       "path": "../../yaml/document-sync"
     },
     {
-      "path": "../projects-reader"
-    },
-    {
       "path": "../workspace-manifest-reader"
     }
   ]
