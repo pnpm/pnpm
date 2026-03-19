@@ -35,6 +35,10 @@ export const REPORTER_INITIALIZED = Symbol('reporterInitialized')
 
 loudRejection()
 
+function isRootOnlyPatterns (patterns: string[]): boolean {
+  return patterns.length === 1 && patterns[0] === '.'
+}
+
 // This prevents the program from crashing when the pipe's read side closes early
 // (e.g., when running `pnpm config list | head`)
 process.stdout.on('error', (err: NodeJS.ErrnoException) => {
@@ -210,7 +214,14 @@ export async function main (inputArgv: string[]): Promise<void> {
     const relativeWSDirPath = () => path.relative(process.cwd(), wsDir) || '.'
     if (config.workspaceRoot) {
       filters.push({ filter: `{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length) })
-    } else if (filters.length === 0 && workspaceDir && config.workspacePackagePatterns && !config.includeWorkspaceRoot && (cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test')) {
+    } else if (
+      filters.length === 0 &&
+      workspaceDir &&
+      config.workspacePackagePatterns &&
+      !isRootOnlyPatterns(config.workspacePackagePatterns) &&
+      !config.includeWorkspaceRoot &&
+      (cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test')
+    ) {
       filters.push({ filter: `!{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length) })
     }
 
