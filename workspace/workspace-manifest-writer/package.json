@@ -43,7 +43,7 @@
     "yaml": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/fs.find-packages": "workspace:*",
+    "@pnpm/workspace.projects-reader": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/prepare-temp-dir": "workspace:*",
     "@pnpm/workspace.workspace-manifest-writer": "workspace:*",

@@ -15,13 +15,13 @@ const DEFAULT_IGNORE = [
   '**/tests/**',
 ]
 
-export interface Options {
+export interface FindPackagesOptions {
   ignore?: string[]
   includeRoot?: boolean
   patterns?: string[]
 }
 
-export async function findPackages (root: string, opts?: Options): Promise<Project[]> {
+export async function findPackages (root: string, opts?: FindPackagesOptions): Promise<Project[]> {
   opts = opts ?? {}
   const globOpts = { ...opts, cwd: root, expandDirectories: false }
   globOpts.ignore = opts.ignore ?? DEFAULT_IGNORE

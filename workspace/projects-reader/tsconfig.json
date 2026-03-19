@@ -22,7 +22,7 @@
       "path": "../../core/types"
     },
     {
-      "path": "../../fs/find-packages"
+      "path": "../project-manifest-reader"
     },
     {
       "path": "../workspace-manifest-reader"

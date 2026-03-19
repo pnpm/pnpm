@@ -33,9 +33,11 @@
   "dependencies": {
     "@pnpm/cli.utils": "workspace:*",
     "@pnpm/constants": "workspace:*",
-    "@pnpm/fs.find-packages": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "catalog:"
+    "@pnpm/util.lex-comparator": "catalog:",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
+    "p-filter": "catalog:",
+    "tinyglobby": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"

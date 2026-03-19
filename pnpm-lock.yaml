@@ -4372,31 +4372,6 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  fs/find-packages:
-    dependencies:
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../core/types
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 3.0.2
-      '@pnpm/workspace.project-manifest-reader':
-        specifier: workspace:*
-        version: link:../../workspace/project-manifest-reader
-      p-filter:
-        specifier: 'catalog:'
-        version: 4.1.0
-      tinyglobby:
-        specifier: 'catalog:'
-        version: 0.2.15
-    devDependencies:
-      '@jest/globals':
-        specifier: 'catalog:'
-        version: 30.0.5
-      '@pnpm/fs.find-packages':
-        specifier: workspace:*
-        version: 'link:'
-
   fs/graceful-fs:
     dependencies:
       graceful-fs:
@@ -8997,15 +8972,21 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants
-      '@pnpm/fs.find-packages':
-        specifier: workspace:*
-        version: link:../../fs/find-packages
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
         version: 3.0.2
+      '@pnpm/workspace.project-manifest-reader':
+        specifier: workspace:*
+        version: link:../project-manifest-reader
+      p-filter:
+        specifier: 'catalog:'
+        version: 4.1.0
+      tinyglobby:
+        specifier: 'catalog:'
+        version: 0.2.15
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -9148,15 +9129,15 @@ importers:
         specifier: 'catalog:'
         version: 2.8.2
     devDependencies:
-      '@pnpm/fs.find-packages':
-        specifier: workspace:*
-        version: link:../../fs/find-packages
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/prepare-temp-dir':
         specifier: workspace:*
         version: link:../../__utils__/prepare-temp-dir
+      '@pnpm/workspace.projects-reader':
+        specifier: workspace:*
+        version: link:../projects-reader
       '@pnpm/workspace.workspace-manifest-writer':
         specifier: workspace:*
         version: 'link:'
