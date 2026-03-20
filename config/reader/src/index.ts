@@ -335,7 +335,7 @@ export async function getConfig (opts: {
   pnpmConfig.dir = cwd
   if (cliOptions['global']) {
     delete pnpmConfig.workspaceDir
-    pnpmConfig.bin = npmConfig.get('global-bin-dir') ?? env.PNPM_HOME
+    pnpmConfig.bin = npmConfig.get('global-bin-dir') ?? path.join(getDataDir({ env, platform: process.platform }), 'bin')
     if (pnpmConfig.bin) {
       fs.mkdirSync(pnpmConfig.bin, { recursive: true })
       await checkGlobalBinDir(pnpmConfig.bin, { env, shouldAllowWrite: opts.globalDirShouldAllowWrite })

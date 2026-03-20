@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 export function getNodeExecPathInBinDir (pnpmHomeDir: string): string {
-  return path.resolve(pnpmHomeDir, process.platform === 'win32' ? 'node.exe' : 'node')
+  return path.resolve(pnpmHomeDir, 'bin', process.platform === 'win32' ? 'node.exe' : 'node')
 }
 
 export function getNodeExecPathInNodeDir (nodeDir: string): string {

@@ -15,7 +15,9 @@ export async function checkGlobalBinDir (
       `Couldn't find a global directory for executables because the "${PATH}" environment variable is not set.`)
   }
   if (!await globalBinDirIsInPath(globalBinDir, env)) {
-    throw new PnpmError('GLOBAL_BIN_DIR_NOT_IN_PATH', `The configured global bin directory "${globalBinDir}" is not in PATH`)
+    throw new PnpmError('GLOBAL_BIN_DIR_NOT_IN_PATH', `The configured global bin directory "${globalBinDir}" is not in PATH`, {
+      hint: 'Run "pnpm setup" to update your shell configuration.',
+    })
   }
   if (shouldAllowWrite && !canWriteToDirAndExists(globalBinDir)) {
     throw new PnpmError('PNPM_DIR_NOT_WRITABLE', `The CLI has no write access to the pnpm home directory at ${globalBinDir}`)
