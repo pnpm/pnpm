@@ -4789,6 +4789,9 @@ importers:
       '@pnpm/deps.inspection.outdated':
         specifier: workspace:*
         version: link:../../deps/inspection/outdated
+      '@pnpm/deps.path':
+        specifier: workspace:*
+        version: link:../../deps/path
       '@pnpm/deps.status':
         specifier: workspace:*
         version: link:../../deps/status
