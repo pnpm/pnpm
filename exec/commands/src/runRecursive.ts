@@ -17,6 +17,7 @@ import { realpathMissing } from 'realpath-missing'
 
 import { createEmptyRecursiveSummary, getExecutionDuration, getResumedPackageChunks, writeRecursiveSummary } from './exec.js'
 import { existsInDir } from './existsInDir.js'
+import { throwOrFilterHiddenScripts } from './hiddenScripts.js'
 import { tryBuildRegExpFromCommand } from './regexpCommand.js'
 import { runScript, type RunScriptOptions } from './run.js'
 
@@ -110,10 +111,8 @@ export async function runRecursive (
         ) {
           return
         }
-        if (scriptName.startsWith('.') && !process.env.npm_lifecycle_event) {
-          throw new PnpmError('HIDDEN_SCRIPT', `Script "${scriptName}" is hidden and cannot be run directly`, {
-            hint: 'Scripts starting with "." are hidden and can only be called from other scripts.',
-          })
+        if (!process.env.npm_lifecycle_event) {
+          throwOrFilterHiddenScripts([scriptName], scriptName)
         }
         result[prefix].status = 'running'
         const startTime = process.hrtime()
