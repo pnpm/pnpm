@@ -19,7 +19,7 @@ export async function handleIgnoredBuilds (
   const newEntries: Record<string, string> = {}
   for (const name of packageNames) {
     if (opts.allowBuilds?.[name] == null) {
-      newEntries[name] = 'true|false'
+      newEntries[name] = 'set this to true or false'
     }
   }
   if (Object.keys(newEntries).length && opts.rootProjectManifestDir) {
