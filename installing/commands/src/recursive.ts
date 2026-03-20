@@ -464,13 +464,11 @@ export async function recursive (
     )
   ) {
     await buildProjects(
-      [
-        {
-          buildIndex: 0,
-          manifest: opts.rootProjectManifest ?? {},
-          rootDir: opts.dir as ProjectRootDir,
-        },
-      ],
+      allProjects.map((project, index) => ({
+        buildIndex: index,
+        manifest: project.manifest,
+        rootDir: project.rootDir,
+      })),
       {
         ...opts,
         pending: opts.pending === true,
