@@ -146,7 +146,7 @@ export async function buildSelectedPkgs (
     hoistedDependencies: ctx.hoistedDependencies,
     hoistPattern: ctx.hoistPattern,
     included: ctx.include,
-    ignoredBuilds: mergeIgnoredBuilds(ctx.modulesFile?.ignoredBuilds, ignoredPkgs, pkgs),
+    ignoredBuilds: mergeIgnoredBuilds(ctx.modulesFile?.ignoredBuilds, ignoredPkgs, pkgs as DepPath[]),
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: ctx.pendingBuilds,
@@ -488,10 +488,10 @@ function binDirsInAllParentDirs (pkgRoot: string, lockfileDir: string): string[]
 function mergeIgnoredBuilds (
   existing: IgnoredBuilds | undefined,
   newIgnored: IgnoredBuilds,
-  rebuiltPkgs: string[]
+  rebuiltPkgs: DepPath[]
 ): IgnoredBuilds | undefined {
   if (!existing?.size && !newIgnored.size) return undefined
-  const rebuiltSet = new Set(rebuiltPkgs)
+  const rebuiltSet = new Set<DepPath>(rebuiltPkgs)
   const merged = new Set<DepPath>()
   if (existing) {
     for (const depPath of existing) {
