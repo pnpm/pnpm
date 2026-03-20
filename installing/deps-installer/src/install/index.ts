@@ -372,21 +372,22 @@ export async function mutateModules (
     ignoredBuilds = await runUnignoredDependencyBuilds(opts, ignoredBuilds, allowBuild)
   }
   // Detect packages whose build approval was revoked between the previous
-  // and current install. For each package that was previously allowed to
-  // build but is no longer approved, find its depPath in the lockfile and
-  // add it to ignoredBuilds so strictDepBuilds can catch it.
-  if (ctx.modulesFile?.allowBuilds && ctx.wantedLockfile.packages) {
-    const revokedNames = new Set<string>()
-    for (const [pkg, value] of Object.entries(ctx.modulesFile.allowBuilds)) {
-      if (value !== true) continue
-      if (opts.allowBuilds?.[pkg] === true) continue
-      revokedNames.add(pkg)
-    }
-    if (revokedNames.size) {
+  // and current install. A package is considered revoked when it was
+  // previously allowed (true) but is now undecided (undefined). Packages
+  // explicitly denied (false) are not added to ignoredBuilds, consistent
+  // with how buildModules treats them.
+  if (
+    ctx.modulesFile?.allowBuilds &&
+    ctx.wantedLockfile.packages &&
+    Object.values(ctx.modulesFile.allowBuilds).some((v) => v === true)
+  ) {
+    const oldAllowBuild = createAllowBuildFunction({ allowBuilds: ctx.modulesFile.allowBuilds })
+    if (oldAllowBuild) {
       for (const depPath of Object.keys(ctx.wantedLockfile.packages) as DepPath[]) {
         if (ignoredBuilds?.has(depPath)) continue
-        const name = dp.parse(depPath).name
-        if (name && revokedNames.has(name)) {
+        const { name, version } = dp.parse(depPath)
+        if (!name || !version) continue
+        if (oldAllowBuild(name, version) === true && allowBuild?.(name, version) === undefined) {
           ignoredBuilds ??= new Set()
           ignoredBuilds.add(depPath)
         }
