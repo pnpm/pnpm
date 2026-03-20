@@ -212,7 +212,13 @@ Do you approve?`,
       if (!manifest.dependencies && !manifest.devDependencies) {
         try {
           manifest = JSON.parse(fs.readFileSync(`${projectDir}/package.json`, 'utf8'))
-        } catch {}
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          throw new PnpmError(
+            'APPROVE_BUILDS_MANIFEST_READ_FAILED',
+            `Failed to read or parse package.json from ${projectDir}: ${message}`
+          )
+        }
       }
       await install(manifest, {
         allowBuilds,
@@ -222,6 +228,9 @@ Do you approve?`,
         storeController: store.ctrl,
         rawConfig: opts.rawConfig ?? {},
         registries: opts.registries,
+        dir: opts.dir,
+        lockfileDir: opts.lockfileDir,
+        modulesDir: opts.modulesDir,
       })
       return
     }
