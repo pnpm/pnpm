@@ -146,7 +146,7 @@ export async function buildSelectedPkgs (
     hoistedDependencies: ctx.hoistedDependencies,
     hoistPattern: ctx.hoistPattern,
     included: ctx.include,
-    ignoredBuilds: ignoredPkgs,
+    ignoredBuilds: mergeIgnoredBuilds(ctx.modulesFile?.ignoredBuilds, ignoredPkgs, pkgs),
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: ctx.pendingBuilds,
@@ -479,4 +479,29 @@ function binDirsInAllParentDirs (pkgRoot: string, lockfileDir: string): string[]
   } while (path.relative(dir, lockfileDir) !== '')
   binDirs.push(path.join(lockfileDir, 'node_modules/.bin'))
   return binDirs
+}
+
+/**
+ * Merge new ignoredBuilds from a selective rebuild with existing ones.
+ * Keeps existing entries for packages that weren't part of this rebuild.
+ */
+function mergeIgnoredBuilds (
+  existing: IgnoredBuilds | undefined,
+  newIgnored: IgnoredBuilds,
+  rebuiltPkgs: string[]
+): IgnoredBuilds | undefined {
+  if (!existing?.size && !newIgnored.size) return undefined
+  const rebuiltSet = new Set(rebuiltPkgs)
+  const merged = new Set<DepPath>()
+  if (existing) {
+    for (const depPath of existing) {
+      if (!rebuiltSet.has(depPath)) {
+        merged.add(depPath)
+      }
+    }
+  }
+  for (const depPath of newIgnored) {
+    merged.add(depPath)
+  }
+  return merged.size ? merged : undefined
 }

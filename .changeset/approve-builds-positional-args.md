@@ -1,4 +1,5 @@
 ---
+"@pnpm/building.after-install": patch
 "@pnpm/building.commands": minor
 "@pnpm/installing.deps-installer": patch
 "@pnpm/installing.commands": minor
