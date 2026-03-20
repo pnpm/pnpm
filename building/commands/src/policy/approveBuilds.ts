@@ -3,7 +3,7 @@ import type { Config } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
 import { parse } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
-import { type StrictModules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
+import { readModulesManifest, type StrictModules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import { globalInfo } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import chalk from 'chalk'
@@ -184,11 +184,12 @@ Do you approve?`,
     updatedSettings: { allowBuilds },
   })
   if (buildPackages.length) {
-    return rebuild.handler({
+    await rebuild.handler({
       ...opts,
       allowBuilds,
     }, buildPackages)
-  } else if (modulesManifest) {
+  }
+  if (modulesManifest) {
     if (params.length) {
       // Remove only the decided packages from ignoredBuilds
       const decided = new Set([...approved, ...denied])
@@ -204,11 +205,15 @@ Do you approve?`,
         } else {
           delete modulesManifest.ignoredBuilds
         }
-        await writeModulesManifest(modulesDir, modulesManifest as StrictModules)
       }
     } else {
       delete modulesManifest.ignoredBuilds
-      await writeModulesManifest(modulesDir, modulesManifest as StrictModules)
+    }
+    // Re-read the modules manifest in case rebuild.handler modified it
+    const currentManifest = await readModulesManifest(modulesDir)
+    if (currentManifest) {
+      currentManifest.ignoredBuilds = modulesManifest.ignoredBuilds
+      await writeModulesManifest(modulesDir, currentManifest as StrictModules)
     }
   }
 }

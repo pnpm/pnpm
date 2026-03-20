@@ -242,6 +242,10 @@ test('approve builds via positional arguments', async () => {
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeFalsy()
+
+  // Unmentioned package should still be in ignoredBuilds after rebuild
+  const modulesManifestAfter = await readModulesManifest(path.resolve('node_modules'))
+  expect(modulesManifestAfter?.ignoredBuilds).toBeDefined()
 })
 
 test('deny builds via !pkg positional arguments', async () => {
