@@ -17,6 +17,7 @@ import { realpathMissing } from 'realpath-missing'
 
 import { createEmptyRecursiveSummary, getExecutionDuration, getResumedPackageChunks, writeRecursiveSummary } from './exec.js'
 import { existsInDir } from './existsInDir.js'
+import { throwOrFilterHiddenScripts } from './hiddenScripts.js'
 import { tryBuildRegExpFromCommand } from './regexpCommand.js'
 import { runScript, type RunScriptOptions } from './run.js'
 
@@ -109,6 +110,9 @@ export async function runRecursive (
           process.env.PNPM_SCRIPT_SRC_DIR === prefix
         ) {
           return
+        }
+        if (!process.env.npm_lifecycle_event) {
+          throwOrFilterHiddenScripts([scriptName], scriptName)
         }
         result[prefix].status = 'running'
         const startTime = process.hrtime()
