@@ -29,7 +29,8 @@ export function hoistPeers (
     if (opts.allPreferredVersions![peerName]) {
       const versions: string[] = []
       const nonVersions: string[] = []
-      for (const [spec, specType] of Object.entries(opts.allPreferredVersions![peerName])) {
+      for (const [spec, selector] of Object.entries(opts.allPreferredVersions![peerName])) {
+        const specType = typeof selector === 'string' ? selector : selector.selectorType
         if (specType === 'version') {
           versions.push(spec)
         } else {
