@@ -23,7 +23,7 @@ const prompt = jest.mocked(enquirer.prompt)
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
 
-async function execPnpmInstall (): Promise<void> {
+async function execPnpmInstall (opts?: { enableGlobalVirtualStore?: boolean }): Promise<void> {
   await execa('node', [
     pnpmBin,
     'install',
@@ -31,7 +31,7 @@ async function execPnpmInstall (): Promise<void> {
     `--cache-dir=${path.resolve('cache')}`,
     `--registry=${REGISTRY}`,
     '--config.strict-dep-builds=false',
-    '--config.enable-global-virtual-store=false',
+    `--config.enable-global-virtual-store=${opts?.enableGlobalVirtualStore ?? false}`,
   ])
 }
 

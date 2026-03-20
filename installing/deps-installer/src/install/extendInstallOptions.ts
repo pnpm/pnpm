@@ -337,8 +337,15 @@ export function extendOptions (
   }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
   extendedOpts.rawConfig['registry'] = extendedOpts.registries.default
-  if (extendedOpts.enableGlobalVirtualStore && extendedOpts.virtualStoreDir == null) {
-    extendedOpts.virtualStoreDir = path.join(extendedOpts.storeDir, 'links')
+  if (extendedOpts.enableGlobalVirtualStore) {
+    if (extendedOpts.virtualStoreDir == null) {
+      extendedOpts.virtualStoreDir = path.join(extendedOpts.storeDir, 'links')
+    }
+    // When GVS is enabled, default allowBuilds to {} so that
+    // createAllowBuildFunction returns a function (not undefined).
+    // This makes GVS hashes engine-agnostic by default, ensuring
+    // they change correctly when allowBuilds is later configured.
+    extendedOpts.allowBuilds ??= {}
   }
   extendedOpts.globalVirtualStoreDir = extendedOpts.enableGlobalVirtualStore
     ? extendedOpts.virtualStoreDir!

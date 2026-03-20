@@ -1,9 +1,10 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
-import { rebuild } from '@pnpm/building.commands'
+import { buildProjects } from '@pnpm/building.after-install'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import {
+  readProjectManifestOnly,
   type RecursiveSummary,
   throwOnCommandFail,
 } from '@pnpm/cli.utils'
@@ -463,11 +464,22 @@ export async function recursive (
       cmdFullName === 'update'
     )
   ) {
-    await rebuild.handler({
-      ...opts,
-      pending: opts.pending === true,
-      skipIfHasSideEffectsCache: true,
-    }, [])
+    await buildProjects(
+      [
+        {
+          buildIndex: 0,
+          manifest: opts.rootProjectManifest ?? await readProjectManifestOnly(opts.dir, opts).catch(() => ({})),
+          rootDir: opts.dir as ProjectRootDir,
+        },
+      ],
+      {
+        ...opts,
+        pending: opts.pending === true,
+        skipIfHasSideEffectsCache: true,
+        storeController: store.ctrl,
+        storeDir: store.dir,
+      }
+    )
   }
 
   throwOnFail(result)

@@ -1,10 +1,14 @@
+import fs from 'node:fs'
+
 import { rebuild, type RebuildCommandOpts } from '@pnpm/building.commands'
 import type { Config } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
 import { parse } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
+import { install } from '@pnpm/installing.deps-installer'
 import { type StrictModules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import { globalInfo } from '@pnpm/logger'
+import { createStoreController } from '@pnpm/store.connection-manager'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import chalk from 'chalk'
 import enquirer from 'enquirer'
@@ -12,7 +16,7 @@ import { renderHelp } from 'render-help'
 
 import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds.js'
 
-export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'allowBuilds'> & { all?: boolean, global?: boolean }
+export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'allowBuilds' | 'enableGlobalVirtualStore'> & { all?: boolean, global?: boolean }
 
 export const commandNames = ['approve-builds']
 
@@ -201,6 +205,26 @@ Do you approve?`,
     await writeModulesManifest(modulesDir, modulesManifest as StrictModules)
   }
   if (buildPackages.length) {
+    if (opts.enableGlobalVirtualStore) {
+      const store = await createStoreController(opts)
+      const projectDir = opts.lockfileDir ?? opts.dir
+      let manifest = opts.rootProjectManifest ?? {}
+      if (!manifest.dependencies && !manifest.devDependencies) {
+        try {
+          manifest = JSON.parse(fs.readFileSync(`${projectDir}/package.json`, 'utf8'))
+        } catch {}
+      }
+      await install(manifest, {
+        allowBuilds,
+        enableGlobalVirtualStore: true,
+        frozenLockfile: true,
+        storeDir: store.dir,
+        storeController: store.ctrl,
+        rawConfig: opts.rawConfig ?? {},
+        registries: opts.registries,
+      })
+      return
+    }
     return rebuild.handler({
       ...opts,
       allowBuilds,

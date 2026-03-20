@@ -39,6 +39,7 @@
     "@pnpm/config.writer": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/installing.deps-installer": "workspace:*",
     "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/prepare-temp-dir": "workspace:*",
     "@pnpm/store.connection-manager": "workspace:*",

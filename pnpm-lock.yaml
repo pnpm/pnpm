@@ -1678,6 +1678,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
+      '@pnpm/installing.deps-installer':
+        specifier: workspace:*
+        version: link:../../installing/deps-installer
       '@pnpm/installing.modules-yaml':
         specifier: workspace:*
         version: link:../../installing/modules-yaml
@@ -4742,9 +4745,6 @@ importers:
       '@pnpm/building.after-install':
         specifier: workspace:*
         version: link:../../building/after-install
-      '@pnpm/building.commands':
-        specifier: workspace:*
-        version: link:../../building/commands
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types
