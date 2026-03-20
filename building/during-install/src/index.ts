@@ -71,6 +71,20 @@ export async function buildModules<T extends string> (
   if (!chunks.length) return {}
   const ignoredBuilds = new Set<DepPath>()
   const allowBuild = opts.allowBuild ?? (() => undefined)
+  // Check allowBuild for already-built packages so ignoredBuilds is populated
+  // even when side-effects are cached in the store. Without this, strictDepBuilds
+  // and the ignored builds warning would be bypassed for cached packages.
+  for (const chunk of chunks) {
+    for (const depPath of chunk) {
+      const node = depGraph[depPath]
+      if (node.requiresBuild && node.isBuilt) {
+        const allowed = allowBuild(node.name, node.version)
+        if (allowed === undefined) {
+          ignoredBuilds.add(node.depPath)
+        }
+      }
+    }
+  }
   const groups = chunks.map((chunk) => {
     chunk = chunk.filter((depPath) => {
       const node = depGraph[depPath]
