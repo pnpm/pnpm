@@ -68,18 +68,27 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
     globalInfo('There are no packages awaiting approval')
     return
   }
-  const denied = params.filter((p) => p.startsWith('!')).map((p) => p.slice(1))
-  const approved = params.filter((p) => !p.startsWith('!'))
+  const denied: string[] = []
+  const approved: string[] = []
+  const unknown: string[] = []
+  for (const p of params) {
+    const name = p.startsWith('!') ? p.slice(1) : p
+    if (!automaticallyIgnoredBuilds.includes(name)) {
+      unknown.push(name)
+    } else if (p.startsWith('!')) {
+      denied.push(name)
+    } else {
+      approved.push(name)
+    }
+  }
+  if (unknown.length) {
+    throw new PnpmError(
+      'APPROVE_BUILDS_UNKNOWN_PACKAGES',
+      `The following packages are not awaiting approval: ${unknown.join(', ')}`
+    )
+  }
   let buildPackages: string[] = []
   if (params.length) {
-    const allMentioned = [...approved, ...denied]
-    const unknown = allMentioned.filter((p) => !automaticallyIgnoredBuilds.includes(p))
-    if (unknown.length) {
-      throw new PnpmError(
-        'APPROVE_BUILDS_UNKNOWN_PACKAGES',
-        `The following packages are not awaiting approval: ${unknown.join(', ')}`
-      )
-    }
     buildPackages = sortUniqueStrings([...approved])
   } else if (opts.all) {
     buildPackages = sortUniqueStrings([...automaticallyIgnoredBuilds])
