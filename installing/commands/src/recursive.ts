@@ -463,18 +463,23 @@ export async function recursive (
       cmdFullName === 'update'
     )
   ) {
+    const chunks = sortProjects(opts.selectedProjectsGraph)
+    const importers = chunks.flatMap((prefixes, buildIndex) =>
+      prefixes
+        .filter((rootDir) => opts.selectedProjectsGraph[rootDir] != null)
+        .map((rootDir) => ({
+          buildIndex,
+          manifest: opts.selectedProjectsGraph[rootDir].package.manifest,
+          rootDir,
+        }))
+    )
+    // Omit hoistPattern/publicHoistPattern so buildProjects doesn't
+    // overwrite per-project module settings from the install phase.
+    const { hoistPattern: _, publicHoistPattern: _pub, ...buildOpts } = opts
     await buildProjects(
-      allProjects.map((project) => ({
-        buildIndex: 0,
-        manifest: project.manifest,
-        rootDir: project.rootDir,
-      })),
+      importers,
       {
-        ...opts,
-        // Don't let buildProjects overwrite per-project module settings
-        // like hoistPattern that were configured during the install phase.
-        hoistPattern: undefined,
-        publicHoistPattern: undefined,
+        ...buildOpts,
         pending: opts.pending === true,
         skipIfHasSideEffectsCache: true,
         storeController: store.ctrl,
