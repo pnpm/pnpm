@@ -156,6 +156,7 @@ export async function buildSelectedPkgs (
     storeDir: ctx.modulesFile?.storeDir ?? ctx.storeDir,
     virtualStoreDir: ctx.modulesFile?.virtualStoreDir ?? ctx.virtualStoreDir,
     virtualStoreDirMaxLength: ctx.modulesFile?.virtualStoreDirMaxLength ?? ctx.virtualStoreDirMaxLength,
+    allowBuilds: opts.allowBuilds,
   })
   return {
     ignoredBuilds: ignoredPkgs,
