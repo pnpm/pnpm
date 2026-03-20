@@ -475,7 +475,7 @@ export async function recursive (
     )
     // Omit hoistPattern/publicHoistPattern so buildProjects doesn't
     // overwrite per-project module settings from the install phase.
-    const { hoistPattern: _, publicHoistPattern: _pub, ...buildOpts } = opts
+    const { hoistPattern: _, ...buildOpts } = opts
     await buildProjects(
       importers,
       {
