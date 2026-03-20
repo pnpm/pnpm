@@ -300,9 +300,12 @@ test('deny-only via !pkg keeps other builds pending', async () => {
     '@pnpm.e2e/install-script-example': false,
   })
 
-  // The other package should still be in ignoredBuilds (not cleared)
   const modulesManifestAfter = await readModulesManifest(path.resolve('node_modules'))
-  expect(modulesManifestAfter?.ignoredBuilds).toBeDefined()
+  const ignoredNames = Array.from(modulesManifestAfter?.ignoredBuilds ?? []).map(String)
+  // The denied package should be removed from ignoredBuilds
+  expect(ignoredNames.some((dp) => dp.includes('install-script-example'))).toBe(false)
+  // The other package should still be pending
+  expect(ignoredNames.some((dp) => dp.includes('pre-and-postinstall-scripts-example'))).toBe(true)
 })
 
 test('positional arguments with unknown package throws error', async () => {

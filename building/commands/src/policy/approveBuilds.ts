@@ -1,6 +1,7 @@
 import { rebuild, type RebuildCommandOpts } from '@pnpm/building.commands'
 import type { Config } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
+import { parse } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { type StrictModules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import { globalInfo } from '@pnpm/logger'
@@ -182,14 +183,28 @@ Do you approve?`,
     workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
     updatedSettings: { allowBuilds },
   })
+  if (modulesManifest?.ignoredBuilds) {
+    if (params.length) {
+      const decided = new Set([...approved, ...denied])
+      for (const depPath of Array.from(modulesManifest.ignoredBuilds)) {
+        const name = parse(depPath).name ?? depPath
+        if (decided.has(name)) {
+          modulesManifest.ignoredBuilds.delete(depPath)
+        }
+      }
+      if (!modulesManifest.ignoredBuilds.size) {
+        delete modulesManifest.ignoredBuilds
+      }
+    } else {
+      delete modulesManifest.ignoredBuilds
+    }
+    await writeModulesManifest(modulesDir, modulesManifest as StrictModules)
+  }
   if (buildPackages.length) {
     return rebuild.handler({
       ...opts,
       allowBuilds,
     }, buildPackages)
-  } else if (!params.length && modulesManifest) {
-    delete modulesManifest.ignoredBuilds
-    await writeModulesManifest(modulesDir, modulesManifest as StrictModules)
   }
 }
 
