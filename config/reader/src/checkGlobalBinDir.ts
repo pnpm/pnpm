@@ -20,7 +20,7 @@ export async function checkGlobalBinDir (
     })
   }
   if (shouldAllowWrite && !canWriteToDirAndExists(globalBinDir)) {
-    throw new PnpmError('PNPM_DIR_NOT_WRITABLE', `The CLI has no write access to the pnpm home directory at ${globalBinDir}`)
+    throw new PnpmError('PNPM_DIR_NOT_WRITABLE', `The CLI has no write access to the global bin directory at ${globalBinDir}`)
   }
 }
 
