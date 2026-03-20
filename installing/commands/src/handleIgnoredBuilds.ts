@@ -24,7 +24,7 @@ export async function handleIgnoredBuilds (
   }
 }
 
-export async function writeIgnoredBuildsToAllowBuilds (
+async function writeIgnoredBuildsToAllowBuilds (
   opts: Pick<HandleIgnoredBuildsOpts, 'allowBuilds' | 'rootProjectManifestDir' | 'workspaceDir'>,
   ignoredBuilds: IgnoredBuilds
 ): Promise<void> {

@@ -20,7 +20,6 @@ import { requireHooks } from '@pnpm/hooks.pnpmfile'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
   addDependenciesToPackage,
-  IgnoredBuildsError,
   install,
   type InstallOptions,
   type MutatedProject,
@@ -53,7 +52,7 @@ import pLimit from 'p-limit'
 
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
-import { handleIgnoredBuilds, writeIgnoredBuildsToAllowBuilds } from './handleIgnoredBuilds.js'
+import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
@@ -430,10 +429,6 @@ export async function recursive (
           for (const depPath of ignoredBuilds) {
             allIgnoredBuilds.add(depPath)
           }
-          if (opts.strictDepBuilds) {
-            await writeIgnoredBuildsToAllowBuilds(opts, allIgnoredBuilds)
-            throw new IgnoredBuildsError(ignoredBuilds)
-          }
         }
         result[rootDir].status = 'passed'
       } catch (err: any) { // eslint-disable-line
@@ -454,10 +449,7 @@ export async function recursive (
       }
     })
   ))
-
-  if (allIgnoredBuilds.size) {
-    await writeIgnoredBuildsToAllowBuilds(opts, allIgnoredBuilds)
-  }
+  await handleIgnoredBuilds(opts, allIgnoredBuilds.size ? allIgnoredBuilds : undefined)
   await updateWorkspaceManifest(opts.workspaceDir, {
     updatedCatalogs,
     cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
