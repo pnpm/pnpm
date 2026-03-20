@@ -28,7 +28,7 @@ import {
   type PackageSnapshots,
 } from '@pnpm/lockfile.utils'
 import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
-import { globalInfo, logger, streamParser } from '@pnpm/logger'
+import { logger, streamParser } from '@pnpm/logger'
 import npa from '@pnpm/npm-package-arg'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
@@ -366,7 +366,7 @@ async function _rebuild (
               includeDepGraphHash: true,
             })
             if (pkgFilesIndex.sideEffects?.has(sideEffectsCacheKey)) {
-              globalInfo(`${pkgId}: reused from store cache`)
+              process.stdout.write(`${pkgId}: reused from store cache\n`)
               pkgsThatWereRebuilt.add(depPath)
               return
             }
@@ -381,12 +381,12 @@ async function _rebuild (
         }
 
         if (!requiresBuild) {
-          globalInfo(`${pkgId}: skipped (no build scripts)`)
+          process.stdout.write(`${pkgId}: skipped (no build scripts)\n`)
           pkgsThatWereRebuilt.add(depPath)
           return
         }
         if (!allowBuild(pkgInfo.name, pkgInfo.version, depPath)) {
-          globalInfo(`${pkgId}: skipped (not allowed)`)
+          process.stdout.write(`${pkgId}: skipped (not allowed)\n`)
           pkgsThatWereRebuilt.add(depPath)
           return
         }
@@ -402,9 +402,7 @@ async function _rebuild (
           shellEmulator: opts.shellEmulator,
           unsafePerm: opts.unsafePerm || false,
         })
-        if (hasSideEffects) {
-          globalInfo(`${pkgId}: built successfully`)
-        }
+        process.stdout.write(`${pkgId}: built successfully\n`)
         if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && resolution.integrity) {
           builtDepPaths.add(depPath)
           const filesIndexFile = storeIndexKey(resolution.integrity!.toString(), pkgId)

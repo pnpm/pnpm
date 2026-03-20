@@ -9,7 +9,7 @@ import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
 import { PnpmError } from '@pnpm/error'
 import { runPostinstallHooks } from '@pnpm/exec.lifecycle'
-import { globalInfo, logger } from '@pnpm/logger'
+import { logger } from '@pnpm/logger'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { StoreController } from '@pnpm/store.controller-types'
@@ -71,23 +71,9 @@ export async function buildModules<T extends string> (
   if (!chunks.length) return {}
   const ignoredBuilds = new Set<DepPath>()
   const allowBuild = opts.allowBuild ?? (() => undefined)
-  // Check allowBuild for already-built packages (side-effects cached in store).
-  // These are filtered out below by !node.isBuilt and would never reach the
-  // allowBuild check, but they should still be in ignoredBuilds.
-  for (const chunk of chunks) {
-    for (const depPath of chunk) {
-      const node = depGraph[depPath]
-      if (node.requiresBuild && node.isBuilt && allowBuild(node.name, node.version) === undefined) {
-        ignoredBuilds.add(node.depPath)
-      }
-    }
-  }
   const groups = chunks.map((chunk) => {
     chunk = chunk.filter((depPath) => {
       const node = depGraph[depPath]
-      if ((node.requiresBuild || node.patch != null) && node.isBuilt) {
-        globalInfo(`${node.name}@${node.version}: already built (store cache)`)
-      }
       return (node.requiresBuild || node.patch != null) && !node.isBuilt
     })
     if (opts.depsToBuild != null) {
