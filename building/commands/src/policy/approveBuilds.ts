@@ -20,7 +20,7 @@ export function help (): string {
     description: 'Approve dependencies for running scripts during installation',
     usages: [
       'pnpm approve-builds',
-      'pnpm approve-builds [<pkg> ...]',
+      'pnpm approve-builds [<pkg> ...] [!<pkg> ...]',
     ],
     descriptionLists: [
       {
@@ -68,16 +68,19 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
     globalInfo('There are no packages awaiting approval')
     return
   }
+  const denied = params.filter((p) => p.startsWith('!')).map((p) => p.slice(1))
+  const approved = params.filter((p) => !p.startsWith('!'))
   let buildPackages: string[] = []
   if (params.length) {
-    const unknown = params.filter((p) => !automaticallyIgnoredBuilds.includes(p))
+    const allMentioned = [...approved, ...denied]
+    const unknown = allMentioned.filter((p) => !automaticallyIgnoredBuilds.includes(p))
     if (unknown.length) {
       throw new PnpmError(
         'APPROVE_BUILDS_UNKNOWN_PACKAGES',
         `The following packages are not awaiting approval: ${unknown.join(', ')}`
       )
     }
-    buildPackages = sortUniqueStrings([...params])
+    buildPackages = sortUniqueStrings([...approved])
   } else if (opts.all) {
     buildPackages = sortUniqueStrings([...automaticallyIgnoredBuilds])
   } else {
@@ -119,12 +122,19 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
     } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
     buildPackages = result.map(({ value }: { value: string }) => value)
   }
-  const ignoredPackages = automaticallyIgnoredBuilds.filter((automaticallyIgnoredBuild) => !buildPackages.includes(automaticallyIgnoredBuild))
   const allowBuilds: Record<string, boolean | string> = { ...opts.allowBuilds }
-  for (const pkg of ignoredPackages) {
-    allowBuilds[pkg] = false
-  }
-  if (buildPackages.length) {
+  if (params.length) {
+    for (const pkg of approved) {
+      allowBuilds[pkg] = true
+    }
+    for (const pkg of denied) {
+      allowBuilds[pkg] = false
+    }
+  } else {
+    const ignoredPackages = automaticallyIgnoredBuilds.filter((automaticallyIgnoredBuild) => !buildPackages.includes(automaticallyIgnoredBuild))
+    for (const pkg of ignoredPackages) {
+      allowBuilds[pkg] = false
+    }
     for (const pkg of buildPackages) {
       allowBuilds[pkg] = true
     }
