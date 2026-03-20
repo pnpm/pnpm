@@ -257,8 +257,8 @@ catalogs:
       specifier: ^2.0.0
       version: 2.0.0
     '@pnpm/os.env.path-extender':
-      specifier: ^2.0.3
-      version: 2.0.3
+      specifier: ^3.0.0
+      version: 3.0.0
     '@pnpm/patch-package':
       specifier: 0.0.1
       version: 0.0.1
@@ -3499,7 +3499,7 @@ importers:
         version: link:../../../lockfile/types
       '@pnpm/os.env.path-extender':
         specifier: 'catalog:'
-        version: 2.0.3
+        version: 3.0.0
       '@pnpm/resolving.npm-resolver':
         specifier: workspace:*
         version: link:../../../resolving/npm-resolver
@@ -10522,17 +10522,17 @@ packages:
     resolution: {integrity: sha512-YTJCXyUGOrJuj4QqhSKqZa1vlVAm82h1/uw00ZmD/kL2OViggtyUwWyIe62kpwWVPwEYixfGjfvaFKVJy2mjzA==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/os.env.path-extender-posix@2.1.0':
-    resolution: {integrity: sha512-oE0WCU2GCdOS/ChBi0dAFkktpxe0EPvCswP6+15yaHuydrCBTAaoB9cqSQaQCYrrDbabhn3kSxTex2T5xhq9fg==}
-    engines: {node: '>=18.12'}
+  '@pnpm/os.env.path-extender-posix@3.0.0':
+    resolution: {integrity: sha512-541CmvX6CPc/YkLPEiqxXRj9dEd4Bd/LVeL4WZ4WZQaK/R/Rld2pxljoEHtx6bI91z2p+esG2OFOvnaHVyYr2A==}
+    engines: {node: '>=22.13'}
 
-  '@pnpm/os.env.path-extender-windows@2.0.3':
-    resolution: {integrity: sha512-zJlGIoRLNpZh9xhCgC6nTvqvXzw1wKhiH3TuroJQ0xHxDwVxk7kAbF4wSROBcVcdOnK4zlxsA1Vc0jAPjxInog==}
-    engines: {node: '>=18.12'}
+  '@pnpm/os.env.path-extender-windows@3.0.0':
+    resolution: {integrity: sha512-P2z4D6TnCTfe0CL+p2lgtkOovbJbmb4t5xf1GJ/s3Lptf68HGhqbY5E3z1tg7vT9Hs4WN8kL6fbS+0378VOdYw==}
+    engines: {node: '>=22.13'}
 
-  '@pnpm/os.env.path-extender@2.0.3':
-    resolution: {integrity: sha512-Tnrcwi0kGBaMPT9amiWg2ANbdIWMxVJS/d62lNMHbWX3erY2MAG9Y7Si46qdshrYlOzeqHX/lrW5AjlgF/zNeQ==}
-    engines: {node: '>=18.12'}
+  '@pnpm/os.env.path-extender@3.0.0':
+    resolution: {integrity: sha512-gNA3d1w8m7JlyXfjurpqZ+SwWq91JVhrUcsNIGh64r/4Nxnq3o+yxUQyxyrBFlL8luW6OcL0cFfYdAkv19n78Q==}
+    engines: {node: '>=22.13'}
 
   '@pnpm/package-bins@1000.0.17':
     resolution: {integrity: sha512-DD2XTIIWwN1xVRdocKRaIl4eSMp3EdhhxqogfEwEiMbmGkoE4lbnTg3f81VEfhOGl1vTaS5UoM2qxW1FGrpaZQ==}
@@ -18483,20 +18483,21 @@ snapshots:
       '@pnpm/util.lex-comparator': 3.0.2
       sort-keys: 4.2.0
 
-  '@pnpm/os.env.path-extender-posix@2.1.0':
+  '@pnpm/os.env.path-extender-posix@3.0.0':
     dependencies:
       '@pnpm/error': 1000.0.5
 
-  '@pnpm/os.env.path-extender-windows@2.0.3':
+  '@pnpm/os.env.path-extender-windows@3.0.0':
     dependencies:
       '@pnpm/error': 1000.0.5
       safe-execa: 0.1.4
       string.prototype.matchall: 4.0.12
 
-  '@pnpm/os.env.path-extender@2.0.3':
+  '@pnpm/os.env.path-extender@3.0.0':
     dependencies:
-      '@pnpm/os.env.path-extender-posix': 2.1.0
-      '@pnpm/os.env.path-extender-windows': 2.0.3
+      '@pnpm/error': 1000.0.5
+      '@pnpm/os.env.path-extender-posix': 3.0.0
+      '@pnpm/os.env.path-extender-windows': 3.0.0
 
   '@pnpm/package-bins@1000.0.17':
     dependencies:

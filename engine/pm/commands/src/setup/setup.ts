@@ -141,11 +141,10 @@ export async function handler (
     createPnpxScripts(binDir)
   }
   try {
-    // TODO: Once @pnpm/os.env.path-extender supports proxyVarSubDir, use:
-    //   addDirToEnvPath(opts.pnpmHomeDir, { proxyVarName: 'PNPM_HOME', proxyVarSubDir: 'bin', ... })
-    // to generate: export PNPM_HOME="..."; PATH="$PNPM_HOME/bin:$PATH"
-    const report = await addDirToEnvPath(binDir, {
+    const report = await addDirToEnvPath(opts.pnpmHomeDir, {
       configSectionName: 'pnpm',
+      proxyVarName: 'PNPM_HOME',
+      proxyVarSubDir: 'bin',
       overwrite: opts.force,
       position: 'start',
     })
