@@ -9,7 +9,7 @@ import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
 import { PnpmError } from '@pnpm/error'
 import { runPostinstallHooks } from '@pnpm/exec.lifecycle'
-import { logger } from '@pnpm/logger'
+import { globalInfo, logger } from '@pnpm/logger'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { StoreController } from '@pnpm/store.controller-types'
@@ -75,7 +75,7 @@ export async function buildModules<T extends string> (
     chunk = chunk.filter((depPath) => {
       const node = depGraph[depPath]
       if ((node.requiresBuild || node.patch != null) && node.isBuilt) {
-        process.stdout.write(`${node.name}@${node.version}: reused from store (side effects cache)\n`)
+        globalInfo(`${node.name}@${node.version}: reused from store (side effects cache)`)
       }
       return (node.requiresBuild || node.patch != null) && !node.isBuilt
     })

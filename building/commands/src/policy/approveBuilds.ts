@@ -212,7 +212,7 @@ Do you approve?`,
       } as any, [], commands) // eslint-disable-line @typescript-eslint/no-explicit-any
       return
     }
-    await rebuild.handler({
+    return rebuild.handler({
       ...opts,
       allowBuilds,
     }, buildPackages)
