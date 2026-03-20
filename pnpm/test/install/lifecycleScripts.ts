@@ -313,14 +313,15 @@ test('strictDepBuilds fails for packages with cached side-effects (#11035)', asy
       '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
     },
   })
-  const firstResult = execPnpmSync(['install', '--config.enable-global-virtual-store=false', `--store-dir=${storeDir}`])
+  const storeEnv = { pnpm_config_store_dir: storeDir }
+  const firstResult = execPnpmSync(['install', '--config.enable-global-virtual-store=false'], { env: storeEnv })
   expect(firstResult.status).toBe(0)
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
 
   // Second install: remove the approval. Side-effects are cached in the store
   // but strictDepBuilds should still fail.
   writeYamlFileSync('pnpm-workspace.yaml', {})
-  const secondResult = execPnpmSync(['install', '--config.strict-dep-builds=true', '--config.optimistic-repeat-install=false', '--config.enable-global-virtual-store=false', `--store-dir=${storeDir}`])
+  const secondResult = execPnpmSync(['install', '--config.strict-dep-builds=true', '--config.optimistic-repeat-install=false', '--config.enable-global-virtual-store=false'], { env: storeEnv })
   expect(secondResult.status).toBe(1)
   expect(secondResult.stdout.toString()).toContain('Ignored build scripts:')
 })
