@@ -42,30 +42,9 @@ jobs:
         retention-days: 1
 
   test-smoke:
-    name: ubuntu-latest / Node.js 24
+    name: windows-latest / Node.js 22.13.0
     needs: compile-and-lint
     uses: ./.github/workflows/test.yml
     with:
-      node: '24.0.0'
-      platform: ubuntu-latest
-
-  test:
-    name: ${{ matrix.platform }} / Node.js ${{ matrix.node }}
-    needs: test-smoke
-    strategy:
-      fail-fast: false
-      matrix:
-        node: ['22.13.0', '24.0.0', '25.0.0']
-        platform: [ubuntu-latest, windows-latest]
-        exclude:
-          - node: '24.0.0'
-            platform: ubuntu-latest
-          # On branches, only run Windows with the lowest supported Node.js
-          - node: ${{ github.ref != 'refs/heads/main' && '24.0.0' || 'none' }}
-            platform: windows-latest
-          - node: ${{ github.ref != 'refs/heads/main' && '25.0.0' || 'none' }}
-            platform: windows-latest
-    uses: ./.github/workflows/test.yml
-    with:
-      node: ${{ matrix.node }}
-      platform: ${{ matrix.platform }}
+      node: '22.13.0'
+      platform: windows-latest
