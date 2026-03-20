@@ -28,7 +28,7 @@ import {
   type PackageSnapshots,
 } from '@pnpm/lockfile.utils'
 import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
-import { logger, streamParser } from '@pnpm/logger'
+import { globalInfo, logger, streamParser } from '@pnpm/logger'
 import npa from '@pnpm/npm-package-arg'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
@@ -366,6 +366,7 @@ async function _rebuild (
               includeDepGraphHash: true,
             })
             if (pkgFilesIndex.sideEffects?.has(sideEffectsCacheKey)) {
+              globalInfo(`${pkgId}: reused from store cache`)
               pkgsThatWereRebuilt.add(depPath)
               return
             }
