@@ -67,6 +67,9 @@
       "path": "../../deps/inspection/outdated"
     },
     {
+      "path": "../../deps/path"
+    },
+    {
       "path": "../../deps/status"
     },
     {

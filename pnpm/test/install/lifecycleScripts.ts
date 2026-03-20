@@ -154,7 +154,10 @@ test('selectively allow scripts in some dependencies by --allow-build flag', asy
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 
   const modulesManifest = await readWorkspaceManifest(project.dir())
-  expect(modulesManifest?.allowBuilds).toStrictEqual({ '@pnpm.e2e/install-script-example': true })
+  expect(modulesManifest?.allowBuilds).toStrictEqual({
+    '@pnpm.e2e/install-script-example': true,
+    '@pnpm.e2e/pre-and-postinstall-scripts-example': 'set this to true or false',
+  })
 })
 
 test('--allow-build flag should specify the package', async () => {
@@ -251,6 +254,49 @@ test('the list of ignored builds is preserved after a repeat install', async () 
     '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
     'esbuild@0.25.0',
   ])
+})
+
+test('ignored builds are auto-populated as placeholders in allowBuilds', async () => {
+  prepare({})
+  execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'])
+
+  const manifest = await readWorkspaceManifest(process.cwd())
+  expect(manifest?.allowBuilds?.['@pnpm.e2e/pre-and-postinstall-scripts-example']).toBe('set this to true or false')
+})
+
+test('auto-populated placeholders are merged with existing allowBuilds', async () => {
+  prepare({})
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    allowBuilds: {
+      '@pnpm.e2e/install-script-example': true,
+    },
+  })
+  execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'])
+
+  const manifest = await readWorkspaceManifest(process.cwd())
+  expect(manifest?.allowBuilds?.['@pnpm.e2e/install-script-example']).toBe(true)
+  expect(manifest?.allowBuilds?.['@pnpm.e2e/pre-and-postinstall-scripts-example']).toBe('set this to true or false')
+})
+
+test('selective rebuild preserves ignoredBuilds for packages not being rebuilt', async () => {
+  const project = prepare({})
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    allowBuilds: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+    },
+  })
+  execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'])
+
+  // install-script-example should be in ignoredBuilds
+  const beforeRebuild = project.readModulesManifest()
+  expect(beforeRebuild!.ignoredBuilds).toBeDefined()
+
+  // Selectively rebuild only the approved package
+  execPnpmSync(['rebuild', '@pnpm.e2e/pre-and-postinstall-scripts-example'])
+
+  // install-script-example should still be in ignoredBuilds after selective rebuild
+  const afterRebuild = project.readModulesManifest()
+  expect(afterRebuild!.ignoredBuilds).toBeDefined()
 })
 
 test('git dependencies with preparation scripts should be installed when dangerouslyAllowAllBuilds is true', async () => {
