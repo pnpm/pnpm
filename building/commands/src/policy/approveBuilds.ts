@@ -190,27 +190,28 @@ Do you approve?`,
     }, buildPackages)
   }
   if (!modulesManifest) return
-  // Re-read the modules manifest in case rebuild.handler modified it
-  const currentManifest = await readModulesManifest(modulesDir)
-  if (!currentManifest) return
+  // Re-read after rebuild since rebuild.handler rewrites .modules.yaml
+  const updatedManifest = buildPackages.length
+    ? await readModulesManifest(modulesDir)
+    : modulesManifest
+  if (!updatedManifest) return
   if (params.length) {
-    // Remove only the decided packages from ignoredBuilds
     const decided = new Set([...approved, ...denied])
-    if (currentManifest.ignoredBuilds) {
-      for (const depPath of Array.from(currentManifest.ignoredBuilds)) {
+    if (updatedManifest.ignoredBuilds) {
+      for (const depPath of Array.from(updatedManifest.ignoredBuilds)) {
         const name = parse(depPath).name ?? depPath
         if (decided.has(name)) {
-          currentManifest.ignoredBuilds.delete(depPath)
+          updatedManifest.ignoredBuilds.delete(depPath)
         }
       }
-      if (!currentManifest.ignoredBuilds.size) {
-        delete currentManifest.ignoredBuilds
+      if (!updatedManifest.ignoredBuilds.size) {
+        delete updatedManifest.ignoredBuilds
       }
     }
   } else {
-    delete currentManifest.ignoredBuilds
+    delete updatedManifest.ignoredBuilds
   }
-  await writeModulesManifest(modulesDir, currentManifest as StrictModules)
+  await writeModulesManifest(modulesDir, updatedManifest as StrictModules)
 }
 
 function sortUniqueStrings (array: string[]): string[] {
