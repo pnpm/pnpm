@@ -20,6 +20,7 @@ import { requireHooks } from '@pnpm/hooks.pnpmfile'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
   addDependenciesToPackage,
+  IgnoredBuildsError,
   install,
   type InstallOptions,
   type MutatedProject,
@@ -34,6 +35,7 @@ import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { StoreController } from '@pnpm/store.controller'
 import type {
+  DepPath,
   IgnoredBuilds,
   IncludedDependencies,
   PackageManifest,
@@ -51,7 +53,7 @@ import pLimit from 'p-limit'
 
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
-import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
+import { handleIgnoredBuilds, writeIgnoredBuildsToAllowBuilds } from './handleIgnoredBuilds.js'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
@@ -314,6 +316,7 @@ export async function recursive (
 
   let updatedCatalogs: Catalogs | undefined
 
+  const allIgnoredBuilds = new Set<DepPath>()
   const limitInstallation = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
   await Promise.all(pkgPaths.map(async (rootDir) =>
     limitInstallation(async () => {
@@ -423,7 +426,14 @@ export async function recursive (
             Object.assign(updatedCatalogs, newCatalogsAddition)
           }
         }
-        await handleIgnoredBuilds(opts, ignoredBuilds)
+        if (ignoredBuilds?.size) {
+          for (const depPath of ignoredBuilds) {
+            allIgnoredBuilds.add(depPath)
+          }
+          if (opts.strictDepBuilds) {
+            throw new IgnoredBuildsError(ignoredBuilds)
+          }
+        }
         result[rootDir].status = 'passed'
       } catch (err: any) { // eslint-disable-line
         logger.info(err)
@@ -444,6 +454,9 @@ export async function recursive (
     })
   ))
 
+  if (allIgnoredBuilds.size) {
+    await writeIgnoredBuildsToAllowBuilds(opts, allIgnoredBuilds)
+  }
   await updateWorkspaceManifest(opts.workspaceDir, {
     updatedCatalogs,
     cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,

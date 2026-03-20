@@ -5,16 +5,28 @@ import {
 } from '@pnpm/installing.deps-installer'
 import type { IgnoredBuilds } from '@pnpm/types'
 
+export interface HandleIgnoredBuildsOpts {
+  allowBuilds?: Record<string, boolean | string>
+  rootProjectManifestDir?: string
+  workspaceDir?: string
+  strictDepBuilds?: boolean
+}
+
 export async function handleIgnoredBuilds (
-  opts: {
-    allowBuilds?: Record<string, boolean | string>
-    rootProjectManifestDir?: string
-    workspaceDir?: string
-    strictDepBuilds?: boolean
-  },
+  opts: HandleIgnoredBuildsOpts,
   ignoredBuilds: IgnoredBuilds | undefined
 ): Promise<void> {
   if (!ignoredBuilds?.size) return
+  await writeIgnoredBuildsToAllowBuilds(opts, ignoredBuilds)
+  if (opts.strictDepBuilds) {
+    throw new IgnoredBuildsError(ignoredBuilds)
+  }
+}
+
+export async function writeIgnoredBuildsToAllowBuilds (
+  opts: Pick<HandleIgnoredBuildsOpts, 'allowBuilds' | 'rootProjectManifestDir' | 'workspaceDir'>,
+  ignoredBuilds: IgnoredBuilds
+): Promise<void> {
   const packageNames = dedupePackageNamesFromIgnoredBuilds(ignoredBuilds)
   const newEntries: Record<string, string> = {}
   for (const name of packageNames) {
@@ -30,8 +42,5 @@ export async function handleIgnoredBuilds (
         allowBuilds: { ...opts.allowBuilds, ...newEntries },
       },
     })
-  }
-  if (opts.strictDepBuilds) {
-    throw new IgnoredBuildsError(ignoredBuilds)
   }
 }
