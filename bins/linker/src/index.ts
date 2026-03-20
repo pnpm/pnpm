@@ -101,6 +101,7 @@ export async function linkBinsOfPackages (
   pkgs: Array<{
     manifest: DependencyManifest
     location: string
+    warnOnMissingBin?: boolean
   }>,
   binsTarget: string,
   opts: LinkBinOptions & { excludeBins?: Set<string> } = {}
@@ -111,7 +112,13 @@ export async function linkBinsOfPackages (
   let allCmds = unnest(
     (await Promise.all(
       pkgs
-        .map(async (pkg) => getPackageBinsFromManifest(pkg.manifest, pkg.location))
+        .map(async (pkg) => {
+          const cmds = await getPackageBinsFromManifest(pkg.manifest, pkg.location)
+          if (pkg.warnOnMissingBin !== undefined) {
+            return cmds.map((cmd) => ({ ...cmd, warnOnMissingBin: pkg.warnOnMissingBin }))
+          }
+          return cmds
+        })
     ))
       .filter((cmds: Command[]) => cmds.length)
   )
@@ -129,6 +136,7 @@ interface CommandInfo extends Command {
   pkgVersion: string
   makePowerShellShim: boolean
   nodeExecPath?: string
+  warnOnMissingBin?: boolean
 }
 
 async function _linkBins (
@@ -334,7 +342,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
       if (err.code !== 'ENOENT' && err.code !== 'EISDIR') {
         throw err
       }
-      if (opts?.warnOnMissingBin !== false) {
+      if (cmd.warnOnMissingBin !== false && opts?.warnOnMissingBin !== false) {
         globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
       }
     }
@@ -363,7 +371,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
     })
   } catch (err: any) { // eslint-disable-line
     if (err.code === 'ENOENT' || err.code === 'EISDIR') {
-      if (opts?.warnOnMissingBin !== false) {
+      if (cmd.warnOnMissingBin !== false && opts?.warnOnMissingBin !== false) {
         globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
       }
       return
