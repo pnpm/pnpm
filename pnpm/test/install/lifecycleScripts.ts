@@ -253,6 +253,28 @@ test('the list of ignored builds is preserved after a repeat install', async () 
   ])
 })
 
+test('ignored builds are auto-populated as placeholders in allowBuilds', async () => {
+  prepare({})
+  execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'])
+
+  const manifest = await readWorkspaceManifest(process.cwd())
+  expect(manifest?.allowBuilds?.['@pnpm.e2e/pre-and-postinstall-scripts-example']).toBe('set this to true or false')
+})
+
+test('auto-populated placeholders are merged with existing allowBuilds', async () => {
+  prepare({})
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    allowBuilds: {
+      '@pnpm.e2e/install-script-example': true,
+    },
+  })
+  execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'])
+
+  const manifest = await readWorkspaceManifest(process.cwd())
+  expect(manifest?.allowBuilds?.['@pnpm.e2e/install-script-example']).toBe(true)
+  expect(manifest?.allowBuilds?.['@pnpm.e2e/pre-and-postinstall-scripts-example']).toBe('set this to true or false')
+})
+
 test('git dependencies with preparation scripts should be installed when dangerouslyAllowAllBuilds is true', async () => {
   prepare({})
   writeYamlFileSync('pnpm-workspace.yaml', { dangerouslyAllowAllBuilds: true })
