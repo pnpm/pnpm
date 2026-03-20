@@ -2956,29 +2956,35 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           warn: binWarn.bind(null, project.rootDir),
         })
       } else {
+        const regularDeps = props<DepPath, DependenciesGraphNode>(
+          Array.from(dependenciesByProjectId[project.id].values()).filter((depPath) => !ctx.skipped.has(depPath)),
+          dependenciesGraph
+        )
+        const linkedDeps = linkedDependenciesByProjectId[project.id].map(({ pkgId }) => ({
+          dir: path.join(project.rootDir, pkgId.substring(5)),
+        }))
+
         const directPkgs = [
-          ...props<DepPath, DependenciesGraphNode>(
-            Array.from(dependenciesByProjectId[project.id].values()).filter((depPath) => !ctx.skipped.has(depPath)),
-            dependenciesGraph
-          ),
-          ...linkedDependenciesByProjectId[project.id].map(({ pkgId }) => ({
-            dir: path.join(project.rootDir, pkgId.substring(5)),
-            fetching: undefined,
-          })),
-        ]
-        linkedPackages = await linkBinsOfPackages(
-          (
+          ...(
             await Promise.all(
-              directPkgs.map(async (dep) => {
+              regularDeps.map(async (dep) => {
                 const manifest = (await dep.fetching?.())?.bundledManifest ?? await safeReadPublishManifest(dep.dir)
-                return {
-                  location: dep.dir,
-                  manifest,
-                }
+                return { location: dep.dir, manifest }
               })
             )
-          )
-            .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
+          ).filter(({ manifest }) => manifest != null),
+          ...(
+            await Promise.all(
+              linkedDeps.map(async (dep) => {
+                const manifest = await safeReadPublishManifest(dep.dir)
+                return { location: dep.dir, manifest, warnOnMissingBin: false }
+              })
+            )
+          ).filter(({ manifest }) => manifest != null),
+        ] as Array<{ location: string, manifest: DependencyManifest, warnOnMissingBin?: boolean }>
+
+        linkedPackages = await linkBinsOfPackages(
+          directPkgs,
           project.binsDir,
           {
             extraNodePaths: ctx.extraNodePaths,
