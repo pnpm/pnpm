@@ -1,9 +1,8 @@
 import { rebuild, type RebuildCommandOpts } from '@pnpm/building.commands'
 import type { Config } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
-import { parse } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
-import { readModulesManifest, type StrictModules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
+import { type StrictModules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import { globalInfo } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import chalk from 'chalk'
@@ -184,34 +183,14 @@ Do you approve?`,
     updatedSettings: { allowBuilds },
   })
   if (buildPackages.length) {
-    await rebuild.handler({
+    return rebuild.handler({
       ...opts,
       allowBuilds,
     }, buildPackages)
+  } else if (!params.length && modulesManifest) {
+    delete modulesManifest.ignoredBuilds
+    await writeModulesManifest(modulesDir, modulesManifest as StrictModules)
   }
-  if (!modulesManifest) return
-  // Re-read after rebuild since rebuild.handler rewrites .modules.yaml
-  const updatedManifest = buildPackages.length
-    ? await readModulesManifest(modulesDir)
-    : modulesManifest
-  if (!updatedManifest) return
-  if (params.length) {
-    const decided = new Set([...approved, ...denied])
-    if (updatedManifest.ignoredBuilds) {
-      for (const depPath of Array.from(updatedManifest.ignoredBuilds)) {
-        const name = parse(depPath).name ?? depPath
-        if (decided.has(name)) {
-          updatedManifest.ignoredBuilds.delete(depPath)
-        }
-      }
-      if (!updatedManifest.ignoredBuilds.size) {
-        delete updatedManifest.ignoredBuilds
-      }
-    }
-  } else {
-    delete updatedManifest.ignoredBuilds
-  }
-  await writeModulesManifest(modulesDir, updatedManifest as StrictModules)
 }
 
 function sortUniqueStrings (array: string[]): string[] {
