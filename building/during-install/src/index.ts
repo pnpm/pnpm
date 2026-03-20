@@ -74,6 +74,9 @@ export async function buildModules<T extends string> (
   const groups = chunks.map((chunk) => {
     chunk = chunk.filter((depPath) => {
       const node = depGraph[depPath]
+      if ((node.requiresBuild || node.patch != null) && node.isBuilt) {
+        process.stdout.write(`${node.name}@${node.version}: reused from store (side effects cache)\n`)
+      }
       return (node.requiresBuild || node.patch != null) && !node.isBuilt
     })
     if (opts.depsToBuild != null) {
