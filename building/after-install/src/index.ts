@@ -380,7 +380,17 @@ async function _rebuild (
           requiresBuild = pkgRequiresBuild(pgkManifest, new Map())
         }
 
-        const hasSideEffects = requiresBuild && allowBuild(pkgInfo.name, pkgInfo.version, depPath) && await runPostinstallHooks({
+        if (!requiresBuild) {
+          globalInfo(`${pkgId}: skipped (no build scripts)`)
+          pkgsThatWereRebuilt.add(depPath)
+          return
+        }
+        if (!allowBuild(pkgInfo.name, pkgInfo.version, depPath)) {
+          globalInfo(`${pkgId}: skipped (not allowed)`)
+          pkgsThatWereRebuilt.add(depPath)
+          return
+        }
+        const hasSideEffects = await runPostinstallHooks({
           depPath,
           extraBinPaths,
           extraEnv: opts.extraEnv,
