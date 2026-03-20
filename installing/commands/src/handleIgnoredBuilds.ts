@@ -4,6 +4,7 @@ import {
   IgnoredBuildsError,
 } from '@pnpm/installing.deps-installer'
 import type { IgnoredBuilds } from '@pnpm/types'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 
 export interface HandleIgnoredBuildsOpts {
   allowBuilds?: Record<string, boolean | string>
@@ -46,5 +47,5 @@ export async function writeIgnoredBuildsToAllowBuilds (
 }
 
 function packageNamesFromIgnoredBuilds (ignoredBuilds: IgnoredBuilds): string[] {
-  return Array.from(new Set(Array.from(ignoredBuilds).map((dp) => parse(dp).name ?? dp))).sort()
+  return Array.from(new Set(Array.from(ignoredBuilds).map((dp) => parse(dp).name ?? dp))).sort(lexCompare)
 }
