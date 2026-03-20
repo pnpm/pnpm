@@ -527,6 +527,48 @@ test("linkBins() emits global warning when bin points to path that doesn't exist
   ).toHaveBeenCalled()
 })
 
+test("linkBinsOfPackages() emits global warning when bin points to path that doesn't exist (default behavior)", async () => {
+  const binTarget = temporaryDirectory()
+  const binNotExistFixture = f.prepare('bin-not-exist')
+
+  await linkBinsOfPackages(
+    [
+      {
+        location: path.join(binNotExistFixture, 'node_modules/foo'),
+        manifest: {
+          name: 'meow',
+          version: '1.0.0',
+          bin: 'dist/not-exist.js',
+        },
+      },
+    ],
+    binTarget
+  )
+
+  expect(globalWarn).toHaveBeenCalled()
+})
+
+test("linkBinsOfPackages() does not emit global warning when bin points to path that doesn't exist and warnOnMissingBin is false", async () => {
+  const binTarget = temporaryDirectory()
+
+  await linkBinsOfPackages(
+    [
+      {
+        location: path.join(temporaryDirectory(), 'my-workspace-pkg'),
+        manifest: {
+          name: 'my-cli',
+          version: '1.0.0',
+          bin: 'dist/cli.js',
+        },
+      },
+    ],
+    binTarget,
+    { warnOnMissingBin: false }
+  )
+
+  expect(globalWarn).not.toHaveBeenCalled()
+})
+
 testOnWindows('linkBins() should remove an existing .exe file from the target directory', async () => {
   const binTarget = temporaryDirectory()
   fs.writeFileSync(path.join(binTarget, 'simple.exe'), '', 'utf8')

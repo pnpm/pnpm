@@ -1472,35 +1472,53 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           warn: binWarn.bind(null, project.rootDir),
         })
       } else {
-        const directPkgs = [
-          ...props<DepPath, DependenciesGraphNode>(
-            Array.from(dependenciesByProjectId[project.id].values()).filter((depPath) => !ctx.skipped.has(depPath)),
-            dependenciesGraph
-          ),
-          ...linkedDependenciesByProjectId[project.id].map(({ pkgId }) => ({
-            dir: path.join(project.rootDir, pkgId.substring(5)),
-            fetching: undefined,
-          })),
-        ]
-        linkedPackages = await linkBinsOfPackages(
+        // Regular npm dependencies resolved from the virtual store.
+        const regularDeps = props<DepPath, DependenciesGraphNode>(
+          Array.from(dependenciesByProjectId[project.id].values()).filter((depPath) => !ctx.skipped.has(depPath)),
+          dependenciesGraph
+        )
+        // Workspace packages linked via the `link:` protocol. Their bin targets
+        // may point to build artifacts (e.g. dist/cli.js) that don't exist yet
+        // on a clean install, so we suppress the missing-bin warning for them.
+        const workspaceLinkedDeps = linkedDependenciesByProjectId[project.id].map(({ pkgId }) => ({
+          dir: path.join(project.rootDir, pkgId.substring(5)),
+        }))
+
+        const binLinkOpts = {
+          extraNodePaths: ctx.extraNodePaths,
+          preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+        }
+
+        // Link regular packages with the default warning behavior preserved.
+        const regularLinked = await linkBinsOfPackages(
           (
             await Promise.all(
-              directPkgs.map(async (dep) => {
+              regularDeps.map(async (dep) => {
                 const manifest = (await dep.fetching?.())?.bundledManifest ?? await safeReadProjectManifestOnly(dep.dir)
-                return {
-                  location: dep.dir,
-                  manifest,
-                }
+                return { location: dep.dir, manifest }
               })
             )
-          )
-            .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
+          ).filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
           project.binsDir,
-          {
-            extraNodePaths: ctx.extraNodePaths,
-            preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-          }
+          binLinkOpts
         )
+
+        // Link workspace-linked packages without emitting a warning when the
+        // bin target file is missing — it may simply not have been built yet.
+        const workspaceLinked = await linkBinsOfPackages(
+          (
+            await Promise.all(
+              workspaceLinkedDeps.map(async (dep) => {
+                const manifest = await safeReadProjectManifestOnly(dep.dir)
+                return { location: dep.dir, manifest }
+              })
+            )
+          ).filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
+          project.binsDir,
+          { ...binLinkOpts, warnOnMissingBin: false }
+        )
+
+        linkedPackages = [...regularLinked, ...workspaceLinked]
       }
       const projectToInstall = projects[index]
       if (opts.global && projectToInstall.mutation.includes('install')) {

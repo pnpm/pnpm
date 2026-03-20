@@ -105,6 +105,7 @@ export async function linkBinsOfPackages (
   binsTarget: string,
   opts: LinkBinOptions & { excludeBins?: Set<string> } = {}
 ): Promise<string[]> {
+  opts = { warnOnMissingBin: true, ...opts }
   if (pkgs.length === 0) return []
 
   let allCmds = unnest(
@@ -285,6 +286,13 @@ function runtimeHasNodeDownloaded (runtime: EngineDependency | EngineDependency[
 export interface LinkBinOptions {
   extraNodePaths?: string[]
   preferSymlinkedExecutables?: boolean
+  /**
+   * When false, suppresses the globalWarn emitted when a bin target file does
+   * not exist yet. Use this for workspace packages whose bin files are produced
+   * by a build step that has not run yet (e.g. TypeScript output in dist/).
+   * Defaults to true to preserve existing behaviour.
+   */
+  warnOnMissingBin?: boolean
 }
 
 async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions): Promise<void> {
@@ -326,7 +334,9 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
       if (err.code !== 'ENOENT' && err.code !== 'EISDIR') {
         throw err
       }
-      globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
+      if (opts?.warnOnMissingBin !== false) {
+        globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
+      }
     }
     return
   }
@@ -353,7 +363,9 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
     })
   } catch (err: any) { // eslint-disable-line
     if (err.code === 'ENOENT' || err.code === 'EISDIR') {
-      globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
+      if (opts?.warnOnMissingBin !== false) {
+        globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
+      }
       return
     }
     // On Windows, EPERM during bin creation can happen when another process
