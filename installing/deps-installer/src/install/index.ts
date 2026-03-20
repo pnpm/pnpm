@@ -375,15 +375,13 @@ export async function mutateModules (
   // cached side-effects in the store (isBuilt: true) so buildModules skipped
   // them, but they should now be reported as ignored.
   if (ctx.modulesFile?.allowBuilds && ctx.wantedLockfile.packages) {
-    for (const [pkg, oldValue] of Object.entries(ctx.modulesFile.allowBuilds)) {
-      if (oldValue !== true) continue
-      // Package was previously approved — check if it's still approved
-      if (opts.allowBuilds?.[pkg] === true) continue
-      // Approval revoked. Find its depPath(s) in the lockfile.
+    const oldAllowBuild = createAllowBuildFunction({ allowBuilds: ctx.modulesFile.allowBuilds })
+    if (oldAllowBuild) {
       for (const depPath of Object.keys(ctx.wantedLockfile.packages) as DepPath[]) {
         if (ignoredBuilds?.has(depPath)) continue
-        const name = dp.parse(depPath).name
-        if (name === pkg) {
+        const { name, version } = dp.parse(depPath)
+        if (!name || !version) continue
+        if (oldAllowBuild(name, version) === true && allowBuild?.(name, version) !== true) {
           ignoredBuilds ??= new Set()
           ignoredBuilds.add(depPath)
         }
