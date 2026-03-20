@@ -25,11 +25,11 @@
     "!*.map"
   ],
   "scripts": {
-    "test": "pnpm run compile && pnpm run _test",
+    "test": "pnpm run compile && pnpm run _test_after_compile",
     "prepublishOnly": "pnpm run compile",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "compile": "tsgo --build && pnpm run lint --fix",
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+    "_test_after_compile": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "devDependencies": {
     "@pnpm/text.naming-cases": "workspace:*"

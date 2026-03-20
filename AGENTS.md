@@ -53,6 +53,8 @@ pnpm run compile
 
 Never run all tests in the repository as it takes a lot of time.
 
+**Important:** Always use `pnpm test` (not `pnpm _test_after_compile`) to run tests. The `test` script compiles and bundles before running tests. The `_test_after_compile` script is internal and assumes compilation has already been done — running it directly will test stale code. The pnpm CLI e2e tests (in `pnpm/test/`) use the **bundled** `pnpm/dist/pnpm.mjs`, so the bundle must be up to date.
+
 Run tests for a specific project instead:
 
 ```bash

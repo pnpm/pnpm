@@ -274,13 +274,13 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
       scripts = {
         ...(manifest.scripts as Record<string, string>),
       }
-      scripts.test = 'pnpm run compile && pnpm run _test'
+      scripts.test = 'pnpm run compile && pnpm run _test_after_compile'
       if (manifest.name === '@pnpm/installing.deps-installer') {
       // @pnpm/installing.deps-installer tests currently works only with port 7769 due to the usage of
       // the next package: pkg-with-tarball-dep-from-registry
-        scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${registryMockPortForCore} NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest`
+        scripts._test_after_compile = `cross-env PNPM_REGISTRY_MOCK_PORT=${registryMockPortForCore} NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest`
       } else {
-        scripts._test = 'cross-env NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest'
+        scripts._test_after_compile = 'cross-env NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest'
       }
       break
     }
@@ -288,8 +288,8 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
       if (fs.existsSync(path.join(dir, 'test'))) {
         scripts = {
           ...(manifest.scripts as Record<string, string>),
-          _test: 'cross-env NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest',
-          test: 'pnpm run compile && pnpm run _test',
+          _test_after_compile: 'cross-env NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest',
+          test: 'pnpm run compile && pnpm run _test_after_compile',
         }
       } else {
         scripts = {
@@ -302,17 +302,18 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   if (manifest.name === CLI_PKG_NAME) {
     manifest.publishConfig!.tag = nextTag
   }
-  if (scripts._test) {
+  if (scripts._test_after_compile) {
     if (scripts.pretest) {
-      scripts._test = `pnpm pretest && ${scripts._test}`
+      scripts._test_after_compile = `pnpm pretest && ${scripts._test_after_compile}`
     }
     if (scripts.posttest) {
-      scripts._test = `${scripts._test} && pnpm posttest`
+      scripts._test_after_compile = `${scripts._test_after_compile} && pnpm posttest`
     }
     if (manifest.name === '@pnpm/server') {
-      scripts._test += ' --detectOpenHandles'
+      scripts._test_after_compile += ' --detectOpenHandles'
     }
   }
+  delete scripts._test
   scripts.compile = 'tsgo --build && pnpm run lint --fix'
   delete scripts.tsc
   if (scripts.start && scripts.start.includes('tsc --watch')) {

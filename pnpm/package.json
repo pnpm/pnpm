@@ -63,11 +63,11 @@
     "start": "tsgo --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "pretest:e2e": "rimraf node_modules/.bin/pnpm",
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest",
-    "test": "pnpm run compile && pnpm run _test",
+    "test": "pnpm run compile && pnpm run _test_after_compile",
     "prepublishOnly": "pnpm compile && node bundle-deps.ts",
     "_compile": "tsgo --build",
-    "compile": "tsgo --build && pnpm run lint --fix && rimraf dist bin/nodes && pnpm run bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/templates dist/templates && shx cp -r node_modules/ps-list/vendor dist/vendor && shx cp pnpmrc dist/pnpmrc"
+    "compile": "tsgo --build && pnpm run lint --fix && rimraf dist bin/nodes && pnpm run bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/templates dist/templates && shx cp -r node_modules/ps-list/vendor dist/vendor && shx cp pnpmrc dist/pnpmrc",
+    "_test_after_compile": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@reflink/reflink": "catalog:",
@@ -89,7 +89,6 @@
     "@pnpm/cli.utils": "workspace:*",
     "@pnpm/config.commands": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
-    "@pnpm/hooks.pnpmfile": "workspace:*",
     "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
@@ -102,6 +101,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.commands": "workspace:*",
     "@pnpm/exec.run-npm": "workspace:*",
+    "@pnpm/hooks.pnpmfile": "workspace:*",
     "@pnpm/installing.client": "workspace:*",
     "@pnpm/installing.commands": "workspace:*",
     "@pnpm/installing.env-installer": "workspace:*",

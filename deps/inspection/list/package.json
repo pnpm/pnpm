@@ -31,9 +31,9 @@
     "prepareFixtures": "cd test && node ../../pnpm recursive install --no-link-workspace-packages --no-shared-workspace-lockfile -f && cd ..",
     "prepublishOnly": "pnpm run compile",
     "pretest": "pnpm run --filter tree-builder pretest",
-    "_test": "pnpm pretest && cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest",
-    "test": "pnpm run compile && pnpm run _test",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "test": "pnpm run compile && pnpm run _test_after_compile",
+    "compile": "tsgo --build && pnpm run lint --fix",
+    "_test_after_compile": "pnpm pretest && cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/deps.inspection.tree-builder": "workspace:*",
