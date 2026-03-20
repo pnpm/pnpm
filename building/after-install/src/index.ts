@@ -153,9 +153,9 @@ export async function buildSelectedPkgs (
     publicHoistPattern: ctx.publicHoistPattern,
     registries: ctx.registries,
     skipped: Array.from(ctx.skipped),
-    storeDir: ctx.storeDir,
-    virtualStoreDir: ctx.virtualStoreDir,
-    virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
+    storeDir: ctx.modulesFile?.storeDir ?? ctx.storeDir,
+    virtualStoreDir: ctx.modulesFile?.virtualStoreDir ?? ctx.virtualStoreDir,
+    virtualStoreDirMaxLength: ctx.modulesFile?.virtualStoreDirMaxLength ?? ctx.virtualStoreDirMaxLength,
   })
   return {
     ignoredBuilds: ignoredPkgs,
