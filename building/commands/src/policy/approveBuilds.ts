@@ -60,6 +60,12 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
       }
     )
   }
+  if (opts.all && params.length) {
+    throw new PnpmError(
+      'APPROVE_BUILDS_ALL_WITH_ARGS',
+      'Cannot use --all with positional arguments'
+    )
+  }
   const {
     automaticallyIgnoredBuilds,
     modulesDir,
