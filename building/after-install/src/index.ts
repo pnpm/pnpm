@@ -402,6 +402,9 @@ async function _rebuild (
           shellEmulator: opts.shellEmulator,
           unsafePerm: opts.unsafePerm || false,
         })
+        if (hasSideEffects) {
+          globalInfo(`${pkgId}: built successfully`)
+        }
         if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && resolution.integrity) {
           builtDepPaths.add(depPath)
           const filesIndexFile = storeIndexKey(resolution.integrity!.toString(), pkgId)
