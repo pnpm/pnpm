@@ -316,6 +316,93 @@ test('positional arguments with unknown package throws error', async () => {
   ).rejects.toThrow('not awaiting approval')
 })
 
+test('!pkg with unknown package throws error', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+    },
+  })
+
+  await execPnpmInstall()
+  const config = await getApproveBuildsConfig()
+
+  await expect(
+    approveBuilds.handler(config, ['!@pnpm.e2e/nonexistent-package'])
+  ).rejects.toThrow('not awaiting approval')
+})
+
+test('contradictory arguments throw error', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+    },
+  })
+
+  await execPnpmInstall()
+  const config = await getApproveBuildsConfig()
+
+  await expect(
+    approveBuilds.handler(config, [
+      '@pnpm.e2e/pre-and-postinstall-scripts-example',
+      '!@pnpm.e2e/pre-and-postinstall-scripts-example',
+    ])
+  ).rejects.toThrow('both approved and denied')
+})
+
+test('--all with positional arguments throws error', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+    },
+  })
+
+  await execPnpmInstall()
+  const config = await getApproveBuildsConfig()
+
+  await expect(
+    approveBuilds.handler({ ...config, all: true }, ['@pnpm.e2e/pre-and-postinstall-scripts-example'])
+  ).rejects.toThrow('Cannot use --all with positional arguments')
+})
+
+test('positional args preserve existing allowBuilds entries', async () => {
+  const temp = tempDir()
+
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+      '@pnpm.e2e/install-script-example': '*',
+    },
+  }, {
+    tempDir: temp,
+  })
+
+  const workspaceManifestFile = path.join(temp, 'pnpm-workspace.yaml')
+  writeYamlFileSync(workspaceManifestFile, {
+    packages: ['packages/*'],
+    allowBuilds: {
+      '@pnpm.e2e/existing-package': true,
+    },
+  })
+
+  await execPnpmInstall()
+  const config = await getApproveBuildsConfig()
+
+  await approveBuilds.handler({
+    ...config,
+    workspaceDir: temp,
+    rootProjectManifestDir: temp,
+    allowBuilds: {
+      '@pnpm.e2e/existing-package': true,
+    },
+  }, ['@pnpm.e2e/pre-and-postinstall-scripts-example'])
+
+  const manifest = readYamlFileSync<any>(workspaceManifestFile) // eslint-disable-line
+  expect(manifest.allowBuilds['@pnpm.e2e/existing-package']).toBe(true)
+  expect(manifest.allowBuilds['@pnpm.e2e/pre-and-postinstall-scripts-example']).toBe(true)
+  // install-script-example should NOT be touched
+  expect(manifest.allowBuilds['@pnpm.e2e/install-script-example']).toBeUndefined()
+})
+
 test('should retain existing allowBuilds entries when approving builds', async () => {
   const temp = tempDir()
 
