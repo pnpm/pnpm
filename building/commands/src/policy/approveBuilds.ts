@@ -1,6 +1,7 @@
 import { rebuild, type RebuildCommandOpts } from '@pnpm/building.commands'
 import type { Config } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
+import { parse } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { type StrictModules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import { globalInfo } from '@pnpm/logger'
@@ -85,6 +86,13 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
     throw new PnpmError(
       'APPROVE_BUILDS_UNKNOWN_PACKAGES',
       `The following packages are not awaiting approval: ${unknown.join(', ')}`
+    )
+  }
+  const contradictions = approved.filter((p) => denied.includes(p))
+  if (contradictions.length) {
+    throw new PnpmError(
+      'APPROVE_BUILDS_CONTRADICTING_ARGS',
+      `The following packages are both approved and denied: ${contradictions.join(', ')}`
     )
   }
   let buildPackages: string[] = []
@@ -174,9 +182,28 @@ Do you approve?`,
       ...opts,
       allowBuilds,
     }, buildPackages)
-  } else if (!params.length && modulesManifest) {
-    delete modulesManifest.ignoredBuilds
-    await writeModulesManifest(modulesDir, modulesManifest as StrictModules)
+  } else if (modulesManifest) {
+    if (params.length) {
+      // Remove only the decided packages from ignoredBuilds
+      const decided = new Set([...approved, ...denied])
+      if (modulesManifest.ignoredBuilds) {
+        const remaining = new Set(
+          Array.from(modulesManifest.ignoredBuilds).filter((depPath) => {
+            const name = parse(depPath).name ?? depPath
+            return !decided.has(name)
+          })
+        )
+        if (remaining.size) {
+          modulesManifest.ignoredBuilds = remaining
+        } else {
+          delete modulesManifest.ignoredBuilds
+        }
+        await writeModulesManifest(modulesDir, modulesManifest as StrictModules)
+      }
+    } else {
+      delete modulesManifest.ignoredBuilds
+      await writeModulesManifest(modulesDir, modulesManifest as StrictModules)
+    }
   }
 }
 
