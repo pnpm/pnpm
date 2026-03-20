@@ -154,7 +154,10 @@ test('selectively allow scripts in some dependencies by --allow-build flag', asy
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 
   const modulesManifest = await readWorkspaceManifest(project.dir())
-  expect(modulesManifest?.allowBuilds).toStrictEqual({ '@pnpm.e2e/install-script-example': true })
+  expect(modulesManifest?.allowBuilds).toStrictEqual({
+    '@pnpm.e2e/install-script-example': true,
+    '@pnpm.e2e/pre-and-postinstall-scripts-example': 'set this to true or false',
+  })
 })
 
 test('--allow-build flag should specify the package', async () => {
