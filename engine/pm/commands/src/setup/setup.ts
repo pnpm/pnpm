@@ -135,14 +135,16 @@ export async function handler (
   }
 ): Promise<string> {
   const execPath = getExecPath()
+  const binDir = path.join(opts.pnpmHomeDir, 'bin')
   if (execPath.match(/\.[cm]?js$/) == null) {
     installCliGlobally(execPath, opts.pnpmHomeDir)
-    createPnpxScripts(opts.pnpmHomeDir)
+    createPnpxScripts(binDir)
   }
   try {
     const report = await addDirToEnvPath(opts.pnpmHomeDir, {
       configSectionName: 'pnpm',
       proxyVarName: 'PNPM_HOME',
+      proxyVarSubDir: 'bin',
       overwrite: opts.force,
       position: 'start',
     })

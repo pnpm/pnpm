@@ -31,10 +31,11 @@ test('uninstall global package with its bin files', async () => {
   prepare()
 
   const global = process.cwd()
-  const globalBin = path.resolve(global, 'bin')
+  const pnpmHome = path.resolve(global, 'pnpm')
+  const globalBin = path.join(pnpmHome, 'bin')
 
   const env = {
-    PNPM_HOME: globalBin,
+    PNPM_HOME: pnpmHome,
     [PATH]: `${globalBin}${path.delimiter}${process.env[PATH] ?? ''}`,
     XDG_DATA_HOME: global,
   }

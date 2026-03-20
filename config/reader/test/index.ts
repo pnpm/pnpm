@@ -34,7 +34,7 @@ for (const suffix of [
 
 const env = {
   PNPM_HOME: import.meta.dirname,
-  [PATH]: import.meta.dirname,
+  [PATH]: path.join(import.meta.dirname, 'bin'),
 }
 const f = fixtures(import.meta.dirname)
 
