@@ -4,7 +4,6 @@ import path from 'node:path'
 import { buildProjects } from '@pnpm/building.after-install'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import {
-  readProjectManifestOnly,
   type RecursiveSummary,
   throwOnCommandFail,
 } from '@pnpm/cli.utils'
@@ -468,7 +467,7 @@ export async function recursive (
       [
         {
           buildIndex: 0,
-          manifest: opts.rootProjectManifest ?? await readProjectManifestOnly(opts.dir, opts).catch(() => ({})),
+          manifest: opts.rootProjectManifest ?? {},
           rootDir: opts.dir as ProjectRootDir,
         },
       ],
