@@ -56,7 +56,7 @@ function prepareOptions (dir: string) {
     rawLocalConfig: {},
     sort: false,
     rootProjectManifestDir: dir,
-    bin: dir,
+    bin: path.join(dir, 'bin'),
     workspaceConcurrency: 1,
     extraEnv: {},
     pnpmfile: '',
@@ -438,7 +438,7 @@ test('self-update works globally without package.json', async () => {
     ...prepareOptions(dir),
     globalPkgDir: path.join(pnpmHomeDir, 'global', 'v11'),
     pnpmHomeDir,
-    bin: pnpmHomeDir,
+    bin: path.join(pnpmHomeDir, 'bin'),
   }
   mockRegistryForUpdate(opts.registries.default, '9.1.0', createMetadata('9.1.0', opts.registries.default))
 
