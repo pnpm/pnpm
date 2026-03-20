@@ -147,7 +147,7 @@ test('self-update', async () => {
   const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(globalDir, installDirName!, 'node_modules/pnpm/package.json'), 'utf8'))
   expect(pnpmPkgJson.version).toBe('9.1.0')
 
-  const pnpmEnv = prependDirsToPath([opts.pnpmHomeDir])
+  const pnpmEnv = prependDirsToPath([path.join(opts.pnpmHomeDir, 'bin')])
   const { status, stdout } = spawn.sync('pnpm', ['-v'], {
     env: {
       ...process.env,
@@ -180,7 +180,7 @@ test('self-update by exact version', async () => {
   const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(globalDir, installDirName!, 'node_modules/pnpm/package.json'), 'utf8'))
   expect(pnpmPkgJson.version).toBe('9.1.0')
 
-  const pnpmEnv = prependDirsToPath([opts.pnpmHomeDir])
+  const pnpmEnv = prependDirsToPath([path.join(opts.pnpmHomeDir, 'bin')])
   const { status, stdout } = spawn.sync('pnpm', ['-v'], {
     env: {
       ...process.env,
@@ -418,7 +418,7 @@ console.log('9.2.0')`, 'utf8')
 
   expect(output).toBe(`The latest version, v9.2.0, is already present on the system. It was activated by linking it from ${installDir}.`)
 
-  const pnpmEnv = prependDirsToPath([opts.pnpmHomeDir])
+  const pnpmEnv = prependDirsToPath([path.join(opts.pnpmHomeDir, 'bin')])
   const { status, stdout } = spawn.sync('pnpm', ['-v'], {
     env: {
       ...process.env,
@@ -457,7 +457,7 @@ test('self-update works globally without package.json', async () => {
   expect(globalInstallDir).toBeDefined()
   expect(fs.existsSync(path.join(globalDir, globalInstallDir!, 'node_modules', 'pnpm', 'package.json'))).toBe(true)
 
-  const pnpmEnv = prependDirsToPath([pnpmHomeDir])
+  const pnpmEnv = prependDirsToPath([path.join(pnpmHomeDir, 'bin')])
   const { status, stdout } = spawn.sync('pnpm', ['-v'], {
     env: {
       ...process.env,
