@@ -273,6 +273,34 @@ test('deny builds via !pkg positional arguments', async () => {
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeFalsy()
 })
 
+test('deny-only via !pkg keeps other builds pending', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+      '@pnpm.e2e/install-script-example': '*',
+    },
+  })
+
+  await execPnpmInstall()
+  const config = await getApproveBuildsConfig()
+
+  prompt.mockClear()
+  await approveBuilds.handler(config, [
+    '!@pnpm.e2e/install-script-example',
+  ])
+
+  expect(prompt).not.toHaveBeenCalled()
+
+  const workspaceManifest = readYamlFileSync<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
+  expect(workspaceManifest.allowBuilds).toStrictEqual({
+    '@pnpm.e2e/install-script-example': false,
+  })
+
+  // The other package should still be in ignoredBuilds (not cleared)
+  const modulesManifestAfter = await readModulesManifest(path.resolve('node_modules'))
+  expect(modulesManifestAfter?.ignoredBuilds).toBeDefined()
+})
+
 test('positional arguments with unknown package throws error', async () => {
   prepare({
     dependencies: {

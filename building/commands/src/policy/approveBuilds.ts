@@ -174,7 +174,7 @@ Do you approve?`,
       ...opts,
       allowBuilds,
     }, buildPackages)
-  } else if (modulesManifest) {
+  } else if (!params.length && modulesManifest) {
     delete modulesManifest.ignoredBuilds
     await writeModulesManifest(modulesDir, modulesManifest as StrictModules)
   }

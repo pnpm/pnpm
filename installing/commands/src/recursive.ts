@@ -431,6 +431,7 @@ export async function recursive (
             allIgnoredBuilds.add(depPath)
           }
           if (opts.strictDepBuilds) {
+            await writeIgnoredBuildsToAllowBuilds(opts, allIgnoredBuilds)
             throw new IgnoredBuildsError(ignoredBuilds)
           }
         }
