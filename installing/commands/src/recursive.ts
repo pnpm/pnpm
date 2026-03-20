@@ -464,15 +464,17 @@ export async function recursive (
     )
   ) {
     await buildProjects(
-      [
-        {
-          buildIndex: 0,
-          manifest: opts.rootProjectManifest ?? {},
-          rootDir: opts.dir as ProjectRootDir,
-        },
-      ],
+      allProjects.map((project) => ({
+        buildIndex: 0,
+        manifest: project.manifest,
+        rootDir: project.rootDir,
+      })),
       {
         ...opts,
+        // Don't let buildProjects overwrite per-project module settings
+        // like hoistPattern that were configured during the install phase.
+        hoistPattern: undefined,
+        publicHoistPattern: undefined,
         pending: opts.pending === true,
         skipIfHasSideEffectsCache: true,
         storeController: store.ctrl,
