@@ -227,6 +227,12 @@ export async function handler (
 
   const specifiedScripts = getSpecifiedScripts(manifest.scripts ?? {}, scriptName)
 
+  if (specifiedScripts.length > 0 && specifiedScripts.some((s) => s.startsWith('.')) && !process.env.npm_lifecycle_event) {
+    throw new PnpmError('HIDDEN_SCRIPT', `Script "${scriptName}" is hidden and cannot be run directly`, {
+      hint: 'Scripts starting with "." are hidden and can only be called from other scripts.',
+    })
+  }
+
   if (specifiedScripts.length < 1) {
     if (opts.ifPresent) return
     if (opts.fallbackCommandUsed) {
@@ -348,6 +354,7 @@ function printProjectCommands (
   const otherScripts = [] as string[][]
 
   for (const [scriptName, script] of Object.entries(manifest.scripts ?? {})) {
+    if (scriptName.startsWith('.')) continue
     if (ALL_LIFECYCLE_SCRIPTS.has(scriptName)) {
       lifecycleScripts.push([scriptName, script])
     } else {

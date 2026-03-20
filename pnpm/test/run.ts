@@ -233,3 +233,44 @@ test('--reporter-hide-prefix should hide workspace prefix', async () => {
   expect(output).toContain('2')
   expect(output).not.toContain('script2: 2')
 })
+
+test('hidden scripts (starting with .) cannot be run directly', () => {
+  prepare({
+    scripts: {
+      '.build': 'echo private',
+      'build': 'pnpm run .build',
+    },
+  })
+
+  // Direct execution should fail
+  const result = execPnpmSync(['run', '.build'])
+  expect(result.status).toBe(1)
+  expect(result.stdout.toString()).toContain('HIDDEN_SCRIPT')
+})
+
+test('hidden scripts can be called from other scripts', async () => {
+  prepare({
+    scripts: {
+      '.build': 'echo private-ok',
+      'build': 'pnpm run .build',
+    },
+  })
+
+  // Indirect execution via another script should work
+  const result = execPnpmSync(['run', 'build'])
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString()).toContain('private-ok')
+})
+
+test('hidden scripts are not shown in pnpm run listing', async () => {
+  prepare({
+    scripts: {
+      '.internal': 'echo hidden',
+      'build': 'echo visible',
+    },
+  })
+
+  const result = execPnpmSync(['run'])
+  expect(result.stdout.toString()).toContain('build')
+  expect(result.stdout.toString()).not.toContain('.internal')
+})

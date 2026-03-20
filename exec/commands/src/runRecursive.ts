@@ -110,6 +110,11 @@ export async function runRecursive (
         ) {
           return
         }
+        if (scriptName.startsWith('.') && !process.env.npm_lifecycle_event) {
+          throw new PnpmError('HIDDEN_SCRIPT', `Script "${scriptName}" is hidden and cannot be run directly`, {
+            hint: 'Scripts starting with "." are hidden and can only be called from other scripts.',
+          })
+        }
         result[prefix].status = 'running'
         const startTime = process.hrtime()
         hasCommand++
