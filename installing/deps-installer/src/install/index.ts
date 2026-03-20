@@ -371,6 +371,25 @@ export async function mutateModules (
   if (!opts.ignoreScripts && ignoredBuilds?.size) {
     ignoredBuilds = await runUnignoredDependencyBuilds(opts, ignoredBuilds, allowBuild)
   }
+  // Detect packages whose build approval was revoked. These packages have
+  // cached side-effects in the store (isBuilt: true) so buildModules skipped
+  // them, but they should now be reported as ignored.
+  if (ctx.modulesFile?.allowBuilds && ctx.wantedLockfile.packages) {
+    for (const [pkg, oldValue] of Object.entries(ctx.modulesFile.allowBuilds)) {
+      if (oldValue !== true) continue
+      // Package was previously approved — check if it's still approved
+      if (opts.allowBuilds?.[pkg] === true) continue
+      // Approval revoked. Find its depPath(s) in the lockfile.
+      for (const depPath of Object.keys(ctx.wantedLockfile.packages) as DepPath[]) {
+        if (ignoredBuilds?.has(depPath)) continue
+        const name = dp.parse(depPath).name
+        if (name === pkg) {
+          ignoredBuilds ??= new Set()
+          ignoredBuilds.add(depPath)
+        }
+      }
+    }
+  }
   ignoredScriptsLogger.debug({
     packageNames: ignoredBuilds ? dedupePackageNamesFromIgnoredBuilds(ignoredBuilds) : [],
   })

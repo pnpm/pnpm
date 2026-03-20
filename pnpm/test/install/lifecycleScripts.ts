@@ -299,6 +299,32 @@ test('selective rebuild preserves ignoredBuilds for packages not being rebuilt',
   expect(afterRebuild!.ignoredBuilds).toBeDefined()
 })
 
+test('strictDepBuilds fails for packages with cached side-effects (#11035)', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+    },
+  })
+  const storeDir = path.resolve('isolated-store')
+
+  // First install: allow the build so side-effects get cached in the store
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    allowBuilds: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+    },
+  })
+  const firstResult = execPnpmSync(['install', '--config.enable-global-virtual-store=false', `--store-dir=${storeDir}`])
+  expect(firstResult.status).toBe(0)
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
+
+  // Second install: remove the approval. Side-effects are cached in the store
+  // but strictDepBuilds should still fail.
+  writeYamlFileSync('pnpm-workspace.yaml', {})
+  const secondResult = execPnpmSync(['install', '--config.strict-dep-builds=true', '--config.optimistic-repeat-install=false', '--config.enable-global-virtual-store=false', `--store-dir=${storeDir}`])
+  expect(secondResult.status).toBe(1)
+  expect(secondResult.stdout.toString()).toContain('Ignored build scripts:')
+})
+
 test('git dependencies with preparation scripts should be installed when dangerouslyAllowAllBuilds is true', async () => {
   prepare({})
   writeYamlFileSync('pnpm-workspace.yaml', { dangerouslyAllowAllBuilds: true })
