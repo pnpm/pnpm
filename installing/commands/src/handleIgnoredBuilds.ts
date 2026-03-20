@@ -1,9 +1,10 @@
 import { writeSettings } from '@pnpm/config.writer'
+import { parse } from '@pnpm/deps.path'
 import {
-  dedupePackageNamesFromIgnoredBuilds,
   IgnoredBuildsError,
 } from '@pnpm/installing.deps-installer'
 import type { IgnoredBuilds } from '@pnpm/types'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 
 export interface HandleIgnoredBuildsOpts {
   allowBuilds?: Record<string, boolean | string>
@@ -27,7 +28,7 @@ export async function writeIgnoredBuildsToAllowBuilds (
   opts: Pick<HandleIgnoredBuildsOpts, 'allowBuilds' | 'rootProjectManifestDir' | 'workspaceDir'>,
   ignoredBuilds: IgnoredBuilds
 ): Promise<void> {
-  const packageNames = dedupePackageNamesFromIgnoredBuilds(ignoredBuilds)
+  const packageNames = packageNamesFromIgnoredBuilds(ignoredBuilds)
   const newEntries: Record<string, string> = {}
   for (const name of packageNames) {
     if (opts.allowBuilds?.[name] == null) {
@@ -43,4 +44,8 @@ export async function writeIgnoredBuildsToAllowBuilds (
       },
     })
   }
+}
+
+function packageNamesFromIgnoredBuilds (ignoredBuilds: IgnoredBuilds): string[] {
+  return Array.from(new Set(Array.from(ignoredBuilds).map((dp) => parse(dp).name ?? dp))).sort(lexCompare)
 }
