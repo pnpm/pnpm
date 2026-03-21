@@ -48,6 +48,7 @@ RELEASE.md
 .turbo
 .eslintcache
 .claude
+.local-settings
 .pnpm-typecheck.json
 
 ## custom modules-dir fixture

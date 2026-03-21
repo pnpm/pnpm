@@ -104,12 +104,16 @@ function readThreadingMode (repoRoot: string): { mode: string, source: string } 
     return { mode: envValue, source: 'PNPM_TYPECHECK_THREADING env var' }
   }
 
-  const configPath = path.join(repoRoot, '.pnpm-typecheck.json')
-  if (fs.existsSync(configPath)) {
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-    const threading = typeof config.threading === 'string' ? config.threading.trim().toLowerCase() : ''
-    if (threading) {
-      return { mode: threading, source: configPath }
+  for (const configPath of [
+    path.join(repoRoot, '.local-settings', 'pnpm-typecheck.json'),
+    path.join(repoRoot, '.pnpm-typecheck.json'),
+  ]) {
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+      const threading = typeof config.threading === 'string' ? config.threading.trim().toLowerCase() : ''
+      if (threading) {
+        return { mode: threading, source: configPath }
+      }
     }
   }
 
