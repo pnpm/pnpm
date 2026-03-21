@@ -17,6 +17,9 @@
       "path": "../../../bins/linker"
     },
     {
+      "path": "../../../building/policy"
+    },
+    {
       "path": "../../../cli/meta"
     },
     {
