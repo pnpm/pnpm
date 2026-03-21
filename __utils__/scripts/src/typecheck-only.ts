@@ -79,58 +79,46 @@ async function main (): Promise<void> {
   console.log('Running tsgo build done')
 }
 
-type ThreadingMode = 'auto' | 'single-threaded' | 'multi-threaded'
-
-const VALID_THREADING_MODES = new Set<string>(['auto', 'single-threaded', 'multi-threaded'])
-
 const AUTO_SINGLE_THREAD_MEMORY_THRESHOLD_GB = 8
 
 function resolveThreadingMode (repoRoot: string): boolean {
-  const mode = readThreadingMode(repoRoot)
+  const { mode, source } = readThreadingMode(repoRoot)
   switch (mode) {
     case 'single-threaded':
       return true
     case 'multi-threaded':
       return false
-    case 'auto': {
+    default:
+      if (mode !== 'auto') {
+        console.warn(
+          `Invalid threading mode "${mode}" from ${source}. ` +
+          `Valid values: auto, single-threaded, multi-threaded. Defaulting to "auto".`
+        )
+      }
       const totalMemoryGB = os.totalmem() / (1024 ** 3)
       const singleThreaded = totalMemoryGB < AUTO_SINGLE_THREAD_MEMORY_THRESHOLD_GB
       console.log(
         `Auto-detected ${totalMemoryGB.toFixed(1)} GB of memory: using ${singleThreaded ? 'single-threaded' : 'multi-threaded'} mode`
       )
       return singleThreaded
-    }
   }
 }
 
-function readThreadingMode (repoRoot: string): ThreadingMode {
+function readThreadingMode (repoRoot: string): { mode: string, source: string } {
   const envValue = process.env.PNPM_TYPECHECK_THREADING
   if (envValue != null) {
-    if (!VALID_THREADING_MODES.has(envValue)) {
-      console.warn(
-        `Invalid PNPM_TYPECHECK_THREADING value "${envValue}". ` +
-        `Valid values: auto, single-threaded, multi-threaded. Defaulting to "auto".`
-      )
-      return 'auto'
-    }
-    return envValue as ThreadingMode
+    return { mode: envValue, source: 'PNPM_TYPECHECK_THREADING env var' }
   }
 
   const configPath = path.join(repoRoot, '.pnpm-typecheck.json')
   try {
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-    if (config.threading && VALID_THREADING_MODES.has(config.threading)) {
-      return config.threading as ThreadingMode
-    }
     if (config.threading) {
-      console.warn(
-        `Invalid threading value "${config.threading}" in ${configPath}. ` +
-        `Valid values: auto, single-threaded, multi-threaded. Defaulting to "auto".`
-      )
+      return { mode: config.threading, source: configPath }
     }
   } catch {}
 
-  return 'auto'
+  return { mode: 'auto', source: 'default' }
 }
 
 main().catch((error: unknown) => {
