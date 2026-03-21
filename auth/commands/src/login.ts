@@ -72,23 +72,24 @@ export async function handler (
   return login(opts)
 }
 
-export interface LoginFetchInit {
+/**
+ * Like {@link WebAuthFetchOptions} but allows any HTTP method (login needs POST and PUT)
+ * and additional fields (headers, body) for the login requests.
+ */
+export interface LoginFetchOptions extends Omit<WebAuthFetchOptions, 'method'> {
   method: string
-  headers: Record<string, string>
+  headers?: Record<string, string>
   body?: string
 }
 
-export interface LoginFetchResponse {
-  ok: boolean
-  status: number
-  json: () => Promise<unknown>
-  text: () => Promise<string>
+export interface LoginFetchResponse extends WebAuthFetchResponse {
+  readonly text: () => Promise<string>
 }
 
 export interface LoginContext {
   Date: { now: () => number }
   setTimeout: (cb: () => void, ms: number) => void
-  fetch: (url: string, init: LoginFetchInit) => Promise<LoginFetchResponse>
+  fetch: (url: string, options: LoginFetchOptions) => Promise<LoginFetchResponse>
   prompt: (options: { message: string, name: string, type: string }) => Promise<Record<string, string>>
   process: Record<'stdin' | 'stdout', { isTTY?: boolean }>
 }
@@ -97,7 +98,7 @@ async function defaultPrompt (options: { message: string, name: string, type: st
   return enquirer.prompt(options as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
-function createDefaultFetch (opts: LoginCommandOptions): LoginContext['fetch'] {
+function createDefaultContext (opts: LoginCommandOptions): LoginContext {
   const agentOptions: AgentOptions = {
     ca: opts.ca,
     cert: typeof opts.cert === 'string' ? opts.cert : opts.cert?.join('\n'),
@@ -109,26 +110,12 @@ function createDefaultFetch (opts: LoginCommandOptions): LoginContext['fetch'] {
     strictSsl: opts.strictSsl ?? true,
   }
 
-  return async (url, init) => {
-    const response = await fetchWithAgent(url, {
-      agentOptions,
-      method: init.method,
-      headers: init.headers,
-      body: init.body,
-      retry: {
-        retries: opts.fetchRetries,
-        factor: opts.fetchRetryFactor,
-        maxTimeout: opts.fetchRetryMaxtimeout,
-        minTimeout: opts.fetchRetryMintimeout,
-      },
-      timeout: opts.fetchTimeout,
-    })
-    return {
-      ok: response.ok,
-      status: response.status,
-      json: () => response.json() as Promise<unknown>,
-      text: () => response.text(),
-    }
+  return {
+    Date,
+    setTimeout,
+    fetch: (url, fetchOptions) => fetchWithAgent(url, { ...fetchOptions, agentOptions }),
+    prompt: defaultPrompt,
+    process,
   }
 }
 
@@ -139,13 +126,7 @@ export async function login (
   const registry = normalizeRegistryUrl(opts.registry ?? 'https://registry.npmjs.org/')
 
   const ctx: LoginContext = {
-    Date,
-    setTimeout: (cb, ms) => {
-      globalThis.setTimeout(cb, ms)
-    },
-    fetch: createDefaultFetch(opts),
-    prompt: defaultPrompt,
-    process,
+    ...createDefaultContext(opts),
     ...context,
   }
 
@@ -175,7 +156,7 @@ async function webLogin (
   opts: LoginCommandOptions,
   context: LoginContext
 ): Promise<string> {
-  const loginUrl = `${registry.replace(/\/$/, '')}/-/v1/login`
+  const loginUrl = new URL('-/v1/login', registry).href
 
   const response = await context.fetch(loginUrl, {
     method: 'POST',
@@ -212,13 +193,14 @@ async function webLogin (
     timeout: opts.fetchTimeout,
   }
 
-  const webAuthContext = {
-    Date: context.Date,
-    setTimeout: context.setTimeout,
-    fetch: context.fetch as unknown as (url: string, options: WebAuthFetchOptions) => Promise<WebAuthFetchResponse>,
-  }
+  // Safe narrowing: LoginContext.fetch handles any method (including GET)
+  // and returns LoginFetchResponse which is a superset of WebAuthFetchResponse.
+  // The cast is needed because WebAuthFetchResponse uses `this: this` on its
+  // methods, which makes the types nominally incompatible despite being
+  // structurally sound.
+  const webAuthFetch = context.fetch as unknown as (url: string, options: WebAuthFetchOptions) => Promise<WebAuthFetchResponse>
 
-  return pollForWebAuthToken(body.doneUrl, webAuthContext, fetchOptions)
+  return pollForWebAuthToken(body.doneUrl, { ...context, fetch: webAuthFetch }, fetchOptions)
 }
 
 async function classicLogin (
@@ -245,7 +227,7 @@ async function classicLogin (
     throw new PnpmError('LOGIN_MISSING_CREDENTIALS', 'Username, password, and email are all required')
   }
 
-  const loginUrl = `${registry.replace(/\/$/, '')}/-/user/org.couchdb.user:${encodeURIComponent(username)}`
+  const loginUrl = new URL(`-/user/org.couchdb.user:${encodeURIComponent(username)}`, registry).href
 
   const response = await context.fetch(loginUrl, {
     method: 'PUT',
