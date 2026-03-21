@@ -36,6 +36,8 @@ if (platform === 'win') {
   fs.writeFileSync(path.resolve(ownDir, 'pn'), 'This file intentionally left blank')
   pkg.bin.pnpm = 'pnpm.exe'
   pkg.bin.pn = 'pn.exe'
+  pkg.bin.pnpx = 'pnpx.cmd'
+  pkg.bin.pnx = 'pnx.cmd'
   fs.writeFileSync(pkgJsonPath, JSON.stringify(pkg, null, 2))
 }
 
