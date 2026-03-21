@@ -19,6 +19,9 @@
       "path": "../../config/reader"
     },
     {
+      "path": "../../core/logger"
+    },
+    {
       "path": "../../core/types"
     },
     {
