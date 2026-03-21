@@ -51,7 +51,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
   return {}
 }
 
-export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOpts, params: string[], commands: CommandHandlerMap): Promise<void> {
+export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOpts, params: string[] = [], commands?: CommandHandlerMap): Promise<void> {
   if (opts.global) {
     throw new PnpmError(
       'APPROVE_BUILDS_NOT_SUPPORTED_WITH_GLOBAL',
