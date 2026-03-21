@@ -92,6 +92,55 @@ test('remove unreferenced packages', async () => {
   expect(fs.readdirSync(cacheDir)).toStrictEqual([])
 })
 
+test('prune outputs total size of removed files', async () => {
+  const project = prepare()
+  const cacheDir = path.resolve('cache')
+  const storeDir = path.resolve('store')
+
+  await execa('node', [
+    pnpmBin,
+    'add',
+    'is-negative@^2.1.0',
+    `--store-dir=${storeDir}`,
+    `--cache-dir=${cacheDir}`,
+    `--registry=${REGISTRY}`])
+  await execa('node', [
+    pnpmBin,
+    'remove',
+    'is-negative',
+    `--store-dir=${storeDir}`,
+    `--cache-dir=${cacheDir}`,
+    '--config.modules-cache-max-age=0',
+  ], { env: { npm_config_registry: REGISTRY } })
+
+  project.storeHas('is-negative', '2.1.0')
+
+  const reporter = jest.fn()
+  await store.handler({
+    cacheDir,
+    dir: process.cwd(),
+    pnpmHomeDir: '',
+    rawConfig: {
+      registry: REGISTRY,
+    },
+    registries: { default: REGISTRY },
+    reporter,
+    storeDir,
+    userConfig: {},
+    dlxCacheMaxAge: Infinity,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+  }, ['prune'])
+
+  // Check that the message includes file count and size information
+  // The message should match pattern like "Removed X files (Y B)" or "Removed 1 file (Y B)"
+  expect(reporter).toHaveBeenCalledWith(
+    expect.objectContaining({
+      level: 'info',
+      message: expect.stringMatching(/Removed \d+ files? \(\d+(\.\d+)?\s+(B|kB|MB|GB)\)/),
+    })
+  )
+})
+
 test('remove packages that are used by project that no longer exist', async () => {
   prepare()
   const cacheDir = path.resolve('cache')

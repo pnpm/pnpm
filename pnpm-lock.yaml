@@ -8358,6 +8358,9 @@ importers:
       is-subdir:
         specifier: 'catalog:'
         version: 2.0.0
+      pretty-bytes:
+        specifier: 'catalog:'
+        version: 7.1.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
