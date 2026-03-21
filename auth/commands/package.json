@@ -49,7 +49,8 @@
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/auth.commands": "workspace:*",
-    "@pnpm/logger": "workspace:*"
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/prepare": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

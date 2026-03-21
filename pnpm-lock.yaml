@@ -1450,6 +1450,9 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
 
   bins/linker:
     dependencies:

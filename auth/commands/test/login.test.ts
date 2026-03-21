@@ -1,4 +1,7 @@
+import { readFile } from 'node:fs/promises'
+
 import { describe, expect, it } from '@jest/globals'
+import { tempDir } from '@pnpm/prepare'
 
 import { DEFAULT_CONTEXT, login, type LoginContext } from '../src/login.js'
 
@@ -6,7 +9,6 @@ const DEFAULT_OPTS = {
   configDir: '/tmp/test-config',
   dir: '/tmp',
   rawConfig: {},
-  userAgent: 'pnpm',
   registry: 'https://registry.npmjs.org/',
 }
 
@@ -28,10 +30,10 @@ describe('login', () => {
   })
 
   it('should use web login when registry supports it', async () => {
-    const tmpDir = `/tmp/pnpm-login-test-${Date.now()}`
+    const configDir = tempDir(false)
 
     const result = await login({
-      opts: { ...DEFAULT_OPTS, configDir: tmpDir },
+      opts: { ...DEFAULT_OPTS, configDir },
       context: {
         ...DEFAULT_CONTEXT,
         ...INTERACTIVE,
@@ -66,16 +68,13 @@ describe('login', () => {
     })
 
     expect(result).toContain('Logged in')
-
-    const { rm } = await import('node:fs/promises')
-    await rm(tmpDir, { recursive: true, force: true })
   })
 
   it('should fall back to classic login when web login returns 404', async () => {
-    const tmpDir = `/tmp/pnpm-login-test-${Date.now()}`
+    const configDir = tempDir(false)
 
     const result = await login({
-      opts: { ...DEFAULT_OPTS, configDir: tmpDir },
+      opts: { ...DEFAULT_OPTS, configDir },
       context: {
         ...DEFAULT_CONTEXT,
         ...INTERACTIVE,
@@ -113,11 +112,7 @@ describe('login', () => {
 
     expect(result).toContain('Logged in')
 
-    const { readFile } = await import('node:fs/promises')
-    const rcContent = await readFile(`${tmpDir}/rc`, 'utf8')
+    const rcContent = await readFile(`${configDir}/rc`, 'utf8')
     expect(rcContent).toContain('_authToken=classic-token-456')
-
-    const { rm } = await import('node:fs/promises')
-    await rm(tmpDir, { recursive: true, force: true })
   })
 })
