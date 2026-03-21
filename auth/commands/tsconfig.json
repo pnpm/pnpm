@@ -13,16 +13,13 @@
       "path": "../../cli/utils"
     },
     {
+      "path": "../../config/reader"
+    },
+    {
       "path": "../../core/error"
     },
     {
       "path": "../../core/logger"
-    },
-    {
-      "path": "../../config/reader"
-    },
-    {
-      "path": "../../network/fetch"
     },
     {
       "path": "../../network/web-auth"
