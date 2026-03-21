@@ -55,7 +55,7 @@ async function main (): Promise<void> {
   )
 
   console.log('Running tsgo --build...')
-  execa('tsgo', ['--build', typeCheckDir], {
+  execa('tsgo', ['--build', '--singleThreaded', typeCheckDir], {
     // The INIT_CWD variable is populated by package managers and points towards
     // the user's original working directory. It's more useful to run TypeScript
     // from the user's actual working directory so any type checking errors can
