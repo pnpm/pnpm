@@ -101,7 +101,9 @@ function resolveThreadingMode (repoRoot: string): boolean {
   }
 }
 
-function readThreadingMode (repoRoot: string): { mode: string, source: string } {
+type ThreadingSource = 'PNPM_TYPECHECK_THREADING env var' | `${string}.pnpm-typecheck.json` | 'default'
+
+function readThreadingMode (repoRoot: string): { mode: string, source: ThreadingSource } {
   const envValue = process.env.PNPM_TYPECHECK_THREADING
   if (envValue != null) {
     return { mode: envValue, source: 'PNPM_TYPECHECK_THREADING env var' }
