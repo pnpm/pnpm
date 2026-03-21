@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import path from 'node:path'
 
 import { rebuild, type RebuildCommandOpts } from '@pnpm/building.rebuild-command'
 import type { Config } from '@pnpm/config.reader'
@@ -211,7 +212,7 @@ Do you approve?`,
       let manifest = opts.rootProjectManifest ?? {}
       if (!manifest.dependencies && !manifest.devDependencies) {
         try {
-          manifest = JSON.parse(fs.readFileSync(`${projectDir}/package.json`, 'utf8'))
+          manifest = JSON.parse(fs.readFileSync(path.join(projectDir, 'package.json'), 'utf8'))
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err)
           throw new PnpmError(

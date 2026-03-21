@@ -55,7 +55,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             shortAlias: '-r',
           },
           {
-            description: 'Rebuild packages that were not build during installation. Packages are not build when installing with the --ignore-scripts flag',
+            description: 'Rebuild packages that were not built during installation. Packages are not built when installing with the --ignore-scripts flag',
             name: '--pending',
           },
           {
