@@ -4,7 +4,6 @@ import type { CommandDefinition } from './index.js'
 
 const NOT_IMPLEMENTED_COMMANDS = [
   'access',
-  'adduser',
   'bugs',
   'deprecate',
   'dist-tag',
@@ -14,7 +13,6 @@ const NOT_IMPLEMENTED_COMMANDS = [
   'home',
   'info',
   'issues',
-  'login',
   'logout',
   'owner',
   'ping',
