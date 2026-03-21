@@ -50,7 +50,7 @@ describe('login', () => {
         configDir: '/custom/config',
         dir: '/mock',
         rawConfig: {},
-        registry: 'https://custom.registry.io/npm/',
+        registry: 'https://example.com/npm/',
       },
       context: {
         ...TEST_CONTEXT,
@@ -61,19 +61,19 @@ describe('login', () => {
         },
         fetch: async (url: string) => {
           fetchedUrls.push(url)
-          if (url === 'https://custom.registry.io/npm/-/v1/login') {
+          if (url === 'https://example.com/npm/-/v1/login') {
             return {
               ok: true,
               status: 200,
               json: async () => ({
-                loginUrl: 'https://custom.registry.io/auth/login',
-                doneUrl: 'https://custom.registry.io/auth/done',
+                loginUrl: 'https://example.com/auth/login',
+                doneUrl: 'https://example.com/auth/done',
               }),
               text: async () => '',
               headers: { get: () => null },
             }
           }
-          if (url === 'https://custom.registry.io/auth/done') {
+          if (url === 'https://example.com/auth/done') {
             return {
               ok: true,
               status: 200,
@@ -87,11 +87,11 @@ describe('login', () => {
       },
     })
 
-    expect(result).toBe('Logged in on https://custom.registry.io/npm/')
-    expect(fetchedUrls[0]).toBe('https://custom.registry.io/npm/-/v1/login')
+    expect(result).toBe('Logged in on https://example.com/npm/')
+    expect(fetchedUrls[0]).toBe('https://example.com/npm/-/v1/login')
     expect(savedPath).toBe('/custom/config/rc')
     expect(savedSettings).toMatchObject({
-      '//custom.registry.io/npm/:_authToken': 'web-auth-token-123',
+      '//example.com/npm/:_authToken': 'web-auth-token-123',
     })
   })
 
@@ -105,7 +105,7 @@ describe('login', () => {
         configDir: '/other/config',
         dir: '/mock',
         rawConfig: {},
-        registry: 'https://private.reg.co',
+        registry: 'https://example.org',
       },
       context: {
         ...TEST_CONTEXT,
@@ -116,7 +116,7 @@ describe('login', () => {
         },
         fetch: async (url: string) => {
           fetchedUrls.push(url)
-          if (url === 'https://private.reg.co/-/v1/login') {
+          if (url === 'https://example.org/-/v1/login') {
             return {
               ok: false,
               status: 404,
@@ -125,7 +125,7 @@ describe('login', () => {
               headers: { get: () => null },
             }
           }
-          if (url === 'https://private.reg.co/-/user/org.couchdb.user:john') {
+          if (url === 'https://example.org/-/user/org.couchdb.user:john') {
             return {
               ok: true,
               status: 201,
@@ -147,12 +147,12 @@ describe('login', () => {
       },
     })
 
-    expect(result).toBe('Logged in on https://private.reg.co/')
-    expect(fetchedUrls[0]).toBe('https://private.reg.co/-/v1/login')
-    expect(fetchedUrls[1]).toBe('https://private.reg.co/-/user/org.couchdb.user:john')
+    expect(result).toBe('Logged in on https://example.org/')
+    expect(fetchedUrls[0]).toBe('https://example.org/-/v1/login')
+    expect(fetchedUrls[1]).toBe('https://example.org/-/user/org.couchdb.user:john')
     expect(savedPath).toBe('/other/config/rc')
     expect(savedSettings).toMatchObject({
-      '//private.reg.co/:_authToken': 'classic-token-456',
+      '//example.org/:_authToken': 'classic-token-456',
     })
   })
 })
