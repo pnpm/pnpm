@@ -189,7 +189,7 @@ async function installPnpmToGlobalDir (
     if (wantedLockfile != null && opts.storeController != null && opts.storeDir != null) {
       await installFromLockfile(installDir, binDir, {
         wantedLockfile,
-        allowBuilds: { '@pnpm/exe': true },
+        allowBuilds: PNPM_ALLOW_BUILDS,
         storeController: opts.storeController,
         storeDir: opts.storeDir,
         registries: opts.registries as Registries,
