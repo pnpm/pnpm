@@ -25,6 +25,9 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
+      "path": "../../cli/command"
+    },
+    {
       "path": "../../cli/common-cli-options-help"
     },
     {
