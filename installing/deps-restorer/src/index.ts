@@ -333,9 +333,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     }
   }
 
-  if (opts.enableGlobalVirtualStore) {
-    opts.allowBuilds ??= {}
-  }
   const allowBuild = createAllowBuildFunction(opts)
   const lockfileToDepGraphOpts = {
     ...opts,
