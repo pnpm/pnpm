@@ -2,6 +2,13 @@ import { describe, expect, it } from '@jest/globals'
 
 import { login, type LoginContext, type Settings } from '../src/login.js'
 
+function mockResponse (props: { ok: boolean, status: number, json: () => Promise<unknown>, text: () => Promise<string> }) {
+  return {
+    ...props,
+    headers: { get: () => null },
+  } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
 const TEST_CONTEXT: LoginContext = {
   Date: { now: () => 0 },
   setTimeout: (cb) => {
@@ -66,9 +73,9 @@ describe('login', () => {
           savedSettings = settings
         },
         fetch: async (url) => {
-          fetchedUrls.push(url as string)
+          fetchedUrls.push(String(url))
           if (url === 'https://example.com/npm/-/v1/login') {
-            return {
+            return mockResponse({
               ok: true,
               status: 200,
               json: async () => ({
@@ -76,17 +83,15 @@ describe('login', () => {
                 doneUrl: 'https://example.com/auth/done',
               }),
               text: async () => '',
-              headers: { get: () => null },
-            }
+            })
           }
           if (url === 'https://example.com/auth/done') {
-            return {
+            return mockResponse({
               ok: true,
               status: 200,
               json: async () => ({ token: 'web-auth-token-123' }),
               text: async () => '',
-              headers: { get: () => null },
-            }
+            })
           }
           throw new Error(`unexpected fetch call: ${url}`)
         },
@@ -127,24 +132,22 @@ describe('login', () => {
           savedSettings = settings
         },
         fetch: async (url) => {
-          fetchedUrls.push(url as string)
+          fetchedUrls.push(String(url))
           if (url === 'https://example.org/-/v1/login') {
-            return {
+            return mockResponse({
               ok: false,
               status: 404,
               json: async () => ({}),
               text: async () => 'Not Found',
-              headers: { get: () => null },
-            }
+            })
           }
           if (url === 'https://example.org/-/user/org.couchdb.user:john') {
-            return {
+            return mockResponse({
               ok: true,
               status: 201,
               json: async () => ({ ok: true, token: 'classic-token-456' }),
               text: async () => '',
-              headers: { get: () => null },
-            }
+            })
           }
           throw new Error(`unexpected fetch call: ${url}`)
         },
