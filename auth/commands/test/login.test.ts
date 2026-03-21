@@ -2,13 +2,6 @@ import { describe, expect, it } from '@jest/globals'
 
 import { login, type LoginContext, type Settings } from '../src/login.js'
 
-const DEFAULT_OPTS = {
-  configDir: '/mock/config',
-  dir: '/mock',
-  rawConfig: {},
-  registry: 'https://registry.npmjs.org/',
-}
-
 const TEST_CONTEXT: LoginContext = {
   Date,
   setTimeout: (cb) => {
@@ -26,7 +19,11 @@ describe('login', () => {
   it('should throw in non-interactive terminal', async () => {
     await expect(
       login({
-        opts: DEFAULT_OPTS,
+        opts: {
+          configDir: '/mock/config',
+          dir: '/mock',
+          rawConfig: {},
+        },
         context: {
           ...TEST_CONTEXT,
           process: { stdin: { isTTY: false }, stdout: { isTTY: true } },
@@ -36,29 +33,38 @@ describe('login', () => {
   })
 
   it('should use web login when registry supports it', async () => {
+    const fetchedUrls: string[] = []
+    let savedPath = ''
     let savedSettings: Settings = {}
 
     const result = await login({
-      opts: DEFAULT_OPTS,
+      opts: {
+        configDir: '/custom/config',
+        dir: '/mock',
+        rawConfig: {},
+        registry: 'https://custom.registry.io/npm/',
+      },
       context: {
         ...TEST_CONTEXT,
-        writeSettings: async (_path, settings) => {
+        writeSettings: async (configPath, settings) => {
+          savedPath = configPath
           savedSettings = settings
         },
         fetch: async (url: string) => {
-          if (url.includes('/-/v1/login')) {
+          fetchedUrls.push(url)
+          if (url === 'https://custom.registry.io/npm/-/v1/login') {
             return {
               ok: true,
               status: 200,
               json: async () => ({
-                loginUrl: 'https://registry.npmjs.org/auth/login',
-                doneUrl: 'https://registry.npmjs.org/auth/done',
+                loginUrl: 'https://custom.registry.io/auth/login',
+                doneUrl: 'https://custom.registry.io/auth/done',
               }),
               text: async () => '',
               headers: { get: () => null },
             }
           }
-          if (url.includes('/auth/done')) {
+          if (url === 'https://custom.registry.io/auth/done') {
             return {
               ok: true,
               status: 200,
@@ -72,24 +78,35 @@ describe('login', () => {
       },
     })
 
-    expect(result).toContain('Logged in')
+    expect(result).toBe('Logged in on https://custom.registry.io/npm/')
+    expect(fetchedUrls[0]).toBe('https://custom.registry.io/npm/-/v1/login')
+    expect(savedPath).toBe('/custom/config/rc')
     expect(savedSettings).toMatchObject({
-      '//registry.npmjs.org/:_authToken': 'web-auth-token-123',
+      '//custom.registry.io/npm/:_authToken': 'web-auth-token-123',
     })
   })
 
   it('should fall back to classic login when web login returns 404', async () => {
+    const fetchedUrls: string[] = []
+    let savedPath = ''
     let savedSettings: Settings = {}
 
     const result = await login({
-      opts: DEFAULT_OPTS,
+      opts: {
+        configDir: '/other/config',
+        dir: '/mock',
+        rawConfig: {},
+        registry: 'https://private.reg.co',
+      },
       context: {
         ...TEST_CONTEXT,
-        writeSettings: async (_path, settings) => {
+        writeSettings: async (configPath, settings) => {
+          savedPath = configPath
           savedSettings = settings
         },
         fetch: async (url: string) => {
-          if (url.includes('/-/v1/login')) {
+          fetchedUrls.push(url)
+          if (url === 'https://private.reg.co/-/v1/login') {
             return {
               ok: false,
               status: 404,
@@ -98,7 +115,7 @@ describe('login', () => {
               headers: { get: () => null },
             }
           }
-          if (url.includes('org.couchdb.user')) {
+          if (url === 'https://private.reg.co/-/user/org.couchdb.user:john') {
             return {
               ok: true,
               status: 201,
@@ -120,9 +137,12 @@ describe('login', () => {
       },
     })
 
-    expect(result).toContain('Logged in')
+    expect(result).toBe('Logged in on https://private.reg.co/')
+    expect(fetchedUrls[0]).toBe('https://private.reg.co/-/v1/login')
+    expect(fetchedUrls[1]).toBe('https://private.reg.co/-/user/org.couchdb.user:john')
+    expect(savedPath).toBe('/other/config/rc')
     expect(savedSettings).toMatchObject({
-      '//registry.npmjs.org/:_authToken': 'classic-token-456',
+      '//private.reg.co/:_authToken': 'classic-token-456',
     })
   })
 })
