@@ -13,6 +13,8 @@ import { readIniFile } from 'read-ini-file'
 import { renderHelp } from 'render-help'
 import { writeIniFile } from 'write-ini-file'
 
+export type Settings = Record<string, unknown>
+
 export function rcOptionsTypes (): Record<string, unknown> {
   return { registry: allTypes.registry }
 }
@@ -70,6 +72,8 @@ export interface LoginContext {
   fetch: typeof fetch
   globalInfo: (message: string) => void
   process: Record<'stdin' | 'stdout', { isTTY?: boolean }>
+  readSettings: (configPath: string) => Promise<Settings>
+  writeSettings: (configPath: string, settings: Settings) => Promise<void>
 }
 
 export const DEFAULT_CONTEXT: LoginContext = {
@@ -79,6 +83,8 @@ export const DEFAULT_CONTEXT: LoginContext = {
   fetch,
   globalInfo,
   process,
+  readSettings: safeReadIniFile,
+  writeSettings: writeIniFile,
 }
 
 export interface LoginParams {
@@ -94,6 +100,8 @@ export async function login ({
     fetch,
     globalInfo,
     process,
+    readSettings,
+    writeSettings,
   } = DEFAULT_CONTEXT,
   opts,
 }: LoginParams): Promise<string> {
@@ -115,7 +123,11 @@ export async function login ({
     }
   }
 
-  await saveToken(registry, token, opts)
+  const configPath = path.join(opts.configDir, 'rc')
+  const settings = await readSettings(configPath)
+  const registryConfigKey = getRegistryConfigKey(registry)
+  settings[`${registryConfigKey}:_authToken`] = token
+  await writeSettings(configPath, settings)
 
   return `Logged in on ${registry}`
 }
@@ -230,21 +242,7 @@ function getRegistryConfigKey (registryUrl: string): string {
   return `//${url.host}${url.pathname}`
 }
 
-async function saveToken (
-  registryUrl: string,
-  token: string,
-  opts: LoginCommandOptions
-): Promise<void> {
-  const configPath = path.join(opts.configDir, 'rc')
-  const settings = await safeReadIniFile(configPath)
-
-  const registryConfigKey = getRegistryConfigKey(registryUrl)
-  settings[`${registryConfigKey}:_authToken`] = token
-
-  await writeIniFile(configPath, settings)
-}
-
-async function safeReadIniFile (configPath: string): Promise<Record<string, unknown>> {
+async function safeReadIniFile (configPath: string): Promise<Settings> {
   try {
     return await readIniFile(configPath) as Record<string, unknown>
   } catch (err: unknown) {
