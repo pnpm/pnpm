@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals'
 
-import { DEFAULT_CONTEXT, login, type LoginContext, type Settings } from '../src/login.js'
+import { login, type LoginContext, type Settings } from '../src/login.js'
 
 const DEFAULT_OPTS = {
   configDir: '/mock/config',
@@ -9,11 +9,15 @@ const DEFAULT_OPTS = {
   registry: 'https://registry.npmjs.org/',
 }
 
-const INTERACTIVE: Partial<LoginContext> = {
+const TEST_CONTEXT: LoginContext = {
+  Date,
+  setTimeout: (cb) => {
+    cb()
+  },
+  enquirer: { prompt: async () => ({}) },
+  fetch: async () => ({ ok: false, status: 500, json: async () => ({}), text: async () => '', headers: { get: () => null } }),
+  globalInfo: () => {},
   process: { stdin: { isTTY: true }, stdout: { isTTY: true } },
-}
-
-const NO_SETTINGS = {
   readSettings: async () => ({}),
   writeSettings: async () => {},
 }
@@ -24,7 +28,7 @@ describe('login', () => {
       login({
         opts: DEFAULT_OPTS,
         context: {
-          ...DEFAULT_CONTEXT,
+          ...TEST_CONTEXT,
           process: { stdin: { isTTY: false }, stdout: { isTTY: true } },
         },
       })
@@ -37,14 +41,9 @@ describe('login', () => {
     const result = await login({
       opts: DEFAULT_OPTS,
       context: {
-        ...DEFAULT_CONTEXT,
-        ...INTERACTIVE,
-        ...NO_SETTINGS,
+        ...TEST_CONTEXT,
         writeSettings: async (_path, settings) => {
           savedSettings = settings
-        },
-        setTimeout: (cb) => {
-          cb()
         },
         fetch: async (url: string) => {
           if (url.includes('/-/v1/login')) {
@@ -85,9 +84,7 @@ describe('login', () => {
     const result = await login({
       opts: DEFAULT_OPTS,
       context: {
-        ...DEFAULT_CONTEXT,
-        ...INTERACTIVE,
-        ...NO_SETTINGS,
+        ...TEST_CONTEXT,
         writeSettings: async (_path, settings) => {
           savedSettings = settings
         },
