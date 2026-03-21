@@ -108,12 +108,12 @@ function readThreadingMode (repoRoot: string): { mode: string, source: string } 
   }
 
   const configPath = path.join(repoRoot, '.pnpm-typecheck.json')
-  try {
+  if (fs.existsSync(configPath)) {
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
     if (config.threading) {
       return { mode: config.threading, source: configPath }
     }
-  } catch {}
+  }
 
   return { mode: 'auto', source: 'default' }
 }
