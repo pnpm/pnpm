@@ -12,14 +12,16 @@
 
 Fast, disk space efficient package manager:
 
-* **Fast.** Up to 2x faster than the alternatives (see [benchmark](#benchmark)).
-* **Efficient.** Files inside `node_modules` are linked from a single content-addressable storage.
-* **[Great for monorepos](https://pnpm.io/workspaces).**
-* **Strict.** A package can access only dependencies that are specified in its `package.json`.
-* **Deterministic.** Has a lockfile called `pnpm-lock.yaml`.
-* **Works as a Node.js version manager.** See [pnpm env use](https://pnpm.io/cli/env).
-* **Works everywhere.** Supports Windows, Linux, and macOS.
-* **Battle-tested.** Used in production by teams of [all sizes](https://pnpm.io/users) since 2016.
+* **Fast.** Optimized for installation speed (see [benchmark](#benchmark)).
+* **Efficient.** Files in `node_modules` are linked from a single content-addressable storage.
+* **Scalable.** Designed to handle [monorepos](https://pnpm.io/workspaces) with ease.
+* **Strict.**  Packages can access only the dependencies listed in their `package.json`.
+* **Deterministic.** Uses a lockfile (`pnpm-lock.yaml`) for reproducible installs.
+* **Runtime manager.** Can install Node.js, Deno, and Bun ([devEngines.runtime](https://pnpm.io/package_json#devenginesruntime)).
+* **Patcher.** Supports [patching of dependencies](https://pnpm.io/cli/patch).
+* **Extensible.** [Config dependencies](https://pnpm.io/config-dependencies) let you hook into pnpm's runtime.
+* **Cross-platform.** Works on Windows, Linux, and macOS.
+* **Battle-tested.** Used in production by teams of [all sizes](https://pnpm.io/workspaces#usage-examples) since 2016.
 * [See the full feature comparison with npm and Yarn](https://pnpm.io/feature-comparison).
 
 To quote the [Rush](https://rushjs.io/) team:
