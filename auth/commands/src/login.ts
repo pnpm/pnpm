@@ -5,6 +5,7 @@ import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
+import { type AgentOptions, fetchWithAgent } from '@pnpm/network.fetch'
 import { generateQrCode, pollForWebAuthToken, type WebAuthFetchOptions, type WebAuthFetchResponse } from '@pnpm/network.web-auth'
 import enquirer from 'enquirer'
 import normalizeRegistryUrl from 'normalize-registry-url'
@@ -44,6 +45,8 @@ export function help (): string {
 }
 
 export type LoginCommandOptions = Pick<Config,
+| 'ca'
+| 'cert'
 | 'configDir'
 | 'dir'
 | 'fetchRetries'
@@ -51,7 +54,13 @@ export type LoginCommandOptions = Pick<Config,
 | 'fetchRetryMaxtimeout'
 | 'fetchRetryMintimeout'
 | 'fetchTimeout'
+| 'httpProxy'
+| 'httpsProxy'
+| 'key'
+| 'localAddress'
+| 'noProxy'
 | 'rawConfig'
+| 'strictSsl'
 | 'userAgent'
 > & {
   registry?: string
@@ -88,33 +97,69 @@ async function defaultPrompt (options: { message: string, name: string, type: st
   return enquirer.prompt(options as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
-const DEFAULT_CONTEXT: LoginContext = {
-  Date,
-  setTimeout: (cb, ms) => {
-    globalThis.setTimeout(cb, ms)
-  },
-  fetch: globalThis.fetch as unknown as LoginContext['fetch'],
-  prompt: defaultPrompt,
-  process,
+function createDefaultFetch (opts: LoginCommandOptions): LoginContext['fetch'] {
+  const agentOptions: AgentOptions = {
+    ca: opts.ca,
+    cert: typeof opts.cert === 'string' ? opts.cert : opts.cert?.join('\n'),
+    httpProxy: opts.httpProxy,
+    httpsProxy: opts.httpsProxy,
+    key: opts.key,
+    localAddress: opts.localAddress,
+    noProxy: opts.noProxy,
+    strictSsl: opts.strictSsl ?? true,
+  }
+
+  return async (url, init) => {
+    const response = await fetchWithAgent(url, {
+      agentOptions,
+      method: init.method,
+      headers: init.headers,
+      body: init.body,
+      retry: {
+        retries: opts.fetchRetries,
+        factor: opts.fetchRetryFactor,
+        maxTimeout: opts.fetchRetryMaxtimeout,
+        minTimeout: opts.fetchRetryMintimeout,
+      },
+      timeout: opts.fetchTimeout,
+    })
+    return {
+      ok: response.ok,
+      status: response.status,
+      json: () => response.json() as Promise<unknown>,
+      text: () => response.text(),
+    }
+  }
 }
 
 export async function login (
   opts: LoginCommandOptions,
-  context: LoginContext = DEFAULT_CONTEXT
+  context?: Partial<LoginContext>
 ): Promise<string> {
   const registry = normalizeRegistryUrl(opts.registry ?? 'https://registry.npmjs.org/')
 
-  if (!context.process.stdin.isTTY || !context.process.stdout.isTTY) {
+  const ctx: LoginContext = {
+    Date,
+    setTimeout: (cb, ms) => {
+      globalThis.setTimeout(cb, ms)
+    },
+    fetch: createDefaultFetch(opts),
+    prompt: defaultPrompt,
+    process,
+    ...context,
+  }
+
+  if (!ctx.process.stdin.isTTY || !ctx.process.stdout.isTTY) {
     throw new PnpmError('LOGIN_NON_INTERACTIVE', 'The login command requires an interactive terminal')
   }
 
   // Try web-based login first, fall back to classic login
   let token: string
   try {
-    token = await webLogin(registry, opts, context)
+    token = await webLogin(registry, opts, ctx)
   } catch (err) {
     if (isWebLoginNotSupported(err)) {
-      token = await classicLogin(registry, opts, context)
+      token = await classicLogin(registry, ctx)
     } else {
       throw err
     }
@@ -178,7 +223,6 @@ async function webLogin (
 
 async function classicLogin (
   registry: string,
-  opts: LoginCommandOptions,
   context: LoginContext
 ): Promise<string> {
   const { username } = await context.prompt({

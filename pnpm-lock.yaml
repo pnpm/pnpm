@@ -1419,6 +1419,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
+      '@pnpm/network.fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
       '@pnpm/network.web-auth':
         specifier: workspace:*
         version: link:../../network/web-auth

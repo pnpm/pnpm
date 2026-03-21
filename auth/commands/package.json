@@ -35,6 +35,7 @@
     "@pnpm/cli.utils": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/network.fetch": "workspace:*",
     "@pnpm/network.web-auth": "workspace:*",
     "enquirer": "catalog:",
     "normalize-registry-url": "catalog:",
