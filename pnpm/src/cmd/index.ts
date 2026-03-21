@@ -107,8 +107,18 @@ export interface CommandDefinition {
 
 const helpByCommandName: Record<string, () => string> = {}
 
+const addWithApproveBuilds: CommandDefinition = {
+  ...add,
+  handler: (opts, params) => add.handler({ ...opts, approveBuilds: approveBuilds.handler }, params),
+}
+
+const updateWithApproveBuilds: CommandDefinition = {
+  ...update,
+  handler: (opts, params) => update.handler({ ...opts, approveBuilds: approveBuilds.handler }, params),
+}
+
 const commands: CommandDefinition[] = [
-  add,
+  addWithApproveBuilds,
   approveBuilds,
   audit,
   bin,
@@ -158,7 +168,7 @@ const commands: CommandDefinition[] = [
   catIndex,
   findHash,
   unlink,
-  update,
+  updateWithApproveBuilds,
   why,
   createHelp(helpByCommandName),
   ...notImplementedCommandDefinitions,

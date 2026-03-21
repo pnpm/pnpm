@@ -1,15 +1,11 @@
-import fs from 'node:fs'
-import path from 'node:path'
-
 import { rebuild, type RebuildCommandOpts } from '@pnpm/building.rebuild-command'
 import type { Config } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
 import { parse } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
-import { install } from '@pnpm/installing.deps-installer'
+import { install, type InstallCommandOptions } from '@pnpm/installing.commands'
 import { type StrictModules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import { globalInfo } from '@pnpm/logger'
-import { createStoreController } from '@pnpm/store.connection-manager'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import chalk from 'chalk'
 import enquirer from 'enquirer'
@@ -17,7 +13,7 @@ import { renderHelp } from 'render-help'
 
 import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds.js'
 
-export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'allowBuilds' | 'enableGlobalVirtualStore'> & { all?: boolean, global?: boolean }
+export type ApproveBuildsCommandOpts = InstallCommandOptions & Pick<Config, 'allowBuilds' | 'enableGlobalVirtualStore'> & { all?: boolean, global?: boolean }
 
 export const commandNames = ['approve-builds']
 
@@ -207,31 +203,10 @@ Do you approve?`,
   }
   if (buildPackages.length) {
     if (opts.enableGlobalVirtualStore) {
-      const store = await createStoreController(opts)
-      const projectDir = opts.lockfileDir ?? opts.dir
-      let manifest = opts.rootProjectManifest ?? {}
-      if (!manifest.dependencies && !manifest.devDependencies) {
-        try {
-          manifest = JSON.parse(fs.readFileSync(path.join(projectDir, 'package.json'), 'utf8'))
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err)
-          throw new PnpmError(
-            'APPROVE_BUILDS_MANIFEST_READ_FAILED',
-            `Failed to read or parse package.json from ${projectDir}: ${message}`
-          )
-        }
-      }
-      await install(manifest, {
+      await install.handler({
+        ...opts,
         allowBuilds,
-        enableGlobalVirtualStore: true,
         frozenLockfile: true,
-        storeDir: store.dir,
-        storeController: store.ctrl,
-        rawConfig: opts.rawConfig ?? {},
-        registries: opts.registries,
-        dir: opts.dir,
-        lockfileDir: opts.lockfileDir,
-        modulesDir: opts.modulesDir,
       })
       return
     }

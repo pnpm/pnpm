@@ -55,7 +55,7 @@
       "path": "../../deps/path"
     },
     {
-      "path": "../../installing/deps-installer"
+      "path": "../../installing/commands"
     },
     {
       "path": "../../installing/modules-yaml"
