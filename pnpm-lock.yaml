@@ -6775,6 +6775,22 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
 
+  network/web-auth:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
+      qrcode-terminal:
+        specifier: 'catalog:'
+        version: 0.12.0
+    devDependencies:
+      '@pnpm/network.web-auth':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/qrcode-terminal':
+        specifier: 'catalog:'
+        version: 0.12.2
+
   object/key-sorting:
     dependencies:
       '@pnpm/util.lex-comparator':
@@ -7517,6 +7533,9 @@ importers:
       '@pnpm/network.git-utils':
         specifier: workspace:*
         version: link:../../network/git-utils
+      '@pnpm/network.web-auth':
+        specifier: workspace:*
+        version: link:../../network/web-auth
       '@pnpm/releasing.exportable-manifest':
         specifier: workspace:*
         version: link:../exportable-manifest
@@ -7562,9 +7581,6 @@ importers:
       p-limit:
         specifier: 'catalog:'
         version: 7.3.0
-      qrcode-terminal:
-        specifier: 'catalog:'
-        version: 0.12.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -7638,9 +7654,6 @@ importers:
       '@types/proxyquire':
         specifier: 'catalog:'
         version: 1.3.31
-      '@types/qrcode-terminal':
-        specifier: 'catalog:'
-        version: 0.12.2
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.31.1
