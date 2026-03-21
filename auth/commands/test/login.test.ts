@@ -7,12 +7,20 @@ const TEST_CONTEXT: LoginContext = {
   setTimeout: (cb) => {
     cb()
   },
-  enquirer: { prompt: async () => ({}) },
-  fetch: async () => ({ ok: false, status: 500, json: async () => ({}), text: async () => '', headers: { get: () => null } }),
+  enquirer: { prompt: async () => {
+    throw new Error('unexpected prompt call')
+  } },
+  fetch: async (url) => {
+    throw new Error(`unexpected fetch call: ${url}`)
+  },
   globalInfo: () => {},
   process: { stdin: { isTTY: true }, stdout: { isTTY: true } },
-  readSettings: async () => ({}),
-  writeSettings: async () => {},
+  readSettings: async (path) => {
+    throw new Error(`unexpected readSettings call: ${path}`)
+  },
+  writeSettings: async (path) => {
+    throw new Error(`unexpected writeSettings call: ${path}`)
+  },
 }
 
 describe('login', () => {
@@ -46,6 +54,7 @@ describe('login', () => {
       },
       context: {
         ...TEST_CONTEXT,
+        readSettings: async () => ({}),
         writeSettings: async (configPath, settings) => {
           savedPath = configPath
           savedSettings = settings
@@ -73,7 +82,7 @@ describe('login', () => {
               headers: { get: () => null },
             }
           }
-          return { ok: false, status: 404, json: async () => ({}), text: async () => '', headers: { get: () => null } }
+          throw new Error(`unexpected fetch call: ${url}`)
         },
       },
     })
@@ -100,6 +109,7 @@ describe('login', () => {
       },
       context: {
         ...TEST_CONTEXT,
+        readSettings: async () => ({}),
         writeSettings: async (configPath, settings) => {
           savedPath = configPath
           savedSettings = settings
@@ -124,14 +134,14 @@ describe('login', () => {
               headers: { get: () => null },
             }
           }
-          return { ok: false, status: 500, json: async () => ({}), text: async () => '', headers: { get: () => null } }
+          throw new Error(`unexpected fetch call: ${url}`)
         },
         enquirer: {
           prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
             if (opts.name === 'username') return { username: 'john' }
             if (opts.name === 'password') return { password: 'secret' }
             if (opts.name === 'email') return { email: 'john@example.com' }
-            return {}
+            throw new Error(`unexpected prompt call: ${opts.name}`)
           },
         },
       },
