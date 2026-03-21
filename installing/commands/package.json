@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@pnpm/building.after-install": "workspace:*",
+    "@pnpm/building.rebuild-command": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/cli.command": "workspace:*",
     "@pnpm/cli.common-cli-options-help": "workspace:*",

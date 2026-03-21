@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
-import { buildProjects } from '@pnpm/building.after-install'
+import { rebuild } from '@pnpm/building.rebuild-command'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import {
   type RecursiveSummary,
@@ -463,29 +463,11 @@ export async function recursive (
       cmdFullName === 'update'
     )
   ) {
-    const chunks = sortProjects(opts.selectedProjectsGraph)
-    const importers = chunks.flatMap((prefixes, buildIndex) =>
-      prefixes
-        .filter((rootDir) => opts.selectedProjectsGraph[rootDir] != null)
-        .map((rootDir) => ({
-          buildIndex,
-          manifest: opts.selectedProjectsGraph[rootDir].package.manifest,
-          rootDir,
-        }))
-    )
-    // Omit hoistPattern/publicHoistPattern so buildProjects doesn't
-    // overwrite per-project module settings from the install phase.
-    const { hoistPattern: _, ...buildOpts } = opts
-    await buildProjects(
-      importers,
-      {
-        ...buildOpts,
-        pending: opts.pending === true,
-        skipIfHasSideEffectsCache: true,
-        storeController: store.ctrl,
-        storeDir: store.dir,
-      }
-    )
+    await rebuild.handler({
+      ...opts,
+      pending: opts.pending === true,
+      skipIfHasSideEffectsCache: true,
+    }, [])
   }
 
   throwOnFail(result)

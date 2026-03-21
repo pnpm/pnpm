@@ -25,6 +25,9 @@
       "path": "../../building/after-install"
     },
     {
+      "path": "../../building/rebuild-command"
+    },
+    {
       "path": "../../catalogs/types"
     },
     {

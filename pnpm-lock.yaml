@@ -1660,6 +1660,9 @@ importers:
       '@pnpm/building.after-install':
         specifier: workspace:*
         version: link:../after-install
+      '@pnpm/building.rebuild-command':
+        specifier: workspace:*
+        version: link:../rebuild-command
       '@pnpm/cli.common-cli-options-help':
         specifier: workspace:*
         version: link:../../cli/common-cli-options-help
@@ -1862,6 +1865,49 @@ importers:
       '@pnpm/building.policy':
         specifier: workspace:*
         version: 'link:'
+
+  building/rebuild-command:
+    dependencies:
+      '@pnpm/building.after-install':
+        specifier: workspace:*
+        version: link:../after-install
+      '@pnpm/cli.common-cli-options-help':
+        specifier: workspace:*
+        version: link:../../cli/common-cli-options-help
+      '@pnpm/cli.utils':
+        specifier: workspace:*
+        version: link:../../cli/utils
+      '@pnpm/config.reader':
+        specifier: workspace:*
+        version: link:../../config/reader
+      '@pnpm/logger':
+        specifier: 'catalog:'
+        version: 1001.0.1
+      '@pnpm/store.connection-manager':
+        specifier: workspace:*
+        version: link:../../store/connection-manager
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../core/types
+      '@pnpm/workspace.projects-sorter':
+        specifier: workspace:*
+        version: link:../../workspace/projects-sorter
+      p-limit:
+        specifier: 'catalog:'
+        version: 7.3.0
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+      render-help:
+        specifier: 'catalog:'
+        version: 2.0.0
+    devDependencies:
+      '@pnpm/building.rebuild-command':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.31.1
 
   cache/api:
     dependencies:
@@ -4745,6 +4791,9 @@ importers:
       '@pnpm/building.after-install':
         specifier: workspace:*
         version: link:../../building/after-install
+      '@pnpm/building.rebuild-command':
+        specifier: workspace:*
+        version: link:../../building/rebuild-command
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types

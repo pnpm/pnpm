@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 
-import { rebuild, type RebuildCommandOpts } from '@pnpm/building.commands'
+import { rebuild, type RebuildCommandOpts } from '@pnpm/building.rebuild-command'
 import type { Config } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
 import { parse } from '@pnpm/deps.path'
