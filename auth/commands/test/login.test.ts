@@ -1,19 +1,21 @@
-import { readFile } from 'node:fs/promises'
-
 import { describe, expect, it } from '@jest/globals'
-import { tempDir } from '@pnpm/prepare'
 
-import { DEFAULT_CONTEXT, login, type LoginContext } from '../src/login.js'
+import { DEFAULT_CONTEXT, login, type LoginContext, type Settings } from '../src/login.js'
 
 const DEFAULT_OPTS = {
-  configDir: '/tmp/test-config',
-  dir: '/tmp',
+  configDir: '/mock/config',
+  dir: '/mock',
   rawConfig: {},
   registry: 'https://registry.npmjs.org/',
 }
 
 const INTERACTIVE: Partial<LoginContext> = {
   process: { stdin: { isTTY: true }, stdout: { isTTY: true } },
+}
+
+const NO_SETTINGS = {
+  readSettings: async () => ({}),
+  writeSettings: async () => {},
 }
 
 describe('login', () => {
@@ -30,13 +32,17 @@ describe('login', () => {
   })
 
   it('should use web login when registry supports it', async () => {
-    const configDir = tempDir(false)
+    let savedSettings: Settings = {}
 
     const result = await login({
-      opts: { ...DEFAULT_OPTS, configDir },
+      opts: DEFAULT_OPTS,
       context: {
         ...DEFAULT_CONTEXT,
         ...INTERACTIVE,
+        ...NO_SETTINGS,
+        writeSettings: async (_path, settings) => {
+          savedSettings = settings
+        },
         setTimeout: (cb) => {
           cb()
         },
@@ -68,16 +74,23 @@ describe('login', () => {
     })
 
     expect(result).toContain('Logged in')
+    expect(savedSettings).toMatchObject({
+      '//registry.npmjs.org/:_authToken': 'web-auth-token-123',
+    })
   })
 
   it('should fall back to classic login when web login returns 404', async () => {
-    const configDir = tempDir(false)
+    let savedSettings: Settings = {}
 
     const result = await login({
-      opts: { ...DEFAULT_OPTS, configDir },
+      opts: DEFAULT_OPTS,
       context: {
         ...DEFAULT_CONTEXT,
         ...INTERACTIVE,
+        ...NO_SETTINGS,
+        writeSettings: async (_path, settings) => {
+          savedSettings = settings
+        },
         fetch: async (url: string) => {
           if (url.includes('/-/v1/login')) {
             return {
@@ -111,8 +124,8 @@ describe('login', () => {
     })
 
     expect(result).toContain('Logged in')
-
-    const rcContent = await readFile(`${configDir}/rc`, 'utf8')
-    expect(rcContent).toContain('_authToken=classic-token-456')
+    expect(savedSettings).toMatchObject({
+      '//registry.npmjs.org/:_authToken': 'classic-token-456',
+    })
   })
 })
