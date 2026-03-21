@@ -106,9 +106,9 @@ describe('login', () => {
         return { ok: false, status: 500, json: async () => ({}), text: async () => '' }
       },
       prompt: async (opts: { message: string, name: string, type: string }) => {
-        if (opts.name === 'username') return { username: 'testuser' }
-        if (opts.name === 'password') return { password: 'testpass' }
-        if (opts.name === 'email') return { email: 'test@example.com' }
+        if (opts.name === 'username') return { username: 'john' }
+        if (opts.name === 'password') return { password: 'secret' }
+        if (opts.name === 'email') return { email: 'john@example.com' }
         return {}
       },
     })
