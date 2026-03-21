@@ -65,8 +65,8 @@ describe('login', () => {
           savedPath = configPath
           savedSettings = settings
         },
-        fetch: async (url: string) => {
-          fetchedUrls.push(url)
+        fetch: async (url) => {
+          fetchedUrls.push(url as string)
           if (url === 'https://example.com/npm/-/v1/login') {
             return {
               ok: true,
@@ -126,8 +126,8 @@ describe('login', () => {
           savedPath = configPath
           savedSettings = settings
         },
-        fetch: async (url: string) => {
-          fetchedUrls.push(url)
+        fetch: async (url) => {
+          fetchedUrls.push(url as string)
           if (url === 'https://example.org/-/v1/login') {
             return {
               ok: false,
