@@ -6,7 +6,7 @@ import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
 import { fetch } from '@pnpm/network.fetch'
-import { generateQrCode, pollForWebAuthToken, type WebAuthFetchOptions, type WebAuthFetchResponse } from '@pnpm/network.web-auth'
+import { generateQrCode, pollForWebAuthToken, type WebAuthFetchOptions } from '@pnpm/network.web-auth'
 import enquirer from 'enquirer'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import { readIniFile } from 'read-ini-file'
@@ -63,29 +63,11 @@ export async function handler (
   return login({ opts })
 }
 
-/**
- * Like {@link WebAuthFetchOptions} but allows any HTTP method (login needs POST and PUT)
- * and additional fields (headers, body) for the login requests.
- */
-export interface LoginFetchOptions extends Omit<WebAuthFetchOptions, 'method'> {
-  method: string
-  headers?: Record<string, string>
-  body?: string
-}
-
-export interface LoginFetchResponse {
-  readonly ok: boolean
-  readonly status: number
-  readonly json: () => Promise<unknown>
-  readonly text: () => Promise<string>
-  readonly headers: { get: (name: string) => string | null }
-}
-
 export interface LoginContext {
   Date: { now: () => number }
   setTimeout: (cb: () => void, ms: number) => void
   enquirer: { prompt: (options: { message: string, name: string, type: string }) => Promise<Record<string, string>> }
-  fetch: (url: string, options: LoginFetchOptions) => Promise<LoginFetchResponse>
+  fetch: typeof fetch
   globalInfo: (message: string) => void
   process: Record<'stdin' | 'stdout', { isTTY?: boolean }>
 }
@@ -180,14 +162,7 @@ async function webLogin (
     timeout: opts.fetchTimeout,
   }
 
-  // Safe narrowing: LoginContext.fetch handles any method (including GET)
-  // and returns LoginFetchResponse which is a superset of WebAuthFetchResponse.
-  // The cast is needed because WebAuthFetchResponse uses `this: this` on its
-  // methods, which makes the types nominally incompatible despite being
-  // structurally sound.
-  const webAuthFetch = fetch as unknown as (url: string, options: WebAuthFetchOptions) => Promise<WebAuthFetchResponse>
-
-  return pollForWebAuthToken(body.doneUrl, { Date, setTimeout, fetch: webAuthFetch }, fetchOptions)
+  return pollForWebAuthToken(body.doneUrl, { Date, setTimeout, fetch }, fetchOptions)
 }
 
 async function classicLogin (
