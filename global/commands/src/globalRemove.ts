@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { removeBin } from '@pnpm/bins.remover'
 import { PnpmError } from '@pnpm/error'
 import {
   findGlobalPackage,
@@ -8,7 +9,6 @@ import {
   getInstalledBinNames,
   type GlobalPackageInfo,
 } from '@pnpm/global.packages'
-import { removeBin } from '@pnpm/remove-bins'
 import { isSubdir } from 'is-subdir'
 
 export async function handleGlobalRemove (

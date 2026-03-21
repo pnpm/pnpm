@@ -1,8 +1,8 @@
+import { createMatcher } from '@pnpm/config.matcher'
 import {
   getGlobalPackageDetails,
   scanGlobalPackages,
 } from '@pnpm/global.packages'
-import { createMatcher } from '@pnpm/matcher'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 
 export async function listGlobalPackages (globalPkgDir: string, params: string[]): Promise<string> {

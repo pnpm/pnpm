@@ -1,8 +1,8 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
-import { getConfig } from '@pnpm/config'
-import { getStorePath } from '@pnpm/store-path'
+import { getConfig } from '@pnpm/config.reader'
+import { getStorePath } from '@pnpm/store.path'
 import Fuse from 'fuse-native'
 
 import { createFuseHandlers } from './createFuseHandlers.js'

@@ -10,19 +10,19 @@
   ],
   "references": [
     {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../deps/path"
+    },
+    {
       "path": "../../fetching/pick-fetcher"
     },
     {
       "path": "../../hooks/types"
-    },
-    {
-      "path": "../../packages/dependency-path"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/types"
     },
     {
       "path": "../../resolving/resolver-base"

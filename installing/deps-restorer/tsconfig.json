@@ -1,0 +1,130 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../__utils__/assert-project"
+    },
+    {
+      "path": "../../__utils__/prepare"
+    },
+    {
+      "path": "../../__utils__/test-fixtures"
+    },
+    {
+      "path": "../../__utils__/test-ipc-server"
+    },
+    {
+      "path": "../../bins/linker"
+    },
+    {
+      "path": "../../building/during-install"
+    },
+    {
+      "path": "../../building/policy"
+    },
+    {
+      "path": "../../config/package-is-installable"
+    },
+    {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/core-loggers"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../crypto/object-hasher"
+    },
+    {
+      "path": "../../deps/graph-builder"
+    },
+    {
+      "path": "../../deps/graph-hasher"
+    },
+    {
+      "path": "../../deps/path"
+    },
+    {
+      "path": "../../exec/lifecycle"
+    },
+    {
+      "path": "../../fs/symlink-dependency"
+    },
+    {
+      "path": "../../lockfile/filtering"
+    },
+    {
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/to-pnp"
+    },
+    {
+      "path": "../../lockfile/utils"
+    },
+    {
+      "path": "../../patching/config"
+    },
+    {
+      "path": "../../pkg-manifest/reader"
+    },
+    {
+      "path": "../../store/cafs"
+    },
+    {
+      "path": "../../store/controller-types"
+    },
+    {
+      "path": "../../store/index"
+    },
+    {
+      "path": "../../store/path"
+    },
+    {
+      "path": "../../testing/temp-store"
+    },
+    {
+      "path": "../../worker"
+    },
+    {
+      "path": "../../workspace/project-manifest-reader"
+    },
+    {
+      "path": "../linking/direct-dep-linker"
+    },
+    {
+      "path": "../linking/hoist"
+    },
+    {
+      "path": "../linking/modules-cleaner"
+    },
+    {
+      "path": "../linking/real-hoist"
+    },
+    {
+      "path": "../modules-yaml"
+    },
+    {
+      "path": "../package-requester"
+    },
+    {
+      "path": "../read-projects-context"
+    }
+  ]
+}

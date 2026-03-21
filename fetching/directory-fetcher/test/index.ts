@@ -11,7 +11,7 @@ const debug = jest.fn()
 jest.unstable_mockModule('@pnpm/logger', () => {
   return ({ globalWarn: jest.fn(), debug, logger: () => ({ debug }) })
 })
-const { createDirectoryFetcher } = await import('@pnpm/directory-fetcher')
+const { createDirectoryFetcher } = await import('@pnpm/fetching.directory-fetcher')
 
 const f = fixtures(import.meta.dirname)
 

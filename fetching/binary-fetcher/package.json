@@ -32,8 +32,8 @@
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
-    "@pnpm/fetcher-base": "workspace:*",
-    "@pnpm/fetching-types": "workspace:*",
+    "@pnpm/fetching.fetcher-base": "workspace:*",
+    "@pnpm/fetching.types": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "adm-zip": "catalog:",
     "is-subdir": "catalog:",

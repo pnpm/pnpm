@@ -9,16 +9,15 @@ if (!global['pnpm__startedAt']) {
 import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
-import { isExecutedByCorepack, packageManager } from '@pnpm/cli-meta'
-import { getConfig, installConfigDepsAndLoadHooks } from '@pnpm/cli-utils'
-import type { Config } from '@pnpm/config'
+import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
+import type { ParsedCliArgs } from '@pnpm/cli.parse-cli-args'
+import type { Config } from '@pnpm/config.reader'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
-import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
 import { globalWarn, logger } from '@pnpm/logger'
-import type { ParsedCliArgs } from '@pnpm/parse-cli-args'
 import type { EngineDependency } from '@pnpm/types'
 import { finishWorkers } from '@pnpm/worker'
+import { filterProjectsFromDir } from '@pnpm/workspace.projects-filter'
 import chalk from 'chalk'
 import loudRejection from 'loud-rejection'
 import { isEmpty } from 'ramda'
@@ -27,6 +26,7 @@ import semver from 'semver'
 import { checkForUpdates } from './checkForUpdates.js'
 import { pnpmCmds, rcOptionsTypes, skipPackageManagerCheckForCommand } from './cmd/index.js'
 import { formatUnknownOptionsError } from './formatError.js'
+import { getConfig, installConfigDepsAndLoadHooks } from './getConfig.js'
 import { parseCliArgs } from './parseCliArgs.js'
 import { initReporter, type ReporterType } from './reporter/index.js'
 import { switchCliVersion } from './switchCliVersion.js'
@@ -34,6 +34,10 @@ import { switchCliVersion } from './switchCliVersion.js'
 export const REPORTER_INITIALIZED = Symbol('reporterInitialized')
 
 loudRejection()
+
+function isRootOnlyPatterns (patterns: string[]): boolean {
+  return patterns.length === 1 && patterns[0] === '.'
+}
 
 // This prevents the program from crashing when the pipe's read side closes early
 // (e.g., when running `pnpm config list | head`)
@@ -210,11 +214,18 @@ export async function main (inputArgv: string[]): Promise<void> {
     const relativeWSDirPath = () => path.relative(process.cwd(), wsDir) || '.'
     if (config.workspaceRoot) {
       filters.push({ filter: `{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length) })
-    } else if (filters.length === 0 && workspaceDir && config.workspacePackagePatterns && !config.includeWorkspaceRoot && (cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test')) {
+    } else if (
+      filters.length === 0 &&
+      workspaceDir &&
+      config.workspacePackagePatterns &&
+      !isRootOnlyPatterns(config.workspacePackagePatterns) &&
+      !config.includeWorkspaceRoot &&
+      (cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test')
+    ) {
       filters.push({ filter: `!{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length) })
     }
 
-    const filterResults = await filterPackagesFromDir(wsDir, filters, {
+    const filterResults = await filterProjectsFromDir(wsDir, filters, {
       engineStrict: config.engineStrict,
       nodeVersion: config.nodeVersion,
       patterns: config.workspacePackagePatterns,

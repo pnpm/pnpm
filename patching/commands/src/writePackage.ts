@@ -1,0 +1,26 @@
+import type { Config } from '@pnpm/config.reader'
+import type { ParseWantedDependencyResult } from '@pnpm/resolving.parse-wanted-dependency'
+import {
+  createStoreController,
+  type CreateStoreControllerOptions,
+} from '@pnpm/store.connection-manager'
+
+export type WritePackageOptions = CreateStoreControllerOptions & Pick<Config, 'registries'>
+
+export async function writePackage (dep: ParseWantedDependencyResult, dest: string, opts: WritePackageOptions): Promise<void> {
+  const store = await createStoreController({
+    ...opts,
+    packageImportMethod: 'clone-or-copy',
+  })
+  const pkgResponse = await store.ctrl.requestPackage(dep, {
+    downloadPriority: 1,
+    lockfileDir: opts.dir,
+    preferredVersions: {},
+    projectDir: opts.dir,
+  })
+  const { files } = await pkgResponse.fetching!()
+  await store.ctrl.importPackage(dest, {
+    filesResponse: files,
+    force: true,
+  })
+}

@@ -10,19 +10,19 @@
   ],
   "references": [
     {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../crypto/hash"
     },
     {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/logger"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manifest/read-project-manifest"
+      "path": "../../workspace/project-manifest-reader"
     },
     {
       "path": "../resolver-base"

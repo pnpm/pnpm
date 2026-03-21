@@ -1,0 +1,94 @@
+{
+  "name": "@pnpm/patching.commands",
+  "version": "1000.3.21",
+  "description": "Commands for creating patches",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "scripts"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/patching/commands",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/patching/commands#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "start": "tsgo --watch",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsgo --build && pnpm run lint --fix"
+  },
+  "dependencies": {
+    "@pnpm/cli.utils": "workspace:*",
+    "@pnpm/config.reader": "workspace:*",
+    "@pnpm/config.writer": "workspace:*",
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/crypto.hash": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/fetching.pick-fetcher": "workspace:*",
+    "@pnpm/fs.packlist": "workspace:*",
+    "@pnpm/installing.commands": "workspace:*",
+    "@pnpm/installing.modules-yaml": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
+    "@pnpm/patching.apply-patch": "workspace:*",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
+    "@pnpm/resolving.parse-wanted-dependency": "workspace:*",
+    "@pnpm/store.connection-manager": "workspace:*",
+    "@pnpm/store.path": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
+    "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
+    "chalk": "catalog:",
+    "enquirer": "catalog:",
+    "escape-string-regexp": "catalog:",
+    "is-windows": "catalog:",
+    "make-empty-dir": "catalog:",
+    "normalize-path": "catalog:",
+    "ramda": "catalog:",
+    "realpath-missing": "catalog:",
+    "render-help": "catalog:",
+    "safe-execa": "catalog:",
+    "semver": "catalog:",
+    "terminal-link": "catalog:",
+    "tinyglobby": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/patching.commands": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/registry-mock": "catalog:",
+    "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/workspace.projects-filter": "workspace:*",
+    "@types/is-windows": "catalog:",
+    "@types/normalize-path": "catalog:",
+    "@types/ramda": "catalog:",
+    "@types/semver": "catalog:",
+    "tempy": "catalog:",
+    "write-yaml-file": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config/with-registry"
+  }
+}

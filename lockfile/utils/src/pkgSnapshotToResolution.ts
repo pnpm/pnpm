@@ -1,8 +1,8 @@
 import url from 'node:url'
 
+import { isGitHostedPkgUrl } from '@pnpm/fetching.pick-fetcher'
 import type { PackageSnapshot, TarballResolution } from '@pnpm/lockfile.types'
-import { isGitHostedPkgUrl } from '@pnpm/pick-fetcher'
-import type { Resolution } from '@pnpm/resolver-base'
+import type { Resolution } from '@pnpm/resolving.resolver-base'
 import type { Registries } from '@pnpm/types'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 

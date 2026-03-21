@@ -1,5 +1,5 @@
 ---
-"@pnpm/naming-cases": major
+"@pnpm/text.naming-cases": major
 ---
 
 Initial Release.

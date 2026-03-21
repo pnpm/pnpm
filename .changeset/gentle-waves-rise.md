@@ -1,5 +1,5 @@
 ---
-"@pnpm/package-requester": patch
+"@pnpm/installing.package-requester": patch
 "pnpm": patch
 ---
 

@@ -10,40 +10,40 @@
   ],
   "references": [
     {
-      "path": "../../building/policy-commands"
+      "path": "../../bins/linker"
     },
     {
-      "path": "../../cli/cli-utils"
+      "path": "../../bins/remover"
     },
     {
-      "path": "../../config/config"
+      "path": "../../bins/resolver"
+    },
+    {
+      "path": "../../building/commands"
+    },
+    {
+      "path": "../../cli/utils"
     },
     {
       "path": "../../config/matcher"
     },
     {
-      "path": "../../packages/error"
+      "path": "../../config/reader"
     },
     {
-      "path": "../../packages/types"
+      "path": "../../core/error"
     },
     {
-      "path": "../../pkg-manager/core"
+      "path": "../../core/types"
     },
     {
-      "path": "../../pkg-manager/link-bins"
+      "path": "../../installing/deps-installer"
     },
     {
-      "path": "../../pkg-manager/package-bins"
+      "path": "../../pkg-manifest/reader"
     },
     {
-      "path": "../../pkg-manager/remove-bins"
-    },
-    {
-      "path": "../../pkg-manifest/read-package-json"
-    },
-    {
-      "path": "../../store/store-connection-manager"
+      "path": "../../store/connection-manager"
     },
     {
       "path": "../packages"

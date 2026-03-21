@@ -3,9 +3,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { jest } from '@jest/globals'
-import { createCafsStore } from '@pnpm/create-cafs-store'
 import { FetchError, PnpmError } from '@pnpm/error'
-import { createFetchFromRegistry } from '@pnpm/fetch'
+import { createFetchFromRegistry } from '@pnpm/network.fetch'
+import { createCafsStore } from '@pnpm/store.create-cafs-store'
 import { StoreIndex } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
 import { lexCompare } from '@pnpm/util.lex-comparator'
@@ -27,7 +27,7 @@ const {
   createTarballFetcher,
   BadTarballError,
   TarballIntegrityError,
-} = await import('@pnpm/tarball-fetcher')
+} = await import('@pnpm/fetching.tarball-fetcher')
 
 beforeEach(() => {
   jest.mocked(globalWarn).mockClear()

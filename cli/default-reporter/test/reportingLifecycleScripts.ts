@@ -1,7 +1,7 @@
 import path from 'node:path'
 
+import { toOutput$ } from '@pnpm/cli.default-reporter'
 import { lifecycleLogger } from '@pnpm/core-loggers'
-import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser } from '@pnpm/logger'
 import chalk from 'chalk'
 import normalizeNewline from 'normalize-newline'

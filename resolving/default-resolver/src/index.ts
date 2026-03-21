@@ -1,9 +1,11 @@
+import { type BunRuntimeResolveResult, resolveBunRuntime } from '@pnpm/engine.runtime.bun-resolver'
+import { type DenoRuntimeResolveResult, resolveDenoRuntime } from '@pnpm/engine.runtime.deno-resolver'
+import { type NodeRuntimeResolveResult, resolveNodeRuntime } from '@pnpm/engine.runtime.node-resolver'
 import { PnpmError } from '@pnpm/error'
-import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching-types'
-import { createGitResolver, type GitResolveResult } from '@pnpm/git-resolver'
+import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
 import { checkCustomResolverCanResolve, type CustomResolver } from '@pnpm/hooks.types'
-import { type LocalResolveResult, resolveFromLocal } from '@pnpm/local-resolver'
-import { type NodeRuntimeResolveResult, resolveNodeRuntime } from '@pnpm/node.resolver'
+import { createGitResolver, type GitResolveResult } from '@pnpm/resolving.git-resolver'
+import { type LocalResolveResult, resolveFromLocal } from '@pnpm/resolving.local-resolver'
 import {
   createNpmResolver,
   type JsrResolveResult,
@@ -13,16 +15,14 @@ import {
   type ResolveFromNpmOptions,
   type ResolverFactoryOptions,
   type WorkspaceResolveResult,
-} from '@pnpm/npm-resolver'
+} from '@pnpm/resolving.npm-resolver'
 import type {
   ResolveFunction,
   ResolveOptions,
   ResolveResult,
   WantedDependency,
-} from '@pnpm/resolver-base'
-import { type BunRuntimeResolveResult, resolveBunRuntime } from '@pnpm/resolving.bun-resolver'
-import { type DenoRuntimeResolveResult, resolveDenoRuntime } from '@pnpm/resolving.deno-resolver'
-import { resolveFromTarball, type TarballResolveResult } from '@pnpm/tarball-resolver'
+} from '@pnpm/resolving.resolver-base'
+import { resolveFromTarball, type TarballResolveResult } from '@pnpm/resolving.tarball-resolver'
 
 export type {
   PackageMeta,

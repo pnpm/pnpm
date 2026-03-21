@@ -2,7 +2,7 @@ import {
   installCheckLogger,
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
-import { getSystemNodeVersion } from '@pnpm/env.system-node-version'
+import { getSystemNodeVersion } from '@pnpm/engine.runtime.system-node-version'
 import type { SupportedArchitectures } from '@pnpm/types'
 
 import { checkEngine, UnsupportedEngineError, type WantedEngine } from './checkEngine.js'

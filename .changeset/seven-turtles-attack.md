@@ -1,8 +1,8 @@
 ---
-"@pnpm/plugin-commands-installation": patch
-"@pnpm/reviewing.dependencies-hierarchy": patch
+"@pnpm/installing.commands": patch
+"@pnpm/deps.inspection.tree-builder": patch
 "@pnpm/lockfile.detect-dep-types": patch
-"@pnpm/dedupe.check": patch
+"@pnpm/installing.dedupe.check": patch
 pnpm: patch
 ---
 

@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/prepare-package",
+  "name": "@pnpm/exec.prepare-package",
   "version": "1000.0.26",
   "description": "Prepares a Git-hosted package",
   "keywords": [
@@ -32,8 +32,8 @@
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
-    "@pnpm/lifecycle": "workspace:*",
-    "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/exec.lifecycle": "workspace:*",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "execa": "catalog:",
@@ -41,8 +41,8 @@
     "ramda": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/exec.prepare-package": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/prepare-package": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
     "@types/ramda": "catalog:",

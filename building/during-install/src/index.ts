@@ -3,16 +3,16 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import util from 'node:util'
 
-import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
-import { getWorkspaceConcurrency } from '@pnpm/config'
+import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
+import { getWorkspaceConcurrency } from '@pnpm/config.reader'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
+import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
 import { PnpmError } from '@pnpm/error'
-import { runPostinstallHooks } from '@pnpm/lifecycle'
-import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
+import { runPostinstallHooks } from '@pnpm/exec.lifecycle'
 import { logger } from '@pnpm/logger'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
-import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import type { StoreController } from '@pnpm/store-controller-types'
+import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
+import type { StoreController } from '@pnpm/store.controller-types'
 import type {
   AllowBuild,
   DependencyManifest,
@@ -277,7 +277,7 @@ export async function linkBinsOfDependencies<T extends string> (
       .map(([alias, childDepPath]) => ({ alias, dep: depGraph[childDepPath] }))
       .filter(({ alias, dep }) => {
         if (!dep) {
-          // TODO: Try to reproduce this issue with a test in @pnpm/core
+          // TODO: Try to reproduce this issue with a test in @pnpm/installing.deps-installer
           logger.debug({ message: `Failed to link bins of "${alias}" to "${binPath}". This is probably not an issue.` })
           return false
         }

@@ -31,8 +31,8 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/config.matcher": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/matcher": "workspace:*",
     "@pnpm/types": "workspace:*",
     "semver": "catalog:"
   },

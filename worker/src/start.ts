@@ -4,11 +4,10 @@ import path from 'node:path'
 import { parentPort } from 'node:worker_threads'
 
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
-import type { Cafs, FilesMap, PackageFiles, SideEffectsDiff } from '@pnpm/cafs-types'
-import { createCafsStore } from '@pnpm/create-cafs-store'
 import { formatIntegrity, parseIntegrity } from '@pnpm/crypto.integrity'
 import { PnpmError } from '@pnpm/error'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
+import { symlinkDependencySync } from '@pnpm/fs.symlink-dependency'
 import {
   buildFileMapsFromIndex,
   type CafsFunctions,
@@ -20,8 +19,9 @@ import {
   type PackageFilesIndex,
   type VerifyResult,
 } from '@pnpm/store.cafs'
+import type { Cafs, FilesMap, PackageFiles, SideEffectsDiff } from '@pnpm/store.cafs-types'
+import { createCafsStore } from '@pnpm/store.create-cafs-store'
 import { packForStorage, StoreIndex } from '@pnpm/store.index'
-import { symlinkDependencySync } from '@pnpm/symlink-dependency'
 import type { BundledManifest, DependencyManifest } from '@pnpm/types'
 
 import { equalOrSemverEqual } from './equalOrSemverEqual.js'

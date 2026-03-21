@@ -1,5 +1,5 @@
 ---
-"@pnpm/plugin-commands-completion": patch
+"@pnpm/cli.commands": patch
 "pnpm": patch
 ---
 

@@ -7,9 +7,9 @@ import {
   type FetchErrorResponse,
   PnpmError,
 } from '@pnpm/error'
-import type { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetching-types'
+import type { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
-import type { PackageMeta } from '@pnpm/registry.types'
+import type { PackageMeta } from '@pnpm/resolving.registry.types'
 import * as retry from '@zkochan/retry'
 
 interface RegistryResponse {
@@ -99,7 +99,7 @@ export async function fetchMetadataFromFromRegistry (
       }
 
       // Here we only retry broken JSON responses.
-      // Other HTTP issues are retried by the @pnpm/fetch library
+      // Other HTTP issues are retried by the @pnpm/network.fetch library
       try {
         const jsonText = await response.text()
         const meta = JSON.parse(jsonText) as PackageMeta

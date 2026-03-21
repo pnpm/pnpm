@@ -47,8 +47,8 @@
   "dependencies": {
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/constants": "workspace:*",
+    "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
-    "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/types": "workspace:*",
     "is-windows": "catalog:",

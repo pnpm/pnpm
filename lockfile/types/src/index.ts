@@ -1,4 +1,4 @@
-import type { PlatformAssetTarget } from '@pnpm/resolver-base'
+import type { PlatformAssetTarget } from '@pnpm/resolving.resolver-base'
 import type { DependenciesMeta, DepPath, ProjectId } from '@pnpm/types'
 
 export type { ProjectId }

@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../../packages/error"
+      "path": "../../core/error"
     },
     {
-      "path": "../../workspace/find-workspace-dir"
+      "path": "../../workspace/root-finder"
     }
   ]
 }

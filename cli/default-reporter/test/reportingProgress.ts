@@ -1,11 +1,11 @@
-import type { Config } from '@pnpm/config'
+import { toOutput$ } from '@pnpm/cli.default-reporter'
+import type { Config } from '@pnpm/config.reader'
 import {
   fetchingProgressLogger,
   progressLogger,
   stageLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
-import { toOutput$ } from '@pnpm/default-reporter'
 import {
   createStreamParser,
   logger,

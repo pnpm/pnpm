@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { toOutput$ } from '@pnpm/default-reporter'
+import { toOutput$ } from '@pnpm/cli.default-reporter'
 import { PnpmError } from '@pnpm/error'
 import {
   createStreamParser,

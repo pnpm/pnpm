@@ -19,37 +19,31 @@
       "path": "../../config/version-policy"
     },
     {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/core-loggers"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../crypto/hash"
+    },
+    {
+      "path": "../../fetching/types"
     },
     {
       "path": "../../fs/graceful-fs"
     },
     {
       "path": "../../network/fetch"
-    },
-    {
-      "path": "../../network/fetching-types"
-    },
-    {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/logger"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../registry/pkg-metadata-filter"
-    },
-    {
-      "path": "../../registry/types"
     },
     {
       "path": "../../store/cafs"
@@ -61,13 +55,19 @@
       "path": "../../worker"
     },
     {
-      "path": "../../workspace/resolve-workspace-range"
+      "path": "../../workspace/range-resolver"
     },
     {
       "path": "../../workspace/spec-parser"
     },
     {
       "path": "../jsr-specifier-parser"
+    },
+    {
+      "path": "../registry/pkg-metadata-filter"
+    },
+    {
+      "path": "../registry/types"
     },
     {
       "path": "../resolver-base"

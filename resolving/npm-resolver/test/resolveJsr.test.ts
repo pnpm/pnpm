@@ -1,8 +1,8 @@
 import path from 'node:path'
 
 import { ABBREVIATED_META_DIR } from '@pnpm/constants'
-import { createFetchFromRegistry } from '@pnpm/fetch'
-import { createNpmResolver } from '@pnpm/npm-resolver'
+import { createFetchFromRegistry } from '@pnpm/network.fetch'
+import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { Registries } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'

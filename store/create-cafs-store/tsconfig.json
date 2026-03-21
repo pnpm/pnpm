@@ -16,13 +16,13 @@
       "path": "../../building/pkg-requires-build"
     },
     {
+      "path": "../../core/logger"
+    },
+    {
       "path": "../../fetching/fetcher-base"
     },
     {
       "path": "../../fs/indexed-pkg-importer"
-    },
-    {
-      "path": "../../packages/logger"
     },
     {
       "path": "../cafs"
@@ -31,7 +31,7 @@
       "path": "../cafs-types"
     },
     {
-      "path": "../store-controller-types"
+      "path": "../controller-types"
     }
   ]
 }

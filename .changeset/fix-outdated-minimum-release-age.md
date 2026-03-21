@@ -1,5 +1,5 @@
 ---
-"@pnpm/outdated": patch
+"@pnpm/deps.inspection.outdated": patch
 "pnpm": patch
 ---
 

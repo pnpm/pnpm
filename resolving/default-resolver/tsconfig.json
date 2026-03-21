@@ -10,7 +10,19 @@
   ],
   "references": [
     {
-      "path": "../../env/node.resolver"
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../engine/runtime/bun-resolver"
+    },
+    {
+      "path": "../../engine/runtime/deno-resolver"
+    },
+    {
+      "path": "../../engine/runtime/node-resolver"
     },
     {
       "path": "../../fetching/fetcher-base"
@@ -19,28 +31,16 @@
       "path": "../../fetching/tarball-fetcher"
     },
     {
+      "path": "../../fetching/types"
+    },
+    {
       "path": "../../hooks/types"
     },
     {
       "path": "../../network/fetch"
     },
     {
-      "path": "../../network/fetching-types"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
       "path": "../../store/cafs-types"
-    },
-    {
-      "path": "../bun-resolver"
-    },
-    {
-      "path": "../deno-resolver"
     },
     {
       "path": "../git-resolver"

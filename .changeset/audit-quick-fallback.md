@@ -1,5 +1,5 @@
 ---
-"@pnpm/audit": patch
+"@pnpm/deps.compliance.audit": patch
 "pnpm": patch
 ---
 

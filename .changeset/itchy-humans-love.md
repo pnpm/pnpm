@@ -1,6 +1,6 @@
 ---
-"@pnpm/config": major
-"@pnpm/plugin-commands-config": major
+"@pnpm/config.reader": major
+"@pnpm/config.commands": major
 "pnpm": major
 ---
 

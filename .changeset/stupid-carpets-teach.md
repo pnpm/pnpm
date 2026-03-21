@@ -1,9 +1,9 @@
 ---
-"@pnpm/plugin-commands-installation": minor
-"@pnpm/resolve-dependencies": minor
-"@pnpm/plugin-commands-audit": minor
-"@pnpm/npm-resolver": minor
-"@pnpm/core": minor
+"@pnpm/installing.commands": minor
+"@pnpm/installing.deps-resolver": minor
+"@pnpm/deps.compliance.commands": minor
+"@pnpm/resolving.npm-resolver": minor
+"@pnpm/installing.deps-installer": minor
 "@pnpm/types": minor
 "@pnpm-private/updater": minor
 "pnpm": minor

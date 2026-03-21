@@ -32,10 +32,10 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/client": "workspace:*",
-    "@pnpm/package-store": "workspace:*",
+    "@pnpm/installing.client": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
-    "@pnpm/store-controller-types": "workspace:*",
+    "@pnpm/store.controller": "workspace:*",
+    "@pnpm/store.controller-types": "workspace:*",
     "@pnpm/store.index": "workspace:*"
   },
   "devDependencies": {

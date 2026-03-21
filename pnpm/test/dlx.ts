@@ -1,9 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { getConfig } from '@pnpm/config'
-import { readModulesManifest } from '@pnpm/modules-yaml'
-import { dlx } from '@pnpm/plugin-commands-script-runners'
+import { getConfig } from '@pnpm/config.reader'
+import { dlx } from '@pnpm/exec.commands'
+import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { addUser, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import type { BaseManifest } from '@pnpm/types'
@@ -57,14 +57,14 @@ test('silent dlx prints the output of the child process only', async () => {
   expect(result.stdout.toString().trim()).toBe('hi')
 })
 
-test('dlx ignores configuration in current project package.json', async () => {
-  prepare({
-    pnpm: {
-      patchedDependencies: {
-        'shx@0.3.4': 'this_does_not_exist',
-      },
-    },
-  })
+test('dlx ignores configuration in pnpm-workspace.yaml', async () => {
+  prepare()
+  // Write a pnpm-workspace.yaml with a patchedDependencies that doesn't exist
+  // dlx should ignore this and succeed
+  fs.writeFileSync('pnpm-workspace.yaml', `
+patchedDependencies:
+  shx@0.3.4: this_does_not_exist.patch
+`)
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
   fs.mkdirSync(global)

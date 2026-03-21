@@ -1,7 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { approveBuilds } from '@pnpm/building.policy-commands'
+import { linkBinsOfPackages } from '@pnpm/bins.linker'
+import { removeBin } from '@pnpm/bins.remover'
+import { approveBuilds } from '@pnpm/building.commands'
 import {
   cleanOrphanedInstallDirs,
   createInstallDir,
@@ -10,9 +12,7 @@ import {
   type GlobalPackageInfo,
   scanGlobalPackages,
 } from '@pnpm/global.packages'
-import { linkBinsOfPackages } from '@pnpm/link-bins'
-import { removeBin } from '@pnpm/remove-bins'
-import type { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import { isSubdir } from 'is-subdir'
 import symlinkDir from 'symlink-dir'
 
@@ -30,7 +30,7 @@ export type GlobalUpdateOptions = CreateStoreControllerOptions & {
   saveExact?: boolean
   savePrefix?: string
   supportedArchitectures?: { libc?: string[] }
-  rootProjectManifest?: { pnpm?: { supportedArchitectures?: { libc?: string[] } } }
+  rootProjectManifest?: unknown
 }
 
 export async function handleGlobalUpdate (
@@ -86,7 +86,7 @@ async function updateGlobalPackageGroup (
     devDependencies: false,
     optionalDependencies: true,
   }
-  const fetchFullMetadata = (opts.supportedArchitectures?.libc ?? opts.rootProjectManifest?.pnpm?.supportedArchitectures?.libc) && true
+  const fetchFullMetadata = opts.supportedArchitectures?.libc != null && true
   const allowBuilds = opts.allowBuilds ?? {}
 
   const ignoredBuilds = await installGlobalPackages({

@@ -1,10 +1,9 @@
 ---
-"@pnpm/plugin-commands-rebuild": major
-"@pnpm/modules-yaml": major
-"@pnpm/headless": major
-"@pnpm/build-modules": major
-"@pnpm/core": major
-"@pnpm/exec.build-commands": major
+"@pnpm/building.commands": major
+"@pnpm/installing.modules-yaml": major
+"@pnpm/installing.deps-restorer": major
+"@pnpm/building.during-install": major
+"@pnpm/installing.deps-installer": major
 ---
 
 `ignoreBuilds` is now a set of DepPath.

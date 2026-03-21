@@ -1,4 +1,4 @@
-import { detectIfCurrentPkgIsExecutable, isExecutedByCorepack } from '@pnpm/cli-meta'
+import { detectIfCurrentPkgIsExecutable, isExecutedByCorepack } from '@pnpm/cli.meta'
 import type { UpdateCheckLog } from '@pnpm/core-loggers'
 import boxen from 'boxen'
 import chalk from 'chalk'

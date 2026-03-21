@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import type { PackageInRegistry, PackageMeta, PackageMetaWithTime } from '@pnpm/registry.types'
+import type { PackageInRegistry, PackageMeta, PackageMetaWithTime } from '@pnpm/resolving.registry.types'
 import type { PackageVersionPolicy } from '@pnpm/types'
 import semver from 'semver'
 

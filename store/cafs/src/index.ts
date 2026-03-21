@@ -8,7 +8,7 @@ import type {
   PackageFiles,
   SideEffects,
   SideEffectsDiff,
-} from '@pnpm/cafs-types'
+} from '@pnpm/store.cafs-types'
 
 import { addFilesFromDir } from './addFilesFromDir.js'
 import { addFilesFromTarball } from './addFilesFromTarball.js'

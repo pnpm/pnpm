@@ -1,8 +1,8 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
-import { docsUrl } from '@pnpm/cli-utils'
-import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.find-packages'
+import { docsUrl } from '@pnpm/cli.utils'
+import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
 import { rimraf } from '@zkochan/rimraf'
 import { isSubdir } from 'is-subdir'
 import { pathExists } from 'path-exists'
@@ -135,7 +135,7 @@ async function getProjectDirs (
   if (!opts.workspaceDir) {
     return [opts.dir]
   }
-  const pkgs = await findWorkspacePackagesNoCheck(opts.workspaceDir, {
+  const pkgs = await findWorkspaceProjectsNoCheck(opts.workspaceDir, {
     patterns: opts.workspacePackagePatterns,
   })
   return pkgs.map((pkg) => pkg.rootDir)

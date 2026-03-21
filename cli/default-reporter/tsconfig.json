@@ -11,31 +11,31 @@
   ],
   "references": [
     {
-      "path": "../../config/config"
+      "path": "../../config/reader"
     },
     {
-      "path": "../../dedupe/issues-renderer"
+      "path": "../../core/core-loggers"
     },
     {
-      "path": "../../dedupe/types"
+      "path": "../../core/error"
     },
     {
-      "path": "../../packages/core-loggers"
+      "path": "../../core/logger"
     },
     {
-      "path": "../../packages/error"
+      "path": "../../core/types"
     },
     {
-      "path": "../../packages/logger"
+      "path": "../../installing/dedupe/issues-renderer"
     },
     {
-      "path": "../../packages/render-peer-issues"
+      "path": "../../installing/dedupe/types"
     },
     {
-      "path": "../../packages/types"
+      "path": "../../installing/render-peer-issues"
     },
     {
-      "path": "../cli-meta"
+      "path": "../meta"
     }
   ]
 }
