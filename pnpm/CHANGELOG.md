@@ -1,6 +1,6 @@
 # pnpm
 
-## 11.0.0-beta.1
+## 11.0.0-beta.2
 
 ### Major Changes
 
