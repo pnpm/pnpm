@@ -45,6 +45,7 @@
     "@pnpm/installing.env-installer": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/os.env.path-extender": "catalog:",
+    "path-name": "catalog:",
     "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/store.connection-manager": "workspace:*",
     "@pnpm/store.controller": "workspace:*",
