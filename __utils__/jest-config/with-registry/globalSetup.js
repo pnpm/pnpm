@@ -1,3 +1,4 @@
+import { scheduler } from 'node:timers/promises'
 import getPort from 'get-port'
 import { promisify } from 'util'
 import treeKill from 'tree-kill'
@@ -30,5 +31,48 @@ export default async () => {
   global.killServer = () => {
     killed = true
     return kill(server.pid)
+  }
+
+  // Verdaccio can take a bit of time to come online on Windows and during its
+  // first startup. Some tests will fail immediately if they begin running
+  // before Verdaccio starts. Wait for Verdaccio to become online before running
+  // any tests.
+  await waitForServerOnline()
+}
+
+const UNUSUAL_VERDACCIO_STARTUP_THRESHOLD = 15 // seconds
+
+async function waitForServerOnline () {
+  const start = performance.now()
+
+  for (const delay of exponentialBackoff()) {
+    try {
+      await fetch(`http://localhost:${process.env.PNPM_REGISTRY_MOCK_PORT}`, { method: 'HEAD' })
+
+      const totalWait = (performance.now() - start) / 1000
+      if (totalWait > UNUSUAL_VERDACCIO_STARTUP_THRESHOLD) {
+        console.warn(`Verdaccio required an unusually long amount of time to start: ${totalWait} seconds`)
+      }
+
+      return
+    } catch (err) {
+      // If the Verdaccio process hasn't begun listening yet, attempts to
+      // connect to the unbound port should throw ECONNREFUSED. If a different
+      // error is observed, throw an error.
+      if (err?.cause?.code !== 'ECONNREFUSED') {
+        throw new Error('Failed to bring Verdaccio online:', { cause: err })
+      }
+
+      await scheduler.wait(delay)
+    }
+  }
+
+  const totalWait = (performance.now() - start) / 1000
+  throw new Error(`Verdaccio did not come online after waiting ${totalWait} seconds`)
+}
+
+function *exponentialBackoff (attempts = 15, base = 1.5, initialWait = 100) {
+  for (let i = 0; i < attempts; i++) {
+    yield initialWait * Math.pow(base, i)
   }
 }
