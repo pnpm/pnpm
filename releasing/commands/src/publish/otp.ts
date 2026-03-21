@@ -1,32 +1,11 @@
 import { PnpmError } from '@pnpm/error'
+import { generateQrCode, pollForWebAuthToken, type WebAuthFetchOptions, type WebAuthFetchResponse } from '@pnpm/network.web-auth'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import type { PublishOptions } from 'libnpmpublish'
-import qrcodeTerminal from 'qrcode-terminal'
 
 import { SHARED_CONTEXT } from './utils/shared-context.js'
 
-export interface OtpWebAuthFetchOptions {
-  method: 'GET'
-  retry?: {
-    factor?: number
-    maxTimeout?: number
-    minTimeout?: number
-    randomize?: boolean
-    retries?: number
-  }
-  timeout?: number
-}
-
-export interface OtpWebAuthFetchResponseHeaders {
-  get: (this: this, name: 'retry-after') => string | null
-}
-
-export interface OtpWebAuthFetchResponse {
-  readonly headers: OtpWebAuthFetchResponseHeaders
-  readonly json: (this: this) => Promise<unknown>
-  readonly ok: boolean
-  readonly status: number
-}
+export type { WebAuthFetchOptions as OtpWebAuthFetchOptions, WebAuthFetchResponse as OtpWebAuthFetchResponse }
 
 export interface OtpPublishResponse {
   readonly ok: boolean
@@ -55,15 +34,11 @@ export type OtpPublishFn = (
   options: PublishOptions
 ) => Promise<OtpPublishResponse>
 
-export interface OtpDate {
-  now: () => number
-}
-
 export interface OtpContext {
-  Date: OtpDate
+  Date: { now: () => number }
   setTimeout: (cb: () => void, ms: number) => void
   enquirer: OtpEnquirer
-  fetch: (url: string, options: OtpWebAuthFetchOptions) => Promise<OtpWebAuthFetchResponse>
+  fetch: (url: string, options: WebAuthFetchOptions) => Promise<WebAuthFetchResponse>
   globalInfo: (message: string) => void
   process: Record<'stdin' | 'stdout', { isTTY?: boolean }>
   publish: OtpPublishFn
@@ -136,7 +111,7 @@ export async function publishWithOtpHandling ({
       throw new OtpNonInteractiveError()
     }
 
-    const fetchOptions: OtpWebAuthFetchOptions = {
+    const fetchOptions: WebAuthFetchOptions = {
       method: 'GET',
       retry: {
         factor: publishOptions.fetchRetryFactor,
@@ -150,7 +125,9 @@ export async function publishWithOtpHandling ({
     let otp: string | undefined
 
     if (error.body?.authUrl && error.body?.doneUrl) {
-      otp = await webAuthOtp(error.body.authUrl, error.body.doneUrl, { Date, setTimeout, fetch, globalInfo }, fetchOptions)
+      const qrCode = generateQrCode(error.body.authUrl)
+      globalInfo(`Authenticate your account at:\n${error.body.authUrl}\n\n${qrCode}`)
+      otp = await pollForWebAuthToken(error.body.doneUrl, { Date, setTimeout, fetch }, fetchOptions)
     } else {
       const enquirerResponse = await enquirer.prompt({
         message: 'This operation requires a one-time password.\nEnter OTP:',
@@ -180,94 +157,7 @@ export async function publishWithOtpHandling ({
   return response
 }
 
-async function webAuthOtp (
-  authUrl: string,
-  doneUrl: string,
-  { Date, setTimeout, fetch, globalInfo }: Pick<OtpContext, 'Date' | 'setTimeout' | 'fetch' | 'globalInfo'>,
-  fetchOptions: OtpWebAuthFetchOptions
-): Promise<string> {
-  const qrCode = generateQrCode(authUrl)
-  globalInfo(`Authenticate your account at:\n${authUrl}\n\n${qrCode}`)
-  const startTime = Date.now()
-  const timeout = 5 * 60 * 1000 // 5 minutes
-
-  const pollIntervalMs = 1000
-
-  while (true) {
-    const now = Date.now()
-    if (now - startTime > timeout) {
-      throw new OtpWebAuthTimeoutError(now, startTime, timeout)
-    }
-    // eslint-disable-next-line no-await-in-loop
-    await new Promise<void>(resolve => setTimeout(resolve, pollIntervalMs))
-    let response: OtpWebAuthFetchResponse
-    try {
-      // eslint-disable-next-line no-await-in-loop
-      response = await fetch(doneUrl, fetchOptions)
-    } catch {
-      continue
-    }
-
-    if (!response.ok) continue
-
-    if (response.status === 202) {
-      // Registry is still waiting for authentication.
-      // Respect Retry-After header if present by waiting the additional time
-      // beyond the default poll interval already elapsed above, but do not
-      // exceed the overall timeout.
-      const retryAfterSeconds = Number(response.headers.get('retry-after'))
-      if (Number.isFinite(retryAfterSeconds)) {
-        const additionalMs = retryAfterSeconds * 1000 - pollIntervalMs
-        if (additionalMs > 0) {
-          const nowAfterPoll = Date.now()
-          const remainingMs = timeout - (nowAfterPoll - startTime)
-          if (remainingMs <= 0) {
-            throw new OtpWebAuthTimeoutError(nowAfterPoll, startTime, timeout)
-          }
-          const sleepMs = Math.min(additionalMs, remainingMs)
-          // eslint-disable-next-line no-await-in-loop
-          await new Promise<void>(resolve => setTimeout(resolve, sleepMs))
-        }
-      }
-      continue
-    }
-
-    let body: { token?: string }
-    try {
-      // eslint-disable-next-line no-await-in-loop
-      body = await response.json() as { token?: string }
-    } catch {
-      continue
-    }
-    if (body.token) {
-      return body.token
-    }
-  }
-}
-
-function generateQrCode (text: string): string {
-  let qrCode: string | undefined
-  qrcodeTerminal.generate(text, { small: true }, (code: string) => {
-    qrCode = code
-  })
-  if (qrCode != null) return qrCode
-  /* istanbul ignore next */
-  throw new Error('we were expecting qrcode-terminal to be fully synchronous, but it fails to execute the callback')
-}
-
-export class OtpWebAuthTimeoutError extends PnpmError {
-  readonly endTime: number
-  readonly startTime: number
-  readonly timeout: number
-  constructor (endTime: number, startTime: number, timeout: number) {
-    super('WEBAUTH_TIMEOUT', 'Web-based authentication timed out before it could be completed', {
-      hint: 'Re-run this command and complete the authentication step in your browser before the time limit is reached',
-    })
-    this.endTime = endTime
-    this.startTime = startTime
-    this.timeout = timeout
-  }
-}
+export { WebAuthTimeoutError as OtpWebAuthTimeoutError } from '@pnpm/network.web-auth'
 
 export class OtpNonInteractiveError extends PnpmError {
   constructor () {
