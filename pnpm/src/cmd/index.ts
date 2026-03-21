@@ -107,26 +107,28 @@ export interface CommandDefinition {
 
 const helpByCommandName: Record<string, () => string> = {}
 
-const addWithApproveBuilds: CommandDefinition = {
-  ...add,
-  handler: (opts, params) => add.handler({ ...opts, approveBuilds: approveBuilds.handler }, params),
+const buildingHandlers = {
+  approveBuilds: approveBuilds.handler,
+  rebuildHandler: rebuild.handler,
 }
 
-const updateWithApproveBuilds: CommandDefinition = {
-  ...update,
-  handler: (opts, params) => update.handler({ ...opts, approveBuilds: approveBuilds.handler }, params),
+function withBuildingHandlers (cmd: CommandDefinition): CommandDefinition {
+  return {
+    ...cmd,
+    handler: (opts, params) => cmd.handler({ ...opts, ...buildingHandlers }, params),
+  }
 }
 
 const commands: CommandDefinition[] = [
-  addWithApproveBuilds,
+  withBuildingHandlers(add),
   approveBuilds,
   audit,
   bin,
   cache,
-  ci,
+  withBuildingHandlers(ci),
   clean,
   config,
-  dedupe,
+  withBuildingHandlers(dedupe),
   getCommand,
   setCommand,
   create,
@@ -139,11 +141,11 @@ const commands: CommandDefinition[] = [
   fetch,
   generateCompletion,
   ignoredBuilds,
-  importCommand,
+  withBuildingHandlers(importCommand),
   selfUpdate,
   init,
-  install,
-  installTest,
+  withBuildingHandlers(install),
+  withBuildingHandlers(installTest),
   link,
   list,
   ll,
@@ -151,13 +153,13 @@ const commands: CommandDefinition[] = [
   outdated,
   pack,
   patch,
-  patchCommit,
-  patchRemove,
+  withBuildingHandlers(patchCommit),
+  withBuildingHandlers(patchRemove),
   prune,
   publish,
   rebuild,
   recursive,
-  remove,
+  withBuildingHandlers(remove),
   restart,
   root,
   run,
@@ -168,7 +170,7 @@ const commands: CommandDefinition[] = [
   catIndex,
   findHash,
   unlink,
-  updateWithApproveBuilds,
+  withBuildingHandlers(update),
   why,
   createHelp(helpByCommandName),
   ...notImplementedCommandDefinitions,

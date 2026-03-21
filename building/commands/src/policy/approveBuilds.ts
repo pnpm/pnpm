@@ -1,4 +1,3 @@
-import { rebuild, type RebuildCommandOpts } from '@pnpm/building.rebuild-command'
 import type { Config } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
 import { parse } from '@pnpm/deps.path'
@@ -11,6 +10,7 @@ import chalk from 'chalk'
 import enquirer from 'enquirer'
 import { renderHelp } from 'render-help'
 
+import { rebuild, type RebuildCommandOpts } from '../build/index.js'
 import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds.js'
 
 export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'allowBuilds' | 'enableGlobalVirtualStore'> & { all?: boolean, global?: boolean }

@@ -1,7 +1,6 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
-import { rebuild } from '@pnpm/building.rebuild-command'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import {
   type RecursiveSummary,
@@ -90,6 +89,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'packageConfigs'
 | 'updateConfig'
 > & {
+  rebuildHandler?: (opts: Record<string, unknown>, params: string[]) => Promise<void>
   include?: IncludedDependencies
   includeDirect?: IncludedDependencies
   latest?: boolean
@@ -463,7 +463,7 @@ export async function recursive (
       cmdFullName === 'update'
     )
   ) {
-    await rebuild.handler({
+    await opts.rebuildHandler?.({
       ...opts,
       pending: opts.pending === true,
       skipIfHasSideEffectsCache: true,

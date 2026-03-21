@@ -1,0 +1,935 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "composite": false,
+    "rootDir": ".",
+    "outDir": "lib",
+    "declaration": false
+  },
+  "include": [
+    "../__utils__/scripts/src/__typings__/**/*.d.ts"
+  ],
+  "exclude": [
+    ".."
+  ],
+  "references": [
+    {
+      "path": "../.meta-updater/tsconfig.json"
+    },
+    {
+      "path": "../__utils__/assert-project/tsconfig.json"
+    },
+    {
+      "path": "../__utils__/assert-project/test/tsconfig.json"
+    },
+    {
+      "path": "../__utils__/assert-store/tsconfig.json"
+    },
+    {
+      "path": "../__utils__/assert-store/test/tsconfig.json"
+    },
+    {
+      "path": "../__utils__/get-release-text/tsconfig.json"
+    },
+    {
+      "path": "../__utils__/prepare/tsconfig.json"
+    },
+    {
+      "path": "../__utils__/prepare-temp-dir/tsconfig.json"
+    },
+    {
+      "path": "../__utils__/scripts/tsconfig.json"
+    },
+    {
+      "path": "../__utils__/test-fixtures/tsconfig.json"
+    },
+    {
+      "path": "../__utils__/test-ipc-server/tsconfig.json"
+    },
+    {
+      "path": "../__utils__/test-ipc-server/test/tsconfig.json"
+    },
+    {
+      "path": "../bins/linker/tsconfig.json"
+    },
+    {
+      "path": "../bins/linker/test/tsconfig.json"
+    },
+    {
+      "path": "../bins/remover/tsconfig.json"
+    },
+    {
+      "path": "../bins/resolver/tsconfig.json"
+    },
+    {
+      "path": "../bins/resolver/test/tsconfig.json"
+    },
+    {
+      "path": "../building/after-install/tsconfig.json"
+    },
+    {
+      "path": "../building/commands/tsconfig.json"
+    },
+    {
+      "path": "../building/commands/test/tsconfig.json"
+    },
+    {
+      "path": "../building/during-install/tsconfig.json"
+    },
+    {
+      "path": "../building/during-install/test/tsconfig.json"
+    },
+    {
+      "path": "../building/pkg-requires-build/tsconfig.json"
+    },
+    {
+      "path": "../building/policy/tsconfig.json"
+    },
+    {
+      "path": "../building/policy/test/tsconfig.json"
+    },
+    {
+      "path": "../cache/api/tsconfig.json"
+    },
+    {
+      "path": "../cache/commands/tsconfig.json"
+    },
+    {
+      "path": "../cache/commands/test/tsconfig.json"
+    },
+    {
+      "path": "../catalogs/config/tsconfig.json"
+    },
+    {
+      "path": "../catalogs/config/test/tsconfig.json"
+    },
+    {
+      "path": "../catalogs/protocol-parser/tsconfig.json"
+    },
+    {
+      "path": "../catalogs/protocol-parser/test/tsconfig.json"
+    },
+    {
+      "path": "../catalogs/resolver/tsconfig.json"
+    },
+    {
+      "path": "../catalogs/resolver/test/tsconfig.json"
+    },
+    {
+      "path": "../catalogs/types/tsconfig.json"
+    },
+    {
+      "path": "../cli/command/tsconfig.json"
+    },
+    {
+      "path": "../cli/commands/tsconfig.json"
+    },
+    {
+      "path": "../cli/commands/test/tsconfig.json"
+    },
+    {
+      "path": "../cli/common-cli-options-help/tsconfig.json"
+    },
+    {
+      "path": "../cli/default-reporter/tsconfig.json"
+    },
+    {
+      "path": "../cli/default-reporter/test/tsconfig.json"
+    },
+    {
+      "path": "../cli/meta/tsconfig.json"
+    },
+    {
+      "path": "../cli/meta/test/tsconfig.json"
+    },
+    {
+      "path": "../cli/parse-cli-args/tsconfig.json"
+    },
+    {
+      "path": "../cli/parse-cli-args/test/tsconfig.json"
+    },
+    {
+      "path": "../cli/utils/tsconfig.json"
+    },
+    {
+      "path": "../config/commands/tsconfig.json"
+    },
+    {
+      "path": "../config/commands/test/tsconfig.json"
+    },
+    {
+      "path": "../config/matcher/tsconfig.json"
+    },
+    {
+      "path": "../config/matcher/test/tsconfig.json"
+    },
+    {
+      "path": "../config/normalize-registries/tsconfig.json"
+    },
+    {
+      "path": "../config/package-is-installable/tsconfig.json"
+    },
+    {
+      "path": "../config/package-is-installable/test/tsconfig.json"
+    },
+    {
+      "path": "../config/parse-overrides/tsconfig.json"
+    },
+    {
+      "path": "../config/parse-overrides/test/tsconfig.json"
+    },
+    {
+      "path": "../config/pick-registry-for-package/tsconfig.json"
+    },
+    {
+      "path": "../config/pick-registry-for-package/test/tsconfig.json"
+    },
+    {
+      "path": "../config/reader/tsconfig.json"
+    },
+    {
+      "path": "../config/reader/test/tsconfig.json"
+    },
+    {
+      "path": "../config/version-policy/tsconfig.json"
+    },
+    {
+      "path": "../config/version-policy/test/tsconfig.json"
+    },
+    {
+      "path": "../config/writer/tsconfig.json"
+    },
+    {
+      "path": "../core/constants/tsconfig.json"
+    },
+    {
+      "path": "../core/core-loggers/tsconfig.json"
+    },
+    {
+      "path": "../core/error/tsconfig.json"
+    },
+    {
+      "path": "../core/error/test/tsconfig.json"
+    },
+    {
+      "path": "../core/logger/tsconfig.json"
+    },
+    {
+      "path": "../core/logger/test/tsconfig.json"
+    },
+    {
+      "path": "../core/types/tsconfig.json"
+    },
+    {
+      "path": "../crypto/hash/tsconfig.json"
+    },
+    {
+      "path": "../crypto/hash/test/tsconfig.json"
+    },
+    {
+      "path": "../crypto/integrity/tsconfig.json"
+    },
+    {
+      "path": "../crypto/integrity/test/tsconfig.json"
+    },
+    {
+      "path": "../crypto/object-hasher/tsconfig.json"
+    },
+    {
+      "path": "../crypto/object-hasher/test/tsconfig.json"
+    },
+    {
+      "path": "../crypto/shasums-file/tsconfig.json"
+    },
+    {
+      "path": "../crypto/shasums-file/test/tsconfig.json"
+    },
+    {
+      "path": "../deps/compliance/audit/tsconfig.json"
+    },
+    {
+      "path": "../deps/compliance/audit/test/tsconfig.json"
+    },
+    {
+      "path": "../deps/compliance/commands/tsconfig.json"
+    },
+    {
+      "path": "../deps/compliance/commands/test/tsconfig.json"
+    },
+    {
+      "path": "../deps/compliance/license-scanner/tsconfig.json"
+    },
+    {
+      "path": "../deps/compliance/license-scanner/test/tsconfig.json"
+    },
+    {
+      "path": "../deps/compliance/sbom/tsconfig.json"
+    },
+    {
+      "path": "../deps/compliance/sbom/test/tsconfig.json"
+    },
+    {
+      "path": "../deps/graph-builder/tsconfig.json"
+    },
+    {
+      "path": "../deps/graph-hasher/tsconfig.json"
+    },
+    {
+      "path": "../deps/graph-hasher/test/tsconfig.json"
+    },
+    {
+      "path": "../deps/graph-sequencer/tsconfig.json"
+    },
+    {
+      "path": "../deps/graph-sequencer/test/tsconfig.json"
+    },
+    {
+      "path": "../deps/inspection/commands/tsconfig.json"
+    },
+    {
+      "path": "../deps/inspection/commands/test/tsconfig.json"
+    },
+    {
+      "path": "../deps/inspection/list/tsconfig.json"
+    },
+    {
+      "path": "../deps/inspection/list/test/tsconfig.json"
+    },
+    {
+      "path": "../deps/inspection/outdated/tsconfig.json"
+    },
+    {
+      "path": "../deps/inspection/outdated/test/tsconfig.json"
+    },
+    {
+      "path": "../deps/inspection/tree-builder/tsconfig.json"
+    },
+    {
+      "path": "../deps/inspection/tree-builder/test/tsconfig.json"
+    },
+    {
+      "path": "../deps/path/tsconfig.json"
+    },
+    {
+      "path": "../deps/path/test/tsconfig.json"
+    },
+    {
+      "path": "../deps/peer-range/tsconfig.json"
+    },
+    {
+      "path": "../deps/status/tsconfig.json"
+    },
+    {
+      "path": "../deps/status/test/tsconfig.json"
+    },
+    {
+      "path": "../engine/pm/commands/tsconfig.json"
+    },
+    {
+      "path": "../engine/pm/commands/test/tsconfig.json"
+    },
+    {
+      "path": "../engine/runtime/bun-resolver/tsconfig.json"
+    },
+    {
+      "path": "../engine/runtime/commands/tsconfig.json"
+    },
+    {
+      "path": "../engine/runtime/commands/test/tsconfig.json"
+    },
+    {
+      "path": "../engine/runtime/deno-resolver/tsconfig.json"
+    },
+    {
+      "path": "../engine/runtime/node-resolver/tsconfig.json"
+    },
+    {
+      "path": "../engine/runtime/node-resolver/test/tsconfig.json"
+    },
+    {
+      "path": "../engine/runtime/system-node-version/tsconfig.json"
+    },
+    {
+      "path": "../engine/runtime/system-node-version/test/tsconfig.json"
+    },
+    {
+      "path": "../exec/commands/tsconfig.json"
+    },
+    {
+      "path": "../exec/commands/test/tsconfig.json"
+    },
+    {
+      "path": "../exec/lifecycle/tsconfig.json"
+    },
+    {
+      "path": "../exec/lifecycle/test/tsconfig.json"
+    },
+    {
+      "path": "../exec/pnpm-cli-runner/tsconfig.json"
+    },
+    {
+      "path": "../exec/prepare-package/tsconfig.json"
+    },
+    {
+      "path": "../exec/prepare-package/test/tsconfig.json"
+    },
+    {
+      "path": "../exec/run-npm/tsconfig.json"
+    },
+    {
+      "path": "../fetching/binary-fetcher/tsconfig.json"
+    },
+    {
+      "path": "../fetching/binary-fetcher/test/tsconfig.json"
+    },
+    {
+      "path": "../fetching/directory-fetcher/tsconfig.json"
+    },
+    {
+      "path": "../fetching/directory-fetcher/test/tsconfig.json"
+    },
+    {
+      "path": "../fetching/fetcher-base/tsconfig.json"
+    },
+    {
+      "path": "../fetching/git-fetcher/tsconfig.json"
+    },
+    {
+      "path": "../fetching/git-fetcher/test/tsconfig.json"
+    },
+    {
+      "path": "../fetching/pick-fetcher/tsconfig.json"
+    },
+    {
+      "path": "../fetching/pick-fetcher/test/tsconfig.json"
+    },
+    {
+      "path": "../fetching/tarball-fetcher/tsconfig.json"
+    },
+    {
+      "path": "../fetching/tarball-fetcher/test/tsconfig.json"
+    },
+    {
+      "path": "../fetching/types/tsconfig.json"
+    },
+    {
+      "path": "../fs/graceful-fs/tsconfig.json"
+    },
+    {
+      "path": "../fs/hard-link-dir/tsconfig.json"
+    },
+    {
+      "path": "../fs/hard-link-dir/test/tsconfig.json"
+    },
+    {
+      "path": "../fs/indexed-pkg-importer/tsconfig.json"
+    },
+    {
+      "path": "../fs/indexed-pkg-importer/test/tsconfig.json"
+    },
+    {
+      "path": "../fs/is-empty-dir-or-nothing/tsconfig.json"
+    },
+    {
+      "path": "../fs/is-empty-dir-or-nothing/test/tsconfig.json"
+    },
+    {
+      "path": "../fs/packlist/tsconfig.json"
+    },
+    {
+      "path": "../fs/read-modules-dir/tsconfig.json"
+    },
+    {
+      "path": "../fs/symlink-dependency/tsconfig.json"
+    },
+    {
+      "path": "../fs/symlink-dependency/test/tsconfig.json"
+    },
+    {
+      "path": "../global/commands/tsconfig.json"
+    },
+    {
+      "path": "../global/commands/test/tsconfig.json"
+    },
+    {
+      "path": "../global/packages/tsconfig.json"
+    },
+    {
+      "path": "../hooks/pnpmfile/tsconfig.json"
+    },
+    {
+      "path": "../hooks/pnpmfile/test/tsconfig.json"
+    },
+    {
+      "path": "../hooks/read-package-hook/tsconfig.json"
+    },
+    {
+      "path": "../hooks/read-package-hook/test/tsconfig.json"
+    },
+    {
+      "path": "../hooks/types/tsconfig.json"
+    },
+    {
+      "path": "../hooks/types/test/tsconfig.json"
+    },
+    {
+      "path": "../installing/client/tsconfig.json"
+    },
+    {
+      "path": "../installing/client/test/tsconfig.json"
+    },
+    {
+      "path": "../installing/commands/tsconfig.json"
+    },
+    {
+      "path": "../installing/commands/test/tsconfig.json"
+    },
+    {
+      "path": "../installing/context/tsconfig.json"
+    },
+    {
+      "path": "../installing/context/test/tsconfig.json"
+    },
+    {
+      "path": "../installing/dedupe/check/tsconfig.json"
+    },
+    {
+      "path": "../installing/dedupe/check/test/tsconfig.json"
+    },
+    {
+      "path": "../installing/dedupe/issues-renderer/tsconfig.json"
+    },
+    {
+      "path": "../installing/dedupe/issues-renderer/test/tsconfig.json"
+    },
+    {
+      "path": "../installing/dedupe/types/tsconfig.json"
+    },
+    {
+      "path": "../installing/deps-installer/tsconfig.json"
+    },
+    {
+      "path": "../installing/deps-installer/test/tsconfig.json"
+    },
+    {
+      "path": "../installing/deps-resolver/tsconfig.json"
+    },
+    {
+      "path": "../installing/deps-resolver/test/tsconfig.json"
+    },
+    {
+      "path": "../installing/deps-restorer/tsconfig.json"
+    },
+    {
+      "path": "../installing/deps-restorer/test/tsconfig.json"
+    },
+    {
+      "path": "../installing/env-installer/tsconfig.json"
+    },
+    {
+      "path": "../installing/env-installer/test/tsconfig.json"
+    },
+    {
+      "path": "../installing/linking/direct-dep-linker/tsconfig.json"
+    },
+    {
+      "path": "../installing/linking/hoist/tsconfig.json"
+    },
+    {
+      "path": "../installing/linking/modules-cleaner/tsconfig.json"
+    },
+    {
+      "path": "../installing/linking/real-hoist/tsconfig.json"
+    },
+    {
+      "path": "../installing/linking/real-hoist/test/tsconfig.json"
+    },
+    {
+      "path": "../installing/modules-yaml/tsconfig.json"
+    },
+    {
+      "path": "../installing/modules-yaml/test/tsconfig.json"
+    },
+    {
+      "path": "../installing/package-requester/tsconfig.json"
+    },
+    {
+      "path": "../installing/package-requester/test/tsconfig.json"
+    },
+    {
+      "path": "../installing/read-projects-context/tsconfig.json"
+    },
+    {
+      "path": "../installing/render-peer-issues/tsconfig.json"
+    },
+    {
+      "path": "../installing/render-peer-issues/test/tsconfig.json"
+    },
+    {
+      "path": "../lockfile/detect-dep-types/tsconfig.json"
+    },
+    {
+      "path": "../lockfile/filtering/tsconfig.json"
+    },
+    {
+      "path": "../lockfile/filtering/test/tsconfig.json"
+    },
+    {
+      "path": "../lockfile/fs/tsconfig.json"
+    },
+    {
+      "path": "../lockfile/fs/test/tsconfig.json"
+    },
+    {
+      "path": "../lockfile/make-dedicated-lockfile/tsconfig.json"
+    },
+    {
+      "path": "../lockfile/make-dedicated-lockfile/test/tsconfig.json"
+    },
+    {
+      "path": "../lockfile/merger/tsconfig.json"
+    },
+    {
+      "path": "../lockfile/merger/test/tsconfig.json"
+    },
+    {
+      "path": "../lockfile/preferred-versions/tsconfig.json"
+    },
+    {
+      "path": "../lockfile/pruner/tsconfig.json"
+    },
+    {
+      "path": "../lockfile/pruner/test/tsconfig.json"
+    },
+    {
+      "path": "../lockfile/settings-checker/tsconfig.json"
+    },
+    {
+      "path": "../lockfile/to-pnp/tsconfig.json"
+    },
+    {
+      "path": "../lockfile/to-pnp/test/tsconfig.json"
+    },
+    {
+      "path": "../lockfile/types/tsconfig.json"
+    },
+    {
+      "path": "../lockfile/utils/tsconfig.json"
+    },
+    {
+      "path": "../lockfile/utils/test/tsconfig.json"
+    },
+    {
+      "path": "../lockfile/verification/tsconfig.json"
+    },
+    {
+      "path": "../lockfile/verification/test/tsconfig.json"
+    },
+    {
+      "path": "../lockfile/walker/tsconfig.json"
+    },
+    {
+      "path": "../modules-mounter/daemon/tsconfig.json"
+    },
+    {
+      "path": "../modules-mounter/daemon/test/tsconfig.json"
+    },
+    {
+      "path": "../network/auth-header/tsconfig.json"
+    },
+    {
+      "path": "../network/auth-header/test/tsconfig.json"
+    },
+    {
+      "path": "../network/fetch/tsconfig.json"
+    },
+    {
+      "path": "../network/fetch/test/tsconfig.json"
+    },
+    {
+      "path": "../network/git-utils/tsconfig.json"
+    },
+    {
+      "path": "../network/git-utils/test/tsconfig.json"
+    },
+    {
+      "path": "../object/key-sorting/tsconfig.json"
+    },
+    {
+      "path": "../object/key-sorting/test/tsconfig.json"
+    },
+    {
+      "path": "../object/property-path/tsconfig.json"
+    },
+    {
+      "path": "../object/property-path/test/tsconfig.json"
+    },
+    {
+      "path": "../patching/apply-patch/tsconfig.json"
+    },
+    {
+      "path": "../patching/apply-patch/test/tsconfig.json"
+    },
+    {
+      "path": "../patching/commands/tsconfig.json"
+    },
+    {
+      "path": "../patching/commands/test/tsconfig.json"
+    },
+    {
+      "path": "../patching/config/tsconfig.json"
+    },
+    {
+      "path": "../patching/config/test/tsconfig.json"
+    },
+    {
+      "path": "../patching/types/tsconfig.json"
+    },
+    {
+      "path": "../pkg-manifest/reader/tsconfig.json"
+    },
+    {
+      "path": "../pkg-manifest/reader/test/tsconfig.json"
+    },
+    {
+      "path": "../pkg-manifest/utils/tsconfig.json"
+    },
+    {
+      "path": "../pkg-manifest/utils/test/tsconfig.json"
+    },
+    {
+      "path": "../pnpm/tsconfig.json"
+    },
+    {
+      "path": "../pnpm/test/tsconfig.json"
+    },
+    {
+      "path": "../releasing/commands/tsconfig.json"
+    },
+    {
+      "path": "../releasing/commands/test/tsconfig.json"
+    },
+    {
+      "path": "../releasing/exportable-manifest/tsconfig.json"
+    },
+    {
+      "path": "../releasing/exportable-manifest/test/tsconfig.json"
+    },
+    {
+      "path": "../resolving/default-resolver/tsconfig.json"
+    },
+    {
+      "path": "../resolving/default-resolver/test/tsconfig.json"
+    },
+    {
+      "path": "../resolving/git-resolver/tsconfig.json"
+    },
+    {
+      "path": "../resolving/git-resolver/test/tsconfig.json"
+    },
+    {
+      "path": "../resolving/jsr-specifier-parser/tsconfig.json"
+    },
+    {
+      "path": "../resolving/jsr-specifier-parser/test/tsconfig.json"
+    },
+    {
+      "path": "../resolving/local-resolver/tsconfig.json"
+    },
+    {
+      "path": "../resolving/local-resolver/test/tsconfig.json"
+    },
+    {
+      "path": "../resolving/npm-resolver/tsconfig.json"
+    },
+    {
+      "path": "../resolving/npm-resolver/test/tsconfig.json"
+    },
+    {
+      "path": "../resolving/parse-wanted-dependency/tsconfig.json"
+    },
+    {
+      "path": "../resolving/registry/pkg-metadata-filter/tsconfig.json"
+    },
+    {
+      "path": "../resolving/registry/pkg-metadata-filter/test/tsconfig.json"
+    },
+    {
+      "path": "../resolving/registry/types/tsconfig.json"
+    },
+    {
+      "path": "../resolving/resolver-base/tsconfig.json"
+    },
+    {
+      "path": "../resolving/tarball-resolver/tsconfig.json"
+    },
+    {
+      "path": "../resolving/tarball-resolver/test/tsconfig.json"
+    },
+    {
+      "path": "../shell/path/tsconfig.json"
+    },
+    {
+      "path": "../shell/path/test/tsconfig.json"
+    },
+    {
+      "path": "../store/cafs/tsconfig.json"
+    },
+    {
+      "path": "../store/cafs/test/tsconfig.json"
+    },
+    {
+      "path": "../store/cafs-types/tsconfig.json"
+    },
+    {
+      "path": "../store/commands/tsconfig.json"
+    },
+    {
+      "path": "../store/commands/test/tsconfig.json"
+    },
+    {
+      "path": "../store/connection-manager/tsconfig.json"
+    },
+    {
+      "path": "../store/controller/tsconfig.json"
+    },
+    {
+      "path": "../store/controller/test/tsconfig.json"
+    },
+    {
+      "path": "../store/controller-types/tsconfig.json"
+    },
+    {
+      "path": "../store/create-cafs-store/tsconfig.json"
+    },
+    {
+      "path": "../store/index/tsconfig.json"
+    },
+    {
+      "path": "../store/index/test/tsconfig.json"
+    },
+    {
+      "path": "../store/path/tsconfig.json"
+    },
+    {
+      "path": "../store/path/test/tsconfig.json"
+    },
+    {
+      "path": "../store/pkg-finder/tsconfig.json"
+    },
+    {
+      "path": "../testing/temp-store/tsconfig.json"
+    },
+    {
+      "path": "../text/comments-parser/tsconfig.json"
+    },
+    {
+      "path": "../text/comments-parser/test/tsconfig.json"
+    },
+    {
+      "path": "../text/naming-cases/tsconfig.json"
+    },
+    {
+      "path": "../text/naming-cases/test/tsconfig.json"
+    },
+    {
+      "path": "../text/tree-renderer/tsconfig.json"
+    },
+    {
+      "path": "../text/tree-renderer/test/tsconfig.json"
+    },
+    {
+      "path": "../worker/tsconfig.json"
+    },
+    {
+      "path": "../worker/test/tsconfig.json"
+    },
+    {
+      "path": "../workspace/commands/tsconfig.json"
+    },
+    {
+      "path": "../workspace/commands/test/tsconfig.json"
+    },
+    {
+      "path": "../workspace/injected-deps-syncer/tsconfig.json"
+    },
+    {
+      "path": "../workspace/injected-deps-syncer/test/tsconfig.json"
+    },
+    {
+      "path": "../workspace/project-manifest-reader/tsconfig.json"
+    },
+    {
+      "path": "../workspace/project-manifest-reader/test/tsconfig.json"
+    },
+    {
+      "path": "../workspace/project-manifest-writer/tsconfig.json"
+    },
+    {
+      "path": "../workspace/project-manifest-writer/test/tsconfig.json"
+    },
+    {
+      "path": "../workspace/projects-filter/tsconfig.json"
+    },
+    {
+      "path": "../workspace/projects-filter/test/tsconfig.json"
+    },
+    {
+      "path": "../workspace/projects-graph/tsconfig.json"
+    },
+    {
+      "path": "../workspace/projects-graph/test/tsconfig.json"
+    },
+    {
+      "path": "../workspace/projects-reader/tsconfig.json"
+    },
+    {
+      "path": "../workspace/projects-reader/test/tsconfig.json"
+    },
+    {
+      "path": "../workspace/projects-sorter/tsconfig.json"
+    },
+    {
+      "path": "../workspace/range-resolver/tsconfig.json"
+    },
+    {
+      "path": "../workspace/range-resolver/test/tsconfig.json"
+    },
+    {
+      "path": "../workspace/root-finder/tsconfig.json"
+    },
+    {
+      "path": "../workspace/root-finder/test/tsconfig.json"
+    },
+    {
+      "path": "../workspace/spec-parser/tsconfig.json"
+    },
+    {
+      "path": "../workspace/spec-parser/test/tsconfig.json"
+    },
+    {
+      "path": "../workspace/state/tsconfig.json"
+    },
+    {
+      "path": "../workspace/state/test/tsconfig.json"
+    },
+    {
+      "path": "../workspace/workspace-manifest-reader/tsconfig.json"
+    },
+    {
+      "path": "../workspace/workspace-manifest-reader/test/tsconfig.json"
+    },
+    {
+      "path": "../workspace/workspace-manifest-writer/tsconfig.json"
+    },
+    {
+      "path": "../workspace/workspace-manifest-writer/test/tsconfig.json"
+    },
+    {
+      "path": "../yaml/document-sync/tsconfig.json"
+    },
+    {
+      "path": "../yaml/document-sync/test/tsconfig.json"
+    }
+  ]
+}

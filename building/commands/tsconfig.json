@@ -77,9 +77,6 @@
     },
     {
       "path": "../after-install"
-    },
-    {
-      "path": "../rebuild-command"
     }
   ]
 }

@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<coverage generated="1774058726634" clover="3.2.0">
+  <project timestamp="1774058726634" name="All files">
+    <metrics statements="164" coveredstatements="76" conditionals="102" coveredconditionals="53" methods="35" coveredmethods="8" elements="301" coveredelements="137" complexity="0" loc="164" ncloc="164" packages="3" files="8" classes="8"/>
+    <package name="lib">
+      <metrics statements="0" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="0" coveredmethods="0"/>
+      <file name="index.js" path="/Volumes/src/pnpm/pnpm/fix-11042/building/commands/lib/index.js">
+        <metrics statements="0" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="0" coveredmethods="0"/>
+      </file>
+    </package>
+    <package name="lib.build">
+      <metrics statements="59" coveredstatements="6" conditionals="33" coveredconditionals="4" methods="13" coveredmethods="1"/>
+      <file name="index.js" path="/Volumes/src/pnpm/pnpm/fix-11042/building/commands/lib/build/index.js">
+        <metrics statements="0" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="0" coveredmethods="0"/>
+      </file>
+      <file name="rebuild.js" path="/Volumes/src/pnpm/pnpm/fix-11042/building/commands/lib/build/rebuild.js">
+        <metrics statements="13" coveredstatements="6" conditionals="10" coveredconditionals="4" methods="4" coveredmethods="1"/>
+        <line num="10" count="0" type="stmt"/>
+        <line num="21" count="0" type="stmt"/>
+        <line num="27" count="1" type="stmt"/>
+        <line num="29" count="0" type="stmt"/>
+        <line num="61" count="8" type="cond" truecount="2" falsecount="4"/>
+        <line num="62" count="0" type="stmt"/>
+        <line num="63" count="0" type="stmt"/>
+        <line num="65" count="8" type="stmt"/>
+        <line num="66" count="8" type="stmt"/>
+        <line num="72" count="8" type="cond" truecount="1" falsecount="1"/>
+        <line num="73" count="0" type="stmt"/>
+        <line num="80" count="0" type="stmt"/>
+        <line num="82" count="8" type="stmt"/>
+      </file>
+      <file name="recursive.js" path="/Volumes/src/pnpm/pnpm/fix-11042/building/commands/lib/build/recursive.js">
+        <metrics statements="46" coveredstatements="0" conditionals="23" coveredconditionals="0" methods="9" coveredmethods="0"/>
+        <line num="11" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="13" count="0" type="stmt"/>
+        <line num="15" count="0" type="stmt"/>
+        <line num="16" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="17" count="0" type="stmt"/>
+        <line num="19" count="0" type="stmt"/>
+        <line num="20" count="0" type="stmt"/>
+        <line num="21" count="0" type="stmt"/>
+        <line num="23" count="0" type="stmt"/>
+        <line num="24" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="27" count="0" type="stmt"/>
+        <line num="28" count="0" type="stmt"/>
+        <line num="35" count="0" type="stmt"/>
+        <line num="36" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="38" count="0" type="stmt"/>
+        <line num="39" count="0" type="stmt"/>
+        <line num="40" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="41" count="0" type="stmt"/>
+        <line num="43" count="0" type="stmt"/>
+        <line num="44" count="0" type="stmt"/>
+        <line num="51" count="0" type="stmt"/>
+        <line num="53" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="55" count="0" type="stmt"/>
+        <line num="57" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="58" count="0" type="stmt"/>
+        <line num="59" count="0" type="stmt"/>
+        <line num="63" count="0" type="stmt"/>
+        <line num="65" count="0" type="stmt"/>
+        <line num="66" count="0" type="stmt"/>
+        <line num="68" count="0" type="stmt"/>
+        <line num="69" count="0" type="stmt"/>
+        <line num="70" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="71" count="0" type="stmt"/>
+        <line num="73" count="0" type="stmt"/>
+        <line num="74" count="0" type="stmt"/>
+        <line num="75" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="76" count="0" type="stmt"/>
+        <line num="92" count="0" type="stmt"/>
+        <line num="95" count="0" type="stmt"/>
+        <line num="96" count="0" type="stmt"/>
+        <line num="99" count="0" type="stmt"/>
+        <line num="100" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="101" count="0" type="stmt"/>
+        <line num="107" count="0" type="stmt"/>
+        <line num="109" count="0" type="stmt"/>
+        <line num="113" count="0" type="stmt"/>
+      </file>
+    </package>
+    <package name="lib.policy">
+      <metrics statements="105" coveredstatements="70" conditionals="69" coveredconditionals="49" methods="22" coveredmethods="7"/>
+      <file name="approveBuilds.js" path="/Volumes/src/pnpm/pnpm/fix-11042/building/commands/lib/policy/approveBuilds.js">
+        <metrics statements="74" coveredstatements="60" conditionals="51" coveredconditionals="43" methods="13" coveredmethods="5"/>
+        <line num="13" count="1" type="stmt"/>
+        <line num="15" count="0" type="stmt"/>
+        <line num="35" count="0" type="stmt"/>
+        <line num="41" count="0" type="stmt"/>
+        <line num="44" count="14" type="cond" truecount="1" falsecount="1"/>
+        <line num="45" count="0" type="stmt"/>
+        <line num="50" count="14" type="cond" truecount="4" falsecount="0"/>
+        <line num="51" count="1" type="stmt"/>
+        <line num="53" count="13" type="stmt"/>
+        <line num="54" count="13" type="cond" truecount="1" falsecount="1"/>
+        <line num="55" count="0" type="stmt"/>
+        <line num="56" count="0" type="stmt"/>
+        <line num="58" count="13" type="stmt"/>
+        <line num="59" count="13" type="stmt"/>
+        <line num="60" count="13" type="stmt"/>
+        <line num="61" count="13" type="stmt"/>
+        <line num="62" count="9" type="cond" truecount="2" falsecount="0"/>
+        <line num="63" count="9" type="cond" truecount="2" falsecount="0"/>
+        <line num="64" count="2" type="stmt"/>
+        <line num="66" count="7" type="cond" truecount="2" falsecount="0"/>
+        <line num="67" count="3" type="stmt"/>
+        <line num="70" count="4" type="stmt"/>
+        <line num="73" count="13" type="cond" truecount="2" falsecount="0"/>
+        <line num="74" count="2" type="stmt"/>
+        <line num="76" count="11" type="stmt"/>
+        <line num="77" count="11" type="cond" truecount="2" falsecount="0"/>
+        <line num="78" count="1" type="stmt"/>
+        <line num="80" count="10" type="stmt"/>
+        <line num="81" count="10" type="cond" truecount="2" falsecount="0"/>
+        <line num="82" count="4" type="stmt"/>
+        <line num="84" count="6" type="cond" truecount="2" falsecount="0"/>
+        <line num="85" count="1" type="stmt"/>
+        <line num="88" count="5" type="stmt"/>
+        <line num="91" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="100" count="0" type="stmt"/>
+        <line num="110" count="0" type="stmt"/>
+        <line num="113" count="0" type="stmt"/>
+        <line num="120" count="0" type="stmt"/>
+        <line num="123" count="5" type="stmt"/>
+        <line num="125" count="10" type="stmt"/>
+        <line num="126" count="10" type="cond" truecount="2" falsecount="0"/>
+        <line num="127" count="4" type="stmt"/>
+        <line num="128" count="3" type="stmt"/>
+        <line num="130" count="4" type="stmt"/>
+        <line num="131" count="2" type="stmt"/>
+        <line num="135" count="12" type="stmt"/>
+        <line num="136" count="6" type="stmt"/>
+        <line num="137" count="6" type="stmt"/>
+        <line num="139" count="6" type="stmt"/>
+        <line num="140" count="6" type="stmt"/>
+        <line num="143" count="10" type="cond" truecount="4" falsecount="0"/>
+        <line num="144" count="5" type="cond" truecount="2" falsecount="0"/>
+        <line num="145" count="4" type="stmt"/>
+        <line num="152" count="4" type="cond" truecount="1" falsecount="1"/>
+        <line num="153" count="0" type="stmt"/>
+        <line num="157" count="1" type="stmt"/>
+        <line num="160" count="10" type="stmt"/>
+        <line num="165" count="10" type="cond" truecount="1" falsecount="1"/>
+        <line num="166" count="10" type="cond" truecount="2" falsecount="0"/>
+        <line num="167" count="4" type="stmt"/>
+        <line num="168" count="4" type="stmt"/>
+        <line num="169" count="8" type="cond" truecount="1" falsecount="1"/>
+        <line num="170" count="8" type="cond" truecount="2" falsecount="0"/>
+        <line num="171" count="5" type="stmt"/>
+        <line num="174" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="175" count="1" type="stmt"/>
+        <line num="179" count="6" type="stmt"/>
+        <line num="181" count="10" type="stmt"/>
+        <line num="183" count="10" type="cond" truecount="2" falsecount="0"/>
+        <line num="184" count="8" type="cond" truecount="1" falsecount="1"/>
+        <line num="185" count="0" type="stmt"/>
+        <line num="190" count="0" type="stmt"/>
+        <line num="192" count="8" type="stmt"/>
+        <line num="199" count="10" type="stmt"/>
+      </file>
+      <file name="getAutomaticallyIgnoredBuilds.js" path="/Volumes/src/pnpm/pnpm/fix-11042/building/commands/lib/policy/getAutomaticallyIgnoredBuilds.js">
+        <metrics statements="10" coveredstatements="9" conditionals="8" coveredconditionals="6" methods="2" coveredmethods="2"/>
+        <line num="5" count="13" type="stmt"/>
+        <line num="6" count="13" type="stmt"/>
+        <line num="8" count="13" type="cond" truecount="1" falsecount="1"/>
+        <line num="9" count="13" type="stmt"/>
+        <line num="10" count="13" type="stmt"/>
+        <line num="11" count="23" type="cond" truecount="1" falsecount="1"/>
+        <line num="13" count="13" type="stmt"/>
+        <line num="16" count="0" type="stmt"/>
+        <line num="18" count="13" type="stmt"/>
+        <line num="25" count="13" type="cond" truecount="4" falsecount="0"/>
+      </file>
+      <file name="ignoredBuilds.js" path="/Volumes/src/pnpm/pnpm/fix-11042/building/commands/lib/policy/ignoredBuilds.js">
+        <metrics statements="21" coveredstatements="1" conditionals="10" coveredconditionals="0" methods="7" coveredmethods="0"/>
+        <line num="3" count="1" type="stmt"/>
+        <line num="5" count="0" type="stmt"/>
+        <line num="11" count="0" type="stmt"/>
+        <line num="14" count="0" type="stmt"/>
+        <line num="17" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="19" count="0" type="stmt"/>
+        <line num="20" count="0" type="stmt"/>
+        <line num="22" count="0" type="stmt"/>
+        <line num="23" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="24" count="0" type="stmt"/>
+        <line num="25" count="0" type="stmt"/>
+        <line num="27" count="0" type="stmt"/>
+        <line num="28" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="29" count="0" type="stmt"/>
+        <line num="31" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="32" count="0" type="stmt"/>
+        <line num="35" count="0" type="stmt"/>
+        <line num="42" count="0" type="stmt"/>
+        <line num="43" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="44" count="0" type="stmt"/>
+        <line num="46" count="0" type="stmt"/>
+      </file>
+      <file name="index.js" path="/Volumes/src/pnpm/pnpm/fix-11042/building/commands/lib/policy/index.js">
+        <metrics statements="0" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="0" coveredmethods="0"/>
+      </file>
+    </package>
+  </project>
+</coverage>
