@@ -112,33 +112,19 @@ function createAliasScripts (targetDir: string): void {
 
   fs.mkdirSync(targetDir, { recursive: true })
 
-  createShellScript(targetDir, 'pn', 'exec pnpm "$@"')
-  createShellScript(targetDir, 'pnpx', 'exec pnpm dlx "$@"')
-  createShellScript(targetDir, 'pnx', 'exec pnpm dlx "$@"')
+  createShellScript(targetDir, 'pn', 'pnpm')
+  createShellScript(targetDir, 'pnpx', 'pnpm dlx')
+  createShellScript(targetDir, 'pnx', 'pnpm dlx')
 }
 
 function createShellScript (targetDir: string, name: string, command: string): void {
   // windows can also use shell script via mingw or cygwin so no filter
-  const shellScript = [
-    '#!/bin/sh',
-    command,
-  ].join('\n')
+  const shellScript = `#!/bin/sh\nexec ${command} "$@"\n`
   fs.writeFileSync(path.join(targetDir, name), shellScript, { mode: 0o755 })
 
   if (process.platform === 'win32') {
-    const winCommand = command
-      .replace(/^exec /, '')
-      .replace('"$@"', '%*')
-    const batchScript = [
-      '@echo off',
-      winCommand,
-    ].join('\n')
-    fs.writeFileSync(path.join(targetDir, `${name}.cmd`), batchScript)
-
-    const psCommand = command
-      .replace(/^exec /, '')
-      .replace('"$@"', '@args')
-    fs.writeFileSync(path.join(targetDir, `${name}.ps1`), psCommand)
+    fs.writeFileSync(path.join(targetDir, `${name}.cmd`), `@echo off\n${command} %*\n`)
+    fs.writeFileSync(path.join(targetDir, `${name}.ps1`), `${command} @args\n`)
   }
 }
 

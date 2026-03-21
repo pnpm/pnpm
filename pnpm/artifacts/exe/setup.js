@@ -26,8 +26,8 @@ const pnExecutable = platform === 'win' ? 'pn.exe' : 'pn'
 linkSync(bin, path.resolve(ownDir, pnExecutable))
 
 // Create pnpx and pnx scripts
-createDlxScripts(ownDir, 'pnpx')
-createDlxScripts(ownDir, 'pnx')
+createShellScript(ownDir, 'pnpx', 'pnpm dlx')
+createShellScript(ownDir, 'pnx', 'pnpm dlx')
 
 if (platform === 'win') {
   const pkgJsonPath = path.resolve(ownDir, 'package.json')
@@ -50,22 +50,11 @@ function linkSync(src, dest) {
   return fs.linkSync(src, dest)
 }
 
-function createDlxScripts(dir, name) {
-  // POSIX shell script
-  const shellScript = [
-    '#!/bin/sh',
-    'exec pnpm dlx "$@"',
-  ].join('\n')
-  fs.writeFileSync(path.resolve(dir, name), shellScript, { mode: 0o755 })
+function createShellScript(dir, name, command) {
+  fs.writeFileSync(path.resolve(dir, name), `#!/bin/sh\nexec ${command} "$@"\n`, { mode: 0o755 })
 
   if (platform === 'win') {
-    const batchScript = [
-      '@echo off',
-      'pnpm dlx %*',
-    ].join('\n')
-    fs.writeFileSync(path.resolve(dir, name + '.cmd'), batchScript)
-
-    const powershellScript = 'pnpm dlx @args'
-    fs.writeFileSync(path.resolve(dir, name + '.ps1'), powershellScript)
+    fs.writeFileSync(path.resolve(dir, name + '.cmd'), `@echo off\n${command} %*\n`)
+    fs.writeFileSync(path.resolve(dir, name + '.ps1'), `${command} @args\n`)
   }
 }
