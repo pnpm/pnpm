@@ -117,6 +117,66 @@ test('relative link', async () => {
   expect(currentLockfile.importers['.'].dependencies?.['@pnpm.e2e/hello-world-js-bin'].version).toBe('link:../hello-world-js-bin') // link added to wanted lockfile
 })
 
+test('relative link with --file flag', async () => {
+  const project = prepare()
+
+  process.chdir('..')
+  writePackageSync('linked-file', { name: 'linked-file', version: '1.0.0' })
+  process.chdir('project')
+
+  await link.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    file: true,
+    rootProjectManifestDir: process.cwd(),
+  }, ['../linked-file'])
+
+  project.has('linked-file')
+
+  const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>('pnpm-workspace.yaml')
+  expect(manifest.overrides?.['linked-file']).toBe('file:../linked-file')
+
+  const rootManifest = JSON.parse(fs.readFileSync('package.json', 'utf8'))
+  expect(rootManifest.dependencies?.['linked-file']).toBe('file:../linked-file')
+  const wantedLockfile = project.readLockfile()
+  expect(wantedLockfile.importers['.'].dependencies?.['linked-file']).toStrictEqual({
+    specifier: 'file:../linked-file',
+    version: 'file:../linked-file',
+  })
+  const currentLockfile = project.readCurrentLockfile()
+  expect(currentLockfile.importers['.'].dependencies?.['linked-file'].version).toBe('file:../linked-file')
+})
+
+test('relative link with --link flag', async () => {
+  const project = prepare()
+
+  process.chdir('..')
+  writePackageSync('linked-link', { name: 'linked-link', version: '1.0.0' })
+  process.chdir('project')
+
+  await link.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    link: true,
+    rootProjectManifestDir: process.cwd(),
+  }, ['../linked-link'])
+
+  project.has('linked-link')
+
+  const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>('pnpm-workspace.yaml')
+  expect(manifest.overrides?.['linked-link']).toBe('link:../linked-link')
+
+  const rootManifest = JSON.parse(fs.readFileSync('package.json', 'utf8'))
+  expect(rootManifest.dependencies?.['linked-link']).toBe('link:../linked-link')
+  const wantedLockfile = project.readLockfile()
+  expect(wantedLockfile.importers['.'].dependencies?.['linked-link']).toStrictEqual({
+    specifier: 'link:../linked-link',
+    version: 'link:../linked-link',
+  })
+  const currentLockfile = project.readCurrentLockfile()
+  expect(currentLockfile.importers['.'].dependencies?.['linked-link'].version).toBe('link:../linked-link')
+})
+
 test('absolute link', async () => {
   const project = prepare({
     dependencies: {
@@ -209,6 +269,27 @@ test('link fails if nothing is linked', async () => {
       globalPkgDir: '',
     }, [])
   ).rejects.toThrow(/You must provide a parameter/)
+})
+
+test('link fails when both --file and --link are specified', async () => {
+  prepare()
+
+  await expect(
+    link.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      file: true,
+      link: true,
+      rootProjectManifestDir: process.cwd(),
+    }, ['../something'])
+  ).rejects.toThrow(/--file may not be used with --link/)
+})
+
+test('link command exposes shorthands for --file and --link', () => {
+  expect(link.shorthands).toMatchObject({
+    f: '--file',
+    l: '--link',
+  })
 })
 
 test('logger warns about peer dependencies when linking', async () => {

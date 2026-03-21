@@ -40,11 +40,19 @@ type LinkOpts = Pick<Config,
 | 'workspaceDir'
 | 'workspacePackagePatterns'
 | 'sharedWorkspaceLockfile'
-> & Partial<Pick<Config, 'linkWorkspacePackages'>> & install.InstallCommandOptions
+> & Partial<Pick<Config, 'linkWorkspacePackages'>> & install.InstallCommandOptions & {
+  file?: boolean
+  link?: boolean
+}
 
-export const rcOptionsTypes = cliOptionsTypes
+type LocalProtocol = 'file:' | 'link:'
 
-export function cliOptionsTypes (): Record<string, unknown> {
+export const shorthands: Record<string, string> = {
+  f: '--file',
+  l: '--link',
+}
+
+export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'global-dir',
     'global',
@@ -61,6 +69,14 @@ export function cliOptionsTypes (): Record<string, unknown> {
   ], allTypes)
 }
 
+export function cliOptionsTypes (): Record<string, unknown> {
+  return {
+    ...rcOptionsTypes(),
+    file: Boolean,
+    link: Boolean,
+  }
+}
+
 export const commandNames = ['link', 'ln']
 
 export function help (): string {
@@ -70,7 +86,19 @@ export function help (): string {
       {
         title: 'Options',
 
-        list: UNIVERSAL_OPTIONS,
+        list: [
+          {
+            description: 'Use the `file:` protocol when linking local directories',
+            name: '--file',
+            shortAlias: '-f',
+          },
+          {
+            description: 'Use the `link:` protocol when linking local directories (default)',
+            name: '--link',
+            shortAlias: '-l',
+          },
+          ...UNIVERSAL_OPTIONS,
+        ],
       },
     ],
     url: docsUrl('link'),
@@ -105,6 +133,12 @@ export async function handler (
   opts: LinkOpts,
   params?: string[]
 ): Promise<void> {
+  if (opts.file && opts.link) {
+    throw new PnpmError('LINK_PROTOCOL_OPTIONS_CONFLICT', '--file may not be used with --link')
+  }
+
+  const localProtocol = opts.file ? 'file:' : 'link:'
+
   let workspacePackagesArr: Project[]
   let workspacePackages!: WorkspacePackages
   if (opts.workspaceDir) {
@@ -139,7 +173,7 @@ export async function handler (
   const newManifest = opts.rootProjectManifest ?? {}
   await Promise.all(
     pkgPaths.map(async (dir) => {
-      await addLinkToManifest(opts, newManifest, dir, opts.rootProjectManifestDir)
+      await addLinkToManifest(opts, newManifest, dir, opts.rootProjectManifestDir, localProtocol)
       await checkPeerDeps(dir, opts)
     })
   )
@@ -153,10 +187,16 @@ export async function handler (
   })
 }
 
-async function addLinkToManifest (opts: LinkOpts, manifest: ProjectManifest, linkedDepDir: string, manifestDir: string) {
+async function addLinkToManifest (
+  opts: LinkOpts,
+  manifest: ProjectManifest,
+  linkedDepDir: string,
+  manifestDir: string,
+  localProtocol: LocalProtocol
+) {
   const { manifest: linkedManifest } = await tryReadProjectManifest(linkedDepDir, opts)
   const linkedPkgName = linkedManifest?.name ?? path.basename(linkedDepDir)
-  const linkedPkgSpec = `link:${normalize(path.relative(manifestDir, linkedDepDir))}`
+  const linkedPkgSpec = `${localProtocol}${normalize(path.relative(manifestDir, linkedDepDir))}`
   opts.overrides = {
     ...opts.overrides,
     [linkedPkgName]: linkedPkgSpec,
