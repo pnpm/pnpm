@@ -1,0 +1,31 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../cli/utils"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../config/reader"
+    },
+    {
+      "path": "../../network/fetch"
+    },
+    {
+      "path": "../../network/web-auth"
+    }
+  ]
+}

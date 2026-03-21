@@ -111,7 +111,7 @@ export async function publishWithOtpHandling ({
       throw new OtpNonInteractiveError()
     }
 
-    const fetchOptions: OtpWebAuthFetchOptions = {
+    const fetchOptions: WebAuthFetchOptions = {
       method: 'GET',
       retry: {
         factor: publishOptions.fetchRetryFactor,
