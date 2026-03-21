@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Setup Node
-      uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+      uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
     - name: Update tag
       env:
         "npm_config_//registry.npmjs.org/:_authToken": ${{ secrets.NPM_TOKEN }}
@@ -34,7 +34,7 @@ jobs:
     environment: release
     needs: tag-in-registry
     steps:
-      - uses: vedantmgoyal9/winget-releaser@19e706d4c9121098010096f9c495a70a7518b30f # main
+      - uses: vedantmgoyal9/winget-releaser@7bd472be23763def6e16bd06cc8b1cdfab0e2fd5 # main
         with:
           identifier: pnpm.pnpm
           version: ${{ github.event.inputs.version }}
