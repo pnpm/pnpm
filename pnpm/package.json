@@ -52,7 +52,9 @@
   ],
   "bin": {
     "pnpm": "bin/pnpm.mjs",
-    "pnpx": "bin/pnpx.mjs"
+    "pnpx": "bin/pnpx.mjs",
+    "pn": "bin/pnpm.mjs",
+    "pnx": "bin/pnpx.mjs"
   },
   "directories": {
     "test": "test"

@@ -45,7 +45,10 @@
   "publishConfig": {
     "tag": "next-10",
     "bin": {
-      "pnpm": "pnpm"
+      "pnpm": "pnpm",
+      "pn": "pn",
+      "pnpx": "pnpx",
+      "pnx": "pnx"
     }
   }
 }

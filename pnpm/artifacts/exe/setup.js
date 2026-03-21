@@ -21,11 +21,21 @@ if (!fs.existsSync(bin)) process.exit(0)
 
 linkSync(bin, path.resolve(ownDir, executable))
 
+// Create pn alias (hardlink to the same binary)
+const pnExecutable = platform === 'win' ? 'pn.exe' : 'pn'
+linkSync(bin, path.resolve(ownDir, pnExecutable))
+
+// Create pnpx and pnx scripts
+createDlxScripts(ownDir, 'pnpx')
+createDlxScripts(ownDir, 'pnx')
+
 if (platform === 'win') {
   const pkgJsonPath = path.resolve(ownDir, 'package.json')
   const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
   fs.writeFileSync(path.resolve(ownDir, 'pnpm'), 'This file intentionally left blank')
+  fs.writeFileSync(path.resolve(ownDir, 'pn'), 'This file intentionally left blank')
   pkg.bin.pnpm = 'pnpm.exe'
+  pkg.bin.pn = 'pn.exe'
   fs.writeFileSync(pkgJsonPath, JSON.stringify(pkg, null, 2))
 }
 
@@ -38,4 +48,24 @@ function linkSync(src, dest) {
     }
   }
   return fs.linkSync(src, dest)
+}
+
+function createDlxScripts(dir, name) {
+  // POSIX shell script
+  const shellScript = [
+    '#!/bin/sh',
+    'exec pnpm dlx "$@"',
+  ].join('\n')
+  fs.writeFileSync(path.resolve(dir, name), shellScript, { mode: 0o755 })
+
+  if (platform === 'win') {
+    const batchScript = [
+      '@echo off',
+      'pnpm dlx %*',
+    ].join('\n')
+    fs.writeFileSync(path.resolve(dir, name + '.cmd'), batchScript)
+
+    const powershellScript = 'pnpm dlx @args'
+    fs.writeFileSync(path.resolve(dir, name + '.ps1'), powershellScript)
+  }
 }

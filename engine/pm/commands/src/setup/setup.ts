@@ -70,7 +70,7 @@ function installCliGlobally (execPath: string, pnpmHomeDir: string): void {
     fs.writeFileSync(pkgJsonPath, JSON.stringify({
       name: '@pnpm/exe',
       version: packageManager.version,
-      bin: { pnpm: execName },
+      bin: { pnpm: execName, pn: execName },
     }))
     createdPkgJson = true
   }
@@ -102,7 +102,7 @@ function installCliGlobally (execPath: string, pnpmHomeDir: string): void {
   }
 }
 
-function createPnpxScripts (targetDir: string): void {
+function createAliasScripts (targetDir: string): void {
   // Why script files instead of aliases?
   // 1. Aliases wouldn't work on all platform, such as Windows Command Prompt or POSIX `sh`.
   // 2. Aliases wouldn't work on all environments, such as non-interactive shells and CI environments.
@@ -112,22 +112,33 @@ function createPnpxScripts (targetDir: string): void {
 
   fs.mkdirSync(targetDir, { recursive: true })
 
+  createShellScript(targetDir, 'pn', 'exec pnpm "$@"')
+  createShellScript(targetDir, 'pnpx', 'exec pnpm dlx "$@"')
+  createShellScript(targetDir, 'pnx', 'exec pnpm dlx "$@"')
+}
+
+function createShellScript (targetDir: string, name: string, command: string): void {
   // windows can also use shell script via mingw or cygwin so no filter
   const shellScript = [
     '#!/bin/sh',
-    'exec pnpm dlx "$@"',
+    command,
   ].join('\n')
-  fs.writeFileSync(path.join(targetDir, 'pnpx'), shellScript, { mode: 0o755 })
+  fs.writeFileSync(path.join(targetDir, name), shellScript, { mode: 0o755 })
 
   if (process.platform === 'win32') {
+    const winCommand = command
+      .replace(/^exec /, '')
+      .replace('"$@"', '%*')
     const batchScript = [
       '@echo off',
-      'pnpm dlx %*',
+      winCommand,
     ].join('\n')
-    fs.writeFileSync(path.join(targetDir, 'pnpx.cmd'), batchScript)
+    fs.writeFileSync(path.join(targetDir, `${name}.cmd`), batchScript)
 
-    const powershellScript = 'pnpm dlx @args'
-    fs.writeFileSync(path.join(targetDir, 'pnpx.ps1'), powershellScript)
+    const psCommand = command
+      .replace(/^exec /, '')
+      .replace('"$@"', '@args')
+    fs.writeFileSync(path.join(targetDir, `${name}.ps1`), psCommand)
   }
 }
 
@@ -141,7 +152,7 @@ export async function handler (
   const binDir = path.join(opts.pnpmHomeDir, 'bin')
   if (execPath.match(/\.[cm]?js$/) == null) {
     installCliGlobally(execPath, opts.pnpmHomeDir)
-    createPnpxScripts(binDir)
+    createAliasScripts(binDir)
   }
   try {
     const report = await addDirToEnvPath(opts.pnpmHomeDir, {
