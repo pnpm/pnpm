@@ -899,7 +899,7 @@ test('deploy with a shared lockfile that has peer dependencies suffix in workspa
         'project-2': 'workspace:*',
       },
       peerDependencies: {
-        'is-negative': '>=1.0.0',
+        'is-negative': '1.0.0',
         'project-2': '*',
       },
     },
@@ -907,7 +907,7 @@ test('deploy with a shared lockfile that has peer dependencies suffix in workspa
       name: 'project-2',
       version: '0.0.0',
       peerDependencies: {
-        'is-positive': '>=1.0.0',
+        'is-positive': '1.0.0',
       },
     },
   }
