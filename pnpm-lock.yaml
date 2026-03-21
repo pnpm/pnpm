@@ -1880,9 +1880,6 @@ importers:
       '@pnpm/config.reader':
         specifier: workspace:*
         version: link:../../config/reader
-      '@pnpm/logger':
-        specifier: 'catalog:'
-        version: 1001.0.1
       '@pnpm/store.connection-manager':
         specifier: workspace:*
         version: link:../../store/connection-manager
@@ -1905,6 +1902,9 @@ importers:
       '@pnpm/building.rebuild-command':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../core/logger
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.31.1

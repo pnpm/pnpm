@@ -47,6 +47,7 @@
   },
   "devDependencies": {
     "@pnpm/building.rebuild-command": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@types/ramda": "catalog:"
   },
   "engines": {
