@@ -3513,6 +3513,9 @@ importers:
       '@pnpm/bins.linker':
         specifier: workspace:*
         version: link:../../../bins/linker
+      '@pnpm/building.policy':
+        specifier: workspace:*
+        version: link:../../../building/policy
       '@pnpm/cli.meta':
         specifier: workspace:*
         version: link:../../../cli/meta
