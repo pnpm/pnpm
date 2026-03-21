@@ -70,7 +70,7 @@ async function approveSomeBuilds (opts?: ApproveBuildsOptions) {
     build: true,
   })
 
-  await approveBuilds.handler({ ...config, ...opts })
+  await approveBuilds.handler({ ...config, ...opts }, [], {})
 }
 
 async function approveNoBuilds (opts?: ApproveBuildsOptions) {
@@ -81,7 +81,7 @@ async function approveNoBuilds (opts?: ApproveBuildsOptions) {
     result: [],
   })
 
-  await approveBuilds.handler({ ...config, ...opts })
+  await approveBuilds.handler({ ...config, ...opts }, [], {})
 }
 
 test('approve selected build', async () => {
@@ -155,7 +155,7 @@ test("works when root project manifest doesn't exist in a workspace", async () =
     result: [{ value: '@pnpm.e2e/pre-and-postinstall-scripts-example' }],
   })
   prompt.mockResolvedValueOnce({ build: true })
-  await approveBuilds.handler({ ...config, workspaceDir, rootProjectManifestDir: workspaceDir })
+  await approveBuilds.handler({ ...config, workspaceDir, rootProjectManifestDir: workspaceDir }, [], {})
 
   expect(readYamlFileSync(workspaceManifestFile)).toStrictEqual({
     packages: ['packages/*'],
@@ -203,7 +203,7 @@ test('approve all builds with --all flag', async () => {
   const config = await getApproveBuildsConfig()
 
   prompt.mockClear()
-  await approveBuilds.handler({ ...config, all: true })
+  await approveBuilds.handler({ ...config, all: true }, [], {})
 
   expect(prompt).not.toHaveBeenCalled()
 
@@ -230,7 +230,7 @@ test('approve builds via positional arguments', async () => {
   const config = await getApproveBuildsConfig()
 
   prompt.mockClear()
-  await approveBuilds.handler(config, ['@pnpm.e2e/pre-and-postinstall-scripts-example'])
+  await approveBuilds.handler(config, ['@pnpm.e2e/pre-and-postinstall-scripts-example'], {})
 
   expect(prompt).not.toHaveBeenCalled()
 
@@ -263,7 +263,7 @@ test('deny builds via !pkg positional arguments', async () => {
   await approveBuilds.handler(config, [
     '@pnpm.e2e/pre-and-postinstall-scripts-example',
     '!@pnpm.e2e/install-script-example',
-  ])
+  ], {})
 
   expect(prompt).not.toHaveBeenCalled()
 
@@ -291,7 +291,7 @@ test('deny-only via !pkg keeps other builds pending', async () => {
   prompt.mockClear()
   await approveBuilds.handler(config, [
     '!@pnpm.e2e/install-script-example',
-  ])
+  ], {})
 
   expect(prompt).not.toHaveBeenCalled()
 
@@ -319,7 +319,7 @@ test('positional arguments with unknown package throws error', async () => {
   const config = await getApproveBuildsConfig()
 
   await expect(
-    approveBuilds.handler(config, ['@pnpm.e2e/nonexistent-package'])
+    approveBuilds.handler(config, ['@pnpm.e2e/nonexistent-package'], {})
   ).rejects.toThrow('not awaiting approval')
 })
 
@@ -334,7 +334,7 @@ test('!pkg with unknown package throws error', async () => {
   const config = await getApproveBuildsConfig()
 
   await expect(
-    approveBuilds.handler(config, ['!@pnpm.e2e/nonexistent-package'])
+    approveBuilds.handler(config, ['!@pnpm.e2e/nonexistent-package'], {})
   ).rejects.toThrow('not awaiting approval')
 })
 
@@ -352,7 +352,7 @@ test('contradictory arguments throw error', async () => {
     approveBuilds.handler(config, [
       '@pnpm.e2e/pre-and-postinstall-scripts-example',
       '!@pnpm.e2e/pre-and-postinstall-scripts-example',
-    ])
+    ], {})
   ).rejects.toThrow('both approved and denied')
 })
 
@@ -367,7 +367,7 @@ test('--all with positional arguments throws error', async () => {
   const config = await getApproveBuildsConfig()
 
   await expect(
-    approveBuilds.handler({ ...config, all: true }, ['@pnpm.e2e/pre-and-postinstall-scripts-example'])
+    approveBuilds.handler({ ...config, all: true }, ['@pnpm.e2e/pre-and-postinstall-scripts-example'], {})
   ).rejects.toThrow('Cannot use --all with positional arguments')
 })
 
@@ -401,7 +401,7 @@ test('positional args preserve existing allowBuilds entries', async () => {
     allowBuilds: {
       '@pnpm.e2e/existing-package': true,
     },
-  }, ['@pnpm.e2e/pre-and-postinstall-scripts-example'])
+  }, ['@pnpm.e2e/pre-and-postinstall-scripts-example'], {})
 
   const manifest = readYamlFileSync<any>(workspaceManifestFile) // eslint-disable-line
   expect(manifest.allowBuilds['@pnpm.e2e/existing-package']).toBe(true)
@@ -449,7 +449,7 @@ test('should retain existing allowBuilds entries when approving builds', async (
       '@pnpm.e2e/test': false,
       '@pnpm.e2e/install-script-example': true,
     },
-  })
+  }, [], {})
 
   expect(readYamlFileSync(workspaceManifestFile)).toStrictEqual({
     packages: ['packages/*'],
