@@ -117,7 +117,7 @@ export async function login ({
 
   await saveToken(registry, token, opts)
 
-  return `Logged in as ... on ${registry}`
+  return `Logged in on ${registry}`
 }
 
 async function webLogin (
