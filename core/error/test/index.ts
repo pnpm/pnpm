@@ -1,4 +1,22 @@
-import { FetchError } from '@pnpm/error'
+import { FetchError, PnpmError } from '@pnpm/error'
+
+test('PnpmError exposes cause when provided', () => {
+  const cause = new Error('original failure')
+  const error = new PnpmError('TEST_CODE', 'something went wrong', { cause })
+  expect(error.cause).toBe(cause)
+  expect(error.message).toBe('something went wrong')
+  expect(error.code).toBe('ERR_PNPM_TEST_CODE')
+})
+
+test('PnpmError cause is undefined when omitted', () => {
+  const error = new PnpmError('TEST_CODE', 'something went wrong')
+  expect(error.cause).toBeUndefined()
+})
+
+test('PnpmError cause works with non-Error values', () => {
+  const error = new PnpmError('TEST_CODE', 'something went wrong', { cause: 'string cause' })
+  expect(error.cause).toBe('string cause')
+})
 
 test('FetchError escapes auth tokens', () => {
   const error = new FetchError(

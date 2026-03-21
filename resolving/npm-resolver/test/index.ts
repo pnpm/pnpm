@@ -9,7 +9,6 @@ import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import {
   createNpmResolver,
   NoMatchingVersionError,
-  type RegistryPackageSpec,
   RegistryResponseError,
 } from '@pnpm/resolving.npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -867,19 +866,18 @@ test('error is thrown when registry not responding', async () => {
     },
   })
 
-  const expectedErrorMessage = `request to ${notExistingRegistry}/${notExistingPackage} failed, reason: getaddrinfo ENOTFOUND not-existing.pnpm.io`
-  const expectedError = new PnpmError('META_FETCH_FAIL', `GET ${notExistingRegistry}/${notExistingPackage}: ${expectedErrorMessage}`, {
-    attempts: 1,
-    cause: { code: 'ENOTFOUND', errno: 'ENOTFOUND', erroredSysCall: 'getaddrinfo', message: expectedErrorMessage, type: 'system' },
-  });
-  (expectedError as unknown as { spec: RegistryPackageSpec }).spec = {
-    fetchSpec: '1.0.0',
-    name: notExistingPackage,
-    type: 'version',
+  let thrown: any // eslint-disable-line
+  try {
+    await resolveFromNpm({ alias: notExistingPackage, bareSpecifier: '1.0.0' }, {})
+  } catch (err) {
+    thrown = err
   }
-
-  await expect(resolveFromNpm({ alias: notExistingPackage, bareSpecifier: '1.0.0' }, {})).rejects
-    .toThrow(expectedError)
+  expect(thrown).toBeTruthy()
+  expect(thrown.code).toBe('ERR_PNPM_META_FETCH_FAIL')
+  expect(thrown.message).toContain(`GET ${notExistingRegistry}/${notExistingPackage}:`)
+  expect(thrown.message).toContain('ENOTFOUND')
+  expect(thrown.cause).toBeTruthy()
+  expect(thrown.cause.code).toBe('ENOTFOUND')
 })
 
 test('extra info is shown if package has valid semver appended', async () => {
@@ -1974,16 +1972,18 @@ test('request to a package with no dist-tags', async () => {
     registries,
   })
 
-  const expectedError = new PnpmError('MALFORMED_METADATA', 'Received malformed metadata for "is-positive"', {
-    hint: 'This might mean that the package was unpublished from the registry',
-    cause: {
-      message: "Cannot read properties of undefined (reading 'latest')",
-    },
-  });
-  (expectedError as unknown as { spec: RegistryPackageSpec }).spec = { fetchSpec: 'latest', name: 'is-positive', type: 'tag' }
-
-  await expect(resolveFromNpm({ alias: 'is-positive' }, {})).rejects
-    .toThrow(expectedError)
+  let thrown: any // eslint-disable-line
+  try {
+    await resolveFromNpm({ alias: 'is-positive' }, {})
+  } catch (err) {
+    thrown = err
+  }
+  expect(thrown).toBeTruthy()
+  expect(thrown.code).toBe('ERR_PNPM_MALFORMED_METADATA')
+  expect(thrown.message).toBe('Received malformed metadata for "is-positive"')
+  expect(thrown.hint).toBe('This might mean that the package was unpublished from the registry')
+  expect(thrown.cause).toBeTruthy()
+  expect(thrown.cause.message).toContain("Cannot read properties of undefined (reading 'latest')")
 })
 
 test('resolveFromNpm() does not fail if the meta file contains no integrity information', async () => {
