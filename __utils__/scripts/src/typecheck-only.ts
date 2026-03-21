@@ -99,16 +99,17 @@ function resolveThreadingMode (repoRoot: string): boolean {
 }
 
 function readThreadingMode (repoRoot: string): { mode: string, source: string } {
-  const envValue = process.env.PNPM_TYPECHECK_THREADING
-  if (envValue != null) {
+  const envValue = process.env.PNPM_TYPECHECK_THREADING?.trim().toLowerCase()
+  if (envValue) {
     return { mode: envValue, source: 'PNPM_TYPECHECK_THREADING env var' }
   }
 
   const configPath = path.join(repoRoot, '.pnpm-typecheck.json')
   if (fs.existsSync(configPath)) {
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-    if (config.threading) {
-      return { mode: config.threading, source: configPath }
+    const threading = typeof config.threading === 'string' ? config.threading.trim().toLowerCase() : ''
+    if (threading) {
+      return { mode: threading, source: configPath }
     }
   }
 
