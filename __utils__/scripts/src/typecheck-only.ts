@@ -54,8 +54,14 @@ async function main (): Promise<void> {
     JSON.stringify(typeCheckTSConfig, undefined, 2)
   )
 
-  console.log('Running tsgo --build...')
-  execa('tsgo', ['--build', '--singleThreaded', typeCheckDir], {
+  const singleThreaded = process.env.PNPM_TYPECHECK_SINGLE_THREADED !== 'false'
+  const args = ['--build']
+  if (singleThreaded) {
+    args.push('--singleThreaded')
+  }
+  args.push(typeCheckDir)
+  console.log(`Running tsgo --build${singleThreaded ? ' --singleThreaded' : ''}...`)
+  execa('tsgo', args, {
     // The INIT_CWD variable is populated by package managers and points towards
     // the user's original working directory. It's more useful to run TypeScript
     // from the user's actual working directory so any type checking errors can
