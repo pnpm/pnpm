@@ -79,6 +79,7 @@ async function main (): Promise<void> {
   console.log('Running tsgo build done')
 }
 
+const BYTES_PER_GB = 1024 ** 3
 const AUTO_SINGLE_THREAD_MEMORY_THRESHOLD_GB = 8
 
 function resolveThreadingMode (repoRoot: string): boolean {
@@ -89,7 +90,7 @@ function resolveThreadingMode (repoRoot: string): boolean {
     case 'multi-threaded':
       return false
     case 'auto':
-      return os.totalmem() / (1024 ** 3) < AUTO_SINGLE_THREAD_MEMORY_THRESHOLD_GB
+      return os.totalmem() / BYTES_PER_GB < AUTO_SINGLE_THREAD_MEMORY_THRESHOLD_GB
     default:
       throw new Error(
         `Invalid threading mode "${mode}" from ${source}. ` +
