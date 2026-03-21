@@ -101,16 +101,24 @@ export async function linkBinsOfPackages (
   pkgs: Array<{
     manifest: DependencyManifest
     location: string
+    warnOnMissingBin?: boolean
   }>,
   binsTarget: string,
   opts: LinkBinOptions & { excludeBins?: Set<string> } = {}
 ): Promise<string[]> {
+  opts = { warnOnMissingBin: true, ...opts }
   if (pkgs.length === 0) return []
 
   let allCmds = unnest(
     (await Promise.all(
       pkgs
-        .map(async (pkg) => getPackageBinsFromManifest(pkg.manifest, pkg.location))
+        .map(async (pkg) => {
+          const cmds = await getPackageBinsFromManifest(pkg.manifest, pkg.location)
+          if (pkg.warnOnMissingBin !== undefined) {
+            return cmds.map((cmd) => ({ ...cmd, warnOnMissingBin: pkg.warnOnMissingBin }))
+          }
+          return cmds
+        })
     ))
       .filter((cmds: Command[]) => cmds.length)
   )
@@ -128,6 +136,7 @@ interface CommandInfo extends Command {
   pkgVersion: string
   makePowerShellShim: boolean
   nodeExecPath?: string
+  warnOnMissingBin?: boolean
 }
 
 async function _linkBins (
@@ -285,6 +294,13 @@ function runtimeHasNodeDownloaded (runtime: EngineDependency | EngineDependency[
 export interface LinkBinOptions {
   extraNodePaths?: string[]
   preferSymlinkedExecutables?: boolean
+  /**
+   * When false, suppresses the globalWarn emitted when a bin target file does
+   * not exist yet. Use this for workspace packages whose bin files are produced
+   * by a build step that has not run yet (e.g. TypeScript output in dist/).
+   * Defaults to true to preserve existing behaviour.
+   */
+  warnOnMissingBin?: boolean
 }
 
 async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions): Promise<void> {
@@ -326,7 +342,9 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
       if (err.code !== 'ENOENT' && err.code !== 'EISDIR') {
         throw err
       }
-      globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
+      if (cmd.warnOnMissingBin !== false && opts?.warnOnMissingBin !== false) {
+        globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
+      }
     }
     return
   }
@@ -353,7 +371,9 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
     })
   } catch (err: any) { // eslint-disable-line
     if (err.code === 'ENOENT' || err.code === 'EISDIR') {
-      globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
+      if (cmd.warnOnMissingBin !== false && opts?.warnOnMissingBin !== false) {
+        globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
+      }
       return
     }
     // On Windows, EPERM during bin creation can happen when another process

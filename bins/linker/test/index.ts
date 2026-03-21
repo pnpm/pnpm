@@ -527,6 +527,80 @@ test("linkBins() emits global warning when bin points to path that doesn't exist
   ).toHaveBeenCalled()
 })
 
+test("linkBinsOfPackages() emits global warning when bin points to path that doesn't exist (default behavior)", async () => {
+  const binTarget = temporaryDirectory()
+  const binNotExistFixture = f.prepare('bin-not-exist')
+
+  await linkBinsOfPackages(
+    [
+      {
+        location: path.join(binNotExistFixture, 'node_modules/foo'),
+        manifest: {
+          name: 'meow',
+          version: '1.0.0',
+          bin: 'dist/not-exist.js',
+        },
+      },
+    ],
+    binTarget
+  )
+
+  expect(globalWarn).toHaveBeenCalled()
+})
+
+test("linkBinsOfPackages() does not emit global warning when bin points to path that doesn't exist and warnOnMissingBin is false", async () => {
+  const binTarget = temporaryDirectory()
+
+  await linkBinsOfPackages(
+    [
+      {
+        location: path.join(temporaryDirectory(), 'my-workspace-pkg'),
+        manifest: {
+          name: 'my-cli',
+          version: '1.0.0',
+          bin: 'dist/cli.js',
+        },
+      },
+    ],
+    binTarget,
+    { warnOnMissingBin: false }
+  )
+
+  expect(globalWarn).not.toHaveBeenCalled()
+})
+
+test('linkBinsOfPackages() per-package warnOnMissingBin: false suppresses only that package in a mixed call', async () => {
+  const binTarget = temporaryDirectory()
+
+  // Both packages have missing bin targets, but only the second one has the
+  // per-package flag set. The warning should fire once (for the first package)
+  // and not fire for the second, proving per-package scoping in a single call.
+  await linkBinsOfPackages(
+    [
+      {
+        location: path.join(temporaryDirectory(), 'regular-pkg'),
+        manifest: {
+          name: 'regular-pkg',
+          version: '1.0.0',
+          bin: 'dist/cli.js', // missing — should warn
+        },
+      },
+      {
+        location: path.join(temporaryDirectory(), 'link-pkg'),
+        manifest: {
+          name: 'link-pkg',
+          version: '1.0.0',
+          bin: 'dist/cli.js', // missing — should NOT warn
+        },
+        warnOnMissingBin: false,
+      },
+    ],
+    binTarget
+  )
+
+  expect(globalWarn).toHaveBeenCalledTimes(1)
+})
+
 testOnWindows('linkBins() should remove an existing .exe file from the target directory', async () => {
   const binTarget = temporaryDirectory()
   fs.writeFileSync(path.join(binTarget, 'simple.exe'), '', 'utf8')

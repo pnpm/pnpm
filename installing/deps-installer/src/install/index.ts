@@ -1495,29 +1495,41 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           warn: binWarn.bind(null, project.rootDir),
         })
       } else {
+        // Regular npm dependencies resolved from the virtual store.
+        const regularDeps = props<DepPath, DependenciesGraphNode>(
+          Array.from(dependenciesByProjectId[project.id].values()).filter((depPath) => !ctx.skipped.has(depPath)),
+          dependenciesGraph
+        )
+        // Local link: protocol dependencies (including workspace packages). Their
+        // bin targets may point to build artifacts (e.g. dist/cli.js) that don't
+        // exist yet on a clean install, so we suppress the missing-bin warning for
+        // them via a per-package flag so conflict resolution still works across
+        // both groups in a single linkBinsOfPackages call.
+        const linkedDeps = linkedDependenciesByProjectId[project.id].map(({ pkgId }) => ({
+          dir: path.join(project.rootDir, pkgId.substring(5)),
+        }))
+
         const directPkgs = [
-          ...props<DepPath, DependenciesGraphNode>(
-            Array.from(dependenciesByProjectId[project.id].values()).filter((depPath) => !ctx.skipped.has(depPath)),
-            dependenciesGraph
-          ),
-          ...linkedDependenciesByProjectId[project.id].map(({ pkgId }) => ({
-            dir: path.join(project.rootDir, pkgId.substring(5)),
-            fetching: undefined,
-          })),
-        ]
-        linkedPackages = await linkBinsOfPackages(
-          (
+          ...(
             await Promise.all(
-              directPkgs.map(async (dep) => {
+              regularDeps.map(async (dep) => {
                 const manifest = (await dep.fetching?.())?.bundledManifest ?? await safeReadProjectManifestOnly(dep.dir)
-                return {
-                  location: dep.dir,
-                  manifest,
-                }
+                return { location: dep.dir, manifest }
               })
             )
-          )
-            .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
+          ).filter(({ manifest }) => manifest != null),
+          ...(
+            await Promise.all(
+              linkedDeps.map(async (dep) => {
+                const manifest = await safeReadProjectManifestOnly(dep.dir)
+                return { location: dep.dir, manifest, warnOnMissingBin: false }
+              })
+            )
+          ).filter(({ manifest }) => manifest != null),
+        ] as Array<{ location: string, manifest: DependencyManifest, warnOnMissingBin?: boolean }>
+
+        linkedPackages = await linkBinsOfPackages(
+          directPkgs,
           project.binsDir,
           {
             extraNodePaths: ctx.extraNodePaths,
