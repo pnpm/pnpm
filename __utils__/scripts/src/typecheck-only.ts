@@ -93,7 +93,7 @@ function resolveThreadingMode (repoRoot: string): boolean {
     default:
       throw new Error(
         `Invalid threading mode "${mode}" from ${source}. ` +
-        `Valid values: auto, single-threaded, multi-threaded.`
+        'Valid values: auto, single-threaded, multi-threaded.'
       )
   }
 }
