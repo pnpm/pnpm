@@ -298,6 +298,7 @@ export async function handler (
     return installDeps({
       ...opts,
       allowBuilds: mergedAllowBuilds,
+      rebuildHandler: commands?.rebuild,
       fetchFullMetadata: getFetchFullMetadata(opts),
       include,
       includeDirect: include,
@@ -305,6 +306,7 @@ export async function handler (
   }
   return installDeps({
     ...opts,
+    rebuildHandler: commands?.rebuild,
     fetchFullMetadata: getFetchFullMetadata(opts),
     include,
     includeDirect: include,

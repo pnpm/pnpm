@@ -1,4 +1,4 @@
-import type { CommandHandlerMap, CompletionFunc } from '@pnpm/cli.command'
+import type { CommandHandler, CommandHandlerMap, CompletionFunc } from '@pnpm/cli.command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import {
   docsUrl,
@@ -179,15 +179,17 @@ export async function handler (
     }
     return handleGlobalUpdate(opts, params, commands ?? {})
   }
+  const rebuildHandler = commands?.rebuild
   if (opts.interactive) {
-    return interactiveUpdate(params, opts)
+    return interactiveUpdate(params, opts, rebuildHandler)
   }
-  return update(params, opts) as Promise<undefined>
+  return update(params, opts, rebuildHandler) as Promise<undefined>
 }
 
 async function interactiveUpdate (
   input: string[],
-  opts: UpdateCommandOptions
+  opts: UpdateCommandOptions,
+  rebuildHandler?: CommandHandler
 ): Promise<string | undefined> {
   const include = makeIncludeDependenciesFromCLI(opts.cliOptions)
   const projects = (opts.selectedProjectsGraph != null)
@@ -277,12 +279,13 @@ async function interactiveUpdate (
   } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
 
   const updatePkgNames = pluck('value', updateDependencies as ChoiceRow[])
-  return update(updatePkgNames, opts) as Promise<undefined>
+  return update(updatePkgNames, opts, rebuildHandler) as Promise<undefined>
 }
 
 async function update (
   dependencies: string[],
-  opts: UpdateCommandOptions
+  opts: UpdateCommandOptions,
+  rebuildHandler?: CommandHandler
 ): Promise<void> {
   if (opts.latest) {
     const dependenciesWithTags = dependencies.filter((name) => parseUpdateParam(name).versionSpec != null)
@@ -308,6 +311,7 @@ async function update (
   }
   return installDeps({
     ...opts,
+    rebuildHandler,
     allowNew: false,
     depth,
     ignoreCurrentSpecifiers: false,
