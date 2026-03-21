@@ -1,6 +1,6 @@
 # pnpm
 
-## 11.0.0-beta.0
+## 11.0.0-beta.1
 
 ### Major Changes
 
@@ -145,6 +145,8 @@
   - `pnpm link` (no arguments) is removed. Use `pnpm link <dir>` with an explicit path instead.
 
 - Do not exclude the root workspace project, when it is explicitly selected via a filter [#10465](https://github.com/pnpm/pnpm/pull/10465).
+- Stop falling back to the npm CLI. Commands that were previously passed through to npm (`access`, `adduser`, `bugs`, `deprecate`, `dist-tag`, `docs`, `edit`, `find`, `home`, `info`, `issues`, `login`, `logout`, `owner`, `ping`, `prefix`, `profile`, `pkg`, `repo`, `search`, `set-script`, `show`, `star`, `stars`, `team`, `token`, `unpublish`, `unstar`, `version`, `view`, `whoami`, `xmas`) and their aliases (`s`, `se`, `v`) now throw a "not implemented" error with a suggestion to use the npm CLI directly [#10642](https://github.com/pnpm/pnpm/pull/10642).
+- Store globally installed binaries in a `bin` subdirectory of `PNPM_HOME` instead of directly in `PNPM_HOME`. This prevents internal directories like `global/` and `store/` from polluting shell autocompletion when `PNPM_HOME` is on PATH [#10986](https://github.com/pnpm/pnpm/issues/10986). After upgrading, run `pnpm setup` to update your shell configuration.
 
 ### Minor Changes
 
@@ -154,6 +156,7 @@
 - Added `pnpm clean` command that safely removes `node_modules` directories from all workspace projects [#10707](https://github.com/pnpm/pnpm/issues/10707). Use `--lockfile` to also remove `pnpm-lock.yaml` files.
 - Added a new command `pnpm runtime set <runtime name> <runtime version spec> [-g]` for installing runtimes. Deprecated `pnpm env use` in favor of the new command.
 - Add the ability to fix vulnerabilities by updating packages in the lockfile instead of adding overrides. Use `pnpm audit --fix=update` [#10341](https://github.com/pnpm/pnpm/pull/10341).
+- Added `pnpm ci` command for clean installs [#6100](https://github.com/pnpm/pnpm/issues/6100). The command runs `pnpm clean` followed by `pnpm install --frozen-lockfile`. Designed for CI/CD environments where reproducible builds are critical. Aliases: `pnpm clean-install`, `pnpm ic`, `pnpm install-clean` [#11003](https://github.com/pnpm/pnpm/pull/11003).
 
 #### Configuration
 
@@ -184,6 +187,9 @@
 #### CLI & Other
 
 - Added `-F` as a short alias for the `--filter` option.
+- Added support for hidden scripts. Scripts starting with `.` are hidden and cannot be run directly via `pnpm run`. They can only be called from other scripts. Hidden scripts are also omitted from the `pnpm run` listing [#11041](https://github.com/pnpm/pnpm/pull/11041).
+- Allow `pnpm approve-builds` to receive positional arguments for approving or denying packages without the interactive prompt. Prefix a package name with `!` to deny it. Only mentioned packages are affected; the rest are left untouched [#11030](https://github.com/pnpm/pnpm/pull/11030).
+- During install, packages with ignored builds that are not yet listed in `allowBuilds` are automatically added to `pnpm-workspace.yaml` with a placeholder value, so users can manually set them to `true` or `false` [#11030](https://github.com/pnpm/pnpm/pull/11030).
 
 ### Patch Changes
 
@@ -197,6 +203,8 @@
 - Fix a bug in which specifying `filter` on `pnpm-workspace.yaml` would cause pnpm to not detect any projects.
 - Defer patch errors until all patches in a group are applied, so that one failed patch does not prevent other patches from being attempted.
 - Fail on incompatible lockfiles in CI when frozen lockfile mode is enabled [#10978](https://github.com/pnpm/pnpm/pull/10978).
+- Fixed `strictDepBuilds` and `allowBuilds` checks being bypassed when a package's build side-effects are cached in the store [#11039](https://github.com/pnpm/pnpm/pull/11039).
+- In GVS mode, `pnpm approve-builds` now runs a full install instead of rebuild, ensuring that GVS hash directories and symlinks are updated correctly after changing `allowBuilds` [#11043](https://github.com/pnpm/pnpm/pull/11043).
 
 ## 10.20.0
 
