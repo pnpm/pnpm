@@ -5,7 +5,6 @@ import path from 'node:path'
 import { detectIfCurrentPkgIsExecutable, packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
 import { logger } from '@pnpm/logger'
-import PATH from 'path-name'
 import {
   addDirToEnvPath,
   type ConfigReport,
