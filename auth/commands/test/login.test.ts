@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals'
 
-import { login, type LoginContext } from '../src/login.js'
+import { DEFAULT_CONTEXT, login, type LoginContext } from '../src/login.js'
 
 const DEFAULT_OPTS = {
   configDir: '/tmp/test-config',
@@ -17,8 +17,12 @@ const INTERACTIVE: Partial<LoginContext> = {
 describe('login', () => {
   it('should throw in non-interactive terminal', async () => {
     await expect(
-      login(DEFAULT_OPTS, {
-        process: { stdin: { isTTY: false }, stdout: { isTTY: true } },
+      login({
+        opts: DEFAULT_OPTS,
+        context: {
+          ...DEFAULT_CONTEXT,
+          process: { stdin: { isTTY: false }, stdout: { isTTY: true } },
+        },
       })
     ).rejects.toThrow('The login command requires an interactive terminal')
   })
@@ -26,9 +30,10 @@ describe('login', () => {
   it('should use web login when registry supports it', async () => {
     const tmpDir = `/tmp/pnpm-login-test-${Date.now()}`
 
-    const result = await login(
-      { ...DEFAULT_OPTS, configDir: tmpDir },
-      {
+    const result = await login({
+      opts: { ...DEFAULT_OPTS, configDir: tmpDir },
+      context: {
+        ...DEFAULT_CONTEXT,
         ...INTERACTIVE,
         setTimeout: (cb) => {
           cb()
@@ -43,6 +48,7 @@ describe('login', () => {
                 doneUrl: 'https://registry.npmjs.org/auth/done',
               }),
               text: async () => '',
+              headers: { get: () => null },
             }
           }
           if (url.includes('/auth/done')) {
@@ -54,10 +60,10 @@ describe('login', () => {
               headers: { get: () => null },
             }
           }
-          return { ok: false, status: 404, json: async () => ({}), text: async () => '' }
+          return { ok: false, status: 404, json: async () => ({}), text: async () => '', headers: { get: () => null } }
         },
-      }
-    )
+      },
+    })
 
     expect(result).toContain('Logged in')
 
@@ -68,9 +74,10 @@ describe('login', () => {
   it('should fall back to classic login when web login returns 404', async () => {
     const tmpDir = `/tmp/pnpm-login-test-${Date.now()}`
 
-    const result = await login(
-      { ...DEFAULT_OPTS, configDir: tmpDir },
-      {
+    const result = await login({
+      opts: { ...DEFAULT_OPTS, configDir: tmpDir },
+      context: {
+        ...DEFAULT_CONTEXT,
         ...INTERACTIVE,
         fetch: async (url: string) => {
           if (url.includes('/-/v1/login')) {
@@ -79,6 +86,7 @@ describe('login', () => {
               status: 404,
               json: async () => ({}),
               text: async () => 'Not Found',
+              headers: { get: () => null },
             }
           }
           if (url.includes('org.couchdb.user')) {
@@ -87,18 +95,21 @@ describe('login', () => {
               status: 201,
               json: async () => ({ ok: true, token: 'classic-token-456' }),
               text: async () => '',
+              headers: { get: () => null },
             }
           }
-          return { ok: false, status: 500, json: async () => ({}), text: async () => '' }
+          return { ok: false, status: 500, json: async () => ({}), text: async () => '', headers: { get: () => null } }
         },
-        prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
-          if (opts.name === 'username') return { username: 'john' }
-          if (opts.name === 'password') return { password: 'secret' }
-          if (opts.name === 'email') return { email: 'john@example.com' }
-          return {}
+        enquirer: {
+          prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
+            if (opts.name === 'username') return { username: 'john' }
+            if (opts.name === 'password') return { password: 'secret' }
+            if (opts.name === 'email') return { email: 'john@example.com' }
+            return {}
+          },
         },
-      }
-    )
+      },
+    })
 
     expect(result).toContain('Logged in')
 

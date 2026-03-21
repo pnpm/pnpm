@@ -5,7 +5,7 @@ import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
-import { type AgentOptions, fetchWithAgent } from '@pnpm/network.fetch'
+import { fetch } from '@pnpm/network.fetch'
 import { generateQrCode, pollForWebAuthToken, type WebAuthFetchOptions, type WebAuthFetchResponse } from '@pnpm/network.web-auth'
 import enquirer from 'enquirer'
 import normalizeRegistryUrl from 'normalize-registry-url'
@@ -45,8 +45,6 @@ export function help (): string {
 }
 
 export type LoginCommandOptions = Pick<Config,
-| 'ca'
-| 'cert'
 | 'configDir'
 | 'dir'
 | 'fetchRetries'
@@ -54,14 +52,7 @@ export type LoginCommandOptions = Pick<Config,
 | 'fetchRetryMaxtimeout'
 | 'fetchRetryMintimeout'
 | 'fetchTimeout'
-| 'httpProxy'
-| 'httpsProxy'
-| 'key'
-| 'localAddress'
-| 'noProxy'
 | 'rawConfig'
-| 'strictSsl'
-| 'userAgent'
 > & {
   registry?: string
 }
@@ -69,7 +60,7 @@ export type LoginCommandOptions = Pick<Config,
 export async function handler (
   opts: LoginCommandOptions
 ): Promise<string> {
-  return login(opts)
+  return login({ opts })
 }
 
 /**
@@ -82,65 +73,61 @@ export interface LoginFetchOptions extends Omit<WebAuthFetchOptions, 'method'> {
   body?: string
 }
 
-export interface LoginFetchResponse extends WebAuthFetchResponse {
+export interface LoginFetchResponse {
+  readonly ok: boolean
+  readonly status: number
+  readonly json: () => Promise<unknown>
   readonly text: () => Promise<string>
+  readonly headers: { get: (name: string) => string | null }
 }
 
 export interface LoginContext {
   Date: { now: () => number }
   setTimeout: (cb: () => void, ms: number) => void
+  enquirer: { prompt: (options: { message: string, name: string, type: string }) => Promise<Record<string, string>> }
   fetch: (url: string, options: LoginFetchOptions) => Promise<LoginFetchResponse>
-  prompt: (options: { message: string, name: string, type: string }) => Promise<Record<string, string>>
+  globalInfo: (message: string) => void
   process: Record<'stdin' | 'stdout', { isTTY?: boolean }>
 }
 
-async function defaultPrompt (options: { message: string, name: string, type: string }): Promise<Record<string, string>> {
-  return enquirer.prompt(options as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
+export const DEFAULT_CONTEXT: LoginContext = {
+  Date,
+  setTimeout,
+  enquirer,
+  fetch,
+  globalInfo,
+  process,
 }
 
-function createDefaultContext (opts: LoginCommandOptions): LoginContext {
-  const agentOptions: AgentOptions = {
-    ca: opts.ca,
-    cert: typeof opts.cert === 'string' ? opts.cert : opts.cert?.join('\n'),
-    httpProxy: opts.httpProxy,
-    httpsProxy: opts.httpsProxy,
-    key: opts.key,
-    localAddress: opts.localAddress,
-    noProxy: opts.noProxy,
-    strictSsl: opts.strictSsl ?? true,
-  }
+export interface LoginParams {
+  context?: LoginContext
+  opts: LoginCommandOptions
+}
 
-  return {
+export async function login ({
+  context: {
     Date,
     setTimeout,
-    fetch: (url, fetchOptions) => fetchWithAgent(url, { ...fetchOptions, agentOptions }),
-    prompt: defaultPrompt,
+    enquirer,
+    fetch,
+    globalInfo,
     process,
-  }
-}
-
-export async function login (
-  opts: LoginCommandOptions,
-  context?: Partial<LoginContext>
-): Promise<string> {
+  } = DEFAULT_CONTEXT,
+  opts,
+}: LoginParams): Promise<string> {
   const registry = normalizeRegistryUrl(opts.registry ?? 'https://registry.npmjs.org/')
 
-  const ctx: LoginContext = {
-    ...createDefaultContext(opts),
-    ...context,
-  }
-
-  if (!ctx.process.stdin.isTTY || !ctx.process.stdout.isTTY) {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
     throw new PnpmError('LOGIN_NON_INTERACTIVE', 'The login command requires an interactive terminal')
   }
 
   // Try web-based login first, fall back to classic login
   let token: string
   try {
-    token = await webLogin(registry, opts, ctx)
+    token = await webLogin(registry, opts, { Date, setTimeout, fetch, globalInfo })
   } catch (err) {
     if (isWebLoginNotSupported(err)) {
-      token = await classicLogin(registry, ctx)
+      token = await classicLogin(registry, { enquirer, fetch, globalInfo })
     } else {
       throw err
     }
@@ -154,11 +141,11 @@ export async function login (
 async function webLogin (
   registry: string,
   opts: LoginCommandOptions,
-  context: LoginContext
+  { Date, setTimeout, fetch, globalInfo }: Pick<LoginContext, 'Date' | 'setTimeout' | 'fetch' | 'globalInfo'>
 ): Promise<string> {
   const loginUrl = new URL('-/v1/login', registry).href
 
-  const response = await context.fetch(loginUrl, {
+  const response = await fetch(loginUrl, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -198,26 +185,26 @@ async function webLogin (
   // The cast is needed because WebAuthFetchResponse uses `this: this` on its
   // methods, which makes the types nominally incompatible despite being
   // structurally sound.
-  const webAuthFetch = context.fetch as unknown as (url: string, options: WebAuthFetchOptions) => Promise<WebAuthFetchResponse>
+  const webAuthFetch = fetch as unknown as (url: string, options: WebAuthFetchOptions) => Promise<WebAuthFetchResponse>
 
-  return pollForWebAuthToken(body.doneUrl, { ...context, fetch: webAuthFetch }, fetchOptions)
+  return pollForWebAuthToken(body.doneUrl, { Date, setTimeout, fetch: webAuthFetch }, fetchOptions)
 }
 
 async function classicLogin (
   registry: string,
-  context: LoginContext
+  { enquirer, fetch, globalInfo }: Pick<LoginContext, 'enquirer' | 'fetch' | 'globalInfo'>
 ): Promise<string> {
-  const { username } = await context.prompt({
+  const { username } = await enquirer.prompt({
     message: 'Username:',
     name: 'username',
     type: 'input',
   })
-  const { password } = await context.prompt({
+  const { password } = await enquirer.prompt({
     message: 'Password:',
     name: 'password',
     type: 'password',
   })
-  const { email } = await context.prompt({
+  const { email } = await enquirer.prompt({
     message: 'Email (this IS public):',
     name: 'email',
     type: 'input',
@@ -229,7 +216,7 @@ async function classicLogin (
 
   const loginUrl = new URL(`-/user/org.couchdb.user:${encodeURIComponent(username)}`, registry).href
 
-  const response = await context.fetch(loginUrl, {
+  const response = await fetch(loginUrl, {
     method: 'PUT',
     headers: {
       'content-type': 'application/json',
@@ -265,8 +252,6 @@ async function classicLogin (
 
 function getRegistryConfigKey (registryUrl: string): string {
   const url = new URL(registryUrl)
-  // The npmrc convention for registry-scoped config is: //<host>[:<port>]/<pathname>
-  // e.g., //registry.npmjs.org/:_authToken=xxx
   return `//${url.host}${url.pathname}`
 }
 
