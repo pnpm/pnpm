@@ -10,6 +10,7 @@ import {
   type ConfigReport,
   type PathExtenderReport,
 } from '@pnpm/os.env.path-extender'
+import PATH from 'path-name'
 import { renderHelp } from 'render-help'
 
 export const rcOptionsTypes = (): Record<string, unknown> => ({})
@@ -80,11 +81,13 @@ function installCliGlobally (execPath: string, pnpmHomeDir: string): void {
   })
 
   try {
+    const binDir = path.join(pnpmHomeDir, 'bin')
     const { status, error } = spawnSync(execPath, ['add', '-g', `file:${execDir}`], {
       stdio: 'inherit',
       env: {
         ...process.env,
         PNPM_HOME: pnpmHomeDir,
+        [PATH]: `${binDir}${path.delimiter}${process.env[PATH] ?? ''}`,
       },
     })
 

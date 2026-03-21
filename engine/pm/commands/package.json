@@ -50,6 +50,7 @@
     "@pnpm/store.controller": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
+    "path-name": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:",
     "semver": "catalog:",

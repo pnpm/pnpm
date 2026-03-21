@@ -3524,6 +3524,9 @@ importers:
       '@pnpm/workspace.project-manifest-reader':
         specifier: workspace:*
         version: link:../../../workspace/project-manifest-reader
+      path-name:
+        specifier: 'catalog:'
+        version: 1.0.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
