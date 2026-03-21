@@ -69,15 +69,17 @@ if (/^\d+$/.test(arg)) {
   }
 }
 
-// Symlink .claude into the new worktree, pointing at the bare repo's git common
-// dir so all worktrees share the same Claude Code settings and approved commands.
+// Symlink shared directories into the new worktree, pointing at the bare repo's
+// git common dir so all worktrees share the same settings without duplication.
 const gitCommonDir = execSync('git rev-parse --git-common-dir', { encoding: 'utf8', cwd: repoRoot }).trim()
-const sharedClaudeDir = path.resolve(repoRoot, gitCommonDir, '.claude')
-const newClaudeDir = path.join(worktreePath, '.claude')
-fs.mkdirSync(sharedClaudeDir, { recursive: true })
-if (!fs.existsSync(newClaudeDir)) {
-  // 'junction' works without elevated privileges on Windows; ignored on Unix
-  fs.symlinkSync(sharedClaudeDir, newClaudeDir, 'junction')
+for (const dir of ['.claude', '.local-settings']) {
+  const sharedDir = path.resolve(repoRoot, gitCommonDir, dir)
+  const newDir = path.join(worktreePath, dir)
+  fs.mkdirSync(sharedDir, { recursive: true })
+  if (!fs.existsSync(newDir)) {
+    // 'junction' works without elevated privileges on Windows; ignored on Unix
+    fs.symlinkSync(sharedDir, newDir, 'junction')
+  }
 }
 
 // Print path to stdout — allows: cd $(pnpm worktree:new <arg>)

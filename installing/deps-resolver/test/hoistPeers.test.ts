@@ -96,6 +96,21 @@ test('hoistPeers handles workspace: protocol range without throwing', () => {
   })
 })
 
+// Regression test for https://github.com/pnpm/pnpm/pull/11048
+test('hoistPeers handles version selector with weight', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      foo: {
+        '1.0.0': { selectorType: 'version', weight: 1 },
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['foo', { range: '1' }]])).toStrictEqual({
+    foo: '1.0.0',
+  })
+})
+
 test('getHoistableOptionalPeers only picks a version that satisfies all optional ranges', () => {
   expect(getHoistableOptionalPeers({
     foo: ['2', '2.1'],
