@@ -4505,6 +4505,9 @@ importers:
       '@pnpm/bins.resolver':
         specifier: workspace:*
         version: link:../../bins/resolver
+      '@pnpm/cli.command':
+        specifier: workspace:*
+        version: link:../../cli/command
       '@pnpm/cli.utils':
         specifier: workspace:*
         version: link:../../cli/utils

@@ -1,3 +1,4 @@
+import type { CommandHandlerMap } from '@pnpm/cli.command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl } from '@pnpm/cli.utils'
 import { types as allTypes } from '@pnpm/config.reader'
@@ -209,7 +210,8 @@ export type AddCommandOptions = InstallCommandOptions & {
 
 export async function handler (
   opts: AddCommandOptions,
-  params: string[]
+  params: string[],
+  commands?: CommandHandlerMap
 ): Promise<void> {
   if (opts.cliOptions['save'] === false) {
     throw new PnpmError('OPTION_NOT_SUPPORTED', 'The "add" command currently does not support the no-save option')
@@ -251,7 +253,7 @@ export async function handler (
     if (params.includes('pnpm') || params.includes('@pnpm/exe')) {
       throw new PnpmError('GLOBAL_PNPM_INSTALL', 'Use the "pnpm self-update" command to install or update pnpm')
     }
-    return handleGlobalAdd(opts, params)
+    return handleGlobalAdd(opts, params, commands ?? {})
   }
 
   const include = {

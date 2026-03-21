@@ -1,4 +1,4 @@
-import type { CompletionFunc } from '@pnpm/cli.command'
+import type { CommandHandlerMap, CompletionFunc } from '@pnpm/cli.command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import {
   docsUrl,
@@ -168,7 +168,8 @@ export type UpdateCommandOptions = InstallCommandOptions & {
 
 export async function handler (
   opts: UpdateCommandOptions,
-  params: string[] = []
+  params: string[] = [],
+  commands?: CommandHandlerMap
 ): Promise<string | undefined> {
   if (opts.global) {
     if (!opts.bin) {
@@ -176,7 +177,7 @@ export async function handler (
         hint: 'Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable. The global bin directory should be in the PATH.',
       })
     }
-    return handleGlobalUpdate(opts, params)
+    return handleGlobalUpdate(opts, params, commands ?? {})
   }
   if (opts.interactive) {
     return interactiveUpdate(params, opts)

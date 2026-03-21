@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
 import type { Catalogs } from '@pnpm/catalogs.types'
+import type { CommandHandler } from '@pnpm/cli.command'
 import {
   type RecursiveSummary,
   throwOnCommandFail,
@@ -89,7 +90,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'packageConfigs'
 | 'updateConfig'
 > & {
-  rebuildHandler?: (opts: Record<string, unknown>, params: string[]) => Promise<void>
+  rebuildHandler?: CommandHandler
   include?: IncludedDependencies
   includeDirect?: IncludedDependencies
   latest?: boolean

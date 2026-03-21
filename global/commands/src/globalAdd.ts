@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { linkBinsOfPackages } from '@pnpm/bins.linker'
 import { removeBin } from '@pnpm/bins.remover'
+import type { CommandHandlerMap } from '@pnpm/cli.command'
 import {
   cleanOrphanedInstallDirs,
   createGlobalCacheKey,
@@ -21,7 +22,6 @@ import { installGlobalPackages } from './installGlobalPackages.js'
 import { readInstalledPackages } from './readInstalledPackages.js'
 
 export type GlobalAddOptions = CreateStoreControllerOptions & {
-  approveBuilds?: (opts: Record<string, unknown>) => Promise<void>
   bin?: string
   globalPkgDir?: string
   registries: Record<string, string>
@@ -35,7 +35,8 @@ export type GlobalAddOptions = CreateStoreControllerOptions & {
 
 export async function handleGlobalAdd (
   opts: GlobalAddOptions,
-  params: string[]
+  params: string[],
+  commands: CommandHandlerMap
 ): Promise<void> {
   // Resolve relative path selectors to absolute paths before the working
   // directory is changed to the global install dir, otherwise "." or
@@ -91,8 +92,8 @@ export async function handleGlobalAdd (
 
   // If any packages had their builds skipped, prompt the user to approve them
   // (reuses the same interactive flow as `pnpm approve-builds`)
-  if (ignoredBuilds?.size && process.stdin.isTTY && opts.approveBuilds) {
-    await opts.approveBuilds({
+  if (ignoredBuilds?.size && process.stdin.isTTY && commands['approve-builds']) {
+    await commands['approve-builds']({
       ...opts,
       modulesDir: path.join(installDir, 'node_modules'),
       dir: installDir,
@@ -103,7 +104,7 @@ export async function handleGlobalAdd (
       global: false,
       pending: false,
       allowBuilds,
-    })
+    }, [], commands)
   }
 
   // Read resolved aliases from the installed package.json
