@@ -22,6 +22,9 @@
       "path": "../../core/logger"
     },
     {
+      "path": "../../network/fetch"
+    },
+    {
       "path": "../../network/web-auth"
     }
   ]
