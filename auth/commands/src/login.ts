@@ -65,11 +65,33 @@ export async function handler (
   return login({ opts })
 }
 
+export interface LoginFetchResponse {
+  ok: boolean
+  status: number
+  json: () => Promise<unknown>
+  text: () => Promise<string>
+  headers: { get: (name: string) => string | null }
+}
+
+export interface LoginFetchOptions {
+  method?: string
+  headers?: Record<string, string>
+  body?: string
+  retry?: {
+    factor?: number
+    maxTimeout?: number
+    minTimeout?: number
+    randomize?: boolean
+    retries?: number
+  }
+  timeout?: number
+}
+
 export interface LoginContext {
   Date: { now: () => number }
   setTimeout: (cb: () => void, ms: number) => void
   enquirer: { prompt: (options: { message: string, name: string, type: string }) => Promise<Record<string, string>> }
-  fetch: typeof fetch
+  fetch: (url: string, options?: LoginFetchOptions) => Promise<LoginFetchResponse>
   globalInfo: (message: string) => void
   process: Record<'stdin' | 'stdout', { isTTY?: boolean }>
   readSettings: (configPath: string) => Promise<Settings>
