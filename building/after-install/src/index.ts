@@ -28,7 +28,7 @@ import {
   type PackageSnapshots,
 } from '@pnpm/lockfile.utils'
 import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
-import { logger, streamParser } from '@pnpm/logger'
+import { globalInfo, logger, streamParser } from '@pnpm/logger'
 import npa from '@pnpm/npm-package-arg'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
@@ -153,9 +153,10 @@ export async function buildSelectedPkgs (
     publicHoistPattern: ctx.publicHoistPattern,
     registries: ctx.registries,
     skipped: Array.from(ctx.skipped),
-    storeDir: ctx.storeDir,
-    virtualStoreDir: ctx.virtualStoreDir,
-    virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
+    storeDir: ctx.modulesFile?.storeDir ?? ctx.storeDir,
+    virtualStoreDir: ctx.modulesFile?.virtualStoreDir ?? ctx.virtualStoreDir,
+    virtualStoreDirMaxLength: ctx.modulesFile?.virtualStoreDirMaxLength ?? ctx.virtualStoreDirMaxLength,
+    allowBuilds: opts.allowBuilds,
   })
   return {
     ignoredBuilds: ignoredPkgs,
@@ -366,6 +367,7 @@ async function _rebuild (
               includeDepGraphHash: true,
             })
             if (pkgFilesIndex.sideEffects?.has(sideEffectsCacheKey)) {
+              globalInfo(`${pkgId}: reused from store cache`)
               pkgsThatWereRebuilt.add(depPath)
               return
             }
@@ -379,7 +381,17 @@ async function _rebuild (
           requiresBuild = pkgRequiresBuild(pgkManifest, new Map())
         }
 
-        const hasSideEffects = requiresBuild && allowBuild(pkgInfo.name, pkgInfo.version, depPath) && await runPostinstallHooks({
+        if (!requiresBuild) {
+          globalInfo(`${pkgId}: skipped (no build scripts)`)
+          pkgsThatWereRebuilt.add(depPath)
+          return
+        }
+        if (!allowBuild(pkgInfo.name, pkgInfo.version, depPath)) {
+          globalInfo(`${pkgId}: skipped (not allowed)`)
+          pkgsThatWereRebuilt.add(depPath)
+          return
+        }
+        const hasSideEffects = await runPostinstallHooks({
           depPath,
           extraBinPaths,
           extraEnv: opts.extraEnv,
@@ -391,6 +403,7 @@ async function _rebuild (
           shellEmulator: opts.shellEmulator,
           unsafePerm: opts.unsafePerm || false,
         })
+        globalInfo(`${pkgId}: built successfully`)
         if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && resolution.integrity) {
           builtDepPaths.add(depPath)
           const filesIndexFile = storeIndexKey(resolution.integrity!.toString(), pkgId)
