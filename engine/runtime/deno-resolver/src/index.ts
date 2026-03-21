@@ -1,4 +1,3 @@
-import { getDenoBinLocationForCurrentOS } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
 import type { NpmResolver } from '@pnpm/resolving.npm-resolver'
@@ -109,6 +108,10 @@ function parseAssetName (name: string): PlatformAssetTarget[] | null {
     targets.push({ os: 'win32', cpu: 'arm64' })
   }
   return targets
+}
+
+function getDenoBinLocationForCurrentOS (platform: string = process.platform): string {
+  return platform === 'win32' ? 'deno.exe' : 'deno'
 }
 
 async function fetchSha256 (fetch: FetchFromRegistry, url: string): Promise<string> {

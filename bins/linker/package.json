@@ -34,7 +34,6 @@
   },
   "dependencies": {
     "@pnpm/bins.resolver": "workspace:*",
-    "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.read-modules-dir": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",

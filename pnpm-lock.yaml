@@ -1413,9 +1413,6 @@ importers:
       '@pnpm/bins.resolver':
         specifier: workspace:*
         version: link:../resolver
-      '@pnpm/constants':
-        specifier: workspace:*
-        version: link:../../core/constants
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
@@ -3573,9 +3570,6 @@ importers:
 
   engine/runtime/bun-resolver:
     dependencies:
-      '@pnpm/constants':
-        specifier: workspace:*
-        version: link:../../../core/constants
       '@pnpm/crypto.shasums-file':
         specifier: workspace:*
         version: link:../../../crypto/shasums-file
@@ -3656,9 +3650,6 @@ importers:
 
   engine/runtime/deno-resolver:
     dependencies:
-      '@pnpm/constants':
-        specifier: workspace:*
-        version: link:../../../core/constants
       '@pnpm/crypto.shasums-file':
         specifier: workspace:*
         version: link:../../../crypto/shasums-file
@@ -3705,9 +3696,6 @@ importers:
       '@pnpm/config.reader':
         specifier: workspace:*
         version: link:../../../config/reader
-      '@pnpm/constants':
-        specifier: workspace:*
-        version: link:../../../core/constants
       '@pnpm/crypto.shasums-file':
         specifier: workspace:*
         version: link:../../../crypto/shasums-file

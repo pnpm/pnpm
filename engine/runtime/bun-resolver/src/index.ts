@@ -1,4 +1,3 @@
-import { getBunBinLocationForCurrentOS } from '@pnpm/constants'
 import { fetchShasumsFile } from '@pnpm/crypto.shasums-file'
 import { PnpmError } from '@pnpm/error'
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
@@ -105,4 +104,8 @@ async function readBunAssets (fetch: FetchFromRegistry, version: string): Promis
     })
   }
   return assets
+}
+
+function getBunBinLocationForCurrentOS (platform: string = process.platform): string {
+  return platform === 'win32' ? 'bun.exe' : 'bun'
 }

@@ -32,7 +32,6 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/constants": "workspace:*",
     "@pnpm/crypto.shasums-file": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching.binary-fetcher": "workspace:*",

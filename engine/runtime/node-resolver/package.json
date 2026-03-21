@@ -34,7 +34,6 @@
   },
   "dependencies": {
     "@pnpm/config.reader": "workspace:*",
-    "@pnpm/constants": "workspace:*",
     "@pnpm/crypto.shasums-file": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching.types": "workspace:*",
