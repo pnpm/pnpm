@@ -1660,6 +1660,9 @@ importers:
       '@pnpm/building.after-install':
         specifier: workspace:*
         version: link:../after-install
+      '@pnpm/cli.command':
+        specifier: workspace:*
+        version: link:../../cli/command
       '@pnpm/cli.common-cli-options-help':
         specifier: workspace:*
         version: link:../../cli/common-cli-options-help

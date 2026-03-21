@@ -1,3 +1,4 @@
+import type { CommandHandlerMap } from '@pnpm/cli.command'
 import type { Config } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
 import { parse } from '@pnpm/deps.path'
@@ -50,7 +51,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
   return {}
 }
 
-export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOpts, params: string[] = []): Promise<void> {
+export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOpts, params: string[] = [], commands?: CommandHandlerMap): Promise<void> {
   if (opts.global) {
     throw new PnpmError(
       'APPROVE_BUILDS_NOT_SUPPORTED_WITH_GLOBAL',
@@ -207,7 +208,7 @@ Do you approve?`,
         ...opts,
         allowBuilds,
         frozenLockfile: true,
-      } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, [], commands) // eslint-disable-line @typescript-eslint/no-explicit-any
       return
     }
     return rebuild.handler({
