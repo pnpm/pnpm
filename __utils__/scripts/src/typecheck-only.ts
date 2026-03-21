@@ -88,19 +88,19 @@ function resolveThreadingMode (repoRoot: string): boolean {
       return true
     case 'multi-threaded':
       return false
-    default:
-      if (mode !== 'auto') {
-        console.warn(
-          `Invalid threading mode "${mode}" from ${source}. ` +
-          `Valid values: auto, single-threaded, multi-threaded. Defaulting to "auto".`
-        )
-      }
+    case 'auto': {
       const totalMemoryGB = os.totalmem() / (1024 ** 3)
       const singleThreaded = totalMemoryGB < AUTO_SINGLE_THREAD_MEMORY_THRESHOLD_GB
       console.log(
         `Auto-detected ${totalMemoryGB.toFixed(1)} GB of memory: using ${singleThreaded ? 'single-threaded' : 'multi-threaded'} mode`
       )
       return singleThreaded
+    }
+    default:
+      throw new Error(
+        `Invalid threading mode "${mode}" from ${source}. ` +
+        `Valid values: auto, single-threaded, multi-threaded.`
+      )
   }
 }
 
