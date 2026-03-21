@@ -4,7 +4,11 @@
   "mounts": [
     "source=pnpm-store,target=/home/node/.local/share/pnpm/store,type=volume"
   ],
-  "updateContentCommand": "sudo chown -R node:node /home/node/.local/share/pnpm && sudo corepack enable && pnpm install",
+  "initializeCommand": "echo 'Tip: enable Codespaces prebuilds in repo settings for instant-ready workspaces'",
+  "updateContentCommand": {
+    "install": "sudo chown -R node:node /home/node/.local/share/pnpm && sudo corepack enable && pnpm install",
+    "compile": "pnpm compile"
+  },
   "remoteUser": "node",
   "customizations": {
     "vscode": {
