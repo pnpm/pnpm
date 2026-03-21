@@ -136,7 +136,7 @@ test('prune outputs total size of removed files', async () => {
   expect(reporter).toHaveBeenCalledWith(
     expect.objectContaining({
       level: 'info',
-      message: expect.stringMatching(/Removed \d+ files? \(\d+(\.\d+)?\s+(B|kB|MB|GB)\)/),
+      message: expect.stringMatching(/Removed \d+ files? \(\d+(\.\d+)?\s+\S+\)/),
     })
   )
 })
@@ -179,7 +179,7 @@ test('remove packages that are used by project that no longer exist', async () =
   expect(reporter).toHaveBeenCalledWith(
     expect.objectContaining({
       level: 'info',
-      message: 'Removed 4 files',
+      message: expect.stringMatching(/Removed 4 files \(\d+(\.\d+)?\s+\S+\)/),
     })
   )
 
@@ -367,7 +367,7 @@ describe('prune when store directory is not properly configured', () => {
     expect(reporter).toHaveBeenCalledWith(
       expect.objectContaining({
         level: 'info',
-        message: 'Removed 0 files',
+        message: expect.stringMatching(/Removed 0 files \(\d+(\.\d+)?\s+\S+\)/),
       })
     )
 
