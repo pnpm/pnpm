@@ -3,7 +3,7 @@ import type { Config } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
 import { parse } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
-import { install, type InstallCommandOptions } from '@pnpm/installing.commands'
+import { install } from '@pnpm/installing.commands'
 import { type StrictModules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import { globalInfo } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/util.lex-comparator'
@@ -13,7 +13,7 @@ import { renderHelp } from 'render-help'
 
 import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds.js'
 
-export type ApproveBuildsCommandOpts = InstallCommandOptions & Pick<Config, 'allowBuilds' | 'enableGlobalVirtualStore'> & { all?: boolean, global?: boolean }
+export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'allowBuilds' | 'enableGlobalVirtualStore'> & { all?: boolean, global?: boolean }
 
 export const commandNames = ['approve-builds']
 
@@ -207,7 +207,7 @@ Do you approve?`,
         ...opts,
         allowBuilds,
         frozenLockfile: true,
-      })
+      } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
       return
     }
     return rebuild.handler({
