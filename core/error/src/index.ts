@@ -12,9 +12,10 @@ export class PnpmError extends Error {
     opts?: {
       attempts?: number
       hint?: string
+      cause?: unknown
     }
   ) {
-    super(message)
+    super(message, { cause: opts?.cause })
     this.code = code.startsWith('ERR_PNPM_') ? code : `ERR_PNPM_${code}`
     this.hint = opts?.hint
     this.attempts = opts?.attempts
