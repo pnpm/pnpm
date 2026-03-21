@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { buildProjects } from '@pnpm/building.after-install'
+import type { CommandHandler } from '@pnpm/cli.command'
 import {
   readProjectManifestOnly,
   tryReadProjectManifest,
@@ -149,6 +150,7 @@ export type InstallDepsOptions = Pick<Config,
   includeOnlyPackageFiles?: boolean
   fetchFullMetadata?: boolean
   pruneLockfileImporters?: boolean
+  rebuildHandler?: CommandHandler
   pnpmfile: string[]
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
 } & Partial<Pick<Config, 'pnpmHomeDir' | 'strictDepBuilds'>>

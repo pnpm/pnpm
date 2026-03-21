@@ -383,6 +383,13 @@ export async function getConfig (opts: {
   } else if (!pnpmConfig.bin) {
     pnpmConfig.bin = path.join(pnpmConfig.dir, 'node_modules', '.bin')
   }
+  // Default allowBuilds to {} when GVS is enabled so that GVS hashes
+  // are engine-agnostic when no build policy is configured. Without
+  // this, allowBuilds is undefined which makes createAllowBuildFunction
+  // return undefined, causing all hashes to include ENGINE_NAME.
+  if (pnpmConfig.enableGlobalVirtualStore && pnpmConfig.allowBuilds == null) {
+    pnpmConfig.allowBuilds = {}
+  }
   pnpmConfig.packageManager = packageManager
 
   if (!opts.ignoreLocalSettings) {

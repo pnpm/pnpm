@@ -1,8 +1,9 @@
-import { rebuild, type RebuildCommandOpts } from '@pnpm/building.commands'
+import type { CommandHandlerMap } from '@pnpm/cli.command'
 import type { Config } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
 import { parse } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
+import { install } from '@pnpm/installing.commands'
 import { type StrictModules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import { globalInfo } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/util.lex-comparator'
@@ -10,9 +11,10 @@ import chalk from 'chalk'
 import enquirer from 'enquirer'
 import { renderHelp } from 'render-help'
 
+import { rebuild, type RebuildCommandOpts } from '../build/index.js'
 import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds.js'
 
-export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'allowBuilds'> & { all?: boolean, global?: boolean }
+export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'allowBuilds' | 'enableGlobalVirtualStore'> & { all?: boolean, global?: boolean }
 
 export const commandNames = ['approve-builds']
 
@@ -49,7 +51,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
   return {}
 }
 
-export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOpts, params: string[] = []): Promise<void> {
+export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOpts, params: string[] = [], commands?: CommandHandlerMap): Promise<void> {
   if (opts.global) {
     throw new PnpmError(
       'APPROVE_BUILDS_NOT_SUPPORTED_WITH_GLOBAL',
@@ -201,6 +203,15 @@ Do you approve?`,
     await writeModulesManifest(modulesDir, modulesManifest as StrictModules)
   }
   if (buildPackages.length) {
+    if (opts.enableGlobalVirtualStore) {
+      await install.handler({
+        ...opts,
+        allowBuilds,
+        frozenLockfile: true,
+        optimisticRepeatInstall: false,
+      } as any, [], commands) // eslint-disable-line @typescript-eslint/no-explicit-any
+      return
+    }
     return rebuild.handler({
       ...opts,
       allowBuilds,

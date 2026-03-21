@@ -337,8 +337,11 @@ export function extendOptions (
   }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
   extendedOpts.rawConfig['registry'] = extendedOpts.registries.default
-  if (extendedOpts.enableGlobalVirtualStore && extendedOpts.virtualStoreDir == null) {
-    extendedOpts.virtualStoreDir = path.join(extendedOpts.storeDir, 'links')
+  if (extendedOpts.enableGlobalVirtualStore) {
+    if (extendedOpts.virtualStoreDir == null) {
+      extendedOpts.virtualStoreDir = path.join(extendedOpts.storeDir, 'links')
+    }
+    extendedOpts.allowBuilds ??= {}
   }
   extendedOpts.globalVirtualStoreDir = extendedOpts.enableGlobalVirtualStore
     ? extendedOpts.virtualStoreDir!

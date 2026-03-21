@@ -307,7 +307,8 @@ export async function main (inputArgv: string[]): Promise<void> {
       // TypeScript doesn't currently infer that the type of config
       // is `Omit<typeof config, 'reporter'>` after the `delete config.reporter` statement
       config as Omit<typeof config, 'reporter'>,
-      cliParams
+      cliParams,
+      pnpmCmds
     )
     try {
       if (result instanceof Promise) {

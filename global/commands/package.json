@@ -35,7 +35,7 @@
     "@pnpm/bins.linker": "workspace:*",
     "@pnpm/bins.remover": "workspace:*",
     "@pnpm/bins.resolver": "workspace:*",
-    "@pnpm/building.commands": "workspace:*",
+    "@pnpm/cli.command": "workspace:*",
     "@pnpm/cli.utils": "workspace:*",
     "@pnpm/config.matcher": "workspace:*",
     "@pnpm/config.reader": "workspace:*",

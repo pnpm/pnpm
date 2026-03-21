@@ -19,7 +19,7 @@
       "path": "../../bins/resolver"
     },
     {
-      "path": "../../building/commands"
+      "path": "../../cli/command"
     },
     {
       "path": "../../cli/utils"

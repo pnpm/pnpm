@@ -1,6 +1,6 @@
 import { approveBuilds, ignoredBuilds, rebuild } from '@pnpm/building.commands'
 import { cache } from '@pnpm/cache.commands'
-import type { CompletionFunc } from '@pnpm/cli.command'
+import type { CommandHandlerMap, CompletionFunc } from '@pnpm/cli.command'
 import { createCompletionServer, doctor, generateCompletion } from '@pnpm/cli.commands'
 import { config, getCommand, setCommand } from '@pnpm/config.commands'
 import { types as allTypes } from '@pnpm/config.reader'
@@ -59,11 +59,11 @@ export const GLOBAL_OPTIONS = pick([
 export type CommandResponse = string | { output?: string, exitCode: number }
 
 export type Command = (
-  (opts: PnpmOptions | any, params: string[]) => CommandResponse | Promise<CommandResponse> // eslint-disable-line @typescript-eslint/no-explicit-any
+  (opts: PnpmOptions | any, params: string[], commands?: CommandHandlerMap) => CommandResponse | Promise<CommandResponse> // eslint-disable-line @typescript-eslint/no-explicit-any
 ) | (
-  (opts: PnpmOptions | any, params: string[]) => void // eslint-disable-line @typescript-eslint/no-explicit-any
+  (opts: PnpmOptions | any, params: string[], commands?: CommandHandlerMap) => void // eslint-disable-line @typescript-eslint/no-explicit-any
 ) | (
-  (opts: PnpmOptions | any, params: string[]) => Promise<void> // eslint-disable-line @typescript-eslint/no-explicit-any
+  (opts: PnpmOptions | any, params: string[], commands?: CommandHandlerMap) => Promise<void> // eslint-disable-line @typescript-eslint/no-explicit-any
 )
 
 export interface CommandDefinition {

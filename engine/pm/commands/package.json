@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "@pnpm/bins.linker": "workspace:*",
+    "@pnpm/building.policy": "workspace:*",
     "@pnpm/cli.meta": "workspace:*",
     "@pnpm/cli.utils": "workspace:*",
     "@pnpm/config.reader": "workspace:*",

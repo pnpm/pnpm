@@ -286,6 +286,54 @@ test('GVS successful build creates package directory with build artifacts', asyn
   }
 })
 
+test('GVS: approve-builds scenario — install with no builds, then reinstall with allowBuilds', async () => {
+  prepareEmpty()
+  const globalVirtualStoreDir = path.resolve('links')
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+    },
+  }
+
+  // Step 1: Install with builds NOT approved (simulating first `pnpm install`)
+  await install(manifest, testDefaults({
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+    fastUnpack: false,
+    allowBuilds: {},
+  }))
+
+  const pkgVersionDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0')
+  const hashBefore = fs.readdirSync(pkgVersionDir)
+  expect(hashBefore).toHaveLength(1)
+
+  // Build artifacts should NOT be present
+  expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'))).toBeFalsy()
+
+  // Step 2: Reinstall with allowBuilds changed (simulating what approve-builds does)
+  await install(manifest, testDefaults({
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+    fastUnpack: false,
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
+  }))
+
+  // Step 3: Verify the hash changed and build artifacts are in the new directory
+  const hashesAfter = fs.readdirSync(pkgVersionDir)
+  const newHash = hashesAfter.find((h) => h !== hashBefore[0])
+  expect(newHash).toBeDefined()
+  expect(newHash).not.toBe(hashBefore[0])
+
+  // Build artifacts in new hash directory
+  const newPkgDir = path.join(pkgVersionDir, newHash!, 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
+  expect(fs.existsSync(path.join(newPkgDir, 'generated-by-postinstall.js'))).toBeTruthy()
+  expect(fs.existsSync(path.join(newPkgDir, 'generated-by-preinstall.js'))).toBeTruthy()
+
+  // Build artifacts accessible via node_modules
+  expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'))).toBeTruthy()
+})
+
 test('GVS build failure cleans up broken package directory', async () => {
   prepareEmpty()
   const globalVirtualStoreDir = path.resolve('links')
