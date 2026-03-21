@@ -112,7 +112,7 @@ async function updateGlobalPackageGroup (
 
   // If any packages had their builds skipped, prompt the user to approve them
   // (reuses the same interactive flow as `pnpm approve-builds`)
-  if (ignoredBuilds?.size && process.stdin.isTTY && commands['approve-builds']) {
+  if (ignoredBuilds?.size && process.stdin.isTTY) {
     await commands['approve-builds']({
       ...opts,
       modulesDir: path.join(installDir, 'node_modules'),
