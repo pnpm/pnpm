@@ -13,7 +13,9 @@ const TEST_CONTEXT: LoginContext = {
   fetch: async (url) => {
     throw new Error(`unexpected fetch call: ${url}`)
   },
-  globalInfo: () => {},
+  globalInfo: (message) => {
+    throw new Error(`unexpected globalInfo call: ${message}`)
+  },
   process: { stdin: { isTTY: true }, stdout: { isTTY: true } },
   readSettings: async (path) => {
     throw new Error(`unexpected readSettings call: ${path}`)
@@ -42,6 +44,7 @@ describe('login', () => {
 
   it('should use web login when registry supports it', async () => {
     const fetchedUrls: string[] = []
+    const infoMessages: string[] = []
     let savedPath = ''
     let savedSettings: Settings = {}
 
@@ -54,6 +57,9 @@ describe('login', () => {
       },
       context: {
         ...TEST_CONTEXT,
+        globalInfo: (message) => {
+          infoMessages.push(message)
+        },
         readSettings: async () => ({}),
         writeSettings: async (configPath, settings) => {
           savedPath = configPath
@@ -93,10 +99,13 @@ describe('login', () => {
     expect(savedSettings).toMatchObject({
       '//example.com/npm/:_authToken': 'web-auth-token-123',
     })
+    expect(infoMessages).toHaveLength(1)
+    expect(infoMessages[0]).toContain('https://example.com/auth/login')
   })
 
   it('should fall back to classic login when web login returns 404', async () => {
     const fetchedUrls: string[] = []
+    const infoMessages: string[] = []
     let savedPath = ''
     let savedSettings: Settings = {}
 
@@ -109,6 +118,9 @@ describe('login', () => {
       },
       context: {
         ...TEST_CONTEXT,
+        globalInfo: (message) => {
+          infoMessages.push(message)
+        },
         readSettings: async () => ({}),
         writeSettings: async (configPath, settings) => {
           savedPath = configPath
@@ -154,5 +166,6 @@ describe('login', () => {
     expect(savedSettings).toMatchObject({
       '//example.org/:_authToken': 'classic-token-456',
     })
+    expect(infoMessages).toEqual(['Logged in as john'])
   })
 })
