@@ -274,13 +274,13 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
       scripts = {
         ...(manifest.scripts as Record<string, string>),
       }
-      scripts.test = 'pnpm run compile && pnpm run _test'
+      scripts.test = 'pnpm run compile && pnpm run .test'
       if (manifest.name === '@pnpm/installing.deps-installer') {
       // @pnpm/installing.deps-installer tests currently works only with port 7769 due to the usage of
       // the next package: pkg-with-tarball-dep-from-registry
-        scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${registryMockPortForCore} NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest`
+        scripts['.test'] = `cross-env PNPM_REGISTRY_MOCK_PORT=${registryMockPortForCore} NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest`
       } else {
-        scripts._test = 'cross-env NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest'
+        scripts['.test'] = 'cross-env NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest'
       }
       break
     }
@@ -288,8 +288,8 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
       if (fs.existsSync(path.join(dir, 'test'))) {
         scripts = {
           ...(manifest.scripts as Record<string, string>),
-          _test: 'cross-env NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest',
-          test: 'pnpm run compile && pnpm run _test',
+          '.test': 'cross-env NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest',
+          test: 'pnpm run compile && pnpm run .test',
         }
       } else {
         scripts = {
@@ -299,18 +299,21 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
       }
       break
   }
+  // Clean up old underscore-prefixed script names
+  delete scripts._test
+  delete scripts._compile
   if (manifest.name === CLI_PKG_NAME) {
     manifest.publishConfig!.tag = nextTag
   }
-  if (scripts._test) {
+  if (scripts['.test']) {
     if (scripts.pretest) {
-      scripts._test = `pnpm pretest && ${scripts._test}`
+      scripts['.test'] = `pnpm pretest && ${scripts['.test']}`
     }
     if (scripts.posttest) {
-      scripts._test = `${scripts._test} && pnpm posttest`
+      scripts['.test'] = `${scripts['.test']} && pnpm posttest`
     }
     if (manifest.name === '@pnpm/server') {
-      scripts._test += ' --detectOpenHandles'
+      scripts['.test'] += ' --detectOpenHandles'
     }
   }
   scripts.compile = 'tsgo --build && pnpm run lint --fix'
@@ -318,8 +321,8 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   if (scripts.start && scripts.start.includes('tsc --watch')) {
     scripts.start = scripts.start.replace('tsc --watch', 'tsgo --watch')
   }
-  if (scripts._compile && scripts._compile.includes('tsc --build')) {
-    scripts._compile = scripts._compile.replace('tsc --build', 'tsgo --build')
+  if (scripts['.compile'] && scripts['.compile'].includes('tsc --build')) {
+    scripts['.compile'] = scripts['.compile'].replace('tsc --build', 'tsgo --build')
   }
   let homepage: string
   let repository: string | { type: 'git', url: string, directory: 'pnpm' }
