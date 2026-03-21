@@ -88,11 +88,8 @@ function resolveThreadingMode (repoRoot: string): boolean {
       return true
     case 'multi-threaded':
       return false
-    case 'auto': {
-      const totalMemoryGB = os.totalmem() / (1024 ** 3)
-      const singleThreaded = totalMemoryGB < AUTO_SINGLE_THREAD_MEMORY_THRESHOLD_GB
-      return singleThreaded
-    }
+    case 'auto':
+      return os.totalmem() / (1024 ** 3) < AUTO_SINGLE_THREAD_MEMORY_THRESHOLD_GB
     default:
       throw new Error(
         `Invalid threading mode "${mode}" from ${source}. ` +
