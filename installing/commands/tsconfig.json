@@ -91,10 +91,10 @@
       "path": "../../pkg-manifest/utils"
     },
     {
-      "path": "../../resolving/parse-wanted-dependency"
+      "path": "../../resolving/npm-resolver"
     },
     {
-      "path": "../../resolving/npm-resolver"
+      "path": "../../resolving/parse-wanted-dependency"
     },
     {
       "path": "../../resolving/resolver-base"
