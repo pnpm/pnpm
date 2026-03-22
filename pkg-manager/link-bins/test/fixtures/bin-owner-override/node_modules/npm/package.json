@@ -1,0 +1,8 @@
+{
+  "name": "npm",
+  "version": "10.0.0",
+  "bin": {
+    "npm": "bin/npm-cli.js",
+    "npx": "bin/npx-cli.js"
+  }
+}
