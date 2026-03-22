@@ -4,6 +4,7 @@ import path from 'node:path'
 import { STORE_VERSION } from '@pnpm/constants'
 import { fetch, install } from '@pnpm/installing.commands'
 import { prepare } from '@pnpm/prepare'
+import { fixtures } from '@pnpm/test-fixtures'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { closeAllStoreIndexes } from '@pnpm/store.index'
 import { finishWorkers } from '@pnpm/worker'
@@ -227,4 +228,47 @@ test('fetch populates global virtual store links/', async () => {
   expect(fs.existsSync(globalVirtualStoreDir)).toBeTruthy()
   const entries = fs.readdirSync(globalVirtualStoreDir)
   expect(entries.length).toBeGreaterThan(0)
+})
+
+test('fetch applies patches to dependencies when patchedDependencies key is bare package name', async () => {
+  const f = fixtures(import.meta.dirname)
+  const project = prepare({
+    dependencies: { '@pnpm.e2e/console-log': '1.0.0' },
+    pnpm: {
+      patchedDependencies: {
+        '@pnpm.e2e/console-log': 'patches/console-log.patch',
+      },
+    },
+  })
+  fs.mkdirSync('patches', { recursive: true })
+  fs.copyFileSync(f.find('patchedDependencies/console-log-replace-1st-line.patch'), 'patches/console-log.patch')
+
+  const patchedDependencies = { '@pnpm.e2e/console-log': 'patches/console-log.patch' }
+  const cacheDir = path.resolve(project.dir(), 'cache')
+  const storeDir = path.resolve(project.dir(), 'store')
+
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir,
+    dir: project.dir(),
+    linkWorkspacePackages: false,
+    lockfileOnly: true,
+    storeDir,
+    patchedDependencies,
+  })
+
+  await fetch.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir,
+    dir: project.dir(),
+    storeDir,
+    patchedDependencies,
+  } as any)
+
+  const virtualStoreDir = path.resolve(project.dir(), 'node_modules', '.pnpm')
+  const consoleLogDirs = fs.readdirSync(virtualStoreDir).filter(d => d.startsWith('@pnpm.e2e+console-log@'))
+  expect(consoleLogDirs.length).toBeGreaterThan(0)
+
+  const patchedIndexJsAfterFetch = fs.readFileSync(path.join(virtualStoreDir, consoleLogDirs[0], 'node_modules/@pnpm.e2e/console-log/index.js'), 'utf8')
+  expect(patchedIndexJsAfterFetch).toContain("FIRST LINE")
 })
