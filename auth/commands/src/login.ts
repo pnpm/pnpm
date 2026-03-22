@@ -99,8 +99,8 @@ export interface LoginContext {
   fetch: (url: string, options?: LoginFetchOptions) => Promise<LoginFetchResponse>
   globalInfo: (message: string) => void
   process: Record<'stdin' | 'stdout', { isTTY?: boolean }>
-  readSettings: (configPath: string) => Promise<Settings>
-  writeSettings: (configPath: string, settings: Settings) => Promise<void>
+  safeReadIniFile: (configPath: string) => Promise<Settings>
+  writeIniFile: (configPath: string, settings: Settings) => Promise<void>
 }
 
 export const DEFAULT_CONTEXT: LoginContext = {
@@ -110,8 +110,8 @@ export const DEFAULT_CONTEXT: LoginContext = {
   fetch,
   globalInfo,
   process,
-  readSettings: safeReadIniFile,
-  writeSettings: writeIniFile,
+  safeReadIniFile,
+  writeIniFile,
 }
 
 export interface LoginParams {
@@ -127,8 +127,8 @@ export async function login ({
     fetch,
     globalInfo,
     process,
-    readSettings,
-    writeSettings,
+    safeReadIniFile: readSettings,
+    writeIniFile: writeSettings,
   } = DEFAULT_CONTEXT,
   opts,
 }: LoginParams): Promise<string> {
