@@ -1,5 +1,5 @@
 ---
-"@pnpm/plugin-commands-version": minor
+"@pnpm/releasing.commands": minor
 "pnpm": minor
 ---
 

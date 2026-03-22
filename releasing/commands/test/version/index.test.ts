@@ -39,6 +39,7 @@ describe('version command', () => {
   })
 
   it('should throw error with invalid bump type', async () => {
+    expect.assertions(1)
     const manifest = {
       name: 'test-pkg',
       version: '1.0.0',

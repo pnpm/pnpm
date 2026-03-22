@@ -1,15 +1,11 @@
-import path from 'node:path'
-
 import { readProjectManifest } from '@pnpm/cli.utils'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { isGitRepo, isWorkingTreeClean } from '@pnpm/network.git-utils'
-import type { ProjectManifest } from '@pnpm/types'
 import { filterProjectsFromDir, type WorkspaceFilter } from '@pnpm/workspace.projects-filter'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 import { inc, valid } from 'semver'
-import { writeJsonFile } from 'write-json-file'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
@@ -191,7 +187,7 @@ async function bumpPackageVersion (
   bumpType: string,
   opts: VersionHandlerOptions
 ): Promise<VersionChange | null> {
-  const { manifest } = await readProjectManifest(pkgDir)
+  const { manifest, writeProjectManifest } = await readProjectManifest(pkgDir)
 
   if (!manifest.name || !manifest.version) {
     return null
@@ -199,12 +195,10 @@ async function bumpPackageVersion (
 
   const currentVersion = manifest.version
 
-  // Validate version
   if (!valid(currentVersion)) {
-    throw new PnpmError('INVALID_VERSION', `Invalid version in ${path.join(pkgDir, 'package.json')}: ${currentVersion}`)
+    throw new PnpmError('INVALID_VERSION', `Invalid version in ${pkgDir}: ${currentVersion}`)
   }
 
-  // Calculate new version
   const newVersion = inc(currentVersion, bumpType as 'major' | 'minor' | 'patch' | 'premajor' | 'preminor' | 'prepatch' | 'prerelease', false, opts.preid)
 
   if (!newVersion) {
@@ -215,15 +209,8 @@ async function bumpPackageVersion (
     throw new PnpmError('VERSION_NOT_CHANGED', `Version was not changed: ${currentVersion}`)
   }
 
-  // Update manifest
   manifest.version = newVersion
-
-  // Update dependencies using workspace: protocol
-  updateWorkspaceDependencies(manifest)
-
-  // Write manifest
-  const manifestPath = path.join(pkgDir, 'package.json')
-  await writeJsonFile(manifestPath, manifest)
+  await writeProjectManifest(manifest)
 
   return {
     name: manifest.name,
@@ -231,16 +218,6 @@ async function bumpPackageVersion (
     newVersion,
     path: pkgDir,
   }
-}
-
-function updateWorkspaceDependencies (_manifest: ProjectManifest): void {
-  // Update dependencies that use workspace: protocol pointing to this package
-  // This is primarily for updating references in lock files and dependent manifests
-  // The actual resolution is handled by the resolver
-
-  // Note: workspace: protocol dependencies don't need version updates
-  // as they reference by package name, not version
-  // This function is a placeholder for future enhancements
 }
 
 export const version = {
