@@ -142,8 +142,9 @@ function renderPeerIssuesFlat (issuesByProjects: PeerDependencyIssuesByProjects)
   for (const [, { bad, missing, conflicts, intersections }] of Object.entries(issuesByProjects)) {
     for (const [peerName, issues] of Object.entries(bad)) {
       const foundVersion = issues[0].foundVersion
-      const header = `${chalk.yellowBright('✕ unmet peer')} ${chalk.bold(peerName)} ${chalk.dim(`(found ${foundVersion})`)}`
-      sections.push(`${header}\n${formatRequiredBy(issues)}`)
+      const header = `${chalk.yellowBright('✕ unmet peer')} ${chalk.bold(peerName)}`
+      const installed = `  ${chalk.cyan('Installed:')} ${chalk.dim(foundVersion)}`
+      sections.push(`${header}\n${installed}\n${formatRequiredBy(issues)}`)
     }
 
     for (const [peerName, issues] of Object.entries(missing)) {
