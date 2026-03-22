@@ -171,11 +171,11 @@ function formatRequiredBy (issues: Array<{ parents: Array<{ name: string, versio
     }
     byRange.get(issue.wantedRange)!.add(pkg)
   }
-  const lines: string[] = []
+  const lines: string[] = [`  ${chalk.cyan('Wanted:')}`]
   for (const [range, pkgs] of byRange) {
-    lines.push(`  ${chalk.cyan('Wants')} ${chalk.cyanBright(formatRange(range))}${chalk.cyan(':')}`)
+    lines.push(`    ${chalk.cyanBright(formatRange(range))}${chalk.cyan(':')}`)
     for (const pkg of pkgs) {
-      lines.push(`    ${chalk.dim(pkg)}`)
+      lines.push(`      ${chalk.dim(pkg)}`)
     }
   }
   return lines.join('\n')
