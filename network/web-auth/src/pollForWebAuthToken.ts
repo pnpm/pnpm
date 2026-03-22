@@ -13,12 +13,12 @@ export interface WebAuthFetchOptions {
 }
 
 export interface WebAuthFetchResponseHeaders {
-  get: (this: this, name: 'retry-after') => string | null
+  get: (name: string) => string | null
 }
 
 export interface WebAuthFetchResponse {
   readonly headers: WebAuthFetchResponseHeaders
-  readonly json: (this: this) => Promise<unknown>
+  readonly json: () => Promise<unknown>
   readonly ok: boolean
   readonly status: number
 }

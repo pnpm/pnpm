@@ -7,3 +7,13 @@ export {
   type WebAuthFetchResponseHeaders,
 } from './pollForWebAuthToken.js'
 export { WebAuthTimeoutError } from './WebAuthTimeoutError.js'
+export {
+  isOtpError,
+  type OtpHandlingContext,
+  type OtpHandlingEnquirer,
+  type OtpHandlingPromptOptions,
+  type OtpHandlingPromptResponse,
+  OtpNonInteractiveError,
+  OtpSecondChallengeError,
+  withOtpHandling,
+} from './withOtpHandling.js'

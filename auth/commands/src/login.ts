@@ -6,7 +6,12 @@ import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
 import { fetch } from '@pnpm/network.fetch'
-import { generateQrCode, pollForWebAuthToken, type WebAuthFetchOptions } from '@pnpm/network.web-auth'
+import {
+  generateQrCode,
+  pollForWebAuthToken,
+  type WebAuthFetchOptions,
+  withOtpHandling,
+} from '@pnpm/network.web-auth'
 import enquirer from 'enquirer'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import { readIniFile } from 'read-ini-file'
@@ -133,13 +138,24 @@ export async function login ({
     throw new PnpmError('LOGIN_NON_INTERACTIVE', 'The login command requires an interactive terminal')
   }
 
+  const fetchOptions: WebAuthFetchOptions = {
+    method: 'GET',
+    retry: {
+      factor: opts.fetchRetryFactor,
+      maxTimeout: opts.fetchRetryMaxtimeout,
+      minTimeout: opts.fetchRetryMintimeout,
+      retries: opts.fetchRetries,
+    },
+    timeout: opts.fetchTimeout,
+  }
+
   // Try web-based login first, fall back to classic login
   let token: string
   try {
-    token = await webLogin(registry, opts, { Date, setTimeout, fetch, globalInfo })
+    token = await webLogin(registry, fetchOptions, { Date, setTimeout, fetch, globalInfo })
   } catch (err) {
     if (isWebLoginNotSupported(err)) {
-      token = await classicLogin(registry, { enquirer, fetch, globalInfo })
+      token = await classicLogin(registry, { Date, setTimeout, enquirer, fetch, globalInfo, process }, fetchOptions)
     } else {
       throw err
     }
@@ -156,7 +172,7 @@ export async function login ({
 
 async function webLogin (
   registry: string,
-  opts: LoginCommandOptions,
+  fetchOptions: WebAuthFetchOptions,
   { Date, setTimeout, fetch, globalInfo }: Pick<LoginContext, 'Date' | 'setTimeout' | 'fetch' | 'globalInfo'>
 ): Promise<string> {
   const loginUrl = new URL('-/v1/login', registry).href
@@ -185,24 +201,16 @@ async function webLogin (
   const qrCode = generateQrCode(body.loginUrl)
   globalInfo(`Authenticate your account at:\n${body.loginUrl}\n\n${qrCode}`)
 
-  const fetchOptions: WebAuthFetchOptions = {
-    method: 'GET',
-    retry: {
-      factor: opts.fetchRetryFactor,
-      maxTimeout: opts.fetchRetryMaxtimeout,
-      minTimeout: opts.fetchRetryMintimeout,
-      retries: opts.fetchRetries,
-    },
-    timeout: opts.fetchTimeout,
-  }
-
   return pollForWebAuthToken(body.doneUrl, { Date, setTimeout, fetch }, fetchOptions)
 }
 
 async function classicLogin (
   registry: string,
-  { enquirer, fetch, globalInfo }: Pick<LoginContext, 'enquirer' | 'fetch' | 'globalInfo'>
+  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'enquirer' | 'fetch' | 'globalInfo' | 'process'>,
+  fetchOptions: WebAuthFetchOptions
 ): Promise<string> {
+  const { enquirer, fetch, globalInfo } = context
+
   const { username } = await enquirer.prompt({
     message: 'Username:',
     name: 'username',
@@ -225,38 +233,78 @@ async function classicLogin (
 
   const loginUrl = new URL(`-/user/org.couchdb.user:${encodeURIComponent(username)}`, registry).href
 
-  const response = await fetch(loginUrl, {
-    method: 'PUT',
-    headers: {
-      'content-type': 'application/json',
-      accept: 'application/json',
+  const token = await withOtpHandling(
+    async (otp?: string) => {
+      const headers: Record<string, string> = {
+        'content-type': 'application/json',
+        accept: 'application/json',
+        'npm-auth-type': 'web',
+      }
+      if (otp) {
+        headers['npm-otp'] = otp
+      }
+
+      const response = await fetch(loginUrl, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          _id: `org.couchdb.user:${username}`,
+          name: username,
+          password,
+          email,
+          type: 'user',
+        }),
+      })
+
+      if (!response.ok) {
+        await throwIfOtpRequired(response)
+        const text = await response.text()
+        throw new PnpmError(
+          'LOGIN_FAILED',
+          `Login failed (HTTP ${response.status}): ${text}`
+        )
+      }
+
+      const body = await response.json() as { token?: string }
+
+      if (!body.token) {
+        throw new PnpmError('LOGIN_NO_TOKEN', 'The registry did not return an authentication token')
+      }
+
+      return body.token
     },
-    body: JSON.stringify({
-      _id: `org.couchdb.user:${username}`,
-      name: username,
-      password,
-      email,
-      type: 'user',
-    }),
-  })
-
-  if (!response.ok) {
-    const text = await response.text()
-    throw new PnpmError(
-      'LOGIN_FAILED',
-      `Login failed (HTTP ${response.status}): ${text}`
-    )
-  }
-
-  const body = await response.json() as { token?: string, ok?: boolean }
-
-  if (!body.token) {
-    throw new PnpmError('LOGIN_NO_TOKEN', 'The registry did not return an authentication token')
-  }
+    { Date: context.Date, setTimeout: context.setTimeout, enquirer, fetch, globalInfo, process: context.process },
+    fetchOptions
+  )
 
   globalInfo(`Logged in as ${username}`)
 
-  return body.token
+  return token
+}
+
+/**
+ * Inspects a non-ok HTTP response for OTP requirements and throws an EOTP
+ * error when detected. This mirrors the behaviour of npm-registry-fetch,
+ * which checks the `www-authenticate` header for one-time password indicators.
+ */
+async function throwIfOtpRequired (response: LoginFetchResponse): Promise<void> {
+  if (response.status !== 401) return
+
+  const wwwAuth = response.headers.get('www-authenticate')
+  if (!wwwAuth?.includes('otp')) return
+
+  let body: Record<string, unknown> = {}
+  try {
+    body = await response.json() as Record<string, unknown>
+  } catch {}
+
+  throw Object.assign(new Error('OTP required'), {
+    code: 'EOTP',
+    body: {
+      authUrl: typeof body.authUrl === 'string' ? body.authUrl : undefined,
+      doneUrl: typeof body.doneUrl === 'string' ? body.doneUrl : undefined,
+    },
+  })
 }
 
 function getRegistryConfigKey (registryUrl: string): string {

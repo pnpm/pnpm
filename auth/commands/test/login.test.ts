@@ -168,4 +168,241 @@ describe('login', () => {
     })
     expect(infoMessages).toEqual(['Logged in as john'])
   })
+
+  it('should handle classic OTP challenge during login', async () => {
+    let putCallCount = 0
+    const infoMessages: string[] = []
+
+    const result = await login({
+      opts: {
+        configDir: '/otp/config',
+        dir: '/mock',
+        rawConfig: {},
+        registry: 'https://example.org',
+      },
+      context: {
+        ...TEST_CONTEXT,
+        globalInfo: (message) => {
+          infoMessages.push(message)
+        },
+        readSettings: async () => ({}),
+        writeSettings: async () => {},
+        fetch: async (url, options) => {
+          if (url === 'https://example.org/-/v1/login') {
+            return {
+              ok: false,
+              status: 404,
+              json: async () => ({}),
+              text: async () => 'Not Found',
+              headers: { get: () => null },
+            }
+          }
+          if (url === 'https://example.org/-/user/org.couchdb.user:alice') {
+            putCallCount++
+            if (putCallCount === 1) {
+              return {
+                ok: false,
+                status: 401,
+                json: async () => ({ error: 'otp required' }),
+                text: async () => 'OTP required',
+                headers: { get: (name: string) => name === 'www-authenticate' ? 'OTP otp' : null },
+              }
+            }
+            // Second call should include npm-otp header
+            expect(options?.headers?.['npm-otp']).toBe('999999')
+            return {
+              ok: true,
+              status: 201,
+              json: async () => ({ ok: true, token: 'otp-token-789' }),
+              text: async () => '',
+              headers: { get: () => null },
+            }
+          }
+          throw new Error(`unexpected fetch call: ${url}`)
+        },
+        enquirer: {
+          prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
+            if (opts.name === 'username') return { username: 'alice' }
+            if (opts.name === 'password') return { password: 'pass' }
+            if (opts.name === 'email') return { email: 'alice@example.com' }
+            if (opts.name === 'otp') return { otp: '999999' }
+            throw new Error(`unexpected prompt call: ${opts.name}`)
+          },
+        },
+      },
+    })
+
+    expect(result).toBe('Logged in on https://example.org/')
+    expect(putCallCount).toBe(2)
+  })
+
+  it('should handle webauth OTP challenge during login', async () => {
+    let putCallCount = 0
+    let pollCallCount = 0
+    const infoMessages: string[] = []
+
+    const result = await login({
+      opts: {
+        configDir: '/otp/config',
+        dir: '/mock',
+        rawConfig: {},
+        registry: 'https://example.org',
+      },
+      context: {
+        ...TEST_CONTEXT,
+        globalInfo: (message) => {
+          infoMessages.push(message)
+        },
+        readSettings: async () => ({}),
+        writeSettings: async () => {},
+        fetch: async (url, options) => {
+          if (url === 'https://example.org/-/v1/login') {
+            return {
+              ok: false,
+              status: 404,
+              json: async () => ({}),
+              text: async () => 'Not Found',
+              headers: { get: () => null },
+            }
+          }
+          if (url === 'https://example.org/-/user/org.couchdb.user:bob') {
+            putCallCount++
+            if (putCallCount === 1) {
+              return {
+                ok: false,
+                status: 401,
+                json: async () => ({
+                  authUrl: 'https://example.org/auth/web',
+                  doneUrl: 'https://example.org/auth/web/done',
+                }),
+                text: async () => '',
+                headers: { get: (name: string) => name === 'www-authenticate' ? 'OTP otp' : null },
+              }
+            }
+            expect(options?.headers?.['npm-otp']).toBe('web-tok')
+            return {
+              ok: true,
+              status: 201,
+              json: async () => ({ ok: true, token: 'final-token' }),
+              text: async () => '',
+              headers: { get: () => null },
+            }
+          }
+          if (url === 'https://example.org/auth/web/done') {
+            pollCallCount++
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({ token: 'web-tok' }),
+              text: async () => '',
+              headers: { get: () => null },
+            }
+          }
+          throw new Error(`unexpected fetch call: ${url}`)
+        },
+        enquirer: {
+          prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
+            if (opts.name === 'username') return { username: 'bob' }
+            if (opts.name === 'password') return { password: 'pass' }
+            if (opts.name === 'email') return { email: 'bob@example.com' }
+            throw new Error(`unexpected prompt call: ${opts.name}`)
+          },
+        },
+      },
+    })
+
+    expect(result).toBe('Logged in on https://example.org/')
+    expect(putCallCount).toBe(2)
+    expect(pollCallCount).toBe(1)
+    // Should have shown the auth URL and QR code
+    expect(infoMessages.some(m => m.includes('https://example.org/auth/web'))).toBe(true)
+  })
+
+  it('should not trigger OTP for non-401 errors', async () => {
+    await expect(login({
+      opts: {
+        configDir: '/otp/config',
+        dir: '/mock',
+        rawConfig: {},
+        registry: 'https://example.org',
+      },
+      context: {
+        ...TEST_CONTEXT,
+        globalInfo: () => {},
+        readSettings: async () => ({}),
+        writeSettings: async () => {},
+        fetch: async (url) => {
+          if (url === 'https://example.org/-/v1/login') {
+            return {
+              ok: false,
+              status: 404,
+              json: async () => ({}),
+              text: async () => 'Not Found',
+              headers: { get: () => null },
+            }
+          }
+          // Return 403 (not 401) — should not trigger OTP
+          return {
+            ok: false,
+            status: 403,
+            json: async () => ({}),
+            text: async () => 'Forbidden',
+            headers: { get: () => null },
+          }
+        },
+        enquirer: {
+          prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
+            if (opts.name === 'username') return { username: 'alice' }
+            if (opts.name === 'password') return { password: 'pass' }
+            if (opts.name === 'email') return { email: 'alice@example.com' }
+            throw new Error('should not prompt for OTP')
+          },
+        },
+      },
+    })).rejects.toThrow('Login failed (HTTP 403): Forbidden')
+  })
+
+  it('should not trigger OTP for 401 without www-authenticate otp header', async () => {
+    await expect(login({
+      opts: {
+        configDir: '/otp/config',
+        dir: '/mock',
+        rawConfig: {},
+        registry: 'https://example.org',
+      },
+      context: {
+        ...TEST_CONTEXT,
+        globalInfo: () => {},
+        readSettings: async () => ({}),
+        writeSettings: async () => {},
+        fetch: async (url) => {
+          if (url === 'https://example.org/-/v1/login') {
+            return {
+              ok: false,
+              status: 404,
+              json: async () => ({}),
+              text: async () => 'Not Found',
+              headers: { get: () => null },
+            }
+          }
+          // Return 401 but without www-authenticate: otp header
+          return {
+            ok: false,
+            status: 401,
+            json: async () => ({}),
+            text: async () => 'Unauthorized',
+            headers: { get: () => null },
+          }
+        },
+        enquirer: {
+          prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
+            if (opts.name === 'username') return { username: 'alice' }
+            if (opts.name === 'password') return { password: 'pass' }
+            if (opts.name === 'email') return { email: 'alice@example.com' }
+            throw new Error('should not prompt for OTP')
+          },
+        },
+      },
+    })).rejects.toThrow('Login failed (HTTP 401): Unauthorized')
+  })
 })
