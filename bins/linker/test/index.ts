@@ -703,7 +703,7 @@ test('linkBins() resolves conflicts using BIN_OWNER_OVERRIDES (npx owned by npm)
   const binOwnerOverrideFixture = f.prepare('bin-owner-override')
   const warn = jest.fn()
 
-  await linkBins(path.join(binOwnerOverrideFixture, 'node_modules'), binTarget, { warn })
+  await linkBins(binOwnerOverrideFixture, binTarget, { warn })
 
   // npx should be linked from npm package (owner override), not node or other-pkg
   // BIN_OWNER_OVERRIDES says: npx is owned by npm
@@ -722,5 +722,5 @@ test('linkBins() resolves conflicts using BIN_OWNER_OVERRIDES (npx owned by npm)
   const content = fs.readFileSync(binLocation, 'utf8')
   // npx should come from npm package, not node or other-pkg
   // Use a regex that matches both forward and backslashes for Windows compatibility
-  expect(content).toMatch(/node_modules[/\\]npm[/\\]bin[/\\]npx-cli\.js/)
+  expect(content).toMatch(/npm[/\\]bin[/\\]npx-cli\.js/)
 })
