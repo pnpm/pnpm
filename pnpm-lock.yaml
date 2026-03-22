@@ -3085,6 +3085,9 @@ importers:
       '@pnpm/deps.inspection.outdated':
         specifier: workspace:*
         version: link:../outdated
+      '@pnpm/deps.inspection.peers-checker':
+        specifier: workspace:*
+        version: link:../peers-checker
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../../core/error
@@ -3173,18 +3176,9 @@ importers:
 
   deps/inspection/list:
     dependencies:
-      '@pnpm/config.matcher':
-        specifier: workspace:*
-        version: link:../../../config/matcher
-      '@pnpm/config.parse-overrides':
-        specifier: workspace:*
-        version: link:../../../config/parse-overrides
       '@pnpm/deps.inspection.tree-builder':
         specifier: workspace:*
         version: link:../tree-builder
-      '@pnpm/deps.path':
-        specifier: workspace:*
-        version: link:../../path
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../../lockfile/fs
@@ -3212,9 +3206,6 @@ importers:
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
-      semver:
-        specifier: 'catalog:'
-        version: 7.7.4
     devDependencies:
       '@pnpm/deps.inspection.list':
         specifier: workspace:*
@@ -3225,9 +3216,6 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.31.1
-      '@types/semver':
-        specifier: 'catalog:'
-        version: 7.7.1
 
   deps/inspection/outdated:
     dependencies:
@@ -3301,6 +3289,37 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.31.1
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.7.1
+
+  deps/inspection/peers-checker:
+    dependencies:
+      '@pnpm/config.matcher':
+        specifier: workspace:*
+        version: link:../../../config/matcher
+      '@pnpm/config.parse-overrides':
+        specifier: workspace:*
+        version: link:../../../config/parse-overrides
+      '@pnpm/deps.path':
+        specifier: workspace:*
+        version: link:../../path
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../../lockfile/fs
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../../core/types
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.4
+    devDependencies:
+      '@pnpm/deps.inspection.peers-checker':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/test-fixtures':
+        specifier: workspace:*
+        version: link:../../../__utils__/test-fixtures
       '@types/semver':
         specifier: 'catalog:'
         version: 7.7.1

@@ -1,5 +1,5 @@
 /// <reference path="../../../../__typings__/index.d.ts"/>
-import { checkPeerDependencies } from '@pnpm/deps.inspection.list'
+import { checkPeerDependencies } from '@pnpm/deps.inspection.peers-checker'
 import { fixtures } from '@pnpm/test-fixtures'
 
 const f = fixtures(import.meta.dirname)

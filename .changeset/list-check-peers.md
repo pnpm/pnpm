@@ -1,6 +1,6 @@
 ---
-"@pnpm/deps.inspection.list": minor
 "@pnpm/deps.inspection.commands": minor
+"@pnpm/deps.inspection.peers-checker": minor
 "pnpm": minor
 ---
 

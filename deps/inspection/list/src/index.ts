@@ -1,6 +1,5 @@
 import path from 'node:path'
 
-export { checkPeerDependencies } from './checkPeerDependencies.js'
 import { buildDependenciesTree, buildDependentsTree, createPackagesSearcher, type DependenciesTree, type DependencyNode, type ImporterInfo } from '@pnpm/deps.inspection.tree-builder'
 import { readCurrentLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
 import type { DependenciesField, Finder, Registries } from '@pnpm/types'

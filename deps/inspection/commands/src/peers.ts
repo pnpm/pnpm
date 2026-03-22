@@ -1,7 +1,7 @@
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
-import { checkPeerDependencies } from '@pnpm/deps.inspection.list'
+import { checkPeerDependencies } from '@pnpm/deps.inspection.peers-checker'
 import { renderPeerIssues } from '@pnpm/installing.render-peer-issues'
 import type { PeerDependencyIssuesByProjects } from '@pnpm/types'
 import { isEmpty, pick } from 'ramda'

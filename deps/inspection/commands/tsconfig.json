@@ -71,6 +71,9 @@
     },
     {
       "path": "../outdated"
+    },
+    {
+      "path": "../peers-checker"
     }
   ]
 }

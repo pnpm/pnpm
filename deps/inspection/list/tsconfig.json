@@ -13,12 +13,6 @@
       "path": "../../../__utils__/test-fixtures"
     },
     {
-      "path": "../../../config/matcher"
-    },
-    {
-      "path": "../../../config/parse-overrides"
-    },
-    {
       "path": "../../../core/types"
     },
     {
@@ -32,9 +26,6 @@
     },
     {
       "path": "../../../workspace/project-manifest-reader"
-    },
-    {
-      "path": "../../path"
     },
     {
       "path": "../tree-builder"
