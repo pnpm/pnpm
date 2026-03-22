@@ -182,6 +182,11 @@ async function webLogin (
     headers: {
       'content-type': 'application/json',
       accept: 'application/json',
+      // Q: Why does pnpm send this header unconditionally?
+      // A: This header doesn't say "I prefer web-based authentication";
+      //    it only says "I am capable of web-based authentication".
+      //    The npm CLI does the same:
+      //    <https://github.com/npm/npm-registry-fetch/blob/844230f/lib/index.js#L197-L199>
       'npm-auth-type': 'web',
     },
     body: JSON.stringify({}),
@@ -238,6 +243,11 @@ async function classicLogin (
       const headers: Record<string, string> = {
         'content-type': 'application/json',
         accept: 'application/json',
+        // Q: Why does pnpm send this header unconditionally?
+        // A: This header doesn't say "I prefer web-based authentication";
+        //    it only says "I am capable of web-based authentication".
+        //    The npm CLI does the same:
+        //    <https://github.com/npm/npm-registry-fetch/blob/844230f/lib/index.js#L197-L199>
         'npm-auth-type': 'web',
       }
       if (otp) {
