@@ -138,36 +138,28 @@ function hasNoIssues (issues: PeerDependencyIssuesByProjects): boolean {
 }
 
 function renderPeerIssuesReverse (issuesByProjects: PeerDependencyIssuesByProjects): string {
-  const projectOutputs: string[] = []
+  const peerTrees: string[] = []
 
-  for (const [projectId, { bad, missing, intersections }] of Object.entries(issuesByProjects)) {
-    const peerNodes: TreeNode[] = []
-
+  for (const [, { bad, missing, intersections }] of Object.entries(issuesByProjects)) {
     for (const [peerName, issues] of Object.entries(bad)) {
       const foundVersion = issues[0].foundVersion
       const wantedRange = issues[0].wantedRange
       const label = `${chalk.yellowBright('✕ unmet peer')} ${chalk.bold(peerName)}@${wantedRange} ${chalk.dim(`(found ${foundVersion})`)}`
-      peerNodes.push({ label, nodes: parentChainsToTree(issues.map((i) => i.parents)) })
+      const tree: TreeNode = { label, nodes: parentChainsToTree(issues.map((i) => i.parents)) }
+      peerTrees.push(renderTree(tree, { treeChars: chalk.dim }).trimEnd())
     }
 
     for (const [peerName, issues] of Object.entries(missing)) {
       if (!intersections[peerName]) continue
       const wantedRange = intersections[peerName]
       const label = `${chalk.red('✕ missing peer')} ${chalk.bold(peerName)}@${wantedRange}`
-      peerNodes.push({ label, nodes: parentChainsToTree(issues.map((i) => i.parents)) })
+      const tree: TreeNode = { label, nodes: parentChainsToTree(issues.map((i) => i.parents)) }
+      peerTrees.push(renderTree(tree, { treeChars: chalk.dim }).trimEnd())
     }
-
-    if (peerNodes.length === 0) continue
-
-    const tree: TreeNode = {
-      label: chalk.reset(projectId),
-      nodes: peerNodes,
-    }
-    projectOutputs.push(renderTree(tree, { treeChars: chalk.dim }).trimEnd())
   }
 
-  if (projectOutputs.length === 0) return ''
-  return `Issues with peer dependencies found\n${projectOutputs.join('\n\n')}`
+  if (peerTrees.length === 0) return ''
+  return `Issues with peer dependencies found\n${peerTrees.join('\n\n')}`
 }
 
 interface ChainNode {
