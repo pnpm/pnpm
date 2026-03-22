@@ -1,10 +1,10 @@
+import { type WebAuthFetchResponse, WebAuthTimeoutError } from '@pnpm/network.web-auth'
+
 import {
   type OtpContext,
   OtpNonInteractiveError,
   type OtpPublishResponse,
   OtpSecondChallengeError,
-  type OtpWebAuthFetchResponse,
-  OtpWebAuthTimeoutError,
   publishWithOtpHandling,
 } from '../../src/publish/otp.js'
 
@@ -153,7 +153,7 @@ describe('publishWithOtpHandling', () => {
           expect(opts.otp).toBe('web-token-123')
           return createOkResponse()
         },
-        fetch: async (): Promise<OtpWebAuthFetchResponse> => {
+        fetch: async (): Promise<WebAuthFetchResponse> => {
           fetchCallCount++
           if (fetchCallCount < 3) {
             return {
@@ -197,7 +197,7 @@ describe('publishWithOtpHandling', () => {
           setTimeoutDelays.push(ms)
           cb()
         },
-        fetch: async (): Promise<OtpWebAuthFetchResponse> => {
+        fetch: async (): Promise<WebAuthFetchResponse> => {
           fetchCallCount++
           if (fetchCallCount === 1) {
             return {
@@ -240,7 +240,7 @@ describe('publishWithOtpHandling', () => {
           expect(opts.otp).toBe('tok')
           return createOkResponse()
         },
-        fetch: async (): Promise<OtpWebAuthFetchResponse> => {
+        fetch: async (): Promise<WebAuthFetchResponse> => {
           fetchCallCount++
           if (fetchCallCount === 1) {
             throw new Error('network failure')
@@ -276,7 +276,7 @@ describe('publishWithOtpHandling', () => {
           expect(opts.otp).toBe('tok')
           return createOkResponse()
         },
-        fetch: async (): Promise<OtpWebAuthFetchResponse> => {
+        fetch: async (): Promise<WebAuthFetchResponse> => {
           fetchCallCount++
           if (fetchCallCount === 1) {
             return {
@@ -317,7 +317,7 @@ describe('publishWithOtpHandling', () => {
           expect(opts.otp).toBe('tok')
           return createOkResponse()
         },
-        fetch: async (): Promise<OtpWebAuthFetchResponse> => {
+        fetch: async (): Promise<WebAuthFetchResponse> => {
           fetchCallCount++
           if (fetchCallCount === 1) {
             return {
@@ -342,7 +342,7 @@ describe('publishWithOtpHandling', () => {
       expect(fetchCallCount).toBe(2)
     })
 
-    it('throws OtpWebAuthTimeoutError after 5 minutes', async () => {
+    it('throws WebAuthTimeoutError after 5 minutes', async () => {
       let time = 0
       const context = createMockContext({
         Date: { now: () => time },
@@ -359,7 +359,7 @@ describe('publishWithOtpHandling', () => {
           time += 6 * 60 * 1000 // Jump past timeout
           cb()
         },
-        fetch: async (): Promise<OtpWebAuthFetchResponse> => ({
+        fetch: async (): Promise<WebAuthFetchResponse> => ({
           headers: { get: () => null },
           json: async () => ({}),
           ok: true,
@@ -367,7 +367,7 @@ describe('publishWithOtpHandling', () => {
         }),
       })
       await expect(publishWithOtpHandling({ context, manifest, publishOptions, tarballData }))
-        .rejects.toBeInstanceOf(OtpWebAuthTimeoutError)
+        .rejects.toBeInstanceOf(WebAuthTimeoutError)
     })
   })
 })

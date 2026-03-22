@@ -5,8 +5,6 @@ import type { PublishOptions } from 'libnpmpublish'
 
 import { SHARED_CONTEXT } from './utils/shared-context.js'
 
-export type { WebAuthFetchOptions as OtpWebAuthFetchOptions, WebAuthFetchResponse as OtpWebAuthFetchResponse }
-
 export interface OtpPublishResponse {
   readonly ok: boolean
   readonly status: number
@@ -34,8 +32,12 @@ export type OtpPublishFn = (
   options: PublishOptions
 ) => Promise<OtpPublishResponse>
 
+export interface OtpDate {
+  now: () => number
+}
+
 export interface OtpContext {
-  Date: { now: () => number }
+  Date: OtpDate
   setTimeout: (cb: () => void, ms: number) => void
   enquirer: OtpEnquirer
   fetch: (url: string, options: WebAuthFetchOptions) => Promise<WebAuthFetchResponse>
@@ -156,8 +158,6 @@ export async function publishWithOtpHandling ({
 
   return response
 }
-
-export { WebAuthTimeoutError as OtpWebAuthTimeoutError } from '@pnpm/network.web-auth'
 
 export class OtpNonInteractiveError extends PnpmError {
   constructor () {
