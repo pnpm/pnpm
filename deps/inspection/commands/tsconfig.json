@@ -43,9 +43,6 @@
       "path": "../../../global/commands"
     },
     {
-      "path": "../../../installing/render-peer-issues"
-    },
-    {
       "path": "../../../global/packages"
     },
     {
@@ -53,6 +50,9 @@
     },
     {
       "path": "../../../installing/modules-yaml"
+    },
+    {
+      "path": "../../../installing/render-peer-issues"
     },
     {
       "path": "../../../lockfile/fs"

@@ -22,9 +22,6 @@
       "path": "../../../core/types"
     },
     {
-      "path": "../../../deps/path"
-    },
-    {
       "path": "../../../lockfile/fs"
     },
     {
@@ -35,6 +32,9 @@
     },
     {
       "path": "../../../workspace/project-manifest-reader"
+    },
+    {
+      "path": "../../path"
     },
     {
       "path": "../tree-builder"
