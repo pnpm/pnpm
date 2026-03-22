@@ -5,7 +5,7 @@ import { createCompletionServer, doctor, generateCompletion } from '@pnpm/cli.co
 import { config, getCommand, setCommand } from '@pnpm/config.commands'
 import { types as allTypes } from '@pnpm/config.reader'
 import { audit, licenses, sbom } from '@pnpm/deps.compliance.commands'
-import { list, ll, outdated, why } from '@pnpm/deps.inspection.commands'
+import { list, ll, outdated, peers, why } from '@pnpm/deps.inspection.commands'
 import { selfUpdate, setup } from '@pnpm/engine.pm.commands'
 import { env, runtime } from '@pnpm/engine.runtime.commands'
 import {
@@ -147,6 +147,7 @@ const commands: CommandDefinition[] = [
   patch,
   patchCommit,
   patchRemove,
+  peers,
   prune,
   publish,
   rebuild,

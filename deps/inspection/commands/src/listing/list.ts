@@ -1,11 +1,9 @@
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
-import { checkPeerDependencies, list, listForPackages } from '@pnpm/deps.inspection.list'
+import { list, listForPackages } from '@pnpm/deps.inspection.list'
 import { listGlobalPackages } from '@pnpm/global.commands'
-import { renderPeerIssues } from '@pnpm/installing.render-peer-issues'
-import type { Finder, IncludedDependencies, PeerDependencyIssuesByProjects } from '@pnpm/types'
-import { isEmpty } from 'ramda'
+import type { Finder, IncludedDependencies } from '@pnpm/types'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
@@ -27,7 +25,6 @@ export function rcOptionsTypes (): Record<string, unknown> {
 
 export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
-  'check-peers': Boolean,
   'exclude-peers': Boolean,
   'only-projects': Boolean,
   recursive: Boolean,
@@ -72,10 +69,6 @@ For example: pnpm ls babel-* eslint-*',
             description: 'List packages from the lockfile only, without checking node_modules.',
             name: '--lockfile-only',
           },
-          {
-            description: 'Check for unmet peer dependency issues in the lockfile',
-            name: '--check-peers',
-          },
           EXCLUDE_PEERS_HELP,
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
@@ -96,14 +89,12 @@ export type ListCommandOptions = Pick<Config,
 | 'dir'
 | 'finders'
 | 'optional'
-| 'peerDependencyRules'
 | 'production'
 | 'selectedProjectsGraph'
 | 'modulesDir'
 | 'virtualStoreDirMaxLength'
 > & Partial<Pick<Config, 'cliOptions'>> & {
   alwaysPrintRootPackage?: boolean
-  checkPeers?: boolean
   depth?: number
   excludePeers?: boolean
   json?: boolean
@@ -120,10 +111,6 @@ export async function handler (
   opts: ListCommandOptions,
   params: string[]
 ): Promise<string> {
-  const checkPeers = opts.checkPeers ?? opts.cliOptions?.['check-peers'] as boolean | undefined
-  if (checkPeers) {
-    return handleCheckPeers(opts)
-  }
   if (opts.global && opts.globalPkgDir) {
     return listGlobalPackages(opts.globalPkgDir, params)
   }
@@ -141,45 +128,6 @@ export async function handler (
     checkWantedLockfileOnly: opts.lockfileOnly,
     onlyProjects: opts.cliOptions?.['only-projects'] ?? opts.onlyProjects,
   })
-}
-
-async function handleCheckPeers (opts: ListCommandOptions): Promise<string> {
-  const lockfileDir = opts.lockfileDir ?? opts.dir
-  const projectPaths = opts.recursive && opts.selectedProjectsGraph
-    ? Object.keys(opts.selectedProjectsGraph)
-    : [opts.dir]
-
-  const issues = await checkPeerDependencies(projectPaths, {
-    lockfileDir,
-    checkWantedLockfileOnly: opts.lockfileOnly,
-    modulesDir: opts.modulesDir,
-    peerDependencyRules: opts.peerDependencyRules,
-  })
-
-  if (opts.json || opts.cliOptions?.['json'] as boolean | undefined) {
-    return formatPeerIssuesJson(issues)
-  }
-
-  return formatPeerIssuesTree(issues)
-}
-
-function formatPeerIssuesTree (issues: PeerDependencyIssuesByProjects): string {
-  if (hasNoIssues(issues)) return ''
-  const rendered = renderPeerIssues(issues)
-  if (!rendered) return ''
-  return `Issues with peer dependencies found\n${rendered}`
-}
-
-function formatPeerIssuesJson (issues: PeerDependencyIssuesByProjects): string {
-  return JSON.stringify(issues, null, 2)
-}
-
-function hasNoIssues (issues: PeerDependencyIssuesByProjects): boolean {
-  return Object.values(issues).every(
-    (projectIssues) =>
-      isEmpty(projectIssues.bad) &&
-      isEmpty(projectIssues.missing)
-  )
 }
 
 export async function render (
