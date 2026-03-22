@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/package-is-installable",
+  "name": "@pnpm/config.package-is-installable",
   "version": "1000.0.15",
   "description": "Checks if a package is installable on the current system",
   "keywords": [
@@ -24,22 +24,22 @@
     "!*.map"
   ],
   "scripts": {
-    "start": "tsc --watch",
-    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
-    "test": "pnpm run compile && pnpm run _test",
+    "start": "tsgo --watch",
+    "test": "pnpm run compile && pnpm run .test",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
-    "@pnpm/cli-meta": "workspace:*",
+    "@pnpm/cli.meta": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
-    "@pnpm/env.system-node-version": "workspace:*",
+    "@pnpm/engine.runtime.system-node-version": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/types": "workspace:*",
     "detect-libc": "catalog:",
     "execa": "catalog:",
-    "mem": "catalog:",
+    "memoize": "catalog:",
     "semver": "catalog:"
   },
   "peerDependencies": {
@@ -47,12 +47,12 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
+    "@pnpm/config.package-is-installable": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/package-is-installable": "workspace:*",
     "@types/semver": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

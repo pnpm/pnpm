@@ -1,5 +1,5 @@
 ---
-"@pnpm/tools.plugin-commands-self-updater": patch
+"@pnpm/engine.pm.commands": patch
 "pnpm": patch
 ---
 

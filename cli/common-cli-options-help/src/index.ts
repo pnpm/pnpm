@@ -36,6 +36,11 @@ export const UNIVERSAL_OPTIONS = [
     shortAlias: '-h',
   },
   {
+    description: 'Automatically answer yes to prompts and run non-interactively. Will abort if an undesirable situation occurs and user input is strictly necessary.',
+    name: '--yes',
+    shortAlias: '-y',
+  },
+  {
     description: `Change to directory <dir> (default: ${process.cwd()})`,
     name: '--dir <dir>',
     shortAlias: '-C',
@@ -67,6 +72,7 @@ export const FILTERING = {
     {
       description: 'Restricts the scope to package names matching the given pattern. E.g.: foo, "@bar/*"',
       name: '--filter <pattern>',
+      shortAlias: '-F',
     },
     {
       description: 'Includes all direct and indirect dependencies of the matched packages. E.g.: foo...',

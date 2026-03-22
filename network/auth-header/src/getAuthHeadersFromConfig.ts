@@ -1,8 +1,9 @@
+import { spawnSync } from 'node:child_process'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { nerfDart } from '@pnpm/config.nerf-dart'
 import { PnpmError } from '@pnpm/error'
-import { spawnSync } from 'child_process'
-import fs from 'fs'
-import path from 'path'
 
 export function getAuthHeadersFromConfig (
   { allSettings, userSettings }: {
@@ -14,20 +15,20 @@ export function getAuthHeadersFromConfig (
   for (const [key, value] of Object.entries(allSettings)) {
     const [uri, authType] = splitKey(key)
     switch (authType) {
-    case '_authToken': {
-      authHeaderValueByURI[uri] = `Bearer ${value}`
-      continue
-    }
-    case '_auth': {
-      authHeaderValueByURI[uri] = `Basic ${value}`
-      continue
-    }
-    case 'username': {
-      if (`${uri}:_password` in allSettings) {
-        const password = Buffer.from(allSettings[`${uri}:_password`], 'base64').toString('utf8')
-        authHeaderValueByURI[uri] = `Basic ${Buffer.from(`${value}:${password}`).toString('base64')}`
+      case '_authToken': {
+        authHeaderValueByURI[uri] = `Bearer ${value}`
+        continue
       }
-    }
+      case '_auth': {
+        authHeaderValueByURI[uri] = `Basic ${value}`
+        continue
+      }
+      case 'username': {
+        if (`${uri}:_password` in allSettings) {
+          const password = Buffer.from(allSettings[`${uri}:_password`], 'base64').toString('utf8')
+          authHeaderValueByURI[uri] = `Basic ${Buffer.from(`${value}:${password}`).toString('base64')}`
+        }
+      }
     }
   }
   for (const [key, value] of Object.entries(userSettings)) {

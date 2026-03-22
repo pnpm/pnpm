@@ -1,11 +1,11 @@
-import {
-  type Resolution,
-  type GitResolution,
-  type DirectoryResolution,
-  type BinaryResolution,
-} from '@pnpm/resolver-base'
-import { type Cafs } from '@pnpm/cafs-types'
-import { type AllowBuild, type DependencyManifest } from '@pnpm/types'
+import type {
+  BinaryResolution,
+  DirectoryResolution,
+  GitResolution,
+  Resolution,
+} from '@pnpm/resolving.resolver-base'
+import type { Cafs, FilesMap } from '@pnpm/store.cafs-types'
+import type { AllowBuild, BundledManifest, DependencyManifest } from '@pnpm/types'
 
 export interface PkgNameVersion {
   name?: string
@@ -20,6 +20,7 @@ export interface FetchOptions {
   onProgress?: (downloaded: number) => void
   readManifest?: boolean
   pkg: PkgNameVersion
+  appendManifest?: DependencyManifest
 }
 
 export type FetchFunction<FetcherResolution = Resolution, Options = FetchOptions, Result = FetchResult> = (
@@ -30,8 +31,8 @@ export type FetchFunction<FetcherResolution = Resolution, Options = FetchOptions
 
 export interface FetchResult {
   local?: boolean
-  manifest?: DependencyManifest
-  filesIndex: Map<string, string>
+  manifest?: BundledManifest
+  filesMap: FilesMap
   requiresBuild: boolean
   integrity?: string
 }
@@ -44,8 +45,8 @@ export interface GitFetcherOptions {
 }
 
 export interface GitFetcherResult {
-  filesIndex: Map<string, string>
-  manifest?: DependencyManifest
+  filesMap: FilesMap
+  manifest?: BundledManifest
   requiresBuild: boolean
 }
 
@@ -60,7 +61,7 @@ export interface DirectoryFetcherOptions {
 
 export interface DirectoryFetcherResult {
   local: true
-  filesIndex: Map<string, string>
+  filesMap: FilesMap
   packageImportMethod: 'hardlink'
   manifest?: DependencyManifest
   requiresBuild: boolean
@@ -75,18 +76,4 @@ export interface Fetchers {
   directory: DirectoryFetcher
   git: GitFetcher
   binary: BinaryFetcher
-}
-
-interface CustomFetcherFactoryOptions {
-  defaultFetchers: Fetchers
-}
-
-export type CustomFetcherFactory<Fetcher> = (opts: CustomFetcherFactoryOptions) => Fetcher
-
-export interface CustomFetchers {
-  localTarball?: CustomFetcherFactory<FetchFunction>
-  remoteTarball?: CustomFetcherFactory<FetchFunction>
-  gitHostedTarball?: CustomFetcherFactory<FetchFunction>
-  directory?: CustomFetcherFactory<DirectoryFetcher>
-  git?: CustomFetcherFactory<GitFetcher>
 }

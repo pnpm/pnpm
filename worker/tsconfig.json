@@ -10,7 +10,19 @@
   ],
   "references": [
     {
-      "path": "../exec/pkg-requires-build"
+      "path": "../building/pkg-requires-build"
+    },
+    {
+      "path": "../core/error"
+    },
+    {
+      "path": "../core/logger"
+    },
+    {
+      "path": "../core/types"
+    },
+    {
+      "path": "../crypto/integrity"
     },
     {
       "path": "../fs/graceful-fs"
@@ -22,18 +34,6 @@
       "path": "../fs/symlink-dependency"
     },
     {
-      "path": "../fs/v8-file"
-    },
-    {
-      "path": "../packages/error"
-    },
-    {
-      "path": "../packages/logger"
-    },
-    {
-      "path": "../packages/types"
-    },
-    {
       "path": "../store/cafs"
     },
     {
@@ -41,6 +41,9 @@
     },
     {
       "path": "../store/create-cafs-store"
+    },
+    {
+      "path": "../store/index"
     }
   ]
 }

@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/lifecycle",
+  "name": "@pnpm/exec.lifecycle",
   "version": "1001.0.25",
   "description": "Package lifecycle hook runner",
   "keywords": [
@@ -27,20 +27,21 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
-    "test": "pnpm run compile && pnpm run _test",
+    "test": "pnpm run compile && pnpm run .test",
     "prepublishOnly": "pnpm run compile",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/bins.linker": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
-    "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/link-bins": "workspace:*",
+    "@pnpm/fetching.directory-fetcher": "workspace:*",
     "@pnpm/npm-lifecycle": "catalog:",
-    "@pnpm/read-package-json": "workspace:*",
-    "@pnpm/store-controller-types": "workspace:*",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
+    "@pnpm/store.cafs-types": "workspace:*",
+    "@pnpm/store.controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "is-windows": "catalog:",
     "path-exists": "catalog:",
@@ -51,18 +52,17 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/lifecycle": "workspace:*",
+    "@pnpm/exec.lifecycle": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
     "@types/is-windows": "catalog:",
-    "@types/rimraf": "catalog:",
     "@zkochan/rimraf": "catalog:",
     "load-json-file": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

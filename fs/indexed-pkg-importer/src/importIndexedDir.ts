@@ -1,14 +1,15 @@
-import fs from 'fs'
-import util from 'util'
+import fs from 'node:fs'
+import path from 'node:path'
+import util from 'node:util'
+
+import gfs from '@pnpm/fs.graceful-fs'
+import { globalInfo, globalWarn, logger } from '@pnpm/logger'
+import { rimrafSync } from '@zkochan/rimraf'
 import fsx from 'fs-extra'
-import path from 'path'
-import { globalWarn, logger } from '@pnpm/logger'
-import { sync as rimraf } from '@zkochan/rimraf'
-import { sync as makeEmptyDir } from 'make-empty-dir'
-import sanitizeFilename from 'sanitize-filename'
+import { makeEmptyDirSync } from 'make-empty-dir'
 import { fastPathTemp as pathTemp } from 'path-temp'
-import renameOverwrite from 'rename-overwrite'
-import gfs from '@pnpm/graceful-fs'
+import { renameOverwriteSync } from 'rename-overwrite'
+import sanitizeFilename from 'sanitize-filename'
 
 const filenameConflictsLogger = logger('_filename-conflicts')
 
@@ -20,6 +21,7 @@ export function importIndexedDir (
   filenames: Map<string, string>,
   opts: {
     keepModulesDir?: boolean
+    safeToSkip?: boolean
   }
 ): void {
   const stage = pathTemp(newDir)
@@ -29,10 +31,9 @@ export function importIndexedDir (
       // Keeping node_modules is needed only when the hoisted node linker is used.
       moveOrMergeModulesDirs(path.join(newDir, 'node_modules'), path.join(stage, 'node_modules'))
     }
-    renameOverwrite.sync(stage, newDir)
   } catch (err: unknown) {
     try {
-      rimraf(stage)
+      rimrafSync(stage)
     } catch {} // eslint-disable-line:no-empty
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') {
       const { uniqueFileMap, conflictingFileNames } = getUniqueFileMap(filenames)
@@ -62,6 +63,59 @@ They were renamed.`)
     }
     throw err
   }
+  if (opts.safeToSkip) {
+    // Content-addressable target (e.g. global virtual store): if the target
+    // already exists and has all expected files, it has the correct content.
+    // Skip instead of doing a swap-rename that temporarily removes the target
+    // directory — which breaks junctions read by other processes.
+    try {
+      fs.renameSync(stage, newDir)
+      return
+    } catch (err: unknown) {
+      if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOTEMPTY' || err.code === 'EEXIST' || err.code === 'EPERM')) {
+        if (allFilesMatch(newDir, filenames)) {
+          try {
+            rimrafSync(stage)
+          } catch {} // eslint-disable-line:no-empty
+          return
+        }
+      }
+      // Files missing or other error — fall through to renameOverwriteSync
+    }
+  }
+  try {
+    renameOverwriteSync(stage, newDir)
+  } catch (renameErr: unknown) {
+    try {
+      rimrafSync(stage)
+    } catch {} // eslint-disable-line:no-empty
+    throw renameErr
+  }
+}
+
+function allFilesMatch (dir: string, filenames: Map<string, string>): boolean {
+  for (const [f, src] of filenames) {
+    const target = path.join(dir, f)
+    try {
+      const targetStat = gfs.statSync(target)
+      const srcStat = gfs.statSync(src)
+      // Fast path: hardlinks share the same inode
+      if (targetStat.ino === srcStat.ino && targetStat.dev === srcStat.dev) continue
+      // Copy path: compare size first, then content
+      if (targetStat.size !== srcStat.size) {
+        globalInfo(`Re-importing "${dir}" because file "${f}" has a different size`)
+        return false
+      }
+      if (!gfs.readFileSync(target).equals(gfs.readFileSync(src))) {
+        globalInfo(`Re-importing "${dir}" because file "${f}" has different content`)
+        return false
+      }
+    } catch {
+      globalInfo(`Re-importing "${dir}" because file "${f}" is missing or unreadable`)
+      return false
+    }
+  }
+  return true
 }
 
 interface SanitizeFilenamesResult {
@@ -83,7 +137,7 @@ function sanitizeFilenames (filenames: Map<string, string>): SanitizeFilenamesRe
 }
 
 function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames: Map<string, string>): void {
-  makeEmptyDir(newDir, { recursive: true })
+  makeEmptyDirSync(newDir, { recursive: true })
   const allDirs = new Set<string>()
   for (const f of filenames.keys()) {
     const dir = path.dirname(f)
@@ -128,16 +182,16 @@ function moveOrMergeModulesDirs (src: string, dest: string): void {
     renameEvenAcrossDevices(src, dest)
   } catch (err: unknown) {
     switch (util.types.isNativeError(err) && 'code' in err && err.code) {
-    case 'ENOENT':
+      case 'ENOENT':
       // If src directory doesn't exist, there is nothing to do
-      return
-    case 'ENOTEMPTY':
-    case 'EPERM': // This error code is thrown on Windows
+        return
+      case 'ENOTEMPTY':
+      case 'EPERM': // This error code is thrown on Windows
       // The newly added dependency might have node_modules if it has bundled dependencies.
-      mergeModulesDirs(src, dest)
-      return
-    default:
-      throw err
+        mergeModulesDirs(src, dest)
+        return
+      default:
+        throw err
     }
   }
 }

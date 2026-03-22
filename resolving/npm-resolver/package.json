@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/npm-resolver",
+  "name": "@pnpm/resolving.npm-resolver",
   "version": "1004.4.1",
   "description": "Resolver for npm-hosted packages",
   "keywords": [
@@ -27,26 +27,27 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
-    "test": "pnpm run compile && pnpm run _test",
+    "test": "pnpm run compile && pnpm run .test",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/config.pick-registry-for-package": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/fetching-types": "workspace:*",
-    "@pnpm/fs.v8-file": "workspace:*",
-    "@pnpm/graceful-fs": "workspace:*",
-    "@pnpm/pick-registry-for-package": "workspace:*",
-    "@pnpm/registry.pkg-metadata-filter": "workspace:*",
-    "@pnpm/registry.types": "workspace:*",
-    "@pnpm/resolve-workspace-range": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/fetching.types": "workspace:*",
+    "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/resolving.jsr-specifier-parser": "workspace:*",
+    "@pnpm/resolving.registry.pkg-metadata-filter": "workspace:*",
+    "@pnpm/resolving.registry.types": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.index": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.range-resolver": "workspace:*",
     "@pnpm/workspace.spec-parser": "workspace:*",
     "@zkochan/retry": "catalog:",
     "encode-registry": "catalog:",
@@ -64,13 +65,14 @@
     "version-selector-type": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "catalog:"
+    "@pnpm/logger": "catalog:",
+    "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
     "@pnpm/config.version-policy": "workspace:*",
-    "@pnpm/fetch": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/npm-resolver": "workspace:*",
+    "@pnpm/network.fetch": "workspace:*",
+    "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
@@ -81,7 +83,7 @@
     "tempy": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

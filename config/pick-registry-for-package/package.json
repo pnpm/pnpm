@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/pick-registry-for-package",
+  "name": "@pnpm/config.pick-registry-for-package",
   "version": "1000.0.11",
   "description": "Picks the right registry for the package from a registries config",
   "keywords": [
@@ -24,20 +24,20 @@
     "!*.map"
   ],
   "scripts": {
-    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
-    "test": "pnpm run compile && pnpm run _test",
+    "test": "pnpm run compile && pnpm run .test",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
-    "@pnpm/pick-registry-for-package": "workspace:*"
+    "@pnpm/config.pick-registry-for-package": "workspace:*"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

@@ -1,4 +1,5 @@
-import util, { promisify } from 'util'
+import util, { promisify } from 'node:util'
+
 import gfs from 'graceful-fs'
 
 export default { // eslint-disable-line
@@ -7,6 +8,7 @@ export default { // eslint-disable-line
   createReadStream: gfs.createReadStream,
   link: promisify(gfs.link),
   linkSync: withEagainRetry(gfs.linkSync),
+  mkdir: promisify(gfs.mkdir),
   mkdirSync: withEagainRetry(gfs.mkdirSync),
   renameSync: withEagainRetry(gfs.renameSync),
   readFile: promisify(gfs.readFile),

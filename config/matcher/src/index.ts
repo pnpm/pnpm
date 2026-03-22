@@ -15,8 +15,8 @@ interface MatcherFunction {
 
 export function createMatcherWithIndex (patterns: string[]): MatcherWithIndex {
   switch (patterns.length) {
-  case 0: return () => -1
-  case 1: return matcherWhenOnlyOnePatternWithIndex(patterns[0])
+    case 0: return () => -1
+    case 1: return matcherWhenOnlyOnePatternWithIndex(patterns[0])
   }
   const matchArr: MatcherFunction[] = []
   let hasIgnore = false

@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/prepare-package",
+  "name": "@pnpm/exec.prepare-package",
   "version": "1000.0.26",
   "description": "Prepares a Git-hosted package",
   "keywords": [
@@ -25,15 +25,15 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "test": "pnpm run compile && pnpm run _test",
+    "test": "pnpm run compile && pnpm run .test",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix",
-    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
+    "compile": "tsgo --build && pnpm run lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
-    "@pnpm/lifecycle": "workspace:*",
-    "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/exec.lifecycle": "workspace:*",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "execa": "catalog:",
@@ -41,15 +41,15 @@
     "ramda": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/exec.prepare-package": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/prepare-package": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
     "@types/ramda": "catalog:",
     "load-json-file": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

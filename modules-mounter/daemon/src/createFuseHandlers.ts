@@ -1,14 +1,16 @@
 // cspell:ignore ents
-import fs from 'fs'
-import { readV8FileStrictSync } from '@pnpm/fs.v8-file'
-import { getIndexFilePathInCafs, getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
-import { type LockfileObject, readWantedLockfile, type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile.fs'
+import fs from 'node:fs'
+
+import { type LockfileObject, type PackageSnapshot, readWantedLockfile, type TarballResolution } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
-import { type DepPath } from '@pnpm/types'
-import schemas from 'hyperdrive-schemas'
+import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
+import type { DepPath } from '@pnpm/types'
 import Fuse from 'fuse-native'
+import schemas from 'hyperdrive-schemas'
+
 import * as cafsExplorer from './cafsExplorer.js'
 import { makeVirtualNodeModules } from './makeVirtualNodeModules.js'
 
@@ -39,6 +41,7 @@ export async function createFuseHandlers (lockfileDir: string, storeDir: string)
 }
 
 export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeDir: string): FuseHandlers {
+  const storeIndex = new StoreIndex(storeDir)
   const pkgSnapshotCache = new Map<string, { name: string, version: string, pkgSnapshot: PackageSnapshot, index: PackageFilesIndex }>()
   const virtualNodeModules = makeVirtualNodeModules(lockfile)
   return {
@@ -53,13 +56,12 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
         cb(-1)
         return
       }
-      const filePathInStore = getFilePathByModeInCafs(storeDir, fileInfo.integrity, fileInfo.mode)
+      const filePathInStore = getFilePathByModeInCafs(storeDir, fileInfo.digest, fileInfo.mode)
       fs.open(filePathInStore, flags, (err, fd) => {
         if (err != null) {
           cb(-1)
           return
         }
-        // eslint-disable-next-line n/no-callback-literal
         cb(0, fd)
       })
     },
@@ -83,7 +85,6 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
         cb(Fuse.ENOENT)
         return
       }
-      // eslint-disable-next-line n/no-callback-literal
       cb(0, dirEnt.target)
     },
     /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
@@ -94,7 +95,6 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
         return
       }
       if (dirEnt.entryType === 'directory' || dirEnt.entryType === 'index' && !dirEnt.subPath) {
-        // eslint-disable-next-line n/no-callback-literal
         cb(0, schemas.Stat.directory({
           ...STAT_DEFAULT,
           size: 1,
@@ -102,7 +102,6 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
         return
       }
       if (dirEnt.entryType === 'symlink') {
-        // eslint-disable-next-line n/no-callback-literal
         cb(0, schemas.Stat.symlink({
           ...STAT_DEFAULT,
           size: 1,
@@ -111,26 +110,24 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
       }
       if (dirEnt.entryType === 'index') {
         switch (cafsExplorer.dirEntityType(dirEnt.index, dirEnt.subPath)) {
-        case 'file': {
-          const { size, mode } = dirEnt.index.files.get(dirEnt.subPath)!
-          // eslint-disable-next-line n/no-callback-literal
-          cb(0, schemas.Stat.file({
-            ...STAT_DEFAULT,
-            mode,
-            size,
-          }))
-          return
-        }
-        case 'directory':
-        // eslint-disable-next-line n/no-callback-literal
-          cb(0, schemas.Stat.directory({
-            ...STAT_DEFAULT,
-            size: 1,
-          }))
-          return
-        default:
-          cb(Fuse.ENOENT)
-          return
+          case 'file': {
+            const fileInfo = dirEnt.index.files.get(dirEnt.subPath)!
+            cb(0, schemas.Stat.file({
+              ...STAT_DEFAULT,
+              mode: fileInfo.mode,
+              size: fileInfo.size,
+            }))
+            return
+          }
+          case 'directory':
+            cb(0, schemas.Stat.directory({
+              ...STAT_DEFAULT,
+              size: 1,
+            }))
+            return
+          default:
+            cb(Fuse.ENOENT)
+            return
         }
       }
       cb(Fuse.ENOENT)
@@ -145,7 +142,6 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
         cb(Fuse.ENOENT)
         return
       }
-      // eslint-disable-next-line n/no-callback-literal
       cb(0, dirEnts)
       return
     }
@@ -153,7 +149,6 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
       cb(Fuse.ENOENT)
       return
     }
-    // eslint-disable-next-line n/no-callback-literal
     cb(0, Object.keys(dirEnt.entries))
   }
   function getDirEnt (p: string) {
@@ -164,7 +159,7 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
       currentDirEntry = currentDirEntry.entries[parts.shift()!]
     }
     if (currentDirEntry?.entryType === 'index') {
-      const pkg = getPkgInfo(currentDirEntry.depPath, storeDir)
+      const pkg = getPkgInfo(currentDirEntry.depPath)
       if (pkg == null) {
         return null
       }
@@ -176,16 +171,17 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
     }
     return currentDirEntry
   }
-  function getPkgInfo (depPath: string, storeDir: string) {
+  function getPkgInfo (depPath: string) {
     if (!pkgSnapshotCache.has(depPath)) {
       const pkgSnapshot = lockfile.packages?.[depPath as DepPath]
       if (pkgSnapshot == null) return undefined
       const nameVer = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-      const indexPath = getIndexFilePathInCafs(storeDir, (pkgSnapshot.resolution as TarballResolution).integrity!, `${nameVer.name}@${nameVer.version}`)
+      const pkgIndexFilePath = storeIndexKey((pkgSnapshot.resolution as TarballResolution).integrity!, `${nameVer.name}@${nameVer.version}`)
+      const pkgIndex = storeIndex.get(pkgIndexFilePath) as PackageFilesIndex
       pkgSnapshotCache.set(depPath, {
         ...nameVer,
         pkgSnapshot,
-        index: readV8FileStrictSync<PackageFilesIndex>(indexPath), // TODO: maybe make it async?
+        index: pkgIndex,
       })
     }
     return pkgSnapshotCache.get(depPath)

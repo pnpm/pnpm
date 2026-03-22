@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/create-cafs-store",
+  "name": "@pnpm/store.create-cafs-store",
   "version": "1000.0.20",
   "description": "Create a CAFS store controller",
   "keywords": [
@@ -34,20 +34,20 @@
     "test": "test"
   },
   "scripts": {
-    "start": "tsc --watch",
+    "start": "tsgo --watch",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pnpm run compile",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/exec.pkg-requires-build": "workspace:*",
-    "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/building.pkg-requires-build": "workspace:*",
+    "@pnpm/fetching.fetcher-base": "workspace:*",
     "@pnpm/fs.indexed-pkg-importer": "workspace:*",
-    "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
-    "mem": "catalog:",
+    "@pnpm/store.controller-types": "workspace:*",
+    "memoize": "catalog:",
     "path-temp": "catalog:",
     "ramda": "catalog:"
   },
@@ -55,14 +55,14 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/cafs-types": "workspace:*",
-    "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
+    "@pnpm/store.cafs-types": "workspace:*",
+    "@pnpm/store.create-cafs-store": "workspace:*",
     "@types/ramda": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

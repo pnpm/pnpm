@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../../packages/types"
+      "path": "../../core/types"
     },
     {
-      "path": "../../pkg-manifest/manifest-utils"
+      "path": "../../pkg-manifest/utils"
     },
     {
       "path": "../../resolving/resolver-base"

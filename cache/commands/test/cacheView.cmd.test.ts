@@ -1,9 +1,10 @@
-import path from 'path'
+import path from 'node:path'
+
+import { cache } from '@pnpm/cache.commands'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import execa from 'execa'
-import { cache } from '@pnpm/cache.commands'
-import { sync as rimraf } from '@zkochan/rimraf'
+import { rimrafSync } from '@zkochan/rimraf'
+import { safeExeca as execa } from 'execa'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
@@ -25,8 +26,8 @@ describe('cache view', () => {
       '--config.resolution-mode=highest',
       `--registry=${REGISTRY}`,
     ])
-    rimraf('node_modules')
-    rimraf('pnpm-lock.yaml')
+    rimrafSync('node_modules')
+    rimrafSync('pnpm-lock.yaml')
     await execa('node', [
       pnpmBin,
       'add',

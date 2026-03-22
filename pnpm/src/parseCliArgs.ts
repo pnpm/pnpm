@@ -1,4 +1,5 @@
-import { type ParsedCliArgs, parseCliArgs as parseCliArgsLib } from '@pnpm/parse-cli-args'
+import { parseCliArgs as parseCliArgsLib, type ParsedCliArgs } from '@pnpm/cli.parse-cli-args'
+
 import {
   getCliOptionsTypes,
   getCommandFullName,
@@ -8,9 +9,7 @@ import {
 import { shorthands as universalShorthands } from './shorthands.js'
 
 const RENAMED_OPTIONS = {
-  'lockfile-directory': 'lockfile-dir',
   prefix: 'dir',
-  'shrinkwrap-directory': 'lockfile-dir',
   store: 'store-dir',
 }
 

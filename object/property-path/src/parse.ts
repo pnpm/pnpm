@@ -1,12 +1,14 @@
-import assert from 'assert/strict'
+import assert from 'node:assert/strict'
+
 import { PnpmError } from '@pnpm/error'
+
 import {
   type ExactToken,
   type Identifier,
   type NumericLiteral,
   type StringLiteral,
-  type UnexpectedToken,
   tokenize,
+  type UnexpectedToken,
 } from './token/index.js'
 
 export class UnexpectedTokenError<Token extends ExactToken<string> | UnexpectedToken> extends PnpmError {
@@ -115,7 +117,7 @@ export function * parsePropertyPath (propertyPath: string): Generator<string | n
     if (token.type === 'whitespace') continue
     if (token.type === 'unexpected') throw new UnexpectedTokenError(token)
 
-    const _typeGuard: never = token // eslint-disable-line @typescript-eslint/no-unused-vars
+    const _typeGuard: never = token
   }
 
   if (stack) throw new UnexpectedEndOfInputError()

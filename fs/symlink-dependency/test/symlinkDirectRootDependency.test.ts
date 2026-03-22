@@ -1,7 +1,8 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { symlinkDirectRootDependency } from '@pnpm/fs.symlink-dependency'
 import { tempDir } from '@pnpm/prepare'
-import { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 
 test('symlink is created to directory that does not yet exist', async () => {
   const tmp = tempDir(false)

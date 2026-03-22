@@ -1,20 +1,27 @@
-import url from 'url'
+import url from 'node:url'
+
 import { requestRetryLogger } from '@pnpm/core-loggers'
-import { globalWarn } from '@pnpm/logger'
 import {
   FetchError,
   type FetchErrorRequest,
   type FetchErrorResponse,
   PnpmError,
 } from '@pnpm/error'
-import { type FetchFromRegistry, type RetryTimeoutOptions } from '@pnpm/fetching-types'
-import { type PackageMeta } from '@pnpm/registry.types'
+import type { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetching.types'
+import { globalWarn } from '@pnpm/logger'
+import type { PackageMeta } from '@pnpm/resolving.registry.types'
 import * as retry from '@zkochan/retry'
 
 interface RegistryResponse {
   status: number
   statusText: string
   json: () => Promise<PackageMeta>
+  text: () => Promise<string>
+}
+
+export interface FetchMetadataResult {
+  meta: PackageMeta
+  jsonText: string
 }
 
 // https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
@@ -49,12 +56,21 @@ export interface FetchMetadataFromFromRegistryOptions {
   fetchWarnTimeoutMs: number
 }
 
+export interface FetchMetadataOptions {
+  registry: string
+  authHeaderValue?: string
+  fullMetadata?: boolean
+}
+
 export async function fetchMetadataFromFromRegistry (
   fetchOpts: FetchMetadataFromFromRegistryOptions,
   pkgName: string,
-  registry: string,
-  authHeaderValue?: string
-): Promise<PackageMeta> {
+  {
+    authHeaderValue,
+    fullMetadata,
+    registry,
+  }: FetchMetadataOptions
+): Promise<FetchMetadataResult> {
   const uri = toUri(pkgName, registry)
   const op = retry.operation(fetchOpts.retry)
   return new Promise((resolve, reject) => {
@@ -65,14 +81,15 @@ export async function fetchMetadataFromFromRegistry (
         response = await fetchOpts.fetch(uri, {
           authHeaderValue,
           compress: true,
+          fullMetadata,
           retry: fetchOpts.retry,
           timeout: fetchOpts.timeout,
         }) as RegistryResponse
       } catch (error: any) { // eslint-disable-line
-        reject(new PnpmError('META_FETCH_FAIL', `GET ${uri}: ${error.message as string}`, { attempts: attempt }))
+        reject(new PnpmError('META_FETCH_FAIL', `GET ${uri}: ${error.message as string}`, { attempts: attempt, cause: error }))
         return
       }
-      if (response.status > 400) {
+      if (response.status >= 400) {
         const request = {
           authHeaderValue,
           url: uri,
@@ -82,15 +99,16 @@ export async function fetchMetadataFromFromRegistry (
       }
 
       // Here we only retry broken JSON responses.
-      // Other HTTP issues are retried by the @pnpm/fetch library
+      // Other HTTP issues are retried by the @pnpm/network.fetch library
       try {
-        const json = await response.json()
+        const jsonText = await response.text()
+        const meta = JSON.parse(jsonText) as PackageMeta
         // Check if request took longer than expected
         const elapsedMs = Date.now() - startTime
         if (elapsedMs > fetchOpts.fetchWarnTimeoutMs) {
           globalWarn(`Request took ${elapsedMs}ms: ${uri}`)
         }
-        resolve(json)
+        resolve({ meta, jsonText })
       } catch (error: any) { // eslint-disable-line
         const timeout = op.retry(
           new PnpmError('BROKEN_METADATA_JSON', error.message)

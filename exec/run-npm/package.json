@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/run-npm",
+  "name": "@pnpm/exec.run-npm",
   "version": "1000.0.0",
   "description": "Runs the npm CLI",
   "keywords": [
@@ -27,18 +27,18 @@
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pnpm run compile",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
     "cross-spawn": "catalog:",
     "path-name": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/run-npm": "workspace:*",
+    "@pnpm/exec.run-npm": "workspace:*",
     "@types/cross-spawn": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

@@ -1,8 +1,9 @@
-import path from 'path'
-import { packageManager } from '@pnpm/cli-meta'
-import { type Config } from '@pnpm/config'
-import { createResolver } from '@pnpm/client'
+import path from 'node:path'
+
+import { packageManager } from '@pnpm/cli.meta'
+import type { Config } from '@pnpm/config.reader'
 import { updateCheckLogger } from '@pnpm/core-loggers'
+import { createResolver } from '@pnpm/installing.client'
 import { loadJsonFile } from 'load-json-file'
 import { writeJsonFile } from 'write-json-file'
 

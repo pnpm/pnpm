@@ -1,32 +1,119 @@
 # pnpm
 
-## 11.0.0-alpha.2
+## 11.0.0-beta.2
 
 ### Major Changes
 
+#### Store
+
+- Runtime dependencies are always linked from the global virtual store [#10233](https://github.com/pnpm/pnpm/pull/10233).
+- Optimized index file format to store the hash algorithm once per file instead of repeating it for every file entry. Each file entry now stores only the hex digest instead of the full integrity string (`<algo>-<digest>`). Using hex format improves performance since file paths in the content-addressable store use hex representation, eliminating base64-to-hex conversion during path lookups.
+- Store version bumped to v11.
+- Store the bundled manifest (name, version, bin, engines, scripts, etc.) directly in the package index file, eliminating the need to read `package.json` from the content-addressable store during resolution and installation. This reduces I/O and speeds up repeat installs [#10473](https://github.com/pnpm/pnpm/pull/10473).
+- Use SQLite for storing package index in the content-addressable store. Instead of individual JSON files under `$STORE/index/`, package metadata is now stored in a single SQLite database at `$STORE/index.db` with MessagePack-encoded values. This reduces filesystem syscall overhead, improves space efficiency for small metadata entries, and enables concurrent access via SQLite's WAL mode. Packages missing from the new index are re-fetched on demand [#10500](https://github.com/pnpm/pnpm/pull/10500) [#10826](https://github.com/pnpm/pnpm/issues/10826).
+
+#### Global Packages
+
+- Global installs (`pnpm add -g pkg`) and `pnpm dlx` now use the global virtual store by default. Packages are stored at `{storeDir}/links` instead of per-project `.pnpm` directories. This can be disabled by setting `enableGlobalVirtualStore: false` [#10694](https://github.com/pnpm/pnpm/pull/10694).
+- Isolated global packages. Each globally installed package (or group of packages installed together) now gets its own isolated installation directory with its own `package.json`, `node_modules/`, and lockfile. This prevents global packages from interfering with each other through peer dependency conflicts, hoisting changes, or version resolution shifts.
+
+  Key changes:
+  - `pnpm add -g <pkg>` creates an isolated installation in `{pnpmHomeDir}/global/v11/{hash}/`
+  - `pnpm remove -g <pkg>` removes the entire installation group containing the package
+  - `pnpm update -g [pkg]` re-installs packages in new isolated directories
+  - `pnpm list -g` scans isolated directories to show all installed global packages
+  - `pnpm install -g` (no args) is no longer supported; use `pnpm add -g <pkg>` instead
+
+#### Configuration
+
+- Changed default values: `optimisticRepeatInstall` is now `true` and `verifyDepsBeforeRun` is now `install`.
 - `pnpm config get` (without `--json`) no longer print INI formatted text.
   Instead, it would print JSON for both objects and arrays and raw string for
   strings, numbers, booleans, and nulls.
   `pnpm config get --json` would still print all types of values as JSON like before.
-- `pnpm config list` and `pnpm config get` (without argument) now hide auth-related settings.
-- This package is now pure ESM.
-- pnpm no longer loads non-auth and non-registry settings from rc files. Other settings must be defined in `pnpm-workspace.yaml`.
-- The pnpm CLI now gets installed with a specific version of Node.js, which it uses for its runtime. This makes pnpm more stable and it doesn't rely on your globally install Node.js anymore.
-- Node.js v18 and 19 support discontinued.
 - `pnpm config get <array>` now prints a JSON array.
-- The default value of the `type` field in the `package.json` file of the project initialized by `pnpm init` command has been changed to `module`.
+- `pnpm config list` now prints a JSON object instead of INI formatted text.
+- `pnpm config list` and `pnpm config get` (without argument) now hide auth-related settings.
 - `pnpm config list` and `pnpm config get` (without argument) now show top-level keys as camelCase.
   Exception: Keys that start with `@` or `//` would be preserved (their cases don't change).
-- The standalone exe version of pnpm requires at least glibc 2.27.
-- `pnpm config list` now prints a JSON object instead of INI formatted text.
 - `pnpm config get` and `pnpm config list` no longer load non camelCase options from the workspace manifest (`pnpm-workspace.yaml`).
-- JSON files in the store and cache are replaced with binary files generated with v8.serialize.
+- pnpm no longer loads non-auth and non-registry settings from rc files. Other settings must be defined in `pnpm-workspace.yaml`.
+- Replace workspace project specific `.npmrc` with `packageConfigs` in `pnpm-workspace.yaml`.
 
-  Reading and deserializing a binary file generated with v8.serialize appears to be about 23% faster than reading and parsing a JSON file. Other operations are similar in speed. Therefore, we have switched to V8 binary files for storing data in pnpm’s global store and cache. The disadvantage of this approach is that V8 files generated by newer versions of Node.js cannot be deserialized by older versions. In such cases, we ignore the cache.
+  A workspace manifest with `packageConfigs` would look something like this:
 
-  Related PR: [#9971](https://github.com/pnpm/pnpm/pull/9971).
-- Runtime dependencies are always linked from the global virtual store [#10233](https://github.com/pnpm/pnpm/pull/10233).
+  ```yaml
+  # File: pnpm-workspace.yaml
+  packages:
+    - "packages/project-1"
+    - "packages/project-2"
+  packageConfigs:
+    "project-1":
+      saveExact: true
+    "project-2":
+      savePrefix: "~"
+  ```
 
+  Or this:
+
+  ```yaml
+  # File: pnpm-workspace.yaml
+  packages:
+    - "packages/project-1"
+    - "packages/project-2"
+  packageConfigs:
+    - match: ["project-1", "project-2"]
+      modulesDir: "node_modules"
+      saveExact: true
+  ```
+
+#### Lockfile
+
+- Simplified `patchedDependencies` lockfile format from `Record<string, { path: string, hash: string }>` to `Record<string, string>` (selector to hash). Existing lockfiles with the old format are automatically migrated [#10911](https://github.com/pnpm/pnpm/pull/10911).
+
+#### Other
+
+- This package is now pure ESM.
+- Node.js v18, 19, 20, and 21 support discontinued.
+- The standalone exe version of pnpm requires at least glibc 2.27.
+- `strictDepBuilds` is `true` by default.
+- `blockExoticSubdeps` is `true` by default.
+- Remove deprecated build dependency settings: `onlyBuiltDependencies`, `onlyBuiltDependenciesFile`, `neverBuiltDependencies`, and `ignoredBuiltDependencies`.
+
+  Use the `allowBuilds` setting instead. It is a map where keys are package name patterns and values are booleans:
+
+  - `true` means the package is allowed to run build scripts
+  - `false` means the package is explicitly denied from running build scripts
+
+  Same as before, by default, none of the packages in the dependencies are allowed to run scripts. If a package has postinstall scripts and it isn't declared in `allowBuilds`, an error is printed.
+
+  Before:
+
+  ```yaml
+  onlyBuiltDependencies:
+    - electron
+  onlyBuiltDependenciesFile: "allowed-builds.json"
+  neverBuiltDependencies:
+    - core-js
+  ignoredBuiltDependencies:
+    - esbuild
+  ```
+
+  After:
+
+  ```yaml
+  allowBuilds:
+    electron: true
+    core-js: false
+    esbuild: false
+  ```
+
+- Removed the deprecated `allowNonAppliedPatches` completely in favor of `allowUnusedPatches`.
+  Remove `ignorePatchFailures` so all patch application failures should throw an error.
+- Removed the `pnpm server` command [#10463](https://github.com/pnpm/pnpm/pull/10463).
+- Removed support for the `useNodeVersion` and `executionEnv.nodeVersion` fields. `devEngines.runtime` and `engines.runtime` should be used instead [#10373](https://github.com/pnpm/pnpm/pull/10373).
+- Removed support for `hooks.fetchers`. We now have a new API for custom fetchers and resolvers via the `fetchers` field of `pnpmfile`.
+- The default value of the `type` field in the `package.json` file of the project initialized by `pnpm init` command has been changed to `module`.
 - Support lowercase options in `pnpm add`: `-d`, `-p`, `-o`, `-e` [#9197](https://github.com/pnpm/pnpm/issues/9197).
 
   When using `pnpm add` command only:
@@ -34,9 +121,45 @@
   - `-p` is now an alias for `--save-prod` instead of `--parseable`
   - `-d` is now an alias for `--save-dev` instead of `--loglevel=info`
 
+- `pnpm publish` now works without the `npm` CLI.
+
+  The One-time Password feature now reads from `PNPM_CONFIG_OTP` instead of `NPM_CONFIG_OTP`:
+
+  ```sh
+  export PNPM_CONFIG_OTP='<your OTP here>'
+  pnpm publish --no-git-checks
+  ```
+
+  If the registry requests OTP and the user has not provided it via the `PNPM_CONFIG_OTP` environment variable or the `--otp` flag, pnpm will prompt the user directly for an OTP code.
+
+  If the registry requests web-based authentication, pnpm will print a scannable QR code along with the URL.
+
+  Since the new `pnpm publish` no longer calls `npm publish`, some undocumented features may have been unknowingly dropped. If you rely on a feature that is now gone, please open an issue at <https://github.com/pnpm/pnpm/issues>. In the meantime, you can use `pnpm pack && npm publish *.tgz` as a workaround.
+
+- pnpm no longer reads settings from the `pnpm` field of `package.json`. Settings should be defined in `pnpm-workspace.yaml` [#10086](https://github.com/pnpm/pnpm/pull/10086).
+
+- Breaking changes to `pnpm link`:
+
+  - `pnpm link <pkg-name>` no longer resolves packages from the global store. Only relative or absolute paths are accepted. For example, use `pnpm link ./foo` instead of `pnpm link foo`.
+  - `pnpm link --global` is removed. Use `pnpm add -g .` to register a local package's bins globally.
+  - `pnpm link` (no arguments) is removed. Use `pnpm link <dir>` with an explicit path instead.
+
+- Do not exclude the root workspace project, when it is explicitly selected via a filter [#10465](https://github.com/pnpm/pnpm/pull/10465).
+- Stop falling back to the npm CLI. Commands that were previously passed through to npm (`access`, `adduser`, `bugs`, `deprecate`, `dist-tag`, `docs`, `edit`, `find`, `home`, `info`, `issues`, `login`, `logout`, `owner`, `ping`, `prefix`, `profile`, `pkg`, `repo`, `search`, `set-script`, `show`, `star`, `stars`, `team`, `token`, `unpublish`, `unstar`, `version`, `view`, `whoami`, `xmas`) and their aliases (`s`, `se`, `v`) now throw a "not implemented" error with a suggestion to use the npm CLI directly [#10642](https://github.com/pnpm/pnpm/pull/10642).
+- Store globally installed binaries in a `bin` subdirectory of `PNPM_HOME` instead of directly in `PNPM_HOME`. This prevents internal directories like `global/` and `store/` from polluting shell autocompletion when `PNPM_HOME` is on PATH [#10986](https://github.com/pnpm/pnpm/issues/10986). After upgrading, run `pnpm setup` to update your shell configuration.
+
 ### Minor Changes
 
-- Load environment variables whose names start with `pnpm_config_` into config. These environment variables override settings from `pnpm-workspace.yaml` but not the CLI arguments.
+#### New Commands
+
+- Added `pnpm sbom` command for generating Software Bill of Materials in CycloneDX 1.7 and SPDX 2.3 JSON formats [#9088](https://github.com/pnpm/pnpm/issues/9088).
+- Added `pnpm clean` command that safely removes `node_modules` directories from all workspace projects [#10707](https://github.com/pnpm/pnpm/issues/10707). Use `--lockfile` to also remove `pnpm-lock.yaml` files.
+- Added a new command `pnpm runtime set <runtime name> <runtime version spec> [-g]` for installing runtimes. Deprecated `pnpm env use` in favor of the new command.
+- Add the ability to fix vulnerabilities by updating packages in the lockfile instead of adding overrides. Use `pnpm audit --fix=update` [#10341](https://github.com/pnpm/pnpm/pull/10341).
+- Added `pnpm ci` command for clean installs [#6100](https://github.com/pnpm/pnpm/issues/6100). The command runs `pnpm clean` followed by `pnpm install --frozen-lockfile`. Designed for CI/CD environments where reproducible builds are critical. Aliases: `pnpm clean-install`, `pnpm ic`, `pnpm install-clean` [#11003](https://github.com/pnpm/pnpm/pull/11003).
+
+#### Configuration
+
 - Add support for a global YAML config file named `config.yaml`.
 
   Now configurations are divided into 2 categories:
@@ -44,11 +167,44 @@
   - Registry and auth settings which can be stored in INI files such as global `rc` and local `.npmrc`.
   - pnpm-specific settings which can only be loaded from YAML files such as global `config.yaml` and local `pnpm-workspace.yaml`.
 
+- Load environment variables whose names start with `pnpm_config_` into config. These environment variables override settings from `pnpm-workspace.yaml` but not the CLI arguments.
+- Support reading `allowBuilds` from `pnpm-workspace.yaml` in the global package directory for global installs.
+- Added support for `pnpm config get globalconfig` to retrieve the global config file path [#9977](https://github.com/pnpm/pnpm/issues/9977).
+- Added a new setting `virtualStoreOnly` that populates the virtual store without creating importer symlinks, hoisting, bin links, or running lifecycle scripts. This is useful for pre-populating a store (e.g., in Nix builds) without creating unnecessary project-level artifacts. `pnpm fetch` now uses this mode internally [#10840](https://github.com/pnpm/pnpm/issues/10840).
+- Support specifying the pnpm version via `devEngines.packageManager` in `package.json`. Unlike the `packageManager` field, this supports version ranges. The resolved version is stored in `pnpm-lock.yaml` and reused if it still satisfies the range [#10932](https://github.com/pnpm/pnpm/pull/10932).
+- Config dependencies are now installed into the global virtual store (`{storeDir}/links/`) and symlinked into `node_modules/.pnpm-config/`. This allows config dependencies to be shared across projects that use the same store, avoiding redundant fetches and imports [#10910](https://github.com/pnpm/pnpm/pull/10910).
+- Store config dependency and package manager integrity info in `pnpm-lock.yaml` instead of inlining it in `pnpm-workspace.yaml`. The workspace manifest now contains only clean version specifiers for `configDependencies`, while the resolved versions, integrity hashes, and tarball URLs are recorded in the lockfile as a separate YAML document. The env lockfile section also stores `packageManagerDependencies` resolved during version switching and self-update. Projects using the old inline-hash format are automatically migrated on install [#10912](https://github.com/pnpm/pnpm/pull/10912) [#10964](https://github.com/pnpm/pnpm/pull/10964).
+
+#### Store
+
+- When the global virtual store is enabled, packages that are not allowed to build (and don't transitively depend on packages that are) now get hashes that don't include the engine name (platform, architecture, Node.js major version). This means ~95% of packages in the GVS survive Node.js upgrades and architecture changes without re-import [#10837](https://github.com/pnpm/pnpm/issues/10837).
+
+#### Hooks & Pnpmfiles
+
 - Added support for pnpmfiles written in ESM. They should have the `.mjs` extension: `.pnpmfile.mjs` [#9730](https://github.com/pnpm/pnpm/pull/9730).
+- Support `.pnpmfile.mjs` as the default pnpmfile. When `.pnpmfile.mjs` exists, it takes priority over `.pnpmfile.cjs` and only one is loaded.
+
+#### CLI & Other
+
+- Added `-F` as a short alias for the `--filter` option.
+- Added support for hidden scripts. Scripts starting with `.` are hidden and cannot be run directly via `pnpm run`. They can only be called from other scripts. Hidden scripts are also omitted from the `pnpm run` listing [#11041](https://github.com/pnpm/pnpm/pull/11041).
+- Allow `pnpm approve-builds` to receive positional arguments for approving or denying packages without the interactive prompt. Prefix a package name with `!` to deny it. Only mentioned packages are affected; the rest are left untouched [#11030](https://github.com/pnpm/pnpm/pull/11030).
+- During install, packages with ignored builds that are not yet listed in `allowBuilds` are automatically added to `pnpm-workspace.yaml` with a placeholder value, so users can manually set them to `true` or `false` [#11030](https://github.com/pnpm/pnpm/pull/11030).
 
 ### Patch Changes
 
+- Check if a package is installable for non npm-hosted packages (e.g., git or tarball dependencies) after the manifest has been fetched.
 - Explicitly tell `npm` the path to the global `rc` config file.
+- Fix YAML formatting preservation in `pnpm-workspace.yaml` when running commands like `pnpm update`. Previously, quotes and other formatting were lost even when catalog values didn't change.
+
+  Closes #10425
+
+- The parameter set by the `--allow-build` flag is written to `allowBuilds`.
+- Fix a bug in which specifying `filter` on `pnpm-workspace.yaml` would cause pnpm to not detect any projects.
+- Defer patch errors until all patches in a group are applied, so that one failed patch does not prevent other patches from being attempted.
+- Fail on incompatible lockfiles in CI when frozen lockfile mode is enabled [#10978](https://github.com/pnpm/pnpm/pull/10978).
+- Fixed `strictDepBuilds` and `allowBuilds` checks being bypassed when a package's build side-effects are cached in the store [#11039](https://github.com/pnpm/pnpm/pull/11039).
+- In GVS mode, `pnpm approve-builds` now runs a full install instead of rebuild, ensuring that GVS hash directories and symlinks are updated correctly after changing `allowBuilds` [#11043](https://github.com/pnpm/pnpm/pull/11043).
 
 ## 10.20.0
 
@@ -1415,7 +1571,7 @@
 
 - Lockfile changes:
 
-  - Lockfile v9 is adopted. This new format has changes for better readability, and better resistence to Git conflicts.
+  - Lockfile v9 is adopted. This new format has changes for better readability, and better resistance to Git conflicts.
   - Support for lockfile v5 is dropped. Use pnpm v8 to convert lockfile v5 to lockfile v6 [#7470](https://github.com/pnpm/pnpm/pull/7470).
 
 - Dependency resolution changes:
@@ -2416,7 +2572,7 @@
 
 ### Minor Changes
 
-- New setting supported in the `package.json` that is in the root of the workspace: `pnpm.requiredScripts`. Scripts listed in this array will be required in each project of the worksapce. Otherwise, `pnpm -r run <script name>` will fail [#5569](https://github.com/pnpm/pnpm/issues/5569).
+- New setting supported in the `package.json` that is in the root of the workspace: `pnpm.requiredScripts`. Scripts listed in this array will be required in each project of the workspace. Otherwise, `pnpm -r run <script name>` will fail [#5569](https://github.com/pnpm/pnpm/issues/5569).
 - When the hoisted node linker is used, preserve `node_modules` directories when linking new dependencies. This improves performance, when installing in a project that already has a `node_modules` directory [#5795](https://github.com/pnpm/pnpm/pull/5795).
 - When the hoisted node linker is used, pnpm should not build the same package multiple times during installation. If a package is present at multiple locations because hoisting could not hoist them to a single directory, then the package should only built in one of the locations and copied to the rest [#5814](https://github.com/pnpm/pnpm/pull/5814).
 

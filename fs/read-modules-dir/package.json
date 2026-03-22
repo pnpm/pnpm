@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/read-modules-dir",
+  "name": "@pnpm/fs.read-modules-dir",
   "version": "1000.0.0",
   "description": "Finds all direct packages in node_modules",
   "keywords": [
@@ -24,21 +24,21 @@
     "!*.map"
   ],
   "scripts": {
-    "start": "tsc --watch",
+    "start": "tsgo --watch",
     "test": "pnpm run compile",
     "lint": "eslint \"src/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
     "graceful-fs": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/read-modules-dir": "workspace:*",
+    "@pnpm/fs.read-modules-dir": "workspace:*",
     "@types/graceful-fs": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

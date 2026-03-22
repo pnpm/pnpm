@@ -1,10 +1,11 @@
-import path from 'path'
+import { existsSync } from 'node:fs'
+import path from 'node:path'
+
 import { lifecycleLogger } from '@pnpm/core-loggers'
+import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import lifecycle from '@pnpm/npm-lifecycle'
-import { type DependencyManifest, type ProjectManifest, type PrepareExecutionEnv, type PackageScripts } from '@pnpm/types'
-import { PnpmError } from '@pnpm/error'
-import { existsSync } from 'fs'
+import type { DependencyManifest, PackageScripts, ProjectManifest } from '@pnpm/types'
 import isWindows from 'is-windows'
 import { join as shellQuote } from 'shlex'
 
@@ -26,7 +27,6 @@ export interface RunLifecycleHookOptions {
   shellEmulator?: boolean
   stdio?: string
   unsafePerm: boolean
-  prepareExecutionEnv?: PrepareExecutionEnv
 }
 
 export async function runLifecycleHook (
@@ -73,19 +73,19 @@ Please unset the scriptShell option, or configure it to a .exe instead.
   m.scripts = { ...m.scripts }
 
   switch (stage) {
-  case 'start':
-    if (!m.scripts.start) {
-      if (!existsSync('server.js')) {
-        throw new PnpmError('NO_SCRIPT_OR_SERVER', 'Missing script start or file server.js')
+    case 'start':
+      if (!m.scripts.start) {
+        if (!existsSync('server.js')) {
+          throw new PnpmError('NO_SCRIPT_OR_SERVER', 'Missing script start or file server.js')
+        }
+        m.scripts.start = 'node server.js'
       }
-      m.scripts.start = 'node server.js'
-    }
-    break
-  case 'install':
-    if (!m.scripts.install && !m.scripts.preinstall) {
-      checkBindingGyp(opts.pkgRoot, m.scripts)
-    }
-    break
+      break
+    case 'install':
+      if (!m.scripts.install && !m.scripts.preinstall) {
+        checkBindingGyp(opts.pkgRoot, m.scripts)
+      }
+      break
   }
   if (opts.args?.length && m.scripts?.[stage]) {
     // It is impossible to quote a command line argument that contains newline for Windows cmd.
@@ -109,17 +109,13 @@ Please unset the scriptShell option, or configure it to a .exe instead.
   const logLevel = (opts.stdio !== 'inherit' || opts.silent)
     ? 'silent'
     : undefined
-  const extraBinPaths = (await opts.prepareExecutionEnv?.({
-    extraBinPaths: opts.extraBinPaths,
-    executionEnv: (manifest as ProjectManifest).pnpm?.executionEnv,
-  }))?.extraBinPaths ?? opts.extraBinPaths
   await lifecycle(m, stage, opts.pkgRoot, {
     config: {
       ...opts.rawConfig,
       'frozen-lockfile': false,
     },
     dir: opts.rootModulesDir,
-    extraBinPaths,
+    extraBinPaths: opts.extraBinPaths,
     extraEnv: {
       ...opts.extraEnv,
       INIT_CWD: opts.initCwd ?? process.cwd(),
@@ -147,32 +143,32 @@ Please unset the scriptShell option, or configure it to a .exe instead.
   })
   return true
 
-  function npmLog (prefix: string, logId: string, stdtype: string, line: string): void {
+  function npmLog (prefix: string, logId: string, stdtype: string, line?: number): void {
     switch (stdtype) {
-    case 'stdout':
-    case 'stderr':
-      lifecycleLogger.debug({
-        depPath: opts.depPath,
-        line: line.toString(),
-        stage,
-        stdio: stdtype,
-        wd: opts.pkgRoot,
-      })
-      return
-    case 'Returned: code:': {
-      if (opts.stdio === 'inherit') {
-        // Preventing the pnpm reporter from overriding the project's script output
+      case 'stdout':
+      case 'stderr':
+        lifecycleLogger.debug({
+          depPath: opts.depPath,
+          line: (line ?? 0).toString(),
+          stage,
+          stdio: stdtype,
+          wd: opts.pkgRoot,
+        })
         return
+      case 'Returned: code:': {
+        if (opts.stdio === 'inherit') {
+          // Preventing the pnpm reporter from overriding the project's script output
+          return
+        }
+        const code = line ?? 1
+        lifecycleLogger.debug({
+          depPath: opts.depPath,
+          exitCode: code,
+          optional,
+          stage,
+          wd: opts.pkgRoot,
+        })
       }
-      const code = arguments[3] ?? 1
-      lifecycleLogger.debug({
-        depPath: opts.depPath,
-        exitCode: code,
-        optional,
-        stage,
-        wd: opts.pkgRoot,
-      })
-    }
     }
   }
 }

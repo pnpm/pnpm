@@ -1,8 +1,9 @@
-import path from 'path'
-import { type ContextLog, type PackageImportMethodLog } from '@pnpm/core-loggers'
+import path from 'node:path'
+
+import type { ContextLog, PackageImportMethodLog } from '@pnpm/core-loggers'
+import normalize from 'normalize-path'
 import * as Rx from 'rxjs'
 import { map, take } from 'rxjs/operators'
-import normalize from 'normalize-path'
 
 export function reportContext (
   log$: {
@@ -23,18 +24,18 @@ export function reportContext (
           }
           let method!: string
           switch (packageImportMethod.method) {
-          case 'copy':
-            method = 'copied'
-            break
-          case 'clone':
-            method = 'cloned'
-            break
-          case 'hardlink':
-            method = 'hard linked'
-            break
-          default:
-            method = packageImportMethod.method
-            break
+            case 'copy':
+              method = 'copied'
+              break
+            case 'clone':
+              method = 'cloned'
+              break
+            case 'hardlink':
+              method = 'hard linked'
+              break
+            default:
+              method = packageImportMethod.method
+              break
           }
           return Rx.of({
             msg: `\

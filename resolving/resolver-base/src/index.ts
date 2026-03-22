@@ -1,10 +1,10 @@
-import {
-  type ProjectRootDir,
-  type DependencyManifest,
-  type PkgResolutionId,
-  type PinnedVersion,
-  type PackageVersionPolicy,
-  type TrustPolicy,
+import type {
+  DependencyManifest,
+  PackageVersionPolicy,
+  PinnedVersion,
+  PkgResolutionId,
+  ProjectRootDir,
+  TrustPolicy,
 } from '@pnpm/types'
 
 export { type PkgResolutionId }
@@ -24,7 +24,7 @@ export interface BinaryResolution {
   archive: 'tarball' | 'zip'
   url: string
   integrity: string
-  bin: string
+  bin: string | Record<string, string>
   prefix?: string
 }
 
@@ -116,6 +116,7 @@ export interface ResolveOptions {
   alwaysTryWorkspacePackages?: boolean
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
+  trustPolicyIgnoreAfter?: number
   defaultTag?: string
   pickLowestVersion?: boolean
   publishedBy?: Date
@@ -129,6 +130,12 @@ export interface ResolveOptions {
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
   pinnedVersion?: PinnedVersion
+  currentPkg?: {
+    id: PkgResolutionId
+    name?: string
+    version?: string
+    resolution: Resolution
+  }
 }
 
 export type WantedDependency = {
@@ -142,4 +149,4 @@ export type WantedDependency = {
   bareSpecifier?: string
 })
 
-export type ResolveFunction = (wantedDependency: WantedDependency, opts: ResolveOptions) => Promise<ResolveResult>
+export type ResolveFunction = (wantedDependency: WantedDependency & { optional?: boolean }, opts: ResolveOptions) => Promise<ResolveResult>

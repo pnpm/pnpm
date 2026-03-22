@@ -1,4 +1,4 @@
-import { readV8FileStrictAsync } from '@pnpm/fs.v8-file'
+import fs from 'node:fs'
 
 export async function retryLoadJsonFile<T> (filePath: string): Promise<T> {
   let retry = 0
@@ -6,7 +6,8 @@ export async function retryLoadJsonFile<T> (filePath: string): Promise<T> {
   while (true) {
     await delay(500)
     try {
-      return await readV8FileStrictAsync<T>(filePath)
+      const data = await fs.promises.readFile(filePath, 'utf8')
+      return JSON.parse(data) as T
     } catch (err: any) { // eslint-disable-line
       if (retry > 2) throw err
       retry++

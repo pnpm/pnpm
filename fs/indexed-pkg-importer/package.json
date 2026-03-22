@@ -34,19 +34,19 @@
     "test": "test"
   },
   "scripts": {
-    "start": "tsc --watch",
+    "start": "tsgo --watch",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "pretest": "rimraf .tmp",
-    "_test": "pnpm pretest && cross-env NODE_OPTIONS=--experimental-vm-modules jest",
-    "test": "pnpm run compile && pnpm run _test",
+    "test": "pnpm run compile && pnpm run .test",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix",
+    ".test": "pnpm pretest && cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
-    "@pnpm/graceful-fs": "workspace:*",
-    "@pnpm/store-controller-types": "workspace:*",
+    "@pnpm/fs.graceful-fs": "workspace:*",
+    "@pnpm/store.controller-types": "workspace:*",
     "@reflink/reflink": "catalog:",
     "@zkochan/rimraf": "catalog:",
     "fs-extra": "catalog:",
@@ -67,7 +67,7 @@
     "@types/fs-extra": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

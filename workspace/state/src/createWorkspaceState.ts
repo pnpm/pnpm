@@ -1,12 +1,14 @@
+import type { ConfigDependencies } from '@pnpm/types'
 import { pick } from 'ramda'
-import { type WorkspaceState, type WorkspaceStateSettings, type ProjectsList } from './types.js'
+
+import { type ProjectsList, WORKSPACE_STATE_SETTING_KEYS, type WorkspaceState, type WorkspaceStateSettings } from './types.js'
 
 export interface CreateWorkspaceStateOptions {
   allProjects: ProjectsList
   pnpmfiles: string[]
   filteredInstall: boolean
   settings: WorkspaceStateSettings
-  configDependencies?: Record<string, string>
+  configDependencies?: ConfigDependencies
 }
 
 export const createWorkspaceState = (opts: CreateWorkspaceStateOptions): WorkspaceState => ({
@@ -19,25 +21,7 @@ export const createWorkspaceState = (opts: CreateWorkspaceStateOptions): Workspa
     },
   ])),
   pnpmfiles: opts.pnpmfiles,
-  settings: pick([
-    'autoInstallPeers',
-    'catalogs',
-    'dedupeDirectDeps',
-    'dedupeInjectedDeps',
-    'dedupePeerDependents',
-    'dev',
-    'excludeLinksFromLockfile',
-    'hoistPattern',
-    'hoistWorkspacePackages',
-    'injectWorkspacePackages',
-    'linkWorkspacePackages',
-    'nodeLinker',
-    'optional',
-    'preferWorkspacePackages',
-    'production',
-    'publicHoistPattern',
-    'workspacePackagePatterns',
-  ], opts.settings),
+  settings: pick(WORKSPACE_STATE_SETTING_KEYS, opts.settings),
   filteredInstall: opts.filteredInstall,
   configDependencies: opts.configDependencies,
 })

@@ -1,58 +1,73 @@
-import path from 'path'
-import fsPromises from 'fs/promises'
+import fsPromises from 'node:fs/promises'
+import path from 'node:path'
+
 import { PnpmError } from '@pnpm/error'
-import { type FetchFromRegistry } from '@pnpm/fetching-types'
-import { type BinaryFetcher, type FetchFunction } from '@pnpm/fetcher-base'
+import type { BinaryFetcher, FetchFunction, FetchResult } from '@pnpm/fetching.fetcher-base'
+import type { FetchFromRegistry } from '@pnpm/fetching.types'
+import type { StoreIndex } from '@pnpm/store.index'
 import { addFilesFromDir } from '@pnpm/worker'
 import AdmZip from 'adm-zip'
-import renameOverwrite from 'rename-overwrite'
-import { temporaryDirectory } from 'tempy'
+import { isSubdir } from 'is-subdir'
+import { renameOverwrite } from 'rename-overwrite'
 import ssri from 'ssri'
+import { temporaryDirectory } from 'tempy'
 
 export function createBinaryFetcher (ctx: {
   fetch: FetchFromRegistry
   fetchFromRemoteTarball: FetchFunction
   rawConfig: Record<string, string>
+  storeIndex: StoreIndex
   offline?: boolean
 }): { binary: BinaryFetcher } {
   const fetchBinary: BinaryFetcher = async (cafs, resolution, opts) => {
     if (ctx.offline) {
       throw new PnpmError('CANNOT_DOWNLOAD_BINARY_OFFLINE', `Cannot download binary "${resolution.url}" because offline mode is enabled.`)
     }
-    const version = opts.pkg.version!
+
     const manifest = {
       name: opts.pkg.name!,
-      version,
+      version: opts.pkg.version!,
       bin: resolution.bin,
     }
 
-    if (resolution.archive === 'tarball') {
-      return {
-        ...await ctx.fetchFromRemoteTarball(cafs, {
+    let fetchResult!: FetchResult
+    switch (resolution.archive) {
+      case 'tarball': {
+        fetchResult = await ctx.fetchFromRemoteTarball(cafs, {
           tarball: resolution.url,
           integrity: resolution.integrity,
-        }, opts),
-        manifest,
+        }, {
+          appendManifest: manifest,
+          ...opts,
+        })
+        break
       }
-    }
-    if (resolution.archive === 'zip') {
-      const tempLocation = await cafs.tempDir()
-      await downloadAndUnpackZip(ctx.fetch, {
-        url: resolution.url,
-        integrity: resolution.integrity,
-        basename: resolution.prefix ?? '',
-      }, tempLocation)
-      return {
-        ...await addFilesFromDir({
+      case 'zip': {
+        const tempLocation = await cafs.tempDir()
+        await downloadAndUnpackZip(ctx.fetch, {
+          url: resolution.url,
+          integrity: resolution.integrity,
+          basename: resolution.prefix ?? '',
+        }, tempLocation)
+        fetchResult = await addFilesFromDir({
           storeDir: cafs.storeDir,
+          storeIndex: ctx.storeIndex,
           dir: tempLocation,
           filesIndexFile: opts.filesIndexFile,
           readManifest: false,
-        }),
-        manifest,
+          appendManifest: manifest,
+          includeNodeModules: true,
+        })
+        break
+      }
+      default: {
+        throw new PnpmError('NOT_SUPPORTED_ARCHIVE', `The binary fetcher doesn't support archive type ${resolution.archive as string}`)
       }
     }
-    throw new PnpmError('NOT_SUPPORTED_ARCHIVE', `The binary fetcher doesn't support archive type ${resolution.archive as string}`)
+    return {
+      ...fetchResult,
+      manifest,
+    }
   }
   return {
     binary: fetchBinary,
@@ -130,7 +145,7 @@ async function downloadWithIntegrityCheck (
  * @param zipPath - Path to the zip file
  * @param basename - Base name of the file (without extension)
  * @param targetDir - Directory where contents should be extracted
- * @throws {PnpmError} When extraction fails
+ * @throws {PnpmError} When extraction fails or path traversal is detected
  */
 async function extractZipToTarget (
   zipPath: string,
@@ -139,8 +154,39 @@ async function extractZipToTarget (
 ): Promise<void> {
   const zip = new AdmZip(zipPath)
   const nodeDir = basename === '' ? targetDir : path.dirname(targetDir)
-  const extractedDir = path.join(nodeDir, basename)
 
-  zip.extractAllTo(nodeDir, true)
+  // Validate basename/prefix doesn't escape the target directory
+  if (basename !== '') {
+    validatePathSecurity(nodeDir, basename)
+  }
+
+  // Extract each entry with path validation to prevent path traversal attacks
+  for (const entry of zip.getEntries()) {
+    const entryPath = entry.entryName
+    validatePathSecurity(nodeDir, entryPath)
+    zip.extractEntryTo(entry, nodeDir, true, true)
+  }
+
+  const extractedDir = path.join(nodeDir, basename)
   await renameOverwrite(extractedDir, targetDir)
+}
+
+/**
+ * Validates that a path does not escape the base directory via path traversal.
+ *
+ * @param basePath - The base directory that should contain the target
+ * @param targetPath - The relative path to validate
+ * @throws {PnpmError} When path traversal is detected
+ */
+function validatePathSecurity (basePath: string, targetPath: string): void {
+  // Explicitly reject absolute paths - they should never be allowed as prefixes or entry names
+  if (path.isAbsolute(targetPath)) {
+    throw new PnpmError('PATH_TRAVERSAL',
+      `Refusing to extract path "${targetPath}" - absolute paths are not allowed`)
+  }
+  const normalizedTarget = path.resolve(basePath, targetPath)
+  if (!isSubdir(basePath, normalizedTarget) && normalizedTarget !== basePath) {
+    throw new PnpmError('PATH_TRAVERSAL',
+      `Refusing to extract path "${targetPath}" outside of target directory`)
+  }
 }

@@ -1,6 +1,6 @@
-import { type PackageSnapshot } from '@pnpm/lockfile.types'
-import * as dp from '@pnpm/dependency-path'
-import { type PkgResolutionId } from '@pnpm/types'
+import * as dp from '@pnpm/deps.path'
+import type { PackageSnapshot } from '@pnpm/lockfile.types'
+import type { PkgResolutionId } from '@pnpm/types'
 
 export interface NameVer {
   name: string

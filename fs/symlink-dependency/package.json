@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/symlink-dependency",
+  "name": "@pnpm/fs.symlink-dependency",
   "version": "1000.0.12",
   "description": "Symlink a dependency to node_modules",
   "keywords": [
@@ -27,12 +27,12 @@
     "test": "test"
   },
   "scripts": {
-    "start": "tsc --watch",
-    "test": "pnpm run compile && pnpm run _test",
+    "start": "tsgo --watch",
+    "test": "pnpm run compile && pnpm run .test",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix",
-    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
+    "compile": "tsgo --build && pnpm run lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
@@ -43,12 +43,12 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/fs.symlink-dependency": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/prepare": "workspace:*",
-    "@pnpm/symlink-dependency": "workspace:*"
+    "@pnpm/prepare": "workspace:*"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

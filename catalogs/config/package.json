@@ -26,10 +26,10 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "compile": "tsc --build && pnpm run lint --fix",
+    "compile": "tsgo --build && pnpm run lint --fix",
     "prepublishOnly": "pnpm run compile",
-    "test": "pnpm run compile && pnpm run _test",
-    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
+    "test": "pnpm run compile && pnpm run .test",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/error": "workspace:*"
@@ -37,10 +37,10 @@
   "devDependencies": {
     "@pnpm/catalogs.config": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
-    "@pnpm/workspace.read-manifest": "workspace:*"
+    "@pnpm/workspace.workspace-manifest-reader": "workspace:*"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

@@ -1,15 +1,16 @@
-import path from 'path'
-import { toOutput$ } from '@pnpm/default-reporter'
+import path from 'node:path'
+
+import { toOutput$ } from '@pnpm/cli.default-reporter'
 import { PnpmError } from '@pnpm/error'
 import {
   createStreamParser,
   logger,
 } from '@pnpm/logger'
-import { firstValueFrom } from 'rxjs'
-import { map, take } from 'rxjs/operators'
 import chalk from 'chalk'
 import { loadJsonFileSync } from 'load-json-file'
 import normalizeNewline from 'normalize-newline'
+import { firstValueFrom } from 'rxjs'
+import { map, take } from 'rxjs/operators'
 import StackTracey from 'stacktracey'
 
 interface Exception extends NodeJS.ErrnoException {
@@ -82,7 +83,7 @@ ${ERROR_PAD}  * stable: 2.2.2
 ${ERROR_PAD}  * next: 2.4.0
 ${ERROR_PAD}  * latest-1: 1.43.1
 ${ERROR_PAD}
-${ERROR_PAD}If you need the full list of all 281 published versions run "$ pnpm view pnpm versions".`)
+${ERROR_PAD}If you need the full list of all 281 published versions run "pnpm view pnpm versions".`)
 })
 
 test('prints no matching version error when only the latest dist-tag exists', async () => {
@@ -103,7 +104,7 @@ test('prints no matching version error when only the latest dist-tag exists', as
 ${ERROR_PAD}
 ${ERROR_PAD}The latest release of is-positive is "3.1.0".
 ${ERROR_PAD}
-${ERROR_PAD}If you need the full list of all 4 published versions run "$ pnpm view is-positive versions".`)
+${ERROR_PAD}If you need the full list of all 4 published versions run "pnpm view is-positive versions".`)
 })
 
 test('prints suggestions when an internet-connection related error happens', async () => {

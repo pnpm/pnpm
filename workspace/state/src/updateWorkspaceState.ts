@@ -1,9 +1,12 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { logger } from '@pnpm/logger'
-import { getFilePath } from './filePath.js'
+import type { ConfigDependencies } from '@pnpm/types'
+
 import { createWorkspaceState } from './createWorkspaceState.js'
-import { type WorkspaceStateSettings, type ProjectsList } from './types.js'
+import { getFilePath } from './filePath.js'
+import type { ProjectsList, WorkspaceStateSettings } from './types.js'
 
 export interface UpdateWorkspaceStateOptions {
   allProjects: ProjectsList
@@ -11,7 +14,7 @@ export interface UpdateWorkspaceStateOptions {
   workspaceDir: string
   pnpmfiles: string[]
   filteredInstall: boolean
-  configDependencies?: Record<string, string>
+  configDependencies?: ConfigDependencies
 }
 
 export async function updateWorkspaceState (opts: UpdateWorkspaceStateOptions): Promise<void> {

@@ -1,11 +1,12 @@
-import os from 'os'
-import { type PnpmError } from '@pnpm/error'
-import { parseCliArgs } from '@pnpm/parse-cli-args'
+import os from 'node:os'
+
+import { parseCliArgs } from '@pnpm/cli.parse-cli-args'
+import type { PnpmError } from '@pnpm/error'
 import { temporaryDirectory } from 'tempy'
 
 const DEFAULT_OPTS = {
-  getCommandLongName: (commandName: string) => commandName,
-  getTypesByCommandName: (commandName: string) => ({}),
+  getCommandLongName: (_commandName: string) => _commandName,
+  getTypesByCommandName: (_commandName: string) => ({}),
   renamedOptions: { prefix: 'dir' },
   shorthandsByCommandName: {},
   universalOptionsTypes: {},
@@ -143,8 +144,8 @@ test('do not incorrectly change "install" command to "add"', async () => {
     ...DEFAULT_OPTS,
     getTypesByCommandName: (commandName: string) => {
       switch (commandName) {
-      case 'install': return { 'network-concurrency': Number }
-      default: return {}
+        case 'install': return { 'network-concurrency': Number }
+        default: return {}
       }
     },
     universalOptionsTypes: {

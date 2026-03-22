@@ -5,16 +5,16 @@
   "type": "module",
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
-    "compile": "tsc --build"
+    "compile": "tsgo --build"
   },
   "dependencies": {
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/meta-updater": "catalog:",
     "@pnpm/object.key-sorting": "workspace:*",
-    "@pnpm/parse-overrides": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/workspace.read-manifest": "workspace:*",
+    "@pnpm/workspace.projects-reader": "workspace:*",
+    "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
     "@types/normalize-path": "catalog:",
     "is-subdir": "catalog:",
     "load-json-file": "catalog:",

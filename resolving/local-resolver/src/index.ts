@@ -1,18 +1,20 @@
-import { existsSync } from 'fs'
-import path from 'path'
+import { existsSync } from 'node:fs'
+import path from 'node:path'
+
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
-import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { type DirectoryResolution, type ResolveResult, type TarballResolution } from '@pnpm/resolver-base'
-import { type DependencyManifest } from '@pnpm/types'
 import { logger } from '@pnpm/logger'
+import type { DirectoryResolution, Resolution, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
+import type { DependencyManifest, PkgResolutionId } from '@pnpm/types'
+import { readProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
+
 import { parseBareSpecifier, type WantedLocalDependency } from './parseBareSpecifier.js'
 
 export { type WantedLocalDependency }
 
 export interface LocalResolveResult extends ResolveResult {
   manifest?: DependencyManifest
-  normalizedBareSpecifier: string
+  normalizedBareSpecifier?: string
   resolution: DirectoryResolution | TarballResolution
   resolvedVia: 'local-filesystem'
 }
@@ -28,19 +30,35 @@ export async function resolveFromLocal (
   opts: {
     lockfileDir?: string
     projectDir: string
+    currentPkg?: {
+      id: PkgResolutionId
+      resolution: DirectoryResolution | TarballResolution | Resolution
+    }
+    update?: false | 'compatible' | 'latest'
   }
 ): Promise<LocalResolveResult | null> {
   const preserveAbsolutePaths = ctx.preserveAbsolutePaths ?? false
   const spec = parseBareSpecifier(wantedDependency, opts.projectDir, opts.lockfileDir ?? opts.projectDir, { preserveAbsolutePaths })
   if (spec == null) return null
+
   if (spec.type === 'file') {
+    const integrity = await getTarballIntegrity(spec.fetchSpec)
     return {
       id: spec.id,
       normalizedBareSpecifier: spec.normalizedBareSpecifier,
       resolution: {
-        integrity: await getTarballIntegrity(spec.fetchSpec),
+        integrity,
         tarball: spec.id,
       },
+      resolvedVia: 'local-filesystem',
+    }
+  }
+
+  // Skip resolution if we have a current package and not updating
+  if (opts.currentPkg?.resolution && spec.type === 'directory' && !opts.update) {
+    return {
+      id: opts.currentPkg.id,
+      resolution: opts.currentPkg.resolution as DirectoryResolution,
       resolvedVia: 'local-filesystem',
     }
   }
@@ -64,21 +82,21 @@ export async function resolveFromLocal (
       }
     } else {
       switch (internalErr.code) {
-      case 'ENOTDIR': {
-        throw new PnpmError('NOT_PACKAGE_DIRECTORY',
-          `Could not install from "${spec.fetchSpec}" as it is not a directory.`)
-      }
-      case 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND':
-      case 'ENOENT': {
-        localDependencyManifest = {
-          name: path.basename(spec.fetchSpec),
-          version: '0.0.0',
+        case 'ENOTDIR': {
+          throw new PnpmError('NOT_PACKAGE_DIRECTORY',
+            `Could not install from "${spec.fetchSpec}" as it is not a directory.`)
         }
-        break
-      }
-      default: {
-        throw internalErr
-      }
+        case 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND':
+        case 'ENOENT': {
+          localDependencyManifest = {
+            name: path.basename(spec.fetchSpec),
+            version: '0.0.0',
+          }
+          break
+        }
+        default: {
+          throw internalErr
+        }
       }
     }
   }

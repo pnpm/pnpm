@@ -1,7 +1,8 @@
-import { packageManager, detectIfCurrentPkgIsExecutable } from '@pnpm/cli-meta'
-import { docsUrl } from '@pnpm/cli-utils'
-import renderHelp from 'render-help'
-import { type CommandDefinition } from './index.js'
+import { detectIfCurrentPkgIsExecutable, packageManager } from '@pnpm/cli.meta'
+import { docsUrl } from '@pnpm/cli.utils'
+import { renderHelp } from 'render-help'
+
+import type { CommandDefinition } from './index.js'
 
 type HelpByCommandName = Record<string, () => string>
 
@@ -50,7 +51,7 @@ function handler (helpByCommandName: HelpByCommandName, opts: { all?: boolean },
     helpText = `No results for "${params[0]}"`
   }
   return `Version ${packageManager.version}\
-${detectIfCurrentPkgIsExecutable() != null ? ` (compiled to binary; bundled Node.js ${process.version})` : ''}\
+${detectIfCurrentPkgIsExecutable() ? ` (compiled to binary; bundled Node.js ${process.version})` : ''}\
 \n${helpText}\n`
 }
 
@@ -121,6 +122,11 @@ function getHelpText ({ all }: { all: boolean }): string {
         {
           description: 'Removes extraneous packages',
           name: 'prune',
+          advanced: true,
+        },
+        {
+          description: 'Safely remove node_modules directories from all workspace projects',
+          name: 'clean',
           advanced: true,
         },
         {
@@ -239,10 +245,6 @@ function getHelpText ({ all }: { all: boolean }): string {
           name: 'publish',
         },
         {
-          description: 'Updates pnpm to the latest version',
-          name: 'self-update',
-        },
-        {
           description: 'Create a package.json file',
           name: 'init',
         },
@@ -274,13 +276,22 @@ function getHelpText ({ all }: { all: boolean }): string {
       ],
     },
     {
-      title: 'Manage your environments',
+      title: 'Manage your engines',
       advanced: true,
 
       list: [
         {
-          description: 'Manage Node.js versions',
-          name: 'env ',
+          description: 'Manage runtimes',
+          name: 'runtime',
+          shortAlias: 'rt',
+        },
+        {
+          description: 'Manage Node.js versions (deprecated, use runtime)',
+          name: 'env',
+        },
+        {
+          description: 'Updates pnpm to the latest version',
+          name: 'self-update',
         },
       ],
     },

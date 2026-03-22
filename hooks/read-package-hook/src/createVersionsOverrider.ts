@@ -1,10 +1,12 @@
-import path from 'path'
-import semver from 'semver'
-import { partition } from 'ramda'
-import { type Dependencies, type PackageManifest, type ReadPackageHook } from '@pnpm/types'
-import { type PackageSelector, type VersionOverride as VersionOverrideBase } from '@pnpm/parse-overrides'
-import { isValidPeerRange } from '@pnpm/semver.peer-range'
+import path from 'node:path'
+
+import type { PackageSelector, VersionOverride as VersionOverrideBase } from '@pnpm/config.parse-overrides'
+import { isValidPeerRange } from '@pnpm/deps.peer-range'
+import type { Dependencies, PackageManifest, ReadPackageHook } from '@pnpm/types'
 import normalizePath from 'normalize-path'
+import { partition } from 'ramda'
+import semver from 'semver'
+
 import { isIntersectingRange } from './isIntersectingRange.js'
 
 export type VersionOverrideWithoutRawSelector = Omit<VersionOverrideBase, 'selector'>
@@ -92,12 +94,12 @@ function overrideDeps (
 ): void {
   for (const [name, bareSpecifier] of Object.entries(peerDeps ?? deps)) {
     const versionOverride =
-    pickMostSpecificVersionOverride(
-      versionOverrides.filter(
-        ({ targetPkg }) =>
-          targetPkg.name === name && isIntersectingRange(targetPkg.bareSpecifier, bareSpecifier)
-      )
-    ) ??
+      pickMostSpecificVersionOverride(
+        versionOverrides.filter(
+          ({ targetPkg }) =>
+            targetPkg.name === name && isIntersectingRange(targetPkg.bareSpecifier, bareSpecifier)
+        )
+      ) ??
     pickMostSpecificVersionOverride(
       genericVersionOverrides.filter(
         ({ targetPkg }) =>

@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/default-resolver",
+  "name": "@pnpm/resolving.default-resolver",
   "version": "1002.2.12",
   "description": "pnpm's default package resolver",
   "keywords": [
@@ -27,36 +27,36 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
-    "test": "pnpm run compile && pnpm run _test",
+    "test": "pnpm run compile && pnpm run .test",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/engine.runtime.bun-resolver": "workspace:*",
+    "@pnpm/engine.runtime.deno-resolver": "workspace:*",
+    "@pnpm/engine.runtime.node-resolver": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/fetching-types": "workspace:*",
-    "@pnpm/git-resolver": "workspace:*",
+    "@pnpm/fetching.types": "workspace:*",
     "@pnpm/hooks.types": "workspace:*",
-    "@pnpm/local-resolver": "workspace:*",
-    "@pnpm/node.resolver": "workspace:*",
-    "@pnpm/npm-resolver": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
-    "@pnpm/resolving.bun-resolver": "workspace:*",
-    "@pnpm/resolving.deno-resolver": "workspace:*",
-    "@pnpm/tarball-resolver": "workspace:*",
+    "@pnpm/resolving.git-resolver": "workspace:*",
+    "@pnpm/resolving.local-resolver": "workspace:*",
+    "@pnpm/resolving.npm-resolver": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
+    "@pnpm/resolving.tarball-resolver": "workspace:*",
     "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/cafs-types": "workspace:*",
-    "@pnpm/default-resolver": "workspace:*",
-    "@pnpm/fetch": "workspace:*",
-    "@pnpm/fetcher-base": "workspace:*",
-    "@pnpm/tarball-fetcher": "workspace:*",
+    "@pnpm/fetching.fetcher-base": "workspace:*",
+    "@pnpm/fetching.tarball-fetcher": "workspace:*",
+    "@pnpm/network.fetch": "workspace:*",
+    "@pnpm/resolving.default-resolver": "workspace:*",
+    "@pnpm/store.cafs-types": "workspace:*",
     "node-fetch": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

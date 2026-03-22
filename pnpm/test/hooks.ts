@@ -1,11 +1,13 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { createHash } from '@pnpm/crypto.hash'
-import { type PackageManifest } from '@pnpm/types'
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT, getIntegrity } from '@pnpm/registry-mock'
+import { getIntegrity } from '@pnpm/registry-mock'
+import type { PackageManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpm, execPnpmSync } from './utils/index.js'
 
 test('readPackage hook in single project doesn\'t modify manifest', async () => {
@@ -75,7 +77,7 @@ test('readPackage hook in monorepo doesn\'t modify manifest', async () => {
       }
     `
   fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execPnpm(['add', 'is-positive@1.0.0', '--filter', 'project-a'])
   let pkg: PackageManifest = loadJsonFileSync(path.resolve('project-a/package.json'))
@@ -139,7 +141,7 @@ test('importPackage hooks', async () => {
     }
   `
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     globalPnpmfile: '.pnpmfile.cjs',
   })
 
@@ -156,70 +158,6 @@ test('importPackage hooks', async () => {
     'package.json',
     'readme.md',
   ])
-})
-
-test('should use default fetchers if no custom fetchers are defined', async () => {
-  const project = prepare()
-
-  const pnpmfile = `
-    const fs = require('fs')
-
-    module.exports = {
-      hooks: {
-        fetchers: {}
-      }
-    }
-  `
-
-  writeYamlFile('pnpm-workspace.yaml', {
-    globalPnpmfile: '.pnpmfile.cjs',
-  })
-
-  fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
-
-  await execPnpm(['add', 'is-positive@1.0.0'])
-
-  project.cafsHas('is-positive', '1.0.0')
-})
-
-test('custom fetcher can call default fetcher', async () => {
-  const project = prepare()
-
-  const pnpmfile = `
-    const fs = require('fs')
-
-    module.exports = {
-      hooks: {
-        fetchers: {
-          remoteTarball: ({ defaultFetchers }) => {
-            return (cafs, resolution, opts) => {
-              fs.writeFileSync('args.json', JSON.stringify({ resolution, opts }), 'utf8')
-              return defaultFetchers.remoteTarball(cafs, resolution, opts)
-            }
-          }
-        }
-      }
-    }
-  `
-
-  writeYamlFile('pnpm-workspace.yaml', {
-    globalPnpmfile: '.pnpmfile.cjs',
-  })
-
-  fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
-
-  await execPnpm(['add', 'is-positive@1.0.0'])
-
-  project.cafsHas('is-positive', '1.0.0')
-
-  const args = loadJsonFileSync<any>('args.json') // eslint-disable-line
-
-  expect(args.resolution).toEqual({
-    integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
-  })
-
-  expect(args.opts).toBeDefined()
 })
 
 test('adding or changing pnpmfile should change pnpmfileChecksum and module structure', async () => {
@@ -239,6 +177,10 @@ test('adding or changing pnpmfile should change pnpmfileChecksum and module stru
   const pnpmfile1 = `
     function readPackage (pkg) {
       if (pkg.optionalDependencies) {
+        // Also remove optional deps from dependencies since npm duplicates them there
+        for (const dep of Object.keys(pkg.optionalDependencies)) {
+          delete pkg.dependencies?.[dep]
+        }
         delete pkg.optionalDependencies
       }
       return pkg
@@ -299,10 +241,11 @@ test('loading a pnpmfile from a config dependency', async () => {
     dependencies: {
       '@pnpm/x': '1.0.0',
     },
-    pnpm: {
-      configDependencies: {
-        '@pnpm.e2e/exports-pnpmfile': `1.0.0+${getIntegrity('@pnpm.e2e/exports-pnpmfile', '1.0.0')}`,
-      },
+  })
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    configDependencies: {
+      '@pnpm.e2e/exports-pnpmfile': `1.0.0+${getIntegrity('@pnpm.e2e/exports-pnpmfile', '1.0.0')}`,
     },
   })
 
@@ -342,7 +285,7 @@ export const hooks = {
     nodeLinker: 'hoisted',
   }),
 }`, 'utf8')
-  writeYamlFile('pnpm-workspace.yaml', { pnpmfile: ['.pnpmfile.mjs'] })
+  writeYamlFileSync('pnpm-workspace.yaml', { pnpmfile: ['.pnpmfile.mjs'] })
 
   await execPnpm(['add', 'is-odd@1.0.0'])
 
@@ -374,7 +317,7 @@ module.exports = {
     },
   },
 }`, 'utf8')
-  writeYamlFile('pnpm-workspace.yaml', { pnpmfile: ['pnpmfile1.cjs', 'pnpmfile2.cjs'] })
+  writeYamlFileSync('pnpm-workspace.yaml', { pnpmfile: ['pnpmfile1.cjs', 'pnpmfile2.cjs'] })
 
   await execPnpm(['add', 'is-odd@1.0.0'])
 

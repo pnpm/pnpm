@@ -1,6 +1,8 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import path from 'path'
-import { type Config } from '@pnpm/config'
+import path from 'node:path'
+
+import { toOutput$ } from '@pnpm/cli.default-reporter'
+import type { Config } from '@pnpm/config.reader'
 import {
   deprecationLogger,
   hookLogger,
@@ -11,17 +13,17 @@ import {
   statsLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
-import { toOutput$ } from '@pnpm/default-reporter'
 import { PnpmError } from '@pnpm/error'
 import {
   createStreamParser,
   logger,
 } from '@pnpm/logger'
-import { map, skip, take } from 'rxjs/operators'
 import chalk from 'chalk'
 import normalizeNewline from 'normalize-newline'
-import { firstValueFrom } from 'rxjs'
 import { repeat } from 'ramda'
+import { firstValueFrom } from 'rxjs'
+import { map, skip, take } from 'rxjs/operators'
+
 import { formatWarn } from '../src/reporterForClient/utils/formatWarn.js'
 
 const formatErrorCode = (code: string) => chalk.bgRed.black(`\u2009${code}\u2009`)
@@ -404,7 +406,7 @@ test('prints summary for global installation', async () => {
 
   const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
   expect(output).toBe(EOL + `\
-${h1(`${prefix}:`)}
+${h1('global:')}
 ${ADD} bar ${versionColor('2.0.0')}
 ${ADD} foo ${versionColor('1.0.0')} ${versionColor('(2.0.0 is available)')}
 `)

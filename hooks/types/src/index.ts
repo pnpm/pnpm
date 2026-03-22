@@ -1,8 +1,8 @@
-import { type LockfileObject } from '@pnpm/lockfile.types'
-import { type Resolution, type WantedDependency } from '@pnpm/resolver-base'
-import { type Registries } from '@pnpm/types'
-import { type Cafs } from '@pnpm/cafs-types'
-import { type FetchOptions, type FetchResult, type Fetchers } from '@pnpm/fetcher-base'
+import type { Fetchers, FetchOptions, FetchResult } from '@pnpm/fetching.fetcher-base'
+import type { LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
+import type { Resolution, WantedDependency } from '@pnpm/resolving.resolver-base'
+import type { Cafs } from '@pnpm/store.cafs-types'
+import type { Registries } from '@pnpm/types'
 
 // Custom resolution types must use scoped naming to avoid conflicts with pnpm's built-in types
 export type CustomResolutionType = `@${string}/${string}`
@@ -32,6 +32,12 @@ export interface ResolveOptions {
   lockfileDir: string
   projectDir: string
   preferredVersions: Record<string, string>
+  currentPkg?: {
+    id: string
+    resolution: Resolution
+    name?: string
+    version?: string
+  }
 }
 
 export interface ResolveResult {
@@ -61,18 +67,23 @@ export interface CustomResolver {
 
   /**
    * Called on subsequent installs (when lockfile exists) to determine if this dependency
-   * needs re-resolution. This is called before checking if the lockfile is up-to-date.
+   * needs re-resolution. This is called before resolution, so the original specifier
+   * from package.json is not available — use depPath and pkgSnapshot to decide.
+   *
+   * This hook is called independently of canResolve. It is invoked for every package
+   * in the lockfile, regardless of whether canResolve would match. Resolvers should
+   * handle their own filtering (e.g., by inspecting depPath or pkgSnapshot.resolution).
    *
    * If this returns true for ANY dependency, full resolution will be triggered for ALL packages,
    * bypassing the "Lockfile is up to date" optimization.
    *
    * Use this to implement custom cache invalidation logic (e.g., time-based expiry, version checks).
    *
-   * @param wantedDependency - The dependency to check for force re-resolution
-   * @param wantedLockfile - The current lockfile contents
+   * @param depPath - The dependency path (e.g., 'lodash@4.17.21' or '@scope/pkg@1.0.0')
+   * @param pkgSnapshot - The lockfile entry for this dependency
    * @returns true to force re-resolution of all dependencies
    */
-  shouldForceResolve?: (wantedDependency: WantedDependency, wantedLockfile: LockfileObject) => boolean | Promise<boolean>
+  shouldRefreshResolution?: (depPath: string, pkgSnapshot: PackageSnapshot) => boolean | Promise<boolean>
 }
 
 export interface CustomFetcher {
@@ -105,8 +116,8 @@ export interface CustomFetcher {
 }
 
 export {
-  getCustomResolverCacheKey,
-  getCachedCanResolve,
-  setCachedCanResolve,
   checkCustomResolverCanResolve,
+  getCachedCanResolve,
+  getCustomResolverCacheKey,
+  setCachedCanResolve,
 } from './customResolverCache.js'

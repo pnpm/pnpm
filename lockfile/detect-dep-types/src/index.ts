@@ -1,12 +1,14 @@
-import { type LockfileObject, type PackageSnapshots, type ResolvedDependencies } from '@pnpm/lockfile.types'
-import * as dp from '@pnpm/dependency-path'
-import { type DepPath } from '@pnpm/types'
+import * as dp from '@pnpm/deps.path'
+import type { LockfileObject, PackageSnapshots, ResolvedDependencies } from '@pnpm/lockfile.types'
+import type { DepPath } from '@pnpm/types'
 
-export enum DepType {
-  DevOnly,
-  DevAndProd,
-  ProdOnly
-}
+export const DepType = {
+  DevOnly: 0,
+  DevAndProd: 1,
+  ProdOnly: 2,
+} as const
+
+export type DepType = (typeof DepType)[keyof typeof DepType]
 
 export type DepTypes = Record<string, DepType>
 

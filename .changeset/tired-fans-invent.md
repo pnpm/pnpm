@@ -1,5 +1,5 @@
 ---
-"@pnpm/tarball-resolver": patch
+"@pnpm/resolving.tarball-resolver": patch
 "pnpm": patch
 ---
 

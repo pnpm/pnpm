@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/mount-modules",
+  "name": "@pnpm/modules-mounter.daemon",
   "version": "1001.0.34",
   "description": "Mounts a node_modules directory with FUSE",
   "keywords": [
@@ -29,21 +29,21 @@
   "bin": "bin/mount-modules.js",
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "test": "pnpm run compile && pnpm run _test",
+    "test": "pnpm run compile && pnpm run .test",
     "prepublishOnly": "pnpm run compile",
     "pretest": "node ../../pnpm/dist/pnpm.mjs install --dir=test/__fixtures__/simple --config.enableGlobalVirtualStore=false",
-    "_test": "pnpm pretest && cross-env NODE_OPTIONS=--experimental-vm-modules jest",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix",
+    ".test": "pnpm pretest && cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
-    "@pnpm/config": "workspace:*",
-    "@pnpm/dependency-path": "workspace:*",
-    "@pnpm/fs.v8-file": "workspace:*",
+    "@pnpm/config.reader": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.index": "workspace:*",
+    "@pnpm/store.path": "workspace:*",
     "@pnpm/types": "workspace:*",
     "hyperdrive-schemas": "catalog:",
     "normalize-path": "catalog:"
@@ -58,14 +58,17 @@
     "@jest/globals": "catalog:",
     "@pnpm/constants": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/mount-modules": "workspace:*",
+    "@pnpm/modules-mounter.daemon": "workspace:*",
     "@types/normalize-path": "catalog:",
     "rimraf": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
-    "preset": "@pnpm/jest-config"
+    "preset": "@pnpm/jest-config",
+    "moduleNameMapper": {
+      "^fuse-native$": "<rootDir>/__mocks__/fuse-native.js"
+    }
   }
 }

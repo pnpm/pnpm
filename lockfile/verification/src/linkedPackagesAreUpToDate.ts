@@ -1,13 +1,14 @@
-import path from 'path'
-import {
-  type PackageSnapshot,
-  type ProjectSnapshot,
-  type PackageSnapshots,
+import path from 'node:path'
+
+import { refToRelative } from '@pnpm/deps.path'
+import type {
+  PackageSnapshot,
+  PackageSnapshots,
+  ProjectSnapshot,
 } from '@pnpm/lockfile.types'
 import { refIsLocalDirectory } from '@pnpm/lockfile.utils'
-import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { refToRelative } from '@pnpm/dependency-path'
-import { type DirectoryResolution, type WorkspacePackages } from '@pnpm/resolver-base'
+import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
+import type { DirectoryResolution, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import {
   DEPENDENCIES_FIELDS,
   DEPENDENCIES_OR_PEER_FIELDS,
@@ -52,6 +53,10 @@ export async function linkedPackagesAreUpToDate (
           if (!currentSpec) return true
           const lockfileRef = lockfileDeps[depName]
           if (refIsLocalDirectory(project.snapshot.specifiers[depName])) {
+            // When a file: specifier resolves to link: in the lockfile
+            // (e.g. injected self-references), it's a local link with no
+            // entry in the packages section. Treat it as up-to-date.
+            if (lockfileRef.startsWith('link:')) return true
             const depPath = refToRelative(lockfileRef, depName)
             return depPath != null && isLocalFileDepUpdated(lockfileDir, lockfilePackages?.[depPath])
           }
@@ -82,7 +87,7 @@ export async function linkedPackagesAreUpToDate (
           }
           const linkedPkg = manifestsByDir[linkedDir] ?? await safeReadPackageJsonFromDir(linkedDir)
           const availableRange = getVersionRange(currentSpec)
-          // This should pass the same options to semver as @pnpm/npm-resolver
+          // This should pass the same options to semver as @pnpm/resolving.npm-resolver
           const localPackageSatisfiesRange = availableRange === '*' || availableRange === '^' || availableRange === '~' ||
             linkedPkg && semver.satisfies(linkedPkg.version, availableRange, { loose: true })
           if (isLinked !== localPackageSatisfiesRange) return false

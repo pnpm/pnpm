@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import { type LockfileObject } from '@pnpm/lockfile.fs'
+import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { equals } from 'ramda'
 
 export function assertLockfilesEqual (currentLockfile: LockfileObject | null, wantedLockfile: LockfileObject, wantedLockfileDir: string): void {

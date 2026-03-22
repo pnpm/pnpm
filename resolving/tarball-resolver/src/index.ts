@@ -1,5 +1,5 @@
-import { type PkgResolutionId, type ResolveResult, type TarballResolution } from '@pnpm/resolver-base'
-import { type FetchFromRegistry } from '@pnpm/fetching-types'
+import type { FetchFromRegistry } from '@pnpm/fetching.types'
+import type { PkgResolutionId, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
 
 export interface TarballResolveResult extends ResolveResult {
   normalizedBareSpecifier: string
@@ -14,8 +14,6 @@ export async function resolveFromTarball (
   if (!wantedDependency.bareSpecifier.startsWith('http:') && !wantedDependency.bareSpecifier.startsWith('https:')) {
     return null
   }
-
-  if (isRepository(wantedDependency.bareSpecifier)) return null
 
   // The URL is normalized to remove the port if it is the default port of the protocol.
   const normalizedBareSpecifier = new URL(wantedDependency.bareSpecifier).toString()
@@ -37,23 +35,4 @@ export async function resolveFromTarball (
     },
     resolvedVia: 'url',
   }
-}
-
-const GIT_HOSTERS = new Set([
-  'github.com',
-  'gitlab.com',
-  'bitbucket.org',
-])
-
-function isRepository (bareSpecifier: string): boolean {
-  const url = new URL(bareSpecifier)
-  if (url.hash && url.hash.includes('/')) {
-    url.hash = encodeURIComponent(url.hash.substring(1))
-    bareSpecifier = url.href
-  }
-  if (bareSpecifier.endsWith('/')) {
-    bareSpecifier = bareSpecifier.slice(0, -1)
-  }
-  const parts = bareSpecifier.split('/')
-  return (parts.length === 5 && GIT_HOSTERS.has(parts[2]))
 }

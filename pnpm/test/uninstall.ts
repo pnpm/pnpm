@@ -1,8 +1,10 @@
-import fs from 'fs'
-import path from 'path'
-import { readPackageJsonFromDir } from '@pnpm/read-package-json'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { prepare } from '@pnpm/prepare'
 import PATH from 'path-name'
+
 import { execPnpm } from './utils/index.js'
 
 test('uninstall package and remove from appropriate property', async () => {
@@ -29,10 +31,11 @@ test('uninstall global package with its bin files', async () => {
   prepare()
 
   const global = process.cwd()
-  const globalBin = path.resolve(global, 'bin')
+  const pnpmHome = path.resolve(global, 'pnpm')
+  const globalBin = path.join(pnpmHome, 'bin')
 
   const env = {
-    PNPM_HOME: globalBin,
+    PNPM_HOME: pnpmHome,
     [PATH]: `${globalBin}${path.delimiter}${process.env[PATH] ?? ''}`,
     XDG_DATA_HOME: global,
   }

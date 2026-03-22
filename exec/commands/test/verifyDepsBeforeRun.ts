@@ -1,0 +1,131 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { jest } from '@jest/globals'
+import type { VerifyDepsBeforeRun } from '@pnpm/config.reader'
+import { prepare } from '@pnpm/prepare'
+
+import { DEFAULT_OPTS } from './utils/index.js'
+
+const originalModule = await import('@pnpm/logger')
+jest.unstable_mockModule('@pnpm/logger', () => {
+  return {
+    ...originalModule,
+    globalWarn: jest.fn(),
+  }
+})
+
+jest.unstable_mockModule('enquirer', () => ({
+  default: {
+    prompt: jest.fn(),
+  },
+}))
+
+const { run } = await import('@pnpm/exec.commands')
+const { default: enquirer } = await import('enquirer')
+const { globalWarn } = await import('@pnpm/logger')
+
+const rootProjectManifest = {
+  name: 'root',
+  private: true,
+  dependencies: {
+    'is-positive': '1.0.0',
+  },
+  scripts: {
+    test: 'echo hello from script',
+  },
+}
+
+async function runTest (verifyDepsBeforeRun: VerifyDepsBeforeRun): Promise<void> {
+  await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
+    dir: process.cwd(),
+    extraBinPaths: [],
+    extraEnv: {},
+    pnpmHomeDir: '',
+    rawConfig: {},
+    verifyDepsBeforeRun,
+    rootProjectManifest,
+    rootProjectManifestDir: process.cwd(),
+  }, ['test'])
+}
+
+test('throw an error if verifyDepsBeforeRun is set to error', async () => {
+  prepare(rootProjectManifest)
+
+  let err!: Error
+  try {
+    await runTest('error')
+  } catch (_err) {
+    err = _err as Error
+  }
+  expect(err.message).toContain('Cannot check whether dependencies are outdated')
+})
+
+test('install the dependencies if verifyDepsBeforeRun is set to install', async () => {
+  prepare(rootProjectManifest)
+
+  await runTest('install')
+
+  expect(fs.existsSync(path.resolve('node_modules'))).toBeTruthy()
+})
+
+test('log a warning if verifyDepsBeforeRun is set to warn', async () => {
+  prepare(rootProjectManifest)
+
+  await runTest('warn')
+
+  expect(globalWarn).toHaveBeenCalledWith(
+    expect.stringContaining('Your node_modules are out of sync with your lockfile')
+  )
+  expect(fs.existsSync(path.resolve('node_modules'))).toBeFalsy()
+})
+
+test('prompt the user if verifyDepsBeforeRun is set to prompt', async () => {
+  prepare(rootProjectManifest)
+
+  // Mock the user confirming the prompt
+  jest.mocked(enquirer.prompt).mockResolvedValue({ runInstall: true })
+
+  const originalIsTTY = process.stdin.isTTY
+  Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true })
+
+  try {
+    await runTest('prompt')
+  } finally {
+    Object.defineProperty(process.stdin, 'isTTY', { value: originalIsTTY, configurable: true })
+  }
+
+  expect(enquirer.prompt).toHaveBeenCalledWith({
+    type: 'confirm',
+    name: 'runInstall',
+    message: expect.stringContaining(
+      'Your "node_modules" directory is out of sync with the "pnpm-lock.yaml" file'
+    ),
+    initial: true,
+  })
+
+  expect(fs.existsSync(path.resolve('node_modules'))).toBeTruthy()
+})
+
+test('throw an error if verifyDepsBeforeRun is set to prompt in non-TTY environment', async () => {
+  prepare(rootProjectManifest)
+
+  // Mock non-TTY environment
+  const originalIsTTY = process.stdin.isTTY
+  Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true })
+
+  let err!: Error
+  try {
+    await runTest('prompt')
+  } catch (_err) {
+    err = _err as Error
+  } finally {
+    // Restore original value
+    Object.defineProperty(process.stdin, 'isTTY', { value: originalIsTTY, configurable: true })
+  }
+
+  expect(err.message).toContain('Cannot check whether dependencies are outdated')
+  expect(fs.existsSync(path.resolve('node_modules'))).toBeFalsy()
+})

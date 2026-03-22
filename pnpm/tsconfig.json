@@ -24,16 +24,16 @@
       "path": "../__utils__/test-ipc-server"
     },
     {
+      "path": "../building/commands"
+    },
+    {
       "path": "../cache/commands"
     },
     {
-      "path": "../cli/cli-meta"
-    },
-    {
-      "path": "../cli/cli-utils"
-    },
-    {
       "path": "../cli/command"
+    },
+    {
+      "path": "../cli/commands"
     },
     {
       "path": "../cli/common-cli-options-help"
@@ -42,148 +42,136 @@
       "path": "../cli/default-reporter"
     },
     {
+      "path": "../cli/meta"
+    },
+    {
       "path": "../cli/parse-cli-args"
     },
     {
-      "path": "../completion/plugin-commands-completion"
+      "path": "../cli/utils"
     },
     {
-      "path": "../config/config"
+      "path": "../config/commands"
     },
     {
-      "path": "../config/plugin-commands-config"
+      "path": "../config/reader"
+    },
+    {
+      "path": "../config/version-policy"
+    },
+    {
+      "path": "../core/constants"
+    },
+    {
+      "path": "../core/core-loggers"
+    },
+    {
+      "path": "../core/error"
+    },
+    {
+      "path": "../core/logger"
+    },
+    {
+      "path": "../core/types"
     },
     {
       "path": "../crypto/hash"
     },
     {
-      "path": "../env/path"
+      "path": "../deps/compliance/commands"
     },
     {
-      "path": "../env/plugin-commands-env"
+      "path": "../deps/inspection/commands"
     },
     {
-      "path": "../exec/build-commands"
+      "path": "../deps/path"
     },
     {
-      "path": "../exec/plugin-commands-rebuild"
+      "path": "../engine/pm/commands"
     },
     {
-      "path": "../exec/plugin-commands-script-runners"
+      "path": "../engine/runtime/commands"
+    },
+    {
+      "path": "../exec/commands"
     },
     {
       "path": "../exec/run-npm"
     },
     {
-      "path": "../fs/v8-file"
+      "path": "../hooks/pnpmfile"
     },
     {
-      "path": "../lockfile/plugin-commands-audit"
+      "path": "../installing/client"
+    },
+    {
+      "path": "../installing/commands"
+    },
+    {
+      "path": "../installing/env-installer"
+    },
+    {
+      "path": "../installing/modules-yaml"
+    },
+    {
+      "path": "../lockfile/fs"
     },
     {
       "path": "../lockfile/types"
     },
     {
-      "path": "../packages/constants"
+      "path": "../patching/commands"
     },
     {
-      "path": "../packages/core-loggers"
+      "path": "../pkg-manifest/reader"
     },
     {
-      "path": "../packages/dependency-path"
+      "path": "../releasing/commands"
     },
     {
-      "path": "../packages/error"
-    },
-    {
-      "path": "../packages/logger"
-    },
-    {
-      "path": "../packages/plugin-commands-doctor"
-    },
-    {
-      "path": "../packages/plugin-commands-init"
-    },
-    {
-      "path": "../packages/plugin-commands-setup"
-    },
-    {
-      "path": "../packages/types"
-    },
-    {
-      "path": "../patching/plugin-commands-patching"
-    },
-    {
-      "path": "../pkg-manager/client"
-    },
-    {
-      "path": "../pkg-manager/modules-yaml"
-    },
-    {
-      "path": "../pkg-manager/plugin-commands-installation"
-    },
-    {
-      "path": "../pkg-manifest/read-package-json"
-    },
-    {
-      "path": "../pkg-manifest/read-project-manifest"
-    },
-    {
-      "path": "../pkg-manifest/write-project-manifest"
-    },
-    {
-      "path": "../releasing/plugin-commands-deploy"
-    },
-    {
-      "path": "../releasing/plugin-commands-publishing"
-    },
-    {
-      "path": "../reviewing/plugin-commands-licenses"
-    },
-    {
-      "path": "../reviewing/plugin-commands-listing"
-    },
-    {
-      "path": "../reviewing/plugin-commands-outdated"
+      "path": "../shell/path"
     },
     {
       "path": "../store/cafs"
     },
     {
-      "path": "../store/plugin-commands-server"
+      "path": "../store/commands"
     },
     {
-      "path": "../store/plugin-commands-store"
+      "path": "../store/connection-manager"
     },
     {
-      "path": "../store/plugin-commands-store-inspecting"
-    },
-    {
-      "path": "../tools/path"
-    },
-    {
-      "path": "../tools/plugin-commands-self-updater"
+      "path": "../store/index"
     },
     {
       "path": "../worker"
     },
     {
-      "path": "../workspace/filter-workspace-packages"
+      "path": "../workspace/commands"
     },
     {
-      "path": "../workspace/find-packages"
+      "path": "../workspace/project-manifest-reader"
     },
     {
-      "path": "../workspace/find-workspace-dir"
+      "path": "../workspace/project-manifest-writer"
     },
     {
-      "path": "../workspace/pkgs-graph"
+      "path": "../workspace/projects-filter"
     },
     {
-      "path": "../workspace/read-manifest"
+      "path": "../workspace/projects-graph"
+    },
+    {
+      "path": "../workspace/projects-reader"
+    },
+    {
+      "path": "../workspace/root-finder"
     },
     {
       "path": "../workspace/state"
+    },
+    {
+      "path": "../workspace/workspace-manifest-reader"
     }
   ]
 }

@@ -31,4 +31,5 @@ export const shorthands: Record<string, string> = {
   w: '--workspace-root',
   i: '--interactive',
   F: '--filter',
+  y: '--yes',
 }

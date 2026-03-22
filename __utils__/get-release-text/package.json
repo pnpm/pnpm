@@ -4,14 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "write-release-text": "node --loader ts-node/esm src/main.ts",
+    "write-release-text": "node src/main.ts",
     "lint": "eslint src/**/*.ts"
   },
   "dependencies": {
     "mdast-util-to-string": "catalog:",
     "remark-parse": "catalog:",
     "remark-stringify": "catalog:",
-    "unified": "catalog:"
+    "unified": "catalog:",
+    "vfile": "catalog:"
   },
   "devDependencies": {
     "@pnpm/get-release-text": "workspace:*"

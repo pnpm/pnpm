@@ -1,13 +1,14 @@
-import assert from 'assert'
-import fs from 'fs'
-import path from 'path'
-import util from 'util'
+import assert from 'node:assert'
+import fs from 'node:fs'
+import path from 'node:path'
+import util from 'node:util'
+
 import { PnpmError } from '@pnpm/error'
-import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/lifecycle'
-import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { type AllowBuild, type PackageManifest } from '@pnpm/types'
-import rimraf from '@zkochan/rimraf'
-import preferredPM from 'preferred-pm'
+import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/exec.lifecycle'
+import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
+import type { AllowBuild, PackageManifest } from '@pnpm/types'
+import { rimraf } from '@zkochan/rimraf'
+import { preferredPM } from 'preferred-pm'
 import { omit } from 'ramda'
 
 // We don't run prepublishOnly to prepare the dependency.
@@ -36,11 +37,11 @@ export async function preparePackage (opts: PreparePackageOptions, gitRootDir: s
   if (!opts.allowBuild?.(manifest.name, manifest.version)) {
     throw new PnpmError(
       'GIT_DEP_PREPARE_NOT_ALLOWED',
-      `The git-hosted package "${manifest.name}@${manifest.version}" needs to execute build scripts but is not in the "onlyBuiltDependencies" allowlist.`,
+      `The git-hosted package "${manifest.name}@${manifest.version}" needs to execute build scripts but is not in the "allowBuilds" allowlist.`,
       {
-        hint: `Add the package to "onlyBuiltDependencies" in your project's pnpm-workspace.yaml to allow it to run scripts. For example:
-onlyBuiltDependencies:
-  - "${manifest.name}"`,
+        hint: `Add the package to "allowBuilds" in your project's pnpm-workspace.yaml to allow it to run scripts. For example:
+allowBuilds:
+  ${manifest.name}: true`,
       }
     )
   }

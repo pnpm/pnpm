@@ -1,13 +1,14 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { getWantedLockfileName } from './lockfileName.js'
 
-interface existsNonEmptyWantedLockfileOptions {
+interface ExistsNonEmptyWantedLockfileOptions {
   useGitBranchLockfile?: boolean
   mergeGitBranchLockfiles?: boolean
 }
 
-export async function existsNonEmptyWantedLockfile (pkgPath: string, opts: existsNonEmptyWantedLockfileOptions = {
+export async function existsNonEmptyWantedLockfile (pkgPath: string, opts: ExistsNonEmptyWantedLockfileOptions = {
   useGitBranchLockfile: false,
   mergeGitBranchLockfiles: false,
 }): Promise<boolean> {

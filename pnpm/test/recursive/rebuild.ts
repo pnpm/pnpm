@@ -1,15 +1,13 @@
 import { preparePackages } from '@pnpm/prepare'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpm } from '../utils/index.js'
 
 test('`pnpm recursive rebuild` specific dependencies', async () => {
   const projects = preparePackages([
     {
       location: '.',
-      package: {
-        pnpm: {
-          neverBuiltDependencies: [],
-        },
-      },
+      package: {},
     },
     {
       name: 'project-1',
@@ -35,6 +33,11 @@ test('`pnpm recursive rebuild` specific dependencies', async () => {
     },
   ])
 
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    neverBuiltDependencies: [],
+  })
+
   await execPnpm(['recursive', 'install', '--ignore-scripts'])
 
   projects['project-1'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
@@ -42,7 +45,7 @@ test('`pnpm recursive rebuild` specific dependencies', async () => {
   projects['project-2'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
   projects['project-2'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
 
-  await execPnpm(['recursive', 'rebuild', 'install-scripts-example-for-pnpm'])
+  await execPnpm(['recursive', 'rebuild', 'install-scripts-example-for-pnpm', '--config.dangerouslyAllowAllBuilds=true'])
 
   projects['project-1'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
   projects['project-1'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')

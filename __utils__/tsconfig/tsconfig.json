@@ -3,6 +3,7 @@
     "allowSyntheticDefaultImports": true,
     "composite": true,
     "declaration": true,
+    "erasableSyntaxOnly": true,
     "esModuleInterop": true,
     "module": "nodenext",
     "moduleResolution": "nodenext",
@@ -12,7 +13,8 @@
     "removeComments": false,
     "sourceMap": true,
     "strict": true,
-    "target": "es2022"
+    "target": "es2022",
+    "verbatimModuleSyntax": true
   },
   "atom": {
     "rewriteTsconfig": true

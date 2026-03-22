@@ -1,8 +1,9 @@
-import path from 'path'
-import { types as allTypes } from '@pnpm/config'
-import { docsUrl } from '@pnpm/cli-utils'
+import path from 'node:path'
+
+import { docsUrl } from '@pnpm/cli.utils'
+import { types as allTypes } from '@pnpm/config.reader'
 import { pick } from 'ramda'
-import renderHelp from 'render-help'
+import { renderHelp } from 'render-help'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -23,7 +24,7 @@ export function help (): string {
 
         list: [
           {
-            description: 'Print the global `node_modules` directory',
+            description: 'Print the global packages directory',
             name: '--global',
             shortAlias: '-g',
           },
@@ -38,7 +39,12 @@ export function help (): string {
 export async function handler (
   opts: {
     dir: string
+    global?: boolean
+    globalPkgDir?: string
   }
 ): Promise<string> {
+  if (opts.global) {
+    return `${opts.globalPkgDir}\n`
+  }
   return `${path.join(opts.dir, 'node_modules')}\n`
 }

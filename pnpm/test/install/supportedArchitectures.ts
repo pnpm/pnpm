@@ -1,8 +1,10 @@
-import fs from 'fs'
+import fs from 'node:fs'
+
+import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
-import { readModulesManifest } from '@pnpm/modules-yaml'
-import { type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import type { WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpm } from '../utils/index.js'
 
 const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
@@ -28,12 +30,12 @@ type Case = [
 const TEST_CASES: Case[] = [
   [[], undefined, [
     'only-linux-x64-glibc',
-    'only-linux-x64-musl',
   ], [
     'only-darwin-arm64',
     'only-darwin-x64',
     'only-linux-arm64-glibc',
     'only-linux-arm64-musl',
+    'only-linux-x64-musl',
     'only-win32-arm64',
     'only-win32-x64',
   ]],
@@ -97,7 +99,7 @@ describeOnLinuxOnly('install with supportedArchitectures from CLI options and ma
       },
     })
 
-    writeYamlFile('pnpm-workspace.yaml', {
+    writeYamlFileSync('pnpm-workspace.yaml', {
       supportedArchitectures: workspaceConfig,
     } as WorkspaceManifest)
 
@@ -119,7 +121,7 @@ describeOnLinuxOnly('add with supportedArchitectures from CLI options and manife
   test.each(TEST_CASES)('%j on %j', async (cliOpts, workspaceConfig, installed, skipped) => {
     prepareEmpty()
 
-    writeYamlFile('pnpm-workspace.yaml', {
+    writeYamlFileSync('pnpm-workspace.yaml', {
       supportedArchitectures: workspaceConfig,
     } as WorkspaceManifest)
 

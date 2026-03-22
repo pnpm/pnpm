@@ -1,9 +1,9 @@
-import * as dp from '@pnpm/dependency-path'
+import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
-import { type PatchFile, type PatchGroup, type PatchGroupRecord } from '@pnpm/patching.types'
+import type { PatchGroup, PatchGroupRecord, PatchInfo } from '@pnpm/patching.types'
 import { validRange } from 'semver'
 
-export function groupPatchedDependencies (patchedDependencies: Record<string, PatchFile>): PatchGroupRecord {
+export function groupPatchedDependencies (patchedDependencies: Record<string, string | PatchInfo>): PatchGroupRecord {
   const result: PatchGroupRecord = {}
   function getGroup (name: string): PatchGroup {
     let group: PatchGroup | undefined = result[name]
@@ -18,11 +18,12 @@ export function groupPatchedDependencies (patchedDependencies: Record<string, Pa
   }
 
   for (const key in patchedDependencies) {
-    const file = patchedDependencies[key]
+    const value = patchedDependencies[key]
+    const info = typeof value === 'string' ? { hash: value } : value
     const { name, version, nonSemverVersion } = dp.parse(key)
 
     if (name && version) {
-      getGroup(name).exact[version] = { strict: true, file, key }
+      getGroup(name).exact[version] = { ...info, key }
       continue
     }
 
@@ -31,18 +32,17 @@ export function groupPatchedDependencies (patchedDependencies: Record<string, Pa
         throw new PnpmError('PATCH_NON_SEMVER_RANGE', `${nonSemverVersion} is not a valid semantic version range.`)
       }
       if (nonSemverVersion.trim() === '*') {
-        getGroup(name).all = { strict: true, file, key }
+        getGroup(name).all = { ...info, key }
       } else {
         getGroup(name).range.push({
           version: nonSemverVersion,
-          patch: { strict: true, file, key },
+          patch: { ...info, key },
         })
       }
       continue
     }
 
-    // Set `strict` to `false` to preserve backward compatibility.
-    getGroup(key).all = { strict: false, file, key }
+    getGroup(key).all = { ...info, key }
   }
 
   return result

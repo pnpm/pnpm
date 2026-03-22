@@ -19,28 +19,31 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
+      "path": "../../bins/linker"
+    },
+    {
+      "path": "../../core/core-loggers"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../fetching/directory-fetcher"
     },
     {
-      "path": "../../packages/core-loggers"
+      "path": "../../pkg-manifest/reader"
     },
     {
-      "path": "../../packages/error"
+      "path": "../../store/cafs-types"
     },
     {
-      "path": "../../packages/logger"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manager/link-bins"
-    },
-    {
-      "path": "../../pkg-manifest/read-package-json"
-    },
-    {
-      "path": "../../store/store-controller-types"
+      "path": "../../store/controller-types"
     }
   ]
 }

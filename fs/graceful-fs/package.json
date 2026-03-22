@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/graceful-fs",
+  "name": "@pnpm/fs.graceful-fs",
   "version": "1000.0.1",
   "description": "Promisified graceful-fs",
   "keywords": [
@@ -27,17 +27,17 @@
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pnpm run compile",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
     "graceful-fs": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/graceful-fs": "workspace:*",
+    "@pnpm/fs.graceful-fs": "workspace:*",
     "@types/graceful-fs": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

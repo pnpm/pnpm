@@ -1,8 +1,10 @@
-import fs from 'fs'
-import path from 'path'
-import { sync as writeYamlFile } from 'write-yaml-file'
-import { type Config } from '@pnpm/config'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import type { Config } from '@pnpm/config.reader'
 import { prepare } from '@pnpm/prepare'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpmSync } from '../utils/index.js'
 
 test('pnpm config list reads npm options but ignores other settings from .npmrc', () => {
@@ -18,30 +20,31 @@ test('pnpm config list reads npm options but ignores other settings from .npmrc'
 
     // pnpm options
     'dlx-cache-max-age=1234',
-    'only-built-dependencies[]=foo',
-    'only-built-dependencies[]=bar',
+    'trust-policy-exclude[]=foo',
+    'trust-policy-exclude[]=bar',
     'packages[]=baz',
     'packages[]=qux',
   ].join('\n'))
 
   const { stdout } = execPnpmSync(['config', 'list', '--json'], { expectSuccess: true })
-  expect(JSON.parse(stdout.toString())).toMatchObject({
+  const list = JSON.parse(stdout.toString())
+  expect(list).toMatchObject({
     '//my-org.registry.example.com:username': '(protected)',
     '//my-org.registry.example.com:_authToken': '(protected)',
     '@my-org:registry': 'https://my-org.registry.example.com',
     '@jsr:registry': 'https://not-actually-jsr.example.com',
   } as Partial<Config>)
-  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['dlx-cache-max-age'])
-  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['dlxCacheMaxAge'])
-  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['only-built-dependencies'])
-  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['onlyBuiltDependencies'])
-  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['packages'])
+  expect(list).not.toHaveProperty(['dlx-cache-max-age'])
+  expect(list).not.toHaveProperty(['dlxCacheMaxAge'])
+  expect(list).not.toHaveProperty(['trust-policy-exclude'])
+  expect(list).not.toHaveProperty(['trustPolicyExclude'])
+  expect(list).not.toHaveProperty(['packages'])
 })
 
 test('pnpm config list reads workspace-specific settings from pnpm-workspace.yaml', () => {
   const workspaceManifest = {
     dlxCacheMaxAge: 1234,
-    onlyBuiltDependencies: ['foo', 'bar'],
+    trustPolicyExclude: ['foo', 'bar'],
     packages: ['baz', 'qux'],
     packageExtensions: {
       '@babel/parser': {
@@ -58,19 +61,19 @@ test('pnpm config list reads workspace-specific settings from pnpm-workspace.yam
   }
 
   prepare()
-  writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
+  writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
 
   const { stdout } = execPnpmSync(['config', 'list', '--json'], { expectSuccess: true })
   expect(JSON.parse(stdout.toString())).toStrictEqual(expect.objectContaining(workspaceManifest))
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['dlx-cache-max-age'])
-  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['only-built-dependencies'])
+  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['trust-policy-exclude'])
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['package-extensions'])
 })
 
 test('pnpm config list ignores non camelCase settings from pnpm-workspace.yaml', () => {
   const workspaceManifest = {
     'dlx-cache-max-age': 1234,
-    'only-built-dependencies': ['foo', 'bar'],
+    'trust-policy-exclude': ['foo', 'bar'],
     'package-extensions': {
       '@babel/parser': {
         peerDependencies: {
@@ -86,13 +89,13 @@ test('pnpm config list ignores non camelCase settings from pnpm-workspace.yaml',
   }
 
   prepare()
-  writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
+  writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
 
   const { stdout } = execPnpmSync(['config', 'list', '--json'], { expectSuccess: true })
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['dlx-cache-max-age'])
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['dlxCacheMaxAge'])
-  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['only-built-dependencies'])
-  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['onlyBuiltDependencies'])
+  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['trust-policy-exclude'])
+  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['trustPolicyExclude'])
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['package-extensions'])
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['packageExtensions'])
 })
@@ -105,7 +108,7 @@ test('pnpm config list still reads unknown camelCase keys from pnpm-workspace.ya
   }
 
   prepare()
-  writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
+  writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
 
   {
     const { stdout } = execPnpmSync(['config', 'list'], { expectSuccess: true })
@@ -117,7 +120,7 @@ test('pnpm config list still reads unknown camelCase keys from pnpm-workspace.ya
 test('pnpm config list --json shows all keys in camelCase', () => {
   const workspaceManifest = {
     dlxCacheMaxAge: 1234,
-    onlyBuiltDependencies: ['foo', 'bar'],
+    allowBuilds: { foo: true, bar: true },
     packages: ['baz', 'qux'],
     packageExtensions: {
       '@babel/parser': {
@@ -134,12 +137,12 @@ test('pnpm config list --json shows all keys in camelCase', () => {
   }
 
   prepare()
-  writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
+  writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
 
   const { stdout } = execPnpmSync(['config', 'list'], { expectSuccess: true })
   expect(JSON.parse(stdout.toString())).toStrictEqual(expect.objectContaining(workspaceManifest))
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['dlx-cache-max-age'])
-  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['only-built-dependencies'])
+  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['trust-policy-exclude'])
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['package-extensions'])
 })
 
@@ -149,7 +152,7 @@ test('pnpm config list shows settings from global config.yaml', () => {
   const XDG_CONFIG_HOME = path.resolve('.config')
   const configDir = path.join(XDG_CONFIG_HOME, 'pnpm')
   fs.mkdirSync(configDir, { recursive: true })
-  writeYamlFile(path.join(configDir, 'config.yaml'), {
+  writeYamlFileSync(path.join(configDir, 'config.yaml'), {
     dangerouslyAllowAllBuilds: true,
     dlxCacheMaxAge: 1234,
     dev: true,
@@ -195,7 +198,7 @@ test('pnpm config list shows settings from global config.yaml', () => {
 
   // doesn't list the kebab-case versions
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['frozen-lockfile'])
-  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['only-built-dependencies'])
+  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['trust-policy-exclude'])
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['dlx-cache-max-age'])
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['package-extensions'])
 })

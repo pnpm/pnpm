@@ -1,0 +1,77 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src",
+    "target": "es2020"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../../__utils__/prepare"
+    },
+    {
+      "path": "../../../bins/linker"
+    },
+    {
+      "path": "../../../building/policy"
+    },
+    {
+      "path": "../../../cli/meta"
+    },
+    {
+      "path": "../../../cli/utils"
+    },
+    {
+      "path": "../../../config/reader"
+    },
+    {
+      "path": "../../../core/error"
+    },
+    {
+      "path": "../../../core/logger"
+    },
+    {
+      "path": "../../../core/types"
+    },
+    {
+      "path": "../../../deps/graph-hasher"
+    },
+    {
+      "path": "../../../global/commands"
+    },
+    {
+      "path": "../../../global/packages"
+    },
+    {
+      "path": "../../../installing/client"
+    },
+    {
+      "path": "../../../installing/deps-restorer"
+    },
+    {
+      "path": "../../../installing/env-installer"
+    },
+    {
+      "path": "../../../lockfile/types"
+    },
+    {
+      "path": "../../../resolving/npm-resolver"
+    },
+    {
+      "path": "../../../shell/path"
+    },
+    {
+      "path": "../../../store/connection-manager"
+    },
+    {
+      "path": "../../../store/controller"
+    },
+    {
+      "path": "../../../workspace/project-manifest-reader"
+    }
+  ]
+}

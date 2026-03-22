@@ -1,9 +1,12 @@
-import fs from 'fs'
-import path from 'path'
-import { fetchFromDir } from '@pnpm/directory-fetcher'
-import { prepareEmpty } from '@pnpm/prepare'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { jest } from '@jest/globals'
-import { type DirDiff, DIR, applyPatch } from '../src/DirPatcher.js'
+import { fetchFromDir } from '@pnpm/fetching.directory-fetcher'
+import { prepareEmpty } from '@pnpm/prepare'
+import { lexCompare } from '@pnpm/util.lex-comparator'
+
+import { applyPatch, DIR, type DirDiff } from '../src/DirPatcher.js'
 
 const originalRm = fs.promises.rm
 const originalMkdir = fs.promises.mkdir
@@ -132,7 +135,7 @@ test('applies a patch on a directory', async () => {
 
   const sourceFetchResult = await fetchFromDir('source', { includeOnlyPackageFiles: false, resolveSymlinks: true })
   const targetFetchResultBefore = await fetchFromDir('target', { includeOnlyPackageFiles: false, resolveSymlinks: true })
-  expect(Array.from(targetFetchResultBefore.filesIndex.keys()).sort()).not.toStrictEqual(Array.from(sourceFetchResult.filesIndex.keys()).sort())
+  expect(Array.from(targetFetchResultBefore.filesMap.keys()).sort(lexCompare)).not.toStrictEqual(Array.from(sourceFetchResult.filesMap.keys()).sort(lexCompare))
   expect(
     filesToModify
       .map(suffix => `target/${suffix}`)
@@ -148,8 +151,8 @@ test('applies a patch on a directory', async () => {
   await applyPatch(optimizedDirPath, path.resolve('source'), path.resolve('target'))
 
   const targetFetchResultAfter = await fetchFromDir('target', { includeOnlyPackageFiles: false, resolveSymlinks: true })
-  expect(Array.from(targetFetchResultAfter.filesIndex.keys()).sort()).toStrictEqual(Array.from(sourceFetchResult.filesIndex.keys()).sort())
-  expect(Array.from(targetFetchResultAfter.filesIndex.keys()).sort()).not.toStrictEqual(Array.from(targetFetchResultBefore.filesIndex.keys()).sort())
+  expect(Array.from(targetFetchResultAfter.filesMap.keys()).sort(lexCompare)).toStrictEqual(Array.from(sourceFetchResult.filesMap.keys()).sort(lexCompare))
+  expect(Array.from(targetFetchResultAfter.filesMap.keys()).sort(lexCompare)).not.toStrictEqual(Array.from(targetFetchResultBefore.filesMap.keys()).sort(lexCompare))
   expect(
     filesToModify
       .map(suffix => `target/${suffix}`)

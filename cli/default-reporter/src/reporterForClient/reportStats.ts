@@ -1,9 +1,10 @@
-import { type StatsLog } from '@pnpm/core-loggers'
-import * as Rx from 'rxjs'
-import { filter, take, reduce, map } from 'rxjs/operators'
+import type { StatsLog } from '@pnpm/core-loggers'
 import chalk from 'chalk'
 import { repeat } from 'ramda'
+import * as Rx from 'rxjs'
+import { filter, map, reduce, take } from 'rxjs/operators'
 import stringLength from 'string-length'
+
 import { EOL } from '../constants.js'
 import {
   ADDED_CHAR,
@@ -131,7 +132,7 @@ function statsForNotCurrentPackage (
       : stats$
   )
   return cookedStats$.pipe(
-    filter((stats) => stats !== null && Boolean(stats['removed'] || stats['added'])), // eslint-disable-line @typescript-eslint/prefer-nullish-coalescing
+    filter((stats) => stats !== null && Boolean(stats['removed'] || stats['added'])),
     map((stats) => {
       const parts = [] as string[]
 
@@ -144,7 +145,6 @@ function statsForNotCurrentPackage (
 
       let msg = zoomOut(opts.currentPrefix, stats.prefix!, parts.join(' '))
       const rest = Math.max(0, opts.width - 1 - stringLength(msg))
-      // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
       msg += ' ' + printPlusesAndMinuses(rest, roundStats(stats['added'] || 0), roundStats(stats['removed'] || 0))
       return Rx.of({ msg })
     })

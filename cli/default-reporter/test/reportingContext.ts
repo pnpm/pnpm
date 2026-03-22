@@ -1,6 +1,7 @@
 import { setTimeout } from 'node:timers/promises'
+
+import { toOutput$ } from '@pnpm/cli.default-reporter'
 import { contextLogger, packageImportMethodLogger } from '@pnpm/core-loggers'
-import { toOutput$ } from '@pnpm/default-reporter'
 import {
   createStreamParser,
 } from '@pnpm/logger'

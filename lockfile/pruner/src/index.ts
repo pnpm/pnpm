@@ -1,18 +1,17 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import {
-  type LockfileObject,
-  type PackageSnapshots,
-  type ProjectSnapshot,
-  type ResolvedDependencies,
+import { refToRelative } from '@pnpm/deps.path'
+import type {
+  LockfileObject,
+  PackageSnapshots,
+  ProjectSnapshot,
+  ResolvedDependencies,
 } from '@pnpm/lockfile.types'
-import { type DepPath, type PackageManifest, type ProjectId } from '@pnpm/types'
-import { refToRelative } from '@pnpm/dependency-path'
+import type { DepPath, PackageManifest, ProjectId } from '@pnpm/types'
 import { difference, isEmpty, unnest } from 'ramda'
 
-// eslint-disable-next-line
 export * from '@pnpm/lockfile.types'
 
-// cannot import DependenciesGraph from @pnpm/resolve-dependencies due to circular dependency
+// cannot import DependenciesGraph from @pnpm/installing.deps-resolver due to circular dependency
 type DependenciesGraph = Record<DepPath, { optional?: boolean }>
 
 export function pruneSharedLockfile (
@@ -28,7 +27,7 @@ export function pruneSharedLockfile (
       devDepPaths: unnest(Object.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.devDependencies ?? {}))),
       optionalDepPaths: unnest(Object.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.optionalDependencies ?? {}))),
       prodDepPaths: unnest(Object.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.dependencies ?? {}))),
-      warn: opts?.warn ?? ((msg: string) => undefined),
+      warn: opts?.warn ?? ((_msg: string) => undefined),
       dependenciesGraph: opts?.dependenciesGraph,
     })
 

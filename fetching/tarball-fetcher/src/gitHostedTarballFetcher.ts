@@ -1,15 +1,14 @@
-import assert from 'assert'
-import fs from 'node:fs/promises'
-import util from 'util'
-import { type FetchFunction, type FetchOptions } from '@pnpm/fetcher-base'
-import type { Cafs } from '@pnpm/cafs-types'
+import assert from 'node:assert'
+import util from 'node:util'
+
+import { preparePackage } from '@pnpm/exec.prepare-package'
+import type { FetchFunction, FetchOptions } from '@pnpm/fetching.fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
-import { preparePackage } from '@pnpm/prepare-package'
-import { type DependencyManifest } from '@pnpm/types'
+import type { Cafs, FilesMap } from '@pnpm/store.cafs-types'
+import type { StoreIndex } from '@pnpm/store.index'
+import type { BundledManifest } from '@pnpm/types'
 import { addFilesFromDir } from '@pnpm/worker'
-import renameOverwrite from 'rename-overwrite'
-import { fastPathTemp as pathTemp } from 'path-temp'
 
 interface Resolution {
   integrity?: string
@@ -21,23 +20,27 @@ interface Resolution {
 export interface CreateGitHostedTarballFetcher {
   ignoreScripts?: boolean
   rawConfig: Record<string, unknown>
+  storeIndex: StoreIndex
   unsafePerm?: boolean
 }
 
 export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction, fetcherOpts: CreateGitHostedTarballFetcher): FetchFunction {
   const fetch = async (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
-    const tempIndexFile = pathTemp(opts.filesIndexFile)
-    const { filesIndex, manifest, requiresBuild } = await fetchRemoteTarball(cafs, resolution, {
+    const rawFilesIndexFile = `${opts.filesIndexFile}\traw`
+    const { filesMap, manifest, requiresBuild } = await fetchRemoteTarball(cafs, resolution, {
       ...opts,
-      filesIndexFile: tempIndexFile,
+      filesIndexFile: rawFilesIndexFile,
     })
+    // Flush any queued store index writes so that the raw files index entry
+    // written during tarball extraction is visible to subsequent reads.
+    fetcherOpts.storeIndex.flush()
     try {
-      const prepareResult = await prepareGitHostedPkg(filesIndex, cafs, tempIndexFile, opts.filesIndexFile, fetcherOpts, opts, resolution)
+      const prepareResult = await prepareGitHostedPkg(filesMap, cafs, rawFilesIndexFile, opts.filesIndexFile, fetcherOpts, opts, resolution)
       if (prepareResult.ignoredBuild) {
         globalWarn(`The git-hosted package fetched from "${resolution.tarball}" has to be built but the build scripts were ignored.`)
       }
       return {
-        filesIndex: prepareResult.filesIndex,
+        filesMap: prepareResult.filesMap,
         manifest: prepareResult.manifest ?? manifest,
         requiresBuild,
       }
@@ -52,15 +55,15 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
 }
 
 interface PrepareGitHostedPkgResult {
-  filesIndex: Map<string, string>
-  manifest?: DependencyManifest
+  filesMap: FilesMap
+  manifest?: BundledManifest
   ignoredBuild: boolean
 }
 
 async function prepareGitHostedPkg (
-  filesIndex: Map<string, string>,
+  filesMap: FilesMap,
   cafs: Cafs,
-  filesIndexFileNonBuilt: string,
+  rawFilesIndexFile: string,
   filesIndexFile: string,
   opts: CreateGitHostedTarballFetcher,
   fetcherOpts: FetchOptions,
@@ -69,7 +72,7 @@ async function prepareGitHostedPkg (
   const tempLocation = await cafs.tempDir()
   cafs.importPackage(tempLocation, {
     filesResponse: {
-      filesIndex,
+      filesMap,
       resolvedFrom: 'remote',
       requiresBuild: false,
     },
@@ -80,33 +83,35 @@ async function prepareGitHostedPkg (
     allowBuild: fetcherOpts.allowBuild,
   }, tempLocation, resolution.path ?? '')
   const files = await packlist(pkgDir)
-  if (!resolution.path && files.length === filesIndex.size) {
+  const { storeIndex } = opts
+  if (!resolution.path && files.length === filesMap.size) {
     if (!shouldBeBuilt) {
-      if (filesIndexFileNonBuilt !== filesIndexFile) {
-        await renameOverwrite(filesIndexFileNonBuilt, filesIndexFile)
+      const data = storeIndex.get(rawFilesIndexFile)
+      if (data) {
+        storeIndex.set(filesIndexFile, data)
+        storeIndex.delete(rawFilesIndexFile)
       }
       return {
-        filesIndex,
+        filesMap,
         ignoredBuild: false,
       }
     }
     if (opts.ignoreScripts) {
+      storeIndex.delete(rawFilesIndexFile)
       return {
-        filesIndex,
+        filesMap,
         ignoredBuild: true,
       }
     }
   }
-  try {
-    // The temporary index file may be deleted
-    await fs.unlink(filesIndexFileNonBuilt)
-  } catch {}
+  storeIndex.delete(rawFilesIndexFile)
   // Important! We cannot remove the temp location at this stage.
   // Even though we have the index of the package,
   // the linking of files to the store is in progress.
   return {
     ...await addFilesFromDir({
       storeDir: cafs.storeDir,
+      storeIndex: opts.storeIndex,
       dir: pkgDir,
       files,
       filesIndexFile,

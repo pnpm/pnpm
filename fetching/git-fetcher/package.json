@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/git-fetcher",
+  "name": "@pnpm/fetching.git-fetcher",
   "version": "1003.0.0",
   "description": "A fetcher for git-hosted packages",
   "keywords": [
@@ -25,17 +25,18 @@
     "!*.map"
   ],
   "scripts": {
-    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
-    "test": "pnpm run compile && pnpm run _test",
+    "test": "pnpm run compile && pnpm run .test",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
-    "@pnpm/fetcher-base": "workspace:*",
-    "@pnpm/fs.packlist": "catalog:",
-    "@pnpm/prepare-package": "workspace:*",
+    "@pnpm/exec.prepare-package": "workspace:*",
+    "@pnpm/fetching.fetcher-base": "workspace:*",
+    "@pnpm/fs.packlist": "workspace:*",
+    "@pnpm/store.index": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "execa": "catalog:"
   },
@@ -45,15 +46,16 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/create-cafs-store": "workspace:*",
-    "@pnpm/git-fetcher": "workspace:*",
+    "@pnpm/fetching.git-fetcher": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.create-cafs-store": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
     "tempy": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

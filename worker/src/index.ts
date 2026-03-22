@@ -1,19 +1,23 @@
 // cspell:ignore checkin
-import path from 'path'
-import os from 'os'
-import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool.js'
+import { execSync } from 'node:child_process'
+import os from 'node:os'
+import path from 'node:path'
+
 import { PnpmError } from '@pnpm/error'
-import { execSync } from 'child_process'
+import { globalWarn } from '@pnpm/logger'
+import type { FilesMap, PackageFilesResponse } from '@pnpm/store.cafs-types'
+import type { StoreIndex } from '@pnpm/store.index'
+import type { BundledManifest } from '@pnpm/types'
+import { WorkerPool } from '@rushstack/worker-pool'
 import isWindows from 'is-windows'
-import { type PackageFilesIndex } from '@pnpm/store.cafs'
-import { type DependencyManifest } from '@pnpm/types'
 import pLimit from 'p-limit'
-import {
-  type TarballExtractMessage,
-  type AddDirToStoreMessage,
-  type LinkPkgMessage,
-  type SymlinkAllModulesMessage,
-  type HardLinkDirMessage,
+
+import type {
+  AddDirToStoreMessage,
+  HardLinkDirMessage,
+  LinkPkgMessage,
+  SymlinkAllModulesMessage,
+  TarballExtractMessage,
 } from './types.js'
 
 let workerPool: WorkerPool | undefined
@@ -25,7 +29,11 @@ export async function restartWorkerPool (): Promise<void> {
 
 export async function finishWorkers (): Promise<void> {
   // @ts-expect-error
-  await global.finishWorkers?.()
+  const finish = global.finishWorkers
+  // @ts-expect-error
+  global.finishWorkers = undefined
+  await finish?.()
+  workerPool = undefined
 }
 
 function createTarballWorkerPool (): WorkerPool {
@@ -67,25 +75,32 @@ function availableParallelism (): number {
 }
 
 interface AddFilesResult {
-  filesIndex: Map<string, string>
-  manifest: DependencyManifest
+  filesMap: FilesMap
+  manifest?: BundledManifest
   requiresBuild: boolean
   integrity?: string
 }
 
-type AddFilesFromDirOptions = Pick<AddDirToStoreMessage, 'storeDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files'>
+type AddFilesFromDirOptions = Pick<AddDirToStoreMessage, 'storeDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files' | 'appendManifest' | 'includeNodeModules'> & {
+  storeIndex: StoreIndex
+}
 
 export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<AddFilesResult> {
   if (!workerPool) {
     workerPool = createTarballWorkerPool()
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
-  return new Promise<{ filesIndex: Map<string, string>, manifest: DependencyManifest, requiresBuild: boolean }>((resolve, reject) => {
-    localWorker.once('message', ({ status, error, value }) => {
+  return new Promise<AddFilesResult>((resolve, reject) => {
+    localWorker.once('message', ({ status, error, value, indexWrites }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
         reject(new PnpmError(error.code ?? 'GIT_FETCH_FAILED', error.message as string))
         return
+      }
+      if (indexWrites) {
+        // Write immediately so that subsequent worker reads (e.g. side effects)
+        // see the committed data without waiting for nextTick.
+        opts.storeIndex.setRawMany(indexWrites)
       }
       resolve(value)
     })
@@ -97,7 +112,9 @@ export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<Ad
       sideEffectsCacheKey: opts.sideEffectsCacheKey,
       readManifest: opts.readManifest,
       pkg: opts.pkg,
+      appendManifest: opts.appendManifest,
       files: opts.files,
+      includeNodeModules: opts.includeNodeModules,
     })
   })
 }
@@ -136,7 +153,8 @@ If you think that this is the case, then run "pnpm store prune" and rerun the co
   }
 }
 
-type AddFilesFromTarballOptions = Pick<TarballExtractMessage, 'buffer' | 'storeDir' | 'filesIndexFile' | 'integrity' | 'readManifest' | 'pkg'> & {
+type AddFilesFromTarballOptions = Pick<TarballExtractMessage, 'buffer' | 'storeDir' | 'filesIndexFile' | 'integrity' | 'readManifest' | 'pkg' | 'appendManifest'> & {
+  storeIndex: StoreIndex
   url: string
 }
 
@@ -146,7 +164,7 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
   return new Promise<AddFilesResult>((resolve, reject) => {
-    localWorker.once('message', ({ status, error, value }) => {
+    localWorker.once('message', ({ status, error, value, indexWrites }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
         if (error.type === 'integrity_validation_failed') {
@@ -159,6 +177,9 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
         reject(new PnpmError(error.code ?? 'TARBALL_EXTRACT', `Failed to add tarball from "${opts.url}" to store: ${error.message as string}`))
         return
       }
+      if (indexWrites) {
+        opts.storeIndex.queueWrites(indexWrites)
+      }
       resolve(value)
     })
     localWorker.postMessage({
@@ -169,35 +190,56 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
       filesIndexFile: opts.filesIndexFile,
       readManifest: opts.readManifest,
       pkg: opts.pkg,
+      appendManifest: opts.appendManifest,
     })
   })
 }
 
-export async function readPkgFromCafs (
-  storeDir: string,
-  verifyStoreIntegrity: boolean,
-  filesIndexFile: string,
+export interface ReadPkgFromCafsContext {
+  storeDir: string
+  verifyStoreIntegrity: boolean
+  strictStorePkgContentCheck?: boolean
+}
+
+export interface ReadPkgFromCafsOptions {
   readManifest?: boolean
-): Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest, requiresBuild: boolean }> {
+  expectedPkg?: { name?: string, version?: string }
+}
+
+export interface ReadPkgFromCafsResult {
+  verified: boolean
+  files: PackageFilesResponse
+  bundledManifest?: BundledManifest
+}
+
+export async function readPkgFromCafs (
+  ctx: ReadPkgFromCafsContext,
+  filesIndexFile: string,
+  opts?: ReadPkgFromCafsOptions
+): Promise<ReadPkgFromCafsResult> {
   if (!workerPool) {
     workerPool = createTarballWorkerPool()
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
-  return new Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, requiresBuild: boolean }>((resolve, reject) => {
-    localWorker.once('message', ({ status, error, value }) => {
+  return new Promise((resolve, reject) => {
+    localWorker.once('message', ({ status, error, value, warnings }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
-        reject(new PnpmError(error.code ?? 'READ_FROM_STORE', error.message as string))
+        reject(new PnpmError(error.code ?? 'READ_FROM_STORE', error.message as string, { hint: error.hint }))
         return
+      }
+      if (warnings) {
+        for (const warning of warnings) {
+          globalWarn(warning)
+        }
       }
       resolve(value)
     })
     localWorker.postMessage({
       type: 'readPkgFromCafs',
-      storeDir,
       filesIndexFile,
-      readManifest,
-      verifyStoreIntegrity,
+      ...ctx,
+      ...opts,
     })
   })
 }
@@ -220,7 +262,7 @@ export async function importPackage (
       localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
         workerPool!.checkinWorker(localWorker)
         if (status === 'error') {
-          reject(new PnpmError(error.code ?? 'LINKING_FAILED', error.message as string))
+          reject(new PnpmError(error.code ?? 'LINKING_FAILED', `[importPackage ${opts.targetDir}] ${error.message as string}`))
           return
         }
         resolve(value)
@@ -245,7 +287,7 @@ export async function symlinkAllModules (
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
         const hint = opts.deps?.[0]?.modules != null ? createErrorHint(error, opts.deps[0].modules) : undefined
-        reject(new PnpmError(error.code ?? 'SYMLINK_FAILED', error.message as string, { hint }))
+        reject(new PnpmError(error.code ?? 'SYMLINK_FAILED', `[symlinkAllModules] ${error.message as string}`, { hint }))
         return
       }
       resolve(value)

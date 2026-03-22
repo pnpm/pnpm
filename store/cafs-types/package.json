@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/cafs-types",
+  "name": "@pnpm/store.cafs-types",
   "version": "1000.0.0",
   "description": "Types for the cafs",
   "keywords": [
@@ -27,16 +27,16 @@
   "scripts": {
     "test": "pnpm run compile",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix",
+    "compile": "tsgo --build && pnpm run lint --fix",
     "lint": "eslint \"src/**/*.ts\""
   },
   "devDependencies": {
-    "@pnpm/cafs-types": "workspace:*",
+    "@pnpm/store.cafs-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@types/ssri": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

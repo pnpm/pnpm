@@ -1,7 +1,8 @@
 import { PnpmError } from '@pnpm/error'
-import { type PackageInRegistry, type PackageMeta, type PackageMetaWithTime } from '@pnpm/registry.types'
-import { type PackageVersionPolicy } from '@pnpm/types'
+import type { PackageInRegistry, PackageMeta, PackageMetaWithTime } from '@pnpm/resolving.registry.types'
+import type { PackageVersionPolicy } from '@pnpm/types'
 import semver from 'semver'
+
 import { assertMetaHasTime } from './pickPackageFromMeta.js'
 
 type TrustEvidence = 'provenance' | 'trustedPublisher'
@@ -14,10 +15,13 @@ const TRUST_RANK = {
 export function failIfTrustDowngraded (
   meta: PackageMeta,
   version: string,
-  trustPolicyExclude?: PackageVersionPolicy
+  opts?: {
+    trustPolicyExclude?: PackageVersionPolicy
+    trustPolicyIgnoreAfter?: number
+  }
 ): void {
-  if (trustPolicyExclude) {
-    const excludeResult = trustPolicyExclude(meta.name)
+  if (opts?.trustPolicyExclude) {
+    const excludeResult = opts.trustPolicyExclude(meta.name)
     if (excludeResult === true) {
       return
     }
@@ -37,6 +41,13 @@ export function failIfTrustDowngraded (
   }
 
   const versionDate = new Date(versionPublishedAt)
+  if (opts?.trustPolicyIgnoreAfter) {
+    const now = new Date()
+    const minutesSincePublish = (now.getTime() - versionDate.getTime()) / (1000 * 60)
+    if (minutesSincePublish > opts.trustPolicyIgnoreAfter) {
+      return
+    }
+  }
   const manifest = meta.versions[version]
   if (!manifest) {
     throw new PnpmError(
@@ -70,9 +81,9 @@ export function failIfTrustDowngraded (
 
 function prettyPrintTrustEvidence (trustEvidence: TrustEvidence | undefined): string {
   switch (trustEvidence) {
-  case 'trustedPublisher': return 'trusted publisher'
-  case 'provenance': return 'provenance attestation'
-  default: return 'no trust evidence'
+    case 'trustedPublisher': return 'trusted publisher'
+    case 'provenance': return 'provenance attestation'
+    default: return 'no trust evidence'
   }
 }
 

@@ -1,13 +1,14 @@
+import path from 'node:path'
+
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
-import * as dp from '@pnpm/dependency-path'
-import {
-  type ProjectSnapshot,
-  type PackageSnapshots,
-  type TarballResolution,
+import * as dp from '@pnpm/deps.path'
+import type {
+  PackageSnapshots,
+  ProjectSnapshot,
+  TarballResolution,
 } from '@pnpm/lockfile.types'
 import { refIsLocalTarball } from '@pnpm/lockfile.utils'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import path from 'node:path'
 import pEvery from 'p-every'
 
 export interface LocalTarballDepsUpToDateContext {
@@ -101,7 +102,7 @@ export async function localTarballDepsAreUpToDate (
         let fileIntegrity: string
         try {
           fileIntegrity = await fileIntegrityPromise
-        } catch (err) {
+        } catch (_err) {
           // If there was an error reading the tarball, assume the lockfile is
           // out of date. The full resolution process will emit a clearer error
           // later during install.

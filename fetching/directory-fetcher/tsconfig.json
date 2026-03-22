@@ -13,22 +13,25 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
-      "path": "../../exec/pkg-requires-build"
+      "path": "../../building/pkg-requires-build"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
     },
     {
       "path": "../../fs/packlist"
     },
     {
-      "path": "../../packages/logger"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manifest/read-project-manifest"
-    },
-    {
       "path": "../../resolving/resolver-base"
+    },
+    {
+      "path": "../../store/cafs-types"
+    },
+    {
+      "path": "../../workspace/project-manifest-reader"
     },
     {
       "path": "../fetcher-base"

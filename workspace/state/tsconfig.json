@@ -16,13 +16,13 @@
       "path": "../../catalogs/types"
     },
     {
-      "path": "../../config/config"
+      "path": "../../config/reader"
     },
     {
-      "path": "../../packages/logger"
+      "path": "../../core/logger"
     },
     {
-      "path": "../../packages/types"
+      "path": "../../core/types"
     }
   ]
 }

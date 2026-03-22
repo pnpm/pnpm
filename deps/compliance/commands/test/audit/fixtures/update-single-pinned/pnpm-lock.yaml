@@ -1,0 +1,37 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@pnpm.e2e/bar':
+        specifier: 100.0.0
+        version: 100.0.0
+      '@pnpm.e2e/pkg-with-1-dep':
+        specifier: 100.0.0
+        version: 100.0.0
+
+packages:
+
+  '@pnpm.e2e/bar@100.0.0':
+    resolution: {integrity: sha512-ZiNxDXOAD0K8nguFnyz3TmV8L9kz6xipLTQIWbIe7ojrRtjblv+NDt8oh5TPObUN92pDnWIEiRVh+ZjN+JWygg==}
+
+  '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0':
+    resolution: {integrity: sha512-atUXGBNAbym4OioYcKt1qTjiH23CSfZ1K2N8JgCUewSE5gY/i9YoK7Ez6+CuEZbH+O3R+HKNrRIaZfnkv/93tg==}
+
+  '@pnpm.e2e/pkg-with-1-dep@100.0.0':
+    resolution: {integrity: sha512-aoavufOsqVp0D9pbv/dJRTYKFkmL8O1Pvj9lnWDFuAbNQnwWCDvxp5Dem12+DArhHmTJjGl3RccUATXLJxe1iQ==}
+
+snapshots:
+
+  '@pnpm.e2e/bar@100.0.0': {}
+
+  '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': {}
+
+  '@pnpm.e2e/pkg-with-1-dep@100.0.0':
+    dependencies:
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': 100.0.0

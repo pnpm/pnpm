@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/directory-fetcher",
+  "name": "@pnpm/fetching.directory-fetcher",
   "version": "1000.1.14",
   "description": "A fetcher for local directory packages",
   "keywords": [
@@ -25,32 +25,34 @@
     "!*.map"
   ],
   "scripts": {
-    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
-    "test": "pnpm run compile && pnpm run _test",
+    "test": "pnpm run compile && pnpm run .test",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
-    "@pnpm/exec.pkg-requires-build": "workspace:*",
-    "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/building.pkg-requires-build": "workspace:*",
+    "@pnpm/fetching.fetcher-base": "workspace:*",
     "@pnpm/fs.packlist": "workspace:*",
-    "@pnpm/read-project-manifest": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
-    "@pnpm/types": "workspace:*"
+    "@pnpm/resolving.resolver-base": "workspace:*",
+    "@pnpm/store.cafs-types": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/directory-fetcher": "workspace:*",
+    "@pnpm/fetching.directory-fetcher": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
     "@zkochan/rimraf": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

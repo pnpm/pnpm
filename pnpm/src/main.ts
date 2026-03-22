@@ -1,4 +1,3 @@
-/* eslint-disable import/first */
 export type Global = typeof globalThis & {
   pnpm__startedAt?: number
   [REPORTER_INITIALIZED]?: ReporterType // eslint-disable-line @typescript-eslint/no-use-before-define
@@ -7,24 +6,27 @@ declare const global: Global
 if (!global['pnpm__startedAt']) {
   global['pnpm__startedAt'] = Date.now()
 }
-import loudRejection from 'loud-rejection'
-import { packageManager, isExecutedByCorepack } from '@pnpm/cli-meta'
-import { getConfig } from '@pnpm/cli-utils'
-import { type Config, type WantedPackageManager } from '@pnpm/config'
+import path from 'node:path'
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
+
+import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
+import type { ParsedCliArgs } from '@pnpm/cli.parse-cli-args'
+import type { Config } from '@pnpm/config.reader'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
-import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
 import { globalWarn, logger } from '@pnpm/logger'
-import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
-import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
+import type { EngineDependency } from '@pnpm/types'
 import { finishWorkers } from '@pnpm/worker'
+import { filterProjectsFromDir } from '@pnpm/workspace.projects-filter'
 import chalk from 'chalk'
-import path from 'path'
+import loudRejection from 'loud-rejection'
 import { isEmpty } from 'ramda'
-import { stripVTControlCharacters as stripAnsi } from 'util'
+import semver from 'semver'
+
 import { checkForUpdates } from './checkForUpdates.js'
-import { pnpmCmds, rcOptionsTypes, skipPackageManagerCheckForCommand } from './cmd/index.js'
+import { NOT_IMPLEMENTED_COMMAND_SET, pnpmCmds, rcOptionsTypes, skipPackageManagerCheckForCommand } from './cmd/index.js'
 import { formatUnknownOptionsError } from './formatError.js'
+import { getConfig, installConfigDepsAndLoadHooks } from './getConfig.js'
 import { parseCliArgs } from './parseCliArgs.js'
 import { initReporter, type ReporterType } from './reporter/index.js'
 import { switchCliVersion } from './switchCliVersion.js'
@@ -32,6 +34,10 @@ import { switchCliVersion } from './switchCliVersion.js'
 export const REPORTER_INITIALIZED = Symbol('reporterInitialized')
 
 loudRejection()
+
+function isRootOnlyPatterns (patterns: string[]): boolean {
+  return patterns.length === 1 && patterns[0] === '.'
+}
 
 // This prevents the program from crashing when the pipe's read side closes early
 // (e.g., when running `pnpm config list | head`)
@@ -47,9 +53,6 @@ const DEPRECATED_OPTIONS = new Set([
   'lock',
   'resolution-strategy',
 ])
-
-// A workaround for the https://github.com/vercel/pkg/issues/897 issue.
-delete process.env.PKG_EXECPATH
 
 export async function main (inputArgv: string[]): Promise<void> {
   let parsedCliArgs!: ParsedCliArgs
@@ -76,7 +79,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     return
   }
 
-  if (unknownOptions.size > 0 && !fallbackCommandUsed) {
+  if (unknownOptions.size > 0 && !fallbackCommandUsed && !(cmd && NOT_IMPLEMENTED_COMMAND_SET.has(cmd))) {
     const unknownOptionsArray = Array.from(unknownOptions.keys())
     if (unknownOptionsArray.every((option) => DEPRECATED_OPTIONS.has(option))) {
       let deprecationMsg = `${chalk.bgYellow.black('\u2009WARN\u2009')}`
@@ -117,13 +120,19 @@ export async function main (inputArgv: string[]): Promise<void> {
       ignoreNonAuthSettingsFromLocal: isDlxOrCreateCommand,
     }) as typeof config
     if (!isExecutedByCorepack() && cmd !== 'setup' && config.wantedPackageManager != null) {
-      if (config.managePackageManagerVersions && config.wantedPackageManager?.name === 'pnpm' && cmd !== 'self-update') {
+      const pm = config.wantedPackageManager
+      if (pm.onFail === 'download' && pm.name === 'pnpm' && cmd !== 'self-update') {
         await switchCliVersion(config)
-      } else if (!cmd || !skipPackageManagerCheckForCommand.has(cmd)) {
-        checkPackageManager(config.wantedPackageManager, config)
+      } else if (pm.onFail !== 'ignore' && (!cmd || !skipPackageManagerCheckForCommand.has(cmd))) {
+        if (cliOptions.global) {
+          globalWarn('Using --global skips the package manager check for this project')
+        } else {
+          checkPackageManager(pm)
+        }
       }
     }
-    if (isDlxOrCreateCommand) {
+    config = await installConfigDepsAndLoadHooks(config) as typeof config
+    if (isDlxOrCreateCommand || cmd === 'sbom') {
       config.useStderr = true
     }
     config.argv = argv
@@ -180,12 +189,8 @@ export async function main (inputArgv: string[]): Promise<void> {
     global[REPORTER_INITIALIZED] = reporterType
   }
 
-  if (cmd === 'self-update') {
-    await pnpmCmds.server(config as any, ['stop']) // eslint-disable-line @typescript-eslint/no-explicit-any
-  }
-
   if (
-    (cmd === 'install' || cmd === 'import' || cmd === 'dedupe' || cmd === 'patch-commit' || cmd === 'patch' || cmd === 'patch-remove' || cmd === 'approve-builds') &&
+    (cmd === 'install' || cmd === 'import' || cmd === 'dedupe' || cmd === 'patch-commit' || cmd === 'patch' || cmd === 'patch-remove' || cmd === 'approve-builds' || cmd === 'audit') &&
     typeof workspaceDir === 'string'
   ) {
     cliOptions['recursive'] = true
@@ -209,13 +214,20 @@ export async function main (inputArgv: string[]): Promise<void> {
     const relativeWSDirPath = () => path.relative(process.cwd(), wsDir) || '.'
     if (config.workspaceRoot) {
       filters.push({ filter: `{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length) })
-    } else if (workspaceDir && !config.includeWorkspaceRoot && (cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test')) {
+    } else if (
+      filters.length === 0 &&
+      workspaceDir &&
+      config.workspacePackagePatterns &&
+      !isRootOnlyPatterns(config.workspacePackagePatterns) &&
+      !config.includeWorkspaceRoot &&
+      (cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test')
+    ) {
       filters.push({ filter: `!{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length) })
     }
 
-    const filterResults = await filterPackagesFromDir(wsDir, filters, {
+    const filterResults = await filterProjectsFromDir(wsDir, filters, {
       engineStrict: config.engineStrict,
-      nodeVersion: config.nodeVersion ?? config.useNodeVersion,
+      nodeVersion: config.nodeVersion,
       patterns: config.workspacePackagePatterns,
       linkWorkspacePackages: !!config.linkWorkspacePackages,
       prefix: process.cwd(),
@@ -291,35 +303,18 @@ export async function main (inputArgv: string[]): Promise<void> {
       ),
       ...(workspaceDir ? { workspacePrefix: workspaceDir } : {}),
     })
-
-    if (config.useNodeVersion != null) {
-      if ('webcontainer' in process.versions) {
-        globalWarn('Automatic installation of different Node.js versions is not supported in WebContainer')
-      } else {
-        config.extraBinPaths = (
-          await prepareExecutionEnv(config, {
-            extraBinPaths: config.extraBinPaths,
-            executionEnv: {
-              nodeVersion: config.useNodeVersion,
-            },
-          })
-        ).extraBinPaths
-        config.nodeVersion = config.useNodeVersion
-      }
-    }
     let result = pnpmCmds[cmd ?? 'help'](
       // TypeScript doesn't currently infer that the type of config
       // is `Omit<typeof config, 'reporter'>` after the `delete config.reporter` statement
       config as Omit<typeof config, 'reporter'>,
-      cliParams
+      cliParams,
+      pnpmCmds
     )
     try {
       if (result instanceof Promise) {
         result = await result
       }
     } finally {
-      // When use-node-version is set and "pnpm run" is executed,
-      // this will be the only place where the tarball worker pool is finished.
       await finishWorkers()
     }
     executionTimeLogger.debug({
@@ -356,23 +351,24 @@ function printError (message: string, hint?: string): void {
   }
 }
 
-function checkPackageManager (pm: WantedPackageManager, config: Config): void {
+function checkPackageManager (pm: EngineDependency): void {
   if (!pm.name) return
+  const shouldError = pm.onFail === 'error' || pm.onFail === 'download'
   if (pm.name !== 'pnpm') {
     const msg = `This project is configured to use ${pm.name}`
-    if (config.packageManagerStrict) {
+    if (shouldError) {
       throw new PnpmError('OTHER_PM_EXPECTED', msg)
     }
     globalWarn(msg)
-  } else {
+  } else if (pm.version) {
     const currentPnpmVersion = packageManager.name === 'pnpm'
       ? packageManager.version
       : undefined
-    if (currentPnpmVersion && config.packageManagerStrictVersion && pm.version && pm.version !== currentPnpmVersion) {
-      const msg = `This project is configured to use v${pm.version} of pnpm. Your current pnpm is v${currentPnpmVersion}`
-      if (config.packageManagerStrict) {
+    if (currentPnpmVersion && !semver.satisfies(currentPnpmVersion, pm.version, { includePrerelease: true })) {
+      const msg = `This project is configured to use ${pm.version} of pnpm. Your current pnpm is v${currentPnpmVersion}`
+      if (shouldError) {
         throw new PnpmError('BAD_PM_VERSION', msg, {
-          hint: 'If you want to bypass this version check, you can set the "package-manager-strict" configuration to "false" or set the "COREPACK_ENABLE_STRICT" environment variable to "0"',
+          hint: 'If you want to bypass this version check, you can set the "package-manager-strict" configuration to "false" or set the "COREPACK_ENABLE_STRICT" environment variable to "0". If using "devEngines.packageManager", you can set its "onFail" to "warn" or "ignore"',
         })
       } else {
         globalWarn(msg)

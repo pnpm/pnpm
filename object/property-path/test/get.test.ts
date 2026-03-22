@@ -65,7 +65,7 @@ test('does not leak JavaScript-specific properties', () => {
   expect(getObjectValueByPropertyPathString([], 'length')).toBeUndefined()
   expect(getObjectValueByPropertyPathString('foo', 'length')).toBeUndefined()
   expect(getObjectValueByPropertyPathString(0, 'valueOf')).toBeUndefined()
-  expect(getObjectValueByPropertyPathString(class {}, 'prototype')).toBeUndefined() // eslint-disable-line @typescript-eslint/no-extraneous-class
+  expect(getObjectValueByPropertyPathString(class {}, 'prototype')).toBeUndefined()
   expect(getObjectValueByPropertyPathString(OBJECT, 'constructor')).toBeUndefined()
   expect(getObjectValueByPropertyPathString(OBJECT, 'packages.length')).toBeUndefined()
   expect(getObjectValueByPropertyPathString(OBJECT, 'packages[0].length')).toBeUndefined()

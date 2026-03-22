@@ -26,24 +26,27 @@
     "!*.map"
   ],
   "scripts": {
-    "lint": "eslint \"src/**/*.ts\"",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
-    "test": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "test": "pnpm run compile && pnpm run .test",
+    "compile": "tsgo --build && pnpm run lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
-    "@pnpm/cafs-types": "workspace:*",
-    "@pnpm/create-cafs-store": "workspace:*",
+    "@pnpm/building.pkg-requires-build": "workspace:*",
+    "@pnpm/crypto.integrity": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/exec.pkg-requires-build": "workspace:*",
+    "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/fs.hard-link-dir": "workspace:*",
-    "@pnpm/fs.v8-file": "workspace:*",
-    "@pnpm/graceful-fs": "workspace:*",
+    "@pnpm/fs.symlink-dependency": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
-    "@pnpm/symlink-dependency": "workspace:*",
+    "@pnpm/store.cafs-types": "workspace:*",
+    "@pnpm/store.create-cafs-store": "workspace:*",
+    "@pnpm/store.index": "workspace:*",
     "@rushstack/worker-pool": "catalog:",
     "is-windows": "catalog:",
-    "p-limit": "catalog:"
+    "p-limit": "catalog:",
+    "semver": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -52,10 +55,11 @@
     "@pnpm/logger": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/worker": "workspace:*",
-    "@types/is-windows": "catalog:"
+    "@types/is-windows": "catalog:",
+    "@types/semver": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

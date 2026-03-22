@@ -1,11 +1,10 @@
-import type { IntegrityLike } from 'ssri'
 import type { DependencyManifest } from '@pnpm/types'
 
 export type PackageFiles = Map<string, PackageFileInfo>
 
 export interface PackageFileInfo {
   checkedAt?: number // Nullable for backward compatibility
-  integrity: string
+  digest: string
   mode: number
   size: number
 }
@@ -19,18 +18,16 @@ export interface SideEffectsDiff {
 
 export type ResolvedFrom = 'store' | 'local-dir' | 'remote'
 
-export type PackageFilesResponse = {
+export type FilesMap = Map<string, string>
+
+export interface PackageFilesResponse {
   resolvedFrom: ResolvedFrom
+  filesMap: FilesMap
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
-  sideEffects?: SideEffects
+  // Pre-calculated file location maps for side effects, avoiding recalculation during import
+  sideEffectsMaps?: Map<string, { added?: FilesMap, deleted?: string[] }>
   requiresBuild: boolean
-} & ({
-  unprocessed?: false
-  filesIndex: Map<string, string>
-} | {
-  unprocessed: true
-  filesIndex: PackageFiles
-})
+}
 
 export interface ImportPackageOpts {
   disableRelinkLocalDirDeps?: boolean
@@ -39,6 +36,7 @@ export interface ImportPackageOpts {
   filesResponse: PackageFilesResponse
   force: boolean
   keepModulesDir?: boolean
+  safeToSkip?: boolean
 }
 
 export type ImportPackageFunction = (
@@ -51,7 +49,7 @@ export type ImportPackageFunctionAsync = (
   opts: ImportPackageOpts
 ) => Promise<{ isBuilt: boolean, importMethod: undefined | string }>
 
-export type FileType = 'exec' | 'nonexec' | 'index'
+export type FileType = 'exec' | 'nonexec'
 
 export type FilesIndex = Map<string, {
   mode: number
@@ -61,7 +59,7 @@ export type FilesIndex = Map<string, {
 export interface FileWriteResult {
   checkedAt: number
   filePath: string
-  integrity: IntegrityLike
+  digest: string
 }
 
 export interface AddToStoreResult {
@@ -73,8 +71,8 @@ export interface Cafs {
   storeDir: string
   addFilesFromDir: (dir: string) => AddToStoreResult
   addFilesFromTarball: (buffer: Buffer) => AddToStoreResult
-  getIndexFilePathInCafs: (integrity: string | IntegrityLike, fileType: FileType) => string
-  getFilePathByModeInCafs: (integrity: string | IntegrityLike, mode: number) => string
+  addFile: (buffer: Buffer, mode: number) => FileWriteResult
+  getFilePathByModeInCafs: (digest: string, mode: number) => string
   importPackage: ImportPackageFunction
   tempDir: () => Promise<string>
 }

@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import { type SupportedArchitectures } from '@pnpm/types'
+import type { SupportedArchitectures } from '@pnpm/types'
 import { familySync as getLibcFamilySync } from 'detect-libc'
 
 const currentLibc = getLibcFamilySync() ?? 'unknown'

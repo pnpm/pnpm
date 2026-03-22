@@ -1,8 +1,10 @@
-import fs from 'fs'
-import path from 'path'
-import { sync as writeYamlFile } from 'write-yaml-file'
-import { type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { prepare } from '@pnpm/prepare'
+import type { WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpmSync } from '../utils/index.js'
 
 test('pnpm config get reads npm options but ignores other settings from .npmrc', () => {
@@ -18,8 +20,8 @@ test('pnpm config get reads npm options but ignores other settings from .npmrc',
 
     // pnpm options
     'dlx-cache-max-age=1234',
-    'only-built-dependencies[]=foo',
-    'only-built-dependencies[]=bar',
+    'trust-policy-exclude[]=foo',
+    'trust-policy-exclude[]=bar',
     'packages[]=baz',
     'packages[]=qux',
   ].join('\n'))
@@ -45,12 +47,12 @@ test('pnpm config get reads npm options but ignores other settings from .npmrc',
   }
 
   {
-    const { stdout } = execPnpmSync(['config', 'get', 'only-built-dependencies'], { expectSuccess: true })
+    const { stdout } = execPnpmSync(['config', 'get', 'trust-policy-exclude'], { expectSuccess: true })
     expect(stdout.toString().trim()).toBe('undefined')
   }
 
   {
-    const { stdout } = execPnpmSync(['config', 'get', 'onlyBuiltDependencies'], { expectSuccess: true })
+    const { stdout } = execPnpmSync(['config', 'get', 'trustPolicyExclude'], { expectSuccess: true })
     expect(stdout.toString().trim()).toBe('undefined')
   }
 
@@ -62,9 +64,9 @@ test('pnpm config get reads npm options but ignores other settings from .npmrc',
 
 test('pnpm config get reads workspace-specific settings from pnpm-workspace.yaml', () => {
   prepare()
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     dlxCacheMaxAge: 1234,
-    onlyBuiltDependencies: ['foo', 'bar'],
+    trustPolicyExclude: ['foo', 'bar'],
     packages: ['baz', 'qux'],
   })
 
@@ -79,12 +81,12 @@ test('pnpm config get reads workspace-specific settings from pnpm-workspace.yaml
   }
 
   {
-    const { stdout } = execPnpmSync(['config', 'get', '--json', 'only-built-dependencies'], { expectSuccess: true })
+    const { stdout } = execPnpmSync(['config', 'get', '--json', 'trust-policy-exclude'], { expectSuccess: true })
     expect(JSON.parse(stdout.toString())).toStrictEqual(['foo', 'bar'])
   }
 
   {
-    const { stdout } = execPnpmSync(['config', 'get', '--json', 'onlyBuiltDependencies'], { expectSuccess: true })
+    const { stdout } = execPnpmSync(['config', 'get', '--json', 'trustPolicyExclude'], { expectSuccess: true })
     expect(JSON.parse(stdout.toString())).toStrictEqual(['foo', 'bar'])
   }
 
@@ -96,9 +98,9 @@ test('pnpm config get reads workspace-specific settings from pnpm-workspace.yaml
 
 test('pnpm config get ignores non camelCase settings from pnpm-workspace.yaml', () => {
   prepare()
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     'dlx-cache-max-age': 1234,
-    'only-built-dependencies': ['foo', 'bar'],
+    'trust-policy-exclude': ['foo', 'bar'],
   })
 
   {
@@ -112,12 +114,12 @@ test('pnpm config get ignores non camelCase settings from pnpm-workspace.yaml', 
   }
 
   {
-    const { stdout } = execPnpmSync(['config', 'get', 'only-built-dependencies'], { expectSuccess: true })
+    const { stdout } = execPnpmSync(['config', 'get', 'trust-policy-exclude'], { expectSuccess: true })
     expect(stdout.toString().trim()).toBe('undefined')
   }
 
   {
-    const { stdout } = execPnpmSync(['config', 'get', 'onlyBuiltDependencies'], { expectSuccess: true })
+    const { stdout } = execPnpmSync(['config', 'get', 'trustPolicyExclude'], { expectSuccess: true })
     expect(stdout.toString().trim()).toBe('undefined')
   }
 })
@@ -139,7 +141,7 @@ test('pnpm config get accepts a property path', () => {
   } satisfies Partial<WorkspaceManifest>
 
   prepare()
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     packageExtensions: {
       '@babel/parser': {
         peerDependencies: {
@@ -199,9 +201,9 @@ test('pnpm config get accepts a property path', () => {
 
 test('pnpm config get "" gives exactly the same result as pnpm config list', () => {
   prepare()
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     dlxCacheMaxAge: 1234,
-    onlyBuiltDependencies: ['foo', 'bar'],
+    trustPolicyExclude: ['foo', 'bar'],
     packages: ['baz', 'qux'],
     packageExtensions: {
       '@babel/parser': {
@@ -236,7 +238,7 @@ test('pnpm config get shows settings from global config.yaml', () => {
   const XDG_CONFIG_HOME = path.resolve('.config')
   const configDir = path.join(XDG_CONFIG_HOME, 'pnpm')
   fs.mkdirSync(configDir, { recursive: true })
-  writeYamlFile(path.join(configDir, 'config.yaml'), {
+  writeYamlFileSync(path.join(configDir, 'config.yaml'), {
     dangerouslyAllowAllBuilds: true,
     dlxCacheMaxAge: 1234,
     dev: true,

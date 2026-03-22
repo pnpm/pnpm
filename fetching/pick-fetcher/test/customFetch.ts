@@ -1,18 +1,24 @@
-import { pickFetcher } from '@pnpm/pick-fetcher'
+import path from 'node:path'
+
 import { jest } from '@jest/globals'
-import { createTarballFetcher } from '@pnpm/tarball-fetcher'
-import { createFetchFromRegistry } from '@pnpm/fetch'
-import { createCafsStore } from '@pnpm/create-cafs-store'
-import { fixtures } from '@pnpm/test-fixtures'
-import { temporaryDirectory } from 'tempy'
-import path from 'path'
-import nock from 'nock'
-import type { Cafs } from '@pnpm/cafs-types'
-import type { FetchFunction, Fetchers, FetchOptions } from '@pnpm/fetcher-base'
-import type { AtomicResolution } from '@pnpm/resolver-base'
+import type { Fetchers, FetchFunction, FetchOptions } from '@pnpm/fetching.fetcher-base'
+import { pickFetcher } from '@pnpm/fetching.pick-fetcher'
+import { createTarballFetcher } from '@pnpm/fetching.tarball-fetcher'
 import type { CustomFetcher } from '@pnpm/hooks.types'
+import { createFetchFromRegistry } from '@pnpm/network.fetch'
+import type { AtomicResolution } from '@pnpm/resolving.resolver-base'
+import type { Cafs } from '@pnpm/store.cafs-types'
+import { createCafsStore } from '@pnpm/store.create-cafs-store'
+import { StoreIndex } from '@pnpm/store.index'
+import { fixtures } from '@pnpm/test-fixtures'
+import nock from 'nock'
+import { temporaryDirectory } from 'tempy'
 
 const f = fixtures(import.meta.dirname)
+const storeIndex = new StoreIndex(temporaryDirectory())
+afterAll(() => {
+  storeIndex.close()
+})
 
 // Test helpers to reduce type casting
 function createMockFetchers (partial: Partial<Fetchers> = {}): Fetchers {
@@ -60,12 +66,12 @@ describe('custom fetcher implementation examples', () => {
   describe('basic custom fetcher contract', () => {
     test('should successfully return FetchResult with manifest and filesIndex', async () => {
       const mockManifest = { name: 'test-package', version: '1.0.0' }
-      const mockFilesIndex = new Map([['package.json', '/path/to/store/package.json']])
+      const mockFilesMap = new Map([['package.json', '/path/to/store/package.json']])
 
       const customFetcher = createMockCustomFetcher(
         () => true,
         async () => ({
-          filesIndex: mockFilesIndex,
+          filesMap: mockFilesMap,
           manifest: mockManifest,
           requiresBuild: false,
         })
@@ -84,7 +90,7 @@ describe('custom fetcher implementation examples', () => {
       )
 
       expect(result.manifest).toEqual(mockManifest)
-      expect(result.filesIndex).toEqual(mockFilesIndex)
+      expect(result.filesMap).toEqual(mockFilesMap)
       expect(result.requiresBuild).toBe(false)
     })
 
@@ -92,7 +98,7 @@ describe('custom fetcher implementation examples', () => {
       const customFetcher = createMockCustomFetcher(
         () => true,
         async () => ({
-          filesIndex: new Map(),
+          filesMap: new Map(),
           manifest: { name: 'pkg', version: '1.0.0', scripts: { install: 'node install.js' } },
           requiresBuild: true,
         })
@@ -144,7 +150,7 @@ describe('custom fetcher implementation examples', () => {
         async (cafs) => {
           receivedCafs = cafs
           return {
-            filesIndex: new Map(),
+            filesMap: new Map(),
             manifest: { name: 'pkg', version: '1.0.0' },
             requiresBuild: false,
           }
@@ -179,7 +185,7 @@ describe('custom fetcher implementation examples', () => {
           ;(opts.onProgress as any)?.({ done: 50, total: 100 }) // eslint-disable-line @typescript-eslint/no-explicit-any
 
           return {
-            filesIndex: new Map(),
+            filesMap: new Map(),
             manifest: { name: 'pkg', version: '1.0.0' },
             requiresBuild: false,
           }
@@ -216,7 +222,7 @@ describe('custom fetcher implementation examples', () => {
           expect((resolution as any).cdnUrl).toBe('https://cdn.example.com/pkg.tgz') // eslint-disable-line @typescript-eslint/no-explicit-any
 
           return {
-            filesIndex: new Map(),
+            filesMap: new Map(),
             manifest: { name: 'pkg', version: '1.0.0' },
             requiresBuild: false,
           }
@@ -236,7 +242,7 @@ describe('custom fetcher implementation examples', () => {
       const customFetcher = createMockCustomFetcher(
         () => true,
         async () => ({
-          filesIndex: new Map(),
+          filesMap: new Map(),
           requiresBuild: false,
           // Manifest is optional in FetchResult
         })
@@ -255,7 +261,7 @@ describe('custom fetcher implementation examples', () => {
       )
 
       expect(result.manifest).toBeUndefined()
-      expect(result.filesIndex).toBeDefined()
+      expect(result.filesMap).toBeDefined()
     })
   })
 
@@ -280,7 +286,7 @@ describe('custom fetcher implementation examples', () => {
       const tarballFetchers = createTarballFetcher(
         fetchFromRegistry,
         () => undefined,
-        { rawConfig: {} }
+        { rawConfig: {}, storeIndex }
       )
 
       // Custom fetcher that maps custom URLs to tarballs
@@ -315,7 +321,7 @@ describe('custom fetcher implementation examples', () => {
         createMockFetchOptions({ filesIndexFile, lockfileDir: process.cwd() })
       )
 
-      expect(result.filesIndex.get('package.json')).toBeTruthy()
+      expect(result.filesMap.get('package.json')).toBeTruthy()
       expect(scope.isDone()).toBeTruthy()
     })
 
@@ -328,7 +334,7 @@ describe('custom fetcher implementation examples', () => {
       const tarballFetchers = createTarballFetcher(
         fetchFromRegistry,
         () => undefined,
-        { rawConfig: {} }
+        { rawConfig: {}, storeIndex }
       )
 
       // Custom fetcher that maps custom local paths to tarballs
@@ -361,7 +367,7 @@ describe('custom fetcher implementation examples', () => {
         createMockFetchOptions({ filesIndexFile, lockfileDir: process.cwd() })
       )
 
-      expect(result.filesIndex.get('package.json')).toBeTruthy()
+      expect(result.filesMap.get('package.json')).toBeTruthy()
     })
 
     test('custom fetcher can transform resolution before delegating to tarball fetcher', async () => {
@@ -379,7 +385,7 @@ describe('custom fetcher implementation examples', () => {
       const tarballFetchers = createTarballFetcher(
         fetchFromRegistry,
         () => undefined,
-        { rawConfig: {} }
+        { rawConfig: {}, storeIndex }
       )
 
       // Custom fetcher that transforms custom resolution to tarball URL
@@ -415,7 +421,7 @@ describe('custom fetcher implementation examples', () => {
         createMockFetchOptions({ filesIndexFile, lockfileDir: process.cwd() })
       )
 
-      expect(result.filesIndex.get('package.json')).toBeTruthy()
+      expect(result.filesMap.get('package.json')).toBeTruthy()
       expect(scope.isDone()).toBeTruthy()
     })
 
@@ -428,7 +434,7 @@ describe('custom fetcher implementation examples', () => {
       const tarballFetchers = createTarballFetcher(
         fetchFromRegistry,
         () => undefined,
-        { rawConfig: {}, ignoreScripts: true }
+        { rawConfig: {}, storeIndex, ignoreScripts: true }
       )
 
       // Custom fetcher that maps custom git resolution to git-hosted tarball
@@ -462,7 +468,7 @@ describe('custom fetcher implementation examples', () => {
         createMockFetchOptions({ filesIndexFile, lockfileDir: process.cwd() })
       )
 
-      expect(result.filesIndex).toBeTruthy()
+      expect(result.filesMap).toBeTruthy()
     })
   })
 
@@ -484,7 +490,7 @@ describe('custom fetcher implementation examples', () => {
 
           // Simulate fetch
           const result = {
-            filesIndex: new Map([['package.json', '/store/pkg.json']]),
+            filesMap: new Map([['package.json', '/store/pkg.json']]),
             manifest: { name: 'cached-pkg', version: (resolution as any).version }, // eslint-disable-line @typescript-eslint/no-explicit-any
           }
 
@@ -530,7 +536,7 @@ describe('custom fetcher implementation examples', () => {
           }
 
           return {
-            filesIndex: new Map(),
+            filesMap: new Map(),
             manifest: { name: 'auth-pkg', version: '1.0.0' },
             requiresBuild: false,
             authToken, // Could store for future use

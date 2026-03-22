@@ -25,35 +25,37 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
-    "test": "pnpm run compile && pnpm run _test",
-    "compile": "tsc --build && pnpm run lint --fix",
-    "prepublishOnly": "pnpm run compile"
+    "test": "pnpm run compile && pnpm run .test",
+    "compile": "tsgo --build && pnpm run lint --fix",
+    "prepublishOnly": "pnpm run compile",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
-    "@pnpm/fetcher-base": "workspace:*",
-    "@pnpm/graceful-fs": "workspace:*",
-    "@pnpm/store-controller-types": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/fetching.fetcher-base": "workspace:*",
+    "@pnpm/fs.graceful-fs": "workspace:*",
+    "@pnpm/store.controller-types": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "is-gzip": "catalog:",
+    "is-subdir": "catalog:",
     "p-limit": "catalog:",
     "rename-overwrite": "catalog:",
-    "ssri": "catalog:",
+    "semver": "catalog:",
     "strip-bom": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/cafs-types": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.cafs-types": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@pnpm/types": "workspace:*",
     "@types/is-gzip": "catalog:",
     "@types/node": "catalog:",
-    "@types/ssri": "catalog:",
+    "@types/semver": "catalog:",
     "symlink-dir": "catalog:",
     "tempy": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

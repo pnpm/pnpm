@@ -13,18 +13,17 @@ import {
 import { pathToLocalPkg } from './localPkg.js'
 import testDefaults from './testDefaults.js'
 
-export { retryLoadJsonFile } from './retryLoadJsonFile.js'
 export {
-  pathToLocalPkg,
-  testDefaults,
+  addDistTag,
   binDir,
   execPnpm,
   execPnpmSync,
   execPnpx,
   execPnpxSync,
+  pathToLocalPkg,
   pnpmBinLocation,
   pnpxBinLocation,
   spawnPnpm,
   spawnPnpx,
-  addDistTag,
+  testDefaults,
 }

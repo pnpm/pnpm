@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Setting Up the Environment](#setting-up-the-environment)
+- [Working with Git Worktrees](#working-with-git-worktrees)
 - [Running Tests](#running-tests)
 - [Submitting a Pull Request (PR)](#submitting-a-pull-request-pr)
   - [After your pull request is merged](#after-your-pull-request-is-merged)
@@ -22,13 +23,70 @@
 1. Run `pnpm link --dir ./pnpm/dev -g` to make pnpm from the repository available in the command line via the `pd` command.
 1. Run `pnpm run compile` to create an initial build of pnpm from the source in the repository.
 1. Now you can change any source code file and run `pd [command] [flags]` to run `pnpm` directly from the source code by compiling all the files without typechecking in memory.
-1. Alternatively, for recompiling all the projects with typechecking after your changes, again run `pnpm run compile` in the root of the repository. To run a task that will recompile the projects on change, run `pnpm run watch`.
+1. Alternatively, for recompiling all the projects with typechecking after your changes, again run `pnpm run compile` in the root of the repository.
 1. In order to run all the tests in the repository, run `pnpm run test-main`. You may also run tests of specific projects by running `pnpm test` inside a project's directory or using `pnpm --filter <project name> test`.
 
 Some of the e2e tests run node-gyp, so you might need to install some build-essentials on your system for those tests to pass. On Fedora, install these:
 
-```
+```shell
 sudo dnf install make automake gcc gcc-c++ kernel-devel
+```
+
+## Working with Git Worktrees
+
+Worktrees let you check out multiple branches simultaneously in separate directories,
+which is useful for working on several issues in parallel without stashing or switching branches.
+This is particularly powerful when running multiple AI coding agents (e.g. Claude Code) at the
+same time — each agent gets its own isolated worktree, so they can work concurrently without
+interfering with each other.
+
+The repo includes a `pnpm worktree:new <branch>` script that creates a worktree as a sibling
+of the repo root. For a branch named `feat/my-feature` it creates `../feat-my-feature` (slashes
+are replaced with dashes).
+
+Because a script cannot change your shell's working directory, the repo also provides shell
+helpers (`shell/wt.sh` for bash/zsh, `shell/wt.fish` for fish) that wrap the script and `cd`
+into the new worktree automatically.
+
+### One-time setup
+
+**fish** — add to `~/.config/fish/config.fish` so `wt` is available in every future session:
+
+```fish
+source /path/to/pnpm/shell/wt.fish
+```
+
+**bash/zsh** — add to `~/.bashrc` or `~/.zshrc`:
+
+```sh
+source /path/to/pnpm/shell/wt.sh
+```
+
+To use `wt` in your current terminal without restarting it, also run the `source` command directly once.
+
+### Usage
+
+```shell
+# Create a worktree for an existing branch and switch to it
+wt fix/4444
+
+# Create a worktree for a new branch (branched from main) and switch to it
+wt feat/my-feature
+
+# Create a worktree for a GitHub PR (works for forks too) and switch to it
+wt 10000
+```
+
+Passing a number is interpreted as a PR number. The PR is fetched via
+`git fetch origin pull/<number>/head` into a local branch named `pr-<number>`, so it works
+for both same-repo branches and forks.
+
+If you only need the worktree path (e.g. to open it in an editor) without switching directories,
+run the underlying script directly:
+
+```shell
+pnpm worktree:new feat/my-feature
+pnpm worktree:new 10000
 ```
 
 ## Running Tests
@@ -151,7 +209,7 @@ format that includes a **type**, a **scope** and a **subject**:
 
 The **header** is mandatory and the **scope** of the header is optional.
 
-Any line of the commit message cannot be longer 100 characters! This allows the message to be easier
+Any line of the commit message cannot be longer than 100 characters! This allows the message to be easier
 to read on GitHub as well as in various git tools.
 
 #### Revert

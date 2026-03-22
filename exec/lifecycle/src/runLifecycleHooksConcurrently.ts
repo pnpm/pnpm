@@ -1,11 +1,14 @@
-import fs from 'fs'
-import { linkBins } from '@pnpm/link-bins'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { linkBins } from '@pnpm/bins.linker'
+import { fetchFromDir } from '@pnpm/fetching.directory-fetcher'
 import { logger } from '@pnpm/logger'
-import path from 'path'
-import { fetchFromDir } from '@pnpm/directory-fetcher'
-import { type StoreController } from '@pnpm/store-controller-types'
-import { type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
+import type { FilesMap } from '@pnpm/store.cafs-types'
+import type { StoreController } from '@pnpm/store.controller-types'
+import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { runGroups } from 'run-groups'
+
 import { runLifecycleHook, type RunLifecycleHookOptions } from './runLifecycleHook.js'
 
 export type RunLifecycleHooksConcurrentlyOptions = Omit<RunLifecycleHookOptions,
@@ -74,19 +77,19 @@ export async function runLifecycleHooksConcurrently (
         await Promise.all(
           targetDirs.map(async (targetDir) => {
             const targetModulesDir = path.join(targetDir, 'node_modules')
-            const newFilesIndex = new Map(filesResponse.filesIndex)
+            const newFilesMap: FilesMap = new Map(filesResponse.filesMap)
             if (fs.existsSync(targetModulesDir)) {
               // If the target directory contains a node_modules directory
               // (it may happen when the hoisted node linker is used)
               // then we need to preserve this node_modules.
               // So we scan this node_modules directory and  pass it as part of the new package.
-              await scanDir('node_modules', targetModulesDir, targetModulesDir, newFilesIndex)
+              await scanDir('node_modules', targetModulesDir, targetModulesDir, newFilesMap)
             }
             return opts.storeController.importPackage(targetDir, {
               filesResponse: {
                 resolvedFrom: 'local-dir',
                 ...filesResponse,
-                filesIndex: newFilesIndex,
+                filesMap: newFilesMap,
               },
               force: false,
             })
@@ -98,7 +101,7 @@ export async function runLifecycleHooksConcurrently (
   await runGroups(childConcurrency, groups)
 }
 
-async function scanDir (prefix: string, rootDir: string, currentDir: string, index: Map<string, string>): Promise<void> {
+async function scanDir (prefix: string, rootDir: string, currentDir: string, index: FilesMap): Promise<void> {
   const files = await fs.promises.readdir(currentDir)
   await Promise.all(files.map(async (file) => {
     const fullPath = path.join(currentDir, file)
