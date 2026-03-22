@@ -3097,6 +3097,9 @@ importers:
       '@pnpm/installing.modules-yaml':
         specifier: workspace:*
         version: link:../../../installing/modules-yaml
+      '@pnpm/installing.render-peer-issues':
+        specifier: workspace:*
+        version: link:../../../installing/render-peer-issues
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../../lockfile/fs
@@ -3170,9 +3173,18 @@ importers:
 
   deps/inspection/list:
     dependencies:
+      '@pnpm/config.matcher':
+        specifier: workspace:*
+        version: link:../../../config/matcher
+      '@pnpm/config.parse-overrides':
+        specifier: workspace:*
+        version: link:../../../config/parse-overrides
       '@pnpm/deps.inspection.tree-builder':
         specifier: workspace:*
         version: link:../tree-builder
+      '@pnpm/deps.path':
+        specifier: workspace:*
+        version: link:../../path
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../../lockfile/fs
@@ -3200,6 +3212,9 @@ importers:
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.4
     devDependencies:
       '@pnpm/deps.inspection.list':
         specifier: workspace:*
@@ -3210,6 +3225,9 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.31.1
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.7.1
 
   deps/inspection/outdated:
     dependencies:

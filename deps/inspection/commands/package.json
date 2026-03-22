@@ -41,6 +41,7 @@
     "@pnpm/deps.inspection.outdated": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/global.commands": "workspace:*",
+    "@pnpm/installing.render-peer-issues": "workspace:*",
     "@pnpm/global.packages": "workspace:*",
     "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",

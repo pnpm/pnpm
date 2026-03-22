@@ -13,7 +13,16 @@
       "path": "../../../__utils__/test-fixtures"
     },
     {
+      "path": "../../../config/matcher"
+    },
+    {
+      "path": "../../../config/parse-overrides"
+    },
+    {
       "path": "../../../core/types"
+    },
+    {
+      "path": "../../../deps/path"
     },
     {
       "path": "../../../lockfile/fs"

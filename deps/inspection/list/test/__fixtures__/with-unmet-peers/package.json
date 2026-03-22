@@ -1,0 +1,8 @@
+{
+  "name": "with-unmet-peers",
+  "version": "1.0.0",
+  "dependencies": {
+    "react": "17.0.0",
+    "react-dom": "18.0.0"
+  }
+}

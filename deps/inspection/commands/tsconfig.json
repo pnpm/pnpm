@@ -43,6 +43,9 @@
       "path": "../../../global/commands"
     },
     {
+      "path": "../../../installing/render-peer-issues"
+    },
+    {
       "path": "../../../global/packages"
     },
     {
