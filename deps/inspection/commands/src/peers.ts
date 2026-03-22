@@ -143,17 +143,17 @@ function renderPeerIssuesFlat (issuesByProjects: PeerDependencyIssuesByProjects)
     for (const [peerName, issues] of Object.entries(bad)) {
       const wantedRange = issues[0].wantedRange
       const foundVersion = issues[0].foundVersion
-      const header = `${chalk.yellowBright('✕ unmet peer')} ${chalk.bold(peerName)}@${wantedRange} ${chalk.dim(`(found ${foundVersion})`)}`
-      const requiredBy = dedupParentChains(issues.map((i) => i.parents))
-      sections.push(`${header}\n  Required by: ${requiredBy.join(', ')}`)
+      const header = `${chalk.yellowBright('✕ unmet peer')} ${chalk.bold(formatRange(peerName, wantedRange))} ${chalk.dim(`(found ${foundVersion})`)}`
+      const lines = formatRequiredBy(issues.map((i) => i.parents))
+      sections.push(`${header}\n${lines}`)
     }
 
     for (const [peerName, issues] of Object.entries(missing)) {
       if (!intersections[peerName]) continue
       const wantedRange = intersections[peerName]
-      const header = `${chalk.red('✕ missing peer')} ${chalk.bold(peerName)}@${wantedRange}`
-      const requiredBy = dedupParentChains(issues.map((i) => i.parents))
-      sections.push(`${header}\n  Required by: ${requiredBy.join(', ')}`)
+      const header = `${chalk.red('✕ missing peer')} ${chalk.bold(formatRange(peerName, wantedRange))}`
+      const lines = formatRequiredBy(issues.map((i) => i.parents))
+      sections.push(`${header}\n${lines}`)
     }
   }
 
@@ -161,15 +161,28 @@ function renderPeerIssuesFlat (issuesByProjects: PeerDependencyIssuesByProjects)
   return `Issues with peer dependencies found\n${sections.join('\n')}`
 }
 
-function dedupParentChains (chains: Array<Array<{ name: string, version: string }>>): string[] {
+function formatRange (name: string, range: string): string {
+  if (range.includes(' ') || range === '*') {
+    return `${name}@"${range}"`
+  }
+  return `${name}@${range}`
+}
+
+function formatRequiredBy (chains: Array<Array<{ name: string, version: string }>>): string {
   const seen = new Set<string>()
-  const result: string[] = []
+  const lines: string[] = []
   for (const chain of chains) {
-    const formatted = chain.map((p) => `${p.name}@${p.version}`).join(' > ')
-    if (!seen.has(formatted)) {
-      seen.add(formatted)
-      result.push(formatted)
+    const declaring = chain[chain.length - 1]
+    const label = `${declaring.name}@${declaring.version}`
+    let line = label
+    if (chain.length > 1) {
+      const via = `${chain[0].name}@${chain[0].version}`
+      line = `${label} ${chalk.dim(`(via ${via})`)}`
+    }
+    if (!seen.has(line)) {
+      seen.add(line)
+      lines.push(`  ${line}`)
     }
   }
-  return result
+  return lines.join('\n')
 }
