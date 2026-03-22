@@ -156,7 +156,7 @@ function renderPeerIssuesFlat (issuesByProjects: PeerDependencyIssuesByProjects)
   }
 
   if (sections.length === 0) return ''
-  return `Issues with peer dependencies found\n${sections.join('\n')}`
+  return `Issues with peer dependencies found\n\n${sections.join('\n\n')}`
 }
 
 function formatRequiredBy (issues: Array<{ parents: Array<{ name: string, version: string }>, wantedRange: string }>): string {
@@ -169,9 +169,16 @@ function formatRequiredBy (issues: Array<{ parents: Array<{ name: string, versio
     }
     byRange.get(issue.wantedRange)!.add(pkg)
   }
+  if (byRange.size === 1) {
+    const pkgs = [...byRange.values()][0]
+    return [...pkgs].map((pkg) => `  ${pkg}`).join('\n')
+  }
   const lines: string[] = []
   for (const [range, pkgs] of byRange) {
-    lines.push(`  ${formatRange(range)}: ${[...pkgs].join(', ')}`)
+    lines.push(`  Wants ${formatRange(range)}:`)
+    for (const pkg of pkgs) {
+      lines.push(`    ${pkg}`)
+    }
   }
   return lines.join('\n')
 }
