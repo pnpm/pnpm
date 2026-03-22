@@ -20,6 +20,14 @@ import { writeIniFile } from 'write-ini-file'
 
 export type Settings = Record<string, unknown>
 
+export interface LoginDate {
+  now: () => number
+}
+
+export interface LoginEnquirer {
+  prompt: (options: { message: string, name: string, type: string }) => Promise<Record<string, string>>
+}
+
 export function rcOptionsTypes (): Record<string, unknown> {
   return { registry: allTypes.registry }
 }
@@ -93,9 +101,9 @@ export interface LoginFetchOptions {
 }
 
 export interface LoginContext {
-  Date: { now: () => number }
+  Date: LoginDate
   setTimeout: (cb: () => void, ms: number) => void
-  enquirer: { prompt: (options: { message: string, name: string, type: string }) => Promise<Record<string, string>> }
+  enquirer: LoginEnquirer
   fetch: (url: string, options?: LoginFetchOptions) => Promise<LoginFetchResponse>
   globalInfo: (message: string) => void
   process: Record<'stdin' | 'stdout', { isTTY?: boolean }>
