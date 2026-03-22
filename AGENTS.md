@@ -187,6 +187,72 @@ try {
 }
 ```
 
+## Resolving Conflicts in GitHub PRs
+
+There is a helper script at `shell/resolve-pr-conflicts.sh` that automates most of this:
+
+```bash
+./shell/resolve-pr-conflicts.sh <PR_NUMBER>
+```
+
+It handles force-fetching, rebasing, auto-resolving lockfile conflicts, force-pushing, and verifying mergeability. For non-lockfile conflicts it will pause and ask for manual resolution.
+
+When resolving manually, follow this procedure exactly:
+
+### 1. Force-update the base branch ref
+
+`git fetch origin main` can return a **cached/stale ref** if it was already fetched in the session. Always force-update:
+
+```bash
+git fetch origin refs/heads/main:refs/remotes/origin/main
+```
+
+Then verify the local ref matches GitHub:
+
+```bash
+# These two must match
+gh api repos/pnpm/pnpm/branches/main --jq '.commit.sha'
+git rev-parse origin/main
+```
+
+### 2. Rebase (not merge)
+
+Prefer rebase over merge. Merge commits with auto-resolved conflicts can cause GitHub to still report the PR as "CONFLICTING" even when git locally sees no conflicts.
+
+```bash
+git rebase origin/main
+```
+
+### 3. Resolve conflicts
+
+-   **`pnpm-lock.yaml`**: Accept the base branch version and regenerate:
+    ```bash
+    git checkout --ours pnpm-lock.yaml   # "ours" = base branch during rebase
+    git add pnpm-lock.yaml
+    pnpm install --no-frozen-lockfile
+    git add pnpm-lock.yaml
+    ```
+-   **`package.json` files**: Manually resolve, keeping the base branch's structure and adding only the PR's new additions.
+-   **Important:** During rebase, `--ours` = base branch (main), `--theirs` = your commit. This is the **opposite** of merge.
+
+### 4. Force push
+
+```bash
+git push <remote> HEAD:<branch> --force-with-lease
+```
+
+### 5. Verify mergeability
+
+Allow ~10 seconds for GitHub to recompute, then check:
+
+```bash
+gh pr view <PR_NUMBER> --json mergeable,mergeStateStatus
+```
+
+-   `MERGEABLE` = conflicts resolved.
+-   `BLOCKED` = needs CI/reviews, not a conflict.
+-   If still `CONFLICTING`, repeat from step 1 — main may have moved again.
+
 ## Key Configuration Files
 
 -   `pnpm-workspace.yaml`: Defines the workspace structure.
