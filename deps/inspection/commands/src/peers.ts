@@ -171,13 +171,13 @@ function formatRequiredBy (issues: Array<{ parents: Array<{ name: string, versio
   }
   if (byRange.size === 1) {
     const pkgs = [...byRange.values()][0]
-    return [...pkgs].map((pkg) => `  ${pkg}`).join('\n')
+    return [...pkgs].map((pkg) => `  ${chalk.dim(pkg)}`).join('\n')
   }
   const lines: string[] = []
   for (const [range, pkgs] of byRange) {
-    lines.push(`  Wants ${formatRange(range)}:`)
+    lines.push(`  ${chalk.cyan('Wants')} ${chalk.cyanBright(formatRange(range))}${chalk.cyan(':')}`)
     for (const pkg of pkgs) {
-      lines.push(`    ${pkg}`)
+      lines.push(`    ${chalk.dim(pkg)}`)
     }
   }
   return lines.join('\n')
