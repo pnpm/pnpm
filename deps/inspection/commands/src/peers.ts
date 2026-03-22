@@ -142,19 +142,19 @@ function renderPeerIssuesFlat (issuesByProjects: PeerDependencyIssuesByProjects)
   for (const [, { bad, missing, conflicts, intersections }] of Object.entries(issuesByProjects)) {
     for (const [peerName, issues] of Object.entries(bad)) {
       const foundVersion = issues[0].foundVersion
-      const header = `${chalk.yellowBright('✕ unmet peer')} ${chalk.bold(peerName)} ${chalk.dim(`(found ${foundVersion})`)}`
-      const lines = formatRequiredBy(issues)
-      sections.push(`${header}\n${lines}`)
+      const { rangeLabel, body } = formatRequiredBy(issues)
+      const header = `${chalk.yellowBright('✕ unmet peer')} ${chalk.bold(peerName)}${rangeLabel} ${chalk.dim(`(found ${foundVersion})`)}`
+      sections.push(`${header}\n${body}`)
     }
 
     for (const [peerName, issues] of Object.entries(missing)) {
       if (!intersections[peerName] && !conflicts.includes(peerName)) continue
       const conflict = conflicts.includes(peerName)
+      const { rangeLabel, body } = formatRequiredBy(issues)
       const tag = conflict
         ? `${chalk.red('✕ conflicting peer')} ${chalk.bold(peerName)}`
-        : `${chalk.red('✕ missing peer')} ${chalk.bold(peerName)}`
-      const lines = formatRequiredBy(issues)
-      sections.push(`${tag}\n${lines}`)
+        : `${chalk.red('✕ missing peer')} ${chalk.bold(peerName)}${rangeLabel}`
+      sections.push(`${tag}\n${body}`)
     }
   }
 
@@ -162,7 +162,7 @@ function renderPeerIssuesFlat (issuesByProjects: PeerDependencyIssuesByProjects)
   return `Issues with peer dependencies found\n\n${sections.join('\n\n')}`
 }
 
-function formatRequiredBy (issues: Array<{ parents: Array<{ name: string, version: string }>, wantedRange: string }>): string {
+function formatRequiredBy (issues: Array<{ parents: Array<{ name: string, version: string }>, wantedRange: string }>): { rangeLabel: string, body: string } {
   const byRange = new Map<string, Set<string>>()
   for (const issue of issues) {
     const declaring = issue.parents[issue.parents.length - 1]
@@ -173,8 +173,11 @@ function formatRequiredBy (issues: Array<{ parents: Array<{ name: string, versio
     byRange.get(issue.wantedRange)!.add(pkg)
   }
   if (byRange.size === 1) {
-    const pkgs = [...byRange.values()][0]
-    return [...pkgs].map((pkg) => `  ${chalk.dim(pkg)}`).join('\n')
+    const [range, pkgs] = [...byRange.entries()][0]
+    return {
+      rangeLabel: chalk.dim(`@${formatRange(range)}`),
+      body: [...pkgs].map((pkg) => `  ${chalk.dim(pkg)}`).join('\n'),
+    }
   }
   const lines: string[] = []
   for (const [range, pkgs] of byRange) {
@@ -183,7 +186,7 @@ function formatRequiredBy (issues: Array<{ parents: Array<{ name: string, versio
       lines.push(`    ${chalk.dim(pkg)}`)
     }
   }
-  return lines.join('\n')
+  return { rangeLabel: '', body: lines.join('\n') }
 }
 
 function formatRange (range: string): string {
