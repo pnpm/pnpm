@@ -3100,9 +3100,6 @@ importers:
       '@pnpm/installing.modules-yaml':
         specifier: workspace:*
         version: link:../../../installing/modules-yaml
-      '@pnpm/installing.render-peer-issues':
-        specifier: workspace:*
-        version: link:../../../installing/render-peer-issues
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../../lockfile/fs
@@ -3118,6 +3115,9 @@ importers:
       '@pnpm/store.path':
         specifier: workspace:*
         version: link:../../../store/path
+      '@pnpm/text.tree-renderer':
+        specifier: workspace:*
+        version: link:../../../text/tree-renderer
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../../core/types

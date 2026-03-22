@@ -2,8 +2,9 @@ import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { checkPeerDependencies } from '@pnpm/deps.inspection.peers-checker'
-import { renderPeerIssues } from '@pnpm/installing.render-peer-issues'
+import { renderTree, type TreeNode } from '@pnpm/text.tree-renderer'
 import type { PeerDependencyIssuesByProjects } from '@pnpm/types'
+import chalk from 'chalk'
 import { isEmpty, pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
@@ -122,9 +123,8 @@ async function checkCmd (
     return { output: 'No peer dependency issues found', exitCode: 0 }
   }
 
-  const rendered = renderPeerIssues(issues)
   return {
-    output: rendered ? `Issues with peer dependencies found\n${rendered}` : '',
+    output: renderPeerIssuesReverse(issues),
     exitCode: 1,
   }
 }
@@ -135,4 +135,47 @@ function hasNoIssues (issues: PeerDependencyIssuesByProjects): boolean {
       isEmpty(projectIssues.bad) &&
       isEmpty(projectIssues.missing)
   )
+}
+
+function renderPeerIssuesReverse (issuesByProjects: PeerDependencyIssuesByProjects): string {
+  const projectOutputs: string[] = []
+
+  for (const [projectId, { bad, missing, intersections }] of Object.entries(issuesByProjects)) {
+    const peerNodes: TreeNode[] = []
+
+    for (const [peerName, issues] of Object.entries(bad)) {
+      const foundVersion = issues[0].foundVersion
+      const wantedRange = issues[0].wantedRange
+      const label = `${chalk.yellowBright('✕ unmet peer')} ${chalk.bold(peerName)}@${wantedRange} ${chalk.dim(`(found ${foundVersion})`)}`
+      const nodes: string[] = issues.map(
+        (issue) => issue.parents.map((p) => `${p.name}@${p.version}`).join(chalk.dim(' > '))
+      )
+      peerNodes.push({ label, nodes: dedup(nodes) })
+    }
+
+    for (const [peerName, issues] of Object.entries(missing)) {
+      if (!intersections[peerName]) continue
+      const wantedRange = intersections[peerName]
+      const label = `${chalk.red('✕ missing peer')} ${chalk.bold(peerName)}@${wantedRange}`
+      const nodes: string[] = issues.map(
+        (issue) => issue.parents.map((p) => `${p.name}@${p.version}`).join(chalk.dim(' > '))
+      )
+      peerNodes.push({ label, nodes: dedup(nodes) })
+    }
+
+    if (peerNodes.length === 0) continue
+
+    const tree: TreeNode = {
+      label: chalk.reset(projectId),
+      nodes: peerNodes,
+    }
+    projectOutputs.push(renderTree(tree, { treeChars: chalk.dim }).trimEnd())
+  }
+
+  if (projectOutputs.length === 0) return ''
+  return `Issues with peer dependencies found\n${projectOutputs.join('\n\n')}`
+}
+
+function dedup (items: string[]): string[] {
+  return [...new Set(items)]
 }

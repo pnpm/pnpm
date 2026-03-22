@@ -52,9 +52,6 @@
       "path": "../../../installing/modules-yaml"
     },
     {
-      "path": "../../../installing/render-peer-issues"
-    },
-    {
       "path": "../../../lockfile/fs"
     },
     {
@@ -62,6 +59,9 @@
     },
     {
       "path": "../../../store/path"
+    },
+    {
+      "path": "../../../text/tree-renderer"
     },
     {
       "path": "../../../workspace/projects-filter"
