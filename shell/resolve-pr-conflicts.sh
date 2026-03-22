@@ -3,26 +3,52 @@
 #
 # Usage: ./shell/resolve-pr-conflicts.sh <PR_NUMBER>
 #
+# Prerequisites:
+# - gh CLI authenticated with access to pnpm/pnpm
+# - "origin" remote must point to pnpm/pnpm (not a fork)
+# - You must be on the PR's head branch (the script will checkout via gh if not)
+#
 # This script:
-# 1. Force-fetches the base branch to avoid stale refs
-# 2. Rebases the current branch onto it
-# 3. If there are lockfile conflicts, auto-resolves them via pnpm install
-# 4. Force-pushes the result
-# 5. Verifies GitHub sees the PR as mergeable
+# 1. Checks out the PR branch if needed
+# 2. Force-fetches the base branch to avoid stale refs
+# 3. Rebases the current branch onto it
+# 4. If there are lockfile conflicts, auto-resolves them via pnpm install
+# 5. Force-pushes the result
+# 6. Verifies GitHub sees the PR as mergeable
 
 set -euo pipefail
 
 PR_NUMBER="${1:?Usage: $0 <PR_NUMBER>}"
 REPO="pnpm/pnpm"
 
+# Verify origin points to pnpm/pnpm
+ORIGIN_URL=$(git remote get-url origin 2>/dev/null || echo "")
+if [[ ! "$ORIGIN_URL" =~ pnpm/pnpm ]]; then
+  echo "ERROR: 'origin' remote does not point to pnpm/pnpm."
+  echo "  Current origin: $ORIGIN_URL"
+  echo "  Expected: https://github.com/pnpm/pnpm.git (or SSH equivalent)"
+  exit 1
+fi
+
 # Get PR metadata
 echo "Fetching PR #${PR_NUMBER} metadata..."
-PR_JSON=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json baseRefName,headRefName,headRepository,headRepositoryOwner)
-BASE_BRANCH=$(echo "$PR_JSON" | jq -r .baseRefName)
-HEAD_BRANCH=$(echo "$PR_JSON" | jq -r .headRefName)
-HEAD_OWNER=$(echo "$PR_JSON" | jq -r .headRepositoryOwner.login)
+BASE_BRANCH=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json baseRefName --jq .baseRefName)
+HEAD_BRANCH=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json headRefName --jq .headRefName)
+HEAD_OWNER=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json headRepositoryOwner --jq .headRepositoryOwner.login)
 
 echo "Base: $BASE_BRANCH  Head: $HEAD_OWNER:$HEAD_BRANCH"
+
+# Ensure we're on the PR branch
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+if [ "$CURRENT_BRANCH" != "$HEAD_BRANCH" ]; then
+  echo "Not on PR branch ($CURRENT_BRANCH != $HEAD_BRANCH). Checking out via gh..."
+  gh pr checkout "$PR_NUMBER"
+  CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+  if [ "$CURRENT_BRANCH" != "$HEAD_BRANCH" ]; then
+    echo "ERROR: Failed to checkout PR branch. Current branch: $CURRENT_BRANCH"
+    exit 1
+  fi
+fi
 
 # Step 1: Force-update the base branch ref
 echo "Force-fetching origin/$BASE_BRANCH..."
@@ -78,7 +104,12 @@ else
     git add pnpm-lock.yaml
   fi
 
-  GIT_EDITOR=true git rebase --continue || true
+  if ! GIT_EDITOR=true git rebase --continue; then
+    echo "ERROR: 'git rebase --continue' failed."
+    echo "The rebase is not complete. Please resolve any remaining conflicts"
+    echo "and run 'git rebase --continue' manually, then re-run this script to push."
+    exit 1
+  fi
 fi
 
 # Step 3: Force push
@@ -100,10 +131,10 @@ git push "$REMOTE" "HEAD:$HEAD_BRANCH" --force-with-lease
 # Step 4: Verify
 echo "Waiting for GitHub to update mergeability..."
 sleep 10
-MERGE_STATUS=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json mergeable,mergeStateStatus --jq '.')
-echo "PR status: $MERGE_STATUS"
+MERGEABLE=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json mergeable --jq .mergeable)
+MERGE_STATE=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json mergeStateStatus --jq .mergeStateStatus)
+echo "PR status: mergeable=$MERGEABLE mergeStateStatus=$MERGE_STATE"
 
-MERGEABLE=$(echo "$MERGE_STATUS" | jq -r .mergeable)
 if [ "$MERGEABLE" = "MERGEABLE" ]; then
   echo "Conflicts resolved successfully!"
 else
