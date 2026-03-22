@@ -160,17 +160,18 @@ function renderPeerIssuesFlat (issuesByProjects: PeerDependencyIssuesByProjects)
 }
 
 function formatRequiredBy (issues: Array<{ parents: Array<{ name: string, version: string }>, wantedRange: string }>): string {
-  const seen = new Set<string>()
-  const lines: string[] = []
+  const byRange = new Map<string, Set<string>>()
   for (const issue of issues) {
     const declaring = issue.parents[issue.parents.length - 1]
     const pkg = `${declaring.name}@${declaring.version}`
-    const range = formatRange(issue.wantedRange)
-    const line = `${pkg} wants ${range}`
-    if (!seen.has(line)) {
-      seen.add(line)
-      lines.push(`  ${line}`)
+    if (!byRange.has(issue.wantedRange)) {
+      byRange.set(issue.wantedRange, new Set())
     }
+    byRange.get(issue.wantedRange)!.add(pkg)
+  }
+  const lines: string[] = []
+  for (const [range, pkgs] of byRange) {
+    lines.push(`  ${formatRange(range)}: ${[...pkgs].join(', ')}`)
   }
   return lines.join('\n')
 }
