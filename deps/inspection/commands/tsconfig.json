@@ -61,9 +61,6 @@
       "path": "../../../store/path"
     },
     {
-      "path": "../../../text/tree-renderer"
-    },
-    {
       "path": "../../../workspace/projects-filter"
     },
     {

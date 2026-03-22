@@ -48,7 +48,6 @@
     "@pnpm/resolving.default-resolver": "workspace:*",
     "@pnpm/semver-diff": "catalog:",
     "@pnpm/store.path": "workspace:*",
-    "@pnpm/text.tree-renderer": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/table": "catalog:",
     "chalk": "catalog:",

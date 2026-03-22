@@ -2,8 +2,7 @@ import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { checkPeerDependencies } from '@pnpm/deps.inspection.peers-checker'
-import { renderTree, type TreeNode } from '@pnpm/text.tree-renderer'
-import type { ParentPackages, PeerDependencyIssuesByProjects } from '@pnpm/types'
+import type { PeerDependencyIssuesByProjects } from '@pnpm/types'
 import chalk from 'chalk'
 import { isEmpty, pick } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -124,7 +123,7 @@ async function checkCmd (
   }
 
   return {
-    output: renderPeerIssuesReverse(issues),
+    output: renderPeerIssuesFlat(issues),
     exitCode: 1,
   }
 }
@@ -137,56 +136,40 @@ function hasNoIssues (issues: PeerDependencyIssuesByProjects): boolean {
   )
 }
 
-function renderPeerIssuesReverse (issuesByProjects: PeerDependencyIssuesByProjects): string {
-  const peerTrees: string[] = []
+function renderPeerIssuesFlat (issuesByProjects: PeerDependencyIssuesByProjects): string {
+  const sections: string[] = []
 
   for (const [, { bad, missing, intersections }] of Object.entries(issuesByProjects)) {
     for (const [peerName, issues] of Object.entries(bad)) {
-      const foundVersion = issues[0].foundVersion
       const wantedRange = issues[0].wantedRange
-      const label = `${chalk.yellowBright('✕ unmet peer')} ${chalk.bold(peerName)}@${wantedRange} ${chalk.dim(`(found ${foundVersion})`)}`
-      const tree: TreeNode = { label, nodes: parentChainsToTree(issues.map((i) => i.parents)) }
-      peerTrees.push(renderTree(tree, { treeChars: chalk.dim }).trimEnd())
+      const foundVersion = issues[0].foundVersion
+      const header = `${chalk.yellowBright('✕ unmet peer')} ${chalk.bold(peerName)}@${wantedRange} ${chalk.dim(`(found ${foundVersion})`)}`
+      const requiredBy = dedupParentChains(issues.map((i) => i.parents))
+      sections.push(`${header}\n  Required by: ${requiredBy.join(', ')}`)
     }
 
     for (const [peerName, issues] of Object.entries(missing)) {
       if (!intersections[peerName]) continue
       const wantedRange = intersections[peerName]
-      const label = `${chalk.red('✕ missing peer')} ${chalk.bold(peerName)}@${wantedRange}`
-      const tree: TreeNode = { label, nodes: parentChainsToTree(issues.map((i) => i.parents)) }
-      peerTrees.push(renderTree(tree, { treeChars: chalk.dim }).trimEnd())
+      const header = `${chalk.red('✕ missing peer')} ${chalk.bold(peerName)}@${wantedRange}`
+      const requiredBy = dedupParentChains(issues.map((i) => i.parents))
+      sections.push(`${header}\n  Required by: ${requiredBy.join(', ')}`)
     }
   }
 
-  if (peerTrees.length === 0) return ''
-  return `Issues with peer dependencies found\n${peerTrees.join('\n\n')}`
+  if (sections.length === 0) return ''
+  return `Issues with peer dependencies found\n${sections.join('\n')}`
 }
 
-interface ChainNode {
-  label: string
-  children: Map<string, ChainNode>
-}
-
-function parentChainsToTree (chains: ParentPackages[]): TreeNode[] {
-  const root = new Map<string, ChainNode>()
-
+function dedupParentChains (chains: Array<Array<{ name: string, version: string }>>): string[] {
+  const seen = new Set<string>()
+  const result: string[] = []
   for (const chain of chains) {
-    let level = root
-    for (const parent of chain) {
-      const key = `${parent.name}@${parent.version}`
-      if (!level.has(key)) {
-        level.set(key, { label: key, children: new Map() })
-      }
-      level = level.get(key)!.children
+    const formatted = chain.map((p) => `${p.name}@${p.version}`).join(' > ')
+    if (!seen.has(formatted)) {
+      seen.add(formatted)
+      result.push(formatted)
     }
   }
-
-  return chainNodesToTreeNodes(root)
-}
-
-function chainNodesToTreeNodes (map: Map<string, ChainNode>): TreeNode[] {
-  return Array.from(map.values(), ({ label, children }) => ({
-    label,
-    nodes: children.size > 0 ? chainNodesToTreeNodes(children) : [],
-  }))
+  return result
 }
