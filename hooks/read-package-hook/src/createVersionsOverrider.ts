@@ -94,12 +94,12 @@ function overrideDeps (
 ): void {
   for (const [name, bareSpecifier] of Object.entries(peerDeps ?? deps)) {
     const versionOverride =
-    pickMostSpecificVersionOverride(
-      versionOverrides.filter(
-        ({ targetPkg }) =>
-          targetPkg.name === name && isIntersectingRange(targetPkg.bareSpecifier, bareSpecifier)
-      )
-    ) ??
+      pickMostSpecificVersionOverride(
+        versionOverrides.filter(
+          ({ targetPkg }) =>
+            targetPkg.name === name && isIntersectingRange(targetPkg.bareSpecifier, bareSpecifier)
+        )
+      ) ??
     pickMostSpecificVersionOverride(
       genericVersionOverrides.filter(
         ({ targetPkg }) =>

@@ -53,20 +53,20 @@ export function pickPackageFromMeta (
   try {
     let version!: string | null
     switch (spec.type) {
-    case 'version':
-      version = spec.fetchSpec
-      break
-    case 'tag':
-      version = meta['dist-tags'][spec.fetchSpec]
-      break
-    case 'range':
-      version = pickVersionByVersionRangeFn({
-        meta,
-        versionRange: spec.fetchSpec,
-        preferredVersionSelectors,
-        publishedBy,
-      })
-      break
+      case 'version':
+        version = spec.fetchSpec
+        break
+      case 'tag':
+        version = meta['dist-tags'][spec.fetchSpec]
+        break
+      case 'range':
+        version = pickVersionByVersionRangeFn({
+          meta,
+          versionRange: spec.fetchSpec,
+          preferredVersionSelectors,
+          publishedBy,
+        })
+        break
     }
     if (!version) return null
     const manifest = meta.versions[version]
@@ -90,7 +90,7 @@ export function pickPackageFromMeta (
     }
     throw new PnpmError('MALFORMED_METADATA',
       `Received malformed metadata for "${spec.name}"`,
-      { hint: 'This might mean that the package was unpublished from the registry' }
+      { hint: 'This might mean that the package was unpublished from the registry', cause: err }
     )
   }
 }
@@ -205,25 +205,25 @@ function prioritizePreferredVersions (
       : preferredSelectorType
     if (preferredSelector === versionRange) continue
     switch (selectorType) {
-    case 'tag': {
-      versionsPrioritizer.add(meta['dist-tags'][preferredSelector], weight)
-      break
-    }
-    case 'range': {
-      const versions = Object.keys(meta.versions)
-      for (const version of versions) {
-        if (semverSatisfiesLoose(version, preferredSelector)) {
-          versionsPrioritizer.add(version, weight)
+      case 'tag': {
+        versionsPrioritizer.add(meta['dist-tags'][preferredSelector], weight)
+        break
+      }
+      case 'range': {
+        const versions = Object.keys(meta.versions)
+        for (const version of versions) {
+          if (semverSatisfiesLoose(version, preferredSelector)) {
+            versionsPrioritizer.add(version, weight)
+          }
         }
+        break
       }
-      break
-    }
-    case 'version': {
-      if (meta.versions[preferredSelector]) {
-        versionsPrioritizer.add(preferredSelector, weight)
+      case 'version': {
+        if (meta.versions[preferredSelector]) {
+          versionsPrioritizer.add(preferredSelector, weight)
+        }
+        break
       }
-      break
-    }
     }
   }
   return versionsPrioritizer.versionsByPriority()

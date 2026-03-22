@@ -28,9 +28,9 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
-    "test": "pnpm run compile && pnpm run _test",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "test": "pnpm run compile && pnpm run .test",
+    "compile": "tsgo --build && pnpm run lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",

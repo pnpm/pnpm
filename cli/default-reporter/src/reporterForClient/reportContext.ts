@@ -24,18 +24,18 @@ export function reportContext (
           }
           let method!: string
           switch (packageImportMethod.method) {
-          case 'copy':
-            method = 'copied'
-            break
-          case 'clone':
-            method = 'cloned'
-            break
-          case 'hardlink':
-            method = 'hard linked'
-            break
-          default:
-            method = packageImportMethod.method
-            break
+            case 'copy':
+              method = 'copied'
+              break
+            case 'clone':
+              method = 'cloned'
+              break
+            case 'hardlink':
+              method = 'hard linked'
+              break
+            default:
+              method = packageImportMethod.method
+              break
           }
           return Rx.of({
             msg: `\

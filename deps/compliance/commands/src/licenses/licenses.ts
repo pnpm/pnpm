@@ -95,11 +95,11 @@ export async function handler (
     })
   }
   switch (params[0]) {
-  case 'list':
-  case 'ls':
-    return licensesList(opts)
-  default: {
-    throw new PnpmError('LICENSES_UNKNOWN_SUBCOMMAND', 'This subcommand is not known')
-  }
+    case 'list':
+    case 'ls':
+      return licensesList(opts)
+    default: {
+      throw new PnpmError('LICENSES_UNKNOWN_SUBCOMMAND', 'This subcommand is not known')
+    }
   }
 }

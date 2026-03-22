@@ -1,3 +1,4 @@
+import type { CommandHandlerMap } from '@pnpm/cli.command'
 import { OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl } from '@pnpm/cli.utils'
 import { dedupeDiffCheck } from '@pnpm/installing.dedupe.check'
@@ -52,7 +53,7 @@ export interface DedupeCommandOptions extends InstallCommandOptions {
   readonly check?: boolean
 }
 
-export async function handler (opts: DedupeCommandOptions): Promise<void> {
+export async function handler (opts: DedupeCommandOptions, _params?: string[], commands?: CommandHandlerMap): Promise<void> {
   const include = {
     dependencies: opts.production !== false,
     devDependencies: opts.dev !== false,
@@ -60,6 +61,7 @@ export async function handler (opts: DedupeCommandOptions): Promise<void> {
   }
   return installDeps({
     ...opts,
+    rebuildHandler: commands?.rebuild,
     dedupe: true,
     include,
     includeDirect: include,

@@ -3,7 +3,6 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 
 import { type Command, getBinsFromPackageManifest, pkgOwnsBin } from '@pnpm/bins.resolver'
-import { getBunBinLocationForCurrentOS, getDenoBinLocationForCurrentOS, getNodeBinLocationForCurrentOS } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { globalWarn, logger } from '@pnpm/logger'
@@ -19,7 +18,7 @@ import isWindows from 'is-windows'
 import normalizePath from 'normalize-path'
 import { groupBy, isEmpty, partition, unnest } from 'ramda'
 import semver from 'semver'
-import symlinkDir from 'symlink-dir'
+import { symlinkDir } from 'symlink-dir'
 
 import { getBinNodePaths } from './getBinNodePaths.js'
 
@@ -206,34 +205,6 @@ async function getPackageBins (
     : await safeReadPkgJson(target)
 
   if (manifest == null) {
-    // There is a probably a better way to do this.
-    // It isn't good to have these hardcoded here.
-    switch (path.basename(target)) {
-    case 'node':
-      return [{
-        name: 'node',
-        path: path.join(target, getNodeBinLocationForCurrentOS()),
-        pkgName: '',
-        pkgVersion: '',
-        makePowerShellShim: false,
-      }]
-    case 'deno':
-      return [{
-        name: 'deno',
-        path: path.join(target, getDenoBinLocationForCurrentOS()),
-        pkgName: '',
-        pkgVersion: '',
-        makePowerShellShim: false,
-      }]
-    case 'bun':
-      return [{
-        name: 'bun',
-        path: path.join(target, getBunBinLocationForCurrentOS()),
-        pkgName: '',
-        pkgVersion: '',
-        makePowerShellShim: false,
-      }]
-    }
     // There's a directory in node_modules without package.json: ${target}.
     // This used to be a warning but it didn't really cause any issues.
     return []

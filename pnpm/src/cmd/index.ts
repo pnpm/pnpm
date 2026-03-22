@@ -1,6 +1,6 @@
 import { approveBuilds, ignoredBuilds, rebuild } from '@pnpm/building.commands'
 import { cache } from '@pnpm/cache.commands'
-import type { CompletionFunc } from '@pnpm/cli.command'
+import type { CommandHandlerMap, CompletionFunc } from '@pnpm/cli.command'
 import { createCompletionServer, doctor, generateCompletion } from '@pnpm/cli.commands'
 import { config, getCommand, setCommand } from '@pnpm/config.commands'
 import { types as allTypes } from '@pnpm/config.reader'
@@ -15,7 +15,7 @@ import {
   restart,
   run,
 } from '@pnpm/exec.commands'
-import { add, ci, dedupe, fetch, importCommand, install, link, prune, remove, unlink, update } from '@pnpm/installing.commands'
+import { add, dedupe, fetch, importCommand, install, link, prune, remove, unlink, update } from '@pnpm/installing.commands'
 import { patch, patchCommit, patchRemove } from '@pnpm/patching.commands'
 import { deploy, pack, publish } from '@pnpm/releasing.commands'
 import { catFile, catIndex, findHash, store } from '@pnpm/store.commands'
@@ -27,8 +27,10 @@ import { shorthands as universalShorthands } from '../shorthands.js'
 import type { PnpmOptions } from '../types.js'
 import * as bin from './bin.js'
 import * as clean from './clean.js'
+import * as ci from './cleanInstall.js'
 import { createHelp } from './help.js'
 import * as installTest from './installTest.js'
+import { NOT_IMPLEMENTED_COMMAND_SET, notImplementedCommandDefinitions } from './notImplemented.js'
 import * as recursive from './recursive.js'
 import * as root from './root.js'
 
@@ -57,11 +59,11 @@ export const GLOBAL_OPTIONS = pick([
 export type CommandResponse = string | { output?: string, exitCode: number }
 
 export type Command = (
-  (opts: PnpmOptions | any, params: string[]) => CommandResponse | Promise<CommandResponse> // eslint-disable-line @typescript-eslint/no-explicit-any
+  (opts: PnpmOptions | any, params: string[], commands?: CommandHandlerMap) => CommandResponse | Promise<CommandResponse> // eslint-disable-line @typescript-eslint/no-explicit-any
 ) | (
-  (opts: PnpmOptions | any, params: string[]) => void // eslint-disable-line @typescript-eslint/no-explicit-any
+  (opts: PnpmOptions | any, params: string[], commands?: CommandHandlerMap) => void // eslint-disable-line @typescript-eslint/no-explicit-any
 ) | (
-  (opts: PnpmOptions | any, params: string[]) => Promise<void> // eslint-disable-line @typescript-eslint/no-explicit-any
+  (opts: PnpmOptions | any, params: string[], commands?: CommandHandlerMap) => Promise<void> // eslint-disable-line @typescript-eslint/no-explicit-any
 )
 
 export interface CommandDefinition {
@@ -159,6 +161,7 @@ const commands: CommandDefinition[] = [
   update,
   why,
   createHelp(helpByCommandName),
+  ...notImplementedCommandDefinitions,
 ]
 
 const handlerByCommandName: Record<string, Command> = {}
@@ -231,4 +234,4 @@ export function getCommandFullName (commandName: string): string | null {
     (handlerByCommandName[commandName] ? commandName : null)
 }
 
-export { rcOptionsTypes, shorthandsByCommandName }
+export { NOT_IMPLEMENTED_COMMAND_SET, rcOptionsTypes, shorthandsByCommandName }

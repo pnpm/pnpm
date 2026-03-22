@@ -10,7 +10,7 @@ import type { ProjectManifest } from '@pnpm/types'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { loadJsonFile } from 'load-json-file'
 import { readYamlFileSync } from 'read-yaml-file'
-import symlinkDir from 'symlink-dir'
+import { symlinkDir } from 'symlink-dir'
 import { writeJsonFileSync } from 'write-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 

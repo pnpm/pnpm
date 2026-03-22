@@ -246,7 +246,6 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
 export interface ConfigWithDeprecatedSettings extends Config {
   globalPrefix?: string
   proxy?: string
-  shamefullyFlatten?: boolean
 }
 
 export const PROJECT_CONFIG_FIELDS = [

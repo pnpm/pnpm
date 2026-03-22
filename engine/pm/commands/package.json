@@ -26,12 +26,13 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
-    "test": "pnpm run compile && pnpm run _test",
+    "test": "pnpm run compile && pnpm run .test",
     "compile": "tsgo --build && pnpm run lint --fix",
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest"
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/bins.linker": "workspace:*",
+    "@pnpm/building.policy": "workspace:*",
     "@pnpm/cli.meta": "workspace:*",
     "@pnpm/cli.utils": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
@@ -49,6 +50,7 @@
     "@pnpm/store.controller": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
+    "path-name": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:",
     "semver": "catalog:",

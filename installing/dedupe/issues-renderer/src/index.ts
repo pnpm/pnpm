@@ -46,11 +46,11 @@ function toArchy (name: string, issue: ResolutionChangesByAlias): TreeNode {
 
 function toArchyResolution (alias: string, change: ResolutionChange): TreeNode {
   switch (change.type) {
-  case 'added':
-    return { label: `${chalk.green('+')} ${alias} ${chalk.gray(change.next)}` }
-  case 'removed':
-    return { label: `${chalk.red('-')} ${alias} ${chalk.gray(change.prev)}` }
-  case 'updated':
-    return { label: `${alias} ${chalk.red(change.prev)} ${chalk.gray('→')} ${chalk.green(change.next)}` }
+    case 'added':
+      return { label: `${chalk.green('+')} ${alias} ${chalk.gray(change.next)}` }
+    case 'removed':
+      return { label: `${chalk.red('-')} ${alias} ${chalk.gray(change.prev)}` }
+    case 'updated':
+      return { label: `${alias} ${chalk.red(change.prev)} ${chalk.gray('→')} ${chalk.green(change.next)}` }
   }
 }

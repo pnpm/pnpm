@@ -16,13 +16,13 @@ test('fix broken lockfile with --fix-lockfile', async () => {
   writeYamlFileSync(WANTED_LOCKFILE, {
     dependencies: {
       '@types/semver': {
-        specifier: '^5.3.31',
+        specifier: '5.3.31',
         version: '5.3.31',
       },
     },
     devDependencies: {
       fsevents: {
-        specifier: '^2.3.2',
+        specifier: '2.3.2',
         version: '2.3.2',
       },
     },
@@ -44,10 +44,10 @@ test('fix broken lockfile with --fix-lockfile', async () => {
 
   await install({
     dependencies: {
-      '@types/semver': '^5.3.31',
+      '@types/semver': '5.3.31',
     },
     devDependencies: {
-      'core-js-pure': '^3.16.2',
+      'core-js-pure': '3.16.2',
     },
   }, testDefaults({ fixLockfile: true }))
 

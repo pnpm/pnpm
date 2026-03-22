@@ -50,10 +50,10 @@
     "start": "tsgo --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test-with-preview": "preview && pnpm run test:e2e",
-    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7769 NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
-    "test": "pnpm run compile && pnpm run _test",
+    "test": "pnpm run compile && pnpm run .test",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix",
+    ".test": "cross-env PNPM_REGISTRY_MOCK_PORT=7769 NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/bins.linker": "workspace:*",
@@ -127,7 +127,6 @@
     "@jest/globals": "catalog:",
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/assert-store": "workspace:*",
-    "@pnpm/fs.msgpack-file": "workspace:*",
     "@pnpm/installing.deps-installer": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/logger": "workspace:*",

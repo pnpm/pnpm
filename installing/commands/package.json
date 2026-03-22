@@ -26,14 +26,13 @@
   "scripts": {
     "start": "tsgo --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
-    "test": "pnpm run compile && pnpm run _test",
+    "test": "pnpm run compile && pnpm run .test",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/building.after-install": "workspace:*",
-    "@pnpm/building.commands": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/cli.command": "workspace:*",
     "@pnpm/cli.common-cli-options-help": "workspace:*",
@@ -45,6 +44,7 @@
     "@pnpm/config.writer": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/deps.inspection.outdated": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
     "@pnpm/deps.status": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.graceful-fs": "workspace:*",
@@ -64,6 +64,7 @@
     "@pnpm/store.connection-manager": "workspace:*",
     "@pnpm/store.controller": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@pnpm/workspace.project-manifest-writer": "workspace:*",
     "@pnpm/workspace.projects-filter": "workspace:*",

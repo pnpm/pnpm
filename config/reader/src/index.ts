@@ -119,9 +119,6 @@ export async function getConfig (opts: {
     if (cliOptions['shamefully-hoist'] === true) {
       throw new PnpmError('CONFIG_CONFLICT_HOIST', '--shamefully-hoist cannot be used with --no-hoist')
     }
-    if (cliOptions['shamefully-flatten'] === true) {
-      throw new PnpmError('CONFIG_CONFLICT_HOIST', '--shamefully-flatten cannot be used with --no-hoist')
-    }
     if (cliOptions['hoist-pattern']) {
       throw new PnpmError('CONFIG_CONFLICT_HOIST', '--hoist-pattern cannot be used with --no-hoist')
     }
@@ -327,7 +324,7 @@ export async function getConfig (opts: {
   pnpmConfig.authInfos = networkConfigs.authInfos ?? {} // TODO: remove `?? {}` (when possible)
   pnpmConfig.sslConfigs = networkConfigs.sslConfigs
   Object.assign(pnpmConfig, getDefaultAuthInfo(pnpmConfig.rawConfig))
-  pnpmConfig.pnpmHomeDir = getDataDir(process)
+  pnpmConfig.pnpmHomeDir = getDataDir({ env, platform: process.platform })
   let globalDirRoot
   if (pnpmConfig.globalDir) {
     globalDirRoot = pnpmConfig.globalDir
@@ -338,7 +335,7 @@ export async function getConfig (opts: {
   pnpmConfig.dir = cwd
   if (cliOptions['global']) {
     delete pnpmConfig.workspaceDir
-    pnpmConfig.bin = npmConfig.get('global-bin-dir') ?? env.PNPM_HOME
+    pnpmConfig.bin = npmConfig.get('global-bin-dir') ?? path.join(pnpmConfig.pnpmHomeDir, 'bin')
     if (pnpmConfig.bin) {
       fs.mkdirSync(pnpmConfig.bin, { recursive: true })
       await checkGlobalBinDir(pnpmConfig.bin, { env, shouldAllowWrite: opts.globalDirShouldAllowWrite })
@@ -385,6 +382,13 @@ export async function getConfig (opts: {
     }
   } else if (!pnpmConfig.bin) {
     pnpmConfig.bin = path.join(pnpmConfig.dir, 'node_modules', '.bin')
+  }
+  // Default allowBuilds to {} when GVS is enabled so that GVS hashes
+  // are engine-agnostic when no build policy is configured. Without
+  // this, allowBuilds is undefined which makes createAllowBuildFunction
+  // return undefined, causing all hashes to include ENGINE_NAME.
+  if (pnpmConfig.enableGlobalVirtualStore && pnpmConfig.allowBuilds == null) {
+    pnpmConfig.allowBuilds = {}
   }
   pnpmConfig.packageManager = packageManager
 
@@ -508,7 +512,6 @@ export async function getConfig (opts: {
   }
 
   pnpmConfig.extraEnv = {
-    npm_config_verify_deps_before_run: 'false', // This should be removed in pnpm v11
     pnpm_config_verify_deps_before_run: 'false',
   }
   if (pnpmConfig.preferSymlinkedExecutables && !isWindows()) {
@@ -523,10 +526,6 @@ export async function getConfig (opts: {
     pnpmConfig.extraEnv['NODE_PATH'] = pathAbsolute(path.join(virtualStoreDir, 'node_modules'), cwd)
   }
 
-  if (pnpmConfig.shamefullyFlatten) {
-    warnings.push('The "shamefully-flatten" setting has been renamed to "shamefully-hoist". Also, in most cases you won\'t need "shamefully-hoist". Since v4, a semistrict node_modules structure is on by default (via hoist-pattern=[*]).')
-    pnpmConfig.shamefullyHoist = true
-  }
   if (!pnpmConfig.cacheDir) {
     pnpmConfig.cacheDir = getCacheDir(process)
   }
@@ -535,15 +534,15 @@ export async function getConfig (opts: {
   }
   if (typeof pnpmConfig['color'] === 'boolean') {
     switch (pnpmConfig['color']) {
-    case true:
-      pnpmConfig.color = 'always'
-      break
-    case false:
-      pnpmConfig.color = 'never'
-      break
-    default:
-      pnpmConfig.color = 'auto'
-      break
+      case true:
+        pnpmConfig.color = 'always'
+        break
+      case false:
+        pnpmConfig.color = 'never'
+        break
+      default:
+        pnpmConfig.color = 'auto'
+        break
     }
   }
   if (!pnpmConfig.httpsProxy) {
@@ -557,14 +556,14 @@ export async function getConfig (opts: {
     pnpmConfig.noProxy = pnpmConfig['noproxy'] ?? getProcessEnv('no_proxy')
   }
   switch (pnpmConfig.nodeLinker) {
-  case 'pnp':
-    pnpmConfig.enablePnp = pnpmConfig.nodeLinker === 'pnp'
-    break
-  case 'hoisted':
-    if (pnpmConfig.preferSymlinkedExecutables == null) {
-      pnpmConfig.preferSymlinkedExecutables = true
-    }
-    break
+    case 'pnp':
+      pnpmConfig.enablePnp = pnpmConfig.nodeLinker === 'pnp'
+      break
+    case 'hoisted':
+      if (pnpmConfig.preferSymlinkedExecutables == null) {
+        pnpmConfig.preferSymlinkedExecutables = true
+      }
+      break
   }
   if (!pnpmConfig.userConfig) {
     pnpmConfig.userConfig = npmConfig.sources.user?.data

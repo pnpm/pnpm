@@ -3,10 +3,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import mdastToString from 'mdast-util-to-string'
+import { toString as mdastToString } from 'mdast-util-to-string'
 import remarkParse from 'remark-parse'
 import remarkStringify from 'remark-stringify'
-import unified from 'unified'
+import { unified } from 'unified'
 
 export const BumpLevels = {
   dep: 0,
@@ -32,7 +32,6 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
 
   let highestLevel: number = BumpLevels.dep
 
-  // @ts-expect-error
   const nodes = ast['children'] as any[] // eslint-disable-line @typescript-eslint/no-explicit-any
   let headingStartInfo:
   | {
@@ -69,7 +68,6 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
     }
   }
   if (headingStartInfo != null) {
-    // @ts-expect-error
     ast['children'] = (ast['children'] as any).slice( // eslint-disable-line @typescript-eslint/no-explicit-any
       headingStartInfo.index + 1,
       endIndex

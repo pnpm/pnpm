@@ -132,8 +132,8 @@ export async function handler (
     storeDir: store.dir,
   })
 
-  // Link bins to pnpmHomeDir so the updated pnpm is the active global binary
-  await linkBins(path.join(baseDir, 'node_modules'), opts.pnpmHomeDir, { warn: globalWarn })
+  // Link bins to pnpmHomeDir/bin so the updated pnpm is the active global binary
+  await linkBins(path.join(baseDir, 'node_modules'), path.join(opts.pnpmHomeDir, 'bin'), { warn: globalWarn })
 
   if (alreadyExisted) {
     return `The ${bareSpecifier} version, v${resolution.manifest.version}, is already present on the system. It was activated by linking it from ${baseDir}.`
@@ -165,9 +165,9 @@ function updateVersionConstraint (current: string | undefined, newVersion: strin
 
 function versionSpecFromPinned (version: string, pinnedVersion: PinnedVersion): string {
   switch (pinnedVersion) {
-  case 'none':
-  case 'major': return `^${version}`
-  case 'minor': return `~${version}`
-  case 'patch': return version
+    case 'none':
+    case 'major': return `^${version}`
+    case 'minor': return `~${version}`
+    case 'patch': return version
   }
 }

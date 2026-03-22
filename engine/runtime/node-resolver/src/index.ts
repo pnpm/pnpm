@@ -1,4 +1,3 @@
-import { getNodeBinsForCurrentOS } from '@pnpm/constants'
 import { fetchShasumsFile } from '@pnpm/crypto.shasums-file'
 import { PnpmError } from '@pnpm/error'
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
@@ -195,6 +194,21 @@ async function fetchAllVersions (fetch: FetchFromRegistry, nodeMirrorBaseUrl?: s
     version: version.substring(1),
     lts,
   }))
+}
+
+function getNodeBinsForCurrentOS (platform: string = process.platform): Record<string, string> {
+  if (platform === 'win32') {
+    return {
+      node: 'node.exe',
+      npm: 'node_modules/npm/bin/npm-cli.js',
+      npx: 'node_modules/npm/bin/npx-cli.js',
+    }
+  }
+  return {
+    node: 'bin/node',
+    npm: 'lib/node_modules/npm/bin/npm-cli.js',
+    npx: 'lib/node_modules/npm/bin/npx-cli.js',
+  }
 }
 
 function filterVersions (versions: NodeVersion[], versionSelector: string): { versions: string[], versionRange: string } {

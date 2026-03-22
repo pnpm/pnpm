@@ -82,6 +82,21 @@ test('hoistPeers reuses higher preferred version when range is not exact', () =>
   })
 })
 
+// Regression test for https://github.com/pnpm/pnpm/pull/11049
+test('hoistPeers returns valid specifier when given only range preferred version selectors', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      foo: {
+        '^2.0.0': 'range',
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['foo', { range: '2' }]])).toStrictEqual({
+    foo: '^2.0.0',
+  })
+})
+
 test('hoistPeers handles workspace: protocol range without throwing', () => {
   expect(hoistPeers({
     autoInstallPeers: true,
@@ -92,6 +107,21 @@ test('hoistPeers handles workspace: protocol range without throwing', () => {
     },
     workspaceRootDeps: [],
   }, [['foo', { range: 'workspace:*' }]])).toStrictEqual({
+    foo: '1.0.0',
+  })
+})
+
+// Regression test for https://github.com/pnpm/pnpm/pull/11048
+test('hoistPeers handles version selector with weight', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      foo: {
+        '1.0.0': { selectorType: 'version', weight: 1 },
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['foo', { range: '1' }]])).toStrictEqual({
     foo: '1.0.0',
   })
 })

@@ -78,20 +78,20 @@ function patchAlias (alias: yaml.Alias, target: unknown, ctx: PatchContext): yam
   }
 
   switch (ctx.aliases) {
-  case 'follow': {
+    case 'follow': {
     // This can result in surprising behavior since the anchor node will end up
     // with the contents of the last encountered alias. The default is to
     // "unwrap" for this reason.
-    patchNode(resolved, target, ctx)
-    return alias
-  }
+      patchNode(resolved, target, ctx)
+      return alias
+    }
 
-  case 'unwrap': {
-    const copy = resolved.clone() as typeof resolved
-    copy.anchor = undefined
-    patchNode(copy, target, ctx)
-    return copy
-  }
+    case 'unwrap': {
+      const copy = resolved.clone() as typeof resolved
+      copy.anchor = undefined
+      patchNode(copy, target, ctx)
+      return copy
+    }
   }
 }
 

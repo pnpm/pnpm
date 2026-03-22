@@ -233,3 +233,57 @@ test('--reporter-hide-prefix should hide workspace prefix', async () => {
   expect(output).toContain('2')
   expect(output).not.toContain('script2: 2')
 })
+
+test('hidden scripts (starting with .) cannot be run directly', () => {
+  prepare({
+    scripts: {
+      '.build': 'echo hidden',
+      'build': 'pnpm run .build',
+    },
+  })
+
+  const result = execPnpmSync(['run', '.build'])
+  expect(result.status).toBe(1)
+  const output = result.stdout.toString() + result.stderr.toString()
+  expect(output).toContain('HIDDEN_SCRIPT')
+})
+
+test('hidden scripts can be called from other scripts', () => {
+  prepare({
+    scripts: {
+      '.build': 'echo hidden-ok',
+      'build': 'pnpm run .build',
+    },
+  })
+
+  const result = execPnpmSync(['run', 'build'])
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString()).toContain('hidden-ok')
+})
+
+test('hidden scripts are not shown in pnpm run listing', () => {
+  prepare({
+    scripts: {
+      '.internal': 'echo hidden',
+      'build': 'echo visible',
+    },
+  })
+
+  const result = execPnpmSync(['run'])
+  expect(result.stdout.toString()).toContain('build')
+  expect(result.stdout.toString()).not.toContain('.internal')
+})
+
+test('regex selector skips hidden scripts', () => {
+  prepare({
+    scripts: {
+      '.build-internal': 'echo hidden',
+      'build': 'echo visible',
+    },
+  })
+
+  const result = execPnpmSync(['run', '/build/'])
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString()).toContain('visible')
+  expect(result.stdout.toString()).not.toContain('hidden')
+})

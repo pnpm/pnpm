@@ -146,16 +146,17 @@ export async function buildSelectedPkgs (
     hoistedDependencies: ctx.hoistedDependencies,
     hoistPattern: ctx.hoistPattern,
     included: ctx.include,
-    ignoredBuilds: ignoredPkgs,
+    ignoredBuilds: mergeIgnoredBuilds(ctx.modulesFile?.ignoredBuilds, ignoredPkgs, pkgs as DepPath[]),
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: ctx.pendingBuilds,
     publicHoistPattern: ctx.publicHoistPattern,
     registries: ctx.registries,
     skipped: Array.from(ctx.skipped),
-    storeDir: ctx.storeDir,
-    virtualStoreDir: ctx.virtualStoreDir,
-    virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
+    storeDir: ctx.modulesFile?.storeDir ?? ctx.storeDir,
+    virtualStoreDir: ctx.modulesFile?.virtualStoreDir ?? ctx.virtualStoreDir,
+    virtualStoreDirMaxLength: ctx.modulesFile?.virtualStoreDirMaxLength ?? ctx.virtualStoreDirMaxLength,
+    allowBuilds: opts.allowBuilds,
   })
   return {
     ignoredBuilds: ignoredPkgs,
@@ -321,11 +322,11 @@ async function _rebuild (
   const _allowBuild = createAllowBuildFunction(opts) ?? (() => undefined)
   const allowBuild = (pkgName: string, version: string, depPath: DepPath) => {
     switch (_allowBuild(pkgName, version)) {
-    case true: return true
-    case undefined: {
-      ignoredPkgs.add(depPath)
-      break
-    }
+      case true: return true
+      case undefined: {
+        ignoredPkgs.add(depPath)
+        break
+      }
     }
     return false
   }
@@ -479,4 +480,29 @@ function binDirsInAllParentDirs (pkgRoot: string, lockfileDir: string): string[]
   } while (path.relative(dir, lockfileDir) !== '')
   binDirs.push(path.join(lockfileDir, 'node_modules/.bin'))
   return binDirs
+}
+
+/**
+ * Merge new ignoredBuilds from a selective rebuild with existing ones.
+ * Keeps existing entries for packages that weren't part of this rebuild.
+ */
+function mergeIgnoredBuilds (
+  existing: IgnoredBuilds | undefined,
+  newIgnored: IgnoredBuilds,
+  rebuiltPkgs: DepPath[]
+): IgnoredBuilds | undefined {
+  if (!existing?.size && !newIgnored.size) return undefined
+  const rebuiltSet = new Set<DepPath>(rebuiltPkgs)
+  const merged = new Set<DepPath>()
+  if (existing) {
+    for (const depPath of existing) {
+      if (!rebuiltSet.has(depPath)) {
+        merged.add(depPath)
+      }
+    }
+  }
+  for (const depPath of newIgnored) {
+    merged.add(depPath)
+  }
+  return merged.size ? merged : undefined
 }

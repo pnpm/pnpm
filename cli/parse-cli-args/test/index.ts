@@ -144,8 +144,8 @@ test('do not incorrectly change "install" command to "add"', async () => {
     ...DEFAULT_OPTS,
     getTypesByCommandName: (commandName: string) => {
       switch (commandName) {
-      case 'install': return { 'network-concurrency': Number }
-      default: return {}
+        case 'install': return { 'network-concurrency': Number }
+        default: return {}
       }
     },
     universalOptionsTypes: {

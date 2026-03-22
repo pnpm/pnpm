@@ -8,7 +8,7 @@ import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import { loadJsonFileSync } from 'load-json-file'
 import { readYamlFileSync } from 'read-yaml-file'
-import symlinkDir from 'symlink-dir'
+import { symlinkDir } from 'symlink-dir'
 
 import { testDefaults } from '../utils/index.js'
 

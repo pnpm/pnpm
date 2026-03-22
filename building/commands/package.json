@@ -26,19 +26,21 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
-    "test": "pnpm run compile && pnpm run _test",
+    "test": "pnpm run compile && pnpm --filter pnpm run compile && pnpm run .test",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/building.after-install": "workspace:*",
+    "@pnpm/cli.command": "workspace:*",
     "@pnpm/cli.common-cli-options-help": "workspace:*",
     "@pnpm/cli.utils": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/config.writer": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/installing.commands": "workspace:*",
     "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/prepare-temp-dir": "workspace:*",
     "@pnpm/store.connection-manager": "workspace:*",

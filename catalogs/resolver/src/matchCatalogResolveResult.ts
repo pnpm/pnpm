@@ -11,8 +11,8 @@ export function matchCatalogResolveResult<T> (
   matcher: CatalogResultMatcher<T>
 ): T {
   switch (result.type) {
-  case 'found': return matcher.found(result)
-  case 'misconfiguration': return matcher.misconfiguration(result)
-  case 'unused': return matcher.unused(result)
+    case 'found': return matcher.found(result)
+    case 'misconfiguration': return matcher.misconfiguration(result)
+    case 'unused': return matcher.unused(result)
   }
 }

@@ -99,9 +99,6 @@
       "path": "../exec/run-npm"
     },
     {
-      "path": "../fs/msgpack-file"
-    },
-    {
       "path": "../hooks/pnpmfile"
     },
     {

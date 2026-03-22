@@ -25,6 +25,9 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
+      "path": "../../cli/command"
+    },
+    {
       "path": "../../cli/common-cli-options-help"
     },
     {
@@ -53,6 +56,9 @@
     },
     {
       "path": "../../deps/path"
+    },
+    {
+      "path": "../../installing/commands"
     },
     {
       "path": "../../installing/modules-yaml"

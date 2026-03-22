@@ -6,7 +6,7 @@ import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
-import symlinkDir from 'symlink-dir'
+import { symlinkDirSync } from 'symlink-dir'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 const f = fixtures(import.meta.dirname)
@@ -48,7 +48,7 @@ test('prune removes external link that is not in package.json', async () => {
   const storeDir = path.resolve('store')
   f.copy('local-pkg', 'local')
 
-  symlinkDir.sync(path.resolve('local'), path.join('node_modules/local-pkg'))
+  symlinkDirSync(path.resolve('local'), path.join('node_modules/local-pkg'))
 
   project.has('local-pkg')
 

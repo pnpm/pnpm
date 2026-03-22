@@ -82,35 +82,35 @@ export type StoreCommandOptions = Pick<Config, 'dir' | 'lockfileDir' | 'registri
 export async function handler (opts: StoreCommandOptions, params: string[]): Promise<string | undefined> {
   let store
   switch (params[0]) {
-  case 'status':
-    return statusCmd(opts) as Promise<undefined>
-  case 'path':
-    return getStorePath({
-      pkgRoot: opts.workspaceDir ?? opts.dir,
-      storePath: opts.storeDir,
-      pnpmHomeDir: opts.pnpmHomeDir,
-    })
-  case 'prune': {
-    store = await createStoreController(opts)
-    const storePruneOptions = Object.assign(opts, {
-      storeController: store.ctrl,
-      storeDir: store.dir,
-      removeAlienFiles: opts.force,
-      cacheDir: opts.cacheDir,
-      dlxCacheMaxAge: opts.dlxCacheMaxAge,
-    })
-    return storePrune(storePruneOptions) as Promise<undefined>
-  }
-  case 'add':
-    store = await createStoreController(opts)
-    return storeAdd(params.slice(1), {
-      prefix: opts.dir,
-      reporter: opts.reporter,
-      storeController: store.ctrl,
-      tag: opts.tag,
-    }) as Promise<undefined>
-  default:
-    return help()
+    case 'status':
+      return statusCmd(opts) as Promise<undefined>
+    case 'path':
+      return getStorePath({
+        pkgRoot: opts.workspaceDir ?? opts.dir,
+        storePath: opts.storeDir,
+        pnpmHomeDir: opts.pnpmHomeDir,
+      })
+    case 'prune': {
+      store = await createStoreController(opts)
+      const storePruneOptions = Object.assign(opts, {
+        storeController: store.ctrl,
+        storeDir: store.dir,
+        removeAlienFiles: opts.force,
+        cacheDir: opts.cacheDir,
+        dlxCacheMaxAge: opts.dlxCacheMaxAge,
+      })
+      return storePrune(storePruneOptions) as Promise<undefined>
+    }
+    case 'add':
+      store = await createStoreController(opts)
+      return storeAdd(params.slice(1), {
+        prefix: opts.dir,
+        reporter: opts.reporter,
+        storeController: store.ctrl,
+        tag: opts.tag,
+      }) as Promise<undefined>
+    default:
+      return help()
   }
 }
 

@@ -174,10 +174,10 @@ async function buildGraphFromPackages (
   currentLockfile: LockfileObject | null,
   opts: LockfileToDepGraphOptions
 ): Promise<{
-    graph: DependenciesGraph
-    locationByDepPath: Record<string, string>
-    injectionTargetsByDepPath: Map<string, string[]>
-  }> {
+  graph: DependenciesGraph
+  locationByDepPath: Record<string, string>
+  injectionTargetsByDepPath: Map<string, string[]>
+}> {
   const currentPackages = currentLockfile?.packages ?? {}
   const graph: DependenciesGraph = {}
   const locationByDepPath: Record<string, string> = {}

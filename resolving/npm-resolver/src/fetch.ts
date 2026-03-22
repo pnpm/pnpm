@@ -86,7 +86,7 @@ export async function fetchMetadataFromFromRegistry (
           timeout: fetchOpts.timeout,
         }) as RegistryResponse
       } catch (error: any) { // eslint-disable-line
-        reject(new PnpmError('META_FETCH_FAIL', `GET ${uri}: ${error.message as string}`, { attempts: attempt }))
+        reject(new PnpmError('META_FETCH_FAIL', `GET ${uri}: ${error.message as string}`, { attempts: attempt, cause: error }))
         return
       }
       if (response.status >= 400) {

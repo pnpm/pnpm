@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { linkBinsOfPackages } from '@pnpm/bins.linker'
 import { removeBin } from '@pnpm/bins.remover'
-import { approveBuilds } from '@pnpm/building.commands'
+import type { CommandHandlerMap } from '@pnpm/cli.command'
 import {
   cleanOrphanedInstallDirs,
   createInstallDir,
@@ -14,12 +14,10 @@ import {
 } from '@pnpm/global.packages'
 import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import { isSubdir } from 'is-subdir'
-import symlinkDir from 'symlink-dir'
+import { symlinkDir } from 'symlink-dir'
 
-import { installGlobalPackages } from './installGlobalPackages.js'
-
-type ApproveBuildsHandlerOpts = Parameters<typeof approveBuilds.handler>[0]
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
+import { installGlobalPackages } from './installGlobalPackages.js'
 import { readInstalledPackages } from './readInstalledPackages.js'
 
 export type GlobalUpdateOptions = CreateStoreControllerOptions & {
@@ -35,7 +33,8 @@ export type GlobalUpdateOptions = CreateStoreControllerOptions & {
 
 export async function handleGlobalUpdate (
   opts: GlobalUpdateOptions,
-  params: string[]
+  params: string[],
+  commands: CommandHandlerMap
 ): Promise<string | undefined> {
   const globalDir = opts.globalPkgDir!
   const globalBinDir = opts.bin!
@@ -62,7 +61,7 @@ export async function handleGlobalUpdate (
   // Update each package group sequentially to avoid overwhelming the system
 
   for (const pkg of packagesToUpdate) {
-    await updateGlobalPackageGroup(opts, globalDir, globalBinDir, pkg) // eslint-disable-line no-await-in-loop
+    await updateGlobalPackageGroup(opts, globalDir, globalBinDir, pkg, commands) // eslint-disable-line no-await-in-loop
   }
   return undefined
 }
@@ -71,7 +70,8 @@ async function updateGlobalPackageGroup (
   opts: GlobalUpdateOptions,
   globalDir: string,
   globalBinDir: string,
-  pkg: GlobalPackageInfo
+  pkg: GlobalPackageInfo,
+  commands: CommandHandlerMap
 ): Promise<void> {
   const installDir = createInstallDir(globalDir)
 
@@ -113,7 +113,7 @@ async function updateGlobalPackageGroup (
   // If any packages had their builds skipped, prompt the user to approve them
   // (reuses the same interactive flow as `pnpm approve-builds`)
   if (ignoredBuilds?.size && process.stdin.isTTY) {
-    await approveBuilds.handler({
+    await commands['approve-builds']({
       ...opts,
       modulesDir: path.join(installDir, 'node_modules'),
       dir: installDir,
@@ -124,7 +124,7 @@ async function updateGlobalPackageGroup (
       global: false,
       pending: false,
       allowBuilds,
-    } as ApproveBuildsHandlerOpts)
+    }, [], commands)
   }
 
   // Check for bin name conflicts with other global packages

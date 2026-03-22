@@ -6,6 +6,7 @@ import { globalInfo, globalWarn } from '@pnpm/logger'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import type { StoreIndex } from '@pnpm/store.index'
 import { rimraf } from '@zkochan/rimraf'
+import prettyBytes from 'pretty-bytes'
 
 import { pruneGlobalVirtualStore } from './pruneGlobalVirtualStore.js'
 
@@ -43,6 +44,7 @@ export async function prune ({ cacheDir, storeDir, storeIndex }: PruneOptions, r
   const removedHashes = new Set<string>()
   const dirs = await getSubdirsSafely(cafsDir)
   let fileCounter = 0
+  let totalSize = 0
   await Promise.all(dirs.map(async (dir) => {
     const subdir = path.join(cafsDir, dir)
     await Promise.all((await fs.readdir(subdir)).map(async (fileName) => {
@@ -60,6 +62,7 @@ export async function prune ({ cacheDir, storeDir, storeIndex }: PruneOptions, r
         }
       }
       if (stat.nlink === 1 || stat.nlink === BIG_ONE) {
+        totalSize += stat.size
         await fs.unlink(filePath)
         fileCounter++
         // Store the hex digest, which matches the format stored in PackageFileInfo.digest
@@ -68,7 +71,7 @@ export async function prune ({ cacheDir, storeDir, storeIndex }: PruneOptions, r
       }
     }))
   }))
-  globalInfo(`Removed ${fileCounter} file${fileCounter === 1 ? '' : 's'}`)
+  globalInfo(`Removed ${fileCounter} file${fileCounter === 1 ? '' : 's'} (${prettyBytes(totalSize)})`)
 
   // 4. Clean up orphaned package index entries
   let pkgCounter = 0

@@ -243,7 +243,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     pruneStore: false,
     rawConfig: {},
     registries: DEFAULT_REGISTRIES,
-    resolutionMode: 'lowest-direct',
+    resolutionMode: 'highest',
     saveWorkspaceProtocol: 'rolling',
     scriptsPrependNodePath: false,
     shamefullyHoist: false,
@@ -337,8 +337,11 @@ export function extendOptions (
   }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
   extendedOpts.rawConfig['registry'] = extendedOpts.registries.default
-  if (extendedOpts.enableGlobalVirtualStore && extendedOpts.virtualStoreDir == null) {
-    extendedOpts.virtualStoreDir = path.join(extendedOpts.storeDir, 'links')
+  if (extendedOpts.enableGlobalVirtualStore) {
+    if (extendedOpts.virtualStoreDir == null) {
+      extendedOpts.virtualStoreDir = path.join(extendedOpts.storeDir, 'links')
+    }
+    extendedOpts.allowBuilds ??= {}
   }
   extendedOpts.globalVirtualStoreDir = extendedOpts.enableGlobalVirtualStore
     ? extendedOpts.virtualStoreDir!

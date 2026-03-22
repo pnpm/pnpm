@@ -94,10 +94,10 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     workspaceProjectIds: Set<string>
   }
 ): Promise<{
-    dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<T>
-    dependenciesByProjectId: DependenciesByProjectId
-    peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
-  }> {
+  dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<T>
+  dependenciesByProjectId: DependenciesByProjectId
+  peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
+}> {
   const depGraph: GenericDependenciesGraph<T> = {}
   const pathsByNodeId = new Map<NodeId, DepPath>()
   const pathsByNodeIdPromises = new Map<NodeId, DeferredPromise<DepPath>>()

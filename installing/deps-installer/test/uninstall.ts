@@ -20,7 +20,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import type { PackageManifest, ProjectRootDir } from '@pnpm/types'
 import existsSymlink from 'exists-link'
 import { readYamlFileSync } from 'read-yaml-file'
-import symlinkDir from 'symlink-dir'
+import { symlinkDirSync } from 'symlink-dir'
 import { writeJsonFileSync } from 'write-json-file'
 
 import { testDefaults } from './utils/index.js'
@@ -197,7 +197,7 @@ test('relative link is uninstalled', async () => {
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   f.copy(linkedPkgName, linkedPkgPath)
-  symlinkDir.sync(linkedPkgPath, path.resolve('node_modules/@pnpm.e2e/hello-world-js-bin'))
+  symlinkDirSync(linkedPkgPath, path.resolve('node_modules/@pnpm.e2e/hello-world-js-bin'))
   project.has('@pnpm.e2e/hello-world-js-bin')
   await mutateModulesInSingleProject({
     dependencyNames: ['@pnpm.e2e/hello-world-js-bin'],

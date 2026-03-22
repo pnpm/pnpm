@@ -70,15 +70,15 @@ export async function handler (opts: RuntimeCommandOptions, params: string[]): P
     })
   }
   switch (params[0]) {
-  case 'set': {
-    runtimeSet(opts, params.slice(1))
-    return
-  }
-  default: {
-    throw new PnpmError('RUNTIME_UNKNOWN_SUBCOMMAND', `Unknown subcommand: ${params[0]}`, {
-      hint: help(),
-    })
-  }
+    case 'set': {
+      runtimeSet(opts, params.slice(1))
+      return
+    }
+    default: {
+      throw new PnpmError('RUNTIME_UNKNOWN_SUBCOMMAND', `Unknown subcommand: ${params[0]}`, {
+        hint: help(),
+      })
+    }
   }
 }
 

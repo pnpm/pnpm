@@ -23,7 +23,7 @@ const prompt = jest.mocked(enquirer.prompt)
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
 
-async function execPnpmInstall (): Promise<void> {
+async function execPnpmInstall (opts?: { enableGlobalVirtualStore?: boolean }): Promise<void> {
   await execa('node', [
     pnpmBin,
     'install',
@@ -31,7 +31,7 @@ async function execPnpmInstall (): Promise<void> {
     `--cache-dir=${path.resolve('cache')}`,
     `--registry=${REGISTRY}`,
     '--config.strict-dep-builds=false',
-    '--config.enable-global-virtual-store=false',
+    `--config.enable-global-virtual-store=${opts?.enableGlobalVirtualStore ?? false}`,
   ])
 }
 
@@ -70,7 +70,7 @@ async function approveSomeBuilds (opts?: ApproveBuildsOptions) {
     build: true,
   })
 
-  await approveBuilds.handler({ ...config, ...opts })
+  await approveBuilds.handler({ ...config, ...opts }, [], {})
 }
 
 async function approveNoBuilds (opts?: ApproveBuildsOptions) {
@@ -81,7 +81,7 @@ async function approveNoBuilds (opts?: ApproveBuildsOptions) {
     result: [],
   })
 
-  await approveBuilds.handler({ ...config, ...opts })
+  await approveBuilds.handler({ ...config, ...opts }, [], {})
 }
 
 test('approve selected build', async () => {
@@ -155,7 +155,7 @@ test("works when root project manifest doesn't exist in a workspace", async () =
     result: [{ value: '@pnpm.e2e/pre-and-postinstall-scripts-example' }],
   })
   prompt.mockResolvedValueOnce({ build: true })
-  await approveBuilds.handler({ ...config, workspaceDir, rootProjectManifestDir: workspaceDir })
+  await approveBuilds.handler({ ...config, workspaceDir, rootProjectManifestDir: workspaceDir }, [], {})
 
   expect(readYamlFileSync(workspaceManifestFile)).toStrictEqual({
     packages: ['packages/*'],
@@ -203,7 +203,7 @@ test('approve all builds with --all flag', async () => {
   const config = await getApproveBuildsConfig()
 
   prompt.mockClear()
-  await approveBuilds.handler({ ...config, all: true })
+  await approveBuilds.handler({ ...config, all: true }, [], {})
 
   expect(prompt).not.toHaveBeenCalled()
 
@@ -216,6 +216,198 @@ test('approve all builds with --all flag', async () => {
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+})
+
+test('approve builds via positional arguments', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+      '@pnpm.e2e/install-script-example': '*',
+    },
+  })
+
+  await execPnpmInstall()
+  const config = await getApproveBuildsConfig()
+
+  prompt.mockClear()
+  await approveBuilds.handler(config, ['@pnpm.e2e/pre-and-postinstall-scripts-example'], {})
+
+  expect(prompt).not.toHaveBeenCalled()
+
+  const workspaceManifest = readYamlFileSync<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
+  expect(workspaceManifest.allowBuilds).toStrictEqual({
+    '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+  })
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeFalsy()
+
+  // Unmentioned package should still be in ignoredBuilds after rebuild
+  const modulesManifestAfter = await readModulesManifest(path.resolve('node_modules'))
+  expect(modulesManifestAfter?.ignoredBuilds).toBeDefined()
+})
+
+test('deny builds via !pkg positional arguments', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+      '@pnpm.e2e/install-script-example': '*',
+    },
+  })
+
+  await execPnpmInstall()
+  const config = await getApproveBuildsConfig()
+
+  prompt.mockClear()
+  await approveBuilds.handler(config, [
+    '@pnpm.e2e/pre-and-postinstall-scripts-example',
+    '!@pnpm.e2e/install-script-example',
+  ], {})
+
+  expect(prompt).not.toHaveBeenCalled()
+
+  const workspaceManifest = readYamlFileSync<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
+  expect(workspaceManifest.allowBuilds).toStrictEqual({
+    '@pnpm.e2e/install-script-example': false,
+    '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+  })
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeFalsy()
+})
+
+test('deny-only via !pkg keeps other builds pending', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+      '@pnpm.e2e/install-script-example': '*',
+    },
+  })
+
+  await execPnpmInstall()
+  const config = await getApproveBuildsConfig()
+
+  prompt.mockClear()
+  await approveBuilds.handler(config, [
+    '!@pnpm.e2e/install-script-example',
+  ], {})
+
+  expect(prompt).not.toHaveBeenCalled()
+
+  const workspaceManifest = readYamlFileSync<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
+  expect(workspaceManifest.allowBuilds).toStrictEqual({
+    '@pnpm.e2e/install-script-example': false,
+  })
+
+  const modulesManifestAfter = await readModulesManifest(path.resolve('node_modules'))
+  const ignoredNames = Array.from(modulesManifestAfter?.ignoredBuilds ?? []).map(String)
+  // The denied package should be removed from ignoredBuilds
+  expect(ignoredNames.some((dp) => dp.includes('install-script-example'))).toBe(false)
+  // The other package should still be pending
+  expect(ignoredNames.some((dp) => dp.includes('pre-and-postinstall-scripts-example'))).toBe(true)
+})
+
+test('positional arguments with unknown package throws error', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+    },
+  })
+
+  await execPnpmInstall()
+  const config = await getApproveBuildsConfig()
+
+  await expect(
+    approveBuilds.handler(config, ['@pnpm.e2e/nonexistent-package'], {})
+  ).rejects.toThrow('not awaiting approval')
+})
+
+test('!pkg with unknown package throws error', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+    },
+  })
+
+  await execPnpmInstall()
+  const config = await getApproveBuildsConfig()
+
+  await expect(
+    approveBuilds.handler(config, ['!@pnpm.e2e/nonexistent-package'], {})
+  ).rejects.toThrow('not awaiting approval')
+})
+
+test('contradictory arguments throw error', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+    },
+  })
+
+  await execPnpmInstall()
+  const config = await getApproveBuildsConfig()
+
+  await expect(
+    approveBuilds.handler(config, [
+      '@pnpm.e2e/pre-and-postinstall-scripts-example',
+      '!@pnpm.e2e/pre-and-postinstall-scripts-example',
+    ], {})
+  ).rejects.toThrow('both approved and denied')
+})
+
+test('--all with positional arguments throws error', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+    },
+  })
+
+  await execPnpmInstall()
+  const config = await getApproveBuildsConfig()
+
+  await expect(
+    approveBuilds.handler({ ...config, all: true }, ['@pnpm.e2e/pre-and-postinstall-scripts-example'], {})
+  ).rejects.toThrow('Cannot use --all with positional arguments')
+})
+
+test('positional args preserve existing allowBuilds entries', async () => {
+  const temp = tempDir()
+
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+      '@pnpm.e2e/install-script-example': '*',
+    },
+  }, {
+    tempDir: temp,
+  })
+
+  const workspaceManifestFile = path.join(temp, 'pnpm-workspace.yaml')
+  writeYamlFileSync(workspaceManifestFile, {
+    packages: ['packages/*'],
+    allowBuilds: {
+      '@pnpm.e2e/existing-package': true,
+    },
+  })
+
+  await execPnpmInstall()
+  const config = await getApproveBuildsConfig()
+
+  await approveBuilds.handler({
+    ...config,
+    workspaceDir: temp,
+    rootProjectManifestDir: temp,
+    allowBuilds: {
+      '@pnpm.e2e/existing-package': true,
+    },
+  }, ['@pnpm.e2e/pre-and-postinstall-scripts-example'], {})
+
+  const manifest = readYamlFileSync<any>(workspaceManifestFile) // eslint-disable-line
+  expect(manifest.allowBuilds['@pnpm.e2e/existing-package']).toBe(true)
+  expect(manifest.allowBuilds['@pnpm.e2e/pre-and-postinstall-scripts-example']).toBe(true)
+  // install-script-example should NOT be touched
+  expect(manifest.allowBuilds['@pnpm.e2e/install-script-example']).toBeUndefined()
 })
 
 test('should retain existing allowBuilds entries when approving builds', async () => {
@@ -257,7 +449,7 @@ test('should retain existing allowBuilds entries when approving builds', async (
       '@pnpm.e2e/test': false,
       '@pnpm.e2e/install-script-example': true,
     },
-  })
+  }, [], {})
 
   expect(readYamlFileSync(workspaceManifestFile)).toStrictEqual({
     packages: ['packages/*'],

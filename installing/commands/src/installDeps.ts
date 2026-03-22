@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { buildProjects } from '@pnpm/building.after-install'
+import type { CommandHandler } from '@pnpm/cli.command'
 import {
   readProjectManifestOnly,
   tryReadProjectManifest,
@@ -10,7 +11,6 @@ import { checkDepsStatus } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
-  IgnoredBuildsError,
   install,
   mutateModulesInSingleProject,
   type MutateModulesOptions,
@@ -39,6 +39,7 @@ import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writ
 
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
+import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
 import {
   type CommandFullName,
   createMatcher,
@@ -149,6 +150,7 @@ export type InstallDepsOptions = Pick<Config,
   includeOnlyPackageFiles?: boolean
   fetchFullMetadata?: boolean
   pruneLockfileImporters?: boolean
+  rebuildHandler?: CommandHandler
   pnpmfile: string[]
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
 } & Partial<Pick<Config, 'pnpmHomeDir' | 'strictDepBuilds'>>
@@ -163,6 +165,12 @@ export async function installDeps (
       ignoreFilteredInstallCache: true,
     })
     if (upToDate) {
+      if (opts.hooks?.customResolvers?.some(r => r.shouldRefreshResolution)) {
+        logger.warn({
+          message: 'shouldRefreshResolution hooks were skipped because optimisticRepeatInstall is enabled.',
+          prefix: opts.dir,
+        })
+      }
       globalInfo('Already up to date')
       return
     }
@@ -355,9 +363,7 @@ when running add/update with the --workspace option')
         configDependencies: opts.configDependencies,
       })
     }
-    if (opts.strictDepBuilds && ignoredBuilds?.size) {
-      throw new IgnoredBuildsError(ignoredBuilds)
-    }
+    await handleIgnoredBuilds(opts, ignoredBuilds)
     return
   }
 
@@ -376,9 +382,7 @@ when running add/update with the --workspace option')
       }),
     ])
   }
-  if (opts.strictDepBuilds && ignoredBuilds?.size) {
-    throw new IgnoredBuildsError(ignoredBuilds)
-  }
+  await handleIgnoredBuilds(opts, ignoredBuilds)
 
   if (opts.linkWorkspacePackages && opts.workspaceDir) {
     const { selectedProjectsGraph } = await filterProjectsBySelectorObjects(allProjects, [
@@ -457,22 +461,22 @@ async function recursiveInstallThenUpdateWorkspaceState (
 
 function severityStringToNumber (severity: VulnerabilitySeverity): number {
   switch (severity) {
-  case 'low': return 0
-  case 'moderate': return 1
-  case 'high': return 2
-  case 'critical': return 3
-  default: return -1
+    case 'low': return 0
+    case 'moderate': return 1
+    case 'high': return 2
+    case 'critical': return 3
+    default: return -1
   }
 }
 
 function getVulnerabilityPenalty (severity: VulnerabilitySeverity): number {
   switch (severity) {
-  case 'low': return -1100 // 100 more than DIRECT_DEP_SELECTOR_WEIGHT from @pnpm/resolving.resolver-base
-  case 'moderate': return -2000
-  case 'high': return -3000
-  case 'critical': return -4000
-  // Treat unrecognized severity as the lowest severity
-  default: return -1100
+    case 'low': return -1100 // 100 more than DIRECT_DEP_SELECTOR_WEIGHT from @pnpm/resolving.resolver-base
+    case 'moderate': return -2000
+    case 'high': return -3000
+    case 'critical': return -4000
+      // Treat unrecognized severity as the lowest severity
+    default: return -1100
   }
 }
 

@@ -6,7 +6,7 @@ import path from 'node:path'
 import { jest } from '@jest/globals'
 import { tempDir } from '@pnpm/prepare'
 import pathName from 'path-name'
-import symlinkDir from 'symlink-dir'
+import { symlinkDir } from 'symlink-dir'
 
 const globalBinDir = path.join(homedir(), '.local', 'pnpm')
 const isWindows = process.platform === 'win32'

@@ -19,29 +19,3 @@ export const ABBREVIATED_META_DIR = 'metadata-v1.4'
 export const FULL_META_DIR = 'metadata-full-v1.4' // This is currently not used at all
 export const FULL_FILTERED_META_DIR = 'metadata-ff-v1.4'
 
-export function getNodeBinLocationForCurrentOS (platform: string = process.platform): string {
-  return platform === 'win32' ? 'node.exe' : 'bin/node'
-}
-
-export function getNodeBinsForCurrentOS (platform: string = process.platform): Record<string, string> {
-  if (platform === 'win32') {
-    return {
-      node: 'node.exe',
-      npm: 'node_modules/npm/bin/npm-cli.js',
-      npx: 'node_modules/npm/bin/npx-cli.js',
-    }
-  }
-  return {
-    node: 'bin/node',
-    npm: 'lib/node_modules/npm/bin/npm-cli.js',
-    npx: 'lib/node_modules/npm/bin/npx-cli.js',
-  }
-}
-
-export function getDenoBinLocationForCurrentOS (platform: string = process.platform): string {
-  return platform === 'win32' ? 'deno.exe' : 'deno'
-}
-
-export function getBunBinLocationForCurrentOS (platform: string = process.platform): string {
-  return platform === 'win32' ? 'bun.exe' : 'bun'
-}

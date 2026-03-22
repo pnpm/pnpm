@@ -24,13 +24,13 @@ function pickMatchingLocalVersionOrNull (
 ): string | null {
   const localVersions = Array.from(versions.keys())
   switch (spec.type) {
-  case 'tag':
-    return semver.maxSatisfying(localVersions, '*')
-  case 'version':
-    return versions.has(spec.fetchSpec) ? spec.fetchSpec : null
-  case 'range':
-    return semver.maxSatisfying(localVersions, spec.fetchSpec, true)
-  default:
-    return null
+    case 'tag':
+      return semver.maxSatisfying(localVersions, '*')
+    case 'version':
+      return versions.has(spec.fetchSpec) ? spec.fetchSpec : null
+    case 'range':
+      return semver.maxSatisfying(localVersions, spec.fetchSpec, true)
+    default:
+      return null
   }
 }

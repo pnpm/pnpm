@@ -8,15 +8,15 @@ export function reportInstallingConfigDeps (
   return Rx.of(installingConfigDeps$.pipe(
     map((log) => {
       switch (log.status) {
-      case 'started': {
-        return {
-          msg: 'Installing config dependencies...',
+        case 'started': {
+          return {
+            msg: 'Installing config dependencies...',
+          }
         }
-      }
-      case 'done':
-        return {
-          msg: `Installed config dependencies: ${log.deps.map(({ name, version }) => `${name}@${version}`).join(', ')}`,
-        }
+        case 'done':
+          return {
+            msg: `Installed config dependencies: ${log.deps.map(({ name, version }) => `${name}@${version}`).join(', ')}`,
+          }
       }
     })
   ))

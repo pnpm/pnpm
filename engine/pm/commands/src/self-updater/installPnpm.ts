@@ -3,6 +3,7 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { linkBins } from '@pnpm/bins.linker'
+import { createAllowBuildFunction } from '@pnpm/building.policy'
 import { getCurrentPackageName } from '@pnpm/cli.meta'
 import {
   iterateHashedGraphNodes,
@@ -21,7 +22,11 @@ import { headlessInstall } from '@pnpm/installing.deps-restorer'
 import type { EnvLockfile, LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
 import type { StoreController } from '@pnpm/store.controller'
 import type { DepPath, ProjectId, ProjectRootDir, Registries } from '@pnpm/types'
-import symlinkDir from 'symlink-dir'
+import { symlinkDir } from 'symlink-dir'
+
+// @pnpm/exe has platform-specific binaries, so its GVS hash must
+// include ENGINE_NAME for correct per-platform resolution.
+const PNPM_ALLOW_BUILDS: Record<string, boolean> = { '@pnpm/exe': true }
 
 export interface InstallPnpmResult {
   binDir: string
@@ -82,7 +87,7 @@ export async function installPnpmToStore (
   const globalVirtualStoreDir = path.join(opts.storeDir, 'links')
 
   // Compute the GVS hash for the pnpm package to find its path
-  const pnpmGvsPath = findPnpmGvsPath(wantedLockfile, currentPkgName, globalVirtualStoreDir)
+  const pnpmGvsPath = findPnpmGvsPath(wantedLockfile, currentPkgName, globalVirtualStoreDir, PNPM_ALLOW_BUILDS)
   const pnpmPkgDir = path.join(pnpmGvsPath, 'node_modules', currentPkgName)
   const binDir = path.join(pnpmGvsPath, 'bin')
 
@@ -102,6 +107,7 @@ export async function installPnpmToStore (
   try {
     await installFromLockfile(tmpInstallDir, binDir, {
       wantedLockfile,
+      allowBuilds: PNPM_ALLOW_BUILDS,
       storeController: opts.storeController,
       storeDir: opts.storeDir,
       registries: opts.registries,
@@ -126,11 +132,13 @@ function noop (_message: string) {}
 function findPnpmGvsPath (
   lockfile: LockfileObject,
   pkgName: string,
-  globalVirtualStoreDir: string
+  globalVirtualStoreDir: string,
+  allowBuilds?: Record<string, boolean | string>
 ): string {
   const graph = lockfileToDepGraph(lockfile)
   const pkgMetaIterator = iteratePkgMeta(lockfile, graph)
-  for (const { hash, pkgMeta } of iterateHashedGraphNodes(graph, pkgMetaIterator)) {
+  const allowBuild = createAllowBuildFunction({ allowBuilds })
+  for (const { hash, pkgMeta } of iterateHashedGraphNodes(graph, pkgMetaIterator, allowBuild)) {
     if (pkgMeta.name === pkgName) {
       return path.join(globalVirtualStoreDir, hash)
     }
@@ -181,6 +189,7 @@ async function installPnpmToGlobalDir (
     if (wantedLockfile != null && opts.storeController != null && opts.storeDir != null) {
       await installFromLockfile(installDir, binDir, {
         wantedLockfile,
+        allowBuilds: PNPM_ALLOW_BUILDS,
         storeController: opts.storeController,
         storeDir: opts.storeDir,
         registries: opts.registries as Registries,
@@ -215,6 +224,7 @@ async function installFromLockfile (
   binDir: string,
   opts: {
     wantedLockfile: LockfileObject
+    allowBuilds?: Record<string, boolean | string>
     storeController: StoreController
     storeDir: string
     registries: Registries
@@ -234,6 +244,7 @@ async function installFromLockfile (
     registries: opts.registries,
     enableGlobalVirtualStore: true,
     globalVirtualStoreDir: path.join(opts.storeDir, 'links'),
+    allowBuilds: opts.allowBuilds,
     ignoreScripts: true,
     ignoreDepScripts: true,
     force: false,

@@ -1,8 +1,8 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
-import { rebuild } from '@pnpm/building.commands'
 import type { Catalogs } from '@pnpm/catalogs.types'
+import type { CommandHandler } from '@pnpm/cli.command'
 import {
   type RecursiveSummary,
   throwOnCommandFail,
@@ -20,7 +20,6 @@ import { requireHooks } from '@pnpm/hooks.pnpmfile'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
   addDependenciesToPackage,
-  IgnoredBuildsError,
   install,
   type InstallOptions,
   type MutatedProject,
@@ -35,6 +34,7 @@ import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { StoreController } from '@pnpm/store.controller'
 import type {
+  DepPath,
   IgnoredBuilds,
   IncludedDependencies,
   PackageManifest,
@@ -52,6 +52,7 @@ import pLimit from 'p-limit'
 
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
+import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
@@ -89,6 +90,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'packageConfigs'
 | 'updateConfig'
 > & {
+  rebuildHandler?: CommandHandler
   include?: IncludedDependencies
   includeDirect?: IncludedDependencies
   latest?: boolean
@@ -202,15 +204,15 @@ export async function recursive (
     if (importers.length === 0) return true
     let mutation: 'install' | 'installSome' | 'uninstallSome'
     switch (cmdFullName) {
-    case 'remove':
-      mutation = 'uninstallSome'
-      break
-    case 'import':
-      mutation = 'install'
-      break
-    default:
-      mutation = (params.length === 0 && !updateToLatest ? 'install' : 'installSome')
-      break
+      case 'remove':
+        mutation = 'uninstallSome'
+        break
+      case 'import':
+        mutation = 'install'
+        break
+      default:
+        mutation = (params.length === 0 && !updateToLatest ? 'install' : 'installSome')
+        break
     }
     const mutatedImporters = [] as MutatedProject[]
     await Promise.all(importers.map(async ({ rootDir }) => {
@@ -236,45 +238,45 @@ export async function recursive (
         }
       }
       switch (mutation) {
-      case 'uninstallSome':
-        mutatedImporters.push({
-          dependencyNames: currentInput,
-          modulesDir,
-          mutation,
-          rootDir,
-          targetDependenciesField,
-        } as MutatedProject)
-        return
-      case 'installSome':
-        mutatedImporters.push({
-          allowNew: cmdFullName === 'install' || cmdFullName === 'add',
-          dependencySelectors: currentInput,
-          modulesDir,
-          mutation,
-          peer: opts.savePeer,
-          pinnedVersion: getPinnedVersion({
-            saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
-            savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
-          }),
-          rootDir,
-          targetDependenciesField,
-          update: opts.update,
-          updateMatching: opts.updateMatching,
-          updatePackageManifest: opts.updatePackageManifest,
-          updateToLatest: opts.latest,
-        } as MutatedProject)
-        return
-      case 'install':
-        mutatedImporters.push({
-          modulesDir,
-          mutation,
-          pruneDirectDependencies: opts.pruneDirectDependencies,
-          rootDir,
-          update: opts.update,
-          updateMatching: opts.updateMatching,
-          updatePackageManifest: opts.updatePackageManifest,
-          updateToLatest: opts.latest,
-        } as MutatedProject)
+        case 'uninstallSome':
+          mutatedImporters.push({
+            dependencyNames: currentInput,
+            modulesDir,
+            mutation,
+            rootDir,
+            targetDependenciesField,
+          } as MutatedProject)
+          return
+        case 'installSome':
+          mutatedImporters.push({
+            allowNew: cmdFullName === 'install' || cmdFullName === 'add',
+            dependencySelectors: currentInput,
+            modulesDir,
+            mutation,
+            peer: opts.savePeer,
+            pinnedVersion: getPinnedVersion({
+              saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
+              savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
+            }),
+            rootDir,
+            targetDependenciesField,
+            update: opts.update,
+            updateMatching: opts.updateMatching,
+            updatePackageManifest: opts.updatePackageManifest,
+            updateToLatest: opts.latest,
+          } as MutatedProject)
+          return
+        case 'install':
+          mutatedImporters.push({
+            modulesDir,
+            mutation,
+            pruneDirectDependencies: opts.pruneDirectDependencies,
+            rootDir,
+            update: opts.update,
+            updateMatching: opts.updateMatching,
+            updatePackageManifest: opts.updatePackageManifest,
+            updateToLatest: opts.latest,
+          } as MutatedProject)
       }
     }))
     if (!opts.selectedProjectsGraph[opts.workspaceDir as ProjectRootDir] && manifestsByPath[opts.workspaceDir as ProjectRootDir] != null) {
@@ -306,9 +308,7 @@ export async function recursive (
       }))
       await Promise.all(promises)
     }
-    if (opts.strictDepBuilds && ignoredBuilds?.size) {
-      throw new IgnoredBuildsError(ignoredBuilds)
-    }
+    await handleIgnoredBuilds(opts, ignoredBuilds)
     return true
   }
 
@@ -316,6 +316,7 @@ export async function recursive (
 
   let updatedCatalogs: Catalogs | undefined
 
+  const allIgnoredBuilds = new Set<DepPath>()
   const limitInstallation = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
   await Promise.all(pkgPaths.map(async (rootDir) =>
     limitInstallation(async () => {
@@ -369,27 +370,27 @@ export async function recursive (
 
         let action: ActionFunction
         switch (cmdFullName) {
-        case 'remove':
-          action = async (manifest, opts) => {
-            const mutationResult = await mutateModules([
-              {
-                dependencyNames: currentInput,
-                mutation: 'uninstallSome',
-                rootDir,
-              },
-            ], opts)
-            return {
-              updatedCatalogs: undefined, // there's no reason to add new or update catalogs on `pnpm remove`
-              updatedManifest: mutationResult.updatedProjects[0].manifest,
-              ignoredBuilds: mutationResult.ignoredBuilds,
+          case 'remove':
+            action = async (manifest, opts) => {
+              const mutationResult = await mutateModules([
+                {
+                  dependencyNames: currentInput,
+                  mutation: 'uninstallSome',
+                  rootDir,
+                },
+              ], opts)
+              return {
+                updatedCatalogs: undefined, // there's no reason to add new or update catalogs on `pnpm remove`
+                updatedManifest: mutationResult.updatedProjects[0].manifest,
+                ignoredBuilds: mutationResult.ignoredBuilds,
+              }
             }
-          }
-          break
-        default:
-          action = currentInput.length === 0
-            ? install
-            : async (manifest, opts) => addDependenciesToPackage(manifest, currentInput, opts)
-          break
+            break
+          default:
+            action = currentInput.length === 0
+              ? install
+              : async (manifest, opts) => addDependenciesToPackage(manifest, currentInput, opts)
+            break
         }
 
         const localConfig = getProjectConfig(manifest) ?? {}
@@ -425,8 +426,10 @@ export async function recursive (
             Object.assign(updatedCatalogs, newCatalogsAddition)
           }
         }
-        if (opts.strictDepBuilds && ignoredBuilds?.size) {
-          throw new IgnoredBuildsError(ignoredBuilds)
+        if (ignoredBuilds?.size) {
+          for (const depPath of ignoredBuilds) {
+            allIgnoredBuilds.add(depPath)
+          }
         }
         result[rootDir].status = 'passed'
       } catch (err: any) { // eslint-disable-line
@@ -447,7 +450,7 @@ export async function recursive (
       }
     })
   ))
-
+  await handleIgnoredBuilds(opts, allIgnoredBuilds.size ? allIgnoredBuilds : undefined)
   await updateWorkspaceManifest(opts.workspaceDir, {
     updatedCatalogs,
     cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
@@ -461,7 +464,7 @@ export async function recursive (
       cmdFullName === 'update'
     )
   ) {
-    await rebuild.handler({
+    await opts.rebuildHandler?.({
       ...opts,
       pending: opts.pending === true,
       skipIfHasSideEffectsCache: true,

@@ -33,7 +33,7 @@ import {
 import { resolveWorkspaceRange } from '@pnpm/workspace.range-resolver'
 import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
-import pMemoize from 'p-memoize'
+import pMemoize, { pMemoizeClear } from 'p-memoize'
 import { clone } from 'ramda'
 import semver from 'semver'
 import ssri from 'ssri'
@@ -230,6 +230,7 @@ export function createNpmResolver (
     resolveFromJsr: resolveJsr.bind(null, ctx),
     clearCache: () => {
       metaCache.clear()
+      pMemoizeClear(fetch)
     },
   }
 }
@@ -660,16 +661,16 @@ function pickMatchingLocalVersionOrNull (
   spec: RegistryPackageSpec
 ): string | null {
   switch (spec.type) {
-  case 'tag':
-    return semver.maxSatisfying(Array.from(versions.keys()), '*', {
-      includePrerelease: true,
-    })
-  case 'version':
-    return versions.has(spec.fetchSpec) ? spec.fetchSpec : null
-  case 'range':
-    return resolveWorkspaceRange(spec.fetchSpec, Array.from(versions.keys()))
-  default:
-    return null
+    case 'tag':
+      return semver.maxSatisfying(Array.from(versions.keys()), '*', {
+        includePrerelease: true,
+      })
+    case 'version':
+      return versions.has(spec.fetchSpec) ? spec.fetchSpec : null
+    case 'range':
+      return resolveWorkspaceRange(spec.fetchSpec, Array.from(versions.keys()))
+    default:
+      return null
   }
 }
 
@@ -741,10 +742,10 @@ function calcSpecifierForWorkspaceDep ({
       if ([`${prefix}*`, `${prefix}^`, `${prefix}~`].includes(specifier)) return specifier
       const pinnedVersion = whichVersionIsPinned(specifier)
       switch (pinnedVersion) {
-      case 'major': return `${prefix}^`
-      case 'minor': return `${prefix}~`
-      case 'patch':
-      case 'none': return `${prefix}*`
+        case 'major': return `${prefix}^`
+        case 'minor': return `${prefix}~`
+        case 'patch':
+        case 'none': return `${prefix}*`
       }
     }
     return `${prefix}^`
@@ -793,14 +794,14 @@ function getIntegrity (dist: {
 
 function createVersionSpec (version: string, pinnedVersion?: PinnedVersion): string {
   switch (pinnedVersion ?? 'major') {
-  case 'none':
-  case 'major':
-    return `^${version}`
-  case 'minor':
-    return `~${version}`
-  case 'patch':
-    return version
-  default:
-    throw new PnpmError('BAD_PINNED_VERSION', `Cannot pin '${pinnedVersion ?? 'undefined'}'`)
+    case 'none':
+    case 'major':
+      return `^${version}`
+    case 'minor':
+      return `~${version}`
+    case 'patch':
+      return version
+    default:
+      throw new PnpmError('BAD_PINNED_VERSION', `Cannot pin '${pinnedVersion ?? 'undefined'}'`)
   }
 }

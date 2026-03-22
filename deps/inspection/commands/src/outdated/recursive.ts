@@ -80,21 +80,21 @@ export async function outdatedRecursive (
 
   let output!: string
   switch (opts.format ?? 'table') {
-  case 'table': {
-    output = renderOutdatedTable(outdatedMap, opts)
-    break
-  }
-  case 'list': {
-    output = renderOutdatedList(outdatedMap, opts)
-    break
-  }
-  case 'json': {
-    output = renderOutdatedJSON(outdatedMap, opts)
-    break
-  }
-  default: {
-    throw new PnpmError('BAD_OUTDATED_FORMAT', `Unsupported format: ${opts.format?.toString() ?? 'undefined'}`)
-  }
+    case 'table': {
+      output = renderOutdatedTable(outdatedMap, opts)
+      break
+    }
+    case 'list': {
+      output = renderOutdatedList(outdatedMap, opts)
+      break
+    }
+    case 'json': {
+      output = renderOutdatedJSON(outdatedMap, opts)
+      break
+    }
+    default: {
+      throw new PnpmError('BAD_OUTDATED_FORMAT', `Unsupported format: ${opts.format?.toString() ?? 'undefined'}`)
+    }
   }
   return {
     output,

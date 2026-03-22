@@ -10,7 +10,7 @@ import {
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectRootDir } from '@pnpm/types'
-import symlinkDir from 'symlink-dir'
+import { symlinkDirSync } from 'symlink-dir'
 
 import { testDefaults } from './utils/index.js'
 
@@ -25,7 +25,7 @@ test('prune removes extraneous packages', async () => {
   manifest = (await addDependenciesToPackage(manifest, ['applyq@0.2.1'], { ...opts, targetDependenciesField: 'devDependencies' })).updatedManifest
   manifest = (await addDependenciesToPackage(manifest, ['fnumber@0.1.0'], { ...opts, targetDependenciesField: 'optionalDependencies' })).updatedManifest
   manifest = (await addDependenciesToPackage(manifest, ['is-positive@2.0.0', '@zkochan/logger@0.1.0'], opts)).updatedManifest
-  symlinkDir.sync(linkedPkg, path.resolve('node_modules/@pnpm.e2e/hello-world-js-bin'))
+  symlinkDirSync(linkedPkg, path.resolve('node_modules/@pnpm.e2e/hello-world-js-bin'))
 
   project.has('@pnpm.e2e/hello-world-js-bin') // external link added
 

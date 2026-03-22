@@ -29,7 +29,8 @@ export function hoistPeers (
     if (opts.allPreferredVersions![peerName]) {
       const versions: string[] = []
       const nonVersions: string[] = []
-      for (const [spec, specType] of Object.entries(opts.allPreferredVersions![peerName])) {
+      for (const [spec, selector] of Object.entries(opts.allPreferredVersions![peerName])) {
+        const specType = typeof selector === 'string' ? selector : selector.selectorType
         if (specType === 'version') {
           versions.push(spec)
         } else {
@@ -52,7 +53,9 @@ export function hoistPeers (
         // Use the range directly so pnpm resolves it from the registry.
         dependencies[peerName] = range
       } else {
-        dependencies[peerName] = [semver.maxSatisfying(versions, '*', { includePrerelease: true }), ...nonVersions].join(' || ')
+        dependencies[peerName] = [semver.maxSatisfying(versions, '*', { includePrerelease: true }), ...nonVersions]
+          .filter(spec => spec != null)
+          .join(' || ')
       }
     } else if (opts.autoInstallPeers) {
       dependencies[peerName] = range

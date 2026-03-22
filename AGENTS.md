@@ -49,6 +49,20 @@ pnpm install
 pnpm run compile
 ```
 
+To compile a specific package:
+
+```bash
+pnpm --filter <package_name> run compile
+```
+
+**Important:** The pnpm CLI e2e tests (in `pnpm/test/`) use the **bundled** `pnpm/dist/pnpm.mjs`, not the individual package `lib/` outputs. After changing any package, you must rebuild the bundle before running e2e tests:
+
+```bash
+pnpm --filter pnpm run compile
+```
+
+This runs `tsgo --build`, linting, and `pnpm run bundle` (which bundles all packages into `pnpm/dist/pnpm.mjs`). Without this step, e2e tests will use a stale bundle and your changes won't be tested.
+
 ## Testing
 
 Never run all tests in the repository as it takes a lot of time.

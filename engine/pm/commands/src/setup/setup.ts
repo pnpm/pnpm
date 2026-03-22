@@ -10,6 +10,7 @@ import {
   type ConfigReport,
   type PathExtenderReport,
 } from '@pnpm/os.env.path-extender'
+import PATH from 'path-name'
 import { renderHelp } from 'render-help'
 
 export const rcOptionsTypes = (): Record<string, unknown> => ({})
@@ -69,7 +70,7 @@ function installCliGlobally (execPath: string, pnpmHomeDir: string): void {
     fs.writeFileSync(pkgJsonPath, JSON.stringify({
       name: '@pnpm/exe',
       version: packageManager.version,
-      bin: { pnpm: execName },
+      bin: { pnpm: execName, pn: execName },
     }))
     createdPkgJson = true
   }
@@ -80,11 +81,13 @@ function installCliGlobally (execPath: string, pnpmHomeDir: string): void {
   })
 
   try {
+    const binDir = path.join(pnpmHomeDir, 'bin')
     const { status, error } = spawnSync(execPath, ['add', '-g', `file:${execDir}`], {
       stdio: 'inherit',
       env: {
         ...process.env,
         PNPM_HOME: pnpmHomeDir,
+        [PATH]: `${binDir}${path.delimiter}${process.env[PATH] ?? ''}`,
       },
     })
 
@@ -99,7 +102,7 @@ function installCliGlobally (execPath: string, pnpmHomeDir: string): void {
   }
 }
 
-function createPnpxScripts (targetDir: string): void {
+function createAliasScripts (targetDir: string): void {
   // Why script files instead of aliases?
   // 1. Aliases wouldn't work on all platform, such as Windows Command Prompt or POSIX `sh`.
   // 2. Aliases wouldn't work on all environments, such as non-interactive shells and CI environments.
@@ -109,22 +112,19 @@ function createPnpxScripts (targetDir: string): void {
 
   fs.mkdirSync(targetDir, { recursive: true })
 
+  createShellScript(targetDir, 'pn', 'pnpm')
+  createShellScript(targetDir, 'pnpx', 'pnpm dlx')
+  createShellScript(targetDir, 'pnx', 'pnpm dlx')
+}
+
+function createShellScript (targetDir: string, name: string, command: string): void {
   // windows can also use shell script via mingw or cygwin so no filter
-  const shellScript = [
-    '#!/bin/sh',
-    'exec pnpm dlx "$@"',
-  ].join('\n')
-  fs.writeFileSync(path.join(targetDir, 'pnpx'), shellScript, { mode: 0o755 })
+  const shellScript = `#!/bin/sh\nexec ${command} "$@"\n`
+  fs.writeFileSync(path.join(targetDir, name), shellScript, { mode: 0o755 })
 
   if (process.platform === 'win32') {
-    const batchScript = [
-      '@echo off',
-      'pnpm dlx %*',
-    ].join('\n')
-    fs.writeFileSync(path.join(targetDir, 'pnpx.cmd'), batchScript)
-
-    const powershellScript = 'pnpm dlx @args'
-    fs.writeFileSync(path.join(targetDir, 'pnpx.ps1'), powershellScript)
+    fs.writeFileSync(path.join(targetDir, `${name}.cmd`), `@echo off\n${command} %*\n`)
+    fs.writeFileSync(path.join(targetDir, `${name}.ps1`), `${command} @args\n`)
   }
 }
 
@@ -135,26 +135,28 @@ export async function handler (
   }
 ): Promise<string> {
   const execPath = getExecPath()
+  const binDir = path.join(opts.pnpmHomeDir, 'bin')
   if (execPath.match(/\.[cm]?js$/) == null) {
     installCliGlobally(execPath, opts.pnpmHomeDir)
-    createPnpxScripts(opts.pnpmHomeDir)
+    createAliasScripts(binDir)
   }
   try {
     const report = await addDirToEnvPath(opts.pnpmHomeDir, {
       configSectionName: 'pnpm',
       proxyVarName: 'PNPM_HOME',
+      proxyVarSubDir: 'bin',
       overwrite: opts.force,
       position: 'start',
     })
     return renderSetupOutput(report)
   } catch (err: any) { // eslint-disable-line
     switch (err.code) {
-    case 'ERR_PNPM_BAD_ENV_FOUND':
-      err.hint = 'If you want to override the existing env variable, use the --force option'
-      break
-    case 'ERR_PNPM_BAD_SHELL_SECTION':
-      err.hint = 'If you want to override the existing configuration section, use the --force option'
-      break
+      case 'ERR_PNPM_BAD_ENV_FOUND':
+        err.hint = 'If you want to override the existing env variable, use the --force option'
+        break
+      case 'ERR_PNPM_BAD_SHELL_SECTION':
+        err.hint = 'If you want to override the existing configuration section, use the --force option'
+        break
     }
     throw err
   }
@@ -182,9 +184,9 @@ source ${report.configFile.path}
 
 function reportConfigChange (configReport: ConfigReport): string {
   switch (configReport.changeType) {
-  case 'created': return `Created ${configReport.path}`
-  case 'appended': return `Appended new lines to ${configReport.path}`
-  case 'modified': return `Replaced configuration in ${configReport.path}`
-  case 'skipped': return `Configuration already up to date in ${configReport.path}`
+    case 'created': return `Created ${configReport.path}`
+    case 'appended': return `Appended new lines to ${configReport.path}`
+    case 'modified': return `Replaced configuration in ${configReport.path}`
+    case 'skipped': return `Configuration already up to date in ${configReport.path}`
   }
 }

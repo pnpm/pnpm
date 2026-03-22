@@ -25,11 +25,11 @@
   ],
   "scripts": {
     "start": "tsgo --watch",
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
-    "test": "pnpm run compile && pnpm run _test",
+    "test": "pnpm run compile && pnpm run .test",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/cli.meta": "workspace:*",

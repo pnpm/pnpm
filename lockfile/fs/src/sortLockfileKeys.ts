@@ -1,4 +1,4 @@
-import type { LockfileFile } from '@pnpm/lockfile.types'
+import type { EnvLockfile, LockfileFile } from '@pnpm/lockfile.types'
 import { sortDeepKeys, sortDirectKeys, sortKeysByPriority } from '@pnpm/object.key-sorting'
 
 const ORDERED_KEYS = {
@@ -44,7 +44,9 @@ const ROOT_KEYS: readonly RootKey[] = [
 ]
 const ROOT_KEYS_ORDER = Object.fromEntries(ROOT_KEYS.map((key, index) => [key, index]))
 
-export function sortLockfileKeys (lockfile: LockfileFile): LockfileFile {
+export function sortLockfileKeys (lockfile: LockfileFile): LockfileFile
+export function sortLockfileKeys (lockfile: EnvLockfile): EnvLockfile
+export function sortLockfileKeys (lockfile: LockfileFile | EnvLockfile): LockfileFile | EnvLockfile {
   if (lockfile.importers != null) {
     lockfile.importers = sortDirectKeys(lockfile.importers)
     for (const [importerId, importer] of Object.entries(lockfile.importers)) {
@@ -72,15 +74,17 @@ export function sortLockfileKeys (lockfile: LockfileFile): LockfileFile {
       }, pkg)
     }
   }
-  if (lockfile.catalogs != null) {
+  if ('catalogs' in lockfile && lockfile.catalogs != null) {
     lockfile.catalogs = sortDirectKeys(lockfile.catalogs)
     for (const [catalogName, catalog] of Object.entries(lockfile.catalogs)) {
       lockfile.catalogs[catalogName] = sortDeepKeys(catalog)
     }
   }
-  for (const key of ['time', 'patchedDependencies'] as const) {
-    if (!lockfile[key]) continue
-    lockfile[key] = sortDirectKeys<any>(lockfile[key]) // eslint-disable-line @typescript-eslint/no-explicit-any
+  if ('time' in lockfile && lockfile.time != null) {
+    lockfile.time = sortDirectKeys(lockfile.time)
+  }
+  if ('patchedDependencies' in lockfile && lockfile.patchedDependencies != null) {
+    lockfile.patchedDependencies = sortDirectKeys(lockfile.patchedDependencies)
   }
   return sortKeysByPriority({ priority: ROOT_KEYS_ORDER }, lockfile)
 }

@@ -371,6 +371,29 @@ export async function mutateModules (
   if (!opts.ignoreScripts && ignoredBuilds?.size) {
     ignoredBuilds = await runUnignoredDependencyBuilds(opts, ignoredBuilds, allowBuild)
   }
+  // Detect packages whose build approval was revoked between the previous
+  // and current install. A package is considered revoked when it was
+  // previously allowed (true) but is now undecided (undefined). Packages
+  // explicitly denied (false) are not added to ignoredBuilds, consistent
+  // with how buildModules treats them.
+  if (
+    ctx.modulesFile?.allowBuilds &&
+    ctx.wantedLockfile.packages &&
+    Object.values(ctx.modulesFile.allowBuilds).some((v) => v === true)
+  ) {
+    const oldAllowBuild = createAllowBuildFunction({ allowBuilds: ctx.modulesFile.allowBuilds })
+    if (oldAllowBuild) {
+      for (const depPath of Object.keys(ctx.wantedLockfile.packages) as DepPath[]) {
+        if (ignoredBuilds?.has(depPath)) continue
+        const { name, version } = dp.parse(depPath)
+        if (!name || !version) continue
+        if (oldAllowBuild(name, version) === true && allowBuild?.(name, version) === undefined) {
+          ignoredBuilds ??= new Set()
+          ignoredBuilds.add(depPath)
+        }
+      }
+    }
+  }
   ignoredScriptsLogger.debug({
     packageNames: ignoredBuilds ? dedupePackageNamesFromIgnoredBuilds(ignoredBuilds) : [],
   })
@@ -515,29 +538,29 @@ export async function mutateModules (
         ...ctx.projects[project.rootDir],
       }
       switch (project.mutation) {
-      case 'uninstallSome':
-        projectsToInstall.push({
-          pruneDirectDependencies: false,
-          ...projectOpts,
-          removePackages: project.dependencyNames,
-          updatePackageManifest: true,
-          wantedDependencies: [],
-        })
-        break
-      case 'install': {
-        await installCase({
-          ...projectOpts,
-          updatePackageManifest: (projectOpts as InstallDepsMutation).updatePackageManifest ?? (projectOpts as InstallDepsMutation).update!,
-        })
-        break
-      }
-      case 'installSome': {
-        await installSome({
-          ...projectOpts as InstallSomeProject,
-          updatePackageManifest: (projectOpts as InstallSomeDepsMutation).updatePackageManifest !== false,
-        })
-        break
-      }
+        case 'uninstallSome':
+          projectsToInstall.push({
+            pruneDirectDependencies: false,
+            ...projectOpts,
+            removePackages: project.dependencyNames,
+            updatePackageManifest: true,
+            wantedDependencies: [],
+          })
+          break
+        case 'install': {
+          await installCase({
+            ...projectOpts,
+            updatePackageManifest: (projectOpts as InstallDepsMutation).updatePackageManifest ?? (projectOpts as InstallDepsMutation).update!,
+          })
+          break
+        }
+        case 'installSome': {
+          await installSome({
+            ...projectOpts as InstallSomeProject,
+            updatePackageManifest: (projectOpts as InstallSomeDepsMutation).updatePackageManifest !== false,
+          })
+          break
+        }
       }
     }
     /* eslint-enable no-await-in-loop */
@@ -676,14 +699,14 @@ export async function mutateModules (
           }
 
           switch (opts.catalogMode) {
-          case 'strict':
-            throw new CatalogVersionMismatchError({ catalogDep: `${wantedDep.alias}@${catalogDepSpecifier}`, wantedDep: `${wantedDep.alias}@${wantedDep.bareSpecifier}` })
+            case 'strict':
+              throw new CatalogVersionMismatchError({ catalogDep: `${wantedDep.alias}@${catalogDepSpecifier}`, wantedDep: `${wantedDep.alias}@${wantedDep.bareSpecifier}` })
 
-          case 'prefer':
-            logger.warn({
-              message: `Catalog version mismatch for "${wantedDep.alias}": using direct version "${wantedDep.bareSpecifier}" instead of catalog version "${catalogDepSpecifier}".`,
-              prefix: opts.lockfileDir,
-            })
+            case 'prefer':
+              logger.warn({
+                message: `Catalog version mismatch for "${wantedDep.alias}": using direct version "${wantedDep.bareSpecifier}" instead of catalog version "${catalogDepSpecifier}".`,
+                prefix: opts.lockfileDir,
+              })
           }
         }
       }

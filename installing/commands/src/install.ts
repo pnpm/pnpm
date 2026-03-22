@@ -1,3 +1,4 @@
+import type { CommandHandlerMap } from '@pnpm/cli.command'
 import { FILTERING, OPTIONS, OUTPUT_OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
@@ -37,7 +38,6 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'libc',
     'link-workspace-packages',
     'lockfile-dir',
-    'lockfile-directory',
     'lockfile-only',
     'lockfile',
     'merge-git-branch-lockfiles',
@@ -57,7 +57,6 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'reporter',
     'save-workspace-protocol',
     'scripts-prepend-node-path',
-    'shamefully-flatten',
     'shamefully-hoist',
     'shared-workspace-lockfile',
     'side-effects-cache-readonly',
@@ -237,7 +236,7 @@ by any dependencies, so it is an emulation of a flat node_modules',
           {
             description: 'Force reinstall dependencies: refetch packages modified in store, \
 recreate a lockfile and/or modules directory created by a non-compatible version of pnpm. \
-Install all optionalDependencies even they don\'t satisfy the current environment(cpu, os, arch)',
+Install all optionalDependencies even when they don\'t satisfy the current environment(cpu, os, arch)',
             name: '--force',
           },
           {
@@ -351,7 +350,7 @@ export type InstallCommandOptions = Pick<Config,
   pnpmfile: string[]
 } & Partial<Pick<Config, 'ci' | 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages' | 'useLockfile' | 'symlink'>>
 
-export async function handler (opts: InstallCommandOptions & { _calledFromLink?: boolean }): Promise<void> {
+export async function handler (opts: InstallCommandOptions & { _calledFromLink?: boolean }, _params?: string[], commands?: CommandHandlerMap): Promise<void> {
   if (opts.global && !opts._calledFromLink) {
     throw new PnpmError('GLOBAL_INSTALL_NOT_SUPPORTED',
       '"pnpm install -g" is not supported. Use "pnpm add -g <pkg>" to install global packages.')
@@ -363,6 +362,7 @@ export async function handler (opts: InstallCommandOptions & { _calledFromLink?:
   }
   const installDepsOptions: InstallDepsOptions = {
     ...opts,
+    rebuildHandler: commands?.rebuild,
     frozenLockfileIfExists: opts.frozenLockfileIfExists ?? (
       opts.ci && !opts.lockfileOnly &&
       typeof opts.frozenLockfile === 'undefined' &&

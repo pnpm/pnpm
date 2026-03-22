@@ -25,6 +25,7 @@ import { renderHelp } from 'render-help'
 import { buildCommandNotFoundHint } from './buildCommandNotFoundHint.js'
 import { handler as exec } from './exec.js'
 import { existsInDir } from './existsInDir.js'
+import { throwOrFilterHiddenScripts } from './hiddenScripts.js'
 import { runDepsStatusCheck } from './runDepsStatusCheck.js'
 import { getSpecifiedScripts as getSpecifiedScriptWithoutStartCommand, type RecursiveRunOpts, runRecursive } from './runRecursive.js'
 
@@ -225,7 +226,11 @@ export async function handler (
     return printProjectCommands(manifest, rootManifest ?? undefined)
   }
 
-  const specifiedScripts = getSpecifiedScripts(manifest.scripts ?? {}, scriptName)
+  let specifiedScripts = getSpecifiedScripts(manifest.scripts ?? {}, scriptName)
+
+  if (!process.env.npm_lifecycle_event) {
+    specifiedScripts = throwOrFilterHiddenScripts(specifiedScripts, scriptName)
+  }
 
   if (specifiedScripts.length < 1) {
     if (opts.ifPresent) return
@@ -348,6 +353,7 @@ function printProjectCommands (
   const otherScripts = [] as string[][]
 
   for (const [scriptName, script] of Object.entries(manifest.scripts ?? {})) {
+    if (scriptName.startsWith('.')) continue
     if (ALL_LIFECYCLE_SCRIPTS.has(scriptName)) {
       lifecycleScripts.push([scriptName, script])
     } else {
