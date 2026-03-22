@@ -288,10 +288,8 @@ describe('pollForWebAuthToken', () => {
         }
       },
     })
-    const err = await pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions, timeoutMs)
-      .catch((e: WebAuthTimeoutError) => e)
-    expect(err).toBeInstanceOf(WebAuthTimeoutError)
-    expect(err.timeout).toBe(timeoutMs)
+    await expect(pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions, timeoutMs))
+      .rejects.toMatchObject({ timeout: timeoutMs })
   })
 
   it('continues polling when fetch throws', async () => {
@@ -456,10 +454,8 @@ describe('pollForWebAuthToken', () => {
         status: 202,
       }),
     })
-    const err = await pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions, customTimeoutMs)
-      .catch((e: WebAuthTimeoutError) => e)
-    expect(err).toBeInstanceOf(WebAuthTimeoutError)
-    expect(err.timeout).toBe(customTimeoutMs)
+    await expect(pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions, customTimeoutMs))
+      .rejects.toMatchObject({ timeout: customTimeoutMs })
   })
 
   it('recovers after multiple consecutive fetch errors', async () => {
@@ -548,9 +544,7 @@ describe('pollForWebAuthToken', () => {
         }
       },
     })
-    const err = await pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions, timeoutMs)
-      .catch((e: WebAuthTimeoutError) => e)
-    expect(err).toBeInstanceOf(WebAuthTimeoutError)
-    expect(err.timeout).toBe(timeoutMs)
+    await expect(pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions, timeoutMs))
+      .rejects.toMatchObject({ timeout: timeoutMs })
   })
 })
