@@ -315,7 +315,7 @@ describe('login', () => {
     expect(putCallCount).toBe(2)
     expect(pollCallCount).toBe(1)
     // Should have shown the auth URL and QR code
-    expect(infoMessages.some(m => m.includes('https://example.org/auth/web'))).toBe(true)
+    expect(infoMessages.some(m => /(?:^|\s)https:\/\/example\.org\/auth\/web(?:\s|$)/.test(m))).toBe(true)
   })
 
   it('should not trigger OTP for non-401 errors', async () => {
