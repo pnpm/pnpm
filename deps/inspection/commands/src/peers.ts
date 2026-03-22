@@ -139,7 +139,7 @@ function hasNoIssues (issues: PeerDependencyIssuesByProjects): boolean {
 function renderPeerIssuesFlat (issuesByProjects: PeerDependencyIssuesByProjects): string {
   const sections: string[] = []
 
-  for (const [, { bad, missing, intersections }] of Object.entries(issuesByProjects)) {
+  for (const [, { bad, missing, conflicts, intersections }] of Object.entries(issuesByProjects)) {
     for (const [peerName, issues] of Object.entries(bad)) {
       const foundVersion = issues[0].foundVersion
       const header = `${chalk.yellowBright('✕ unmet peer')} ${chalk.bold(peerName)} ${chalk.dim(`(found ${foundVersion})`)}`
@@ -148,10 +148,13 @@ function renderPeerIssuesFlat (issuesByProjects: PeerDependencyIssuesByProjects)
     }
 
     for (const [peerName, issues] of Object.entries(missing)) {
-      if (!intersections[peerName]) continue
-      const header = `${chalk.red('✕ missing peer')} ${chalk.bold(peerName)}`
+      if (!intersections[peerName] && !conflicts.includes(peerName)) continue
+      const conflict = conflicts.includes(peerName)
+      const tag = conflict
+        ? `${chalk.red('✕ conflicting peer')} ${chalk.bold(peerName)}`
+        : `${chalk.red('✕ missing peer')} ${chalk.bold(peerName)}`
       const lines = formatRequiredBy(issues)
-      sections.push(`${header}\n${lines}`)
+      sections.push(`${tag}\n${lines}`)
     }
   }
 
