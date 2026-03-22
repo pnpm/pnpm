@@ -1,7 +1,7 @@
 ---
-"@pnpm/read-project-manifest": minor
-"@pnpm/resolve-dependencies": minor
-"@pnpm/link-bins": minor
+"@pnpm/workspace.project-manifest-reader": minor
+"@pnpm/installing.deps-resolver": minor
+"@pnpm/bins.linker": minor
 "@pnpm/types": minor
 "pnpm": minor
 ---

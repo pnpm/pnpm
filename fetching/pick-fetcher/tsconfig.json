@@ -13,13 +13,13 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
+      "path": "../../core/error"
+    },
+    {
       "path": "../../hooks/types"
     },
     {
       "path": "../../network/fetch"
-    },
-    {
-      "path": "../../packages/error"
     },
     {
       "path": "../../resolving/resolver-base"
@@ -29,6 +29,9 @@
     },
     {
       "path": "../../store/create-cafs-store"
+    },
+    {
+      "path": "../../store/index"
     },
     {
       "path": "../fetcher-base"

@@ -1,0 +1,69 @@
+{
+  "name": "@pnpm/building.during-install",
+  "version": "1000.0.0-0",
+  "description": "Build packages in node_modules",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "npm",
+    "resolver"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/building/during-install",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/building/during-install#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pnpm run compile && pnpm run .test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsgo --build && pnpm run lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/bins.linker": "workspace:*",
+    "@pnpm/config.reader": "workspace:*",
+    "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/deps.graph-hasher": "workspace:*",
+    "@pnpm/deps.graph-sequencer": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/exec.lifecycle": "workspace:*",
+    "@pnpm/fs.hard-link-dir": "workspace:*",
+    "@pnpm/patching.apply-patch": "workspace:*",
+    "@pnpm/patching.types": "workspace:*",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
+    "@pnpm/store.controller-types": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "p-defer": "catalog:",
+    "ramda": "catalog:",
+    "run-groups": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:",
+    "@pnpm/worker": "workspace:^"
+  },
+  "devDependencies": {
+    "@pnpm/building.during-install": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@types/ramda": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

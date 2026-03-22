@@ -1,9 +1,10 @@
-import { type StatsLog } from '@pnpm/core-loggers'
-import * as Rx from 'rxjs'
-import { filter, take, reduce, map } from 'rxjs/operators'
+import type { StatsLog } from '@pnpm/core-loggers'
 import chalk from 'chalk'
 import { repeat } from 'ramda'
+import * as Rx from 'rxjs'
+import { filter, map, reduce, take } from 'rxjs/operators'
 import stringLength from 'string-length'
+
 import { EOL } from '../constants.js'
 import {
   ADDED_CHAR,

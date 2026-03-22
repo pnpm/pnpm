@@ -11,7 +11,8 @@
     "mdast-util-to-string": "catalog:",
     "remark-parse": "catalog:",
     "remark-stringify": "catalog:",
-    "unified": "catalog:"
+    "unified": "catalog:",
+    "vfile": "catalog:"
   },
   "devDependencies": {
     "@pnpm/get-release-text": "workspace:*"

@@ -1,4 +1,5 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
+
 import { sortLockfileKeys } from '../lib/sortLockfileKeys.js'
 
 test('sorts keys alphabetically', () => {
@@ -31,9 +32,9 @@ test('sorts keys alphabetically', () => {
       },
     },
     patchedDependencies: {
-      zzz: { path: 'foo', hash: 'bar' },
-      bar: { path: 'foo', hash: 'bar' },
-      aaa: { path: 'foo', hash: 'bar' },
+      zzz: 'bar',
+      bar: 'bar',
+      aaa: 'bar',
     },
   })
 
@@ -66,9 +67,9 @@ test('sorts keys alphabetically', () => {
       },
     },
     patchedDependencies: {
-      aaa: { path: 'foo', hash: 'bar' },
-      bar: { path: 'foo', hash: 'bar' },
-      zzz: { path: 'foo', hash: 'bar' },
+      aaa: 'bar',
+      bar: 'bar',
+      zzz: 'bar',
     },
   })
   expect(Object.keys(normalizedLockfile.importers?.foo.dependencies ?? {})).toStrictEqual(['aaa', 'bar', 'zzz'])

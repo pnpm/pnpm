@@ -1,8 +1,10 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { prepare, preparePackages } from '@pnpm/prepare'
 import isWindows from 'is-windows'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpm, execPnpmSync } from './utils/index.js'
 
 const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
@@ -20,7 +22,7 @@ test('run -r: pass the args to the command that is specified in the build script
   fs.writeFileSync('project/args.json', '[]', 'utf8')
   fs.writeFileSync('project/recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
-  await execPnpm(['run', '-r', '--config.enable-pre-post-scripts', 'foo', 'arg', '--flag=true'])
+  await execPnpm(['run', '-r', '--config.enable-pre-post-scripts', '--config.verify-deps-before-run=false', 'foo', 'arg', '--flag=true'])
 
   const { default: args } = await import(path.resolve('project/args.json'))
   expect(args).toStrictEqual([
@@ -95,7 +97,7 @@ test('recursive test: pass the args to the command that is specified in the buil
     },
   }])
 
-  const result = execPnpmSync(['-r', 'test', 'arg', '--flag=true'])
+  const result = execPnpmSync(['--config.verify-deps-before-run=false', '-r', 'test', 'arg', '--flag=true'])
 
   expect((result.stdout as Buffer).toString('utf8')).toMatch(
     process.platform === 'win32' ? /ts-node test "arg" "--flag=true"/ : /ts-node test arg --flag=true/
@@ -132,7 +134,7 @@ test('silent run only prints the output of the child process', async () => {
     },
   })
 
-  const result = execPnpmSync(['run', '--silent', 'hi'])
+  const result = execPnpmSync(['run', '--silent', '--config.verify-deps-before-run=false', 'hi'])
 
   expect(result.stdout.toString().trim()).toBe('hi')
 })
@@ -144,7 +146,7 @@ testOnPosix('pnpm run with preferSymlinkedExecutables true', async () => {
     },
   })
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     preferSymlinkedExecutables: true,
   })
 
@@ -160,7 +162,7 @@ testOnPosix('pnpm run with preferSymlinkedExecutables and custom virtualStoreDir
     },
   })
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     virtualStoreDir: '/foo/bar',
     preferSymlinkedExecutables: true,
   })
@@ -230,4 +232,58 @@ test('--reporter-hide-prefix should hide workspace prefix', async () => {
   expect(output).not.toContain('script1: 1')
   expect(output).toContain('2')
   expect(output).not.toContain('script2: 2')
+})
+
+test('hidden scripts (starting with .) cannot be run directly', () => {
+  prepare({
+    scripts: {
+      '.build': 'echo hidden',
+      'build': 'pnpm run .build',
+    },
+  })
+
+  const result = execPnpmSync(['run', '.build'])
+  expect(result.status).toBe(1)
+  const output = result.stdout.toString() + result.stderr.toString()
+  expect(output).toContain('HIDDEN_SCRIPT')
+})
+
+test('hidden scripts can be called from other scripts', () => {
+  prepare({
+    scripts: {
+      '.build': 'echo hidden-ok',
+      'build': 'pnpm run .build',
+    },
+  })
+
+  const result = execPnpmSync(['run', 'build'])
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString()).toContain('hidden-ok')
+})
+
+test('hidden scripts are not shown in pnpm run listing', () => {
+  prepare({
+    scripts: {
+      '.internal': 'echo hidden',
+      'build': 'echo visible',
+    },
+  })
+
+  const result = execPnpmSync(['run'])
+  expect(result.stdout.toString()).toContain('build')
+  expect(result.stdout.toString()).not.toContain('.internal')
+})
+
+test('regex selector skips hidden scripts', () => {
+  prepare({
+    scripts: {
+      '.build-internal': 'echo hidden',
+      'build': 'echo visible',
+    },
+  })
+
+  const result = execPnpmSync(['run', '/build/'])
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString()).toContain('visible')
+  expect(result.stdout.toString()).not.toContain('hidden')
 })

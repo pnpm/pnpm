@@ -1,0 +1,69 @@
+{
+  "name": "@pnpm/deps.compliance.license-scanner",
+  "version": "1001.0.27",
+  "description": "Check for licenses packages",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "licenses"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/deps/compliance/license-scanner",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/deps/compliance/license-scanner#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "test": "pnpm run compile && pnpm run .test",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsgo --build && pnpm run lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/config.package-is-installable": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/lockfile.detect-dep-types": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
+    "@pnpm/lockfile.walker": "workspace:*",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
+    "@pnpm/store.index": "workspace:*",
+    "@pnpm/store.pkg-finder": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "p-limit": "catalog:",
+    "path-absolute": "catalog:",
+    "ramda": "catalog:",
+    "semver": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/deps.compliance.license-scanner": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@types/ramda": "catalog:",
+    "@types/semver": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

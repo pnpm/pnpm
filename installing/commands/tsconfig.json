@@ -1,0 +1,154 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../__utils__/assert-project"
+    },
+    {
+      "path": "../../__utils__/prepare"
+    },
+    {
+      "path": "../../__utils__/test-fixtures"
+    },
+    {
+      "path": "../../__utils__/test-ipc-server"
+    },
+    {
+      "path": "../../building/after-install"
+    },
+    {
+      "path": "../../catalogs/types"
+    },
+    {
+      "path": "../../cli/command"
+    },
+    {
+      "path": "../../cli/common-cli-options-help"
+    },
+    {
+      "path": "../../cli/utils"
+    },
+    {
+      "path": "../../config/matcher"
+    },
+    {
+      "path": "../../config/pick-registry-for-package"
+    },
+    {
+      "path": "../../config/reader"
+    },
+    {
+      "path": "../../config/writer"
+    },
+    {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../deps/inspection/outdated"
+    },
+    {
+      "path": "../../deps/path"
+    },
+    {
+      "path": "../../deps/status"
+    },
+    {
+      "path": "../../fs/graceful-fs"
+    },
+    {
+      "path": "../../fs/read-modules-dir"
+    },
+    {
+      "path": "../../global/commands"
+    },
+    {
+      "path": "../../hooks/pnpmfile"
+    },
+    {
+      "path": "../../lockfile/types"
+    },
+    {
+      "path": "../../pkg-manifest/reader"
+    },
+    {
+      "path": "../../pkg-manifest/utils"
+    },
+    {
+      "path": "../../resolving/parse-wanted-dependency"
+    },
+    {
+      "path": "../../resolving/resolver-base"
+    },
+    {
+      "path": "../../store/connection-manager"
+    },
+    {
+      "path": "../../store/controller"
+    },
+    {
+      "path": "../../store/index"
+    },
+    {
+      "path": "../../worker"
+    },
+    {
+      "path": "../../workspace/project-manifest-reader"
+    },
+    {
+      "path": "../../workspace/project-manifest-writer"
+    },
+    {
+      "path": "../../workspace/projects-filter"
+    },
+    {
+      "path": "../../workspace/projects-graph"
+    },
+    {
+      "path": "../../workspace/projects-reader"
+    },
+    {
+      "path": "../../workspace/projects-sorter"
+    },
+    {
+      "path": "../../workspace/root-finder"
+    },
+    {
+      "path": "../../workspace/state"
+    },
+    {
+      "path": "../../workspace/workspace-manifest-writer"
+    },
+    {
+      "path": "../context"
+    },
+    {
+      "path": "../dedupe/check"
+    },
+    {
+      "path": "../deps-installer"
+    },
+    {
+      "path": "../env-installer"
+    },
+    {
+      "path": "../modules-yaml"
+    }
+  ]
+}

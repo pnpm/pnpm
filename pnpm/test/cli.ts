@@ -1,11 +1,12 @@
-import fs from 'fs'
-import path from 'path'
-import PATH_NAME from 'path-name'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import { sync as rimraf } from '@zkochan/rimraf'
-import execa from 'execa'
-import isWindows from 'is-windows'
+import { rimrafSync } from '@zkochan/rimraf'
+import { safeExeca as execa } from 'execa'
+import PATH_NAME from 'path-name'
+
 import {
   execPnpm,
   execPnpmSync,
@@ -15,11 +16,12 @@ import {
 const f = fixtures(import.meta.dirname)
 const hasOutdatedDepsFixture = f.find('has-outdated-deps')
 
-test('some commands pass through to npm', () => {
+test('commands that were previously passed through to npm now fail', () => {
   const result = execPnpmSync(['dist-tag', 'ls', 'is-positive'])
 
-  expect(result.status).toBe(0)
-  expect(result.stdout.toString()).not.toContain('Usage: pnpm [command] [flags]')
+  expect(result.status).not.toBe(0)
+  const output = result.stdout.toString() + result.stderr.toString()
+  expect(output).toContain('ERR_PNPM_NOT_IMPLEMENTED')
 })
 
 test('installs in the folder where the package.json file is', async () => {
@@ -50,13 +52,13 @@ test('pnpm import does not move modules created by npm', async () => {
   expect(packageManifestInodeBefore).toBe(packageManifestInodeAfter)
 })
 
-test('pass through to npm with all the args', async () => {
+test('previously passed through commands fail without package.json', async () => {
   prepare()
-  rimraf('package.json')
+  rimrafSync('package.json')
 
   const result = execPnpmSync(['dist-tag', 'ls', 'pnpm'])
 
-  expect(result.status).toBe(0)
+  expect(result.status).not.toBe(0)
 })
 
 test('pnpm fails when an unsupported command is used', async () => {
@@ -64,7 +66,7 @@ test('pnpm fails when an unsupported command is used', async () => {
 
   const { status } = execPnpmSync(['unsupported-command'])
 
-  expect(status).toBe(isWindows() ? 1 : 254)
+  expect(status).toBe(1)
 })
 
 test('pnpm fails when no command is specified', async () => {

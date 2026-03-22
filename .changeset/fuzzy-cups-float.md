@@ -1,6 +1,6 @@
 ---
-"@pnpm/workspace.manifest-writer": minor
-"@pnpm/config.config-writer": minor
+"@pnpm/workspace.workspace-manifest-writer": minor
+"@pnpm/config.writer": minor
 ---
 
 New option added: updatedOverrides.

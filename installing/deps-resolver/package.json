@@ -1,0 +1,92 @@
+{
+  "name": "@pnpm/installing.deps-resolver",
+  "version": "1008.3.1",
+  "description": "Resolves dependency graph of a package",
+  "keywords": [
+    "pnpm",
+    "pnpm11"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/installing/deps-resolver",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/installing/deps-resolver#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "start": "tsgo --watch",
+    "test": "pnpm run compile && pnpm run .test",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsgo --build && pnpm run lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/catalogs.resolver": "workspace:*",
+    "@pnpm/catalogs.types": "workspace:*",
+    "@pnpm/config.version-policy": "workspace:*",
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/deps.graph-hasher": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
+    "@pnpm/deps.peer-range": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/fetching.pick-fetcher": "workspace:*",
+    "@pnpm/hooks.types": "workspace:*",
+    "@pnpm/lockfile.preferred-versions": "workspace:*",
+    "@pnpm/lockfile.pruner": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
+    "@pnpm/patching.config": "workspace:*",
+    "@pnpm/patching.types": "workspace:*",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
+    "@pnpm/pkg-manifest.utils": "workspace:*",
+    "@pnpm/resolving.npm-resolver": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
+    "@pnpm/store.controller-types": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
+    "@pnpm/workspace.spec-parser": "workspace:*",
+    "@yarnpkg/core": "catalog:",
+    "filenamify": "catalog:",
+    "graph-cycles": "catalog:",
+    "is-inner-link": "catalog:",
+    "is-subdir": "catalog:",
+    "normalize-path": "catalog:",
+    "p-defer": "catalog:",
+    "path-exists": "catalog:",
+    "promise-share": "catalog:",
+    "ramda": "catalog:",
+    "rename-overwrite": "catalog:",
+    "safe-promise-defer": "catalog:",
+    "semver": "catalog:",
+    "semver-range-intersect": "catalog:",
+    "version-selector-type": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm/installing.deps-resolver": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@types/normalize-path": "catalog:",
+    "@types/ramda": "catalog:",
+    "@types/semver": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

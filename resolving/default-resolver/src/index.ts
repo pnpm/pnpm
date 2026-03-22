@@ -1,28 +1,28 @@
+import { type BunRuntimeResolveResult, resolveBunRuntime } from '@pnpm/engine.runtime.bun-resolver'
+import { type DenoRuntimeResolveResult, resolveDenoRuntime } from '@pnpm/engine.runtime.deno-resolver'
+import { type NodeRuntimeResolveResult, resolveNodeRuntime } from '@pnpm/engine.runtime.node-resolver'
 import { PnpmError } from '@pnpm/error'
-import { type FetchFromRegistry, type GetAuthHeader } from '@pnpm/fetching-types'
-import { type GitResolveResult, createGitResolver } from '@pnpm/git-resolver'
-import { type LocalResolveResult, resolveFromLocal } from '@pnpm/local-resolver'
-import { resolveNodeRuntime, type NodeRuntimeResolveResult } from '@pnpm/node.resolver'
-import { resolveDenoRuntime, type DenoRuntimeResolveResult } from '@pnpm/resolving.deno-resolver'
-import { resolveBunRuntime, type BunRuntimeResolveResult } from '@pnpm/resolving.bun-resolver'
+import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
+import { checkCustomResolverCanResolve, type CustomResolver } from '@pnpm/hooks.types'
+import { createGitResolver, type GitResolveResult } from '@pnpm/resolving.git-resolver'
+import { type LocalResolveResult, resolveFromLocal } from '@pnpm/resolving.local-resolver'
 import {
   createNpmResolver,
   type JsrResolveResult,
   type NpmResolveResult,
-  type WorkspaceResolveResult,
   type PackageMeta,
   type PackageMetaCache,
   type ResolveFromNpmOptions,
   type ResolverFactoryOptions,
-} from '@pnpm/npm-resolver'
-import {
-  type ResolveFunction,
-  type ResolveOptions,
-  type ResolveResult,
-  type WantedDependency,
-} from '@pnpm/resolver-base'
-import { type TarballResolveResult, resolveFromTarball } from '@pnpm/tarball-resolver'
-import { type CustomResolver, checkCustomResolverCanResolve } from '@pnpm/hooks.types'
+  type WorkspaceResolveResult,
+} from '@pnpm/resolving.npm-resolver'
+import type {
+  ResolveFunction,
+  ResolveOptions,
+  ResolveResult,
+  WantedDependency,
+} from '@pnpm/resolving.resolver-base'
+import { resolveFromTarball, type TarballResolveResult } from '@pnpm/resolving.tarball-resolver'
 
 export type {
   PackageMeta,

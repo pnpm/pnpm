@@ -1,59 +1,61 @@
-import path from 'path'
+import path from 'node:path'
+
+import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
-import {
-  type FetchFromRegistry,
-  type GetAuthHeader,
-  type RetryTimeoutOptions,
-} from '@pnpm/fetching-types'
-import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
-import { type PackageMeta, type PackageInRegistry } from '@pnpm/registry.types'
-import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
-import {
-  type DirectoryResolution,
-  type PkgResolutionId,
-  type PreferredVersions,
-  type ResolveResult,
-  type TarballResolution,
-  type WantedDependency,
-  type WorkspacePackage,
-  type WorkspacePackages,
-  type WorkspacePackagesByVersion,
-} from '@pnpm/resolver-base'
-import { getIndexFilePathInCafs } from '@pnpm/store.cafs'
+import type {
+  FetchFromRegistry,
+  GetAuthHeader,
+  RetryTimeoutOptions,
+} from '@pnpm/fetching.types'
+import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
+import type {
+  DirectoryResolution,
+  PkgResolutionId,
+  PreferredVersions,
+  ResolveResult,
+  TarballResolution,
+  WantedDependency,
+  WorkspacePackage,
+  WorkspacePackages,
+  WorkspacePackagesByVersion,
+} from '@pnpm/resolving.resolver-base'
+import { storeIndexKey } from '@pnpm/store.index'
+import type {
+  DependencyManifest,
+  PackageVersionPolicy,
+  PinnedVersion,
+  Registries,
+  TrustPolicy,
+} from '@pnpm/types'
 import {
   readPkgFromCafs,
 } from '@pnpm/worker'
-import {
-  type DependencyManifest,
-  type PackageVersionPolicy,
-  type PinnedVersion,
-  type Registries,
-  type TrustPolicy,
-} from '@pnpm/types'
+import { resolveWorkspaceRange } from '@pnpm/workspace.range-resolver'
 import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
-import pMemoize from 'p-memoize'
+import pMemoize, { pMemoizeClear } from 'p-memoize'
 import { clone } from 'ramda'
 import semver from 'semver'
 import ssri from 'ssri'
 import versionSelectorType from 'version-selector-type'
+
+import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOptions, RegistryResponseError } from './fetch.js'
+import { normalizeRegistryUrl } from './normalizeRegistryUrl.js'
 import {
-  type PackageMetaCache,
-  type PickPackageOptions,
-  pickPackage,
-} from './pickPackage.js'
-import {
-  parseJsrSpecifierToRegistryPackageSpec,
-  parseBareSpecifier,
   type JsrRegistryPackageSpec,
+  parseBareSpecifier,
+  parseJsrSpecifierToRegistryPackageSpec,
   type RegistryPackageSpec,
 } from './parseBareSpecifier.js'
-import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOptions, RegistryResponseError } from './fetch.js'
-import { workspacePrefToNpm } from './workspacePrefToNpm.js'
-import { whichVersionIsPinned } from './whichVersionIsPinned.js'
+import {
+  type PackageMetaCache,
+  pickPackage,
+  type PickPackageOptions,
+} from './pickPackage.js'
 import { pickVersionByVersionRange } from './pickPackageFromMeta.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
-import { normalizeRegistryUrl } from './normalizeRegistryUrl.js'
+import { whichVersionIsPinned } from './whichVersionIsPinned.js'
+import { workspacePrefToNpm } from './workspacePrefToNpm.js'
 
 export interface NoMatchingVersionErrorOptions {
   wantedDependency: WantedDependency
@@ -108,13 +110,14 @@ function formatTimeAgo (date: Date): string {
 }
 
 export {
-  parseBareSpecifier,
-  workspacePrefToNpm,
   type PackageMeta,
   type PackageMetaCache,
+  parseBareSpecifier,
   type RegistryPackageSpec,
   RegistryResponseError,
+  workspacePrefToNpm,
 }
+export { whichVersionIsPinned } from './whichVersionIsPinned.js'
 
 export interface ResolverFactoryOptions {
   cacheDir: string
@@ -184,7 +187,7 @@ export function createNpmResolver (
   let peekManifestFromStore: ResolveFromNpmContext['peekManifestFromStore'] | undefined
   if (storeDir) {
     peekManifestFromStore = async (peekOpts) => {
-      const filesIndexFile = getIndexFilePathInCafs(storeDir, peekOpts.integrity, peekOpts.id)
+      const filesIndexFile = storeIndexKey(peekOpts.integrity, peekOpts.id)
       const existingRequest = peekLockerForPeek.get(filesIndexFile)
       if (existingRequest != null) {
         return existingRequest
@@ -227,6 +230,7 @@ export function createNpmResolver (
     resolveFromJsr: resolveJsr.bind(null, ctx),
     clearCache: () => {
       metaCache.clear()
+      pMemoizeClear(fetch)
     },
   }
 }
@@ -361,7 +365,7 @@ async function resolveNpm (
           projectDir: opts.projectDir,
           lockfileDir: opts.lockfileDir,
           hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
-          update: Boolean(opts.update),
+          update: false,
           saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
           calcSpecifier: opts.calcSpecifier,
           pinnedVersion: opts.pinnedVersion,
@@ -382,7 +386,7 @@ async function resolveNpm (
           projectDir: opts.projectDir,
           lockfileDir: opts.lockfileDir,
           hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
-          update: Boolean(opts.update),
+          update: false,
           saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
           calcSpecifier: opts.calcSpecifier,
           pinnedVersion: opts.pinnedVersion,
@@ -657,16 +661,16 @@ function pickMatchingLocalVersionOrNull (
   spec: RegistryPackageSpec
 ): string | null {
   switch (spec.type) {
-  case 'tag':
-    return semver.maxSatisfying(Array.from(versions.keys()), '*', {
-      includePrerelease: true,
-    })
-  case 'version':
-    return versions.has(spec.fetchSpec) ? spec.fetchSpec : null
-  case 'range':
-    return resolveWorkspaceRange(spec.fetchSpec, Array.from(versions.keys()))
-  default:
-    return null
+    case 'tag':
+      return semver.maxSatisfying(Array.from(versions.keys()), '*', {
+        includePrerelease: true,
+      })
+    case 'version':
+      return versions.has(spec.fetchSpec) ? spec.fetchSpec : null
+    case 'range':
+      return resolveWorkspaceRange(spec.fetchSpec, Array.from(versions.keys()))
+    default:
+      return null
   }
 }
 
@@ -738,10 +742,10 @@ function calcSpecifierForWorkspaceDep ({
       if ([`${prefix}*`, `${prefix}^`, `${prefix}~`].includes(specifier)) return specifier
       const pinnedVersion = whichVersionIsPinned(specifier)
       switch (pinnedVersion) {
-      case 'major': return `${prefix}^`
-      case 'minor': return `${prefix}~`
-      case 'patch':
-      case 'none': return `${prefix}*`
+        case 'major': return `${prefix}^`
+        case 'minor': return `${prefix}~`
+        case 'patch':
+        case 'none': return `${prefix}*`
       }
     }
     return `${prefix}^`
@@ -790,14 +794,14 @@ function getIntegrity (dist: {
 
 function createVersionSpec (version: string, pinnedVersion?: PinnedVersion): string {
   switch (pinnedVersion ?? 'major') {
-  case 'none':
-  case 'major':
-    return `^${version}`
-  case 'minor':
-    return `~${version}`
-  case 'patch':
-    return version
-  default:
-    throw new PnpmError('BAD_PINNED_VERSION', `Cannot pin '${pinnedVersion ?? 'undefined'}'`)
+    case 'none':
+    case 'major':
+      return `^${version}`
+    case 'minor':
+      return `~${version}`
+    case 'patch':
+      return version
+    default:
+      throw new PnpmError('BAD_PINNED_VERSION', `Cannot pin '${pinnedVersion ?? 'undefined'}'`)
   }
 }

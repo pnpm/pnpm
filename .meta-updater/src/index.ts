@@ -1,15 +1,16 @@
-import fs from 'fs'
-import path from 'path'
-import { readWantedLockfile, type LockfileObject } from '@pnpm/lockfile.fs'
-import { type ProjectId, type ProjectManifest } from '@pnpm/types'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { type LockfileObject, readWantedLockfile } from '@pnpm/lockfile.fs'
 import { createUpdateOptions, type FormatPluginFnOptions } from '@pnpm/meta-updater'
 import { sortDirectKeys, sortKeysByPriority } from '@pnpm/object.key-sorting'
-import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.find-packages'
-import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
-import isSubdir from 'is-subdir'
+import type { ProjectId, ProjectManifest } from '@pnpm/types'
+import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
+import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
+import { isSubdir } from 'is-subdir'
 import { loadJsonFileSync } from 'load-json-file'
-import semver from 'semver'
 import normalizePath from 'normalize-path'
+import semver from 'semver'
 import { writeJsonFile } from 'write-json-file'
 
 const CLI_PKG_NAME = 'pnpm'
@@ -26,7 +27,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
   if (lockfile == null) {
     throw new Error('no lockfile found')
   }
-  const workspacePackages = await findWorkspacePackagesNoCheck(workspaceDir, { patterns: workspaceManifest?.packages })
+  const workspacePackages = await findWorkspaceProjectsNoCheck(workspaceDir, { patterns: workspaceManifest?.packages })
   const workspacePackageNames = new Set(workspacePackages.map(pkg => pkg.manifest.name).filter(Boolean))
   return createUpdateOptions({
     'package.json': (manifest: ProjectManifest & { keywords?: string[] } | null, { dir }: { dir: string }) => {
@@ -34,7 +35,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
         return manifest
       }
       if (manifest.name === 'monorepo-root') {
-        manifest.scripts!['release'] = `pnpm --filter=@pnpm/exe publish --tag=${nextTag} --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=${nextTag} --access=public`
+        manifest.scripts!['release'] = `pnpm --filter=@pnpm/exe publish --tag=${nextTag} --access=public --provenance && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public --provenance && pnpm publish --filter=pnpm --tag=${nextTag} --access=public --provenance`
         return sortKeysInManifest(manifest)
       }
       if (manifest.name && manifest.name !== CLI_PKG_NAME) {
@@ -92,7 +93,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
         manifest.peerDependencies['@pnpm/worker'] = 'workspace:^'
       }
       const isUtil = isSubdir(utilsDir, dir)
-      if (manifest.name !== '@pnpm/make-dedicated-lockfile' && manifest.name !== '@pnpm/mount-modules' && !isUtil && manifest.name !== '@pnpm-private/updater') {
+      if (manifest.name !== '@pnpm/lockfile.make-dedicated-lockfile' && manifest.name !== '@pnpm/modules-mounter.daemon' && !isUtil && manifest.name !== '@pnpm-private/updater') {
         for (const depType of ['dependencies', 'optionalDependencies'] as const) {
           if (manifest[depType]?.['@pnpm/logger']) {
             delete manifest[depType]!['@pnpm/logger']
@@ -160,12 +161,12 @@ async function updateTSConfig (
     if (!fs.existsSync(path.join(linkedPkgDir, 'tsconfig.json'))) continue
     if (!isSubdir(context.workspaceDir, linkedPkgDir)) continue
     if (
-      depName === '@pnpm/package-store' && (
-        manifest.name === '@pnpm/git-fetcher' ||
-        manifest.name === '@pnpm/tarball-fetcher' ||
-        manifest.name === '@pnpm/package-requester'
+      depName === '@pnpm/store.controller' && (
+        manifest.name === '@pnpm/fetching.git-fetcher' ||
+        manifest.name === '@pnpm/fetching.tarball-fetcher' ||
+        manifest.name === '@pnpm/installing.package-requester'
       ) ||
-      depName === 'pnpm' && manifest.name === '@pnpm/make-dedicated-lockfile'
+      depName === 'pnpm' && manifest.name === '@pnpm/lockfile.make-dedicated-lockfile'
     ) {
       // This is to avoid a circular graph (which TypeScript references do not support.
       continue
@@ -216,7 +217,7 @@ async function updateTSConfig (
         //
         // The project reference allows editor features like Go to Definition
         // jump to files in src for imports using the current package's name
-        // (ex: @pnpm/config).
+        // (ex: @pnpm/config.reader).
         : [{ path: '..' }],
     }, { indent: 2 })
   }
@@ -250,68 +251,69 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   let scripts: Record<string, string>
   let preset = '@pnpm/jest-config'
   switch (manifest.name) {
-  case '@pnpm/lockfile.types':
-    scripts = { ...manifest.scripts }
-    break
-  case '@pnpm/exec.build-commands':
-  case '@pnpm/config.deps-installer':
-  case '@pnpm/headless':
-  case '@pnpm/outdated':
-  case '@pnpm/package-requester':
-  case '@pnpm/cache.commands':
-  case '@pnpm/plugin-commands-import':
-  case '@pnpm/plugin-commands-installation':
-  case '@pnpm/plugin-commands-listing':
-  case '@pnpm/plugin-commands-outdated':
-  case '@pnpm/plugin-commands-patching':
-  case '@pnpm/plugin-commands-publishing':
-  case '@pnpm/plugin-commands-rebuild':
-  case '@pnpm/plugin-commands-script-runners':
-  case '@pnpm/plugin-commands-store':
-  case '@pnpm/plugin-commands-deploy':
-  case CLI_PKG_NAME:
-  case '@pnpm/core': {
-    preset = '@pnpm/jest-config/with-registry'
-    scripts = {
-      ...(manifest.scripts as Record<string, string>),
-    }
-    scripts.test = 'pnpm run compile && pnpm run _test'
-    if (manifest.name === '@pnpm/core') {
-      // @pnpm/core tests currently works only with port 7769 due to the usage of
+    case '@pnpm/lockfile.types':
+      scripts = { ...manifest.scripts }
+      break
+    case '@pnpm/building.commands':
+    case '@pnpm/installing.deps-restorer':
+    case '@pnpm/installing.env-installer':
+    case '@pnpm/deps.inspection.outdated':
+    case '@pnpm/installing.package-requester':
+    case '@pnpm/cache.commands':
+    case '@pnpm/plugin-commands-import':
+    case '@pnpm/installing.commands':
+    case '@pnpm/deps.inspection.commands':
+    case '@pnpm/patching.commands':
+    case '@pnpm/releasing.commands':
+    case '@pnpm/exec.commands':
+    case '@pnpm/store.commands':
+    case '@pnpm/deps.compliance.commands':
+    case CLI_PKG_NAME:
+    case '@pnpm/installing.deps-installer': {
+      preset = '@pnpm/jest-config/with-registry'
+      scripts = {
+        ...(manifest.scripts as Record<string, string>),
+      }
+      scripts.test = 'pnpm run compile && pnpm run .test'
+      if (manifest.name === '@pnpm/installing.deps-installer') {
+      // @pnpm/installing.deps-installer tests currently works only with port 7769 due to the usage of
       // the next package: pkg-with-tarball-dep-from-registry
-      scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${registryMockPortForCore} NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules" jest`
-    } else {
-      scripts._test = 'cross-env NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules" jest'
-    }
-    break
-  }
-  default:
-    if (fs.existsSync(path.join(dir, 'test'))) {
-      scripts = {
-        ...(manifest.scripts as Record<string, string>),
-        _test: 'cross-env NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules" jest',
-        test: 'pnpm run compile && pnpm run _test',
+        scripts['.test'] = `cross-env PNPM_REGISTRY_MOCK_PORT=${registryMockPortForCore} NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest`
+      } else {
+        scripts['.test'] = 'cross-env NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest'
       }
-    } else {
-      scripts = {
-        ...(manifest.scripts as Record<string, string>),
-        test: 'pnpm run compile',
-      }
+      break
     }
-    break
+    default:
+      if (fs.existsSync(path.join(dir, 'test'))) {
+        scripts = {
+          ...(manifest.scripts as Record<string, string>),
+          '.test': 'cross-env NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest',
+          test: 'pnpm run compile && pnpm run .test',
+        }
+      } else {
+        scripts = {
+          ...(manifest.scripts as Record<string, string>),
+          test: 'pnpm run compile',
+        }
+      }
+      break
   }
+  // Clean up old underscore-prefixed script names
+  delete scripts._test
+  delete scripts._compile
   if (manifest.name === CLI_PKG_NAME) {
     manifest.publishConfig!.tag = nextTag
   }
-  if (scripts._test) {
+  if (scripts['.test']) {
     if (scripts.pretest) {
-      scripts._test = `pnpm pretest && ${scripts._test}`
+      scripts['.test'] = `pnpm pretest && ${scripts['.test']}`
     }
     if (scripts.posttest) {
-      scripts._test = `${scripts._test} && pnpm posttest`
+      scripts['.test'] = `${scripts['.test']} && pnpm posttest`
     }
     if (manifest.name === '@pnpm/server') {
-      scripts._test += ' --detectOpenHandles'
+      scripts['.test'] += ' --detectOpenHandles'
     }
   }
   scripts.compile = 'tsgo --build && pnpm run lint --fix'
@@ -319,8 +321,8 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   if (scripts.start && scripts.start.includes('tsc --watch')) {
     scripts.start = scripts.start.replace('tsc --watch', 'tsgo --watch')
   }
-  if (scripts._compile && scripts._compile.includes('tsc --build')) {
-    scripts._compile = scripts._compile.replace('tsc --build', 'tsgo --build')
+  if (scripts['.compile'] && scripts['.compile'].includes('tsc --build')) {
+    scripts['.compile'] = scripts['.compile'].replace('tsc --build', 'tsgo --build')
   }
   let homepage: string
   let repository: string | { type: 'git', url: string, directory: 'pnpm' }
@@ -372,6 +374,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   if (scripts.test) {
     Object.assign(manifest, {
       jest: {
+        ...(manifest as any).jest, // eslint-disable-line
         preset,
       },
     })

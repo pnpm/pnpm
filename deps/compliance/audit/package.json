@@ -1,0 +1,64 @@
+{
+  "name": "@pnpm/deps.compliance.audit",
+  "version": "1002.0.14",
+  "description": "Audit a lockfile",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "audit"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/deps/compliance/audit",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/deps/compliance/audit#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pnpm run compile && pnpm run .test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsgo --build && pnpm run lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/error": "workspace:*",
+    "@pnpm/fetching.types": "workspace:*",
+    "@pnpm/lockfile.detect-dep-types": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
+    "@pnpm/lockfile.walker": "workspace:*",
+    "@pnpm/network.fetch": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
+    "ramda": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/deps.compliance.audit": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/test-fixtures": "workspace:*",
+    "@types/ramda": "catalog:",
+    "nock": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

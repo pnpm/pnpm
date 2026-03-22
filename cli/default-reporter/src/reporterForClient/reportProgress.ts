@@ -1,6 +1,7 @@
-import { type ProgressLog, type StageLog } from '@pnpm/core-loggers'
+import type { ProgressLog, StageLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
-import { filter, map, mapTo, takeWhile, startWith, take } from 'rxjs/operators'
+import { filter, map, mapTo, startWith, take, takeWhile } from 'rxjs/operators'
+
 import { hlValue } from './outputConstants.js'
 import { zoomOut } from './utils/zooming.js'
 
@@ -140,18 +141,18 @@ function getProgressStatsPushStreamByRequirer (progress$: Rx.Observable<Progress
         }
       }
       switch (log.status) {
-      case 'resolved':
-        previousProgressStatsByRequirer[log.requester].resolved++
-        break
-      case 'fetched':
-        previousProgressStatsByRequirer[log.requester].fetched++
-        break
-      case 'found_in_store':
-        previousProgressStatsByRequirer[log.requester].reused++
-        break
-      case 'imported':
-        previousProgressStatsByRequirer[log.requester].imported++
-        break
+        case 'resolved':
+          previousProgressStatsByRequirer[log.requester].resolved++
+          break
+        case 'fetched':
+          previousProgressStatsByRequirer[log.requester].fetched++
+          break
+        case 'found_in_store':
+          previousProgressStatsByRequirer[log.requester].reused++
+          break
+        case 'imported':
+          previousProgressStatsByRequirer[log.requester].imported++
+          break
       }
       if (!progressStatsPushStreamByRequirer[log.requester]) {
         progressStatsPushStreamByRequirer[log.requester] = new Rx.Subject<ProgressStats>()

@@ -16,10 +16,10 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
-      "path": "../../packages/error"
+      "path": "../../core/error"
     },
     {
-      "path": "../../packages/logger"
+      "path": "../../core/logger"
     }
   ]
 }

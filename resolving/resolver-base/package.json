@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/resolver-base",
+  "name": "@pnpm/resolving.resolver-base",
   "version": "1005.1.0",
   "description": "Types for pnpm-compatible resolvers",
   "keywords": [
@@ -35,7 +35,7 @@
     "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
-    "@pnpm/resolver-base": "workspace:*"
+    "@pnpm/resolving.resolver-base": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

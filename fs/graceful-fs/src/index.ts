@@ -1,4 +1,5 @@
-import util, { promisify } from 'util'
+import util, { promisify } from 'node:util'
+
 import gfs from 'graceful-fs'
 
 export default { // eslint-disable-line

@@ -1,8 +1,10 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { preparePackages } from '@pnpm/prepare'
 import { loadJsonFileSync } from 'load-json-file'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpm } from './utils/index.js'
 
 // Covers https://github.com/pnpm/pnpm/issues/9550
@@ -42,7 +44,7 @@ test.skip('legacy deploy creates only necessary directories when the root manife
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     packages: [
       'services/*',
       'packages/*',

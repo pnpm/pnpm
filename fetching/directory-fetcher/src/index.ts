@@ -1,13 +1,14 @@
-import { promises as fs, type Stats } from 'fs'
-import path from 'path'
-import util from 'util'
-import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
-import type { DirectoryFetcher, DirectoryFetcherOptions } from '@pnpm/fetcher-base'
-import { type FilesMap } from '@pnpm/cafs-types'
-import { logger } from '@pnpm/logger'
+import { promises as fs, type Stats } from 'node:fs'
+import path from 'node:path'
+import util from 'node:util'
+
+import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
+import type { DirectoryFetcher, DirectoryFetcherOptions } from '@pnpm/fetching.fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
-import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { type DependencyManifest } from '@pnpm/types'
+import { logger } from '@pnpm/logger'
+import type { FilesMap } from '@pnpm/store.cafs-types'
+import type { DependencyManifest } from '@pnpm/types'
+import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 
 const directoryFetcherLogger = logger('directory-fetcher')
 

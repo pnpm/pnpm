@@ -1,12 +1,14 @@
-import fs from 'fs'
-import path from 'path'
-import PATH_NAME from 'path-name'
-import { getConfig } from '@pnpm/config'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { getConfig } from '@pnpm/config.reader'
+import { dlx } from '@pnpm/exec.commands'
+import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
-import { readModulesManifest } from '@pnpm/modules-yaml'
 import { addUser, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { dlx } from '@pnpm/plugin-commands-script-runners'
-import { type BaseManifest } from '@pnpm/types'
+import type { BaseManifest } from '@pnpm/types'
+import PATH_NAME from 'path-name'
+
 import { execPnpm, execPnpmSync } from './utils/index.js'
 
 let registries: Record<string, string>
@@ -55,14 +57,14 @@ test('silent dlx prints the output of the child process only', async () => {
   expect(result.stdout.toString().trim()).toBe('hi')
 })
 
-test('dlx ignores configuration in current project package.json', async () => {
-  prepare({
-    pnpm: {
-      patchedDependencies: {
-        'shx@0.3.4': 'this_does_not_exist',
-      },
-    },
-  })
+test('dlx ignores configuration in pnpm-workspace.yaml', async () => {
+  prepare()
+  // Write a pnpm-workspace.yaml with a patchedDependencies that doesn't exist
+  // dlx should ignore this and succeed
+  fs.writeFileSync('pnpm-workspace.yaml', `
+patchedDependencies:
+  shx@0.3.4: this_does_not_exist.patch
+`)
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
   fs.mkdirSync(global)
@@ -85,7 +87,7 @@ test('dlx should work with npm_config_save_dev env variable', async () => {
     env: {
       npm_config_save_dev: 'true',
     },
-    stdio: 'inherit',
+    stdio: 'pipe',
     expectSuccess: true,
   })
 })
@@ -254,7 +256,7 @@ test('dlx read registry from .npmrc in the current directory', async () => {
     'hello-from-needs-auth',
   ], {
     env: {},
-    stdio: [null, 'pipe', 'inherit'],
+    stdio: 'pipe',
     expectSuccess: true,
   })
 
@@ -277,7 +279,7 @@ test('dlx uses the node version specified by --package=node@runtime:<version>', 
     env: {
       PNPM_HOME: pnpmHome,
     },
-    stdio: [null, 'pipe', 'inherit'],
+    stdio: 'pipe',
     expectSuccess: true,
   })
 
@@ -291,7 +293,23 @@ test('dlx uses the node version specified by --package=node@runtime:<version>', 
   }
 
   expect(nodeInfo.versions.node).toBe('20.0.0')
-  expect(nodeInfo.execPath).toContain(path.normalize('links/@/node/20.0.0'))
+  // On Windows, node.exe is hardlinked into .bin/ so process.execPath
+  // reports the hardlink path rather than the original store location.
+  // On non-Windows, the symlink is resolved by the kernel.
+  if (process.platform !== 'win32') {
+    expect(nodeInfo.execPath).toContain(path.normalize('links/@/node/20.0.0'))
+  }
+})
+
+test('dlx without arguments prints help text and exits with 1', () => {
+  prepareEmpty()
+
+  const result = execPnpmSync(['dlx'])
+
+  expect(result.status).toBe(1)
+
+  const output = result.stdout.toString()
+  expect(output).toMatch(/Run a package in a temporary environment\./)
 })
 
 describeOnLinuxOnly('dlx with supportedArchitectures CLI options', () => {
@@ -364,7 +382,7 @@ describeOnLinuxOnly('dlx with supportedArchitectures CLI options', () => {
       'dlx',
       'get-optional-dependencies',
     ], {
-      stdio: [null, 'pipe', 'inherit'],
+      stdio: 'pipe',
       expectSuccess: true,
     })
 

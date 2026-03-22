@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/git-resolver",
+  "name": "@pnpm/resolving.git-resolver",
   "version": "1001.1.5",
   "description": "Resolver for git-hosted packages",
   "keywords": [
@@ -27,24 +27,24 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
-    "test": "pnpm run compile && pnpm run _test",
+    "test": "pnpm run compile && pnpm run .test",
     "prepublishOnly": "pnpm run compile",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
-    "@pnpm/fetch": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/network.fetch": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
     "graceful-git": "catalog:",
     "hosted-git-info": "catalog:",
     "semver": "catalog:"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/git-resolver": "workspace:*",
     "@pnpm/network.agent": "catalog:",
+    "@pnpm/resolving.git-resolver": "workspace:*",
     "@types/hosted-git-info": "catalog:",
     "@types/is-windows": "catalog:",
     "@types/semver": "catalog:",

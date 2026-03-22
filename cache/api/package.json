@@ -31,11 +31,11 @@
     "compile": "tsgo --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/config": "workspace:*",
+    "@pnpm/config.reader": "workspace:*",
     "@pnpm/constants": "workspace:*",
-    "@pnpm/fs.msgpack-file": "workspace:*",
-    "@pnpm/npm-resolver": "workspace:*",
+    "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.index": "workspace:*",
     "encode-registry": "catalog:",
     "tinyglobby": "catalog:"
   },

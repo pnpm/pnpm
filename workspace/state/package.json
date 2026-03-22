@@ -25,15 +25,15 @@
     "!*.map"
   ],
   "scripts": {
-    "test": "pnpm run compile && pnpm run _test",
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
+    "test": "pnpm run compile && pnpm run .test",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/catalogs.types": "workspace:*",
-    "@pnpm/config": "workspace:*",
+    "@pnpm/config.reader": "workspace:*",
     "@pnpm/types": "workspace:*",
     "ramda": "catalog:"
   },

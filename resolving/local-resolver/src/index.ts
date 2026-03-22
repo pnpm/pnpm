@@ -1,11 +1,13 @@
-import { existsSync } from 'fs'
-import path from 'path'
+import { existsSync } from 'node:fs'
+import path from 'node:path'
+
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
-import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { type DirectoryResolution, type Resolution, type ResolveResult, type TarballResolution } from '@pnpm/resolver-base'
-import { type DependencyManifest, type PkgResolutionId } from '@pnpm/types'
 import { logger } from '@pnpm/logger'
+import type { DirectoryResolution, Resolution, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
+import type { DependencyManifest, PkgResolutionId } from '@pnpm/types'
+import { readProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
+
 import { parseBareSpecifier, type WantedLocalDependency } from './parseBareSpecifier.js'
 
 export { type WantedLocalDependency }
@@ -80,21 +82,21 @@ export async function resolveFromLocal (
       }
     } else {
       switch (internalErr.code) {
-      case 'ENOTDIR': {
-        throw new PnpmError('NOT_PACKAGE_DIRECTORY',
-          `Could not install from "${spec.fetchSpec}" as it is not a directory.`)
-      }
-      case 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND':
-      case 'ENOENT': {
-        localDependencyManifest = {
-          name: path.basename(spec.fetchSpec),
-          version: '0.0.0',
+        case 'ENOTDIR': {
+          throw new PnpmError('NOT_PACKAGE_DIRECTORY',
+            `Could not install from "${spec.fetchSpec}" as it is not a directory.`)
         }
-        break
-      }
-      default: {
-        throw internalErr
-      }
+        case 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND':
+        case 'ENOENT': {
+          localDependencyManifest = {
+            name: path.basename(spec.fetchSpec),
+            version: '0.0.0',
+          }
+          break
+        }
+        default: {
+          throw internalErr
+        }
       }
     }
   }

@@ -1,4 +1,4 @@
-import { type CatalogResolutionUnused, type CatalogResolutionResult, type CatalogResolutionFound, type CatalogResolutionMisconfiguration } from './resolveFromCatalog.js'
+import type { CatalogResolutionFound, CatalogResolutionMisconfiguration, CatalogResolutionResult, CatalogResolutionUnused } from './resolveFromCatalog.js'
 
 export interface CatalogResultMatcher<T> {
   readonly found: (found: CatalogResolutionFound) => T
@@ -11,8 +11,8 @@ export function matchCatalogResolveResult<T> (
   matcher: CatalogResultMatcher<T>
 ): T {
   switch (result.type) {
-  case 'found': return matcher.found(result)
-  case 'misconfiguration': return matcher.misconfiguration(result)
-  case 'unused': return matcher.unused(result)
+    case 'found': return matcher.found(result)
+    case 'misconfiguration': return matcher.misconfiguration(result)
+    case 'unused': return matcher.unused(result)
   }
 }

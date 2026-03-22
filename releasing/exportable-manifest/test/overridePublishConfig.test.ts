@@ -1,0 +1,32 @@
+import type { PackageManifest, PublishConfig } from '@pnpm/types'
+
+import { overridePublishConfig } from '../lib/overridePublishConfig.js'
+
+test('publish config to be overridden', async () => {
+  const publishConfig: PublishConfig = {
+    main: 'overridden',
+    types: 'overridden',
+    typesVersions: {
+      '*': {
+        '*': ['overridden'],
+      },
+    },
+  }
+  const publishManifest: PackageManifest = {
+    name: 'foo',
+    version: '1.0.0',
+    main: 'origin',
+    types: 'origin',
+    typesVersions: {
+      '*': {
+        '*': ['origin'],
+      },
+    },
+    publishConfig,
+  }
+  overridePublishConfig(publishManifest)
+
+  for (const publishConfigKey in publishConfig) {
+    expect(publishManifest[publishConfigKey as keyof PackageManifest]).toEqual(publishConfig[publishConfigKey])
+  }
+})

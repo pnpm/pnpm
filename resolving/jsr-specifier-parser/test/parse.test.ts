@@ -1,4 +1,4 @@
-import { parseJsrSpecifier, type JsrSpec } from '@pnpm/resolving.jsr-specifier-parser'
+import { type JsrSpec, parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
 
 describe('parseJsrSpecifier', () => {
   test('skips on non-jsr specifiers', () => {

@@ -1,13 +1,15 @@
+import path from 'node:path'
+
+import type { LifecycleLog } from '@pnpm/core-loggers'
+import chalk from 'chalk'
 import cliTruncate from 'cli-truncate'
-import path from 'path'
-import { type LifecycleLog } from '@pnpm/core-loggers'
+import prettyTime from 'pretty-ms'
 import * as Rx from 'rxjs'
 import { buffer, filter, groupBy, map, mergeAll, mergeMap } from 'rxjs/operators'
-import chalk from 'chalk'
-import prettyTime from 'pretty-ms'
+
 import { EOL } from '../constants.js'
-import { formatPrefix, formatPrefixNoTrim } from './utils/formatPrefix.js'
 import { hlValue } from './outputConstants.js'
+import { formatPrefix, formatPrefixNoTrim } from './utils/formatPrefix.js'
 
 const NODE_MODULES = `${path.sep}node_modules${path.sep}`
 const TMP_DIR_IN_STORE = `tmp${path.sep}_tmp_` // git-hosted dependencies are built in these temporary directories

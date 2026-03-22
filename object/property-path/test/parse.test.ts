@@ -1,11 +1,11 @@
 import {
   type ExactToken,
+  parsePropertyPath,
   type UnexpectedEndOfInputError,
   type UnexpectedIdentifierError,
   type UnexpectedLiteralError,
   type UnexpectedToken,
   type UnexpectedTokenError,
-  parsePropertyPath,
 } from '../src/index.js'
 
 test('valid property path', () => {

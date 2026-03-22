@@ -1,14 +1,15 @@
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config.reader'
 import type * as logs from '@pnpm/core-loggers'
-import { type LogLevel, type StreamParser } from '@pnpm/logger'
+import type { LogLevel, StreamParser } from '@pnpm/logger'
+import createDiffer from 'ansi-diff'
 import * as Rx from 'rxjs'
 import { filter, map, mergeAll } from 'rxjs/operators'
-import createDiffer from 'ansi-diff'
+
 import { EOL } from './constants.js'
 import { mergeOutputs } from './mergeOutputs.js'
 import { reporterForClient } from './reporterForClient/index.js'
+import type { FilterPkgsDiff } from './reporterForClient/reportSummary.js'
 import { formatWarn } from './reporterForClient/utils/formatWarn.js'
-import { type FilterPkgsDiff } from './reporterForClient/reportSummary.js'
 
 export { formatWarn }
 
@@ -145,81 +146,81 @@ export function toOutput$ (
   setTimeout(() => {
     opts.streamParser.on('data', (log: logs.Log) => {
       switch (log.name) {
-      case 'pnpm:context':
-        contextPushStream.next(log)
-        break
-      case 'pnpm:execution-time':
-        executionTimePushStream.next(log)
-        break
-      case 'pnpm:fetching-progress':
-        fetchingProgressPushStream.next(log)
-        break
-      case 'pnpm:progress':
-        progressPushStream.next(log)
-        break
-      case 'pnpm:stage':
-        stagePushStream.next(log)
-        break
-      case 'pnpm:deprecation':
-        deprecationPushStream.next(log)
-        break
-      case 'pnpm:summary':
-        summaryPushStream.next(log)
-        break
-      case 'pnpm:lifecycle':
-        lifecyclePushStream.next(log)
-        break
-      case 'pnpm:stats':
-        statsPushStream.next(log)
-        break
-      case 'pnpm:package-import-method':
-        packageImportMethodPushStream.next(log)
-        break
-      case 'pnpm:peer-dependency-issues':
-        peerDependencyIssuesPushStream.next(log)
-        break
-      case 'pnpm:install-check':
-        installCheckPushStream.next(log)
-        break
-      case 'pnpm:installing-config-deps':
-        installingConfigDepsStream.next(log)
-        break
-      case 'pnpm:ignored-scripts':
-        ignoredScriptsPushStream.next(log)
-        break
-      case 'pnpm:registry':
-        registryPushStream.next(log)
-        break
-      case 'pnpm:root':
-        rootPushStream.next(log)
-        break
-      case 'pnpm:package-manifest':
-        packageManifestPushStream.next(log)
-        break
-      case 'pnpm:link':
-        linkPushStream.next(log)
-        break
-      case 'pnpm:hook':
-        hookPushStream.next(log)
-        break
-      case 'pnpm:skipped-optional-dependency':
-        skippedOptionalDependencyPushStream.next(log)
-        break
-      case 'pnpm:scope':
-        scopePushStream.next(log)
-        break
-      case 'pnpm:request-retry':
-        requestRetryPushStream.next(log)
-        break
-      case 'pnpm:update-check':
-        updateCheckPushStream.next(log)
-        break
+        case 'pnpm:context':
+          contextPushStream.next(log)
+          break
+        case 'pnpm:execution-time':
+          executionTimePushStream.next(log)
+          break
+        case 'pnpm:fetching-progress':
+          fetchingProgressPushStream.next(log)
+          break
+        case 'pnpm:progress':
+          progressPushStream.next(log)
+          break
+        case 'pnpm:stage':
+          stagePushStream.next(log)
+          break
+        case 'pnpm:deprecation':
+          deprecationPushStream.next(log)
+          break
+        case 'pnpm:summary':
+          summaryPushStream.next(log)
+          break
+        case 'pnpm:lifecycle':
+          lifecyclePushStream.next(log)
+          break
+        case 'pnpm:stats':
+          statsPushStream.next(log)
+          break
+        case 'pnpm:package-import-method':
+          packageImportMethodPushStream.next(log)
+          break
+        case 'pnpm:peer-dependency-issues':
+          peerDependencyIssuesPushStream.next(log)
+          break
+        case 'pnpm:install-check':
+          installCheckPushStream.next(log)
+          break
+        case 'pnpm:installing-config-deps':
+          installingConfigDepsStream.next(log)
+          break
+        case 'pnpm:ignored-scripts':
+          ignoredScriptsPushStream.next(log)
+          break
+        case 'pnpm:registry':
+          registryPushStream.next(log)
+          break
+        case 'pnpm:root':
+          rootPushStream.next(log)
+          break
+        case 'pnpm:package-manifest':
+          packageManifestPushStream.next(log)
+          break
+        case 'pnpm:link':
+          linkPushStream.next(log)
+          break
+        case 'pnpm:hook':
+          hookPushStream.next(log)
+          break
+        case 'pnpm:skipped-optional-dependency':
+          skippedOptionalDependencyPushStream.next(log)
+          break
+        case 'pnpm:scope':
+          scopePushStream.next(log)
+          break
+        case 'pnpm:request-retry':
+          requestRetryPushStream.next(log)
+          break
+        case 'pnpm:update-check':
+          updateCheckPushStream.next(log)
+          break
       case 'pnpm' as any: // eslint-disable-line
       case 'pnpm:global' as any: // eslint-disable-line
       case 'pnpm:store' as any: // eslint-disable-line
       case 'pnpm:lockfile' as any: // eslint-disable-line
-        otherPushStream.next(log)
-        break
+          otherPushStream.next(log)
+          break
       }
     })
   }, 0)
@@ -275,7 +276,7 @@ export function toOutput$ (
       throttleProgress: opts.reportingOptions?.throttleProgress,
       width: opts.reportingOptions?.outputMaxWidth,
       hideAddedPkgsProgress: opts.reportingOptions?.hideAddedPkgsProgress,
-      hideProgressPrefix: opts.reportingOptions?.hideProgressPrefix ?? (cmd === 'dlx'),
+      hideProgressPrefix: opts.reportingOptions?.hideProgressPrefix ?? (cmd === 'dlx' || opts.context.config?.global === true),
       hideLifecycleOutput: opts.reportingOptions?.hideLifecycleOutput,
       hideLifecyclePrefix: opts.reportingOptions?.hideLifecyclePrefix,
       approveBuildsInstructionText: opts.reportingOptions?.approveBuildsInstructionText,

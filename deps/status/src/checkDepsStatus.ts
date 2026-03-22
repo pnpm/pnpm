@@ -1,15 +1,16 @@
-import fs from 'fs'
-import path from 'path'
-import util from 'util'
-import { equals, isEmpty, filter, once } from 'ramda'
-import { type Config, type OptionsFromRootManifest, getOptionsFromRootManifest } from '@pnpm/config'
+import fs from 'node:fs'
+import path from 'node:path'
+import util from 'node:util'
+
+import { parseOverrides } from '@pnpm/config.parse-overrides'
+import type { Config } from '@pnpm/config.reader'
 import { MANIFEST_BASE_NAMES, WANTED_LOCKFILE } from '@pnpm/constants'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
-import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
-  type LockfileObject,
   getLockfileImporterId,
+  type LockfileObject,
   readCurrentLockfile,
   readWantedLockfile,
 } from '@pnpm/lockfile.fs'
@@ -19,22 +20,23 @@ import {
   getOutdatedLockfileSetting,
 } from '@pnpm/lockfile.settings-checker'
 import {
-  linkedPackagesAreUpToDate,
   getWorkspacePackagesByDirectory,
+  linkedPackagesAreUpToDate,
   satisfiesPackageManifest,
 } from '@pnpm/lockfile.verification'
 import { globalWarn, logger } from '@pnpm/logger'
-import { parseOverrides } from '@pnpm/parse-overrides'
-import { type WorkspacePackages } from '@pnpm/resolver-base'
-import {
-  type DependencyManifest,
-  type Project,
-  type ProjectId,
-  type ProjectManifest,
+import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
+import type {
+  DependencyManifest,
+  Project,
+  ProjectId,
+  ProjectManifest,
 } from '@pnpm/types'
-import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
-import { type WorkspaceState, type WorkspaceStateSettings, loadWorkspaceState, updateWorkspaceState } from '@pnpm/workspace.state'
+import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
+import { loadWorkspaceState, updateWorkspaceState, type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
+import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
+import { equals, filter, isEmpty, once } from 'ramda'
+
 import { assertLockfilesEqual } from './assertLockfilesEqual.js'
 import { safeStat, safeStatSync } from './safeStat.js'
 import { statManifestFile } from './statManifestFile.js'
@@ -48,6 +50,7 @@ export type CheckDepsStatusOptions = Pick<Config,
 | 'linkWorkspacePackages'
 | 'nodeLinker'
 | 'hooks'
+| 'patchedDependencies'
 | 'peersSuffixMaxLength'
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
@@ -55,6 +58,9 @@ export type CheckDepsStatusOptions = Pick<Config,
 | 'workspaceDir'
 | 'patchesDir'
 | 'configDependencies'
+| 'overrides'
+| 'packageExtensions'
+| 'ignoredOptionalDependencies'
 > & {
   ignoreFilteredInstallCache?: boolean
   ignoredWorkspaceStateSettings?: Array<keyof WorkspaceStateSettings>
@@ -106,6 +112,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     excludeLinksFromLockfile,
     linkWorkspacePackages,
     nodeLinker,
+    patchedDependencies,
     rootProjectManifest,
     rootProjectManifestDir,
     sharedWorkspaceLockfile,
@@ -116,10 +123,6 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     globalWarn('verify-deps-before-run does not work with node-linker=pnp')
     return { upToDate: true, workspaceState: undefined }
   }
-
-  const rootManifestOptions = rootProjectManifest && rootProjectManifestDir
-    ? getOptionsFromRootManifest(rootProjectManifestDir, rootProjectManifest)
-    : undefined
 
   if (opts.ignoreFilteredInstallCache && workspaceState.filteredInstall) {
     return { upToDate: undefined, workspaceState }
@@ -223,7 +226,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     }
 
     const issue = await patchesOrHooksAreModified({
-      rootManifestOptions,
+      patchedDependencies,
       rootDir: rootProjectManifestDir,
       lastValidatedTimestamp: workspaceState.lastValidatedTimestamp,
       currentPnpmfiles: opts.pnpmfile,
@@ -297,7 +300,6 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       getManifestsByDir,
       getWorkspacePackages,
       rootDir: workspaceDir,
-      rootManifestOptions,
     }
 
     try {
@@ -335,7 +337,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     const workspaceRoot = workspaceDir ?? rootProjectManifestDir
     const workspaceManifest = await readWorkspaceManifest(workspaceRoot)
     if (workspaceManifest ?? workspaceDir) {
-      const allProjects = await findWorkspacePackages(rootProjectManifestDir, {
+      const allProjects = await findWorkspaceProjects(rootProjectManifestDir, {
         patterns: workspaceManifest?.packages,
         sharedWorkspaceLockfile,
       })
@@ -366,7 +368,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     if (!wantedLockfileStats) return throwLockfileNotFound(rootProjectManifestDir)
 
     const issue = await patchesOrHooksAreModified({
-      rootManifestOptions,
+      patchedDependencies,
       rootDir: rootProjectManifestDir,
       lastValidatedTimestamp: wantedLockfileStats.mtime.valueOf(),
       currentPnpmfiles: opts.pnpmfile,
@@ -399,7 +401,6 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
           getManifestsByDir: () => ({}),
           getWorkspacePackages: () => undefined,
           rootDir: rootProjectManifestDir,
-          rootManifestOptions,
         }, {
           projectDir: rootProjectManifestDir,
           projectId: '.' as ProjectId,
@@ -444,7 +445,7 @@ interface AssertWantedLockfileUpToDateContext {
   getManifestsByDir: () => Record<string, DependencyManifest>
   getWorkspacePackages: () => WorkspacePackages | undefined
   rootDir: string
-  rootManifestOptions: OptionsFromRootManifest | undefined
+  patchedDependencies?: Record<string, string>
 }
 
 interface AssertWantedLockfileUpToDateOptions {
@@ -466,8 +467,6 @@ async function assertWantedLockfileUpToDate (
     linkWorkspacePackages,
     getManifestsByDir,
     getWorkspacePackages,
-    rootDir,
-    rootManifestOptions,
   } = ctx
 
   const {
@@ -482,7 +481,7 @@ async function assertWantedLockfileUpToDate (
     patchedDependencies,
     pnpmfileChecksum,
   ] = await Promise.all([
-    calcPatchHashes(rootManifestOptions?.patchedDependencies ?? {}, rootDir),
+    calcPatchHashes(config.patchedDependencies ?? {}),
     config.hooks?.calculatePnpmfileChecksum?.(),
   ])
 
@@ -492,9 +491,9 @@ async function assertWantedLockfileUpToDate (
     injectWorkspacePackages: config.injectWorkspacePackages,
     excludeLinksFromLockfile: config.excludeLinksFromLockfile,
     peersSuffixMaxLength: config.peersSuffixMaxLength,
-    overrides: createOverridesMapFromParsed(parseOverrides(rootManifestOptions?.overrides ?? {}, config.catalogs)),
-    ignoredOptionalDependencies: rootManifestOptions?.ignoredOptionalDependencies?.sort(),
-    packageExtensionsChecksum: hashObjectNullableWithPrefix(rootManifestOptions?.packageExtensions),
+    overrides: createOverridesMapFromParsed(parseOverrides(config.overrides ?? {}, config.catalogs)),
+    ignoredOptionalDependencies: config.ignoredOptionalDependencies?.sort(),
+    packageExtensionsChecksum: hashObjectNullableWithPrefix(config.packageExtensions),
     patchedDependencies,
     pnpmfileChecksum,
   })
@@ -542,15 +541,15 @@ function throwLockfileNotFound (wantedLockfileDir: string): never {
 }
 
 async function patchesOrHooksAreModified (opts: {
-  rootManifestOptions: OptionsFromRootManifest | undefined
+  patchedDependencies?: Record<string, string>
   rootDir: string
   lastValidatedTimestamp: number
   currentPnpmfiles: string[]
   previousPnpmfiles: string[]
 }): Promise<string | undefined> {
-  if (opts.rootManifestOptions?.patchedDependencies) {
-    const allPatchStats = await Promise.all(Object.values(opts.rootManifestOptions.patchedDependencies).map((patchFile) => {
-      return safeStat(path.relative(opts.rootDir, patchFile))
+  if (opts.patchedDependencies) {
+    const allPatchStats = await Promise.all(Object.values(opts.patchedDependencies).map((patchFile) => {
+      return safeStat(patchFile)
     }))
     if (allPatchStats.some(
       (patch) =>

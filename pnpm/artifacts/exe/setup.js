@@ -11,21 +11,34 @@ const arch = platform === 'win' && process.arch === 'ia32' ? 'x86' : process.arc
 
 const pkgName = `@pnpm/${platform}-${arch}`
 const pkgJson = fileURLToPath(import.meta.resolve(`${pkgName}/package.json`))
-const subpkg = JSON.parse(fs.readFileSync(pkgJson, 'utf8'))
+const executable = platform === 'win' ? 'pnpm.exe' : 'pnpm'
+const platformDir = path.dirname(pkgJson)
+const bin = path.resolve(platformDir, executable)
 
-if (subpkg.bin != null) {
-  const executable = subpkg.bin.pnpm
-  const platformDir = path.dirname(pkgJson)
-  const bin = path.resolve(platformDir, executable)
+const ownDir = import.meta.dirname
 
-  linkSync(bin, path.resolve(process.cwd(), executable))
+if (!fs.existsSync(bin)) process.exit(0)
 
-  if (platform === 'win') {
-    const pkg = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), 'package.json'), 'utf8'))
-    fs.writeFileSync(path.resolve(process.cwd(), 'pnpm'), 'This file intentionally left blank')
-    pkg.bin.pnpm = 'pnpm.exe'
-    fs.writeFileSync(path.resolve(process.cwd(), 'package.json'), JSON.stringify(pkg, null, 2))
-  }
+linkSync(bin, path.resolve(ownDir, executable))
+
+// Create pn alias (hardlink to the same binary)
+const pnExecutable = platform === 'win' ? 'pn.exe' : 'pn'
+linkSync(bin, path.resolve(ownDir, pnExecutable))
+
+// Create pnpx and pnx scripts
+createShellScript(ownDir, 'pnpx', 'pnpm dlx')
+createShellScript(ownDir, 'pnx', 'pnpm dlx')
+
+if (platform === 'win') {
+  const pkgJsonPath = path.resolve(ownDir, 'package.json')
+  const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  fs.writeFileSync(path.resolve(ownDir, 'pnpm'), 'This file intentionally left blank')
+  fs.writeFileSync(path.resolve(ownDir, 'pn'), 'This file intentionally left blank')
+  pkg.bin.pnpm = 'pnpm.exe'
+  pkg.bin.pn = 'pn.exe'
+  pkg.bin.pnpx = 'pnpx.cmd'
+  pkg.bin.pnx = 'pnx.cmd'
+  fs.writeFileSync(pkgJsonPath, JSON.stringify(pkg, null, 2))
 }
 
 function linkSync(src, dest) {
@@ -37,4 +50,13 @@ function linkSync(src, dest) {
     }
   }
   return fs.linkSync(src, dest)
+}
+
+function createShellScript(dir, name, command) {
+  fs.writeFileSync(path.resolve(dir, name), `#!/bin/sh\nexec ${command} "$@"\n`, { mode: 0o755 })
+
+  if (platform === 'win') {
+    fs.writeFileSync(path.resolve(dir, name + '.cmd'), `@echo off\n${command} %*\n`)
+    fs.writeFileSync(path.resolve(dir, name + '.ps1'), `${command} @args\n`)
+  }
 }

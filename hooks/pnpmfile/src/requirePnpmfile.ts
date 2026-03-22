@@ -1,15 +1,17 @@
-import assert from 'assert'
-import fs from 'fs'
-import path from 'path'
-import util from 'util'
-import { pathToFileURL } from 'url'
-import { createRequire } from 'module'
+import assert from 'node:assert'
+import fs from 'node:fs'
+import { createRequire } from 'node:module'
+import path from 'node:path'
+import { pathToFileURL } from 'node:url'
+import util from 'node:util'
+
 import { PnpmError } from '@pnpm/error'
+import type { CustomFetcher, CustomResolver } from '@pnpm/hooks.types'
 import { logger } from '@pnpm/logger'
-import { type PackageManifest, type Finder } from '@pnpm/types'
-import { type CustomResolver, type CustomFetcher } from '@pnpm/hooks.types'
+import type { Finder, PackageManifest } from '@pnpm/types'
 import chalk from 'chalk'
-import { type Hooks } from './Hooks.js'
+
+import type { Hooks } from './Hooks.js'
 
 const require = createRequire(import.meta.url)
 
@@ -95,7 +97,7 @@ export async function requirePnpmfile (pnpmFilePath: string, prefix: string): Pr
     }
     assert(util.types.isNativeError(err))
     if (
-      !('code' in err && err.code === 'MODULE_NOT_FOUND') ||
+      !('code' in err && (err.code === 'MODULE_NOT_FOUND' || err.code === 'ERR_MODULE_NOT_FOUND')) ||
       pnpmFileExistsSync(pnpmFilePath)
     ) {
       throw new PnpmFileFailError(pnpmFilePath, err)

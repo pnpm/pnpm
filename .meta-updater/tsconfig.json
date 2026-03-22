@@ -11,22 +11,22 @@
   ],
   "references": [
     {
+      "path": "../core/logger"
+    },
+    {
+      "path": "../core/types"
+    },
+    {
       "path": "../lockfile/fs"
     },
     {
       "path": "../object/key-sorting"
     },
     {
-      "path": "../packages/logger"
+      "path": "../workspace/projects-reader"
     },
     {
-      "path": "../packages/types"
-    },
-    {
-      "path": "../workspace/find-packages"
-    },
-    {
-      "path": "../workspace/read-manifest"
+      "path": "../workspace/workspace-manifest-reader"
     }
   ]
 }

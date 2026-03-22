@@ -1,12 +1,13 @@
 /// <reference lib="esnext.disposable" />
-import fs from 'fs'
-import net from 'net'
-import path from 'path'
-import execa from 'execa'
-import { setTimeout } from 'timers/promises'
-import { promisify } from 'util'
+import fs from 'node:fs'
+import net from 'node:net'
+import path from 'node:path'
+import { setTimeout } from 'node:timers/promises'
+import { promisify } from 'node:util'
+
 import { prepare } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
+import { safeExeca as execa } from 'execa'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 

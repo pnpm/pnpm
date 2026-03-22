@@ -1,11 +1,12 @@
-import * as dp from '@pnpm/dependency-path'
-import { type ProjectSnapshot } from '@pnpm/lockfile.types'
+import * as dp from '@pnpm/deps.path'
+import type { ProjectSnapshot } from '@pnpm/lockfile.types'
 import {
   DEPENDENCIES_FIELDS,
   type ProjectManifest,
 } from '@pnpm/types'
-import { equals, pickBy, omit } from 'ramda'
+import { equals, omit, pickBy } from 'ramda'
 import semver from 'semver'
+
 import { type Diff, diffFlatRecords, isEqual } from './diffFlatRecords.js'
 
 export function satisfiesPackageManifest (
@@ -65,19 +66,19 @@ export function satisfiesPackageManifest (
 
     let pkgDepNames!: string[]
     switch (depField) {
-    case 'optionalDependencies':
-      pkgDepNames = Object.keys(pkgDeps)
-      break
-    case 'devDependencies':
-      pkgDepNames = Object.keys(pkgDeps)
-        .filter((depName) => !pkg.optionalDependencies?.[depName] && !pkg.dependencies?.[depName])
-      break
-    case 'dependencies':
-      pkgDepNames = Object.keys(pkgDeps)
-        .filter((depName) => !pkg.optionalDependencies?.[depName])
-      break
-    default:
-      throw new Error(`Unknown dependency type "${depField as string}"`)
+      case 'optionalDependencies':
+        pkgDepNames = Object.keys(pkgDeps)
+        break
+      case 'devDependencies':
+        pkgDepNames = Object.keys(pkgDeps)
+          .filter((depName) => !pkg.optionalDependencies?.[depName] && !pkg.dependencies?.[depName])
+        break
+      case 'dependencies':
+        pkgDepNames = Object.keys(pkgDeps)
+          .filter((depName) => !pkg.optionalDependencies?.[depName])
+        break
+      default:
+        throw new Error(`Unknown dependency type "${depField as string}"`)
     }
     if (
       pkgDepNames.length !== Object.keys(importerDeps).length &&

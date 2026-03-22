@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/cafs-types",
+  "name": "@pnpm/store.cafs-types",
   "version": "1000.0.0",
   "description": "Types for the cafs",
   "keywords": [
@@ -31,7 +31,7 @@
     "lint": "eslint \"src/**/*.ts\""
   },
   "devDependencies": {
-    "@pnpm/cafs-types": "workspace:*",
+    "@pnpm/store.cafs-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@types/ssri": "catalog:"
   },

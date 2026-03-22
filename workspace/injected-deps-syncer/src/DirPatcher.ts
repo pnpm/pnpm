@@ -1,12 +1,13 @@
-import fs from 'fs'
-import path from 'path'
-import util from 'util'
-import { type FetchFromDirOptions, fetchFromDir } from '@pnpm/directory-fetcher'
+import fs from 'node:fs'
+import path from 'node:path'
+import util from 'node:util'
+
 import { PnpmError } from '@pnpm/error'
+import { fetchFromDir, type FetchFromDirOptions } from '@pnpm/fetching.directory-fetcher'
 
 export const DIR: unique symbol = Symbol('Path is a directory')
 
-// symbols and and numbers are used instead of discriminated union because
+// symbols and numbers are used instead of discriminated union because
 // it's faster and simpler to compare primitives than to deep compare objects
 export type File = number // representing the file's inode, which is sufficient for hardlinks
 export type Dir = typeof DIR

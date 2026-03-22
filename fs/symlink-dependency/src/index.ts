@@ -1,6 +1,7 @@
-import path from 'path'
+import path from 'node:path'
+
 import { linkLogger } from '@pnpm/core-loggers'
-import symlinkDir from 'symlink-dir'
+import { symlinkDir, symlinkDirSync } from 'symlink-dir'
 
 export { symlinkDirectRootDependency } from './symlinkDirectRootDependency.js'
 
@@ -21,5 +22,5 @@ export function symlinkDependencySync (
 ): { reused: boolean, warn?: string } {
   const link = path.join(destModulesDir, importAs)
   linkLogger.debug({ target: dependencyRealLocation, link })
-  return symlinkDir.sync(dependencyRealLocation, link)
+  return symlinkDirSync(dependencyRealLocation, link)
 }

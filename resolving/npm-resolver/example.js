@@ -1,5 +1,5 @@
 'use strict'
-const createResolveFromNpm = require('@pnpm/npm-resolver').default
+const createResolveFromNpm = require('@pnpm/resolving.npm-resolver').default
 
 const resolveFromNpm = createResolveFromNpm({
   storeDir: '.store',

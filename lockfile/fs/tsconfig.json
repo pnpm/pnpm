@@ -10,25 +10,25 @@
   ],
   "references": [
     {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../deps/path"
+    },
+    {
+      "path": "../../network/git-utils"
+    },
+    {
       "path": "../../object/key-sorting"
-    },
-    {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/dependency-path"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/git-utils"
-    },
-    {
-      "path": "../../packages/logger"
-    },
-    {
-      "path": "../../packages/types"
     },
     {
       "path": "../merger"

@@ -48,6 +48,8 @@ RELEASE.md
 .turbo
 .eslintcache
 .claude
+.local-settings
+.pnpm-typecheck.json
 
 ## custom modules-dir fixture
 __fixtures__/custom-modules-dir/**/fake_modules/

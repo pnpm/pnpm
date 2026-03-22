@@ -1,19 +1,16 @@
-import fs from 'fs'
+import fs from 'node:fs'
+
 import { prepare } from '@pnpm/prepare'
+
 import { execPnpmSync } from '../utils/index.js'
 
 test('pnpm --filter <root> add <pkg> should work', async () => {
   prepare({
     name: 'root',
     version: '1.0.0',
-    pnpm: {
-      overrides: {
-        'is-positive': '1.0.0',
-      },
-    },
   })
 
-  fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - "."\n')
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - "."\noverrides:\n  is-positive: "1.0.0"\n')
 
   const result = execPnpmSync(['--filter', 'root', 'add', 'is-positive'])
   if (result.status !== 0) {

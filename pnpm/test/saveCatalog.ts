@@ -1,10 +1,11 @@
-import { type LockfileFile } from '@pnpm/lockfile.types'
+import type { LockfileFile } from '@pnpm/lockfile.types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import { type ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
-import { sync as readYamlFile } from 'read-yaml-file'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { readYamlFileSync } from 'read-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpm } from './utils/index.js'
 
 test('--save-catalog adds catalogs to the manifest of a single package workspace', async () => {
@@ -19,7 +20,7 @@ test('--save-catalog adds catalogs to the manifest of a single package workspace
 
   prepare(manifest)
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     catalog: {
       '@pnpm.e2e/bar': '^100.1.0',
     },
@@ -29,7 +30,7 @@ test('--save-catalog adds catalogs to the manifest of a single package workspace
   await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
 
   await execPnpm(['install'])
-  expect(readYamlFile('pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
+  expect(readYamlFileSync('pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
     catalogs: {
       default: {
         '@pnpm.e2e/bar': {
@@ -54,7 +55,7 @@ test('--save-catalog adds catalogs to the manifest of a single package workspace
   } as Partial<LockfileFile>))
 
   await execPnpm(['add', '--save-catalog', '@pnpm.e2e/foo'])
-  expect(readYamlFile('pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
+  expect(readYamlFileSync('pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
     catalogs: {
       default: {
         '@pnpm.e2e/bar': {
@@ -86,7 +87,7 @@ test('--save-catalog adds catalogs to the manifest of a single package workspace
       '@pnpm.e2e/foo@100.1.0': expect.anything(),
     },
   } as Partial<LockfileFile>))
-  expect(readYamlFile('pnpm-workspace.yaml')).toStrictEqual({
+  expect(readYamlFileSync('pnpm-workspace.yaml')).toStrictEqual({
     catalog: {
       '@pnpm.e2e/bar': '^100.1.0',
       '@pnpm.e2e/foo': '^100.1.0',
@@ -118,7 +119,7 @@ test('--save-catalog adds catalogs to the manifest of a shared lockfile workspac
 
   preparePackages(manifests)
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     sharedWorkspaceLockfile: true,
     catalog: {
       '@pnpm.e2e/bar': '^100.1.0',
@@ -130,7 +131,7 @@ test('--save-catalog adds catalogs to the manifest of a shared lockfile workspac
   await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
 
   await execPnpm(['install'])
-  expect(readYamlFile('pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
+  expect(readYamlFileSync('pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
     catalogs: {
       default: {
         '@pnpm.e2e/bar': {
@@ -156,7 +157,7 @@ test('--save-catalog adds catalogs to the manifest of a shared lockfile workspac
   } as Partial<LockfileFile>))
 
   await execPnpm(['--filter=project-1', 'add', '--save-catalog', '@pnpm.e2e/foo'])
-  expect(readYamlFile('pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
+  expect(readYamlFileSync('pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
     catalogs: {
       default: {
         '@pnpm.e2e/bar': {
@@ -192,7 +193,7 @@ test('--save-catalog adds catalogs to the manifest of a shared lockfile workspac
       '@pnpm.e2e/foo@100.1.0': expect.anything(),
     },
   } as Partial<LockfileFile>))
-  expect(readYamlFile('pnpm-workspace.yaml')).toStrictEqual({
+  expect(readYamlFileSync('pnpm-workspace.yaml')).toStrictEqual({
     catalog: {
       '@pnpm.e2e/bar': '^100.1.0',
       '@pnpm.e2e/foo': '^100.1.0',
@@ -225,7 +226,7 @@ test('--save-catalog adds catalogs to the manifest of a multi-lockfile workspace
 
   preparePackages(manifests)
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     sharedWorkspaceLockfile: false,
     catalog: {
       '@pnpm.e2e/bar': '^100.1.0',
@@ -239,7 +240,7 @@ test('--save-catalog adds catalogs to the manifest of a multi-lockfile workspace
   {
     await execPnpm(['install'])
 
-    const lockfile0: LockfileFile = readYamlFile('project-0/pnpm-lock.yaml')
+    const lockfile0: LockfileFile = readYamlFileSync('project-0/pnpm-lock.yaml')
     expect(lockfile0.catalogs).toStrictEqual({
       default: {
         '@pnpm.e2e/bar': {
@@ -259,7 +260,7 @@ test('--save-catalog adds catalogs to the manifest of a multi-lockfile workspace
       },
     } as LockfileFile['importers'])
 
-    const lockfile1: LockfileFile = readYamlFile('project-1/pnpm-lock.yaml')
+    const lockfile1: LockfileFile = readYamlFileSync('project-1/pnpm-lock.yaml')
     expect(lockfile1.catalogs).toBeUndefined()
     expect(lockfile1.importers).toStrictEqual({
       '.': {},
@@ -269,7 +270,7 @@ test('--save-catalog adds catalogs to the manifest of a multi-lockfile workspace
   {
     await execPnpm(['--filter=project-1', 'add', '--save-catalog', '@pnpm.e2e/foo'])
 
-    const lockfile0: LockfileFile = readYamlFile('project-0/pnpm-lock.yaml')
+    const lockfile0: LockfileFile = readYamlFileSync('project-0/pnpm-lock.yaml')
     expect(lockfile0.catalogs).toStrictEqual({
       default: {
         '@pnpm.e2e/bar': {
@@ -289,7 +290,7 @@ test('--save-catalog adds catalogs to the manifest of a multi-lockfile workspace
       },
     } as LockfileFile['importers'])
 
-    const lockfile1: LockfileFile = readYamlFile('project-1/pnpm-lock.yaml')
+    const lockfile1: LockfileFile = readYamlFileSync('project-1/pnpm-lock.yaml')
     expect(lockfile1.catalogs).toStrictEqual({
       default: {
         '@pnpm.e2e/foo': {
@@ -309,7 +310,7 @@ test('--save-catalog adds catalogs to the manifest of a multi-lockfile workspace
       },
     } as LockfileFile['importers'])
 
-    expect(readYamlFile('pnpm-workspace.yaml')).toStrictEqual({
+    expect(readYamlFileSync('pnpm-workspace.yaml')).toStrictEqual({
       catalog: {
         '@pnpm.e2e/bar': '^100.1.0',
         '@pnpm.e2e/foo': '^100.1.0',
@@ -342,14 +343,14 @@ test('--save-catalog does not add local workspace dependency as a catalog', asyn
 
   preparePackages(manifests)
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['project-0', 'project-1'],
   })
 
   {
     await execPnpm(['install'])
 
-    const lockfile: LockfileFile = readYamlFile('pnpm-lock.yaml')
+    const lockfile: LockfileFile = readYamlFileSync('pnpm-lock.yaml')
     expect(lockfile.catalogs).toBeUndefined()
     expect(lockfile.importers).toStrictEqual({
       'project-0': {},
@@ -360,7 +361,7 @@ test('--save-catalog does not add local workspace dependency as a catalog', asyn
   {
     await execPnpm(['--filter=project-1', 'add', '--save-catalog', 'project-0@workspace:*'])
 
-    const lockfile: LockfileFile = readYamlFile('pnpm-lock.yaml')
+    const lockfile: LockfileFile = readYamlFileSync('pnpm-lock.yaml')
     expect(lockfile.catalogs).toBeUndefined()
     expect(lockfile.importers).toStrictEqual({
       'project-0': {},
@@ -374,7 +375,7 @@ test('--save-catalog does not add local workspace dependency as a catalog', asyn
       },
     })
 
-    expect(readYamlFile('pnpm-workspace.yaml')).toStrictEqual({
+    expect(readYamlFileSync('pnpm-workspace.yaml')).toStrictEqual({
       packages: ['project-0', 'project-1'],
     })
 
@@ -399,7 +400,7 @@ test('--save-catalog does not affect new dependencies from package.json', async 
 
   const project = prepare(manifest)
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     catalog: {
       '@pnpm.e2e/pkg-a': '1.0.0',
     },
@@ -500,7 +501,7 @@ test('--save-catalog does not overwrite existing catalogs', async () => {
 
   preparePackages(manifests)
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     catalog: {
       '@pnpm.e2e/bar': '=100.0.0', // intentionally outdated
     },
@@ -511,7 +512,7 @@ test('--save-catalog does not overwrite existing catalogs', async () => {
   await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
 
   await execPnpm(['install'])
-  expect(readYamlFile('pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
+  expect(readYamlFileSync('pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
     catalogs: {
       default: {
         '@pnpm.e2e/bar': {
@@ -534,7 +535,7 @@ test('--save-catalog does not overwrite existing catalogs', async () => {
   } as Partial<LockfileFile>))
 
   await execPnpm(['add', '--filter=project-1', '--save-catalog', '@pnpm.e2e/foo@100.1.0', '@pnpm.e2e/bar@100.1.0'])
-  expect(readYamlFile('pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
+  expect(readYamlFileSync('pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
     catalogs: {
       default: {
         '@pnpm.e2e/bar': {
@@ -570,7 +571,7 @@ test('--save-catalog does not overwrite existing catalogs', async () => {
       },
     },
   } as Partial<LockfileFile>))
-  expect(readYamlFile('pnpm-workspace.yaml')).toStrictEqual({
+  expect(readYamlFileSync('pnpm-workspace.yaml')).toStrictEqual({
     catalog: {
       '@pnpm.e2e/bar': '=100.0.0', // unchanged
       '@pnpm.e2e/foo': '100.1.0', // created by `pnpm add --save-catalog`
@@ -604,7 +605,7 @@ test('--save-catalog creates new workspace manifest with the new catalog (recurs
 
   await execPnpm(['add', '--recursive', '--save-catalog', '@pnpm.e2e/foo@100.1.0'])
 
-  expect(readYamlFile('project-0/pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
+  expect(readYamlFileSync('project-0/pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
     catalogs: {
       default: {
         '@pnpm.e2e/foo': {
@@ -624,7 +625,7 @@ test('--save-catalog creates new workspace manifest with the new catalog (recurs
       },
     },
   } as Partial<LockfileFile>))
-  expect(readYamlFile('project-1/pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
+  expect(readYamlFileSync('project-1/pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
     catalogs: {
       default: {
         '@pnpm.e2e/foo': {
@@ -645,7 +646,7 @@ test('--save-catalog creates new workspace manifest with the new catalog (recurs
     },
   } as Partial<LockfileFile>))
 
-  expect(readYamlFile('pnpm-workspace.yaml')).toStrictEqual({
+  expect(readYamlFileSync('pnpm-workspace.yaml')).toStrictEqual({
     catalog: {
       '@pnpm.e2e/foo': '100.1.0',
     },
@@ -679,7 +680,7 @@ test('--save-catalog-name', async () => {
 
   prepare(manifest)
 
-  writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFileSync('pnpm-workspace.yaml', {
     catalog: {
       '@pnpm.e2e/bar': '^100.1.0',
     },
@@ -689,7 +690,7 @@ test('--save-catalog-name', async () => {
   await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
 
   await execPnpm(['install'])
-  expect(readYamlFile('pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
+  expect(readYamlFileSync('pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
     catalogs: {
       default: {
         '@pnpm.e2e/bar': {
@@ -714,7 +715,7 @@ test('--save-catalog-name', async () => {
   } as Partial<LockfileFile>))
 
   await execPnpm(['add', '--save-catalog-name=my-catalog', '@pnpm.e2e/foo'])
-  expect(readYamlFile('pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
+  expect(readYamlFileSync('pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
     catalogs: {
       default: {
         '@pnpm.e2e/bar': {
@@ -748,7 +749,7 @@ test('--save-catalog-name', async () => {
       '@pnpm.e2e/foo@100.1.0': expect.anything(),
     },
   } as Partial<LockfileFile>))
-  expect(readYamlFile('pnpm-workspace.yaml')).toStrictEqual({
+  expect(readYamlFileSync('pnpm-workspace.yaml')).toStrictEqual({
     catalog: {
       '@pnpm.e2e/bar': '^100.1.0',
     },

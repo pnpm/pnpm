@@ -1,0 +1,49 @@
+{
+  "name": "@pnpm/installing.render-peer-issues",
+  "version": "1002.0.5",
+  "description": "Visualizes peer dependency issues",
+  "keywords": [
+    "pnpm",
+    "pnpm11"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/installing/render-peer-issues",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/installing/render-peer-issues#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "test": "pnpm run compile && pnpm run .test",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsgo --build && pnpm run lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/error": "workspace:*",
+    "@pnpm/text.tree-renderer": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "chalk": "catalog:",
+    "cli-columns": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm/installing.render-peer-issues": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

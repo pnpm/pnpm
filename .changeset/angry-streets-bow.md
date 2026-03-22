@@ -1,10 +1,10 @@
 ---
-"@pnpm/resolve-dependencies": major
-"@pnpm/dependency-path": major
-"@pnpm/calc-dep-state": major
-"@pnpm/headless": major
+"@pnpm/installing.deps-resolver": major
+"@pnpm/deps.path": major
+"@pnpm/deps.graph-hasher": major
+"@pnpm/installing.deps-restorer": major
 "@pnpm/deps.graph-builder": major
-"@pnpm/core": major
+"@pnpm/installing.deps-installer": major
 "pnpm": major
 ---
 

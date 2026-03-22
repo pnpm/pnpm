@@ -1,0 +1,105 @@
+import { type Dirent, promises as fs } from 'node:fs'
+import path from 'node:path'
+import util from 'node:util'
+
+import { globalInfo, globalWarn } from '@pnpm/logger'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
+import type { StoreIndex } from '@pnpm/store.index'
+import { rimraf } from '@zkochan/rimraf'
+import prettyBytes from 'pretty-bytes'
+
+import { pruneGlobalVirtualStore } from './pruneGlobalVirtualStore.js'
+
+const BIG_ONE = BigInt(1) as unknown
+
+export interface PruneOptions {
+  cacheDir: string
+  storeDir: string
+  storeIndex: StoreIndex
+}
+
+export async function prune ({ cacheDir, storeDir, storeIndex }: PruneOptions, removeAlienFiles?: boolean): Promise<void> {
+  // 1. First, prune the global virtual store
+  // This must happen BEFORE pruning the CAS, because removing packages from
+  // the virtual store will reduce hard link counts on files in the CAS
+  await pruneGlobalVirtualStore(storeDir)
+
+  // 2. Clean up metadata cache
+  const metadataDirs = await getSubdirsSafely(cacheDir)
+  await Promise.all(metadataDirs.map(async (metadataDir) => {
+    if (!metadataDir.startsWith('metadata')) return
+    try {
+      await rimraf(path.join(cacheDir, metadataDir))
+    } catch (err: unknown) {
+      if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
+        throw err
+      }
+    }
+  }))
+  await rimraf(path.join(storeDir, 'tmp'))
+  globalInfo('Removed all cached metadata files')
+
+  // 3. Prune the content-addressable store (CAS)
+  const cafsDir = path.join(storeDir, 'files')
+  const removedHashes = new Set<string>()
+  const dirs = await getSubdirsSafely(cafsDir)
+  let fileCounter = 0
+  let totalSize = 0
+  await Promise.all(dirs.map(async (dir) => {
+    const subdir = path.join(cafsDir, dir)
+    await Promise.all((await fs.readdir(subdir)).map(async (fileName) => {
+      const filePath = path.join(subdir, fileName)
+      const stat = await fs.stat(filePath)
+      if (stat.isDirectory()) {
+        if (removeAlienFiles) {
+          await rimraf(filePath)
+          globalWarn(`An alien directory has been removed from the store: ${filePath}`)
+          fileCounter++
+          return
+        } else {
+          globalWarn(`An alien directory is present in the store: ${filePath}`)
+          return
+        }
+      }
+      if (stat.nlink === 1 || stat.nlink === BIG_ONE) {
+        totalSize += stat.size
+        await fs.unlink(filePath)
+        fileCounter++
+        // Store the hex digest, which matches the format stored in PackageFileInfo.digest
+        // The file name in the store is the hex representation of the hash (with optional -exec suffix)
+        removedHashes.add(`${dir}${fileName.replace(/-exec$/, '')}`)
+      }
+    }))
+  }))
+  globalInfo(`Removed ${fileCounter} file${fileCounter === 1 ? '' : 's'} (${prettyBytes(totalSize)})`)
+
+  // 4. Clean up orphaned package index entries
+  let pkgCounter = 0
+  const toDelete: string[] = []
+  for (const [filesIndexFile, data] of storeIndex.entries()) {
+    const pkgFilesIndex = data as PackageFilesIndex
+    const pkgJson = pkgFilesIndex.files.get('package.json')
+    // TODO: implement prune of Node.js packages, they don't have a package.json file
+    if (pkgJson && removedHashes.has(pkgJson.digest)) {
+      toDelete.push(filesIndexFile)
+      pkgCounter++
+    }
+  }
+  storeIndex.deleteMany(toDelete)
+  globalInfo(`Removed ${pkgCounter} package${pkgCounter === 1 ? '' : 's'}`)
+}
+
+async function getSubdirsSafely (dir: string): Promise<string[]> {
+  let entries: Dirent[]
+  try {
+    entries = await fs.readdir(dir, { withFileTypes: true }) as Dirent[]
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return []
+    }
+    throw err
+  }
+  return entries
+    .filter(entry => entry.isDirectory())
+    .map(dir => dir.name)
+}

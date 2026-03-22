@@ -1,5 +1,5 @@
 ---
-"@pnpm/plugin-commands-publishing": patch
+"@pnpm/releasing.commands": patch
 "pnpm": patch
 ---
 

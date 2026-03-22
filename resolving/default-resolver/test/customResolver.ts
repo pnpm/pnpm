@@ -1,7 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import { jest } from '@jest/globals'
-import { createResolver } from '@pnpm/default-resolver'
-import { type WantedDependency, type CustomResolver } from '@pnpm/hooks.types'
+import type { CustomResolver, WantedDependency } from '@pnpm/hooks.types'
+import { createResolver } from '@pnpm/resolving.default-resolver'
 import { Response } from 'node-fetch'
 
 test('custom resolver intercepts matching packages', async () => {

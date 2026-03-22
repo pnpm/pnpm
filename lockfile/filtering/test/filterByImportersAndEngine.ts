@@ -1,6 +1,6 @@
-import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { type DepPath, type ProjectId } from '@pnpm/types'
 import { jest } from '@jest/globals'
+import { LOCKFILE_VERSION } from '@pnpm/constants'
+import type { DepPath, ProjectId } from '@pnpm/types'
 
 const REGIONAL_ARCH = Object.assign({}, process.arch)
 const REGIONAL_CPU = Object.assign({}, process.platform)

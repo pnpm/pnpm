@@ -1,9 +1,11 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { type ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 import { loadWorkspaceState } from '@pnpm/workspace.state'
-import { sync as writeYamlFile } from 'write-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
+
 import { execPnpm, execPnpmSync } from '../utils/index.js'
 
 const CONFIG = ['--config.verify-deps-before-run=error'] as const
@@ -129,7 +131,7 @@ test('multi-project workspace', async () => {
     manifests.bar,
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   const EXEC = ['exec', 'node', '--print', '"hello from exec: " + process.cwd()'] as const
 

@@ -1,5 +1,6 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { type ProjectId } from '@pnpm/types'
+import type { ProjectId } from '@pnpm/types'
+
 import { convertToLockfileFile } from '../lib/lockfileFormatConverters.js'
 
 test('empty overrides and neverBuiltDependencies are removed during lockfile normalization', () => {
@@ -56,10 +57,10 @@ test('redundant fields are removed from "time"', () => {
       },
     },
     time: {
-      '/bar@1.0.0': '2021-02-11T22:54:29.120Z',
-      '/foo@1.0.0': '2021-02-11T22:54:29.120Z',
-      '/qar@1.0.0': '2021-02-11T22:54:29.120Z',
-      '/zoo@1.0.0': '2021-02-11T22:54:29.120Z',
+      'bar@1.0.0': '2021-02-11T22:54:29.120Z',
+      'foo@1.0.0': '2021-02-11T22:54:29.120Z',
+      'qar@1.0.0': '2021-02-11T22:54:29.120Z',
+      'zoo@1.0.0': '2021-02-11T22:54:29.120Z',
     },
   })).toStrictEqual({
     lockfileVersion: LOCKFILE_VERSION,
@@ -86,9 +87,9 @@ test('redundant fields are removed from "time"', () => {
       },
     },
     time: {
-      '/bar@1.0.0': '2021-02-11T22:54:29.120Z',
-      '/foo@1.0.0': '2021-02-11T22:54:29.120Z',
-      '/qar@1.0.0': '2021-02-11T22:54:29.120Z',
+      'bar@1.0.0': '2021-02-11T22:54:29.120Z',
+      'foo@1.0.0': '2021-02-11T22:54:29.120Z',
+      'qar@1.0.0': '2021-02-11T22:54:29.120Z',
     },
   })
 })

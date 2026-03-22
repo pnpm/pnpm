@@ -1,7 +1,7 @@
 ---
 "@pnpm/deps.graph-builder": patch
-"@pnpm/headless": patch
-"@pnpm/core": patch
+"@pnpm/installing.deps-restorer": patch
+"@pnpm/installing.deps-installer": patch
 ---
 
 Fixed injected local packages to work correctly with the global virtual store [#10366](https://github.com/pnpm/pnpm/pull/10366).

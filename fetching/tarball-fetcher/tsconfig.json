@@ -13,6 +13,18 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
+      "path": "../../core/core-loggers"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../exec/prepare-package"
     },
     {
@@ -25,31 +37,22 @@
       "path": "../../network/fetch"
     },
     {
-      "path": "../../network/fetching-types"
-    },
-    {
-      "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/logger"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
       "path": "../../store/cafs-types"
     },
     {
       "path": "../../store/create-cafs-store"
     },
     {
+      "path": "../../store/index"
+    },
+    {
       "path": "../../worker"
     },
     {
       "path": "../fetcher-base"
+    },
+    {
+      "path": "../types"
     }
   ]
 }

@@ -1,7 +1,7 @@
 ---
-"@pnpm/npm-resolver": patch
-"@pnpm/fetching-types": patch
-"@pnpm/package-requester": patch
+"@pnpm/resolving.npm-resolver": patch
+"@pnpm/fetching.types": patch
+"@pnpm/installing.package-requester": patch
 "pnpm": patch
 ---
 

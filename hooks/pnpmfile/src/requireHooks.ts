@@ -1,13 +1,14 @@
-import type { PreResolutionHookContext, PreResolutionHookLogger, CustomResolver, CustomFetcher } from '@pnpm/hooks.types'
-import { PnpmError } from '@pnpm/error'
 import { hookLogger } from '@pnpm/core-loggers'
 import { createHashFromMultipleFiles } from '@pnpm/crypto.hash'
-import pathAbsolute from 'path-absolute'
-import { type ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
-import { type ReadPackageHook, type BeforePackingHook, type BaseManifest } from '@pnpm/types'
-import { type LockfileObject } from '@pnpm/lockfile.types'
-import { requirePnpmfile, type Pnpmfile, type Finders } from './requirePnpmfile.js'
-import { type Hooks, type HookContext } from './Hooks.js'
+import { PnpmError } from '@pnpm/error'
+import type { CustomFetcher, CustomResolver, PreResolutionHookContext, PreResolutionHookLogger } from '@pnpm/hooks.types'
+import type { LockfileObject } from '@pnpm/lockfile.types'
+import type { ImportIndexedPackageAsync } from '@pnpm/store.controller-types'
+import type { BaseManifest, BeforePackingHook, ReadPackageHook } from '@pnpm/types'
+import { pathAbsolute } from 'path-absolute'
+
+import type { HookContext, Hooks } from './Hooks.js'
+import { type Finders, type Pnpmfile, requirePnpmfile } from './requirePnpmfile.js'
 
 // eslint-disable-next-line
 type Cook<T extends (...args: any[]) => any> = (
@@ -65,12 +66,29 @@ export async function requireHooks (
       includeInChecksum: false,
     })
   }
+  const entries: PnpmfileEntryLoaded[] = []
+  const loadedFiles: string[] = []
   if (opts.tryLoadDefaultPnpmfile) {
-    pnpmfiles.push({
-      path: '.pnpmfile.cjs',
-      includeInChecksum: true,
-      optional: true,
-    })
+    // Prefer .pnpmfile.mjs over .pnpmfile.cjs. Only load one.
+    const mjsPath = pathAbsolute('.pnpmfile.mjs', prefix)
+    const mjsResult = await requirePnpmfile(mjsPath, prefix)
+    if (mjsResult != null) {
+      loadedFiles.push(mjsPath)
+      entries.push({
+        file: mjsPath,
+        includeInChecksum: true,
+        hooks: mjsResult.pnpmfileModule?.hooks,
+        finders: mjsResult.pnpmfileModule?.finders,
+        resolvers: mjsResult.pnpmfileModule?.resolvers,
+        fetchers: mjsResult.pnpmfileModule?.fetchers,
+      })
+    } else {
+      pnpmfiles.push({
+        path: '.pnpmfile.cjs',
+        includeInChecksum: true,
+        optional: true,
+      })
+    }
   }
   if (opts.pnpmfiles) {
     for (const pnpmfile of opts.pnpmfiles) {
@@ -80,8 +98,6 @@ export async function requireHooks (
       })
     }
   }
-  const entries: PnpmfileEntryLoaded[] = []
-  const loadedFiles: string[] = []
   await Promise.all(pnpmfiles.map(async ({ path, includeInChecksum, optional }) => {
     const file = pathAbsolute(path, prefix)
     if (!loadedFiles.includes(file)) {

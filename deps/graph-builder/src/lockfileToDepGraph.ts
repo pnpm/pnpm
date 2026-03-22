@@ -1,34 +1,37 @@
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   progressLogger,
 } from '@pnpm/core-loggers'
-import { type LockfileResolution, type LockfileObject } from '@pnpm/lockfile.fs'
+import * as dp from '@pnpm/deps.path'
+import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
+import type { LockfileObject, LockfileResolution } from '@pnpm/lockfile.fs'
 import {
   packageIdFromSnapshot,
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
-import { type IncludedDependencies } from '@pnpm/modules-yaml'
-import { packageIsInstallable } from '@pnpm/package-is-installable'
-import { type PatchGroupRecord, getPatchInfo } from '@pnpm/patching.config'
-import { type PatchInfo } from '@pnpm/patching.types'
-import {
-  type DepPath,
-  type SupportedArchitectures,
-  type Registries,
-  type PkgIdWithPatchHash,
-  type ProjectId,
-  type AllowBuild,
+import { getPatchInfo, type PatchGroupRecord } from '@pnpm/patching.config'
+import type { PatchInfo } from '@pnpm/patching.types'
+import type {
+  FetchResponse,
+  PkgRequestFetchResult,
+  StoreController,
+} from '@pnpm/store.controller-types'
+import type {
+  AllowBuild,
+  DepPath,
+  PkgIdWithPatchHash,
+  ProjectId,
+  Registries,
+  SupportedArchitectures,
 } from '@pnpm/types'
-import {
-  type PkgRequestFetchResult,
-  type FetchResponse,
-  type StoreController,
-} from '@pnpm/store-controller-types'
-import * as dp from '@pnpm/dependency-path'
 import { pathExists } from 'path-exists'
 import { equals, isEmpty } from 'ramda'
+
 import { iteratePkgsForVirtualStore } from './iteratePkgsForVirtualStore.js'
 
 const brokenModulesLogger = logger('_broken_node_modules')
@@ -171,10 +174,10 @@ async function buildGraphFromPackages (
   currentLockfile: LockfileObject | null,
   opts: LockfileToDepGraphOptions
 ): Promise<{
-    graph: DependenciesGraph
-    locationByDepPath: Record<string, string>
-    injectionTargetsByDepPath: Map<string, string[]>
-  }> {
+  graph: DependenciesGraph
+  locationByDepPath: Record<string, string>
+  injectionTargetsByDepPath: Map<string, string[]>
+}> {
   const currentPackages = currentLockfile?.packages ?? {}
   const graph: DependenciesGraph = {}
   const locationByDepPath: Record<string, string> = {}
@@ -234,6 +237,12 @@ async function buildGraphFromPackages (
         injectionTargetsByDepPath.set(depPath, [dir])
       }
 
+      // In GVS mode, packages that are allowed to build may have a .pnpm-needs-build
+      // marker indicating a previous build failed or was interrupted. When the
+      // marker is present, skip the fast path to force a re-fetch/re-import/re-build.
+      const mightNeedBuild = opts.enableGlobalVirtualStore &&
+        opts.allowBuild?.(pkgName, pkgVersion) === true
+
       let dirExists: boolean | undefined
       if (
         depIsPresent &&
@@ -243,16 +252,30 @@ async function buildGraphFromPackages (
         !opts.includeUnchangedDeps
       ) {
         dirExists = await pathExists(dir)
-        if (dirExists) return
-        brokenModulesLogger.debug({ missing: dir })
+        if (dirExists) {
+          if (!(mightNeedBuild && fs.existsSync(path.join(dir, '.pnpm-needs-build')))) return
+        } else {
+          brokenModulesLogger.debug({ missing: dir })
+        }
       }
 
       let fetchResponse!: Partial<FetchResponse>
       if (depIsPresent && depIntegrityIsUnchanged && equals(currentPackages[depPath].optionalDependencies, pkgSnapshot.optionalDependencies)) {
         if (dirExists ?? await pathExists(dir)) {
-          fetchResponse = {}
+          if (!(mightNeedBuild && fs.existsSync(path.join(dir, '.pnpm-needs-build')))) {
+            fetchResponse = {}
+          }
         } else {
           brokenModulesLogger.debug({ missing: dir })
+        }
+      }
+
+      if (!fetchResponse && opts.enableGlobalVirtualStore && !isDirectoryDep
+        && !opts.force) {
+        if (dirExists ?? await pathExists(dir)) {
+          if (!(mightNeedBuild && fs.existsSync(path.join(dir, '.pnpm-needs-build')))) {
+            fetchResponse = {}
+          }
         }
       }
 

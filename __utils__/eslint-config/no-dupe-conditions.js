@@ -15,7 +15,7 @@ export default {
 						extractConditions(conditionNode.left);
 						extractConditions(conditionNode.right);
 					} else {
-						conditions.push(context.getSourceCode().getText(conditionNode));
+						conditions.push(context.sourceCode.getText(conditionNode));
 					}
 				}
 

@@ -1,0 +1,109 @@
+{
+  "name": "@pnpm/installing.deps-restorer",
+  "version": "1006.0.0",
+  "description": "Fast installation using only pnpm-lock.yaml",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "install",
+    "installer"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/installing/deps-restorer",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/installing/deps-restorer#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "start": "tsgo --watch",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pnpm run compile && pnpm run .test",
+    "prepublishOnly": "pnpm run compile",
+    "runPrepareFixtures": "node ../../pnpm/bin/pnpm.mjs i -r -C test/fixtures --no-shared-workspace-lockfile --no-link-workspace-packages --lockfile-only --registry http://localhost:4873/ --ignore-scripts --force --no-strict-peer-dependencies",
+    "prepareFixtures": "git clean -fdx test/fixtures && rm -rf \"test/fixtures/*/pnpm-lock.yaml\" && registry-mock prepare && concurrently --success=first --kill-others registry-mock \"pnpm run runPrepareFixtures\"",
+    "compile": "tsgo --build && pnpm run lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/bins.linker": "workspace:*",
+    "@pnpm/building.during-install": "workspace:*",
+    "@pnpm/building.policy": "workspace:*",
+    "@pnpm/config.package-is-installable": "workspace:*",
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/deps.graph-builder": "workspace:*",
+    "@pnpm/deps.graph-hasher": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/exec.lifecycle": "workspace:*",
+    "@pnpm/fs.symlink-dependency": "workspace:*",
+    "@pnpm/installing.linking.direct-dep-linker": "workspace:*",
+    "@pnpm/installing.linking.hoist": "workspace:*",
+    "@pnpm/installing.linking.modules-cleaner": "workspace:*",
+    "@pnpm/installing.linking.real-hoist": "workspace:*",
+    "@pnpm/installing.modules-yaml": "workspace:*",
+    "@pnpm/installing.package-requester": "workspace:*",
+    "@pnpm/lockfile.filtering": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.to-pnp": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
+    "@pnpm/patching.config": "workspace:*",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
+    "@pnpm/store.controller-types": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
+    "@zkochan/rimraf": "catalog:",
+    "p-limit": "catalog:",
+    "path-absolute": "catalog:",
+    "path-exists": "catalog:",
+    "ramda": "catalog:",
+    "realpath-missing": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:",
+    "@pnpm/worker": "workspace:^"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/assert-project": "workspace:*",
+    "@pnpm/crypto.object-hasher": "workspace:*",
+    "@pnpm/installing.deps-restorer": "workspace:*",
+    "@pnpm/installing.read-projects-context": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/registry-mock": "catalog:",
+    "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.index": "workspace:*",
+    "@pnpm/store.path": "workspace:*",
+    "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/test-ipc-server": "workspace:*",
+    "@pnpm/testing.temp-store": "workspace:*",
+    "@types/fs-extra": "catalog:",
+    "@types/ramda": "catalog:",
+    "concurrently": "catalog:",
+    "isexe": "catalog:",
+    "load-json-file": "catalog:",
+    "tempy": "catalog:",
+    "write-json-file": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config/with-registry"
+  }
+}

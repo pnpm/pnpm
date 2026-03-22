@@ -14,11 +14,11 @@
     "test-all": "pnpm pretest && pnpm lint && pnpm run test-pkgs-all",
     "ci:test-all": "pnpm run prepare-fixtures && pnpm run test-pkgs-all",
     "remove-temp-dir": "shx rm -rf ../pnpm_tmp",
-    "test-pkgs-all": "pnpm remove-temp-dir && pnpm run --no-sort --workspace-concurrency=1 -r _test",
+    "test-pkgs-all": "pnpm remove-temp-dir && pnpm run --no-sort --workspace-concurrency=1 -r .test",
     "test-branch": "pnpm pretest && pnpm lint && git remote set-branches --add origin main && git fetch origin main && pnpm run test-pkgs-branch",
     "ci:test-branch": "pnpm run prepare-fixtures && pnpm run test-pkgs-branch",
-    "test-pkgs-branch": "pnpm remove-temp-dir && pnpm --workspace-concurrency=1 --filter=...[origin/main] run --no-sort --if-present _test",
-    "compile-only": "pnpm dlx node@runtime:24.6.0 __utils__/scripts/src/typecheck-only.ts && pnpm -F pnpm compile",
+    "test-pkgs-branch": "pnpm remove-temp-dir && pnpm --workspace-concurrency=1 --filter=...[origin/main] run --no-sort --if-present .test",
+    "compile-only": "tsgo --build workspace/workspace-manifest-reader workspace/projects-reader && pnpm dlx node@runtime:24.6.0 __utils__/scripts/src/typecheck-only.ts && pnpm -F pnpm compile",
     "compile": "pnpm compile-only && pnpm run update-manifests",
     "make-lcov": "shx mkdir -p coverage && lcov-result-merger './packages/*/coverage/lcov.info' 'coverage/lcov.info'",
     "update-manifests": "pnpm run meta-updater && pnpm install",
@@ -26,8 +26,9 @@
     "lint:meta": "pnpm run meta-updater --test",
     "copy-artifacts": "node __utils__/scripts/src/copy-artifacts.ts",
     "make-release-description": "pnpm --filter=@pnpm/get-release-text run write-release-text",
-    "release": "pnpm --filter=@pnpm/exe publish --tag=next-11 --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=next-11 --access=public",
-    "dev-setup": "pnpm -C=./pnpm/dev link -g"
+    "release": "pnpm --filter=@pnpm/exe publish --tag=next-11 --access=public --provenance && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public --provenance && pnpm publish --filter=pnpm --tag=next-11 --access=public --provenance",
+    "dev-setup": "pnpm -C=./pnpm/dev link -g",
+    "worktree:new": "node __utils__/scripts/src/worktree-new.ts"
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",
@@ -61,5 +62,5 @@
   "engines": {
     "pnpm": ">=9.6.0"
   },
-  "packageManager": "pnpm@11.0.0-alpha.5"
+  "packageManager": "pnpm@11.0.0-beta.2"
 }

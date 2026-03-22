@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/local-resolver",
+  "name": "@pnpm/resolving.local-resolver",
   "version": "1002.1.4",
   "description": "Resolver for local packages",
   "keywords": [
@@ -27,18 +27,18 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
-    "test": "pnpm run compile && pnpm run _test",
+    "test": "pnpm run compile && pnpm run .test",
     "prepublishOnly": "pnpm run compile",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pnpm run lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/read-project-manifest": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "normalize-path": "catalog:"
   },
   "peerDependencies": {
@@ -46,8 +46,8 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/local-resolver": "workspace:*",
     "@pnpm/logger": "workspace:*",
+    "@pnpm/resolving.local-resolver": "workspace:*",
     "@types/normalize-path": "catalog:"
   },
   "engines": {

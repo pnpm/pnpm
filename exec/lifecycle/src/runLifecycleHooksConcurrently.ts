@@ -1,12 +1,14 @@
-import fs from 'fs'
-import { linkBins } from '@pnpm/link-bins'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { linkBins } from '@pnpm/bins.linker'
+import { fetchFromDir } from '@pnpm/fetching.directory-fetcher'
 import { logger } from '@pnpm/logger'
-import path from 'path'
-import { fetchFromDir } from '@pnpm/directory-fetcher'
-import { type FilesMap } from '@pnpm/cafs-types'
-import { type StoreController } from '@pnpm/store-controller-types'
-import { type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
+import type { FilesMap } from '@pnpm/store.cafs-types'
+import type { StoreController } from '@pnpm/store.controller-types'
+import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { runGroups } from 'run-groups'
+
 import { runLifecycleHook, type RunLifecycleHookOptions } from './runLifecycleHook.js'
 
 export type RunLifecycleHooksConcurrentlyOptions = Omit<RunLifecycleHookOptions,
