@@ -141,18 +141,16 @@ function renderPeerIssuesFlat (issuesByProjects: PeerDependencyIssuesByProjects)
 
   for (const [, { bad, missing, intersections }] of Object.entries(issuesByProjects)) {
     for (const [peerName, issues] of Object.entries(bad)) {
-      const wantedRange = issues[0].wantedRange
       const foundVersion = issues[0].foundVersion
-      const header = `${chalk.yellowBright('✕ unmet peer')} ${chalk.bold(formatRange(peerName, wantedRange))} ${chalk.dim(`(found ${foundVersion})`)}`
-      const lines = formatRequiredBy(issues.map((i) => i.parents))
+      const header = `${chalk.yellowBright('✕ unmet peer')} ${chalk.bold(peerName)} ${chalk.dim(`(found ${foundVersion})`)}`
+      const lines = formatRequiredBy(issues)
       sections.push(`${header}\n${lines}`)
     }
 
     for (const [peerName, issues] of Object.entries(missing)) {
       if (!intersections[peerName]) continue
-      const wantedRange = intersections[peerName]
-      const header = `${chalk.red('✕ missing peer')} ${chalk.bold(formatRange(peerName, wantedRange))}`
-      const lines = formatRequiredBy(issues.map((i) => i.parents))
+      const header = `${chalk.red('✕ missing peer')} ${chalk.bold(peerName)}`
+      const lines = formatRequiredBy(issues)
       sections.push(`${header}\n${lines}`)
     }
   }
@@ -161,28 +159,25 @@ function renderPeerIssuesFlat (issuesByProjects: PeerDependencyIssuesByProjects)
   return `Issues with peer dependencies found\n${sections.join('\n')}`
 }
 
-function formatRange (name: string, range: string): string {
-  if (range.includes(' ') || range === '*') {
-    return `${name}@"${range}"`
-  }
-  return `${name}@${range}`
-}
-
-function formatRequiredBy (chains: Array<Array<{ name: string, version: string }>>): string {
+function formatRequiredBy (issues: Array<{ parents: Array<{ name: string, version: string }>, wantedRange: string }>): string {
   const seen = new Set<string>()
   const lines: string[] = []
-  for (const chain of chains) {
-    const declaring = chain[chain.length - 1]
-    const label = `${declaring.name}@${declaring.version}`
-    let line = label
-    if (chain.length > 1) {
-      const via = `${chain[0].name}@${chain[0].version}`
-      line = `${label} ${chalk.dim(`(via ${via})`)}`
-    }
+  for (const issue of issues) {
+    const declaring = issue.parents[issue.parents.length - 1]
+    const pkg = `${declaring.name}@${declaring.version}`
+    const range = formatRange(issue.wantedRange)
+    const line = `${pkg} wants ${range}`
     if (!seen.has(line)) {
       seen.add(line)
       lines.push(`  ${line}`)
     }
   }
   return lines.join('\n')
+}
+
+function formatRange (range: string): string {
+  if (range.includes(' ') || range === '*') {
+    return `"${range}"`
+  }
+  return range
 }
