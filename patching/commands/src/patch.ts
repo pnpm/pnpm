@@ -34,6 +34,8 @@ export const shorthands = {
 
 export const commandNames = ['patch']
 
+export const recursiveByDefault = true
+
 export function help (): string {
   return renderHelp({
     description: 'Prepare a package for patching',

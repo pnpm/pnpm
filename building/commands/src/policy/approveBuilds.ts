@@ -18,6 +18,8 @@ export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'root
 
 export const commandNames = ['approve-builds']
 
+export const recursiveByDefault = true
+
 export function help (): string {
   return renderHelp({
     description: 'Approve dependencies for running scripts during installation',
