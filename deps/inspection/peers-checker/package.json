@@ -35,6 +35,7 @@
     "@pnpm/config.matcher": "workspace:*",
     "@pnpm/config.parse-overrides": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "semver": "catalog:",

@@ -3304,6 +3304,9 @@ importers:
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../../path
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../../core/error
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../../lockfile/fs

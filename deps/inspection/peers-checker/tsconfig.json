@@ -19,6 +19,9 @@
       "path": "../../../config/parse-overrides"
     },
     {
+      "path": "../../../core/error"
+    },
+    {
       "path": "../../../core/types"
     },
     {

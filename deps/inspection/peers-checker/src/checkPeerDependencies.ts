@@ -3,6 +3,7 @@ import path from 'node:path'
 import { createMatcher } from '@pnpm/config.matcher'
 import { parseOverrides } from '@pnpm/config.parse-overrides'
 import { parse as parseDependencyPath, refToRelative } from '@pnpm/deps.path'
+import { PnpmError } from '@pnpm/error'
 import {
   getLockfileImporterId,
   type LockfileObject,
@@ -195,11 +196,10 @@ function filterPeerDependencyIssues (
           if (allowedVersionsMatchAll[peerName]?.some(
             (range) => semver.satisfies(issue.foundVersion, range)
           )) return false
-          for (const parent of issue.parents) {
-            if (allowedVersionsByParent[parent.name]?.[peerName]?.some(
-              (range) => semver.satisfies(issue.foundVersion, range)
-            )) return false
-          }
+          const declaringParent = issue.parents.at(-1)
+          if (declaringParent && allowedVersionsByParent[declaringParent.name]?.[peerName]?.some(
+            (range) => semver.satisfies(issue.foundVersion, range)
+          )) return false
           return true
         }
       )
@@ -223,7 +223,13 @@ function parseAllowedVersions (allowedVersions: Record<string, string>): {
   matchAll: Record<string, string[]>
   byParent: Record<string, Record<string, string[]>>
 } {
-  const overrides = parseOverrides(allowedVersions)
+  let overrides
+  try {
+    overrides = parseOverrides(allowedVersions)
+  } catch (err) {
+    throw new PnpmError('INVALID_ALLOWED_VERSION_SELECTOR',
+      `${(err as PnpmError).message} in pnpm.peerDependencyRules.allowedVersions`)
+  }
   const matchAll: Record<string, string[]> = {}
   const byParent: Record<string, Record<string, string[]>> = {}
   for (const { parentPkg, targetPkg, newBareSpecifier } of overrides) {
