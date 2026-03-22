@@ -23,6 +23,8 @@ export function cliOptionsTypes (): Record<string, unknown> {
 
 export const commandNames = ['dedupe']
 
+export const recursiveByDefault = true
+
 export function help (): string {
   return renderHelp({
     description: 'Perform an install removing older dependencies in the lockfile if a newer version can be used.',

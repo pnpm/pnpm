@@ -91,6 +91,8 @@ export const shorthands: Record<string, string> = {
 
 export const commandNames = ['install', 'i']
 
+export const recursiveByDefault = true
+
 export function help (): string {
   return renderHelp({
     aliases: ['i'],

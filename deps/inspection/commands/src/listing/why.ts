@@ -24,6 +24,8 @@ export { shorthands } from './common.js'
 
 export const commandNames = ['why']
 
+export const recursiveByDefault = true
+
 export function help (): string {
   return renderHelp({
     description: `Shows the packages that depend on <pkg>

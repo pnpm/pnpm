@@ -80,6 +80,8 @@ export const shorthands: Record<string, string> = {
 
 export const commandNames = ['audit']
 
+export const recursiveByDefault = true
+
 export function help (): string {
   return renderHelp({
     description: 'Checks for known security issues with the installed packages.',

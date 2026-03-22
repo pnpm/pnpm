@@ -21,6 +21,8 @@ export function cliOptionsTypes (): Record<string, unknown> {
 
 export const commandNames = ['patch-remove']
 
+export const recursiveByDefault = true
+
 export function help (): string {
   return renderHelp({
     description: 'Remove existing patch files',

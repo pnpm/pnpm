@@ -24,7 +24,7 @@ import { isEmpty } from 'ramda'
 import semver from 'semver'
 
 import { checkForUpdates } from './checkForUpdates.js'
-import { NOT_IMPLEMENTED_COMMAND_SET, pnpmCmds, rcOptionsTypes, skipPackageManagerCheckForCommand } from './cmd/index.js'
+import { NOT_IMPLEMENTED_COMMAND_SET, pnpmCmds, rcOptionsTypes, recursiveByDefaultCommands, skipPackageManagerCheckForCommand } from './cmd/index.js'
 import { formatUnknownOptionsError } from './formatError.js'
 import { getConfig, installConfigDepsAndLoadHooks } from './getConfig.js'
 import { parseCliArgs } from './parseCliArgs.js'
@@ -190,7 +190,7 @@ export async function main (inputArgv: string[]): Promise<void> {
   }
 
   if (
-    (cmd === 'install' || cmd === 'import' || cmd === 'dedupe' || cmd === 'patch-commit' || cmd === 'patch' || cmd === 'patch-remove' || cmd === 'approve-builds' || cmd === 'audit') &&
+    cmd != null && recursiveByDefaultCommands.has(cmd) &&
     typeof workspaceDir === 'string'
   ) {
     cliOptions['recursive'] = true

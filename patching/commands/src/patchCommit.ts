@@ -33,6 +33,8 @@ export function cliOptionsTypes (): Record<string, unknown> {
 
 export const commandNames = ['patch-commit']
 
+export const recursiveByDefault = true
+
 export function help (): string {
   return renderHelp({
     description: 'Generate a patch out of a directory',

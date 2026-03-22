@@ -103,6 +103,10 @@ export interface CommandDefinition {
    * If true, this command should not care about what package manager is specified in the "packageManager" field of "package.json".
    */
   skipPackageManagerCheck?: boolean
+  /**
+   * If true, this command runs on all workspace projects by default when executed inside a workspace.
+   */
+  recursiveByDefault?: boolean
 }
 
 const helpByCommandName: Record<string, () => string> = {}
@@ -172,6 +176,7 @@ const completionByCommandName: Record<string, CompletionFunc> = {}
 const shorthandsByCommandName: Record<string, Record<string, string | string[]>> = {}
 const rcOptionsTypes: Record<string, unknown> = {}
 const skipPackageManagerCheckForCommandArray = ['completion-server']
+const recursiveByDefaultCommandArray: string[] = []
 
 for (let i = 0; i < commands.length; i++) {
   const {
@@ -183,6 +188,7 @@ for (let i = 0; i < commands.length; i++) {
     rcOptionsTypes,
     shorthands,
     skipPackageManagerCheck,
+    recursiveByDefault,
   } = commands[i]
   if (!commandNames || commandNames.length === 0) {
     throw new Error(`The command at index ${i} doesn't have command names`)
@@ -199,6 +205,9 @@ for (let i = 0; i < commands.length; i++) {
   }
   if (skipPackageManagerCheck) {
     skipPackageManagerCheckForCommandArray.push(...commandNames)
+  }
+  if (recursiveByDefault) {
+    recursiveByDefaultCommandArray.push(...commandNames)
   }
   if (commandNames.length > 1) {
     const fullName = commandNames[0]
@@ -234,5 +243,7 @@ export function getCommandFullName (commandName: string): string | null {
   return aliasToFullName.get(commandName) ??
     (handlerByCommandName[commandName] ? commandName : null)
 }
+
+export const recursiveByDefaultCommands = new Set(recursiveByDefaultCommandArray)
 
 export { NOT_IMPLEMENTED_COMMAND_SET, rcOptionsTypes, shorthandsByCommandName }
