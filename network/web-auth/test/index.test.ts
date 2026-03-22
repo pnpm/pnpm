@@ -30,9 +30,7 @@ const fetchOptions = { method: 'GET' as const }
 describe('WebAuthTimeoutError', () => {
   it('stores endTime, startTime, and timeout', () => {
     const err = new WebAuthTimeoutError(310_000, 10_000, 300_000)
-    expect(err.endTime).toBe(310_000)
-    expect(err.startTime).toBe(10_000)
-    expect(err.timeout).toBe(300_000)
+    expect(err).toMatchObject({ endTime: 310_000, startTime: 10_000, timeout: 300_000 })
   })
 
   it('has ERR_PNPM_WEBAUTH_TIMEOUT code', () => {
@@ -111,9 +109,7 @@ describe('pollForWebAuthToken', () => {
       },
     })
     await pollForWebAuthToken('https://registry.example.com/done', context, opts)
-    expect(capturedArgs).toHaveLength(1)
-    expect(capturedArgs[0].url).toBe('https://registry.example.com/done')
-    expect(capturedArgs[0].options).toBe(opts)
+    expect(capturedArgs).toEqual([{ url: 'https://registry.example.com/done', options: opts }])
   })
 
   it('respects Retry-After header when polling', async () => {
