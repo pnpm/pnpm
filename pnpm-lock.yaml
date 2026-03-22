@@ -3313,6 +3313,9 @@ importers:
       semver:
         specifier: 'catalog:'
         version: 7.7.4
+      semver-range-intersect:
+        specifier: 'catalog:'
+        version: 0.3.1
     devDependencies:
       '@pnpm/deps.inspection.peers-checker':
         specifier: workspace:*

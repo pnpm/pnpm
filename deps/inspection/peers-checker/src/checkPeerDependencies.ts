@@ -20,6 +20,7 @@ import type {
   PeerDependencyRules,
 } from '@pnpm/types'
 import semver from 'semver'
+import { intersect } from 'semver-range-intersect'
 
 export async function checkPeerDependencies (
   projectPaths: string[],
@@ -78,12 +79,9 @@ function checkPeerDependenciesFromLockfile (
       walkDependency(depPath, alias, packages, [], visited, projectIssues)
     }
 
-    // Add missing peer names to intersections so renderPeerIssues shows them
-    for (const [peerName, issues] of Object.entries(projectIssues.missing)) {
-      if (issues.length > 0) {
-        projectIssues.intersections[peerName] = issues[0].wantedRange
-      }
-    }
+    const merged = mergePeers(projectIssues.missing)
+    projectIssues.conflicts = merged.conflicts
+    projectIssues.intersections = merged.intersections
 
     result[importerId] = projectIssues
   }
@@ -173,7 +171,7 @@ function filterPeerDependencyIssues (
 ): PeerDependencyIssuesByProjects {
   const ignoreMissingMatcher = createMatcher([...new Set(rules.ignoreMissing ?? [])])
   const allowAnyMatcher = createMatcher([...new Set(rules.allowAny ?? [])])
-  const allowedVersionsMatchAll = parseAllowedVersionsMatchAll(rules.allowedVersions ?? {})
+  const { matchAll: allowedVersionsMatchAll, byParent: allowedVersionsByParent } = parseAllowedVersions(rules.allowedVersions ?? {})
 
   const result: PeerDependencyIssuesByProjects = {}
 
@@ -193,9 +191,17 @@ function filterPeerDependencyIssues (
     for (const [peerName, issues] of Object.entries(bad)) {
       if (allowAnyMatcher(peerName)) continue
       const remaining = issues.filter(
-        (issue) => !allowedVersionsMatchAll[peerName]?.some(
-          (range) => semver.satisfies(issue.foundVersion, range)
-        )
+        (issue) => {
+          if (allowedVersionsMatchAll[peerName]?.some(
+            (range) => semver.satisfies(issue.foundVersion, range)
+          )) return false
+          for (const parent of issue.parents) {
+            if (allowedVersionsByParent[parent.name]?.[peerName]?.some(
+              (range) => semver.satisfies(issue.foundVersion, range)
+            )) return false
+          }
+          return true
+        }
       )
       if (remaining.length > 0) {
         filteredBad[peerName] = remaining
@@ -213,17 +219,56 @@ function filterPeerDependencyIssues (
   return result
 }
 
-function parseAllowedVersionsMatchAll (allowedVersions: Record<string, string>): Record<string, string[]> {
-  let overrides
-  try {
-    overrides = parseOverrides(allowedVersions)
-  } catch {
-    return {}
-  }
-  const result: Record<string, string[]> = {}
+function parseAllowedVersions (allowedVersions: Record<string, string>): {
+  matchAll: Record<string, string[]>
+  byParent: Record<string, Record<string, string[]>>
+} {
+  const overrides = parseOverrides(allowedVersions)
+  const matchAll: Record<string, string[]> = {}
+  const byParent: Record<string, Record<string, string[]>> = {}
   for (const { parentPkg, targetPkg, newBareSpecifier } of overrides) {
-    if (parentPkg) continue
-    result[targetPkg.name] = newBareSpecifier.split('||').map((v) => v.trim())
+    const ranges = newBareSpecifier.split('||').map((v) => v.trim())
+    if (parentPkg) {
+      if (!byParent[parentPkg.name]) byParent[parentPkg.name] = {}
+      byParent[parentPkg.name][targetPkg.name] = ranges
+    } else {
+      matchAll[targetPkg.name] = ranges
+    }
   }
-  return result
+  return { matchAll, byParent }
+}
+
+function mergePeers (missingPeers: Record<string, MissingPeerDependencyIssue[]>): {
+  conflicts: string[]
+  intersections: Record<string, string>
+} {
+  const conflicts: string[] = []
+  const intersections: Record<string, string> = {}
+  for (const [peerName, issues] of Object.entries(missingPeers)) {
+    if (issues.every(({ optional }) => optional)) continue
+    if (issues.length === 1) {
+      intersections[peerName] = issues[0].wantedRange
+      continue
+    }
+    const ranges = [...new Set(issues.map(({ wantedRange }) => wantedRange))]
+    if (ranges.length === 1) {
+      intersections[peerName] = ranges[0]
+      continue
+    }
+    const intersection = safeIntersect(ranges)
+    if (intersection === null) {
+      conflicts.push(peerName)
+    } else {
+      intersections[peerName] = intersection
+    }
+  }
+  return { conflicts, intersections }
+}
+
+function safeIntersect (ranges: string[]): string | null {
+  try {
+    return intersect(...ranges)
+  } catch {
+    return null
+  }
 }

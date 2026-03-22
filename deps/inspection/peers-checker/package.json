@@ -37,7 +37,8 @@
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "semver": "catalog:"
+    "semver": "catalog:",
+    "semver-range-intersect": "catalog:"
   },
   "devDependencies": {
     "@pnpm/deps.inspection.peers-checker": "workspace:*",
