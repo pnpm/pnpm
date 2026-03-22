@@ -362,6 +362,173 @@ describe('login', () => {
     })).rejects.toThrow('Login failed (HTTP 403): Forbidden')
   })
 
+  it('should throw when username is empty in classic login', async () => {
+    await expect(login({
+      opts: {
+        configDir: '/mock/config',
+        dir: '/mock',
+        rawConfig: {},
+        registry: 'https://example.org',
+      },
+      context: {
+        ...TEST_CONTEXT,
+        globalInfo: () => {},
+        readSettings: async () => ({}),
+        writeSettings: async () => {},
+        fetch: async (url) => {
+          if (url === 'https://example.org/-/v1/login') {
+            return {
+              ok: false,
+              status: 404,
+              json: async () => ({}),
+              text: async () => 'Not Found',
+              headers: { get: () => null },
+            }
+          }
+          throw new Error(`unexpected fetch call: ${url}`)
+        },
+        enquirer: {
+          prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
+            if (opts.name === 'username') return { username: '' }
+            if (opts.name === 'password') return { password: 'pass' }
+            if (opts.name === 'email') return { email: 'a@b.com' }
+            throw new Error(`unexpected prompt call: ${opts.name}`)
+          },
+        },
+      },
+    })).rejects.toThrow('Username, password, and email are all required')
+  })
+
+  it('should throw when classic login returns no token', async () => {
+    await expect(login({
+      opts: {
+        configDir: '/mock/config',
+        dir: '/mock',
+        rawConfig: {},
+        registry: 'https://example.org',
+      },
+      context: {
+        ...TEST_CONTEXT,
+        globalInfo: () => {},
+        readSettings: async () => ({}),
+        writeSettings: async () => {},
+        fetch: async (url) => {
+          if (url === 'https://example.org/-/v1/login') {
+            return {
+              ok: false,
+              status: 404,
+              json: async () => ({}),
+              text: async () => 'Not Found',
+              headers: { get: () => null },
+            }
+          }
+          if (url === 'https://example.org/-/user/org.couchdb.user:alice') {
+            return {
+              ok: true,
+              status: 201,
+              json: async () => ({ ok: true }),
+              text: async () => '',
+              headers: { get: () => null },
+            }
+          }
+          throw new Error(`unexpected fetch call: ${url}`)
+        },
+        enquirer: {
+          prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
+            if (opts.name === 'username') return { username: 'alice' }
+            if (opts.name === 'password') return { password: 'pass' }
+            if (opts.name === 'email') return { email: 'alice@example.com' }
+            throw new Error(`unexpected prompt call: ${opts.name}`)
+          },
+        },
+      },
+    })).rejects.toThrow('The registry did not return an authentication token')
+  })
+
+  it('should throw when web login returns invalid response (missing loginUrl/doneUrl)', async () => {
+    await expect(login({
+      opts: {
+        configDir: '/mock/config',
+        dir: '/mock',
+        rawConfig: {},
+        registry: 'https://example.org',
+      },
+      context: {
+        ...TEST_CONTEXT,
+        globalInfo: () => {},
+        readSettings: async () => ({}),
+        writeSettings: async () => {},
+        fetch: async (url) => {
+          if (url === 'https://example.org/-/v1/login') {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({ loginUrl: 'https://example.org/auth' }),
+              text: async () => '',
+              headers: { get: () => null },
+            }
+          }
+          throw new Error(`unexpected fetch call: ${url}`)
+        },
+      },
+    })).rejects.toThrow('The registry returned an invalid response for web-based login')
+  })
+
+  it('should fall back to classic login when web login returns 405', async () => {
+    let savedSettings: Settings = {}
+
+    const result = await login({
+      opts: {
+        configDir: '/mock/config',
+        dir: '/mock',
+        rawConfig: {},
+        registry: 'https://example.org',
+      },
+      context: {
+        ...TEST_CONTEXT,
+        globalInfo: () => {},
+        readSettings: async () => ({}),
+        writeSettings: async (_configPath, settings) => {
+          savedSettings = settings
+        },
+        fetch: async (url) => {
+          if (url === 'https://example.org/-/v1/login') {
+            return {
+              ok: false,
+              status: 405,
+              json: async () => ({}),
+              text: async () => 'Method Not Allowed',
+              headers: { get: () => null },
+            }
+          }
+          if (url === 'https://example.org/-/user/org.couchdb.user:jane') {
+            return {
+              ok: true,
+              status: 201,
+              json: async () => ({ ok: true, token: 'token-405' }),
+              text: async () => '',
+              headers: { get: () => null },
+            }
+          }
+          throw new Error(`unexpected fetch call: ${url}`)
+        },
+        enquirer: {
+          prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
+            if (opts.name === 'username') return { username: 'jane' }
+            if (opts.name === 'password') return { password: 'pass' }
+            if (opts.name === 'email') return { email: 'jane@example.com' }
+            throw new Error(`unexpected prompt call: ${opts.name}`)
+          },
+        },
+      },
+    })
+
+    expect(result).toBe('Logged in on https://example.org/')
+    expect(savedSettings).toMatchObject({
+      '//example.org/:_authToken': 'token-405',
+    })
+  })
+
   it('should not trigger OTP for 401 without www-authenticate otp header', async () => {
     await expect(login({
       opts: {

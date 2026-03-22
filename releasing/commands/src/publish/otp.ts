@@ -1,8 +1,6 @@
 import {
   type OtpHandlingContext,
   type OtpHandlingEnquirer,
-  type OtpHandlingPromptOptions,
-  type OtpHandlingPromptResponse,
   OtpNonInteractiveError,
   OtpSecondChallengeError,
   type WebAuthFetchOptions,
@@ -46,8 +44,7 @@ export interface OtpParams {
 
 export { OtpNonInteractiveError, OtpSecondChallengeError, SHARED_CONTEXT }
 
-// Re-export for tests that import these from here
-export type { OtpHandlingEnquirer, OtpHandlingPromptOptions, OtpHandlingPromptResponse }
+export type { OtpHandlingEnquirer }
 
 /**
  * Publish a package, handling OTP challenges:
