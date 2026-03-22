@@ -1,8 +1,6 @@
 import {
   type OtpHandlingContext,
   type OtpHandlingEnquirer,
-  OtpNonInteractiveError,
-  OtpSecondChallengeError,
   type WebAuthFetchOptions,
   type WebAuthFetchResponse,
   withOtpHandling,
@@ -42,9 +40,7 @@ export interface OtpParams {
   tarballData: Buffer
 }
 
-export { OtpNonInteractiveError, OtpSecondChallengeError, SHARED_CONTEXT }
-
-export type { OtpHandlingEnquirer }
+export { SHARED_CONTEXT }
 
 /**
  * Publish a package, handling OTP challenges:

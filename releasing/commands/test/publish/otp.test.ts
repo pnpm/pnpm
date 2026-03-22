@@ -1,10 +1,13 @@
-import { type WebAuthFetchResponse, WebAuthTimeoutError } from '@pnpm/network.web-auth'
+import {
+  OtpNonInteractiveError,
+  OtpSecondChallengeError,
+  type WebAuthFetchResponse,
+  WebAuthTimeoutError,
+} from '@pnpm/network.web-auth'
 
 import {
   type OtpContext,
-  OtpNonInteractiveError,
   type OtpPublishResponse,
-  OtpSecondChallengeError,
   publishWithOtpHandling,
 } from '../../src/publish/otp.js'
 
