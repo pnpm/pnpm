@@ -3,7 +3,7 @@ import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { checkPeerDependencies } from '@pnpm/deps.inspection.peers-checker'
 import { renderTree, type TreeNode } from '@pnpm/text.tree-renderer'
-import type { PeerDependencyIssuesByProjects } from '@pnpm/types'
+import type { ParentPackages, PeerDependencyIssuesByProjects } from '@pnpm/types'
 import chalk from 'chalk'
 import { isEmpty, pick } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -147,20 +147,14 @@ function renderPeerIssuesReverse (issuesByProjects: PeerDependencyIssuesByProjec
       const foundVersion = issues[0].foundVersion
       const wantedRange = issues[0].wantedRange
       const label = `${chalk.yellowBright('✕ unmet peer')} ${chalk.bold(peerName)}@${wantedRange} ${chalk.dim(`(found ${foundVersion})`)}`
-      const nodes: string[] = issues.map(
-        (issue) => issue.parents.map((p) => `${p.name}@${p.version}`).join(chalk.dim(' > '))
-      )
-      peerNodes.push({ label, nodes: dedup(nodes) })
+      peerNodes.push({ label, nodes: parentChainsToTree(issues.map((i) => i.parents)) })
     }
 
     for (const [peerName, issues] of Object.entries(missing)) {
       if (!intersections[peerName]) continue
       const wantedRange = intersections[peerName]
       const label = `${chalk.red('✕ missing peer')} ${chalk.bold(peerName)}@${wantedRange}`
-      const nodes: string[] = issues.map(
-        (issue) => issue.parents.map((p) => `${p.name}@${p.version}`).join(chalk.dim(' > '))
-      )
-      peerNodes.push({ label, nodes: dedup(nodes) })
+      peerNodes.push({ label, nodes: parentChainsToTree(issues.map((i) => i.parents)) })
     }
 
     if (peerNodes.length === 0) continue
@@ -176,6 +170,31 @@ function renderPeerIssuesReverse (issuesByProjects: PeerDependencyIssuesByProjec
   return `Issues with peer dependencies found\n${projectOutputs.join('\n\n')}`
 }
 
-function dedup (items: string[]): string[] {
-  return [...new Set(items)]
+interface ChainNode {
+  label: string
+  children: Map<string, ChainNode>
+}
+
+function parentChainsToTree (chains: ParentPackages[]): TreeNode[] {
+  const root = new Map<string, ChainNode>()
+
+  for (const chain of chains) {
+    let level = root
+    for (const parent of chain) {
+      const key = `${parent.name}@${parent.version}`
+      if (!level.has(key)) {
+        level.set(key, { label: key, children: new Map() })
+      }
+      level = level.get(key)!.children
+    }
+  }
+
+  return chainNodesToTreeNodes(root)
+}
+
+function chainNodesToTreeNodes (map: Map<string, ChainNode>): TreeNode[] {
+  return Array.from(map.values(), ({ label, children }) => ({
+    label,
+    nodes: children.size > 0 ? chainNodesToTreeNodes(children) : [],
+  }))
 }
