@@ -23,6 +23,8 @@ export const shorthands = {}
 
 export const commandNames = ['peers']
 
+export const recursiveByDefault = true
+
 export function help (): string {
   return renderHelp({
     description: 'Commands for inspecting peer dependency relationships.',
