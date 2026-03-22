@@ -40,8 +40,6 @@ export interface OtpParams {
   tarballData: Buffer
 }
 
-export { SHARED_CONTEXT }
-
 /**
  * Publish a package, handling OTP challenges:
  * - Web based authentication flow (authUrl/doneUrl in error body with doneUrl polling)
