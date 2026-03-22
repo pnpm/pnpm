@@ -26,7 +26,7 @@
   "scripts": {
     "start": "tsgo --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "test": "pnpm run compile && pnpm run .test",
+    "test": "pnpm run compile && pnpm --filter pnpm run compile && pnpm run .test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsgo --build && pnpm run lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
