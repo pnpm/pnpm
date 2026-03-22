@@ -84,9 +84,10 @@ export async function handler (
 ): Promise<string | { output: string, exitCode: number }> {
   switch (params[0]) {
     case 'check':
+    case undefined:
       return checkCmd(opts)
     default:
-      return help()
+      return { output: help(), exitCode: 1 }
   }
 }
 
