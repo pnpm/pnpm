@@ -87,11 +87,12 @@ test('CVEs found in the allow list are not added as overrides', async () => {
 test('GHSAs found in the allow list are not added as overrides', async () => {
   const tmp = f.prepare('has-vulnerabilities')
 
-  nock(registries.default)
+  nock(AUDIT_REGISTRY)
     .post('/-/npm/v1/security/audits/quick')
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
     auditLevel: 'moderate',
     auditConfig: {
       ignoreGhsas: [
@@ -104,15 +105,11 @@ test('GHSAs found in the allow list are not added as overrides', async () => {
     dir: tmp,
     rootProjectManifestDir: tmp,
     fix: true,
-    userConfig: {},
-    rawConfig,
-    registries,
-    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   })
   expect(exitCode).toBe(0)
   expect(output).toMatch(/Run "pnpm install"/)
 
-  const manifest = readYamlFile<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
   expect(manifest.overrides?.['axios@<=0.18.0']).toBeFalsy()
   expect(manifest.overrides?.['axios@<0.21.1']).toBeFalsy()
   expect(manifest.overrides?.['axios@<=0.21.1']).toBeFalsy()
