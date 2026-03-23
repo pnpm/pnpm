@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -64,6 +65,7 @@ export interface DependenciesGraph {
 
 export interface LockfileToDepGraphOptions {
   allowBuild?: AllowBuild
+  allowBuilds?: Record<string, boolean | string>
   autoInstallPeers: boolean
   enableGlobalVirtualStore?: boolean
   engineStrict: boolean
@@ -109,6 +111,42 @@ export interface LockfileToDepGraphResult {
   symlinkedDirectDependenciesByImporterId?: DirectDependenciesByImporterId
   prevGraph?: DependenciesGraph
   injectionTargetsByDepPath: Map<string, string[]>
+}
+
+export function gvsContentHash (
+  packages: LockfileObject['packages'],
+  allowBuilds?: Record<string, boolean | string>
+): string {
+  const input = JSON.stringify(packages ?? {}) + '\0' + JSON.stringify(allowBuilds ?? {})
+  return crypto.hash('sha256', input, 'hex')
+}
+
+const GVS_CACHE_DIR = '.pnpm-gvs-paths'
+
+export function readGvsPathCacheSync (
+  storeDir: string,
+  hash: string
+): Record<string, string> | null {
+  try {
+    const data = fs.readFileSync(path.join(storeDir, GVS_CACHE_DIR, `${hash}.json`), 'utf8')
+    return JSON.parse(data)
+  } catch {
+    return null
+  }
+}
+
+export function writeGvsPathCacheSync (
+  storeDir: string,
+  hash: string,
+  paths: Record<string, string>
+): void {
+  try {
+    const dir = path.join(storeDir, GVS_CACHE_DIR)
+    fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(path.join(dir, `${hash}.json`), JSON.stringify(paths))
+  } catch {
+    // Cache write is best-effort
+  }
 }
 
 /**
@@ -186,9 +224,32 @@ async function buildGraphFromPackages (
 
   const _getPatchInfo = getPatchInfo.bind(null, opts.patchedDependencies)
   const promises: Array<Promise<void>> = []
-  const pkgSnapshotsWithLocations = iteratePkgsForVirtualStore(lockfile, opts)
+
+  let gvsCacheHash: string | undefined
+  let cachedGvsPaths: Record<string, string> | null = null
+  let gvsPathsForCache: Record<string, string> | undefined
+
+  if (opts.enableGlobalVirtualStore) {
+    gvsCacheHash = gvsContentHash(lockfile.packages, opts.allowBuilds)
+    cachedGvsPaths = readGvsPathCacheSync(opts.storeDir, gvsCacheHash)
+    if (cachedGvsPaths && lockfile.packages &&
+        Object.keys(cachedGvsPaths).length < Object.keys(lockfile.packages).length) {
+      cachedGvsPaths = null
+    }
+    if (!cachedGvsPaths) {
+      gvsPathsForCache = {}
+    }
+  }
+
+  const pkgSnapshotsWithLocations = iteratePkgsForVirtualStore(lockfile, {
+    ...opts,
+    cachedGvsPaths,
+  })
 
   for (const { dirInVirtualStore, pkgMeta } of pkgSnapshotsWithLocations) {
+    if (gvsPathsForCache) {
+      gvsPathsForCache[pkgMeta.depPath] = dirInVirtualStore
+    }
     promises.push((async () => {
       const { pkgIdWithPatchHash, name: pkgName, version: pkgVersion, depPath, pkgSnapshot } = pkgMeta
       if (opts.skipped.has(depPath)) return
@@ -319,6 +380,11 @@ async function buildGraphFromPackages (
     })())
   }
   await Promise.all(promises)
+
+  if (gvsCacheHash != null && gvsPathsForCache != null) {
+    writeGvsPathCacheSync(opts.storeDir, gvsCacheHash, gvsPathsForCache)
+  }
+
   return { graph, locationByDepPath, injectionTargetsByDepPath }
 }
 

@@ -24,16 +24,41 @@ interface PkgSnapshotWithLocation {
 
 export function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
   allowBuild?: AllowBuild
+  cachedGvsPaths?: Record<string, string> | null
   enableGlobalVirtualStore?: boolean
   virtualStoreDirMaxLength: number
   virtualStoreDir: string
   globalVirtualStoreDir: string
 }): IterableIterator<PkgSnapshotWithLocation> {
   if (opts.enableGlobalVirtualStore) {
-    for (const { hash, pkgMeta } of hashDependencyPaths(lockfile, opts.allowBuild)) {
-      yield {
-        dirInVirtualStore: path.join(opts.globalVirtualStoreDir, hash),
-        pkgMeta,
+    if (opts.cachedGvsPaths) {
+      // Fast path: use cached depPath → dirInVirtualStore mapping, skip hash computation
+      if (lockfile.packages) {
+        for (const depPath in lockfile.packages) {
+          if (!Object.hasOwn(lockfile.packages, depPath)) continue
+          const dirInVirtualStore = opts.cachedGvsPaths[depPath as DepPath]
+          if (dirInVirtualStore == null) continue
+          const pkgSnapshot = lockfile.packages[depPath as DepPath]
+          const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+          yield {
+            dirInVirtualStore,
+            pkgMeta: {
+              depPath: depPath as DepPath,
+              pkgIdWithPatchHash: dp.getPkgIdWithPatchHash(depPath as DepPath),
+              name,
+              version,
+              pkgSnapshot,
+            },
+          }
+        }
+      }
+    } else {
+      // Normal path: compute hashes
+      for (const { hash, pkgMeta } of hashDependencyPaths(lockfile, opts.allowBuild)) {
+        yield {
+          dirInVirtualStore: path.join(opts.globalVirtualStoreDir, hash),
+          pkgMeta,
+        }
       }
     }
   } else if (lockfile.packages) {
