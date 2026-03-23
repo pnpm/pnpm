@@ -988,11 +988,7 @@ function peerNodeIdToPeerId<T extends PartialResolvedPackage> (
       return { name: peerNode.resolvedPackage.name, version: peerNode.resolvedPackage.version }
     }
   }
-  const peerDepPath = ctx.pathsByNodeId.get(peerNodeId)
-  if (peerDepPath) {
-    return peerDepPath
-  }
-  return undefined
+  return ctx.pathsByNodeId.get(peerNodeId)
 }
 
 interface ParentRefs {
