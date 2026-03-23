@@ -48,6 +48,11 @@ export type StrictBuildOptions = {
   deployAllFiles: boolean
   neverBuiltDependencies?: string[]
   allowBuilds?: Record<string, boolean | string>
+  include?: {
+    dependencies: boolean
+    devDependencies: boolean
+    optionalDependencies: boolean
+  }
   virtualStoreDirMaxLength: number
   peersSuffixMaxLength: number
   strictStorePkgContentCheck: boolean
