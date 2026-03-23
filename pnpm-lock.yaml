@@ -3085,6 +3085,9 @@ importers:
       '@pnpm/deps.inspection.outdated':
         specifier: workspace:*
         version: link:../outdated
+      '@pnpm/deps.inspection.peers-checker':
+        specifier: workspace:*
+        version: link:../peers-checker
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../../core/error
@@ -3283,6 +3286,46 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.31.1
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.7.1
+
+  deps/inspection/peers-checker:
+    dependencies:
+      '@pnpm/config.matcher':
+        specifier: workspace:*
+        version: link:../../../config/matcher
+      '@pnpm/config.parse-overrides':
+        specifier: workspace:*
+        version: link:../../../config/parse-overrides
+      '@pnpm/deps.path':
+        specifier: workspace:*
+        version: link:../../path
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../../core/error
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../../lockfile/fs
+      '@pnpm/lockfile.walker':
+        specifier: workspace:*
+        version: link:../../../lockfile/walker
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../../core/types
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.4
+      semver-range-intersect:
+        specifier: 'catalog:'
+        version: 0.3.1
+    devDependencies:
+      '@pnpm/deps.inspection.peers-checker':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/test-fixtures':
+        specifier: workspace:*
+        version: link:../../../__utils__/test-fixtures
       '@types/semver':
         specifier: 'catalog:'
         version: 7.7.1

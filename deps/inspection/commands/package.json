@@ -39,6 +39,7 @@
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/deps.inspection.list": "workspace:*",
     "@pnpm/deps.inspection.outdated": "workspace:*",
+    "@pnpm/deps.inspection.peers-checker": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/global.commands": "workspace:*",
     "@pnpm/global.packages": "workspace:*",
