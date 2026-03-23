@@ -50,12 +50,6 @@ Exits with a non-zero exit code when issues are found.',
             description: 'Check the lockfile only, without reading node_modules.',
             name: '--lockfile-only',
           },
-          {
-            description: 'Perform command on every package in subdirectories \
-or on every workspace package, when executed inside a workspace.',
-            name: '--recursive',
-            shortAlias: '-r',
-          },
           ...UNIVERSAL_OPTIONS,
         ],
       },
