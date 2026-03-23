@@ -490,17 +490,11 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       parentNodeIds,
     })
 
-  // allResolvedPeers = transitive peers from children + this node's direct peers
-  // Used for: childrenNodeIds (layout), transitivePeerDependencies tracking
   const allResolvedPeers = unknownResolvedPeersOfChildren
   for (const [k, v] of resolvedPeers) {
     allResolvedPeers.set(k, v)
   }
   allResolvedPeers.delete(node.resolvedPackage.name)
-
-  // When dedupePeers is enabled, the suffix and returned peers use only direct peers.
-  // This prevents transitive peer propagation (Opt 2) and is used with version-only IDs (Opt 1).
-  const suffixPeers = ctx.dedupePeers ? resolvedPeers : allResolvedPeers
 
   const allMissingPeers = new Map<string, MissingPeerInfo>()
   for (const [peer, range] of missingPeersOfChildren.entries()) {
@@ -528,12 +522,12 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   }
 
   let calculateDepPathIfNeeded: CalculateDepPath | undefined
-  if (suffixPeers.size === 0) {
+  if (allResolvedPeers.size === 0) {
     addDepPathToGraph(resolvedPackage.pkgIdWithPatchHash as unknown as DepPath)
   } else {
     const peerIds: PeerId[] = []
     const pendingPeers: PendingPeer[] = []
-    for (const [alias, peerNodeId] of suffixPeers.entries()) {
+    for (const [alias, peerNodeId] of allResolvedPeers.entries()) {
       if (typeof peerNodeId === 'string' && peerNodeId.startsWith('link:')) {
         const linkedDir = peerNodeId.slice(5)
         peerIds.push({
@@ -566,13 +560,8 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     }
   }
 
-  // When dedupePeers is enabled, only return direct peers to the parent.
-  // This stops transitive peer propagation — the parent won't include
-  // this node's children's peers in its own suffix.
-  const returnedResolvedPeers = ctx.dedupePeers ? suffixPeers : allResolvedPeers
-
   return {
-    resolvedPeers: returnedResolvedPeers,
+    resolvedPeers: allResolvedPeers,
     missingPeers: allMissingPeers,
     calculateDepPath: calculateDepPathIfNeeded,
     finishing,

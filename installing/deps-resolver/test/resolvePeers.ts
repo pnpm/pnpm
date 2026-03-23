@@ -754,10 +754,10 @@ describe('dedupePeers', () => {
     ])
   })
 
-  test('packages without direct peers get no suffix even when children have peers', async () => {
+  test('transitive peers use version-only suffixes', async () => {
     // A depends on B (peer: C). A has no peers itself.
-    // Without dedupePeers: A gets suffix (C@1.0.0) from transitive propagation
-    // With dedupePeers: A gets no suffix — it doesn't declare any peers
+    // Without dedupePeers: A gets suffix (c/1.0.0) — full dep path
+    // With dedupePeers: A gets suffix (c@1.0.0) — version-only
     const aPkg = {
       name: 'a',
       pkgIdWithPatchHash: 'a/1.0.0' as PkgIdWithPatchHash,
@@ -825,7 +825,7 @@ describe('dedupePeers', () => {
       workspaceProjectIds: new Set(),
     })
     expect(Object.keys(dependenciesGraph).sort()).toStrictEqual([
-      'a/1.0.0',
+      'a/1.0.0(c@1.0.0)',
       'b/1.0.0(c@1.0.0)',
       'c/1.0.0',
     ])

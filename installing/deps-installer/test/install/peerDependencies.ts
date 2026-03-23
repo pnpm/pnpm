@@ -2075,12 +2075,11 @@ test('dedupePeers: transitive peers are not propagated to parent suffix', async 
 
   const lockfile = project.readLockfile()
 
-  // abc-grand-parent and abc-parent-with-ab have no peer suffix —
-  // transitive peers from abc are not propagated up.
-  // abc has version-only suffixes for its direct peers (no nesting).
+  // Transitive peers are included but with version-only IDs (no nesting).
+  // abc-grand-parent and abc-parent-with-ab get (peer-c@1.0.0) — not the full nested dep path.
   expect(Object.keys(lockfile.snapshots).sort()).toStrictEqual([
-    '@pnpm.e2e/abc-grand-parent@1.0.0',
-    '@pnpm.e2e/abc-parent-with-ab@1.0.0',
+    '@pnpm.e2e/abc-grand-parent@1.0.0(@pnpm.e2e/peer-c@1.0.0)',
+    '@pnpm.e2e/abc-parent-with-ab@1.0.0(@pnpm.e2e/peer-c@1.0.0)',
     '@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.1)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)',
     '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
     '@pnpm.e2e/peer-a@1.0.1',
@@ -2131,13 +2130,15 @@ test('dedupePeers: workspace projects with different peer versions get different
 
   const lockfile = readYamlFileSync<LockfileFile>(path.resolve(WANTED_LOCKFILE))
 
-  // abc-grand-parent and abc-parent-with-ab have NO peer suffix (transitive pruning).
-  // Since they're shared, abc resolves once with the first project's peer-c.
-  // This is the trade-off: packages without declared peers are shared across projects.
+  // Each project gets its own instances differentiated by peer-c version.
+  // Version-only suffixes — no nesting like (@pnpm.e2e/peer-c@1.0.0(@pnpm.e2e/peer-a@...)).
   expect(Object.keys(lockfile.snapshots!).sort()).toStrictEqual([
-    '@pnpm.e2e/abc-grand-parent@1.0.0',
-    '@pnpm.e2e/abc-parent-with-ab@1.0.0',
+    '@pnpm.e2e/abc-grand-parent@1.0.0(@pnpm.e2e/peer-c@1.0.0)',
+    '@pnpm.e2e/abc-grand-parent@1.0.0(@pnpm.e2e/peer-c@2.0.0)',
+    '@pnpm.e2e/abc-parent-with-ab@1.0.0(@pnpm.e2e/peer-c@1.0.0)',
+    '@pnpm.e2e/abc-parent-with-ab@1.0.0(@pnpm.e2e/peer-c@2.0.0)',
     '@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.1)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)',
+    '@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.1)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@2.0.0)',
     '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
     '@pnpm.e2e/peer-a@1.0.1',
     '@pnpm.e2e/peer-b@1.0.0',
@@ -2146,14 +2147,14 @@ test('dedupePeers: workspace projects with different peer versions get different
     'is-positive@1.0.0',
   ])
 
-  // Both projects use the same abc-grand-parent (no peer suffix)
+  // Each project gets the correct abc-grand-parent instance for its peer-c version
   expect(lockfile.importers?.['project-1']?.dependencies?.['@pnpm.e2e/abc-grand-parent']).toStrictEqual({
     specifier: '1.0.0',
-    version: '1.0.0',
+    version: '1.0.0(@pnpm.e2e/peer-c@1.0.0)',
   })
   expect(lockfile.importers?.['project-2']?.dependencies?.['@pnpm.e2e/abc-grand-parent']).toStrictEqual({
     specifier: '1.0.0',
-    version: '1.0.0',
+    version: '1.0.0(@pnpm.e2e/peer-c@2.0.0)',
   })
 })
 
