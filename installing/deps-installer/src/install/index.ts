@@ -494,6 +494,7 @@ export async function mutateModules (
     if (needsFullResolution) {
       ctx.wantedLockfile.settings = {
         autoInstallPeers: opts.autoInstallPeers,
+        dedupePeers: opts.dedupePeers || undefined,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         peersSuffixMaxLength: opts.peersSuffixMaxLength,
         injectWorkspacePackages: opts.injectWorkspacePackages,
@@ -506,6 +507,7 @@ export async function mutateModules (
     } else if (!frozenLockfile) {
       ctx.wantedLockfile.settings = {
         autoInstallPeers: opts.autoInstallPeers,
+        dedupePeers: opts.dedupePeers || undefined,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         peersSuffixMaxLength: opts.peersSuffixMaxLength,
         injectWorkspacePackages: opts.injectWorkspacePackages,
@@ -1267,6 +1269,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       dedupeDirectDeps: opts.dedupeDirectDeps,
       dedupeInjectedDeps: opts.dedupeInjectedDeps,
       dedupePeerDependents: opts.dedupePeerDependents,
+      dedupePeers: opts.dedupePeers,
       dryRun: opts.lockfileOnly,
       enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
       engineStrict: opts.engineStrict,

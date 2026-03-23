@@ -88,6 +88,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     lockfileDir: string
     resolvePeersFromWorkspaceRoot?: boolean
     dedupePeerDependents?: boolean
+    dedupePeers?: boolean
     dedupeInjectedDeps?: boolean
     resolvedImporters: ResolvedImporters
     peersSuffixMaxLength: number
@@ -136,6 +137,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       peersCache,
       peerDependencyIssues,
       purePkgs,
+      dedupePeers: opts.dedupePeers,
       peersSuffixMaxLength: opts.peersSuffixMaxLength,
       rootDir,
       virtualStoreDir: opts.virtualStoreDir,
@@ -384,6 +386,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
     peersCache: PeersCache
     purePkgs: Set<PkgIdWithPatchHash> // pure packages are those that don't rely on externally resolved peers
+    dedupePeers?: boolean
     rootDir: ProjectRootDir
     lockfileDir: string
     peersSuffixMaxLength: number
@@ -487,11 +490,17 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       parentNodeIds,
     })
 
+  // allResolvedPeers = transitive peers from children + this node's direct peers
+  // Used for: childrenNodeIds (layout), transitivePeerDependencies tracking
   const allResolvedPeers = unknownResolvedPeersOfChildren
   for (const [k, v] of resolvedPeers) {
     allResolvedPeers.set(k, v)
   }
   allResolvedPeers.delete(node.resolvedPackage.name)
+
+  // When dedupePeers is enabled, the suffix and returned peers use only direct peers.
+  // This prevents transitive peer propagation (Opt 2) and is used with version-only IDs (Opt 1).
+  const suffixPeers = ctx.dedupePeers ? resolvedPeers : allResolvedPeers
 
   const allMissingPeers = new Map<string, MissingPeerInfo>()
   for (const [peer, range] of missingPeersOfChildren.entries()) {
@@ -519,12 +528,12 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   }
 
   let calculateDepPathIfNeeded: CalculateDepPath | undefined
-  if (allResolvedPeers.size === 0) {
+  if (suffixPeers.size === 0) {
     addDepPathToGraph(resolvedPackage.pkgIdWithPatchHash as unknown as DepPath)
   } else {
     const peerIds: PeerId[] = []
     const pendingPeers: PendingPeer[] = []
-    for (const [alias, peerNodeId] of allResolvedPeers.entries()) {
+    for (const [alias, peerNodeId] of suffixPeers.entries()) {
       if (typeof peerNodeId === 'string' && peerNodeId.startsWith('link:')) {
         const linkedDir = peerNodeId.slice(5)
         peerIds.push({
@@ -533,9 +542,18 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
         })
         continue
       }
+      if (ctx.dedupePeers) {
+        // Optimization 1: Use version-only peer identifiers instead of full dep paths.
+        // This eliminates nested peer suffixes like (foo@1.0.0(bar@2.0.0)).
+        const peerNode = ctx.dependenciesTree.get(peerNodeId)
+        if (peerNode) {
+          peerIds.push({ name: peerNode.resolvedPackage.name, version: peerNode.resolvedPackage.version })
+          continue
+        }
+      }
       const peerDepPath = ctx.pathsByNodeId.get(peerNodeId)
       if (peerDepPath) {
-        peerIds.push(peerDepPath)
+        peerIds.push(ctx.dedupePeers ? peerDepPathToVersionOnly(peerDepPath) : peerDepPath)
         continue
       }
       pendingPeers.push({ alias, nodeId: peerNodeId })
@@ -548,8 +566,13 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     }
   }
 
+  // When dedupePeers is enabled, only return direct peers to the parent.
+  // This stops transitive peer propagation — the parent won't include
+  // this node's children's peers in its own suffix.
+  const returnedResolvedPeers = ctx.dedupePeers ? suffixPeers : allResolvedPeers
+
   return {
-    resolvedPeers: allResolvedPeers,
+    resolvedPeers: returnedResolvedPeers,
     missingPeers: allMissingPeers,
     calculateDepPath: calculateDepPathIfNeeded,
     finishing,
@@ -577,6 +600,13 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
             const id = `${name}@${version}`
             ctx.pathsByNodeIdPromises.get(pendingPeer.nodeId)?.resolve(id as DepPath)
             return id
+          }
+          if (ctx.dedupePeers) {
+            // With dedupePeers, use version-only IDs for pending peers too
+            const peerNode = ctx.dependenciesTree.get(pendingPeer.nodeId)
+            if (peerNode) {
+              return { name: peerNode.resolvedPackage.name, version: peerNode.resolvedPackage.version }
+            }
           }
           return ctx.pathsByNodeIdPromises.get(pendingPeer.nodeId)!.promise
         })
@@ -785,6 +815,7 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     virtualStoreDir: string
     virtualStoreDirMaxLength: number
     purePkgs: Set<PkgIdWithPatchHash>
+    dedupePeers?: boolean
     depGraph: GenericDependenciesGraph<T>
     dependenciesTree: DependenciesTree<T>
     rootDir: ProjectRootDir
@@ -962,6 +993,17 @@ function getLocationFromParentNodeIds<T> (
     projectId: '.',
     parents,
   }
+}
+
+// Extracts name@version from a dep path like "foo@1.0.0(bar@2.0.0)" → { name: "foo", version: "1.0.0" }
+function peerDepPathToVersionOnly (depPath: DepPath): PeerId {
+  const atIndex = depPath.indexOf('@', depPath[0] === '@' ? 1 : 0)
+  if (atIndex === -1) return depPath
+  const name = depPath.substring(0, atIndex)
+  const afterAt = depPath.substring(atIndex + 1)
+  const suffixStart = afterAt.indexOf('(')
+  const version = suffixStart === -1 ? afterAt : afterAt.substring(0, suffixStart)
+  return { name, version }
 }
 
 interface ParentRefs {
