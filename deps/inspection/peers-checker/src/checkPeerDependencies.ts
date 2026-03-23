@@ -11,14 +11,15 @@ import {
   readCurrentLockfile,
   readWantedLockfile,
 } from '@pnpm/lockfile.fs'
+import { lockfileWalkerGroupImporterSteps, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
 import type {
   BadPeerDependencyIssue,
-  DepPath,
   MissingPeerDependencyIssue,
   ParentPackages,
   PeerDependencyIssues,
   PeerDependencyIssuesByProjects,
   PeerDependencyRules,
+  ProjectId,
 } from '@pnpm/types'
 import semver from 'semver'
 import { intersect } from 'semver-range-intersect'
@@ -52,13 +53,11 @@ function checkPeerDependenciesFromLockfile (
   lockfileDir: string
 ): PeerDependencyIssuesByProjects {
   const packages = lockfile.packages ?? {}
+  const importerIds = projectPaths.map((p) => getLockfileImporterId(lockfileDir, p))
+  const walkerSteps = lockfileWalkerGroupImporterSteps(lockfile, importerIds as ProjectId[])
   const result: PeerDependencyIssuesByProjects = {}
 
-  for (const projectPath of projectPaths) {
-    const importerId = getLockfileImporterId(lockfileDir, projectPath)
-    const importer = lockfile.importers[importerId]
-    if (!importer) continue
-
+  for (const { importerId, step } of walkerSteps) {
     const projectIssues: PeerDependencyIssues = {
       bad: {},
       missing: {},
@@ -66,19 +65,7 @@ function checkPeerDependenciesFromLockfile (
       intersections: {},
     }
 
-    const allDeps: Record<string, string> = {
-      ...importer.dependencies,
-      ...importer.devDependencies,
-      ...importer.optionalDependencies,
-    }
-
-    const visited = new Set<DepPath>()
-
-    for (const [alias, version] of Object.entries(allDeps)) {
-      const depPath = refToRelative(version, alias)
-      if (!depPath) continue
-      walkDependency(depPath, alias, packages, [], visited, projectIssues)
-    }
+    walkStep(step, packages, [], projectIssues)
 
     const merged = mergePeers(projectIssues.missing)
     projectIssues.conflicts = merged.conflicts
@@ -90,64 +77,49 @@ function checkPeerDependenciesFromLockfile (
   return result
 }
 
-function walkDependency (
-  depPath: DepPath,
-  alias: string,
+function walkStep (
+  step: LockfileWalkerStep,
   packages: PackageSnapshots,
   parents: ParentPackages,
-  visited: Set<DepPath>,
   issues: PeerDependencyIssues
 ): void {
-  if (visited.has(depPath)) return
-  visited.add(depPath)
+  for (const { depPath, pkgSnapshot, next } of step.dependencies) {
+    const parsed = parseDependencyPath(depPath)
+    const pkgName = parsed.name ?? depPath
+    const pkgVersion = pkgSnapshot.version ?? parsed.version ?? ''
+    const currentParents: ParentPackages = [...parents, { name: pkgName, version: pkgVersion }]
 
-  const snapshot = packages[depPath]
-  if (!snapshot) return
+    if (pkgSnapshot.peerDependencies) {
+      for (const [peerName, peerRange] of Object.entries(pkgSnapshot.peerDependencies)) {
+        const isOptional = pkgSnapshot.peerDependenciesMeta?.[peerName]?.optional === true
+        const resolvedPeerRef = pkgSnapshot.dependencies?.[peerName] ?? pkgSnapshot.optionalDependencies?.[peerName]
 
-  const parsed = parseDependencyPath(depPath)
-  const pkgName = parsed.name ?? alias
-  const pkgVersion = snapshot.version ?? parsed.version ?? ''
-  const currentParents: ParentPackages = [...parents, { name: pkgName, version: pkgVersion }]
-
-  if (snapshot.peerDependencies) {
-    for (const [peerName, peerRange] of Object.entries(snapshot.peerDependencies)) {
-      const isOptional = snapshot.peerDependenciesMeta?.[peerName]?.optional === true
-      const resolvedPeerRef = snapshot.dependencies?.[peerName] ?? snapshot.optionalDependencies?.[peerName]
-
-      if (!resolvedPeerRef) {
-        if (!isOptional) {
-          if (!issues.missing[peerName]) issues.missing[peerName] = []
-          issues.missing[peerName].push({
-            parents: currentParents,
-            optional: isOptional,
-            wantedRange: peerRange,
-          })
-        }
-      } else {
-        const peerVersion = extractVersion(resolvedPeerRef, peerName, packages)
-        if (peerVersion && !satisfies(peerVersion, peerRange)) {
-          if (!issues.bad[peerName]) issues.bad[peerName] = []
-          issues.bad[peerName].push({
-            parents: currentParents,
-            optional: isOptional,
-            wantedRange: peerRange,
-            foundVersion: peerVersion,
-            resolvedFrom: [],
-          })
+        if (!resolvedPeerRef) {
+          if (!isOptional) {
+            if (!issues.missing[peerName]) issues.missing[peerName] = []
+            issues.missing[peerName].push({
+              parents: currentParents,
+              optional: isOptional,
+              wantedRange: peerRange,
+            })
+          }
+        } else {
+          const peerVersion = extractVersion(resolvedPeerRef, peerName, packages)
+          if (peerVersion && !satisfies(peerVersion, peerRange)) {
+            if (!issues.bad[peerName]) issues.bad[peerName] = []
+            issues.bad[peerName].push({
+              parents: currentParents,
+              optional: isOptional,
+              wantedRange: peerRange,
+              foundVersion: peerVersion,
+              resolvedFrom: [],
+            })
+          }
         }
       }
     }
-  }
 
-  const allDeps: Record<string, string> = {
-    ...snapshot.dependencies,
-    ...snapshot.optionalDependencies,
-  }
-
-  for (const [childAlias, childVersion] of Object.entries(allDeps)) {
-    const childDepPath = refToRelative(childVersion, childAlias)
-    if (!childDepPath) continue
-    walkDependency(childDepPath, childAlias, packages, currentParents, visited, issues)
+    walkStep(next(), packages, currentParents, issues)
   }
 }
 

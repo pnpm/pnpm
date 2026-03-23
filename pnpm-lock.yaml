@@ -3307,6 +3307,9 @@ importers:
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../../lockfile/fs
+      '@pnpm/lockfile.walker':
+        specifier: workspace:*
+        version: link:../../../lockfile/walker
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../../core/types

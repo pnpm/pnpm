@@ -37,6 +37,7 @@
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.walker": "workspace:*",
     "@pnpm/types": "workspace:*",
     "semver": "catalog:",
     "semver-range-intersect": "catalog:"
