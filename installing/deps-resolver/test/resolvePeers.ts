@@ -747,26 +747,11 @@ describe('dedupePeers', () => {
       peersSuffixMaxLength: 1000,
       workspaceProjectIds: new Set(),
     })
-    const depPaths = Object.keys(dependenciesGraph).sort()
-    // With dedupePeers: @emotion/react uses version-only react suffix
-    // and @emotion/styled uses version-only suffixes for both peers.
-    // No nested suffixes like (@emotion/react@11.0.0(react@18.0.0))
-    expect(depPaths).toStrictEqual([
+    expect(Object.keys(dependenciesGraph).sort()).toStrictEqual([
       '@emotion/react/11.0.0(react@18.0.0)',
       '@emotion/styled/11.0.0(@emotion/react@11.0.0)(react@18.0.0)',
       'react/18.0.0',
     ])
-    // Verify no nested parentheses in any dep path (version-only means no nesting)
-    for (const depPath of depPaths) {
-      const openParens = depPath.split('(').length - 1
-      const closeParens = depPath.split(')').length - 1
-      expect(openParens).toBe(closeParens)
-      // No nested parens: between any ( and its matching ), there should be no other (
-      if (openParens > 0) {
-        const suffix = depPath.substring(depPath.indexOf('('))
-        expect(suffix).not.toMatch(/\([^)]*\(/)
-      }
-    }
   })
 
   test('packages without direct peers get no suffix even when children have peers', async () => {
