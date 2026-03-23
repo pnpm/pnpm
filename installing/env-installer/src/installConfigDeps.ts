@@ -22,6 +22,7 @@ export interface InstallConfigDepsOpts {
   rootDir: string
   store: StoreController
   storeDir: string
+  frozenLockfile?: boolean
 }
 
 /**

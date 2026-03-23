@@ -12,6 +12,7 @@ import { parseIntegrity } from './parseIntegrity.js'
 interface MigrateOpts {
   registries: Registries
   rootDir: string
+  frozenLockfile?: boolean
 }
 
 /**
@@ -90,16 +91,21 @@ export async function migrateConfigDepsToLockfile (
   }
 
   // Write the new env lockfile and clean up workspace manifest
-  await Promise.all([
+  const writes: Array<Promise<void>> = [
     writeEnvLockfile(opts.rootDir, envLockfile),
-    writeSettings({
-      rootProjectManifestDir: opts.rootDir,
-      workspaceDir: opts.rootDir,
-      updatedSettings: {
-        configDependencies: cleanSpecifiers,
-      },
-    }),
-  ])
+  ]
+  if (!opts.frozenLockfile) {
+    writes.push(
+      writeSettings({
+        rootProjectManifestDir: opts.rootDir,
+        workspaceDir: opts.rootDir,
+        updatedSettings: {
+          configDependencies: cleanSpecifiers,
+        },
+      })
+    )
+  }
+  await Promise.all(writes)
 
   return normalizedDeps
 }

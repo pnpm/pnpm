@@ -52,6 +52,7 @@ export async function installConfigDepsAndLoadHooks (config: Config): Promise<Co
       store: store.ctrl,
       storeDir: store.dir,
       rootDir: config.lockfileDir ?? config.rootProjectManifestDir,
+      frozenLockfile: config.frozenLockfile,
     })
   }
   if (!config.ignorePnpmfile) {

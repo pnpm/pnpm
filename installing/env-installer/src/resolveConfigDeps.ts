@@ -68,14 +68,16 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
   }))
 
   await Promise.all([
-    writeSettings({
-      ...opts,
-      rootProjectManifestDir: opts.rootDir,
-      workspaceDir: opts.rootDir,
-      updatedSettings: {
-        configDependencies: configDependencySpecifiers,
-      },
-    }),
+    ...(opts.frozenLockfile ? [] : [
+      writeSettings({
+        ...opts,
+        rootProjectManifestDir: opts.rootDir,
+        workspaceDir: opts.rootDir,
+        updatedSettings: {
+          configDependencies: configDependencySpecifiers,
+        },
+      }),
+    ]),
     writeEnvLockfile(opts.rootDir, envLockfile),
   ])
   await installConfigDeps(envLockfile, opts)
