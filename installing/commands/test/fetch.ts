@@ -234,11 +234,6 @@ test('fetch applies patches to dependencies when patchedDependencies key is bare
   const f = fixtures(import.meta.dirname)
   const project = prepare({
     dependencies: { '@pnpm.e2e/console-log': '1.0.0' },
-    pnpm: {
-      patchedDependencies: {
-        '@pnpm.e2e/console-log': 'patches/console-log.patch',
-      },
-    },
   })
   fs.mkdirSync('patches', { recursive: true })
   fs.copyFileSync(f.find('patchedDependencies/console-log-replace-1st-line.patch'), 'patches/console-log.patch')
