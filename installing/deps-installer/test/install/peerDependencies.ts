@@ -2059,6 +2059,48 @@ test('detection of circular peer dependencies should not crash with aliased depe
   expect(fs.existsSync(path.resolve(WANTED_LOCKFILE))).toBeTruthy()
 })
 
+// Covers https://github.com/pnpm/pnpm/issues/11070
+test('dedupePeers: transitive peers are not propagated to parent suffix', async () => {
+  prepareEmpty()
+  await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
+
+  const project = prepareEmpty()
+
+  await install({
+    dependencies: {
+      '@pnpm.e2e/abc-grand-parent': '1.0.0',
+      '@pnpm.e2e/peer-c': '1.0.0',
+    },
+  }, testDefaults({ dedupePeers: true, strictPeerDependencies: false }))
+
+  const lockfile = project.readLockfile()
+  const snapshotKeys = Object.keys(lockfile.snapshots)
+
+  // abc-grand-parent should NOT have peer-c in its suffix.
+  // It doesn't declare peer-c as its own peer — the transitive propagation is stopped.
+  const grandParentKey = snapshotKeys.find((k) => k.startsWith('@pnpm.e2e/abc-grand-parent@'))!
+  expect(grandParentKey).toBe('@pnpm.e2e/abc-grand-parent@1.0.0')
+  expect(grandParentKey).not.toContain('peer-c')
+
+  // abc (the leaf with direct peer deps) should still have its peers in the suffix,
+  // but using version-only format (no nested dep paths)
+  const abcKey = snapshotKeys.find((k) => k.startsWith('@pnpm.e2e/abc@'))!
+  expect(abcKey).toContain('@pnpm.e2e/peer-a@')
+  expect(abcKey).toContain('@pnpm.e2e/peer-b@')
+  expect(abcKey).toContain('@pnpm.e2e/peer-c@')
+  // No nested parentheses — version-only means no (foo@1(bar@2)) patterns
+  const suffix = abcKey.substring(abcKey.indexOf('('))
+  expect(suffix).not.toMatch(/\([^)]*\(/)
+
+  // The virtual store directory for abc-grand-parent should be short (no peer suffix)
+  expect(
+    fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+abc-grand-parent@1.0.0/node_modules/@pnpm.e2e/abc-grand-parent'))
+  ).toBeTruthy()
+
+  // The lockfile should record dedupePeers in settings
+  expect(lockfile.settings.dedupePeers).toBe(true)
+})
+
 // Covers https://github.com/pnpm/pnpm/pull/9673
 test('no deadlock on circular aliased peers', async () => {
   prepareEmpty()
