@@ -258,6 +258,15 @@ export interface LinkBinOptions {
 
 async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions): Promise<void> {
   const externalBinPath = path.join(binsDir, cmd.name)
+  // Skip if this bin already exists — avoids redundant I/O on warm stores
+  // and EACCES on read-only stores (e.g. Docker layers, NFS, CI prewarm).
+  // Use stat (not lstat) so dangling symlinks still get replaced.
+  try {
+    await fs.stat(externalBinPath)
+    return
+  } catch (err: any) { // eslint-disable-line
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
+  }
   if (IS_WINDOWS) {
     const exePath = path.join(binsDir, `${cmd.name}${getExeExtension()}`)
     if (existsSync(exePath)) {

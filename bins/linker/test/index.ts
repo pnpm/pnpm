@@ -76,6 +76,23 @@ test('linkBins()', async () => {
   }
 })
 
+test('linkBins() skips bins that already exist', async () => {
+  const binTarget = temporaryDirectory()
+  const warn = jest.fn()
+  const simpleFixture = f.prepare('simple-fixture')
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+
+  const binLocation = path.join(binTarget, 'simple')
+  expect(fs.existsSync(binLocation)).toBe(true)
+  // Overwrite the bin file with different content to prove it is not rewritten
+  fs.writeFileSync(binLocation, 'should-not-be-overwritten', 'utf8')
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+
+  expect(fs.readFileSync(binLocation, 'utf8')).toBe('should-not-be-overwritten')
+})
+
 test('linkBins() never creates a PowerShell shim for the pnpm CLI', async () => {
   const binTarget = temporaryDirectory()
   const fixture = f.prepare('pnpm-cli')
