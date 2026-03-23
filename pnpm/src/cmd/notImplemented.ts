@@ -32,7 +32,6 @@ const NOT_IMPLEMENTED_COMMANDS = [
   'token',
   'unpublish',
   'unstar',
-  'v',
   'whoami',
   'xmas',
 ]
