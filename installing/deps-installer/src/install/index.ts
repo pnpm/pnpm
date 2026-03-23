@@ -470,6 +470,7 @@ export async function mutateModules (
       const outdatedLockfileSettingName = getOutdatedLockfileSetting(ctx.wantedLockfile, {
         autoInstallPeers: opts.autoInstallPeers,
         catalogs: opts.catalogs,
+        dedupePeers: opts.dedupePeers,
         injectWorkspacePackages: opts.injectWorkspacePackages,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         peersSuffixMaxLength: opts.peersSuffixMaxLength,
@@ -494,7 +495,7 @@ export async function mutateModules (
     if (needsFullResolution) {
       ctx.wantedLockfile.settings = {
         autoInstallPeers: opts.autoInstallPeers,
-        dedupePeers: opts.dedupePeers || undefined,
+        ...(opts.dedupePeers ? { dedupePeers: true } : {}),
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         peersSuffixMaxLength: opts.peersSuffixMaxLength,
         injectWorkspacePackages: opts.injectWorkspacePackages,
@@ -507,7 +508,7 @@ export async function mutateModules (
     } else if (!frozenLockfile) {
       ctx.wantedLockfile.settings = {
         autoInstallPeers: opts.autoInstallPeers,
-        dedupePeers: opts.dedupePeers || undefined,
+        ...(opts.dedupePeers ? { dedupePeers: true } : {}),
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         peersSuffixMaxLength: opts.peersSuffixMaxLength,
         injectWorkspacePackages: opts.injectWorkspacePackages,
