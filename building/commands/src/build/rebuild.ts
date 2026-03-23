@@ -75,26 +75,27 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 }
 
 export type RebuildCommandOpts = Pick<Config,
-| 'dir'
-| 'enableGlobalVirtualStore'
-| 'engineStrict'
-| 'lockfileDir'
-| 'nodeLinker'
-| 'registries'
-| 'scriptShell'
-| 'sideEffectsCache'
-| 'sideEffectsCacheReadonly'
-| 'scriptsPrependNodePath'
-| 'shellEmulator'
-| 'workspaceDir'
+  | 'allProjects'
+  | 'dir'
+  | 'enableGlobalVirtualStore'
+  | 'engineStrict'
+  | 'lockfileDir'
+  | 'nodeLinker'
+  | 'rawLocalConfig'
+  | 'registries'
+  | 'scriptShell'
+  | 'sideEffectsCache'
+  | 'sideEffectsCacheReadonly'
+  | 'scriptsPrependNodePath'
+  | 'shellEmulator'
+  | 'workspaceDir'
 > & Pick<ConfigContext,
-| 'allProjects'
-| 'hooks'
-| 'rootProjectManifest'
-| 'rootProjectManifestDir'
-| 'selectedProjectsGraph'
+  | 'hooks'
+  | 'rootProjectManifest'
+  | 'rootProjectManifestDir'
+  | 'selectedProjectsGraph'
 > &
-CreateStoreControllerOptions &
+  CreateStoreControllerOptions &
 {
   recursive?: boolean
   reporter?: (logObj: LogBase) => void
@@ -117,6 +118,11 @@ export async function handler (
     sideEffectsCacheWrite: opts.sideEffectsCache,
     storeController: store.ctrl,
     storeDir: store.dir,
+    include: {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    },
   })
 
   if (params.length === 0) {

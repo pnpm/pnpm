@@ -51,6 +51,11 @@ export type StrictBuildOptions = {
   enableGlobalVirtualStore?: boolean
   globalVirtualStoreDir?: string
   virtualStoreDir?: string
+  include?: {
+    dependencies: boolean
+    devDependencies: boolean
+    optionalDependencies: boolean
+  }
   virtualStoreDirMaxLength: number
   peersSuffixMaxLength: number
   strictStorePkgContentCheck: boolean
