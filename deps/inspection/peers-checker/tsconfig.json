@@ -28,6 +28,9 @@
       "path": "../../../lockfile/fs"
     },
     {
+      "path": "../../../lockfile/walker"
+    },
+    {
       "path": "../../path"
     }
   ]
