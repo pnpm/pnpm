@@ -495,7 +495,7 @@ export async function mutateModules (
     if (needsFullResolution) {
       ctx.wantedLockfile.settings = {
         autoInstallPeers: opts.autoInstallPeers,
-        ...(opts.dedupePeers ? { dedupePeers: true } : {}),
+        dedupePeers: opts.dedupePeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         peersSuffixMaxLength: opts.peersSuffixMaxLength,
         injectWorkspacePackages: opts.injectWorkspacePackages,
@@ -508,7 +508,7 @@ export async function mutateModules (
     } else if (!frozenLockfile) {
       ctx.wantedLockfile.settings = {
         autoInstallPeers: opts.autoInstallPeers,
-        ...(opts.dedupePeers ? { dedupePeers: true } : {}),
+        dedupePeers: opts.dedupePeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         peersSuffixMaxLength: opts.peersSuffixMaxLength,
         injectWorkspacePackages: opts.injectWorkspacePackages,

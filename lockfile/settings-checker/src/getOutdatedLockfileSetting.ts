@@ -62,7 +62,7 @@ export function getOutdatedLockfileSetting (
   if ((lockfile.settings?.autoInstallPeers != null && lockfile.settings.autoInstallPeers !== autoInstallPeers)) {
     return 'settings.autoInstallPeers'
   }
-  if (Boolean(lockfile.settings?.dedupePeers) !== Boolean(dedupePeers)) {
+  if (lockfile.settings?.dedupePeers != null && lockfile.settings.dedupePeers !== dedupePeers) {
     return 'settings.dedupePeers'
   }
   if (lockfile.settings?.excludeLinksFromLockfile != null && lockfile.settings.excludeLinksFromLockfile !== excludeLinksFromLockfile) {
