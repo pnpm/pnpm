@@ -2074,30 +2074,20 @@ test('dedupePeers: transitive peers are not propagated to parent suffix', async 
   }, testDefaults({ dedupePeers: true, strictPeerDependencies: false }))
 
   const lockfile = project.readLockfile()
-  const snapshotKeys = Object.keys(lockfile.snapshots)
 
-  // abc-grand-parent should NOT have peer-c in its suffix.
-  // It doesn't declare peer-c as its own peer — the transitive propagation is stopped.
-  const grandParentKey = snapshotKeys.find((k) => k.startsWith('@pnpm.e2e/abc-grand-parent@'))!
-  expect(grandParentKey).toBe('@pnpm.e2e/abc-grand-parent@1.0.0')
-  expect(grandParentKey).not.toContain('peer-c')
-
-  // abc (the leaf with direct peer deps) should still have its peers in the suffix,
-  // but using version-only format (no nested dep paths)
-  const abcKey = snapshotKeys.find((k) => k.startsWith('@pnpm.e2e/abc@'))!
-  expect(abcKey).toContain('@pnpm.e2e/peer-a@')
-  expect(abcKey).toContain('@pnpm.e2e/peer-b@')
-  expect(abcKey).toContain('@pnpm.e2e/peer-c@')
-  // No nested parentheses — version-only means no (foo@1(bar@2)) patterns
-  const suffix = abcKey.substring(abcKey.indexOf('('))
-  expect(suffix).not.toMatch(/\([^)]*\(/)
-
-  // The virtual store directory for abc-grand-parent should be short (no peer suffix)
-  expect(
-    fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+abc-grand-parent@1.0.0/node_modules/@pnpm.e2e/abc-grand-parent'))
-  ).toBeTruthy()
-
-  // The lockfile should record dedupePeers in settings
+  // abc-grand-parent and abc-parent-with-ab have no peer suffix —
+  // transitive peers from abc are not propagated up.
+  // abc has version-only suffixes for its direct peers (no nesting).
+  expect(Object.keys(lockfile.snapshots).sort()).toStrictEqual([
+    '@pnpm.e2e/abc-grand-parent@1.0.0',
+    '@pnpm.e2e/abc-parent-with-ab@1.0.0',
+    '@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.1)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)',
+    '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
+    '@pnpm.e2e/peer-a@1.0.1',
+    '@pnpm.e2e/peer-b@1.0.0',
+    '@pnpm.e2e/peer-c@1.0.0',
+    'is-positive@1.0.0',
+  ])
   expect(lockfile.settings.dedupePeers).toBe(true)
 })
 
