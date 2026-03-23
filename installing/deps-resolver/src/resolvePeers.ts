@@ -528,29 +528,12 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     const peerIds: PeerId[] = []
     const pendingPeers: PendingPeer[] = []
     for (const [alias, peerNodeId] of allResolvedPeers.entries()) {
-      if (typeof peerNodeId === 'string' && peerNodeId.startsWith('link:')) {
-        const linkedDir = peerNodeId.slice(5)
-        peerIds.push({
-          name: alias,
-          version: filenamify(linkedDir, { replacement: '+' }),
-        })
-        continue
+      const peerId = peerNodeIdToPeerId(alias, peerNodeId, ctx)
+      if (peerId != null) {
+        peerIds.push(peerId)
+      } else {
+        pendingPeers.push({ alias, nodeId: peerNodeId })
       }
-      if (ctx.dedupePeers) {
-        // Optimization 1: Use version-only peer identifiers instead of full dep paths.
-        // This eliminates nested peer suffixes like (foo@1.0.0(bar@2.0.0)).
-        const peerNode = ctx.dependenciesTree.get(peerNodeId)
-        if (peerNode) {
-          peerIds.push({ name: peerNode.resolvedPackage.name, version: peerNode.resolvedPackage.version })
-          continue
-        }
-      }
-      const peerDepPath = ctx.pathsByNodeId.get(peerNodeId)
-      if (peerDepPath) {
-        peerIds.push(ctx.dedupePeers ? peerDepPathToVersionOnly(peerDepPath) : peerDepPath)
-        continue
-      }
-      pendingPeers.push({ alias, nodeId: peerNodeId })
     }
     if (pendingPeers.length === 0) {
       const peerDepGraphHash = createPeerDepGraphHash(peerIds, ctx.peersSuffixMaxLength)
@@ -591,7 +574,6 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
             return id
           }
           if (ctx.dedupePeers) {
-            // With dedupePeers, use version-only IDs for pending peers too
             const peerNode = ctx.dependenciesTree.get(pendingPeer.nodeId)
             if (peerNode) {
               return { name: peerNode.resolvedPackage.name, version: peerNode.resolvedPackage.version }
@@ -984,15 +966,33 @@ function getLocationFromParentNodeIds<T> (
   }
 }
 
-// Extracts name@version from a dep path like "foo@1.0.0(bar@2.0.0)" → { name: "foo", version: "1.0.0" }
-function peerDepPathToVersionOnly (depPath: DepPath): PeerId {
-  const atIndex = depPath.indexOf('@', depPath[0] === '@' ? 1 : 0)
-  if (atIndex === -1) return depPath
-  const name = depPath.substring(0, atIndex)
-  const afterAt = depPath.substring(atIndex + 1)
-  const suffixStart = afterAt.indexOf('(')
-  const version = suffixStart === -1 ? afterAt : afterAt.substring(0, suffixStart)
-  return { name, version }
+function peerNodeIdToPeerId<T extends PartialResolvedPackage> (
+  alias: string,
+  peerNodeId: NodeId,
+  ctx: ResolvePeersContext & {
+    dedupePeers?: boolean
+    dependenciesTree: DependenciesTree<T>
+  }
+): PeerId | undefined {
+  if (typeof peerNodeId === 'string' && peerNodeId.startsWith('link:')) {
+    return {
+      name: alias,
+      version: filenamify(peerNodeId.slice(5), { replacement: '+' }),
+    }
+  }
+  if (ctx.dedupePeers) {
+    // Use version-only peer identifiers instead of full dep paths.
+    // This eliminates nested peer suffixes like (foo@1.0.0(bar@2.0.0)).
+    const peerNode = ctx.dependenciesTree.get(peerNodeId)
+    if (peerNode) {
+      return { name: peerNode.resolvedPackage.name, version: peerNode.resolvedPackage.version }
+    }
+  }
+  const peerDepPath = ctx.pathsByNodeId.get(peerNodeId)
+  if (peerDepPath) {
+    return peerDepPath
+  }
+  return undefined
 }
 
 interface ParentRefs {
