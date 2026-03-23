@@ -387,6 +387,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   const depNodes = Object.values(graph)
 
   const added = depNodes.filter(({ fetching }) => fetching).length
+  const skipGvsInternalLinking = opts.enableGlobalVirtualStore === true && added === 0
   statsLogger.debug({
     added,
     prefix: lockfileDir,
@@ -429,28 +430,30 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       })
     }
   } else if (opts.enableModulesDir !== false || opts.enableGlobalVirtualStore) {
-    if (opts.enableModulesDir !== false) {
-      await Promise.all(depNodes.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
-    }
-    await Promise.all([
-      opts.symlink === false || opts.enableModulesDir === false
-        ? Promise.resolve()
-        : linkAllModules(depNodes, {
-          optional: opts.include.optionalDependencies,
+    if (!skipGvsInternalLinking) {
+      if (opts.enableModulesDir !== false) {
+        await Promise.all(depNodes.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
+      }
+      await Promise.all([
+        opts.symlink === false || opts.enableModulesDir === false
+          ? Promise.resolve()
+          : linkAllModules(depNodes, {
+            optional: opts.include.optionalDependencies,
+          }),
+        linkAllPkgs(opts.storeController, depNodes, {
+          allowBuild,
+          force: opts.force,
+          disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
+          depGraph: graph,
+          depsStateCache,
+          enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
+          ignoreScripts: opts.ignoreScripts,
+          lockfileDir: opts.lockfileDir,
+          sideEffectsCacheRead: opts.sideEffectsCacheRead,
+          storeDir: opts.storeDir,
         }),
-      linkAllPkgs(opts.storeController, depNodes, {
-        allowBuild,
-        force: opts.force,
-        disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
-        depGraph: graph,
-        depsStateCache,
-        enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
-        ignoreScripts: opts.ignoreScripts,
-        lockfileDir: opts.lockfileDir,
-        sideEffectsCacheRead: opts.sideEffectsCacheRead,
-        storeDir: opts.storeDir,
-      }),
-    ])
+      ])
+    }
 
     stageLogger.debug({
       prefix: lockfileDir,
@@ -493,7 +496,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       newHoistedDependencies = {}
     }
 
-    if (!skipPostImportLinking) {
+    if (!skipPostImportLinking && !skipGvsInternalLinking) {
       await linkAllBins(graph, {
         extraNodePaths: opts.extraNodePaths,
         optional: opts.include.optionalDependencies,
@@ -618,6 +621,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
                 }
               }
             }
+            directPkgDirs = directPkgDirs.filter(dir => graph[dir]?.hasBin)
             await linkBinsOfPackages(
               (
                 await Promise.all(
