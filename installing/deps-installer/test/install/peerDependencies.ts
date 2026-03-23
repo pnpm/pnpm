@@ -2063,6 +2063,7 @@ test('detection of circular peer dependencies should not crash with aliased depe
 test('dedupePeers: transitive peers are not propagated to parent suffix', async () => {
   prepareEmpty()
   await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
 
   const project = prepareEmpty()
 
@@ -2080,9 +2081,9 @@ test('dedupePeers: transitive peers are not propagated to parent suffix', async 
   expect(Object.keys(lockfile.snapshots).sort()).toStrictEqual([
     '@pnpm.e2e/abc-grand-parent@1.0.0(@pnpm.e2e/peer-c@1.0.0)',
     '@pnpm.e2e/abc-parent-with-ab@1.0.0(@pnpm.e2e/peer-c@1.0.0)',
-    '@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.1)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)',
+    '@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)',
     '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
-    '@pnpm.e2e/peer-a@1.0.1',
+    '@pnpm.e2e/peer-a@1.0.0',
     '@pnpm.e2e/peer-b@1.0.0',
     '@pnpm.e2e/peer-c@1.0.0',
     'is-positive@1.0.0',
@@ -2093,6 +2094,7 @@ test('dedupePeers: transitive peers are not propagated to parent suffix', async 
 // Covers https://github.com/pnpm/pnpm/issues/11070
 test('dedupePeers: workspace projects with different peer versions get different instances', async () => {
   await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
 
   const manifest1 = {
     name: 'project-1',
@@ -2137,10 +2139,10 @@ test('dedupePeers: workspace projects with different peer versions get different
     '@pnpm.e2e/abc-grand-parent@1.0.0(@pnpm.e2e/peer-c@2.0.0)',
     '@pnpm.e2e/abc-parent-with-ab@1.0.0(@pnpm.e2e/peer-c@1.0.0)',
     '@pnpm.e2e/abc-parent-with-ab@1.0.0(@pnpm.e2e/peer-c@2.0.0)',
-    '@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.1)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)',
-    '@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.1)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@2.0.0)',
+    '@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)',
+    '@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@2.0.0)',
     '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
-    '@pnpm.e2e/peer-a@1.0.1',
+    '@pnpm.e2e/peer-a@1.0.0',
     '@pnpm.e2e/peer-b@1.0.0',
     '@pnpm.e2e/peer-c@1.0.0',
     '@pnpm.e2e/peer-c@2.0.0',
