@@ -75,6 +75,7 @@
     "render-help": "catalog:",
     "semver": "catalog:",
     "tar-stream": "catalog:",
+    "terminal-link": "catalog:",
     "tempy": "catalog:",
     "tinyglobby": "catalog:",
     "validate-npm-package-name": "catalog:",

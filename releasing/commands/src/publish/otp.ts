@@ -2,6 +2,7 @@ import { PnpmError } from '@pnpm/error'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import type { PublishOptions } from 'libnpmpublish'
 import qrcodeTerminal from 'qrcode-terminal'
+import terminalLink from 'terminal-link'
 
 import { SHARED_CONTEXT } from './utils/shared-context.js'
 
@@ -187,7 +188,8 @@ async function webAuthOtp (
   fetchOptions: OtpWebAuthFetchOptions
 ): Promise<string> {
   const qrCode = generateQrCode(authUrl)
-  globalInfo(`Authenticate your account at:\n${authUrl}\n\n${qrCode}`)
+  const clickableUrl = terminalLink(authUrl, authUrl, { fallback: false })
+  globalInfo(`Authenticate your account at:\n${clickableUrl}\n\n${qrCode}`)
   const startTime = Date.now()
   const timeout = 5 * 60 * 1000 // 5 minutes
 
