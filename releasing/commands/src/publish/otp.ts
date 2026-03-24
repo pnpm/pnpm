@@ -118,7 +118,6 @@ export async function publishWithOtpHandling ({
     setTimeout,
     enquirer,
     fetch,
-    globalInfo,
     process,
     publish,
   } = SHARED_CONTEXT,
@@ -150,7 +149,7 @@ export async function publishWithOtpHandling ({
     let otp: string | undefined
 
     if (error.body?.authUrl && error.body?.doneUrl) {
-      otp = await webAuthOtp(error.body.authUrl, error.body.doneUrl, { Date, setTimeout, fetch, globalInfo }, fetchOptions)
+      otp = await webAuthOtp(error.body.authUrl, error.body.doneUrl, { Date, setTimeout, fetch }, fetchOptions)
     } else {
       const enquirerResponse = await enquirer.prompt({
         message: 'This operation requires a one-time password.\nEnter OTP:',
@@ -183,7 +182,7 @@ export async function publishWithOtpHandling ({
 async function webAuthOtp (
   authUrl: string,
   doneUrl: string,
-  { Date, setTimeout, fetch, globalInfo }: Pick<OtpContext, 'Date' | 'setTimeout' | 'fetch' | 'globalInfo'>,
+  { Date, setTimeout, fetch }: Pick<OtpContext, 'Date' | 'setTimeout' | 'fetch'>,
   fetchOptions: OtpWebAuthFetchOptions
 ): Promise<string> {
   const qrCode = generateQrCode(authUrl)
