@@ -29,8 +29,10 @@ export function writeBufferToCafs (
   // However, there is no way to find which package index file references
   // the given file. So we should revalidate the content of the file again.
   if (existsSame(fileDest, integrity)) {
+    const checkedAt = Date.now()
+    locker.set(fileDest, checkedAt)
     return {
-      checkedAt: Date.now(),
+      checkedAt,
       filePath: fileDest,
     }
   }
