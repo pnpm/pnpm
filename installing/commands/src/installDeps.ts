@@ -108,6 +108,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'shellEmulator'
 | 'tag'
 | 'allowBuilds'
+| 'userAllowBuilds'
 | 'optional'
 | 'workspaceConcurrency'
 | 'workspaceDir'
