@@ -16,40 +16,34 @@ export function writeBufferToCafs (
   mode: number | undefined,
   integrity: Integrity
 ): { checkedAt: number, filePath: string } {
-  fileDest = path.join(storeDir, fileDest)
+  fileDest = `${storeDir}${path.sep}${fileDest}`
   if (locker.has(fileDest)) {
     return {
       checkedAt: locker.get(fileDest)!,
       filePath: fileDest,
     }
   }
-  // This part is a bit redundant.
-  // When a file is already used by another package,
-  // we probably have validated its content already.
-  // However, there is no way to find which package index file references
-  // the given file. So we should revalidate the content of the file again.
-  if (existsSame(fileDest, integrity)) {
-    return {
-      checkedAt: Date.now(),
-      filePath: fileDest,
+  // Fast path: check if the file already exists on disk with correct content.
+  const existingFile = fs.statSync(fileDest, { throwIfNoEntry: false })
+  if (existingFile) {
+    if (verifyFileIntegrity(fileDest, integrity)) {
+      const checkedAt = Date.now()
+      locker.set(fileDest, checkedAt)
+      return {
+        checkedAt,
+        filePath: fileDest,
+      }
     }
   }
 
-  // This might be too cautious.
-  // The write is atomic, so in case pnpm crashes, no broken file
-  // will be added to the store.
-  // It might be a redundant step though, as we verify the contents of the
-  // files before linking
-  //
-  // If we don't allow --no-verify-store-integrity then we probably can write
-  // to the final file directly.
-  const temp = pathTemp(fileDest)
-  writeFile(temp, buffer, mode)
-  // Unfortunately, "birth time" (time of file creation) is available not on all filesystems.
-  // We log the creation time ourselves and save it in the package index file.
-  // Having this information allows us to skip content checks for files that were not modified since "birth time".
+  // Write directly to the final path. This is safe because:
+  // 1. The store verifies file integrity before linking to projects
+  // 2. If pnpm crashes mid-write, the next install will detect the
+  //    integrity mismatch and re-write the file
+  // 3. Each worker thread writes to unique content-addressed paths,
+  //    so there are no concurrent-write conflicts
+  writeFile(fileDest, buffer, mode)
   const birthtimeMs = Date.now()
-  optimisticRenameOverwrite(temp, fileDest)
   locker.set(fileDest, birthtimeMs)
   return {
     checkedAt: birthtimeMs,
@@ -102,10 +96,4 @@ function removeSuffix (filePath: string): string {
     return `${withoutSuffix}x`
   }
   return withoutSuffix
-}
-
-function existsSame (filename: string, integrity: Integrity): boolean {
-  const existingFile = fs.statSync(filename, { throwIfNoEntry: false })
-  if (!existingFile) return false
-  return verifyFileIntegrity(filename, integrity)
 }
