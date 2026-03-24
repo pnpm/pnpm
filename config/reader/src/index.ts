@@ -9,6 +9,7 @@ import { PnpmError } from '@pnpm/error'
 import { getCurrentBranch } from '@pnpm/network.git-utils'
 import loadNpmConf from '@pnpm/npm-conf'
 import type npmTypes from '@pnpm/npm-conf/lib/types.js'
+import { DEFAULT_ALLOW_BUILDS } from '@pnpm/plugin-trusted-deps'
 import { isCamelCase } from '@pnpm/text.naming-cases'
 import type { DevEngines, EngineDependency, ProjectManifest } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -218,6 +219,7 @@ export async function getConfig (opts: {
     'strict-peer-dependencies': false,
     'unsafe-perm': npmDefaults['unsafe-perm'],
     'use-beta-cli': false,
+    'use-default-trusted-deps': true,
     userconfig: npmDefaults.userconfig,
     'verify-deps-before-run': 'install',
     'verify-store-integrity': true,
@@ -487,6 +489,10 @@ export async function getConfig (opts: {
 
   if (!hasDependencyBuildOptions(pnpmConfig)) {
     Object.assign(pnpmConfig, globalDepsBuildConfig)
+  }
+  if (pnpmConfig.useDefaultTrustedDeps) {
+    // User-configured allowBuilds take precedence over the defaults.
+    pnpmConfig.allowBuilds = { ...DEFAULT_ALLOW_BUILDS, ...pnpmConfig.allowBuilds }
   }
   if (opts.cliOptions['save-peer']) {
     if (opts.cliOptions['save-prod']) {

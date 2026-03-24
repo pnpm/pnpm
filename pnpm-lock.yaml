@@ -2427,6 +2427,9 @@ importers:
       '@pnpm/npm-conf':
         specifier: 'catalog:'
         version: 3.0.2
+      '@pnpm/plugin-trusted-deps':
+        specifier: 0.3.0-0
+        version: 0.3.0-0
       '@pnpm/text.naming-cases':
         specifier: workspace:*
         version: link:../../text/naming-cases
@@ -10634,6 +10637,9 @@ packages:
     resolution: {integrity: sha512-/dTfl669uwuABRqZXDT37fJItuPu3h/YHw4lAvgkUp3D6CaWVRoEX+ZBiqQU/NCzUBOQ3x7QOU7sPKUinbRh4A==}
     engines: {node: '>=18.12'}
 
+  '@pnpm/plugin-trusted-deps@0.3.0-0':
+    resolution: {integrity: sha512-55UVul61O76y2d99OImb4KUHcz0sMu7qxqQzBQWob+iz7IYzS2DqZogh9YZ1Qm7JOhvVCUYonVFlDhxHS6wvng==}
+
   '@pnpm/pnpmfile@1002.1.12':
     resolution: {integrity: sha512-FHWSZ01QJba99kf5L6vvPVuBjnTt/SHbVsFooO5iCkQopkB3NKt59uYBDPW16ATjAlVbgOG+XDRQVitpe6zoXQ==}
     engines: {node: '>=18.12'}
@@ -18646,6 +18652,8 @@ snapshots:
   '@pnpm/pick-registry-for-package@1000.0.16':
     dependencies:
       '@pnpm/types': 1001.3.0
+
+  '@pnpm/plugin-trusted-deps@0.3.0-0': {}
 
   '@pnpm/pnpmfile@1002.1.12(@pnpm/logger@1001.0.1)':
     dependencies:
