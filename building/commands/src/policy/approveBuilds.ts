@@ -7,7 +7,6 @@ import { install } from '@pnpm/installing.commands'
 import { type StrictModules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import { globalInfo } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import chalk from 'chalk'
 import enquirer from 'enquirer'
 import { renderHelp } from 'render-help'
@@ -150,11 +149,7 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
     } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
     buildPackages = result.map(({ value }: { value: string }) => value)
   }
-  // Read current allowBuilds from pnpm-workspace.yaml rather than from the
-  // runtime config, which may include defaults from the trusted deps list.
-  const workspaceDir = opts.workspaceDir ?? opts.rootProjectManifestDir
-  const workspaceManifest = workspaceDir ? await readWorkspaceManifest(workspaceDir) : undefined
-  const allowBuilds: Record<string, boolean | string> = { ...workspaceManifest?.allowBuilds }
+  const allowBuilds: Record<string, boolean | string> = { ...opts.allowBuilds }
   if (params.length) {
     for (const pkg of approved) {
       allowBuilds[pkg] = true

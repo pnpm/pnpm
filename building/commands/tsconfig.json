@@ -79,9 +79,6 @@
       "path": "../../workspace/projects-sorter"
     },
     {
-      "path": "../../workspace/workspace-manifest-reader"
-    },
-    {
       "path": "../after-install"
     }
   ]

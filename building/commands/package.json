@@ -47,7 +47,6 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/workspace.projects-sorter": "workspace:*",
-    "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
     "chalk": "catalog:",
     "enquirer": "catalog:",
     "p-limit": "catalog:",
