@@ -313,13 +313,17 @@ test('fetch applies patches to transitive dependencies of skipped file: dependen
     storeDir,
   })
 
-  const patchedPkgDir = fs.readdirSync(path.join(project.dir(), 'node_modules/.pnpm'))
-    .find((entry) => entry.startsWith('is-positive@1.0.0_patch_hash='))
+  const pnpmDir = path.join(project.dir(), 'node_modules/.pnpm')
+  const patchedPkgDir = fs.readdirSync(pnpmDir)
+    .find((entry) => {
+      const candidatePath = path.join(pnpmDir, entry, 'node_modules/is-positive/index.js')
+      return fs.existsSync(candidatePath)
+    })
 
   expect(patchedPkgDir).toBeTruthy()
   expect(
     fs.readFileSync(
-      path.join(project.dir(), 'node_modules/.pnpm', patchedPkgDir!, 'node_modules/is-positive/index.js'),
+      path.join(pnpmDir, patchedPkgDir!, 'node_modules/is-positive/index.js'),
       'utf8'
     )
   ).toContain('// patched')
