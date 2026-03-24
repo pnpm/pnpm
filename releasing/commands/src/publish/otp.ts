@@ -189,7 +189,9 @@ async function webAuthOtp (
   const qrCode = generateQrCode(authUrl)
   const sanitizedUrl = sanitizeUrl(authUrl)
   const displayUrl = sanitizedUrl != null ? hyperlinkEscape(sanitizedUrl) : authUrl
-  globalInfo(`Authenticate your account at:\n${displayUrl}\n\n${qrCode}`)
+  // Write the clickable URL directly to stderr to avoid the reporter
+  // pipeline (ansi-diff) which corrupts OSC 8 escape sequences.
+  globalThis.process.stderr.write(`Authenticate your account at:\n${displayUrl}\n\n${qrCode}\n`)
   const startTime = Date.now()
   const timeout = 5 * 60 * 1000 // 5 minutes
 
