@@ -37,14 +37,8 @@ export function importIndexedDir (
         rimrafSync(newDir)
       } catch {} // eslint-disable-line:no-empty
       if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-        const { sanitizedFilenames, invalidFilenames } = sanitizeFilenames(filenames)
-        if (invalidFilenames.length === 0) throw err
-        globalWarn(`\
-The package linked to "${path.relative(process.cwd(), newDir)}" had \
-files with invalid names: ${invalidFilenames.join(', ')}. \
-They were renamed.`)
-        importIndexedDir(importFile, newDir, sanitizedFilenames, opts)
-        return
+        if (retryWithSanitizedFilenames(importFile, newDir, filenames, opts)) return
+        throw err
       }
       if (util.types.isNativeError(err) && 'code' in err && err.code !== 'EEXIST') {
         throw err
@@ -81,14 +75,8 @@ They were renamed.`)
       return
     }
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      const { sanitizedFilenames, invalidFilenames } = sanitizeFilenames(filenames)
-      if (invalidFilenames.length === 0) throw err
-      globalWarn(`\
-The package linked to "${path.relative(process.cwd(), newDir)}" had \
-files with invalid names: ${invalidFilenames.join(', ')}. \
-They were renamed.`)
-      importIndexedDir(importFile, newDir, sanitizedFilenames, opts)
-      return
+      if (retryWithSanitizedFilenames(importFile, newDir, filenames, opts)) return
+      throw err
     }
     throw err
   }
@@ -144,6 +132,22 @@ function allFilesMatch (dir: string, filenames: Map<string, string>): boolean {
       return false
     }
   }
+  return true
+}
+
+function retryWithSanitizedFilenames (
+  importFile: ImportFile,
+  newDir: string,
+  filenames: Map<string, string>,
+  opts: { keepModulesDir?: boolean, safeToSkip?: boolean }
+): boolean {
+  const { sanitizedFilenames, invalidFilenames } = sanitizeFilenames(filenames)
+  if (invalidFilenames.length === 0) return false
+  globalWarn(`\
+The package linked to "${path.relative(process.cwd(), newDir)}" had \
+files with invalid names: ${invalidFilenames.join(', ')}. \
+They were renamed.`)
+  importIndexedDir(importFile, newDir, sanitizedFilenames, opts)
   return true
 }
 

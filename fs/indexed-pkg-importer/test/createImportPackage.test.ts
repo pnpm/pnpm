@@ -60,12 +60,12 @@ testOnLinuxOnly('packageImportMethod=auto: clone files by default', () => {
   })).toBe('clone')
   expect(gfs.copyFileSync).toHaveBeenCalledWith(
     path.join('hash1'),
-    path.join('project', 'package_tmp', 'package.json'),
+    path.join('project', 'package', 'package.json'),
     fs.constants.COPYFILE_FICLONE_FORCE
   )
   expect(gfs.copyFileSync).toHaveBeenCalledWith(
     path.join('hash2'),
-    path.join('project', 'package_tmp', 'index.js'),
+    path.join('project', 'package', 'index.js'),
     fs.constants.COPYFILE_FICLONE_FORCE
   )
 })
@@ -83,8 +83,8 @@ testOnLinuxOnly('packageImportMethod=auto: link files if cloning fails', () => {
     force: false,
     resolvedFrom: 'remote',
   })).toBe('hardlink')
-  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash1'), path.join('project', 'package_tmp', 'package.json'))
-  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project', 'package_tmp', 'index.js'))
+  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash1'), path.join('project', 'package', 'package.json'))
+  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project', 'package', 'index.js'))
   expect(gfs.copyFileSync).toHaveBeenCalled()
   jest.mocked(gfs.copyFileSync).mockClear()
 
@@ -98,8 +98,8 @@ testOnLinuxOnly('packageImportMethod=auto: link files if cloning fails', () => {
     resolvedFrom: 'remote',
   })).toBe('hardlink')
   expect(gfs.copyFileSync).not.toHaveBeenCalled()
-  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash1'), path.join('project2', 'package_tmp', 'package.json'))
-  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project2', 'package_tmp', 'index.js'))
+  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash1'), path.join('project2', 'package', 'package.json'))
+  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project2', 'package', 'index.js'))
 })
 
 testOnLinuxOnly('packageImportMethod=auto: link files if cloning fails and even hard linking fails but not with EXDEV error', () => {
@@ -121,7 +121,7 @@ testOnLinuxOnly('packageImportMethod=auto: link files if cloning fails and even 
     force: false,
     resolvedFrom: 'remote',
   })).toBe('hardlink')
-  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project', 'package_tmp', 'index.js'))
+  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project', 'package', 'index.js'))
   expect(gfs.linkSync).toHaveBeenCalledTimes(2)
   expect(gfs.copyFileSync).toHaveBeenCalledTimes(1)
 })
@@ -143,7 +143,7 @@ testOnLinuxOnly('packageImportMethod=auto: chooses copying if cloning and hard l
     force: false,
     resolvedFrom: 'remote',
   })).toBe('copy')
-  expect(gfs.copyFileSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project', 'package_tmp', 'index.js'))
+  expect(gfs.copyFileSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project', 'package', 'index.js'))
   expect(gfs.copyFileSync).toHaveBeenCalledTimes(2)
 })
 
@@ -166,8 +166,8 @@ testOnLinuxOnly('packageImportMethod=hardlink: fall back to copying if hardlinki
   })).toBe('hardlink')
   expect(gfs.linkSync).toHaveBeenCalledTimes(3)
   expect(gfs.copyFileSync).toHaveBeenCalledTimes(2) // One time the target already exists, so it won't be copied
-  expect(gfs.copyFileSync).toHaveBeenCalledWith(path.join('hash1'), path.join('project', 'package_tmp', 'package.json'))
-  expect(gfs.copyFileSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project', 'package_tmp', 'index.js'))
+  expect(gfs.copyFileSync).toHaveBeenCalledWith(path.join('hash1'), path.join('project', 'package', 'package.json'))
+  expect(gfs.copyFileSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project', 'package', 'index.js'))
 })
 
 test('packageImportMethod=hardlink does not relink package from store if package.json is linked from the store', () => {
