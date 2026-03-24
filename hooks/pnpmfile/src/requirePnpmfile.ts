@@ -1,4 +1,3 @@
-import assert from 'node:assert'
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
@@ -95,7 +94,9 @@ export async function requirePnpmfile (pnpmFilePath: string, prefix: string): Pr
       console.error(err)
       process.exit(1)
     }
-    assert(util.types.isNativeError(err))
+    if (!util.types.isNativeError(err)) {
+      throw new PnpmFileFailError(pnpmFilePath, new Error(String(err)))
+    }
     if (
       !('code' in err && (err.code === 'MODULE_NOT_FOUND' || err.code === 'ERR_MODULE_NOT_FOUND')) ||
       pnpmFileExistsSync(pnpmFilePath)
