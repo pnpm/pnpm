@@ -302,5 +302,8 @@ function sanitizeUrl (url: string): string | undefined {
 }
 
 function hyperlinkEscape (url: string): string {
-  return `\u001B]8;;${url}\u0007${url}\u001B]8;;\u0007`
+  // Use ST (\x1b\\) as the OSC terminator instead of BEL (\x07)
+  // for compatibility with tmux 3.4+ which supports OSC 8 natively
+  // but only recognizes ST-terminated sequences.
+  return `\u001B]8;;${url}\u001B\\${url}\u001B]8;;\u001B\\`
 }
