@@ -31,6 +31,7 @@ async function execPnpmInstall (opts?: { enableGlobalVirtualStore?: boolean }): 
     `--cache-dir=${path.resolve('cache')}`,
     `--registry=${REGISTRY}`,
     '--config.strict-dep-builds=false',
+    '--config.allow-builds-of-trusted-deps=false',
     `--config.enable-global-virtual-store=${opts?.enableGlobalVirtualStore ?? false}`,
   ])
 }
