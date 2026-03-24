@@ -33,15 +33,20 @@ export function importIndexedDir (
       tryImportIndexedDir(importFile, newDir, filenames)
       return
     } catch (err: unknown) {
-      // Clean up partial directory from the fast path
-      try {
-        rimrafSync(newDir)
-      } catch {} // eslint-disable-line:no-empty
-      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      const isNative = util.types.isNativeError(err) && 'code' in err
+      const errCode = isNative ? (err as { code: unknown }).code : undefined
+      // Clean up partial directory from the fast path, but avoid deleting a
+      // directory that may have been created by a concurrent importer (EEXIST).
+      if (errCode !== 'EEXIST') {
+        try {
+          rimrafSync(newDir)
+        } catch {} // eslint-disable-line:no-empty
+      }
+      if (isNative && errCode === 'ENOENT') {
         if (retryWithSanitizedFilenames(importFile, newDir, filenames, opts)) return
         throw err
       }
-      if (util.types.isNativeError(err) && 'code' in err && err.code !== 'EEXIST') {
+      if (isNative && errCode !== 'EEXIST') {
         throw err
       }
       // EEXIST or race condition: fall through to staging path
@@ -181,8 +186,20 @@ function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames:
     fs.mkdirSync(path.join(newDir, dir), { recursive: true })
     createdDirs.add(dir)
   }
+  // Write package.json last so it acts as a completion marker.
+  // pkgExistsAtTargetDir() checks for package.json to decide if a package
+  // is already imported — writing it last ensures a crash mid-import won't
+  // leave a partially-populated directory that appears fully imported.
+  let packageJsonSrc: string | undefined
   for (const [f, src] of filenames) {
+    if (f === 'package.json') {
+      packageJsonSrc = src
+      continue
+    }
     importFile(src, path.join(newDir, f))
+  }
+  if (packageJsonSrc !== undefined) {
+    importFile(packageJsonSrc, path.join(newDir, 'package.json'))
   }
 }
 
