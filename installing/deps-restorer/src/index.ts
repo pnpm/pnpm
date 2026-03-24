@@ -621,7 +621,9 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
                 }
               }
             }
-            directPkgDirs = directPkgDirs.filter(dir => graph[dir]?.hasBin)
+            // Skip packages without bins to avoid unnecessary manifest reads.
+            // Dirs not in graph (e.g. link: deps) are kept since they may expose bins.
+            directPkgDirs = directPkgDirs.filter((dir) => graph[dir] == null || graph[dir].hasBin)
             await linkBinsOfPackages(
               (
                 await Promise.all(
