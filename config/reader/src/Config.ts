@@ -240,7 +240,7 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number
   auditLevel?: 'low' | 'moderate' | 'high' | 'critical'
-  allowBuildsForTrustedDeps: boolean
+  allowBuildsOfTrustedDeps: boolean
 
   packageConfigs?: ProjectConfigSet
 }

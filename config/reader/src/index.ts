@@ -219,7 +219,7 @@ export async function getConfig (opts: {
     'strict-peer-dependencies': false,
     'unsafe-perm': npmDefaults['unsafe-perm'],
     'use-beta-cli': false,
-    'allow-builds-for-trusted-deps': true,
+    'allow-builds-of-trusted-deps': true,
     userconfig: npmDefaults.userconfig,
     'verify-deps-before-run': 'install',
     'verify-store-integrity': true,
@@ -490,7 +490,7 @@ export async function getConfig (opts: {
   if (!hasDependencyBuildOptions(pnpmConfig)) {
     Object.assign(pnpmConfig, globalDepsBuildConfig)
   }
-  if (pnpmConfig.allowBuildsForTrustedDeps) {
+  if (pnpmConfig.allowBuildsOfTrustedDeps) {
     // Save the user-configured allowBuilds before merging defaults.
     // This is used when writing back to pnpm-workspace.yaml to avoid
     // persisting the default trusted list.

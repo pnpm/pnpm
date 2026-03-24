@@ -43,7 +43,7 @@ async function getApproveBuildsConfig () {
   }
   return {
     ...omit(['reporter'], (await getConfig({
-      cliOptions: { ...cliOptions, 'allow-builds-for-trusted-deps': false },
+      cliOptions: { ...cliOptions, 'allow-builds-of-trusted-deps': false },
       packageManager: { name: 'pnpm', version: '' },
     })).config),
     storeDir: path.resolve('store'),
