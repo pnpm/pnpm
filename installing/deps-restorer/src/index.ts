@@ -460,41 +460,36 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       stage: 'importing_done',
     })
 
-    if (opts.ignorePackageManifest !== true && !skipPostImportLinking && (opts.hoistPattern != null || opts.publicHoistPattern != null)) {
-      newHoistedDependencies = {
-        ...opts.hoistedDependencies,
-        ...await hoist({
-          extraNodePath: opts.extraNodePaths,
-          graph,
-          directDepsByImporterId: Object.fromEntries(Object.entries(directDependenciesByImporterId).map(([projectId, deps]) => [
-            projectId,
-            new Map(Object.entries(deps)),
-          ])),
-          importerIds,
-          preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-          privateHoistedModulesDir: hoistedModulesDir,
-          privateHoistPattern: opts.hoistPattern ?? [],
-          publicHoistedModulesDir,
-          publicHoistPattern: opts.publicHoistPattern ?? [],
-          virtualStoreDir,
-          virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-          hoistedWorkspacePackages: opts.hoistWorkspacePackages
-            ? Object.values(opts.allProjects).reduce((hoistedWorkspacePackages, project) => {
-              if (project.manifest.name && project.id !== '.') {
-                hoistedWorkspacePackages[project.id] = {
-                  dir: project.rootDir,
-                  name: project.manifest.name,
-                }
+    const hoistPromise = opts.ignorePackageManifest !== true && !skipPostImportLinking && (opts.hoistPattern != null || opts.publicHoistPattern != null)
+      ? hoist({
+        extraNodePath: opts.extraNodePaths,
+        graph,
+        directDepsByImporterId: Object.fromEntries(Object.entries(directDependenciesByImporterId).map(([projectId, deps]) => [
+          projectId,
+          new Map(Object.entries(deps)),
+        ])),
+        importerIds,
+        preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+        privateHoistedModulesDir: hoistedModulesDir,
+        privateHoistPattern: opts.hoistPattern ?? [],
+        publicHoistedModulesDir,
+        publicHoistPattern: opts.publicHoistPattern ?? [],
+        virtualStoreDir,
+        virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+        hoistedWorkspacePackages: opts.hoistWorkspacePackages
+          ? Object.values(opts.allProjects).reduce((hoistedWorkspacePackages, project) => {
+            if (project.manifest.name && project.id !== '.') {
+              hoistedWorkspacePackages[project.id] = {
+                dir: project.rootDir,
+                name: project.manifest.name,
               }
-              return hoistedWorkspacePackages
-            }, {} as Record<string, HoistedWorkspaceProject>)
-            : undefined,
-          skipped: opts.skipped,
-        }),
-      }
-    } else {
-      newHoistedDependencies = {}
-    }
+            }
+            return hoistedWorkspacePackages
+          }, {} as Record<string, HoistedWorkspaceProject>)
+          : undefined,
+        skipped: opts.skipped,
+      })
+      : Promise.resolve(null)
 
     if (!skipPostImportLinking && !skipGvsInternalLinking) {
       await linkAllBins(graph, {
@@ -509,9 +504,8 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       Object.assign(filteredLockfile.packages!, currentLockfile.packages)
     }
 
-    /** Skip linking and due to no project manifest */
-    if (!opts.ignorePackageManifest && !skipPostImportLinking) {
-      linkedToRoot = await symlinkDirectDependencies({
+    const symlinkDirectPromise = !opts.ignorePackageManifest && !skipPostImportLinking
+      ? symlinkDirectDependencies({
         dedupe: Boolean(opts.dedupeDirectDeps),
         directDependenciesByImporterId,
         filteredLockfile,
@@ -520,7 +514,27 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         registries: opts.registries,
         symlink: opts.symlink,
       })
-    }
+      : Promise.resolve(0)
+
+    const nonHoistedBinProjects = opts.nodeLinker === 'hoisted'
+      ? []
+      : selectedProjects.filter((project) =>
+        !(opts.publicHoistPattern?.length && path.relative(opts.lockfileDir, project.rootDir) === '')
+      )
+    const directDepBinPromise = !opts.ignorePackageManifest && !skipPostImportLinking && nonHoistedBinProjects.length > 0 && opts.enableModulesDir !== false
+      ? linkDirectDepBins(nonHoistedBinProjects, directDependenciesByImporterId, graph, {
+        dedupeDirectDeps: Boolean(opts.dedupeDirectDeps),
+        extraNodePaths: opts.extraNodePaths,
+        lockfileDir: opts.lockfileDir,
+        preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+      })
+      : Promise.resolve()
+
+    const [hoistResult, symlinkResult] = await Promise.all([hoistPromise, symlinkDirectPromise, directDepBinPromise])
+    newHoistedDependencies = hoistResult != null
+      ? { ...opts.hoistedDependencies, ...hoistResult }
+      : {}
+    linkedToRoot = symlinkResult
   }
 
   if (opts.ignoreScripts) {
@@ -599,48 +613,18 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, injectionTargetsByDepPath)
 
   if (opts.enableModulesDir !== false) {
-    if (!skipPostImportLinking) {
-      const rootProjectDeps = !opts.dedupeDirectDeps ? {} : (directDependenciesByImporterId['.'] ?? {})
-      /** Skip linking and due to no project manifest */
-      if (!opts.ignorePackageManifest) {
-        await Promise.all(selectedProjects.map(async (project) => {
-          if (opts.nodeLinker === 'hoisted' || opts.publicHoistPattern?.length && path.relative(opts.lockfileDir, project.rootDir) === '') {
-            await linkBinsOfImporter(project, {
-              extraNodePaths: opts.extraNodePaths,
-              preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-            })
-          } else {
-            let directPkgDirs: string[]
-            if (project.id === '.') {
-              directPkgDirs = Object.values(directDependenciesByImporterId[project.id])
-            } else {
-              directPkgDirs = []
-              for (const [alias, dir] of Object.entries(directDependenciesByImporterId[project.id])) {
-                if (rootProjectDeps[alias] !== dir) {
-                  directPkgDirs.push(dir)
-                }
-              }
-            }
-            // Skip packages without bins to avoid unnecessary manifest reads.
-            // Dirs not in graph (e.g. link: deps) are kept since they may expose bins.
-            directPkgDirs = directPkgDirs.filter((dir) => graph[dir] == null || graph[dir].hasBin)
-            await linkBinsOfPackages(
-              (
-                await Promise.all(
-                  directPkgDirs.map(async (dir) => ({
-                    location: dir,
-                    manifest: await safeReadProjectManifestOnly(dir),
-                  }))
-                )
-              )
-                .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
-              project.binsDir,
-              {
-                extraNodePaths: opts.extraNodePaths,
-                preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-              }
-            )
-          }
+    if (!skipPostImportLinking && !opts.ignorePackageManifest) {
+      // Link bins for hoisted linker projects. Non-hoisted bin linking is handled
+      // earlier in parallel via directDepBinPromise.
+      const hoistedBinProjects = selectedProjects.filter((project) =>
+        opts.nodeLinker === 'hoisted' || (opts.publicHoistPattern?.length && path.relative(opts.lockfileDir, project.rootDir) === '')
+      )
+      if (hoistedBinProjects.length > 0) {
+        await Promise.all(hoistedBinProjects.map(async (project) => {
+          await linkBinsOfImporter(project, {
+            extraNodePaths: opts.extraNodePaths,
+            preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+          })
         }))
       }
     }
@@ -772,6 +756,52 @@ async function symlinkDirectDependencies (
     }
   }
   return linkDirectDeps(projectsToLink, { dedupe: Boolean(dedupe) })
+}
+
+async function linkDirectDepBins (
+  projects: Project[],
+  directDependenciesByImporterId: DirectDependenciesByImporterId,
+  graph: DependenciesGraph,
+  opts: {
+    dedupeDirectDeps: boolean
+    extraNodePaths?: string[]
+    lockfileDir: string
+    preferSymlinkedExecutables?: boolean
+  }
+): Promise<void> {
+  const rootProjectDeps = !opts.dedupeDirectDeps ? {} : (directDependenciesByImporterId['.'] ?? {})
+  await Promise.all(projects.map(async (project) => {
+    let directPkgDirs: string[]
+    if (project.id === '.') {
+      directPkgDirs = Object.values(directDependenciesByImporterId[project.id])
+    } else {
+      directPkgDirs = []
+      for (const [alias, dir] of Object.entries(directDependenciesByImporterId[project.id])) {
+        if (rootProjectDeps[alias] !== dir) {
+          directPkgDirs.push(dir)
+        }
+      }
+    }
+    // Skip packages without bins to avoid unnecessary manifest reads.
+    // Dirs not in graph (e.g. link: deps) are kept since they may expose bins.
+    directPkgDirs = directPkgDirs.filter((dir) => graph[dir] == null || graph[dir].hasBin)
+    await linkBinsOfPackages(
+      (
+        await Promise.all(
+          directPkgDirs.map(async (dir) => ({
+            location: dir,
+            manifest: await safeReadProjectManifestOnly(dir),
+          }))
+        )
+      )
+        .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
+      project.binsDir,
+      {
+        extraNodePaths: opts.extraNodePaths,
+        preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+      }
+    )
+  }))
 }
 
 async function linkBinsOfImporter (
