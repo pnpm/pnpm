@@ -553,6 +553,11 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         directNodes.add(loc)
       }
     }
+    for (const depNode of depNodes) {
+      if (depNode.patch != null) {
+        directNodes.add(depNode.dir)
+      }
+    }
     const extraBinPaths = [...opts.extraBinPaths ?? []]
     if (opts.hoistPattern != null) {
       extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))

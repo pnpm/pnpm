@@ -11,6 +11,7 @@ import { finishWorkers } from '@pnpm/worker'
 import { rimrafSync } from '@zkochan/rimraf'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
+const patchFixtures = fixtures(path.join(import.meta.dirname, '../../deps-installer/test'))
 
 const DEFAULT_OPTIONS = {
   argv: {
@@ -266,4 +267,60 @@ test('fetch applies patches to dependencies when patchedDependencies key is bare
 
   const patchedIndexJsAfterFetch = fs.readFileSync(path.join(virtualStoreDir, consoleLogDirs[0], 'node_modules/@pnpm.e2e/console-log/index.js'), 'utf8')
   expect(patchedIndexJsAfterFetch).toContain('FIRST LINE')
+})
+
+test('fetch applies patches to transitive dependencies of skipped file: dependencies', async () => {
+  const project = prepare({
+    dependencies: {
+      '@local/pkg': 'file:./local-pkg',
+    },
+  })
+  const storeDir = path.resolve('store')
+  const localPkgDir = path.resolve(project.dir(), 'local-pkg')
+  const patchedDependencies = {
+    'is-positive@1.0.0': patchFixtures.find('patch-pkg/is-positive@1.0.0.patch'),
+  }
+
+  fs.mkdirSync(localPkgDir, { recursive: true })
+  fs.writeFileSync(
+    path.join(localPkgDir, 'package.json'),
+    JSON.stringify({
+      name: '@local/pkg',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    })
+  )
+
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    linkWorkspacePackages: true,
+    lockfileOnly: true,
+    patchedDependencies,
+    storeDir,
+  })
+
+  rimrafSync(path.resolve(project.dir(), 'package.json'))
+
+  await fetch.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    patchedDependencies,
+    storeDir,
+  })
+
+  const patchedPkgDir = fs.readdirSync(path.join(project.dir(), 'node_modules/.pnpm'))
+    .find((entry) => entry.startsWith('is-positive@1.0.0_patch_hash='))
+
+  expect(patchedPkgDir).toBeTruthy()
+  expect(
+    fs.readFileSync(
+      path.join(project.dir(), 'node_modules/.pnpm', patchedPkgDir!, 'node_modules/is-positive/index.js'),
+      'utf8'
+    )
+  ).toContain('// patched')
 })
