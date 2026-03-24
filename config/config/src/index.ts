@@ -133,6 +133,7 @@ export async function getConfig (opts: {
     'dangerously-allow-all-builds': false,
     'deploy-all-files': false,
     'dedupe-peer-dependents': true,
+    'dedupe-peers': false,
     'dedupe-direct-deps': false,
     'dedupe-injected-deps': true,
     'disallow-workspace-cycles': false,
