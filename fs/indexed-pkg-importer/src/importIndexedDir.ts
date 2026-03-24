@@ -24,6 +24,35 @@ export function importIndexedDir (
     safeToSkip?: boolean
   }
 ): void {
+  // Fast path: if newDir doesn't exist, import directly without staging.
+  // This avoids the overhead of creating a temp dir + rename per package.
+  // Falls back to the staging path if the dir exists or on any error.
+  if (!fs.existsSync(newDir)) {
+    try {
+      tryImportIndexedDir(importFile, newDir, filenames)
+      return
+    } catch (err: unknown) {
+      // Clean up partial directory from the fast path
+      try {
+        rimrafSync(newDir)
+      } catch {} // eslint-disable-line:no-empty
+      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+        const { sanitizedFilenames, invalidFilenames } = sanitizeFilenames(filenames)
+        if (invalidFilenames.length === 0) throw err
+        globalWarn(`\
+The package linked to "${path.relative(process.cwd(), newDir)}" had \
+files with invalid names: ${invalidFilenames.join(', ')}. \
+They were renamed.`)
+        importIndexedDir(importFile, newDir, sanitizedFilenames, opts)
+        return
+      }
+      if (util.types.isNativeError(err) && 'code' in err && err.code !== 'EEXIST') {
+        throw err
+      }
+      // EEXIST or race condition: fall through to staging path
+    }
+  }
+  // Staging path: create in temp dir, then atomically rename.
   const stage = pathTemp(newDir)
   try {
     tryImportIndexedDir(importFile, stage, filenames)
@@ -138,18 +167,17 @@ function sanitizeFilenames (filenames: Map<string, string>): SanitizeFilenamesRe
 
 function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames: Map<string, string>): void {
   makeEmptyDirSync(newDir, { recursive: true })
-  const allDirs = new Set<string>()
+  // Create subdirectories. Using a Set to avoid redundant mkdirSync calls.
+  // recursive:true handles parent creation, so sorting by length is unnecessary.
+  const createdDirs = new Set<string>()
   for (const f of filenames.keys()) {
     const dir = path.dirname(f)
-    if (dir === '.') continue
-    allDirs.add(dir)
+    if (dir === '.' || createdDirs.has(dir)) continue
+    fs.mkdirSync(path.join(newDir, dir), { recursive: true })
+    createdDirs.add(dir)
   }
-  Array.from(allDirs)
-    .sort((d1, d2) => d1.length - d2.length) // from shortest to longest
-    .forEach((dir) => fs.mkdirSync(path.join(newDir, dir), { recursive: true }))
   for (const [f, src] of filenames) {
-    const dest = path.join(newDir, f)
-    importFile(src, dest)
+    importFile(src, path.join(newDir, f))
   }
 }
 
