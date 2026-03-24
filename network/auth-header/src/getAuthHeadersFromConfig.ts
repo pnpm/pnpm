@@ -45,7 +45,8 @@ export function getAuthHeadersFromConfig (
   } else if (allSettings['_auth']) {
     authHeaderValueByURI[registry] = `Basic ${allSettings['_auth']}`
   } else if (allSettings['_password'] && allSettings['username']) {
-    authHeaderValueByURI[registry] = `Basic ${Buffer.from(`${allSettings['username']}:${allSettings['_password']}`).toString('base64')}`
+    const password = Buffer.from(allSettings['_password'], 'base64').toString('utf8')
+    authHeaderValueByURI[registry] = `Basic ${Buffer.from(`${allSettings['username']}:${password}`).toString('base64')}`
   }
   return authHeaderValueByURI
 }
