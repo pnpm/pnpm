@@ -2060,7 +2060,7 @@ test('detection of circular peer dependencies should not crash with aliased depe
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/11070
-test('dedupePeers: transitive peers are not propagated to parent suffix', async () => {
+test('dedupePeers: version-only peer suffixes without nested dep paths', async () => {
   prepareEmpty()
   await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })

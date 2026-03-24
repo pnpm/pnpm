@@ -675,10 +675,10 @@ test('resolve peer dependencies with npm aliases', async () => {
 })
 
 describe('dedupePeers', () => {
-  test('eliminates transitive peer propagation and uses version-only suffixes', async () => {
+  test('uses version-only peer suffixes without nested dep paths', async () => {
     // Simulates: react@18, @emotion/react@11(peer: react), @emotion/styled@11(peer: react, @emotion/react)
-    // Without dedupePeers: @emotion/styled gets suffix (@emotion/react@11(react@18))(react@18) — nested!
-    // With dedupePeers: @emotion/styled gets suffix (@emotion/react@11)(react@18) — version-only, no nesting
+    // Without dedupePeers: @emotion/styled gets suffix (@emotion/react@11(react@18))(react@18) — nested dep paths
+    // With dedupePeers: @emotion/styled gets suffix (@emotion/react@11.0.0)(react@18.0.0) — version-only, no nesting
     const reactPkg = {
       name: 'react',
       pkgIdWithPatchHash: 'react/18.0.0' as PkgIdWithPatchHash,

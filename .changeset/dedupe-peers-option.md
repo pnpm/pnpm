@@ -7,4 +7,4 @@
 "pnpm": minor
 ---
 
-Added a new `dedupePeers` setting that reduces peer dependency duplication by using per-project peer deduplication. When enabled, peer dependency suffixes use version-only identifiers (no nested dep paths) and transitive peer propagation is stopped — only directly declared peers appear in a package's suffix. This dramatically reduces the number of package instances in projects with many recursive peer dependencies [#11070](https://github.com/pnpm/pnpm/issues/11070).
+Added a new `dedupePeers` setting that reduces peer dependency duplication. When enabled, peer dependency suffixes use version-only identifiers (`name@version`) instead of full dep paths, eliminating nested suffixes like `(foo@1.0.0(bar@2.0.0))`. This dramatically reduces the number of package instances in projects with many recursive peer dependencies [#11070](https://github.com/pnpm/pnpm/issues/11070).
