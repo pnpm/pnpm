@@ -262,6 +262,9 @@ catalogs:
     '@pnpm/patch-package':
       specifier: 0.0.1
       version: 0.0.1
+    '@pnpm/plugin-trusted-deps':
+      specifier: 0.3.0-0
+      version: 0.3.0-0
     '@pnpm/registry-mock':
       specifier: 5.2.4
       version: 5.2.4
@@ -2428,7 +2431,7 @@ importers:
         specifier: 'catalog:'
         version: 3.0.2
       '@pnpm/plugin-trusted-deps':
-        specifier: 0.3.0-0
+        specifier: 'catalog:'
         version: 0.3.0-0
       '@pnpm/text.naming-cases':
         specifier: workspace:*

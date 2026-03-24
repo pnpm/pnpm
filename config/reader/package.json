@@ -42,7 +42,7 @@
     "@pnpm/hooks.pnpmfile": "workspace:*",
     "@pnpm/network.git-utils": "workspace:*",
     "@pnpm/npm-conf": "catalog:",
-    "@pnpm/plugin-trusted-deps": "0.3.0-0",
+    "@pnpm/plugin-trusted-deps": "catalog:",
     "@pnpm/text.naming-cases": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
