@@ -24,9 +24,13 @@ export function addFilesFromTarball (
   // diminishing returns while increasing per-call memory pressure. A fixed size
   // is fine here: npm tarballs are typically small enough that 128KB covers most
   // output in very few chunks, and the cost is bounded (one zlib stream per tarball).
+  // When called from a worker thread, the buffer arrives as a Uint8Array
+  // (structured clone converts Buffer → Uint8Array). parseTarball relies on
+  // Buffer.prototype.toString('utf8', ...) so we must ensure it's a Buffer.
+  // gunzipSync already returns a Buffer, so only the non-gzip path needs this.
   const tarContent = isGzip(tarballBuffer)
     ? gunzipSync(tarballBuffer, { chunkSize: 128 * 1024 })
-    : tarballBuffer
+    : (Buffer.isBuffer(tarballBuffer) ? tarballBuffer : Buffer.from(tarballBuffer))
   const { files } = parseTarball(tarContent)
   const filesIndex = new Map() as FilesIndex
   let manifestBuffer: Buffer | undefined
