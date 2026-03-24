@@ -666,3 +666,255 @@ test('resolve peer dependencies with npm aliases', async () => {
     'foo/2.0.0(bar/2.0.0)',
   ])
 })
+
+describe('dedupePeers', () => {
+  test('uses version-only peer suffixes without nested dep paths', async () => {
+    // Simulates: react@18, @emotion/react@11(peer: react), @emotion/styled@11(peer: react, @emotion/react)
+    // Without dedupePeers: @emotion/styled gets suffix (@emotion/react@11(react@18))(react@18) — nested dep paths
+    // With dedupePeers: @emotion/styled gets suffix (@emotion/react@11.0.0)(react@18.0.0) — version-only, no nesting
+    const reactPkg = {
+      name: 'react',
+      pkgIdWithPatchHash: 'react/18.0.0' as PkgIdWithPatchHash,
+      version: '18.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const emotionReactPkg = {
+      name: '@emotion/react',
+      pkgIdWithPatchHash: '@emotion/react/11.0.0' as PkgIdWithPatchHash,
+      version: '11.0.0',
+      peerDependencies: {
+        react: { version: '>=16' },
+      },
+      id: '' as PkgResolutionId,
+    }
+    const emotionStyledPkg = {
+      name: '@emotion/styled',
+      pkgIdWithPatchHash: '@emotion/styled/11.0.0' as PkgIdWithPatchHash,
+      version: '11.0.0',
+      peerDependencies: {
+        react: { version: '>=16' },
+        '@emotion/react': { version: '>=11' },
+      },
+      id: '' as PkgResolutionId,
+    }
+    const { dependenciesGraph } = await resolvePeers({
+      allPeerDepNames: new Set(['react', '@emotion/react', '@emotion/styled']),
+      dedupePeers: true,
+      projects: [
+        {
+          directNodeIdsByAlias: new Map([
+            ['react', '>react/18.0.0>' as NodeId],
+            ['@emotion/react', '>@emotion/react/11.0.0>' as NodeId],
+            ['@emotion/styled', '>@emotion/styled/11.0.0>' as NodeId],
+          ]),
+          topParents: [],
+          rootDir: '' as ProjectRootDir,
+          id: '',
+        },
+      ],
+      resolvedImporters: {},
+      dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+        ['>react/18.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: reactPkg,
+          depth: 0,
+        }],
+        ['>@emotion/react/11.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: emotionReactPkg,
+          depth: 0,
+        }],
+        ['>@emotion/styled/11.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: emotionStyledPkg,
+          depth: 0,
+        }],
+      ]),
+      virtualStoreDir: '',
+      virtualStoreDirMaxLength: 120,
+      lockfileDir: '',
+      peersSuffixMaxLength: 1000,
+
+    })
+    expect(Object.keys(dependenciesGraph).sort()).toStrictEqual([
+      '@emotion/react/11.0.0(react@18.0.0)',
+      '@emotion/styled/11.0.0(@emotion/react@11.0.0)(react@18.0.0)',
+      'react/18.0.0',
+    ])
+  })
+
+  test('transitive peers use version-only suffixes', async () => {
+    // A depends on B (peer: C). A has no peers itself.
+    // Without dedupePeers: A gets suffix (c/1.0.0) — full dep path
+    // With dedupePeers: A gets suffix (c@1.0.0) — version-only
+    const aPkg = {
+      name: 'a',
+      pkgIdWithPatchHash: 'a/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const bPkg = {
+      name: 'b',
+      pkgIdWithPatchHash: 'b/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {
+        c: { version: '1.0.0' },
+      },
+      id: '' as PkgResolutionId,
+    }
+    const cPkg = {
+      name: 'c',
+      pkgIdWithPatchHash: 'c/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const { dependenciesGraph } = await resolvePeers({
+      allPeerDepNames: new Set(['c']),
+      dedupePeers: true,
+      projects: [
+        {
+          directNodeIdsByAlias: new Map([
+            ['a', '>a/1.0.0>' as NodeId],
+            ['c', '>c/1.0.0>' as NodeId],
+          ]),
+          topParents: [],
+          rootDir: '' as ProjectRootDir,
+          id: '',
+        },
+      ],
+      resolvedImporters: {},
+      dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+        ['>a/1.0.0>' as NodeId, {
+          children: {
+            b: '>a/1.0.0>b/1.0.0>' as NodeId,
+          },
+          installable: true,
+          resolvedPackage: aPkg,
+          depth: 0,
+        }],
+        ['>a/1.0.0>b/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: bPkg,
+          depth: 1,
+        }],
+        ['>c/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: cPkg,
+          depth: 0,
+        }],
+      ]),
+      virtualStoreDir: '',
+      virtualStoreDirMaxLength: 120,
+      lockfileDir: '',
+      peersSuffixMaxLength: 1000,
+
+    })
+    expect(Object.keys(dependenciesGraph).sort()).toStrictEqual([
+      'a/1.0.0(c@1.0.0)',
+      'b/1.0.0(c@1.0.0)',
+      'c/1.0.0',
+    ])
+  })
+
+  test('multi-project: different peer versions produce different instances', async () => {
+    // project-a has react@17, project-b has react@18
+    // Both have plugin@1 (peer: react)
+    const react17Pkg = {
+      name: 'react',
+      pkgIdWithPatchHash: 'react/17.0.0' as PkgIdWithPatchHash,
+      version: '17.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const react18Pkg = {
+      name: 'react',
+      pkgIdWithPatchHash: 'react/18.0.0' as PkgIdWithPatchHash,
+      version: '18.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const pluginPkg = {
+      name: 'plugin',
+      pkgIdWithPatchHash: 'plugin/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {
+        react: { version: '>=16' },
+      },
+      id: '' as PkgResolutionId,
+    }
+    const { dependenciesGraph, dependenciesByProjectId } = await resolvePeers({
+      allPeerDepNames: new Set(['react']),
+      dedupePeers: true,
+      projects: [
+        {
+          directNodeIdsByAlias: new Map([
+            ['react', '>project-a>react/17.0.0>' as NodeId],
+            ['plugin', '>project-a>plugin/1.0.0>' as NodeId],
+          ]),
+          topParents: [],
+          rootDir: '' as ProjectRootDir,
+          id: 'project-a',
+        },
+        {
+          directNodeIdsByAlias: new Map([
+            ['react', '>project-b>react/18.0.0>' as NodeId],
+            ['plugin', '>project-b>plugin/1.0.0>' as NodeId],
+          ]),
+          topParents: [],
+          rootDir: '' as ProjectRootDir,
+          id: 'project-b',
+        },
+      ],
+      resolvedImporters: {},
+      dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+        ['>project-a>react/17.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: react17Pkg,
+          depth: 0,
+        }],
+        ['>project-a>plugin/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: pluginPkg,
+          depth: 0,
+        }],
+        ['>project-b>react/18.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: react18Pkg,
+          depth: 0,
+        }],
+        ['>project-b>plugin/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: pluginPkg,
+          depth: 0,
+        }],
+      ]),
+      virtualStoreDir: '',
+      virtualStoreDirMaxLength: 120,
+      lockfileDir: '',
+      peersSuffixMaxLength: 1000,
+
+    })
+    // Plugin has two instances — one per react version
+    expect(Object.keys(dependenciesGraph).sort()).toStrictEqual([
+      'plugin/1.0.0(react@17.0.0)',
+      'plugin/1.0.0(react@18.0.0)',
+      'react/17.0.0',
+      'react/18.0.0',
+    ])
+    // Each project gets the correct instance
+    expect(dependenciesByProjectId['project-a'].get('plugin')).toBe('plugin/1.0.0(react@17.0.0)')
+    expect(dependenciesByProjectId['project-b'].get('plugin')).toBe('plugin/1.0.0(react@18.0.0)')
+  })
+})

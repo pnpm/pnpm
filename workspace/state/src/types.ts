@@ -21,6 +21,7 @@ export const WORKSPACE_STATE_SETTING_KEYS = [
   'dedupeDirectDeps',
   'dedupeInjectedDeps',
   'dedupePeerDependents',
+  'dedupePeers',
   'dev',
   'excludeLinksFromLockfile',
   'hoistPattern',
