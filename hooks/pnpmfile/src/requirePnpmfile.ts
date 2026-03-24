@@ -95,7 +95,7 @@ export async function requirePnpmfile (pnpmFilePath: string, prefix: string): Pr
       process.exit(1)
     }
     if (!util.types.isNativeError(err)) {
-      throw new PnpmFileFailError(pnpmFilePath, new Error(String(err)))
+      throw new PnpmFileFailError(pnpmFilePath, toError(err))
     }
     if (
       !('code' in err && (err.code === 'MODULE_NOT_FOUND' || err.code === 'ERR_MODULE_NOT_FOUND')) ||
@@ -112,4 +112,13 @@ function pnpmFileExistsSync (pnpmFilePath: string): boolean {
     ? pnpmFilePath
     : `${pnpmFilePath}.cjs`
   return fs.existsSync(pnpmFileRealName)
+}
+
+function toError (err: unknown): Error {
+  if (err instanceof Error) return err
+  try {
+    return new Error(String(err), { cause: err })
+  } catch {
+    return new Error('[non-Error value thrown]', { cause: err })
+  }
 }
