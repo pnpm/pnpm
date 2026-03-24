@@ -76,7 +76,6 @@
     "semver": "catalog:",
     "tar-stream": "catalog:",
     "tempy": "catalog:",
-    "terminal-link": "catalog:",
     "tinyglobby": "catalog:",
     "validate-npm-package-name": "catalog:",
     "write-json-file": "catalog:",

@@ -7617,9 +7617,6 @@ importers:
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
-      terminal-link:
-        specifier: 'catalog:'
-        version: 5.0.0
       tinyglobby:
         specifier: 'catalog:'
         version: 0.2.15

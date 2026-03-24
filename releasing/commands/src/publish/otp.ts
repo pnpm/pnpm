@@ -2,7 +2,6 @@ import { PnpmError } from '@pnpm/error'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import type { PublishOptions } from 'libnpmpublish'
 import qrcodeTerminal from 'qrcode-terminal'
-import terminalLink from 'terminal-link'
 
 import { SHARED_CONTEXT } from './utils/shared-context.js'
 
@@ -189,7 +188,7 @@ async function webAuthOtp (
 ): Promise<string> {
   const qrCode = generateQrCode(authUrl)
   const sanitizedUrl = sanitizeUrl(authUrl)
-  const displayUrl = sanitizedUrl != null ? terminalLink(sanitizedUrl, sanitizedUrl, { fallback: false }) : authUrl
+  const displayUrl = sanitizedUrl != null ? hyperlinkEscape(sanitizedUrl) : authUrl
   globalInfo(`Authenticate your account at:\n${displayUrl}\n\n${qrCode}`)
   const startTime = Date.now()
   const timeout = 5 * 60 * 1000 // 5 minutes
@@ -300,4 +299,8 @@ function sanitizeUrl (url: string): string | undefined {
   } catch {
     return undefined
   }
+}
+
+function hyperlinkEscape (url: string): string {
+  return `\u001B]8;;${url}\u0007${url}\u001B]8;;\u0007`
 }
