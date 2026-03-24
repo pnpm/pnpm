@@ -34,7 +34,7 @@ describe('writeBufferToCafs', () => {
     // Second call should find the file on disk and cache it
     const result = writeBufferToCafs(locker, storeDir, buffer, fileDest, 420, integrity)
     const fullFileDest = path.join(storeDir, fileDest)
-    expect(locker.has(fullFileDest)).toBe(true)
+    expect(locker.get(fullFileDest)).toBe(result.checkedAt)
 
     // Third call should return from locker cache without hitting disk
     const cached = writeBufferToCafs(locker, storeDir, buffer, fileDest, 420, integrity)
