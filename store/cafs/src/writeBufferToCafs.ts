@@ -1,9 +1,30 @@
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { type Integrity, verifyFileIntegrity } from './checkPkgFilesIntegrity.js'
+import type { Integrity } from './checkPkgFilesIntegrity.js'
 import { writeFile, writeFileExclusive } from './writeFile.js'
+
+/**
+ * Non-destructive integrity check: reads the file and compares its hash
+ * against the expected digest. Unlike verifyFileIntegrity(), this does NOT
+ * delete the file on mismatch — which is important when another process may
+ * still be writing to the same CAS path.
+ */
+function checkIntegrity (filename: string, integrity: Integrity): boolean {
+  let data: Buffer
+  try {
+    data = fs.readFileSync(filename)
+  } catch {
+    return false
+  }
+  try {
+    return crypto.hash(integrity.algorithm, data, 'hex') === integrity.digest
+  } catch {
+    return false
+  }
+}
 
 export function writeBufferToCafs (
   locker: Map<string, number>,
@@ -23,7 +44,7 @@ export function writeBufferToCafs (
   // Fast path: check if the file already exists on disk with correct content.
   const existingFile = fs.statSync(fileDest, { throwIfNoEntry: false })
   if (existingFile) {
-    if (verifyFileIntegrity(fileDest, integrity)) {
+    if (checkIntegrity(fileDest, integrity)) {
       const checkedAt = Date.now()
       locker.set(fileDest, checkedAt)
       return {
@@ -50,7 +71,7 @@ export function writeBufferToCafs (
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') {
       // Another process created the same CAS file. Verify its integrity
       // before caching — the other process may have crashed mid-write.
-      if (verifyFileIntegrity(fileDest, integrity)) {
+      if (checkIntegrity(fileDest, integrity)) {
         const checkedAt = Date.now()
         locker.set(fileDest, checkedAt)
         return {
