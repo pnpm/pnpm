@@ -1,5 +1,17 @@
 # @pnpm/lockfile-file
 
+## 1001.1.32
+
+### Patch Changes
+
+- 883d9f8: When a pnpm-lock.yaml contains two documents, ignore the first one. pnpm v11 will write two lockfile documents into pnpm-lock.yaml in order to store pnpm version integrities and config dependency resolutions.
+- Updated dependencies [28204a4]
+- Updated dependencies [523f816]
+  - @pnpm/lockfile.types@1002.1.0
+  - @pnpm/error@1000.1.0
+  - @pnpm/lockfile.merger@1001.0.20
+  - @pnpm/lockfile.utils@1004.0.3
+
 ## 1001.1.31
 
 ### Patch Changes

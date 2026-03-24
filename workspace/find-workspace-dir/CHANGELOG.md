@@ -1,5 +1,12 @@
 # @pnpm/find-workspace-dir
 
+## 1000.1.5
+
+### Patch Changes
+
+- Updated dependencies [523f816]
+  - @pnpm/error@1000.1.0
+
 ## 1000.1.4
 
 ### Patch Changes

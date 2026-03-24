@@ -1,5 +1,12 @@
 # @pnpm/patching.apply-patch
 
+## 1000.0.8
+
+### Patch Changes
+
+- Updated dependencies [523f816]
+  - @pnpm/error@1000.1.0
+
 ## 1000.0.7
 
 ### Patch Changes

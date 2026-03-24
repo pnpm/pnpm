@@ -1,5 +1,15 @@
 # @pnpm/package-requester
 
+## 1011.2.4
+
+### Patch Changes
+
+- Updated dependencies [523f816]
+  - @pnpm/error@1000.1.0
+  - @pnpm/package-is-installable@1000.0.21
+  - @pnpm/read-package-json@1000.1.8
+  - @pnpm/worker@1000.6.7
+
 ## 1011.2.3
 
 ### Patch Changes

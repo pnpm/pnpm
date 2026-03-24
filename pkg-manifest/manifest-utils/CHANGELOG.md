@@ -1,5 +1,12 @@
 # @pnpm/manifest-utils
 
+## 1002.0.5
+
+### Patch Changes
+
+- Updated dependencies [523f816]
+  - @pnpm/error@1000.1.0
+
 ## 1002.0.4
 
 ### Patch Changes

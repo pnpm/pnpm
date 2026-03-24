@@ -1,5 +1,11 @@
 # @pnpm/prepare
 
+## 1000.0.16
+
+### Patch Changes
+
+- @pnpm/assert-project@1000.0.16
+
 ## 1000.0.15
 
 ### Patch Changes

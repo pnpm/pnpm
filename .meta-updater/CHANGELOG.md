@@ -1,5 +1,15 @@
 # @pnpm-private/updater
 
+## 1000.0.23
+
+### Patch Changes
+
+- Updated dependencies [883d9f8]
+  - @pnpm/lockfile.fs@1001.1.32
+  - @pnpm/parse-overrides@1001.0.4
+  - @pnpm/workspace.read-manifest@1000.3.1
+  - @pnpm/workspace.find-packages@1000.0.65
+
 ## 1000.0.22
 
 ### Patch Changes

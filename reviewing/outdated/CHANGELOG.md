@@ -1,5 +1,23 @@
 # @pnpm/outdated
 
+## 1001.1.21
+
+### Patch Changes
+
+- Updated dependencies [523f816]
+- Updated dependencies [523f816]
+- Updated dependencies [883d9f8]
+- Updated dependencies [9ab69a5]
+  - @pnpm/npm-resolver@1005.2.3
+  - @pnpm/error@1000.1.0
+  - @pnpm/lockfile.fs@1001.1.32
+  - @pnpm/lockfile.utils@1004.0.3
+  - @pnpm/parse-overrides@1001.0.4
+  - @pnpm/config.version-policy@1000.0.6
+  - @pnpm/hooks.read-package-hook@1000.0.21
+  - @pnpm/manifest-utils@1002.0.5
+  - @pnpm/client@1001.1.24
+
 ## 1001.1.20
 
 ### Patch Changes

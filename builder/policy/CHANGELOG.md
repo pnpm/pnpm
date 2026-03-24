@@ -1,5 +1,11 @@
 # @pnpm/builder.policy
 
+## 1000.1.2
+
+### Patch Changes
+
+- @pnpm/config.version-policy@1000.0.6
+
 ## 1000.1.1
 
 ### Patch Changes

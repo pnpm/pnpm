@@ -1,5 +1,30 @@
 # @pnpm/resolve-dependencies
 
+## 1008.8.0
+
+### Minor Changes
+
+- 28204a4: Added a new `dedupePeers` setting that reduces peer dependency duplication. When enabled, peer dependency suffixes use version-only identifiers (`name@version`) instead of full dep paths, eliminating nested suffixes like `(foo@1.0.0(bar@2.0.0))`. This dramatically reduces the number of package instances in projects with many recursive peer dependencies [#11070](https://github.com/pnpm/pnpm/issues/11070).
+
+### Patch Changes
+
+- f3613f1: Fixed handling of non-string version selectors in `hoistPeers`, preventing invalid peer dependency specifiers.
+- Updated dependencies [28204a4]
+- Updated dependencies [523f816]
+- Updated dependencies [523f816]
+- Updated dependencies [9ab69a5]
+  - @pnpm/lockfile.types@1002.1.0
+  - @pnpm/npm-resolver@1005.2.3
+  - @pnpm/error@1000.1.0
+  - @pnpm/lockfile.pruner@1001.0.27
+  - @pnpm/lockfile.utils@1004.0.3
+  - @pnpm/calc-dep-state@1003.0.3
+  - @pnpm/config.version-policy@1000.0.6
+  - @pnpm/patching.config@1001.0.19
+  - @pnpm/manifest-utils@1002.0.5
+  - @pnpm/read-package-json@1000.1.8
+  - @pnpm/lockfile.preferred-versions@1000.0.32
+
 ## 1008.7.7
 
 ### Patch Changes

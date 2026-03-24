@@ -1,5 +1,12 @@
 # @pnpm/network.auth-header
 
+## 1000.0.7
+
+### Patch Changes
+
+- Updated dependencies [523f816]
+  - @pnpm/error@1000.1.0
+
 ## 1000.0.6
 
 ### Patch Changes

@@ -1,5 +1,27 @@
 # pnpm
 
+## 10.33.0
+
+### Minor Changes
+
+- Added a new `dedupePeers` setting that reduces peer dependency duplication. When enabled, peer dependency suffixes use version-only identifiers (`name@version`) instead of full dep paths, eliminating nested suffixes like `(foo@1.0.0(bar@2.0.0))`. This dramatically reduces the number of package instances in projects with many recursive peer dependencies [#11070](https://github.com/pnpm/pnpm/issues/11070).
+
+### Patch Changes
+
+- Fail on incompatible lockfiles in CI when frozen lockfile mode is enabled, while preserving non-frozen CI fallback behavior.
+- When package metadata is malformed or can't be fetched, the error thrown will now show the originating error.
+- Fixed intermittent failures when multiple `pnpm dlx` calls run concurrently for the same package. When the global virtual store is enabled, the importer now verifies file content before skipping a rename, avoiding destructive swap-renames that break concurrent processes. Also tolerates EPERM during bin creation on Windows and properly propagates `enableGlobalVirtualStore` through the install pipeline.
+- Fixed handling of non-string version selectors in `hoistPeers`, preventing invalid peer dependency specifiers.
+- Improve the non-interactive modules purge error hint to include the `confirmModulesPurge=false` workaround.
+
+  When pnpm needs to recreate `node_modules` but no TTY is available, the error now suggests either setting `CI=true` or disabling the purge confirmation prompt via `confirmModulesPurge=false`.
+
+  Adds a regression test for the non-TTY flow.
+
+- Fixed false "Command not found" errors on Windows when a command exists in PATH but exits with a non-zero code. Also fixed path resolution for `--filter` contexts where the command runs in a different package directory.
+- When a pnpm-lock.yaml contains two documents, ignore the first one. pnpm v11 will write two lockfile documents into pnpm-lock.yaml in order to store pnpm version integrities and config dependency resolutions.
+- Fixed a bug preventing the `clearCache` function returned by `createNpmResolver` from properly clearing metadata cache.
+
 ## 10.32.1
 
 ### Patch Changes

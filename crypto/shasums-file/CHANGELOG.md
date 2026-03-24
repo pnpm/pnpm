@@ -1,5 +1,13 @@
 # @pnpm/crypto.shasums-file
 
+## 1001.0.5
+
+### Patch Changes
+
+- Updated dependencies [523f816]
+  - @pnpm/error@1000.1.0
+  - @pnpm/crypto.hash@1000.2.2
+
 ## 1001.0.4
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/parse-cli-args",
-  "version": "1000.1.5",
+  "version": "1000.1.6",
   "description": "Parses the CLI args passed to pnpm",
   "keywords": [
     "pnpm",

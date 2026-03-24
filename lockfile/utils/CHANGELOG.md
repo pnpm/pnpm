@@ -1,5 +1,12 @@
 # @pnpm/lockfile-utils
 
+## 1004.0.3
+
+### Patch Changes
+
+- Updated dependencies [28204a4]
+  - @pnpm/lockfile.types@1002.1.0
+
 ## 1004.0.2
 
 ### Patch Changes

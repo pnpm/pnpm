@@ -1,5 +1,12 @@
 # @pnpm/patching.config
 
+## 1001.0.19
+
+### Patch Changes
+
+- Updated dependencies [523f816]
+  - @pnpm/error@1000.1.0
+
 ## 1001.0.18
 
 ### Patch Changes

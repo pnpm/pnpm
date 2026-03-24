@@ -1,5 +1,12 @@
 # @pnpm/assert-project
 
+## 1000.0.16
+
+### Patch Changes
+
+- Updated dependencies [28204a4]
+  - @pnpm/lockfile.types@1002.1.0
+
 ## 1000.0.15
 
 ### Patch Changes

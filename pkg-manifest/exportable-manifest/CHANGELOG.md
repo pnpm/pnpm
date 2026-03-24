@@ -1,5 +1,14 @@
 # @pnpm/exportable-manifest
 
+## 1000.4.2
+
+### Patch Changes
+
+- Updated dependencies [523f816]
+  - @pnpm/error@1000.1.0
+  - @pnpm/read-project-manifest@1001.2.6
+  - @pnpm/resolving.jsr-specifier-parser@1000.0.4
+
 ## 1000.4.1
 
 ### Patch Changes

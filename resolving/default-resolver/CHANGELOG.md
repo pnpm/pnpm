@@ -1,5 +1,20 @@
 # @pnpm/default-resolver
 
+## 1002.3.8
+
+### Patch Changes
+
+- Updated dependencies [523f816]
+- Updated dependencies [523f816]
+- Updated dependencies [9ab69a5]
+  - @pnpm/npm-resolver@1005.2.3
+  - @pnpm/error@1000.1.0
+  - @pnpm/node.resolver@1001.0.23
+  - @pnpm/resolving.bun-resolver@1005.0.11
+  - @pnpm/resolving.deno-resolver@1005.0.11
+  - @pnpm/git-resolver@1001.2.2
+  - @pnpm/local-resolver@1002.1.13
+
 ## 1002.3.7
 
 ### Patch Changes

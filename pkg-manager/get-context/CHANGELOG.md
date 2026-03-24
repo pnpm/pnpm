@@ -1,5 +1,15 @@
 # @pnpm/get-context
 
+## 1001.2.8
+
+### Patch Changes
+
+- d89edd0: Fail on incompatible lockfiles in CI when frozen lockfile mode is enabled, while preserving non-frozen CI fallback behavior.
+- Updated dependencies [883d9f8]
+  - @pnpm/lockfile.fs@1001.1.32
+  - @pnpm/package-store@1007.1.6
+  - @pnpm/read-projects-context@1000.0.36
+
 ## 1001.2.7
 
 ### Patch Changes

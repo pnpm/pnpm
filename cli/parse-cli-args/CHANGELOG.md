@@ -1,5 +1,13 @@
 # @pnpm/parse-cli-args
 
+## 1000.1.6
+
+### Patch Changes
+
+- Updated dependencies [523f816]
+  - @pnpm/error@1000.1.0
+  - @pnpm/find-workspace-dir@1000.1.5
+
 ## 1000.1.5
 
 ### Patch Changes

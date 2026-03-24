@@ -1,5 +1,12 @@
 # @pnpm/read-package-json
 
+## 1000.1.8
+
+### Patch Changes
+
+- Updated dependencies [523f816]
+  - @pnpm/error@1000.1.0
+
 ## 1000.1.7
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/deps.graph-builder
 
+## 1002.3.13
+
+### Patch Changes
+
+- Updated dependencies [883d9f8]
+  - @pnpm/lockfile.fs@1001.1.32
+  - @pnpm/lockfile.utils@1004.0.3
+  - @pnpm/calc-dep-state@1003.0.3
+  - @pnpm/package-is-installable@1000.0.21
+  - @pnpm/patching.config@1001.0.19
+
 ## 1002.3.12
 
 ### Patch Changes

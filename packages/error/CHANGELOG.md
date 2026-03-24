@@ -1,5 +1,11 @@
 # @pnpm/error
 
+## 1000.1.0
+
+### Minor Changes
+
+- 523f816: The `PnpmError` class now accepts an optional `cause` argument.
+
 ## 1000.0.5
 
 ### Patch Changes

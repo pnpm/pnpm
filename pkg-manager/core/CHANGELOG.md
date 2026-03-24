@@ -1,5 +1,60 @@
 # @pnpm/core
 
+## 1016.2.0
+
+### Minor Changes
+
+- 28204a4: Added a new `dedupePeers` setting that reduces peer dependency duplication. When enabled, peer dependency suffixes use version-only identifiers (`name@version`) instead of full dep paths, eliminating nested suffixes like `(foo@1.0.0(bar@2.0.0))`. This dramatically reduces the number of package instances in projects with many recursive peer dependencies [#11070](https://github.com/pnpm/pnpm/issues/11070).
+
+### Patch Changes
+
+- cb17c44: Fixed intermittent failures when multiple `pnpm dlx` calls run concurrently for the same package. When the global virtual store is enabled, the importer now verifies file content before skipping a rename, avoiding destructive swap-renames that break concurrent processes. Also tolerates EPERM during bin creation on Windows and properly propagates `enableGlobalVirtualStore` through the install pipeline.
+- 2f3a745: Improve the non-interactive modules purge error hint to include the `confirmModulesPurge=false` workaround.
+
+  When pnpm needs to recreate `node_modules` but no TTY is available, the error now suggests either setting `CI=true` or disabling the purge confirmation prompt via `confirmModulesPurge=false`.
+
+  Adds a regression test for the non-TTY flow.
+
+- Updated dependencies [d89edd0]
+- Updated dependencies [28204a4]
+- Updated dependencies [cb17c44]
+- Updated dependencies [f3613f1]
+- Updated dependencies [523f816]
+- Updated dependencies [883d9f8]
+  - @pnpm/get-context@1001.2.8
+  - @pnpm/resolve-dependencies@1008.8.0
+  - @pnpm/lockfile.settings-checker@1001.1.0
+  - @pnpm/link-bins@1000.3.8
+  - @pnpm/error@1000.1.0
+  - @pnpm/lockfile.fs@1001.1.32
+  - @pnpm/plugin-commands-rebuild@1008.0.13
+  - @pnpm/lockfile.verification@1001.2.24
+  - @pnpm/hooks.types@1001.0.20
+  - @pnpm/lockfile.filtering@1001.0.31
+  - @pnpm/lockfile.pruner@1001.0.27
+  - @pnpm/lockfile.utils@1004.0.3
+  - @pnpm/lockfile.walker@1001.0.26
+  - @pnpm/calc-dep-state@1003.0.3
+  - @pnpm/modules-cleaner@1001.0.35
+  - @pnpm/build-modules@1007.0.11
+  - @pnpm/lifecycle@1001.0.37
+  - @pnpm/headless@1010.1.10
+  - @pnpm/hoist@1002.0.17
+  - @pnpm/parse-overrides@1001.0.4
+  - @pnpm/config.version-policy@1000.0.6
+  - @pnpm/hooks.read-package-hook@1000.0.21
+  - @pnpm/patching.config@1001.0.19
+  - @pnpm/package-requester@1011.2.4
+  - @pnpm/manifest-utils@1002.0.5
+  - @pnpm/read-project-manifest@1001.2.6
+  - @pnpm/worker@1000.6.7
+  - @pnpm/lockfile-to-pnp@1001.0.34
+  - @pnpm/lockfile.preferred-versions@1000.0.32
+  - @pnpm/builder.policy@1000.1.2
+  - @pnpm/remove-bins@1000.0.22
+  - @pnpm/crypto.hash@1000.2.2
+  - @pnpm/symlink-dependency@1000.0.17
+
 ## 1016.1.12
 
 ### Patch Changes

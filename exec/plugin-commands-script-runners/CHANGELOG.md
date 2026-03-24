@@ -1,5 +1,28 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1001.2.9
+
+### Patch Changes
+
+- cb17c44: Fixed intermittent failures when multiple `pnpm dlx` calls run concurrently for the same package. When the global virtual store is enabled, the importer now verifies file content before skipping a rename, avoiding destructive swap-renames that break concurrent processes. Also tolerates EPERM during bin creation on Windows and properly propagates `enableGlobalVirtualStore` through the install pipeline.
+- 7df00bc: Fixed false "Command not found" errors on Windows when a command exists in PATH but exits with a non-zero code. Also fixed path resolution for `--filter` contexts where the command runs in a different package directory.
+- Updated dependencies [28204a4]
+- Updated dependencies [523f816]
+  - @pnpm/config@1004.11.0
+  - @pnpm/error@1000.1.0
+  - @pnpm/deps.status@1003.0.37
+  - @pnpm/plugin-commands-installation@1004.9.13
+  - @pnpm/cli-utils@1001.3.10
+  - @pnpm/plugin-commands-env@1000.0.66
+  - @pnpm/lifecycle@1001.0.37
+  - @pnpm/workspace.injected-deps-syncer@1000.0.39
+  - @pnpm/config.version-policy@1000.0.6
+  - @pnpm/read-package-json@1000.1.8
+  - @pnpm/read-project-manifest@1001.2.6
+  - @pnpm/store-path@1000.0.6
+  - @pnpm/client@1001.1.24
+  - @pnpm/crypto.hash@1000.2.2
+
 ## 1001.2.8
 
 ### Patch Changes

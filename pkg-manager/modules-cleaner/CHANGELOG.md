@@ -1,5 +1,15 @@
 # @pnpm/modules-cleaner
 
+## 1001.0.35
+
+### Patch Changes
+
+- Updated dependencies [28204a4]
+  - @pnpm/lockfile.types@1002.1.0
+  - @pnpm/lockfile.filtering@1001.0.31
+  - @pnpm/lockfile.utils@1004.0.3
+  - @pnpm/remove-bins@1000.0.22
+
 ## 1001.0.34
 
 ### Patch Changes

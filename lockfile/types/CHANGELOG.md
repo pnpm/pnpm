@@ -1,5 +1,11 @@
 # @pnpm/lockfile-types
 
+## 1002.1.0
+
+### Minor Changes
+
+- 28204a4: Added a new `dedupePeers` setting that reduces peer dependency duplication. When enabled, peer dependency suffixes use version-only identifiers (`name@version`) instead of full dep paths, eliminating nested suffixes like `(foo@1.0.0(bar@2.0.0))`. This dramatically reduces the number of package instances in projects with many recursive peer dependencies [#11070](https://github.com/pnpm/pnpm/issues/11070).
+
 ## 1002.0.9
 
 ### Patch Changes

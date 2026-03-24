@@ -1,5 +1,16 @@
 # @pnpm/link-bins
 
+## 1000.3.8
+
+### Patch Changes
+
+- cb17c44: Fixed intermittent failures when multiple `pnpm dlx` calls run concurrently for the same package. When the global virtual store is enabled, the importer now verifies file content before skipping a rename, avoiding destructive swap-renames that break concurrent processes. Also tolerates EPERM during bin creation on Windows and properly propagates `enableGlobalVirtualStore` through the install pipeline.
+- Updated dependencies [523f816]
+  - @pnpm/error@1000.1.0
+  - @pnpm/manifest-utils@1002.0.5
+  - @pnpm/read-package-json@1000.1.8
+  - @pnpm/read-project-manifest@1001.2.6
+
 ## 1000.3.7
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/list
 
+## 1000.3.4
+
+### Patch Changes
+
+- Updated dependencies [883d9f8]
+  - @pnpm/lockfile.fs@1001.1.32
+  - @pnpm/read-package-json@1000.1.8
+  - @pnpm/read-project-manifest@1001.2.6
+  - @pnpm/reviewing.dependencies-hierarchy@1001.3.4
+
 ## 1000.3.3
 
 ### Patch Changes

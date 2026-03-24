@@ -1,5 +1,16 @@
 # @pnpm/pnpmfile
 
+## 1002.1.13
+
+### Patch Changes
+
+- Updated dependencies [28204a4]
+- Updated dependencies [523f816]
+  - @pnpm/lockfile.types@1002.1.0
+  - @pnpm/error@1000.1.0
+  - @pnpm/hooks.types@1001.0.20
+  - @pnpm/crypto.hash@1000.2.2
+
 ## 1002.1.12
 
 ### Patch Changes

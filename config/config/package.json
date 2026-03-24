@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config",
-  "version": "1004.10.4",
+  "version": "1004.11.0",
   "description": "Gets configuration options for pnpm",
   "keywords": [
     "pnpm",

@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-store
 
+## 1000.0.67
+
+### Patch Changes
+
+- Updated dependencies [d89edd0]
+- Updated dependencies [28204a4]
+- Updated dependencies [523f816]
+  - @pnpm/get-context@1001.2.8
+  - @pnpm/config@1004.11.0
+  - @pnpm/error@1000.1.0
+  - @pnpm/lockfile.utils@1004.0.3
+  - @pnpm/cli-utils@1001.3.10
+  - @pnpm/store-connection-manager@1002.3.19
+  - @pnpm/store-path@1000.0.6
+
 ## 1000.0.66
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/npm-resolver
 
+## 1005.2.3
+
+### Patch Changes
+
+- 523f816: When package metadata is malformed or can't be fetched, the error thrown will now show the originating error.
+- 9ab69a5: Fixed a bug preventing the `clearCache` function returned by `createNpmResolver` from properly clearing metadata cache.
+- Updated dependencies [523f816]
+  - @pnpm/error@1000.1.0
+  - @pnpm/resolving.jsr-specifier-parser@1000.0.4
+  - @pnpm/crypto.hash@1000.2.2
+
 ## 1005.2.2
 
 ### Patch Changes

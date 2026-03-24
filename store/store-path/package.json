@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store-path",
-  "version": "1000.0.5",
+  "version": "1000.0.6",
   "description": "Resolves the pnpm store path",
   "keywords": [
     "pnpm",

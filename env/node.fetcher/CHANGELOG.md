@@ -1,5 +1,17 @@
 # @pnpm/node.fetcher
 
+## 1001.0.27
+
+### Patch Changes
+
+- Updated dependencies [523f816]
+  - @pnpm/error@1000.1.0
+  - @pnpm/node.resolver@1001.0.23
+  - @pnpm/create-cafs-store@1000.0.33
+  - @pnpm/crypto.shasums-file@1001.0.5
+  - @pnpm/fetching.binary-fetcher@1005.0.4
+  - @pnpm/tarball-fetcher@1006.0.6
+
 ## 1001.0.26
 
 ### Patch Changes

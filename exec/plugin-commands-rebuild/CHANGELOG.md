@@ -1,5 +1,29 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1008.0.13
+
+### Patch Changes
+
+- Updated dependencies [d89edd0]
+- Updated dependencies [28204a4]
+- Updated dependencies [cb17c44]
+- Updated dependencies [523f816]
+  - @pnpm/get-context@1001.2.8
+  - @pnpm/lockfile.types@1002.1.0
+  - @pnpm/config@1004.11.0
+  - @pnpm/link-bins@1000.3.8
+  - @pnpm/error@1000.1.0
+  - @pnpm/lockfile.utils@1004.0.3
+  - @pnpm/lockfile.walker@1001.0.26
+  - @pnpm/calc-dep-state@1003.0.3
+  - @pnpm/cli-utils@1001.3.10
+  - @pnpm/store-connection-manager@1002.3.19
+  - @pnpm/lifecycle@1001.0.37
+  - @pnpm/read-package-json@1000.1.8
+  - @pnpm/worker@1000.6.7
+  - @pnpm/workspace.find-packages@1000.0.65
+  - @pnpm/builder.policy@1000.1.2
+
 ## 1008.0.12
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/resolving.jsr-specifier-parser
 
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [523f816]
+  - @pnpm/error@1000.1.0
+
 ## 1000.0.3
 
 ### Patch Changes

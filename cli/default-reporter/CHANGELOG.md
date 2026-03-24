@@ -1,5 +1,15 @@
 # @pnpm/default-reporter
 
+## 1002.1.14
+
+### Patch Changes
+
+- Updated dependencies [28204a4]
+- Updated dependencies [523f816]
+  - @pnpm/config@1004.11.0
+  - @pnpm/error@1000.1.0
+  - @pnpm/render-peer-issues@1002.0.12
+
 ## 1002.1.13
 
 ### Patch Changes

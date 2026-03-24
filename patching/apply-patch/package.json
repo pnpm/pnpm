@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/patching.apply-patch",
-  "version": "1000.0.7",
+  "version": "1000.0.8",
   "description": "Apply a patch to a directory",
   "keywords": [
     "pnpm",

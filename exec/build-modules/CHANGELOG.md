@@ -1,5 +1,20 @@
 # @pnpm/build-modules
 
+## 1007.0.11
+
+### Patch Changes
+
+- Updated dependencies [28204a4]
+- Updated dependencies [cb17c44]
+  - @pnpm/config@1004.11.0
+  - @pnpm/link-bins@1000.3.8
+  - @pnpm/calc-dep-state@1003.0.3
+  - @pnpm/lifecycle@1001.0.37
+  - @pnpm/patching.apply-patch@1000.0.8
+  - @pnpm/read-package-json@1000.1.8
+  - @pnpm/worker@1000.6.7
+  - @pnpm/fs.hard-link-dir@1000.0.6
+
 ## 1007.0.10
 
 ### Patch Changes
