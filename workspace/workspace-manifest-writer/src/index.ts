@@ -175,6 +175,9 @@ function removePackagesFromWorkspaceCatalog (manifest: Partial<WorkspaceManifest
   }
 
   for (const [selector, version] of Object.entries(manifest.overrides ?? {})) {
+    if (!version.startsWith('catalog:')) {
+      continue
+    }
     let pkgName: string
     try {
       pkgName = parsePkgAndParentSelector(selector).targetPkg.name
