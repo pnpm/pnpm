@@ -494,7 +494,9 @@ export async function getConfig (opts: {
     // Save the user-configured allowBuilds before merging defaults.
     // This is used when writing back to pnpm-workspace.yaml to avoid
     // persisting the default trusted list.
-    pnpmConfig.userAllowBuilds = pnpmConfig.allowBuilds
+    // Use empty object when user has no allowBuilds configured, so that
+    // downstream code can distinguish "no user config" from "not set".
+    pnpmConfig.userAllowBuilds = pnpmConfig.allowBuilds ?? {}
     // User-configured allowBuilds take precedence over the defaults.
     pnpmConfig.allowBuilds = { ...DEFAULT_ALLOW_BUILDS, ...pnpmConfig.allowBuilds }
   }
