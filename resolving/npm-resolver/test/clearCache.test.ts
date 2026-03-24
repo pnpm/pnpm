@@ -1,9 +1,9 @@
-import { createFetchFromRegistry } from '@pnpm/network.fetch'
-import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
-import type { PackageMeta } from '@pnpm/resolving.registry.types'
+import { createFetchFromRegistry } from '@pnpm/fetch'
+import { createNpmResolver } from '@pnpm/npm-resolver'
+import type { PackageMeta } from '@pnpm/registry.types'
 import type { Registries } from '@pnpm/types'
 import nock from 'nock'
-import { temporaryDirectory } from 'tempy'
+import tempy from 'tempy'
 
 const registries: Registries = {
   default: 'https://registry.npmjs.org/',
@@ -47,12 +47,11 @@ test('metadata is fetched again after calling clearCache()', async () => {
     .get(`/${name}`)
     .reply(200, meta)
 
-  const cacheDir = temporaryDirectory()
+  const cacheDir = tempy.directory()
   const { resolveFromNpm, clearCache } = createResolveFromNpm({
     cacheDir,
     fullMetadata: true,
     registries,
-    storeDir: temporaryDirectory(),
   })
 
   const res = await resolveFromNpm({ alias: name, bareSpecifier: 'latest' }, {})
