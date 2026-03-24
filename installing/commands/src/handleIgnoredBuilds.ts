@@ -5,10 +5,10 @@ import {
 } from '@pnpm/installing.deps-installer'
 import type { IgnoredBuilds } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
+import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 
 export interface HandleIgnoredBuildsOpts {
   allowBuilds?: Record<string, boolean | string>
-  userAllowBuilds?: Record<string, boolean | string>
   rootProjectManifestDir?: string
   workspaceDir?: string
   strictDepBuilds?: boolean
@@ -26,7 +26,7 @@ export async function handleIgnoredBuilds (
 }
 
 async function writeIgnoredBuildsToAllowBuilds (
-  opts: Pick<HandleIgnoredBuildsOpts, 'allowBuilds' | 'userAllowBuilds' | 'rootProjectManifestDir' | 'workspaceDir'>,
+  opts: Pick<HandleIgnoredBuildsOpts, 'allowBuilds' | 'rootProjectManifestDir' | 'workspaceDir'>,
   ignoredBuilds: IgnoredBuilds
 ): Promise<void> {
   const packageNames = packageNamesFromIgnoredBuilds(ignoredBuilds)
@@ -37,14 +37,17 @@ async function writeIgnoredBuildsToAllowBuilds (
     }
   }
   if (Object.keys(newEntries).length && opts.rootProjectManifestDir) {
-    // Use userAllowBuilds (without defaults from the trusted deps list)
-    // to avoid persisting the default list into pnpm-workspace.yaml.
-    const allowBuildsToWrite = opts.userAllowBuilds ?? opts.allowBuilds
+    // Read the current allowBuilds from pnpm-workspace.yaml rather than
+    // using the runtime config, which may include defaults from the
+    // trusted deps list that should not be persisted.
+    const workspaceDir = opts.workspaceDir ?? opts.rootProjectManifestDir
+    const workspaceManifest = await readWorkspaceManifest(workspaceDir)
+    const currentAllowBuilds = workspaceManifest?.allowBuilds ?? {}
     await writeSettings({
       rootProjectManifestDir: opts.rootProjectManifestDir,
-      workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+      workspaceDir,
       updatedSettings: {
-        allowBuilds: { ...allowBuildsToWrite, ...newEntries },
+        allowBuilds: { ...currentAllowBuilds, ...newEntries },
       },
     })
   }

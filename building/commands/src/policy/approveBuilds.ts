@@ -7,6 +7,7 @@ import { install } from '@pnpm/installing.commands'
 import { type StrictModules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import { globalInfo } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/util.lex-comparator'
+import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import chalk from 'chalk'
 import enquirer from 'enquirer'
 import { renderHelp } from 'render-help'
@@ -14,7 +15,7 @@ import { renderHelp } from 'render-help'
 import { rebuild, type RebuildCommandOpts } from '../build/index.js'
 import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds.js'
 
-export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'allowBuilds' | 'userAllowBuilds' | 'enableGlobalVirtualStore'> & { all?: boolean, global?: boolean }
+export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'allowBuilds' | 'enableGlobalVirtualStore'> & { all?: boolean, global?: boolean }
 
 export const commandNames = ['approve-builds']
 
@@ -149,7 +150,11 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
     } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
     buildPackages = result.map(({ value }: { value: string }) => value)
   }
-  const allowBuilds: Record<string, boolean | string> = { ...(opts.userAllowBuilds ?? opts.allowBuilds) }
+  // Read current allowBuilds from pnpm-workspace.yaml rather than from the
+  // runtime config, which may include defaults from the trusted deps list.
+  const workspaceDir = opts.workspaceDir ?? opts.rootProjectManifestDir
+  const workspaceManifest = workspaceDir ? await readWorkspaceManifest(workspaceDir) : undefined
+  const allowBuilds: Record<string, boolean | string> = { ...workspaceManifest?.allowBuilds }
   if (params.length) {
     for (const pkg of approved) {
       allowBuilds[pkg] = true

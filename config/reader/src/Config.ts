@@ -185,7 +185,6 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
   gitShallowHosts?: string[]
   legacyDirFiltering?: boolean
   allowBuilds?: Record<string, boolean | string>
-  userAllowBuilds?: Record<string, boolean | string>
   dedupePeerDependents?: boolean
   patchesDir?: string
   ignoreWorkspaceCycles?: boolean

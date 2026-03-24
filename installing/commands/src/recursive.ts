@@ -70,7 +70,6 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'lockfileOnly'
 | 'modulesDir'
 | 'allowBuilds'
-| 'userAllowBuilds'
 | 'rawLocalConfig'
 | 'registries'
 | 'rootProjectManifest'
