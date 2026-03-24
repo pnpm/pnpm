@@ -188,8 +188,9 @@ async function webAuthOtp (
   fetchOptions: OtpWebAuthFetchOptions
 ): Promise<string> {
   const qrCode = generateQrCode(authUrl)
-  const clickableUrl = terminalLink(authUrl, authUrl, { fallback: false })
-  globalInfo(`Authenticate your account at:\n${clickableUrl}\n\n${qrCode}`)
+  const sanitizedUrl = sanitizeUrl(authUrl)
+  const displayUrl = sanitizedUrl != null ? terminalLink(sanitizedUrl, sanitizedUrl, { fallback: false }) : authUrl
+  globalInfo(`Authenticate your account at:\n${displayUrl}\n\n${qrCode}`)
   const startTime = Date.now()
   const timeout = 5 * 60 * 1000 // 5 minutes
 
@@ -284,5 +285,19 @@ export class OtpSecondChallengeError extends PnpmError {
     super('OTP_SECOND_CHALLENGE', 'The registry requested a one-time password (OTP) a second time after one was already provided', {
       hint: 'This is unexpected behavior from the registry. Try the command again later and, if the issue persists, verify that your registry supports OTP-based authentication or contact the registry administrator.',
     })
+  }
+}
+
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARS = /[\x00-\x1f\x7f]/
+
+function sanitizeUrl (url: string): string | undefined {
+  if (CONTROL_CHARS.test(url)) return undefined
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return undefined
+    return parsed.href
+  } catch {
+    return undefined
   }
 }
