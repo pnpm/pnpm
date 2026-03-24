@@ -18,7 +18,9 @@ export function addFilesFromTarball (
   readManifest?: boolean
 ): AddToStoreResult {
   const ignore = _ignore ?? (() => false)
-  const tarContent = isGzip(tarballBuffer) ? gunzipSync(tarballBuffer) : (Buffer.isBuffer(tarballBuffer) ? tarballBuffer : Buffer.from(tarballBuffer))
+  // chunkSize 128KB is 8x the default 16KB, reducing the number of buffer
+  // allocations and copies during decompression of large tarballs.
+  const tarContent = isGzip(tarballBuffer) ? gunzipSync(tarballBuffer, { chunkSize: 128 * 1024 }) : (Buffer.isBuffer(tarballBuffer) ? tarballBuffer : Buffer.from(tarballBuffer))
   const { files } = parseTarball(tarContent)
   const filesIndex = new Map() as FilesIndex
   let manifestBuffer: Buffer | undefined
