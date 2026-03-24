@@ -1,5 +1,5 @@
 ---
-"@pnpm/installing.deps-restorer": patch
+"@pnpm/deps.graph-builder": patch
 "@pnpm/installing.commands": patch
 "pnpm": patch
 ---
