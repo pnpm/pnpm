@@ -104,6 +104,10 @@ test('GVS path cache produces same node_modules on reinstall', async () => {
   const cacheFiles = fs.readdirSync(gvsCacheDir)
   expect(cacheFiles.length).toBeGreaterThan(0)
 
+  // Record cache file mtime before the second frozen install
+  const cacheFile = path.join(gvsCacheDir, cacheFiles[0])
+  const mtimeBefore = fs.statSync(cacheFile).mtimeMs
+
   // Delete node_modules again → frozen-lockfile should use cached paths (cache hit)
   fs.rmSync(path.resolve('node_modules'), { recursive: true })
   await execPnpm(['install', '--frozen-lockfile'])
@@ -111,6 +115,10 @@ test('GVS path cache produces same node_modules on reinstall', async () => {
   // Verify node_modules is correct (proves cache hit path works)
   expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
   expect(fs.existsSync(path.resolve('node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBeTruthy()
+
+  // Verify cache file was NOT rewritten (proves cache hit, not recomputation)
+  const mtimeAfter = fs.statSync(cacheFile).mtimeMs
+  expect(mtimeAfter).toBe(mtimeBefore)
 })
 
 test('GVS path cache invalidates on lockfile change', async () => {

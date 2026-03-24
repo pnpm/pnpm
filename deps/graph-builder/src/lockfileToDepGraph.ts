@@ -232,9 +232,17 @@ async function buildGraphFromPackages (
   if (opts.enableGlobalVirtualStore) {
     gvsCacheHash = gvsContentHash(lockfile.packages, opts.allowBuilds)
     cachedGvsPaths = readGvsPathCacheSync(opts.storeDir, gvsCacheHash)
-    if (cachedGvsPaths && lockfile.packages &&
-        Object.keys(cachedGvsPaths).length < Object.keys(lockfile.packages).length) {
-      cachedGvsPaths = null
+    if (cachedGvsPaths && lockfile.packages) {
+      // Validate that every lockfile package has a valid cached path.
+      // Reject the entire cache on any missing/invalid entry to avoid
+      // silently producing an incomplete dependency graph.
+      for (const depPath in lockfile.packages) {
+        if (!Object.hasOwn(lockfile.packages, depPath)) continue
+        if (typeof cachedGvsPaths[depPath] !== 'string' || cachedGvsPaths[depPath].length === 0) {
+          cachedGvsPaths = null
+          break
+        }
+      }
     }
     if (!cachedGvsPaths) {
       gvsPathsForCache = {}
