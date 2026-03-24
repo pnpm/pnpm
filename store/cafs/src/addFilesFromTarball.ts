@@ -19,7 +19,7 @@ export function addFilesFromTarball (
 ): AddToStoreResult {
   const ignore = _ignore ?? (() => false)
   // chunkSize 128KB (8x the Node.js default of 16KB) reduces the number of
-  // internal buffer allocations and copies during decompression. Microbenchmarks
+  // internal buffer allocations and copies during decompression. Benchmarks
   // showed ~2.3x faster decompress at 128KB. Larger values (256KB+) showed
   // diminishing returns while increasing per-call memory pressure. A fixed size
   // is fine here: npm tarballs are typically small enough that 128KB covers most
