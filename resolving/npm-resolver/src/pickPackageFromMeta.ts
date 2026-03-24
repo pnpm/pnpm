@@ -88,7 +88,7 @@ export function pickPackageFromMeta (
     }
     throw new PnpmError('MALFORMED_METADATA',
       `Received malformed metadata for "${spec.name}"`,
-      { hint: 'This might mean that the package was unpublished from the registry' }
+      { hint: 'This might mean that the package was unpublished from the registry', cause: err }
     )
   }
 }

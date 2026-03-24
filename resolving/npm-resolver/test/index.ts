@@ -799,8 +799,19 @@ test('error is thrown when registry not responding', async () => {
       default: notExistingRegistry,
     },
   })
-  await expect(resolveFromNpm({ alias: notExistingPackage, bareSpecifier: '1.0.0' }, {})).rejects
-    .toThrow(new PnpmError('META_FETCH_FAIL', `GET ${notExistingRegistry}/${notExistingPackage}: request to ${notExistingRegistry}/${notExistingPackage} failed, reason: getaddrinfo ENOTFOUND not-existing.pnpm.io`, { attempts: 1 }))
+
+  let thrown: any // eslint-disable-line
+  try {
+    await resolveFromNpm({ alias: notExistingPackage, bareSpecifier: '1.0.0' }, {})
+  } catch (err) {
+    thrown = err
+  }
+  expect(thrown).toBeTruthy()
+  expect(thrown.code).toBe('ERR_PNPM_META_FETCH_FAIL')
+  expect(thrown.message).toContain(`GET ${notExistingRegistry}/${notExistingPackage}:`)
+  expect(thrown.message).toContain('ENOTFOUND')
+  expect(thrown.cause).toBeTruthy()
+  expect(thrown.cause.code).toBe('ENOTFOUND')
 })
 
 test('extra info is shown if package has valid semver appended', async () => {
@@ -1836,10 +1847,18 @@ test('request to a package with no dist-tags', async () => {
     registries,
   })
 
-  await expect(resolveFromNpm({ alias: 'is-positive' }, {})).rejects
-    .toThrow(
-      new PnpmError('MALFORMED_METADATA', 'Received malformed metadata for "is-positive"')
-    )
+  let thrown: any // eslint-disable-line
+  try {
+    await resolveFromNpm({ alias: 'is-positive' }, {})
+  } catch (err) {
+    thrown = err
+  }
+  expect(thrown).toBeTruthy()
+  expect(thrown.code).toBe('ERR_PNPM_MALFORMED_METADATA')
+  expect(thrown.message).toBe('Received malformed metadata for "is-positive"')
+  expect(thrown.hint).toBe('This might mean that the package was unpublished from the registry')
+  expect(thrown.cause).toBeTruthy()
+  expect(thrown.cause.message).toContain("Cannot read properties of undefined (reading 'latest')")
 })
 
 test('resolveFromNpm() does not fail if the meta file contains no integrity information', async () => {
