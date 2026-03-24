@@ -77,16 +77,16 @@ describe('writeBufferToCafs', () => {
       import { fork } from 'node:child_process';
       const N = 8;
       const workerScript = process.argv[2];
-      const procs = [];
+      const children = [];
       for (let i = 0; i < N; i++) {
-        procs.push(new Promise((resolve, reject) => {
+        children.push(new Promise((resolve, reject) => {
           const p = fork(workerScript, [], { stdio: 'pipe' });
           let stderr = '';
           p.stderr.on('data', d => { stderr += d; });
           p.on('exit', code => code === 0 ? resolve() : reject(new Error('Process ' + i + ' failed: ' + stderr)));
         }));
       }
-      const results = await Promise.allSettled(procs);
+      const results = await Promise.allSettled(children);
       const failures = results.filter(r => r.status === 'rejected');
       if (failures.length > 0) {
         for (const f of failures) console.error(f.reason.message);
