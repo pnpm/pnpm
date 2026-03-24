@@ -48,7 +48,7 @@ export const pnpmConfigFileKeys = [
   'resolution-mode',
   'store-dir',
   'use-beta-cli',
-  'use-default-trusted-deps',
+  'allow-builds-for-trusted-deps',
 ] as const satisfies readonly PnpmKey[]
 export type PnpmConfigFileKey = typeof pnpmConfigFileKeys[number]
 

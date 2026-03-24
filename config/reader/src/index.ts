@@ -219,7 +219,7 @@ export async function getConfig (opts: {
     'strict-peer-dependencies': false,
     'unsafe-perm': npmDefaults['unsafe-perm'],
     'use-beta-cli': false,
-    'use-default-trusted-deps': true,
+    'allow-builds-for-trusted-deps': true,
     userconfig: npmDefaults.userconfig,
     'verify-deps-before-run': 'install',
     'verify-store-integrity': true,
@@ -490,7 +490,7 @@ export async function getConfig (opts: {
   if (!hasDependencyBuildOptions(pnpmConfig)) {
     Object.assign(pnpmConfig, globalDepsBuildConfig)
   }
-  if (pnpmConfig.useDefaultTrustedDeps) {
+  if (pnpmConfig.allowBuildsForTrustedDeps) {
     // User-configured allowBuilds take precedence over the defaults.
     pnpmConfig.allowBuilds = { ...DEFAULT_ALLOW_BUILDS, ...pnpmConfig.allowBuilds }
   }
