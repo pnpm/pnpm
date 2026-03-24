@@ -26,7 +26,8 @@ export function importIndexedDir (
 ): void {
   // Fast path: if newDir doesn't exist, import directly without staging.
   // This avoids the overhead of creating a temp dir + rename per package.
-  // Falls back to the staging path if the dir exists or on any error.
+  // Falls back to the staging path on EEXIST (directory race);
+  // ENOENT is retried with sanitized filenames; other errors are rethrown.
   if (!fs.existsSync(newDir)) {
     try {
       tryImportIndexedDir(importFile, newDir, filenames)

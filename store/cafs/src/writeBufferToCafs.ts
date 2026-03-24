@@ -48,11 +48,22 @@ export function writeBufferToCafs (
     writeFileExclusive(fileDest, buffer, mode)
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') {
-      // Another process wrote the same content-addressed file — that's fine.
-      const checkedAt = Date.now()
-      locker.set(fileDest, checkedAt)
+      // Another process created the same CAS file. Verify its integrity
+      // before caching — the other process may have crashed mid-write.
+      if (verifyFileIntegrity(fileDest, integrity)) {
+        const checkedAt = Date.now()
+        locker.set(fileDest, checkedAt)
+        return {
+          checkedAt,
+          filePath: fileDest,
+        }
+      }
+      // Existing file has wrong integrity (partial write) — overwrite it.
+      writeFile(fileDest, buffer, mode)
+      const birthtimeMs = Date.now()
+      locker.set(fileDest, birthtimeMs)
       return {
-        checkedAt,
+        checkedAt: birthtimeMs,
         filePath: fileDest,
       }
     }
