@@ -186,6 +186,7 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
   legacyDirFiltering?: boolean
   allowBuilds?: Record<string, boolean | string>
   dedupePeerDependents?: boolean
+  dedupePeers?: boolean
   patchesDir?: string
   ignoreWorkspaceCycles?: boolean
   disallowWorkspaceCycles?: boolean

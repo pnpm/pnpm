@@ -63,6 +63,7 @@ export const excludedPnpmKeys = [
   'merge-git-branch-lockfiles-branch-pattern',
   'deploy-all-files',
   'dedupe-peer-dependents',
+  'dedupe-peers',
   'dedupe-direct-deps',
   'dedupe-injected-deps',
   'dev',

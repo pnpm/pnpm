@@ -275,6 +275,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'dedupeInjectedDeps'
 | 'dedupeDirectDeps'
 | 'dedupePeerDependents'
+| 'dedupePeers'
 | 'deployAllFiles'
 | 'depth'
 | 'dev'

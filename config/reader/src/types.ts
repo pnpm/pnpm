@@ -15,6 +15,7 @@ export const pnpmTypes = {
   'dangerously-allow-all-builds': Boolean,
   'deploy-all-files': Boolean,
   'dedupe-peer-dependents': Boolean,
+  'dedupe-peers': Boolean,
   'dedupe-direct-deps': Boolean,
   'dedupe-injected-deps': Boolean,
   dev: [null, true],
