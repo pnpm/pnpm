@@ -1,5 +1,7 @@
 import path from 'node:path'
 
+const SEP = path.sep
+
 /**
  * Checks if a file mode has any executable permissions set.
  *
@@ -23,11 +25,11 @@ export function getFilePathByModeInCafs (
   mode: number
 ): string {
   const fileType = modeIsExecutable(mode) ? 'exec' : 'nonexec'
-  return path.join(storeDir, contentPathFromHex(fileType, hexDigest))
+  return `${storeDir}${SEP}${contentPathFromHex(fileType, hexDigest)}`
 }
 
 export function contentPathFromHex (fileType: FileType, hex: string): string {
-  const p = path.join('files', hex.slice(0, 2), hex.slice(2))
+  const p = `files${SEP}${hex.slice(0, 2)}${SEP}${hex.slice(2)}`
   switch (fileType) {
     case 'exec':
       return `${p}-exec`
