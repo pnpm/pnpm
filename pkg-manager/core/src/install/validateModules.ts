@@ -151,7 +151,7 @@ async function purgeModulesDirsOfImporters (
   if (opts.confirmModulesPurge ?? true) {
     if (!process.stdin.isTTY) {
       throw new PnpmError('ABORTED_REMOVE_MODULES_DIR_NO_TTY', 'Aborted removal of modules directory due to no TTY', {
-        hint: 'If you are running pnpm in CI, set the CI environment variable to "true".',
+        hint: 'If you are running pnpm in CI, set the CI environment variable to "true", or set "confirmModulesPurge" to "false".',
       })
     }
     const confirmed = await enquirer.prompt<{ question: boolean }>({

@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import util from 'util'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { type PnpmError } from '@pnpm/error'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
@@ -98,6 +99,32 @@ test('do not fail on non-compatible store when forced during named installation'
     ...opts,
     confirmModulesPurge: false,
   })
+})
+
+test('fail fast with actionable hint on non-TTY when modules purge needs confirmation', async () => {
+  prepareEmpty()
+  const opts = testDefaults()
+
+  await saveModulesYaml('0.50.0', opts.storeDir)
+
+  const originalIsTTY = process.stdin.isTTY
+  Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true })
+
+  let err: unknown
+  try {
+    await install({}, opts)
+  } catch (_err: unknown) {
+    err = _err
+  } finally {
+    Object.defineProperty(process.stdin, 'isTTY', { value: originalIsTTY, configurable: true })
+  }
+
+  expect(util.types.isNativeError(err)).toBeTruthy()
+  if (util.types.isNativeError(err)) {
+    expect('code' in err && err.code).toBe('ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY')
+    expect(err.message).toContain('no TTY')
+    expect('hint' in err && typeof err.hint === 'string' && err.hint).toContain('confirmModulesPurge')
+  }
 })
 
 async function saveModulesYaml (pnpmVersion: string, storeDir: string) {
