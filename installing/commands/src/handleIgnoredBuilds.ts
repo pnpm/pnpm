@@ -8,6 +8,7 @@ import { lexCompare } from '@pnpm/util.lex-comparator'
 
 export interface HandleIgnoredBuildsOpts {
   allowBuilds?: Record<string, boolean | string>
+  userAllowBuilds?: Record<string, boolean | string>
   rootProjectManifestDir?: string
   workspaceDir?: string
   strictDepBuilds?: boolean
@@ -25,7 +26,7 @@ export async function handleIgnoredBuilds (
 }
 
 async function writeIgnoredBuildsToAllowBuilds (
-  opts: Pick<HandleIgnoredBuildsOpts, 'allowBuilds' | 'rootProjectManifestDir' | 'workspaceDir'>,
+  opts: Pick<HandleIgnoredBuildsOpts, 'allowBuilds' | 'userAllowBuilds' | 'rootProjectManifestDir' | 'workspaceDir'>,
   ignoredBuilds: IgnoredBuilds
 ): Promise<void> {
   const packageNames = packageNamesFromIgnoredBuilds(ignoredBuilds)
@@ -36,11 +37,14 @@ async function writeIgnoredBuildsToAllowBuilds (
     }
   }
   if (Object.keys(newEntries).length && opts.rootProjectManifestDir) {
+    // Use userAllowBuilds (without defaults from the trusted deps list)
+    // to avoid persisting the default list into pnpm-workspace.yaml.
+    const allowBuildsToWrite = opts.userAllowBuilds ?? opts.allowBuilds
     await writeSettings({
       rootProjectManifestDir: opts.rootProjectManifestDir,
       workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
       updatedSettings: {
-        allowBuilds: { ...opts.allowBuilds, ...newEntries },
+        allowBuilds: { ...allowBuildsToWrite, ...newEntries },
       },
     })
   }

@@ -14,7 +14,7 @@ import { renderHelp } from 'render-help'
 import { rebuild, type RebuildCommandOpts } from '../build/index.js'
 import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds.js'
 
-export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'allowBuilds' | 'enableGlobalVirtualStore'> & { all?: boolean, global?: boolean }
+export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'allowBuilds' | 'userAllowBuilds' | 'enableGlobalVirtualStore'> & { all?: boolean, global?: boolean }
 
 export const commandNames = ['approve-builds']
 
@@ -149,7 +149,7 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
     } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
     buildPackages = result.map(({ value }: { value: string }) => value)
   }
-  const allowBuilds: Record<string, boolean | string> = { ...opts.allowBuilds }
+  const allowBuilds: Record<string, boolean | string> = { ...(opts.userAllowBuilds ?? opts.allowBuilds) }
   if (params.length) {
     for (const pkg of approved) {
       allowBuilds[pkg] = true

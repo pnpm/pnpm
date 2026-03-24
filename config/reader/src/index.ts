@@ -491,6 +491,10 @@ export async function getConfig (opts: {
     Object.assign(pnpmConfig, globalDepsBuildConfig)
   }
   if (pnpmConfig.allowBuildsForTrustedDeps) {
+    // Save the user-configured allowBuilds before merging defaults.
+    // This is used when writing back to pnpm-workspace.yaml to avoid
+    // persisting the default trusted list.
+    pnpmConfig.userAllowBuilds = pnpmConfig.allowBuilds
     // User-configured allowBuilds take precedence over the defaults.
     pnpmConfig.allowBuilds = { ...DEFAULT_ALLOW_BUILDS, ...pnpmConfig.allowBuilds }
   }
