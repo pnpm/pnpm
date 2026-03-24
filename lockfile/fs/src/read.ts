@@ -85,6 +85,9 @@ async function _read (
       hadConflicts: false,
     }
   }
+  // Skip the first YAML document if the file contains two documents (v11 format).
+  // The first document is the env lockfile; the second is the actual lockfile.
+  lockfileRawContent = extractMainDocument(lockfileRawContent)
   let lockfile: LockfileObject
   let hadConflicts!: boolean
   try {
@@ -236,4 +239,11 @@ async function _readGitBranchLockfiles (
   const files = await getGitBranchLockfileNames(lockfileDir)
 
   return Promise.all(files.map((file) => _read(path.join(lockfileDir, file), prefix, opts)))
+}
+
+function extractMainDocument (content: string): string {
+  if (!content.startsWith('---\n')) return content
+  const sep = content.indexOf('\n---\n', '---\n'.length)
+  if (sep === -1) return content
+  return content.slice(sep + '\n---\n'.length)
 }

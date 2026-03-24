@@ -278,6 +278,28 @@ test('readWantedLockfile() when useGitBranchLockfile and mergeGitBranchLockfiles
   })
 })
 
+test('readWantedLockfile() ignores the first YAML document in a two-document lockfile', async () => {
+  const lockfile = await readWantedLockfile(path.join('fixtures', '8'), {
+    ignoreIncompatible: false,
+  })
+  expect(lockfile?.lockfileVersion).toEqual('9.0')
+  expect(lockfile?.importers).toStrictEqual({
+    '.': {
+      dependencies: {
+        foo: '1.0.0',
+      },
+      devDependencies: undefined,
+      optionalDependencies: undefined,
+      specifiers: {
+        foo: '1',
+      },
+      dependenciesMeta: {
+        foo: { injected: true },
+      },
+    },
+  })
+})
+
 test('readWantedLockfile() with inlineSpecifiersFormat', async () => {
   const wantedLockfile = {
     importers: {
