@@ -263,8 +263,8 @@ catalogs:
       specifier: 0.0.1
       version: 0.0.1
     '@pnpm/plugin-trusted-deps':
-      specifier: 0.3.0-1
-      version: 0.3.0-1
+      specifier: 0.3.0-2
+      version: 0.3.0-2
     '@pnpm/registry-mock':
       specifier: 5.2.4
       version: 5.2.4
@@ -2432,7 +2432,7 @@ importers:
         version: 3.0.2
       '@pnpm/plugin-trusted-deps':
         specifier: 'catalog:'
-        version: 0.3.0-1
+        version: 0.3.0-2
       '@pnpm/text.naming-cases':
         specifier: workspace:*
         version: link:../../text/naming-cases
@@ -10640,8 +10640,8 @@ packages:
     resolution: {integrity: sha512-/dTfl669uwuABRqZXDT37fJItuPu3h/YHw4lAvgkUp3D6CaWVRoEX+ZBiqQU/NCzUBOQ3x7QOU7sPKUinbRh4A==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/plugin-trusted-deps@0.3.0-1':
-    resolution: {integrity: sha512-VFJLj2nfgCN1lruZVpx7D2JQkFTFR5SMxp0IwUA1bMC9eQa4S/nrGD4yAX/64i9N98xO1vsRAM9LbC5oVNoeUw==}
+  '@pnpm/plugin-trusted-deps@0.3.0-2':
+    resolution: {integrity: sha512-TSzTPlaaIH3blOqzbRRTRkXj1CpMLRLqv4H9mmLXlihliJg/G1hACEA8OmOxTxix141QnazegkiJ9Y90sPCdqA==}
 
   '@pnpm/pnpmfile@1002.1.12':
     resolution: {integrity: sha512-FHWSZ01QJba99kf5L6vvPVuBjnTt/SHbVsFooO5iCkQopkB3NKt59uYBDPW16ATjAlVbgOG+XDRQVitpe6zoXQ==}
@@ -18656,7 +18656,7 @@ snapshots:
     dependencies:
       '@pnpm/types': 1001.3.0
 
-  '@pnpm/plugin-trusted-deps@0.3.0-1': {}
+  '@pnpm/plugin-trusted-deps@0.3.0-2': {}
 
   '@pnpm/pnpmfile@1002.1.12(@pnpm/logger@1001.0.1)':
     dependencies:
