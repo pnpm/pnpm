@@ -282,9 +282,9 @@ async function resolveAndFetch (
       manifest = fetchedResult.bundledManifest as DependencyManifest
     } else if (fetchedResult.files.filesMap.has('package.json')) {
       const loadedManifest = await loadJsonFile<Record<string, unknown>>(fetchedResult.files.filesMap.get('package.json')!)
-      // Skip synthetic package.json added as a completion marker by the worker
+      // Skip placeholder package.json added as a completion marker by the worker
       // for packages that genuinely lack one.
-      if (!loadedManifest._pnpmSynthetic) {
+      if (!loadedManifest._pnpmPlaceholder) {
         manifest = loadedManifest as unknown as DependencyManifest
       }
     }
