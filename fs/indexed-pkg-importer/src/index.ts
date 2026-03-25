@@ -8,6 +8,7 @@ import fs from '@pnpm/fs.graceful-fs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import type { FilesMap, ImportIndexedPackage, ImportOptions } from '@pnpm/store.controller-types'
 import { fastPathTemp as pathTemp } from 'path-temp'
+import { renameOverwriteSync } from 'rename-overwrite'
 
 import { type ImportFile, importIndexedDir } from './importIndexedDir.js'
 
@@ -252,5 +253,5 @@ function atomicCopyFileSync (src: string, dest: string): void {
     } catch {} // eslint-disable-line:no-empty
     throw err
   }
-  fs.renameSync(tmp, dest)
+  renameOverwriteSync(tmp, dest)
 }
