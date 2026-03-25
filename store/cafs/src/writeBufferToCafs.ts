@@ -4,6 +4,8 @@ import path from 'node:path'
 import util from 'node:util'
 import workerThreads from 'node:worker_threads'
 
+import { renameOverwriteSync } from 'rename-overwrite'
+
 import type { Integrity } from './checkPkgFilesIntegrity.js'
 import { writeFile, writeFileExclusive } from './writeFile.js'
 
@@ -28,17 +30,6 @@ function checkIntegrity (filename: string, integrity: Integrity): boolean {
   } catch {
     return false
   }
-}
-
-/**
- * Writes buffer to a temp file then atomically renames it to the target path.
- * Used for recovery paths (overwriting corrupt/partial files) where in-place
- * writeFile would truncate the file and leave a window of invalid content.
- */
-function writeFileAtomic (fileDest: string, buffer: Buffer, mode: number | undefined): void {
-  const tempPath = `${fileDest}.${process.pid}-${workerThreads.threadId}.tmp`
-  writeFile(tempPath, buffer, mode)
-  fs.renameSync(tempPath, fileDest)
 }
 
 export function writeBufferToCafs (
@@ -68,15 +59,8 @@ export function writeBufferToCafs (
       }
     }
     // File exists but has wrong integrity (corruption/partial write).
-    // Use temp+rename so the replacement is atomic — no window where the
-    // file is truncated or half-written.
-    writeFileAtomic(fileDest, buffer, mode)
-    const birthtimeMs = Date.now()
-    locker.set(fileDest, birthtimeMs)
-    return {
-      checkedAt: birthtimeMs,
-      filePath: fileDest,
-    }
+    // Use temp+rename so the replacement is atomic.
+    return writeViaTempFile(locker, fileDest, buffer, mode)
   }
 
   // File doesn't exist. Use exclusive-create (O_CREAT|O_EXCL) so that
@@ -98,13 +82,7 @@ export function writeBufferToCafs (
           filePath: fileDest,
         }
       }
-      writeFileAtomic(fileDest, buffer, mode)
-      const birthtimeMs = Date.now()
-      locker.set(fileDest, birthtimeMs)
-      return {
-        checkedAt: birthtimeMs,
-        filePath: fileDest,
-      }
+      return writeViaTempFile(locker, fileDest, buffer, mode)
     }
     throw err
   }
@@ -114,4 +92,49 @@ export function writeBufferToCafs (
     checkedAt: birthtimeMs,
     filePath: fileDest,
   }
+}
+
+function writeViaTempFile (
+  locker: Map<string, number>,
+  fileDest: string,
+  buffer: Buffer,
+  mode: number | undefined
+): { checkedAt: number, filePath: string } {
+  const temp = pathTemp(fileDest)
+  writeFile(temp, buffer, mode)
+  const birthtimeMs = Date.now()
+  renameOverwriteSync(temp, fileDest)
+  locker.set(fileDest, birthtimeMs)
+  return {
+    checkedAt: birthtimeMs,
+    filePath: fileDest,
+  }
+}
+
+/**
+ * Creates a unique temporary file path by appending both process ID and worker thread ID
+ * to the original filename.
+ *
+ * The process ID prevents conflicts between different processes, while the worker thread ID
+ * prevents race conditions between threads in the same process.
+ *
+ * If a process fails, its temporary file may remain. When the process is rerun, it will
+ * safely overwrite any existing temporary file with the same name.
+ *
+ * @param file - The original file path
+ * @returns A temporary file path in the format: {basename}{pid}{threadId}
+ */
+function pathTemp (file: string): string {
+  const basename = removeSuffix(path.basename(file))
+  return path.join(path.dirname(file), `${basename}${process.pid}${workerThreads.threadId}`)
+}
+
+function removeSuffix (filePath: string): string {
+  const dashPosition = filePath.indexOf('-')
+  if (dashPosition === -1) return filePath
+  const withoutSuffix = filePath.substring(0, dashPosition)
+  if (filePath.substring(dashPosition) === '-exec') {
+    return `${withoutSuffix}x`
+  }
+  return withoutSuffix
 }
