@@ -258,14 +258,25 @@ export interface LinkBinOptions {
 
 async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions): Promise<void> {
   const externalBinPath = path.join(binsDir, cmd.name)
-  // Skip if this bin already exists — avoids redundant I/O on warm stores
-  // and EACCES on read-only stores (e.g. Docker layers, NFS, CI prewarm).
-  // Use stat (not lstat) so dangling symlinks still get replaced.
-  try {
-    await fs.stat(externalBinPath)
-    return
-  } catch (err: any) { // eslint-disable-line
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
+  // Skip if the existing bin already references the correct target.
+  // This avoids redundant I/O on warm installs and EACCES on read-only stores.
+  // We verify the target path — not just existence — so that conflict resolution
+  // changes or provider swaps still get the bin rewritten.
+  if (!IS_WINDOWS) {
+    try {
+      const stat = await fs.lstat(externalBinPath)
+      if (stat.isSymbolicLink()) {
+        const target = await fs.readlink(externalBinPath)
+        if (target === cmd.path || path.resolve(binsDir, target) === path.resolve(cmd.path)) {
+          return
+        }
+      } else if (stat.isFile()) {
+        const content = await fs.readFile(externalBinPath, 'utf8')
+        if (content.includes(path.relative(binsDir, cmd.path))) {
+          return
+        }
+      }
+    } catch {}
   }
   if (IS_WINDOWS) {
     const exePath = path.join(binsDir, `${cmd.name}${getExeExtension()}`)

@@ -76,7 +76,7 @@ test('linkBins()', async () => {
   }
 })
 
-test('linkBins() skips bins that already exist', async () => {
+test('linkBins() skips bins that already reference the correct target', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()
   const simpleFixture = f.prepare('simple-fixture')
@@ -85,12 +85,33 @@ test('linkBins() skips bins that already exist', async () => {
 
   const binLocation = path.join(binTarget, 'simple')
   expect(fs.existsSync(binLocation)).toBe(true)
-  // Overwrite the bin file with different content to prove it is not rewritten
-  fs.writeFileSync(binLocation, 'should-not-be-overwritten', 'utf8')
+  const originalContent = fs.readFileSync(binLocation, 'utf8')
+  // The bin references the correct target via a relative path
+  const expectedRelPath = path.relative(binTarget, path.join(simpleFixture, 'node_modules', 'simple', 'index.js'))
+  expect(originalContent).toContain(expectedRelPath)
+  // Append a sentinel to the existing (correct) content to prove it is not rewritten
+  const sentinel = originalContent + '\n# sentinel'
+  fs.writeFileSync(binLocation, sentinel, 'utf8')
 
   await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
 
-  expect(fs.readFileSync(binLocation, 'utf8')).toBe('should-not-be-overwritten')
+  expect(fs.readFileSync(binLocation, 'utf8')).toBe(sentinel)
+})
+
+test('linkBins() rewrites bins that reference a different target', async () => {
+  const binTarget = temporaryDirectory()
+  const warn = jest.fn()
+  const simpleFixture = f.prepare('simple-fixture')
+
+  // Create a stale bin that references a wrong path
+  fs.mkdirSync(binTarget, { recursive: true })
+  const binLocation = path.join(binTarget, 'simple')
+  fs.writeFileSync(binLocation, '#!/bin/sh\n"$basedir/../wrong-pkg/index.js" "$@"', 'utf8')
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+
+  const content = fs.readFileSync(binLocation, 'utf8')
+  expect(content).not.toContain('wrong-pkg')
 })
 
 test('linkBins() never creates a PowerShell shim for the pnpm CLI', async () => {
