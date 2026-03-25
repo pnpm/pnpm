@@ -2,12 +2,13 @@ import { execSync } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { temporaryDirectory } from 'tempy'
 
 import { writeBufferToCafs } from '../src/writeBufferToCafs.js'
 
-const testDir = new URL('.', import.meta.url).pathname
+const testDir = path.dirname(fileURLToPath(import.meta.url))
 
 describe('writeBufferToCafs', () => {
   it('should write directly to the final CAS path', () => {
@@ -95,8 +96,9 @@ describe('writeBufferToCafs', () => {
     `)
 
     const workerScript = path.join(storeDir, '_worker.mjs')
+    const libUrl = pathToFileURL(libPath).href
     fs.writeFileSync(workerScript, `
-      import { writeBufferToCafs } from ${JSON.stringify(libPath)};
+      import { writeBufferToCafs } from ${JSON.stringify(libUrl)};
       const buffer = Buffer.from(${JSON.stringify(content)});
       const locker = new Map();
       writeBufferToCafs(locker, ${JSON.stringify(storeDir)}, buffer, ${JSON.stringify(fileDest)}, 420, { digest: ${JSON.stringify(digest)}, algorithm: 'sha512' });

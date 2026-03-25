@@ -16,8 +16,11 @@ function checkIntegrity (filename: string, integrity: Integrity): boolean {
   let data: Buffer
   try {
     data = fs.readFileSync(filename)
-  } catch {
-    return false
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return false
+    }
+    throw err
   }
   try {
     return crypto.hash(integrity.algorithm, data, 'hex') === integrity.digest
@@ -62,24 +65,29 @@ export function writeBufferToCafs (
     }
   }
 
-  // File doesn't exist. Use exclusive-create (O_CREAT|O_EXCL) for atomicity:
+  // File doesn't exist. Use exclusive-create (O_CREAT|O_EXCL) so that
   // if another process creates the same CAS file concurrently, we get EEXIST
-  // rather than a corrupted half-written file.
+  // instead of silently overwriting. Note: a crash mid-write can still leave
+  // a partial file, which is handled by the integrity check on subsequent access.
   try {
     writeFileExclusive(fileDest, buffer, mode)
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') {
-      // Another process created the same CAS file. Verify its integrity
-      // before caching — the other process may have crashed mid-write.
-      if (checkIntegrity(fileDest, integrity)) {
-        const checkedAt = Date.now()
-        locker.set(fileDest, checkedAt)
-        return {
-          checkedAt,
-          filePath: fileDest,
+      // Another process created the same CAS file concurrently. It may still
+      // be mid-write, so retry the integrity check a few times before giving up
+      // and overwriting. In CAS both writers produce identical content, so
+      // waiting is preferable to overwriting a file that's still being written.
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (checkIntegrity(fileDest, integrity)) {
+          const checkedAt = Date.now()
+          locker.set(fileDest, checkedAt)
+          return {
+            checkedAt,
+            filePath: fileDest,
+          }
         }
       }
-      // Existing file has wrong integrity (partial write) — overwrite it.
+      // File still has wrong integrity after retries (crashed writer) — overwrite it.
       writeFile(fileDest, buffer, mode)
       const birthtimeMs = Date.now()
       locker.set(fileDest, birthtimeMs)
