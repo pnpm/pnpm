@@ -232,24 +232,17 @@ export function copyPkg (
   opts: ImportOptions
 ): 'copy' | undefined {
   if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
-    importIndexedDir(atomicCopyFileSync, to, opts.filesMap, opts)
+    // copyFileSync is not atomic on non-COW filesystems: a crash mid-copy
+    // can leave a partially-written file.  package.json is the completion
+    // marker, so it must be written atomically via temp file + rename.
+    importIndexedDir(fs.copyFileSync, to, opts.filesMap, { ...opts, atomicImportFile: atomicCopyFileSync })
     return 'copy'
   }
   return undefined
 }
 
-// copyFileSync is not atomic on non-COW filesystems: a crash mid-copy can
-// leave a partially-written file.  package.json is the completion marker
-// checked by pkgExistsAtTargetDir(), so it must be written atomically via
-// temp file + rename.  All other files are written with plain copyFileSync
-// because a partial non-marker file is harmless — the missing package.json
-// will trigger a full re-import on the next install.
 function atomicCopyFileSync (src: string, dest: string): void {
-  if (path.basename(dest) === 'package.json') {
-    const tmp = dest + '.~pnpm-atomic'
-    fs.copyFileSync(src, tmp)
-    fs.renameSync(tmp, dest)
-  } else {
-    fs.copyFileSync(src, dest)
-  }
+  const tmp = dest + '.~pnpm-atomic'
+  fs.copyFileSync(src, tmp)
+  fs.renameSync(tmp, dest)
 }

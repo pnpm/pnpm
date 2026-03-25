@@ -20,6 +20,7 @@ export function importIndexedDir (
   newDir: string,
   filenames: Map<string, string>,
   opts: {
+    atomicImportFile?: ImportFile
     keepModulesDir?: boolean
     safeToSkip?: boolean
   }
@@ -31,7 +32,7 @@ export function importIndexedDir (
   // ENOENT is retried with sanitized filenames; other errors are rethrown.
   // keepModulesDir needs the staging path to preserve the existing node_modules.
   if (!opts.keepModulesDir) try {
-    tryImportIndexedDir(importFile, newDir, filenames)
+    tryImportIndexedDir(importFile, newDir, filenames, opts.atomicImportFile)
     return
   } catch (err: unknown) {
     const isNative = util.types.isNativeError(err) && 'code' in err
@@ -175,7 +176,12 @@ function sanitizeFilenames (filenames: Map<string, string>): SanitizeFilenamesRe
   return { sanitizedFilenames, invalidFilenames }
 }
 
-function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames: Map<string, string>): void {
+function tryImportIndexedDir (
+  importFile: ImportFile,
+  newDir: string,
+  filenames: Map<string, string>,
+  atomicImportFile?: ImportFile
+): void {
   makeEmptyDirSync(newDir, { recursive: true })
   const allDirs = new Set<string>()
   for (const f of filenames.keys()) {
@@ -190,6 +196,8 @@ function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames:
   // pkgExistsAtTargetDir() checks for package.json to decide if a package
   // is already imported — writing it last ensures a crash mid-import won't
   // leave a partially-populated directory that appears fully imported.
+  // When atomicImportFile is provided (copy path on non-COW filesystems),
+  // use it for package.json to ensure the marker is written atomically.
   let packageJsonSrc: string | undefined
   for (const [f, src] of filenames) {
     if (f === 'package.json') {
@@ -199,7 +207,7 @@ function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames:
     importFile(src, path.join(newDir, f))
   }
   if (packageJsonSrc !== undefined) {
-    importFile(packageJsonSrc, path.join(newDir, 'package.json'))
+    ;(atomicImportFile ?? importFile)(packageJsonSrc, path.join(newDir, 'package.json'))
   }
 }
 
