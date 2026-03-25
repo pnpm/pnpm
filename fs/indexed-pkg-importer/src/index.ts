@@ -122,7 +122,7 @@ function clonePkg (
   opts: ImportOptions
 ): 'clone' | undefined {
   if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
-    importIndexedDir(clone, to, opts.filesMap, opts)
+    importIndexedDir({ importFile: clone, importFileAtomic: clone }, to, opts.filesMap, opts)
     return 'clone'
   }
   return undefined
@@ -177,7 +177,7 @@ function hardlinkPkg (
   opts: ImportOptions
 ): 'hardlink' | undefined {
   if (opts.force || shouldRelinkPkg(to, opts)) {
-    importIndexedDir(importFile, to, opts.filesMap, opts)
+    importIndexedDir({ importFile, importFileAtomic: importFile }, to, opts.filesMap, opts)
     return 'hardlink'
   }
   return undefined
@@ -235,7 +235,7 @@ export function copyPkg (
     // copyFileSync is not atomic on non-COW filesystems: a crash mid-copy
     // can leave a partially-written file.  package.json is the completion
     // marker, so it must be written atomically via temp file + rename.
-    importIndexedDir(fs.copyFileSync, to, opts.filesMap, { ...opts, atomicImportFile: atomicCopyFileSync })
+    importIndexedDir({ importFile: fs.copyFileSync, importFileAtomic: atomicCopyFileSync }, to, opts.filesMap, opts)
     return 'copy'
   }
   return undefined
