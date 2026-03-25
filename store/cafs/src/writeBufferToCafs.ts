@@ -86,6 +86,9 @@ export function writeBufferToCafs (
     }
     throw err
   }
+  // Unfortunately, "birth time" (time of file creation) is available not on all filesystems.
+  // We log the creation time ourselves and save it in the package index file.
+  // Having this information allows us to skip content checks for files that were not modified since "birth time".
   const birthtimeMs = Date.now()
   locker.set(fileDest, birthtimeMs)
   return {
@@ -116,10 +119,17 @@ function optimisticRenameOverwrite (temp: string, fileDest: string): void {
     renameOverwriteSync(temp, fileDest)
   } catch (err: unknown) {
     if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') || !fs.existsSync(fileDest)) throw err
-    // Two containers sharing the same mounted store can have the same PID,
-    // causing pathTemp() to generate identical temp paths. If the other
-    // container already renamed the temp file, we get ENOENT here — but
-    // the target file exists with correct content, so it's safe to proceed.
+    // The temporary file path is created by appending the process ID to the target file name.
+    // This is done to avoid lots of random crypto number generations.
+    //   PR with related performance optimization: https://github.com/pnpm/pnpm/pull/6817
+    //
+    // Probably the only scenario in which the temp directory will disappear
+    // before being renamed is when two containers use the same mounted directory
+    // for their content-addressable store. In this case there's a chance that the process ID
+    // will be the same in both containers.
+    //
+    // As a workaround, if the temp file doesn't exist but the target file does,
+    // we just ignore the issue and assume that the target file is correct.
   }
 }
 
