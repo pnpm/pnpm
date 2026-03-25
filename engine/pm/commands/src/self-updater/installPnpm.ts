@@ -351,6 +351,7 @@ export function linkExePlatformBinary (installDir: string): void {
     const exePkg = JSON.parse(fs.readFileSync(exePkgJsonPath, 'utf8'))
     fs.writeFileSync(path.join(exePkgDir, 'pnpm'), 'This file intentionally left blank')
     exePkg.bin.pnpm = 'pnpm.exe'
+    exePkg.bin.pn = 'pn.exe'
     fs.writeFileSync(exePkgJsonPath, JSON.stringify(exePkg, null, 2))
   }
 }
