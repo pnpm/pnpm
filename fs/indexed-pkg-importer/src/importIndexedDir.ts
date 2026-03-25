@@ -177,15 +177,15 @@ function sanitizeFilenames (filenames: Map<string, string>): SanitizeFilenamesRe
 
 function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames: Map<string, string>): void {
   makeEmptyDirSync(newDir, { recursive: true })
-  // Create subdirectories. Using a Set to avoid redundant mkdirSync calls.
-  // recursive:true handles parent creation, so sorting by length is unnecessary.
-  const createdDirs = new Set<string>()
+  const allDirs = new Set<string>()
   for (const f of filenames.keys()) {
     const dir = path.dirname(f)
-    if (dir === '.' || createdDirs.has(dir)) continue
-    fs.mkdirSync(path.join(newDir, dir), { recursive: true })
-    createdDirs.add(dir)
+    if (dir === '.') continue
+    allDirs.add(dir)
   }
+  Array.from(allDirs)
+    .sort((d1, d2) => d1.length - d2.length) // from shortest to longest
+    .forEach((dir) => fs.mkdirSync(path.join(newDir, dir), { recursive: true }))
   // Write package.json last so it acts as a completion marker.
   // pkgExistsAtTargetDir() checks for package.json to decide if a package
   // is already imported — writing it last ensures a crash mid-import won't
