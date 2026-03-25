@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
+import workerThreads from 'node:worker_threads'
 
 import type { Integrity } from './checkPkgFilesIntegrity.js'
 import { writeFile, writeFileExclusive } from './writeFile.js'
@@ -27,6 +28,17 @@ function checkIntegrity (filename: string, integrity: Integrity): boolean {
   } catch {
     return false
   }
+}
+
+/**
+ * Writes buffer to a temp file then atomically renames it to the target path.
+ * Used for recovery paths (overwriting corrupt/partial files) where in-place
+ * writeFile would truncate the file and leave a window of invalid content.
+ */
+function writeFileAtomic (fileDest: string, buffer: Buffer, mode: number | undefined): void {
+  const tempPath = `${fileDest}.${process.pid}-${workerThreads.threadId}.tmp`
+  writeFile(tempPath, buffer, mode)
+  fs.renameSync(tempPath, fileDest)
 }
 
 export function writeBufferToCafs (
@@ -55,8 +67,10 @@ export function writeBufferToCafs (
         filePath: fileDest,
       }
     }
-    // File exists but has wrong integrity (corruption) — overwrite it.
-    writeFile(fileDest, buffer, mode)
+    // File exists but has wrong integrity (corruption/partial write).
+    // Use temp+rename so the replacement is atomic — no window where the
+    // file is truncated or half-written.
+    writeFileAtomic(fileDest, buffer, mode)
     const birthtimeMs = Date.now()
     locker.set(fileDest, birthtimeMs)
     return {
@@ -67,28 +81,24 @@ export function writeBufferToCafs (
 
   // File doesn't exist. Use exclusive-create (O_CREAT|O_EXCL) so that
   // if another process creates the same CAS file concurrently, we get EEXIST
-  // instead of silently overwriting. Note: a crash mid-write can still leave
-  // a partial file, which is handled by the integrity check on subsequent access.
+  // instead of silently overwriting. A crash mid-write can leave a partial
+  // file, which is recovered by the atomic temp+rename path on next access.
   try {
     writeFileExclusive(fileDest, buffer, mode)
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') {
-      // Another process created the same CAS file concurrently. It may still
-      // be mid-write, so retry the integrity check a few times before giving up
-      // and overwriting. In CAS both writers produce identical content, so
-      // waiting is preferable to overwriting a file that's still being written.
-      for (let attempt = 0; attempt < 3; attempt++) {
-        if (checkIntegrity(fileDest, integrity)) {
-          const checkedAt = Date.now()
-          locker.set(fileDest, checkedAt)
-          return {
-            checkedAt,
-            filePath: fileDest,
-          }
+      // Another process created the file. If it finished successfully,
+      // integrity will pass. If it crashed or is still writing, integrity
+      // will fail and we recover via atomic temp+rename.
+      if (checkIntegrity(fileDest, integrity)) {
+        const checkedAt = Date.now()
+        locker.set(fileDest, checkedAt)
+        return {
+          checkedAt,
+          filePath: fileDest,
         }
       }
-      // File still has wrong integrity after retries (crashed writer) — overwrite it.
-      writeFile(fileDest, buffer, mode)
+      writeFileAtomic(fileDest, buffer, mode)
       const birthtimeMs = Date.now()
       locker.set(fileDest, birthtimeMs)
       return {
