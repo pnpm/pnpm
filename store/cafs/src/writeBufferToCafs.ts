@@ -47,20 +47,29 @@ export function writeBufferToCafs (
       filePath: fileDest,
     }
   }
+  const checkedAt = writeOrCheck(fileDest, buffer, mode, integrity)
+  locker.set(fileDest, checkedAt)
+  return {
+    checkedAt,
+    filePath: fileDest,
+  }
+}
+
+function writeOrCheck (
+  fileDest: string,
+  buffer: Buffer,
+  mode: number | undefined,
+  integrity: Integrity
+): number {
   // Fast path: check if the file already exists on disk with correct content.
   const existingFile = fs.statSync(fileDest, { throwIfNoEntry: false })
   if (existingFile) {
     if (checkIntegrity(fileDest, integrity)) {
-      const checkedAt = Date.now()
-      locker.set(fileDest, checkedAt)
-      return {
-        checkedAt,
-        filePath: fileDest,
-      }
+      return Date.now()
     }
     // File exists but has wrong integrity (corruption/partial write).
     // Use temp+rename so the replacement is atomic.
-    return writeViaTempFile(locker, fileDest, buffer, mode)
+    return writeViaTempFile(fileDest, buffer, mode)
   }
 
   // File doesn't exist. Use exclusive-create (O_CREAT|O_EXCL) so that
@@ -75,43 +84,27 @@ export function writeBufferToCafs (
       // integrity will pass. If it crashed or is still writing, integrity
       // will fail and we recover via atomic temp+rename.
       if (checkIntegrity(fileDest, integrity)) {
-        const checkedAt = Date.now()
-        locker.set(fileDest, checkedAt)
-        return {
-          checkedAt,
-          filePath: fileDest,
-        }
+        return Date.now()
       }
-      return writeViaTempFile(locker, fileDest, buffer, mode)
+      return writeViaTempFile(fileDest, buffer, mode)
     }
     throw err
   }
   // Unfortunately, "birth time" (time of file creation) is available not on all filesystems.
   // We log the creation time ourselves and save it in the package index file.
   // Having this information allows us to skip content checks for files that were not modified since "birth time".
-  const birthtimeMs = Date.now()
-  locker.set(fileDest, birthtimeMs)
-  return {
-    checkedAt: birthtimeMs,
-    filePath: fileDest,
-  }
+  return Date.now()
 }
 
 function writeViaTempFile (
-  locker: Map<string, number>,
   fileDest: string,
   buffer: Buffer,
   mode: number | undefined
-): { checkedAt: number, filePath: string } {
+): number {
   const temp = pathTemp(fileDest)
   writeFile(temp, buffer, mode)
-  const birthtimeMs = Date.now()
   optimisticRenameOverwrite(temp, fileDest)
-  locker.set(fileDest, birthtimeMs)
-  return {
-    checkedAt: birthtimeMs,
-    filePath: fileDest,
-  }
+  return Date.now()
 }
 
 function optimisticRenameOverwrite (temp: string, fileDest: string): void {
