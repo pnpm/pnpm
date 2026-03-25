@@ -64,68 +64,68 @@ describe('writeBufferToCafs', () => {
   it('should handle concurrent writes from multiple processes without corruption', () => {
     const storeDir = temporaryDirectory()
     const fileDest = 'abc'
-    // Use a 256 KB buffer so writeFileSync issues multiple write() syscalls,
-    // increasing the window for concurrent-write races.
     const content = crypto.randomBytes(256 * 1024)
     const fullFileDest = path.join(storeDir, fileDest)
     const digest = crypto.hash('sha512', content, 'hex')
 
-    const libUrl = pathToFileURL(path.resolve(testDir, '../lib/writeBufferToCafs.js')).href
-    const resultsDir = path.join(storeDir, '_results')
-    fs.mkdirSync(resultsDir)
+    const results = runConcurrentWorkers(storeDir, fileDest, content, digest)
 
-    // Each worker writes the same CAS content and saves its return value to a
-    // per-process JSON file so we can verify every worker got a valid result.
-    const workerScript = path.join(storeDir, '_worker.mjs')
-    fs.writeFileSync(workerScript, `
-      import fs from 'node:fs';
-      import path from 'node:path';
-      import { writeBufferToCafs } from ${JSON.stringify(libUrl)};
-      const content = Buffer.from(${JSON.stringify(content.toString('base64'))}, 'base64');
-      const locker = new Map();
-      const result = writeBufferToCafs(locker, ${JSON.stringify(storeDir)}, content, ${JSON.stringify(fileDest)}, 420, { digest: ${JSON.stringify(digest)}, algorithm: 'sha512' });
-      fs.writeFileSync(path.join(${JSON.stringify(resultsDir)}, process.pid + '.json'), JSON.stringify(result));
-    `)
-
-    const spawnerScript = path.join(storeDir, '_spawner.mjs')
-    fs.writeFileSync(spawnerScript, `
-      import { fork } from 'node:child_process';
-      const N = 8;
-      const workerScript = process.argv[2];
-      const children = [];
-      for (let i = 0; i < N; i++) {
-        children.push(new Promise((resolve, reject) => {
-          const p = fork(workerScript, [], { stdio: 'pipe' });
-          let stderr = '';
-          p.stderr.on('data', d => { stderr += d; });
-          p.on('exit', code => code === 0 ? resolve() : reject(new Error('Process ' + i + ' exited ' + code + ': ' + stderr)));
-        }));
-      }
-      const results = await Promise.allSettled(children);
-      const failures = results.filter(r => r.status === 'rejected');
-      if (failures.length > 0) {
-        for (const f of failures) console.error(f.reason.message);
-        process.exit(1);
-      }
-    `)
-
-    execSync(`node ${JSON.stringify(spawnerScript)} ${JSON.stringify(workerScript)}`, {
-      timeout: 30000,
-      stdio: 'pipe',
-    })
-
-    // Every worker must have completed without throwing
-    const resultFiles = fs.readdirSync(resultsDir)
-    expect(resultFiles).toHaveLength(8)
-
-    // Every worker must have returned a valid result pointing to the correct path
-    for (const file of resultFiles) {
-      const result = JSON.parse(fs.readFileSync(path.join(resultsDir, file), 'utf8'))
+    expect(results).toHaveLength(8)
+    for (const result of results) {
       expect(result.filePath).toBe(fullFileDest)
       expect(typeof result.checkedAt).toBe('number')
     }
 
-    // The final file on disk must have correct content and integrity
+    const finalContent = fs.readFileSync(fullFileDest)
+    expect(finalContent).toHaveLength(content.length)
+    expect(crypto.hash('sha512', finalContent, 'hex')).toBe(digest)
+  })
+
+  it('should recover from a corrupt file when multiple processes write concurrently', () => {
+    const storeDir = temporaryDirectory()
+    const fileDest = 'abc'
+    const content = crypto.randomBytes(256 * 1024)
+    const fullFileDest = path.join(storeDir, fileDest)
+    const digest = crypto.hash('sha512', content, 'hex')
+
+    // Pre-seed a corrupt file (simulates a previous process that crashed mid-write)
+    fs.mkdirSync(path.dirname(fullFileDest), { recursive: true })
+    fs.writeFileSync(fullFileDest, 'partial garbage from a crashed writer')
+
+    const results = runConcurrentWorkers(storeDir, fileDest, content, digest)
+
+    // All workers must succeed despite the pre-existing corrupt file
+    expect(results).toHaveLength(8)
+    for (const result of results) {
+      expect(result.filePath).toBe(fullFileDest)
+      expect(typeof result.checkedAt).toBe('number')
+    }
+
+    // Final file must have correct content
+    const finalContent = fs.readFileSync(fullFileDest)
+    expect(finalContent).toHaveLength(content.length)
+    expect(crypto.hash('sha512', finalContent, 'hex')).toBe(digest)
+  })
+
+  it('should recover from a truncated file (simulating crash mid-write)', () => {
+    const storeDir = temporaryDirectory()
+    const fileDest = 'abc'
+    const content = crypto.randomBytes(256 * 1024)
+    const fullFileDest = path.join(storeDir, fileDest)
+    const digest = crypto.hash('sha512', content, 'hex')
+
+    // Pre-seed a truncated file: first 1 KB of the correct content
+    // (simulates a process that started writing correctly but crashed)
+    fs.mkdirSync(path.dirname(fullFileDest), { recursive: true })
+    fs.writeFileSync(fullFileDest, content.subarray(0, 1024))
+
+    const results = runConcurrentWorkers(storeDir, fileDest, content, digest)
+
+    expect(results).toHaveLength(8)
+    for (const result of results) {
+      expect(result.filePath).toBe(fullFileDest)
+    }
+
     const finalContent = fs.readFileSync(fullFileDest)
     expect(finalContent).toHaveLength(content.length)
     expect(crypto.hash('sha512', finalContent, 'hex')).toBe(digest)
@@ -154,3 +154,58 @@ describe('writeBufferToCafs', () => {
     expect(cached.checkedAt).toBe(result.checkedAt)
   })
 })
+
+function runConcurrentWorkers (
+  storeDir: string,
+  fileDest: string,
+  content: Buffer,
+  digest: string,
+  numWorkers = 8
+): Array<{ filePath: string, checkedAt: number }> {
+  const libUrl = pathToFileURL(path.resolve(testDir, '../lib/writeBufferToCafs.js')).href
+  const resultsDir = path.join(storeDir, '_results')
+  fs.mkdirSync(resultsDir, { recursive: true })
+
+  const workerScript = path.join(storeDir, '_worker.mjs')
+  fs.writeFileSync(workerScript, `
+    import fs from 'node:fs';
+    import path from 'node:path';
+    import { writeBufferToCafs } from ${JSON.stringify(libUrl)};
+    const content = Buffer.from(${JSON.stringify(content.toString('base64'))}, 'base64');
+    const locker = new Map();
+    const result = writeBufferToCafs(locker, ${JSON.stringify(storeDir)}, content, ${JSON.stringify(fileDest)}, 420, { digest: ${JSON.stringify(digest)}, algorithm: 'sha512' });
+    fs.writeFileSync(path.join(${JSON.stringify(resultsDir)}, process.pid + '.json'), JSON.stringify(result));
+  `)
+
+  const spawnerScript = path.join(storeDir, '_spawner.mjs')
+  fs.writeFileSync(spawnerScript, `
+    import { fork } from 'node:child_process';
+    const N = ${numWorkers};
+    const workerScript = process.argv[2];
+    const children = [];
+    for (let i = 0; i < N; i++) {
+      children.push(new Promise((resolve, reject) => {
+        const p = fork(workerScript, [], { stdio: 'pipe' });
+        let stderr = '';
+        p.stderr.on('data', d => { stderr += d; });
+        p.on('exit', code => code === 0 ? resolve() : reject(new Error('Process ' + i + ' exited ' + code + ': ' + stderr)));
+      }));
+    }
+    const results = await Promise.allSettled(children);
+    const failures = results.filter(r => r.status === 'rejected');
+    if (failures.length > 0) {
+      for (const f of failures) console.error(f.reason.message);
+      process.exit(1);
+    }
+  `)
+
+  execSync(`node ${JSON.stringify(spawnerScript)} ${JSON.stringify(workerScript)}`, {
+    timeout: 30000,
+    stdio: 'pipe',
+  })
+
+  const resultFiles = fs.readdirSync(resultsDir)
+  return resultFiles.map(file =>
+    JSON.parse(fs.readFileSync(path.join(resultsDir, file), 'utf8'))
+  )
+}
