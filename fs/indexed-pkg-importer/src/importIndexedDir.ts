@@ -198,7 +198,11 @@ function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames:
     }
     importFile(src, path.join(newDir, f))
   }
+<<<<<<< HEAD
   if (packageJsonSrc !== undefined) {
+=======
+  if (packageJsonSrc != null) {
+>>>>>>> 7236986812 (fix(importer): atomic package.json write for copy import path)
     importFile(packageJsonSrc, path.join(newDir, 'package.json'))
   }
 }
