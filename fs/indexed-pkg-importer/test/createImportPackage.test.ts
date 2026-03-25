@@ -133,7 +133,9 @@ testOnLinuxOnly('packageImportMethod=auto: link files if cloning fails and even 
   })).toBe('hardlink')
   expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project', 'package', 'index.js'))
   expect(gfs.linkSync).toHaveBeenCalledTimes(2)
-  expect(gfs.copyFileSync).toHaveBeenCalledTimes(1)
+  // copyFileSync is called twice: the clone attempt fails in both the fast
+  // path and the staging fallback before initialAuto moves on to hardlink.
+  expect(gfs.copyFileSync).toHaveBeenCalledTimes(2)
 })
 
 testOnLinuxOnly('packageImportMethod=auto: chooses copying if cloning and hard linking is not possible', () => {
@@ -154,7 +156,8 @@ testOnLinuxOnly('packageImportMethod=auto: chooses copying if cloning and hard l
     resolvedFrom: 'remote',
   })).toBe('copy')
   expect(gfs.copyFileSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project', 'package', 'index.js'))
-  expect(gfs.copyFileSync).toHaveBeenCalledTimes(2)
+  // 3 calls: clone fails twice (fast path + staging fallback), then copy succeeds.
+  expect(gfs.copyFileSync).toHaveBeenCalledTimes(3)
 })
 
 testOnLinuxOnly('packageImportMethod=hardlink: fall back to copying if hardlinking fails', () => {
