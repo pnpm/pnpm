@@ -7,6 +7,7 @@ import { packageImportMethodLogger } from '@pnpm/core-loggers'
 import fs from '@pnpm/fs.graceful-fs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import type { FilesMap, ImportIndexedPackage, ImportOptions } from '@pnpm/store.controller-types'
+import { fastPathTemp as pathTemp } from 'path-temp'
 
 import { type ImportFile, importIndexedDir } from './importIndexedDir.js'
 
@@ -242,7 +243,14 @@ export function copyPkg (
 }
 
 function atomicCopyFileSync (src: string, dest: string): void {
-  const tmp = dest + '.~pnpm-atomic'
-  fs.copyFileSync(src, tmp)
+  const tmp = pathTemp(dest)
+  try {
+    fs.copyFileSync(src, tmp)
+  } catch (err) {
+    try {
+      fs.unlinkSync(tmp)
+    } catch {} // eslint-disable-line:no-empty
+    throw err
+  }
   fs.renameSync(tmp, dest)
 }
