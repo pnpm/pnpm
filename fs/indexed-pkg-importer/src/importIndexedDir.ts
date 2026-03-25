@@ -15,7 +15,7 @@ const filenameConflictsLogger = logger('_filename-conflicts')
 
 export type ImportFile = (src: string, dest: string) => void
 
-export interface ImportFiles {
+export interface Importer {
   importFile: ImportFile
   // Used for writing package.json, which is the completion marker and must
   // be written atomically.  For hard links and reflinks importFile is already
@@ -25,7 +25,7 @@ export interface ImportFiles {
 }
 
 export function importIndexedDir (
-  importFiles: ImportFiles,
+  importer: Importer,
   newDir: string,
   filenames: Map<string, string>,
   opts: {
@@ -40,7 +40,7 @@ export function importIndexedDir (
   // ENOENT is retried with sanitized filenames; other errors are rethrown.
   // keepModulesDir needs the staging path to preserve the existing node_modules.
   if (!opts.keepModulesDir) try {
-    tryImportIndexedDir(importFiles, newDir, filenames)
+    tryImportIndexedDir(importer, newDir, filenames)
     return
   } catch (err: unknown) {
     const isNative = util.types.isNativeError(err) && 'code' in err
@@ -53,7 +53,7 @@ export function importIndexedDir (
       } catch {} // eslint-disable-line:no-empty
     }
     if (isNative && errCode === 'ENOENT') {
-      if (retryWithSanitizedFilenames(importFiles, newDir, filenames, opts)) return
+      if (retryWithSanitizedFilenames(importer, newDir, filenames, opts)) return
       throw err
     }
     if (!(isNative && errCode === 'EEXIST')) {
@@ -66,7 +66,7 @@ export function importIndexedDir (
   // needed here — use importFile for everything.
   const stage = pathTemp(newDir)
   try {
-    tryImportIndexedDir({ importFile: importFiles.importFile, importFileAtomic: importFiles.importFile }, stage, filenames)
+    tryImportIndexedDir({ importFile: importer.importFile, importFileAtomic: importer.importFile }, stage, filenames)
     if (opts.keepModulesDir) {
       // Keeping node_modules is needed only when the hoisted node linker is used.
       moveOrMergeModulesDirs(path.join(newDir, 'node_modules'), path.join(stage, 'node_modules'))
@@ -88,11 +88,11 @@ export function importIndexedDir (
         'which is an issue on case-insensitive filesystems. ' +
         `The conflicting file names are: ${JSON.stringify(Object.fromEntries(conflictingFileNames))}`
       )
-      importIndexedDir(importFiles, newDir, uniqueFileMap, opts)
+      importIndexedDir(importer, newDir, uniqueFileMap, opts)
       return
     }
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      if (retryWithSanitizedFilenames(importFiles, newDir, filenames, opts)) return
+      if (retryWithSanitizedFilenames(importer, newDir, filenames, opts)) return
       throw err
     }
     throw err
@@ -153,7 +153,7 @@ function allFilesMatch (dir: string, filenames: Map<string, string>): boolean {
 }
 
 function retryWithSanitizedFilenames (
-  importFiles: ImportFiles,
+  importer: Importer,
   newDir: string,
   filenames: Map<string, string>,
   opts: { keepModulesDir?: boolean, safeToSkip?: boolean }
@@ -164,7 +164,7 @@ function retryWithSanitizedFilenames (
 The package linked to "${path.relative(process.cwd(), newDir)}" had \
 files with invalid names: ${invalidFilenames.join(', ')}. \
 They were renamed.`)
-  importIndexedDir(importFiles, newDir, sanitizedFilenames, opts)
+  importIndexedDir(importer, newDir, sanitizedFilenames, opts)
   return true
 }
 
@@ -187,7 +187,7 @@ function sanitizeFilenames (filenames: Map<string, string>): SanitizeFilenamesRe
 }
 
 function tryImportIndexedDir (
-  { importFile, importFileAtomic }: ImportFiles,
+  { importFile, importFileAtomic }: Importer,
   newDir: string,
   filenames: Map<string, string>
 ): void {
