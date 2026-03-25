@@ -36,33 +36,16 @@ export function importIndexedDir (
   // Fast path: import directly without staging.  Callers already verified
   // the target package is missing (pkgExistsAtTargetDir / pkgLinkedToStore),
   // so we can write straight into newDir and skip the temp dir + rename.
-  // Falls back to the staging path on EEXIST (directory race);
-  // ENOENT is retried with sanitized filenames; other errors are rethrown.
+  // On any error, clean up and fall through to the staging path which has
+  // full error handling (EEXIST dedup, ENOENT sanitized-filename retry, etc.).
   // keepModulesDir needs the staging path to preserve the existing node_modules.
-  // safeToSkip (global virtual store) needs the staging path because multiple
-  // pnpm instances may import the same package concurrently — each must write
-  // to its own temp dir and rename atomically.
-  if (!opts.keepModulesDir && !opts.safeToSkip) try {
+  if (!opts.keepModulesDir) try {
     tryImportIndexedDir(importer, newDir, filenames)
     return
-  } catch (err: unknown) {
-    const isNative = util.types.isNativeError(err) && 'code' in err
-    const errCode = isNative ? (err as { code: unknown }).code : undefined
-    // Clean up partial directory from the fast path, but avoid deleting a
-    // directory that may have been created by a concurrent importer (EEXIST).
-    if (errCode !== 'EEXIST') {
-      try {
-        rimrafSync(newDir)
-      } catch {} // eslint-disable-line:no-empty
-    }
-    if (isNative && errCode === 'ENOENT') {
-      if (retryWithSanitizedFilenames(importer, newDir, filenames, opts)) return
-      throw err
-    }
-    if (!(isNative && errCode === 'EEXIST')) {
-      throw err
-    }
-    // EEXIST (directory race): fall through to staging path
+  } catch {
+    try {
+      rimrafSync(newDir)
+    } catch {} // eslint-disable-line:no-empty
   }
   // Staging path: create in temp dir, then atomically rename.
   // The dir rename is itself atomic, so individual file atomicity is not
