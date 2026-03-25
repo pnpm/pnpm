@@ -49,10 +49,14 @@ export function importIndexedDir (
     }
     tryImportIndexedDir(importer, newDir, filenames)
     return
-  } catch {
-    try {
-      rimrafSync(newDir)
-    } catch {} // eslint-disable-line:no-empty
+  } catch (err) {
+    // Don't clean up on EEXIST — a concurrent importer may have completed
+    // the directory (GVS race).
+    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) {
+      try {
+        rimrafSync(newDir)
+      } catch {} // eslint-disable-line:no-empty
+    }
   }
   // Staging path: create in temp dir, then atomically rename.
   // The dir rename is itself atomic, so individual file atomicity is not
