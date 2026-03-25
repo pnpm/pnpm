@@ -50,6 +50,7 @@
     "@reflink/reflink": "catalog:",
     "@zkochan/rimraf": "catalog:",
     "fs-extra": "catalog:",
+    "make-empty-dir": "catalog:",
     "p-limit": "catalog:",
     "path-temp": "catalog:",
     "rename-overwrite": "catalog:",
