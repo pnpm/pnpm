@@ -73,6 +73,7 @@
     "@pnpm/workspace.projects-sorter": "workspace:*",
     "@pnpm/workspace.root-finder": "workspace:*",
     "@pnpm/workspace.state": "workspace:*",
+    "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
     "@pnpm/workspace.workspace-manifest-writer": "workspace:*",
     "@yarnpkg/core": "catalog:",
     "@yarnpkg/lockfile": "catalog:",

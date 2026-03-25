@@ -5,6 +5,7 @@ import {
 } from '@pnpm/installing.deps-installer'
 import type { IgnoredBuilds } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
+import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 
 export interface HandleIgnoredBuildsOpts {
   allowBuilds?: Record<string, boolean | string>
@@ -36,11 +37,17 @@ async function writeIgnoredBuildsToAllowBuilds (
     }
   }
   if (Object.keys(newEntries).length && opts.rootProjectManifestDir) {
+    // Read the current allowBuilds from pnpm-workspace.yaml rather than
+    // using the runtime config, which may include defaults from the
+    // trusted deps list that should not be persisted.
+    const workspaceDir = opts.workspaceDir ?? opts.rootProjectManifestDir
+    const workspaceManifest = await readWorkspaceManifest(workspaceDir)
+    const currentAllowBuilds = workspaceManifest?.allowBuilds ?? {}
     await writeSettings({
       rootProjectManifestDir: opts.rootProjectManifestDir,
-      workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+      workspaceDir,
       updatedSettings: {
-        allowBuilds: { ...opts.allowBuilds, ...newEntries },
+        allowBuilds: { ...currentAllowBuilds, ...newEntries },
       },
     })
   }
