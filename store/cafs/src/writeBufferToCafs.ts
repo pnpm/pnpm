@@ -83,7 +83,7 @@ function writeFileAtomic (
   return Date.now()
 }
 
-function optimisticRenameOverwrite (temp: string, fileDest: string): void {
+export function optimisticRenameOverwrite (temp: string, fileDest: string): void {
   try {
     renameOverwriteSync(temp, fileDest)
   } catch (err: unknown) {
