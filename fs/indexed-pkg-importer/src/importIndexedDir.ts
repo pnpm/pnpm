@@ -39,7 +39,10 @@ export function importIndexedDir (
   // Falls back to the staging path on EEXIST (directory race);
   // ENOENT is retried with sanitized filenames; other errors are rethrown.
   // keepModulesDir needs the staging path to preserve the existing node_modules.
-  if (!opts.keepModulesDir) try {
+  // safeToSkip (global virtual store) needs the staging path because multiple
+  // pnpm instances may import the same package concurrently — each must write
+  // to its own temp dir and rename atomically.
+  if (!opts.keepModulesDir && !opts.safeToSkip) try {
     tryImportIndexedDir(importer, newDir, filenames)
     return
   } catch (err: unknown) {
