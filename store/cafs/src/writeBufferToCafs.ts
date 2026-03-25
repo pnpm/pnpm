@@ -6,7 +6,7 @@ import workerThreads from 'node:worker_threads'
 import { renameOverwriteSync } from 'rename-overwrite'
 
 import { type Integrity, verifyFileIntegrity } from './checkPkgFilesIntegrity.js'
-import { writeFile } from './writeFile.js'
+import { writeFile, writeFileExclusive } from './writeFile.js'
 
 export function writeBufferToCafs (
   locker: Map<string, number>,
@@ -23,40 +23,64 @@ export function writeBufferToCafs (
       filePath: fileDest,
     }
   }
-  // This part is a bit redundant.
-  // When a file is already used by another package,
-  // we probably have validated its content already.
-  // However, there is no way to find which package index file references
-  // the given file. So we should revalidate the content of the file again.
-  if (existsSame(fileDest, integrity)) {
-    const checkedAt = Date.now()
-    locker.set(fileDest, checkedAt)
-    return {
-      checkedAt,
-      filePath: fileDest,
+  const checkedAt = writeOrCheck(fileDest, buffer, mode, integrity)
+  locker.set(fileDest, checkedAt)
+  return {
+    checkedAt,
+    filePath: fileDest,
+  }
+}
+
+function writeOrCheck (
+  fileDest: string,
+  buffer: Buffer,
+  mode: number | undefined,
+  integrity: Integrity
+): number {
+  // Fast path: check if the file already exists on disk with correct content.
+  const existingFile = fs.statSync(fileDest, { throwIfNoEntry: false })
+  if (existingFile) {
+    if (verifyFileIntegrity(fileDest, integrity)) {
+      return Date.now()
     }
+    // File exists but has wrong integrity (corruption/partial write).
+    // Use temp+rename so the replacement is atomic.
+    return writeFileAtomic(fileDest, buffer, mode)
   }
 
-  // This might be too cautious.
-  // The write is atomic, so in case pnpm crashes, no broken file
-  // will be added to the store.
-  // It might be a redundant step though, as we verify the contents of the
-  // files before linking
-  //
-  // If we don't allow --no-verify-store-integrity then we probably can write
-  // to the final file directly.
-  const temp = pathTemp(fileDest)
-  writeFile(temp, buffer, mode)
+  // File doesn't exist. Use exclusive-create (O_CREAT|O_EXCL) so that
+  // if another process creates the same CAS file concurrently, we get EEXIST
+  // instead of silently overwriting. A crash mid-write can leave a partial
+  // file, which is recovered by the atomic temp+rename path on next access.
+  try {
+    writeFileExclusive(fileDest, buffer, mode)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') {
+      // Another process created the file. If it finished successfully,
+      // integrity will pass. If it crashed or is still writing, integrity
+      // will fail and we recover via atomic temp+rename.
+      if (verifyFileIntegrity(fileDest, integrity)) {
+        return Date.now()
+      }
+      return writeFileAtomic(fileDest, buffer, mode)
+    }
+    throw err
+  }
   // Unfortunately, "birth time" (time of file creation) is available not on all filesystems.
   // We log the creation time ourselves and save it in the package index file.
   // Having this information allows us to skip content checks for files that were not modified since "birth time".
-  const birthtimeMs = Date.now()
+  return Date.now()
+}
+
+function writeFileAtomic (
+  fileDest: string,
+  buffer: Buffer,
+  mode: number | undefined
+): number {
+  const temp = pathTemp(fileDest)
+  writeFile(temp, buffer, mode)
   optimisticRenameOverwrite(temp, fileDest)
-  locker.set(fileDest, birthtimeMs)
-  return {
-    checkedAt: birthtimeMs,
-    filePath: fileDest,
-  }
+  return Date.now()
 }
 
 export function optimisticRenameOverwrite (temp: string, fileDest: string): void {
@@ -91,7 +115,7 @@ export function optimisticRenameOverwrite (temp: string, fileDest: string): void
  * @param file - The original file path
  * @returns A temporary file path in the format: {basename}{pid}{threadId}
  */
-export function pathTemp (file: string): string {
+function pathTemp (file: string): string {
   const basename = removeSuffix(path.basename(file))
   return path.join(path.dirname(file), `${basename}${process.pid}${workerThreads.threadId}`)
 }
@@ -104,10 +128,4 @@ function removeSuffix (filePath: string): string {
     return `${withoutSuffix}x`
   }
   return withoutSuffix
-}
-
-function existsSame (filename: string, integrity: Integrity): boolean {
-  const existingFile = fs.statSync(filename, { throwIfNoEntry: false })
-  if (!existingFile) return false
-  return verifyFileIntegrity(filename, integrity)
 }
