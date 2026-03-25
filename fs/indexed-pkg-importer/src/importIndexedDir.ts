@@ -39,7 +39,7 @@ export function importIndexedDir (
   // full error handling (EEXIST dedup, ENOENT sanitized-filename retry, etc.).
   // keepModulesDir needs the staging path to preserve the existing node_modules.
   if (!opts.keepModulesDir) try {
-    tryImportIndexedDir(importer, newDir, filenames)
+    tryImportIndexedDir(importer, newDir, filenames, opts.safeToSkip)
     return
   } catch {
     try {
@@ -174,9 +174,16 @@ function sanitizeFilenames (filenames: Map<string, string>): SanitizeFilenamesRe
 function tryImportIndexedDir (
   { importFile, importFileAtomic }: Importer,
   newDir: string,
-  filenames: Map<string, string>
+  filenames: Map<string, string>,
+  // When true (content-addressed GVS targets), use mkdirSync instead of
+  // makeEmptyDirSync so concurrent importers don't wipe each other's files.
+  keepExisting?: boolean
 ): void {
-  fs.mkdirSync(newDir, { recursive: true })
+  if (keepExisting) {
+    fs.mkdirSync(newDir, { recursive: true })
+  } else {
+    makeEmptyDirSync(newDir, { recursive: true })
+  }
   const allDirs = new Set<string>()
   for (const f of filenames.keys()) {
     const dir = path.dirname(f)
