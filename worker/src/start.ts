@@ -204,7 +204,7 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
     manifest = appendManifest
     addManifestToCafs(cafs, filesIndex, appendManifest)
   } else if (!filesIndex.has('package.json')) {
-    addEmptyPackageJsonToCafs(cafs, filesIndex)
+    addSyntheticPackageJsonToCafs(cafs, filesIndex)
   }
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   const bundledManifest = manifest != null ? normalizeBundledManifest(manifest) : undefined
@@ -305,7 +305,7 @@ function addFilesFromDir (
     manifest = appendManifest
     addManifestToCafs(cafs, filesIndex, appendManifest)
   } else if (!filesIndex.has('package.json')) {
-    addEmptyPackageJsonToCafs(cafs, filesIndex)
+    addSyntheticPackageJsonToCafs(cafs, filesIndex)
   }
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   const bundledManifest = manifest != null ? normalizeBundledManifest(manifest) : undefined
@@ -364,17 +364,19 @@ function addManifestToCafs (cafs: CafsFunctions, filesIndex: FilesIndex, manifes
   })
 }
 
-const EMPTY_PACKAGE_JSON = Buffer.from('{}', 'utf8')
+const SYNTHETIC_PACKAGE_JSON = Buffer.from(JSON.stringify({ _pnpmSynthetic: true }), 'utf8')
 
 // Packages that lack a package.json (e.g. injected packages in a Bit
 // workspace) get a synthetic one so that package.json can serve as a
 // universal completion marker for the indexed package importer.
-function addEmptyPackageJsonToCafs (cafs: CafsFunctions, filesIndex: FilesIndex): void {
+// The _pnpmSynthetic field tells the package requester to ignore it
+// when reading the manifest.
+function addSyntheticPackageJsonToCafs (cafs: CafsFunctions, filesIndex: FilesIndex): void {
   const mode = 0o644
   filesIndex.set('package.json', {
     mode,
-    size: EMPTY_PACKAGE_JSON.length,
-    ...cafs.addFile(EMPTY_PACKAGE_JSON, mode),
+    size: SYNTHETIC_PACKAGE_JSON.length,
+    ...cafs.addFile(SYNTHETIC_PACKAGE_JSON, mode),
   })
 }
 
