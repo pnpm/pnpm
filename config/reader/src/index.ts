@@ -540,10 +540,12 @@ export async function getConfig (opts: {
   // Inject pnpm_config_* env vars for rawConfig values that cannot be faithfully
   // represented via npm_config_* (such as arrays and plain objects), while
   // preserving existing user-provided pnpm_config_* env vars.
+  // Only inject keys known to envPnpmTypes so the child process can actually parse them.
   for (const [key, value] of Object.entries(pnpmConfig.rawConfig)) {
     if (value === null || typeof value !== 'object') continue
-    const snakeKey = key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`).replace(/-/g, '_')
-    const envKey = `pnpm_config_${snakeKey}`
+    const kebabKey = key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)
+    if (!(kebabKey in envPnpmTypes)) continue
+    const envKey = `pnpm_config_${kebabKey.replace(/-/g, '_')}`
     if (!(envKey in env) && !(envKey in pnpmConfig.extraEnv)) {
       pnpmConfig.extraEnv[envKey] = JSON.stringify(value)
     }

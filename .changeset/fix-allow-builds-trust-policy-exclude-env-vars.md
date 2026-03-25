@@ -1,6 +1,6 @@
 ---
-"@pnpm/config.reader": minor
-"pnpm": minor
+"@pnpm/config.reader": patch
+"pnpm": patch
 ---
 
 Fixed `allowBuilds` and `trustPolicyExclude` not being forwarded as environment variables to child pnpm processes when running scripts.

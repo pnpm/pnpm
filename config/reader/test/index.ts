@@ -1692,11 +1692,17 @@ test('allowBuilds and trustPolicyExclude from pnpm-workspace.yaml are injected i
 
   // allowBuilds is an object — cannot be faithfully represented via npm_config_*
   // so it must be forwarded as a JSON-encoded pnpm_config_allow_builds env var
-  expect(config.extraEnv?.['pnpm_config_allow_builds']).toBe('{"esbuild":true,"dd-trace":false}')
+  expect(JSON.parse(config.extraEnv?.['pnpm_config_allow_builds'] ?? 'null')).toStrictEqual({
+    esbuild: true,
+    'dd-trace': false,
+  })
 
   // trustPolicyExclude is an array — npm_config_trust_policy_exclude is skipped
   // by @pnpm/npm-lifecycle, so it must be forwarded via pnpm_config_*
-  expect(config.extraEnv?.['pnpm_config_trust_policy_exclude']).toBe('["undici-types@6.21.0","semver@5.7.2 || 6.3.1"]')
+  expect(JSON.parse(config.extraEnv?.['pnpm_config_trust_policy_exclude'] ?? 'null')).toStrictEqual([
+    'undici-types@6.21.0',
+    'semver@5.7.2 || 6.3.1',
+  ])
 
   // scalar values like trustPolicy continue to be forwarded via npm_config_*
   // and should NOT appear as a duplicate pnpm_config_* entry
