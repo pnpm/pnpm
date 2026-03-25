@@ -4448,9 +4448,6 @@ importers:
       fs-extra:
         specifier: 'catalog:'
         version: 11.3.4
-      make-empty-dir:
-        specifier: 'catalog:'
-        version: 4.0.0
       p-limit:
         specifier: 'catalog:'
         version: 7.3.0

@@ -41,9 +41,9 @@ const { createIndexedPkgImporter } = await import('@pnpm/fs.indexed-pkg-importer
 const { globalInfo } = await import('@pnpm/logger')
 
 beforeEach(() => {
-  // Clean up real directories created by makeEmptyDirSync (not mocked) so each
-  // test starts fresh — otherwise fs.existsSync sees leftover dirs and skips
-  // the fast path, causing assertions to expect the staging directory instead.
+  // Clean up real directories created by the importer (not mocked) so each
+  // test starts fresh — otherwise the fast path sees leftover dirs and writes
+  // over them, causing different behavior than a fresh import.
   fs.rmSync('project', { recursive: true, force: true })
   fs.rmSync('project2', { recursive: true, force: true })
   jest.mocked(gfs.copyFileSync).mockClear()

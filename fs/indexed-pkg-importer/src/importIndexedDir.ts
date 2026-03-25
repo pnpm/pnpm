@@ -6,7 +6,6 @@ import gfs from '@pnpm/fs.graceful-fs'
 import { globalInfo, globalWarn, logger } from '@pnpm/logger'
 import { rimrafSync } from '@zkochan/rimraf'
 import fsx from 'fs-extra'
-import { makeEmptyDirSync } from 'make-empty-dir'
 import { fastPathTemp as pathTemp } from 'path-temp'
 import { renameOverwriteSync } from 'rename-overwrite'
 import sanitizeFilename from 'sanitize-filename'
@@ -177,7 +176,7 @@ function tryImportIndexedDir (
   newDir: string,
   filenames: Map<string, string>
 ): void {
-  makeEmptyDirSync(newDir, { recursive: true })
+  fs.mkdirSync(newDir, { recursive: true })
   const allDirs = new Set<string>()
   for (const f of filenames.keys()) {
     const dir = path.dirname(f)
