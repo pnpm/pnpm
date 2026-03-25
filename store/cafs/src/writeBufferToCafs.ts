@@ -103,11 +103,23 @@ function writeViaTempFile (
   const temp = pathTemp(fileDest)
   writeFile(temp, buffer, mode)
   const birthtimeMs = Date.now()
-  renameOverwriteSync(temp, fileDest)
+  optimisticRenameOverwrite(temp, fileDest)
   locker.set(fileDest, birthtimeMs)
   return {
     checkedAt: birthtimeMs,
     filePath: fileDest,
+  }
+}
+
+function optimisticRenameOverwrite (temp: string, fileDest: string): void {
+  try {
+    renameOverwriteSync(temp, fileDest)
+  } catch (err: unknown) {
+    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') || !fs.existsSync(fileDest)) throw err
+    // Two containers sharing the same mounted store can have the same PID,
+    // causing pathTemp() to generate identical temp paths. If the other
+    // container already renamed the temp file, we get ENOENT here — but
+    // the target file exists with correct content, so it's safe to proceed.
   }
 }
 
