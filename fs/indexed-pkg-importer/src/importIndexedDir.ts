@@ -46,10 +46,10 @@ export function importIndexedDir (
         if (retryWithSanitizedFilenames(importFile, newDir, filenames, opts)) return
         throw err
       }
-      if (isNative && errCode !== 'EEXIST') {
+      if (!(isNative && errCode === 'EEXIST')) {
         throw err
       }
-      // EEXIST or race condition: fall through to staging path
+      // EEXIST (directory race): fall through to staging path
     }
   }
   // Staging path: create in temp dir, then atomically rename.
