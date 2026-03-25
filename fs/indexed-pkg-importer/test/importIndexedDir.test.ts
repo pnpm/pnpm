@@ -17,7 +17,7 @@ test('importIndexedDir() keepModulesDir merges node_modules', async () => {
   const filenames = new Map([
     ['node_modules/a/index.js', path.join(tmp, 'src/node_modules/a/index.js')],
   ])
-  importIndexedDir(fs.linkSync, newDir, filenames, { keepModulesDir: true })
+  importIndexedDir({ importFile: fs.linkSync, importFileAtomic: fs.linkSync }, newDir, filenames, { keepModulesDir: true })
 
   expect(fs.readdirSync(path.join(newDir, 'node_modules')).sort()).toEqual(['a', 'b'])
 })

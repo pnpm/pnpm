@@ -281,7 +281,12 @@ async function resolveAndFetch (
     if (fetchedResult.bundledManifest) {
       manifest = fetchedResult.bundledManifest as DependencyManifest
     } else if (fetchedResult.files.filesMap.has('package.json')) {
-      manifest = await loadJsonFile<DependencyManifest>(fetchedResult.files.filesMap.get('package.json')!)
+      const loadedManifest = await loadJsonFile<Record<string, unknown>>(fetchedResult.files.filesMap.get('package.json')!)
+      // Skip placeholder package.json added as a completion marker by the worker
+      // for packages that genuinely lack one.
+      if (!loadedManifest._pnpmPlaceholder) {
+        manifest = loadedManifest as unknown as DependencyManifest
+      }
     }
     // Add integrity to resolution if it was computed during fetching (only for TarballResolution)
     if (fetchedResult.integrity && !resolution.type && !(resolution as TarballResolution).integrity) {
