@@ -50,9 +50,11 @@ export function importIndexedDir (
     tryImportIndexedDir(importer, newDir, filenames)
     return
   } catch (err) {
-    // Don't clean up on EEXIST — a concurrent importer may have completed
-    // the directory (GVS race).
-    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') {
+      // A concurrent importer may have completed the directory.
+      // If all files match, there's nothing left to do.
+      if (allFilesMatch(newDir, filenames)) return
+    } else {
       try {
         rimrafSync(newDir)
       } catch {} // eslint-disable-line:no-empty
