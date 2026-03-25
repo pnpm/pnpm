@@ -203,6 +203,8 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
   if (appendManifest && manifest == null) {
     manifest = appendManifest
     addManifestToCafs(cafs, filesIndex, appendManifest)
+  } else if (!filesIndex.has('package.json')) {
+    addEmptyPackageJsonToCafs(cafs, filesIndex)
   }
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   const bundledManifest = manifest != null ? normalizeBundledManifest(manifest) : undefined
@@ -302,6 +304,8 @@ function addFilesFromDir (
   if (appendManifest && manifest == null) {
     manifest = appendManifest
     addManifestToCafs(cafs, filesIndex, appendManifest)
+  } else if (!filesIndex.has('package.json')) {
+    addEmptyPackageJsonToCafs(cafs, filesIndex)
   }
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   const bundledManifest = manifest != null ? normalizeBundledManifest(manifest) : undefined
@@ -357,6 +361,20 @@ function addManifestToCafs (cafs: CafsFunctions, filesIndex: FilesIndex, manifes
     mode,
     size: fileBuffer.length,
     ...cafs.addFile(fileBuffer, mode),
+  })
+}
+
+const EMPTY_PACKAGE_JSON = Buffer.from('{}', 'utf8')
+
+// Packages that lack a package.json (e.g. injected packages in a Bit
+// workspace) get a synthetic one so that package.json can serve as a
+// universal completion marker for the indexed package importer.
+function addEmptyPackageJsonToCafs (cafs: CafsFunctions, filesIndex: FilesIndex): void {
+  const mode = 0o644
+  filesIndex.set('package.json', {
+    mode,
+    size: EMPTY_PACKAGE_JSON.length,
+    ...cafs.addFile(EMPTY_PACKAGE_JSON, mode),
   })
 }
 

@@ -133,9 +133,9 @@ function pkgExistsAtTargetDir (targetDir: string, filesMap: FilesMap): boolean {
 }
 
 function pickFileFromFilesMap (filesMap: FilesMap): string {
-  // A package might not have a package.json file.
-  // For instance, the Node.js package.
-  // Or injected packages in a Bit workspace.
+  // New packages always have a package.json (the worker synthesizes one if
+  // the tarball/directory lacks it).  The fallback handles old store entries
+  // that were indexed before the synthetic package.json was introduced.
   if (filesMap.has('package.json')) {
     return 'package.json'
   }
