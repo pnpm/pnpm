@@ -70,6 +70,7 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
       filesIndexFile: opts.filesIndexFile,
       readManifest: opts.readManifest,
       pkg: opts.pkg,
+      appendManifest: opts.pkg?.name ? { name: opts.pkg.name, version: opts.pkg.version ?? '0.0.0' } : undefined,
     })
   }
 
