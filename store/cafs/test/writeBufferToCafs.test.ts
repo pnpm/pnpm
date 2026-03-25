@@ -179,13 +179,13 @@ function runConcurrentWorkers (
 
   const spawnerScript = path.join(storeDir, '_spawner.mjs')
   fs.writeFileSync(spawnerScript, `
-    import { fork } from 'node:child_process';
+    import { spawn } from 'node:child_process';
     const N = ${numWorkers};
     const workerScript = process.argv[2];
     const children = [];
     for (let i = 0; i < N; i++) {
       children.push(new Promise((resolve, reject) => {
-        const p = fork(workerScript, [], { stdio: 'pipe' });
+        const p = spawn(process.execPath, [workerScript], { stdio: 'pipe' });
         let stderr = '';
         p.stderr.on('data', d => { stderr += d; });
         p.on('exit', code => code === 0 ? resolve() : reject(new Error('Process ' + i + ' exited ' + code + ': ' + stderr)));
