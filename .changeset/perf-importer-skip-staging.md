@@ -1,6 +1,6 @@
 ---
 "@pnpm/fs.indexed-pkg-importer": patch
-"@pnpm/fetching.git-fetcher": patch
+"@pnpm/installing.package-requester": patch
 "@pnpm/worker": patch
 "pnpm": patch
 ---

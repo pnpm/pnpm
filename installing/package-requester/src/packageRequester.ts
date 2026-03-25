@@ -281,7 +281,10 @@ async function resolveAndFetch (
     if (fetchedResult.bundledManifest) {
       manifest = fetchedResult.bundledManifest as DependencyManifest
     } else if (fetchedResult.files.filesMap.has('package.json')) {
-      manifest = await loadJsonFile<DependencyManifest>(fetchedResult.files.filesMap.get('package.json')!)
+      const loadedManifest = await loadJsonFile<DependencyManifest>(fetchedResult.files.filesMap.get('package.json')!)
+      if (loadedManifest.name) {
+        manifest = loadedManifest
+      }
     }
     // Add integrity to resolution if it was computed during fetching (only for TarballResolution)
     if (fetchedResult.integrity && !resolution.type && !(resolution as TarballResolution).integrity) {
