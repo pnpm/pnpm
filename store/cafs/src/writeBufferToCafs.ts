@@ -1,4 +1,3 @@
-import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
@@ -6,31 +5,8 @@ import workerThreads from 'node:worker_threads'
 
 import { renameOverwriteSync } from 'rename-overwrite'
 
-import type { Integrity } from './checkPkgFilesIntegrity.js'
+import { type Integrity, verifyFileIntegrity } from './checkPkgFilesIntegrity.js'
 import { writeFile, writeFileExclusive } from './writeFile.js'
-
-/**
- * Non-destructive integrity check: reads the file and compares its hash
- * against the expected digest. Unlike verifyFileIntegrity(), this does NOT
- * delete the file on mismatch — which is important when another process may
- * still be writing to the same CAS path.
- */
-function checkIntegrity (filename: string, integrity: Integrity): boolean {
-  let data: Buffer
-  try {
-    data = fs.readFileSync(filename)
-  } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      return false
-    }
-    throw err
-  }
-  try {
-    return crypto.hash(integrity.algorithm, data, 'hex') === integrity.digest
-  } catch {
-    return false
-  }
-}
 
 export function writeBufferToCafs (
   locker: Map<string, number>,
@@ -64,12 +40,12 @@ function writeOrCheck (
   // Fast path: check if the file already exists on disk with correct content.
   const existingFile = fs.statSync(fileDest, { throwIfNoEntry: false })
   if (existingFile) {
-    if (checkIntegrity(fileDest, integrity)) {
+    if (verifyFileIntegrity(fileDest, integrity)) {
       return Date.now()
     }
     // File exists but has wrong integrity (corruption/partial write).
     // Use temp+rename so the replacement is atomic.
-    return writeViaTempFile(fileDest, buffer, mode)
+    return writeFileAtomic(fileDest, buffer, mode)
   }
 
   // File doesn't exist. Use exclusive-create (O_CREAT|O_EXCL) so that
@@ -83,10 +59,10 @@ function writeOrCheck (
       // Another process created the file. If it finished successfully,
       // integrity will pass. If it crashed or is still writing, integrity
       // will fail and we recover via atomic temp+rename.
-      if (checkIntegrity(fileDest, integrity)) {
+      if (verifyFileIntegrity(fileDest, integrity)) {
         return Date.now()
       }
-      return writeViaTempFile(fileDest, buffer, mode)
+      return writeFileAtomic(fileDest, buffer, mode)
     }
     throw err
   }
@@ -96,7 +72,7 @@ function writeOrCheck (
   return Date.now()
 }
 
-function writeViaTempFile (
+function writeFileAtomic (
   fileDest: string,
   buffer: Buffer,
   mode: number | undefined
