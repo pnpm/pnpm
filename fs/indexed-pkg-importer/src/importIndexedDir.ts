@@ -24,33 +24,33 @@ export function importIndexedDir (
     safeToSkip?: boolean
   }
 ): void {
-  // Fast path: if newDir doesn't exist, import directly without staging.
-  // This avoids the overhead of creating a temp dir + rename per package.
+  // Fast path: import directly without staging.  Callers already verified
+  // the target package is missing (pkgExistsAtTargetDir / pkgLinkedToStore),
+  // so we can write straight into newDir and skip the temp dir + rename.
   // Falls back to the staging path on EEXIST (directory race);
   // ENOENT is retried with sanitized filenames; other errors are rethrown.
-  if (!fs.existsSync(newDir)) {
-    try {
-      tryImportIndexedDir(importFile, newDir, filenames)
-      return
-    } catch (err: unknown) {
-      const isNative = util.types.isNativeError(err) && 'code' in err
-      const errCode = isNative ? (err as { code: unknown }).code : undefined
-      // Clean up partial directory from the fast path, but avoid deleting a
-      // directory that may have been created by a concurrent importer (EEXIST).
-      if (errCode !== 'EEXIST') {
-        try {
-          rimrafSync(newDir)
-        } catch {} // eslint-disable-line:no-empty
-      }
-      if (isNative && errCode === 'ENOENT') {
-        if (retryWithSanitizedFilenames(importFile, newDir, filenames, opts)) return
-        throw err
-      }
-      if (!(isNative && errCode === 'EEXIST')) {
-        throw err
-      }
-      // EEXIST (directory race): fall through to staging path
+  // keepModulesDir needs the staging path to preserve the existing node_modules.
+  if (!opts.keepModulesDir) try {
+    tryImportIndexedDir(importFile, newDir, filenames)
+    return
+  } catch (err: unknown) {
+    const isNative = util.types.isNativeError(err) && 'code' in err
+    const errCode = isNative ? (err as { code: unknown }).code : undefined
+    // Clean up partial directory from the fast path, but avoid deleting a
+    // directory that may have been created by a concurrent importer (EEXIST).
+    if (errCode !== 'EEXIST') {
+      try {
+        rimrafSync(newDir)
+      } catch {} // eslint-disable-line:no-empty
     }
+    if (isNative && errCode === 'ENOENT') {
+      if (retryWithSanitizedFilenames(importFile, newDir, filenames, opts)) return
+      throw err
+    }
+    if (!(isNative && errCode === 'EEXIST')) {
+      throw err
+    }
+    // EEXIST (directory race): fall through to staging path
   }
   // Staging path: create in temp dir, then atomically rename.
   const stage = pathTemp(newDir)
