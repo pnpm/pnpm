@@ -1,4 +1,5 @@
 import {
+  ArtificialOtpError,
   type OtpContext,
   OtpNonInteractiveError,
   OtpSecondChallengeError,
@@ -41,6 +42,7 @@ function createOtpMockContext (overrides?: Partial<OtpContext>): OtpContext {
       status: 404,
     }),
     globalInfo: () => {},
+    globalWarn: () => {},
     process: {
       stdin: { isTTY: true },
       stdout: { isTTY: true },
@@ -298,5 +300,88 @@ describe('withOtpHandling', () => {
         fetchOptions
       )).rejects.toBeInstanceOf(WebAuthTimeoutError)
     })
+  })
+})
+
+describe('ArtificialOtpError', () => {
+  it('has EOTP code', () => {
+    const err = new ArtificialOtpError({ authUrl: 'https://example.com/auth', doneUrl: 'https://example.com/done' })
+    expect(err.code).toBe('EOTP')
+  })
+
+  it('stores body', () => {
+    const body = { authUrl: 'https://example.com/auth', doneUrl: 'https://example.com/done' }
+    const err = new ArtificialOtpError(body)
+    expect(err.body).toEqual(body)
+  })
+
+  it('has descriptive message about being caught by withOtpHandling', () => {
+    const err = new ArtificialOtpError(undefined)
+    expect(err.message).toContain('withOtpHandling')
+  })
+})
+
+describe('ArtificialOtpError.fromUnknownBody', () => {
+  const noopWarn = () => {}
+
+  it('extracts valid string authUrl and doneUrl', () => {
+    const err = ArtificialOtpError.fromUnknownBody(noopWarn, {
+      authUrl: 'https://example.com/auth',
+      doneUrl: 'https://example.com/done',
+    })
+    expect(err.body).toEqual({
+      authUrl: 'https://example.com/auth',
+      doneUrl: 'https://example.com/done',
+    })
+  })
+
+  it('returns undefined body when body is null', () => {
+    const err = ArtificialOtpError.fromUnknownBody(noopWarn, null)
+    expect(err.body).toBeUndefined()
+  })
+
+  it('returns undefined body when body is not an object', () => {
+    const err = ArtificialOtpError.fromUnknownBody(noopWarn, 'not an object')
+    expect(err.body).toBeUndefined()
+  })
+
+  it('warns when authUrl has wrong type', () => {
+    const warnings: string[] = []
+    const err = ArtificialOtpError.fromUnknownBody(msg => { warnings.push(msg) }, {
+      authUrl: 123,
+      doneUrl: 'https://example.com/done',
+    })
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('authUrl')
+    expect(err.body?.authUrl).toBeUndefined()
+    expect(err.body?.doneUrl).toBe('https://example.com/done')
+  })
+
+  it('warns when doneUrl has wrong type', () => {
+    const warnings: string[] = []
+    const err = ArtificialOtpError.fromUnknownBody(msg => { warnings.push(msg) }, {
+      authUrl: 'https://example.com/auth',
+      doneUrl: true,
+    })
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('doneUrl')
+    expect(err.body?.authUrl).toBe('https://example.com/auth')
+    expect(err.body?.doneUrl).toBeUndefined()
+  })
+
+  it('warns for both when both have wrong types', () => {
+    const warnings: string[] = []
+    const err = ArtificialOtpError.fromUnknownBody(msg => { warnings.push(msg) }, {
+      authUrl: 42,
+      doneUrl: false,
+    })
+    expect(warnings).toHaveLength(2)
+    expect(err.body?.authUrl).toBeUndefined()
+    expect(err.body?.doneUrl).toBeUndefined()
+  })
+
+  it('returns empty body when body has no authUrl or doneUrl', () => {
+    const err = ArtificialOtpError.fromUnknownBody(noopWarn, { something: 'else' })
+    expect(err.body).toEqual({})
   })
 })

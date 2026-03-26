@@ -28,6 +28,7 @@ export interface OtpContext {
   enquirer: OtpEnquirer
   fetch: (url: string, options: WebAuthFetchOptions) => Promise<WebAuthFetchResponse>
   globalInfo: (message: string) => void
+  globalWarn: (message: string) => void
   process: Record<'stdin' | 'stdout', { isTTY?: boolean }>
 }
 
@@ -115,6 +116,48 @@ export async function withOtpHandling<T> (
     }
 
     throw error
+  }
+}
+
+/**
+ * Artificial instance of {@link OtpError} meant to thrown by the callbacks of {@link withOtpHandling}
+ * and caught and handled by {@link withOtpHandling}.
+ */
+export class ArtificialOtpError extends Error implements OtpError {
+  readonly code = 'EOTP'
+  readonly body?: OtpErrorBody
+
+  constructor (body: OtpErrorBody | undefined) {
+    super('This error was meant to be caught by `withOtpHandling`, not to propagate to other parts of the code')
+    this.body = body
+  }
+
+  static fromUnknownBody (globalWarn: OtpContext['globalWarn'], body: unknown): ArtificialOtpError {
+    if (body == null || typeof body !== 'object') {
+      return new ArtificialOtpError(undefined)
+    }
+
+    const rawBody = body as Record<string, unknown>
+    let authUrl: string | undefined
+    let doneUrl: string | undefined
+
+    if ('authUrl' in rawBody) {
+      if (typeof rawBody.authUrl === 'string') {
+        authUrl = rawBody.authUrl
+      } else {
+        globalWarn(`OTP error body: authUrl has type ${typeof rawBody.authUrl}, expected string`)
+      }
+    }
+
+    if ('doneUrl' in rawBody) {
+      if (typeof rawBody.doneUrl === 'string') {
+        doneUrl = rawBody.doneUrl
+      } else {
+        globalWarn(`OTP error body: doneUrl has type ${typeof rawBody.doneUrl}, expected string`)
+      }
+    }
+
+    return new ArtificialOtpError({ authUrl, doneUrl })
   }
 }
 

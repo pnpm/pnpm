@@ -4,9 +4,10 @@ import util from 'node:util'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
-import { globalInfo } from '@pnpm/logger'
+import { globalInfo, globalWarn } from '@pnpm/logger'
 import { fetch } from '@pnpm/network.fetch'
 import {
+  ArtificialOtpError,
   generateQrCode,
   pollForWebAuthToken,
   type WebAuthFetchOptions,
@@ -126,6 +127,7 @@ export interface LoginContext {
   enquirer: LoginEnquirer
   fetch: (url: string, options?: LoginFetchOptions) => Promise<LoginFetchResponse>
   globalInfo: (message: string) => void
+  globalWarn: (message: string) => void
   process: Record<'stdin' | 'stdout', { isTTY?: boolean }>
   readIniFile: (configPath: string) => Promise<object>
   writeIniFile: (configPath: string, settings: Record<string, unknown>) => Promise<void>
@@ -137,6 +139,7 @@ export const DEFAULT_CONTEXT: LoginContext = {
   enquirer,
   fetch,
   globalInfo,
+  globalWarn,
   process,
   readIniFile,
   writeIniFile,
@@ -233,10 +236,10 @@ async function webLogin (
 
 async function classicLogin (
   registry: string,
-  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'enquirer' | 'fetch' | 'globalInfo' | 'process'>,
+  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'enquirer' | 'fetch' | 'globalInfo' | 'globalWarn' | 'process'>,
   fetchOptions: WebAuthFetchOptions
 ): Promise<string> {
-  const { enquirer, fetch, globalInfo } = context
+  const { enquirer, fetch, globalInfo, globalWarn } = context
 
   const { username } = await enquirer.prompt({
     message: 'Username:',
@@ -280,7 +283,7 @@ async function classicLogin (
       })
 
       if (!response.ok) {
-        await throwIfOtpRequired(response)
+        await throwIfOtpRequired(globalWarn, response)
         const text = await response.text()
         throw new ClassicLoginError(response.status, text)
       }
@@ -307,24 +310,18 @@ async function classicLogin (
  * error when detected. This mirrors the behaviour of npm-registry-fetch,
  * which checks the `www-authenticate` header for one-time password indicators.
  */
-async function throwIfOtpRequired (response: LoginFetchResponse): Promise<void> {
+async function throwIfOtpRequired (globalWarn: LoginContext['globalWarn'], response: LoginFetchResponse): Promise<void> {
   if (response.status !== 401) return
 
   const wwwAuth = response.headers.get('www-authenticate')
   if (!wwwAuth?.includes('otp')) return
 
-  let body: Record<string, unknown> = {}
+  let body: unknown
   try {
-    body = await response.json() as Record<string, unknown>
+    body = await response.json()
   } catch {}
 
-  throw Object.assign(new Error('OTP required'), {
-    code: 'EOTP',
-    body: {
-      authUrl: typeof body.authUrl === 'string' ? body.authUrl : undefined,
-      doneUrl: typeof body.doneUrl === 'string' ? body.doneUrl : undefined,
-    },
-  })
+  throw ArtificialOtpError.fromUnknownBody(globalWarn, body)
 }
 
 function getRegistryConfigKey (registryUrl: string): string {
