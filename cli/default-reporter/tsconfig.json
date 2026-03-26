@@ -35,6 +35,9 @@
       "path": "../../installing/render-peer-issues"
     },
     {
+      "path": "../../registry/types"
+    },
+    {
       "path": "../meta"
     }
   ]

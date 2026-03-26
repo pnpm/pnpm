@@ -1,5 +1,5 @@
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
-import type { PackageInRegistry, PackageMetaWithTime } from '@pnpm/resolving.registry.types'
+import type { PackageInRegistry, PackageMetaWithTime } from '@pnpm/registry.types'
 
 import { failIfTrustDowngraded, getTrustEvidence } from '../src/trustChecks.js'
 

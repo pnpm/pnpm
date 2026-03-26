@@ -1,6 +1,8 @@
 export type Dependencies = Record<string, string>
 
-export type PackageBin = string | { [commandName: string]: string }
+export type PackageBin = string | {
+  [commandName: string]: string
+}
 
 export type PackageScripts = {
   [name: string]: string
@@ -96,7 +98,11 @@ export interface BaseManifest {
   bundleDependencies?: string[] | boolean
   bundledDependencies?: string[] | boolean
   homepage?: string
-  repository?: string | { url: string }
+  repository?: string | {
+    type?: string
+    url: string
+    directory?: string
+  }
   bugs?: string | {
     url?: string
     email?: string
@@ -120,7 +126,11 @@ export interface BaseManifest {
   typesVersions?: TypesVersions
   readme?: string
   keywords?: string[]
-  author?: string
+  author?: string | {
+    name: string
+    email?: string
+    url?: string
+  }
   license?: string
   exports?: Record<string, string>
   imports?: Record<string, unknown>

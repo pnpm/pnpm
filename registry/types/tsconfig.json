@@ -6,11 +6,11 @@
   },
   "include": [
     "src/**/*.ts",
-    "../../../__typings__/**/*.d.ts"
+    "../../__typings__/**/*.d.ts"
   ],
   "references": [
     {
-      "path": "../../../core/types"
+      "path": "../../core/types"
     }
   ]
 }

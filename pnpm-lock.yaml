@@ -2130,6 +2130,9 @@ importers:
       '@pnpm/installing.render-peer-issues':
         specifier: workspace:*
         version: link:../../installing/render-peer-issues
+      '@pnpm/registry.types':
+        specifier: workspace:*
+        version: link:../../registry/types
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
@@ -3122,6 +3125,9 @@ importers:
       '@pnpm/config.matcher':
         specifier: workspace:*
         version: link:../../../config/matcher
+      '@pnpm/config.pick-registry-for-package':
+        specifier: workspace:*
+        version: link:../../../config/pick-registry-for-package
       '@pnpm/config.reader':
         specifier: workspace:*
         version: link:../../../config/reader
@@ -3152,9 +3158,18 @@ importers:
       '@pnpm/logger':
         specifier: 'catalog:'
         version: 1001.0.1
+      '@pnpm/network.fetch':
+        specifier: workspace:*
+        version: link:../../../network/fetch
+      '@pnpm/registry.types':
+        specifier: workspace:*
+        version: link:../../../registry/types
       '@pnpm/resolving.default-resolver':
         specifier: workspace:*
         version: link:../../../resolving/default-resolver
+      '@pnpm/resolving.parse-wanted-dependency':
+        specifier: workspace:*
+        version: link:../../../resolving/parse-wanted-dependency
       '@pnpm/semver-diff':
         specifier: 'catalog:'
         version: 1.1.0
@@ -7551,6 +7566,16 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  registry/types:
+    dependencies:
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../core/types
+    devDependencies:
+      '@pnpm/registry.types':
+        specifier: workspace:*
+        version: 'link:'
+
   releasing/commands:
     dependencies:
       '@pnpm/bins.resolver':
@@ -7997,15 +8022,15 @@ importers:
       '@pnpm/fs.graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
+      '@pnpm/registry.types':
+        specifier: workspace:*
+        version: link:../../registry/types
       '@pnpm/resolving.jsr-specifier-parser':
         specifier: workspace:*
         version: link:../jsr-specifier-parser
       '@pnpm/resolving.registry.pkg-metadata-filter':
         specifier: workspace:*
         version: link:../registry/pkg-metadata-filter
-      '@pnpm/resolving.registry.types':
-        specifier: workspace:*
-        version: link:../registry/types
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: link:../resolver-base
@@ -8122,9 +8147,9 @@ importers:
 
   resolving/registry/pkg-metadata-filter:
     dependencies:
-      '@pnpm/resolving.registry.types':
+      '@pnpm/registry.types':
         specifier: workspace:*
-        version: link:../types
+        version: link:../../../registry/types
       semver:
         specifier: 'catalog:'
         version: 7.7.4
@@ -8138,16 +8163,6 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.7.1
-
-  resolving/registry/types:
-    dependencies:
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../../core/types
-    devDependencies:
-      '@pnpm/resolving.registry.types':
-        specifier: workspace:*
-        version: 'link:'
 
   resolving/resolver-base:
     dependencies:

@@ -28,6 +28,9 @@
       "path": "../../../config/matcher"
     },
     {
+      "path": "../../../config/pick-registry-for-package"
+    },
+    {
       "path": "../../../config/reader"
     },
     {
@@ -55,7 +58,16 @@
       "path": "../../../lockfile/fs"
     },
     {
+      "path": "../../../network/fetch"
+    },
+    {
+      "path": "../../../registry/types"
+    },
+    {
       "path": "../../../resolving/default-resolver"
+    },
+    {
+      "path": "../../../resolving/parse-wanted-dependency"
     },
     {
       "path": "../../../store/path"

@@ -46,6 +46,9 @@
       "path": "../../network/fetch"
     },
     {
+      "path": "../../registry/types"
+    },
+    {
       "path": "../../store/cafs"
     },
     {
@@ -65,9 +68,6 @@
     },
     {
       "path": "../registry/pkg-metadata-filter"
-    },
-    {
-      "path": "../registry/types"
     },
     {
       "path": "../resolver-base"

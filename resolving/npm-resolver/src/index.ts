@@ -7,7 +7,7 @@ import type {
   GetAuthHeader,
   RetryTimeoutOptions,
 } from '@pnpm/fetching.types'
-import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
+import type { PackageInRegistry, PackageMeta } from '@pnpm/registry.types'
 import type {
   DirectoryResolution,
   PkgResolutionId,
