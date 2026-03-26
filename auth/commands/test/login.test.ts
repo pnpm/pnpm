@@ -44,7 +44,11 @@ function createMockResponse (init: {
       bodyConsumed = true
       return init.text ?? ''
     },
-    headers: init.headers ?? { get: name => { throw new Error(`unexpected headers.get call: ${name}`) } },
+    headers: init.headers ?? {
+      get: name => {
+        throw new Error(`unexpected headers.get call: ${name}`)
+      }
+    },
   }
 }
 
