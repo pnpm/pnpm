@@ -2,6 +2,7 @@ import npmTypes from '@pnpm/npm-conf/lib/types.js'
 import type { TrustPolicy } from '@pnpm/types'
 
 export const pnpmTypes = {
+  'auto-dedupe': Boolean,
   'auto-install-peers': Boolean,
   bail: Boolean,
   ci: Boolean,

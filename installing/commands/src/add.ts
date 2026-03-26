@@ -24,6 +24,7 @@ export const shorthands: Record<string, string> = {
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
+    'auto-dedupe',
     'cache-dir',
     'cpu',
     'child-concurrency',
@@ -298,6 +299,7 @@ export async function handler (
     return installDeps({
       ...opts,
       allowBuilds: mergedAllowBuilds,
+      dedupe: opts.autoDedupe,
       rebuildHandler: commands?.rebuild,
       fetchFullMetadata: getFetchFullMetadata(opts),
       include,
@@ -306,6 +308,7 @@ export async function handler (
   }
   return installDeps({
     ...opts,
+    dedupe: opts.autoDedupe,
     rebuildHandler: commands?.rebuild,
     fetchFullMetadata: getFetchFullMetadata(opts),
     include,
