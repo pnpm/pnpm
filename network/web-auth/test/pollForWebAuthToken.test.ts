@@ -20,7 +20,7 @@ function createMockContext (overrides?: Partial<WebAuthContext>): WebAuthContext
   }
 }
 
-const fetchOptions: WebAuthFetchOptions = { method: 'GET' as const }
+const fetchOptions: WebAuthFetchOptions = { method: 'GET' }
 
 describe('pollForWebAuthToken', () => {
   it('returns token when doneUrl responds with 200 and token', async () => {
