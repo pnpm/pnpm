@@ -137,23 +137,22 @@ export class SyntheticOtpError extends Error implements OtpError {
       return new SyntheticOtpError(undefined)
     }
 
-    const rawBody = body as Record<string, unknown>
     let authUrl: string | undefined
     let doneUrl: string | undefined
 
-    if ('authUrl' in rawBody) {
-      if (typeof rawBody.authUrl === 'string') {
-        authUrl = rawBody.authUrl
+    if ('authUrl' in body) {
+      if (typeof body.authUrl === 'string') {
+        authUrl = body.authUrl
       } else {
-        globalWarn(`OTP error body: authUrl has type ${typeof rawBody.authUrl}, expected string`)
+        globalWarn(`OTP error body: authUrl has type ${typeof body.authUrl}, expected string`)
       }
     }
 
-    if ('doneUrl' in rawBody) {
-      if (typeof rawBody.doneUrl === 'string') {
-        doneUrl = rawBody.doneUrl
+    if ('doneUrl' in body) {
+      if (typeof body.doneUrl === 'string') {
+        doneUrl = body.doneUrl
       } else {
-        globalWarn(`OTP error body: doneUrl has type ${typeof rawBody.doneUrl}, expected string`)
+        globalWarn(`OTP error body: doneUrl has type ${typeof body.doneUrl}, expected string`)
       }
     }
 
