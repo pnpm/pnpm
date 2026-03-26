@@ -259,9 +259,7 @@ async function classicLogin (
         'content-type': 'application/json',
         accept: 'application/json',
         'npm-auth-type': 'web',
-      }
-      if (otp) {
-        headers['npm-otp'] = otp
+        'npm-otp': otp,
       }
 
       const response = await fetch(loginUrl, {
