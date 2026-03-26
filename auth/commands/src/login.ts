@@ -123,7 +123,7 @@ export interface LoginContext {
   fetch: (url: string, options?: LoginFetchOptions) => Promise<LoginFetchResponse>
   globalInfo: (message: string) => void
   process: Record<'stdin' | 'stdout', { isTTY?: boolean }>
-  safeReadIniFile: (configPath: string) => Promise<Record<string, unknown>>
+  readIniFile: (configPath: string) => Promise<Record<string, unknown>>
   writeIniFile: (configPath: string, settings: Record<string, unknown>) => Promise<void>
 }
 
@@ -134,7 +134,7 @@ export const DEFAULT_CONTEXT: LoginContext = {
   fetch,
   globalInfo,
   process,
-  safeReadIniFile,
+  readIniFile: async (configPath) => await readIniFile(configPath) as Record<string, unknown>,
   writeIniFile,
 }
 
@@ -151,7 +151,7 @@ export async function login ({
     fetch,
     globalInfo,
     process,
-    safeReadIniFile,
+    readIniFile,
     writeIniFile,
   } = DEFAULT_CONTEXT,
   opts,
@@ -186,7 +186,7 @@ export async function login ({
   }
 
   const configPath = path.join(opts.configDir, 'rc')
-  const settings = await safeReadIniFile(configPath)
+  const settings = await safeReadIniFile(readIniFile, configPath)
   const registryConfigKey = getRegistryConfigKey(registry)
   settings[`${registryConfigKey}:_authToken`] = token
   await writeIniFile(configPath, settings)
@@ -329,9 +329,12 @@ function getRegistryConfigKey (registryUrl: string): string {
   return `//${url.host}${url.pathname}`
 }
 
-async function safeReadIniFile (configPath: string): Promise<Record<string, unknown>> {
+async function safeReadIniFile (
+  readIniFile: (configPath: string) => Promise<Record<string, unknown>>,
+  configPath: string
+): Promise<Record<string, unknown>> {
   try {
-    return await readIniFile(configPath) as Record<string, unknown>
+    return await readIniFile(configPath)
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return {}
     throw err

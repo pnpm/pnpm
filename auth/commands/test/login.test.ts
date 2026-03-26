@@ -15,8 +15,8 @@ const TEST_CONTEXT: LoginContext = {
     throw new Error(`unexpected globalInfo call: ${message}`)
   },
   process: { stdin: { isTTY: true }, stdout: { isTTY: true } },
-  safeReadIniFile: async (path) => {
-    throw new Error(`unexpected safeReadIniFile call: ${path}`)
+  readIniFile: async (path) => {
+    throw new Error(`unexpected readIniFile call: ${path}`)
   },
   writeIniFile: async (path) => {
     throw new Error(`unexpected writeIniFile call: ${path}`)
@@ -58,7 +58,7 @@ describe('login', () => {
         globalInfo: (message) => {
           infoMessages.push(message)
         },
-        safeReadIniFile: async () => ({}),
+        readIniFile: async () => ({}),
         writeIniFile: async (configPath, settings) => {
           savedPath = configPath
           savedSettings = settings
@@ -119,7 +119,7 @@ describe('login', () => {
         globalInfo: (message) => {
           infoMessages.push(message)
         },
-        safeReadIniFile: async () => ({}),
+        readIniFile: async () => ({}),
         writeIniFile: async (configPath, settings) => {
           savedPath = configPath
           savedSettings = settings
@@ -183,7 +183,7 @@ describe('login', () => {
         globalInfo: (message) => {
           infoMessages.push(message)
         },
-        safeReadIniFile: async () => ({}),
+        readIniFile: async () => ({}),
         writeIniFile: async () => {},
         fetch: async (url, options) => {
           if (url === 'https://example.org/-/v1/login') {
@@ -251,7 +251,7 @@ describe('login', () => {
         globalInfo: (message) => {
           infoMessages.push(message)
         },
-        safeReadIniFile: async () => ({}),
+        readIniFile: async () => ({}),
         writeIniFile: async () => {},
         fetch: async (url, options) => {
           if (url === 'https://example.org/-/v1/login') {
@@ -327,7 +327,7 @@ describe('login', () => {
       context: {
         ...TEST_CONTEXT,
         globalInfo: () => {},
-        safeReadIniFile: async () => ({}),
+        readIniFile: async () => ({}),
         writeIniFile: async () => {},
         fetch: async (url) => {
           if (url === 'https://example.org/-/v1/login') {
@@ -371,7 +371,7 @@ describe('login', () => {
       context: {
         ...TEST_CONTEXT,
         globalInfo: () => {},
-        safeReadIniFile: async () => ({}),
+        readIniFile: async () => ({}),
         writeIniFile: async () => {},
         fetch: async (url) => {
           if (url === 'https://example.org/-/v1/login') {
@@ -408,7 +408,7 @@ describe('login', () => {
       context: {
         ...TEST_CONTEXT,
         globalInfo: () => {},
-        safeReadIniFile: async () => ({}),
+        readIniFile: async () => ({}),
         writeIniFile: async () => {},
         fetch: async (url) => {
           if (url === 'https://example.org/-/v1/login') {
@@ -454,7 +454,7 @@ describe('login', () => {
       context: {
         ...TEST_CONTEXT,
         globalInfo: () => {},
-        safeReadIniFile: async () => ({}),
+        readIniFile: async () => ({}),
         writeIniFile: async () => {},
         fetch: async (url) => {
           if (url === 'https://example.org/-/v1/login') {
@@ -485,7 +485,7 @@ describe('login', () => {
       context: {
         ...TEST_CONTEXT,
         globalInfo: () => {},
-        safeReadIniFile: async () => ({}),
+        readIniFile: async () => ({}),
         writeIniFile: async (_configPath, settings) => {
           savedSettings = settings
         },
@@ -538,7 +538,7 @@ describe('login', () => {
       context: {
         ...TEST_CONTEXT,
         globalInfo: () => {},
-        safeReadIniFile: async () => ({}),
+        readIniFile: async () => ({}),
         writeIniFile: async () => {},
         fetch: async (url) => {
           if (url === 'https://example.org/-/v1/login') {
