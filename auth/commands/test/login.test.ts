@@ -57,22 +57,22 @@ function createMockResponse (init: {
 
 describe('login', () => {
   it('should throw in non-interactive terminal', async () => {
-    await expect(
-      login({
-        opts: {
-          configDir: '/mock/config',
-          dir: '/mock',
-          rawConfig: {},
+    const promise = login({
+      opts: {
+        configDir: '/mock/config',
+        dir: '/mock',
+        rawConfig: {},
+      },
+      context: {
+        ...TEST_CONTEXT,
+        process: {
+          stdin: { isTTY: false },
+          stdout: { isTTY: true },
         },
-        context: {
-          ...TEST_CONTEXT,
-          process: {
-            stdin: { isTTY: false },
-            stdout: { isTTY: true },
-          },
-        },
-      })
-    ).rejects.toThrow('The login command requires an interactive terminal')
+      },
+    })
+    await expect(promise).rejects.toHaveProperty(['code'], 'ERR_PNPM_LOGIN_NON_INTERACTIVE')
+    await expect(promise).rejects.toHaveProperty(['message'], 'The login command requires an interactive terminal')
   })
 
   it('should use web login when registry supports it', async () => {
@@ -333,7 +333,7 @@ describe('login', () => {
   })
 
   it('should not trigger OTP for non-401 errors', async () => {
-    await expect(login({
+    const promise = login({
       opts: {
         configDir: '/otp/config',
         dir: '/mock',
@@ -369,11 +369,13 @@ describe('login', () => {
           },
         },
       },
-    })).rejects.toThrow('Login failed (HTTP 403): Forbidden')
+    })
+    await expect(promise).rejects.toHaveProperty(['code'], 'ERR_PNPM_LOGIN_FAILED')
+    await expect(promise).rejects.toHaveProperty(['message'], 'Login failed (HTTP 403): Forbidden')
   })
 
   it('should throw when username is empty in classic login', async () => {
-    await expect(login({
+    const promise = login({
       opts: {
         configDir: '/mock/config',
         dir: '/mock',
@@ -404,11 +406,13 @@ describe('login', () => {
           },
         },
       },
-    })).rejects.toThrow('Username, password, and email are all required')
+    })
+    await expect(promise).rejects.toHaveProperty(['code'], 'ERR_PNPM_LOGIN_MISSING_CREDENTIALS')
+    await expect(promise).rejects.toHaveProperty(['message'], 'Username, password, and email are all required')
   })
 
   it('should throw when classic login returns no token', async () => {
-    await expect(login({
+    const promise = login({
       opts: {
         configDir: '/mock/config',
         dir: '/mock',
@@ -446,11 +450,13 @@ describe('login', () => {
           },
         },
       },
-    })).rejects.toThrow('The registry did not return an authentication token')
+    })
+    await expect(promise).rejects.toHaveProperty(['code'], 'ERR_PNPM_LOGIN_NO_TOKEN')
+    await expect(promise).rejects.toHaveProperty(['message'], 'The registry did not return an authentication token')
   })
 
   it('should throw when web login returns invalid response (missing loginUrl/doneUrl)', async () => {
-    await expect(login({
+    const promise = login({
       opts: {
         configDir: '/mock/config',
         dir: '/mock',
@@ -473,7 +479,9 @@ describe('login', () => {
           throw new Error(`Unexpected call to fetch: ${url}`)
         },
       },
-    })).rejects.toThrow('The registry returned an invalid response for web-based login')
+    })
+    await expect(promise).rejects.toHaveProperty(['code'], 'ERR_PNPM_LOGIN_INVALID_RESPONSE')
+    await expect(promise).rejects.toHaveProperty(['message'], 'The registry returned an invalid response for web-based login')
   })
 
   it('should fall back to classic login when web login returns 405', async () => {
@@ -528,7 +536,7 @@ describe('login', () => {
   })
 
   it('should not trigger OTP for 401 without www-authenticate otp header', async () => {
-    await expect(login({
+    const promise = login({
       opts: {
         configDir: '/otp/config',
         dir: '/mock',
@@ -565,7 +573,9 @@ describe('login', () => {
           },
         },
       },
-    })).rejects.toThrow('Login failed (HTTP 401): Unauthorized')
+    })
+    await expect(promise).rejects.toHaveProperty(['code'], 'ERR_PNPM_LOGIN_FAILED')
+    await expect(promise).rejects.toHaveProperty(['message'], 'Login failed (HTTP 401): Unauthorized')
   })
 
   it('should succeed when config file does not exist (ENOENT)', async () => {
@@ -614,7 +624,7 @@ describe('login', () => {
   })
 
   it('should propagate non-ENOENT errors from readIniFile', async () => {
-    await expect(login({
+    const promise = login({
       opts: {
         configDir: '/broken/config',
         dir: '/mock',
@@ -646,6 +656,8 @@ describe('login', () => {
           })
         },
       },
-    })).rejects.toThrow('EACCES: permission denied')
+    })
+    await expect(promise).rejects.toHaveProperty(['code'], 'EACCES')
+    await expect(promise).rejects.toHaveProperty(['message'], 'EACCES: permission denied')
   })
 })

@@ -157,7 +157,7 @@ export async function login ({ context = DEFAULT_CONTEXT, opts }: LoginParams): 
   const registry = normalizeRegistryUrl(opts.registry ?? 'https://registry.npmjs.org/')
 
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    throw new PnpmError('LOGIN_NON_INTERACTIVE', 'The login command requires an interactive terminal')
+    throw new LoginNonInteractiveError()
   }
 
   const fetchOptions: WebAuthFetchOptions = {
@@ -222,7 +222,7 @@ async function webLogin (
   const body = await response.json() as { loginUrl?: string, doneUrl?: string }
 
   if (!body.loginUrl || !body.doneUrl) {
-    throw new PnpmError('LOGIN_INVALID_RESPONSE', 'The registry returned an invalid response for web-based login')
+    throw new LoginInvalidResponseError()
   }
 
   const qrCode = generateQrCode(body.loginUrl)
@@ -255,7 +255,7 @@ async function classicLogin (
   })
 
   if (!username || !password || !email) {
-    throw new PnpmError('LOGIN_MISSING_CREDENTIALS', 'Username, password, and email are all required')
+    throw new LoginMissingCredentialsError()
   }
 
   const loginUrl = new URL(`-/user/org.couchdb.user:${encodeURIComponent(username)}`, registry).href
@@ -288,7 +288,7 @@ async function classicLogin (
       const body = await response.json() as { token?: string }
 
       if (!body.token) {
-        throw new PnpmError('LOGIN_NO_TOKEN', 'The registry did not return an authentication token')
+        throw new LoginNoTokenError()
       }
 
       return body.token
@@ -346,6 +346,30 @@ async function safeReadIniFile (
 
 function isWebLoginNotSupported (err: unknown): boolean {
   return err instanceof WebLoginError && (err.httpStatus === 404 || err.httpStatus === 405)
+}
+
+class LoginNonInteractiveError extends PnpmError {
+  constructor () {
+    super('LOGIN_NON_INTERACTIVE', 'The login command requires an interactive terminal')
+  }
+}
+
+class LoginInvalidResponseError extends PnpmError {
+  constructor () {
+    super('LOGIN_INVALID_RESPONSE', 'The registry returned an invalid response for web-based login')
+  }
+}
+
+class LoginMissingCredentialsError extends PnpmError {
+  constructor () {
+    super('LOGIN_MISSING_CREDENTIALS', 'Username, password, and email are all required')
+  }
+}
+
+class LoginNoTokenError extends PnpmError {
+  constructor () {
+    super('LOGIN_NO_TOKEN', 'The registry did not return an authentication token')
+  }
 }
 
 class ClassicLoginError extends PnpmError {
