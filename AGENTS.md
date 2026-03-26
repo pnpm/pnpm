@@ -109,7 +109,7 @@ Example:
 
 ```
 ---
-"@pnpm/core": minor
+"@pnpm/installing.deps-installer"lling.deps-installer": minor
 "pnpm": minor
 ---
 

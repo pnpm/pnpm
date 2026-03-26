@@ -117,7 +117,6 @@ export const pnpmTypes = {
   'trust-policy-exclude': [String, Array],
   'trust-policy-ignore-after': Number,
   'use-beta-cli': Boolean,
-  'allow-builds-of-trusted-deps': Boolean,
   'use-stderr': Boolean,
   'verify-deps-before-run': Boolean,
   'verify-store-integrity': Boolean,

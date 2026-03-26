@@ -92,7 +92,6 @@ catalog:
   '@pnpm/npm-package-arg': ^2.0.0
   '@pnpm/os.env.path-extender': ^3.0.0
   '@pnpm/patch-package': 0.0.1
-  '@pnpm/plugin-trusted-deps': 0.3.0-2
   '@pnpm/registry-mock': 5.2.4
   '@pnpm/semver-diff': ^1.1.0
   '@pnpm/tabtab': ^0.5.4
@@ -148,7 +147,7 @@ catalog:
   '@yarnpkg/nm': 4.0.7
   '@yarnpkg/parsers': 3.0.3
   '@yarnpkg/pnp': ^4.0.8
-  '@zkochan/cmd-shim': ^8.0.1
+  '@zkochan/cmd-shim': ^9.0.0
   '@zkochan/retry': ^0.2.0
   '@zkochan/rimraf': ^4.0.0
   '@zkochan/table': ^2.0.1
@@ -323,7 +322,7 @@ catalog:
   write-json5-file: ^4.0.0
   write-package: 7.2.0
   write-yaml-file: ^6.0.0
-  yaml: ^2.8.1
+  yaml: ^2.8.3
   yaml-tag: 1.1.0
 
 catalogMode: strict
@@ -349,7 +348,7 @@ minimumReleaseAgeExclude:
   - '@pnpm/*'
   - '@rushstack/worker-pool@0.7.7'
   - '@zkochan/*'
-  - '@zkochan/cmd-shim@8.0.0 || 8.0.1'
+  - '@zkochan/cmd-shim@9.0.0'
   - better-path-resolve
   - body-parser@2.2.1
   - can-link

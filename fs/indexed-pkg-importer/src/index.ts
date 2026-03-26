@@ -7,6 +7,8 @@ import { packageImportMethodLogger } from '@pnpm/core-loggers'
 import fs from '@pnpm/fs.graceful-fs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import type { FilesMap, ImportIndexedPackage, ImportOptions } from '@pnpm/store.controller-types'
+import { fastPathTemp as pathTemp } from 'path-temp'
+import { renameOverwriteSync } from 'rename-overwrite'
 
 import { type ImportFile, importIndexedDir } from './importIndexedDir.js'
 
@@ -122,7 +124,7 @@ function clonePkg (
   opts: ImportOptions
 ): 'clone' | undefined {
   if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
-    importIndexedDir(clone, to, opts.filesMap, opts)
+    importIndexedDir({ importFile: clone, importFileAtomic: clone }, to, opts.filesMap, opts)
     return 'clone'
   }
   return undefined
@@ -133,9 +135,9 @@ function pkgExistsAtTargetDir (targetDir: string, filesMap: FilesMap): boolean {
 }
 
 function pickFileFromFilesMap (filesMap: FilesMap): string {
-  // A package might not have a package.json file.
-  // For instance, the Node.js package.
-  // Or injected packages in a Bit workspace.
+  // New packages always have a package.json (the worker synthesizes one if
+  // the tarball/directory lacks it).  The fallback handles old store entries
+  // that were indexed before the synthetic package.json was introduced.
   if (filesMap.has('package.json')) {
     return 'package.json'
   }
@@ -177,7 +179,7 @@ function hardlinkPkg (
   opts: ImportOptions
 ): 'hardlink' | undefined {
   if (opts.force || shouldRelinkPkg(to, opts)) {
-    importIndexedDir(importFile, to, opts.filesMap, opts)
+    importIndexedDir({ importFile, importFileAtomic: importFile }, to, opts.filesMap, opts)
     return 'hardlink'
   }
   return undefined
@@ -208,7 +210,23 @@ function linkOrCopy (existingPath: string, newPath: string): void {
     // In some VERY rare cases (1 in a thousand), hard-link creation fails on Windows.
     // In that case, we just fall back to copying.
     // This issue is reproducible with "pnpm add @material-ui/icons@4.9.1"
-    fs.copyFileSync(existingPath, newPath)
+    resilientCopyFileSync(existingPath, newPath)
+  }
+}
+
+// On Linux CI, the kernel's copy_file_range/sendfile can transiently fail
+// with ENOTSUP under heavy parallel I/O on the same store files.
+// Fall back to manual read+write which uses plain read/write syscalls.
+function resilientCopyFileSync (src: string, dest: string): void {
+  try {
+    fs.copyFileSync(src, dest)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOTSUP') {
+      const srcMode = fs.statSync(src).mode
+      fs.writeFileSync(dest, fs.readFileSync(src), { mode: srcMode })
+    } else {
+      throw err
+    }
   }
 }
 
@@ -232,8 +250,24 @@ export function copyPkg (
   opts: ImportOptions
 ): 'copy' | undefined {
   if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
-    importIndexedDir(fs.copyFileSync, to, opts.filesMap, opts)
+    // copyFileSync is not atomic on non-COW filesystems: a crash mid-copy
+    // can leave a partially-written file.  package.json is the completion
+    // marker, so it must be written atomically via temp file + rename.
+    importIndexedDir({ importFile: resilientCopyFileSync, importFileAtomic: atomicCopyFileSync }, to, opts.filesMap, opts)
     return 'copy'
   }
   return undefined
+}
+
+function atomicCopyFileSync (src: string, dest: string): void {
+  const tmp = pathTemp(dest)
+  try {
+    resilientCopyFileSync(src, tmp)
+  } catch (err) {
+    try {
+      fs.unlinkSync(tmp)
+    } catch {} // eslint-disable-line:no-empty
+    throw err
+  }
+  renameOverwriteSync(tmp, dest)
 }
