@@ -8,6 +8,8 @@ import { globalInfo, globalWarn } from '@pnpm/logger'
 import { fetch } from '@pnpm/network.fetch'
 import {
   generateQrCode,
+  OtpBodyWarning,
+  OtpRequiredError,
   pollForWebAuthToken,
   type WebAuthFetchOptions,
   withOtpHandling,
@@ -238,7 +240,7 @@ async function classicLogin (
   context: Pick<LoginContext, 'Date' | 'setTimeout' | 'enquirer' | 'fetch' | 'globalInfo' | 'globalWarn' | 'process'>,
   fetchOptions: WebAuthFetchOptions
 ): Promise<string> {
-  const { enquirer, fetch, globalInfo } = context
+  const { enquirer, fetch, globalInfo, globalWarn } = context
 
   const { username } = await enquirer.prompt({
     message: 'Username:',
@@ -282,7 +284,7 @@ async function classicLogin (
       })
 
       if (!response.ok) {
-        await throwIfOtpRequired(response)
+        await throwIfOtpRequired(response, globalWarn)
         const text = await response.text()
         throw new ClassicLoginError(response.status, text)
       }
@@ -305,11 +307,15 @@ async function classicLogin (
 }
 
 /**
- * Inspects a non-ok HTTP response for OTP requirements and throws an EOTP
- * error when detected. This mirrors the behaviour of npm-registry-fetch,
- * which checks the `www-authenticate` header for one-time password indicators.
+ * Inspects a non-ok HTTP response for OTP requirements and throws an
+ * {@link OtpRequiredError} when detected. This mirrors the behaviour of
+ * npm-registry-fetch, which checks the `www-authenticate` header for
+ * one-time password indicators.
  */
-async function throwIfOtpRequired (response: LoginFetchResponse): Promise<void> {
+async function throwIfOtpRequired (
+  response: LoginFetchResponse,
+  globalWarn: (message: string) => void
+): Promise<void> {
   if (response.status !== 401) return
 
   const wwwAuth = response.headers.get('www-authenticate')
@@ -320,7 +326,14 @@ async function throwIfOtpRequired (response: LoginFetchResponse): Promise<void> 
     body = await response.json()
   } catch {}
 
-  throw Object.assign(new Error('OTP required'), { code: 'EOTP', body })
+  const validated = OtpRequiredError.fromUnknown({ body })
+  if (validated instanceof OtpBodyWarning) {
+    for (const warning of validated.warnings) {
+      globalWarn(`OTP error body: ${warning}`)
+    }
+    throw validated.otpError
+  }
+  throw validated
 }
 
 function getRegistryConfigKey (registryUrl: string): string {

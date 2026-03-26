@@ -146,13 +146,20 @@ export async function withOtpHandling<T> (
       throw new OtpNonInteractiveError()
     }
 
-    const validated = OtpRequiredError.fromUnknown(error)
-    if (validated instanceof OtpBodyWarning) {
-      for (const warning of validated.warnings) {
-        globalWarn(`OTP error body: ${warning}`)
+    let otpError: OtpRequiredError
+    if (error instanceof OtpRequiredError) {
+      otpError = error
+    } else {
+      const validated = OtpRequiredError.fromUnknown(error)
+      if (validated instanceof OtpBodyWarning) {
+        for (const warning of validated.warnings) {
+          globalWarn(`OTP error body: ${warning}`)
+        }
+        otpError = validated.otpError
+      } else {
+        otpError = validated
       }
     }
-    const otpError = validated instanceof OtpBodyWarning ? validated.otpError : validated
 
     let otp: string | undefined
 
