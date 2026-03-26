@@ -210,7 +210,17 @@ function linkOrCopy (existingPath: string, newPath: string): void {
     // In some VERY rare cases (1 in a thousand), hard-link creation fails on Windows.
     // In that case, we just fall back to copying.
     // This issue is reproducible with "pnpm add @material-ui/icons@4.9.1"
-    fs.copyFileSync(existingPath, newPath)
+    try {
+      fs.copyFileSync(existingPath, newPath)
+    } catch (copyErr: unknown) {
+      // On Linux CI, copy_file_range/sendfile can transiently fail with ENOTSUP
+      // under heavy parallel I/O.  Fall back to manual read+write.
+      if (util.types.isNativeError(copyErr) && 'code' in copyErr && copyErr.code === 'ENOTSUP') {
+        fs.writeFileSync(newPath, fs.readFileSync(existingPath))
+      } else {
+        throw copyErr
+      }
+    }
   }
 }
 
