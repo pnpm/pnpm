@@ -42,6 +42,75 @@ test('safeToSkip skips when target already exists (content-addressed)', () => {
   expect(renameOverwriteSyncMock).not.toHaveBeenCalled()
 })
 
+test('non-safeToSkip falls through to staging when target already exists', () => {
+  const tmp = tempDir()
+  const srcDir = path.join(tmp, 'src')
+  fs.mkdirSync(srcDir, { recursive: true })
+
+  const srcPkgJson = path.join(srcDir, 'package.json')
+  const srcIndex = path.join(srcDir, 'index.js')
+  fs.writeFileSync(srcPkgJson, '{"name":"pkg","version":"2.0.0"}')
+  fs.writeFileSync(srcIndex, 'v2')
+
+  const newDir = path.join(tmp, 'dest')
+
+  // Pre-create target with a stale file from a previous version
+  fs.mkdirSync(newDir, { recursive: true })
+  fs.writeFileSync(path.join(newDir, 'package.json'), '{"name":"pkg","version":"1.0.0"}')
+  fs.writeFileSync(path.join(newDir, 'index.js'), 'v1')
+  fs.writeFileSync(path.join(newDir, 'stale.js'), 'should be removed')
+
+  const filenames = new Map([
+    ['package.json', srcPkgJson],
+    ['index.js', srcIndex],
+  ])
+
+  // renameOverwriteSync replaces the directory atomically in real code.
+  // Mock it to simulate the staging path completing.
+  renameOverwriteSyncMock.mockImplementation((stage: string, dest: string) => {
+    fs.rmSync(dest, { recursive: true })
+    fs.renameSync(stage, dest)
+  })
+
+  importIndexedDir({ importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync }, newDir, filenames, { safeToSkip: false })
+
+  // Staging path should have been used (renameOverwriteSync called)
+  expect(renameOverwriteSyncMock).toHaveBeenCalled()
+  // New files should be present
+  expect(fs.readFileSync(path.join(newDir, 'index.js'), 'utf8')).toBe('v2')
+  // Stale file should be gone (full directory replacement)
+  expect(fs.existsSync(path.join(newDir, 'stale.js'))).toBe(false)
+})
+
+test('fast path does not empty directory created by concurrent importer', () => {
+  const tmp = tempDir()
+  const srcDir = path.join(tmp, 'src')
+  fs.mkdirSync(srcDir, { recursive: true })
+
+  const srcPkgJson = path.join(srcDir, 'package.json')
+  fs.writeFileSync(srcPkgJson, '{"name":"pkg"}')
+
+  const newDir = path.join(tmp, 'dest')
+
+  // Pre-create target (simulates a concurrent importer that created the dir)
+  fs.mkdirSync(newDir, { recursive: true })
+  fs.writeFileSync(path.join(newDir, 'package.json'), '{"name":"pkg"}')
+  fs.writeFileSync(path.join(newDir, 'index.js'), 'concurrent write in progress')
+
+  const filenames = new Map([['package.json', srcPkgJson]])
+
+  renameOverwriteSyncMock.mockImplementation((stage: string, dest: string) => {
+    fs.rmSync(dest, { recursive: true })
+    fs.renameSync(stage, dest)
+  })
+
+  importIndexedDir({ importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync }, newDir, filenames, { safeToSkip: false })
+
+  // The concurrent importer's extra file should NOT be wiped by the fast path.
+  // Instead, the staging path should have atomically replaced the directory.
+  expect(renameOverwriteSyncMock).toHaveBeenCalled()
+})
+
 test('safeToSkip creates dir when target does not exist', () => {
   const tmp = tempDir()
   const srcFile = path.join(tmp, 'src', 'index.js')

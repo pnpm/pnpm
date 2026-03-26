@@ -33,31 +33,40 @@ export function importIndexedDir (
     safeToSkip?: boolean
   }
 ): void {
-  // Fast path: import directly without staging.  Callers already verified
-  // the target package is missing (pkgExistsAtTargetDir / pkgLinkedToStore),
-  // so we can write straight into newDir and skip the temp dir + rename.
-  // On any error, clean up and fall through to the staging path which has
-  // full error handling (EEXIST dedup, ENOENT sanitized-filename retry, etc.).
+  // Fast path: import directly into newDir without staging.
+  // We atomically claim newDir via non-recursive mkdirSync: if it succeeds,
+  // we own the directory and can write directly; if EEXIST, another process
+  // (or a previous install) already owns it, so we fall through to the
+  // staging path which replaces atomically via temp dir + rename.
+  // This avoids makeEmptyDirSync which would destroy a concurrent importer's
+  // partially-written files.
   // keepModulesDir needs the staging path to preserve the existing node_modules.
-  if (!opts.keepModulesDir) try {
-    // For safeToSkip (content-addressed GVS), use non-destructive mkdirSync
-    // so concurrent importers don't wipe each other's files.
-    if (opts.safeToSkip) {
-      fs.mkdirSync(newDir, { recursive: true })
-    } else {
-      makeEmptyDirSync(newDir, { recursive: true })
-    }
-    tryImportIndexedDir(importer, newDir, filenames)
-    return
-  } catch (err) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') {
-      // A concurrent importer may have completed the directory.
-      // If all files match, there's nothing left to do.
-      if (allFilesMatch(newDir, filenames)) return
-    } else {
+  if (!opts.keepModulesDir) {
+    // Atomically claim newDir.  Non-recursive mkdirSync throws EEXIST if
+    // another process (or a previous install) already created the directory.
+    let claimed = false
+    try {
+      fs.mkdirSync(path.dirname(newDir), { recursive: true })
+      fs.mkdirSync(newDir)
+      claimed = true
+    } catch {} // eslint-disable-line:no-empty
+    if (claimed) {
       try {
-        rimrafSync(newDir)
-      } catch {} // eslint-disable-line:no-empty
+        tryImportIndexedDir(importer, newDir, filenames)
+        return
+      } catch {
+        // We created the dir, so we own it — safe to clean up.
+        try {
+          rimrafSync(newDir)
+        } catch {} // eslint-disable-line:no-empty
+      }
+    } else if (opts.safeToSkip && allFilesMatch(newDir, filenames)) {
+      // For content-addressable targets (GVS), a concurrent importer wrote
+      // identical content — verify files and return early.
+      // For other targets (local deps, re-imports), fall through to the
+      // staging path which does a full directory replacement, ensuring
+      // stale files from a previous version are removed.
+      return
     }
   }
   // Staging path: create in temp dir, then atomically rename.
