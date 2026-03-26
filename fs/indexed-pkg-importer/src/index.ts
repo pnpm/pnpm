@@ -216,7 +216,8 @@ function linkOrCopy (existingPath: string, newPath: string): void {
       // On Linux CI, copy_file_range/sendfile can transiently fail with ENOTSUP
       // under heavy parallel I/O.  Fall back to manual read+write.
       if (util.types.isNativeError(copyErr) && 'code' in copyErr && copyErr.code === 'ENOTSUP') {
-        fs.writeFileSync(newPath, fs.readFileSync(existingPath))
+        const srcMode = fs.statSync(existingPath).mode
+        fs.writeFileSync(newPath, fs.readFileSync(existingPath), { mode: srcMode })
       } else {
         throw copyErr
       }

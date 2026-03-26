@@ -10,6 +10,7 @@ jest.unstable_mockModule('@pnpm/fs.graceful-fs', () => {
   const fsMock = {
     access,
     copyFileSync: jest.fn(),
+    readFileSync: jest.fn(),
     readdirSync: jest.fn(),
     linkSync: jest.fn(),
     mkdirSync: jest.fn(),
@@ -243,4 +244,47 @@ test('packageImportMethod=hardlink links packages when they are not found', () =
     resolvedFrom: 'store',
   })).toBe('hardlink')
   expect(globalInfo).not.toHaveBeenCalledWith('Relinking project/package from the store')
+})
+
+testOnLinuxOnly('packageImportMethod=hardlink: falls back to read+write when copyFileSync throws ENOTSUP', () => {
+  const importPackage = createIndexedPkgImporter('hardlink')
+  jest.mocked(gfs.linkSync).mockImplementation(() => {
+    throw new Error('hard link failed')
+  })
+  jest.mocked(gfs.copyFileSync).mockImplementation(() => {
+    throw Object.assign(new Error('ENOTSUP: operation not supported on socket'), { code: 'ENOTSUP' })
+  })
+  jest.mocked(gfs.statSync as jest.Mock).mockReturnValue({ mode: 0o644 })
+  jest.mocked(gfs.readFileSync as jest.Mock).mockReturnValue(Buffer.from('file content'))
+  expect(importPackage('project/package', {
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+      ['package.json', 'hash1'],
+    ]),
+    force: false,
+    resolvedFrom: 'remote',
+  })).toBe('hardlink')
+  expect(gfs.readFileSync).toHaveBeenCalled()
+  expect(gfs.writeFileSync).toHaveBeenCalledWith(
+    path.join('project', 'package', 'index.js'),
+    Buffer.from('file content'),
+    { mode: 0o644 }
+  )
+})
+
+testOnLinuxOnly('packageImportMethod=hardlink: rethrows non-ENOTSUP errors from copyFileSync', () => {
+  const importPackage = createIndexedPkgImporter('hardlink')
+  jest.mocked(gfs.linkSync).mockImplementation(() => {
+    throw new Error('hard link failed')
+  })
+  jest.mocked(gfs.copyFileSync).mockImplementation(() => {
+    throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
+  })
+  expect(() => importPackage('project/package', {
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+    ]),
+    force: false,
+    resolvedFrom: 'remote',
+  })).toThrow('EACCES: permission denied')
 })
