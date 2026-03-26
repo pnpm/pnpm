@@ -168,7 +168,7 @@ function createCloneFunction (): CloneFunction {
     try {
       fs.copyFileSync(src, dest, constants.COPYFILE_FICLONE_FORCE)
     } catch (err: unknown) {
-      if (!(util.types.isNativeError(err) && 'code' in err && (err.code === 'EEXIST' || err.code === 'ENOTSUP'))) throw err
+      if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
     }
   }
 }
