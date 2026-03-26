@@ -152,6 +152,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     const hint = err['hint'] ? err['hint'] : `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`
     printError(err.message, hint)
     process.exitCode = 1
+    await finishWorkers()
     return
   }
   if (cmd == null && cliOptions.version) {

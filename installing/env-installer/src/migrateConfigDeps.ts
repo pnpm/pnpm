@@ -26,6 +26,10 @@ export async function migrateConfigDepsToLockfile (
   configDeps: ConfigDependencies,
   opts: MigrateOpts
 ): Promise<Record<string, NormalizedConfigDep>> {
+  if (opts.frozenLockfile) {
+    throw new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE', 'Cannot migrate configDependencies with "frozen-lockfile" because the lockfile is not up to date')
+  }
+
   const envLockfile = createEnvLockfile()
   const cleanSpecifiers: ConfigDependencySpecifiers = {}
   const normalizedDeps: Record<string, NormalizedConfigDep> = {}
@@ -93,18 +97,14 @@ export async function migrateConfigDepsToLockfile (
   // Write the new env lockfile and clean up workspace manifest
   const writes: Array<Promise<void>> = [
     writeEnvLockfile(opts.rootDir, envLockfile),
+    writeSettings({
+      rootProjectManifestDir: opts.rootDir,
+      workspaceDir: opts.rootDir,
+      updatedSettings: {
+        configDependencies: cleanSpecifiers,
+      },
+    }),
   ]
-  if (!opts.frozenLockfile) {
-    writes.push(
-      writeSettings({
-        rootProjectManifestDir: opts.rootDir,
-        workspaceDir: opts.rootDir,
-        updatedSettings: {
-          configDependencies: cleanSpecifiers,
-        },
-      })
-    )
-  }
   await Promise.all(writes)
 
   return normalizedDeps

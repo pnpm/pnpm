@@ -47,13 +47,17 @@ export async function getConfig (
 export async function installConfigDepsAndLoadHooks (config: Config): Promise<Config> {
   if (config.configDependencies) {
     const store = await createStoreController(config)
-    await resolveAndInstallConfigDeps(config.configDependencies, {
-      ...config,
-      store: store.ctrl,
-      storeDir: store.dir,
-      rootDir: config.lockfileDir ?? config.rootProjectManifestDir,
-      frozenLockfile: config.frozenLockfile,
-    })
+    try {
+      await resolveAndInstallConfigDeps(config.configDependencies, {
+        ...config,
+        store: store.ctrl,
+        storeDir: store.dir,
+        rootDir: config.lockfileDir ?? config.rootProjectManifestDir,
+        frozenLockfile: config.frozenLockfile,
+      })
+    } finally {
+      await store.ctrl.close()
+    }
   }
   if (!config.ignorePnpmfile) {
     config.tryLoadDefaultPnpmfile = config.pnpmfile == null
