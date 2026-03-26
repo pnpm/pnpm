@@ -72,7 +72,7 @@ describe('withOtpHandling', () => {
         enquirer: { prompt: async () => ({ otp: '654321' }) },
       })
       const result = await withOtpHandling(
-        async (otp) => {
+        async otp => {
           callCount++
           if (callCount === 1) {
             throw Object.assign(new Error('otp'), { code: 'EOTP' })
@@ -146,7 +146,7 @@ describe('withOtpHandling', () => {
       let fetchCallCount = 0
       const infoMessages: string[] = []
       const context = createOtpMockContext({
-        globalInfo: (msg) => {
+        globalInfo: msg => {
           infoMessages.push(msg)
         },
         fetch: async (): Promise<WebAuthFetchResponse> => {
@@ -168,7 +168,7 @@ describe('withOtpHandling', () => {
         },
       })
       const result = await withOtpHandling(
-        async (otp) => {
+        async otp => {
           operationCallCount++
           if (operationCallCount === 1) {
             throw Object.assign(new Error('otp'), {
@@ -197,7 +197,7 @@ describe('withOtpHandling', () => {
         enquirer: { prompt: async () => ({ otp: 'manual-code' }) },
       })
       const result = await withOtpHandling(
-        async (otp) => {
+        async otp => {
           callCount++
           if (callCount === 1) {
             throw Object.assign(new Error('otp'), {
@@ -220,7 +220,7 @@ describe('withOtpHandling', () => {
         enquirer: { prompt: async () => ({ otp: 'manual-code' }) },
       })
       const result = await withOtpHandling(
-        async (otp) => {
+        async otp => {
           callCount++
           if (callCount === 1) {
             throw Object.assign(new Error('otp'), {

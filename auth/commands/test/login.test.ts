@@ -2,23 +2,23 @@ import { login, type LoginContext } from '../src/login.js'
 
 const TEST_CONTEXT: LoginContext = {
   Date: { now: () => 0 },
-  setTimeout: (cb) => {
+  setTimeout: cb => {
     cb()
   },
   enquirer: { prompt: async () => {
     throw new Error('unexpected prompt call')
   } },
-  fetch: async (url) => {
+  fetch: async url => {
     throw new Error(`unexpected fetch call: ${url}`)
   },
-  globalInfo: (message) => {
+  globalInfo: message => {
     throw new Error(`unexpected globalInfo call: ${message}`)
   },
   process: { stdin: { isTTY: true }, stdout: { isTTY: true } },
-  readIniFile: async (path) => {
+  readIniFile: async path => {
     throw new Error(`unexpected readIniFile call: ${path}`)
   },
-  writeIniFile: async (path) => {
+  writeIniFile: async path => {
     throw new Error(`unexpected writeIniFile call: ${path}`)
   },
 }
@@ -55,7 +55,7 @@ describe('login', () => {
       },
       context: {
         ...TEST_CONTEXT,
-        globalInfo: (message) => {
+        globalInfo: message => {
           infoMessages.push(message)
         },
         readIniFile: async () => ({}),
@@ -63,7 +63,7 @@ describe('login', () => {
           savedPath = configPath
           savedSettings = settings
         },
-        fetch: async (url) => {
+        fetch: async url => {
           fetchedUrls.push(url)
           if (url === 'https://example.com/npm/-/v1/login') {
             return {
@@ -116,7 +116,7 @@ describe('login', () => {
       },
       context: {
         ...TEST_CONTEXT,
-        globalInfo: (message) => {
+        globalInfo: message => {
           infoMessages.push(message)
         },
         readIniFile: async () => ({}),
@@ -124,7 +124,7 @@ describe('login', () => {
           savedPath = configPath
           savedSettings = settings
         },
-        fetch: async (url) => {
+        fetch: async url => {
           fetchedUrls.push(url)
           if (url === 'https://example.org/-/v1/login') {
             return {
@@ -180,7 +180,7 @@ describe('login', () => {
       },
       context: {
         ...TEST_CONTEXT,
-        globalInfo: (message) => {
+        globalInfo: message => {
           infoMessages.push(message)
         },
         readIniFile: async () => ({}),
@@ -248,7 +248,7 @@ describe('login', () => {
       },
       context: {
         ...TEST_CONTEXT,
-        globalInfo: (message) => {
+        globalInfo: message => {
           infoMessages.push(message)
         },
         readIniFile: async () => ({}),
@@ -329,7 +329,7 @@ describe('login', () => {
         globalInfo: () => {},
         readIniFile: async () => ({}),
         writeIniFile: async () => {},
-        fetch: async (url) => {
+        fetch: async url => {
           if (url === 'https://example.org/-/v1/login') {
             return {
               ok: false,
@@ -373,7 +373,7 @@ describe('login', () => {
         globalInfo: () => {},
         readIniFile: async () => ({}),
         writeIniFile: async () => {},
-        fetch: async (url) => {
+        fetch: async url => {
           if (url === 'https://example.org/-/v1/login') {
             return {
               ok: false,
@@ -410,7 +410,7 @@ describe('login', () => {
         globalInfo: () => {},
         readIniFile: async () => ({}),
         writeIniFile: async () => {},
-        fetch: async (url) => {
+        fetch: async url => {
           if (url === 'https://example.org/-/v1/login') {
             return {
               ok: false,
@@ -456,7 +456,7 @@ describe('login', () => {
         globalInfo: () => {},
         readIniFile: async () => ({}),
         writeIniFile: async () => {},
-        fetch: async (url) => {
+        fetch: async url => {
           if (url === 'https://example.org/-/v1/login') {
             return {
               ok: true,
@@ -489,7 +489,7 @@ describe('login', () => {
         writeIniFile: async (_configPath, settings) => {
           savedSettings = settings
         },
-        fetch: async (url) => {
+        fetch: async url => {
           if (url === 'https://example.org/-/v1/login') {
             return {
               ok: false,
@@ -540,7 +540,7 @@ describe('login', () => {
         globalInfo: () => {},
         readIniFile: async () => ({}),
         writeIniFile: async () => {},
-        fetch: async (url) => {
+        fetch: async url => {
           if (url === 'https://example.org/-/v1/login') {
             return {
               ok: false,
@@ -590,7 +590,7 @@ describe('login', () => {
         writeIniFile: async (_configPath, settings) => {
           savedSettings = settings
         },
-        fetch: async (url) => {
+        fetch: async url => {
           if (url === 'https://example.org/-/v1/login') {
             return {
               ok: true,
@@ -635,7 +635,7 @@ describe('login', () => {
           throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
         },
         writeIniFile: async () => {},
-        fetch: async (url) => {
+        fetch: async url => {
           if (url === 'https://example.org/-/v1/login') {
             return {
               ok: true,
