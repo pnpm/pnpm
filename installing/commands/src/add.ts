@@ -176,6 +176,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
           {
+            description: 'Automatically deduplicate dependencies after installation',
+            name: '--auto-dedupe',
+          },
+          {
             description: 'A list of package names that are allowed to run postinstall scripts during installation',
             name: '--allow-build',
           },
