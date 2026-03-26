@@ -570,4 +570,93 @@ describe('login', () => {
       },
     })).rejects.toThrow('Login failed (HTTP 401): Unauthorized')
   })
+
+  it('should succeed when config file does not exist (ENOENT)', async () => {
+    let savedSettings: Record<string, unknown> = {}
+
+    const result = await login({
+      opts: {
+        configDir: '/nonexistent/config',
+        dir: '/mock',
+        rawConfig: {},
+        registry: 'https://example.org',
+      },
+      context: {
+        ...TEST_CONTEXT,
+        globalInfo: () => {},
+        readIniFile: async () => {
+          throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' })
+        },
+        writeIniFile: async (_configPath, settings) => {
+          savedSettings = settings
+        },
+        fetch: async (url) => {
+          if (url === 'https://example.org/-/v1/login') {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                loginUrl: 'https://example.org/auth/login',
+                doneUrl: 'https://example.org/auth/done',
+              }),
+              text: async () => '',
+              headers: { get: () => null },
+            }
+          }
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ token: 'new-token' }),
+            text: async () => '',
+            headers: { get: () => null },
+          }
+        },
+      },
+    })
+
+    expect(result).toBe('Logged in on https://example.org/')
+    expect(savedSettings).toMatchObject({
+      '//example.org/:_authToken': 'new-token',
+    })
+  })
+
+  it('should propagate non-ENOENT errors from readIniFile', async () => {
+    await expect(login({
+      opts: {
+        configDir: '/broken/config',
+        dir: '/mock',
+        rawConfig: {},
+        registry: 'https://example.org',
+      },
+      context: {
+        ...TEST_CONTEXT,
+        globalInfo: () => {},
+        readIniFile: async () => {
+          throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
+        },
+        writeIniFile: async () => {},
+        fetch: async (url) => {
+          if (url === 'https://example.org/-/v1/login') {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                loginUrl: 'https://example.org/auth/login',
+                doneUrl: 'https://example.org/auth/done',
+              }),
+              text: async () => '',
+              headers: { get: () => null },
+            }
+          }
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ token: 'tok' }),
+            text: async () => '',
+            headers: { get: () => null },
+          }
+        },
+      },
+    })).rejects.toThrow('EACCES: permission denied')
+  })
 })
