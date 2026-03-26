@@ -10,7 +10,7 @@ import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.utils'
 import type { DependencyManifest, EngineDependency, ProjectManifest } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
-import cmdShim from '@zkochan/cmd-shim'
+import { cmdShim, isShimPointingAt } from '@zkochan/cmd-shim'
 import { rimraf } from '@zkochan/rimraf'
 import fixBin from 'bin-links/lib/fix-bin.js'
 import { isSubdir } from 'is-subdir'
@@ -262,22 +262,20 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   // This avoids redundant I/O on warm installs and EACCES on read-only stores.
   // We verify the target path — not just existence — so that conflict resolution
   // changes or provider swaps still get the bin rewritten.
-  if (!IS_WINDOWS) {
-    try {
-      const stat = await fs.lstat(externalBinPath)
-      if (stat.isSymbolicLink()) {
-        const target = await fs.readlink(externalBinPath)
-        if (target === cmd.path || path.resolve(binsDir, target) === path.resolve(cmd.path)) {
-          return
-        }
-      } else if (stat.isFile()) {
-        const content = await fs.readFile(externalBinPath, 'utf8')
-        if (content.includes(path.relative(binsDir, cmd.path))) {
-          return
-        }
+  try {
+    const stat = await fs.lstat(externalBinPath)
+    if (stat.isSymbolicLink()) {
+      const target = await fs.readlink(externalBinPath)
+      if (target === cmd.path || path.resolve(binsDir, target) === path.resolve(cmd.path)) {
+        return
       }
-    } catch {}
-  }
+    } else if (stat.isFile()) {
+      const content = await fs.readFile(externalBinPath, 'utf8')
+      if (isShimPointingAt(content, cmd.path)) {
+        return
+      }
+    }
+  } catch {}
   if (IS_WINDOWS) {
     const exePath = path.join(binsDir, `${cmd.name}${getExeExtension()}`)
     if (existsSync(exePath)) {

@@ -86,9 +86,9 @@ test('linkBins() skips bins that already reference the correct target', async ()
   const binLocation = path.join(binTarget, 'simple')
   expect(fs.existsSync(binLocation)).toBe(true)
   const originalContent = fs.readFileSync(binLocation, 'utf8')
-  // The bin references the correct target via a relative path
-  const expectedRelPath = path.relative(binTarget, path.join(simpleFixture, 'node_modules', 'simple', 'index.js'))
-  expect(originalContent).toContain(expectedRelPath)
+  // The bin contains a cmd-shim-target marker with the correct target path
+  const expectedTarget = normalizePath(path.join(simpleFixture, 'node_modules', 'simple', 'index.js'))
+  expect(originalContent).toContain(`# cmd-shim-target=${expectedTarget}\n`)
   // Append a sentinel to the existing (correct) content to prove it is not rewritten
   const sentinel = originalContent + '\n# sentinel'
   fs.writeFileSync(binLocation, sentinel, 'utf8')
