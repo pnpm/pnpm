@@ -338,15 +338,15 @@ async function safeReadIniFile (configPath: string): Promise<Settings> {
 }
 
 function isWebLoginNotSupported (err: unknown): boolean {
-  return err instanceof WebLoginError && (err.statusCode === 404 || err.statusCode === 405)
+  return err instanceof WebLoginError && (err.httpStatus === 404 || err.httpStatus === 405)
 }
 
 class WebLoginError extends PnpmError {
-  readonly statusCode: number
+  readonly httpStatus: number
   readonly responseText: string
-  constructor (statusCode: number, responseText: string) {
-    super('WEB_LOGIN_FAILED', `Web-based login failed (HTTP ${statusCode}): ${responseText}`)
-    this.statusCode = statusCode
+  constructor (httpStatus: number, responseText: string) {
+    super('WEB_LOGIN_FAILED', `Web-based login failed (HTTP ${httpStatus}): ${responseText}`)
+    this.httpStatus = httpStatus
     this.responseText = responseText
   }
 }
