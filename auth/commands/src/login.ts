@@ -143,19 +143,13 @@ export interface LoginParams {
   opts: LoginCommandOptions
 }
 
-export async function login ({
-  context: {
-    Date,
-    setTimeout,
-    enquirer,
-    fetch,
-    globalInfo,
+export async function login ({ context = DEFAULT_CONTEXT, opts }: LoginParams): Promise<string> {
+  const {
     process,
     readIniFile,
     writeIniFile,
-  } = DEFAULT_CONTEXT,
-  opts,
-}: LoginParams): Promise<string> {
+  } = context
+
   const registry = normalizeRegistryUrl(opts.registry ?? 'https://registry.npmjs.org/')
 
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
@@ -176,10 +170,10 @@ export async function login ({
   // Try web-based login first, fall back to classic login
   let token: string
   try {
-    token = await webLogin(registry, fetchOptions, { Date, setTimeout, fetch, globalInfo })
+    token = await webLogin(registry, fetchOptions, context)
   } catch (err) {
     if (isWebLoginNotSupported(err)) {
-      token = await classicLogin(registry, { Date, setTimeout, enquirer, fetch, globalInfo, process }, fetchOptions)
+      token = await classicLogin(registry, context, fetchOptions)
     } else {
       throw err
     }
@@ -197,8 +191,13 @@ export async function login ({
 async function webLogin (
   registry: string,
   fetchOptions: WebAuthFetchOptions,
-  { Date, setTimeout, fetch, globalInfo }: Pick<LoginContext, 'Date' | 'setTimeout' | 'fetch' | 'globalInfo'>
+  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'fetch' | 'globalInfo'>
 ): Promise<string> {
+  const {
+    fetch,
+    globalInfo,
+  } = context
+
   const loginUrl = new URL('-/v1/login', registry).href
 
   const response = await fetch(loginUrl, {
@@ -225,7 +224,7 @@ async function webLogin (
   const qrCode = generateQrCode(body.loginUrl)
   globalInfo(`Authenticate your account at:\n${body.loginUrl}\n\n${qrCode}`)
 
-  return pollForWebAuthToken(body.doneUrl, { Date, setTimeout, fetch }, fetchOptions)
+  return pollForWebAuthToken(body.doneUrl, context, fetchOptions)
 }
 
 async function classicLogin (
@@ -290,7 +289,7 @@ async function classicLogin (
 
       return body.token
     },
-    { Date: context.Date, setTimeout: context.setTimeout, enquirer, fetch, globalInfo, process: context.process },
+    context,
     fetchOptions
   )
 
