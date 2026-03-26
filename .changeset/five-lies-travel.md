@@ -10,7 +10,6 @@
 "@pnpm/deps.compliance.commands": major
 "@pnpm/deps.inspection.commands": major
 "@pnpm/engine.pm.commands": major
-"@pnpm/workspace.projects-filter": major
 "@pnpm/patching.commands": major
 "@pnpm/installing.read-projects-context": major
 "@pnpm/workspace.range-resolver": major
@@ -84,7 +83,7 @@
 "@pnpm/resolving.git-resolver": major
 "@pnpm/resolving.npm-resolver": major
 "@pnpm/jest-config": major
-"@pnpm/config.deps-installer": major
+"@pnpm/installing.env-installer": major
 "@pnpm/fetching.fetcher-base": major
 "@pnpm/fetching.pick-fetcher": major
 "@pnpm/fs.symlink-dependency": major

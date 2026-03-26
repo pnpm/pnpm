@@ -75,7 +75,7 @@
 "@pnpm/engine.runtime.bun-resolver": major
 "@pnpm/resolving.git-resolver": major
 "@pnpm/resolving.npm-resolver": major
-"@pnpm/config.deps-installer": major
+"@pnpm/installing.env-installer": major
 "@pnpm/fetching.fetcher-base": major
 "@pnpm/fetching.pick-fetcher": major
 "@pnpm/fs.symlink-dependency": major
