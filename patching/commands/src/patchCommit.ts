@@ -150,46 +150,39 @@ async function getPatchContent (ctx: GetPatchContentContext, opts: GetPatchConte
 async function diffFolders (folderA: string, folderB: string): Promise<string> {
   const folderAN = folderA.replace(/\\/g, '/')
   const folderBN = folderB.replace(/\\/g, '/')
-  let stdout!: string
-  let stderr!: string
 
-  try {
-    const result = await execa('git', ['-c', 'core.safecrlf=false', 'diff', '--src-prefix=a/', '--dst-prefix=b/', '--ignore-cr-at-eol', '--irreversible-delete', '--full-index', '--no-index', '--text', '--no-ext-diff', '--no-color', folderAN, folderBN], {
-      cwd: process.cwd(),
-      env: {
-        ...process.env,
-        // #region Predictable output
-        // These variables aim to ignore the global git config so we get predictable output
-        // https://git-scm.com/docs/git#Documentation/git.txt-codeGITCONFIGNOSYSTEMcode
-        GIT_CONFIG_NOSYSTEM: '1',
-        // Redirect the global git config to /dev/null instead of setting
-        // HOME to an empty string. An empty HOME causes git to resolve '~' as
-        // '/' (root), which triggers a "Permission denied" warning when git
-        // tries to access '/.config/git/attributes', making pnpm throw an
-        // error because any stderr output is treated as a failure.
-        // We do not set XDG_CONFIG_HOME to avoid the same issue: an empty
-        // value would make git resolve paths like /git/config and /git/attributes.
-        // We use '/dev/null' literally instead of os.devNull because on Windows
-        // os.devNull is '\\.\nul', which git cannot open as a config file path
-        // (fatal: unable to access '\\.\nul': Invalid argument). Git for Windows
-        // translates '/dev/null' correctly via its MSYS2 layer.
-        GIT_CONFIG_GLOBAL: '/dev/null',
-        // #endregion
-      },
-      stripFinalNewline: false,
-    })
-    stdout = result.stdout as string
-    stderr = result.stderr as string
-  } catch (err: any) { // eslint-disable-line
-    stdout = err.stdout as string
-    stderr = err.stderr as string
-  }
-  // we cannot rely on exit code, because --no-index implies --exit-code
+  const result = await execa('git', ['-c', 'core.safecrlf=false', 'diff', '--src-prefix=a/', '--dst-prefix=b/', '--ignore-cr-at-eol', '--irreversible-delete', '--full-index', '--no-index', '--text', '--no-ext-diff', '--no-color', folderAN, folderBN], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      // #region Predictable output
+      // These variables aim to ignore the global git config so we get predictable output
+      // https://git-scm.com/docs/git#Documentation/git.txt-codeGITCONFIGNOSYSTEMcode
+      GIT_CONFIG_NOSYSTEM: '1',
+      // Redirect the global git config to /dev/null instead of setting
+      // HOME to an empty string. An empty HOME causes git to resolve '~' as
+      // '/' (root), which triggers a "Permission denied" warning when git
+      // tries to access '/.config/git/attributes', making pnpm throw an
+      // error because any stderr output is treated as a failure.
+      // We do not set XDG_CONFIG_HOME to avoid the same issue: an empty
+      // value would make git resolve paths like /git/config and /git/attributes.
+      // We use '/dev/null' literally instead of os.devNull because on Windows
+      // os.devNull is '\\.\nul', which git cannot open as a config file path
+      // (fatal: unable to access '\\.\nul': Invalid argument). Git for Windows
+      // translates '/dev/null' correctly via its MSYS2 layer.
+      GIT_CONFIG_GLOBAL: '/dev/null',
+      // #endregion
+    },
+    stripFinalNewline: false,
+    reject: false,
+  })
+
+  // rely on stderr if an exit code is returned, because --no-index implies --exit-code
   // i.e. git diff will exit with 1 if there were differences
-  if (stderr.length > 0)
-    throw new Error(`Unable to diff directories. Make sure you have a recent version of 'git' available in PATH.\nThe following error was reported by 'git':\n${stderr}`)
+  if (result.exitCode === undefined || (result.stderr as string).length > 0)
+    throw new Error(`Unable to diff directories. Make sure you have a recent version of 'git' available in PATH.\nThe following error was reported:\n${result.message}`)
 
-  return stdout
+  return (result.stdout as string)
     .replace(new RegExp(`(a|b)(${escapeStringRegexp(`/${removeTrailingAndLeadingSlash(folderAN)}/`)})`, 'g'), '$1/')
     .replace(new RegExp(`(a|b)${escapeStringRegexp(`/${removeTrailingAndLeadingSlash(folderBN)}/`)}`, 'g'), '$1/')
     .replace(new RegExp(escapeStringRegexp(`${folderAN}/`), 'g'), '')
