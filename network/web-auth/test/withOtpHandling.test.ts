@@ -25,7 +25,7 @@ function createOtpMockContext (overrides?: Partial<OtpHandlingContext>): OtpHand
   }
 }
 
-const fetchOptions: WebAuthFetchOptions = { method: 'GET' as const }
+const fetchOptions: WebAuthFetchOptions = { method: 'GET' }
 
 describe('withOtpHandling', () => {
   it('returns the result when the operation succeeds without OTP', async () => {
