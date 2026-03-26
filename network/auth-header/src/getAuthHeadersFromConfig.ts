@@ -73,5 +73,13 @@ export function loadToken (helperPath: string, settingName: string): string {
     throw new PnpmError('TOKEN_HELPER_ERROR_STATUS', `Error running "${helperPath}" as a token helper, configured as ${settingName}. Exit code ${spawnResult.status?.toString() ?? ''}`)
   }
   const token = spawnResult.stdout.toString('utf8').trimEnd()
-  return token.startsWith('Bearer ') || token.startsWith('Basic ') ? token : `Bearer ${token}`
+  if (!token) {
+    throw new PnpmError('TOKEN_HELPER_EMPTY_TOKEN', `Token helper "${helperPath}", configured as ${settingName}, returned an empty token`)
+  }
+  // If the token already contains an auth scheme (e.g. "Bearer ...", "Basic ..."),
+  // return it as-is.
+  if (/^[A-Z]+ /i.test(token)) {
+    return token
+  }
+  return `Bearer ${token}`
 }

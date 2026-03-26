@@ -10,6 +10,16 @@ const osTokenHelper = {
   win32: path.join(import.meta.dirname, 'utils/test-exec.bat'),
 }
 
+const osRawTokenHelper = {
+  linux: path.join(import.meta.dirname, 'utils/test-exec-raw-token.js'),
+  win32: path.join(import.meta.dirname, 'utils/test-exec-raw-token.bat'),
+}
+
+const osEmptyTokenHelper = {
+  linux: path.join(import.meta.dirname, 'utils/test-exec-empty-token.js'),
+  win32: path.join(import.meta.dirname, 'utils/test-exec-empty-token.bat'),
+}
+
 const osErrorTokenHelper = {
   linux: path.join(import.meta.dirname, 'utils/test-exec-error.js'),
   win32: path.join(import.meta.dirname, 'utils/test-exec-error.bat'),
@@ -111,6 +121,30 @@ describe('getAuthHeadersFromConfig()', () => {
       '//reg.com:tokenHelper': osTokenHelper[osFamily],
     }
     expect(getAuthHeadersFromConfig({ allSettings, userSettings: {} })).toStrictEqual({})
+  })
+  it('should prepend Bearer to raw token from tokenHelper', () => {
+    const userSettings = {
+      '//registry.foobar.eu/:tokenHelper': osRawTokenHelper[osFamily],
+    }
+    expect(getAuthHeadersFromConfig({ allSettings: {}, userSettings })).toStrictEqual({
+      '//registry.foobar.eu/': 'Bearer raw-token-no-scheme',
+    })
+  })
+  it('should not modify token that already has an auth scheme', () => {
+    const userSettings = {
+      '//registry.foobar.eu/:tokenHelper': osTokenHelper[osFamily],
+    }
+    expect(getAuthHeadersFromConfig({ allSettings: {}, userSettings })).toStrictEqual({
+      '//registry.foobar.eu/': 'Bearer token-from-spawn',
+    })
+  })
+  it('should throw an error if the token helper returns an empty token', () => {
+    expect(() => getAuthHeadersFromConfig({
+      allSettings: {},
+      userSettings: {
+        '//reg.com:tokenHelper': osEmptyTokenHelper[osFamily],
+      },
+    })).toThrow('returned an empty token')
   })
 })
 
