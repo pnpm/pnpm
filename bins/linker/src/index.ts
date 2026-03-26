@@ -26,6 +26,8 @@ const binsConflictLogger = logger('bins-conflict')
 const IS_WINDOWS = isWindows()
 const EXECUTABLE_SHEBANG_SUPPORTED = !IS_WINDOWS
 const POWER_SHELL_IS_SUPPORTED = IS_WINDOWS
+// A cmd-shim is a small shell script. Anything larger is a binary and should not be read.
+const CMD_SHIM_MAX_SIZE = 4 * 1024
 
 export type WarningCode = 'BINARIES_CONFLICT' | 'EMPTY_BIN'
 
@@ -269,7 +271,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
       if (target === cmd.path || path.resolve(binsDir, target) === path.resolve(cmd.path)) {
         return
       }
-    } else if (stat.isFile() && cmd.name !== 'node') {
+    } else if (stat.isFile() && stat.size < CMD_SHIM_MAX_SIZE) {
       const content = await fs.readFile(externalBinPath, 'utf8')
       if (isShimPointingAt(content, cmd.path)) {
         return
