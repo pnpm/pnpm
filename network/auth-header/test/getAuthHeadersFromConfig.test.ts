@@ -49,7 +49,7 @@ describe('getAuthHeadersFromConfig()', () => {
       const allSettings = {
         registry: 'https://reg.com/',
         username: 'foo',
-        _password: 'bar',
+        _password: encodeBase64('bar'),
       }
       expect(getAuthHeadersFromConfig({ allSettings, userSettings: {} })).toStrictEqual({
         '//reg.com/': `Basic ${encodeBase64('foo:bar')}`,
