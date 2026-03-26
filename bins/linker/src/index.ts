@@ -269,7 +269,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
       if (target === cmd.path || path.resolve(binsDir, target) === path.resolve(cmd.path)) {
         return
       }
-    } else if (stat.isFile()) {
+    } else if (stat.isFile() && cmd.name !== 'node') {
       const content = await fs.readFile(externalBinPath, 'utf8')
       if (isShimPointingAt(content, cmd.path)) {
         return
