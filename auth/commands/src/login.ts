@@ -38,7 +38,7 @@ export function help (): string {
         title: 'Options',
         list: [
           {
-            description: 'The registry to log in to (default: the configured registry)',
+            description: 'The registry to log in to',
             name: '--registry <url>',
           },
         ],
