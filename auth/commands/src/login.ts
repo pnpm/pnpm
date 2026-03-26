@@ -308,10 +308,6 @@ async function classicLogin (
  * Inspects a non-ok HTTP response for OTP requirements and throws an EOTP
  * error when detected. This mirrors the behaviour of npm-registry-fetch,
  * which checks the `www-authenticate` header for one-time password indicators.
- *
- * The thrown error carries the raw response body so that
- * {@link OtpRequiredError.fromUnknown} in `withOtpHandling` can validate
- * the body shape and warn on unexpected types.
  */
 async function throwIfOtpRequired (response: LoginFetchResponse): Promise<void> {
   if (response.status !== 401) return
