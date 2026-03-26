@@ -11,6 +11,7 @@ import { fastPathTemp as pathTemp } from 'path-temp'
 import { renameOverwriteSync } from 'rename-overwrite'
 
 import { type ImportFile, importIndexedDir } from './importIndexedDir.js'
+import { removeQuarantine } from './removeQuarantine.js'
 
 export { type FilesMap, type ImportIndexedPackage, type ImportOptions }
 
@@ -156,6 +157,9 @@ function createCloneFunction (): CloneFunction {
     return (fr, to) => {
       try {
         reflinkFileSync(fr, to)
+        // Reflinks (copy-on-write clones) preserve extended attributes.
+        // Remove quarantine xattr after creating the reflink.
+        removeQuarantine(to)
       } catch (err: unknown) {
         // If the file already exists, then we just proceed.
         // This will probably only happen if the package's index file contains the same file twice.
@@ -167,6 +171,8 @@ function createCloneFunction (): CloneFunction {
   return (src: string, dest: string) => {
     try {
       fs.copyFileSync(src, dest, constants.COPYFILE_FICLONE_FORCE)
+      // COPYFILE_FICLONE_FORCE creates a reflink which preserves xattrs
+      removeQuarantine(dest)
     } catch (err: unknown) {
       if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
     }
@@ -211,6 +217,8 @@ function linkOrCopy (existingPath: string, newPath: string): void {
     // In that case, we just fall back to copying.
     // This issue is reproducible with "pnpm add @material-ui/icons@4.9.1"
     fs.copyFileSync(existingPath, newPath)
+    // When falling back to copy, remove quarantine xattr
+    removeQuarantine(newPath)
   }
 }
 
@@ -237,10 +245,23 @@ export function copyPkg (
     // copyFileSync is not atomic on non-COW filesystems: a crash mid-copy
     // can leave a partially-written file.  package.json is the completion
     // marker, so it must be written atomically via temp file + rename.
-    importIndexedDir({ importFile: fs.copyFileSync, importFileAtomic: atomicCopyFileSync }, to, opts.filesMap, opts)
+    importIndexedDir({ importFile: copyFileSyncWithQuarantineRemoval, importFileAtomic: atomicCopyFileSync }, to, opts.filesMap, opts)
     return 'copy'
   }
   return undefined
+}
+
+/**
+ * Copy a file and remove macOS quarantine xattr if present.
+ * 
+ * When pnpm copies files from its content-addressable store, macOS preserves
+ * extended attributes including com.apple.quarantine. After integrity verification,
+ * the quarantine xattr serves no security purpose and causes Gatekeeper to block
+ * native binaries (.node files).
+ */
+function copyFileSyncWithQuarantineRemoval (src: string, dest: string): void {
+  fs.copyFileSync(src, dest)
+  removeQuarantine(dest)
 }
 
 function atomicCopyFileSync (src: string, dest: string): void {
@@ -254,4 +275,6 @@ function atomicCopyFileSync (src: string, dest: string): void {
     throw err
   }
   renameOverwriteSync(tmp, dest)
+  // Remove quarantine after the atomic rename completes
+  removeQuarantine(dest)
 }
