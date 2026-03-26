@@ -118,7 +118,6 @@ export async function publishWithOtpHandling ({
     setTimeout,
     enquirer,
     fetch,
-    globalInfo,
     process,
     publish,
   } = SHARED_CONTEXT,
@@ -150,7 +149,7 @@ export async function publishWithOtpHandling ({
     let otp: string | undefined
 
     if (error.body?.authUrl && error.body?.doneUrl) {
-      otp = await webAuthOtp(error.body.authUrl, error.body.doneUrl, { Date, setTimeout, fetch, globalInfo }, fetchOptions)
+      otp = await webAuthOtp(error.body.authUrl, error.body.doneUrl, { Date, setTimeout, fetch }, fetchOptions)
     } else {
       const enquirerResponse = await enquirer.prompt({
         message: 'This operation requires a one-time password.\nEnter OTP:',
@@ -183,11 +182,15 @@ export async function publishWithOtpHandling ({
 async function webAuthOtp (
   authUrl: string,
   doneUrl: string,
-  { Date, setTimeout, fetch, globalInfo }: Pick<OtpContext, 'Date' | 'setTimeout' | 'fetch' | 'globalInfo'>,
+  { Date, setTimeout, fetch }: Pick<OtpContext, 'Date' | 'setTimeout' | 'fetch'>,
   fetchOptions: OtpWebAuthFetchOptions
 ): Promise<string> {
   const qrCode = generateQrCode(authUrl)
-  globalInfo(`Authenticate your account at:\n${authUrl}\n\n${qrCode}`)
+  const sanitizedUrl = sanitizeUrl(authUrl)
+  const displayUrl = sanitizedUrl != null ? hyperlinkEscape(sanitizedUrl) : authUrl
+  // Write the clickable URL directly to stderr to avoid the reporter
+  // pipeline (ansi-diff) which corrupts OSC 8 escape sequences.
+  globalThis.process.stderr.write(`Authenticate your account at:\n${displayUrl}\n\n${qrCode}\n`)
   const startTime = Date.now()
   const timeout = 5 * 60 * 1000 // 5 minutes
 
@@ -283,4 +286,25 @@ export class OtpSecondChallengeError extends PnpmError {
       hint: 'This is unexpected behavior from the registry. Try the command again later and, if the issue persists, verify that your registry supports OTP-based authentication or contact the registry administrator.',
     })
   }
+}
+
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARS = /[\x00-\x1f\x7f]/
+
+function sanitizeUrl (url: string): string | undefined {
+  if (CONTROL_CHARS.test(url)) return undefined
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return undefined
+    return parsed.href
+  } catch {
+    return undefined
+  }
+}
+
+function hyperlinkEscape (url: string): string {
+  // Use ST (\x1b\\) as the OSC terminator instead of BEL (\x07)
+  // for compatibility with tmux 3.4+ which supports OSC 8 natively
+  // but only recognizes ST-terminated sequences.
+  return `\u001B]8;;${url}\u001B\\${url}\u001B]8;;\u001B\\`
 }
