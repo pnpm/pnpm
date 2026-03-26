@@ -68,8 +68,6 @@ export async function handler (
   return login({ opts })
 }
 
-export type Settings = Record<string, unknown>
-
 export interface LoginDate {
   now: () => number
 }
@@ -125,8 +123,8 @@ export interface LoginContext {
   fetch: (url: string, options?: LoginFetchOptions) => Promise<LoginFetchResponse>
   globalInfo: (message: string) => void
   process: Record<'stdin' | 'stdout', { isTTY?: boolean }>
-  safeReadIniFile: (configPath: string) => Promise<Settings>
-  writeIniFile: (configPath: string, settings: Settings) => Promise<void>
+  safeReadIniFile: (configPath: string) => Promise<Record<string, unknown>>
+  writeIniFile: (configPath: string, settings: Record<string, unknown>) => Promise<void>
 }
 
 export const DEFAULT_CONTEXT: LoginContext = {
@@ -331,7 +329,7 @@ function getRegistryConfigKey (registryUrl: string): string {
   return `//${url.host}${url.pathname}`
 }
 
-async function safeReadIniFile (configPath: string): Promise<Settings> {
+async function safeReadIniFile (configPath: string): Promise<Record<string, unknown>> {
   try {
     return await readIniFile(configPath) as Record<string, unknown>
   } catch (err: unknown) {
