@@ -210,7 +210,23 @@ function linkOrCopy (existingPath: string, newPath: string): void {
     // In some VERY rare cases (1 in a thousand), hard-link creation fails on Windows.
     // In that case, we just fall back to copying.
     // This issue is reproducible with "pnpm add @material-ui/icons@4.9.1"
-    fs.copyFileSync(existingPath, newPath)
+    resilientCopyFileSync(existingPath, newPath)
+  }
+}
+
+// On Linux CI, the kernel's copy_file_range/sendfile can transiently fail
+// with ENOTSUP under heavy parallel I/O on the same store files.
+// Fall back to manual read+write which uses plain read/write syscalls.
+function resilientCopyFileSync (src: string, dest: string): void {
+  try {
+    fs.copyFileSync(src, dest)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOTSUP') {
+      const srcMode = fs.statSync(src).mode
+      fs.writeFileSync(dest, fs.readFileSync(src), { mode: srcMode })
+    } else {
+      throw err
+    }
   }
 }
 
@@ -237,7 +253,7 @@ export function copyPkg (
     // copyFileSync is not atomic on non-COW filesystems: a crash mid-copy
     // can leave a partially-written file.  package.json is the completion
     // marker, so it must be written atomically via temp file + rename.
-    importIndexedDir({ importFile: fs.copyFileSync, importFileAtomic: atomicCopyFileSync }, to, opts.filesMap, opts)
+    importIndexedDir({ importFile: resilientCopyFileSync, importFileAtomic: atomicCopyFileSync }, to, opts.filesMap, opts)
     return 'copy'
   }
   return undefined
@@ -246,7 +262,7 @@ export function copyPkg (
 function atomicCopyFileSync (src: string, dest: string): void {
   const tmp = pathTemp(dest)
   try {
-    fs.copyFileSync(src, tmp)
+    resilientCopyFileSync(src, tmp)
   } catch (err) {
     try {
       fs.unlinkSync(tmp)
