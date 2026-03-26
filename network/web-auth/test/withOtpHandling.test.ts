@@ -41,7 +41,10 @@ function createOtpMockContext (overrides?: Partial<OtpHandlingContext>): OtpHand
       status: 404,
     }),
     globalInfo: () => {},
-    process: { stdin: { isTTY: true }, stdout: { isTTY: true } },
+    process: {
+      stdin: { isTTY: true },
+      stdout: { isTTY: true },
+    },
     ...overrides,
   }
 }
@@ -66,7 +69,10 @@ describe('withOtpHandling', () => {
 
   it('throws OtpNonInteractiveError when terminal is not interactive', async () => {
     const context = createOtpMockContext({
-      process: { stdin: { isTTY: false }, stdout: { isTTY: true } },
+      process: {
+        stdin: { isTTY: false },
+        stdout: { isTTY: true },
+      },
     })
     const operation = async () => {
       throw Object.assign(new Error('otp'), { code: 'EOTP' })
@@ -77,7 +83,10 @@ describe('withOtpHandling', () => {
 
   it('throws OtpNonInteractiveError when stdout is not interactive', async () => {
     const context = createOtpMockContext({
-      process: { stdin: { isTTY: true }, stdout: { isTTY: false } },
+      process: {
+        stdin: { isTTY: true },
+        stdout: { isTTY: false },
+      },
     })
     const operation = async () => {
       throw Object.assign(new Error('otp'), { code: 'EOTP' })

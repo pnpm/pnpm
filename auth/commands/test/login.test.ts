@@ -14,7 +14,10 @@ const TEST_CONTEXT: LoginContext = {
   globalInfo: message => {
     throw new Error(`Unexpected call to globalInfo: ${message}`)
   },
-  process: { stdin: { isTTY: true }, stdout: { isTTY: true } },
+  process: {
+    stdin: { isTTY: true },
+    stdout: { isTTY: true },
+  },
   readIniFile: async path => {
     throw new Error(`Unexpected call to readIniFile: ${path}`)
   },
@@ -63,7 +66,10 @@ describe('login', () => {
         },
         context: {
           ...TEST_CONTEXT,
-          process: { stdin: { isTTY: false }, stdout: { isTTY: true } },
+          process: {
+            stdin: { isTTY: false },
+            stdout: { isTTY: true },
+          },
         },
       })
     ).rejects.toThrow('The login command requires an interactive terminal')
