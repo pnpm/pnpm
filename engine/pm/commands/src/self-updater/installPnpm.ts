@@ -349,7 +349,7 @@ export function linkExePlatformBinary (installDir: string): void {
   createShellScript(exePkgDir, 'pnx', 'pnpm dlx')
 
   if (platform === 'win') {
-    // On Windows, also hardlink the binary as extensionless files
+    // On Windows, also hardlink the binary without extension
     forceLink(src, path.join(exePkgDir, 'pnpm'))
     forceLink(src, path.join(exePkgDir, 'pn'))
 
