@@ -69,5 +69,6 @@ export function loadToken (helperPath: string, settingName: string): string {
   if (spawnResult.status !== 0) {
     throw new PnpmError('TOKEN_HELPER_ERROR_STATUS', `Error running "${helperPath}" as a token helper, configured as ${settingName}. Exit code ${spawnResult.status?.toString() ?? ''}`)
   }
-  return spawnResult.stdout.toString('utf8').trimEnd()
+  const token = spawnResult.stdout.toString('utf8').trimEnd()
+  return token.startsWith('Bearer ') || token.startsWith('Basic ') ? token : `Bearer ${token}`
 }
