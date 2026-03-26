@@ -1,7 +1,6 @@
 import {
-  type OtpEnquirer,
+  type OtpContext as BaseOtpContext,
   type WebAuthFetchOptions,
-  type WebAuthFetchResponse,
   withOtpHandling,
 } from '@pnpm/network.web-auth'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
@@ -22,17 +21,7 @@ export type OtpPublishFn = (
   options: PublishOptions
 ) => Promise<OtpPublishResponse>
 
-export interface OtpDate {
-  now: () => number
-}
-
-export interface OtpContext {
-  Date: OtpDate
-  setTimeout: (cb: () => void, ms: number) => void
-  enquirer: OtpEnquirer
-  fetch: (url: string, options: WebAuthFetchOptions) => Promise<WebAuthFetchResponse>
-  globalInfo: (message: string) => void
-  process: Record<'stdin' | 'stdout', { isTTY?: boolean }>
+export interface OtpContext extends BaseOtpContext {
   publish: OtpPublishFn
 }
 
