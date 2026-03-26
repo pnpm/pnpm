@@ -9,10 +9,10 @@ export {
 export { WebAuthTimeoutError } from './WebAuthTimeoutError.js'
 export {
   isOtpError,
-  type OtpHandlingContext,
-  type OtpHandlingEnquirer,
-  type OtpHandlingPromptOptions,
-  type OtpHandlingPromptResponse,
+  type OtpContext,
+  type OtpEnquirer,
+  type OtpPromptOptions,
+  type OtpPromptResponse,
   OtpNonInteractiveError,
   OtpSecondChallengeError,
   withOtpHandling,

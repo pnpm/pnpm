@@ -1,5 +1,5 @@
 import {
-  type OtpHandlingContext,
+  type OtpContext,
   OtpNonInteractiveError,
   OtpSecondChallengeError,
   type WebAuthFetchOptions,
@@ -31,7 +31,7 @@ function createMockResponse (init: {
   }
 }
 
-function createOtpMockContext (overrides?: Partial<OtpHandlingContext>): OtpHandlingContext {
+function createOtpMockContext (overrides?: Partial<OtpContext>): OtpContext {
   return {
     Date: { now: () => 0 },
     setTimeout: (cb: () => void) => cb(),

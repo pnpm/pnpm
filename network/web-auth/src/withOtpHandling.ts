@@ -4,24 +4,24 @@ import { generateQrCode } from './generateQrCode.js'
 import type { WebAuthFetchOptions, WebAuthFetchResponse } from './pollForWebAuthToken.js'
 import { pollForWebAuthToken } from './pollForWebAuthToken.js'
 
-export interface OtpHandlingEnquirer {
-  prompt: (options: OtpHandlingPromptOptions) => Promise<OtpHandlingPromptResponse | undefined>
+export interface OtpEnquirer {
+  prompt: (options: OtpPromptOptions) => Promise<OtpPromptResponse | undefined>
 }
 
-export interface OtpHandlingPromptOptions {
+export interface OtpPromptOptions {
   message: string
   name: 'otp'
   type: 'input'
 }
 
-export interface OtpHandlingPromptResponse {
+export interface OtpPromptResponse {
   otp?: string
 }
 
-export interface OtpHandlingContext {
+export interface OtpContext {
   Date: { now: () => number }
   setTimeout: (cb: () => void, ms: number) => void
-  enquirer: OtpHandlingEnquirer
+  enquirer: OtpEnquirer
   fetch: (url: string, options: WebAuthFetchOptions) => Promise<WebAuthFetchResponse>
   globalInfo: (message: string) => void
   process: Record<'stdin' | 'stdout', { isTTY?: boolean }>
@@ -60,7 +60,7 @@ export const isOtpError = (error: unknown): error is OtpError =>
  */
 export async function withOtpHandling<T> (
   operation: (otp?: string) => Promise<T>,
-  context: OtpHandlingContext,
+  context: OtpContext,
   fetchOptions: WebAuthFetchOptions
 ): Promise<T> {
   const {

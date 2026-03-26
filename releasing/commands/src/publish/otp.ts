@@ -1,5 +1,5 @@
 import {
-  type OtpHandlingEnquirer,
+  type OtpEnquirer,
   type WebAuthFetchOptions,
   type WebAuthFetchResponse,
   withOtpHandling,
@@ -29,7 +29,7 @@ export interface OtpDate {
 export interface OtpContext {
   Date: OtpDate
   setTimeout: (cb: () => void, ms: number) => void
-  enquirer: OtpHandlingEnquirer
+  enquirer: OtpEnquirer
   fetch: (url: string, options: WebAuthFetchOptions) => Promise<WebAuthFetchResponse>
   globalInfo: (message: string) => void
   process: Record<'stdin' | 'stdout', { isTTY?: boolean }>
