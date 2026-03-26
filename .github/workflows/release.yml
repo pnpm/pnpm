@@ -28,7 +28,7 @@ jobs:
           g++ -std=c++11 -o ldid lookup2.o ldid.cpp -I. -lcrypto $(pkg-config --cflags --libs libplist-2.0) -lxml2
           sudo mv ldid /usr/local/bin
       - name: Install pnpm
-        uses: pnpm/action-setup@b179ac1ba66a954df0379b80dc72cdefb0bbea31
+        uses: pnpm/action-setup@188c8307ce35af7563bec0201516617a2aa37e85
         with:
           standalone: true
       - name: Setup Node
