@@ -1,5 +1,3 @@
-import { describe, expect, it } from '@jest/globals'
-
 import { login, type LoginContext, type Settings } from '../src/login.js'
 
 const TEST_CONTEXT: LoginContext = {
