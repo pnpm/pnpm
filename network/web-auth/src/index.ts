@@ -8,7 +8,6 @@ export {
 } from './pollForWebAuthToken.js'
 export { WebAuthTimeoutError } from './WebAuthTimeoutError.js'
 export {
-  SyntheticOtpError,
   isOtpError,
   type OtpContext,
   type OtpEnquirer,
@@ -16,5 +15,6 @@ export {
   type OtpPromptOptions,
   type OtpPromptResponse,
   OtpSecondChallengeError,
+  SyntheticOtpError,
   withOtpHandling,
 } from './withOtpHandling.js'

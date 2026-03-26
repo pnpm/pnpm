@@ -7,9 +7,9 @@ import { PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { fetch } from '@pnpm/network.fetch'
 import {
-  SyntheticOtpError,
   generateQrCode,
   pollForWebAuthToken,
+  SyntheticOtpError,
   type WebAuthFetchOptions,
   withOtpHandling,
 } from '@pnpm/network.web-auth'
