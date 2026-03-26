@@ -1,4 +1,4 @@
-import { login, type LoginContext, type Settings } from '../src/login.js'
+import { login, type LoginContext } from '../src/login.js'
 
 const TEST_CONTEXT: LoginContext = {
   Date: { now: () => 0 },
@@ -44,7 +44,7 @@ describe('login', () => {
     const fetchedUrls: string[] = []
     const infoMessages: string[] = []
     let savedPath = ''
-    let savedSettings: Settings = {}
+    let savedSettings: Record<string, unknown> = {}
 
     const result = await login({
       opts: {
@@ -105,7 +105,7 @@ describe('login', () => {
     const fetchedUrls: string[] = []
     const infoMessages: string[] = []
     let savedPath = ''
-    let savedSettings: Settings = {}
+    let savedSettings: Record<string, unknown> = {}
 
     const result = await login({
       opts: {
@@ -473,7 +473,7 @@ describe('login', () => {
   })
 
   it('should fall back to classic login when web login returns 405', async () => {
-    let savedSettings: Settings = {}
+    let savedSettings: Record<string, unknown> = {}
 
     const result = await login({
       opts: {
