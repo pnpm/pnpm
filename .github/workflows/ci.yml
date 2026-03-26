@@ -23,15 +23,15 @@ jobs:
       with:
         standalone: true
     - name: Setup Node
-      run: pnpm runtime -g set node 24.6.0
+      run: pn runtime -g set node 24.6.0
       timeout-minutes: 2
-    - name: pnpm install
-      run: pnpm install
+    - name: pn install
+      run: pn install
       timeout-minutes: 3
     - name: Compile TypeScript
-      run: pnpm run compile-only
+      run: pn compile-only
     - name: Lint
-      run: pnpm run lint
+      run: pn lint
     - name: Package compiled artifacts
       run: tar -czf compiled.tar.gz --exclude='node_modules' $(find . -type d -name lib -not -path '*/node_modules/*') $(find . -name 'tsconfig.tsbuildinfo' -not -path '*/node_modules/*') pnpm/dist
     - name: Upload compiled artifacts
