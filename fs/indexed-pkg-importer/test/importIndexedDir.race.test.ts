@@ -34,7 +34,7 @@ test('safeToSkip skips when target already exists (content-addressed)', () => {
   const filenames = new Map([['package.json', srcFile]])
 
   // Should not throw — target exists, path is content-addressed so content is correct
-  importIndexedDir(fs.copyFileSync, newDir, filenames, { safeToSkip: true })
+  importIndexedDir({ importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync }, newDir, filenames, { safeToSkip: true })
 
   expect(fs.existsSync(path.join(newDir, 'package.json'))).toBe(true)
   // When safeToSkip is true and the target already exists with matching content,
@@ -54,7 +54,7 @@ test('safeToSkip creates dir when target does not exist', () => {
   const filenames = new Map([['index.js', srcFile]])
 
   // Target doesn't exist — should create it
-  importIndexedDir(fs.copyFileSync, newDir, filenames, { safeToSkip: true })
+  importIndexedDir({ importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync }, newDir, filenames, { safeToSkip: true })
 
   expect(fs.existsSync(path.join(newDir, 'index.js'))).toBe(true)
 })

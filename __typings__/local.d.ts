@@ -129,3 +129,8 @@ declare module 'picomatch' {
   const anything: any
   export = anything
 }
+
+declare module '@pnpm/plugin-trusted-deps' {
+  export const DEFAULT_ALLOW_BUILDS: Record<string, boolean>
+  export const TRUSTED_PACKAGE_NAMES: string[]
+}
