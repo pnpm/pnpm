@@ -1,8 +1,8 @@
 import {
-  SyntheticOtpError,
   type OtpContext,
   OtpNonInteractiveError,
   OtpSecondChallengeError,
+  SyntheticOtpError,
   type WebAuthFetchOptions,
   type WebAuthFetchResponse,
   WebAuthTimeoutError,
