@@ -343,8 +343,10 @@ function isWebLoginNotSupported (err: unknown): boolean {
 
 class WebLoginError extends PnpmError {
   readonly statusCode: number
+  readonly responseText: string
   constructor (statusCode: number, responseText: string) {
     super('WEB_LOGIN_FAILED', `Web-based login failed (HTTP ${statusCode}): ${responseText}`)
     this.statusCode = statusCode
+    this.responseText = responseText
   }
 }
