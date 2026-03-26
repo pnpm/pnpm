@@ -11,9 +11,9 @@ export {
   isOtpError,
   type OtpContext,
   type OtpEnquirer,
+  OtpNonInteractiveError,
   type OtpPromptOptions,
   type OtpPromptResponse,
-  OtpNonInteractiveError,
   OtpSecondChallengeError,
   withOtpHandling,
 } from './withOtpHandling.js'
