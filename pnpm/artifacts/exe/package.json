@@ -18,11 +18,7 @@
   "files": [
     "setup.js",
     "prepare.js",
-    "dist/",
-    "pnpm",
-    "pn",
-    "pnpx",
-    "pnx"
+    "dist/"
   ],
   "scripts": {
     "preinstall": "node setup.js",
