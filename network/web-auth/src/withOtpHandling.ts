@@ -120,10 +120,10 @@ export async function withOtpHandling<T> (
 }
 
 /**
- * Artificial instance of {@link OtpError} meant to thrown by the callbacks of {@link withOtpHandling}
+ * Synthetic instance of {@link OtpError} meant to be thrown by the callbacks of {@link withOtpHandling}
  * and caught and handled by {@link withOtpHandling}.
  */
-export class ArtificialOtpError extends Error implements OtpError {
+export class SyntheticOtpError extends Error implements OtpError {
   readonly code = 'EOTP'
   readonly body?: OtpErrorBody
 
@@ -132,9 +132,9 @@ export class ArtificialOtpError extends Error implements OtpError {
     this.body = body
   }
 
-  static fromUnknownBody (globalWarn: OtpContext['globalWarn'], body: unknown): ArtificialOtpError {
+  static fromUnknownBody (globalWarn: OtpContext['globalWarn'], body: unknown): SyntheticOtpError {
     if (body == null || typeof body !== 'object') {
-      return new ArtificialOtpError(undefined)
+      return new SyntheticOtpError(undefined)
     }
 
     const rawBody = body as Record<string, unknown>
@@ -157,7 +157,7 @@ export class ArtificialOtpError extends Error implements OtpError {
       }
     }
 
-    return new ArtificialOtpError({ authUrl, doneUrl })
+    return new SyntheticOtpError({ authUrl, doneUrl })
   }
 }
 

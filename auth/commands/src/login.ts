@@ -7,7 +7,7 @@ import { PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { fetch } from '@pnpm/network.fetch'
 import {
-  ArtificialOtpError,
+  SyntheticOtpError,
   generateQrCode,
   pollForWebAuthToken,
   type WebAuthFetchOptions,
@@ -321,7 +321,7 @@ async function throwIfOtpRequired (globalWarn: LoginContext['globalWarn'], respo
     body = await response.json()
   } catch {}
 
-  throw ArtificialOtpError.fromUnknownBody(globalWarn, body)
+  throw SyntheticOtpError.fromUnknownBody(globalWarn, body)
 }
 
 function getRegistryConfigKey (registryUrl: string): string {
