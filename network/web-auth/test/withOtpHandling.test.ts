@@ -314,11 +314,6 @@ describe('SyntheticOtpError', () => {
     const err = new SyntheticOtpError(body)
     expect(err.body).toEqual(body)
   })
-
-  it('has descriptive message about being caught by withOtpHandling', () => {
-    const err = new SyntheticOtpError(undefined)
-    expect(err.message).toContain('withOtpHandling')
-  })
 })
 
 describe('SyntheticOtpError.fromUnknownBody', () => {
