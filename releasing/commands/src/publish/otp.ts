@@ -22,8 +22,12 @@ export type OtpPublishFn = (
   options: PublishOptions
 ) => Promise<OtpPublishResponse>
 
+export interface OtpDate {
+  now: () => number
+}
+
 export interface OtpContext {
-  Date: { now: () => number }
+  Date: OtpDate
   setTimeout: (cb: () => void, ms: number) => void
   enquirer: OtpHandlingEnquirer
   fetch: (url: string, options: WebAuthFetchOptions) => Promise<WebAuthFetchResponse>
