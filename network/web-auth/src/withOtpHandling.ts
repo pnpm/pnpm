@@ -60,16 +60,15 @@ export const isOtpError = (error: unknown): error is OtpError =>
  */
 export async function withOtpHandling<T> (
   operation: (otp?: string) => Promise<T>,
-  {
-    Date,
-    enquirer,
-    fetch,
-    globalInfo,
-    process,
-    setTimeout,
-  }: OtpHandlingContext,
+  context: OtpHandlingContext,
   fetchOptions: WebAuthFetchOptions
 ): Promise<T> {
+  const {
+    enquirer,
+    globalInfo,
+    process,
+  } = context
+
   try {
     return await operation()
   } catch (error) {
@@ -85,7 +84,7 @@ export async function withOtpHandling<T> (
       globalInfo(`Authenticate your account at:\n${error.body.authUrl}\n\n${qrCode}`)
       otp = await pollForWebAuthToken(
         error.body.doneUrl,
-        { Date: Date, setTimeout: setTimeout, fetch: fetch },
+        context,
         fetchOptions
       )
     } else {
