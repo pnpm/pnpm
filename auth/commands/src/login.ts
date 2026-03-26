@@ -25,7 +25,13 @@ export interface LoginDate {
 }
 
 export interface LoginEnquirer {
-  prompt: (options: { message: string, name: string, type: string }) => Promise<Record<string, string>>
+  prompt: (options: LoginEnquirerOptions) => Promise<Record<string, string>>
+}
+
+export interface LoginEnquirerOptions {
+  message: string
+  name: string
+  type: string
 }
 
 export function rcOptionsTypes (): Record<string, unknown> {
