@@ -6,13 +6,30 @@ import {
   WebAuthTimeoutError,
 } from '@pnpm/network.web-auth'
 
+function createMockResponse (init: {
+  ok: boolean
+  status: number
+  json?: unknown
+  headers?: { get: (name: string) => string | null }
+}): WebAuthFetchResponse {
+  let bodyConsumed = false
+  return {
+    ok: init.ok,
+    status: init.status,
+    json: async () => {
+      if (bodyConsumed) throw new Error('mock response body already consumed')
+      bodyConsumed = true
+      return init.json ?? {}
+    },
+    headers: init.headers ?? { get: name => { throw new Error(`unexpected headers.get call: ${name}`) } },
+  }
+}
+
 function createMockContext (overrides?: Partial<WebAuthContext>): WebAuthContext {
   return {
     Date: { now: () => 0 },
     setTimeout: (cb: () => void) => cb(),
-    fetch: async () => ({
-      headers: { get: () => null },
-      json: async () => ({}),
+    fetch: async () => createMockResponse({
       ok: false,
       status: 404,
     }),
@@ -29,19 +46,17 @@ describe('pollForWebAuthToken', () => {
       fetch: async (): Promise<WebAuthFetchResponse> => {
         fetchCallCount++
         if (fetchCallCount < 3) {
-          return {
-            headers: { get: () => '1' },
-            json: async () => ({}),
+          return createMockResponse({
             ok: true,
             status: 202,
-          }
+            headers: { get: () => '1' },
+          })
         }
-        return {
-          headers: { get: () => null },
-          json: async () => ({ token: 'web-token-123' }),
+        return createMockResponse({
           ok: true,
           status: 200,
-        }
+          json: { token: 'web-token-123' },
+        })
       },
     })
     const token = await pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions)
@@ -59,12 +74,11 @@ describe('pollForWebAuthToken', () => {
     const context = createMockContext({
       fetch: async (url: string, options: WebAuthFetchOptions): Promise<WebAuthFetchResponse> => {
         capturedArgs.push({ url, options })
-        return {
-          headers: { get: () => null },
-          json: async () => ({ token: 'tok' }),
+        return createMockResponse({
           ok: true,
           status: 200,
-        }
+          json: { token: 'tok' },
+        })
       },
     })
     await pollForWebAuthToken('https://registry.example.com/done', context, opts)
@@ -82,19 +96,17 @@ describe('pollForWebAuthToken', () => {
       fetch: async (): Promise<WebAuthFetchResponse> => {
         fetchCallCount++
         if (fetchCallCount === 1) {
-          return {
-            headers: { get: (name: string) => name === 'retry-after' ? '5' : null },
-            json: async () => ({}),
+          return createMockResponse({
             ok: true,
             status: 202,
-          }
+            headers: { get: (name: string) => name === 'retry-after' ? '5' : null },
+          })
         }
-        return {
-          headers: { get: () => null },
-          json: async () => ({ token: 'tok' }),
+        return createMockResponse({
           ok: true,
           status: 200,
-        }
+          json: { token: 'tok' },
+        })
       },
     })
     await pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions)
@@ -115,19 +127,17 @@ describe('pollForWebAuthToken', () => {
       fetch: async (): Promise<WebAuthFetchResponse> => {
         fetchCallCount++
         if (fetchCallCount === 1) {
-          return {
-            headers: { get: () => 'not-a-number' },
-            json: async () => ({}),
+          return createMockResponse({
             ok: true,
             status: 202,
-          }
+            headers: { get: () => 'not-a-number' },
+          })
         }
-        return {
-          headers: { get: () => null },
-          json: async () => ({ token: 'tok' }),
+        return createMockResponse({
           ok: true,
           status: 200,
-        }
+          json: { token: 'tok' },
+        })
       },
     })
     await pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions)
@@ -146,19 +156,17 @@ describe('pollForWebAuthToken', () => {
       fetch: async (): Promise<WebAuthFetchResponse> => {
         fetchCallCount++
         if (fetchCallCount === 1) {
-          return {
-            headers: { get: () => null },
-            json: async () => ({}),
+          return createMockResponse({
             ok: true,
             status: 202,
-          }
+            headers: { get: () => null },
+          })
         }
-        return {
-          headers: { get: () => null },
-          json: async () => ({ token: 'tok' }),
+        return createMockResponse({
           ok: true,
           status: 200,
-        }
+          json: { token: 'tok' },
+        })
       },
     })
     await pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions)
@@ -176,19 +184,17 @@ describe('pollForWebAuthToken', () => {
       fetch: async (): Promise<WebAuthFetchResponse> => {
         fetchCallCount++
         if (fetchCallCount === 1) {
-          return {
-            headers: { get: (name: string) => name === 'retry-after' ? '0.5' : null },
-            json: async () => ({}),
+          return createMockResponse({
             ok: true,
             status: 202,
-          }
+            headers: { get: (name: string) => name === 'retry-after' ? '0.5' : null },
+          })
         }
-        return {
-          headers: { get: () => null },
-          json: async () => ({ token: 'tok' }),
+        return createMockResponse({
           ok: true,
           status: 200,
-        }
+          json: { token: 'tok' },
+        })
       },
     })
     await pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions)
@@ -207,11 +213,11 @@ describe('pollForWebAuthToken', () => {
         time += ms
         cb()
       },
-      fetch: async (): Promise<WebAuthFetchResponse> => ({
-        headers: { get: (name: string) => name === 'retry-after' ? '60' : null },
-        json: async () => ({ token: 'tok' }),
+      fetch: async (): Promise<WebAuthFetchResponse> => createMockResponse({
         ok: true,
         status: 202,
+        json: { token: 'tok' },
+        headers: { get: (name: string) => name === 'retry-after' ? '60' : null },
       }),
     })
     // Use a 10s timeout so the 60s Retry-After gets capped.
@@ -239,12 +245,11 @@ describe('pollForWebAuthToken', () => {
         // Remaining is 4000. Retry-After is 100s, so additional is 99000,
         // capped to 4000. After that wait, time = 5000, which equals timeout.
         // Next iteration: now - startTime > timeoutMs → throw.
-        return {
-          headers: { get: (name: string) => name === 'retry-after' ? '100' : null },
-          json: async () => ({}),
+        return createMockResponse({
           ok: true,
           status: 202,
-        }
+          headers: { get: (name: string) => name === 'retry-after' ? '100' : null },
+        })
       },
     })
     await expect(pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions, timeoutMs))
@@ -259,12 +264,11 @@ describe('pollForWebAuthToken', () => {
         if (fetchCallCount === 1) {
           throw new Error('network failure')
         }
-        return {
-          headers: { get: () => null },
-          json: async () => ({ token: 'tok' }),
+        return createMockResponse({
           ok: true,
           status: 200,
-        }
+          json: { token: 'tok' },
+        })
       },
     })
     const token = await pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions)
@@ -278,19 +282,16 @@ describe('pollForWebAuthToken', () => {
       fetch: async (): Promise<WebAuthFetchResponse> => {
         fetchCallCount++
         if (fetchCallCount === 1) {
-          return {
-            headers: { get: () => null },
-            json: async () => ({}),
+          return createMockResponse({
             ok: false,
             status: 404,
-          }
+          })
         }
-        return {
-          headers: { get: () => null },
-          json: async () => ({ token: 'tok' }),
+        return createMockResponse({
           ok: true,
           status: 200,
-        }
+          json: { token: 'tok' },
+        })
       },
     })
     const token = await pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions)
@@ -313,12 +314,11 @@ describe('pollForWebAuthToken', () => {
             status: 200,
           }
         }
-        return {
-          headers: { get: () => null },
-          json: async () => ({ token: 'tok' }),
+        return createMockResponse({
           ok: true,
           status: 200,
-        }
+          json: { token: 'tok' },
+        })
       },
     })
     const token = await pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions)
@@ -332,19 +332,17 @@ describe('pollForWebAuthToken', () => {
       fetch: async (): Promise<WebAuthFetchResponse> => {
         fetchCallCount++
         if (fetchCallCount === 1) {
-          return {
-            headers: { get: () => null },
-            json: async () => ({ something: 'else' }),
+          return createMockResponse({
             ok: true,
             status: 200,
-          }
+            json: { something: 'else' },
+          })
         }
-        return {
-          headers: { get: () => null },
-          json: async () => ({ token: 'tok' }),
+        return createMockResponse({
           ok: true,
           status: 200,
-        }
+          json: { token: 'tok' },
+        })
       },
     })
     const token = await pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions)
@@ -358,19 +356,17 @@ describe('pollForWebAuthToken', () => {
       fetch: async (): Promise<WebAuthFetchResponse> => {
         fetchCallCount++
         if (fetchCallCount === 1) {
-          return {
-            headers: { get: () => null },
-            json: async () => ({ token: '' }),
+          return createMockResponse({
             ok: true,
             status: 200,
-          }
+            json: { token: '' },
+          })
         }
-        return {
-          headers: { get: () => null },
-          json: async () => ({ token: 'real-tok' }),
+        return createMockResponse({
           ok: true,
           status: 200,
-        }
+          json: { token: 'real-tok' },
+        })
       },
     })
     const token = await pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions)
@@ -386,11 +382,10 @@ describe('pollForWebAuthToken', () => {
         time += 6 * 60 * 1000 // Jump past timeout
         cb()
       },
-      fetch: async (): Promise<WebAuthFetchResponse> => ({
-        headers: { get: () => null },
-        json: async () => ({}),
+      fetch: async (): Promise<WebAuthFetchResponse> => createMockResponse({
         ok: true,
         status: 202,
+        headers: { get: () => null },
       }),
     })
     await expect(pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions))
@@ -406,11 +401,10 @@ describe('pollForWebAuthToken', () => {
         time += 2000
         cb()
       },
-      fetch: async (): Promise<WebAuthFetchResponse> => ({
-        headers: { get: () => null },
-        json: async () => ({}),
+      fetch: async (): Promise<WebAuthFetchResponse> => createMockResponse({
         ok: true,
         status: 202,
+        headers: { get: () => null },
       }),
     })
     await expect(pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions, customTimeoutMs))
@@ -425,12 +419,11 @@ describe('pollForWebAuthToken', () => {
         if (fetchCallCount <= 5) {
           throw new Error(`failure #${fetchCallCount}`)
         }
-        return {
-          headers: { get: () => null },
-          json: async () => ({ token: 'recovered' }),
+        return createMockResponse({
           ok: true,
           status: 200,
-        }
+          json: { token: 'recovered' },
+        })
       },
     })
     const token = await pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions)
@@ -449,19 +442,17 @@ describe('pollForWebAuthToken', () => {
       fetch: async (): Promise<WebAuthFetchResponse> => {
         fetchCallCount++
         if (fetchCallCount < 4) {
-          return {
-            headers: { get: () => null },
-            json: async () => ({}),
+          return createMockResponse({
             ok: true,
             status: 202,
-          }
+            headers: { get: () => null },
+          })
         }
-        return {
-          headers: { get: () => null },
-          json: async () => ({ token: 'tok' }),
+        return createMockResponse({
           ok: true,
           status: 200,
-        }
+          json: { token: 'tok' },
+        })
       },
     })
     await pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions)
@@ -485,22 +476,20 @@ describe('pollForWebAuthToken', () => {
           // After poll interval (1s), time = 1000, remaining = 1000.
           // Retry-After = 10s → additional = 9000 > remaining.
           // Capped to remaining (1000). After that wait, time = 2000.
-          return {
-            headers: { get: (name: string) => name === 'retry-after' ? '10' : null },
-            json: async () => ({}),
+          return createMockResponse({
             ok: true,
             status: 202,
-          }
+            headers: { get: (name: string) => name === 'retry-after' ? '10' : null },
+          })
         }
         // This second fetch still returns 202, but the next timeout check
         // should trigger the error since time (2000) - start (0) = 2000 > 2000? No, it's equal.
         // Actually the condition is `>` so 2000 > 2000 is false. So it waits another 1s, then 3000 > 2000 is true.
-        return {
-          headers: { get: () => null },
-          json: async () => ({}),
+        return createMockResponse({
           ok: true,
           status: 202,
-        }
+          headers: { get: () => null },
+        })
       },
     })
     await expect(pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions, timeoutMs))

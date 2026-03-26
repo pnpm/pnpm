@@ -8,14 +8,31 @@ import {
   withOtpHandling,
 } from '@pnpm/network.web-auth'
 
+function createMockResponse (init: {
+  ok: boolean
+  status: number
+  json?: unknown
+  headers?: { get: (name: string) => string | null }
+}): WebAuthFetchResponse {
+  let bodyConsumed = false
+  return {
+    ok: init.ok,
+    status: init.status,
+    json: async () => {
+      if (bodyConsumed) throw new Error('mock response body already consumed')
+      bodyConsumed = true
+      return init.json ?? {}
+    },
+    headers: init.headers ?? { get: name => { throw new Error(`unexpected headers.get call: ${name}`) } },
+  }
+}
+
 function createOtpMockContext (overrides?: Partial<OtpHandlingContext>): OtpHandlingContext {
   return {
     Date: { now: () => 0 },
     setTimeout: (cb: () => void) => cb(),
     enquirer: { prompt: async () => ({ otp: '123456' }) },
-    fetch: async () => ({
-      headers: { get: () => null },
-      json: async () => ({}),
+    fetch: async () => createMockResponse({
       ok: false,
       status: 404,
     }),
@@ -152,19 +169,17 @@ describe('withOtpHandling', () => {
         fetch: async (): Promise<WebAuthFetchResponse> => {
           fetchCallCount++
           if (fetchCallCount < 3) {
-            return {
-              headers: { get: () => '1' },
-              json: async () => ({}),
+            return createMockResponse({
               ok: true,
               status: 202,
-            }
+              headers: { get: () => '1' },
+            })
           }
-          return {
-            headers: { get: () => null },
-            json: async () => ({ token: 'web-token-123' }),
+          return createMockResponse({
             ok: true,
             status: 200,
-          }
+            json: { token: 'web-token-123' },
+          })
         },
       })
       const result = await withOtpHandling(
@@ -245,11 +260,10 @@ describe('withOtpHandling', () => {
           time += 6 * 60 * 1000
           cb()
         },
-        fetch: async (): Promise<WebAuthFetchResponse> => ({
-          headers: { get: () => null },
-          json: async () => ({}),
+        fetch: async (): Promise<WebAuthFetchResponse> => createMockResponse({
           ok: true,
           status: 202,
+          headers: { get: () => null },
         }),
       })
       let called = false

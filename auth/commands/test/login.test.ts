@@ -1,4 +1,4 @@
-import { login, type LoginContext } from '../src/login.js'
+import { login, type LoginContext, type LoginFetchResponse } from '../src/login.js'
 
 const TEST_CONTEXT: LoginContext = {
   Date: { now: () => 0 },
@@ -21,6 +21,31 @@ const TEST_CONTEXT: LoginContext = {
   writeIniFile: async path => {
     throw new Error(`unexpected writeIniFile call: ${path}`)
   },
+}
+
+function createMockResponse (init: {
+  ok: boolean
+  status: number
+  json?: unknown
+  text?: string
+  headers?: { get: (name: string) => string | null }
+}): LoginFetchResponse {
+  let bodyConsumed = false
+  return {
+    ok: init.ok,
+    status: init.status,
+    json: async () => {
+      if (bodyConsumed) throw new Error('mock response body already consumed')
+      bodyConsumed = true
+      return init.json ?? {}
+    },
+    text: async () => {
+      if (bodyConsumed) throw new Error('mock response body already consumed')
+      bodyConsumed = true
+      return init.text ?? ''
+    },
+    headers: init.headers ?? { get: name => { throw new Error(`unexpected headers.get call: ${name}`) } },
+  }
 }
 
 describe('login', () => {
@@ -66,25 +91,21 @@ describe('login', () => {
         fetch: async url => {
           fetchedUrls.push(url)
           if (url === 'https://example.com/npm/-/v1/login') {
-            return {
+            return createMockResponse({
               ok: true,
               status: 200,
-              json: async () => ({
+              json: {
                 loginUrl: 'https://example.com/auth/login',
                 doneUrl: 'https://example.com/auth/done',
-              }),
-              text: async () => '',
-              headers: { get: () => null },
-            }
+              },
+            })
           }
           if (url === 'https://example.com/auth/done') {
-            return {
+            return createMockResponse({
               ok: true,
               status: 200,
-              json: async () => ({ token: 'web-auth-token-123' }),
-              text: async () => '',
-              headers: { get: () => null },
-            }
+              json: { token: 'web-auth-token-123' },
+            })
           }
           throw new Error(`unexpected fetch call: ${url}`)
         },
@@ -127,22 +148,18 @@ describe('login', () => {
         fetch: async url => {
           fetchedUrls.push(url)
           if (url === 'https://example.org/-/v1/login') {
-            return {
+            return createMockResponse({
               ok: false,
               status: 404,
-              json: async () => ({}),
-              text: async () => 'Not Found',
-              headers: { get: () => null },
-            }
+              text: 'Not Found',
+            })
           }
           if (url === 'https://example.org/-/user/org.couchdb.user:john') {
-            return {
+            return createMockResponse({
               ok: true,
               status: 201,
-              json: async () => ({ ok: true, token: 'classic-token-456' }),
-              text: async () => '',
-              headers: { get: () => null },
-            }
+              json: { ok: true, token: 'classic-token-456' },
+            })
           }
           throw new Error(`unexpected fetch call: ${url}`)
         },
@@ -187,34 +204,30 @@ describe('login', () => {
         writeIniFile: async () => {},
         fetch: async (url, options) => {
           if (url === 'https://example.org/-/v1/login') {
-            return {
+            return createMockResponse({
               ok: false,
               status: 404,
-              json: async () => ({}),
-              text: async () => 'Not Found',
-              headers: { get: () => null },
-            }
+              text: 'Not Found',
+            })
           }
           if (url === 'https://example.org/-/user/org.couchdb.user:alice') {
             putCallCount++
             if (putCallCount === 1) {
-              return {
+              return createMockResponse({
                 ok: false,
                 status: 401,
-                json: async () => ({ error: 'otp required' }),
-                text: async () => 'OTP required',
+                json: { error: 'otp required' },
+                text: 'OTP required',
                 headers: { get: (name: string) => name === 'www-authenticate' ? 'OTP otp' : null },
-              }
+              })
             }
             // Second call should include npm-otp header
             expect(options?.headers?.['npm-otp']).toBe('999999')
-            return {
+            return createMockResponse({
               ok: true,
               status: 201,
-              json: async () => ({ ok: true, token: 'otp-token-789' }),
-              text: async () => '',
-              headers: { get: () => null },
-            }
+              json: { ok: true, token: 'otp-token-789' },
+            })
           }
           throw new Error(`unexpected fetch call: ${url}`)
         },
@@ -255,46 +268,39 @@ describe('login', () => {
         writeIniFile: async () => {},
         fetch: async (url, options) => {
           if (url === 'https://example.org/-/v1/login') {
-            return {
+            return createMockResponse({
               ok: false,
               status: 404,
-              json: async () => ({}),
-              text: async () => 'Not Found',
-              headers: { get: () => null },
-            }
+              text: 'Not Found',
+            })
           }
           if (url === 'https://example.org/-/user/org.couchdb.user:bob') {
             putCallCount++
             if (putCallCount === 1) {
-              return {
+              return createMockResponse({
                 ok: false,
                 status: 401,
-                json: async () => ({
+                json: {
                   authUrl: 'https://example.org/auth/web',
                   doneUrl: 'https://example.org/auth/web/done',
-                }),
-                text: async () => '',
+                },
                 headers: { get: (name: string) => name === 'www-authenticate' ? 'OTP otp' : null },
-              }
+              })
             }
             expect(options?.headers?.['npm-otp']).toBe('web-tok')
-            return {
+            return createMockResponse({
               ok: true,
               status: 201,
-              json: async () => ({ ok: true, token: 'final-token' }),
-              text: async () => '',
-              headers: { get: () => null },
-            }
+              json: { ok: true, token: 'final-token' },
+            })
           }
           if (url === 'https://example.org/auth/web/done') {
             pollCallCount++
-            return {
+            return createMockResponse({
               ok: true,
               status: 200,
-              json: async () => ({ token: 'web-tok' }),
-              text: async () => '',
-              headers: { get: () => null },
-            }
+              json: { token: 'web-tok' },
+            })
           }
           throw new Error(`unexpected fetch call: ${url}`)
         },
@@ -331,22 +337,18 @@ describe('login', () => {
         writeIniFile: async () => {},
         fetch: async url => {
           if (url === 'https://example.org/-/v1/login') {
-            return {
+            return createMockResponse({
               ok: false,
               status: 404,
-              json: async () => ({}),
-              text: async () => 'Not Found',
-              headers: { get: () => null },
-            }
+              text: 'Not Found',
+            })
           }
           // Return 403 (not 401) — should not trigger OTP
-          return {
+          return createMockResponse({
             ok: false,
             status: 403,
-            json: async () => ({}),
-            text: async () => 'Forbidden',
-            headers: { get: () => null },
-          }
+            text: 'Forbidden',
+          })
         },
         enquirer: {
           prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
@@ -375,13 +377,11 @@ describe('login', () => {
         writeIniFile: async () => {},
         fetch: async url => {
           if (url === 'https://example.org/-/v1/login') {
-            return {
+            return createMockResponse({
               ok: false,
               status: 404,
-              json: async () => ({}),
-              text: async () => 'Not Found',
-              headers: { get: () => null },
-            }
+              text: 'Not Found',
+            })
           }
           throw new Error(`unexpected fetch call: ${url}`)
         },
@@ -412,22 +412,18 @@ describe('login', () => {
         writeIniFile: async () => {},
         fetch: async url => {
           if (url === 'https://example.org/-/v1/login') {
-            return {
+            return createMockResponse({
               ok: false,
               status: 404,
-              json: async () => ({}),
-              text: async () => 'Not Found',
-              headers: { get: () => null },
-            }
+              text: 'Not Found',
+            })
           }
           if (url === 'https://example.org/-/user/org.couchdb.user:alice') {
-            return {
+            return createMockResponse({
               ok: true,
               status: 201,
-              json: async () => ({ ok: true }),
-              text: async () => '',
-              headers: { get: () => null },
-            }
+              json: { ok: true },
+            })
           }
           throw new Error(`unexpected fetch call: ${url}`)
         },
@@ -458,13 +454,11 @@ describe('login', () => {
         writeIniFile: async () => {},
         fetch: async url => {
           if (url === 'https://example.org/-/v1/login') {
-            return {
+            return createMockResponse({
               ok: true,
               status: 200,
-              json: async () => ({ loginUrl: 'https://example.org/auth' }),
-              text: async () => '',
-              headers: { get: () => null },
-            }
+              json: { loginUrl: 'https://example.org/auth' },
+            })
           }
           throw new Error(`unexpected fetch call: ${url}`)
         },
@@ -491,22 +485,18 @@ describe('login', () => {
         },
         fetch: async url => {
           if (url === 'https://example.org/-/v1/login') {
-            return {
+            return createMockResponse({
               ok: false,
               status: 405,
-              json: async () => ({}),
-              text: async () => 'Method Not Allowed',
-              headers: { get: () => null },
-            }
+              text: 'Method Not Allowed',
+            })
           }
           if (url === 'https://example.org/-/user/org.couchdb.user:jane') {
-            return {
+            return createMockResponse({
               ok: true,
               status: 201,
-              json: async () => ({ ok: true, token: 'token-405' }),
-              text: async () => '',
-              headers: { get: () => null },
-            }
+              json: { ok: true, token: 'token-405' },
+            })
           }
           throw new Error(`unexpected fetch call: ${url}`)
         },
@@ -542,22 +532,19 @@ describe('login', () => {
         writeIniFile: async () => {},
         fetch: async url => {
           if (url === 'https://example.org/-/v1/login') {
-            return {
+            return createMockResponse({
               ok: false,
               status: 404,
-              json: async () => ({}),
-              text: async () => 'Not Found',
-              headers: { get: () => null },
-            }
+              text: 'Not Found',
+            })
           }
           // Return 401 but without www-authenticate: otp header
-          return {
+          return createMockResponse({
             ok: false,
             status: 401,
-            json: async () => ({}),
-            text: async () => 'Unauthorized',
+            text: 'Unauthorized',
             headers: { get: () => null },
-          }
+          })
         },
         enquirer: {
           prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
@@ -592,24 +579,20 @@ describe('login', () => {
         },
         fetch: async url => {
           if (url === 'https://example.org/-/v1/login') {
-            return {
+            return createMockResponse({
               ok: true,
               status: 200,
-              json: async () => ({
+              json: {
                 loginUrl: 'https://example.org/auth/login',
                 doneUrl: 'https://example.org/auth/done',
-              }),
-              text: async () => '',
-              headers: { get: () => null },
-            }
+              },
+            })
           }
-          return {
+          return createMockResponse({
             ok: true,
             status: 200,
-            json: async () => ({ token: 'new-token' }),
-            text: async () => '',
-            headers: { get: () => null },
-          }
+            json: { token: 'new-token' },
+          })
         },
       },
     })
@@ -637,24 +620,20 @@ describe('login', () => {
         writeIniFile: async () => {},
         fetch: async url => {
           if (url === 'https://example.org/-/v1/login') {
-            return {
+            return createMockResponse({
               ok: true,
               status: 200,
-              json: async () => ({
+              json: {
                 loginUrl: 'https://example.org/auth/login',
                 doneUrl: 'https://example.org/auth/done',
-              }),
-              text: async () => '',
-              headers: { get: () => null },
-            }
+              },
+            })
           }
-          return {
+          return createMockResponse({
             ok: true,
             status: 200,
-            json: async () => ({ token: 'tok' }),
-            text: async () => '',
-            headers: { get: () => null },
-          }
+            json: { token: 'tok' },
+          })
         },
       },
     })).rejects.toThrow('EACCES: permission denied')
