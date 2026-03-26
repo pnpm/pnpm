@@ -47,7 +47,7 @@ jobs:
         echo "Checked out PR #$PR_NUMBER at $(git rev-parse --short HEAD)"
 
     - name: Install pnpm
-      uses: pnpm/action-setup@62bce642757454630341df504b8b9ee51f1332da
+      uses: pnpm/action-setup@11687bb3d2f6a756ef6b63698ba61292902e12ce
       with:
         standalone: true
 
