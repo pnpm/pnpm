@@ -135,8 +135,8 @@ export async function login ({
     fetch,
     globalInfo,
     process,
-    safeReadIniFile: readSettings,
-    writeIniFile: writeSettings,
+    safeReadIniFile,
+    writeIniFile,
   } = DEFAULT_CONTEXT,
   opts,
 }: LoginParams): Promise<string> {
@@ -170,10 +170,10 @@ export async function login ({
   }
 
   const configPath = path.join(opts.configDir, 'rc')
-  const settings = await readSettings(configPath)
+  const settings = await safeReadIniFile(configPath)
   const registryConfigKey = getRegistryConfigKey(registry)
   settings[`${registryConfigKey}:_authToken`] = token
-  await writeSettings(configPath, settings)
+  await writeIniFile(configPath, settings)
 
   return `Logged in on ${registry}`
 }
