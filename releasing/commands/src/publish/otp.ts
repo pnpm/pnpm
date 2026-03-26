@@ -1,5 +1,4 @@
 import {
-  type OtpHandlingContext,
   type OtpHandlingEnquirer,
   type WebAuthFetchOptions,
   type WebAuthFetchResponse,
