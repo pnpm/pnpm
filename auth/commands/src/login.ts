@@ -87,7 +87,11 @@ export interface LoginFetchResponse {
   status: number
   json: () => Promise<unknown>
   text: () => Promise<string>
-  headers: { get: (name: string) => string | null }
+  headers: LoginFetchResponseHeaders
+}
+
+export interface LoginFetchResponseHeaders {
+  get: (name: string) => string | null
 }
 
 export interface LoginFetchOptions {
