@@ -14,9 +14,6 @@ const TEST_CONTEXT: LoginContext = {
   globalInfo: message => {
     throw new Error(`Unexpected call to globalInfo: ${message}`)
   },
-  globalWarn: message => {
-    throw new Error(`Unexpected call to globalWarn: ${message}`)
-  },
   process: {
     stdin: { isTTY: true },
     stdout: { isTTY: true },

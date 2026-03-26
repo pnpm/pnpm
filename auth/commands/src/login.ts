@@ -4,7 +4,7 @@ import util from 'node:util'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
-import { globalInfo, globalWarn } from '@pnpm/logger'
+import { globalInfo } from '@pnpm/logger'
 import { fetch } from '@pnpm/network.fetch'
 import {
   generateQrCode,
@@ -126,7 +126,6 @@ export interface LoginContext {
   enquirer: LoginEnquirer
   fetch: (url: string, options?: LoginFetchOptions) => Promise<LoginFetchResponse>
   globalInfo: (message: string) => void
-  globalWarn: (message: string) => void
   process: Record<'stdin' | 'stdout', { isTTY?: boolean }>
   readIniFile: (configPath: string) => Promise<object>
   writeIniFile: (configPath: string, settings: Record<string, unknown>) => Promise<void>
@@ -138,7 +137,6 @@ export const DEFAULT_CONTEXT: LoginContext = {
   enquirer,
   fetch,
   globalInfo,
-  globalWarn,
   process,
   readIniFile,
   writeIniFile,
@@ -235,7 +233,7 @@ async function webLogin (
 
 async function classicLogin (
   registry: string,
-  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'enquirer' | 'fetch' | 'globalInfo' | 'globalWarn' | 'process'>,
+  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'enquirer' | 'fetch' | 'globalInfo' | 'process'>,
   fetchOptions: WebAuthFetchOptions
 ): Promise<string> {
   const { enquirer, fetch, globalInfo } = context
@@ -308,10 +306,6 @@ async function classicLogin (
  * Inspects a non-ok HTTP response for OTP requirements and throws an EOTP
  * error when detected. This mirrors the behaviour of npm-registry-fetch,
  * which checks the `www-authenticate` header for one-time password indicators.
- *
- * The thrown error carries the raw response body so that
- * {@link OtpRequiredError.fromUnknown} in `withOtpHandling` can validate
- * the body shape and warn on unexpected types.
  */
 async function throwIfOtpRequired (response: LoginFetchResponse): Promise<void> {
   if (response.status !== 401) return
@@ -319,12 +313,18 @@ async function throwIfOtpRequired (response: LoginFetchResponse): Promise<void> 
   const wwwAuth = response.headers.get('www-authenticate')
   if (!wwwAuth?.includes('otp')) return
 
-  let body: unknown
+  let body: Record<string, unknown> = {}
   try {
-    body = await response.json()
+    body = await response.json() as Record<string, unknown>
   } catch {}
 
-  throw Object.assign(new Error('OTP required'), { code: 'EOTP', body })
+  throw Object.assign(new Error('OTP required'), {
+    code: 'EOTP',
+    body: {
+      authUrl: typeof body.authUrl === 'string' ? body.authUrl : undefined,
+      doneUrl: typeof body.doneUrl === 'string' ? body.doneUrl : undefined,
+    },
+  })
 }
 
 function getRegistryConfigKey (registryUrl: string): string {

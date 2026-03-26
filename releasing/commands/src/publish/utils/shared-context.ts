@@ -1,4 +1,4 @@
-import { globalInfo, globalWarn } from '@pnpm/logger'
+import { globalInfo } from '@pnpm/logger'
 import { fetch } from '@pnpm/network.fetch'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import ciInfo from 'ci-info'
@@ -32,7 +32,6 @@ export const SHARED_CONTEXT: SharedContext = {
   enquirer,
   fetch,
   globalInfo,
-  globalWarn,
   process,
   publish,
   setTimeout,

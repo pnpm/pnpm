@@ -28,88 +28,24 @@ export interface OtpContext {
   enquirer: OtpEnquirer
   fetch: (url: string, options: WebAuthFetchOptions) => Promise<WebAuthFetchResponse>
   globalInfo: (message: string) => void
-  globalWarn: (message: string) => void
   process: Record<'stdin' | 'stdout', { isTTY?: boolean }>
 }
 
-export interface OtpErrorBody {
+interface OtpErrorBody {
   authUrl?: string
   doneUrl?: string
 }
 
-interface StructuralOtpError {
+interface OtpError {
   code: string
-  body?: unknown
+  body?: OtpErrorBody
 }
 
-export const isOtpError = (error: unknown): error is StructuralOtpError =>
+export const isOtpError = (error: unknown): error is OtpError =>
   error != null &&
   typeof error === 'object' &&
   'code' in error &&
   error.code === 'EOTP'
-
-/**
- * A validated OTP error with a well-typed body.
- *
- * Use {@link OtpRequiredError.fromUnknown} to validate an unknown EOTP error
- * and produce either a validated `OtpRequiredError` or an `OtpBodyWarning`
- * if the body has unexpected types.
- */
-export class OtpRequiredError extends Error {
-  readonly code = 'EOTP'
-  readonly body: OtpErrorBody
-  constructor (body: OtpErrorBody) {
-    super('OTP required')
-    this.body = body
-  }
-
-  /**
-   * Validates an unknown EOTP error body and returns either:
-   * - an `OtpRequiredError` if the body shape is valid
-   * - an `OtpBodyWarning` if the body has fields with unexpected types
-   */
-  static fromUnknown (error: unknown): OtpRequiredError | OtpBodyWarning {
-    const rawBody = error != null && typeof error === 'object' && 'body' in error
-      ? error.body as Record<string, unknown> | undefined
-      : undefined
-
-    const warnings: string[] = []
-    let authUrl: string | undefined
-    let doneUrl: string | undefined
-
-    if (rawBody != null && typeof rawBody === 'object') {
-      if ('authUrl' in rawBody) {
-        if (typeof rawBody.authUrl === 'string') {
-          authUrl = rawBody.authUrl
-        } else {
-          warnings.push(`authUrl has type ${typeof rawBody.authUrl}, expected string`)
-        }
-      }
-      if ('doneUrl' in rawBody) {
-        if (typeof rawBody.doneUrl === 'string') {
-          doneUrl = rawBody.doneUrl
-        } else {
-          warnings.push(`doneUrl has type ${typeof rawBody.doneUrl}, expected string`)
-        }
-      }
-    }
-
-    if (warnings.length > 0) {
-      return new OtpBodyWarning(warnings, { authUrl, doneUrl })
-    }
-
-    return new OtpRequiredError({ authUrl, doneUrl })
-  }
-}
-
-export class OtpBodyWarning {
-  readonly warnings: readonly string[]
-  readonly otpError: OtpRequiredError
-  constructor (warnings: string[], body: OtpErrorBody) {
-    this.warnings = warnings
-    this.otpError = new OtpRequiredError(body)
-  }
-}
 
 /**
  * Wraps an operation with OTP (one-time password) challenge handling.
@@ -134,7 +70,6 @@ export async function withOtpHandling<T> (
   const {
     enquirer,
     globalInfo,
-    globalWarn,
     process,
   } = context
 
@@ -146,21 +81,13 @@ export async function withOtpHandling<T> (
       throw new OtpNonInteractiveError()
     }
 
-    const validated = OtpRequiredError.fromUnknown(error)
-    if (validated instanceof OtpBodyWarning) {
-      for (const warning of validated.warnings) {
-        globalWarn(`OTP error body: ${warning}`)
-      }
-    }
-    const otpError = validated instanceof OtpBodyWarning ? validated.otpError : validated
-
     let otp: string | undefined
 
-    if (otpError.body.authUrl && otpError.body.doneUrl) {
-      const qrCode = generateQrCode(otpError.body.authUrl)
-      globalInfo(`Authenticate your account at:\n${otpError.body.authUrl}\n\n${qrCode}`)
+    if (error.body?.authUrl && error.body?.doneUrl) {
+      const qrCode = generateQrCode(error.body.authUrl)
+      globalInfo(`Authenticate your account at:\n${error.body.authUrl}\n\n${qrCode}`)
       otp = await pollForWebAuthToken(
-        otpError.body.doneUrl,
+        error.body.doneUrl,
         context,
         fetchOptions
       )

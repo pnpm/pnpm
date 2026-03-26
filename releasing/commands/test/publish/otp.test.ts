@@ -27,7 +27,6 @@ function createMockContext (overrides?: Partial<OtpContext>): OtpContext {
       status: 404,
     }),
     globalInfo: () => {},
-    globalWarn: () => {},
     process: { stdin: { isTTY: true }, stdout: { isTTY: true } },
     publish: async () => createOkResponse(),
     ...overrides,

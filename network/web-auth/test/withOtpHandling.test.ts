@@ -1,8 +1,6 @@
 import {
-  OtpBodyWarning,
   type OtpContext,
   OtpNonInteractiveError,
-  OtpRequiredError,
   OtpSecondChallengeError,
   type WebAuthFetchOptions,
   type WebAuthFetchResponse,
@@ -43,7 +41,6 @@ function createOtpMockContext (overrides?: Partial<OtpContext>): OtpContext {
       status: 404,
     }),
     globalInfo: () => {},
-    globalWarn: () => {},
     process: {
       stdin: { isTTY: true },
       stdout: { isTTY: true },
@@ -301,138 +298,5 @@ describe('withOtpHandling', () => {
         fetchOptions
       )).rejects.toBeInstanceOf(WebAuthTimeoutError)
     })
-  })
-
-  describe('body validation', () => {
-    it('warns when authUrl has wrong type', async () => {
-      const warnings: string[] = []
-      let callCount = 0
-      const context = createOtpMockContext({
-        globalWarn: msg => { warnings.push(msg) },
-        enquirer: { prompt: async () => ({ otp: 'manual-otp' }) },
-      })
-      const result = await withOtpHandling(
-        async otp => {
-          callCount++
-          if (callCount === 1) {
-            throw Object.assign(new Error('otp'), {
-              code: 'EOTP',
-              body: { authUrl: 123, doneUrl: 'https://example.com/done' },
-            })
-          }
-          expect(otp).toBe('manual-otp')
-          return 'ok'
-        },
-        context,
-        fetchOptions
-      )
-      expect(result).toBe('ok')
-      expect(warnings).toContainEqual(expect.stringContaining('authUrl'))
-    })
-
-    it('warns when doneUrl has wrong type', async () => {
-      const warnings: string[] = []
-      let callCount = 0
-      const context = createOtpMockContext({
-        globalWarn: msg => { warnings.push(msg) },
-        enquirer: { prompt: async () => ({ otp: 'manual-otp' }) },
-      })
-      const result = await withOtpHandling(
-        async otp => {
-          callCount++
-          if (callCount === 1) {
-            throw Object.assign(new Error('otp'), {
-              code: 'EOTP',
-              body: { authUrl: 'https://example.com/auth', doneUrl: true },
-            })
-          }
-          expect(otp).toBe('manual-otp')
-          return 'ok'
-        },
-        context,
-        fetchOptions
-      )
-      expect(result).toBe('ok')
-      expect(warnings).toContainEqual(expect.stringContaining('doneUrl'))
-    })
-
-    it('falls back to classic prompt when both authUrl and doneUrl have wrong types', async () => {
-      const warnings: string[] = []
-      let callCount = 0
-      const context = createOtpMockContext({
-        globalWarn: msg => { warnings.push(msg) },
-        enquirer: { prompt: async () => ({ otp: 'fallback-otp' }) },
-      })
-      const result = await withOtpHandling(
-        async otp => {
-          callCount++
-          if (callCount === 1) {
-            throw Object.assign(new Error('otp'), {
-              code: 'EOTP',
-              body: { authUrl: 42, doneUrl: false },
-            })
-          }
-          expect(otp).toBe('fallback-otp')
-          return 'done'
-        },
-        context,
-        fetchOptions
-      )
-      expect(result).toBe('done')
-      expect(warnings).toHaveLength(2)
-    })
-  })
-})
-
-describe('OtpRequiredError.fromUnknown', () => {
-  it('returns OtpRequiredError when body has valid string fields', () => {
-    const error = Object.assign(new Error('otp'), {
-      code: 'EOTP',
-      body: { authUrl: 'https://example.com/auth', doneUrl: 'https://example.com/done' },
-    })
-    const result = OtpRequiredError.fromUnknown(error)
-    expect(result).toBeInstanceOf(OtpRequiredError)
-    expect((result as OtpRequiredError).body).toEqual({
-      authUrl: 'https://example.com/auth',
-      doneUrl: 'https://example.com/done',
-    })
-  })
-
-  it('returns OtpRequiredError when body is absent', () => {
-    const error = Object.assign(new Error('otp'), { code: 'EOTP' })
-    const result = OtpRequiredError.fromUnknown(error)
-    expect(result).toBeInstanceOf(OtpRequiredError)
-    expect((result as OtpRequiredError).body).toEqual({})
-  })
-
-  it('returns OtpBodyWarning when authUrl has wrong type', () => {
-    const error = Object.assign(new Error('otp'), {
-      code: 'EOTP',
-      body: { authUrl: 123 },
-    })
-    const result = OtpRequiredError.fromUnknown(error)
-    expect(result).toBeInstanceOf(OtpBodyWarning)
-    expect((result as OtpBodyWarning).warnings[0]).toContain('authUrl')
-    expect((result as OtpBodyWarning).otpError.body.authUrl).toBeUndefined()
-  })
-
-  it('returns OtpBodyWarning when doneUrl has wrong type', () => {
-    const error = Object.assign(new Error('otp'), {
-      code: 'EOTP',
-      body: { doneUrl: true },
-    })
-    const result = OtpRequiredError.fromUnknown(error)
-    expect(result).toBeInstanceOf(OtpBodyWarning)
-    expect((result as OtpBodyWarning).warnings[0]).toContain('doneUrl')
-  })
-
-  it('returns OtpRequiredError when body has no authUrl or doneUrl', () => {
-    const error = Object.assign(new Error('otp'), {
-      code: 'EOTP',
-      body: { something: 'else' },
-    })
-    const result = OtpRequiredError.fromUnknown(error)
-    expect(result).toBeInstanceOf(OtpRequiredError)
-    expect((result as OtpRequiredError).body).toEqual({})
   })
 })
