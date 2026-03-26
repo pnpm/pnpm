@@ -255,16 +255,14 @@ async function classicLogin (
 
   const token = await withOtpHandling(
     async (otp?: string) => {
-      const headers: LoginFetchOptions['headers'] = {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        'npm-auth-type': 'web',
-        'npm-otp': otp,
-      }
-
       const response = await fetch(loginUrl, {
         method: 'PUT',
-        headers,
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json',
+          'npm-auth-type': 'web',
+          'npm-otp': otp,
+        },
         body: JSON.stringify({
           _id: `org.couchdb.user:${username}`,
           name: username,
