@@ -41,24 +41,28 @@ export interface WebAuthContext {
  */
 export async function pollForWebAuthToken (
   doneUrl: string,
-  context: WebAuthContext,
+  {
+    Date,
+    fetch,
+    setTimeout,
+  }: WebAuthContext,
   fetchOptions: WebAuthFetchOptions,
   timeoutMs: number = 5 * 60 * 1000
 ): Promise<string> {
-  const startTime = context.Date.now()
+  const startTime = Date.now()
   const pollIntervalMs = 1000
 
   while (true) {
-    const now = context.Date.now()
+    const now = Date.now()
     if (now - startTime > timeoutMs) {
       throw new WebAuthTimeoutError(now, startTime, timeoutMs)
     }
     // eslint-disable-next-line no-await-in-loop
-    await new Promise<void>(resolve => context.setTimeout(resolve, pollIntervalMs))
+    await new Promise<void>(resolve => setTimeout(resolve, pollIntervalMs))
     let response: WebAuthFetchResponse
     try {
       // eslint-disable-next-line no-await-in-loop
-      response = await context.fetch(doneUrl, fetchOptions)
+      response = await fetch(doneUrl, fetchOptions)
     } catch {
       continue
     }
@@ -74,14 +78,14 @@ export async function pollForWebAuthToken (
       if (Number.isFinite(retryAfterSeconds)) {
         const additionalMs = retryAfterSeconds * 1000 - pollIntervalMs
         if (additionalMs > 0) {
-          const nowAfterPoll = context.Date.now()
+          const nowAfterPoll = Date.now()
           const remainingMs = timeoutMs - (nowAfterPoll - startTime)
           if (remainingMs <= 0) {
             throw new WebAuthTimeoutError(nowAfterPoll, startTime, timeoutMs)
           }
           const sleepMs = Math.min(additionalMs, remainingMs)
           // eslint-disable-next-line no-await-in-loop
-          await new Promise<void>(resolve => context.setTimeout(resolve, sleepMs))
+          await new Promise<void>(resolve => setTimeout(resolve, sleepMs))
         }
       }
       continue
