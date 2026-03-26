@@ -60,14 +60,21 @@ export const isOtpError = (error: unknown): error is OtpError =>
  */
 export async function withOtpHandling<T> (
   operation: (otp?: string) => Promise<T>,
-  context: OtpHandlingContext,
+  {
+    Date,
+    enquirer,
+    fetch,
+    globalInfo,
+    process,
+    setTimeout,
+  }: OtpHandlingContext,
   fetchOptions: WebAuthFetchOptions
 ): Promise<T> {
   try {
     return await operation()
   } catch (error) {
     if (!isOtpError(error)) throw error
-    if (!context.process.stdin.isTTY || !context.process.stdout.isTTY) {
+    if (!process.stdin.isTTY || !process.stdout.isTTY) {
       throw new OtpNonInteractiveError()
     }
 
@@ -75,14 +82,14 @@ export async function withOtpHandling<T> (
 
     if (error.body?.authUrl && error.body?.doneUrl) {
       const qrCode = generateQrCode(error.body.authUrl)
-      context.globalInfo(`Authenticate your account at:\n${error.body.authUrl}\n\n${qrCode}`)
+      globalInfo(`Authenticate your account at:\n${error.body.authUrl}\n\n${qrCode}`)
       otp = await pollForWebAuthToken(
         error.body.doneUrl,
-        { Date: context.Date, setTimeout: context.setTimeout, fetch: context.fetch },
+        { Date: Date, setTimeout: setTimeout, fetch: fetch },
         fetchOptions
       )
     } else {
-      const enquirerResponse = await context.enquirer.prompt({
+      const enquirerResponse = await enquirer.prompt({
         message: 'This operation requires a one-time password.\nEnter OTP:',
         name: 'otp',
         type: 'input',
