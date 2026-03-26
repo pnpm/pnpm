@@ -1,5 +1,20 @@
 import { execSync } from 'node:child_process'
+import path from 'node:path'
 import { globalWarn } from '@pnpm/logger'
+
+/**
+ * Check if a file is a native binary that could be blocked by Gatekeeper.
+ * 
+ * Only native binaries (.node, .dylib, .so, .dll) are affected by Gatekeeper blocking.
+ * Removing quarantine from JavaScript/text files has no effect and wastes time.
+ * 
+ * @param filePath - Path to check
+ * @returns true if file is a native binary
+ */
+export function isNativeBinary (filePath: string): boolean {
+  const ext = path.extname(filePath).toLowerCase()
+  return ['.node', '.dylib', '.so', '.dll'].includes(ext)
+}
 
 /**
  * Remove macOS Gatekeeper quarantine extended attribute from a file.

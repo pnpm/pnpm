@@ -11,7 +11,7 @@ import { fastPathTemp as pathTemp } from 'path-temp'
 import { renameOverwriteSync } from 'rename-overwrite'
 
 import { type ImportFile, importIndexedDir } from './importIndexedDir.js'
-import { removeQuarantine } from './removeQuarantine.js'
+import { isNativeBinary, removeQuarantine } from './removeQuarantine.js'
 
 export { type FilesMap, type ImportIndexedPackage, type ImportOptions }
 
@@ -158,8 +158,10 @@ function createCloneFunction (): CloneFunction {
       try {
         reflinkFileSync(fr, to)
         // Reflinks (copy-on-write clones) preserve extended attributes.
-        // Remove quarantine xattr after creating the reflink.
-        removeQuarantine(to)
+        // Only remove quarantine from native binaries (performance optimization).
+        if (isNativeBinary(to)) {
+          removeQuarantine(to)
+        }
       } catch (err: unknown) {
         // If the file already exists, then we just proceed.
         // This will probably only happen if the package's index file contains the same file twice.
@@ -171,8 +173,11 @@ function createCloneFunction (): CloneFunction {
   return (src: string, dest: string) => {
     try {
       fs.copyFileSync(src, dest, constants.COPYFILE_FICLONE_FORCE)
-      // COPYFILE_FICLONE_FORCE creates a reflink which preserves xattrs
-      removeQuarantine(dest)
+      // COPYFILE_FICLONE_FORCE creates a reflink which preserves xattrs.
+      // Only remove quarantine from native binaries (performance optimization).
+      if (isNativeBinary(dest)) {
+        removeQuarantine(dest)
+      }
     } catch (err: unknown) {
       if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
     }
@@ -217,8 +222,10 @@ function linkOrCopy (existingPath: string, newPath: string): void {
     // In that case, we just fall back to copying.
     // This issue is reproducible with "pnpm add @material-ui/icons@4.9.1"
     fs.copyFileSync(existingPath, newPath)
-    // When falling back to copy, remove quarantine xattr
-    removeQuarantine(newPath)
+    // When falling back to copy, only remove quarantine from native binaries.
+    if (isNativeBinary(newPath)) {
+      removeQuarantine(newPath)
+    }
   }
 }
 
@@ -258,10 +265,15 @@ export function copyPkg (
  * extended attributes including com.apple.quarantine. After integrity verification,
  * the quarantine xattr serves no security purpose and causes Gatekeeper to block
  * native binaries (.node files).
+ * 
+ * Performance optimization: Only check native binaries (.node, .dylib, .so, .dll).
+ * Quarantine only affects executables, so removing it from JS/text files wastes time.
  */
 function copyFileSyncWithQuarantineRemoval (src: string, dest: string): void {
   fs.copyFileSync(src, dest)
-  removeQuarantine(dest)
+  if (isNativeBinary(dest)) {
+    removeQuarantine(dest)
+  }
 }
 
 function atomicCopyFileSync (src: string, dest: string): void {
@@ -275,6 +287,8 @@ function atomicCopyFileSync (src: string, dest: string): void {
     throw err
   }
   renameOverwriteSync(tmp, dest)
-  // Remove quarantine after the atomic rename completes
-  removeQuarantine(dest)
+  // Remove quarantine after the atomic rename completes (native binaries only).
+  if (isNativeBinary(dest)) {
+    removeQuarantine(dest)
+  }
 }
