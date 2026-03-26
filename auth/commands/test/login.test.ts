@@ -35,12 +35,12 @@ function createMockResponse (init: {
     ok: init.ok,
     status: init.status,
     json: async () => {
-      if (bodyConsumed) throw new Error('mock response body already consumed')
+      if (bodyConsumed) throw new Error('Unexpected double consumption of response body')
       bodyConsumed = true
       return init.json ?? {}
     },
     text: async () => {
-      if (bodyConsumed) throw new Error('mock response body already consumed')
+      if (bodyConsumed) throw new Error('Unexpected double consumption of response body')
       bodyConsumed = true
       return init.text ?? ''
     },
