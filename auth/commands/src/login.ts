@@ -194,7 +194,7 @@ async function webLogin (
       // A: This header doesn't say "I prefer web-based authentication";
       //    it only says "I am capable of web-based authentication".
       //    The npm CLI does the same:
-      //    <https://github.com/npm/npm-registry-fetch/blob/844230f/lib/index.js#L197-L199>
+      //    <https://github.com/npm/npm-registry-fetch/blob/844230f/lib/index.js#L196-L198>
       'npm-auth-type': 'web',
     },
     body: JSON.stringify({}),
