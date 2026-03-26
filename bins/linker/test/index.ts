@@ -98,12 +98,12 @@ test('linkBins() skips bins that already reference the correct target', async ()
   expect(fs.readFileSync(binLocation, 'utf8')).toBe(sentinel)
 })
 
-test('linkBins() rewrites bins that reference a different target', async () => {
+test('linkBins() rewrites bins that lack a target marker', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()
   const simpleFixture = f.prepare('simple-fixture')
 
-  // Create a stale bin that references a wrong path
+  // Create a stale bin without a cmd-shim-target marker
   fs.mkdirSync(binTarget, { recursive: true })
   const binLocation = path.join(binTarget, 'simple')
   fs.writeFileSync(binLocation, '#!/bin/sh\n"$basedir/../wrong-pkg/index.js" "$@"', 'utf8')
