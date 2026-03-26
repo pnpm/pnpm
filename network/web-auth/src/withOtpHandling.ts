@@ -18,8 +18,12 @@ export interface OtpPromptResponse {
   otp?: string
 }
 
+interface OtpDate {
+  now: () => number
+}
+
 export interface OtpContext {
-  Date: { now: () => number }
+  Date: OtpDate
   setTimeout: (cb: () => void, ms: number) => void
   enquirer: OtpEnquirer
   fetch: (url: string, options: WebAuthFetchOptions) => Promise<WebAuthFetchResponse>
