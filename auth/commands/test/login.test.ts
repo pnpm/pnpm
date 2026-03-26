@@ -6,20 +6,20 @@ const TEST_CONTEXT: LoginContext = {
     cb()
   },
   enquirer: { prompt: async () => {
-    throw new Error('unexpected prompt call')
+    throw new Error('Unexpected call to enquirer.prompt')
   } },
   fetch: async url => {
-    throw new Error(`unexpected fetch call: ${url}`)
+    throw new Error(`Unexpected call to fetch: ${url}`)
   },
   globalInfo: message => {
-    throw new Error(`unexpected globalInfo call: ${message}`)
+    throw new Error(`Unexpected call to globalInfo: ${message}`)
   },
   process: { stdin: { isTTY: true }, stdout: { isTTY: true } },
   readIniFile: async path => {
-    throw new Error(`unexpected readIniFile call: ${path}`)
+    throw new Error(`Unexpected call to readIniFile: ${path}`)
   },
   writeIniFile: async path => {
-    throw new Error(`unexpected writeIniFile call: ${path}`)
+    throw new Error(`Unexpected call to writeIniFile: ${path}`)
   },
 }
 
@@ -111,7 +111,7 @@ describe('login', () => {
               json: { token: 'web-auth-token-123' },
             })
           }
-          throw new Error(`unexpected fetch call: ${url}`)
+          throw new Error(`Unexpected call to fetch: ${url}`)
         },
       },
     })
@@ -165,14 +165,14 @@ describe('login', () => {
               json: { ok: true, token: 'classic-token-456' },
             })
           }
-          throw new Error(`unexpected fetch call: ${url}`)
+          throw new Error(`Unexpected call to fetch: ${url}`)
         },
         enquirer: {
           prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
             if (opts.name === 'username') return { username: 'john' }
             if (opts.name === 'password') return { password: 'secret' }
             if (opts.name === 'email') return { email: 'john@example.com' }
-            throw new Error(`unexpected prompt call: ${opts.name}`)
+            throw new Error(`Unexpected call to enquirer.prompt: ${opts.name}`)
           },
         },
       },
@@ -233,7 +233,7 @@ describe('login', () => {
               json: { ok: true, token: 'otp-token-789' },
             })
           }
-          throw new Error(`unexpected fetch call: ${url}`)
+          throw new Error(`Unexpected call to fetch: ${url}`)
         },
         enquirer: {
           prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
@@ -241,7 +241,7 @@ describe('login', () => {
             if (opts.name === 'password') return { password: 'pass' }
             if (opts.name === 'email') return { email: 'alice@example.com' }
             if (opts.name === 'otp') return { otp: '999999' }
-            throw new Error(`unexpected prompt call: ${opts.name}`)
+            throw new Error(`Unexpected call to enquirer.prompt: ${opts.name}`)
           },
         },
       },
@@ -306,14 +306,14 @@ describe('login', () => {
               json: { token: 'web-tok' },
             })
           }
-          throw new Error(`unexpected fetch call: ${url}`)
+          throw new Error(`Unexpected call to fetch: ${url}`)
         },
         enquirer: {
           prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
             if (opts.name === 'username') return { username: 'bob' }
             if (opts.name === 'password') return { password: 'pass' }
             if (opts.name === 'email') return { email: 'bob@example.com' }
-            throw new Error(`unexpected prompt call: ${opts.name}`)
+            throw new Error(`Unexpected call to enquirer.prompt: ${opts.name}`)
           },
         },
       },
@@ -359,7 +359,7 @@ describe('login', () => {
             if (opts.name === 'username') return { username: 'alice' }
             if (opts.name === 'password') return { password: 'pass' }
             if (opts.name === 'email') return { email: 'alice@example.com' }
-            throw new Error('should not prompt for OTP')
+            throw new Error(`Unexpected call to enquirer.prompt: ${opts.name}`)
           },
         },
       },
@@ -387,14 +387,14 @@ describe('login', () => {
               text: 'Not Found',
             })
           }
-          throw new Error(`unexpected fetch call: ${url}`)
+          throw new Error(`Unexpected call to fetch: ${url}`)
         },
         enquirer: {
           prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
             if (opts.name === 'username') return { username: '' }
             if (opts.name === 'password') return { password: 'pass' }
             if (opts.name === 'email') return { email: 'a@b.com' }
-            throw new Error(`unexpected prompt call: ${opts.name}`)
+            throw new Error(`Unexpected call to enquirer.prompt: ${opts.name}`)
           },
         },
       },
@@ -429,14 +429,14 @@ describe('login', () => {
               json: { ok: true },
             })
           }
-          throw new Error(`unexpected fetch call: ${url}`)
+          throw new Error(`Unexpected call to fetch: ${url}`)
         },
         enquirer: {
           prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
             if (opts.name === 'username') return { username: 'alice' }
             if (opts.name === 'password') return { password: 'pass' }
             if (opts.name === 'email') return { email: 'alice@example.com' }
-            throw new Error(`unexpected prompt call: ${opts.name}`)
+            throw new Error(`Unexpected call to enquirer.prompt: ${opts.name}`)
           },
         },
       },
@@ -464,7 +464,7 @@ describe('login', () => {
               json: { loginUrl: 'https://example.org/auth' },
             })
           }
-          throw new Error(`unexpected fetch call: ${url}`)
+          throw new Error(`Unexpected call to fetch: ${url}`)
         },
       },
     })).rejects.toThrow('The registry returned an invalid response for web-based login')
@@ -502,14 +502,14 @@ describe('login', () => {
               json: { ok: true, token: 'token-405' },
             })
           }
-          throw new Error(`unexpected fetch call: ${url}`)
+          throw new Error(`Unexpected call to fetch: ${url}`)
         },
         enquirer: {
           prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
             if (opts.name === 'username') return { username: 'jane' }
             if (opts.name === 'password') return { password: 'pass' }
             if (opts.name === 'email') return { email: 'jane@example.com' }
-            throw new Error(`unexpected prompt call: ${opts.name}`)
+            throw new Error(`Unexpected call to enquirer.prompt: ${opts.name}`)
           },
         },
       },
@@ -555,7 +555,7 @@ describe('login', () => {
             if (opts.name === 'username') return { username: 'alice' }
             if (opts.name === 'password') return { password: 'pass' }
             if (opts.name === 'email') return { email: 'alice@example.com' }
-            throw new Error('should not prompt for OTP')
+            throw new Error(`Unexpected call to enquirer.prompt: ${opts.name}`)
           },
         },
       },
