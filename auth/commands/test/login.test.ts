@@ -28,7 +28,7 @@ function createMockResponse (init: {
   status: number
   json?: unknown
   text?: string
-  headers?: { get: (name: string) => string | null }
+  headers?: LoginFetchResponse['headers']
 }): LoginFetchResponse {
   let bodyConsumed = false
   return {
@@ -47,7 +47,7 @@ function createMockResponse (init: {
     headers: init.headers ?? {
       get: name => {
         throw new Error(`unexpected headers.get call: ${name}`)
-      }
+      },
     },
   }
 }

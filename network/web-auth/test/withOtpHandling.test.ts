@@ -12,7 +12,7 @@ function createMockResponse (init: {
   ok: boolean
   status: number
   json?: unknown
-  headers?: { get: (name: string) => string | null }
+  headers?: WebAuthFetchResponse['headers']
 }): WebAuthFetchResponse {
   let bodyConsumed = false
   return {
@@ -26,7 +26,7 @@ function createMockResponse (init: {
     headers: init.headers ?? {
       get: name => {
         throw new Error(`unexpected headers.get call: ${name}`)
-      }
+      },
     },
   }
 }
