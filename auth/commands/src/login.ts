@@ -18,22 +18,6 @@ import { readIniFile } from 'read-ini-file'
 import { renderHelp } from 'render-help'
 import { writeIniFile } from 'write-ini-file'
 
-export type Settings = Record<string, unknown>
-
-export interface LoginDate {
-  now: () => number
-}
-
-export interface LoginEnquirer {
-  prompt: (options: LoginEnquirerOptions) => Promise<Record<string, string>>
-}
-
-export interface LoginEnquirerOptions {
-  message: string
-  name: string
-  type: string
-}
-
 export function rcOptionsTypes (): Record<string, unknown> {
   return { registry: allTypes.registry }
 }
@@ -82,6 +66,22 @@ export async function handler (
   opts: LoginCommandOptions
 ): Promise<string> {
   return login({ opts })
+}
+
+export type Settings = Record<string, unknown>
+
+export interface LoginDate {
+  now: () => number
+}
+
+export interface LoginEnquirer {
+  prompt: (options: LoginEnquirerOptions) => Promise<Record<string, string>>
+}
+
+export interface LoginEnquirerOptions {
+  message: string
+  name: string
+  type: string
 }
 
 export interface LoginFetchResponse {
