@@ -275,10 +275,7 @@ async function classicLogin (
       if (!response.ok) {
         await throwIfOtpRequired(response)
         const text = await response.text()
-        throw new PnpmError(
-          'LOGIN_FAILED',
-          `Login failed (HTTP ${response.status}): ${text}`
-        )
+        throw new ClassicLoginError(response.status, text)
       }
 
       const body = await response.json() as { token?: string }
@@ -339,6 +336,16 @@ async function safeReadIniFile (configPath: string): Promise<Settings> {
 
 function isWebLoginNotSupported (err: unknown): boolean {
   return err instanceof WebLoginError && (err.httpStatus === 404 || err.httpStatus === 405)
+}
+
+class ClassicLoginError extends PnpmError {
+  readonly httpStatus: number
+  readonly responseText: string
+  constructor (httpStatus: number, responseText: string) {
+    super('LOGIN_FAILED', `Login failed (HTTP ${httpStatus}): ${responseText}`)
+    this.httpStatus = httpStatus
+    this.responseText = responseText
+  }
 }
 
 class WebLoginError extends PnpmError {
