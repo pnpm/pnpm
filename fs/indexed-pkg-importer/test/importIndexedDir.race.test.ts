@@ -82,7 +82,7 @@ test('non-safeToSkip falls through to staging when target already exists', () =>
   expect(fs.existsSync(path.join(newDir, 'stale.js'))).toBe(false)
 })
 
-test('fast path does not empty directory created by concurrent importer', () => {
+test('pre-existing dir falls back to staging without emptying it first', () => {
   const tmp = tempDir()
   const srcDir = path.join(tmp, 'src')
   fs.mkdirSync(srcDir, { recursive: true })
@@ -92,10 +92,10 @@ test('fast path does not empty directory created by concurrent importer', () => 
 
   const newDir = path.join(tmp, 'dest')
 
-  // Pre-create target (simulates a concurrent importer that created the dir)
+  // Pre-create target with extra files (e.g. from a concurrent or previous import)
   fs.mkdirSync(newDir, { recursive: true })
   fs.writeFileSync(path.join(newDir, 'package.json'), '{"name":"pkg"}')
-  fs.writeFileSync(path.join(newDir, 'index.js'), 'concurrent write in progress')
+  fs.writeFileSync(path.join(newDir, 'index.js'), 'existing content')
 
   const filenames = new Map([['package.json', srcPkgJson]])
 
@@ -106,8 +106,8 @@ test('fast path does not empty directory created by concurrent importer', () => 
 
   importIndexedDir({ importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync }, newDir, filenames, { safeToSkip: false })
 
-  // The concurrent importer's extra file should NOT be wiped by the fast path.
-  // Instead, the staging path should have atomically replaced the directory.
+  // mkdirSync(newDir) throws EEXIST, so the fast path is skipped.
+  // The staging path should handle the replacement via renameOverwriteSync.
   expect(renameOverwriteSyncMock).toHaveBeenCalled()
 })
 

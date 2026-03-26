@@ -49,7 +49,14 @@ export function importIndexedDir (
       fs.mkdirSync(path.dirname(newDir), { recursive: true })
       fs.mkdirSync(newDir)
       claimed = true
-    } catch {} // eslint-disable-line:no-empty
+    } catch (err) {
+      // EEXIST means another process or previous install created the dir —
+      // fall through to allFilesMatch or the staging path.
+      // Other errors (EACCES, EROFS, ENOTDIR) should propagate.
+      if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) {
+        throw err
+      }
+    }
     if (claimed) {
       try {
         tryImportIndexedDir(importer, newDir, filenames)
