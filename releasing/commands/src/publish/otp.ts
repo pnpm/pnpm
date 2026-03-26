@@ -49,19 +49,13 @@ export interface OtpParams {
  * @see https://github.com/npm/npm-profile/blob/main/lib/index.js for the webauth polling flow.
  */
 export async function publishWithOtpHandling ({
-  context: {
-    Date,
-    setTimeout,
-    enquirer,
-    fetch,
-    globalInfo,
-    process,
-    publish,
-  } = SHARED_CONTEXT,
+  context = SHARED_CONTEXT,
   manifest,
   publishOptions,
   tarballData,
 }: OtpParams): Promise<OtpPublishResponse> {
+  const { publish } = context
+
   const fetchOptions: WebAuthFetchOptions = {
     method: 'GET',
     retry: {
@@ -73,11 +67,9 @@ export async function publishWithOtpHandling ({
     timeout: publishOptions.timeout,
   }
 
-  const otpContext: OtpHandlingContext = { Date, setTimeout, enquirer, fetch, globalInfo, process }
-
   return withOtpHandling(
     (otp) => publish(manifest, tarballData, otp != null ? { ...publishOptions, otp } : publishOptions),
-    otpContext,
+    context,
     fetchOptions
   )
 }
