@@ -347,7 +347,7 @@ describe('SyntheticOtpError.fromUnknownBody', () => {
 
   it('warns when authUrl has wrong type', () => {
     const warnings: string[] = []
-    const err = SyntheticOtpError.fromUnknownBody(msg => { warnings.push(msg) }, {
+    const err = SyntheticOtpError.fromUnknownBody(msg => warnings.push(msg), {
       authUrl: 123,
       doneUrl: 'https://example.com/done',
     })
@@ -359,7 +359,7 @@ describe('SyntheticOtpError.fromUnknownBody', () => {
 
   it('warns when doneUrl has wrong type', () => {
     const warnings: string[] = []
-    const err = SyntheticOtpError.fromUnknownBody(msg => { warnings.push(msg) }, {
+    const err = SyntheticOtpError.fromUnknownBody(msg => warnings.push(msg), {
       authUrl: 'https://example.com/auth',
       doneUrl: true,
     })
@@ -371,7 +371,7 @@ describe('SyntheticOtpError.fromUnknownBody', () => {
 
   it('warns for both when both have wrong types', () => {
     const warnings: string[] = []
-    const err = SyntheticOtpError.fromUnknownBody(msg => { warnings.push(msg) }, {
+    const err = SyntheticOtpError.fromUnknownBody(msg => warnings.push(msg), {
       authUrl: 42,
       doneUrl: false,
     })
