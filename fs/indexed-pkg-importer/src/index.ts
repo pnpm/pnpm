@@ -150,8 +150,7 @@ function pickFileFromFilesMap (filesMap: FilesMap): string {
 }
 
 /**
- * Creates an Importer that clones files via reflink (or FICLONE_FORCE on
- * Linux).  Reflinks are atomic, so clone can serve as both importFile and
+ * Creates an Importer that clones files via reflink.  Reflinks are atomic, so clone can serve as both importFile and
  * importFileAtomic.  However, on Linux copy_file_range can transiently fail
  * with ENOTSUP under heavy parallel I/O, so we fall back to copy on ENOTSUP.
  * Regular files use a simple copy; package.json (the completion marker) uses
