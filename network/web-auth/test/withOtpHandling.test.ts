@@ -34,24 +34,24 @@ function createMockResponse (init: {
 }
 
 const createOtpMockContext = (overrides?: Partial<OtpContext>): OtpContext => ({
-    Date: { now: () => 0 },
-    setTimeout: (cb: () => void) => cb(),
-    enquirer: { prompt: async () => ({ otp: '123456' }) },
-    fetch: async () => createMockResponse({
-      ok: false,
-      status: 404,
-    }),
-    globalInfo: msg => {
-      throw new Error(`Unexpected call to globalInfo: ${msg}`)
-    },
-    globalWarn: msg => {
-      throw new Error(`Unexpected call to globalWarn: ${msg}`)
-    },
-    process: {
-      stdin: { isTTY: true },
-      stdout: { isTTY: true },
-    },
-    ...overrides,
+  Date: { now: () => 0 },
+  setTimeout: (cb: () => void) => cb(),
+  enquirer: { prompt: async () => ({ otp: '123456' }) },
+  fetch: async () => createMockResponse({
+    ok: false,
+    status: 404,
+  }),
+  globalInfo: msg => {
+    throw new Error(`Unexpected call to globalInfo: ${msg}`)
+  },
+  globalWarn: msg => {
+    throw new Error(`Unexpected call to globalWarn: ${msg}`)
+  },
+  process: {
+    stdin: { isTTY: true },
+    stdout: { isTTY: true },
+  },
+  ...overrides,
 })
 
 const fetchOptions: WebAuthFetchOptions = { method: 'GET' }
