@@ -131,8 +131,7 @@ describe('login', () => {
     expect(savedSettings).toMatchObject({
       '//example.com/npm/:_authToken': 'web-auth-token-123',
     })
-    expect(infoMessages).toHaveLength(1)
-    expect(infoMessages[0]).toContain('https://example.com/auth/login')
+    expect(infoMessages).toEqual([expect.stringContaining('https://example.com/auth/login')])
   })
 
   it('should fall back to classic login when web login returns 404', async () => {

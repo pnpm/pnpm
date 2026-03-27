@@ -222,7 +222,7 @@ describe('withOtpHandling', () => {
       expect(result).toBe('published')
       expect(operationCallCount).toBe(2)
       expect(fetchCallCount).toBe(3)
-      expect(infoMessages[0]).toContain('https://registry.npmjs.org/auth/abc')
+      expect(infoMessages).toEqual([expect.stringContaining('https://registry.npmjs.org/auth/abc')])
     })
 
     it('falls back to classic prompt when only authUrl is present (no doneUrl)', async () => {
@@ -353,8 +353,7 @@ describe('SyntheticOtpError.fromUnknownBody', () => {
       authUrl: 123,
       doneUrl: 'https://example.com/done',
     })
-    expect(warnings).toHaveLength(1)
-    expect(warnings[0]).toContain('authUrl')
+    expect(warnings).toEqual([expect.stringContaining('authUrl')])
     expect(err.body?.authUrl).toBeUndefined()
     expect(err.body?.doneUrl).toBe('https://example.com/done')
   })
@@ -365,8 +364,7 @@ describe('SyntheticOtpError.fromUnknownBody', () => {
       authUrl: 'https://example.com/auth',
       doneUrl: true,
     })
-    expect(warnings).toHaveLength(1)
-    expect(warnings[0]).toContain('doneUrl')
+    expect(warnings).toEqual([expect.stringContaining('doneUrl')])
     expect(err.body?.authUrl).toBe('https://example.com/auth')
     expect(err.body?.doneUrl).toBeUndefined()
   })
@@ -377,7 +375,10 @@ describe('SyntheticOtpError.fromUnknownBody', () => {
       authUrl: 42,
       doneUrl: false,
     })
-    expect(warnings).toHaveLength(2)
+    expect(warnings).toEqual([
+      expect.stringContaining('authUrl'),
+      expect.stringContaining('doneUrl'),
+    ])
     expect(err.body?.authUrl).toBeUndefined()
     expect(err.body?.doneUrl).toBeUndefined()
   })
