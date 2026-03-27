@@ -1,3 +1,5 @@
+import { jest } from '@jest/globals'
+
 import { login, type LoginContext, type LoginFetchResponse } from '../src/login.js'
 
 const TEST_CONTEXT: LoginContext = {

@@ -36,6 +36,7 @@
     "qrcode-terminal": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/network.web-auth": "workspace:*",
     "@types/qrcode-terminal": "catalog:"
   },
