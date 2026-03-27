@@ -20,8 +20,6 @@ export function cliOptionsTypes (): Record<string, unknown> {
     'no-git-checks': Boolean,
     'no-commit-hooks': Boolean,
     'no-strict': Boolean,
-    'workspace': Boolean,
-    'workspaces': Boolean,
     'preid': String,
     'tag-version-prefix': String,
     recursive: Boolean,
@@ -33,7 +31,7 @@ export const commandNames = ['version']
 
 export function help (): string {
   return renderHelp({
-    description: 'Bumps the version of packages in a workspace.',
+    description: 'Bumps the version of a package.',
     usages: [
       'pnpm version <major|minor|patch|premajor|preminor|prepatch|prerelease>',
     ],
@@ -60,10 +58,6 @@ export function help (): string {
           {
             description: 'Skip running commit hooks',
             name: '--no-commit-hooks',
-          },
-          {
-            description: 'Apply to all workspace packages',
-            name: '--workspace',
           },
           {
             description: 'Filter packages by name (glob pattern)',
@@ -95,8 +89,6 @@ interface VersionHandlerOptions extends Config {
   noGitChecks?: boolean
   noCommitHooks?: boolean
   noStrict?: boolean
-  workspace?: boolean
-  workspaces?: boolean
   preid?: string
   tagVersionPrefix?: string
   recursive?: boolean
@@ -114,8 +106,6 @@ export async function handler (
     throw new PnpmError('INVALID_VERSION_BUMP', 'Invalid version bump type. Must be one of: major, minor, patch, premajor, preminor, prepatch, prerelease')
   }
 
-  const isWorkspace = opts.workspace || opts.workspaces || opts.recursive || opts.workspaceRoot
-
   // Check git status if needed
   if (!opts.noGitChecks && await isGitRepo()) {
     if (!await isWorkingTreeClean()) {
@@ -125,7 +115,7 @@ export async function handler (
 
   const changes: VersionChange[] = []
 
-  if (isWorkspace) {
+  if (opts.recursive) {
     // Handle workspace versioning
     const workspaceDir = opts.workspaceDir || opts.dir
     const filters: WorkspaceFilter[] = []
