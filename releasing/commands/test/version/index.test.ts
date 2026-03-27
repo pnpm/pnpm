@@ -39,37 +39,27 @@ describe('version command', () => {
   })
 
   it('should throw error with invalid bump type', async () => {
-    expect.assertions(1)
-    const manifest = {
-      name: 'test-pkg',
-      version: '1.0.0',
-    }
-    fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify(manifest, null, 2))
+    fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({ name: 'test-pkg', version: '1.0.0' }))
 
-    try {
-      await handler({
+    await expect(
+      handler({
         dir: tempDir,
         workspaceDir: tempDir,
         noGitChecks: true,
       } as any, ['invalid']) // eslint-disable-line @typescript-eslint/no-explicit-any
-    } catch (err: unknown) {
-      expect((err as { code: string }).code).toBe('ERR_PNPM_INVALID_VERSION_BUMP')
-    }
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_VERSION_BUMP' })
   })
 
   it('should throw error when no bump type is provided', async () => {
-    expect.assertions(1)
     fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({ name: 'test-pkg', version: '1.0.0' }))
 
-    try {
-      await handler({
+    await expect(
+      handler({
         dir: tempDir,
         workspaceDir: tempDir,
         noGitChecks: true,
       } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
-    } catch (err: unknown) {
-      expect((err as { code: string }).code).toBe('ERR_PNPM_INVALID_VERSION_BUMP')
-    }
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_VERSION_BUMP' })
   })
 
   it('should bump major version', async () => {
@@ -161,33 +151,27 @@ describe('version command', () => {
   })
 
   it('should throw when package has no name or version', async () => {
-    expect.assertions(1)
     fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({}))
 
-    try {
-      await handler({
+    await expect(
+      handler({
         dir: tempDir,
         workspaceDir: tempDir,
         noGitChecks: true,
       } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
-    } catch (err: unknown) {
-      expect((err as { code: string }).code).toBe('ERR_PNPM_NO_PACKAGES_TO_VERSION')
-    }
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_NO_PACKAGES_TO_VERSION' })
   })
 
   it('should throw when package has an invalid version', async () => {
-    expect.assertions(1)
     fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({ name: 'test-pkg', version: 'not-a-version' }))
 
-    try {
-      await handler({
+    await expect(
+      handler({
         dir: tempDir,
         workspaceDir: tempDir,
         noGitChecks: true,
       } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
-    } catch (err: unknown) {
-      expect((err as { code: string }).code).toBe('ERR_PNPM_INVALID_VERSION')
-    }
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_VERSION' })
   })
 
   describe('recursive mode', () => {
