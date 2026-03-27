@@ -344,7 +344,6 @@ describe('login', () => {
       },
       context: {
         ...TEST_CONTEXT,
-        globalInfo: () => {},
         readIniFile: async () => ({}),
         writeIniFile: async () => {},
         fetch: async url => {
@@ -386,7 +385,6 @@ describe('login', () => {
       },
       context: {
         ...TEST_CONTEXT,
-        globalInfo: () => {},
         readIniFile: async () => ({}),
         writeIniFile: async () => {},
         fetch: async url => {
@@ -423,7 +421,6 @@ describe('login', () => {
       },
       context: {
         ...TEST_CONTEXT,
-        globalInfo: () => {},
         readIniFile: async () => ({}),
         writeIniFile: async () => {},
         fetch: async url => {
@@ -467,7 +464,6 @@ describe('login', () => {
       },
       context: {
         ...TEST_CONTEXT,
-        globalInfo: () => {},
         readIniFile: async () => ({}),
         writeIniFile: async () => {},
         fetch: async url => {
@@ -488,6 +484,7 @@ describe('login', () => {
 
   it('should fall back to classic login when web login returns 405', async () => {
     let savedSettings: Record<string, unknown> = {}
+    const globalInfo = jest.fn()
 
     const result = await login({
       opts: {
@@ -498,7 +495,7 @@ describe('login', () => {
       },
       context: {
         ...TEST_CONTEXT,
-        globalInfo: () => {},
+        globalInfo,
         readIniFile: async () => ({}),
         writeIniFile: async (_configPath, settings) => {
           savedSettings = settings
@@ -535,6 +532,7 @@ describe('login', () => {
     expect(savedSettings).toMatchObject({
       '//example.org/:_authToken': 'token-405',
     })
+    expect(globalInfo).toHaveBeenCalledWith('Logged in as jane')
   })
 
   it('should not trigger OTP for 401 without www-authenticate otp header', async () => {
@@ -547,7 +545,6 @@ describe('login', () => {
       },
       context: {
         ...TEST_CONTEXT,
-        globalInfo: () => {},
         readIniFile: async () => ({}),
         writeIniFile: async () => {},
         fetch: async url => {
@@ -582,6 +579,7 @@ describe('login', () => {
 
   it('should succeed when config file does not exist (ENOENT)', async () => {
     let savedSettings: Record<string, unknown> = {}
+    const globalInfo = jest.fn()
 
     const result = await login({
       opts: {
@@ -592,7 +590,7 @@ describe('login', () => {
       },
       context: {
         ...TEST_CONTEXT,
-        globalInfo: () => {},
+        globalInfo,
         readIniFile: async () => {
           throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' })
         },
@@ -623,6 +621,7 @@ describe('login', () => {
     expect(savedSettings).toMatchObject({
       '//example.org/:_authToken': 'new-token',
     })
+    expect(globalInfo).toHaveBeenCalledWith(expect.stringContaining('https://example.org/auth/login'))
   })
 
   it('should propagate non-ENOENT errors from readIniFile', async () => {
@@ -635,7 +634,6 @@ describe('login', () => {
       },
       context: {
         ...TEST_CONTEXT,
-        globalInfo: () => {},
         readIniFile: async () => {
           throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
         },

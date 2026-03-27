@@ -273,8 +273,9 @@ describe('withOtpHandling', () => {
 
     it('throws WebAuthTimeoutError when webauth polling times out', async () => {
       let time = 0
+      const globalInfo = jest.fn()
       const context = createOtpMockContext({
-        globalInfo: () => {},
+        globalInfo,
         Date: { now: () => time },
         setTimeout: (cb: () => void) => {
           time += 6 * 60 * 1000
@@ -304,6 +305,7 @@ describe('withOtpHandling', () => {
         context,
         fetchOptions
       )).rejects.toBeInstanceOf(WebAuthTimeoutError)
+      expect(globalInfo).toHaveBeenCalledWith(expect.stringContaining('https://registry.npmjs.org/auth/abc'))
     })
   })
 })

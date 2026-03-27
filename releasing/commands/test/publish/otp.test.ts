@@ -146,8 +146,9 @@ describe('publishWithOtpHandling', () => {
     it('polls doneUrl and uses returned token', async () => {
       let publishCallCount = 0
       let fetchCallCount = 0
+      const globalInfo = jest.fn()
       const context = createMockContext({
-        globalInfo: () => {},
+        globalInfo,
         publish: async (_m, _t, opts) => {
           publishCallCount++
           if (publishCallCount === 1) {
@@ -189,8 +190,9 @@ describe('publishWithOtpHandling', () => {
     it('respects Retry-After header when polling', async () => {
       const setTimeoutDelays: number[] = []
       let fetchCallCount = 0
+      const globalInfo = jest.fn()
       const context = createMockContext({
-        globalInfo: () => {},
+        globalInfo,
         publish: async () => {
           if (fetchCallCount === 0) {
             throw Object.assign(new Error('otp'), {
@@ -230,13 +232,15 @@ describe('publishWithOtpHandling', () => {
       // second is the additional delay (5s Retry-After minus the 1s already waited),
       // third is the default 1s poll interval for the next iteration.
       expect(setTimeoutDelays).toStrictEqual([1000, 4000, 1000])
+      expect(globalInfo).toHaveBeenCalledWith(expect.stringContaining('https://registry.npmjs.org/auth/abc'))
     })
 
     it('continues polling when fetch throws', async () => {
       let publishCallCount = 0
       let fetchCallCount = 0
+      const globalInfo = jest.fn()
       const context = createMockContext({
-        globalInfo: () => {},
+        globalInfo,
         publish: async (_m, _t, opts) => {
           publishCallCount++
           if (publishCallCount === 1) {
