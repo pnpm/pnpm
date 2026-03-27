@@ -10,7 +10,7 @@ import type { FilesMap, ImportIndexedPackage, ImportOptions } from '@pnpm/store.
 import { fastPathTemp as pathTemp } from 'path-temp'
 import { renameOverwriteSync } from 'rename-overwrite'
 
-import { type ImportFile, importIndexedDir } from './importIndexedDir.js'
+import { type ImportFile, type Importer, importIndexedDir } from './importIndexedDir.js'
 
 export { type FilesMap, type ImportIndexedPackage, type ImportOptions }
 
@@ -124,13 +124,7 @@ function clonePkg (
   opts: ImportOptions
 ): 'clone' | undefined {
   if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
-    // Reflinks are atomic, so clone can serve as both importFile and
-    // importFileAtomic.  However, on ENOTSUP the clone falls back to a
-    // regular copy.  package.json is the completion marker and must be
-    // written atomically, so we use a temp+rename fallback for it.
-    const importFile = createCloneWithFallback(clone)
-    const importFileAtomic = createAtomicCloneWithFallback(clone)
-    importIndexedDir({ importFile, importFileAtomic }, to, opts.filesMap, opts)
+    importIndexedDir(createCloneImporter(clone), to, opts.filesMap, opts)
     return 'clone'
   }
   return undefined
@@ -174,41 +168,30 @@ function createCloneFunction (): CloneFunction {
     try {
       fs.copyFileSync(src, dest, constants.COPYFILE_FICLONE_FORCE)
     } catch (err: unknown) {
-      if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') return
-      throw err
+      if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
     }
   }
 }
 
 // On Linux, copy_file_range can transiently fail with ENOTSUP under heavy
-// parallel I/O.  These two wrappers add ENOTSUP fallbacks to the base clone
-// function: one for regular files (non-atomic) and one for package.json
-// (the completion marker, which must be written atomically via temp+rename).
-function createCloneWithFallback (clone: CloneFunction): CloneFunction {
-  return (src: string, dest: string) => {
+// parallel I/O.  This creates an Importer that falls back to copy on ENOTSUP.
+// Regular files use a simple copy; package.json (the completion marker) uses
+// a temp+rename fallback to stay atomic.
+function createCloneImporter (clone: CloneFunction): Importer {
+  const withFallback = (fallback: CloneFunction): ImportFile => (src, dest) => {
     try {
       clone(src, dest)
     } catch (err: unknown) {
       if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOTSUP') {
-        resilientCopyFileSync(src, dest)
+        fallback(src, dest)
         return
       }
       throw err
     }
   }
-}
-
-function createAtomicCloneWithFallback (clone: CloneFunction): CloneFunction {
-  return (src: string, dest: string) => {
-    try {
-      clone(src, dest)
-    } catch (err: unknown) {
-      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOTSUP') {
-        atomicCopyFileSync(src, dest)
-        return
-      }
-      throw err
-    }
+  return {
+    importFile: withFallback(resilientCopyFileSync),
+    importFileAtomic: withFallback(atomicCopyFileSync),
   }
 }
 
