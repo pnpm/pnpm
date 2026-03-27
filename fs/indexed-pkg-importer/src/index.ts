@@ -30,7 +30,7 @@ function createImportPackage (packageImportMethod?: PackageImportMethod): Import
   switch (packageImportMethod ?? 'auto') {
     case 'clone':
       packageImportMethodLogger.debug({ method: 'clone' })
-      return clonePkg.bind(null, createCloneFunction())
+      return clonePkg.bind(null, createCloneImporter(createCloneFunction()))
     case 'hardlink':
       packageImportMethodLogger.debug({ method: 'hardlink' })
       return hardlinkPkg.bind(null, linkOrCopy)
@@ -61,7 +61,8 @@ function createAutoImporter (): ImportIndexedPackage {
     // Hence, we prefer reflinks by default only on Linux and macOS.
     if (process.platform !== 'win32') {
       try {
-        const _clonePkg = clonePkg.bind(null, createCloneFunction())
+        const importer = createCloneImporter(createCloneFunction())
+        const _clonePkg = clonePkg.bind(null, importer)
         if (!_clonePkg(to, opts)) return undefined
         packageImportMethodLogger.debug({ method: 'clone' })
         auto = _clonePkg
@@ -102,7 +103,8 @@ function createCloneOrCopyImporter (): ImportIndexedPackage {
     opts: ImportOptions
   ): string | undefined {
     try {
-      const _clonePkg = clonePkg.bind(null, createCloneFunction())
+      const importer = createCloneImporter(createCloneFunction())
+      const _clonePkg = clonePkg.bind(null, importer)
       if (!_clonePkg(to, opts)) return undefined
       packageImportMethodLogger.debug({ method: 'clone' })
       auto = _clonePkg
@@ -119,12 +121,12 @@ function createCloneOrCopyImporter (): ImportIndexedPackage {
 type CloneFunction = (src: string, dest: string) => void
 
 function clonePkg (
-  clone: CloneFunction,
+  importer: Importer,
   to: string,
   opts: ImportOptions
 ): 'clone' | undefined {
   if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
-    importIndexedDir(createCloneImporter(clone), to, opts.filesMap, opts)
+    importIndexedDir(importer, to, opts.filesMap, opts)
     return 'clone'
   }
   return undefined
