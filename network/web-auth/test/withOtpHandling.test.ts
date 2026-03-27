@@ -180,11 +180,9 @@ describe('withOtpHandling', () => {
     it('polls doneUrl and uses returned token', async () => {
       let operationCallCount = 0
       let fetchCallCount = 0
-      const infoMessages: string[] = []
+      const globalInfo = jest.fn()
       const context = createOtpMockContext({
-        globalInfo: msg => {
-          infoMessages.push(msg)
-        },
+        globalInfo,
         fetch: async (): Promise<WebAuthFetchResponse> => {
           fetchCallCount++
           if (fetchCallCount < 3) {
@@ -222,7 +220,7 @@ describe('withOtpHandling', () => {
       expect(result).toBe('published')
       expect(operationCallCount).toBe(2)
       expect(fetchCallCount).toBe(3)
-      expect(infoMessages).toEqual([expect.stringContaining('https://registry.npmjs.org/auth/abc')])
+      expect(globalInfo.mock.calls).toEqual([[expect.stringContaining('https://registry.npmjs.org/auth/abc')]])
     })
 
     it('falls back to classic prompt when only authUrl is present (no doneUrl)', async () => {
@@ -350,36 +348,36 @@ describe('SyntheticOtpError.fromUnknownBody', () => {
   })
 
   it('warns when authUrl has wrong type', () => {
-    const warnings: string[] = []
-    const err = SyntheticOtpError.fromUnknownBody(msg => warnings.push(msg), {
+    const globalWarn = jest.fn()
+    const err = SyntheticOtpError.fromUnknownBody(globalWarn, {
       authUrl: 123,
       doneUrl: 'https://example.com/done',
     })
-    expect(warnings).toEqual([expect.stringContaining('authUrl')])
+    expect(globalWarn.mock.calls).toEqual([[expect.stringContaining('authUrl')]])
     expect(err.body?.authUrl).toBeUndefined()
     expect(err.body?.doneUrl).toBe('https://example.com/done')
   })
 
   it('warns when doneUrl has wrong type', () => {
-    const warnings: string[] = []
-    const err = SyntheticOtpError.fromUnknownBody(msg => warnings.push(msg), {
+    const globalWarn = jest.fn()
+    const err = SyntheticOtpError.fromUnknownBody(globalWarn, {
       authUrl: 'https://example.com/auth',
       doneUrl: true,
     })
-    expect(warnings).toEqual([expect.stringContaining('doneUrl')])
+    expect(globalWarn.mock.calls).toEqual([[expect.stringContaining('doneUrl')]])
     expect(err.body?.authUrl).toBe('https://example.com/auth')
     expect(err.body?.doneUrl).toBeUndefined()
   })
 
   it('warns for both when both have wrong types', () => {
-    const warnings: string[] = []
-    const err = SyntheticOtpError.fromUnknownBody(msg => warnings.push(msg), {
+    const globalWarn = jest.fn()
+    const err = SyntheticOtpError.fromUnknownBody(globalWarn, {
       authUrl: 42,
       doneUrl: false,
     })
-    expect(warnings).toEqual([
-      expect.stringContaining('authUrl'),
-      expect.stringContaining('doneUrl'),
+    expect(globalWarn.mock.calls).toEqual([
+      [expect.stringContaining('authUrl')],
+      [expect.stringContaining('doneUrl')],
     ])
     expect(err.body?.authUrl).toBeUndefined()
     expect(err.body?.doneUrl).toBeUndefined()

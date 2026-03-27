@@ -80,7 +80,7 @@ describe('login', () => {
 
   it('should use web login when registry supports it', async () => {
     const fetchedUrls: string[] = []
-    const infoMessages: string[] = []
+    const globalInfo = jest.fn()
     let savedPath = ''
     let savedSettings: Record<string, unknown> = {}
 
@@ -93,9 +93,7 @@ describe('login', () => {
       },
       context: {
         ...TEST_CONTEXT,
-        globalInfo: message => {
-          infoMessages.push(message)
-        },
+        globalInfo,
         readIniFile: async () => ({}),
         writeIniFile: async (configPath, settings) => {
           savedPath = configPath
@@ -131,12 +129,12 @@ describe('login', () => {
     expect(savedSettings).toMatchObject({
       '//example.com/npm/:_authToken': 'web-auth-token-123',
     })
-    expect(infoMessages).toEqual([expect.stringContaining('https://example.com/auth/login')])
+    expect(globalInfo.mock.calls).toEqual([[expect.stringContaining('https://example.com/auth/login')]])
   })
 
   it('should fall back to classic login when web login returns 404', async () => {
     const fetchedUrls: string[] = []
-    const infoMessages: string[] = []
+    const globalInfo = jest.fn()
     let savedPath = ''
     let savedSettings: Record<string, unknown> = {}
 
@@ -149,9 +147,7 @@ describe('login', () => {
       },
       context: {
         ...TEST_CONTEXT,
-        globalInfo: message => {
-          infoMessages.push(message)
-        },
+        globalInfo,
         readIniFile: async () => ({}),
         writeIniFile: async (configPath, settings) => {
           savedPath = configPath
@@ -193,12 +189,12 @@ describe('login', () => {
     expect(savedSettings).toMatchObject({
       '//example.org/:_authToken': 'classic-token-456',
     })
-    expect(infoMessages).toEqual(['Logged in as john'])
+    expect(globalInfo.mock.calls).toEqual([['Logged in as john']])
   })
 
   it('should handle classic OTP challenge during login', async () => {
     let putCallCount = 0
-    const infoMessages: string[] = []
+    const globalInfo = jest.fn()
 
     const result = await login({
       opts: {
@@ -209,9 +205,7 @@ describe('login', () => {
       },
       context: {
         ...TEST_CONTEXT,
-        globalInfo: message => {
-          infoMessages.push(message)
-        },
+        globalInfo,
         readIniFile: async () => ({}),
         writeIniFile: async () => {},
         fetch: async (url, options) => {
@@ -262,7 +256,7 @@ describe('login', () => {
   it('should handle webauth OTP challenge during login', async () => {
     let putCallCount = 0
     let pollCallCount = 0
-    const infoMessages: string[] = []
+    const globalInfo = jest.fn()
 
     const result = await login({
       opts: {
@@ -273,9 +267,7 @@ describe('login', () => {
       },
       context: {
         ...TEST_CONTEXT,
-        globalInfo: message => {
-          infoMessages.push(message)
-        },
+        globalInfo,
         readIniFile: async () => ({}),
         writeIniFile: async () => {},
         fetch: async (url, options) => {
@@ -331,7 +323,7 @@ describe('login', () => {
     expect(putCallCount).toBe(2)
     expect(pollCallCount).toBe(1)
     // Should have shown the auth URL and QR code
-    expect(infoMessages).toContainEqual(expect.stringMatching(/(?:^|\s)https:\/\/example\.org\/auth\/web(?:\s|$)/))
+    expect(globalInfo.mock.calls).toContainEqual([expect.stringMatching(/(?:^|\s)https:\/\/example\.org\/auth\/web(?:\s|$)/)])
   })
 
   it('should not trigger OTP for non-401 errors', async () => {
