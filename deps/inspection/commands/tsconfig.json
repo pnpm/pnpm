@@ -67,9 +67,6 @@
       "path": "../../../resolving/default-resolver"
     },
     {
-      "path": "../../../resolving/parse-wanted-dependency"
-    },
-    {
       "path": "../../../store/path"
     },
     {

@@ -3161,15 +3161,15 @@ importers:
       '@pnpm/network.fetch':
         specifier: workspace:*
         version: link:../../../network/fetch
+      '@pnpm/npm-package-arg':
+        specifier: 'catalog:'
+        version: 2.0.0
       '@pnpm/registry.types':
         specifier: workspace:*
         version: link:../../../registry/types
       '@pnpm/resolving.default-resolver':
         specifier: workspace:*
         version: link:../../../resolving/default-resolver
-      '@pnpm/resolving.parse-wanted-dependency':
-        specifier: workspace:*
-        version: link:../../../resolving/parse-wanted-dependency
       '@pnpm/semver-diff':
         specifier: 'catalog:'
         version: 1.1.0
@@ -3191,6 +3191,9 @@ importers:
       render-help:
         specifier: 'catalog:'
         version: 2.0.0
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.4
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -3219,6 +3222,9 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.31.1
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.7.1
       '@types/zkochan__table':
         specifier: 'catalog:'
         version: '@types/table@6.0.0'
