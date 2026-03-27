@@ -84,6 +84,8 @@ export type InstallDepsOptions = Pick<Config,
 | 'linkWorkspacePackages'
 | 'lockfileDir'
 | 'lockfileOnly'
+| 'minimumReleaseAge'
+| 'minimumReleaseAgeExclude'
 | 'production'
 | 'preferWorkspacePackages'
 | 'rawLocalConfig'
