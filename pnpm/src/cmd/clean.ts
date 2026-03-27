@@ -8,7 +8,9 @@ import { isSubdir } from 'is-subdir'
 import { pathExists } from 'path-exists'
 import { renderHelp } from 'render-help'
 
-export const commandNames = ['clean']
+export const commandNames = ['clean', 'purge']
+
+export const overridableByScript = true
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -24,9 +26,12 @@ export const shorthands: Record<string, string> = {
 
 export function help (): string {
   return renderHelp({
+    aliases: ['purge'],
     description: 'Safely remove node_modules directories from all workspace projects. \
 Uses Node.js to remove directories, which correctly handles NTFS junctions on Windows \
-without following them into their targets.',
+without following them into their targets. \
+If the current project has a "clean" (or "purge") script in package.json, \
+the script is executed instead of the built-in command.',
     descriptionLists: [
       {
         title: 'Options',

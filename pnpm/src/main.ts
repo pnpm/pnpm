@@ -17,6 +17,7 @@ import { PnpmError } from '@pnpm/error'
 import { globalWarn, logger } from '@pnpm/logger'
 import type { EngineDependency } from '@pnpm/types'
 import { finishWorkers } from '@pnpm/worker'
+import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { filterProjectsFromDir } from '@pnpm/workspace.projects-filter'
 import chalk from 'chalk'
 import loudRejection from 'loud-rejection'
@@ -24,7 +25,7 @@ import { isEmpty } from 'ramda'
 import semver from 'semver'
 
 import { checkForUpdates } from './checkForUpdates.js'
-import { NOT_IMPLEMENTED_COMMAND_SET, pnpmCmds, rcOptionsTypes, recursiveByDefaultCommands, skipPackageManagerCheckForCommand } from './cmd/index.js'
+import { NOT_IMPLEMENTED_COMMAND_SET, overridableByScriptCommands, pnpmCmds, rcOptionsTypes, recursiveByDefaultCommands, skipPackageManagerCheckForCommand } from './cmd/index.js'
 import { formatUnknownOptionsError } from './formatError.js'
 import { getConfig, installConfigDepsAndLoadHooks } from './getConfig.js'
 import { parseCliArgs } from './parseCliArgs.js'
@@ -64,7 +65,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     process.exitCode = 1
     return
   }
-  const {
+  let {
     argv,
     params: cliParams,
     options: cliOptions,
@@ -187,6 +188,39 @@ export async function main (inputArgv: string[]): Promise<void> {
       config,
     })
     global[REPORTER_INITIALIZED] = reporterType
+  }
+
+  // Commands with scriptOverride: if the current project's package.json has a
+  // script with the same name, run the script instead of the built-in command.
+  const typedCommandName = argv.remain[0]
+  if (cmd != null && overridableByScriptCommands.has(typedCommandName) && !cliOptions.global) {
+    const currentDirManifest = config.dir === config.rootProjectManifestDir
+      ? config.rootProjectManifest
+      : await safeReadProjectManifestOnly(config.dir)
+    if (currentDirManifest?.scripts?.[typedCommandName]) {
+      // Redirect to "pnpm run <cmd>"
+      cmd = 'run'
+      cliParams.unshift(typedCommandName)
+      fallbackCommandUsed = true
+      config.fallbackCommandUsed = true
+      config.extraEnv = {
+        ...config.extraEnv,
+        npm_command: 'run-script',
+      }
+    } else if (
+      workspaceDir &&
+      config.dir !== config.rootProjectManifestDir &&
+      config.rootProjectManifest?.scripts?.[typedCommandName]
+    ) {
+      throw new PnpmError(
+        'SCRIPT_OVERRIDE_IN_WORKSPACE_ROOT',
+        `The workspace root has a "${typedCommandName}" script, ` +
+        `so the built-in "pnpm ${typedCommandName}" command cannot run from a subdirectory`,
+        {
+          hint: `Run "pnpm run ${typedCommandName}" from the workspace root to execute the script`,
+        }
+      )
+    }
   }
 
   if (

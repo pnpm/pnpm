@@ -38,6 +38,8 @@ export function cliOptionsTypes (): Record<string, unknown> {
 
 export const commandNames = ['rebuild', 'rb']
 
+export const overridableByScript = true
+
 export function help (): string {
   return renderHelp({
     aliases: ['rb'],

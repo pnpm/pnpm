@@ -46,6 +46,8 @@ export function cliOptionsTypes (): Record<string, unknown> {
 
 export const commandNames = ['deploy']
 
+export const overridableByScript = true
+
 export function help (): string {
   return renderHelp({
     description: 'Experimental! Deploy a package from a workspace',
