@@ -64,7 +64,7 @@ test('runLifecycleHook() passes newline correctly', async () => {
   ])
 })
 
-test('runLifecycleHook() sets frozen-lockfile to false', async () => {
+test('runLifecycleHook() does not set npm_config env vars', async () => {
   const pkgRoot = f.find('inspect-frozen-lockfile')
   await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))
   const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
@@ -78,7 +78,7 @@ test('runLifecycleHook() sets frozen-lockfile to false', async () => {
     unsafePerm: true,
   })
 
-  expect(server.getLines()).toStrictEqual(['empty string'])
+  expect(server.getLines()).toStrictEqual(['unset'])
 })
 
 test('runPostinstallHooks()', async () => {
