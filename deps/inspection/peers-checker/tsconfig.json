@@ -1,0 +1,37 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../../__utils__/test-fixtures"
+    },
+    {
+      "path": "../../../config/matcher"
+    },
+    {
+      "path": "../../../config/parse-overrides"
+    },
+    {
+      "path": "../../../core/error"
+    },
+    {
+      "path": "../../../core/types"
+    },
+    {
+      "path": "../../../lockfile/fs"
+    },
+    {
+      "path": "../../../lockfile/walker"
+    },
+    {
+      "path": "../../path"
+    }
+  ]
+}

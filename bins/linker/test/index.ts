@@ -76,6 +76,44 @@ test('linkBins()', async () => {
   }
 })
 
+test('linkBins() skips bins that already reference the correct target', async () => {
+  const binTarget = temporaryDirectory()
+  const warn = jest.fn()
+  const simpleFixture = f.prepare('simple-fixture')
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+
+  const binLocation = path.join(binTarget, 'simple')
+  expect(fs.existsSync(binLocation)).toBe(true)
+  const originalContent = fs.readFileSync(binLocation, 'utf8')
+  // The bin contains a cmd-shim-target marker with the correct target path
+  const expectedTarget = normalizePath(path.join(simpleFixture, 'node_modules', 'simple', 'index.js'))
+  expect(originalContent).toContain(`# cmd-shim-target=${expectedTarget}\n`)
+  // Append a sentinel to the existing (correct) content to prove it is not rewritten
+  const sentinel = originalContent + '\n# sentinel'
+  fs.writeFileSync(binLocation, sentinel, 'utf8')
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+
+  expect(fs.readFileSync(binLocation, 'utf8')).toBe(sentinel)
+})
+
+test('linkBins() rewrites bins that lack a target marker', async () => {
+  const binTarget = temporaryDirectory()
+  const warn = jest.fn()
+  const simpleFixture = f.prepare('simple-fixture')
+
+  // Create a stale bin without a cmd-shim-target marker
+  fs.mkdirSync(binTarget, { recursive: true })
+  const binLocation = path.join(binTarget, 'simple')
+  fs.writeFileSync(binLocation, '#!/bin/sh\n"$basedir/../wrong-pkg/index.js" "$@"', 'utf8')
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+
+  const content = fs.readFileSync(binLocation, 'utf8')
+  expect(content).not.toContain('wrong-pkg')
+})
+
 test('linkBins() never creates a PowerShell shim for the pnpm CLI', async () => {
   const binTarget = temporaryDirectory()
   const fixture = f.prepare('pnpm-cli')
@@ -696,4 +734,31 @@ describe('node binary linking', () => {
     // No cmd-shim should be created since we return early
     expect(fs.existsSync(path.join(binTarget, `node${CMD_EXTENSION}`))).toBe(false)
   })
+})
+
+test('linkBins() resolves conflicts using BIN_OWNER_OVERRIDES (npx owned by npm)', async () => {
+  const binTarget = temporaryDirectory()
+  const binOwnerOverrideFixture = f.prepare('bin-owner-override')
+  const warn = jest.fn()
+
+  await linkBins(binOwnerOverrideFixture, binTarget, { warn })
+
+  // npx should be linked from npm package (owner override), not node or other-pkg
+  // BIN_OWNER_OVERRIDES says: npx is owned by npm
+  expect(binsConflictLogger.debug).toHaveBeenCalledWith(
+    expect.objectContaining({
+      binaryName: 'npx',
+      binsDir: binTarget,
+      linkedPkgName: 'npm',
+      skippedPkgName: expect.any(String),
+      skippedPkgVersion: expect.any(String),
+    })
+  )
+
+  const binLocation = path.join(binTarget, 'npx')
+  expect(fs.existsSync(binLocation)).toBe(true)
+  const content = fs.readFileSync(binLocation, 'utf8')
+  // npx should come from npm package, not node or other-pkg
+  // Use a regex that matches both forward and backslashes for Windows compatibility
+  expect(content).toMatch(/npm[/\\]bin[/\\]npx-cli\.js/)
 })

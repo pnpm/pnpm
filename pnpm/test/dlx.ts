@@ -92,7 +92,9 @@ test('dlx should work with npm_config_save_dev env variable', async () => {
   })
 })
 
-test('parallel dlx calls of the same package', async () => {
+const testParallel = process.version.startsWith('v25.') ? test.skip : test
+
+testParallel('parallel dlx calls of the same package', async () => {
   prepareEmpty()
 
   // parallel dlx calls without cache

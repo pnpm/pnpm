@@ -116,6 +116,7 @@ export async function resolveDependencies (
   opts: ResolveDependenciesOptions & {
     defaultUpdateDepth: number
     dedupePeerDependents?: boolean
+    dedupePeers?: boolean
     dedupeDirectDeps?: boolean
     dedupeInjectedDeps?: boolean
     excludeLinksFromLockfile?: boolean
@@ -209,6 +210,7 @@ export async function resolveDependencies (
     allPeerDepNames,
     dependenciesTree,
     dedupePeerDependents: opts.dedupePeerDependents,
+    dedupePeers: opts.dedupePeers,
     dedupeInjectedDeps: opts.dedupeInjectedDeps,
     lockfileDir: opts.lockfileDir,
     projects: projectsToLink,

@@ -1,0 +1,7 @@
+{
+  "name": "other-pkg",
+  "version": "1.0.0",
+  "bin": {
+    "npx": "index.js"
+  }
+}

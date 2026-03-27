@@ -15,6 +15,19 @@ import { writeJsonFile } from 'write-json-file'
 
 const CLI_PKG_NAME = 'pnpm'
 
+// Packages whose tests spawn the local pnpm CLI binary (pnpm/bin/pnpm.mjs)
+// and therefore need the CLI bundle (pnpm/dist/pnpm.mjs) to be built first.
+const PKGS_NEEDING_CLI_COMPILE = new Set([
+  '@pnpm/building.commands',
+  '@pnpm/cache.commands',
+  '@pnpm/deps.inspection.commands',
+  '@pnpm/exec.commands',
+  '@pnpm/lockfile.make-dedicated-lockfile',
+  '@pnpm/releasing.commands',
+  '@pnpm/releasing.exportable-manifest',
+  '@pnpm/store.commands',
+])
+
 export default async (workspaceDir: string) => { // eslint-disable-line
   const workspaceManifest = await readWorkspaceManifest(workspaceDir)!
   const pnpmManifest = loadJsonFileSync<ProjectManifest>(path.join(workspaceDir, 'pnpm/package.json'))
@@ -298,6 +311,9 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
         }
       }
       break
+  }
+  if (manifest.name && PKGS_NEEDING_CLI_COMPILE.has(manifest.name)) {
+    scripts.test = 'pnpm run compile && pnpm --filter pnpm run compile && pnpm run .test'
   }
   // Clean up old underscore-prefixed script names
   delete scripts._test

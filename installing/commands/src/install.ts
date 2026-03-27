@@ -91,6 +91,8 @@ export const shorthands: Record<string, string> = {
 
 export const commandNames = ['install', 'i']
 
+export const recursiveByDefault = true
+
 export function help (): string {
   return renderHelp({
     aliases: ['i'],
@@ -273,6 +275,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'dedupeInjectedDeps'
 | 'dedupeDirectDeps'
 | 'dedupePeerDependents'
+| 'dedupePeers'
 | 'deployAllFiles'
 | 'depth'
 | 'dev'

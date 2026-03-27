@@ -2,7 +2,7 @@ import { existsSync, promises as fs } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
-import { type Command, getBinsFromPackageManifest } from '@pnpm/bins.resolver'
+import { type Command, getBinsFromPackageManifest, pkgOwnsBin } from '@pnpm/bins.resolver'
 import { PnpmError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { globalWarn, logger } from '@pnpm/logger'
@@ -10,7 +10,7 @@ import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.utils'
 import type { DependencyManifest, EngineDependency, ProjectManifest } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
-import cmdShim from '@zkochan/cmd-shim'
+import { cmdShim, isShimPointingAt } from '@zkochan/cmd-shim'
 import { rimraf } from '@zkochan/rimraf'
 import fixBin from 'bin-links/lib/fix-bin.js'
 import { isSubdir } from 'is-subdir'
@@ -26,6 +26,8 @@ const binsConflictLogger = logger('bins-conflict')
 const IS_WINDOWS = isWindows()
 const EXECUTABLE_SHEBANG_SUPPORTED = !IS_WINDOWS
 const POWER_SHELL_IS_SUPPORTED = IS_WINDOWS
+// A cmd-shim is a small shell script. Anything larger is a binary and should not be read.
+const CMD_SHIM_MAX_SIZE = 4 * 1024
 
 export type WarningCode = 'BINARIES_CONFLICT' | 'EMPTY_BIN'
 
@@ -122,7 +124,6 @@ export async function linkBinsOfPackages (
 }
 
 interface CommandInfo extends Command {
-  ownName: boolean
   pkgName: string
   pkgVersion: string
   makePowerShellShim: boolean
@@ -169,8 +170,11 @@ function resolveCommandConflicts (group: CommandInfo[], binsDir: string): Comman
 }
 
 function compareCommandsInConflict (a: CommandInfo, b: CommandInfo): number {
-  if (a.ownName && !b.ownName) return 1
-  if (!a.ownName && b.ownName) return -1
+  // Check ownership: a package that owns the bin name gets priority
+  const aOwns = pkgOwnsBin(a.name, a.pkgName)
+  const bOwns = pkgOwnsBin(b.name, b.pkgName)
+  if (aOwns && !bOwns) return 1
+  if (!aOwns && bOwns) return -1
   if (a.pkgName !== b.pkgName) return a.pkgName.localeCompare(b.pkgName) // it's pointless to compare versions of 2 different package
   return semver.compare(a.pkgVersion, b.pkgVersion)
 }
@@ -235,7 +239,6 @@ async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir:
   }
   return cmds.map((cmd) => ({
     ...cmd,
-    ownName: cmd.name === manifest.name,
     pkgName: manifest.name,
     pkgVersion: manifest.version,
     makePowerShellShim: POWER_SHELL_IS_SUPPORTED && manifest.name !== 'pnpm',
@@ -257,6 +260,24 @@ export interface LinkBinOptions {
 
 async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions): Promise<void> {
   const externalBinPath = path.join(binsDir, cmd.name)
+  // Skip if the existing bin already references the correct target.
+  // This avoids redundant I/O on warm installs and EACCES on read-only stores.
+  // We verify the target path — not just existence — so that conflict resolution
+  // changes or provider swaps still get the bin rewritten.
+  try {
+    const stat = await fs.lstat(externalBinPath)
+    if (stat.isSymbolicLink()) {
+      const target = await fs.readlink(externalBinPath)
+      if (target === cmd.path || path.resolve(binsDir, target) === path.resolve(cmd.path)) {
+        return
+      }
+    } else if (stat.isFile() && stat.size < CMD_SHIM_MAX_SIZE) {
+      const content = await fs.readFile(externalBinPath, 'utf8')
+      if (isShimPointingAt(content, cmd.path)) {
+        return
+      }
+    }
+  } catch {}
   if (IS_WINDOWS) {
     const exePath = path.join(binsDir, `${cmd.name}${getExeExtension()}`)
     if (existsSync(exePath)) {

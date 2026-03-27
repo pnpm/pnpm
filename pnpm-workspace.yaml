@@ -148,7 +148,7 @@ catalog:
   '@yarnpkg/nm': 4.0.7
   '@yarnpkg/parsers': 3.0.3
   '@yarnpkg/pnp': ^4.0.8
-  '@zkochan/cmd-shim': ^8.0.1
+  '@zkochan/cmd-shim': ^9.0.0
   '@zkochan/retry': ^0.2.0
   '@zkochan/rimraf': ^4.0.0
   '@zkochan/table': ^2.0.1
@@ -273,7 +273,7 @@ catalog:
   realpath-missing: ^2.0.0
   remark-parse: ^11.0.0
   remark-stringify: ^11.0.0
-  rename-overwrite: ^7.0.0
+  rename-overwrite: ^7.0.1
   render-help: ^2.0.0
   resolve-link-target: ^3.0.0
   rimraf: ^6.1.2
@@ -323,7 +323,7 @@ catalog:
   write-json5-file: ^4.0.0
   write-package: 7.2.0
   write-yaml-file: ^6.0.0
-  yaml: ^2.8.1
+  yaml: ^2.8.3
   yaml-tag: 1.1.0
 
 catalogMode: strict
@@ -349,7 +349,7 @@ minimumReleaseAgeExclude:
   - '@pnpm/*'
   - '@rushstack/worker-pool@0.7.7'
   - '@zkochan/*'
-  - '@zkochan/cmd-shim@8.0.0 || 8.0.1'
+  - '@zkochan/cmd-shim@9.0.0'
   - better-path-resolve
   - body-parser@2.2.1
   - can-link
@@ -360,9 +360,11 @@ minimumReleaseAgeExclude:
   - express@4.22.1
   - glob@11.1.0
   - graceful-git
+  - handlebars@4.7.9
   - is-inner-link
   - is-subdir
   - jws@3.2.3
+  - lodash@4.17.23
   - make-empty-dir
   - normalize-registry-url
   - p-map-values
@@ -372,6 +374,7 @@ minimumReleaseAgeExclude:
   - pnpm
   - preferred-pm
   - promise-share
+  - qs@6.14.2
   - read-ini-file
   - read-json5-file
   - read-yaml-file
@@ -390,8 +393,6 @@ minimumReleaseAgeExclude:
   - write-ini-file
   - write-json5-file
   - write-yaml-file
-  - lodash@4.17.23
-  - qs@6.14.2
 
 nodeVersion: 22.13.0
 
@@ -400,7 +401,9 @@ optimisticRepeatInstall: true
 overrides:
   '@cypress/request@3.0.9>qs': ^6.14.1
   '@yarnpkg/fslib@2': '3'
+  ajv@>=7.0.0-alpha.0 <8.18.0: '>=8.18.0'
   body-parser@<2.2.1: '^2.2.1'
+  brace-expansion@<5.0.5: '>=5.0.5'
   clipanion: 3.2.0-rc.6
   cookie@<0.7.0: '>=0.7.0'
   cross-spawn@<7.0.5: '>=7.0.5'
@@ -410,6 +413,7 @@ overrides:
   follow-redirects@<=1.15.5: '>=1.15.6'
   glob-parent@<5.1.2: '>=5.1.2'
   glob@>=10.3.7 <=11.0.3: '^11.1.0'
+  handlebars@>=4.0.0 <4.7.9: '>=4.7.9'
   hosted-git-info@1: 'catalog:'
   http-proxy-middleware@<2.0.7: ^2.0.7
   istanbul-reports: npm:@zkochan/istanbul-reports

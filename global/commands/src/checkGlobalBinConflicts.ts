@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
+import { getBinsFromPackageManifest, pkgOwnsBin } from '@pnpm/bins.resolver'
 import { PnpmError } from '@pnpm/error'
 import {
   type GlobalPackageInfo,
@@ -9,20 +9,6 @@ import {
 } from '@pnpm/global.packages'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { DependencyManifest } from '@pnpm/types'
-
-// Maps a bin name to all packages that are legitimate owners of it, beyond
-// the default rule that a package named `X` owns the `X` bin.  For example,
-// `npx` ships inside the `npm` package, and `pnpx` ships inside both the
-// `pnpm` package and the `@pnpm/exe` package.
-const BIN_OWNER_OVERRIDES: Record<string, string[]> = {
-  npx: ['npm'],
-  pnpm: ['@pnpm/exe'],
-  pnpx: ['pnpm', '@pnpm/exe'],
-}
-
-function pkgOwnsBin (binName: string, pkgName: string): boolean {
-  return binName === pkgName || BIN_OWNER_OVERRIDES[binName]?.includes(pkgName) === true
-}
 
 /**
  * Checks for bin name conflicts between new packages and existing global

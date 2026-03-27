@@ -32,7 +32,6 @@ const NOT_IMPLEMENTED_COMMANDS = [
   'unpublish',
   'unstar',
   'v',
-  'version',
   'view',
   'whoami',
   'xmas',

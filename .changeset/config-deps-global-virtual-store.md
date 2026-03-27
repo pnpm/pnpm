@@ -1,5 +1,5 @@
 ---
-"@pnpm/config.deps-installer": minor
+"@pnpm/installing.env-installer": minor
 "pnpm": minor
 ---
 

@@ -88,6 +88,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     lockfileDir: string
     resolvePeersFromWorkspaceRoot?: boolean
     dedupePeerDependents?: boolean
+    dedupePeers?: boolean
     dedupeInjectedDeps?: boolean
     resolvedImporters: ResolvedImporters
     peersSuffixMaxLength: number
@@ -136,6 +137,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       peersCache,
       peerDependencyIssues,
       purePkgs,
+      dedupePeers: opts.dedupePeers,
       peersSuffixMaxLength: opts.peersSuffixMaxLength,
       rootDir,
       virtualStoreDir: opts.virtualStoreDir,
@@ -384,6 +386,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
     peersCache: PeersCache
     purePkgs: Set<PkgIdWithPatchHash> // pure packages are those that don't rely on externally resolved peers
+    dedupePeers?: boolean
     rootDir: ProjectRootDir
     lockfileDir: string
     peersSuffixMaxLength: number
@@ -525,20 +528,12 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     const peerIds: PeerId[] = []
     const pendingPeers: PendingPeer[] = []
     for (const [alias, peerNodeId] of allResolvedPeers.entries()) {
-      if (typeof peerNodeId === 'string' && peerNodeId.startsWith('link:')) {
-        const linkedDir = peerNodeId.slice(5)
-        peerIds.push({
-          name: alias,
-          version: filenamify(linkedDir, { replacement: '+' }),
-        })
-        continue
+      const peerId = peerNodeIdToPeerId(alias, peerNodeId, ctx)
+      if (peerId != null) {
+        peerIds.push(peerId)
+      } else {
+        pendingPeers.push({ alias, nodeId: peerNodeId })
       }
-      const peerDepPath = ctx.pathsByNodeId.get(peerNodeId)
-      if (peerDepPath) {
-        peerIds.push(peerDepPath)
-        continue
-      }
-      pendingPeers.push({ alias, nodeId: peerNodeId })
     }
     if (pendingPeers.length === 0) {
       const peerDepGraphHash = createPeerDepGraphHash(peerIds, ctx.peersSuffixMaxLength)
@@ -577,6 +572,12 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
             const id = `${name}@${version}`
             ctx.pathsByNodeIdPromises.get(pendingPeer.nodeId)?.resolve(id as DepPath)
             return id
+          }
+          if (ctx.dedupePeers) {
+            const peerNode = ctx.dependenciesTree.get(pendingPeer.nodeId)
+            if (peerNode) {
+              return { name: peerNode.resolvedPackage.name, version: peerNode.resolvedPackage.version }
+            }
           }
           return ctx.pathsByNodeIdPromises.get(pendingPeer.nodeId)!.promise
         })
@@ -785,6 +786,7 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     virtualStoreDir: string
     virtualStoreDirMaxLength: number
     purePkgs: Set<PkgIdWithPatchHash>
+    dedupePeers?: boolean
     depGraph: GenericDependenciesGraph<T>
     dependenciesTree: DependenciesTree<T>
     rootDir: ProjectRootDir
@@ -962,6 +964,31 @@ function getLocationFromParentNodeIds<T> (
     projectId: '.',
     parents,
   }
+}
+
+function peerNodeIdToPeerId<T extends PartialResolvedPackage> (
+  alias: string,
+  peerNodeId: NodeId,
+  ctx: ResolvePeersContext & {
+    dedupePeers?: boolean
+    dependenciesTree: DependenciesTree<T>
+  }
+): PeerId | undefined {
+  if (typeof peerNodeId === 'string' && peerNodeId.startsWith('link:')) {
+    return {
+      name: alias,
+      version: filenamify(peerNodeId.slice(5), { replacement: '+' }),
+    }
+  }
+  if (ctx.dedupePeers) {
+    // Use version-only peer identifiers instead of full dep paths.
+    // This eliminates nested peer suffixes like (foo@1.0.0(bar@2.0.0)).
+    const peerNode = ctx.dependenciesTree.get(peerNodeId)
+    if (peerNode) {
+      return { name: peerNode.resolvedPackage.name, version: peerNode.resolvedPackage.version }
+    }
+  }
+  return ctx.pathsByNodeId.get(peerNodeId)
 }
 
 interface ParentRefs {

@@ -296,7 +296,7 @@ export async function handler (
           result[prefix].status = 'passed'
           result[prefix].duration = getExecutionDuration(startTime)
         } catch (err: any) { // eslint-disable-line
-          if (isErrorCommandNotFound(params[0], err, prependPaths)) {
+          if (isErrorCommandNotFound(params[0], err, prefix, prependPaths)) {
             err.message = `Command "${params[0]}" not found`
             err.hint = await createExecCommandNotFoundHint(params[0], {
               implicitlyFellbackFromRun: opts.implicitlyFellbackFromRun ?? false,
@@ -394,19 +394,20 @@ interface CommandError extends Error {
   shortMessage: string
 }
 
-function isErrorCommandNotFound (command: string, error: CommandError, prependPaths: string[]): boolean {
-  // Mac/Linux
-  if (process.platform === 'linux' || process.platform === 'darwin') {
-    return error.originalMessage === `spawn ${command} ENOENT`
+function isErrorCommandNotFound (command: string, error: CommandError, prefix: string, prependPaths: string[]): boolean {
+  if (error.originalMessage === `spawn ${command} ENOENT`) {
+    return true
   }
 
-  // Windows
+  // On Windows, execa 9.x uses cross-spawn only for command parsing (not spawning),
+  // so cross-spawn's ENOENT hook never fires. Non-existent commands get wrapped as
+  // `cmd.exe /c <command>` which exits with code 1 instead of emitting ENOENT.
+  // Fall back to checking if the command exists in PATH, resolving relative paths
+  // against the exec prefix to correctly handle --filter contexts.
   if (process.platform === 'win32') {
-    const { value: path } = prependDirsToPath(prependPaths)
-    return !which.sync(command, {
-      nothrow: true,
-      path,
-    })
+    const absolutePrependPaths = prependPaths.map(p => path.resolve(prefix, p))
+    const { value: searchPath } = prependDirsToPath(absolutePrependPaths)
+    return !which.sync(command, { nothrow: true, path: searchPath })
   }
 
   return false

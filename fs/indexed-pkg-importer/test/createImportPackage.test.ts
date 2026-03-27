@@ -10,6 +10,7 @@ jest.unstable_mockModule('@pnpm/fs.graceful-fs', () => {
   const fsMock = {
     access,
     copyFileSync: jest.fn(),
+    readFileSync: jest.fn(),
     readdirSync: jest.fn(),
     linkSync: jest.fn(),
     mkdirSync: jest.fn(),
@@ -41,11 +42,24 @@ const { createIndexedPkgImporter } = await import('@pnpm/fs.indexed-pkg-importer
 const { globalInfo } = await import('@pnpm/logger')
 
 beforeEach(() => {
+  // Clean up real directories created by the importer (not mocked) so each
+  // test starts fresh — otherwise the fast path sees leftover dirs and writes
+  // over them, causing different behavior than a fresh import.
+  fs.rmSync('project', { recursive: true, force: true })
+  fs.rmSync('project2', { recursive: true, force: true })
   jest.mocked(gfs.copyFileSync).mockClear()
+  jest.mocked(gfs.readFileSync as jest.Mock).mockClear()
+  jest.mocked(gfs.writeFileSync).mockClear()
   jest.mocked(gfs.linkSync).mockClear()
   jest.mocked(gfs.mkdirSync).mockClear()
   jest.mocked(gfs.renameSync).mockClear()
+  jest.mocked(gfs.statSync as jest.Mock).mockReset()
   jest.mocked(globalInfo).mockReset()
+})
+
+afterAll(() => {
+  fs.rmSync('project', { recursive: true, force: true })
+  fs.rmSync('project2', { recursive: true, force: true })
 })
 
 testOnLinuxOnly('packageImportMethod=auto: clone files by default', () => {
@@ -60,12 +74,12 @@ testOnLinuxOnly('packageImportMethod=auto: clone files by default', () => {
   })).toBe('clone')
   expect(gfs.copyFileSync).toHaveBeenCalledWith(
     path.join('hash1'),
-    path.join('project', 'package_tmp', 'package.json'),
+    path.join('project', 'package', 'package.json'),
     fs.constants.COPYFILE_FICLONE_FORCE
   )
   expect(gfs.copyFileSync).toHaveBeenCalledWith(
     path.join('hash2'),
-    path.join('project', 'package_tmp', 'index.js'),
+    path.join('project', 'package', 'index.js'),
     fs.constants.COPYFILE_FICLONE_FORCE
   )
 })
@@ -83,8 +97,8 @@ testOnLinuxOnly('packageImportMethod=auto: link files if cloning fails', () => {
     force: false,
     resolvedFrom: 'remote',
   })).toBe('hardlink')
-  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash1'), path.join('project', 'package_tmp', 'package.json'))
-  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project', 'package_tmp', 'index.js'))
+  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash1'), path.join('project', 'package', 'package.json'))
+  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project', 'package', 'index.js'))
   expect(gfs.copyFileSync).toHaveBeenCalled()
   jest.mocked(gfs.copyFileSync).mockClear()
 
@@ -98,8 +112,8 @@ testOnLinuxOnly('packageImportMethod=auto: link files if cloning fails', () => {
     resolvedFrom: 'remote',
   })).toBe('hardlink')
   expect(gfs.copyFileSync).not.toHaveBeenCalled()
-  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash1'), path.join('project2', 'package_tmp', 'package.json'))
-  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project2', 'package_tmp', 'index.js'))
+  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash1'), path.join('project2', 'package', 'package.json'))
+  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project2', 'package', 'index.js'))
 })
 
 testOnLinuxOnly('packageImportMethod=auto: link files if cloning fails and even hard linking fails but not with EXDEV error', () => {
@@ -121,9 +135,11 @@ testOnLinuxOnly('packageImportMethod=auto: link files if cloning fails and even 
     force: false,
     resolvedFrom: 'remote',
   })).toBe('hardlink')
-  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project', 'package_tmp', 'index.js'))
+  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project', 'package', 'index.js'))
   expect(gfs.linkSync).toHaveBeenCalledTimes(2)
-  expect(gfs.copyFileSync).toHaveBeenCalledTimes(1)
+  // copyFileSync is called twice: the clone attempt fails in both the fast
+  // path and the staging fallback before initialAuto moves on to hardlink.
+  expect(gfs.copyFileSync).toHaveBeenCalledTimes(2)
 })
 
 testOnLinuxOnly('packageImportMethod=auto: chooses copying if cloning and hard linking is not possible', () => {
@@ -143,8 +159,9 @@ testOnLinuxOnly('packageImportMethod=auto: chooses copying if cloning and hard l
     force: false,
     resolvedFrom: 'remote',
   })).toBe('copy')
-  expect(gfs.copyFileSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project', 'package_tmp', 'index.js'))
-  expect(gfs.copyFileSync).toHaveBeenCalledTimes(2)
+  expect(gfs.copyFileSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project', 'package', 'index.js'))
+  // 3 calls: clone fails twice (fast path + staging fallback), then copy succeeds.
+  expect(gfs.copyFileSync).toHaveBeenCalledTimes(3)
 })
 
 testOnLinuxOnly('packageImportMethod=hardlink: fall back to copying if hardlinking fails', () => {
@@ -166,8 +183,8 @@ testOnLinuxOnly('packageImportMethod=hardlink: fall back to copying if hardlinki
   })).toBe('hardlink')
   expect(gfs.linkSync).toHaveBeenCalledTimes(3)
   expect(gfs.copyFileSync).toHaveBeenCalledTimes(2) // One time the target already exists, so it won't be copied
-  expect(gfs.copyFileSync).toHaveBeenCalledWith(path.join('hash1'), path.join('project', 'package_tmp', 'package.json'))
-  expect(gfs.copyFileSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project', 'package_tmp', 'index.js'))
+  expect(gfs.copyFileSync).toHaveBeenCalledWith(path.join('hash1'), path.join('project', 'package', 'package.json'))
+  expect(gfs.copyFileSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project', 'package', 'index.js'))
 })
 
 test('packageImportMethod=hardlink does not relink package from store if package.json is linked from the store', () => {
@@ -230,4 +247,70 @@ test('packageImportMethod=hardlink links packages when they are not found', () =
     resolvedFrom: 'store',
   })).toBe('hardlink')
   expect(globalInfo).not.toHaveBeenCalledWith('Relinking project/package from the store')
+})
+
+testOnLinuxOnly('packageImportMethod=hardlink: falls back to read+write when copyFileSync throws ENOTSUP', () => {
+  const importPackage = createIndexedPkgImporter('hardlink')
+  jest.mocked(gfs.linkSync).mockImplementation(() => {
+    throw new Error('hard link failed')
+  })
+  jest.mocked(gfs.copyFileSync).mockImplementation(() => {
+    throw Object.assign(new Error('ENOTSUP: operation not supported on socket'), { code: 'ENOTSUP' })
+  })
+  jest.mocked(gfs.statSync as jest.Mock).mockReturnValue({ mode: 0o644 })
+  jest.mocked(gfs.readFileSync as jest.Mock).mockReturnValue(Buffer.from('file content'))
+  expect(importPackage('project/package', {
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+      ['package.json', 'hash1'],
+    ]),
+    force: false,
+    resolvedFrom: 'remote',
+  })).toBe('hardlink')
+  expect(gfs.readFileSync).toHaveBeenCalled()
+  expect(gfs.writeFileSync).toHaveBeenCalledWith(
+    path.join('project', 'package', 'index.js'),
+    Buffer.from('file content'),
+    { mode: 0o644 }
+  )
+})
+
+testOnLinuxOnly('packageImportMethod=copy: falls back to read+write when copyFileSync throws ENOTSUP', () => {
+  const importPackage = createIndexedPkgImporter('copy')
+  jest.mocked(gfs.copyFileSync).mockImplementation(() => {
+    throw Object.assign(new Error('ENOTSUP: operation not supported on socket'), { code: 'ENOTSUP' })
+  })
+  jest.mocked(gfs.statSync as jest.Mock).mockReturnValue({ mode: 0o755 })
+  jest.mocked(gfs.readFileSync as jest.Mock).mockReturnValue(Buffer.from('file content'))
+  expect(importPackage('project/package', {
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+      ['package.json', 'hash1'],
+    ]),
+    force: false,
+    resolvedFrom: 'remote',
+  })).toBe('copy')
+  expect(gfs.readFileSync).toHaveBeenCalled()
+  expect(gfs.writeFileSync).toHaveBeenCalledWith(
+    path.join('project', 'package', 'index.js'),
+    Buffer.from('file content'),
+    { mode: 0o755 }
+  )
+})
+
+testOnLinuxOnly('packageImportMethod=hardlink: rethrows non-ENOTSUP errors from copyFileSync', () => {
+  const importPackage = createIndexedPkgImporter('hardlink')
+  jest.mocked(gfs.linkSync).mockImplementation(() => {
+    throw new Error('hard link failed')
+  })
+  jest.mocked(gfs.copyFileSync).mockImplementation(() => {
+    throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
+  })
+  expect(() => importPackage('project/package', {
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+    ]),
+    force: false,
+    resolvedFrom: 'remote',
+  })).toThrow('EACCES: permission denied')
 })

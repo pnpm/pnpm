@@ -109,7 +109,7 @@ Example:
 
 ```
 ---
-"@pnpm/core": minor
+"@pnpm/installing.deps-installer"lling.deps-installer": minor
 "pnpm": minor
 ---
 
@@ -186,6 +186,16 @@ try {
   throw err
 }
 ```
+
+## Resolving Conflicts in GitHub PRs
+
+Use `shell/resolve-pr-conflicts.sh` to resolve PR conflicts:
+
+```bash
+./shell/resolve-pr-conflicts.sh <PR_NUMBER>
+```
+
+The script force-fetches the base branch (avoiding stale refs), rebases, auto-resolves `pnpm-lock.yaml` conflicts via `pnpm install`, force-pushes, and verifies GitHub sees the PR as mergeable. For non-lockfile conflicts it will pause and list the files that need manual resolution.
 
 ## Key Configuration Files
 

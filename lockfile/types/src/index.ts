@@ -8,6 +8,7 @@ import type { SpecifierAndResolution } from './lockfileFileTypes.js'
 
 export interface LockfileSettings {
   autoInstallPeers?: boolean
+  dedupePeers?: boolean
   excludeLinksFromLockfile?: boolean
   peersSuffixMaxLength?: number
   injectWorkspacePackages?: boolean

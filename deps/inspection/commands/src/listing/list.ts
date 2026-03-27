@@ -35,6 +35,8 @@ export { shorthands } from './common.js'
 
 export const commandNames = ['list', 'ls']
 
+export const recursiveByDefault = true
+
 export function help (): string {
   return renderHelp({
     aliases: ['list', 'ls', 'la', 'll'],

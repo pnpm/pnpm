@@ -6,7 +6,7 @@ import { createCompletionServer, doctor, generateCompletion } from '@pnpm/cli.co
 import { config, getCommand, setCommand } from '@pnpm/config.commands'
 import { types as allTypes } from '@pnpm/config.reader'
 import { audit, licenses, sbom } from '@pnpm/deps.compliance.commands'
-import { list, ll, outdated, why } from '@pnpm/deps.inspection.commands'
+import { list, ll, outdated, peers, why } from '@pnpm/deps.inspection.commands'
 import { selfUpdate, setup } from '@pnpm/engine.pm.commands'
 import { env, runtime } from '@pnpm/engine.runtime.commands'
 import {
@@ -18,7 +18,7 @@ import {
 } from '@pnpm/exec.commands'
 import { add, dedupe, fetch, importCommand, install, link, prune, remove, unlink, update } from '@pnpm/installing.commands'
 import { patch, patchCommit, patchRemove } from '@pnpm/patching.commands'
-import { deploy, pack, publish } from '@pnpm/releasing.commands'
+import { deploy, pack, publish, version } from '@pnpm/releasing.commands'
 import { catFile, catIndex, findHash, store } from '@pnpm/store.commands'
 import { init } from '@pnpm/workspace.commands'
 import { pick } from 'ramda'
@@ -104,6 +104,10 @@ export interface CommandDefinition {
    * If true, this command should not care about what package manager is specified in the "packageManager" field of "package.json".
    */
   skipPackageManagerCheck?: boolean
+  /**
+   * If true, this command runs on all workspace projects by default when executed inside a workspace.
+   */
+  recursiveByDefault?: boolean
 }
 
 const helpByCommandName: Record<string, () => string> = {}
@@ -145,6 +149,7 @@ const commands: CommandDefinition[] = [
   patch,
   patchCommit,
   patchRemove,
+  peers,
   prune,
   publish,
   rebuild,
@@ -161,6 +166,7 @@ const commands: CommandDefinition[] = [
   findHash,
   unlink,
   update,
+  version,
   why,
   createHelp(helpByCommandName),
   ...notImplementedCommandDefinitions,
@@ -173,6 +179,7 @@ const completionByCommandName: Record<string, CompletionFunc> = {}
 const shorthandsByCommandName: Record<string, Record<string, string | string[]>> = {}
 const rcOptionsTypes: Record<string, unknown> = {}
 const skipPackageManagerCheckForCommandArray = ['completion-server']
+const recursiveByDefaultCommandArray: string[] = []
 
 for (let i = 0; i < commands.length; i++) {
   const {
@@ -184,6 +191,7 @@ for (let i = 0; i < commands.length; i++) {
     rcOptionsTypes,
     shorthands,
     skipPackageManagerCheck,
+    recursiveByDefault,
   } = commands[i]
   if (!commandNames || commandNames.length === 0) {
     throw new Error(`The command at index ${i} doesn't have command names`)
@@ -200,6 +208,9 @@ for (let i = 0; i < commands.length; i++) {
   }
   if (skipPackageManagerCheck) {
     skipPackageManagerCheckForCommandArray.push(...commandNames)
+  }
+  if (recursiveByDefault) {
+    recursiveByDefaultCommandArray.push(...commandNames)
   }
   if (commandNames.length > 1) {
     const fullName = commandNames[0]
@@ -235,5 +246,7 @@ export function getCommandFullName (commandName: string): string | null {
   return aliasToFullName.get(commandName) ??
     (handlerByCommandName[commandName] ? commandName : null)
 }
+
+export const recursiveByDefaultCommands = new Set(recursiveByDefaultCommandArray)
 
 export { NOT_IMPLEMENTED_COMMAND_SET, rcOptionsTypes, shorthandsByCommandName }

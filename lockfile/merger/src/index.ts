@@ -99,8 +99,13 @@ function mergeVersions (ourValue: string, theirValue: string): string {
   if (!ourValue) return theirValue
   const [ourVersion] = ourValue.split('(')
   const [theirVersion] = theirValue.split('(')
-  if (semver.gt(ourVersion, theirVersion)) {
-    return ourValue
+  const validOurVersion = semver.valid(ourVersion)
+  const validTheirVersion = semver.valid(theirVersion)
+
+  if (validOurVersion && validTheirVersion) {
+    return semver.gt(ourVersion, theirVersion) ? ourValue : theirValue
   }
+
+  // Non-semver versions (link:, file:, git URLs, etc.) — prefer theirs
   return theirValue
 }

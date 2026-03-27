@@ -96,6 +96,8 @@ export function help (): string {
 
 export const commandNames = ['import']
 
+export const recursiveByDefault = true
+
 export type ImportCommandOptions = Pick<Config,
 | 'allProjects'
 | 'allProjectsGraph'

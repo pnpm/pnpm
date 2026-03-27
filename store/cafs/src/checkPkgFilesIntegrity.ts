@@ -162,7 +162,11 @@ function verifyFile (
       rimrafSync(filename)
       return false
     }
-    return verifyFileIntegrity(filename, { digest: fstat.digest, algorithm })
+    const passed = verifyFileIntegrity(filename, { digest: fstat.digest, algorithm })
+    if (!passed) {
+      gfs.unlinkSync(filename)
+    }
+    return passed
   }
   // If a file was not edited, we are skipping integrity check.
   // We assume that nobody will manually remove a file in the store and create a new one.
@@ -184,18 +188,12 @@ export function verifyFileIntegrity (
     }
     throw err
   }
-  let computedDigest: string
   try {
-    computedDigest = crypto.hash(integrity.algorithm, data, 'hex')
+    return crypto.hash(integrity.algorithm, data, 'hex') === integrity.digest
   } catch {
     // Invalid algorithm (e.g., corrupted index file) - treat as verification failure
     return false
   }
-  const passed = computedDigest === integrity.digest
-  if (!passed) {
-    gfs.unlinkSync(filename)
-  }
-  return passed
 }
 
 function checkFile (filename: string, checkedAt?: number): { isModified: boolean, size: number } | null {
