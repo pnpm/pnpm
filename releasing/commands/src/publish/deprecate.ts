@@ -26,8 +26,22 @@ export const commandNames = ['deprecate', 'undeprecate']
 
 export function help (): string {
   return renderHelp({
-    description: 'Deprecates a version of a package in the registry.',
+    description: 'Deprecates or un-deprecates a version of a package in the registry.',
     descriptionLists: [
+      {
+        title: 'Commands',
+
+        list: [
+          {
+            description: 'Deprecates a package version with a message.',
+            name: 'deprecate <package>[@<version>] <message>',
+          },
+          {
+            description: 'Removes deprecation from a package version. Only works on already deprecated versions.',
+            name: 'undeprecate <package>[@<version>]',
+          },
+        ],
+      },
       {
         title: 'Options',
 
@@ -45,7 +59,10 @@ export function help (): string {
       FILTERING,
     ],
     url: docsUrl('deprecate'),
-    usages: ['pnpm deprecate <package>[@<version>] <message>'],
+    usages: [
+      'pnpm deprecate <package>[@<version>] <message>',
+      'pnpm undeprecate <package>[@<version>]',
+    ],
   })
 }
 
@@ -87,11 +104,16 @@ export async function handler (
   }
 
   const packageSpec = params[0]
+  const isUndeprecate = opts.argv.original[0] === 'undeprecate'
   const message = params.length > 1 ? params.slice(1).join(' ') : ''
+
+  if (isUndeprecate && message !== '') {
+    throw new PnpmError('UNDEPRECATE_NO_MESSAGE', 'The undeprecate command does not accept a message. Use deprecate with an empty message instead.')
+  }
 
   const { name, version } = parsePackageSpec(packageSpec)
 
-  await deprecatePackage(name, version, message, opts)
+  await deprecatePackage(name, version, message, opts, isUndeprecate)
 }
 
 function parsePackageSpec (spec: string): { name: string, version: string | undefined } {
@@ -123,7 +145,8 @@ async function deprecatePackage (
   packageName: string,
   versionRange: string | undefined,
   message: string,
-  opts: DeprecateOptions
+  opts: DeprecateOptions,
+  isUndeprecate: boolean
 ): Promise<void> {
   const registryUrl = opts.registry ?? 'https://registry.npmjs.org'
 
@@ -163,6 +186,13 @@ async function deprecatePackage (
     throw new PnpmError('NO_MATCHING_VERSIONS', `No versions match "${versionRange}"`)
   }
 
+  if (isUndeprecate) {
+    const deprecatedVersions = versionsToUpdate.filter((ver) => pkg.versions![ver].deprecated)
+    if (deprecatedVersions.length === 0) {
+      throw new PnpmError('NOT_DEPRECATED', `No deprecated versions found in "${packageName}"${versionRange ? ` matching "${versionRange}"` : ''}`)
+    }
+  }
+
   for (const ver of versionsToUpdate) {
     const verData = pkg.versions![ver]
     if (message === '') {
@@ -186,16 +216,16 @@ async function deprecatePackage (
 
   if (!putResponse.ok) {
     if (putResponse.status === 401) {
-      throw new PnpmError('UNAUTHORIZED', 'You must be logged in to deprecate packages')
+      throw new PnpmError('UNAUTHORIZED', `You must be logged in to ${isUndeprecate ? 'un-deprecate' : 'deprecate'} packages`)
     }
     if (putResponse.status === 403) {
-      throw new PnpmError('FORBIDDEN', 'You do not have permission to deprecate this package')
+      throw new PnpmError('FORBIDDEN', `You do not have permission to ${isUndeprecate ? 'un-deprecate' : 'deprecate'} this package`)
     }
     const errorBody = await putResponse.text()
-    throw new PnpmError('REGISTRY_ERROR', `Failed to deprecate package: ${putResponse.status} ${putResponse.statusText}. ${errorBody}`)
+    throw new PnpmError('REGISTRY_ERROR', `Failed to ${isUndeprecate ? 'un-deprecate' : 'deprecate'} package: ${putResponse.status} ${putResponse.statusText}. ${errorBody}`)
   }
 
-  console.log(`Successfully deprecated ${versionsToUpdate.length} version(s) of ${packageName}`)
+  console.log(`Successfully ${isUndeprecate ? 'un-deprecated' : 'deprecated'} ${versionsToUpdate.length} version(s) of ${packageName}`)
 }
 
 function getVersionsMatchingRange (
