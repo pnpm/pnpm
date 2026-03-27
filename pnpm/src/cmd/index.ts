@@ -1,3 +1,4 @@
+import { login } from '@pnpm/auth.commands'
 import { approveBuilds, ignoredBuilds, rebuild } from '@pnpm/building.commands'
 import { cache } from '@pnpm/cache.commands'
 import type { CommandHandlerMap, CompletionFunc } from '@pnpm/cli.command'
@@ -140,6 +141,7 @@ const commands: CommandDefinition[] = [
   installTest,
   link,
   list,
+  login,
   ll,
   licenses,
   outdated,

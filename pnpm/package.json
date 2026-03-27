@@ -78,6 +78,7 @@
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/assert-project": "workspace:*",
+    "@pnpm/auth.commands": "workspace:*",
     "@pnpm/building.commands": "workspace:*",
     "@pnpm/byline": "catalog:",
     "@pnpm/cache.commands": "workspace:*",

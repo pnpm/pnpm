@@ -1,0 +1,60 @@
+{
+  "name": "@pnpm/auth.commands",
+  "version": "1000.0.0",
+  "description": "Commands for authentication with npm registries",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "auth"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/auth/commands",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/auth/commands#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pnpm run compile && pnpm run .test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsgo --build && pnpm run lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/cli.utils": "workspace:*",
+    "@pnpm/config.reader": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/network.fetch": "workspace:*",
+    "@pnpm/network.web-auth": "workspace:*",
+    "enquirer": "catalog:",
+    "normalize-registry-url": "catalog:",
+    "read-ini-file": "catalog:",
+    "render-help": "catalog:",
+    "write-ini-file": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/auth.commands": "workspace:*",
+    "@pnpm/logger": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}
