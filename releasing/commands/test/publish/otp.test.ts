@@ -271,13 +271,15 @@ describe('publishWithOtpHandling', () => {
       const result = await publishWithOtpHandling({ context, manifest, publishOptions, tarballData })
       expect(result.ok).toBe(true)
       expect(fetchCallCount).toBe(2)
+      expect(globalInfo).toHaveBeenCalledWith(expect.stringContaining('https://registry.npmjs.org/auth/abc'))
     })
 
     it('continues polling when response is not ok', async () => {
       let publishCallCount = 0
       let fetchCallCount = 0
+      const globalInfo = jest.fn()
       const context = createMockContext({
-        globalInfo: () => {},
+        globalInfo,
         publish: async (_m, _t, opts) => {
           publishCallCount++
           if (publishCallCount === 1) {
@@ -313,13 +315,15 @@ describe('publishWithOtpHandling', () => {
       const result = await publishWithOtpHandling({ context, manifest, publishOptions, tarballData })
       expect(result.ok).toBe(true)
       expect(fetchCallCount).toBe(2)
+      expect(globalInfo).toHaveBeenCalledWith(expect.stringContaining('https://registry.npmjs.org/auth/abc'))
     })
 
     it('continues polling when response.json() throws', async () => {
       let publishCallCount = 0
       let fetchCallCount = 0
+      const globalInfo = jest.fn()
       const context = createMockContext({
-        globalInfo: () => {},
+        globalInfo,
         publish: async (_m, _t, opts) => {
           publishCallCount++
           if (publishCallCount === 1) {
@@ -357,12 +361,14 @@ describe('publishWithOtpHandling', () => {
       const result = await publishWithOtpHandling({ context, manifest, publishOptions, tarballData })
       expect(result.ok).toBe(true)
       expect(fetchCallCount).toBe(2)
+      expect(globalInfo).toHaveBeenCalledWith(expect.stringContaining('https://registry.npmjs.org/auth/abc'))
     })
 
     it('throws WebAuthTimeoutError after 5 minutes', async () => {
       let time = 0
+      const globalInfo = jest.fn()
       const context = createMockContext({
-        globalInfo: () => {},
+        globalInfo,
         Date: { now: () => time },
         publish: async () => {
           throw Object.assign(new Error('otp'), {
@@ -386,6 +392,7 @@ describe('publishWithOtpHandling', () => {
       })
       await expect(publishWithOtpHandling({ context, manifest, publishOptions, tarballData }))
         .rejects.toBeInstanceOf(WebAuthTimeoutError)
+      expect(globalInfo).toHaveBeenCalledWith(expect.stringContaining('https://registry.npmjs.org/auth/abc'))
     })
   })
 })
