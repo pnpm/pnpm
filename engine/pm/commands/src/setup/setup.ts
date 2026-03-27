@@ -23,6 +23,8 @@ export const shorthands = {}
 
 export const commandNames = ['setup']
 
+export const scriptOverride = true
+
 export function help (): string {
   return renderHelp({
     description: 'Sets up pnpm',

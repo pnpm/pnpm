@@ -108,6 +108,12 @@ export interface CommandDefinition {
    * If true, this command runs on all workspace projects by default when executed inside a workspace.
    */
   recursiveByDefault?: boolean
+  /**
+   * If true, a same-named script in package.json takes precedence over this
+   * built-in command.  Aliases of the command (e.g. "purge" for "clean") still
+   * run the built-in.
+   */
+  scriptOverride?: boolean
 }
 
 const helpByCommandName: Record<string, () => string> = {}
@@ -180,6 +186,7 @@ const shorthandsByCommandName: Record<string, Record<string, string | string[]>>
 const rcOptionsTypes: Record<string, unknown> = {}
 const skipPackageManagerCheckForCommandArray = ['completion-server']
 const recursiveByDefaultCommandArray: string[] = []
+const scriptOverrideCommandArray: string[] = []
 
 for (let i = 0; i < commands.length; i++) {
   const {
@@ -192,6 +199,7 @@ for (let i = 0; i < commands.length; i++) {
     shorthands,
     skipPackageManagerCheck,
     recursiveByDefault,
+    scriptOverride,
   } = commands[i]
   if (!commandNames || commandNames.length === 0) {
     throw new Error(`The command at index ${i} doesn't have command names`)
@@ -211,6 +219,9 @@ for (let i = 0; i < commands.length; i++) {
   }
   if (recursiveByDefault) {
     recursiveByDefaultCommandArray.push(...commandNames)
+  }
+  if (scriptOverride) {
+    scriptOverrideCommandArray.push(...commandNames)
   }
   if (commandNames.length > 1) {
     const fullName = commandNames[0]
@@ -248,5 +259,7 @@ export function getCommandFullName (commandName: string): string | null {
 }
 
 export const recursiveByDefaultCommands = new Set(recursiveByDefaultCommandArray)
+
+export const scriptOverrideCommands = new Set(scriptOverrideCommandArray)
 
 export { NOT_IMPLEMENTED_COMMAND_SET, rcOptionsTypes, shorthandsByCommandName }

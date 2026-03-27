@@ -25,7 +25,7 @@ import { isEmpty } from 'ramda'
 import semver from 'semver'
 
 import { checkForUpdates } from './checkForUpdates.js'
-import { NOT_IMPLEMENTED_COMMAND_SET, pnpmCmds, rcOptionsTypes, recursiveByDefaultCommands, skipPackageManagerCheckForCommand } from './cmd/index.js'
+import { NOT_IMPLEMENTED_COMMAND_SET, pnpmCmds, rcOptionsTypes, recursiveByDefaultCommands, scriptOverrideCommands, skipPackageManagerCheckForCommand } from './cmd/index.js'
 import { formatUnknownOptionsError } from './formatError.js'
 import { getConfig, installConfigDepsAndLoadHooks } from './getConfig.js'
 import { parseCliArgs } from './parseCliArgs.js'
@@ -48,10 +48,6 @@ process.stdout.on('error', (err: NodeJS.ErrnoException) => {
   }
   throw err
 })
-
-// Built-in commands that defer to a same-named script in package.json when present.
-// Their aliases (e.g. "purge" for "clean") always run the built-in.
-const SCRIPT_OVERRIDABLE_CMDS = new Set(['clean', 'setup', 'deploy', 'rebuild'])
 
 const DEPRECATED_OPTIONS = new Set([
   'independent-leaves',
@@ -194,33 +190,30 @@ export async function main (inputArgv: string[]): Promise<void> {
     global[REPORTER_INITIALIZED] = reporterType
   }
 
-  // For clean, setup, and deploy: if the current project's package.json has a
+  // Commands with scriptOverride: if the current project's package.json has a
   // script with the same name, run the script instead of the built-in command.
-  // This prevents surprising behavior for users who have existing scripts.
-  // The built-in command can always be accessed via its alias (e.g. "purge" for clean).
   const typedCommandName = argv.remain[0]
-  if (cmd != null && SCRIPT_OVERRIDABLE_CMDS.has(typedCommandName) && !cliOptions.global) {
+  if (cmd != null && scriptOverrideCommands.has(typedCommandName) && !cliOptions.global) {
     const currentDirManifest = config.dir === config.rootProjectManifestDir
       ? config.rootProjectManifest
       : await safeReadProjectManifestOnly(config.dir)
-    if (currentDirManifest?.scripts?.[cmd]) {
+    if (currentDirManifest?.scripts?.[typedCommandName]) {
       // Redirect to "pnpm run <cmd>"
       cmd = 'run'
-      cliParams.unshift(parsedCliArgs.cmd!)
+      cliParams.unshift(typedCommandName)
       fallbackCommandUsed = true
       config.fallbackCommandUsed = true
     } else if (
       workspaceDir &&
       config.dir !== config.rootProjectManifestDir &&
-      config.rootProjectManifest?.scripts?.[cmd]
+      config.rootProjectManifest?.scripts?.[typedCommandName]
     ) {
       throw new PnpmError(
         'SCRIPT_OVERRIDE_IN_WORKSPACE_ROOT',
-        `The workspace root has a "${parsedCliArgs.cmd}" script, ` +
-        `so the built-in "pnpm ${parsedCliArgs.cmd}" command cannot run from a subdirectory`,
+        `The workspace root has a "${typedCommandName}" script, ` +
+        `so the built-in "pnpm ${typedCommandName}" command cannot run from a subdirectory`,
         {
-          hint: `Run "pnpm run ${parsedCliArgs.cmd}" from the workspace root to execute the script` +
-            (parsedCliArgs.cmd === 'clean' ? ', or use "pnpm purge" to run the built-in command' : ''),
+          hint: `Run "pnpm run ${typedCommandName}" from the workspace root to execute the script`,
         }
       )
     }
