@@ -298,7 +298,7 @@ describe('withOtpHandling', () => {
               },
             })
           }
-          return 'never'
+          throw new Error('Unexpected second call to operation')
         },
         context,
         fetchOptions
