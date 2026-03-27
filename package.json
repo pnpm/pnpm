@@ -4,7 +4,6 @@
   "scripts": {
     "bump": "changeset version && pnpm update-manifests",
     "changeset": "changeset",
-    "preinstall": "npx only-allow pnpm",
     "prepare": "husky",
     "pretest": "pnpm run compile-only && pnpm run prepare-fixtures",
     "prepare-fixtures": "pnpm --dir=__fixtures__ run prepareFixtures",
@@ -59,8 +58,10 @@
     "typescript": "catalog:",
     "verdaccio": "catalog:"
   },
-  "engines": {
-    "pnpm": ">=9.6.0"
-  },
-  "packageManager": "pnpm@11.0.0-beta.3"
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "11.0.0-beta.3"
+    }
+  }
 }
