@@ -144,6 +144,55 @@ describe('audit', () => {
     })
   })
 
+  test('lockfileToAuditTree() prefers the workspace manifest name for non-root importers', async () => {
+    expect(await lockfileToAuditTree({
+      importers: {
+        ['playwright' as ProjectId]: {
+          dependencies: {
+            '@playwright/test': '1.58.2',
+          },
+          specifiers: {
+            '@playwright/test': '1.58.2',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['@playwright/test@1.58.2' as DepPath]: {
+          resolution: {
+            integrity: 'playwright-test-integrity',
+          },
+        },
+      },
+    }, { lockfileDir: f.find('workspace-importer-name-preferred') })).toEqual({
+      name: undefined,
+      version: undefined,
+
+      dependencies: {
+        '@sud-fe__playwright': {
+          dependencies: {
+            '@playwright/test': {
+              dev: false,
+              integrity: 'playwright-test-integrity',
+              version: '1.58.2',
+            },
+          },
+          dev: false,
+          requires: {
+            '@playwright/test': '1.58.2',
+          },
+          version: '1.0.0',
+        },
+      },
+      dev: false,
+      install: [],
+      integrity: undefined,
+      metadata: {},
+      remove: [],
+      requires: { '@sud-fe__playwright': '1.0.0' },
+    })
+  })
+
   test('lockfileToAuditTree() includes env lockfile configDependencies and packageManagerDependencies as separate groups', async () => {
     const result = await lockfileToAuditTree({
       importers: {
