@@ -1,5 +1,6 @@
-import { jest } from '@jest/globals'
 import path from 'node:path'
+
+import { jest } from '@jest/globals'
 
 import { login, type LoginContext, type LoginFetchResponse } from '../src/login.js'
 
