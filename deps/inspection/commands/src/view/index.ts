@@ -123,7 +123,7 @@ export async function handler (
 
   const info = {
     ...data,
-    author: typeof data.author === 'object' ? data.author.name : data.author,
+    author: typeof data.author === 'object' ? (data.author as { name: string }).name : data.author,
     repository: typeof data.repository === 'object' ? data.repository.url : data.repository,
     versionsCount: versionsCount > 0 ? versionsCount : undefined,
     depsCount: depsCount > 0 ? depsCount : undefined,

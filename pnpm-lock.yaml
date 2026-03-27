@@ -2130,9 +2130,6 @@ importers:
       '@pnpm/installing.render-peer-issues':
         specifier: workspace:*
         version: link:../../installing/render-peer-issues
-      '@pnpm/registry.types':
-        specifier: workspace:*
-        version: link:../../registry/types
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
@@ -7569,16 +7566,6 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  registry/types:
-    dependencies:
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../core/types
-    devDependencies:
-      '@pnpm/registry.types':
-        specifier: workspace:*
-        version: 'link:'
-
   releasing/commands:
     dependencies:
       '@pnpm/bins.resolver':
@@ -8025,15 +8012,15 @@ importers:
       '@pnpm/fs.graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
-      '@pnpm/registry.types':
-        specifier: workspace:*
-        version: link:../../registry/types
       '@pnpm/resolving.jsr-specifier-parser':
         specifier: workspace:*
         version: link:../jsr-specifier-parser
       '@pnpm/resolving.registry.pkg-metadata-filter':
         specifier: workspace:*
         version: link:../registry/pkg-metadata-filter
+      '@pnpm/resolving.registry.types':
+        specifier: workspace:*
+        version: link:../registry/types
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: link:../resolver-base
@@ -8150,9 +8137,9 @@ importers:
 
   resolving/registry/pkg-metadata-filter:
     dependencies:
-      '@pnpm/registry.types':
+      '@pnpm/resolving.registry.types':
         specifier: workspace:*
-        version: link:../../../registry/types
+        version: link:../types
       semver:
         specifier: 'catalog:'
         version: 7.7.4
@@ -8166,6 +8153,16 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.7.1
+
+  resolving/registry/types:
+    dependencies:
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../../core/types
+    devDependencies:
+      '@pnpm/resolving.registry.types':
+        specifier: workspace:*
+        version: 'link:'
 
   resolving/resolver-base:
     dependencies:

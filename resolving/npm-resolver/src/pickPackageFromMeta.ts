@@ -1,8 +1,8 @@
 import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
-import type { PackageInRegistry, PackageMeta, PackageMetaWithTime } from '@pnpm/registry.types'
 import { filterPkgMetadataByPublishDate } from '@pnpm/resolving.registry.pkg-metadata-filter'
+import type { PackageInRegistry, PackageMeta, PackageMetaWithTime } from '@pnpm/resolving.registry.types'
 import type { VersionSelectors } from '@pnpm/resolving.resolver-base'
 import type { PackageVersionPolicy } from '@pnpm/types'
 import semver from 'semver'

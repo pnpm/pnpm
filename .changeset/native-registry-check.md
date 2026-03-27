@@ -1,5 +1,5 @@
 ---
-"@pnpm/registry.types": patch
+"@pnpm/resolving.registry.types": patch
 "@pnpm/deps.inspection.commands": minor
 "pnpm": minor
 ---

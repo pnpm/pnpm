@@ -1,6 +1,6 @@
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
-import type { PackageMeta } from '@pnpm/registry.types'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
+import type { PackageMeta } from '@pnpm/resolving.registry.types'
 import type { Registries } from '@pnpm/types'
 import nock from 'nock'
 import { temporaryDirectory } from 'tempy'

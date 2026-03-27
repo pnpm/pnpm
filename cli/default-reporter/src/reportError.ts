@@ -4,7 +4,6 @@ import type { PnpmError } from '@pnpm/error'
 import { renderDedupeCheckIssues } from '@pnpm/installing.dedupe.issues-renderer'
 import type { DedupeCheckIssues } from '@pnpm/installing.dedupe.types'
 import { renderPeerIssues } from '@pnpm/installing.render-peer-issues'
-import type { PackageMeta } from '@pnpm/registry.types'
 import type { PeerDependencyIssuesByProjects } from '@pnpm/types'
 import chalk from 'chalk'
 import { equals } from 'ramda'
@@ -124,6 +123,15 @@ function formatPkgsStack (pkgsStack: readonly PkgStackItem[]) {
   return `This error happened while installing the dependencies of \
 ${formatPkgNameVer(pkgsStack[0])}\
 ${pkgsStack.slice(1).map((pkgInfo) => `${EOL} at ${formatPkgNameVer(pkgInfo)}`).join('')}`
+}
+
+interface PackageMeta {
+  name: string
+  'dist-tags': Record<string, string> & {
+    latest: string
+  }
+  versions: Record<string, object>
+  time?: Record<string, string>
 }
 
 function formatNoMatchingVersion (err: Error, msg: { packageMeta: PackageMeta, immatureVersion?: string }) {

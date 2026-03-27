@@ -9,7 +9,7 @@ import {
 } from '@pnpm/error'
 import type { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
-import type { PackageMeta } from '@pnpm/registry.types'
+import type { PackageMeta } from '@pnpm/resolving.registry.types'
 import * as retry from '@zkochan/retry'
 
 interface RegistryResponse {

@@ -13,7 +13,7 @@
       "path": "../../../core/logger"
     },
     {
-      "path": "../../../registry/types"
+      "path": "../types"
     }
   ]
 }
