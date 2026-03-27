@@ -80,7 +80,7 @@ export interface ProjectSnapshot extends ProjectSnapshotBase {
 export type ResolvedDependenciesOfImporters = Record<string, { version: string, specifier: string }>
 
 export interface PackageSnapshots {
-  [packagePath: DepPath]: PackageSnapshot
+  [packagePath: string]: PackageSnapshot
 }
 
 /**
