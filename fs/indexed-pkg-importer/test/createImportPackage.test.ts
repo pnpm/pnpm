@@ -40,6 +40,7 @@ jest.unstable_mockModule('@pnpm/logger', () => ({
 const { default: gfs } = await import('@pnpm/fs.graceful-fs')
 const { createIndexedPkgImporter } = await import('@pnpm/fs.indexed-pkg-importer')
 const { globalInfo } = await import('@pnpm/logger')
+const { renameOverwriteSync } = await import('rename-overwrite')
 
 beforeEach(() => {
   // Clean up real directories created by the importer (not mocked) so each
@@ -55,6 +56,7 @@ beforeEach(() => {
   jest.mocked(gfs.renameSync).mockClear()
   jest.mocked(gfs.statSync as jest.Mock).mockReset()
   jest.mocked(globalInfo).mockReset()
+  jest.mocked(renameOverwriteSync).mockClear()
 })
 
 afterAll(() => {
@@ -295,6 +297,37 @@ testOnLinuxOnly('packageImportMethod=copy: falls back to read+write when copyFil
     path.join('project', 'package', 'index.js'),
     Buffer.from('file content'),
     { mode: 0o755 }
+  )
+})
+
+testOnLinuxOnly('packageImportMethod=auto: clone falls back to copy on ENOTSUP, using atomic write for package.json', () => {
+  const importPackage = createIndexedPkgImporter('auto')
+  jest.mocked(gfs.copyFileSync).mockImplementation((_src, _dest, flags?: number) => {
+    if (flags === fs.constants.COPYFILE_FICLONE_FORCE) {
+      throw Object.assign(new Error('ENOTSUP: operation not supported on socket'), { code: 'ENOTSUP' })
+    }
+  })
+  jest.mocked(gfs.statSync as jest.Mock).mockReturnValue({ mode: 0o644 })
+  jest.mocked(gfs.readFileSync as jest.Mock).mockReturnValue(Buffer.from('file content'))
+  expect(importPackage('project/package', {
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+      ['package.json', 'hash1'],
+    ]),
+    force: false,
+    resolvedFrom: 'remote',
+  })).toBe('clone')
+
+  // Regular file: falls back to plain copyFileSync (without FICLONE_FORCE)
+  expect(gfs.copyFileSync).toHaveBeenCalledWith(
+    path.join('hash2'),
+    path.join('project', 'package', 'index.js')
+  )
+
+  // package.json: falls back to atomic temp+rename
+  expect(renameOverwriteSync).toHaveBeenCalledWith(
+    path.join('project', 'package', 'package.json') + '_tmp',
+    path.join('project', 'package', 'package.json')
   )
 })
 
