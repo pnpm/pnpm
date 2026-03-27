@@ -285,7 +285,7 @@ async function classicLogin ({
           'content-type': 'application/json',
           accept: 'application/json',
           'npm-auth-type': 'web',
-          'npm-otp': otp,
+          ...(otp != null ? { 'npm-otp': otp } : {}),
         },
         body: JSON.stringify({
           _id: `org.couchdb.user:${username}`,
