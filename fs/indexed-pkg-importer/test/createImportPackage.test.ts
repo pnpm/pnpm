@@ -318,7 +318,7 @@ testOnLinuxOnly('packageImportMethod=auto: clone falls back to copy on ENOTSUP, 
     resolvedFrom: 'remote',
   })).toBe('clone')
 
-  // Regular file: falls back to plain copyFileSync (without FICLONE_FORCE)
+  // Regular file: falls back to plain copyFileSync (without reflink flag)
   expect(gfs.copyFileSync).toHaveBeenCalledWith(
     path.join('hash2'),
     path.join('project', 'package', 'index.js')
