@@ -88,7 +88,7 @@ catalog:
   '@pnpm/network.agent': ^2.0.3
   '@pnpm/nopt': ^0.3.1
   '@pnpm/npm-conf': 3.0.2
-  '@pnpm/npm-lifecycle': ^1001.0.0
+  '@pnpm/npm-lifecycle': 1100.0.0-0
   '@pnpm/npm-package-arg': ^2.0.0
   '@pnpm/os.env.path-extender': ^3.0.0
   '@pnpm/patch-package': 0.0.1
@@ -462,7 +462,6 @@ packageExtensions:
       unified: '*'
 
 patchedDependencies:
-  '@pnpm/npm-lifecycle': __patches__/@pnpm__npm-lifecycle.patch
   graceful-fs@4.2.11: __patches__/graceful-fs@4.2.11.patch
 
 patchesDir: __patches__

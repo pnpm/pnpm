@@ -251,8 +251,8 @@ catalogs:
       specifier: 3.0.2
       version: 3.0.2
     '@pnpm/npm-lifecycle':
-      specifier: ^1001.0.0
-      version: 1001.0.0
+      specifier: 1100.0.0-0
+      version: 1100.0.0-0
     '@pnpm/npm-package-arg':
       specifier: ^2.0.0
       version: 2.0.0
@@ -980,7 +980,6 @@ packageExtensionsChecksum: sha256-87FOGilaYY8gmnjYsryuV/BI3ZuhaaJd/1fN2oxQwzY=
 pnpmfileChecksum: sha256-FyKtfMeHqu9zq1rXAr8P3zdA0NAXUioGdY0esg+SB5s=
 
 patchedDependencies:
-  '@pnpm/npm-lifecycle': 9ca23edf604c5e8ff290e3c0a5443646b5f9865624042a5c41d9b2beb8f98972
   graceful-fs@4.2.11: 68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1
 
 importers:
@@ -3963,7 +3962,7 @@ importers:
         version: link:../../fetching/directory-fetcher
       '@pnpm/npm-lifecycle':
         specifier: 'catalog:'
-        version: 1001.0.0(patch_hash=9ca23edf604c5e8ff290e3c0a5443646b5f9865624042a5c41d9b2beb8f98972)(typanion@3.14.0)
+        version: 1100.0.0-0(typanion@3.14.0)
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../../pkg-manifest/reader
@@ -10549,6 +10548,10 @@ packages:
   '@pnpm/npm-lifecycle@1001.0.0':
     resolution: {integrity: sha512-5jW/GNLdZMiw+PJ8FYSvOghoApSjsORNIro2fj8j6NHAqJxJjcHekC5/NsKaawoI5LAkU/XDDVjNC71Yz+uS1w==}
     engines: {node: '>=18.12'}
+
+  '@pnpm/npm-lifecycle@1100.0.0-0':
+    resolution: {integrity: sha512-FymJ23SU6f3AlgUsK0Bt+0ztIWe3MFkqGbPL86couBb37fH+UNyG6P6IUmOv/lXA4Y2mhqGDTSV0/8mYI08xng==}
+    engines: {node: '>=22.13'}
 
   '@pnpm/npm-package-arg@2.0.0':
     resolution: {integrity: sha512-429x8dFMgxZoeYUTUPAMC09IeM5yQ86X1LyYEQF1P4uyvhLSCh44QKkiprX9qdwBsV9QxjeNad2QoDZy1RSeRw==}
@@ -18268,7 +18271,7 @@ snapshots:
       '@pnpm/error': 1000.1.0
       '@pnpm/link-bins': 1000.3.8(@pnpm/logger@1001.0.1)
       '@pnpm/logger': 1001.0.1
-      '@pnpm/npm-lifecycle': 1001.0.0(patch_hash=9ca23edf604c5e8ff290e3c0a5443646b5f9865624042a5c41d9b2beb8f98972)(typanion@3.14.0)
+      '@pnpm/npm-lifecycle': 1001.0.0(typanion@3.14.0)
       '@pnpm/read-package-json': 1000.1.8
       '@pnpm/store-controller-types': 1004.5.1
       '@pnpm/types': 1001.3.0
@@ -18438,7 +18441,7 @@ snapshots:
       '@pnpm/network.ca-file': 1.0.2
       config-chain: 1.1.13
 
-  '@pnpm/npm-lifecycle@1001.0.0(patch_hash=9ca23edf604c5e8ff290e3c0a5443646b5f9865624042a5c41d9b2beb8f98972)(typanion@3.14.0)':
+  '@pnpm/npm-lifecycle@1001.0.0(typanion@3.14.0)':
     dependencies:
       '@pnpm/byline': 1.0.0
       '@pnpm/error': 1000.1.0
@@ -18449,6 +18452,19 @@ snapshots:
       slide: 1.1.6
       uid-number: 0.0.6
       umask: 1.1.0
+      which: 4.0.0
+    transitivePeerDependencies:
+      - supports-color
+      - typanion
+
+  '@pnpm/npm-lifecycle@1100.0.0-0(typanion@3.14.0)':
+    dependencies:
+      '@pnpm/byline': 1.0.0
+      '@pnpm/error': 1000.1.0
+      '@yarnpkg/fslib': 3.1.5
+      '@yarnpkg/shell': 4.0.0(typanion@3.14.0)
+      node-gyp: 11.5.0
+      uid-number: 0.0.6
       which: 4.0.0
     transitivePeerDependencies:
       - supports-color

@@ -4,7 +4,7 @@ import path from 'node:path'
 import { lifecycleLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
-import lifecycle from '@pnpm/npm-lifecycle'
+import { lifecycle } from '@pnpm/npm-lifecycle'
 import type { DependencyManifest, PackageScripts, ProjectManifest } from '@pnpm/types'
 import isWindows from 'is-windows'
 import { join as shellQuote } from 'shlex'
@@ -110,10 +110,7 @@ Please unset the scriptShell option, or configure it to a .exe instead.
     ? 'silent'
     : undefined
   await lifecycle(m, stage, opts.pkgRoot, {
-    config: {
-      ...opts.rawConfig,
-      'frozen-lockfile': false,
-    },
+    config: {},
     dir: opts.rootModulesDir,
     extraBinPaths: opts.extraBinPaths,
     extraEnv: {
