@@ -1,6 +1,5 @@
 import type { Config } from '@pnpm/config.reader'
 import { view } from '@pnpm/deps.inspection.commands'
-import { PnpmError } from '@pnpm/error'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
@@ -39,7 +38,13 @@ test('view: rcOptionsTypes should return object', () => {
 test('view: missing package name throws error', async () => {
   await expect(
     view.handler(VIEW_OPTIONS as unknown as Config, [])
-  ).rejects.toThrow(PnpmError)
+  ).rejects.toMatchObject({ code: 'ERR_PNPM_MISSING_PACKAGE_NAME' })
+})
+
+test('view: non-registry spec throws error', async () => {
+  await expect(
+    view.handler(VIEW_OPTIONS as unknown as Config, ['github:user/repo'])
+  ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_PACKAGE_NAME' })
 })
 
 test('view: successful lookup of package', async () => {
@@ -51,7 +56,13 @@ test('view: successful lookup of package', async () => {
 test('view: package not found throws an error', async () => {
   await expect(
     view.handler(VIEW_OPTIONS as unknown as Config, ['not-a-real-package-123456789'])
-  ).rejects.toThrow(PnpmError)
+  ).rejects.toMatchObject({ code: 'ERR_PNPM_FETCH_404' })
+})
+
+test('view: no matching version throws an error', async () => {
+  await expect(
+    view.handler(VIEW_OPTIONS as unknown as Config, ['is-negative@99999.0.0'])
+  ).rejects.toMatchObject({ code: 'ERR_PNPM_PACKAGE_NOT_FOUND' })
 })
 
 test('view: with --json option', async () => {
@@ -78,3 +89,74 @@ test('view: accessing multiple fields adds quotes for strings', async () => {
   expect(result).toContain("version = '1.0.0'")
 })
 
+test('view: version range resolves to matching version', async () => {
+  const result = await view.handler(VIEW_OPTIONS as unknown as Config, ['is-negative@^1.0.0', 'version'])
+  expect(typeof result).toBe('string')
+  expect(result).toMatch(/^1\./)
+})
+
+test('view: dist-tag resolves correctly', async () => {
+  const result = await view.handler(VIEW_OPTIONS as unknown as Config, ['is-negative@latest', 'version'])
+  expect(typeof result).toBe('string')
+  expect(result).toMatch(/^\d+\.\d+\.\d+/)
+})
+
+test('view: nested field selection', async () => {
+  const result = await view.handler(VIEW_OPTIONS as unknown as Config, ['is-negative@1.0.0', 'dist.shasum'])
+  expect(typeof result).toBe('string')
+  expect(result!.length).toBeGreaterThan(0)
+})
+
+test('view: field selection with --json', async () => {
+  const result = await view.handler(
+    { ...VIEW_OPTIONS, json: true } as unknown as Config,
+    ['is-negative@1.0.0', 'name', 'version']
+  )
+  const parsed = JSON.parse(result as string)
+  expect(parsed.name).toBe('is-negative')
+  expect(parsed.version).toBe('1.0.0')
+})
+
+test('view: text output includes header with name@version', async () => {
+  const result = await view.handler(VIEW_OPTIONS as unknown as Config, ['is-negative@1.0.0']) as string
+  const firstLine = result.split('\n')[0]
+  expect(firstLine).toContain('is-negative@1.0.0')
+})
+
+test('view: text output includes dist section', async () => {
+  const result = await view.handler(VIEW_OPTIONS as unknown as Config, ['is-negative@1.0.0']) as string
+  expect(result).toContain('.tarball:')
+  expect(result).toContain('.shasum:')
+})
+
+test('view: text output includes dist-tags', async () => {
+  const result = await view.handler(VIEW_OPTIONS as unknown as Config, ['is-negative']) as string
+  expect(result).toContain('dist-tags:')
+  expect(result).toContain('latest:')
+})
+
+test('view: text output for package with dependencies shows deps count', async () => {
+  const result = await view.handler(VIEW_OPTIONS as unknown as Config, ['@pnpm.e2e/pkg-with-1-dep@100.0.0']) as string
+  const firstLine = result.split('\n')[0]
+  expect(firstLine).toContain('deps: ')
+  expect(firstLine).not.toContain('deps: none')
+})
+
+test('view: text output for package without dependencies shows deps: none', async () => {
+  const result = await view.handler(VIEW_OPTIONS as unknown as Config, ['is-negative@1.0.0']) as string
+  const firstLine = result.split('\n')[0]
+  expect(firstLine).toContain('deps: none')
+})
+
+test('view: scoped package lookup', async () => {
+  const result = await view.handler(VIEW_OPTIONS as unknown as Config, ['@pnpm.e2e/pkg-with-1-dep@100.0.0', 'name'])
+  expect(result).toBe('@pnpm.e2e/pkg-with-1-dep')
+})
+
+test('view: object field renders as JSON', async () => {
+  const result = await view.handler(VIEW_OPTIONS as unknown as Config, ['is-negative@1.0.0', 'dist'])
+  expect(typeof result).toBe('string')
+  const parsed = JSON.parse(result as string)
+  expect(parsed.tarball).toBeDefined()
+  expect(parsed.shasum).toBeDefined()
+})
