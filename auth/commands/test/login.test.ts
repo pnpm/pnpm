@@ -251,6 +251,7 @@ describe('login', () => {
 
     expect(result).toBe('Logged in on https://example.org/')
     expect(putCallCount).toBe(2)
+    expect(globalInfo.mock.calls).toEqual([['Logged in as alice']])
   })
 
   it('should handle webauth OTP challenge during login', async () => {
