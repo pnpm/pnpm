@@ -61,16 +61,16 @@ const fetchOptions: WebAuthFetchOptions = { method: 'GET' }
 describe('withOtpHandling', () => {
   it('returns the result when the operation succeeds without OTP', async () => {
     const context = createOtpMockContext()
-    const result = await withOtpHandling(async () => 'success', context, fetchOptions)
+    const result = await withOtpHandling({ operation: async () => 'success', context, fetchOptions })
     expect(result).toBe('success')
   })
 
   it('throws non-OTP errors as-is', async () => {
     const error = new Error('network error')
     const context = createOtpMockContext()
-    await expect(withOtpHandling(async () => {
+    await expect(withOtpHandling({ operation: async () => {
       throw error
-    }, context, fetchOptions))
+    }, context, fetchOptions }))
       .rejects.toBe(error)
   })
 
@@ -84,7 +84,7 @@ describe('withOtpHandling', () => {
     const operation = async () => {
       throw Object.assign(new Error('otp'), { code: 'EOTP' })
     }
-    await expect(withOtpHandling(operation, context, fetchOptions))
+    await expect(withOtpHandling({ operation, context, fetchOptions }))
       .rejects.toBeInstanceOf(OtpNonInteractiveError)
   })
 
@@ -98,7 +98,7 @@ describe('withOtpHandling', () => {
     const operation = async () => {
       throw Object.assign(new Error('otp'), { code: 'EOTP' })
     }
-    await expect(withOtpHandling(operation, context, fetchOptions))
+    await expect(withOtpHandling({ operation, context, fetchOptions }))
       .rejects.toBeInstanceOf(OtpNonInteractiveError)
   })
 
@@ -108,8 +108,8 @@ describe('withOtpHandling', () => {
       const context = createOtpMockContext({
         enquirer: { prompt: async () => ({ otp: '654321' }) },
       })
-      const result = await withOtpHandling(
-        async otp => {
+      const result = await withOtpHandling({
+        operation: async otp => {
           callCount++
           if (callCount === 1) {
             throw Object.assign(new Error('otp'), { code: 'EOTP' })
@@ -118,8 +118,8 @@ describe('withOtpHandling', () => {
           return 'ok'
         },
         context,
-        fetchOptions
-      )
+        fetchOptions,
+      })
       expect(result).toBe('ok')
       expect(callCount).toBe(2)
     })
@@ -129,7 +129,7 @@ describe('withOtpHandling', () => {
       const operation = async () => {
         throw Object.assign(new Error('otp'), { code: 'EOTP' })
       }
-      await expect(withOtpHandling(operation, context, fetchOptions))
+      await expect(withOtpHandling({ operation, context, fetchOptions }))
         .rejects.toBeInstanceOf(OtpSecondChallengeError)
     })
 
@@ -137,8 +137,8 @@ describe('withOtpHandling', () => {
       let callCount = 0
       const retryError = new Error('server error')
       const context = createOtpMockContext()
-      await expect(withOtpHandling(
-        async () => {
+      await expect(withOtpHandling({
+        operation: async () => {
           callCount++
           if (callCount === 1) {
             throw Object.assign(new Error('otp'), { code: 'EOTP' })
@@ -146,34 +146,34 @@ describe('withOtpHandling', () => {
           throw retryError
         },
         context,
-        fetchOptions
-      )).rejects.toBe(retryError)
+        fetchOptions,
+      })).rejects.toBe(retryError)
     })
 
     it('re-throws the original OTP error when enquirer returns no OTP', async () => {
       const context = createOtpMockContext({
         enquirer: { prompt: async () => ({ otp: '' }) },
       })
-      await expect(withOtpHandling(
-        async () => {
+      await expect(withOtpHandling({
+        operation: async () => {
           throw Object.assign(new Error('otp'), { code: 'EOTP' })
         },
         context,
-        fetchOptions
-      )).rejects.toMatchObject({ code: 'EOTP' })
+        fetchOptions,
+      })).rejects.toMatchObject({ code: 'EOTP' })
     })
 
     it('re-throws the original OTP error when enquirer returns undefined', async () => {
       const context = createOtpMockContext({
         enquirer: { prompt: async () => undefined },
       })
-      await expect(withOtpHandling(
-        async () => {
+      await expect(withOtpHandling({
+        operation: async () => {
           throw Object.assign(new Error('otp'), { code: 'EOTP' })
         },
         context,
-        fetchOptions
-      )).rejects.toMatchObject({ code: 'EOTP' })
+        fetchOptions,
+      })).rejects.toMatchObject({ code: 'EOTP' })
     })
   })
 
@@ -200,8 +200,8 @@ describe('withOtpHandling', () => {
           })
         },
       })
-      const result = await withOtpHandling(
-        async otp => {
+      const result = await withOtpHandling({
+        operation: async otp => {
           operationCallCount++
           if (operationCallCount === 1) {
             throw Object.assign(new Error('otp'), {
@@ -216,8 +216,8 @@ describe('withOtpHandling', () => {
           return 'published'
         },
         context,
-        fetchOptions
-      )
+        fetchOptions,
+      })
       expect(result).toBe('published')
       expect(operationCallCount).toBe(2)
       expect(fetchCallCount).toBe(3)
@@ -229,8 +229,8 @@ describe('withOtpHandling', () => {
       const context = createOtpMockContext({
         enquirer: { prompt: async () => ({ otp: 'manual-code' }) },
       })
-      const result = await withOtpHandling(
-        async otp => {
+      const result = await withOtpHandling({
+        operation: async otp => {
           callCount++
           if (callCount === 1) {
             throw Object.assign(new Error('otp'), {
@@ -242,8 +242,8 @@ describe('withOtpHandling', () => {
           return 'done'
         },
         context,
-        fetchOptions
-      )
+        fetchOptions,
+      })
       expect(result).toBe('done')
     })
 
@@ -252,8 +252,8 @@ describe('withOtpHandling', () => {
       const context = createOtpMockContext({
         enquirer: { prompt: async () => ({ otp: 'manual-code' }) },
       })
-      const result = await withOtpHandling(
-        async otp => {
+      const result = await withOtpHandling({
+        operation: async otp => {
           callCount++
           if (callCount === 1) {
             throw Object.assign(new Error('otp'), {
@@ -265,8 +265,8 @@ describe('withOtpHandling', () => {
           return 'done'
         },
         context,
-        fetchOptions
-      )
+        fetchOptions,
+      })
       expect(result).toBe('done')
     })
 
@@ -287,8 +287,8 @@ describe('withOtpHandling', () => {
         }),
       })
       let called = false
-      await expect(withOtpHandling(
-        async () => {
+      await expect(withOtpHandling({
+        operation: async () => {
           if (!called) {
             called = true
             throw Object.assign(new Error('otp'), {
@@ -302,8 +302,8 @@ describe('withOtpHandling', () => {
           throw new Error('Unexpected second call to operation')
         },
         context,
-        fetchOptions
-      )).rejects.toBeInstanceOf(WebAuthTimeoutError)
+        fetchOptions,
+      })).rejects.toBeInstanceOf(WebAuthTimeoutError)
       expect(globalInfo).toHaveBeenCalledWith(expect.stringContaining('https://registry.npmjs.org/auth/abc'))
     })
   })

@@ -29,6 +29,13 @@ export interface WebAuthContext {
   fetch: (url: string, options: WebAuthFetchOptions) => Promise<WebAuthFetchResponse>
 }
 
+export interface PollForWebAuthTokenParams {
+  doneUrl: string
+  context: WebAuthContext
+  fetchOptions: WebAuthFetchOptions
+  timeoutMs?: number
+}
+
 /**
  * Polls a registry's "done" URL until an authentication token is returned.
  *
@@ -39,16 +46,12 @@ export interface WebAuthContext {
  *
  * @throws {@link WebAuthTimeoutError} if the timeout is exceeded.
  */
-export async function pollForWebAuthToken (
-  doneUrl: string,
-  {
-    Date,
-    fetch,
-    setTimeout,
-  }: WebAuthContext,
-  fetchOptions: WebAuthFetchOptions,
-  timeoutMs: number = 5 * 60 * 1000
-): Promise<string> {
+export async function pollForWebAuthToken ({
+  doneUrl,
+  context: { Date, fetch, setTimeout },
+  fetchOptions,
+  timeoutMs = 5 * 60 * 1000,
+}: PollForWebAuthTokenParams): Promise<string> {
   const startTime = Date.now()
   const pollIntervalMs = 1000
 

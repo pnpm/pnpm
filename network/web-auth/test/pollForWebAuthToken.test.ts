@@ -63,7 +63,7 @@ describe('pollForWebAuthToken', () => {
         })
       },
     })
-    const token = await pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions)
+    const token = await pollForWebAuthToken({ doneUrl: 'https://registry.npmjs.org/auth/done', context, fetchOptions })
     expect(token).toBe('web-token-123')
     expect(fetchCallCount).toBe(3)
   })
@@ -85,7 +85,7 @@ describe('pollForWebAuthToken', () => {
         })
       },
     })
-    await pollForWebAuthToken('https://registry.example.com/done', context, opts)
+    await pollForWebAuthToken({ doneUrl: 'https://registry.example.com/done', context, fetchOptions: opts })
     expect(capturedArgs).toEqual([{ url: 'https://registry.example.com/done', options: opts }])
   })
 
@@ -113,7 +113,7 @@ describe('pollForWebAuthToken', () => {
         })
       },
     })
-    await pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions)
+    await pollForWebAuthToken({ doneUrl: 'https://registry.npmjs.org/auth/done', context, fetchOptions })
     // First setTimeout is the default 1s poll interval,
     // second is the additional delay (5s Retry-After minus the 1s already waited),
     // third is the default 1s poll interval for the next iteration.
@@ -144,7 +144,7 @@ describe('pollForWebAuthToken', () => {
         })
       },
     })
-    await pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions)
+    await pollForWebAuthToken({ doneUrl: 'https://registry.npmjs.org/auth/done', context, fetchOptions })
     // Only the default 1s poll intervals, no additional Retry-After delay.
     expect(setTimeoutDelays).toStrictEqual([1000, 1000])
   })
@@ -173,7 +173,7 @@ describe('pollForWebAuthToken', () => {
         })
       },
     })
-    await pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions)
+    await pollForWebAuthToken({ doneUrl: 'https://registry.npmjs.org/auth/done', context, fetchOptions })
     expect(setTimeoutDelays).toStrictEqual([1000, 1000])
   })
 
@@ -201,7 +201,7 @@ describe('pollForWebAuthToken', () => {
         })
       },
     })
-    await pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions)
+    await pollForWebAuthToken({ doneUrl: 'https://registry.npmjs.org/auth/done', context, fetchOptions })
     // Retry-After of 0.5s (500ms) is less than the 1s poll interval already waited,
     // so no additional delay is added.
     expect(setTimeoutDelays).toStrictEqual([1000, 1000])
@@ -225,7 +225,7 @@ describe('pollForWebAuthToken', () => {
       }),
     })
     // Use a 10s timeout so the 60s Retry-After gets capped.
-    await expect(pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions, 10_000))
+    await expect(pollForWebAuthToken({ doneUrl: 'https://registry.npmjs.org/auth/done', context, fetchOptions, timeoutMs: 10_000 }))
       .rejects.toBeInstanceOf(WebAuthTimeoutError)
     // The first delay is the 1s poll interval. The additional delay from
     // Retry-After (59s) should be capped to the remaining timeout (~9s).
@@ -256,7 +256,7 @@ describe('pollForWebAuthToken', () => {
         })
       },
     })
-    await expect(pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions, timeoutMs))
+    await expect(pollForWebAuthToken({ doneUrl: 'https://registry.npmjs.org/auth/done', context, fetchOptions, timeoutMs }))
       .rejects.toMatchObject({ timeout: timeoutMs })
   })
 
@@ -275,7 +275,7 @@ describe('pollForWebAuthToken', () => {
         })
       },
     })
-    const token = await pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions)
+    const token = await pollForWebAuthToken({ doneUrl: 'https://registry.npmjs.org/auth/done', context, fetchOptions })
     expect(token).toBe('tok')
     expect(fetchCallCount).toBe(2)
   })
@@ -298,7 +298,7 @@ describe('pollForWebAuthToken', () => {
         })
       },
     })
-    const token = await pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions)
+    const token = await pollForWebAuthToken({ doneUrl: 'https://registry.npmjs.org/auth/done', context, fetchOptions })
     expect(token).toBe('tok')
     expect(fetchCallCount).toBe(2)
   })
@@ -325,7 +325,7 @@ describe('pollForWebAuthToken', () => {
         })
       },
     })
-    const token = await pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions)
+    const token = await pollForWebAuthToken({ doneUrl: 'https://registry.npmjs.org/auth/done', context, fetchOptions })
     expect(token).toBe('tok')
     expect(fetchCallCount).toBe(2)
   })
@@ -349,7 +349,7 @@ describe('pollForWebAuthToken', () => {
         })
       },
     })
-    const token = await pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions)
+    const token = await pollForWebAuthToken({ doneUrl: 'https://registry.npmjs.org/auth/done', context, fetchOptions })
     expect(token).toBe('tok')
     expect(fetchCallCount).toBe(2)
   })
@@ -373,7 +373,7 @@ describe('pollForWebAuthToken', () => {
         })
       },
     })
-    const token = await pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions)
+    const token = await pollForWebAuthToken({ doneUrl: 'https://registry.npmjs.org/auth/done', context, fetchOptions })
     expect(token).toBe('real-tok')
     expect(fetchCallCount).toBe(2)
   })
@@ -392,7 +392,7 @@ describe('pollForWebAuthToken', () => {
         headers: { get: () => null },
       }),
     })
-    await expect(pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions))
+    await expect(pollForWebAuthToken({ doneUrl: 'https://registry.npmjs.org/auth/done', context, fetchOptions }))
       .rejects.toBeInstanceOf(WebAuthTimeoutError)
   })
 
@@ -411,7 +411,7 @@ describe('pollForWebAuthToken', () => {
         headers: { get: () => null },
       }),
     })
-    await expect(pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions, customTimeoutMs))
+    await expect(pollForWebAuthToken({ doneUrl: 'https://registry.npmjs.org/auth/done', context, fetchOptions, timeoutMs: customTimeoutMs }))
       .rejects.toMatchObject({ timeout: customTimeoutMs })
   })
 
@@ -430,7 +430,7 @@ describe('pollForWebAuthToken', () => {
         })
       },
     })
-    const token = await pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions)
+    const token = await pollForWebAuthToken({ doneUrl: 'https://registry.npmjs.org/auth/done', context, fetchOptions })
     expect(token).toBe('recovered')
     expect(fetchCallCount).toBe(6)
   })
@@ -459,7 +459,7 @@ describe('pollForWebAuthToken', () => {
         })
       },
     })
-    await pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions)
+    await pollForWebAuthToken({ doneUrl: 'https://registry.npmjs.org/auth/done', context, fetchOptions })
     // Each iteration waits 1000ms before fetching.
     expect(setTimeoutDelays).toStrictEqual([1000, 1000, 1000, 1000])
   })
@@ -496,7 +496,7 @@ describe('pollForWebAuthToken', () => {
         })
       },
     })
-    await expect(pollForWebAuthToken('https://registry.npmjs.org/auth/done', context, fetchOptions, timeoutMs))
+    await expect(pollForWebAuthToken({ doneUrl: 'https://registry.npmjs.org/auth/done', context, fetchOptions, timeoutMs }))
       .rejects.toMatchObject({ timeout: timeoutMs })
   })
 })

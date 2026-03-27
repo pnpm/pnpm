@@ -177,10 +177,10 @@ export async function login ({ context = DEFAULT_CONTEXT, opts }: LoginParams): 
   // Try web-based login first, fall back to classic login
   let token: string
   try {
-    token = await webLogin(registry, fetchOptions, context)
+    token = await webLogin({ registry, fetchOptions, context })
   } catch (err) {
     if (isWebLoginNotSupported(err)) {
-      token = await classicLogin(registry, context, fetchOptions)
+      token = await classicLogin({ registry, context, fetchOptions })
     } else {
       throw err
     }
@@ -195,11 +195,17 @@ export async function login ({ context = DEFAULT_CONTEXT, opts }: LoginParams): 
   return `Logged in on ${registry}`
 }
 
-async function webLogin (
-  registry: string,
-  fetchOptions: WebAuthFetchOptions,
+interface WebLoginParams {
+  registry: string
+  fetchOptions: WebAuthFetchOptions
   context: Pick<LoginContext, 'Date' | 'setTimeout' | 'fetch' | 'globalInfo'>
-): Promise<string> {
+}
+
+async function webLogin ({
+  registry,
+  fetchOptions,
+  context,
+}: WebLoginParams): Promise<string> {
   const {
     fetch,
     globalInfo,
@@ -231,14 +237,20 @@ async function webLogin (
   const qrCode = generateQrCode(body.loginUrl)
   globalInfo(`Authenticate your account at:\n${body.loginUrl}\n\n${qrCode}`)
 
-  return pollForWebAuthToken(body.doneUrl, context, fetchOptions)
+  return pollForWebAuthToken({ doneUrl: body.doneUrl, context, fetchOptions })
 }
 
-async function classicLogin (
-  registry: string,
-  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'enquirer' | 'fetch' | 'globalInfo' | 'globalWarn' | 'process'>,
+interface ClassicLoginParams {
+  registry: string
+  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'enquirer' | 'fetch' | 'globalInfo' | 'globalWarn' | 'process'>
   fetchOptions: WebAuthFetchOptions
-): Promise<string> {
+}
+
+async function classicLogin ({
+  registry,
+  context,
+  fetchOptions,
+}: ClassicLoginParams): Promise<string> {
   const { enquirer, fetch, globalInfo, globalWarn } = context
 
   const { username } = await enquirer.prompt({
@@ -263,8 +275,8 @@ async function classicLogin (
 
   const loginUrl = new URL(`-/user/org.couchdb.user:${encodeURIComponent(username)}`, registry).href
 
-  const token = await withOtpHandling(
-    async (otp?: string) => {
+  const token = await withOtpHandling({
+    operation: async (otp?: string) => {
       const response = await fetch(loginUrl, {
         method: 'PUT',
         headers: {
@@ -297,8 +309,8 @@ async function classicLogin (
       return body.token
     },
     context,
-    fetchOptions
-  )
+    fetchOptions,
+  })
 
   globalInfo(`Logged in as ${username}`)
 

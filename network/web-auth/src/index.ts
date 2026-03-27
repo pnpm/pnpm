@@ -1,6 +1,7 @@
 export { generateQrCode } from './generateQrCode.js'
 export {
   pollForWebAuthToken,
+  type PollForWebAuthTokenParams,
   type WebAuthContext,
   type WebAuthFetchOptions,
   type WebAuthFetchResponse,
@@ -11,6 +12,7 @@ export {
   isOtpError,
   type OtpContext,
   type OtpEnquirer,
+  type OtpHandlingParams,
   OtpNonInteractiveError,
   type OtpPromptOptions,
   type OtpPromptResponse,

@@ -59,9 +59,9 @@ export async function publishWithOtpHandling ({
     timeout: publishOptions.timeout,
   }
 
-  return withOtpHandling(
-    otp => publish(manifest, tarballData, { ...publishOptions, otp }),
+  return withOtpHandling({
+    operation: otp => publish(manifest, tarballData, { ...publishOptions, otp }),
     context,
-    fetchOptions
-  )
+    fetchOptions,
+  })
 }

@@ -48,6 +48,12 @@ export const isOtpError = (error: unknown): error is OtpError =>
   'code' in error &&
   error.code === 'EOTP'
 
+export interface OtpHandlingParams<T> {
+  operation: (otp?: string) => Promise<T>
+  context: OtpContext
+  fetchOptions: WebAuthFetchOptions
+}
+
 /**
  * Wraps an operation with OTP (one-time password) challenge handling.
  *
@@ -63,11 +69,11 @@ export const isOtpError = (error: unknown): error is OtpError =>
  *
  * @see https://github.com/npm/cli/blob/7d900c46/lib/utils/otplease.js for npm's implementation.
  */
-export async function withOtpHandling<T> (
-  operation: (otp?: string) => Promise<T>,
-  context: OtpContext,
-  fetchOptions: WebAuthFetchOptions
-): Promise<T> {
+export async function withOtpHandling<T> ({
+  operation,
+  context,
+  fetchOptions,
+}: OtpHandlingParams<T>): Promise<T> {
   const {
     enquirer,
     globalInfo,
@@ -87,11 +93,11 @@ export async function withOtpHandling<T> (
     if (error.body?.authUrl && error.body?.doneUrl) {
       const qrCode = generateQrCode(error.body.authUrl)
       globalInfo(`Authenticate your account at:\n${error.body.authUrl}\n\n${qrCode}`)
-      otp = await pollForWebAuthToken(
-        error.body.doneUrl,
+      otp = await pollForWebAuthToken({
+        doneUrl: error.body.doneUrl,
         context,
-        fetchOptions
-      )
+        fetchOptions,
+      })
     } else {
       const enquirerResponse = await enquirer.prompt({
         message: 'This operation requires a one-time password.\nEnter OTP:',
