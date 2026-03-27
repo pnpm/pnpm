@@ -3122,6 +3122,9 @@ importers:
       '@pnpm/config.matcher':
         specifier: workspace:*
         version: link:../../../config/matcher
+      '@pnpm/config.pick-registry-for-package':
+        specifier: workspace:*
+        version: link:../../../config/pick-registry-for-package
       '@pnpm/config.reader':
         specifier: workspace:*
         version: link:../../../config/reader
@@ -3152,9 +3155,21 @@ importers:
       '@pnpm/logger':
         specifier: 'catalog:'
         version: 1001.0.1
+      '@pnpm/network.auth-header':
+        specifier: workspace:*
+        version: link:../../../network/auth-header
+      '@pnpm/network.fetch':
+        specifier: workspace:*
+        version: link:../../../network/fetch
+      '@pnpm/npm-package-arg':
+        specifier: 'catalog:'
+        version: 2.0.0
       '@pnpm/resolving.default-resolver':
         specifier: workspace:*
         version: link:../../../resolving/default-resolver
+      '@pnpm/resolving.npm-resolver':
+        specifier: workspace:*
+        version: link:../../../resolving/npm-resolver
       '@pnpm/semver-diff':
         specifier: 'catalog:'
         version: 1.1.0
