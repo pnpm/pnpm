@@ -25,7 +25,7 @@ import { isEmpty } from 'ramda'
 import semver from 'semver'
 
 import { checkForUpdates } from './checkForUpdates.js'
-import { NOT_IMPLEMENTED_COMMAND_SET, pnpmCmds, rcOptionsTypes, recursiveByDefaultCommands, scriptOverrideCommands, skipPackageManagerCheckForCommand } from './cmd/index.js'
+import { NOT_IMPLEMENTED_COMMAND_SET, overridableByScriptCommands, pnpmCmds, rcOptionsTypes, recursiveByDefaultCommands, skipPackageManagerCheckForCommand } from './cmd/index.js'
 import { formatUnknownOptionsError } from './formatError.js'
 import { getConfig, installConfigDepsAndLoadHooks } from './getConfig.js'
 import { parseCliArgs } from './parseCliArgs.js'
@@ -193,7 +193,7 @@ export async function main (inputArgv: string[]): Promise<void> {
   // Commands with scriptOverride: if the current project's package.json has a
   // script with the same name, run the script instead of the built-in command.
   const typedCommandName = argv.remain[0]
-  if (cmd != null && scriptOverrideCommands.has(typedCommandName) && !cliOptions.global) {
+  if (cmd != null && overridableByScriptCommands.has(typedCommandName) && !cliOptions.global) {
     const currentDirManifest = config.dir === config.rootProjectManifestDir
       ? config.rootProjectManifest
       : await safeReadProjectManifestOnly(config.dir)

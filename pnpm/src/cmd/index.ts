@@ -113,7 +113,7 @@ export interface CommandDefinition {
    * built-in command.  Aliases of the command (e.g. "purge" for "clean") still
    * run the built-in.
    */
-  scriptOverride?: boolean
+  overridableByScript?: boolean
 }
 
 const helpByCommandName: Record<string, () => string> = {}
@@ -186,7 +186,7 @@ const shorthandsByCommandName: Record<string, Record<string, string | string[]>>
 const rcOptionsTypes: Record<string, unknown> = {}
 const skipPackageManagerCheckForCommandArray = ['completion-server']
 const recursiveByDefaultCommandArray: string[] = []
-const scriptOverrideCommandArray: string[] = []
+const overridableByScriptCommandArray: string[] = []
 
 for (let i = 0; i < commands.length; i++) {
   const {
@@ -199,7 +199,7 @@ for (let i = 0; i < commands.length; i++) {
     shorthands,
     skipPackageManagerCheck,
     recursiveByDefault,
-    scriptOverride,
+    overridableByScript,
   } = commands[i]
   if (!commandNames || commandNames.length === 0) {
     throw new Error(`The command at index ${i} doesn't have command names`)
@@ -220,8 +220,8 @@ for (let i = 0; i < commands.length; i++) {
   if (recursiveByDefault) {
     recursiveByDefaultCommandArray.push(...commandNames)
   }
-  if (scriptOverride) {
-    scriptOverrideCommandArray.push(...commandNames)
+  if (overridableByScript) {
+    overridableByScriptCommandArray.push(...commandNames)
   }
   if (commandNames.length > 1) {
     const fullName = commandNames[0]
@@ -260,6 +260,6 @@ export function getCommandFullName (commandName: string): string | null {
 
 export const recursiveByDefaultCommands = new Set(recursiveByDefaultCommandArray)
 
-export const scriptOverrideCommands = new Set(scriptOverrideCommandArray)
+export const overridableByScriptCommands = new Set(overridableByScriptCommandArray)
 
 export { NOT_IMPLEMENTED_COMMAND_SET, rcOptionsTypes, shorthandsByCommandName }

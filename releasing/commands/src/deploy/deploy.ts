@@ -46,7 +46,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
 
 export const commandNames = ['deploy']
 
-export const scriptOverride = true
+export const overridableByScript = true
 
 export function help (): string {
   return renderHelp({

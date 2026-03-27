@@ -23,7 +23,7 @@ export const shorthands = {}
 
 export const commandNames = ['setup']
 
-export const scriptOverride = true
+export const overridableByScript = true
 
 export function help (): string {
   return renderHelp({

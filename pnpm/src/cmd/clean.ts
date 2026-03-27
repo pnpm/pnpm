@@ -10,7 +10,7 @@ import { renderHelp } from 'render-help'
 
 export const commandNames = ['clean', 'purge']
 
-export const scriptOverride = true
+export const overridableByScript = true
 
 export const rcOptionsTypes = cliOptionsTypes
 
