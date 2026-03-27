@@ -30,6 +30,32 @@ describe('audit', () => {
     expect(result.devDependencies).toBe(0)
   })
 
+  test('lockfileToAuditRequest() does not include workspace importers in the audit payload when importer directory matches a package name', () => {
+    const result = lockfileToAuditRequest({
+      importers: {
+        ['playwright' as ProjectId]: {
+          dependencies: {
+            '@playwright/test': '1.58.2',
+          },
+          specifiers: {
+            '@playwright/test': '1.58.2',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['@playwright/test@1.58.2' as DepPath]: {
+          resolution: {
+            integrity: 'playwright-test-integrity',
+          },
+        },
+      },
+    }, {})
+
+    expect(result.request).toEqual({ '@playwright/test': ['1.58.2'] })
+    expect(result.request['playwright']).toBeUndefined()
+  })
+
   test('lockfileToAuditRequest() does not treat a dependency named after an Object.prototype property as a peer-satisfaction edge', () => {
     // Peer-satisfaction detection must check own properties only. Checking
     // via `in` would match inherited Object.prototype names — `constructor`
