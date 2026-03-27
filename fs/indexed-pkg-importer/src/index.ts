@@ -30,7 +30,7 @@ function createImportPackage (packageImportMethod?: PackageImportMethod): Import
   switch (packageImportMethod ?? 'auto') {
     case 'clone':
       packageImportMethodLogger.debug({ method: 'clone' })
-      return clonePkg.bind(null, createCloneImporter(createCloneFunction()))
+      return clonePkg.bind(null, createCloneImporter())
     case 'hardlink':
       packageImportMethodLogger.debug({ method: 'hardlink' })
       return hardlinkPkg.bind(null, linkOrCopy)
@@ -61,7 +61,7 @@ function createAutoImporter (): ImportIndexedPackage {
     // Hence, we prefer reflinks by default only on Linux and macOS.
     if (process.platform !== 'win32') {
       try {
-        const importer = createCloneImporter(createCloneFunction())
+        const importer = createCloneImporter()
         const _clonePkg = clonePkg.bind(null, importer)
         if (!_clonePkg(to, opts)) return undefined
         packageImportMethodLogger.debug({ method: 'clone' })
@@ -103,7 +103,7 @@ function createCloneOrCopyImporter (): ImportIndexedPackage {
     opts: ImportOptions
   ): string | undefined {
     try {
-      const importer = createCloneImporter(createCloneFunction())
+      const importer = createCloneImporter()
       const _clonePkg = clonePkg.bind(null, importer)
       if (!_clonePkg(to, opts)) return undefined
       packageImportMethodLogger.debug({ method: 'clone' })
@@ -149,6 +149,33 @@ function pickFileFromFilesMap (filesMap: FilesMap): string {
   return filesMap.keys().next().value!
 }
 
+/**
+ * Creates an Importer that clones files via reflink (or FICLONE_FORCE on
+ * Linux).  Reflinks are atomic, so clone can serve as both importFile and
+ * importFileAtomic.  However, on Linux copy_file_range can transiently fail
+ * with ENOTSUP under heavy parallel I/O, so we fall back to copy on ENOTSUP.
+ * Regular files use a simple copy; package.json (the completion marker) uses
+ * a temp+rename fallback to stay atomic.
+ */
+function createCloneImporter (): Importer {
+  const clone = createCloneFunction()
+  const withFallback = (fallback: CloneFunction): ImportFile => (src, dest) => {
+    try {
+      clone(src, dest)
+    } catch (err: unknown) {
+      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOTSUP') {
+        fallback(src, dest)
+        return
+      }
+      throw err
+    }
+  }
+  return {
+    importFile: withFallback(resilientCopyFileSync),
+    importFileAtomic: withFallback(atomicCopyFileSync),
+  }
+}
+
 function createCloneFunction (): CloneFunction {
   // Node.js currently does not natively support reflinks on Windows and macOS.
   // Hence, we use a third party solution.
@@ -172,31 +199,6 @@ function createCloneFunction (): CloneFunction {
     } catch (err: unknown) {
       if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
     }
-  }
-}
-
-/**
- * Reflinks are atomic, so clone can serve as both importFile and
- * importFileAtomic.  However, on Linux copy_file_range can transiently fail
- * with ENOTSUP under heavy parallel I/O, so we fall back to copy on ENOTSUP.
- * Regular files use a simple copy; package.json (the completion marker) uses
- * a temp+rename fallback to stay atomic.
- */
-function createCloneImporter (clone: CloneFunction): Importer {
-  const withFallback = (fallback: CloneFunction): ImportFile => (src, dest) => {
-    try {
-      clone(src, dest)
-    } catch (err: unknown) {
-      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOTSUP') {
-        fallback(src, dest)
-        return
-      }
-      throw err
-    }
-  }
-  return {
-    importFile: withFallback(resilientCopyFileSync),
-    importFileAtomic: withFallback(atomicCopyFileSync),
   }
 }
 
