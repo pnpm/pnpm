@@ -26,8 +26,12 @@ function createMockContext (overrides?: Partial<OtpContext>): OtpContext {
       ok: false,
       status: 404,
     }),
-    globalInfo: () => {},
-    globalWarn: () => {},
+    globalInfo: msg => {
+      throw new Error(`Unexpected call to globalInfo: ${msg}`)
+    },
+    globalWarn: msg => {
+      throw new Error(`Unexpected call to globalWarn: ${msg}`)
+    },
     process: { stdin: { isTTY: true }, stdout: { isTTY: true } },
     publish: async () => createOkResponse(),
     ...overrides,
@@ -143,6 +147,7 @@ describe('publishWithOtpHandling', () => {
       let publishCallCount = 0
       let fetchCallCount = 0
       const context = createMockContext({
+        globalInfo: () => {},
         publish: async (_m, _t, opts) => {
           publishCallCount++
           if (publishCallCount === 1) {
@@ -185,6 +190,7 @@ describe('publishWithOtpHandling', () => {
       const setTimeoutDelays: number[] = []
       let fetchCallCount = 0
       const context = createMockContext({
+        globalInfo: () => {},
         publish: async () => {
           if (fetchCallCount === 0) {
             throw Object.assign(new Error('otp'), {
@@ -230,6 +236,7 @@ describe('publishWithOtpHandling', () => {
       let publishCallCount = 0
       let fetchCallCount = 0
       const context = createMockContext({
+        globalInfo: () => {},
         publish: async (_m, _t, opts) => {
           publishCallCount++
           if (publishCallCount === 1) {
@@ -266,6 +273,7 @@ describe('publishWithOtpHandling', () => {
       let publishCallCount = 0
       let fetchCallCount = 0
       const context = createMockContext({
+        globalInfo: () => {},
         publish: async (_m, _t, opts) => {
           publishCallCount++
           if (publishCallCount === 1) {
@@ -307,6 +315,7 @@ describe('publishWithOtpHandling', () => {
       let publishCallCount = 0
       let fetchCallCount = 0
       const context = createMockContext({
+        globalInfo: () => {},
         publish: async (_m, _t, opts) => {
           publishCallCount++
           if (publishCallCount === 1) {
@@ -349,6 +358,7 @@ describe('publishWithOtpHandling', () => {
     it('throws WebAuthTimeoutError after 5 minutes', async () => {
       let time = 0
       const context = createMockContext({
+        globalInfo: () => {},
         Date: { now: () => time },
         publish: async () => {
           throw Object.assign(new Error('otp'), {

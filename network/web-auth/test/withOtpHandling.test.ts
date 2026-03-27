@@ -41,8 +41,12 @@ function createOtpMockContext (overrides?: Partial<OtpContext>): OtpContext {
       ok: false,
       status: 404,
     }),
-    globalInfo: () => {},
-    globalWarn: () => {},
+    globalInfo: msg => {
+      throw new Error(`Unexpected call to globalInfo: ${msg}`)
+    },
+    globalWarn: msg => {
+      throw new Error(`Unexpected call to globalWarn: ${msg}`)
+    },
     process: {
       stdin: { isTTY: true },
       stdout: { isTTY: true },
@@ -270,6 +274,7 @@ describe('withOtpHandling', () => {
     it('throws WebAuthTimeoutError when webauth polling times out', async () => {
       let time = 0
       const context = createOtpMockContext({
+        globalInfo: () => {},
         Date: { now: () => time },
         setTimeout: (cb: () => void) => {
           time += 6 * 60 * 1000
@@ -317,10 +322,12 @@ describe('SyntheticOtpError', () => {
 })
 
 describe('SyntheticOtpError.fromUnknownBody', () => {
-  const noopWarn = () => {}
+  const unexpectedWarn = (msg: string) => {
+    throw new Error(`Unexpected call to globalWarn: ${msg}`)
+  }
 
   it('extracts valid string authUrl and doneUrl', () => {
-    const err = SyntheticOtpError.fromUnknownBody(noopWarn, {
+    const err = SyntheticOtpError.fromUnknownBody(unexpectedWarn, {
       authUrl: 'https://example.com/auth',
       doneUrl: 'https://example.com/done',
     })
@@ -331,12 +338,12 @@ describe('SyntheticOtpError.fromUnknownBody', () => {
   })
 
   it('returns undefined body when body is null', () => {
-    const err = SyntheticOtpError.fromUnknownBody(noopWarn, null)
+    const err = SyntheticOtpError.fromUnknownBody(unexpectedWarn, null)
     expect(err.body).toBeUndefined()
   })
 
   it('returns undefined body when body is not an object', () => {
-    const err = SyntheticOtpError.fromUnknownBody(noopWarn, 'not an object')
+    const err = SyntheticOtpError.fromUnknownBody(unexpectedWarn, 'not an object')
     expect(err.body).toBeUndefined()
   })
 
@@ -376,7 +383,7 @@ describe('SyntheticOtpError.fromUnknownBody', () => {
   })
 
   it('returns empty body when body has no authUrl or doneUrl', () => {
-    const err = SyntheticOtpError.fromUnknownBody(noopWarn, { something: 'else' })
+    const err = SyntheticOtpError.fromUnknownBody(unexpectedWarn, { something: 'else' })
     expect(err.body).toEqual({})
   })
 })
