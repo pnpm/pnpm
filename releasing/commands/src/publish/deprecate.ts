@@ -1,9 +1,9 @@
-import { docsUrl } from '@pnpm/cli-utils'
-import { FILTERING } from '@pnpm/common-cli-options-help'
-import { types as allTypes } from '@pnpm/config'
+import { FILTERING } from '@pnpm/cli.common-cli-options-help'
+import { docsUrl } from '@pnpm/cli.utils'
+import { types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
-import { createFetchFromRegistry } from '@pnpm/fetch'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
+import { fetch } from '@pnpm/network.fetch'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
@@ -134,8 +134,6 @@ async function deprecatePackage (
 
   const authHeader = getAuthHeader(registryUrl)
 
-  const fetch = createFetchFromRegistry({})
-
   const packageUrl = `${registryUrl.replace(/\/$/, '')}/${packageName}`
 
   const getResponse = await fetch(packageUrl, {
@@ -151,7 +149,7 @@ async function deprecatePackage (
     throw new PnpmError('REGISTRY_ERROR', `Failed to fetch package info: ${getResponse.status} ${getResponse.statusText}`)
   }
 
-  const pkg: PackageManifest = await getResponse.json()
+  const pkg: PackageManifest = await getResponse.json() as PackageManifest
 
   if (!pkg.versions || Object.keys(pkg.versions).length === 0) {
     throw new PnpmError('NO_VERSIONS', `Package "${packageName}" has no versions`)
