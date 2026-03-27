@@ -41,7 +41,6 @@ packages:
   - releasing/*
   - resolving/*
   - resolving/registry/*
-  - registry/*
   - shell/*
   - store/*
   - text/*
