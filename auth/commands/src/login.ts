@@ -179,7 +179,7 @@ export async function login ({ context = DEFAULT_CONTEXT, opts }: LoginParams): 
   try {
     token = await webLogin({ context, fetchOptions, registry })
   } catch (err) {
-    if (isWebLoginNotSupported(err)) {
+    if (err instanceof WebLoginError && (err.httpStatus === 404 || err.httpStatus === 405)) {
       token = await classicLogin({ context, fetchOptions, registry })
     } else {
       throw err
@@ -351,10 +351,6 @@ async function safeReadIniFile (
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return {}
     throw err
   }
-}
-
-function isWebLoginNotSupported (err: unknown): boolean {
-  return err instanceof WebLoginError && (err.httpStatus === 404 || err.httpStatus === 405)
 }
 
 class LoginNonInteractiveError extends PnpmError {
