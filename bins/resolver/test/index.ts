@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
@@ -108,6 +110,42 @@ test('skip dangerous bin locations', async () => {
       },
     ]
   )
+})
+
+test('resolve bin paths that point into node_modules using package resolution', async () => {
+  const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-bins-resolver-'))
+  try {
+    const virtualStoreDir = path.join(projectDir, '.pnpm', 'meta-tool@1.0.0', 'node_modules')
+    const realPkgDir = path.join(virtualStoreDir, 'meta-tool')
+    const pkgDir = path.join(projectDir, 'node_modules', 'meta-tool')
+    const cliDir = path.join(virtualStoreDir, '@scope', 'cli')
+    fs.mkdirSync(path.join(cliDir, 'dist'), { recursive: true })
+    fs.mkdirSync(realPkgDir, { recursive: true })
+    fs.mkdirSync(path.dirname(pkgDir), { recursive: true })
+    fs.symlinkSync(realPkgDir, pkgDir, process.platform === 'win32' ? 'junction' : 'dir')
+    fs.writeFileSync(path.join(cliDir, 'package.json'), JSON.stringify({
+      name: '@scope/cli',
+      version: '1.0.0',
+    }))
+    fs.writeFileSync(path.join(cliDir, 'dist', 'cli.js'), '#!/usr/bin/env node\nconsole.log("ok")\n')
+
+    expect(
+      await getBinsFromPackageManifest({
+        name: 'meta-tool',
+        version: '1.0.0',
+        bin: {
+          'meta-tool': 'node_modules/@scope/cli/dist/cli.js',
+        },
+      }, pkgDir)
+    ).toStrictEqual([
+      {
+        name: 'meta-tool',
+        path: path.join(cliDir, 'dist', 'cli.js'),
+      },
+    ])
+  } finally {
+    fs.rmSync(projectDir, { force: true, recursive: true })
+  }
 })
 
 test('get bin from scoped bin name', async () => {
