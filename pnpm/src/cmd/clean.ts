@@ -8,7 +8,7 @@ import { isSubdir } from 'is-subdir'
 import { pathExists } from 'path-exists'
 import { renderHelp } from 'render-help'
 
-export const commandNames = ['clean']
+export const commandNames = ['clean', 'purge']
 
 export const rcOptionsTypes = cliOptionsTypes
 

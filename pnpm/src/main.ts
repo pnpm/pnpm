@@ -17,6 +17,7 @@ import { PnpmError } from '@pnpm/error'
 import { globalWarn, logger } from '@pnpm/logger'
 import type { EngineDependency } from '@pnpm/types'
 import { finishWorkers } from '@pnpm/worker'
+import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { filterProjectsFromDir } from '@pnpm/workspace.projects-filter'
 import chalk from 'chalk'
 import loudRejection from 'loud-rejection'
@@ -48,6 +49,10 @@ process.stdout.on('error', (err: NodeJS.ErrnoException) => {
   throw err
 })
 
+// Built-in commands that defer to a same-named script in package.json when present.
+// Their aliases (e.g. "purge" for "clean") always run the built-in.
+const SCRIPT_OVERRIDABLE_CMDS = new Set(['clean', 'setup', 'deploy'])
+
 const DEPRECATED_OPTIONS = new Set([
   'independent-leaves',
   'lock',
@@ -64,7 +69,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     process.exitCode = 1
     return
   }
-  const {
+  let {
     argv,
     params: cliParams,
     options: cliOptions,
@@ -187,6 +192,38 @@ export async function main (inputArgv: string[]): Promise<void> {
       config,
     })
     global[REPORTER_INITIALIZED] = reporterType
+  }
+
+  // For clean, setup, and deploy: if the current project's package.json has a
+  // script with the same name, run the script instead of the built-in command.
+  // This prevents surprising behavior for users who have existing scripts.
+  // The built-in command can always be accessed via its alias (e.g. "purge" for clean).
+  const typedCommandName = argv.remain[0]
+  if (cmd != null && SCRIPT_OVERRIDABLE_CMDS.has(typedCommandName) && !cliOptions.global) {
+    const currentDirManifest = config.dir === config.rootProjectManifestDir
+      ? config.rootProjectManifest
+      : await safeReadProjectManifestOnly(config.dir)
+    if (currentDirManifest?.scripts?.[cmd]) {
+      // Redirect to "pnpm run <cmd>"
+      cmd = 'run'
+      cliParams.unshift(parsedCliArgs.cmd!)
+      fallbackCommandUsed = true
+      config.fallbackCommandUsed = true
+    } else if (
+      workspaceDir &&
+      config.dir !== config.rootProjectManifestDir &&
+      config.rootProjectManifest?.scripts?.[cmd]
+    ) {
+      throw new PnpmError(
+        'SCRIPT_OVERRIDE_IN_WORKSPACE_ROOT',
+        `The workspace root has a "${parsedCliArgs.cmd}" script, ` +
+        `so the built-in "pnpm ${parsedCliArgs.cmd}" command cannot run from a subdirectory`,
+        {
+          hint: `Run "pnpm run ${parsedCliArgs.cmd}" from the workspace root to execute the script` +
+            (parsedCliArgs.cmd === 'clean' ? ', or use "pnpm purge" to run the built-in command' : ''),
+        }
+      )
+    }
   }
 
   if (
