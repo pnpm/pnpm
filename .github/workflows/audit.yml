@@ -18,4 +18,4 @@ jobs:
       with:
         standalone: true
     - name: Audit
-      run: pnpm audit
+      run: pn audit
