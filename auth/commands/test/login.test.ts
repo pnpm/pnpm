@@ -620,6 +620,7 @@ describe('login', () => {
   })
 
   it('should propagate non-ENOENT errors from readIniFile', async () => {
+    const globalInfo = jest.fn()
     const promise = login({
       opts: {
         configDir: '/broken/config',
@@ -629,7 +630,7 @@ describe('login', () => {
       },
       context: {
         ...TEST_CONTEXT,
-        globalInfo: jest.fn(),
+        globalInfo,
         readIniFile: async () => {
           throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
         },
@@ -655,5 +656,6 @@ describe('login', () => {
     })
     await expect(promise).rejects.toHaveProperty(['code'], 'EACCES')
     await expect(promise).rejects.toHaveProperty(['message'], 'EACCES: permission denied')
+    expect(globalInfo.mock.calls).toEqual([[expect.stringContaining('https://example.org/auth/login')]])
   })
 })
