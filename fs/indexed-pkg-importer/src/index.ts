@@ -10,7 +10,7 @@ import type { FilesMap, ImportIndexedPackage, ImportOptions } from '@pnpm/store.
 import { fastPathTemp as pathTemp } from 'path-temp'
 import { renameOverwriteSync } from 'rename-overwrite'
 
-import { type ImportFile, type Importer, importIndexedDir } from './importIndexedDir.js'
+import { type Importer, type ImportFile, importIndexedDir } from './importIndexedDir.js'
 
 export { type FilesMap, type ImportIndexedPackage, type ImportOptions }
 
