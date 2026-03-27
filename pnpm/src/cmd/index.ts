@@ -110,8 +110,8 @@ export interface CommandDefinition {
   recursiveByDefault?: boolean
   /**
    * If true, a same-named script in package.json takes precedence over this
-   * built-in command.  Aliases of the command (e.g. "purge" for "clean") still
-   * run the built-in.
+   * built-in command. This applies to all command names including aliases
+   * (e.g. both "clean" and "purge").
    */
   overridableByScript?: boolean
 }

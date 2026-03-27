@@ -26,9 +26,12 @@ export const shorthands: Record<string, string> = {
 
 export function help (): string {
   return renderHelp({
+    aliases: ['purge'],
     description: 'Safely remove node_modules directories from all workspace projects. \
 Uses Node.js to remove directories, which correctly handles NTFS junctions on Windows \
-without following them into their targets.',
+without following them into their targets. \
+If the current project has a "clean" (or "purge") script in package.json, \
+the script is executed instead of the built-in command.',
     descriptionLists: [
       {
         title: 'Options',

@@ -203,6 +203,10 @@ export async function main (inputArgv: string[]): Promise<void> {
       cliParams.unshift(typedCommandName)
       fallbackCommandUsed = true
       config.fallbackCommandUsed = true
+      config.extraEnv = {
+        ...config.extraEnv,
+        npm_command: 'run-script',
+      }
     } else if (
       workspaceDir &&
       config.dir !== config.rootProjectManifestDir &&
