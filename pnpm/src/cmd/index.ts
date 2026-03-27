@@ -19,7 +19,7 @@ import {
 import { add, dedupe, fetch, importCommand, install, link, prune, remove, unlink, update } from '@pnpm/installing.commands'
 import { patch, patchCommit, patchRemove } from '@pnpm/patching.commands'
 import { deprecate, undeprecate } from '@pnpm/registry-access.commands'
-import { deploy, pack, publish, version } from '@pnpm/releasing.commands'
+import { deploy, pack, publish, unpublish, version } from '@pnpm/releasing.commands'
 import { catFile, catIndex, findHash, store } from '@pnpm/store.commands'
 import { init } from '@pnpm/workspace.commands'
 import { pick } from 'ramda'
@@ -159,6 +159,7 @@ const commands: CommandDefinition[] = [
   peers,
   prune,
   publish,
+  unpublish,
   rebuild,
   recursive,
   remove,
