@@ -285,6 +285,9 @@ async function classicLogin ({
           'content-type': 'application/json',
           accept: 'application/json',
           'npm-auth-type': 'web',
+          // Conditionally include npm-otp: some HTTP implementations coerce
+          // `undefined` to the string "undefined", which would send a bad header
+          // on the initial attempt (before OTP is known).
           ...(otp != null ? { 'npm-otp': otp } : {}),
         },
         body: JSON.stringify({
