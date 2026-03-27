@@ -8,6 +8,7 @@ export const pnpmTypes = {
   'cache-dir': String,
   'catalog-mode': ['strict', 'prefer', 'manual'],
   'child-concurrency': Number,
+  'confirm-modules-purge': Boolean,
   'merge-git-branch-lockfiles': Boolean,
   'merge-git-branch-lockfiles-branch-pattern': Array,
   color: ['always', 'auto', 'never'],

@@ -30,6 +30,7 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
   bail: boolean
   color: 'always' | 'auto' | 'never'
   cliOptions: Record<string, any>, // eslint-disable-line
+  confirmModulesPurge?: boolean
   useBetaCli: boolean
   excludeLinksFromLockfile: boolean
   extraBinPaths: string[]

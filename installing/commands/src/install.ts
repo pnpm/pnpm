@@ -271,6 +271,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'bin'
 | 'catalogs'
 | 'cliOptions'
+| 'confirmModulesPurge'
 | 'configDependencies'
 | 'dedupeInjectedDeps'
 | 'dedupeDirectDeps'
@@ -349,7 +350,6 @@ export type InstallCommandOptions = Pick<Config,
   saveLockfile?: boolean
   workspace?: boolean
   includeOnlyPackageFiles?: boolean
-  confirmModulesPurge?: boolean
   pnpmfile: string[]
 } & Partial<Pick<Config, 'ci' | 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages' | 'useLockfile' | 'symlink'>>
 
