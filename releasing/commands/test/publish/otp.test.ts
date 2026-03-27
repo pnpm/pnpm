@@ -8,27 +8,28 @@ import {
   publishWithOtpHandling,
 } from '../../src/publish/otp.js'
 
-function createOkResponse (): OtpPublishResponse {
-  return { ok: true, status: 200, statusText: 'OK', text: async () => '' }
-}
+const createOkResponse = (): OtpPublishResponse => ({
+  ok: true,
+  status: 200,
+  statusText: 'OK',
+  text: async () => '',
+})
 
-function createMockContext (overrides?: Partial<OtpContext>): OtpContext {
-  return {
-    Date: { now: () => 0 },
-    setTimeout: (cb: () => void) => cb(),
-    enquirer: { prompt: async () => ({ otp: '123456' }) },
-    fetch: async () => ({
-      headers: { get: () => null },
-      json: async () => ({}),
-      ok: false,
-      status: 404,
-    }),
-    globalInfo: () => {},
-    process: { stdin: { isTTY: true }, stdout: { isTTY: true } },
-    publish: async () => createOkResponse(),
-    ...overrides,
-  }
-}
+const createMockContext = (overrides?: Partial<OtpContext>): OtpContext => ({
+  Date: { now: () => 0 },
+  setTimeout: (cb: () => void) => cb(),
+  enquirer: { prompt: async () => ({ otp: '123456' }) },
+  fetch: async () => ({
+    headers: { get: () => null },
+    json: async () => ({}),
+    ok: false,
+    status: 404,
+  }),
+  globalInfo: () => {},
+  process: { stdin: { isTTY: true }, stdout: { isTTY: true } },
+  publish: async () => createOkResponse(),
+  ...overrides,
+})
 
 describe('publishWithOtpHandling', () => {
   const manifest = { name: 'test-pkg', version: '1.0.0' }
