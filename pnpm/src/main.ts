@@ -51,7 +51,7 @@ process.stdout.on('error', (err: NodeJS.ErrnoException) => {
 
 // Built-in commands that defer to a same-named script in package.json when present.
 // Their aliases (e.g. "purge" for "clean") always run the built-in.
-const SCRIPT_OVERRIDABLE_CMDS = new Set(['clean', 'setup', 'deploy'])
+const SCRIPT_OVERRIDABLE_CMDS = new Set(['clean', 'setup', 'deploy', 'rebuild'])
 
 const DEPRECATED_OPTIONS = new Set([
   'independent-leaves',
