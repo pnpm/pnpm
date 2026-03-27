@@ -947,6 +947,7 @@ overrides:
   follow-redirects@<=1.15.5: '>=1.15.6'
   glob-parent@<5.1.2: '>=5.1.2'
   glob@>=10.3.7 <=11.0.3: ^11.1.0
+  handlebars@>=4.0.0 <4.7.9: '>=4.7.9'
   hosted-git-info@1: npm:@pnpm/hosted-git-info@1.0.0
   http-proxy-middleware@<2.0.7: ^2.0.7
   istanbul-reports: npm:@zkochan/istanbul-reports
@@ -13298,8 +13299,8 @@ packages:
     resolution: {integrity: sha512-4haO1M4mLO91PW57BMsDFf75UmwoRX0GkdD+Faw+Lr+r/OZrOCS0pIBwOL1xCKQqnQzbNFGgK2V2CpBUPeFNTw==}
     hasBin: true
 
-  handlebars@4.7.8:
-    resolution: {integrity: sha512-vafaFqs8MZkRrSX7sFVUdo3ap/eNiLnb4IakshzvP56X5Nr1iGKAIqdX6tMlm6HcNRIkr6AxO5jFEoJzzpT8aQ==}
+  handlebars@4.7.9:
+    resolution: {integrity: sha512-4E71E0rpOaQuJR2A3xDZ+GM1HyWYv1clR58tC8emQNeQe3RH7MAzSbat+V0wG78LQBo6m6bzSG/L4pBuCsgnUQ==}
     engines: {node: '>=0.4.7'}
     hasBin: true
 
@@ -19643,7 +19644,7 @@ snapshots:
       '@verdaccio/logger': 8.0.0-next-8.33
       debug: 4.4.3
       got-cjs: 12.5.4
-      handlebars: 4.7.8
+      handlebars: 4.7.9
     transitivePeerDependencies:
       - supports-color
 
@@ -21886,7 +21887,7 @@ snapshots:
       pumpify: 1.5.1
       through2: 2.0.5
 
-  handlebars@4.7.8:
+  handlebars@4.7.9:
     dependencies:
       minimist: 1.2.8
       neo-async: 2.6.2

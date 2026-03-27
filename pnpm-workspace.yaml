@@ -359,9 +359,11 @@ minimumReleaseAgeExclude:
   - express@4.22.1
   - glob@11.1.0
   - graceful-git
+  - handlebars@4.7.9
   - is-inner-link
   - is-subdir
   - jws@3.2.3
+  - lodash@4.17.23
   - make-empty-dir
   - normalize-registry-url
   - p-map-values
@@ -371,6 +373,7 @@ minimumReleaseAgeExclude:
   - pnpm
   - preferred-pm
   - promise-share
+  - qs@6.14.2
   - read-ini-file
   - read-json5-file
   - read-yaml-file
@@ -389,8 +392,6 @@ minimumReleaseAgeExclude:
   - write-ini-file
   - write-json5-file
   - write-yaml-file
-  - lodash@4.17.23
-  - qs@6.14.2
 
 nodeVersion: 22.13.0
 
@@ -411,6 +412,7 @@ overrides:
   follow-redirects@<=1.15.5: '>=1.15.6'
   glob-parent@<5.1.2: '>=5.1.2'
   glob@>=10.3.7 <=11.0.3: '^11.1.0'
+  handlebars@>=4.0.0 <4.7.9: '>=4.7.9'
   hosted-git-info@1: 'catalog:'
   http-proxy-middleware@<2.0.7: ^2.0.7
   istanbul-reports: npm:@zkochan/istanbul-reports
