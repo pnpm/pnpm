@@ -110,6 +110,8 @@ function formatTimeAgo (date: Date): string {
 }
 
 export {
+  fetchMetadataFromFromRegistry,
+  type FetchMetadataFromFromRegistryOptions,
   type PackageMeta,
   type PackageMetaCache,
   parseBareSpecifier,

@@ -3158,15 +3158,15 @@ importers:
       '@pnpm/logger':
         specifier: 'catalog:'
         version: 1001.0.1
+      '@pnpm/network.auth-header':
+        specifier: workspace:*
+        version: link:../../../network/auth-header
       '@pnpm/network.fetch':
         specifier: workspace:*
         version: link:../../../network/fetch
       '@pnpm/npm-package-arg':
         specifier: 'catalog:'
         version: 2.0.0
-      '@pnpm/registry.types':
-        specifier: workspace:*
-        version: link:../../../registry/types
       '@pnpm/resolving.default-resolver':
         specifier: workspace:*
         version: link:../../../resolving/default-resolver

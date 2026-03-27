@@ -1,10 +1,15 @@
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
+import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import npa from '@pnpm/npm-package-arg'
-import type { PackageInRegistry, PackageMeta } from '@pnpm/registry.types'
-import { pickPackageFromMeta, pickVersionByVersionRange, type RegistryPackageSpec } from '@pnpm/resolving.npm-resolver'
+import {
+  fetchMetadataFromFromRegistry,
+  pickPackageFromMeta,
+  pickVersionByVersionRange,
+  type RegistryPackageSpec,
+} from '@pnpm/resolving.npm-resolver'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
@@ -41,42 +46,6 @@ export function help (): string {
       },
     ],
   })
-}
-
-async function fetchFromRegistry (
-  registryUrl: string,
-  packageName: string,
-  spec: RegistryPackageSpec
-): Promise<{
-  metadata: PackageMeta
-  data: PackageInRegistry
-}> {
-  const fetch = createFetchFromRegistry({})
-
-  const metadataUrl = `${registryUrl}/${encodeURIComponent(packageName)}`
-  const metadataResponse = await fetch(metadataUrl)
-
-  if (metadataResponse.status === 404) {
-    throw new PnpmError('PACKAGE_NOT_FOUND', `Package "${packageName}" not found in registry`)
-  }
-
-  if (!metadataResponse.ok) {
-    throw new PnpmError('REGISTRY_FETCH_ERROR', `Failed to fetch package info: ${metadataResponse.statusText}`)
-  }
-
-  const metadata = await metadataResponse.json() as PackageMeta
-  const data = pickPackageFromMeta(
-    pickVersionByVersionRange,
-    { preferredVersionSelectors: undefined },
-    spec,
-    metadata
-  )
-
-  if (!data) {
-    throw new PnpmError('PACKAGE_NOT_FOUND', `No matching version found for ${packageName}@${spec.fetchSpec}`)
-  }
-
-  return { metadata, data }
 }
 
 export async function handler (
@@ -116,8 +85,37 @@ export async function handler (
     fetchSpec: subSpec?.fetchSpec ?? 'latest',
     type: specType,
   }
-  const registryUrl = pickRegistryForPackage(opts.registries, packageName)
-  const { metadata, data } = await fetchFromRegistry(registryUrl, packageName, spec)
+  const registry = pickRegistryForPackage(opts.registries, packageName)
+  const fetchFromRegistry = createFetchFromRegistry(opts)
+  const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.rawConfig ?? {}, userSettings: opts.userConfig ?? {} })
+  const { meta: metadata } = await fetchMetadataFromFromRegistry(
+    {
+      fetch: fetchFromRegistry,
+      retry: {
+        factor: opts.fetchRetryFactor,
+        maxTimeout: opts.fetchRetryMaxtimeout,
+        minTimeout: opts.fetchRetryMintimeout,
+        retries: opts.fetchRetries,
+      },
+      timeout: opts.fetchTimeout ?? 60000,
+      fetchWarnTimeoutMs: 10000,
+    },
+    packageName,
+    {
+      registry,
+      authHeaderValue: getAuthHeader(registry),
+      fullMetadata: true,
+    }
+  )
+  const data = pickPackageFromMeta(
+    pickVersionByVersionRange,
+    { preferredVersionSelectors: undefined },
+    spec,
+    metadata
+  )
+  if (!data) {
+    throw new PnpmError('PACKAGE_NOT_FOUND', `No matching version found for ${packageName}@${spec.fetchSpec}`)
+  }
 
   const versionsCount = metadata.versions ? Object.keys(metadata.versions).length : 0
   const depsCount = data.dependencies ? Object.keys(data.dependencies).length : 0

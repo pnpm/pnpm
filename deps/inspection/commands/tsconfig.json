@@ -58,10 +58,10 @@
       "path": "../../../lockfile/fs"
     },
     {
-      "path": "../../../network/fetch"
+      "path": "../../../network/auth-header"
     },
     {
-      "path": "../../../registry/types"
+      "path": "../../../network/fetch"
     },
     {
       "path": "../../../resolving/default-resolver"
