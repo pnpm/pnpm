@@ -272,7 +272,7 @@ catalog:
   realpath-missing: ^2.0.0
   remark-parse: ^11.0.0
   remark-stringify: ^11.0.0
-  rename-overwrite: ^7.0.0
+  rename-overwrite: ^7.0.1
   render-help: ^2.0.0
   resolve-link-target: ^3.0.0
   rimraf: ^6.1.2

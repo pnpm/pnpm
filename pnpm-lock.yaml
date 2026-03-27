@@ -785,8 +785,8 @@ catalogs:
       specifier: ^11.0.0
       version: 11.0.0
     rename-overwrite:
-      specifier: ^7.0.0
-      version: 7.0.0
+      specifier: ^7.0.1
+      version: 7.0.1
     render-help:
       specifier: ^2.0.0
       version: 2.0.0
@@ -4110,7 +4110,7 @@ importers:
         version: 2.0.0
       rename-overwrite:
         specifier: 'catalog:'
-        version: 7.0.0
+        version: 7.0.1
       ssri:
         specifier: 'catalog:'
         version: 13.0.1
@@ -4418,7 +4418,7 @@ importers:
         version: 3.0.0
       rename-overwrite:
         specifier: 'catalog:'
-        version: 7.0.0
+        version: 7.0.1
     devDependencies:
       '@pnpm/fs.hard-link-dir':
         specifier: workspace:*
@@ -4461,7 +4461,7 @@ importers:
         version: 3.0.0
       rename-overwrite:
         specifier: 'catalog:'
-        version: 7.0.0
+        version: 7.0.1
       sanitize-filename:
         specifier: 'catalog:'
         version: 1.6.4
@@ -5538,7 +5538,7 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       rename-overwrite:
         specifier: 'catalog:'
-        version: 7.0.0
+        version: 7.0.1
       safe-promise-defer:
         specifier: 'catalog:'
         version: 2.0.0
@@ -6377,7 +6377,7 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       rename-overwrite:
         specifier: 'catalog:'
-        version: 7.0.0
+        version: 7.0.1
     devDependencies:
       '@pnpm/lockfile.make-dedicated-lockfile':
         specifier: workspace:*
@@ -7993,7 +7993,7 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       rename-overwrite:
         specifier: 'catalog:'
-        version: 7.0.0
+        version: 7.0.1
       semver:
         specifier: 'catalog:'
         version: 7.7.4
@@ -8153,7 +8153,7 @@ importers:
         version: 7.3.0
       rename-overwrite:
         specifier: 'catalog:'
-        version: 7.0.0
+        version: 7.0.1
       semver:
         specifier: 'catalog:'
         version: 7.7.4
@@ -15396,8 +15396,8 @@ packages:
     resolution: {integrity: sha512-bSbsw/VyMyDez6NJKxqURBCLRCm98uezWBi03UZCeEFccCNIthC6Jk5JazMjexOTdrYd4q/jIxTIwGtgk1k1gA==}
     engines: {node: '>=18'}
 
-  rename-overwrite@7.0.0:
-    resolution: {integrity: sha512-DjRc82L24rSj0I67XFWZsC8ZQIzILbnLQGEtbPhLNlh/ovtwLApgITeKnP3qyI5J7st7fjKRuspkMiaiEb7NiQ==}
+  rename-overwrite@7.0.1:
+    resolution: {integrity: sha512-tYzdjRCtRMiBg0xLqFEZH11T8HvpvhtiWE2Q8TWOpq0HAL07YBJEzC4pgfSWqLYziHCtlS16yB8tV4hFJrXvtA==}
     engines: {node: '>=22.13'}
 
   render-help@2.0.0:
@@ -24362,7 +24362,7 @@ snapshots:
       '@zkochan/rimraf': 3.0.2
       fs-extra: 11.3.0
 
-  rename-overwrite@7.0.0:
+  rename-overwrite@7.0.1:
     dependencies:
       '@zkochan/rimraf': 4.0.0
       fs-extra: 11.3.4
@@ -24960,7 +24960,7 @@ snapshots:
   symlink-dir@10.0.1:
     dependencies:
       better-path-resolve: 2.0.0
-      rename-overwrite: 7.0.0
+      rename-overwrite: 7.0.1
 
   symlink-dir@6.0.5:
     dependencies:
