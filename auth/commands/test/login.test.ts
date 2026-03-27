@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals'
+import path from 'node:path'
 
 import { login, type LoginContext, type LoginFetchResponse } from '../src/login.js'
 
@@ -117,7 +118,7 @@ describe('login', () => {
     const result = await login({ context, opts })
     expect(result).toBe('Logged in on https://example.com/npm/')
     expect(fetchedUrls[0]).toBe('https://example.com/npm/-/v1/login')
-    expect(savedPath).toBe('/custom/config/rc')
+    expect(savedPath).toBe(path.join('/custom/config', 'rc'))
     expect(savedSettings).toMatchObject({
       '//example.com/npm/:_authToken': 'web-auth-token-123',
     })
@@ -168,7 +169,7 @@ describe('login', () => {
     expect(result).toBe('Logged in on https://example.org/')
     expect(fetchedUrls[0]).toBe('https://example.org/-/v1/login')
     expect(fetchedUrls[1]).toBe('https://example.org/-/user/org.couchdb.user:john')
-    expect(savedPath).toBe('/other/config/rc')
+    expect(savedPath).toBe(path.join('/other/config', 'rc'))
     expect(savedSettings).toMatchObject({
       '//example.org/:_authToken': 'classic-token-456',
     })
