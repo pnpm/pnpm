@@ -33,8 +33,7 @@ function createMockResponse (init: {
   }
 }
 
-function createOtpMockContext (overrides?: Partial<OtpContext>): OtpContext {
-  return {
+const createOtpMockContext = (overrides?: Partial<OtpContext>): OtpContext => ({
     Date: { now: () => 0 },
     setTimeout: (cb: () => void) => cb(),
     enquirer: { prompt: async () => ({ otp: '123456' }) },
@@ -53,8 +52,7 @@ function createOtpMockContext (overrides?: Partial<OtpContext>): OtpContext {
       stdout: { isTTY: true },
     },
     ...overrides,
-  }
-}
+})
 
 const fetchOptions: WebAuthFetchOptions = { method: 'GET' }
 

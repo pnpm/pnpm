@@ -29,17 +29,15 @@ function createMockResponse (init: {
   }
 }
 
-function createMockContext (overrides?: Partial<WebAuthContext>): WebAuthContext {
-  return {
-    Date: { now: () => 0 },
-    setTimeout: (cb: () => void) => cb(),
-    fetch: async () => createMockResponse({
-      ok: false,
-      status: 404,
-    }),
-    ...overrides,
-  }
-}
+const createMockContext = (overrides?: Partial<WebAuthContext>): WebAuthContext => ({
+  Date: { now: () => 0 },
+  setTimeout: (cb: () => void) => cb(),
+  fetch: async () => createMockResponse({
+    ok: false,
+    status: 404,
+  }),
+  ...overrides,
+})
 
 const fetchOptions: WebAuthFetchOptions = { method: 'GET' }
 
