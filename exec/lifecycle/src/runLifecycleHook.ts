@@ -117,6 +117,7 @@ Please unset the scriptShell option, or configure it to a .exe instead.
       ...opts.extraEnv,
       INIT_CWD: opts.initCwd ?? process.cwd(),
       PNPM_SCRIPT_SRC_DIR: opts.pkgRoot,
+      ...('user-agent' in opts.rawConfig ? { npm_config_user_agent: (opts.rawConfig as Record<string, string>)['user-agent'] } : {}),
     },
     log: {
       clearProgress: noop,
