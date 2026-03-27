@@ -629,6 +629,7 @@ describe('login', () => {
       },
       context: {
         ...TEST_CONTEXT,
+        globalInfo: jest.fn(),
         readIniFile: async () => {
           throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
         },
