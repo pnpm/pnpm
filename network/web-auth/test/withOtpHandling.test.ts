@@ -61,16 +61,16 @@ const fetchOptions: WebAuthFetchOptions = { method: 'GET' }
 describe('withOtpHandling', () => {
   it('returns the result when the operation succeeds without OTP', async () => {
     const context = createOtpMockContext()
-    const result = await withOtpHandling({ operation: async () => 'success', context, fetchOptions })
+    const result = await withOtpHandling({ context, fetchOptions, operation: async () => 'success' })
     expect(result).toBe('success')
   })
 
   it('throws non-OTP errors as-is', async () => {
     const error = new Error('network error')
     const context = createOtpMockContext()
-    await expect(withOtpHandling({ operation: async () => {
+    await expect(withOtpHandling({ context, fetchOptions, operation: async () => {
       throw error
-    }, context, fetchOptions }))
+    } }))
       .rejects.toBe(error)
   })
 
@@ -84,7 +84,7 @@ describe('withOtpHandling', () => {
     const operation = async () => {
       throw Object.assign(new Error('otp'), { code: 'EOTP' })
     }
-    await expect(withOtpHandling({ operation, context, fetchOptions }))
+    await expect(withOtpHandling({ context, fetchOptions, operation }))
       .rejects.toBeInstanceOf(OtpNonInteractiveError)
   })
 
@@ -98,7 +98,7 @@ describe('withOtpHandling', () => {
     const operation = async () => {
       throw Object.assign(new Error('otp'), { code: 'EOTP' })
     }
-    await expect(withOtpHandling({ operation, context, fetchOptions }))
+    await expect(withOtpHandling({ context, fetchOptions, operation }))
       .rejects.toBeInstanceOf(OtpNonInteractiveError)
   })
 
@@ -109,6 +109,8 @@ describe('withOtpHandling', () => {
         enquirer: { prompt: async () => ({ otp: '654321' }) },
       })
       const result = await withOtpHandling({
+        context,
+        fetchOptions,
         operation: async otp => {
           callCount++
           if (callCount === 1) {
@@ -117,8 +119,6 @@ describe('withOtpHandling', () => {
           expect(otp).toBe('654321')
           return 'ok'
         },
-        context,
-        fetchOptions,
       })
       expect(result).toBe('ok')
       expect(callCount).toBe(2)
@@ -129,7 +129,7 @@ describe('withOtpHandling', () => {
       const operation = async () => {
         throw Object.assign(new Error('otp'), { code: 'EOTP' })
       }
-      await expect(withOtpHandling({ operation, context, fetchOptions }))
+      await expect(withOtpHandling({ context, fetchOptions, operation }))
         .rejects.toBeInstanceOf(OtpSecondChallengeError)
     })
 
@@ -138,6 +138,8 @@ describe('withOtpHandling', () => {
       const retryError = new Error('server error')
       const context = createOtpMockContext()
       await expect(withOtpHandling({
+        context,
+        fetchOptions,
         operation: async () => {
           callCount++
           if (callCount === 1) {
@@ -145,8 +147,6 @@ describe('withOtpHandling', () => {
           }
           throw retryError
         },
-        context,
-        fetchOptions,
       })).rejects.toBe(retryError)
     })
 
@@ -155,11 +155,11 @@ describe('withOtpHandling', () => {
         enquirer: { prompt: async () => ({ otp: '' }) },
       })
       await expect(withOtpHandling({
+        context,
+        fetchOptions,
         operation: async () => {
           throw Object.assign(new Error('otp'), { code: 'EOTP' })
         },
-        context,
-        fetchOptions,
       })).rejects.toMatchObject({ code: 'EOTP' })
     })
 
@@ -168,11 +168,11 @@ describe('withOtpHandling', () => {
         enquirer: { prompt: async () => undefined },
       })
       await expect(withOtpHandling({
+        context,
+        fetchOptions,
         operation: async () => {
           throw Object.assign(new Error('otp'), { code: 'EOTP' })
         },
-        context,
-        fetchOptions,
       })).rejects.toMatchObject({ code: 'EOTP' })
     })
   })
@@ -201,6 +201,8 @@ describe('withOtpHandling', () => {
         },
       })
       const result = await withOtpHandling({
+        context,
+        fetchOptions,
         operation: async otp => {
           operationCallCount++
           if (operationCallCount === 1) {
@@ -215,8 +217,6 @@ describe('withOtpHandling', () => {
           expect(otp).toBe('web-token-123')
           return 'published'
         },
-        context,
-        fetchOptions,
       })
       expect(result).toBe('published')
       expect(operationCallCount).toBe(2)
@@ -230,6 +230,8 @@ describe('withOtpHandling', () => {
         enquirer: { prompt: async () => ({ otp: 'manual-code' }) },
       })
       const result = await withOtpHandling({
+        context,
+        fetchOptions,
         operation: async otp => {
           callCount++
           if (callCount === 1) {
@@ -241,8 +243,6 @@ describe('withOtpHandling', () => {
           expect(otp).toBe('manual-code')
           return 'done'
         },
-        context,
-        fetchOptions,
       })
       expect(result).toBe('done')
     })
@@ -253,6 +253,8 @@ describe('withOtpHandling', () => {
         enquirer: { prompt: async () => ({ otp: 'manual-code' }) },
       })
       const result = await withOtpHandling({
+        context,
+        fetchOptions,
         operation: async otp => {
           callCount++
           if (callCount === 1) {
@@ -264,8 +266,6 @@ describe('withOtpHandling', () => {
           expect(otp).toBe('manual-code')
           return 'done'
         },
-        context,
-        fetchOptions,
       })
       expect(result).toBe('done')
     })
@@ -288,6 +288,8 @@ describe('withOtpHandling', () => {
       })
       let called = false
       await expect(withOtpHandling({
+        context,
+        fetchOptions,
         operation: async () => {
           if (!called) {
             called = true
@@ -301,8 +303,6 @@ describe('withOtpHandling', () => {
           }
           throw new Error('Unexpected second call to operation')
         },
-        context,
-        fetchOptions,
       })).rejects.toBeInstanceOf(WebAuthTimeoutError)
       expect(globalInfo).toHaveBeenCalledWith(expect.stringContaining('https://registry.npmjs.org/auth/abc'))
     })

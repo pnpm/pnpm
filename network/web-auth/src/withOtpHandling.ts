@@ -49,9 +49,9 @@ export const isOtpError = (error: unknown): error is OtpError =>
   error.code === 'EOTP'
 
 export interface OtpHandlingParams<T> {
-  operation: (otp?: string) => Promise<T>
   context: OtpContext
   fetchOptions: WebAuthFetchOptions
+  operation: (otp?: string) => Promise<T>
 }
 
 /**
@@ -70,9 +70,9 @@ export interface OtpHandlingParams<T> {
  * @see https://github.com/npm/cli/blob/7d900c46/lib/utils/otplease.js for npm's implementation.
  */
 export async function withOtpHandling<T> ({
-  operation,
   context,
   fetchOptions,
+  operation,
 }: OtpHandlingParams<T>): Promise<T> {
   const {
     enquirer,
@@ -94,8 +94,8 @@ export async function withOtpHandling<T> ({
       const qrCode = generateQrCode(error.body.authUrl)
       globalInfo(`Authenticate your account at:\n${error.body.authUrl}\n\n${qrCode}`)
       otp = await pollForWebAuthToken({
-        doneUrl: error.body.doneUrl,
         context,
+        doneUrl: error.body.doneUrl,
         fetchOptions,
       })
     } else {

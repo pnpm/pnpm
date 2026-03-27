@@ -60,8 +60,8 @@ export async function publishWithOtpHandling ({
   }
 
   return withOtpHandling({
-    operation: otp => publish(manifest, tarballData, { ...publishOptions, otp }),
     context,
     fetchOptions,
+    operation: otp => publish(manifest, tarballData, { ...publishOptions, otp }),
   })
 }

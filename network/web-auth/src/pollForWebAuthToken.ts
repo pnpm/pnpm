@@ -30,8 +30,8 @@ export interface WebAuthContext {
 }
 
 export interface PollForWebAuthTokenParams {
-  doneUrl: string
   context: WebAuthContext
+  doneUrl: string
   fetchOptions: WebAuthFetchOptions
   timeoutMs?: number
 }
@@ -47,8 +47,8 @@ export interface PollForWebAuthTokenParams {
  * @throws {@link WebAuthTimeoutError} if the timeout is exceeded.
  */
 export async function pollForWebAuthToken ({
-  doneUrl,
   context: { Date, fetch, setTimeout },
+  doneUrl,
   fetchOptions,
   timeoutMs = 5 * 60 * 1000,
 }: PollForWebAuthTokenParams): Promise<string> {
