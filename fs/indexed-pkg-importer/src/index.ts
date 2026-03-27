@@ -124,7 +124,13 @@ function clonePkg (
   opts: ImportOptions
 ): 'clone' | undefined {
   if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
-    importIndexedDir({ importFile: clone, importFileAtomic: clone }, to, opts.filesMap, opts)
+    // Reflinks are atomic, so clone can serve as both importFile and
+    // importFileAtomic.  However, on ENOTSUP the clone falls back to a
+    // regular copy.  package.json is the completion marker and must be
+    // written atomically, so we use a temp+rename fallback for it.
+    const importFile = createCloneWithFallback(clone)
+    const importFileAtomic = createAtomicCloneWithFallback(clone)
+    importIndexedDir({ importFile, importFileAtomic }, to, opts.filesMap, opts)
     return 'clone'
   }
   return undefined
@@ -168,14 +174,38 @@ function createCloneFunction (): CloneFunction {
     try {
       fs.copyFileSync(src, dest, constants.COPYFILE_FICLONE_FORCE)
     } catch (err: unknown) {
-      if (util.types.isNativeError(err) && 'code' in err) {
-        if (err.code === 'EEXIST') return
-        // On Linux CI, copy_file_range can transiently fail with ENOTSUP
-        // under heavy parallel I/O. Fall back to a regular copy.
-        if (err.code === 'ENOTSUP') {
-          resilientCopyFileSync(src, dest)
-          return
-        }
+      if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') return
+      throw err
+    }
+  }
+}
+
+// On Linux, copy_file_range can transiently fail with ENOTSUP under heavy
+// parallel I/O.  These two wrappers add ENOTSUP fallbacks to the base clone
+// function: one for regular files (non-atomic) and one for package.json
+// (the completion marker, which must be written atomically via temp+rename).
+function createCloneWithFallback (clone: CloneFunction): CloneFunction {
+  return (src: string, dest: string) => {
+    try {
+      clone(src, dest)
+    } catch (err: unknown) {
+      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOTSUP') {
+        resilientCopyFileSync(src, dest)
+        return
+      }
+      throw err
+    }
+  }
+}
+
+function createAtomicCloneWithFallback (clone: CloneFunction): CloneFunction {
+  return (src: string, dest: string) => {
+    try {
+      clone(src, dest)
+    } catch (err: unknown) {
+      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOTSUP') {
+        atomicCopyFileSync(src, dest)
+        return
       }
       throw err
     }
