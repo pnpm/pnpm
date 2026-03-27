@@ -50,14 +50,14 @@
     "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/registry.types": "workspace:*",
     "@pnpm/resolving.default-resolver": "workspace:*",
+    "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/semver-diff": "catalog:",
     "@pnpm/store.path": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/table": "catalog:",
     "chalk": "catalog:",
     "ramda": "catalog:",
-    "render-help": "catalog:",
-    "semver": "catalog:"
+    "render-help": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -72,7 +72,6 @@
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/workspace.projects-filter": "workspace:*",
     "@types/ramda": "catalog:",
-    "@types/semver": "catalog:",
     "@types/zkochan__table": "catalog:",
     "execa": "catalog:",
     "symlink-dir": "catalog:",

@@ -54,15 +54,4 @@ export interface PackageInRegistry extends PackageManifest {
       }
     }
   }
-
-  author?: string | {
-    name: string
-    email?: string
-    url?: string
-  }
-  repository?: string | {
-    type?: string
-    url: string
-    directory?: string
-  }
 }

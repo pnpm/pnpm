@@ -67,6 +67,9 @@
       "path": "../../../resolving/default-resolver"
     },
     {
+      "path": "../../../resolving/npm-resolver"
+    },
+    {
       "path": "../../../store/path"
     },
     {
