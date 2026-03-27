@@ -185,6 +185,7 @@ describe('publishWithOtpHandling', () => {
       expect(result.ok).toBe(true)
       expect(publishCallCount).toBe(2)
       expect(fetchCallCount).toBe(3)
+      expect(globalInfo).toHaveBeenCalledWith(expect.stringContaining('https://registry.npmjs.org/auth/abc'))
     })
 
     it('respects Retry-After header when polling', async () => {
