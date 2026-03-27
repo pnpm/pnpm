@@ -10,7 +10,7 @@ import type { FilesMap, ImportIndexedPackage, ImportOptions } from '@pnpm/store.
 import { fastPathTemp as pathTemp } from 'path-temp'
 import { renameOverwriteSync } from 'rename-overwrite'
 
-import { type ImportFile, importIndexedDir } from './importIndexedDir.js'
+import { type Importer, type ImportFile, importIndexedDir } from './importIndexedDir.js'
 
 export { type FilesMap, type ImportIndexedPackage, type ImportOptions }
 
@@ -30,7 +30,7 @@ function createImportPackage (packageImportMethod?: PackageImportMethod): Import
   switch (packageImportMethod ?? 'auto') {
     case 'clone':
       packageImportMethodLogger.debug({ method: 'clone' })
-      return clonePkg.bind(null, createCloneFunction())
+      return createClonePkg()
     case 'hardlink':
       packageImportMethodLogger.debug({ method: 'hardlink' })
       return hardlinkPkg.bind(null, linkOrCopy)
@@ -61,7 +61,7 @@ function createAutoImporter (): ImportIndexedPackage {
     // Hence, we prefer reflinks by default only on Linux and macOS.
     if (process.platform !== 'win32') {
       try {
-        const _clonePkg = clonePkg.bind(null, createCloneFunction())
+        const _clonePkg = createClonePkg()
         if (!_clonePkg(to, opts)) return undefined
         packageImportMethodLogger.debug({ method: 'clone' })
         auto = _clonePkg
@@ -102,7 +102,7 @@ function createCloneOrCopyImporter (): ImportIndexedPackage {
     opts: ImportOptions
   ): string | undefined {
     try {
-      const _clonePkg = clonePkg.bind(null, createCloneFunction())
+      const _clonePkg = createClonePkg()
       if (!_clonePkg(to, opts)) return undefined
       packageImportMethodLogger.debug({ method: 'clone' })
       auto = _clonePkg
@@ -118,16 +118,38 @@ function createCloneOrCopyImporter (): ImportIndexedPackage {
 
 type CloneFunction = (src: string, dest: string) => void
 
-function clonePkg (
-  clone: CloneFunction,
-  to: string,
-  opts: ImportOptions
-): 'clone' | undefined {
-  if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
-    importIndexedDir({ importFile: clone, importFileAtomic: clone }, to, opts.filesMap, opts)
-    return 'clone'
+/**
+ * Creates a clone-based package importer.  Reflinks are atomic, so clone can
+ * serve as both importFile and importFileAtomic.  However, on Linux
+ * copy_file_range can transiently fail with ENOTSUP under heavy parallel I/O,
+ * so we fall back to copy on ENOTSUP.  Regular files use a simple copy;
+ * package.json (the completion marker) uses a temp+rename fallback to stay
+ * atomic.
+ */
+function createClonePkg (): ImportIndexedPackage {
+  const clone = createCloneFunction()
+  const withFallback = (fallback: CloneFunction): ImportFile => (src, dest) => {
+    try {
+      clone(src, dest)
+    } catch (err: unknown) {
+      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOTSUP') {
+        fallback(src, dest)
+        return
+      }
+      throw err
+    }
   }
-  return undefined
+  const importer: Importer = {
+    importFile: withFallback(resilientCopyFileSync),
+    importFileAtomic: withFallback(atomicCopyFileSync),
+  }
+  return (to: string, opts: ImportOptions) => {
+    if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
+      importIndexedDir(importer, to, opts.filesMap, opts)
+      return 'clone'
+    }
+    return undefined
+  }
 }
 
 function pkgExistsAtTargetDir (targetDir: string, filesMap: FilesMap): boolean {
