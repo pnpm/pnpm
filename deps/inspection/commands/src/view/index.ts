@@ -2,10 +2,11 @@ import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
+import npa from '@pnpm/npm-package-arg'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/registry.types'
-import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
+import semver from 'semver'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)
@@ -64,10 +65,23 @@ async function fetchFromRegistry (
   }
 
   const metadata = await metadataResponse.json() as PackageMeta
-  const latestVersion = version || metadata['dist-tags']?.latest
+  let exactVersion: string | undefined = metadata['dist-tags']?.latest
+  if (version) {
+    if (metadata['dist-tags']?.[version]) {
+      exactVersion = metadata['dist-tags'][version]
+    } else if (semver.validRange(version)) {
+      exactVersion = semver.maxSatisfying(Object.keys(metadata.versions || {}), version) || undefined
+    } else if (metadata.versions?.[version]) {
+      exactVersion = version
+    }
 
-  const versionUrl = latestVersion
-    ? `${registryUrl}/${encodeURIComponent(packageName)}/${encodeURIComponent(latestVersion)}`
+    if (!exactVersion) {
+      throw new PnpmError('PACKAGE_NOT_FOUND', `No matching version found for ${packageName}@${version}`)
+    }
+  }
+
+  const versionUrl = exactVersion
+    ? `${registryUrl}/${encodeURIComponent(packageName)}/${encodeURIComponent(exactVersion)}`
     : metadataUrl
 
   try {
@@ -98,14 +112,25 @@ export async function handler (
 
   const fields = params.slice(1)
 
-  const parsed = parseWantedDependency(packageSpec)
-
-  if (!parsed.alias) {
+  let parsed: ReturnType<typeof npa>
+  try {
+    parsed = npa(packageSpec)
+  } catch {
     throw new PnpmError('INVALID_PACKAGE_NAME', `Invalid package name: "${packageSpec}"`)
   }
 
-  const registryUrl = pickRegistryForPackage(opts.registries, parsed.alias)
-  const { metadata, data } = await fetchFromRegistry(registryUrl, parsed.alias, parsed.bareSpecifier)
+  if (!parsed.registry) {
+    throw new PnpmError('INVALID_PACKAGE_NAME', `Invalid package name: "${packageSpec}". pnpm view only supports registry packages.`)
+  }
+
+  const packageName = parsed.type === 'alias' && parsed.subSpec ? parsed.subSpec.name : parsed.name
+  if (!packageName) {
+    throw new PnpmError('INVALID_PACKAGE_NAME', `Invalid package name: "${packageSpec}"`)
+  }
+
+  const versionSpec = parsed.type === 'alias' && parsed.subSpec ? parsed.subSpec.fetchSpec : parsed.fetchSpec
+  const registryUrl = pickRegistryForPackage(opts.registries, packageName)
+  const { metadata, data } = await fetchFromRegistry(registryUrl, packageName, versionSpec || undefined)
 
   const versionsCount = metadata.versions ? Object.keys(metadata.versions).length : 0
   const depsCount = data.dependencies ? Object.keys(data.dependencies).length : 0
