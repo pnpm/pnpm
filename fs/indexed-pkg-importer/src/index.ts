@@ -168,7 +168,16 @@ function createCloneFunction (): CloneFunction {
     try {
       fs.copyFileSync(src, dest, constants.COPYFILE_FICLONE_FORCE)
     } catch (err: unknown) {
-      if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
+      if (util.types.isNativeError(err) && 'code' in err) {
+        if (err.code === 'EEXIST') return
+        // On Linux CI, copy_file_range can transiently fail with ENOTSUP
+        // under heavy parallel I/O. Fall back to a regular copy.
+        if (err.code === 'ENOTSUP') {
+          resilientCopyFileSync(src, dest)
+          return
+        }
+      }
+      throw err
     }
   }
 }
