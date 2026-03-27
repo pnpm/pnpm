@@ -173,8 +173,9 @@ function createCloneFunction (): CloneFunction {
   }
 }
 
-// On Linux, copy_file_range can transiently fail with ENOTSUP under heavy
-// parallel I/O.  This creates an Importer that falls back to copy on ENOTSUP.
+// Reflinks are atomic, so clone can serve as both importFile and
+// importFileAtomic.  However, on Linux copy_file_range can transiently fail
+// with ENOTSUP under heavy parallel I/O, so we fall back to copy on ENOTSUP.
 // Regular files use a simple copy; package.json (the completion marker) uses
 // a temp+rename fallback to stay atomic.
 function createCloneImporter (clone: CloneFunction): Importer {
