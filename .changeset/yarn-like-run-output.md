@@ -1,6 +1,6 @@
 ---
-"@pnpm/exec.lifecycle": minor
-"pnpm": minor
+"@pnpm/exec.lifecycle": major
+"pnpm": major
 ---
 
-Use yarn-like output when running scripts. Print `$ command` instead of `> pkg@version stage path` and `> command`.
+Changed the output of script execution. Print `$ command` (dimmed, to stderr) instead of `> pkg@version stage path` and `> command` (to stdout).
