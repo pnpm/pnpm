@@ -201,3 +201,47 @@ test('handles mixed old-format and new-format config deps together', async () =>
   expect(envLockfile!.packages['@pnpm.e2e/foo@100.0.0']).toBeDefined()
   expect(envLockfile!.packages['@pnpm.e2e/bar@100.0.0']).toBeDefined()
 })
+
+test('fails with frozenLockfile when old-format deps need migration', async () => {
+  prepareEmpty()
+  const opts = createOpts()
+
+  const integrity = getIntegrity('@pnpm.e2e/foo', '100.0.0')
+  await expect(resolveAndInstallConfigDeps({
+    '@pnpm.e2e/foo': `100.0.0+${integrity}`,
+  }, { ...opts, frozenLockfile: true })).rejects.toThrow('Cannot migrate configDependencies with "frozen-lockfile"')
+})
+
+test('fails with frozenLockfile when new-format deps need resolution', async () => {
+  prepareEmpty()
+  const opts = createOpts()
+
+  await expect(resolveAndInstallConfigDeps({
+    '@pnpm.e2e/foo': '100.0.0',
+  }, { ...opts, frozenLockfile: true })).rejects.toThrow('Cannot resolve configDependencies with "frozen-lockfile"')
+})
+
+test('succeeds with frozenLockfile when env lockfile is up-to-date', async () => {
+  prepareEmpty()
+  const opts = createOpts()
+
+  // Pre-create complete env lockfile
+  const lockfile = createEnvLockfile()
+  lockfile.importers['.'].configDependencies['@pnpm.e2e/foo'] = {
+    specifier: '100.0.0',
+    version: '100.0.0',
+  }
+  lockfile.packages['@pnpm.e2e/foo@100.0.0'] = {
+    resolution: { integrity: getIntegrity('@pnpm.e2e/foo', '100.0.0') },
+  }
+  lockfile.snapshots['@pnpm.e2e/foo@100.0.0'] = {}
+  await writeEnvLockfile(process.cwd(), lockfile)
+
+  await resolveAndInstallConfigDeps({
+    '@pnpm.e2e/foo': '100.0.0',
+  }, { ...opts, frozenLockfile: true })
+
+  const manifest = loadJsonFileSync<{ name: string, version: string }>('node_modules/.pnpm-config/@pnpm.e2e/foo/package.json')
+  expect(manifest.name).toBe('@pnpm.e2e/foo')
+  expect(manifest.version).toBe('100.0.0')
+})

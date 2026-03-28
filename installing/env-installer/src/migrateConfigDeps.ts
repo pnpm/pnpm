@@ -12,7 +12,6 @@ import { parseIntegrity } from './parseIntegrity.js'
 interface MigrateOpts {
   registries: Registries
   rootDir: string
-  frozenLockfile?: boolean
 }
 
 /**
@@ -26,10 +25,6 @@ export async function migrateConfigDepsToLockfile (
   configDeps: ConfigDependencies,
   opts: MigrateOpts
 ): Promise<Record<string, NormalizedConfigDep>> {
-  if (opts.frozenLockfile) {
-    throw new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE', 'Cannot migrate configDependencies with "frozen-lockfile" because the lockfile is not up to date')
-  }
-
   const envLockfile = createEnvLockfile()
   const cleanSpecifiers: ConfigDependencySpecifiers = {}
   const normalizedDeps: Record<string, NormalizedConfigDep> = {}
