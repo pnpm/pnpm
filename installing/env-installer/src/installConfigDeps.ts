@@ -18,11 +18,11 @@ import { migrateConfigDepsToLockfile } from './migrateConfigDeps.js'
 import type { NormalizedConfigDep } from './parseIntegrity.js'
 
 export interface InstallConfigDepsOpts {
+  frozenLockfile?: boolean
   registries: Registries
   rootDir: string
   store: StoreController
   storeDir: string
-  frozenLockfile?: boolean
 }
 
 /**
