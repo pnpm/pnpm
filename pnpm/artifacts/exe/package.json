@@ -23,7 +23,7 @@
   "scripts": {
     "preinstall": "node setup.js",
     "prepare": "node prepare.js",
-    "prepublishOnly": "pnpm --filter=pnpm run prepublishOnly && node ./scripts/build-artifacts.ts"
+    "prepublishOnly": "pn --filter=pnpm prepublishOnly && node ./scripts/build-artifacts.ts"
   },
   "dependencies": {
     "@reflink/reflink": "catalog:"

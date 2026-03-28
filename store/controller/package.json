@@ -38,10 +38,10 @@
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "pretest": "rimraf .tmp",
-    "test": "pnpm run compile && pnpm run .test",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix",
-    ".test": "pnpm pretest && cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "pn pretest && cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/crypto.hash": "workspace:*",

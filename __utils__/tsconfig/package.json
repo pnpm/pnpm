@@ -31,9 +31,9 @@
   ],
   "funding": "https://opencollective.com/pnpm",
   "scripts": {
-    "test": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix",
-    "prepublishOnly": "pnpm run compile"
+    "test": "pn compile",
+    "compile": "tsc --build && pn lint --fix",
+    "prepublishOnly": "pn compile"
   },
   "exports": {
     ".": "./tsconfig.json"

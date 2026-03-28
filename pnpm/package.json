@@ -61,13 +61,13 @@
   },
   "unpkg": "dist/pnpm.mjs",
   "scripts": {
-    "bundle": "pnpm dlx node@runtime:24.6.0 bundle.ts",
+    "bundle": "pnx node@runtime:24.6.0 bundle.ts",
     "start": "tsgo --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "pretest:e2e": "rimraf node_modules/.bin/pnpm",
-    "test": "pnpm run compile && pnpm run .test",
-    "prepublishOnly": "pnpm compile && node bundle-deps.ts",
-    "compile": "tsgo --build && pnpm run lint --fix && rimraf dist bin/nodes && pnpm run bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/templates dist/templates && shx cp -r node_modules/ps-list/vendor dist/vendor && shx cp pnpmrc dist/pnpmrc",
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "pn compile && node bundle-deps.ts",
+    "compile": "tsgo --build && pn lint --fix && rimraf dist bin/nodes && pn bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/templates dist/templates && shx cp -r node_modules/ps-list/vendor dist/vendor && shx cp pnpmrc dist/pnpmrc",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {

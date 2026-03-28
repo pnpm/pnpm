@@ -5,7 +5,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "pnpm run .test",
+    "test": "pn .test",
     ".test": "node pd.js --version"
   },
   "dependencies": {
