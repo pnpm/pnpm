@@ -85,6 +85,10 @@ export async function resolveAndInstallConfigDeps (
     depsToResolve.push({ name, specifier })
   }
 
+  if (opts.frozenLockfile && (lockfileChanged || depsToResolve.length > 0)) {
+    throw new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE', 'Cannot update configDependencies with "frozen-lockfile" because the lockfile is not up to date')
+  }
+
   if (depsToResolve.length === 0) {
     if (lockfileChanged) {
       await writeEnvLockfile(opts.rootDir, envLockfile)
