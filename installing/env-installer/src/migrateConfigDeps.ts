@@ -95,7 +95,7 @@ export async function migrateConfigDepsToLockfile (
   }
 
   // Write the new env lockfile and clean up workspace manifest
-  const writes: Array<Promise<void>> = [
+  await Promise.all([
     writeEnvLockfile(opts.rootDir, envLockfile),
     writeSettings({
       rootProjectManifestDir: opts.rootDir,
@@ -104,8 +104,7 @@ export async function migrateConfigDepsToLockfile (
         configDependencies: cleanSpecifiers,
       },
     }),
-  ]
-  await Promise.all(writes)
+  ])
 
   return normalizedDeps
 }

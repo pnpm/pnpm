@@ -1,5 +1,5 @@
 ---
-"@pnpm/config.deps-installer": patch
+"@pnpm/installing.env-installer": patch
 "pnpm": patch
 ---
 
