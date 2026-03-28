@@ -21,6 +21,7 @@ import kebabCase from 'lodash.kebabcase'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import { pathAbsolute } from 'path-absolute'
 import { omit } from 'ramda'
+import { readIniFileSync } from 'read-ini-file'
 import { realpathMissing } from 'realpath-missing'
 import semver from 'semver'
 import which from 'which'
@@ -294,6 +295,12 @@ export async function getConfig (opts: {
   pnpmConfig.userAgent = pnpmConfig.rawLocalConfig['user-agent']
     ? pnpmConfig.rawLocalConfig['user-agent']
     : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
+  const parentNpmrcConfigs = readParentNpmrcConfigs({
+    cwd,
+    userconfig: pnpmConfig.userconfig,
+    warnings,
+    workspaceDir: pnpmConfig.workspaceDir,
+  })
   pnpmConfig.rawConfig = Object.assign(
     {},
     ...npmConfig.list.map(pickIniConfig).reverse(),
@@ -302,6 +309,14 @@ export async function getConfig (opts: {
     { globalconfig: path.join(configDir, 'rc') },
     { 'npm-globalconfig': npmDefaults.globalconfig }
   )
+  if (parentNpmrcConfigs.length > 0) {
+    applyParentNpmrcConfigs(pnpmConfig.rawConfig, parentNpmrcConfigs, {
+      cliOptions,
+      envConfig: npmConfig.sources.env?.data,
+      projectConfig: npmConfig.sources.project?.data,
+      workspaceConfig: npmConfig.sources.workspace?.data,
+    })
+  }
 
   const globalYamlConfig = await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
   for (const key in globalYamlConfig) {
@@ -647,6 +662,97 @@ function getProcessEnv (env: string): string | undefined {
   return process.env[env] ??
     process.env[env.toUpperCase()] ??
     process.env[env.toLowerCase()]
+}
+
+function readParentNpmrcConfigs ({
+  cwd,
+  userconfig,
+  warnings,
+  workspaceDir,
+}: {
+  cwd: string
+  userconfig?: string
+  warnings: string[]
+  workspaceDir?: string
+}): Array<Record<string, unknown>> {
+  const ignoredNpmrcPaths = new Set([
+    path.join(cwd, '.npmrc'),
+    workspaceDir ? path.join(workspaceDir, '.npmrc') : undefined,
+    userconfig,
+  ]
+    .filter((filePath): filePath is string => filePath != null)
+    .map(normalizeConfigPathForComparison)
+  )
+
+  const parentConfigs: Array<Record<string, unknown>> = []
+  for (let currentDir = path.dirname(cwd); ; currentDir = path.dirname(currentDir)) {
+    const npmrcPath = path.join(currentDir, '.npmrc')
+    if (!ignoredNpmrcPaths.has(normalizeConfigPathForComparison(npmrcPath))) {
+      try {
+        const parentConfig = pickIniConfig(readIniFileSync(npmrcPath) as Record<string, unknown>)
+        if (Object.keys(parentConfig).length > 0) {
+          // Parent dirs farther from the project should have lower precedence.
+          parentConfigs.unshift(parentConfig)
+        }
+      } catch (error: unknown) {
+        const iniReadError = error as NodeJS.ErrnoException
+        if (iniReadError.code !== 'ENOENT' && iniReadError.code !== 'EISDIR') {
+          warnings.push(`Issue while reading "${npmrcPath}". ${iniReadError.message}`)
+        }
+      }
+    }
+
+    const parentDir = path.dirname(currentDir)
+    if (parentDir === currentDir) break
+  }
+  return parentConfigs
+}
+
+function applyParentNpmrcConfigs (
+  rawConfig: Record<string, unknown>,
+  parentConfigs: Array<Record<string, unknown>>,
+  {
+    cliOptions,
+    envConfig,
+    projectConfig,
+    workspaceConfig,
+  }: {
+    cliOptions: Record<string, unknown>
+    envConfig?: Record<string, unknown>
+    projectConfig?: Record<string, unknown>
+    workspaceConfig?: Record<string, unknown>
+  }
+): void {
+  const protectedConfigKeys = new Set(Object.keys(Object.assign(
+    {},
+    pickOwnIniConfig(envConfig),
+    pickOwnIniConfig(workspaceConfig),
+    pickOwnIniConfig(projectConfig),
+    pickOwnIniConfig(cliOptions)
+  )))
+
+  for (const [key, value] of Object.entries(Object.assign({}, ...parentConfigs))) {
+    if (!protectedConfigKeys.has(key)) {
+      rawConfig[key] = value
+    }
+  }
+}
+
+function pickOwnIniConfig (rawConfig?: Record<string, unknown>): Record<string, unknown> {
+  if (rawConfig == null) return {}
+
+  const ownIniConfig: Record<string, unknown> = {}
+  for (const key of Object.keys(rawConfig)) {
+    if (isIniConfigKey(key)) {
+      ownIniConfig[key] = rawConfig[key]
+    }
+  }
+  return ownIniConfig
+}
+
+function normalizeConfigPathForComparison (filePath: string): string {
+  const normalizedPath = path.resolve(filePath)
+  return process.platform === 'win32' ? normalizedPath.toLowerCase() : normalizedPath
 }
 
 function getWantedPackageManager (manifest: ProjectManifest): { pm?: EngineDependency, warnings: string[] } {

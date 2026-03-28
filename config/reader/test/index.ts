@@ -444,6 +444,62 @@ test('registries in current directory\'s .npmrc have bigger priority then global
   })
 })
 
+test('registries and auth configs from parent .npmrc files above the workspace root are read', async () => {
+  prepareEmpty()
+
+  const tempDir = process.cwd()
+  const workspaceDir = path.join(tempDir, 'dev', 'company', 'front-b2ag')
+  const projectDir = path.join(workspaceDir, 'front', 'core')
+  const userConfigPath = path.join(tempDir, 'user-home', '.npmrc')
+
+  fs.mkdirSync(projectDir, { recursive: true })
+  fs.mkdirSync(path.dirname(userConfigPath), { recursive: true })
+  fs.writeFileSync(path.join(tempDir, 'dev', '.npmrc'), [
+    'registry=https://dev.example.test/',
+    'shared-workspace-lockfile=false',
+  ].join('\n'), 'utf8')
+  fs.writeFileSync(path.join(tempDir, 'dev', 'company', '.npmrc'), [
+    '@my-org:registry=https://company.example.test/',
+    '//company.example.test/:_authToken=company-token',
+  ].join('\n'), 'utf8')
+  fs.writeFileSync(userConfigPath, 'registry=https://user.example.test/', 'utf8')
+  fs.writeFileSync(path.join(workspaceDir, 'package.json'), JSON.stringify({
+    name: 'workspace',
+    version: '1.0.0',
+  }), 'utf8')
+  fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({
+    name: 'core',
+    version: '1.0.0',
+  }), 'utf8')
+  writeYamlFileSync(path.join(workspaceDir, 'pnpm-workspace.yaml'), {
+    packages: ['front/*'],
+  })
+  process.chdir(projectDir)
+
+  const { config } = await getConfig({
+    cliOptions: {
+      userconfig: userConfigPath,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir,
+  })
+
+  expect(config.registries).toStrictEqual({
+    default: 'https://dev.example.test/',
+    '@jsr': 'https://npm.jsr.io/',
+    '@my-org': 'https://company.example.test/',
+  })
+  expect(config.authInfos).toMatchObject({
+    '//company.example.test/': {
+      authToken: 'company-token',
+    },
+  })
+  expect(config.sharedWorkspaceLockfile).toBeTruthy()
+})
+
 test('throw error if --save-prod is used with --save-peer', async () => {
   await expect(getConfig({
     cliOptions: {
