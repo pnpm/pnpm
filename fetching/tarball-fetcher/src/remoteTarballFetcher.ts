@@ -88,9 +88,25 @@ export function createDownloader (
             reject(op.mainError())
             return
           }
+          // Extract error properties into a plain object because Error properties
+          // are non-enumerable and don't serialize well through the logging system
+          const errorInfo = {
+            name: error.name,
+            message: error.message,
+            code: error.code,
+            errno: error.errno,
+            // For HTTP errors from our ResponseError class
+            status: error.status,
+            statusCode: error.statusCode,
+            // undici wraps the actual network error in a cause property
+            cause: error.cause ? {
+              code: error.cause.code,
+              errno: error.cause.errno,
+            } : undefined,
+          }
           requestRetryLogger.debug({
             attempt,
-            error,
+            error: errorInfo,
             maxRetries: retryOpts.retries,
             method: 'GET',
             timeout,
@@ -131,11 +147,10 @@ export function createDownloader (
           : undefined
         const startTime = Date.now()
         let downloaded = 0
-        const chunks: Buffer[] = []
-        // This will handle the 'data', 'error', and 'end' events.
+        const chunks: Uint8Array[] = []
         for await (const chunk of res.body!) {
-          chunks.push(chunk as Buffer)
-          downloaded += chunk.length
+          chunks.push(chunk as Uint8Array)
+          downloaded += (chunk as Uint8Array).byteLength
           onProgress?.(downloaded)
         }
         if (size !== null && size !== downloaded) {
@@ -155,8 +170,8 @@ export function createDownloader (
         data = Buffer.from(new SharedArrayBuffer(downloaded))
         let offset: number = 0
         for (const chunk of chunks) {
-          chunk.copy(data, offset)
-          offset += chunk.length
+          data.set(chunk, offset)
+          offset += chunk.byteLength
         }
       } catch (err: unknown) {
         assert(util.types.isNativeError(err))

@@ -62,6 +62,9 @@
       "path": "../../../network/auth-header"
     },
     {
+      "path": "../../../network/fetch"
+    },
+    {
       "path": "../../../pkg-manifest/reader"
     },
     {

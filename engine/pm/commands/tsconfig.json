@@ -59,6 +59,9 @@
       "path": "../../../lockfile/types"
     },
     {
+      "path": "../../../network/fetch"
+    },
+    {
       "path": "../../../resolving/npm-resolver"
     },
     {

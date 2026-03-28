@@ -130,6 +130,7 @@
     "@pnpm/installing.deps-installer": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/logger": "workspace:*",
+    "@pnpm/network.fetch": "workspace:*",
     "@pnpm/network.git-utils": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/prepare": "workspace:*",
@@ -156,6 +157,7 @@
     "read-yaml-file": "catalog:",
     "resolve-link-target": "catalog:",
     "symlink-dir": "catalog:",
+    "undici": "catalog:",
     "write-json-file": "catalog:",
     "write-yaml-file": "catalog:"
   },

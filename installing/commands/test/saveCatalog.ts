@@ -3,13 +3,38 @@ import path from 'node:path'
 
 import { add } from '@pnpm/installing.commands'
 import type { LockfileFile } from '@pnpm/lockfile.types'
+import { clearDispatcherCache } from '@pnpm/network.fetch'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { loadJsonFileSync } from 'load-json-file'
-import nock from 'nock'
 import { readYamlFileSync } from 'read-yaml-file'
+import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 
 import { DEFAULT_OPTS } from './utils/index.js'
+
+let originalDispatcher: Dispatcher | null = null
+let currentMockAgent: MockAgent | null = null
+
+function setupMockAgent (): void {
+  if (!originalDispatcher) {
+    originalDispatcher = getGlobalDispatcher()
+  }
+  clearDispatcherCache()
+  currentMockAgent = new MockAgent()
+  currentMockAgent.disableNetConnect()
+  setGlobalDispatcher(currentMockAgent)
+}
+
+async function teardownMockAgent (): Promise<void> {
+  if (currentMockAgent) {
+    await currentMockAgent.close()
+    currentMockAgent = null
+  }
+  if (originalDispatcher) {
+    setGlobalDispatcher(originalDispatcher)
+    originalDispatcher = null
+  }
+}
 
 // This must be a function because some of its values depend on CWD
 const createOptions = (saveCatalogName = 'default'): add.AddCommandOptions => ({
@@ -20,9 +45,8 @@ const createOptions = (saveCatalogName = 'default'): add.AddCommandOptions => ({
   storeDir: path.resolve('store'),
 })
 
-afterEach(() => {
-  nock.abortPendingRequests()
-  nock.cleanAll()
+afterEach(async () => {
+  await teardownMockAgent()
 })
 
 test('saveCatalogName creates new workspace manifest with the new catalogs', async () => {
@@ -79,8 +103,10 @@ test('saveCatalogName works with different protocols', async () => {
   })
   // Mock the HEAD request that isRepoPublic() in @pnpm/resolving.git-resolver makes.
   // Without this, transient network failures cause fallback to git+https:// resolution.
-  const githubNock = nock('https://github.com', { allowUnmocked: true })
-    .head('/kevva/is-positive')
+  setupMockAgent()
+  currentMockAgent!.enableNetConnect()
+  currentMockAgent!.get('https://github.com')
+    .intercept({ path: '/kevva/is-positive', method: 'HEAD' })
     .reply(200)
 
   const options = createOptions()
@@ -139,7 +165,6 @@ test('saveCatalogName works with different protocols', async () => {
       },
     },
   } as Partial<LockfileFile>))
-  githubNock.done()
 })
 
 test('saveCatalogName does not work with local dependencies', async () => {

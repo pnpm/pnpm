@@ -1,13 +1,43 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { audit } from '@pnpm/deps.compliance.audit'
 import type { PnpmError } from '@pnpm/error'
+import { clearDispatcherCache } from '@pnpm/network.fetch'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { DepPath, ProjectId } from '@pnpm/types'
-import nock from 'nock'
+import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 
 import { lockfileToAuditTree } from '../lib/lockfileToAuditTree.js'
 
 const f = fixtures(import.meta.dirname)
+
+let originalDispatcher: Dispatcher | null = null
+let currentMockAgent: MockAgent | null = null
+
+function setupMockAgent (): MockAgent {
+  if (!originalDispatcher) {
+    originalDispatcher = getGlobalDispatcher()
+  }
+  clearDispatcherCache()
+  currentMockAgent = new MockAgent()
+  currentMockAgent.disableNetConnect()
+  setGlobalDispatcher(currentMockAgent)
+  return currentMockAgent
+}
+
+async function teardownMockAgent (): Promise<void> {
+  if (currentMockAgent) {
+    await currentMockAgent.close()
+    currentMockAgent = null
+  }
+  if (originalDispatcher) {
+    setGlobalDispatcher(originalDispatcher)
+    originalDispatcher = null
+  }
+}
+
+function getMockAgent (): MockAgent | null {
+  return currentMockAgent
+}
 
 describe('audit', () => {
   test('lockfileToAuditTree()', async () => {
@@ -460,15 +490,12 @@ describe('audit', () => {
   test('an error is thrown if the audit endpoint responds with a non-OK code', async () => {
     const registry = 'http://registry.registry/'
     const getAuthHeader = () => undefined
-    nock(registry, {
-      badheaders: ['authorization'],
-    })
-      .post('/-/npm/v1/security/audits/quick')
+    setupMockAgent()
+    getMockAgent()!.get('http://registry.registry')
+      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(500, { message: 'Something bad happened' })
-    nock(registry, {
-      badheaders: ['authorization'],
-    })
-      .post('/-/npm/v1/security/audits')
+    getMockAgent()!.get('http://registry.registry')
+      .intercept({ path: '/-/npm/v1/security/audits', method: 'POST' })
       .reply(500, { message: 'Fallback failed too' })
 
     let err!: PnpmError
@@ -493,20 +520,18 @@ describe('audit', () => {
     expect(err).toBeDefined()
     expect(err.code).toBe('ERR_PNPM_AUDIT_BAD_RESPONSE')
     expect(err.message).toBe('The audit endpoint (at http://registry.registry/-/npm/v1/security/audits/quick) responded with 500: {"message":"Something bad happened"}. Fallback endpoint (at http://registry.registry/-/npm/v1/security/audits) responded with 500: {"message":"Fallback failed too"}')
+    await teardownMockAgent()
   })
 
   test('falls back to /audits if /audits/quick fails', async () => {
     const registry = 'http://registry.registry/'
     const getAuthHeader = () => undefined
-    nock(registry, {
-      badheaders: ['authorization'],
-    })
-      .post('/-/npm/v1/security/audits/quick')
+    setupMockAgent()
+    getMockAgent()!.get('http://registry.registry')
+      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(500, { message: 'Something bad happened' })
-    nock(registry, {
-      badheaders: ['authorization'],
-    })
-      .post('/-/npm/v1/security/audits')
+    getMockAgent()!.get('http://registry.registry')
+      .intercept({ path: '/-/npm/v1/security/audits', method: 'POST' })
       .reply(200, {
         actions: [],
         advisories: {},
@@ -556,5 +581,6 @@ describe('audit', () => {
       },
       muted: [],
     })
+    await teardownMockAgent()
   })
 })

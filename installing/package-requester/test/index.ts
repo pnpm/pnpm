@@ -7,6 +7,7 @@ import { depPathToFilename } from '@pnpm/deps.path'
 import { createClient } from '@pnpm/installing.client'
 import { createPackageRequester, type PackageResponse } from '@pnpm/installing.package-requester'
 import { streamParser } from '@pnpm/logger'
+import { clearDispatcherCache } from '@pnpm/network.fetch'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import type { PkgRequestFetchResult, PkgResolutionId, RequestPackageOptions } from '@pnpm/store.controller-types'
@@ -15,8 +16,33 @@ import { StoreIndex } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
 import { restartWorkerPool } from '@pnpm/worker'
 import delay from 'delay'
-import nock from 'nock'
 import normalize from 'normalize-path'
+import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
+
+let originalDispatcher: Dispatcher | null = null
+let currentMockAgent: MockAgent | null = null
+
+function setupMockAgent (): MockAgent {
+  if (!originalDispatcher) {
+    originalDispatcher = getGlobalDispatcher()
+  }
+  clearDispatcherCache()
+  currentMockAgent = new MockAgent()
+  setGlobalDispatcher(currentMockAgent)
+  return currentMockAgent
+}
+
+async function teardownMockAgent (): Promise<void> {
+  if (currentMockAgent) {
+    await currentMockAgent.close()
+    currentMockAgent = null
+  }
+  if (originalDispatcher) {
+    setGlobalDispatcher(originalDispatcher)
+    clearDispatcherCache()
+  }
+}
+
 import { temporaryDirectory } from 'tempy'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}`
@@ -57,9 +83,8 @@ function createFetchersForStore (storeDir: string) {
   }).fetchers
 }
 
-afterEach(() => {
-  nock.abortPendingRequests()
-  nock.cleanAll()
+afterEach(async () => {
+  await teardownMockAgent()
 })
 
 test('request package', async () => {
@@ -583,14 +608,18 @@ test('fetchPackageToStore() concurrency check', async () => {
 })
 
 test('fetchPackageToStore() does not cache errors', async () => {
-  nock(registry)
-    .get('/is-positive/-/is-positive-1.0.0.tgz')
-    .reply(404)
+  const mockAgent = setupMockAgent()
+  const mockPool = mockAgent.get(registry)
+  // First request returns 404
+  mockPool.intercept({ path: '/is-positive/-/is-positive-1.0.0.tgz', method: 'GET' }).reply(404, {})
+  // Second request returns the tarball
+  const tarballContent = fs.readFileSync(IS_POSITIVE_TARBALL)
+  mockPool.intercept({ path: '/is-positive/-/is-positive-1.0.0.tgz', method: 'GET' }).reply(200, tarballContent, {
+    headers: { 'content-length': String(tarballContent.length) },
+  })
 
-  nock(registry)
-    .get('/is-positive/-/is-positive-1.0.0.tgz')
-    .replyWithFile(200, IS_POSITIVE_TARBALL)
-
+  const noRetryStoreIndex = new StoreIndex('.store')
+  storeIndexes.push(noRetryStoreIndex)
   const noRetry = createClient({
     authConfig,
     rawConfig: {},
@@ -647,7 +676,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
   expect(Array.from(files.filesMap.keys()).sort((a, b) => a.localeCompare(b))).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort((a, b) => a.localeCompare(b)))
   expect(files.resolvedFrom).toBe('remote')
 
-  expect(nock.isDone()).toBeTruthy()
+  await teardownMockAgent()
 })
 
 // This test was added to cover the issue described here: https://github.com/pnpm/supi/issues/65
@@ -709,9 +738,13 @@ test('always return a package manifest in the response', async () => {
 
 // Covers https://github.com/pnpm/pnpm/issues/1293
 test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
-  nock(registry)
-    .get('/is-positive/-/is-positive-1.0.0.tgz')
-    .replyWithFile(200, IS_POSITIVE_TARBALL)
+  const mockAgent = setupMockAgent()
+  const tarballContent = fs.readFileSync(IS_POSITIVE_TARBALL)
+  mockAgent.get(registry)
+    .intercept({ path: '/is-positive/-/is-positive-1.0.0.tgz', method: 'GET' })
+    .reply(200, tarballContent, {
+      headers: { 'content-length': String(tarballContent.length) },
+    })
 
   const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
@@ -755,6 +788,7 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
   ])
 
   expect((await fetchResults[1].fetching()).bundledManifest).toBeTruthy()
+  await teardownMockAgent()
 })
 
 test('refetch package to store if it has been modified', async () => {
@@ -883,12 +917,6 @@ test('fetch a git package without a package.json', async () => {
   const repo = 'denolib/camelcase'
   const commit = 'aeb6b15f9c9957c8fa56f9731e914c4d8a6d2f2b'
 
-  // Mock the HEAD request that isRepoPublic() in @pnpm/resolving.git-resolver makes to check if the repo is public.
-  // Without this, transient network failures cause the resolver to fall back to git+https:// instead of
-  // resolving via the codeload tarball URL.
-  const githubNock = nock('https://github.com', { allowUnmocked: true })
-    .head('/denolib/camelcase')
-    .reply(200)
   const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
   const requestPackage = createPackageRequester({
@@ -916,7 +944,6 @@ test('fetch a git package without a package.json', async () => {
     expect(pkgResponse.body.isInstallable).toBeFalsy()
     expect(pkgResponse.body.id).toBe(`https://codeload.github.com/${repo}/tar.gz/${commit}`)
   }
-  githubNock.done()
 })
 
 test('throw exception if the package data in the store differs from the expected data', async () => {
