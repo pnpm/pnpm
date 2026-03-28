@@ -1,19 +1,11 @@
 import path from 'node:path'
 
 import { assertProject } from '@pnpm/assert-project'
-<<<<<<<< HEAD:building/commands/test/build/recursive.ts
 import { rebuild } from '@pnpm/building.commands'
 import { preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import type { PackageManifest } from '@pnpm/types'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
-========
-import { rebuild } from '@pnpm/building.build-commands'
-import { preparePackages } from '@pnpm/prepare'
-import { createTestIpcServer } from '@pnpm/test-ipc-server'
-import type { PackageManifest } from '@pnpm/types'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
->>>>>>>> a10ced6059 (fix: merge main and fix compilation errors):building/build-commands/test/recursive.ts
 import { safeExeca as execa } from 'execa'
 import { writeYamlFileSync } from 'write-yaml-file'
 
@@ -113,11 +105,7 @@ test('pnpm recursive rebuild with hoisted node linker', async () => {
     },
   ])
 
-<<<<<<<< HEAD:building/commands/test/build/recursive.ts
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
-========
-  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
->>>>>>>> a10ced6059 (fix: merge main and fix compilation errors):building/build-commands/test/recursive.ts
   writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
   await execa('node', [
     pnpmBin,

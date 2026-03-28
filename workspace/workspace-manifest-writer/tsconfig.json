@@ -34,7 +34,6 @@
       "path": "../../object/key-sorting"
     },
     {
-<<<<<<<< HEAD:workspace/workspace-manifest-writer/tsconfig.json
       "path": "../../yaml/document-sync"
     },
     {
@@ -42,9 +41,6 @@
     },
     {
       "path": "../workspace-manifest-reader"
-========
-      "path": "../build-commands"
->>>>>>>> a10ced6059 (fix: merge main and fix compilation errors):building/policy-commands/tsconfig.json
     }
   ]
 }

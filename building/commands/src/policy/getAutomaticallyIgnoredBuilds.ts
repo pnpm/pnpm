@@ -1,12 +1,7 @@
 import path from 'node:path'
 
-<<<<<<<< HEAD:building/commands/src/policy/getAutomaticallyIgnoredBuilds.ts
 import { parse } from '@pnpm/deps.path'
 import { type Modules, readModulesManifest } from '@pnpm/installing.modules-yaml'
-========
-import { parse } from '@pnpm/dependency-path'
-import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
->>>>>>>> a10ced6059 (fix: merge main and fix compilation errors):building/policy-commands/src/getAutomaticallyIgnoredBuilds.ts
 
 import type { IgnoredBuildsCommandOpts } from './ignoredBuilds.js'
 

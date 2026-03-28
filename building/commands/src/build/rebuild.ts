@@ -2,15 +2,9 @@ import {
   buildProjects,
   buildSelectedPkgs,
 } from '@pnpm/building.after-install'
-<<<<<<<< HEAD:building/commands/src/build/rebuild.ts
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli.utils'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
-========
-import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
-import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, types as allTypes } from '@pnpm/config'
->>>>>>>> a10ced6059 (fix: merge main and fix compilation errors):building/build-commands/src/rebuild.ts
 import type { LogBase } from '@pnpm/logger'
 import {
   createStoreController,

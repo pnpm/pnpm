@@ -1,13 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-<<<<<<<< HEAD:building/commands/test/policy/ignoredBuilds.test.ts
 import { ignoredBuilds } from '@pnpm/building.commands'
 import { writeModulesManifest } from '@pnpm/installing.modules-yaml'
-========
-import { ignoredBuilds } from '@pnpm/building.policy-commands'
-import { writeModulesManifest } from '@pnpm/modules-yaml'
->>>>>>>> a10ced6059 (fix: merge main and fix compilation errors):building/policy-commands/test/ignoredBuilds.test.ts
 import { tempDir } from '@pnpm/prepare-temp-dir'
 import type { DepPath } from '@pnpm/types'
 

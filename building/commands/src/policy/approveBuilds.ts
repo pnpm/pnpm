@@ -1,13 +1,7 @@
-<<<<<<<< HEAD:building/commands/src/policy/approveBuilds.ts
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import type { Config } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
 import { parse } from '@pnpm/deps.path'
-========
-import { rebuild, type RebuildCommandOpts } from '@pnpm/building.build-commands'
-import type { Config } from '@pnpm/config'
-import { writeSettings } from '@pnpm/config.config-writer'
->>>>>>>> a10ced6059 (fix: merge main and fix compilation errors):building/policy-commands/src/approveBuilds.ts
 import { PnpmError } from '@pnpm/error'
 import { install } from '@pnpm/installing.commands'
 import { type StrictModules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
@@ -17,10 +11,7 @@ import chalk from 'chalk'
 import enquirer from 'enquirer'
 import { renderHelp } from 'render-help'
 
-<<<<<<<< HEAD:building/commands/src/policy/approveBuilds.ts
 import { rebuild, type RebuildCommandOpts } from '../build/index.js'
-========
->>>>>>>> a10ced6059 (fix: merge main and fix compilation errors):building/policy-commands/src/approveBuilds.ts
 import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds.js'
 
 export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'allowBuilds' | 'enableGlobalVirtualStore'> & { all?: boolean, global?: boolean }

@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:building/commands/src/policy/ignoredBuilds.ts
 import type { Config } from '@pnpm/config.reader'
-========
-import type { Config } from '@pnpm/config'
->>>>>>>> a10ced6059 (fix: merge main and fix compilation errors):building/policy-commands/src/ignoredBuilds.ts
 import { renderHelp } from 'render-help'
 
 import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds.js'

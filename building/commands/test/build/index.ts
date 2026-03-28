@@ -1,17 +1,9 @@
-<<<<<<<< HEAD:building/commands/test/build/index.ts
 /// <reference path="../../../../__typings__/index.d.ts" />
-========
-/// <reference path="../../../__typings__/index.d.ts" />
->>>>>>>> a10ced6059 (fix: merge main and fix compilation errors):building/build-commands/test/index.ts
 import fs from 'node:fs'
 import path from 'node:path'
 
 import { jest } from '@jest/globals'
-<<<<<<<< HEAD:building/commands/test/build/index.ts
 import { rebuild } from '@pnpm/building.commands'
-========
-import { rebuild } from '@pnpm/building.build-commands'
->>>>>>>> a10ced6059 (fix: merge main and fix compilation errors):building/build-commands/test/index.ts
 import { ENGINE_NAME, STORE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { hashObject } from '@pnpm/crypto.object-hasher'
 import { prepare } from '@pnpm/prepare'
