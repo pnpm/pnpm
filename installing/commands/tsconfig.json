@@ -91,6 +91,9 @@
       "path": "../../pkg-manifest/utils"
     },
     {
+      "path": "../../resolving/npm-resolver"
+    },
+    {
       "path": "../../resolving/parse-wanted-dependency"
     },
     {

@@ -163,6 +163,7 @@ dependencies is not found inside the workspace',
 export type UpdateCommandOptions = InstallCommandOptions & {
   interactive?: boolean
   latest?: boolean
+  trustPolicy?: 'no-downgrade' | 'off'
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
 }
 
@@ -214,7 +215,7 @@ async function interactiveUpdate (
     timeout: opts.fetchTimeout,
   })
   const workspacesEnabled = !!opts.workspaceDir
-  const choices = getUpdateChoices(unnest(outdatedPkgsOfProjects), workspacesEnabled)
+  const choices = getUpdateChoices(unnest(outdatedPkgsOfProjects), workspacesEnabled, opts.trustPolicy)
   if (choices.length === 0) {
     if (opts.latest) {
       return 'All of your dependencies are already up to date'
