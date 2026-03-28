@@ -209,7 +209,7 @@ test('fails with frozenLockfile when old-format deps need migration', async () =
   const integrity = getIntegrity('@pnpm.e2e/foo', '100.0.0')
   await expect(resolveAndInstallConfigDeps({
     '@pnpm.e2e/foo': `100.0.0+${integrity}`,
-  }, { ...opts, frozenLockfile: true })).rejects.toThrow('Cannot migrate configDependencies with "frozen-lockfile"')
+  }, { ...opts, frozenLockfile: true })).rejects.toThrow('Cannot update configDependencies with "frozen-lockfile"')
 })
 
 test('fails with frozenLockfile when new-format deps need resolution', async () => {
@@ -218,7 +218,7 @@ test('fails with frozenLockfile when new-format deps need resolution', async () 
 
   await expect(resolveAndInstallConfigDeps({
     '@pnpm.e2e/foo': '100.0.0',
-  }, { ...opts, frozenLockfile: true })).rejects.toThrow('Cannot resolve configDependencies with "frozen-lockfile"')
+  }, { ...opts, frozenLockfile: true })).rejects.toThrow('Cannot update configDependencies with "frozen-lockfile"')
 })
 
 test('succeeds with frozenLockfile when env lockfile is up-to-date', async () => {

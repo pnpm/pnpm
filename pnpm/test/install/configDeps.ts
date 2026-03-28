@@ -29,7 +29,7 @@ test('installing configDependencies fails with --frozen-lockfile if env lockfile
 
   const result = execPnpmSync(['install', '--frozen-lockfile'])
   expect(result.status).toBe(1)
-  expect(result.stderr.toString()).toContain('Cannot migrate configDependencies with "frozen-lockfile" because the lockfile is not up to date')
+  expect(result.stderr.toString()).toContain('Cannot update configDependencies with "frozen-lockfile" because the lockfile is not up to date')
 })
 
 test('installing configDependencies succeeds with --frozen-lockfile if env lockfile is present and up-to-date', async () => {
