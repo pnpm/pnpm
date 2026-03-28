@@ -39,7 +39,6 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/installing.dedupe.issues-renderer": "workspace:*",
     "@pnpm/installing.dedupe.types": "workspace:*",
-    "@pnpm/installing.render-peer-issues": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
     "ansi-diff": "catalog:",

@@ -43,7 +43,7 @@ test('print peer dependency issues warning', async () => {
   expect.assertions(1)
 
   const output = await firstValueFrom(output$)
-  expect(output).toContain('.')
+  expect(output).toContain('pnpm peers check')
 })
 
 test('print peer dependency issues error', async () => {
@@ -82,8 +82,6 @@ test('print peer dependency issues error', async () => {
 
   expect.assertions(1)
 
-  expect.assertions(1)
-
   const output = await firstValueFrom(output$)
-  expect(output).toContain('.')
+  expect(output).toContain('pnpm peers check')
 })

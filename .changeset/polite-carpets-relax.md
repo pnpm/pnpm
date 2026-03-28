@@ -34,7 +34,6 @@
 "@pnpm/cli.common-cli-options-help": major
 "@pnpm/config.normalize-registries": major
 "@pnpm/lockfile.preferred-versions": major
-"@pnpm/installing.render-peer-issues": major
 "@pnpm/installing.linking.modules-cleaner": major
 "@pnpm/pkg-manifest.utils": major
 "@pnpm/fetching.directory-fetcher": major
