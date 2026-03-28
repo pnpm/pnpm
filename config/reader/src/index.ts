@@ -9,6 +9,7 @@ import { PnpmError } from '@pnpm/error'
 import { getCurrentBranch } from '@pnpm/network.git-utils'
 import loadNpmConf from '@pnpm/npm-conf'
 import type npmTypes from '@pnpm/npm-conf/lib/types.js'
+import { parseField } from '@pnpm/npm-conf/lib/util.js'
 import { isCamelCase } from '@pnpm/text.naming-cases'
 import type { DevEngines, EngineDependency, ProjectManifest } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -21,6 +22,7 @@ import kebabCase from 'lodash.kebabcase'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import { pathAbsolute } from 'path-absolute'
 import { omit } from 'ramda'
+import { readIniFileSync } from 'read-ini-file'
 import { realpathMissing } from 'realpath-missing'
 import semver from 'semver'
 import which from 'which'
@@ -258,20 +260,28 @@ export async function getConfig (opts: {
     .map(([name, value]) => [camelcase(name, { locale: 'en-US' }), value])
   )
 
+  // Resolving the current working directory to its actual location is crucial.
+  // This prevents potential inconsistencies in the future, especially when processing or mapping subdirectories.
+  const cwd = fs.realpathSync(betterPathResolve(cliOptions.dir ?? npmConfig.localPrefix))
+  const localNpmrcs = readLocalNpmrcs(cwd, npmConfig.get('userconfig'), rcOptionsTypes)
+  warnings.push(...localNpmrcs.warnings)
+  const localNpmrcConfig = Object.assign({}, ...localNpmrcs.configs.slice().reverse())
+
   const pnpmConfig: ConfigWithDeprecatedSettings = Object.fromEntries(
     rcOptions
       .map((configKey) => [
         camelcase(configKey, { locale: 'en-US' }),
-        isIniConfigKey(configKey) ? npmConfig.get(configKey) : (defaultOptions as Record<string, unknown>)[configKey],
+        isIniConfigKey(configKey) && Object.prototype.hasOwnProperty.call(localNpmrcConfig, configKey)
+          ? localNpmrcConfig[configKey]
+          : isIniConfigKey(configKey)
+            ? npmConfig.get(configKey)
+            : (defaultOptions as Record<string, unknown>)[configKey],
       ])
   ) as ConfigWithDeprecatedSettings
 
   const globalDepsBuildConfig = extractAndRemoveDependencyBuildOptions(pnpmConfig)
 
   Object.assign(pnpmConfig, configFromCliOpts)
-  // Resolving the current working directory to its actual location is crucial.
-  // This prevents potential inconsistencies in the future, especially when processing or mapping subdirectories.
-  const cwd = fs.realpathSync(betterPathResolve(cliOptions.dir ?? npmConfig.localPrefix))
 
   // Unfortunately, there is no way to escape the PATH delimiter,
   // so directories added to PATH should not contain it.
@@ -286,17 +296,19 @@ export async function getConfig (opts: {
   pnpmConfig.configDir = configDir
   pnpmConfig.workspaceDir = opts.workspaceDir
   pnpmConfig.workspaceRoot = cliOptions['workspace-root'] as boolean // This is needed to prevent pnpm reading workspaceRoot from env variables
-  pnpmConfig.rawLocalConfig = Object.assign(
-    {},
-    ...npmConfig.list.slice(3, pnpmConfig.workspaceDir && pnpmConfig.workspaceDir !== cwd ? 5 : 4).reverse(),
-    cliOptions
-  )
+  pnpmConfig.rawLocalConfig = Object.assign({}, localNpmrcConfig, cliOptions)
   pnpmConfig.userAgent = pnpmConfig.rawLocalConfig['user-agent']
     ? pnpmConfig.rawLocalConfig['user-agent']
     : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
   pnpmConfig.rawConfig = Object.assign(
     {},
-    ...npmConfig.list.map(pickIniConfig).reverse(),
+    pickIniConfig(npmConfig.sources['pnpm-builtin']?.data ?? {}),
+    pickIniConfig(npmConfig.sources['pnpm-global']?.data ?? {}),
+    pickIniConfig(npmConfig.sources.global?.data ?? {}),
+    pickIniConfig(npmConfig.sources.user?.data ?? {}),
+    pickIniConfig(localNpmrcConfig),
+    pickIniConfig(npmConfig.sources.env?.data ?? {}),
+    pickIniConfig(npmConfig.sources.builtin?.data ?? {}),
     pickIniConfig(cliOptions),
     { 'user-agent': pnpmConfig.userAgent },
     { globalconfig: path.join(configDir, 'rc') },
@@ -574,10 +586,7 @@ export async function getConfig (opts: {
 
   // TODO: consider removing checkUnknownSetting entirely
   if (opts.checkUnknownSetting) {
-    const settingKeys = Object.keys({
-      ...npmConfig?.sources?.workspace?.data,
-      ...npmConfig?.sources?.project?.data,
-    }).filter(key => key.trim() !== '')
+    const settingKeys = Object.keys(localNpmrcConfig).filter(key => key.trim() !== '')
     const unknownKeys = []
     for (const key of settingKeys) {
       if (!rcOptions.includes(key) && !key.startsWith('//') && !(key[0] === '@' && key.endsWith(':registry'))) {
@@ -735,6 +744,54 @@ function getNodeVersionFromEnginesRuntime (manifest: ProjectManifest): string | 
     }
   }
   return undefined
+}
+
+function readLocalNpmrcs (
+  cwd: string,
+  userConfigPath: string | undefined,
+  rcOptionsTypes: KebabCaseConfig
+): {
+  configs: Array<Record<string, unknown>>
+  warnings: string[]
+} {
+  const skippedPaths = new Set<string>()
+  if (userConfigPath != null) {
+    skippedPaths.add(normalizeConfigPath(userConfigPath))
+  }
+  const configs: Array<Record<string, unknown>> = []
+  const warnings: string[] = []
+  for (const npmrcPath of getParentNpmrcPaths(cwd)) {
+    if (skippedPaths.has(normalizeConfigPath(npmrcPath))) continue
+    try {
+      const config = readIniFileSync(npmrcPath) as Record<string, unknown>
+      configs.push(Object.fromEntries(
+        Object.entries(config).map(([key, value]) => [key, parseField(rcOptionsTypes, value as string, key)])
+      ))
+    } catch (error: unknown) {
+      const errorCode = typeof error === 'object' && error != null && 'code' in error ? error.code : undefined
+      if (errorCode === 'ENOENT' || errorCode === 'EISDIR') continue
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      warnings.push(`Issue while reading "${npmrcPath}". ${errorMessage}`)
+    }
+  }
+  return { configs, warnings }
+}
+
+function getParentNpmrcPaths (cwd: string): string[] {
+  const npmrcPaths: string[] = []
+  let currentDir = cwd
+  while (true) {
+    npmrcPaths.push(path.join(currentDir, '.npmrc'))
+    const parentDir = path.dirname(currentDir)
+    if (parentDir === currentDir) break
+    currentDir = parentDir
+  }
+  return npmrcPaths
+}
+
+function normalizeConfigPath (configPath: string): string {
+  const normalizedPath = path.resolve(configPath)
+  return process.platform === 'win32' ? normalizedPath.toLowerCase() : normalizedPath
 }
 
 function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config, {
