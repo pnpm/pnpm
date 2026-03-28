@@ -10,13 +10,13 @@
   ],
   "references": [
     {
-      "path": "../../fetching/types"
-    },
-    {
       "path": "../../core/error"
     },
     {
       "path": "../../core/types"
+    },
+    {
+      "path": "../../fetching/types"
     },
     {
       "path": "../resolver-base"
