@@ -1524,6 +1524,23 @@ test('local tarball dependency with peer dependency', async () => {
   }
 })
 
+test('local tarball dependency with aliased peer dependency does not report peer issues', async () => {
+  prepareEmpty()
+
+  const reporter = jest.fn()
+  const tarballPath = f.find('tar-pkg-with-aliased-peer-1.0.0.tgz')
+
+  await addDependenciesToPackage({}, [
+    `file:${tarballPath}`,
+    'peer-a-aliased@npm:@pnpm.e2e/peer-a@1.0.0',
+    '@pnpm.e2e/peer-a@1.0.0',
+  ], testDefaults({ reporter, strictPeerDependencies: false }))
+
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
+    name: 'pnpm:peer-dependency-issues',
+  }))
+})
+
 test('peer dependency that is resolved by a dev dependency', async () => {
   const project = prepareEmpty()
   const manifest = {
