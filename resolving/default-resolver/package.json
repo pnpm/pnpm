@@ -39,6 +39,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching.types": "workspace:*",
     "@pnpm/hooks.types": "workspace:*",
+    "@pnpm/resolving.aqua-resolver": "workspace:*",
     "@pnpm/resolving.git-resolver": "workspace:*",
     "@pnpm/resolving.local-resolver": "workspace:*",
     "@pnpm/resolving.npm-resolver": "workspace:*",

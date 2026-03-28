@@ -43,6 +43,9 @@
       "path": "../../store/cafs-types"
     },
     {
+      "path": "../aqua-resolver"
+    },
+    {
       "path": "../git-resolver"
     },
     {
