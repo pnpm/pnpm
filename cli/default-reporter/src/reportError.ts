@@ -3,7 +3,6 @@ import type { Log } from '@pnpm/core-loggers'
 import type { PnpmError } from '@pnpm/error'
 import { renderDedupeCheckIssues } from '@pnpm/installing.dedupe.issues-renderer'
 import type { DedupeCheckIssues } from '@pnpm/installing.dedupe.types'
-import { renderPeerIssues } from '@pnpm/installing.render-peer-issues'
 import type { PeerDependencyIssuesByProjects } from '@pnpm/types'
 import chalk from 'chalk'
 import { equals } from 'ramda'
@@ -460,9 +459,11 @@ function hideSecureInfo (key: string, value: string): string {
 function reportPeerDependencyIssuesError (
   err: Error,
   msg: { issuesByProjects: PeerDependencyIssuesByProjects }
-): ErrorInfo | null {
+): ErrorInfo {
   const hasMissingPeers = getHasMissingPeers(msg.issuesByProjects)
-  const hints: string[] = []
+  const hints: string[] = [
+    'Run "pnpm peers check" to list the peer dependency issues.',
+  ]
   if (hasMissingPeers) {
     hints.push(`To auto-install peer dependencies, add the following to "pnpm-workspace.yaml" in your project root:
 
@@ -472,18 +473,9 @@ function reportPeerDependencyIssuesError (
 
   strictPeerDependencies: false
 `)
-  const rendered = renderPeerIssues(msg.issuesByProjects)
-  if (!rendered) {
-    // This should never happen.
-    return {
-      title: err.message,
-    }
-  }
   return {
     title: err.message,
-    body: `${rendered}
-${hints.map((hint) => `hint: ${hint}`).join('\n')}
-`,
+    body: hints.map((hint) => `hint: ${hint}`).join('\n'),
   }
 }
 

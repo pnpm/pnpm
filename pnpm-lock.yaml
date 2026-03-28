@@ -475,9 +475,6 @@ catalogs:
     ci-info:
       specifier: ^4.3.0
       version: 4.4.0
-    cli-columns:
-      specifier: ^4.0.0
-      version: 4.0.0
     cli-truncate:
       specifier: ^5.2.0
       version: 5.2.0
@@ -2126,9 +2123,6 @@ importers:
       '@pnpm/installing.dedupe.types':
         specifier: workspace:*
         version: link:../../installing/dedupe/types
-      '@pnpm/installing.render-peer-issues':
-        specifier: workspace:*
-        version: link:../../installing/render-peer-issues
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
@@ -6219,28 +6213,6 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
-
-  installing/render-peer-issues:
-    dependencies:
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../core/error
-      '@pnpm/text.tree-renderer':
-        specifier: workspace:*
-        version: link:../../text/tree-renderer
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../core/types
-      chalk:
-        specifier: 'catalog:'
-        version: 5.6.2
-      cli-columns:
-        specifier: 'catalog:'
-        version: 4.0.0
-    devDependencies:
-      '@pnpm/installing.render-peer-issues':
-        specifier: workspace:*
-        version: 'link:'
 
   lockfile/detect-dep-types:
     dependencies:

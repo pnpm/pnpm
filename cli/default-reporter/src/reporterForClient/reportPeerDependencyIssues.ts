@@ -1,5 +1,4 @@
 import type { PeerDependencyIssuesLog } from '@pnpm/core-loggers'
-import { renderPeerIssues } from '@pnpm/installing.render-peer-issues'
 import * as Rx from 'rxjs'
 import { map, take } from 'rxjs/operators'
 
@@ -12,13 +11,9 @@ export function reportPeerDependencyIssues (
 ): Rx.Observable<Rx.Observable<{ msg: string }>> {
   return log$.peerDependencyIssues.pipe(
     take(1),
-    map((log) => {
-      const renderedPeerIssues = renderPeerIssues(log.issuesByProjects)
-      if (!renderedPeerIssues) {
-        return Rx.NEVER
-      }
+    map(() => {
       return Rx.of({
-        msg: `${formatWarn('Issues with peer dependencies found')}\n${renderedPeerIssues}`,
+        msg: formatWarn('Issues with peer dependencies found. Run "pnpm peers check" to list them.'),
       })
     })
   )
