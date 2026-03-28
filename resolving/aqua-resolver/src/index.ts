@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import type { FetchFromRegistry } from '@pnpm/fetching-types'
+import type { FetchFromRegistry } from '@pnpm/fetching.types'
 import type {
   BinaryResolution,
   PlatformAssetResolution,
@@ -7,7 +7,7 @@ import type {
   ResolveResult,
   VariationsResolution,
   WantedDependency,
-} from '@pnpm/resolver-base'
+} from '@pnpm/resolving.resolver-base'
 import type { PkgResolutionId } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 

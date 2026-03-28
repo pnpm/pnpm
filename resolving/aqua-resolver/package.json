@@ -34,8 +34,8 @@
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
-    "@pnpm/fetching-types": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/fetching.types": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
     "js-yaml": "catalog:",

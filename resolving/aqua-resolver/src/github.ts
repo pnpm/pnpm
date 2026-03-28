@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import type { FetchFromRegistry } from '@pnpm/fetching-types'
+import type { FetchFromRegistry } from '@pnpm/fetching.types'
 import semver from 'semver'
 
 const GITHUB_API = 'https://api.github.com'

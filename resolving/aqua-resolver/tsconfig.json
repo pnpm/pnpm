@@ -10,13 +10,13 @@
   ],
   "references": [
     {
-      "path": "../../network/fetching-types"
+      "path": "../../fetching/types"
     },
     {
-      "path": "../../packages/error"
+      "path": "../../core/error"
     },
     {
-      "path": "../../packages/types"
+      "path": "../../core/types"
     },
     {
       "path": "../resolver-base"

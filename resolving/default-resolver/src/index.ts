@@ -4,6 +4,7 @@ import { type NodeRuntimeResolveResult, resolveNodeRuntime } from '@pnpm/engine.
 import { PnpmError } from '@pnpm/error'
 import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
 import { checkCustomResolverCanResolve, type CustomResolver } from '@pnpm/hooks.types'
+import { type AquaResolveResult, resolveAqua } from '@pnpm/resolving.aqua-resolver'
 import { createGitResolver, type GitResolveResult } from '@pnpm/resolving.git-resolver'
 import { type LocalResolveResult, resolveFromLocal } from '@pnpm/resolving.local-resolver'
 import {
@@ -22,7 +23,6 @@ import type {
   ResolveResult,
   WantedDependency,
 } from '@pnpm/resolving.resolver-base'
-import { type AquaResolveResult, resolveAqua } from '@pnpm/resolving.aqua-resolver'
 import { resolveFromTarball, type TarballResolveResult } from '@pnpm/resolving.tarball-resolver'
 
 export type {

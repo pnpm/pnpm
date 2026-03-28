@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals'
-import type { FetchFromRegistry } from '@pnpm/fetching-types'
+import type { FetchFromRegistry } from '@pnpm/fetching.types'
 import { resolveAqua } from '@pnpm/resolving.aqua-resolver'
 
 const dummyFetch = (() => {}) as unknown as FetchFromRegistry

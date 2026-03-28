@@ -1,4 +1,5 @@
-import type { FetchFromRegistry } from '@pnpm/fetching-types'
+import { PnpmError } from '@pnpm/error'
+import type { FetchFromRegistry } from '@pnpm/fetching.types'
 import yaml from 'js-yaml'
 import semver from 'semver'
 
@@ -67,7 +68,10 @@ export async function fetchAquaRegistryPackage (
   const url = `${AQUA_REGISTRY_BASE}/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/registry.yaml`
   const res = await fetchFromRegistry(url)
   if (!res.ok) {
-    throw new Error(`Failed to fetch aqua registry for ${owner}/${repo}: ${res.status} ${res.statusText}`)
+    throw new PnpmError(
+      'AQUA_REGISTRY_FETCH',
+      `Failed to fetch aqua registry for ${owner}/${repo}: ${res.status} ${res.statusText}`
+    )
   }
   const text = await res.text()
   const doc = yaml.load(text) as AquaRegistryDocument
