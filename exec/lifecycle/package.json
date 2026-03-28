@@ -43,6 +43,7 @@
     "@pnpm/store.cafs-types": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "chalk": "catalog:",
     "is-windows": "catalog:",
     "path-exists": "catalog:",
     "run-groups": "catalog:",

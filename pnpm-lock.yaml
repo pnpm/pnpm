@@ -251,8 +251,8 @@ catalogs:
       specifier: 3.0.2
       version: 3.0.2
     '@pnpm/npm-lifecycle':
-      specifier: 1100.0.0-0
-      version: 1100.0.0-0
+      specifier: 1100.0.0-1
+      version: 1100.0.0-1
     '@pnpm/npm-package-arg':
       specifier: ^2.0.0
       version: 2.0.0
@@ -4020,7 +4020,7 @@ importers:
         version: link:../../fetching/directory-fetcher
       '@pnpm/npm-lifecycle':
         specifier: 'catalog:'
-        version: 1100.0.0-0(typanion@3.14.0)
+        version: 1100.0.0-1(typanion@3.14.0)
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../../pkg-manifest/reader
@@ -4033,6 +4033,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
+      chalk:
+        specifier: 'catalog:'
+        version: 5.6.2
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
@@ -10626,8 +10629,8 @@ packages:
     resolution: {integrity: sha512-5jW/GNLdZMiw+PJ8FYSvOghoApSjsORNIro2fj8j6NHAqJxJjcHekC5/NsKaawoI5LAkU/XDDVjNC71Yz+uS1w==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/npm-lifecycle@1100.0.0-0':
-    resolution: {integrity: sha512-FymJ23SU6f3AlgUsK0Bt+0ztIWe3MFkqGbPL86couBb37fH+UNyG6P6IUmOv/lXA4Y2mhqGDTSV0/8mYI08xng==}
+  '@pnpm/npm-lifecycle@1100.0.0-1':
+    resolution: {integrity: sha512-sqXZFikFaJfwY8K+Gg9oPMxxYnJ9O7OkMxXAWNPBUEiZh8XK/DaNFlbNOJ3X8P0WKS5nDE9A6TiOBWrhTrpS+A==}
     engines: {node: '>=22.13'}
 
   '@pnpm/npm-package-arg@2.0.0':
@@ -18534,7 +18537,7 @@ snapshots:
       - supports-color
       - typanion
 
-  '@pnpm/npm-lifecycle@1100.0.0-0(typanion@3.14.0)':
+  '@pnpm/npm-lifecycle@1100.0.0-1(typanion@3.14.0)':
     dependencies:
       '@pnpm/byline': 1.0.0
       '@pnpm/error': 1000.1.0
