@@ -436,6 +436,56 @@ test('createVersionsOverrider() overrides dependencies with file with relative p
   })
 })
 
+test('createVersionsOverrider() overrides dependencies with bare relative tarball path for workspace package', () => {
+  const rootDir = process.cwd()
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier: './tarballs/qar-1.0.0.tgz',
+    },
+  ], rootDir)
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.join(rootDir, 'packages', 'pkg'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: 'file:../../tarballs/qar-1.0.0.tgz',
+    },
+  })
+})
+
+test('createVersionsOverrider() does not rewrite remote tarball URLs', () => {
+  const rootDir = process.cwd()
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier: 'https://example.com/qar-1.0.0.tgz',
+    },
+  ], rootDir)
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.join(rootDir, 'packages', 'pkg'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: 'https://example.com/qar-1.0.0.tgz',
+    },
+  })
+})
+
 test('createVersionsOverrider() overrides dependencies with file specified with absolute path', () => {
   const absolutePath = path.join(import.meta.dirname, 'qar')
   const overrider = createVersionsOverrider([
