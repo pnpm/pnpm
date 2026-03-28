@@ -6,6 +6,7 @@ import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import { lifecycle } from '@pnpm/npm-lifecycle'
 import type { DependencyManifest, PackageScripts, ProjectManifest } from '@pnpm/types'
+import chalk from 'chalk'
 import isWindows from 'is-windows'
 import { join as shellQuote } from 'shlex'
 
@@ -105,6 +106,12 @@ Please unset the scriptShell option, or configure it to a .exe instead.
       stage,
       wd: opts.pkgRoot,
     })
+  } else if (!opts.silent) {
+    const cwd = opts.initCwd ?? process.cwd()
+    if (path.resolve(opts.pkgRoot) !== path.resolve(cwd)) {
+      console.log(chalk.dim(`${manifest.name ?? ''}@${manifest.version ?? ''} ${opts.pkgRoot}`))
+    }
+    console.log(chalk.dim(`$ ${m.scripts[stage]}`))
   }
   const logLevel = (opts.stdio !== 'inherit' || opts.silent)
     ? 'silent'

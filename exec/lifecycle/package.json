@@ -38,6 +38,7 @@
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching.directory-fetcher": "workspace:*",
+    "chalk": "catalog:",
     "@pnpm/npm-lifecycle": "catalog:",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/store.cafs-types": "workspace:*",
