@@ -27,9 +27,9 @@
   "scripts": {
     "compile": "tsc --build",
     "lint": "eslint src/**/*.ts test/**/*.ts",
-    "prepublishOnly": "pnpm run compile",
-    "pretest": "pnpm install -C test/fixture/project --force --no-shared-workspace-lockfile",
-    "test": "pnpm pretest && pnpm run compile && jest"
+    "prepublishOnly": "pn compile",
+    "pretest": "pn install -C test/fixture/project --force --no-shared-workspace-lockfile",
+    "test": "pn pretest && pn compile && jest"
   },
   "dependencies": {
     "@pnpm/registry-mock": "catalog:",

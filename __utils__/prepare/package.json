@@ -18,8 +18,8 @@
   },
   "scripts": {
     "lint": "eslint src/**/*.ts",
-    "prepublishOnly": "pnpm run compile",
-    "test": "pnpm run compile",
+    "prepublishOnly": "pn compile",
+    "test": "pn compile",
     "compile": "rimraf tsconfig.tsbuildinfo lib && tsc --build"
   },
   "keywords": [
