@@ -118,6 +118,7 @@ function getNonProxyDispatcher (uri: string, opts: DispatcherOptions): Dispatche
   const key = [
     `https:${isHttps.toString()}`,
     `local-address:${opts.localAddress ?? '>no-local-address<'}`,
+    `max-sockets:${(opts.maxSockets ?? DEFAULT_MAX_SOCKETS).toString()}`,
     `strict-ssl:${isHttps ? Boolean(opts.strictSsl).toString() : '>no-strict-ssl<'}`,
     `ca:${(isHttps && ca?.toString()) || '>no-ca<'}`,
     `cert:${(isHttps && cert?.toString()) || '>no-cert<'}`,
@@ -164,7 +165,7 @@ function checkNoProxy (uri: string, opts: { noProxy?: boolean | string }): boole
     .filter(x => x)
     .reverse()
   if (typeof opts.noProxy === 'string') {
-    const noproxyArr = opts.noProxy.split(/\s*,\s*/g)
+    const noproxyArr = opts.noProxy.split(',').map(s => s.trim())
     return noproxyArr.some(no => {
       const noParts = no
         .split('.')

@@ -5,7 +5,6 @@ import path from 'node:path'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { MockAgent, setGlobalDispatcher, getGlobalDispatcher, type Dispatcher } from 'undici'
 import { ProxyServer } from 'https-proxy-server-express'
-import nock from 'nock'
 
 const CERTS_DIR = path.join(import.meta.dirname, '__certs__')
 

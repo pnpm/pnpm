@@ -233,6 +233,7 @@ catalog:
   # msgpackr 1.11.9 has broken type definitions (uses Iterable/Iterator without
   # required type arguments), incompatible with TypeScript 5.9.
   msgpackr: 1.11.8
+  nock: 13.3.4
   nm-prune: ^5.0.0
   normalize-newline: 5.0.0
   normalize-package-data: ^8.0.0
