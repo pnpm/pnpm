@@ -2275,9 +2275,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
-      '@pnpm/exec.run-npm':
-        specifier: workspace:*
-        version: link:../../exec/run-npm
       '@pnpm/object.key-sorting':
         specifier: workspace:*
         version: link:../../object/key-sorting
