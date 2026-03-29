@@ -25,7 +25,7 @@ const { selfUpdate, installPnpm, linkExePlatformBinary } = await import('@pnpm/e
 
 beforeEach(async () => {
   await setupMockAgent()
-  getMockAgent()!.enableNetConnect()
+  getMockAgent().enableNetConnect()
 })
 
 afterEach(async () => {
@@ -112,7 +112,7 @@ function createExeMetadata (version: string, registry: string) {
  * This prevents install() from making real HTTP requests for @pnpm/exe.
  */
 function mockExeMetadata (registry: string, version: string) {
-  getMockAgent()!.get(registry.replace(/\/$/, ''))
+  getMockAgent().get(registry.replace(/\/$/, ''))
     .intercept({ path: '/@pnpm%2Fexe', method: 'GET' }) // cspell:disable-line
     .reply(200, createExeMetadata(version, registry))
 }
@@ -123,12 +123,12 @@ function mockExeMetadata (registry: string, version: string) {
  */
 function mockRegistryForUpdate (registry: string, version: string, metadata: object) {
   // Use persist for metadata since multiple components request it
-  getMockAgent()!.get(registry.replace(/\/$/, ''))
+  getMockAgent().get(registry.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, metadata).persist()
   mockExeMetadata(registry, version)
   const tgzData = fs.readFileSync(pnpmTarballPath)
-  getMockAgent()!.get(registry.replace(/\/$/, ''))
+  getMockAgent().get(registry.replace(/\/$/, ''))
     .intercept({ path: `/pnpm/-/pnpm-${version}.tgz`, method: 'GET' })
     .reply(200, tgzData)
 }
@@ -162,12 +162,12 @@ test('self-update by exact version', async () => {
   const opts = prepare()
   const metadata = createMetadata('9.2.0', opts.registries.default, ['9.1.0'])
   const registry = opts.registries.default.replace(/\/$/, '')
-  getMockAgent()!.get(registry)
+  getMockAgent().get(registry)
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, metadata).persist()
   mockExeMetadata(opts.registries.default, '9.1.0')
   const tgzData = fs.readFileSync(pnpmTarballPath)
-  getMockAgent()!.get(registry)
+  getMockAgent().get(registry)
     .intercept({ path: '/pnpm/-/pnpm-9.1.0.tgz', method: 'GET' })
     .reply(200, tgzData)
 
@@ -194,7 +194,7 @@ test('self-update by exact version', async () => {
 
 test('self-update does nothing when pnpm is up to date', async () => {
   const opts = prepare()
-  getMockAgent()!.get(opts.registries.default.replace(/\/$/, ''))
+  getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, createMetadata('9.0.0', opts.registries.default))
 
@@ -209,7 +209,7 @@ test('should update packageManager field when a newer pnpm version is available'
   fs.writeFileSync(pkgJsonPath, JSON.stringify({
     packageManager: 'pnpm@8.0.0',
   }), 'utf8')
-  getMockAgent()!.get(opts.registries.default.replace(/\/$/, ''))
+  getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, createMetadata('9.0.0', opts.registries.default))
 
@@ -232,7 +232,7 @@ test('should not update packageManager field when current version matches latest
   fs.writeFileSync(pkgJsonPath, JSON.stringify({
     packageManager: 'pnpm@9.0.0',
   }), 'utf8')
-  getMockAgent()!.get(opts.registries.default.replace(/\/$/, ''))
+  getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, createMetadata('9.0.0', opts.registries.default))
 
@@ -256,7 +256,7 @@ test('should update devEngines.packageManager version when a newer pnpm version 
     },
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
-  getMockAgent()!.get(opts.registries.default.replace(/\/$/, ''))
+  getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, createMetadata('9.0.0', opts.registries.default)).persist()
   mockExeMetadata(opts.registries.default, '9.0.0')
@@ -286,7 +286,7 @@ test('should update pnpm entry in devEngines.packageManager array', async () => 
     },
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
-  getMockAgent()!.get(opts.registries.default.replace(/\/$/, ''))
+  getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, createMetadata('9.0.0', opts.registries.default)).persist()
   mockExeMetadata(opts.registries.default, '9.0.0')
@@ -314,7 +314,7 @@ test('should not modify devEngines.packageManager range when resolved version st
     },
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
-  getMockAgent()!.get(opts.registries.default.replace(/\/$/, ''))
+  getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, createMetadata('9.0.0', opts.registries.default)).persist()
   mockExeMetadata(opts.registries.default, '9.0.0')
@@ -344,7 +344,7 @@ test('should fall back to ^version when complex range cannot accommodate the new
     },
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
-  getMockAgent()!.get(opts.registries.default.replace(/\/$/, ''))
+  getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, createMetadata('9.0.0', opts.registries.default)).persist()
   mockExeMetadata(opts.registries.default, '9.0.0')
@@ -369,7 +369,7 @@ test('should update devEngines.packageManager range when resolved version no lon
     },
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
-  getMockAgent()!.get(opts.registries.default.replace(/\/$/, ''))
+  getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, createMetadata('9.0.0', opts.registries.default)).persist()
   mockExeMetadata(opts.registries.default, '9.0.0')
@@ -404,7 +404,7 @@ console.log('9.2.0')`, 'utf8')
   // Create a hash symlink pointing to the install dir (like handleGlobalAdd does)
   fs.symlinkSync(installDir, path.join(globalDir, 'fake-hash'))
 
-  getMockAgent()!.get(opts.registries.default.replace(/\/$/, ''))
+  getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, createMetadata('9.2.0', opts.registries.default)).persist()
   mockExeMetadata(opts.registries.default, '9.2.0')
@@ -475,7 +475,7 @@ test('self-update updates the packageManager field in package.json', async () =>
       version: '9.0.0',
     },
   }
-  getMockAgent()!.get(opts.registries.default.replace(/\/$/, ''))
+  getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, createMetadata('9.1.0', opts.registries.default))
 
@@ -489,11 +489,11 @@ test('self-update updates the packageManager field in package.json', async () =>
 
 test('installPnpm without env lockfile uses resolution path', async () => {
   const opts = prepare()
-  getMockAgent()!.get(opts.registries.default.replace(/\/$/, ''))
+  getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, createMetadata('9.1.0', opts.registries.default)).persist()
   const tgzData = fs.readFileSync(pnpmTarballPath)
-  getMockAgent()!.get(opts.registries.default.replace(/\/$/, ''))
+  getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm/-/pnpm-9.1.0.tgz', method: 'GET' })
     .reply(200, tgzData)
 

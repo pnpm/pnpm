@@ -48,7 +48,7 @@ beforeEach(async () => {
 })
 
 test('resolveFromNpm()', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -81,7 +81,7 @@ test('resolveFromNpm()', async () => {
 })
 
 test('resolveFromNpm() strips port 80 from http tarball URLs', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, {
       ...isPositiveMeta,
@@ -111,7 +111,7 @@ test('resolveFromNpm() strips port 80 from http tarball URLs', async () => {
 })
 
 test('resolveFromNpm() does not save mutated meta to the cache', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -132,7 +132,7 @@ test('resolveFromNpm() does not save mutated meta to the cache', async () => {
 })
 
 test('resolveFromNpm() should save metadata to a unique file when the package name has upper case letters', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/JSON', method: 'GET' })
     .reply(200, jsonMeta)
 
@@ -170,7 +170,7 @@ test('relative workspace protocol is skipped', async () => {
 })
 
 test('dry run', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -201,7 +201,7 @@ test('dry run', async () => {
 })
 
 test('resolve to latest when no bareSpecifier specified', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -215,7 +215,7 @@ test('resolve to latest when no bareSpecifier specified', async () => {
 })
 
 test('resolve to defaultTag when no bareSpecifier specified', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -231,7 +231,7 @@ test('resolve to defaultTag when no bareSpecifier specified', async () => {
 })
 
 test('resolve to biggest non-deprecated version that satisfies the range', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMetaWithDeprecated)
 
@@ -246,7 +246,7 @@ test('resolve to biggest non-deprecated version that satisfies the range', async
 })
 
 test('resolve to a deprecated version if there are no non-deprecated ones that satisfy the range', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMetaWithDeprecated)
 
@@ -260,7 +260,7 @@ test('resolve to a deprecated version if there are no non-deprecated ones that s
 })
 
 test('can resolve aliased dependency', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -274,7 +274,7 @@ test('can resolve aliased dependency', async () => {
 })
 
 test('can resolve aliased dependency w/o version specifier', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -288,7 +288,7 @@ test('can resolve aliased dependency w/o version specifier', async () => {
 })
 
 test('can resolve aliased dependency w/o version specifier to default tag', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -306,7 +306,7 @@ test('can resolve aliased dependency w/o version specifier to default tag', asyn
 })
 
 test('can resolve aliased scoped dependency', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/@sindresorhus%2Fis', method: 'GET' })
     .reply(200, sindresorhusIsMeta)
 
@@ -320,7 +320,7 @@ test('can resolve aliased scoped dependency', async () => {
 })
 
 test('can resolve aliased scoped dependency w/o version specifier', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/@sindresorhus%2Fis', method: 'GET' })
     .reply(200, sindresorhusIsMeta)
 
@@ -334,7 +334,7 @@ test('can resolve aliased scoped dependency w/o version specifier', async () => 
 })
 
 test('can resolve package with version prefixed with v', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -348,7 +348,7 @@ test('can resolve package with version prefixed with v', async () => {
 })
 
 test('can resolve package version loosely', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -362,7 +362,7 @@ test('can resolve package version loosely', async () => {
 })
 
 test("resolves to latest if it's inside the wanted range. Even if there are newer versions available inside the range", async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, {
       ...isPositiveMeta,
@@ -384,7 +384,7 @@ test("resolves to latest if it's inside the wanted range. Even if there are newe
 })
 
 test("resolves to latest if it's inside the preferred range. Even if there are newer versions available inside the preferred range", async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, {
       ...isPositiveMeta,
@@ -410,7 +410,7 @@ test("resolves to latest if it's inside the preferred range. Even if there are n
 })
 
 test("resolve using the wanted range, when it doesn't intersect with the preferred range. Even if the preferred range contains the latest version", async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, {
       ...isPositiveMeta,
@@ -435,7 +435,7 @@ test("resolve using the wanted range, when it doesn't intersect with the preferr
 })
 
 test("use the preferred version if it's inside the wanted range", async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, {
       ...isPositiveMeta,
@@ -461,7 +461,7 @@ test("use the preferred version if it's inside the wanted range", async () => {
 })
 
 test("ignore the preferred version if it's not inside the wanted range", async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, {
       ...isPositiveMeta,
@@ -485,7 +485,7 @@ test("ignore the preferred version if it's not inside the wanted range", async (
 })
 
 test('use the preferred range if it intersects with the wanted range', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, {
       ...isPositiveMeta,
@@ -511,7 +511,7 @@ test('use the preferred range if it intersects with the wanted range', async () 
 })
 
 test('use the preferred range if it intersects with the wanted range (an array of preferred versions is passed)', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, {
       ...isPositiveMeta,
@@ -540,7 +540,7 @@ test('use the preferred range if it intersects with the wanted range (an array o
 })
 
 test("ignore the preferred range if it doesn't intersect with the wanted range", async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, {
       ...isPositiveMeta,
@@ -564,7 +564,7 @@ test("ignore the preferred range if it doesn't intersect with the wanted range",
 })
 
 test("use the preferred dist-tag if it's inside the wanted range", async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, {
       ...isPositiveMeta,
@@ -591,7 +591,7 @@ test("use the preferred dist-tag if it's inside the wanted range", async () => {
 })
 
 test("ignore the preferred dist-tag if it's not inside the wanted range", async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, {
       ...isPositiveMeta,
@@ -618,7 +618,7 @@ test("ignore the preferred dist-tag if it's not inside the wanted range", async 
 })
 
 test("prefer a version that is both inside the wanted and preferred ranges. Even if it's not the latest of any of them", async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, {
       ...isPositiveMeta,
@@ -644,7 +644,7 @@ test("prefer a version that is both inside the wanted and preferred ranges. Even
 })
 
 test('prefer the version that is matched by more preferred selectors', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -666,7 +666,7 @@ test('prefer the version that is matched by more preferred selectors', async () 
 })
 
 test('prefer the version that has bigger weight in preferred selectors', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -692,7 +692,7 @@ test('prefer the version that has bigger weight in preferred selectors', async (
 })
 
 test('versions without selector weights should have higher priority than negatively weighted versions', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -733,7 +733,7 @@ test('offline resolution fails when package meta not found in the store', async 
 })
 
 test('offline resolution succeeds when package meta is found in the store', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -765,7 +765,7 @@ test('offline resolution succeeds when package meta is found in the store', asyn
 })
 
 test('prefer offline resolution does not fail when package meta not found in the store', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -781,7 +781,7 @@ test('prefer offline resolution does not fail when package meta not found in the
 })
 
 test('when prefer offline is used, meta from store is used, where latest might be out-of-date', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, {
       ...isPositiveMeta,
@@ -801,7 +801,7 @@ test('when prefer offline is used, meta from store is used, where latest might b
     await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {})
   }
 
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, {
       ...isPositiveMeta,
@@ -825,7 +825,7 @@ test('when prefer offline is used, meta from store is used, where latest might b
 test('error is thrown when package is not found in the registry', async () => {
   const notExistingPackage = 'foo'
 
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: `/${notExistingPackage}`, method: 'GET' })
     .reply(404, {})
 
@@ -855,10 +855,10 @@ test('error is thrown when registry not responding', async () => {
 
   // Mock a network error for the non-existing registry
   const dnsError = Object.assign(new Error('getaddrinfo ENOTFOUND not-existing.pnpm.io'), { code: 'ENOTFOUND' })
-  getMockAgent()!.get(notExistingRegistry)
+  getMockAgent().get(notExistingRegistry)
     .intercept({ path: `/${notExistingPackage}`, method: 'GET' })
     .replyWithError(dnsError)
-  getMockAgent()!.get(notExistingRegistry)
+  getMockAgent().get(notExistingRegistry)
     .intercept({ path: `/${notExistingPackage}`, method: 'GET' })
     .replyWithError(dnsError)
 
@@ -885,7 +885,7 @@ test('error is thrown when registry not responding', async () => {
 test('extra info is shown if package has valid semver appended', async () => {
   const notExistingPackage = 'foo1.0.0'
 
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: `/${notExistingPackage}`, method: 'GET' })
     .reply(404, {})
 
@@ -910,7 +910,7 @@ test('extra info is shown if package has valid semver appended', async () => {
 })
 
 test('error is thrown when there is no package found for the requested version', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -931,7 +931,7 @@ test('error is thrown when there is no package found for the requested version',
 })
 
 test('error is thrown when package needs authorization', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/needs-auth', method: 'GET' })
     .reply(403, {})
 
@@ -956,7 +956,7 @@ test('error is thrown when package needs authorization', async () => {
 })
 
 test('error is thrown when registry returns 400 Bad Request', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/bad-pkg', method: 'GET' })
     .reply(400)
 
@@ -981,7 +981,7 @@ test('error is thrown when registry returns 400 Bad Request', async () => {
 })
 
 test('error is thrown when there is no package found for the requested range', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -1002,7 +1002,7 @@ test('error is thrown when there is no package found for the requested range', a
 })
 
 test('error is thrown when there is no package found for the requested tag', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -1023,7 +1023,7 @@ test('error is thrown when there is no package found for the requested tag', asy
 })
 
 test('resolveFromNpm() loads full metadata even if non-full metadata is already cached in store', async () => {
-  const mockPool = getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  const mockPool = getMockAgent().get(registries.default.replace(/\/$/, ''))
   // First request returns abbreviated metadata
   mockPool.intercept({ path: '/is-positive', method: 'GET' }).reply(200, isPositiveMeta)
   // Second request returns full metadata
@@ -1055,7 +1055,7 @@ test('resolveFromNpm() loads full metadata even if non-full metadata is already 
 })
 
 test('resolve when tarball URL is requested from the registry', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -1093,7 +1093,7 @@ test('resolve when tarball URL is requested from the registry', async () => {
 })
 
 test('resolve when tarball URL is requested from the registry and alias is not specified', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -1126,7 +1126,7 @@ test('resolve when tarball URL is requested from the registry and alias is not s
 })
 
 test('resolve from local directory when it matches the latest version of the package', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -1164,7 +1164,7 @@ test('resolve from local directory when it matches the latest version of the pac
 })
 
 test('resolve injected dependency from local directory when it matches the latest version of the package', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -1205,7 +1205,7 @@ test('resolve injected dependency from local directory when it matches the lates
 })
 
 test('do not resolve from local directory when alwaysTryWorkspacePackages is false', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -1312,7 +1312,7 @@ test('resolve from local directory when alwaysTryWorkspacePackages is false but 
 })
 
 test('use version from the registry if it is newer than the local one', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, {
       ...isPositiveMeta,
@@ -1355,7 +1355,7 @@ test('use version from the registry if it is newer than the local one', async ()
 })
 
 test('preferWorkspacePackages: use version from the workspace even if there is newer version in the registry', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, {
       ...isPositiveMeta,
@@ -1396,7 +1396,7 @@ test('preferWorkspacePackages: use version from the workspace even if there is n
 })
 
 test('use local version if it is newer than the latest in the registry', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, {
       ...isPositiveMeta,
@@ -1439,7 +1439,7 @@ test('use local version if it is newer than the latest in the registry', async (
 })
 
 test('resolve from local directory when package is not found in the registry', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(404, {})
 
@@ -1491,7 +1491,7 @@ test('resolve from local directory when package is not found in the registry', a
 })
 
 test('resolve from local directory when package is not found in the registry and latest installed', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(404, {})
 
@@ -1543,7 +1543,7 @@ test('resolve from local directory when package is not found in the registry and
 })
 
 test('resolve from local directory when package is not found in the registry and local prerelease available', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(404, {})
 
@@ -1581,7 +1581,7 @@ test('resolve from local directory when package is not found in the registry and
 })
 
 test('resolve from local directory when package is not found in the registry and specific version is requested', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(404, {})
 
@@ -1633,7 +1633,7 @@ test('resolve from local directory when package is not found in the registry and
 })
 
 test('resolve from local directory when the requested version is not found in the registry but is available locally', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -1705,7 +1705,7 @@ test('workspace protocol: resolve from local directory even when it does not mat
 })
 
 test('workspace protocol: resolve from local package that has a pre-release version', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -1743,7 +1743,7 @@ test('workspace protocol: resolve from local package that has a pre-release vers
 })
 
 test("workspace protocol: don't resolve from local package that has a pre-release version that don't satisfy the range", async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -1868,7 +1868,7 @@ test('throws error when package name has "/" but not starts with @scope', async 
 })
 
 test('resolveFromNpm() should always return the name of the package that is specified in the root of the meta', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveBrokenMeta)
 
@@ -1903,7 +1903,7 @@ test('request to metadata is retried if the received JSON is broken', async () =
   const localRegistries: Registries = {
     default: 'https://registry1.com/',
   }
-  const mockPool = getMockAgent()!.get(localRegistries.default.replace(/\/$/, ''))
+  const mockPool = getMockAgent().get(localRegistries.default.replace(/\/$/, ''))
   // First request returns broken JSON
   mockPool.intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, '{')
@@ -1924,7 +1924,7 @@ test('request to metadata is retried if the received JSON is broken', async () =
 })
 
 test('request to a package with unpublished versions', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/code-snippet', method: 'GET' })
     .reply(200, loadJsonFileSync(f.find('unpublished.json')) as object)
 
@@ -1942,7 +1942,7 @@ test('request to a package with unpublished versions', async () => {
 })
 
 test('request to a package with no versions', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/code-snippet', method: 'GET' })
     .reply(200, { name: 'code-snippet' })
 
@@ -1961,7 +1961,7 @@ test('request to a package with no versions', async () => {
 
 test('request to a package with no dist-tags', async () => {
   const isPositiveMeta = omit(['dist-tags'], loadJsonFileSync<any>(f.find('is-positive.json'))) // eslint-disable-line
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -1987,7 +1987,7 @@ test('request to a package with no dist-tags', async () => {
 })
 
 test('resolveFromNpm() does not fail if the meta file contains no integrity information', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, brokenIntegrity)
 
@@ -2012,7 +2012,7 @@ test('resolveFromNpm() does not fail if the meta file contains no integrity info
 })
 
 test('resolveFromNpm() fails if the meta file contains invalid shasum', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, brokenIntegrity)
 
@@ -2028,7 +2028,7 @@ test('resolveFromNpm() fails if the meta file contains invalid shasum', async ()
 })
 
 test('resolveFromNpm() should normalize the registry', async () => {
-  getMockAgent()!.get('https://reg.com')
+  getMockAgent().get('https://reg.com')
     .intercept({ path: '/owner/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -2055,7 +2055,7 @@ test('resolveFromNpm() should normalize the registry', async () => {
 })
 
 test('pick lowest version by * when there are only prerelease versions', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, {
       versions: {
@@ -2089,7 +2089,7 @@ test('pick lowest version by * when there are only prerelease versions', async (
 })
 
 test('throws when workspace package version does not match and package is not found in the registry', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(404, {})
 
@@ -2120,7 +2120,7 @@ test('throws when workspace package version does not match and package is not fo
 })
 
 test('throws NoMatchingVersionError when workspace package version does not match and registry has no matching version', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 
@@ -2151,7 +2151,7 @@ test('throws NoMatchingVersionError when workspace package version does not matc
 })
 
 test('resolve from registry when workspace package version does not match the requested version', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
 

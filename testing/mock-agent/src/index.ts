@@ -27,6 +27,9 @@ export async function teardownMockAgent (): Promise<void> {
   }
 }
 
-export function getMockAgent (): MockAgent | null {
+export function getMockAgent (): MockAgent {
+  if (!currentMockAgent) {
+    throw new Error('MockAgent not initialized. Call setupMockAgent() first.')
+  }
   return currentMockAgent
 }

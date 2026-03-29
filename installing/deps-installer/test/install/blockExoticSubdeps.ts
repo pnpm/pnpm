@@ -6,7 +6,7 @@ import { testDefaults } from '../utils/index.js'
 
 beforeEach(async () => {
   await setupMockAgent()
-  getMockAgent()!.enableNetConnect()
+  getMockAgent().enableNetConnect()
 })
 
 afterEach(async () => {
@@ -27,7 +27,7 @@ test('blockExoticSubdeps allows git dependencies in direct dependencies', async 
   // Mock the HEAD request that isRepoPublic() in @pnpm/resolving.git-resolver makes to check if the repo is public.
   // Without this, transient network failures cause the resolver to fall back to git+https:// instead of
   // resolving via the codeload tarball URL.
-  getMockAgent()!.get('https://github.com')
+  getMockAgent().get('https://github.com')
     .intercept({ path: '/kevva/is-negative', method: 'HEAD' })
     .reply(200)
 

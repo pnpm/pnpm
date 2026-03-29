@@ -35,10 +35,10 @@ beforeEach(async () => {
 
 test('resolveFromJsr() on jsr', async () => {
   const slash = '%2F'
-  const defaultPool = getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  const defaultPool = getMockAgent().get(registries.default.replace(/\/$/, ''))
   defaultPool.intercept({ path: `/@jsr${slash}rus__greet`, method: 'GET' }).reply(404, {})
   defaultPool.intercept({ path: `/@jsr${slash}luca__cases`, method: 'GET' }).reply(404, {})
-  const jsrPool = getMockAgent()!.get(registries['@jsr'].replace(/\/$/, ''))
+  const jsrPool = getMockAgent().get(registries['@jsr'].replace(/\/$/, ''))
   jsrPool.intercept({ path: `/@jsr${slash}rus__greet`, method: 'GET' }).reply(200, jsrRusGreetMeta)
   jsrPool.intercept({ path: `/@jsr${slash}luca__cases`, method: 'GET' }).reply(200, jsrLucaCasesMeta)
 
@@ -77,10 +77,10 @@ test('resolveFromJsr() on jsr', async () => {
 
 test('resolveFromJsr() on jsr with alias renaming', async () => {
   const slash = '%2F'
-  const defaultPool = getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  const defaultPool = getMockAgent().get(registries.default.replace(/\/$/, ''))
   defaultPool.intercept({ path: `/@jsr${slash}rus__greet`, method: 'GET' }).reply(404, {})
   defaultPool.intercept({ path: `/@jsr${slash}luca__cases`, method: 'GET' }).reply(404, {})
-  const jsrPool = getMockAgent()!.get(registries['@jsr'].replace(/\/$/, ''))
+  const jsrPool = getMockAgent().get(registries['@jsr'].replace(/\/$/, ''))
   jsrPool.intercept({ path: `/@jsr${slash}rus__greet`, method: 'GET' }).reply(200, jsrRusGreetMeta)
   jsrPool.intercept({ path: `/@jsr${slash}luca__cases`, method: 'GET' }).reply(200, jsrLucaCasesMeta)
 

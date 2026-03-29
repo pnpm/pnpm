@@ -79,8 +79,8 @@ test('saveCatalogName works with different protocols', async () => {
   // Mock the HEAD request that isRepoPublic() in @pnpm/resolving.git-resolver makes.
   // Without this, transient network failures cause fallback to git+https:// resolution.
   await setupMockAgent()
-  getMockAgent()!.enableNetConnect()
-  getMockAgent()!.get('https://github.com')
+  getMockAgent().enableNetConnect()
+  getMockAgent().get('https://github.com')
     .intercept({ path: '/kevva/is-positive', method: 'HEAD' })
     .reply(200)
 

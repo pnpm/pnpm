@@ -21,7 +21,7 @@ afterEach(async () => {
 test('ignores are added for vulnerable dependencies with no resolutions', async () => {
   const tmp = f.prepare('has-vulnerabilities')
 
-  getMockAgent()!.get(AUDIT_REGISTRY.replace(/\/$/, ''))
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
     .reply(200, responses.ALL_VULN_RESP)
 
@@ -46,7 +46,7 @@ test('ignores are added for vulnerable dependencies with no resolutions', async 
 test('the specified vulnerabilities are ignored', async () => {
   const tmp = f.prepare('has-vulnerabilities')
 
-  getMockAgent()!.get(AUDIT_REGISTRY.replace(/\/$/, ''))
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
     .reply(200, responses.ALL_VULN_RESP)
 
@@ -69,7 +69,7 @@ test('the specified vulnerabilities are ignored', async () => {
 test('no ignores are added if no vulnerabilities are found', async () => {
   const tmp = f.prepare('fixture')
 
-  getMockAgent()!.get(AUDIT_REGISTRY.replace(/\/$/, ''))
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
     .reply(200, responses.NO_VULN_RESP)
 
@@ -95,7 +95,7 @@ test('ignored CVEs are not duplicated', async () => {
     'CVE-2017-16024',
   ]
 
-  getMockAgent()!.get(AUDIT_REGISTRY.replace(/\/$/, ''))
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
     .reply(200, responses.ALL_VULN_RESP)
 

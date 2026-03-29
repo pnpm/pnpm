@@ -45,7 +45,7 @@ describe('optional dependencies', () => {
     }
 
     // Mock the full metadata request for optional dependency
-    getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+    getMockAgent().get(registries.default.replace(/\/$/, ''))
       .intercept({ path: '/platform-pkg', method: 'GET' })
       .reply(200, packageMeta)
 
@@ -106,7 +106,7 @@ describe('optional dependencies', () => {
       },
     }
 
-    const mockPool = getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+    const mockPool = getMockAgent().get(registries.default.replace(/\/$/, ''))
     // First request: abbreviated metadata for regular dependency
     mockPool.intercept({ path: '/cache-test', method: 'GET' }).reply(200, abbreviatedMeta)
     // Second request: full metadata for optional dependency

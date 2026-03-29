@@ -47,7 +47,7 @@ test('fail if none of the available resolvers support a version spec', async () 
 test('fail if a package cannot be fetched', async () => {
   prepareEmpty()
   await setupMockAgent()
-  const mockPool = getMockAgent()!.get(`http://localhost:${REGISTRY_MOCK_PORT}`)
+  const mockPool = getMockAgent().get(`http://localhost:${REGISTRY_MOCK_PORT}`)
   /* eslint-disable @typescript-eslint/no-explicit-any */
   mockPool.intercept({ path: '/@pnpm.e2e%2Fpkg-with-1-dep', method: 'GET' }) // cspell:disable-line
     .reply(200, loadJsonFileSync<any>(f.find('pkg-with-1-dep.json')))

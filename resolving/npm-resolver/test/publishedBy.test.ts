@@ -35,7 +35,7 @@ beforeEach(async () => {
 })
 
 test('fall back to a newer version if there is no version published by the given date', async () => {
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/bad-dates', method: 'GET' })
     .reply(200, badDatesMeta)
 
@@ -66,7 +66,7 @@ test('request metadata when the one in cache does not have a version satisfying 
   fs.mkdirSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org`), { recursive: true })
   fs.writeFileSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org/bad-dates.json`), JSON.stringify(cachedMeta), 'utf8')
 
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/bad-dates', method: 'GET' })
     .reply(200, badDatesMeta)
 
@@ -106,7 +106,7 @@ test('do not pick version that does not satisfy the date requirement even if it 
   fs.mkdirSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org`), { recursive: true })
   fs.writeFileSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org/foo.json`), JSON.stringify(fooMeta), 'utf8')
 
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/foo', method: 'GET' })
     .reply(200, fooMeta)
 
@@ -130,7 +130,7 @@ test('should skip time field validation for excluded packages', async () => {
   fs.mkdirSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org`), { recursive: true })
   fs.writeFileSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org/is-positive.json`), JSON.stringify(metaWithoutTime), 'utf8')
 
-  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, metaWithoutTime)
 

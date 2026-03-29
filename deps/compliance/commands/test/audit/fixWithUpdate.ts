@@ -20,7 +20,7 @@ describe('audit fix with update', () => {
   beforeEach(async () => {
     await setupMockAgent()
     // These tests need real connections to the mock registry
-    getMockAgent()!.enableNetConnect(/localhost/)
+    getMockAgent().enableNetConnect(/localhost/)
   })
   afterEach(async () => {
     await teardownMockAgent()
@@ -45,7 +45,7 @@ describe('audit fix with update', () => {
     const mockResponse = await readFile(join(tmp, 'responses', 'top-level-vulnerability.json'), 'utf-8')
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent()!.get(MOCK_REGISTRY)
+    getMockAgent().get(MOCK_REGISTRY)
       .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(200, mockResponse)
 
@@ -111,7 +111,7 @@ The fixed vulnerabilities are:
     const mockResponse = await readFile(join(tmp, 'responses', 'top-level-vulnerability.json'), 'utf-8')
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent()!.get(MOCK_REGISTRY)
+    getMockAgent().get(MOCK_REGISTRY)
       .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(200, mockResponse)
 
@@ -172,7 +172,7 @@ The fixed vulnerabilities are:
     const mockResponse = await readFile(join(tmp, 'responses', 'depth-2-vulnerability.json'), 'utf-8')
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent()!.get(MOCK_REGISTRY)
+    getMockAgent().get(MOCK_REGISTRY)
       .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(200, mockResponse)
 
@@ -223,7 +223,7 @@ The fixed vulnerabilities are:
     const mockResponse = await readFile(join(tmp, 'responses', 'depth-3-vulnerability.json'), 'utf-8')
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent()!.get(MOCK_REGISTRY)
+    getMockAgent().get(MOCK_REGISTRY)
       .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(200, mockResponse)
 
@@ -277,7 +277,7 @@ The fixed vulnerabilities are:
     const mockResponse = await readFile(join(tmp, 'responses', 'unfixable-vulnerability.json'), 'utf-8')
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent()!.get(MOCK_REGISTRY)
+    getMockAgent().get(MOCK_REGISTRY)
       .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(200, mockResponse)
 
@@ -341,7 +341,7 @@ The remaining vulnerabilities are:
     const mockResponse = await readFile(join(tmp, 'responses', 'form-data-vulnerability.json'), 'utf-8')
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent()!.get(MOCK_REGISTRY)
+    getMockAgent().get(MOCK_REGISTRY)
       .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(200, mockResponse)
 
@@ -407,7 +407,7 @@ The fixed vulnerabilities are:
     const mockResponse = await readFile(join(tmp, 'responses', 'top-level-vulnerability.json'), 'utf-8')
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent()!.get(MOCK_REGISTRY)
+    getMockAgent().get(MOCK_REGISTRY)
       .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(200, mockResponse)
 
@@ -481,7 +481,7 @@ The fixed vulnerabilities are:
     const mockResponse = await readFile(join(tmp, 'responses', 'depth-2-vulnerability.json'), 'utf-8')
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent()!.get(MOCK_REGISTRY)
+    getMockAgent().get(MOCK_REGISTRY)
       .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(200, mockResponse)
 
@@ -562,7 +562,7 @@ The fixed vulnerabilities are:
     const mockResponse = await readFile(join(tmp, 'responses', 'top-level-vulnerability.json'), 'utf-8')
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent()!.get(MOCK_REGISTRY)
+    getMockAgent().get(MOCK_REGISTRY)
       .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(200, mockResponse)
 
@@ -653,7 +653,7 @@ The fixed vulnerabilities are:
     const mockResponse = await readFile(join(tmp, 'responses', 'top-level-vulnerability.json'), 'utf-8')
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent()!.get(MOCK_REGISTRY)
+    getMockAgent().get(MOCK_REGISTRY)
       .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(200, mockResponse)
 
@@ -741,7 +741,7 @@ The fixed vulnerabilities are:
     const mockResponse = await readFile(join(tmp, 'responses', 'top-level-vulnerability.json'), 'utf-8')
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent()!.get(MOCK_REGISTRY)
+    getMockAgent().get(MOCK_REGISTRY)
       .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(200, mockResponse)
 

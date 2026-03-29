@@ -42,8 +42,8 @@ test('lockfile has correct format', async () => {
   // Without this, transient network failures cause the resolver to fall back to git+https:// instead of
   // resolving via the codeload tarball URL.
   await setupMockAgent()
-  getMockAgent()!.enableNetConnect()
-  getMockAgent()!.get('https://github.com')
+  getMockAgent().enableNetConnect()
+  getMockAgent().get('https://github.com')
     .intercept({ path: '/kevva/is-negative', method: 'HEAD' })
     .reply(200)
   const project = prepareEmpty()
@@ -823,8 +823,8 @@ test('lockfile file has correct format when lockfile directory does not equal th
   // Without this, transient network failures cause the resolver to fall back to git+https:// instead of
   // resolving via the codeload tarball URL.
   await setupMockAgent()
-  getMockAgent()!.enableNetConnect()
-  getMockAgent()!.get('https://github.com')
+  getMockAgent().enableNetConnect()
+  getMockAgent().get('https://github.com')
     .intercept({ path: '/kevva/is-negative', method: 'HEAD' })
     .reply(200)
   prepareEmpty()
@@ -1089,12 +1089,12 @@ const tarballPath = f.find('is-positive-3.1.0.tgz')
 
 test('tarball domain differs from registry domain', async () => {
   await setupMockAgent()
-  getMockAgent()!.enableNetConnect(/localhost/)
-  getMockAgent()!.get('https://registry.example.com')
+  getMockAgent().enableNetConnect(/localhost/)
+  getMockAgent().get('https://registry.example.com')
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
   const tarballContent = fs.readFileSync(tarballPath)
-  getMockAgent()!.get('https://registry.npmjs.org')
+  getMockAgent().get('https://registry.npmjs.org')
     .intercept({ path: '/is-positive/-/is-positive-3.1.0.tgz', method: 'GET' })
     .reply(200, tarballContent, { headers: { 'content-length': String(tarballContent.length) } })
 
@@ -1150,8 +1150,8 @@ test('tarball domain differs from registry domain', async () => {
 
 test('tarball installed through non-standard URL endpoint from the registry domain', async () => {
   await setupMockAgent()
-  getMockAgent()!.enableNetConnect(/localhost/)
-  const mockPool = getMockAgent()!.get('https://registry.npmjs.org')
+  getMockAgent().enableNetConnect(/localhost/)
+  const mockPool = getMockAgent().get('https://registry.npmjs.org')
   mockPool.intercept({ path: '/is-positive/download/is-positive-3.1.0.tgz', method: 'HEAD' })
     .reply(200, '').persist()
   const tarballContent2 = fs.readFileSync(tarballPath)

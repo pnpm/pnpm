@@ -461,10 +461,10 @@ describe('audit', () => {
     const registry = 'http://registry.registry/'
     const getAuthHeader = () => undefined
     await setupMockAgent()
-    getMockAgent()!.get('http://registry.registry')
+    getMockAgent().get('http://registry.registry')
       .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(500, { message: 'Something bad happened' })
-    getMockAgent()!.get('http://registry.registry')
+    getMockAgent().get('http://registry.registry')
       .intercept({ path: '/-/npm/v1/security/audits', method: 'POST' })
       .reply(500, { message: 'Fallback failed too' })
 
@@ -500,10 +500,10 @@ describe('audit', () => {
     const registry = 'http://registry.registry/'
     const getAuthHeader = () => undefined
     await setupMockAgent()
-    getMockAgent()!.get('http://registry.registry')
+    getMockAgent().get('http://registry.registry')
       .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(500, { message: 'Something bad happened' })
-    getMockAgent()!.get('http://registry.registry')
+    getMockAgent().get('http://registry.registry')
       .intercept({ path: '/-/npm/v1/security/audits', method: 'POST' })
       .reply(200, {
         actions: [],

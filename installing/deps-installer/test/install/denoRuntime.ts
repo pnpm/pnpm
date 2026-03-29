@@ -10,7 +10,7 @@ import { testDefaults } from '../utils/index.js'
 
 beforeEach(async () => {
   await setupMockAgent()
-  getMockAgent()!.enableNetConnect()
+  getMockAgent().enableNetConnect()
 })
 
 afterEach(async () => {
@@ -110,7 +110,7 @@ const PLATFORM_HEX_DIGESTS = Object.fromEntries(
 test('installing Deno runtime', async () => {
   // Mock GitHub API to avoid network flakiness
   const assetNames = Object.keys(PLATFORM_HEX_DIGESTS).map((platform) => `deno-${platform}`)
-  const githubApiPool = getMockAgent()!.get('https://api.github.com')
+  const githubApiPool = getMockAgent().get('https://api.github.com')
   githubApiPool
     .intercept({ path: '/repos/denoland/deno/releases/tags/v2.4.2', method: 'GET' })
     .reply(200, {
@@ -119,7 +119,7 @@ test('installing Deno runtime', async () => {
         browser_download_url: `https://github.com/denoland/deno/releases/download/v2.4.2/${name}.zip.sha256sum`,
       })),
     })
-  const githubPool = getMockAgent()!.get('https://github.com')
+  const githubPool = getMockAgent().get('https://github.com')
   for (const [platform, hex] of Object.entries(PLATFORM_HEX_DIGESTS)) {
     const name = `deno-${platform}`
     githubPool

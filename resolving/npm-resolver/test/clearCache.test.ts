@@ -42,7 +42,7 @@ test('metadata is fetched again after calling clearCache()', async () => {
     },
   }
 
-  const mockPool = getMockAgent()!.get('https://registry.npmjs.org')
+  const mockPool = getMockAgent().get('https://registry.npmjs.org')
   mockPool.intercept({ path: `/${name}`, method: 'GET' })
     .reply(200, meta)
 
