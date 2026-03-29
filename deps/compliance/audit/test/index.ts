@@ -559,4 +559,53 @@ describe('audit', () => {
       await teardownMockAgent()
     }
   })
+
+  test('sends authorization header when getAuthHeader returns a value', async () => {
+    const registry = 'http://registry.registry/'
+    const getAuthHeader = () => 'Bearer test-token'
+    await setupMockAgent()
+    // intercept will only match if the authorization header is present and correct
+    getMockAgent().get('http://registry.registry')
+      .intercept({
+        path: '/-/npm/v1/security/audits/quick',
+        method: 'POST',
+        headers: { authorization: 'Bearer test-token' },
+      })
+      .reply(200, { actions: [], advisories: {}, metadata: { dependencies: 0, devDependencies: 0, optionalDependencies: 0, totalDependencies: 0, vulnerabilities: { critical: 0, high: 0, info: 0, low: 0, moderate: 0 } }, muted: [] })
+
+    try {
+      const result = await audit(
+        { importers: {}, lockfileVersion: LOCKFILE_VERSION },
+        getAuthHeader,
+        { lockfileDir: f.find('one-project'), registry, retry: { retries: 0 }, virtualStoreDirMaxLength: 120 }
+      )
+      expect(result.advisories).toEqual({})
+    } finally {
+      await teardownMockAgent()
+    }
+  })
+
+  test('does not send authorization header when getAuthHeader returns undefined', async () => {
+    const registry = 'http://registry.registry/'
+    const getAuthHeader = () => undefined
+    await setupMockAgent()
+    let capturedHeaders: Record<string, string> = {}
+    getMockAgent().get('http://registry.registry')
+      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .reply(200, (opts) => {
+        capturedHeaders = opts.headers as Record<string, string>
+        return { actions: [], advisories: {}, metadata: { dependencies: 0, devDependencies: 0, optionalDependencies: 0, totalDependencies: 0, vulnerabilities: { critical: 0, high: 0, info: 0, low: 0, moderate: 0 } }, muted: [] }
+      })
+
+    try {
+      await audit(
+        { importers: {}, lockfileVersion: LOCKFILE_VERSION },
+        getAuthHeader,
+        { lockfileDir: f.find('one-project'), registry, retry: { retries: 0 }, virtualStoreDirMaxLength: 120 }
+      )
+      expect(capturedHeaders).not.toHaveProperty('authorization')
+    } finally {
+      await teardownMockAgent()
+    }
+  })
 })
