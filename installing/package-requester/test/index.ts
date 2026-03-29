@@ -17,7 +17,6 @@ import { setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import { restartWorkerPool } from '@pnpm/worker'
 import delay from 'delay'
 import normalize from 'normalize-path'
-
 import { temporaryDirectory } from 'tempy'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}`
