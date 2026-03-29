@@ -703,8 +703,8 @@ catalogs:
       specifier: ^8.57.1
       version: 8.57.2
     undici:
-      specifier: ^7.2.0
-      version: 7.19.2
+      specifier: ^7.24.0
+      version: 7.24.6
     unified:
       specifier: ^11.0.5
       version: 11.0.5
@@ -4167,7 +4167,7 @@ importers:
         version: 3.0.0
       undici:
         specifier: 'catalog:'
-        version: 7.19.2
+        version: 7.24.6
 
   fetching/tarball-fetcher:
     dependencies:
@@ -4258,7 +4258,7 @@ importers:
         version: 3.0.0
       undici:
         specifier: 'catalog:'
-        version: 7.19.2
+        version: 7.24.6
 
   fetching/types:
     dependencies:
@@ -6645,7 +6645,7 @@ importers:
         version: 2.8.4
       undici:
         specifier: 'catalog:'
-        version: 7.19.2
+        version: 7.24.6
     devDependencies:
       '@pnpm/logger':
         specifier: workspace:*
@@ -8478,7 +8478,7 @@ importers:
         version: link:../../network/fetch
       undici:
         specifier: 'catalog:'
-        version: 7.19.2
+        version: 7.24.6
     devDependencies:
       '@pnpm/testing.mock-agent':
         specifier: workspace:*
@@ -16273,8 +16273,8 @@ packages:
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
 
-  undici@7.19.2:
-    resolution: {integrity: sha512-4VQSpGEGsWzk0VYxyB/wVX/Q7qf9t5znLRgs0dzszr9w9Fej/8RVNQ+S20vdXSAyra/bJ7ZQfGv6ZMj7UEbzSg==}
+  undici@7.24.6:
+    resolution: {integrity: sha512-Xi4agocCbRzt0yYMZGMA6ApD7gvtUFaxm4ZmeacWI4cZxaF6C+8I8QfofC20NAePiB/IcvZmzkJ7XPa471AEtA==}
     engines: {node: '>=20.18.1'}
 
   unicorn-magic@0.1.0:
@@ -25412,7 +25412,7 @@ snapshots:
 
   undici-types@6.21.0: {}
 
-  undici@7.19.2: {}
+  undici@7.24.6: {}
 
   unicorn-magic@0.1.0: {}
 

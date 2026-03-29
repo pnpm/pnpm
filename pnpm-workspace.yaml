@@ -307,7 +307,7 @@ catalog:
   ts-jest-resolver: 2.0.1
   typescript: 5.9.3
   typescript-eslint: ^8.57.1
-  undici: ^7.2.0
+  undici: ^7.24.0
   unified: ^11.0.5
   validate-npm-package-name: 7.0.2
   verdaccio: 6.3.2
