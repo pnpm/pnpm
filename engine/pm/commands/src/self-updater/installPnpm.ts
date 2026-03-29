@@ -339,11 +339,8 @@ export function linkExePlatformBinary (installDir: string): void {
   const dest = path.join(exePkgDir, executable)
   forceLink(src, dest)
 
-  // Create pn alias (hardlink to the same binary)
-  const pnExecutable = platform === 'win' ? 'pn.exe' : 'pn'
-  forceLink(src, path.join(exePkgDir, pnExecutable))
-
-  // Create pnpx and pnx shell scripts
+  // Create pn, pnpx, and pnx as shell script aliases
+  createShellScript(exePkgDir, 'pn', 'pnpm', platform)
   createShellScript(exePkgDir, 'pnpx', 'pnpm dlx', platform)
   createShellScript(exePkgDir, 'pnx', 'pnpm dlx', platform)
 
@@ -351,7 +348,7 @@ export function linkExePlatformBinary (installDir: string): void {
     const exePkgJsonPath = path.join(exePkgDir, 'package.json')
     const exePkg = JSON.parse(fs.readFileSync(exePkgJsonPath, 'utf8'))
     exePkg.bin.pnpm = 'pnpm.exe'
-    exePkg.bin.pn = 'pn.exe'
+    exePkg.bin.pn = 'pn.cmd'
     exePkg.bin.pnpx = 'pnpx.cmd'
     exePkg.bin.pnx = 'pnx.cmd'
     fs.writeFileSync(exePkgJsonPath, JSON.stringify(exePkg, null, 2))
