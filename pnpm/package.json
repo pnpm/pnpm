@@ -102,7 +102,6 @@
     "@pnpm/engine.runtime.commands": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.commands": "workspace:*",
-    "@pnpm/exec.run-npm": "workspace:*",
     "@pnpm/hooks.pnpmfile": "workspace:*",
     "@pnpm/installing.client": "workspace:*",
     "@pnpm/installing.commands": "workspace:*",
