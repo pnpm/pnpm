@@ -33,18 +33,21 @@ test('prepare then setup creates working binaries for all commands', () => {
   expect(fs.existsSync(pnpmBin)).toBe(true)
   expect(fs.statSync(pnpmBin).ino).toBe(fs.statSync(platformBin).ino)
 
-  // 4. Verify pn, pnpx, and pnx are shell scripts
+  // 4. Verify pn is a hardlink to the platform binary
+  const pnBin = path.join(exeDir, isWindows ? 'pn.exe' : 'pn')
+  expect(fs.existsSync(pnBin)).toBe(true)
+  expect(fs.statSync(pnBin).ino).toBe(fs.statSync(platformBin).ino)
+
+  // 5. Verify pnpx and pnx are shell scripts that delegate to pnpm dlx
   if (!isWindows) {
-    expect(fs.readFileSync(path.join(exeDir, 'pn'), 'utf8')).toBe('#!/bin/sh\nexec pnpm "$@"\n')
     expect(fs.readFileSync(path.join(exeDir, 'pnpx'), 'utf8')).toBe('#!/bin/sh\nexec pnpm dlx "$@"\n')
     expect(fs.readFileSync(path.join(exeDir, 'pnx'), 'utf8')).toBe('#!/bin/sh\nexec pnpm dlx "$@"\n')
 
     // Verify they're executable
-    for (const name of ['pn', 'pnpx', 'pnx']) {
+    for (const name of ['pnpx', 'pnx']) {
       expect(fs.statSync(path.join(exeDir, name)).mode & 0o111).not.toBe(0)
     }
   } else {
-    expect(fs.readFileSync(path.join(exeDir, 'pn.cmd'), 'utf8')).toBe('@echo off\npnpm %*\n')
     expect(fs.readFileSync(path.join(exeDir, 'pnpx.cmd'), 'utf8')).toBe('@echo off\npnpm dlx %*\n')
     expect(fs.readFileSync(path.join(exeDir, 'pnx.cmd'), 'utf8')).toBe('@echo off\npnpm dlx %*\n')
   }
