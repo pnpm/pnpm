@@ -43,8 +43,8 @@ afterEach(async () => {
   await teardownMockAgent()
 })
 
-beforeEach(() => {
-  setupMockAgent()
+beforeEach(async () => {
+  await setupMockAgent()
 })
 
 test('resolveFromNpm()', async () => {

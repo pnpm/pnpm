@@ -1,40 +1,16 @@
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
-import { clearDispatcherCache } from '@pnpm/network.fetch'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
+import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import { rimrafSync } from '@zkochan/rimraf'
-import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
 
-let originalDispatcher: Dispatcher | null = null
-let currentMockAgent: MockAgent | null = null
-
-function setupMockAgent (): MockAgent {
-  if (!originalDispatcher) {
-    originalDispatcher = getGlobalDispatcher()
-  }
-  clearDispatcherCache()
-  currentMockAgent = new MockAgent()
-  currentMockAgent.enableNetConnect()
-  setGlobalDispatcher(currentMockAgent)
-  return currentMockAgent
-}
-
-async function teardownMockAgent (): Promise<void> {
-  if (currentMockAgent) {
-    await currentMockAgent.close()
-    currentMockAgent = null
-  }
-  if (originalDispatcher) {
-    setGlobalDispatcher(originalDispatcher)
-  }
-}
-
-beforeEach(() => {
-  setupMockAgent()
+beforeEach(async () => {
+  await setupMockAgent()
+  getMockAgent()!.enableNetConnect()
 })
 
 afterEach(async () => {
@@ -134,7 +110,7 @@ const PLATFORM_HEX_DIGESTS = Object.fromEntries(
 test('installing Deno runtime', async () => {
   // Mock GitHub API to avoid network flakiness
   const assetNames = Object.keys(PLATFORM_HEX_DIGESTS).map((platform) => `deno-${platform}`)
-  const githubApiPool = currentMockAgent!.get('https://api.github.com')
+  const githubApiPool = getMockAgent()!.get('https://api.github.com')
   githubApiPool
     .intercept({ path: '/repos/denoland/deno/releases/tags/v2.4.2', method: 'GET' })
     .reply(200, {
@@ -143,7 +119,7 @@ test('installing Deno runtime', async () => {
         browser_download_url: `https://github.com/denoland/deno/releases/download/v2.4.2/${name}.zip.sha256sum`,
       })),
     })
-  const githubPool = currentMockAgent!.get('https://github.com')
+  const githubPool = getMockAgent()!.get('https://github.com')
   for (const [platform, hex] of Object.entries(PLATFORM_HEX_DIGESTS)) {
     const name = `deno-${platform}`
     githubPool

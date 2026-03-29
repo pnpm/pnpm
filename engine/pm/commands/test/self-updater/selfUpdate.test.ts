@@ -3,11 +3,10 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 
 import { jest } from '@jest/globals'
-import { clearDispatcherCache } from '@pnpm/network.fetch'
 import { prepare as prepareWithPkg, tempDir } from '@pnpm/prepare'
 import { prependDirsToPath } from '@pnpm/shell.path'
+import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import spawn from 'cross-spawn'
-import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 
 const require = createRequire(import.meta.dirname)
 const pnpmTarballPath = require.resolve('@pnpm/tgz-fixtures/tgz/pnpm-9.1.0.tgz')
@@ -24,37 +23,8 @@ jest.unstable_mockModule('@pnpm/cli.meta', () => {
 })
 const { selfUpdate, installPnpm, linkExePlatformBinary } = await import('@pnpm/engine.pm.commands')
 
-let originalDispatcher: Dispatcher | null = null
-let currentMockAgent: MockAgent | null = null
-
-function setupMockAgent (): MockAgent {
-  if (!originalDispatcher) {
-    originalDispatcher = getGlobalDispatcher()
-  }
-  clearDispatcherCache()
-  currentMockAgent = new MockAgent()
-  currentMockAgent.disableNetConnect()
-  setGlobalDispatcher(currentMockAgent)
-  return currentMockAgent
-}
-
-async function teardownMockAgent (): Promise<void> {
-  if (currentMockAgent) {
-    await currentMockAgent.close()
-    currentMockAgent = null
-  }
-  if (originalDispatcher) {
-    setGlobalDispatcher(originalDispatcher)
-    originalDispatcher = null
-  }
-}
-
-function getMockAgent (): MockAgent | null {
-  return currentMockAgent
-}
-
-beforeEach(() => {
-  setupMockAgent()
+beforeEach(async () => {
+  await setupMockAgent()
   getMockAgent()!.enableNetConnect()
 })
 

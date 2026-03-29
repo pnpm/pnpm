@@ -62,13 +62,13 @@
       "path": "../../../network/auth-header"
     },
     {
-      "path": "../../../network/fetch"
-    },
-    {
       "path": "../../../pkg-manifest/reader"
     },
     {
       "path": "../../../store/path"
+    },
+    {
+      "path": "../../../testing/mock-agent"
     },
     {
       "path": "../../../workspace/project-manifest-reader"

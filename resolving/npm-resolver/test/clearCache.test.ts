@@ -14,8 +14,8 @@ const fetch = createFetchFromRegistry({})
 const getAuthHeader = () => undefined
 const createResolveFromNpm = createNpmResolver.bind(null, fetch, getAuthHeader)
 
-beforeEach(() => {
-  setupMockAgent()
+beforeEach(async () => {
+  await setupMockAgent()
 })
 
 afterEach(async () => {

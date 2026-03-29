@@ -66,19 +66,18 @@
     "@pnpm/installing.client": "workspace:*",
     "@pnpm/installing.package-requester": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/network.fetch": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/store.cafs-types": "workspace:*",
     "@pnpm/store.create-cafs-store": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/testing.mock-agent": "workspace:*",
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
     "@types/ssri": "catalog:",
     "delay": "catalog:",
     "normalize-path": "catalog:",
-    "tempy": "catalog:",
-    "undici": "catalog:"
+    "tempy": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

@@ -4,40 +4,11 @@ import { stripVTControlCharacters as stripAnsi } from 'node:util'
 import { AuditEndpointNotExistsError } from '@pnpm/deps.compliance.audit'
 import { audit } from '@pnpm/deps.compliance.commands'
 import { install } from '@pnpm/installing.commands'
-import { clearDispatcherCache } from '@pnpm/network.fetch'
 import { fixtures } from '@pnpm/test-fixtures'
-import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
+import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 
 import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS, DEFAULT_OPTS } from './utils/options.js'
 import * as responses from './utils/responses/index.js'
-
-let originalDispatcher: Dispatcher | null = null
-let currentMockAgent: MockAgent | null = null
-
-function setupMockAgent (): MockAgent {
-  if (!originalDispatcher) {
-    originalDispatcher = getGlobalDispatcher()
-  }
-  clearDispatcherCache()
-  currentMockAgent = new MockAgent()
-  currentMockAgent.disableNetConnect()
-  setGlobalDispatcher(currentMockAgent)
-  return currentMockAgent
-}
-
-async function teardownMockAgent (): Promise<void> {
-  if (currentMockAgent) {
-    await currentMockAgent.close()
-    currentMockAgent = null
-  }
-  if (originalDispatcher) {
-    setGlobalDispatcher(originalDispatcher)
-  }
-}
-
-function getMockAgent (): MockAgent | null {
-  return currentMockAgent
-}
 
 const f = fixtures(path.join(import.meta.dirname, 'fixtures'))
 
@@ -50,8 +21,8 @@ describe('plugin-commands-audit', () => {
       dir: hasVulnerabilitiesDir,
     })
   })
-  beforeEach(() => {
-    setupMockAgent()
+  beforeEach(async () => {
+    await setupMockAgent()
   })
   afterEach(async () => {
     await teardownMockAgent()

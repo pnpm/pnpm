@@ -133,9 +133,6 @@
       "path": "../../lockfile/walker"
     },
     {
-      "path": "../../network/fetch"
-    },
-    {
       "path": "../../network/git-utils"
     },
     {
@@ -164,6 +161,9 @@
     },
     {
       "path": "../../store/path"
+    },
+    {
+      "path": "../../testing/mock-agent"
     },
     {
       "path": "../../testing/temp-store"

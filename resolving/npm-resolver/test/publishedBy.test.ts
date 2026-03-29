@@ -30,8 +30,8 @@ afterEach(async () => {
   await teardownMockAgent()
 })
 
-beforeEach(() => {
-  setupMockAgent()
+beforeEach(async () => {
+  await setupMockAgent()
 })
 
 test('fall back to a newer version if there is no version published by the given date', async () => {

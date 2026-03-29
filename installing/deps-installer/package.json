@@ -130,7 +130,6 @@
     "@pnpm/installing.deps-installer": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/network.fetch": "workspace:*",
     "@pnpm/network.git-utils": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/prepare": "workspace:*",
@@ -140,6 +139,7 @@
     "@pnpm/store.path": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
+    "@pnpm/testing.mock-agent": "workspace:*",
     "@pnpm/testing.temp-store": "workspace:*",
     "@types/fs-extra": "catalog:",
     "@types/is-windows": "catalog:",
@@ -157,7 +157,6 @@
     "read-yaml-file": "catalog:",
     "resolve-link-target": "catalog:",
     "symlink-dir": "catalog:",
-    "undici": "catalog:",
     "write-json-file": "catalog:",
     "write-yaml-file": "catalog:"
   },

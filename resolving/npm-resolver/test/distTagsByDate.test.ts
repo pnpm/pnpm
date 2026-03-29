@@ -17,8 +17,8 @@ afterEach(async () => {
   await teardownMockAgent()
 })
 
-beforeEach(() => {
-  setupMockAgent()
+beforeEach(async () => {
+  await setupMockAgent()
 })
 
 test('repopulate dist-tag to highest same-major version within the date cutoff', async () => {

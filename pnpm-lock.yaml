@@ -2579,12 +2579,12 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../../__utils__/test-fixtures
+      '@pnpm/testing.mock-agent':
+        specifier: workspace:*
+        version: link:../../../testing/mock-agent
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.31.1
-      undici:
-        specifier: 'catalog:'
-        version: 7.19.2
 
   deps/compliance/commands:
     dependencies:
@@ -2670,9 +2670,6 @@ importers:
       '@pnpm/deps.compliance.commands':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/network.fetch':
-        specifier: workspace:*
-        version: link:../../../network/fetch
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../../../pkg-manifest/reader
@@ -2685,6 +2682,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../../__utils__/test-fixtures
+      '@pnpm/testing.mock-agent':
+        specifier: workspace:*
+        version: link:../../../testing/mock-agent
       '@pnpm/workspace.projects-filter':
         specifier: workspace:*
         version: link:../../../workspace/projects-filter
@@ -2709,9 +2709,6 @@ importers:
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
-      undici:
-        specifier: 'catalog:'
-        version: 7.19.2
 
   deps/compliance/license-scanner:
     dependencies:
@@ -3466,15 +3463,15 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../../core/logger
-      '@pnpm/network.fetch':
-        specifier: workspace:*
-        version: link:../../../network/fetch
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../../__utils__/prepare
       '@pnpm/shell.path':
         specifier: workspace:*
         version: link:../../../shell/path
+      '@pnpm/testing.mock-agent':
+        specifier: workspace:*
+        version: link:../../../testing/mock-agent
       '@types/cross-spawn':
         specifier: 'catalog:'
         version: 6.0.6
@@ -3487,9 +3484,6 @@ importers:
       cross-spawn:
         specifier: 'catalog:'
         version: 7.0.6
-      undici:
-        specifier: 'catalog:'
-        version: 7.19.2
 
   engine/runtime/bun-resolver:
     dependencies:
@@ -4855,9 +4849,6 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
-      '@pnpm/network.fetch':
-        specifier: workspace:*
-        version: link:../../network/fetch
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -4873,6 +4864,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
+      '@pnpm/testing.mock-agent':
+        specifier: workspace:*
+        version: link:../../testing/mock-agent
       '@pnpm/worker':
         specifier: workspace:*
         version: link:../../worker
@@ -4918,9 +4912,6 @@ importers:
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
-      undici:
-        specifier: 'catalog:'
-        version: 7.19.2
       write-json-file:
         specifier: 'catalog:'
         version: 7.0.0
@@ -5225,9 +5216,6 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
-      '@pnpm/network.fetch':
-        specifier: workspace:*
-        version: link:../../network/fetch
       '@pnpm/network.git-utils':
         specifier: workspace:*
         version: link:../../network/git-utils
@@ -5255,6 +5243,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
+      '@pnpm/testing.mock-agent':
+        specifier: workspace:*
+        version: link:../../testing/mock-agent
       '@pnpm/testing.temp-store':
         specifier: workspace:*
         version: link:../../testing/temp-store
@@ -5306,9 +5297,6 @@ importers:
       symlink-dir:
         specifier: 'catalog:'
         version: 10.0.1
-      undici:
-        specifier: 'catalog:'
-        version: 7.19.2
       write-json-file:
         specifier: 'catalog:'
         version: 7.0.0
@@ -5984,9 +5972,6 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
-      '@pnpm/network.fetch':
-        specifier: workspace:*
-        version: link:../../network/fetch
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
@@ -5999,6 +5984,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/testing.mock-agent':
+        specifier: workspace:*
+        version: link:../../testing/mock-agent
       '@types/normalize-path':
         specifier: 'catalog:'
         version: 3.0.2
@@ -6020,9 +6008,6 @@ importers:
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
-      undici:
-        specifier: 'catalog:'
-        version: 7.19.2
 
   installing/read-projects-context:
     dependencies:
@@ -7900,6 +7885,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/testing.mock-agent':
+        specifier: workspace:*
+        version: link:../../testing/mock-agent
       '@types/normalize-path':
         specifier: 'catalog:'
         version: 3.0.2
@@ -7918,9 +7906,6 @@ importers:
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
-      undici:
-        specifier: 'catalog:'
-        version: 7.19.2
 
   resolving/parse-wanted-dependency:
     dependencies:
@@ -8471,6 +8456,19 @@ importers:
         version: link:../index
     devDependencies:
       '@pnpm/store.pkg-finder':
+        specifier: workspace:*
+        version: 'link:'
+
+  testing/mock-agent:
+    dependencies:
+      '@pnpm/network.fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
+      undici:
+        specifier: 'catalog:'
+        version: 7.19.2
+    devDependencies:
+      '@pnpm/testing.mock-agent':
         specifier: workspace:*
         version: 'link:'
 

@@ -1,35 +1,6 @@
 import fs from 'node:fs'
 
-import { clearDispatcherCache } from '@pnpm/network.fetch'
-import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
-
-let originalDispatcher: Dispatcher | null = null
-let currentMockAgent: MockAgent | null = null
-
-export function setupMockAgent (): MockAgent {
-  if (!originalDispatcher) {
-    originalDispatcher = getGlobalDispatcher()
-  }
-  clearDispatcherCache()
-  currentMockAgent = new MockAgent()
-  currentMockAgent.disableNetConnect()
-  setGlobalDispatcher(currentMockAgent)
-  return currentMockAgent
-}
-
-export async function teardownMockAgent (): Promise<void> {
-  if (currentMockAgent) {
-    await currentMockAgent.close()
-    currentMockAgent = null
-  }
-  if (originalDispatcher) {
-    setGlobalDispatcher(originalDispatcher)
-  }
-}
-
-export function getMockAgent (): MockAgent | null {
-  return currentMockAgent
-}
+export { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 
 export async function retryLoadJsonFile<T> (filePath: string): Promise<T> {
   let retry = 0

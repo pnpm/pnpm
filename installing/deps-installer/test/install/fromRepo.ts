@@ -9,44 +9,20 @@ import {
   addDependenciesToPackage,
   install,
 } from '@pnpm/installing.deps-installer'
-import { clearDispatcherCache } from '@pnpm/network.fetch'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
+import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import { rimrafSync } from '@zkochan/rimraf'
 import { isCI } from 'ci-info'
-import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 
 import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(import.meta.dirname)
 const withGitProtocolDepFixture = f.find('with-git-protocol-dep')
 
-let originalDispatcher: Dispatcher | null = null
-let currentMockAgent: MockAgent | null = null
-
-function setupMockAgent (): MockAgent {
-  if (!originalDispatcher) {
-    originalDispatcher = getGlobalDispatcher()
-  }
-  clearDispatcherCache()
-  currentMockAgent = new MockAgent()
-  currentMockAgent.enableNetConnect()
-  setGlobalDispatcher(currentMockAgent)
-  return currentMockAgent
-}
-
-async function teardownMockAgent (): Promise<void> {
-  if (currentMockAgent) {
-    await currentMockAgent.close()
-    currentMockAgent = null
-  }
-  if (originalDispatcher) {
-    setGlobalDispatcher(originalDispatcher)
-  }
-}
-
-beforeEach(() => {
-  setupMockAgent()
+beforeEach(async () => {
+  await setupMockAgent()
+  getMockAgent()!.enableNetConnect()
 })
 
 afterEach(async () => {
@@ -57,7 +33,7 @@ test('from a github repo', async () => {
   const project = prepareEmpty()
   // Mock the HEAD request that isRepoPublic() in @pnpm/resolving.git-resolver makes.
   // Without this, transient network failures cause fallback to git+https:// resolution.
-  currentMockAgent!.get('https://github.com')
+  getMockAgent()!.get('https://github.com')
     .intercept({ path: '/kevva/is-negative', method: 'HEAD' })
     .reply(200)
 
@@ -72,7 +48,7 @@ test('from a github repo', async () => {
 
 test('from a github repo through URL', async () => {
   const project = prepareEmpty()
-  currentMockAgent!.get('https://github.com')
+  getMockAgent()!.get('https://github.com')
     .intercept({ path: '/kevva/is-negative', method: 'HEAD' })
     .reply(200)
 
@@ -85,7 +61,7 @@ test('from a github repo through URL', async () => {
 
 test('from a github repo with different name via named installation', async () => {
   const project = prepareEmpty()
-  currentMockAgent!.get('https://github.com')
+  getMockAgent()!.get('https://github.com')
     .intercept({ path: '/zkochan/hi', method: 'HEAD' })
     .reply(200)
 
@@ -129,7 +105,7 @@ test('from a github repo with different name via named installation', async () =
 // This used to fail. Maybe won't be needed once api/install.ts gets refactored and covered with dedicated unit tests
 test('from a github repo with different name', async () => {
   const project = prepareEmpty()
-  currentMockAgent!.get('https://github.com')
+  getMockAgent()!.get('https://github.com')
     .intercept({ path: '/zkochan/hi', method: 'HEAD' })
     .reply(200)
 
@@ -174,7 +150,7 @@ test('from a github repo with different name', async () => {
 
 test('a subdependency is from a github repo with different name', async () => {
   const project = prepareEmpty()
-  currentMockAgent!.get('https://github.com')
+  getMockAgent()!.get('https://github.com')
     .intercept({ path: '/zkochan/hi', method: 'HEAD' })
     .reply(200)
 
@@ -230,10 +206,10 @@ test.skip('from a non-github git repo', async () => {
 
 test('from a github repo the has no package.json file', async () => {
   const project = prepareEmpty()
-  currentMockAgent!.get('https://github.com')
+  getMockAgent()!.get('https://github.com')
     .intercept({ path: '/pnpm/for-testing.no-package-json', method: 'HEAD' })
     .reply(200)
-  currentMockAgent!.get('https://github.com')
+  getMockAgent()!.get('https://github.com')
     .intercept({ path: '/pnpm/for-testing.no-package-json', method: 'HEAD' })
     .reply(200)
 
@@ -300,10 +276,10 @@ test.skip('from a github repo that needs to be built. hoisted node linker is  us
 
 test('re-adding a git repo with a different tag', async () => {
   const project = prepareEmpty()
-  currentMockAgent!.get('https://github.com')
+  getMockAgent()!.get('https://github.com')
     .intercept({ path: '/kevva/is-negative', method: 'HEAD' })
     .reply(200)
-  currentMockAgent!.get('https://github.com')
+  getMockAgent()!.get('https://github.com')
     .intercept({ path: '/kevva/is-negative', method: 'HEAD' })
     .reply(200)
   let { updatedManifest: manifest } = await addDependenciesToPackage({}, ['kevva/is-negative#1.0.0'], testDefaults())
@@ -390,10 +366,10 @@ test('git-hosted repository is not added to the store if it fails to be built', 
 
 test('from subdirectories of a git repo', async () => {
   const project = prepareEmpty()
-  currentMockAgent!.get('https://github.com')
+  getMockAgent()!.get('https://github.com')
     .intercept({ path: '/RexSkz/test-git-subfolder-fetch', method: 'HEAD' })
     .reply(200)
-  currentMockAgent!.get('https://github.com')
+  getMockAgent()!.get('https://github.com')
     .intercept({ path: '/RexSkz/test-git-subfolder-fetch', method: 'HEAD' })
     .reply(200)
 
@@ -413,7 +389,7 @@ test('from subdirectories of a git repo', async () => {
 
 test('no hash character for github subdirectory install', async () => {
   prepareEmpty()
-  currentMockAgent!.get('https://github.com')
+  getMockAgent()!.get('https://github.com')
     .intercept({ path: '/pnpm/only-allow', method: 'HEAD' })
     .reply(200)
 

@@ -43,9 +43,6 @@
       "path": "../../hooks/types"
     },
     {
-      "path": "../../network/fetch"
-    },
-    {
       "path": "../../resolving/resolver-base"
     },
     {
@@ -62,6 +59,9 @@
     },
     {
       "path": "../../store/index"
+    },
+    {
+      "path": "../../testing/mock-agent"
     },
     {
       "path": "../../worker"

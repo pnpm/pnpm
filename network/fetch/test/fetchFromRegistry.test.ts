@@ -2,25 +2,40 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { createFetchFromRegistry } from '@pnpm/network.fetch'
+import { clearDispatcherCache, createFetchFromRegistry } from '@pnpm/network.fetch'
 import { ProxyServer } from 'https-proxy-server-express'
 import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 
+let originalDispatcher: Dispatcher | null = null
+let currentMockAgent: MockAgent | null = null
+
+function setupMockAgent (): MockAgent {
+  if (!originalDispatcher) {
+    originalDispatcher = getGlobalDispatcher()
+  }
+  clearDispatcherCache()
+  currentMockAgent = new MockAgent()
+  currentMockAgent.disableNetConnect()
+  setGlobalDispatcher(currentMockAgent)
+  return currentMockAgent
+}
+
+async function teardownMockAgent (): Promise<void> {
+  if (currentMockAgent) {
+    await currentMockAgent.close()
+    currentMockAgent = null
+  }
+  if (originalDispatcher) {
+    setGlobalDispatcher(originalDispatcher)
+    originalDispatcher = null
+  }
+}
+
+function getMockAgent (): MockAgent | null {
+  return currentMockAgent
+}
+
 const CERTS_DIR = path.join(import.meta.dirname, '__certs__')
-
-let mockAgent: MockAgent
-let originalDispatcher: Dispatcher
-
-function setupMockAgent (): void {
-  originalDispatcher = getGlobalDispatcher()
-  mockAgent = new MockAgent()
-  mockAgent.disableNetConnect()
-  setGlobalDispatcher(mockAgent)
-}
-
-function teardownMockAgent (): void {
-  setGlobalDispatcher(originalDispatcher)
-}
 
 test('fetchFromRegistry', async () => {
   // This test uses real network - no mock needed
@@ -43,14 +58,14 @@ test('fetchFromRegistry fullMetadata', async () => {
 test('authorization headers are removed before redirection if the target is on a different host', async () => {
   setupMockAgent()
   try {
-    const mockPool1 = mockAgent.get('http://registry.pnpm.io')
+    const mockPool1 = getMockAgent()!.get('http://registry.pnpm.io')
     mockPool1.intercept({
       path: '/is-positive',
       method: 'GET',
       headers: { authorization: 'Bearer 123' },
     }).reply(302, '', { headers: { location: 'http://registry.other.org/is-positive' } })
 
-    const mockPool2 = mockAgent.get('http://registry.other.org')
+    const mockPool2 = getMockAgent()!.get('http://registry.other.org')
     mockPool2.intercept({
       path: '/is-positive',
       method: 'GET',
@@ -64,14 +79,14 @@ test('authorization headers are removed before redirection if the target is on a
 
     expect(await res.json()).toStrictEqual({ ok: true })
   } finally {
-    teardownMockAgent()
+    await teardownMockAgent()
   }
 })
 
 test('authorization headers are not removed before redirection if the target is on the same host', async () => {
   setupMockAgent()
   try {
-    const mockPool = mockAgent.get('http://registry.pnpm.io')
+    const mockPool = getMockAgent()!.get('http://registry.pnpm.io')
     mockPool.intercept({
       path: '/is-positive',
       method: 'GET',
@@ -92,7 +107,7 @@ test('authorization headers are not removed before redirection if the target is 
 
     expect(await res.json()).toStrictEqual({ ok: true })
   } finally {
-    teardownMockAgent()
+    await teardownMockAgent()
   }
 })
 
@@ -176,13 +191,13 @@ test('fail if the client certificate is not provided', async () => {
 test('redirect to protocol-relative URL', async () => {
   setupMockAgent()
   try {
-    const mockPool1 = mockAgent.get('http://registry.pnpm.io')
+    const mockPool1 = getMockAgent()!.get('http://registry.pnpm.io')
     mockPool1.intercept({
       path: '/foo',
       method: 'GET',
     }).reply(302, '', { headers: { location: '//registry.other.org/foo' } })
 
-    const mockPool2 = mockAgent.get('http://registry.other.org')
+    const mockPool2 = getMockAgent()!.get('http://registry.other.org')
     mockPool2.intercept({
       path: '/foo',
       method: 'GET',
@@ -195,14 +210,14 @@ test('redirect to protocol-relative URL', async () => {
 
     expect(await res.json()).toStrictEqual({ ok: true })
   } finally {
-    teardownMockAgent()
+    await teardownMockAgent()
   }
 })
 
 test('redirect to relative URL', async () => {
   setupMockAgent()
   try {
-    const mockPool = mockAgent.get('http://registry.pnpm.io')
+    const mockPool = getMockAgent()!.get('http://registry.pnpm.io')
     mockPool.intercept({
       path: '/bar/baz',
       method: 'GET',
@@ -220,14 +235,14 @@ test('redirect to relative URL', async () => {
 
     expect(await res.json()).toStrictEqual({ ok: true })
   } finally {
-    teardownMockAgent()
+    await teardownMockAgent()
   }
 })
 
 test('redirect to relative URL when request pkg.pr.new link', async () => {
   setupMockAgent()
   try {
-    const mockPool = mockAgent.get('https://pkg.pr.new')
+    const mockPool = getMockAgent()!.get('https://pkg.pr.new')
     mockPool.intercept({
       path: '/vue@14175',
       method: 'GET',
@@ -250,14 +265,14 @@ test('redirect to relative URL when request pkg.pr.new link', async () => {
 
     expect(await res.json()).toStrictEqual({ ok: true })
   } finally {
-    teardownMockAgent()
+    await teardownMockAgent()
   }
 })
 
 test('redirect without location header throws error', async () => {
   setupMockAgent()
   try {
-    const mockPool = mockAgent.get('http://registry.pnpm.io')
+    const mockPool = getMockAgent()!.get('http://registry.pnpm.io')
     mockPool.intercept({
       path: '/missing-location',
       method: 'GET',
@@ -268,6 +283,6 @@ test('redirect without location header throws error', async () => {
       'http://registry.pnpm.io/missing-location'
     )).rejects.toThrow(/Redirect location header missing/)
   } finally {
-    teardownMockAgent()
+    await teardownMockAgent()
   }
 })

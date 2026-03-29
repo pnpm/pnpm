@@ -15,47 +15,18 @@ import {
 } from '@pnpm/installing.deps-installer'
 import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.fs'
 import type { LockfileFile } from '@pnpm/lockfile.types'
-import { clearDispatcherCache } from '@pnpm/network.fetch'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { prepareEmpty, preparePackages, tempDir } from '@pnpm/prepare'
 import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
+import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import type { DepPath, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import { loadJsonFileSync } from 'load-json-file'
 import { readYamlFileSync } from 'read-yaml-file'
-import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { testDefaults } from './utils/index.js'
-
-let originalDispatcher: Dispatcher | null = null
-let currentMockAgent: MockAgent | null = null
-
-function setupMockAgent (): MockAgent {
-  if (!originalDispatcher) {
-    originalDispatcher = getGlobalDispatcher()
-  }
-  clearDispatcherCache()
-  currentMockAgent = new MockAgent()
-  currentMockAgent.disableNetConnect()
-  setGlobalDispatcher(currentMockAgent)
-  return currentMockAgent
-}
-
-async function teardownMockAgent (): Promise<void> {
-  if (currentMockAgent) {
-    await currentMockAgent.close()
-    currentMockAgent = null
-  }
-  if (originalDispatcher) {
-    setGlobalDispatcher(originalDispatcher)
-  }
-}
-
-function getMockAgent (): MockAgent | null {
-  return currentMockAgent
-}
 
 const f = fixtures(import.meta.dirname)
 
@@ -70,7 +41,7 @@ test('lockfile has correct format', async () => {
   // Mock the HEAD request that isRepoPublic() in @pnpm/resolving.git-resolver makes to check if the repo is public.
   // Without this, transient network failures cause the resolver to fall back to git+https:// instead of
   // resolving via the codeload tarball URL.
-  setupMockAgent()
+  await setupMockAgent()
   getMockAgent()!.enableNetConnect()
   getMockAgent()!.get('https://github.com')
     .intercept({ path: '/kevva/is-negative', method: 'HEAD' })
@@ -851,7 +822,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
   // Mock the HEAD request that isRepoPublic() in @pnpm/resolving.git-resolver makes to check if the repo is public.
   // Without this, transient network failures cause the resolver to fall back to git+https:// instead of
   // resolving via the codeload tarball URL.
-  setupMockAgent()
+  await setupMockAgent()
   getMockAgent()!.enableNetConnect()
   getMockAgent()!.get('https://github.com')
     .intercept({ path: '/kevva/is-negative', method: 'HEAD' })
@@ -1117,7 +1088,7 @@ const isPositiveMeta = loadJsonFileSync<any>(path.join(REGISTRY_MIRROR_DIR, 'is-
 const tarballPath = f.find('is-positive-3.1.0.tgz')
 
 test('tarball domain differs from registry domain', async () => {
-  setupMockAgent()
+  await setupMockAgent()
   getMockAgent()!.enableNetConnect(/localhost/)
   getMockAgent()!.get('https://registry.example.com')
     .intercept({ path: '/is-positive', method: 'GET' })
@@ -1178,7 +1149,7 @@ test('tarball domain differs from registry domain', async () => {
 })
 
 test('tarball installed through non-standard URL endpoint from the registry domain', async () => {
-  setupMockAgent()
+  await setupMockAgent()
   getMockAgent()!.enableNetConnect(/localhost/)
   const mockPool = getMockAgent()!.get('https://registry.npmjs.org')
   mockPool.intercept({ path: '/is-positive/download/is-positive-3.1.0.tgz', method: 'HEAD' })

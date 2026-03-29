@@ -85,9 +85,6 @@
       "path": "../../lockfile/types"
     },
     {
-      "path": "../../network/fetch"
-    },
-    {
       "path": "../../pkg-manifest/reader"
     },
     {
@@ -107,6 +104,9 @@
     },
     {
       "path": "../../store/index"
+    },
+    {
+      "path": "../../testing/mock-agent"
     },
     {
       "path": "../../worker"

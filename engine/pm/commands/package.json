@@ -64,14 +64,13 @@
     "@pnpm/engine.pm.commands": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/network.fetch": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/shell.path": "workspace:*",
+    "@pnpm/testing.mock-agent": "workspace:*",
     "@types/cross-spawn": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
-    "cross-spawn": "catalog:",
-    "undici": "catalog:"
+    "cross-spawn": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

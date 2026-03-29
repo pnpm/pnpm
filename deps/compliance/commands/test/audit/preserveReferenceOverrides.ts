@@ -1,11 +1,10 @@
 import path from 'node:path'
 
 import { audit } from '@pnpm/deps.compliance.commands'
-import { clearDispatcherCache } from '@pnpm/network.fetch'
 import { fixtures } from '@pnpm/test-fixtures'
+import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { readYamlFileSync } from 'read-yaml-file'
-import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 
 import { DEFAULT_OPTS } from './utils/options.js'
 import * as responses from './utils/responses/index.js'
@@ -14,32 +13,8 @@ const f = fixtures(import.meta.dirname)
 
 const registries = DEFAULT_OPTS.registries
 
-let originalDispatcher: Dispatcher | null = null
-let currentMockAgent: MockAgent | null = null
-
-function setupMockAgent (): MockAgent {
-  if (!originalDispatcher) {
-    originalDispatcher = getGlobalDispatcher()
-  }
-  clearDispatcherCache()
-  currentMockAgent = new MockAgent()
-  currentMockAgent.disableNetConnect()
-  setGlobalDispatcher(currentMockAgent)
-  return currentMockAgent
-}
-
-async function teardownMockAgent (): Promise<void> {
-  if (currentMockAgent) {
-    await currentMockAgent.close()
-    currentMockAgent = null
-  }
-  if (originalDispatcher) {
-    setGlobalDispatcher(originalDispatcher)
-  }
-}
-
-beforeEach(() => {
-  setupMockAgent()
+beforeEach(async () => {
+  await setupMockAgent()
 })
 
 afterEach(async () => {
@@ -49,7 +24,7 @@ afterEach(async () => {
 test('overrides with references (via $) are preserved during audit --fix', async () => {
   const tmp = f.prepare('preserve-reference-overrides')
 
-  currentMockAgent!.get(registries.default.replace(/\/$/, ''))
+  getMockAgent()!.get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
     .reply(200, responses.ALL_VULN_RESP)
 

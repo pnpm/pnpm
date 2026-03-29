@@ -7,41 +7,16 @@ import { depPathToFilename } from '@pnpm/deps.path'
 import { createClient } from '@pnpm/installing.client'
 import { createPackageRequester, type PackageResponse } from '@pnpm/installing.package-requester'
 import { streamParser } from '@pnpm/logger'
-import { clearDispatcherCache } from '@pnpm/network.fetch'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import type { PkgRequestFetchResult, PkgResolutionId, RequestPackageOptions } from '@pnpm/store.controller-types'
 import { createCafsStore } from '@pnpm/store.create-cafs-store'
 import { StoreIndex } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
+import { setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import { restartWorkerPool } from '@pnpm/worker'
 import delay from 'delay'
 import normalize from 'normalize-path'
-import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
-
-let originalDispatcher: Dispatcher | null = null
-let currentMockAgent: MockAgent | null = null
-
-function setupMockAgent (): MockAgent {
-  if (!originalDispatcher) {
-    originalDispatcher = getGlobalDispatcher()
-  }
-  clearDispatcherCache()
-  currentMockAgent = new MockAgent()
-  setGlobalDispatcher(currentMockAgent)
-  return currentMockAgent
-}
-
-async function teardownMockAgent (): Promise<void> {
-  if (currentMockAgent) {
-    await currentMockAgent.close()
-    currentMockAgent = null
-  }
-  if (originalDispatcher) {
-    setGlobalDispatcher(originalDispatcher)
-    clearDispatcherCache()
-  }
-}
 
 import { temporaryDirectory } from 'tempy'
 
@@ -608,8 +583,8 @@ test('fetchPackageToStore() concurrency check', async () => {
 })
 
 test('fetchPackageToStore() does not cache errors', async () => {
-  const mockAgent = setupMockAgent()
-  const mockPool = mockAgent.get(registry)
+  const agent = await setupMockAgent()
+  const mockPool = agent.get(registry)
   // First request returns 404
   mockPool.intercept({ path: '/is-positive/-/is-positive-1.0.0.tgz', method: 'GET' }).reply(404, {})
   // Second request returns the tarball
@@ -738,9 +713,9 @@ test('always return a package manifest in the response', async () => {
 
 // Covers https://github.com/pnpm/pnpm/issues/1293
 test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
-  const mockAgent = setupMockAgent()
+  const agent = await setupMockAgent()
   const tarballContent = fs.readFileSync(IS_POSITIVE_TARBALL)
-  mockAgent.get(registry)
+  agent.get(registry)
     .intercept({ path: '/is-positive/-/is-positive-1.0.0.tgz', method: 'GET' })
     .reply(200, tarballContent, {
       headers: { 'content-length': String(tarballContent.length) },

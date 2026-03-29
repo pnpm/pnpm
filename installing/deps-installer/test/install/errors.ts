@@ -2,43 +2,14 @@ import fs from 'node:fs'
 
 import type { PnpmError } from '@pnpm/error'
 import { addDependenciesToPackage, mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
-import { clearDispatcherCache } from '@pnpm/network.fetch'
 import { prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
+import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import type { ProjectRootDir } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
-import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 
 import { testDefaults } from '../utils/index.js'
-
-let originalDispatcher: Dispatcher | null = null
-let currentMockAgent: MockAgent | null = null
-
-function setupMockAgent (): MockAgent {
-  if (!originalDispatcher) {
-    originalDispatcher = getGlobalDispatcher()
-  }
-  clearDispatcherCache()
-  currentMockAgent = new MockAgent()
-  currentMockAgent.disableNetConnect()
-  setGlobalDispatcher(currentMockAgent)
-  return currentMockAgent
-}
-
-async function teardownMockAgent (): Promise<void> {
-  if (currentMockAgent) {
-    await currentMockAgent.close()
-    currentMockAgent = null
-  }
-  if (originalDispatcher) {
-    setGlobalDispatcher(originalDispatcher)
-  }
-}
-
-function getMockAgent (): MockAgent | null {
-  return currentMockAgent
-}
 
 const f = fixtures(import.meta.dirname)
 
@@ -75,7 +46,7 @@ test('fail if none of the available resolvers support a version spec', async () 
 
 test('fail if a package cannot be fetched', async () => {
   prepareEmpty()
-  setupMockAgent()
+  await setupMockAgent()
   const mockPool = getMockAgent()!.get(`http://localhost:${REGISTRY_MOCK_PORT}`)
   /* eslint-disable @typescript-eslint/no-explicit-any */
   mockPool.intercept({ path: '/@pnpm.e2e%2Fpkg-with-1-dep', method: 'GET' }) // cspell:disable-line

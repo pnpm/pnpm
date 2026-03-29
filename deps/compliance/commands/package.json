@@ -64,11 +64,11 @@
   },
   "devDependencies": {
     "@pnpm/deps.compliance.commands": "workspace:*",
-    "@pnpm/network.fetch": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/testing.mock-agent": "workspace:*",
     "@pnpm/workspace.projects-filter": "workspace:*",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
@@ -76,8 +76,7 @@
     "load-json-file": "catalog:",
     "nock": "catalog:",
     "read-yaml-file": "catalog:",
-    "tempy": "catalog:",
-    "undici": "catalog:"
+    "tempy": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

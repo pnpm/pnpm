@@ -18,8 +18,8 @@ afterEach(async () => {
   await teardownMockAgent()
 })
 
-beforeEach(() => {
-  setupMockAgent()
+beforeEach(async () => {
+  await setupMockAgent()
 })
 
 describe('optional dependencies', () => {
