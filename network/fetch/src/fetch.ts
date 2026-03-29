@@ -46,13 +46,9 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
         const { retry: _retry, timeout, dispatcher, ...fetchOpts } = opts
         const signal = timeout ? AbortSignal.timeout(timeout) : undefined
         try {
-          const fetchOptions = {
-            ...fetchOpts,
-            signal,
-            ...(dispatcher ? { dispatcher } : {}),
-          } as RequestInit & { dispatcher?: Dispatcher }
-          // Use undici's fetch directly to ensure MockAgent integration works in tests
-          const res = await undiciFetch(urlString, fetchOptions as Parameters<typeof undiciFetch>[1]) as unknown as Response
+          // undici's Response type differs slightly from globalThis.Response (iterator types),
+          // requiring the double cast. This is a known TypeScript/undici compatibility issue.
+          const res = await undiciFetch(urlString, { ...fetchOpts, signal, dispatcher } as Parameters<typeof undiciFetch>[1]) as unknown as Response
           // A retry on 409 sometimes helps when making requests to the Bit registry.
           if ((res.status >= 500 && res.status < 600) || [408, 409, 420, 429].includes(res.status)) {
             throw new ResponseError(res)
