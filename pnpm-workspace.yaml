@@ -284,6 +284,7 @@ catalog:
   semver-utils: ^1.1.4
   shlex: ^3.0.0
   shx: ^0.4.0
+  socks: ^2.8.1
   sort-keys: ^6.0.0
   split-cmd: ^1.1.0
   split2: ^4.2.0

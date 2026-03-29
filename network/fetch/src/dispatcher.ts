@@ -1,9 +1,12 @@
+import net from 'node:net'
+import tls from 'node:tls'
 import { URL } from 'node:url'
 
 import { nerfDart } from '@pnpm/config.nerf-dart'
 import { PnpmError } from '@pnpm/error'
 import type { SslConfig } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
+import { SocksClient } from 'socks'
 import { Agent, type Dispatcher, ProxyAgent } from 'undici'
 
 const DEFAULT_MAX_SOCKETS = 50
@@ -81,6 +84,16 @@ function parseProxyUrl (proxy: string, protocol: string): URL {
   }
 }
 
+function getSocksProxyType (protocol: string): 4 | 5 {
+  switch (protocol.replace(':', '')) {
+    case 'socks4':
+    case 'socks4a':
+      return 4
+    default:
+      return 5
+  }
+}
+
 function getProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispatcher | null {
   const isHttps = parsedUri.protocol === 'https:'
   const proxy = isHttps ? opts.httpsProxy : opts.httpProxy
@@ -88,12 +101,6 @@ function getProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispatche
   if (!proxy) return null
 
   const proxyUrl = parseProxyUrl(proxy, parsedUri.protocol)
-
-  // SOCKS proxies are not supported by undici's ProxyAgent
-  if (proxyUrl.protocol.startsWith('socks')) {
-    throw new PnpmError('SOCKS_PROXY_UNSUPPORTED',
-      `SOCKS proxy ${proxyUrl.protocol} is not supported. Use an HTTP or HTTPS proxy instead.`)
-  }
 
   const sslConfig = pickSettingByUrl(opts.clientCertificates, parsedUri.href)
   const { ca, cert, key: certKey } = { ...opts, ...sslConfig }
@@ -113,7 +120,25 @@ function getProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispatche
     return DISPATCHER_CACHE.get(key)!
   }
 
-  const proxyAgent = new ProxyAgent({
+  let dispatcher: Dispatcher
+
+  if (proxyUrl.protocol.startsWith('socks')) {
+    dispatcher = createSocksDispatcher(proxyUrl, parsedUri, opts, { ca, cert, key: certKey })
+  } else {
+    dispatcher = createHttpProxyDispatcher(proxyUrl, isHttps, opts, { ca, cert, key: certKey })
+  }
+
+  DISPATCHER_CACHE.set(key, dispatcher)
+  return dispatcher
+}
+
+function createHttpProxyDispatcher (
+  proxyUrl: URL,
+  isHttps: boolean,
+  opts: DispatcherOptions,
+  tlsConfig: { ca?: string | string[] | Buffer, cert?: string | string[] | Buffer, key?: string | Buffer }
+): Dispatcher {
+  return new ProxyAgent({
     uri: proxyUrl.href,
     token: proxyUrl.username
       ? `Basic ${Buffer.from(`${decodeURIComponent(proxyUrl.username)}:${decodeURIComponent(proxyUrl.password)}`).toString('base64')}`
@@ -121,9 +146,9 @@ function getProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispatche
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
     requestTls: isHttps
       ? {
-        ca: ca as string | undefined,
-        cert: cert as string | undefined,
-        key: certKey as string | undefined,
+        ca: tlsConfig.ca as string | undefined,
+        cert: tlsConfig.cert as string | undefined,
+        key: tlsConfig.key as string | undefined,
         rejectUnauthorized: opts.strictSsl ?? true,
         localAddress: opts.localAddress,
       }
@@ -133,9 +158,62 @@ function getProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispatche
       rejectUnauthorized: opts.strictSsl ?? true,
     },
   })
+}
 
-  DISPATCHER_CACHE.set(key, proxyAgent)
-  return proxyAgent
+function createSocksDispatcher (
+  proxyUrl: URL,
+  targetUri: URL,
+  opts: DispatcherOptions,
+  tlsConfig: { ca?: string | string[] | Buffer, cert?: string | string[] | Buffer, key?: string | Buffer }
+): Dispatcher {
+  const isHttps = targetUri.protocol === 'https:'
+  const socksType = getSocksProxyType(proxyUrl.protocol)
+  const proxyHost = proxyUrl.hostname
+  const proxyPort = parseInt(proxyUrl.port, 10) || (socksType === 4 ? 1080 : 1080)
+
+  return new Agent({
+    connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
+    connect: async (connectOpts, callback) => {
+      try {
+        const { socket } = await SocksClient.createConnection({
+          proxy: {
+            host: proxyHost,
+            port: proxyPort,
+            type: socksType,
+            userId: proxyUrl.username ? decodeURIComponent(proxyUrl.username) : undefined,
+            password: proxyUrl.password ? decodeURIComponent(proxyUrl.password) : undefined,
+          },
+          command: 'connect',
+          destination: {
+            host: connectOpts.hostname!,
+            port: parseInt(String(connectOpts.port!), 10),
+          },
+        })
+
+        if (isHttps) {
+          const tlsOpts: tls.ConnectionOptions = {
+            socket: socket as net.Socket,
+            servername: connectOpts.hostname!,
+            ca: tlsConfig.ca as string | undefined,
+            cert: tlsConfig.cert as string | undefined,
+            key: tlsConfig.key as string | undefined,
+            rejectUnauthorized: opts.strictSsl ?? true,
+          }
+          const tlsSocket = tls.connect(tlsOpts)
+          tlsSocket.on('secureConnect', () => {
+            callback(null, tlsSocket)
+          })
+          tlsSocket.on('error', (err) => {
+            callback(err, null)
+          })
+        } else {
+          callback(null, socket as net.Socket)
+        }
+      } catch (err) {
+        callback(err as Error, null)
+      }
+    },
+  })
 }
 
 function getNonProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispatcher {
