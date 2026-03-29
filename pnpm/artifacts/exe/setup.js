@@ -59,7 +59,9 @@ function linkSync(src, dest) {
 }
 
 function createShellScript(dir, name, command) {
-  fs.writeFileSync(path.resolve(dir, name), `#!/bin/sh\nexec ${command} "$@"\n`, { mode: 0o755 })
+  const file = path.resolve(dir, name)
+  try { fs.unlinkSync(file) } catch {}
+  fs.writeFileSync(file, `#!/bin/sh\nexec ${command} "$@"\n`, { mode: 0o755 })
 
   if (platform === 'win') {
     fs.writeFileSync(path.resolve(dir, name + '.cmd'), `@echo off\n${command} %*\n`)

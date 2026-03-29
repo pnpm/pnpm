@@ -37,9 +37,14 @@
     "@pnpm/win-x64": "workspace:*"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/exe": "workspace:*",
+    "@pnpm/jest-config": "workspace:*",
     "execa": "catalog:",
     "tar": "catalog:"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   },
   "preferGlobal": true,
   "publishConfig": {
