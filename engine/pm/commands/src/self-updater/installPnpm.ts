@@ -350,8 +350,6 @@ export function linkExePlatformBinary (installDir: string): void {
   if (platform === 'win') {
     const exePkgJsonPath = path.join(exePkgDir, 'package.json')
     const exePkg = JSON.parse(fs.readFileSync(exePkgJsonPath, 'utf8'))
-    fs.writeFileSync(path.join(exePkgDir, 'pnpm'), 'This file intentionally left blank')
-    fs.writeFileSync(path.join(exePkgDir, 'pn'), 'This file intentionally left blank')
     exePkg.bin.pnpm = 'pnpm.exe'
     exePkg.bin.pn = 'pn.exe'
     exePkg.bin.pnpx = 'pnpx.cmd'
