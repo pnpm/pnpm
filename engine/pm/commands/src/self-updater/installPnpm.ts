@@ -343,10 +343,6 @@ export function linkExePlatformBinary (installDir: string): void {
   const pnExecutable = platform === 'win' ? 'pn.exe' : 'pn'
   forceLink(src, path.join(exePkgDir, pnExecutable))
 
-  // Create pnpx and pnx shell scripts
-  createShellScript(exePkgDir, 'pnpx', 'pnpm dlx', platform)
-  createShellScript(exePkgDir, 'pnx', 'pnpm dlx', platform)
-
   if (platform === 'win') {
     const exePkgJsonPath = path.join(exePkgDir, 'package.json')
     const exePkg = JSON.parse(fs.readFileSync(exePkgJsonPath, 'utf8'))
@@ -368,23 +364,6 @@ function forceLink (src: string, dest: string): void {
   }
   fs.linkSync(src, dest)
   fs.chmodSync(dest, 0o755)
-}
-
-function createShellScript (dir: string, name: string, command: string, platform: string): void {
-  const file = path.join(dir, name)
-  try {
-    fs.unlinkSync(file)
-  } catch (err: unknown) {
-    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
-      throw err
-    }
-  }
-  fs.writeFileSync(file, `#!/bin/sh\nexec ${command} "$@"\n`, { mode: 0o755 })
-
-  if (platform === 'win') {
-    fs.writeFileSync(path.join(dir, name + '.cmd'), `@echo off\n${command} %*\n`)
-    fs.writeFileSync(path.join(dir, name + '.ps1'), `${command} @args\n`)
-  }
 }
 
 function buildLockfileFromEnvLockfile (

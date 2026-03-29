@@ -15,9 +15,14 @@ test('prepare then setup creates working binaries for all commands', () => {
   // 1. Run prepare.js — simulates the publish step that writes placeholders
   execFileSync(process.execPath, [path.join(exeDir, 'prepare.js')], { cwd: exeDir })
 
-  // All bin files should be placeholders now
-  for (const name of ['pnpm', 'pn', 'pnpx', 'pnx']) {
+  // pnpm and pn should be placeholders (replaced by setup.js with hardlinks)
+  for (const name of ['pnpm', 'pn']) {
     expect(fs.readFileSync(path.join(exeDir, name), 'utf8')).toBe('This file intentionally left blank')
+  }
+
+  // pnpx and pnx should already be real shell scripts from prepare.js
+  for (const name of ['pnpx', 'pnx']) {
+    expect(fs.readFileSync(path.join(exeDir, name), 'utf8')).toBe('#!/bin/sh\nexec pnpm dlx "$@"\n')
   }
 
   // 2. Run setup.js — simulates the preinstall step on a real install
