@@ -98,10 +98,6 @@ function getProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispatche
   const sslConfig = pickSettingByUrl(opts.clientCertificates, parsedUri.href)
   const { ca, cert, key: certKey } = { ...opts, ...sslConfig }
 
-  const connectTimeout = typeof opts.timeout !== 'number' || opts.timeout === 0
-    ? 0
-    : opts.timeout + 1
-
   const key = [
     `proxy:${proxyUrl.protocol}//${proxyUrl.username}:${proxyUrl.password}@${proxyUrl.host}:${proxyUrl.port}`,
     `https:${isHttps.toString()}`,
