@@ -58,5 +58,5 @@
     "typescript": "catalog:",
     "verdaccio": "catalog:"
   },
-  "packageManager": "pnpm@11.0.0-beta.3"
+  "packageManager": "pnpm@11.0.0-beta.4-1"
 }
