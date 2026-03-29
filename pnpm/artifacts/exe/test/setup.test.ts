@@ -20,35 +20,28 @@ const hasPlatformBinary = fs.existsSync(platformBin)
 test('prepare writes correct content for all bin files', () => {
   execFileSync(process.execPath, [path.join(exeDir, 'prepare.js')], { cwd: exeDir })
 
-  // pnpm and pn should be placeholders (replaced by setup.js with hardlinks)
-  for (const name of ['pnpm', 'pn']) {
-    expect(fs.readFileSync(path.join(exeDir, name), 'utf8')).toBe('This file intentionally left blank')
-  }
+  // pnpm is a placeholder (replaced by setup.js with a hardlink)
+  expect(fs.readFileSync(path.join(exeDir, 'pnpm'), 'utf8')).toBe('This file intentionally left blank')
 
-  // pnpx and pnx should be real shell scripts
-  for (const name of ['pnpx', 'pnx']) {
-    expect(fs.readFileSync(path.join(exeDir, name), 'utf8')).toBe('#!/bin/sh\nexec pnpm dlx "$@"\n')
+  // pn, pnpx, and pnx should be real shell scripts
+  for (const [name, command] of [['pn', 'pnpm'], ['pnpx', 'pnpm dlx'], ['pnx', 'pnpm dlx']]) {
+    expect(fs.readFileSync(path.join(exeDir, name), 'utf8')).toBe(`#!/bin/sh\nexec ${command} "$@"\n`)
     if (!isWindows) {
       expect(fs.statSync(path.join(exeDir, name)).mode & 0o111).not.toBe(0)
     }
   }
 
   // Windows wrappers should exist
-  for (const name of ['pnpx', 'pnx']) {
-    expect(fs.readFileSync(path.join(exeDir, name + '.cmd'), 'utf8')).toBe('@echo off\npnpm dlx %*\n')
-    expect(fs.readFileSync(path.join(exeDir, name + '.ps1'), 'utf8')).toBe('pnpm dlx @args\n')
+  for (const [name, command] of [['pn', 'pnpm'], ['pnpx', 'pnpm dlx'], ['pnx', 'pnpm dlx']]) {
+    expect(fs.readFileSync(path.join(exeDir, name + '.cmd'), 'utf8')).toBe(`@echo off\n${command} %*\n`)
+    expect(fs.readFileSync(path.join(exeDir, name + '.ps1'), 'utf8')).toBe(`${command} @args\n`)
   }
 });
 
-(hasPlatformBinary ? test : test.skip)('setup.js creates hardlinks for pnpm and pn', () => {
-  // Run prepare first to simulate the published tarball state
+(hasPlatformBinary ? test : test.skip)('setup.js creates hardlink for pnpm', () => {
   execFileSync(process.execPath, [path.join(exeDir, 'prepare.js')], { cwd: exeDir })
   execFileSync(process.execPath, [path.join(exeDir, 'setup.js')], { cwd: exeDir })
 
   const pnpmBin = path.join(exeDir, isWindows ? 'pnpm.exe' : 'pnpm')
-  const pnBin = path.join(exeDir, isWindows ? 'pn.exe' : 'pn')
-
-  // pnpm and pn should be hardlinks to the platform binary
   expect(fs.statSync(pnpmBin).ino).toBe(fs.statSync(platformBin).ino)
-  expect(fs.statSync(pnBin).ino).toBe(fs.statSync(platformBin).ino)
 })

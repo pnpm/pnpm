@@ -550,10 +550,7 @@ describe('linkExePlatformBinary', () => {
     const result = fs.readFileSync(path.join(topLevelExeDir, executable), 'utf8')
     expect(result).toBe(fakeBinaryContent)
 
-    // pn should be a hardlink to the same binary
-    const pnExecutable = platform === 'win' ? 'pn.exe' : 'pn'
-    const pnResult = fs.readFileSync(path.join(topLevelExeDir, pnExecutable), 'utf8')
-    expect(pnResult).toBe(fakeBinaryContent)
+    // pn is a shell script in the tarball (not created by linkExePlatformBinary)
   })
 
   test('also works with flat node_modules layout', () => {

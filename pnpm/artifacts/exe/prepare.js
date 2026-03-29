@@ -4,8 +4,8 @@ import path from 'path'
 const ownDir = import.meta.dirname
 const placeholder = 'This file intentionally left blank'
 
-// pnpm and pn are placeholders — replaced with hardlinks by setup.js
-for (const name of ['pnpm', 'pn']) {
+// pnpm is a placeholder — replaced with a hardlink to the native binary by setup.js
+for (const name of ['pnpm']) {
   const file = path.join(ownDir, name)
   try {
     fs.unlinkSync(file)
@@ -15,8 +15,8 @@ for (const name of ['pnpm', 'pn']) {
   fs.writeFileSync(file, placeholder, 'utf8')
 }
 
-// pnpx and pnx — write the real shell scripts and Windows wrappers
-for (const [name, command] of [['pnpx', 'pnpm dlx'], ['pnx', 'pnpm dlx']]) {
+// pn, pnpx, and pnx — write the real shell scripts and Windows wrappers
+for (const [name, command] of [['pn', 'pnpm'], ['pnpx', 'pnpm dlx'], ['pnx', 'pnpm dlx']]) {
   const file = path.join(ownDir, name)
   try {
     fs.unlinkSync(file)
