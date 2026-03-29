@@ -374,7 +374,11 @@ function createShellScript (dir: string, name: string, command: string, platform
   const file = path.join(dir, name)
   try {
     fs.unlinkSync(file)
-  } catch {}
+  } catch (err: unknown) {
+    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
+      throw err
+    }
+  }
   fs.writeFileSync(file, `#!/bin/sh\nexec ${command} "$@"\n`, { mode: 0o755 })
 
   if (platform === 'win') {

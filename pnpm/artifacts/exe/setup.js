@@ -60,7 +60,11 @@ function linkSync(src, dest) {
 
 function createShellScript(dir, name, command) {
   const file = path.resolve(dir, name)
-  try { fs.unlinkSync(file) } catch {}
+  try {
+    fs.unlinkSync(file)
+  } catch (e) {
+    if (e.code !== 'ENOENT') throw e
+  }
   fs.writeFileSync(file, `#!/bin/sh\nexec ${command} "$@"\n`, { mode: 0o755 })
 
   if (platform === 'win') {
