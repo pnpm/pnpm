@@ -764,6 +764,48 @@ test('local prefix search stops on pnpm-workspace.yaml', async () => {
   expect(config.dir).toEqual(workspaceDir)
 })
 
+test('reads .npmrc files from parent directories above a workspace root', async () => {
+  prepareEmpty()
+
+  const originalUserconfig = loadNpmConf.defaults.userconfig
+  loadNpmConf.defaults.userconfig = path.resolve('user-home', '.npmrc')
+
+  try {
+    const parentDir = path.resolve('company')
+    const workspaceDir = path.join(parentDir, 'workspace')
+    const packageDir = path.join(workspaceDir, 'packages', 'app')
+
+    fs.mkdirSync(packageDir, { recursive: true })
+    fs.mkdirSync(path.dirname(loadNpmConf.defaults.userconfig), { recursive: true })
+    fs.writeFileSync(path.join(parentDir, '.npmrc'), [
+      '@private:registry=https://registry.example.test',
+      '//registry.example.test/:_authToken=parent-token',
+    ].join('\n'), 'utf8')
+    fs.writeFileSync(path.join(workspaceDir, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\n', 'utf8')
+    fs.writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify({
+      name: 'app',
+      version: '1.0.0',
+    }), 'utf8')
+    process.chdir(packageDir)
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir,
+    })
+
+    expect(config.rawConfig).toMatchObject({
+      '@private:registry': 'https://registry.example.test',
+      '//registry.example.test/:_authToken': 'parent-token',
+    })
+  } finally {
+    loadNpmConf.defaults.userconfig = originalUserconfig
+  }
+})
+
 test('reads workspacePackagePatterns', async () => {
   const workspaceDir = path.join(import.meta.dirname, 'fixtures/pkg-with-valid-workspace-yaml')
   process.chdir(workspaceDir)
