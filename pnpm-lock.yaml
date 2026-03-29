@@ -777,7 +777,7 @@ overrides:
   minimatch@>=9.0.0 <10.0.0: '>=10.2.4'
   nopt@5: npm:@pnpm/nopt@^0.2.1
   on-headers@<1.1.0: '>=1.1.0'
-  path-to-regexp@<0.1.12: ^0.1.12
+  path-to-regexp@<0.1.13: ^0.1.13
   path-to-regexp@>=4.0.0 <6.3.0: '>=6.3.0'
   path-to-regexp@>=7.0.0 <8.0.0: '>=8.0.0'
   postman-request>qs: ^6.14.1
@@ -797,7 +797,9 @@ packageExtensionsChecksum: sha256-87FOGilaYY8gmnjYsryuV/BI3ZuhaaJd/1fN2oxQwzY=
 pnpmfileChecksum: sha256-FyKtfMeHqu9zq1rXAr8P3zdA0NAXUioGdY0esg+SB5s=
 
 patchedDependencies:
-  graceful-fs@4.2.11: 68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1
+  graceful-fs@4.2.11:
+    hash: 68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1
+    path: __patches__/graceful-fs@4.2.11.patch
 
 importers:
 
@@ -7428,6 +7430,9 @@ importers:
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
+      '@pnpm/network.auth-header':
+        specifier: workspace:*
+        version: link:../../network/auth-header
       '@pnpm/network.fetch':
         specifier: workspace:*
         version: link:../../network/fetch
