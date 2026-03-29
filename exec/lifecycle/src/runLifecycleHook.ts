@@ -107,7 +107,7 @@ Please unset the scriptShell option, or configure it to a .exe instead.
       wd: opts.pkgRoot,
     })
   } else if (!opts.silent) {
-    console.error(chalk.dim(`$ ${m.scripts[stage]}`))
+    process.stderr.write(chalk.dim(`$ ${m.scripts[stage]}`) + '\n')
   }
   const logLevel = (opts.stdio !== 'inherit' || opts.silent)
     ? 'silent'
