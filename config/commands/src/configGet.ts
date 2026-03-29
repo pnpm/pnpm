@@ -1,7 +1,4 @@
-import path from 'node:path'
-
-import { types } from '@pnpm/config.reader'
-import { runNpm } from '@pnpm/exec.run-npm'
+import { isIniConfigKey, types } from '@pnpm/config.reader'
 import { getObjectValueByPropertyPath } from '@pnpm/object.property-path'
 import { isCamelCase, isStrictlyKebabCase } from '@pnpm/text.naming-cases'
 import kebabCase from 'lodash.kebabcase'
@@ -9,19 +6,9 @@ import kebabCase from 'lodash.kebabcase'
 import type { ConfigCommandOptions } from './ConfigCommandOptions.js'
 import { parseConfigPropertyPath } from './parseConfigPropertyPath.js'
 import { processConfig } from './processConfig.js'
-import { settingShouldFallBackToNpm } from './settingShouldFallBackToNpm.js'
 
 export function configGet (opts: ConfigCommandOptions, key: string): { output: string, exitCode: number } {
   const isScopedKey = key.startsWith('@')
-  // Exclude scoped keys from npm fallback because they are pnpm-native config
-  // that can be read directly from rawConfig (e.g., '@scope:registry')
-  if (opts.global && settingShouldFallBackToNpm(key) && !isScopedKey) {
-    const { status: exitCode } = runNpm(opts.npmPath, ['config', 'get', key], {
-      location: 'user',
-      userConfigPath: path.join(opts.configDir, 'rc'),
-    })
-    return { output: '', exitCode: exitCode ?? 0 }
-  }
   const configResult = getRcConfig(opts.rawConfig, key, isScopedKey) ?? getConfigByPropertyPath(opts.rawConfig, key)
   const output = displayConfig(configResult?.value, opts)
   return { output, exitCode: 0 }
@@ -42,6 +29,10 @@ function getRcConfig (rawConfig: Record<string, unknown>, key: string, isScopedK
     return { value }
   }
   if (isStrictlyKebabCase(key)) {
+    const value = rawConfig[key]
+    return { value }
+  }
+  if (isIniConfigKey(key)) {
     const value = rawConfig[key]
     return { value }
   }

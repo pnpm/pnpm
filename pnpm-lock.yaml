@@ -2275,9 +2275,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
-      '@pnpm/exec.run-npm':
-        specifier: workspace:*
-        version: link:../../exec/run-npm
       '@pnpm/object.key-sorting':
         specifier: workspace:*
         version: link:../../object/key-sorting
@@ -4127,22 +4124,6 @@ importers:
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
-
-  exec/run-npm:
-    dependencies:
-      cross-spawn:
-        specifier: 'catalog:'
-        version: 7.0.6
-      path-name:
-        specifier: 'catalog:'
-        version: 1.0.0
-    devDependencies:
-      '@pnpm/exec.run-npm':
-        specifier: workspace:*
-        version: 'link:'
-      '@types/cross-spawn':
-        specifier: 'catalog:'
-        version: 6.0.6
 
   fetching/binary-fetcher:
     dependencies:
@@ -7231,9 +7212,6 @@ importers:
       '@pnpm/exec.commands':
         specifier: workspace:*
         version: link:../exec/commands
-      '@pnpm/exec.run-npm':
-        specifier: workspace:*
-        version: link:../exec/run-npm
       '@pnpm/hooks.pnpmfile':
         specifier: workspace:*
         version: link:../hooks/pnpmfile

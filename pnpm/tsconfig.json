@@ -99,9 +99,6 @@
       "path": "../exec/commands"
     },
     {
-      "path": "../exec/run-npm"
-    },
-    {
       "path": "../hooks/pnpmfile"
     },
     {

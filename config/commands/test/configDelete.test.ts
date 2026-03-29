@@ -40,7 +40,7 @@ test('config delete on registry key set', async () => {
     rawConfig: {},
   }, ['delete', 'registry'])
 
-  expect(fs.readdirSync(configDir)).not.toContain('rc')
+  expect(readIniFileSync(path.join(configDir, 'rc'))).toEqual({})
 })
 
 test('config delete on npm-compatible key not set', async () => {

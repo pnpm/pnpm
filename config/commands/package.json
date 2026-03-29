@@ -36,7 +36,6 @@
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/exec.run-npm": "workspace:*",
     "@pnpm/object.key-sorting": "workspace:*",
     "@pnpm/object.property-path": "workspace:*",
     "@pnpm/text.naming-cases": "workspace:*",

@@ -294,9 +294,14 @@ export async function getConfig (opts: {
   pnpmConfig.userAgent = pnpmConfig.rawLocalConfig['user-agent']
     ? pnpmConfig.rawLocalConfig['user-agent']
     : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
+  const pnpmGlobalRcData = npmConfig.sources['pnpm-global']?.data
+  const pnpmGlobalRc = pnpmGlobalRcData
+    ? pickIniConfig(Object.fromEntries(Object.entries(pnpmGlobalRcData)))
+    : {}
   pnpmConfig.rawConfig = Object.assign(
     {},
     ...npmConfig.list.map(pickIniConfig).reverse(),
+    pnpmGlobalRc,
     pickIniConfig(cliOptions),
     { 'user-agent': pnpmConfig.userAgent },
     { globalconfig: path.join(configDir, 'rc') },
