@@ -1,6 +1,6 @@
-import { execFileSync } from 'child_process'
-import fs from 'fs'
-import path from 'path'
+import { execFileSync } from 'node:child_process'
+import fs from 'node:fs'
+import path from 'node:path'
 
 const exeDir = path.resolve(import.meta.dirname, '..')
 const platform = process.platform === 'win32'
