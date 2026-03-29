@@ -69,9 +69,13 @@ export function createDeployFiles ({
   }
 
   const targetPackageSnapshots: PackageSnapshots = {}
+  if (!lockfile.packages) {
+    throw new Error('No packages found in lockfile')
+  }
   for (const name in lockfile.packages) {
     const inputDepPath = name as DepPath
     const inputSnapshot = lockfile.packages[inputDepPath]
+    if (!inputSnapshot) continue
     const resolveResult = resolveLinkOrFile(inputDepPath, {
       lockfileDir,
       projectRootDirRealPath: rootProjectManifestDir,
