@@ -44,14 +44,11 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
       op.attempt(async (attempt) => {
         const urlString = typeof url === 'string' ? url : url.href ?? url.toString()
         const { retry: _retry, timeout, dispatcher, ...fetchOpts } = opts
-        const controller = timeout ? new AbortController() : undefined
-        const timeoutId = timeout ? setTimeout(() => controller!.abort(), timeout) : undefined
+        const signal = timeout ? AbortSignal.timeout(timeout) : undefined
         try {
-          // Note: dispatcher is a non-standard option supported by Node.js native fetch (undici)
-          // Only include dispatcher if defined, otherwise use the global dispatcher
           const fetchOptions = {
             ...fetchOpts,
-            signal: controller?.signal,
+            signal,
             ...(dispatcher ? { dispatcher } : {}),
           } as RequestInit & { dispatcher?: Dispatcher }
           // Use undici's fetch directly to ensure MockAgent integration works in tests
@@ -102,8 +99,6 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
             timeout: retryTimeout,
             url: urlString,
           })
-        } finally {
-          if (timeoutId) clearTimeout(timeoutId)
         }
       })
     })
