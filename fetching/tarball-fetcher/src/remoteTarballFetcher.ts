@@ -1,4 +1,3 @@
-import assert from 'node:assert'
 import type { IncomingMessage } from 'node:http'
 import util from 'node:util'
 
