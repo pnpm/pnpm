@@ -549,6 +549,22 @@ describe('linkExePlatformBinary', () => {
     // The placeholder should be replaced with the platform binary content
     const result = fs.readFileSync(path.join(topLevelExeDir, executable), 'utf8')
     expect(result).toBe(fakeBinaryContent)
+
+    // pn should be a hardlink to the same binary
+    const pnExecutable = platform === 'win' ? 'pn.exe' : 'pn'
+    const pnResult = fs.readFileSync(path.join(topLevelExeDir, pnExecutable), 'utf8')
+    expect(pnResult).toBe(fakeBinaryContent)
+
+    // pnpx and pnx should be shell scripts that delegate to pnpm dlx
+    if (platform !== 'win') {
+      const pnpxResult = fs.readFileSync(path.join(topLevelExeDir, 'pnpx'), 'utf8')
+      expect(pnpxResult).toBe('#!/bin/sh\nexec pnpm dlx "$@"\n')
+      const pnxResult = fs.readFileSync(path.join(topLevelExeDir, 'pnx'), 'utf8')
+      expect(pnxResult).toBe('#!/bin/sh\nexec pnpm dlx "$@"\n')
+    } else {
+      expect(fs.readFileSync(path.join(topLevelExeDir, 'pnpx.cmd'), 'utf8')).toBe('@echo off\npnpm dlx %*\n')
+      expect(fs.readFileSync(path.join(topLevelExeDir, 'pnx.cmd'), 'utf8')).toBe('@echo off\npnpm dlx %*\n')
+    }
   })
 
   test('also works with flat node_modules layout', () => {
