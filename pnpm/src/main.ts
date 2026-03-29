@@ -71,6 +71,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     options: cliOptions,
     cmd,
     fallbackCommandUsed,
+    builtInCommandForced,
     unknownOptions,
     workspaceDir,
   } = parsedCliArgs
@@ -194,7 +195,7 @@ export async function main (inputArgv: string[]): Promise<void> {
   // Commands with scriptOverride: if the current project's package.json has a
   // script with the same name, run the script instead of the built-in command.
   const typedCommandName = argv.remain[0]
-  if (cmd != null && overridableByScriptCommands.has(typedCommandName) && !cliOptions.global) {
+  if (cmd != null && !builtInCommandForced && overridableByScriptCommands.has(typedCommandName) && !cliOptions.global) {
     const currentDirManifest = config.dir === config.rootProjectManifestDir
       ? config.rootProjectManifest
       : await safeReadProjectManifestOnly(config.dir)

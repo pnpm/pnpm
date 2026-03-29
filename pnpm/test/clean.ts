@@ -240,6 +240,38 @@ test('pnpm clean errors in workspace subdir when root has clean script', () => {
   expect(output).toContain('ERR_PNPM_SCRIPT_OVERRIDE_IN_WORKSPACE_ROOT')
 })
 
+test('pnpm pm clean runs the built-in command even when a clean script exists', () => {
+  tempDir()
+  writeJsonFile('package.json', {
+    name: 'has-clean-script',
+    scripts: { clean: 'echo "script-clean-ran"' },
+  })
+  fs.mkdirSync('node_modules/.pnpm', { recursive: true })
+
+  const result = execPnpmSync(['pm', 'clean'])
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString()).not.toContain('script-clean-ran')
+  expect(fs.existsSync('node_modules/.pnpm')).toBe(false)
+})
+
+test('pnpm pm clean does not error in workspace subdir when root has clean script', () => {
+  preparePackages([
+    { name: 'project-a', version: '1.0.0' },
+  ])
+
+  writeJsonFile('package.json', {
+    name: 'root',
+    version: '1.0.0',
+    scripts: { clean: 'echo "root-clean"' },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
+  fs.mkdirSync(path.join('project-a', 'node_modules', '.pnpm'), { recursive: true })
+
+  const result = execPnpmSync(['pm', 'clean'], { cwd: path.resolve('project-a') })
+  expect(result.status).toBe(0)
+  expect(fs.existsSync(path.join('project-a', 'node_modules', '.pnpm'))).toBe(false)
+})
+
 test('pnpm clean runs built-in in workspace subdir when root has no clean script', () => {
   preparePackages([
     { name: 'project-a', version: '1.0.0' },
