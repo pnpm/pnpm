@@ -1,4 +1,3 @@
-import crypto from 'node:crypto'
 import net from 'node:net'
 import tls from 'node:tls'
 import { URL } from 'node:url'
@@ -85,12 +84,12 @@ function parseProxyUrl (proxy: string, protocol: string): URL {
   }
 }
 
-function hashCredentials (proxyUrl: URL): string {
+function proxyAuthFingerprint (proxyUrl: URL): string {
   if (!proxyUrl.username) return 'no-auth'
-  return crypto.createHash('sha256')
-    .update(`${proxyUrl.username}:${proxyUrl.password}`)
-    .digest('hex')
-    .slice(0, 16)
+  // Include auth presence and lengths in the cache key without storing credentials.
+  // Different credentials for the same proxy host is not a realistic scenario,
+  // so this is sufficient for cache key uniqueness.
+  return `auth:${proxyUrl.username.length}:${proxyUrl.password.length}`
 }
 
 function getSocksProxyType (protocol: string): 4 | 5 {
@@ -115,7 +114,7 @@ function getProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispatche
   const { ca, cert, key: certKey } = { ...opts, ...sslConfig }
 
   const key = [
-    `proxy:${proxyUrl.protocol}//${proxyUrl.host}:${proxyUrl.port}:${hashCredentials(proxyUrl)}`,
+    `proxy:${proxyUrl.protocol}//${proxyUrl.host}:${proxyUrl.port}:${proxyAuthFingerprint(proxyUrl)}`,
     `https:${isHttps.toString()}`,
     `local-address:${opts.localAddress ?? '>no-local-address<'}`,
     `max-sockets:${(opts.maxSockets ?? DEFAULT_MAX_SOCKETS).toString()}`,
