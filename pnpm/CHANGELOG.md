@@ -1,8 +1,17 @@
 # pnpm
 
-## 11.0.0-beta.3
+## 11.0.0-beta.4
 
 ### Major Changes
+
+#### CLI Output
+
+- Use cleaner output for script execution. Print `$ command` instead of `> pkg@version stage path\n> command`. Show project name and path only when running in a different directory. The `$ command` line is printed to stderr to keep stdout clean for piping [#11132](https://github.com/pnpm/pnpm/pull/11132).
+- During install, instead of rendering the full peer dependency issues tree, suggest running `pnpm peers check` to view the issues [#11133](https://github.com/pnpm/pnpm/pull/11133).
+
+#### Lifecycle Scripts
+
+- pnpm no longer populates `npm_config_*` environment variables from the pnpm config during lifecycle scripts. Only well-known `npm_*` env vars are now set, matching Yarn's behavior [#11116](https://github.com/pnpm/pnpm/pull/11116).
 
 #### Store
 
@@ -152,6 +161,8 @@
 
 #### New Commands
 
+- Added native `pnpm view` (`info`, `show`, `v`) command for viewing package metadata from the registry [#11064](https://github.com/pnpm/pnpm/pull/11064).
+- Added `pnpm login` (and `pnpm adduser` alias) command for authenticating with npm registries. Supports web-based login with QR code as well as classic username/password login [#11094](https://github.com/pnpm/pnpm/pull/11094).
 - Added `pnpm sbom` command for generating Software Bill of Materials in CycloneDX 1.7 and SPDX 2.3 JSON formats [#9088](https://github.com/pnpm/pnpm/issues/9088).
 - Added `pnpm clean` command that safely removes `node_modules` directories from all workspace projects [#10707](https://github.com/pnpm/pnpm/issues/10707). Use `--lockfile` to also remove `pnpm-lock.yaml` files.
 - Added a new command `pnpm runtime set <runtime name> <runtime version spec> [-g]` for installing runtimes. Deprecated `pnpm env use` in favor of the new command.
@@ -189,6 +200,7 @@
 
 #### CLI & Other
 
+- The built-in `clean`, `setup`, `deploy`, and `rebuild` commands now prefer user scripts over built-in commands. When a project's `package.json` has a script with the same name, `pnpm` executes the script instead of the built-in command. Added `purge` as an alias for the built-in `clean` command, which always runs the built-in regardless of scripts [#11118](https://github.com/pnpm/pnpm/pull/11118).
 - Added `-F` as a short alias for the `--filter` option.
 - Added support for hidden scripts. Scripts starting with `.` are hidden and cannot be run directly via `pnpm run`. They can only be called from other scripts. Hidden scripts are also omitted from the `pnpm run` listing [#11041](https://github.com/pnpm/pnpm/pull/11041).
 - Allow `pnpm approve-builds` to receive positional arguments for approving or denying packages without the interactive prompt. Prefix a package name with `!` to deny it. Only mentioned packages are affected; the rest are left untouched [#11030](https://github.com/pnpm/pnpm/pull/11030).
@@ -199,6 +211,7 @@
 
 #### Performance
 
+- Replaced `node-fetch` with native `undici` for HTTP requests throughout pnpm [#10537](https://github.com/pnpm/pnpm/pull/10537).
 - Skip redundant internal linking during GVS warm reinstall when no packages were added [#11073](https://github.com/pnpm/pnpm/pull/11073).
 - Skip the staging directory when importing packages into `node_modules`. This avoids the overhead of creating a temp dir and renaming per package [#11088](https://github.com/pnpm/pnpm/pull/11088).
 - Write CAS files directly to their final content-addressed path instead of writing to a temp file and renaming. Eliminates ~30k rename syscalls per cold install [#11087](https://github.com/pnpm/pnpm/pull/11087).
@@ -206,6 +219,12 @@
 
 ### Patch Changes
 
+- Use `process.stderr.write` instead of `console.error` for script logging [#11140](https://github.com/pnpm/pnpm/pull/11140).
+- Respect `frozen-lockfile` flag when migrating config dependencies [#11067](https://github.com/pnpm/pnpm/pull/11067).
+- Removed `--workspace` flag from the `version` command [#11115](https://github.com/pnpm/pnpm/pull/11115).
+- Handle `ENOTSUP` error in clone import path during parallel I/O [#11117](https://github.com/pnpm/pnpm/pull/11117).
+- Fixed `pnpm audit` command.
+- Updated dependencies to fix vulnerabilities.
 - Check if a package is installable for non npm-hosted packages (e.g., git or tarball dependencies) after the manifest has been fetched.
 - Explicitly tell `npm` the path to the global `rc` config file.
 - Fix YAML formatting preservation in `pnpm-workspace.yaml` when running commands like `pnpm update`. Previously, quotes and other formatting were lost even when catalog values didn't change.
