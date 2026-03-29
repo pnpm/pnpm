@@ -1,5 +1,7 @@
 import { URL } from 'node:url'
 
+import { nerfDart } from '@pnpm/config.nerf-dart'
+import { PnpmError } from '@pnpm/error'
 import type { SslConfig } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
 import { Agent, type Dispatcher, ProxyAgent } from 'undici'
@@ -49,15 +51,6 @@ export function getDispatcher (uri: string, opts: DispatcherOptions): Dispatcher
 }
 
 function needsCustomDispatcher (opts: DispatcherOptions): boolean {
-  // Need custom dispatcher for:
-  // - proxy configuration
-  // - custom SSL/TLS certificates
-  // - local address binding
-  // - disabling strict SSL
-  // - custom maxSockets
-  // Note: timeout is NOT included here because it's handled via AbortController
-  // in fetch.ts for request-level timeout. This allows tests using MockAgent
-  // with setGlobalDispatcher() to work properly.
   return Boolean(
     opts.httpProxy ||
     opts.httpsProxy ||
@@ -71,18 +64,49 @@ function needsCustomDispatcher (opts: DispatcherOptions): boolean {
   )
 }
 
+function parseProxyUrl (proxy: string, protocol: string): URL {
+  let proxyUrl = proxy
+  if (!proxyUrl.includes('://')) {
+    proxyUrl = `${protocol}//${proxyUrl}`
+  }
+  try {
+    return new URL(proxyUrl)
+  } catch {
+    throw new PnpmError('INVALID_PROXY', "Couldn't parse proxy URL", {
+      hint: 'If your proxy URL contains a username and password, make sure to URL-encode them ' +
+        '(you may use the encodeURIComponent function). For instance, ' +
+        'https-proxy=https://use%21r:pas%2As@my.proxy:1234/foo. ' +
+        'Do not encode the colon (:) between the username and password.',
+    })
+  }
+}
+
 function getProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispatcher | null {
   const isHttps = parsedUri.protocol === 'https:'
   const proxy = isHttps ? opts.httpsProxy : opts.httpProxy
 
   if (!proxy) return null
 
-  const sslConfig = pickSslConfigByUrl(opts.clientCertificates, parsedUri)
+  const proxyUrl = parseProxyUrl(proxy, parsedUri.protocol)
+
+  // SOCKS proxies are not supported by undici's ProxyAgent
+  if (proxyUrl.protocol.startsWith('socks')) {
+    throw new PnpmError('SOCKS_PROXY_UNSUPPORTED',
+      `SOCKS proxy ${proxyUrl.protocol} is not supported. Use an HTTP or HTTPS proxy instead.`)
+  }
+
+  const sslConfig = pickSettingByUrl(opts.clientCertificates, parsedUri.href)
   const { ca, cert, key: certKey } = { ...opts, ...sslConfig }
 
+  const connectTimeout = typeof opts.timeout !== 'number' || opts.timeout === 0
+    ? 0
+    : opts.timeout + 1
+
   const key = [
-    `proxy:${proxy}`,
+    `proxy:${proxyUrl.protocol}//${proxyUrl.username}:${proxyUrl.password}@${proxyUrl.host}:${proxyUrl.port}`,
     `https:${isHttps.toString()}`,
+    `local-address:${opts.localAddress ?? '>no-local-address<'}`,
+    `max-sockets:${(opts.maxSockets ?? DEFAULT_MAX_SOCKETS).toString()}`,
     `strict-ssl:${isHttps ? Boolean(opts.strictSsl).toString() : '>no-strict-ssl<'}`,
     `ca:${(isHttps && ca?.toString()) || '>no-ca<'}`,
     `cert:${(isHttps && cert?.toString()) || '>no-cert<'}`,
@@ -94,15 +118,24 @@ function getProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispatche
   }
 
   const proxyAgent = new ProxyAgent({
-    uri: proxy,
+    uri: proxyUrl.href,
+    token: proxyUrl.username
+      ? `Basic ${Buffer.from(`${decodeURIComponent(proxyUrl.username)}:${decodeURIComponent(proxyUrl.password)}`).toString('base64')}`
+      : undefined,
+    connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
     requestTls: isHttps
       ? {
         ca: ca as string | undefined,
         cert: cert as string | undefined,
         key: certKey as string | undefined,
         rejectUnauthorized: opts.strictSsl ?? true,
+        localAddress: opts.localAddress,
       }
       : undefined,
+    proxyTls: {
+      ca: opts.ca as string | undefined,
+      rejectUnauthorized: opts.strictSsl ?? true,
+    },
   })
 
   DISPATCHER_CACHE.set(key, proxyAgent)
@@ -112,7 +145,7 @@ function getProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispatche
 function getNonProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispatcher {
   const isHttps = parsedUri.protocol === 'https:'
 
-  const sslConfig = pickSslConfigByUrl(opts.clientCertificates, parsedUri)
+  const sslConfig = pickSettingByUrl(opts.clientCertificates, parsedUri.href)
   const { ca, cert, key: certKey } = { ...opts, ...sslConfig }
 
   const key = [
@@ -133,15 +166,11 @@ function getNonProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispat
     ? 0
     : opts.timeout + 1
 
-  // Match agentkeepalive defaults:
-  // - freeSocketTimeout: 4000 (idle socket timeout)
-  // - keepAliveMsecs: 1000 (TCP keep-alive probe interval)
-  // - maxFreeSockets: 256
   const agent = new Agent({
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
     connectTimeout,
-    keepAliveTimeout: 4000, // matches agentkeepalive's freeSocketTimeout
-    keepAliveMaxTimeout: 15000, // max time to keep socket alive
+    keepAliveTimeout: 4000,
+    keepAliveMaxTimeout: 15000,
     connect: isHttps
       ? {
         ca: ca as string | undefined,
@@ -185,29 +214,53 @@ function checkNoProxy (parsedUri: URL, opts: { noProxy?: boolean | string }): bo
   return opts.noProxy === true
 }
 
-function pickSslConfigByUrl (
-  sslConfigs: Record<string, SslConfig> | undefined,
-  parsedUri: URL
-): SslConfig | undefined {
-  if (!sslConfigs) return undefined
+/**
+ * Pick SSL/TLS configuration by URL using nerf-dart matching.
+ * This matches the behavior of @pnpm/network.config's pickSettingByUrl.
+ */
+function pickSettingByUrl<T> (
+  settings: Record<string, T> | undefined,
+  uri: string
+): T | undefined {
+  if (!settings) return undefined
 
-  const host = parsedUri.host
-  const hostWithoutPort = parsedUri.hostname
+  // Try exact match first
+  if (settings[uri]) return settings[uri]
 
-  // Try exact match with host (including port)
-  const hostKey = `//${host}/`
-  if (sslConfigs[hostKey]) return sslConfigs[hostKey]
+  // Use nerf-dart format for matching (e.g., //registry.npmjs.org/)
+  const nerf = nerfDart(uri)
+  if (settings[nerf]) return settings[nerf]
 
-  // Try match without port
-  const hostWithoutPortKey = `//${hostWithoutPort}/`
-  if (sslConfigs[hostWithoutPortKey]) return sslConfigs[hostWithoutPortKey]
+  // Try without port
+  const parsedUrl = new URL(uri)
+  const withoutPort = removePort(parsedUrl)
+  if (settings[withoutPort]) return settings[withoutPort]
 
-  // Try matching by iterating through keys
-  for (const key of Object.keys(sslConfigs)) {
-    if (parsedUri.href.includes(key.replace(/^\/\//, '').replace(/\/$/, ''))) {
-      return sslConfigs[key]
+  // Try progressively shorter nerf-dart paths
+  const maxParts = Object.keys(settings).reduce((max, key) => {
+    const parts = key.split('/').length
+    return parts > max ? parts : max
+  }, 0)
+  const parts = nerf.split('/')
+  for (let i = Math.min(parts.length, maxParts) - 1; i >= 3; i--) {
+    const key = `${parts.slice(0, i).join('/')}/`
+    if (settings[key]) {
+      return settings[key]
     }
   }
 
+  // If the URL had a port, try again without it
+  if (withoutPort !== uri) {
+    return pickSettingByUrl(settings, withoutPort)
+  }
+
   return undefined
+}
+
+function removePort (parsedUrl: URL): string {
+  if (parsedUrl.port === '') return parsedUrl.href
+  const copy = new URL(parsedUrl.href)
+  copy.port = ''
+  const res = copy.toString()
+  return res.endsWith('/') ? res : `${res}/`
 }

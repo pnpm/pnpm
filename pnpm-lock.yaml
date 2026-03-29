@@ -6616,9 +6616,15 @@ importers:
 
   network/fetch:
     dependencies:
+      '@pnpm/config.nerf-dart':
+        specifier: 'catalog:'
+        version: 1.0.0
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../core/core-loggers
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       '@pnpm/fetching.types':
         specifier: workspace:*
         version: link:../../fetching/types

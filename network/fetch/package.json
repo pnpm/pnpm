@@ -33,7 +33,9 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/config.nerf-dart": "catalog:",
     "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/fetching.types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/retry": "catalog:",
