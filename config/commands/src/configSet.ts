@@ -30,7 +30,7 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
     const configPath = opts.global
       ? path.join(opts.configDir, 'rc')
       : path.join(opts.dir, '.npmrc')
-    if (value != null && typeof value !== 'string') {
+    if (value != null && typeof value !== 'string' && isStringOnlyIniKey(key)) {
       throw new PnpmError('CONFIG_SET_AUTH_NON_STRING', `Cannot set ${key} to a non-string value (${JSON.stringify(value)})`)
     }
     const settings = await safeReadIniFile(configPath)
@@ -197,6 +197,15 @@ function validateWorkspaceKey (key: string): string {
   if (Object.hasOwn(types, key)) return camelCase(key)
   if (!isCamelCase(key)) throw new ConfigSetUnsupportedWorkspaceKeyError(key)
   return key
+}
+
+const STRING_ONLY_INI_KEYS = ['_auth', '_authToken', '_password', 'username', 'registry']
+
+function isStringOnlyIniKey (key: string): boolean {
+  if (STRING_ONLY_INI_KEYS.includes(key)) return true
+  if (key.startsWith('@')) return true
+  if (key.startsWith('//')) return true
+  return false
 }
 
 async function safeReadIniFile (configPath: string): Promise<Record<string, unknown>> {

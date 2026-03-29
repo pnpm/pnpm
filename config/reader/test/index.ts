@@ -444,6 +444,47 @@ test('registries in current directory\'s .npmrc have bigger priority then global
   })
 })
 
+test('auth tokens from pnpm global rc override ~/.npmrc', async () => {
+  prepareEmpty()
+
+  // Set up a userconfig (.npmrc) with a stale token
+  fs.writeFileSync('.npmrc', '//registry.npmjs.org/:_authToken=stale-token', 'utf8')
+
+  // Set up a pnpm global rc with a fresh token via XDG_CONFIG_HOME
+  const configHome = path.resolve('xdg-config')
+  fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
+  fs.writeFileSync(
+    path.join(configHome, 'pnpm', 'rc'),
+    '//registry.npmjs.org/:_authToken=fresh-token'
+  )
+
+  const originalXdg = process.env.XDG_CONFIG_HOME
+  process.env.XDG_CONFIG_HOME = configHome
+  try {
+    const { config } = await getConfig({
+      cliOptions: {
+        userconfig: path.resolve('.npmrc'),
+      },
+      env: {
+        ...env,
+        XDG_CONFIG_HOME: configHome,
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(config.rawConfig['//registry.npmjs.org/:_authToken']).toBe('fresh-token')
+  } finally {
+    if (originalXdg != null) {
+      process.env.XDG_CONFIG_HOME = originalXdg
+    } else {
+      delete process.env.XDG_CONFIG_HOME
+    }
+  }
+})
+
 test('throw error if --save-prod is used with --save-peer', async () => {
   await expect(getConfig({
     cliOptions: {
