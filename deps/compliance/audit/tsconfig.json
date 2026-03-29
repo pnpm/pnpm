@@ -46,6 +46,9 @@
       "path": "../../../network/fetch"
     },
     {
+      "path": "../../../testing/mock-agent"
+    },
+    {
       "path": "../../../workspace/project-manifest-reader"
     }
   ]

@@ -66,11 +66,11 @@
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/shell.path": "workspace:*",
+    "@pnpm/testing.mock-agent": "workspace:*",
     "@types/cross-spawn": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
-    "cross-spawn": "catalog:",
-    "nock": "catalog:"
+    "cross-spawn": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

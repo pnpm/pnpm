@@ -52,8 +52,7 @@
     "@pnpm/fetching.tarball-fetcher": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
     "@pnpm/resolving.default-resolver": "workspace:*",
-    "@pnpm/store.cafs-types": "workspace:*",
-    "node-fetch": "catalog:"
+    "@pnpm/store.cafs-types": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

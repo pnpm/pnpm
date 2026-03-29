@@ -5,8 +5,8 @@ import { add } from '@pnpm/installing.commands'
 import type { LockfileFile } from '@pnpm/lockfile.types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
+import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import { loadJsonFileSync } from 'load-json-file'
-import nock from 'nock'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
@@ -20,9 +20,8 @@ const createOptions = (saveCatalogName = 'default'): add.AddCommandOptions => ({
   storeDir: path.resolve('store'),
 })
 
-afterEach(() => {
-  nock.abortPendingRequests()
-  nock.cleanAll()
+afterEach(async () => {
+  await teardownMockAgent()
 })
 
 test('saveCatalogName creates new workspace manifest with the new catalogs', async () => {
@@ -79,8 +78,10 @@ test('saveCatalogName works with different protocols', async () => {
   })
   // Mock the HEAD request that isRepoPublic() in @pnpm/resolving.git-resolver makes.
   // Without this, transient network failures cause fallback to git+https:// resolution.
-  const githubNock = nock('https://github.com', { allowUnmocked: true })
-    .head('/kevva/is-positive')
+  await setupMockAgent()
+  getMockAgent().enableNetConnect()
+  getMockAgent().get('https://github.com')
+    .intercept({ path: '/kevva/is-positive', method: 'HEAD' })
     .reply(200)
 
   const options = createOptions()
@@ -139,7 +140,6 @@ test('saveCatalogName works with different protocols', async () => {
       },
     },
   } as Partial<LockfileFile>))
-  githubNock.done()
 })
 
 test('saveCatalogName does not work with local dependencies', async () => {

@@ -74,12 +74,12 @@
     "@pnpm/network.fetch": "workspace:*",
     "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/testing.mock-agent": "workspace:*",
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
     "@types/ssri": "catalog:",
     "load-json-file": "catalog:",
-    "nock": "catalog:",
     "tempy": "catalog:"
   },
   "engines": {

@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import { audit } from '@pnpm/deps.compliance.commands'
 import { fixtures } from '@pnpm/test-fixtures'
-import nock from 'nock'
+import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS } from './utils/options.js'
@@ -10,11 +10,19 @@ import * as responses from './utils/responses/index.js'
 
 const f = fixtures(import.meta.dirname)
 
+beforeEach(async () => {
+  await setupMockAgent()
+})
+
+afterEach(async () => {
+  await teardownMockAgent()
+})
+
 test('ignores are added for vulnerable dependencies with no resolutions', async () => {
   const tmp = f.prepare('has-vulnerabilities')
 
-  nock(AUDIT_REGISTRY)
-    .post('/-/npm/v1/security/audits/quick')
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
@@ -38,8 +46,8 @@ test('ignores are added for vulnerable dependencies with no resolutions', async 
 test('the specified vulnerabilities are ignored', async () => {
   const tmp = f.prepare('has-vulnerabilities')
 
-  nock(AUDIT_REGISTRY)
-    .post('/-/npm/v1/security/audits/quick')
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
@@ -61,8 +69,8 @@ test('the specified vulnerabilities are ignored', async () => {
 test('no ignores are added if no vulnerabilities are found', async () => {
   const tmp = f.prepare('fixture')
 
-  nock(AUDIT_REGISTRY)
-    .post('/-/npm/v1/security/audits/quick')
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
     .reply(200, responses.NO_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
@@ -87,8 +95,8 @@ test('ignored CVEs are not duplicated', async () => {
     'CVE-2017-16024',
   ]
 
-  nock(AUDIT_REGISTRY)
-    .post('/-/npm/v1/security/audits/quick')
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
