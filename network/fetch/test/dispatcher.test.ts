@@ -142,12 +142,12 @@ describe('SOCKS proxy', () => {
     const socksServer = net.createServer((socket) => {
       // SOCKS5 handshake
       socket.once('data', (data) => {
-        // Client greeting: version, nmethods, methods
+        // Client greeting: version, method count, methods
         if (data[0] === 0x05) {
           // Reply: version 5, no auth required
           socket.write(Buffer.from([0x05, 0x00]))
           socket.once('data', (connectData) => {
-            // Connect request: version, cmd=connect, rsv, atyp, addr, port
+            // Connect request: version, cmd=connect, reserved, address type, addr, port
             const port = connectData.readUInt16BE(connectData.length - 2)
             // Reply: success
             socket.write(Buffer.from([0x05, 0x00, 0x00, 0x01, 127, 0, 0, 1, (port >> 8) & 0xff, port & 0xff]))
