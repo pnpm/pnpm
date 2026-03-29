@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import net from 'node:net'
 import tls from 'node:tls'
 import { URL } from 'node:url'
@@ -84,6 +85,14 @@ function parseProxyUrl (proxy: string, protocol: string): URL {
   }
 }
 
+function hashCredentials (proxyUrl: URL): string {
+  if (!proxyUrl.username) return 'no-auth'
+  return crypto.createHash('sha256')
+    .update(`${proxyUrl.username}:${proxyUrl.password}`)
+    .digest('hex')
+    .slice(0, 16)
+}
+
 function getSocksProxyType (protocol: string): 4 | 5 {
   switch (protocol.replace(':', '')) {
     case 'socks4':
@@ -106,7 +115,7 @@ function getProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispatche
   const { ca, cert, key: certKey } = { ...opts, ...sslConfig }
 
   const key = [
-    `proxy:${proxyUrl.protocol}//${proxyUrl.username}:${proxyUrl.password}@${proxyUrl.host}:${proxyUrl.port}`,
+    `proxy:${proxyUrl.protocol}//${proxyUrl.host}:${proxyUrl.port}:${hashCredentials(proxyUrl)}`,
     `https:${isHttps.toString()}`,
     `local-address:${opts.localAddress ?? '>no-local-address<'}`,
     `max-sockets:${(opts.maxSockets ?? DEFAULT_MAX_SOCKETS).toString()}`,
@@ -146,15 +155,15 @@ function createHttpProxyDispatcher (
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
     requestTls: isHttps
       ? {
-        ca: tlsConfig.ca as string | undefined,
-        cert: tlsConfig.cert as string | undefined,
-        key: tlsConfig.key as string | undefined,
+        ca: tlsConfig.ca,
+        cert: tlsConfig.cert,
+        key: tlsConfig.key,
         rejectUnauthorized: opts.strictSsl ?? true,
         localAddress: opts.localAddress,
       }
       : undefined,
     proxyTls: {
-      ca: opts.ca as string | undefined,
+      ca: opts.ca,
       rejectUnauthorized: opts.strictSsl ?? true,
     },
   })
@@ -194,9 +203,9 @@ function createSocksDispatcher (
           const tlsOpts: tls.ConnectionOptions = {
             socket: socket as net.Socket,
             servername: connectOpts.hostname!,
-            ca: tlsConfig.ca as string | undefined,
-            cert: tlsConfig.cert as string | undefined,
-            key: tlsConfig.key as string | undefined,
+            ca: tlsConfig.ca,
+            cert: tlsConfig.cert,
+            key: tlsConfig.key,
             rejectUnauthorized: opts.strictSsl ?? true,
           }
           const tlsSocket = tls.connect(tlsOpts)
@@ -247,9 +256,9 @@ function getNonProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispat
     keepAliveMaxTimeout: 15000,
     connect: isHttps
       ? {
-        ca: ca as string | undefined,
-        cert: cert as string | undefined,
-        key: certKey as string | undefined,
+        ca,
+        cert,
+        key: certKey,
         rejectUnauthorized: opts.strictSsl ?? true,
         localAddress: opts.localAddress,
       }

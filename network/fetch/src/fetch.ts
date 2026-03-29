@@ -100,7 +100,7 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
             maxRetries,
             method: opts.method ?? 'GET',
             timeout: retryTimeout,
-            url: url.toString(),
+            url: urlString,
           })
         } finally {
           if (timeoutId) clearTimeout(timeoutId)

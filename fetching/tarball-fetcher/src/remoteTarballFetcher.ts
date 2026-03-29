@@ -174,12 +174,12 @@ export function createDownloader (
           offset += chunk.byteLength
         }
       } catch (err: unknown) {
-        assert(util.types.isNativeError(err))
-        Object.assign(err, {
+        const error = util.types.isNativeError(err) ? err : new Error(String(err), { cause: err })
+        Object.assign(error, {
           attempts: currentAttempt,
           resource: url,
         })
-        throw err
+        throw error
       }
       return addFilesFromTarball({
         buffer: data,

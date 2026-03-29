@@ -37,10 +37,10 @@
   "peerDependencies": {
     "@pnpm/network.fetch": "workspace:*"
   },
-  "devDependencies": {
-    "@pnpm/testing.mock-agent": "workspace:*"
-  },
   "engines": {
     "node": ">=22.13"
+  },
+  "devDependencies": {
+    "@pnpm/testing.mock-agent": "workspace:*"
   }
 }
