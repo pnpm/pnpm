@@ -337,6 +337,24 @@ export function linkExePlatformBinary (installDir: string): void {
   const src = path.join(platformPkgDir, executable)
   if (!fs.existsSync(src)) return
   const dest = path.join(exePkgDir, executable)
+  forceLink(src, dest)
+
+  // Create pn alias (hardlink to the same binary)
+  const pnExecutable = platform === 'win' ? 'pn.exe' : 'pn'
+  forceLink(src, path.join(exePkgDir, pnExecutable))
+
+  if (platform === 'win') {
+    const exePkgJsonPath = path.join(exePkgDir, 'package.json')
+    const exePkg = JSON.parse(fs.readFileSync(exePkgJsonPath, 'utf8'))
+    exePkg.bin.pnpm = 'pnpm.exe'
+    exePkg.bin.pn = 'pn.exe'
+    exePkg.bin.pnpx = 'pnpx.cmd'
+    exePkg.bin.pnx = 'pnx.cmd'
+    fs.writeFileSync(exePkgJsonPath, JSON.stringify(exePkg, null, 2))
+  }
+}
+
+function forceLink (src: string, dest: string): void {
   try {
     fs.unlinkSync(dest)
   } catch (err: unknown) {
@@ -346,14 +364,6 @@ export function linkExePlatformBinary (installDir: string): void {
   }
   fs.linkSync(src, dest)
   fs.chmodSync(dest, 0o755)
-  if (platform === 'win') {
-    const exePkgJsonPath = path.join(exePkgDir, 'package.json')
-    const exePkg = JSON.parse(fs.readFileSync(exePkgJsonPath, 'utf8'))
-    fs.writeFileSync(path.join(exePkgDir, 'pnpm'), 'This file intentionally left blank')
-    exePkg.bin.pnpm = 'pnpm.exe'
-    exePkg.bin.pn = 'pn.exe'
-    fs.writeFileSync(exePkgJsonPath, JSON.stringify(exePkg, null, 2))
-  }
 }
 
 function buildLockfileFromEnvLockfile (

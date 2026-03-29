@@ -7466,9 +7466,15 @@ importers:
         specifier: 'catalog:'
         version: 0.1.19
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/exe':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/jest-config':
+        specifier: workspace:*
+        version: link:../../../__utils__/jest-config
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.3.0

@@ -25,10 +25,6 @@ linkSync(bin, path.resolve(ownDir, executable))
 const pnExecutable = platform === 'win' ? 'pn.exe' : 'pn'
 linkSync(bin, path.resolve(ownDir, pnExecutable))
 
-// Create pnpx and pnx scripts
-createShellScript(ownDir, 'pnpx', 'pnpm dlx')
-createShellScript(ownDir, 'pnx', 'pnpm dlx')
-
 if (platform === 'win') {
   // On Windows, also hardlink the binary as 'pnpm' and 'pn' (no .exe
   // extension). npm's bin shims point to the name from publishConfig.bin,
@@ -56,13 +52,4 @@ function linkSync(src, dest) {
     }
   }
   return fs.linkSync(src, dest)
-}
-
-function createShellScript(dir, name, command) {
-  fs.writeFileSync(path.resolve(dir, name), `#!/bin/sh\nexec ${command} "$@"\n`, { mode: 0o755 })
-
-  if (platform === 'win') {
-    fs.writeFileSync(path.resolve(dir, name + '.cmd'), `@echo off\n${command} %*\n`)
-    fs.writeFileSync(path.resolve(dir, name + '.ps1'), `${command} @args\n`)
-  }
 }

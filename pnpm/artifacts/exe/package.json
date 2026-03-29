@@ -18,7 +18,11 @@
   "files": [
     "setup.js",
     "prepare.js",
-    "dist/"
+    "dist/",
+    "pnpx.cmd",
+    "pnpx.ps1",
+    "pnx.cmd",
+    "pnx.ps1"
   ],
   "scripts": {
     "preinstall": "node setup.js",
@@ -37,9 +41,14 @@
     "@pnpm/win-x64": "workspace:*"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/exe": "workspace:*",
+    "@pnpm/jest-config": "workspace:*",
     "execa": "catalog:",
     "tar": "catalog:"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   },
   "preferGlobal": true,
   "publishConfig": {
