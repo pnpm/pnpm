@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import net from 'node:net'
 import tls from 'node:tls'
 import { URL } from 'node:url'
@@ -11,7 +12,14 @@ import { Agent, type Dispatcher, ProxyAgent } from 'undici'
 
 const DEFAULT_MAX_SOCKETS = 50
 
-const DISPATCHER_CACHE = new LRUCache<string, Dispatcher>({ max: 50 })
+const DISPATCHER_CACHE = new LRUCache<string, Dispatcher>({
+  max: 50,
+  dispose: (dispatcher) => {
+    if (typeof (dispatcher as Agent).close === 'function') {
+      void (dispatcher as Agent).close()
+    }
+  },
+})
 
 export interface DispatcherOptions {
   ca?: string | string[] | Buffer
@@ -84,6 +92,12 @@ function parseProxyUrl (proxy: string, protocol: string): URL {
   }
 }
 
+function fingerprintTlsValue (value: string | string[] | Buffer | undefined): string {
+  if (!value) return '-'
+  const data = Array.isArray(value) ? value.join('\n') : value
+  return crypto.createHash('sha256').update(data).digest('hex').slice(0, 12)
+}
+
 function proxyAuthFingerprint (proxyUrl: URL): string {
   if (!proxyUrl.username) return 'no-auth'
   // Include auth presence and lengths in the cache key without storing credentials.
@@ -119,9 +133,9 @@ function getProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispatche
     `local-address:${opts.localAddress ?? '>no-local-address<'}`,
     `max-sockets:${(opts.maxSockets ?? DEFAULT_MAX_SOCKETS).toString()}`,
     `strict-ssl:${isHttps ? Boolean(opts.strictSsl).toString() : '>no-strict-ssl<'}`,
-    `ca:${(isHttps && ca?.toString()) || '>no-ca<'}`,
-    `cert:${(isHttps && cert?.toString()) || '>no-cert<'}`,
-    `key:${(isHttps && certKey?.toString()) || '>no-key<'}`,
+    `ca:${isHttps ? fingerprintTlsValue(ca) : '-'}`,
+    `cert:${isHttps ? fingerprintTlsValue(cert) : '-'}`,
+    `key:${isHttps ? fingerprintTlsValue(certKey) : '-'}`,
   ].join(':')
 
   if (DISPATCHER_CACHE.has(key)) {
@@ -235,9 +249,9 @@ function getNonProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispat
     `local-address:${opts.localAddress ?? '>no-local-address<'}`,
     `max-sockets:${(opts.maxSockets ?? DEFAULT_MAX_SOCKETS).toString()}`,
     `strict-ssl:${isHttps ? Boolean(opts.strictSsl).toString() : '>no-strict-ssl<'}`,
-    `ca:${(isHttps && ca?.toString()) || '>no-ca<'}`,
-    `cert:${(isHttps && cert?.toString()) || '>no-cert<'}`,
-    `key:${(isHttps && certKey?.toString()) || '>no-key<'}`,
+    `ca:${isHttps ? fingerprintTlsValue(ca) : '-'}`,
+    `cert:${isHttps ? fingerprintTlsValue(cert) : '-'}`,
+    `key:${isHttps ? fingerprintTlsValue(certKey) : '-'}`,
   ].join(':')
 
   if (DISPATCHER_CACHE.has(key)) {

@@ -107,10 +107,18 @@ describe('optional dependencies', () => {
     }
 
     const mockPool = getMockAgent().get(registries.default.replace(/\/$/, ''))
-    // First request: abbreviated metadata for regular dependency
-    mockPool.intercept({ path: '/cache-test', method: 'GET' }).reply(200, abbreviatedMeta)
-    // Second request: full metadata for optional dependency
-    mockPool.intercept({ path: '/cache-test', method: 'GET' }).reply(200, fullMeta)
+    // First request: abbreviated metadata for regular dependency (accept header prefers abbreviated)
+    mockPool.intercept({
+      path: '/cache-test',
+      method: 'GET',
+      headers: { accept: /application\/vnd\.npm\.install-v1\+json/ },
+    }).reply(200, abbreviatedMeta)
+    // Second request: full metadata for optional dependency (accept header prefers full JSON)
+    mockPool.intercept({
+      path: '/cache-test',
+      method: 'GET',
+      headers: { accept: /application\/json/ },
+    }).reply(200, fullMeta)
 
     const cacheDir = temporaryDirectory()
 
