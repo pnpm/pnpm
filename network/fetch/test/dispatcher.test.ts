@@ -1,7 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import net from 'node:net'
 
-import { clearDispatcherCache, getDispatcher, type DispatcherOptions } from '@pnpm/network.fetch'
+import { clearDispatcherCache, type DispatcherOptions, getDispatcher } from '@pnpm/network.fetch'
 import { Agent, ProxyAgent } from 'undici'
 
 afterEach(() => {
