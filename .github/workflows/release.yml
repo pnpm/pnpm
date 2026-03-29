@@ -32,10 +32,10 @@ jobs:
         with:
           standalone: true
       - name: Setup Node
-        run: pnpm runtime -g set node 25.6.1
+        run: pn runtime -g set node 25.6.1
         timeout-minutes: 2
       - name: pnpm install
-        run: pnpm install
+        run: pn install
       - name: Publish Packages
         continue-on-error: true
         env:
@@ -43,12 +43,12 @@ jobs:
           # probably "pnpm release" doesn't pass auth tokens to child processes
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          npm config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}" # pnpm config set is broken
-          pnpm release
+          pn config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}" # pnpm config set is broken
+          pn release
       - name: Copy Artifacts
-        run: pnpm run copy-artifacts
+        run: pn copy-artifacts
       - name: Generate release description
-        run: pnpm run make-release-description
+        run: pn make-release-description
       - name: Release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
         with:
