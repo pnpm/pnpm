@@ -35,8 +35,8 @@ test('prepare writes correct content for all bin files', () => {
 
   // Windows wrappers should exist
   for (const name of ['pnpx', 'pnx']) {
-    expect(fs.readFileSync(path.join(exeDir, name + '.cmd'), 'utf8')).toBe(`@echo off\npnpm dlx %*\n`)
-    expect(fs.readFileSync(path.join(exeDir, name + '.ps1'), 'utf8')).toBe(`pnpm dlx @args\n`)
+    expect(fs.readFileSync(path.join(exeDir, name + '.cmd'), 'utf8')).toBe('@echo off\npnpm dlx %*\n')
+    expect(fs.readFileSync(path.join(exeDir, name + '.ps1'), 'utf8')).toBe('pnpm dlx @args\n')
   }
 });
 
