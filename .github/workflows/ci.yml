@@ -13,7 +13,7 @@ jobs:
     if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository || github.head_ref == 'chore/update-lockfile' }}
 
     name: Compile & Lint
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
     - name: Checkout Commit
