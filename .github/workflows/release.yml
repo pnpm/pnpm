@@ -43,7 +43,7 @@ jobs:
           # probably "pnpm release" doesn't pass auth tokens to child processes
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          pn config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}" # pnpm config set is broken
+          pn config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
           pn release
       - name: Copy Artifacts
         run: pn copy-artifacts
