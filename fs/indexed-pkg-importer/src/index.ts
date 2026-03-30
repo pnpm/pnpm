@@ -33,7 +33,7 @@ function createImportPackage (packageImportMethod?: PackageImportMethod): Import
       return createClonePkg()
     case 'hardlink':
       packageImportMethodLogger.debug({ method: 'hardlink' })
-      return hardlinkPkg.bind(null, linkOrCopy)
+      return createHardlinkPkg(linkOrCopy)
     case 'auto': {
       return createAutoImporter()
     }
@@ -76,9 +76,10 @@ function createAutoImporter (): ImportIndexedPackage {
       }
     }
     try {
-      if (!hardlinkPkg(fs.linkSync, to, opts)) return undefined
+      const hardlinkProbe = createHardlinkPkg(fs.linkSync)
+      if (!hardlinkProbe(to, opts)) return undefined
       packageImportMethodLogger.debug({ method: 'hardlink' })
-      auto = hardlinkPkg.bind(null, linkOrCopy)
+      auto = createHardlinkPkg(linkOrCopy)
       return 'hardlink'
     } catch (err: unknown) {
       assert(util.types.isNativeError(err))
@@ -91,7 +92,7 @@ function createAutoImporter (): ImportIndexedPackage {
       }
       // We still choose hard linking that will fall back to copying in edge cases.
       packageImportMethodLogger.debug({ method: 'hardlink' })
-      auto = hardlinkPkg.bind(null, linkOrCopy)
+      auto = createHardlinkPkg(linkOrCopy)
       return auto(to, opts)
     }
   }
@@ -123,6 +124,27 @@ function createCloneOrCopyImporter (): ImportIndexedPackage {
 type CloneFunction = (src: string, dest: string) => void
 
 /**
+ * Creates an ImportIndexedPackage function from an importer and method name.
+ * Most import methods share the same structure: check whether import is needed,
+ * call importIndexedDir, return the method name.
+ */
+function createPkgImporter (
+  method: string,
+  importer: Importer,
+  needsImport: (to: string, opts: ImportOptions) => boolean = needsNewImport
+): ImportIndexedPackage {
+  return (to: string, opts: ImportOptions) => {
+    if (!needsImport(to, opts)) return undefined
+    importIndexedDir(importer, to, opts.filesMap, opts)
+    return method
+  }
+}
+
+function needsNewImport (to: string, opts: ImportOptions): boolean {
+  return opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)
+}
+
+/**
  * Import a single package using a raw clone function (no ENOTSUP fallback).
  * Used by auto-mode to probe whether the filesystem supports cloning.
  * If cloning isn't supported, the error propagates so the caller can fall
@@ -131,13 +153,9 @@ type CloneFunction = (src: string, dest: string) => void
 function tryClonePkg (
   to: string,
   opts: ImportOptions
-): 'clone' | undefined {
-  if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
-    const clone = createCloneFunction()
-    importIndexedDir({ importFile: clone, importFileAtomic: clone }, to, opts.filesMap, opts)
-    return 'clone'
-  }
-  return undefined
+): string | undefined {
+  const clone = createCloneFunction()
+  return createPkgImporter('clone', { importFile: clone, importFileAtomic: clone })(to, opts)
 }
 
 /**
@@ -161,17 +179,10 @@ function createClonePkg (): ImportIndexedPackage {
       throw err
     }
   }
-  const importer: Importer = {
+  return createPkgImporter('clone', {
     importFile: withFallback(resilientCopyFileSync),
     importFileAtomic: withFallback(atomicCopyFileSync),
-  }
-  return (to: string, opts: ImportOptions) => {
-    if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
-      importIndexedDir(importer, to, opts.filesMap, opts)
-      return 'clone'
-    }
-    return undefined
-  }
+  })
 }
 
 function pkgExistsAtTargetDir (targetDir: string, filesMap: FilesMap): boolean {
@@ -222,16 +233,12 @@ function createCloneFunction (): CloneFunction {
   return _cloneFunction
 }
 
-function hardlinkPkg (
-  importFile: ImportFile,
-  to: string,
-  opts: ImportOptions
-): 'hardlink' | undefined {
-  if (opts.force || shouldRelinkPkg(to, opts)) {
-    importIndexedDir({ importFile, importFileAtomic: importFile }, to, opts.filesMap, opts)
-    return 'hardlink'
-  }
-  return undefined
+function createHardlinkPkg (importFile: ImportFile): ImportIndexedPackage {
+  return createPkgImporter(
+    'hardlink',
+    { importFile, importFileAtomic: importFile },
+    (to, opts) => opts.force || shouldRelinkPkg(to, opts)
+  )
 }
 
 function shouldRelinkPkg (
@@ -294,19 +301,13 @@ function pkgLinkedToStore (filesMap: FilesMap, linkedPkgDir: string): boolean {
   return false
 }
 
-export function copyPkg (
-  to: string,
-  opts: ImportOptions
-): 'copy' | undefined {
-  if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
-    // copyFileSync is not atomic on non-COW filesystems: a crash mid-copy
-    // can leave a partially-written file.  package.json is the completion
-    // marker, so it must be written atomically via temp file + rename.
-    importIndexedDir({ importFile: resilientCopyFileSync, importFileAtomic: atomicCopyFileSync }, to, opts.filesMap, opts)
-    return 'copy'
-  }
-  return undefined
-}
+// copyFileSync is not atomic on non-COW filesystems: a crash mid-copy
+// can leave a partially-written file.  package.json is the completion
+// marker, so it must be written atomically via temp file + rename.
+export const copyPkg: ImportIndexedPackage = createPkgImporter('copy', {
+  importFile: resilientCopyFileSync,
+  importFileAtomic: atomicCopyFileSync,
+})
 
 function atomicCopyFileSync (src: string, dest: string): void {
   const tmp = pathTemp(dest)
