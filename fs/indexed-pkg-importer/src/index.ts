@@ -61,10 +61,16 @@ function createAutoImporter (): ImportIndexedPackage {
     // Hence, we prefer reflinks by default only on Linux and macOS.
     if (process.platform !== 'win32') {
       try {
-        const _clonePkg = createClonePkg()
-        if (!_clonePkg(to, opts)) return undefined
+        // Probe with the raw clone function (no ENOTSUP fallback).
+        // On filesystems that don't support reflinks (e.g. ext4), this
+        // throws and we fall through to hardlinks — which is much faster
+        // than copying.  If the probe succeeds, we switch to the full
+        // clone importer (with ENOTSUP fallback for transient failures
+        // during heavy parallel I/O) for all subsequent packages.
+        const clone = createCloneFunction()
+        if (!clonePkgRaw(clone, to, opts)) return undefined
         packageImportMethodLogger.debug({ method: 'clone' })
-        auto = _clonePkg
+        auto = createClonePkg()
         return 'clone'
       } catch {
         // ignore
@@ -102,10 +108,10 @@ function createCloneOrCopyImporter (): ImportIndexedPackage {
     opts: ImportOptions
   ): string | undefined {
     try {
-      const _clonePkg = createClonePkg()
-      if (!_clonePkg(to, opts)) return undefined
+      const clone = createCloneFunction()
+      if (!clonePkgRaw(clone, to, opts)) return undefined
       packageImportMethodLogger.debug({ method: 'clone' })
-      auto = _clonePkg
+      auto = createClonePkg()
       return 'clone'
     } catch {
       // ignore
@@ -117,6 +123,24 @@ function createCloneOrCopyImporter (): ImportIndexedPackage {
 }
 
 type CloneFunction = (src: string, dest: string) => void
+
+/**
+ * Import a single package using a raw clone function (no ENOTSUP fallback).
+ * Used by auto-mode to probe whether the filesystem supports cloning.
+ * If cloning isn't supported, the error propagates so the caller can fall
+ * through to a faster method (e.g. hardlinks).
+ */
+function clonePkgRaw (
+  clone: CloneFunction,
+  to: string,
+  opts: ImportOptions
+): 'clone' | undefined {
+  if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
+    importIndexedDir({ importFile: clone, importFileAtomic: clone }, to, opts.filesMap, opts)
+    return 'clone'
+  }
+  return undefined
+}
 
 /**
  * Creates a clone-based package importer.  Reflinks are atomic, so clone can

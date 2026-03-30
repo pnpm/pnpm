@@ -300,15 +300,18 @@ testOnLinuxOnly('packageImportMethod=copy: falls back to read+write when copyFil
   )
 })
 
-testOnLinuxOnly('packageImportMethod=auto: clone falls back to copy on ENOTSUP, using atomic write for package.json', () => {
+testOnLinuxOnly('packageImportMethod=auto: ENOTSUP on clone falls through to hardlinks (not copy)', () => {
+  // Regression test: before this fix, the ENOTSUP fallback in createClonePkg()
+  // silently converted clone failures to copies, preventing the auto-importer
+  // from falling through to the much faster hardlink method.  On filesystems
+  // that don't support reflinks (e.g. ext4), this caused pnpm to copy every
+  // file instead of hardlinking — a multi-second regression on large projects.
   const importPackage = createIndexedPkgImporter('auto')
   jest.mocked(gfs.copyFileSync).mockImplementation((_src, _dest, flags?: number) => {
     if (flags === fs.constants.COPYFILE_FICLONE_FORCE) {
       throw Object.assign(new Error('ENOTSUP: operation not supported on socket'), { code: 'ENOTSUP' })
     }
   })
-  jest.mocked(gfs.statSync as jest.Mock).mockReturnValue({ mode: 0o644 })
-  jest.mocked(gfs.readFileSync as jest.Mock).mockReturnValue(Buffer.from('file content'))
   expect(importPackage('project/package', {
     filesMap: new Map([
       ['index.js', 'hash2'],
@@ -316,19 +319,11 @@ testOnLinuxOnly('packageImportMethod=auto: clone falls back to copy on ENOTSUP, 
     ]),
     force: false,
     resolvedFrom: 'remote',
-  })).toBe('clone')
+  })).toBe('hardlink')
 
-  // Regular file: falls back to plain copyFileSync (without reflink flag)
-  expect(gfs.copyFileSync).toHaveBeenCalledWith(
-    path.join('hash2'),
-    path.join('project', 'package', 'index.js')
-  )
-
-  // package.json: falls back to atomic temp+rename
-  expect(renameOverwriteSync).toHaveBeenCalledWith(
-    path.join('project', 'package', 'package.json') + '_tmp',
-    path.join('project', 'package', 'package.json')
-  )
+  // Should use hardlinks, not copyFileSync (without the reflink flag)
+  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash1'), path.join('project', 'package', 'package.json'))
+  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project', 'package', 'index.js'))
 })
 
 testOnLinuxOnly('packageImportMethod=clone: falls back to copy on ENOTSUP, using atomic write for package.json', () => {
