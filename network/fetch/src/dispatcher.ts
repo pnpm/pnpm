@@ -10,8 +10,8 @@ import { SocksClient } from 'socks'
 import { Agent, type Dispatcher, ProxyAgent, setGlobalDispatcher } from 'undici'
 
 const DEFAULT_MAX_SOCKETS = 50
-const KEEP_ALIVE_TIMEOUT = 30_000
-const KEEP_ALIVE_MAX_TIMEOUT = 600_000
+const KEEP_ALIVE_TIMEOUT = 30_000 // 30 seconds
+const KEEP_ALIVE_MAX_TIMEOUT = 600_000 // 10 minutes
 
 // Set an optimized global dispatcher so that requests without custom options
 // (no proxy, no custom certs) still benefit from better keep-alive and Happy Eyeballs.
