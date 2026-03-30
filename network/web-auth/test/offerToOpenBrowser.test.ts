@@ -154,7 +154,7 @@ describe('offerToOpenBrowser', () => {
   it('skips browser prompt on unsupported platform', async () => {
     const execFile = jest.fn<OfferToOpenBrowserExecFile>()
     const context = createMockContext({
-      createReadlineInterface: () => createMockReadlineInterface(),
+      createReadlineInterface: createMockReadlineInterface,
       execFile,
       process: { platform: 'freebsd', stdin: { isTTY: true } },
     })
@@ -240,7 +240,7 @@ describe('offerToOpenBrowser', () => {
 
   it('falls back to plain poll when execFile is not provided', async () => {
     const context = createMockContext({
-      createReadlineInterface: () => createMockReadlineInterface(),
+      createReadlineInterface: createMockReadlineInterface,
     })
 
     const token = await offerToOpenBrowser({
@@ -254,7 +254,7 @@ describe('offerToOpenBrowser', () => {
 
   it('falls back to plain poll when stdin is not a TTY', async () => {
     const context = createMockContext({
-      createReadlineInterface: () => createMockReadlineInterface(),
+      createReadlineInterface: createMockReadlineInterface,
       execFile: jest.fn<OfferToOpenBrowserExecFile>(),
       process: { platform: 'linux', stdin: { isTTY: false } },
     })
