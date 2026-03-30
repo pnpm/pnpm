@@ -300,12 +300,31 @@ testOnLinuxOnly('packageImportMethod=copy: falls back to read+write when copyFil
   )
 })
 
-testOnLinuxOnly('packageImportMethod=auto: ENOTSUP on clone falls through to hardlinks (not copy)', () => {
-  // Regression test: before this fix, the ENOTSUP fallback in createClonePkg()
-  // silently converted clone failures to copies, preventing the auto-importer
-  // from falling through to the much faster hardlink method.  On filesystems
-  // that don't support reflinks (e.g. ext4), this caused pnpm to copy every
-  // file instead of hardlinking — a multi-second regression on large projects.
+testOnLinuxOnly('packageImportMethod=auto: ENOTSUP on clone falls through to hardlinks', () => {
+  const importPackage = createIndexedPkgImporter('auto')
+  jest.mocked(gfs.copyFileSync).mockImplementation((_src, _dest, flags?: number) => {
+    if (flags === fs.constants.COPYFILE_FICLONE_FORCE) {
+      throw Object.assign(new Error('ENOTSUP: operation not supported on socket'), { code: 'ENOTSUP' })
+    }
+  })
+  expect(importPackage('project/package', {
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+      ['package.json', 'hash1'],
+    ]),
+    force: false,
+    resolvedFrom: 'remote',
+  })).toBe('hardlink')
+  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash1'), path.join('project', 'package', 'package.json'))
+  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project', 'package', 'index.js'))
+})
+
+testOnLinuxOnly('packageImportMethod=auto: ENOTSUP on clone uses hardlinks for all subsequent packages too', () => {
+  // Regression test: the ENOTSUP fallback in createClonePkg() used to silently
+  // convert clone failures to copies, so the auto-importer thought cloning
+  // worked and selected it for all packages.  On ext4 (no reflink support),
+  // this caused every file to be copied instead of hardlinked — a multi-second
+  // regression on large projects.
   const importPackage = createIndexedPkgImporter('auto')
   jest.mocked(gfs.copyFileSync).mockImplementation((_src, _dest, flags?: number) => {
     if (flags === fs.constants.COPYFILE_FICLONE_FORCE) {
@@ -321,9 +340,22 @@ testOnLinuxOnly('packageImportMethod=auto: ENOTSUP on clone falls through to har
     resolvedFrom: 'remote',
   })).toBe('hardlink')
 
-  // Should use hardlinks, not copyFileSync (without the reflink flag)
-  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash1'), path.join('project', 'package', 'package.json'))
-  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project', 'package', 'index.js'))
+  jest.mocked(gfs.copyFileSync).mockClear()
+  jest.mocked(gfs.linkSync).mockClear()
+
+  // Second package must also use hardlinks — not copy
+  expect(importPackage('project2/package', {
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+      ['package.json', 'hash1'],
+    ]),
+    force: false,
+    resolvedFrom: 'remote',
+  })).toBe('hardlink')
+  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash1'), path.join('project2', 'package', 'package.json'))
+  expect(gfs.linkSync).toHaveBeenCalledWith(path.join('hash2'), path.join('project2', 'package', 'index.js'))
+  // copyFileSync should not have been called (no clone, no copy fallback)
+  expect(gfs.copyFileSync).not.toHaveBeenCalled()
 })
 
 testOnLinuxOnly('packageImportMethod=clone: falls back to copy on ENOTSUP, using atomic write for package.json', () => {
