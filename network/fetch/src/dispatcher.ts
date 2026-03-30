@@ -7,9 +7,21 @@ import { PnpmError } from '@pnpm/error'
 import type { SslConfig } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
 import { SocksClient } from 'socks'
-import { Agent, type Dispatcher, ProxyAgent } from 'undici'
+import { Agent, type Dispatcher, ProxyAgent, setGlobalDispatcher } from 'undici'
 
 const DEFAULT_MAX_SOCKETS = 50
+
+// Set an optimized global dispatcher so that requests without custom options
+// (no proxy, no custom certs) still benefit from HTTP/2, pipelining, and better keep-alive.
+setGlobalDispatcher(new Agent({
+  allowH2: true,
+  pipelining: 6,
+  keepAliveTimeout: 30_000,
+  keepAliveMaxTimeout: 600_000,
+  connect: {
+    autoSelectFamily: true,
+  },
+}))
 
 const DISPATCHER_CACHE = new LRUCache<string, Dispatcher>({
   max: 50,
@@ -147,11 +159,13 @@ function createHttpProxyDispatcher (
   tlsConfig: { ca?: string | string[] | Buffer, cert?: string | string[] | Buffer, key?: string | Buffer }
 ): Dispatcher {
   return new ProxyAgent({
+    allowH2: isHttps,
     uri: proxyUrl.href,
     token: proxyUrl.username
       ? `Basic ${Buffer.from(`${decodeURIComponent(proxyUrl.username)}:${decodeURIComponent(proxyUrl.password)}`).toString('base64')}`
       : undefined,
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
+    pipelining: 6,
     requestTls: isHttps
       ? {
         ca: tlsConfig.ca,
@@ -180,7 +194,11 @@ function createSocksDispatcher (
   const proxyPort = parseInt(proxyUrl.port, 10) || (socksType === 4 ? 1080 : 1080)
 
   return new Agent({
+    allowH2: isHttps,
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
+    pipelining: 6,
+    keepAliveTimeout: 30_000,
+    keepAliveMaxTimeout: 600_000,
     connect: async (connectOpts, callback) => {
       try {
         const { socket } = await SocksClient.createConnection({
@@ -202,6 +220,7 @@ function createSocksDispatcher (
           const tlsOpts: tls.ConnectionOptions = {
             socket: socket as net.Socket,
             servername: connectOpts.hostname!,
+            ALPNProtocols: ['h2', 'http/1.1'],
             ca: tlsConfig.ca,
             cert: tlsConfig.cert,
             key: tlsConfig.key,
@@ -249,12 +268,15 @@ function getNonProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispat
     : opts.timeout + 1
 
   const agent = new Agent({
+    allowH2: isHttps,
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
     connectTimeout,
-    keepAliveTimeout: 4000,
-    keepAliveMaxTimeout: 15000,
+    pipelining: 6,
+    keepAliveTimeout: 30_000,
+    keepAliveMaxTimeout: 600_000,
     connect: isHttps
       ? {
+        autoSelectFamily: true,
         ca,
         cert,
         key: certKey,
@@ -262,6 +284,7 @@ function getNonProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispat
         localAddress: opts.localAddress,
       }
       : {
+        autoSelectFamily: true,
         localAddress: opts.localAddress,
       },
   })

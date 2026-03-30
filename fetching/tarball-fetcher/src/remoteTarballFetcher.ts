@@ -146,31 +146,42 @@ export function createDownloader (
           : undefined
         const startTime = Date.now()
         let downloaded = 0
-        const chunks: Uint8Array[] = []
-        for await (const chunk of res.body!) {
-          chunks.push(chunk as Uint8Array)
-          downloaded += (chunk as Uint8Array).byteLength
-          onProgress?.(downloaded)
-        }
-        if (size !== null && size !== downloaded) {
-          throw new BadTarballError({
-            expectedSize: size,
-            receivedSize: downloaded,
-            tarballUrl: url,
-          })
+        if (size !== null) {
+          // Known size: pre-allocate and copy directly (avoids intermediate array + second copy pass)
+          data = Buffer.from(new SharedArrayBuffer(size))
+          for await (const chunk of res.body!) {
+            const c = chunk as Uint8Array
+            data.set(c, downloaded)
+            downloaded += c.byteLength
+            onProgress?.(downloaded)
+          }
+          if (size !== downloaded) {
+            throw new BadTarballError({
+              expectedSize: size,
+              receivedSize: downloaded,
+              tarballUrl: url,
+            })
+          }
+        } else {
+          const chunks: Uint8Array[] = []
+          for await (const chunk of res.body!) {
+            const c = chunk as Uint8Array
+            chunks.push(c)
+            downloaded += c.byteLength
+            onProgress?.(downloaded)
+          }
+          data = Buffer.from(new SharedArrayBuffer(downloaded))
+          let offset = 0
+          for (const chunk of chunks) {
+            data.set(chunk, offset)
+            offset += chunk.byteLength
+          }
         }
         const elapsedSec = (Date.now() - startTime) / 1000
         const avgKiBps = Math.floor((downloaded / elapsedSec) / 1024)
         if (downloaded > 0 && elapsedSec > 1 && avgKiBps < fetchMinSpeedKiBps) {
           const sizeKb = Math.floor(downloaded / 1024)
           globalWarn(`Tarball download average speed ${avgKiBps} KiB/s (size ${sizeKb} KiB) is below ${fetchMinSpeedKiBps} KiB/s: ${url} (GET)`)
-        }
-
-        data = Buffer.from(new SharedArrayBuffer(downloaded))
-        let offset: number = 0
-        for (const chunk of chunks) {
-          data.set(chunk, offset)
-          offset += chunk.byteLength
         }
       } catch (err: unknown) {
         const error = util.types.isNativeError(err) ? err : new Error(String(err), { cause: err })
