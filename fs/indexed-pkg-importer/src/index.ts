@@ -68,7 +68,7 @@ function createAutoImporter (): ImportIndexedPackage {
         // clone importer (with ENOTSUP fallback for transient failures
         // during heavy parallel I/O) for all subsequent packages.
         const clone = createCloneFunction()
-        if (!clonePkgRaw(clone, to, opts)) return undefined
+        if (!tryClonePkg(clone, to, opts)) return undefined
         packageImportMethodLogger.debug({ method: 'clone' })
         auto = createClonePkg()
         return 'clone'
@@ -109,7 +109,7 @@ function createCloneOrCopyImporter (): ImportIndexedPackage {
   ): string | undefined {
     try {
       const clone = createCloneFunction()
-      if (!clonePkgRaw(clone, to, opts)) return undefined
+      if (!tryClonePkg(clone, to, opts)) return undefined
       packageImportMethodLogger.debug({ method: 'clone' })
       auto = createClonePkg()
       return 'clone'
@@ -130,7 +130,7 @@ type CloneFunction = (src: string, dest: string) => void
  * If cloning isn't supported, the error propagates so the caller can fall
  * through to a faster method (e.g. hardlinks).
  */
-function clonePkgRaw (
+function tryClonePkg (
   clone: CloneFunction,
   to: string,
   opts: ImportOptions
