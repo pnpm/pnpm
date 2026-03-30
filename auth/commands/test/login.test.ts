@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { PassThrough } from 'node:stream'
 
 import { jest } from '@jest/globals'
 
@@ -12,6 +13,9 @@ const TEST_CONTEXT: LoginContext = {
   enquirer: { prompt: async () => {
     throw new Error('Unexpected call to enquirer.prompt')
   } },
+  execFile: () => {
+    throw new Error('Unexpected call to execFile')
+  },
   fetch: async url => {
     throw new Error(`Unexpected call to fetch: ${url}`)
   },
@@ -22,8 +26,15 @@ const TEST_CONTEXT: LoginContext = {
     throw new Error(`Unexpected call to globalWarn: ${message}`)
   },
   process: {
-    stdin: { isTTY: true },
+    platform: 'linux',
+    stdin: Object.assign(new PassThrough(), { isTTY: true as const }),
     stdout: { isTTY: true },
+  },
+  readline: {
+    createInterface: () => ({
+      once: () => {},
+      close: () => {},
+    }),
   },
   readIniFile: async path => {
     throw new Error(`Unexpected call to readIniFile: ${path}`)
@@ -71,7 +82,8 @@ describe('login', () => {
   it('should throw in non-interactive terminal', async () => {
     const context = createMockContext({
       process: {
-        stdin: { isTTY: false },
+        platform: 'linux',
+        stdin: Object.assign(new PassThrough(), { isTTY: false as const }),
         stdout: { isTTY: true },
       },
     })
@@ -123,7 +135,10 @@ describe('login', () => {
     expect(savedSettings).toMatchObject({
       '//example.com/npm/:_authToken': 'web-auth-token-123',
     })
-    expect(globalInfo.mock.calls).toEqual([[expect.stringContaining('https://example.com/auth/login')]])
+    expect(globalInfo.mock.calls).toEqual([
+      [expect.stringContaining('https://example.com/auth/login')],
+      ['Press ENTER to open in browser...'],
+    ])
   })
 
   it('should fall back to classic login when web login returns 404', async () => {
@@ -559,6 +574,9 @@ describe('login', () => {
     const promise = login({ context, opts })
     await expect(promise).rejects.toHaveProperty(['code'], 'EACCES')
     await expect(promise).rejects.toHaveProperty(['message'], 'EACCES: permission denied')
-    expect(globalInfo.mock.calls).toEqual([[expect.stringContaining('https://example.org/auth/login')]])
+    expect(globalInfo.mock.calls).toEqual([
+      [expect.stringContaining('https://example.org/auth/login')],
+      ['Press ENTER to open in browser...'],
+    ])
   })
 })

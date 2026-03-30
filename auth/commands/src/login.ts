@@ -9,10 +9,11 @@ import { PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { fetch } from '@pnpm/network.fetch'
 import {
-  type EnterKeyListener,
   generateQrCode,
+  offerToOpenBrowser,
+  type OfferToOpenBrowserExecFile,
+  type OfferToOpenBrowserReadline,
   pollForWebAuthToken,
-  pollWithBrowserOpen,
   SyntheticOtpError,
   type WebAuthFetchOptions,
   withOtpHandling,
@@ -129,12 +130,16 @@ export interface LoginContext {
   Date: LoginDate
   setTimeout: (cb: () => void, ms: number) => void
   enquirer: LoginEnquirer
+  execFile: OfferToOpenBrowserExecFile
   fetch: (url: string, options?: LoginFetchOptions) => Promise<LoginFetchResponse>
   globalInfo: (message: string) => void
   globalWarn: (message: string) => void
-  listenForEnter?: () => EnterKeyListener
-  openBrowser?: (url: string) => Promise<void>
-  process: Record<'stdin' | 'stdout', { isTTY?: boolean }>
+  process: {
+    platform: string
+    stdin: NodeJS.ReadableStream & { isTTY?: boolean }
+    stdout: { isTTY?: boolean }
+  }
+  readline: OfferToOpenBrowserReadline
   readIniFile: (configPath: string) => Promise<object>
   writeIniFile: (configPath: string, settings: Record<string, unknown>) => Promise<void>
 }
@@ -143,12 +148,12 @@ export const DEFAULT_CONTEXT: LoginContext = {
   Date,
   setTimeout,
   enquirer,
+  execFile,
   fetch,
   globalInfo,
   globalWarn,
-  listenForEnter: defaultListenForEnter,
-  openBrowser: defaultOpenBrowser,
   process,
+  readline,
   readIniFile,
   writeIniFile,
 }
@@ -204,7 +209,7 @@ export async function login ({ context = DEFAULT_CONTEXT, opts }: LoginParams): 
 }
 
 interface WebLoginParams {
-  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'fetch' | 'globalInfo' | 'globalWarn' | 'listenForEnter' | 'openBrowser'>
+  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'execFile' | 'fetch' | 'globalInfo' | 'globalWarn' | 'process' | 'readline'>
   fetchOptions: WebAuthFetchOptions
   registry: string
 }
@@ -247,7 +252,7 @@ async function webLogin ({
 
   const pollPromise = pollForWebAuthToken({ context, doneUrl: body.doneUrl, fetchOptions })
 
-  return pollWithBrowserOpen({
+  return offerToOpenBrowser({
     authUrl: body.loginUrl,
     context,
     pollPromise,
@@ -255,7 +260,7 @@ async function webLogin ({
 }
 
 interface ClassicLoginParams {
-  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'enquirer' | 'fetch' | 'globalInfo' | 'globalWarn' | 'process'>
+  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'enquirer' | 'execFile' | 'fetch' | 'globalInfo' | 'globalWarn' | 'process' | 'readline'>
   fetchOptions: WebAuthFetchOptions
   registry: string
 }
@@ -368,43 +373,6 @@ async function safeReadIniFile (
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return {}
     throw err
   }
-}
-
-function defaultListenForEnter (): EnterKeyListener {
-  const rl = readline.createInterface({ input: process.stdin })
-  let resolveEnter: () => void
-  const enterPromise = new Promise<void>(resolve => {
-    resolveEnter = resolve
-  })
-  rl.once('line', () => resolveEnter())
-  return {
-    enterPromise,
-    cleanup: () => {
-      rl.close()
-      process.stdin.pause()
-    },
-  }
-}
-
-function defaultOpenBrowser (url: string): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    let cmd: string
-    let args: string[]
-    if (process.platform === 'darwin') {
-      cmd = 'open'
-      args = [url]
-    } else if (process.platform === 'win32') {
-      cmd = 'cmd'
-      args = ['/c', 'start', '', url]
-    } else {
-      cmd = 'xdg-open'
-      args = [url]
-    }
-    execFile(cmd, args, (err) => {
-      if (err) reject(err)
-      else resolve()
-    })
-  })
 }
 
 class LoginNonInteractiveError extends PnpmError {

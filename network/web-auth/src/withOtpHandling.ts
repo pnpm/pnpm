@@ -1,10 +1,10 @@
 import { PnpmError } from '@pnpm/error'
 
 import { generateQrCode } from './generateQrCode.js'
+import type { OfferToOpenBrowserExecFile, OfferToOpenBrowserReadline } from './offerToOpenBrowser.js'
+import { offerToOpenBrowser } from './offerToOpenBrowser.js'
 import type { WebAuthFetchOptions, WebAuthFetchResponse } from './pollForWebAuthToken.js'
 import { pollForWebAuthToken } from './pollForWebAuthToken.js'
-import type { EnterKeyListener } from './pollWithBrowserOpen.js'
-import { pollWithBrowserOpen } from './pollWithBrowserOpen.js'
 
 export interface OtpEnquirer {
   prompt: (options: OtpPromptOptions) => Promise<OtpPromptResponse | undefined>
@@ -28,12 +28,16 @@ export interface OtpContext {
   Date: OtpDate
   setTimeout: (cb: () => void, ms: number) => void
   enquirer: OtpEnquirer
+  execFile?: OfferToOpenBrowserExecFile
   fetch: (url: string, options: WebAuthFetchOptions) => Promise<WebAuthFetchResponse>
   globalInfo: (message: string) => void
   globalWarn: (message: string) => void
-  listenForEnter?: () => EnterKeyListener
-  openBrowser?: (url: string) => Promise<void>
-  process: Record<'stdin' | 'stdout', { isTTY?: boolean }>
+  process: {
+    platform?: string
+    stdin: NodeJS.ReadableStream & { isTTY?: boolean }
+    stdout: { isTTY?: boolean }
+  }
+  readline?: OfferToOpenBrowserReadline
 }
 
 interface OtpErrorBody {
@@ -102,7 +106,7 @@ export async function withOtpHandling<T> ({
         doneUrl: error.body.doneUrl,
         fetchOptions,
       })
-      otp = await pollWithBrowserOpen({
+      otp = await offerToOpenBrowser({
         authUrl: error.body.authUrl,
         context,
         pollPromise,

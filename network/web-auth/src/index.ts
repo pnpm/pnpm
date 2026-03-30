@@ -1,5 +1,14 @@
 export { generateQrCode } from './generateQrCode.js'
 export {
+  offerToOpenBrowser,
+  type OfferToOpenBrowserContext,
+  type OfferToOpenBrowserExecFile,
+  type OfferToOpenBrowserParams,
+  type OfferToOpenBrowserReadline,
+  type OfferToOpenBrowserReadlineInterface,
+  type OfferToOpenBrowserStdin,
+} from './offerToOpenBrowser.js'
+export {
   pollForWebAuthToken,
   type PollForWebAuthTokenParams,
   type WebAuthContext,
@@ -7,12 +16,6 @@ export {
   type WebAuthFetchResponse,
   type WebAuthFetchResponseHeaders,
 } from './pollForWebAuthToken.js'
-export {
-  type EnterKeyListener,
-  pollWithBrowserOpen,
-  type PollWithBrowserOpenContext,
-  type PollWithBrowserOpenParams,
-} from './pollWithBrowserOpen.js'
 export { WebAuthTimeoutError } from './WebAuthTimeoutError.js'
 export {
   isOtpError,

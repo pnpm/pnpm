@@ -1,3 +1,5 @@
+import { PassThrough } from 'node:stream'
+
 import { jest } from '@jest/globals'
 import {
   type OtpContext,
@@ -48,7 +50,7 @@ const createOtpMockContext = (overrides?: Partial<OtpContext>): OtpContext => ({
     throw new Error(`Unexpected call to globalWarn: ${msg}`)
   },
   process: {
-    stdin: { isTTY: true },
+    stdin: Object.assign(new PassThrough(), { isTTY: true as const }),
     stdout: { isTTY: true },
   },
   ...overrides,
@@ -75,7 +77,7 @@ describe('withOtpHandling', () => {
   it('throws OtpNonInteractiveError when terminal is not interactive', async () => {
     const context = createOtpMockContext({
       process: {
-        stdin: { isTTY: false },
+        stdin: Object.assign(new PassThrough(), { isTTY: false as const }),
         stdout: { isTTY: true },
       },
     })
@@ -89,7 +91,7 @@ describe('withOtpHandling', () => {
   it('throws OtpNonInteractiveError when stdout is not interactive', async () => {
     const context = createOtpMockContext({
       process: {
-        stdin: { isTTY: true },
+        stdin: Object.assign(new PassThrough(), { isTTY: true as const }),
         stdout: { isTTY: false },
       },
     })
