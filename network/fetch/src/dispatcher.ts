@@ -13,6 +13,11 @@ const DEFAULT_MAX_SOCKETS = 50
 
 // Set an optimized global dispatcher so that requests without custom options
 // (no proxy, no custom certs) still benefit from better keep-alive and Happy Eyeballs.
+//
+// Note: we intentionally do NOT enable HTTP/2 (allowH2) or HTTP/1.1 pipelining here.
+// With HTTP/2, undici multiplexes many streams over 1-2 TCP connections sharing a single
+// congestion window. In benchmarks this was slower than opening ~50 independent HTTP/1.1
+// connections that each get their own congestion window and can saturate bandwidth in parallel.
 setGlobalDispatcher(new Agent({
   keepAliveTimeout: 30_000,
   keepAliveMaxTimeout: 600_000,
