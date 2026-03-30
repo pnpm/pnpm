@@ -1,6 +1,6 @@
 import {
-  type OtpContext as BaseOtpContext,
   type OfferToOpenBrowserStdin,
+  type OtpContext as BaseOtpContext,
   type WebAuthFetchOptions,
   withOtpHandling,
 } from '@pnpm/network.web-auth'
