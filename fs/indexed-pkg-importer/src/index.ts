@@ -193,13 +193,16 @@ function pickFileFromFilesMap (filesMap: FilesMap): string {
   return filesMap.keys().next().value!
 }
 
+let _cloneFunction: CloneFunction | undefined
+
 function createCloneFunction (): CloneFunction {
+  if (_cloneFunction) return _cloneFunction
   // Node.js currently does not natively support reflinks on Windows and macOS.
   // Hence, we use a third party solution.
   if (process.platform === 'darwin' || process.platform === 'win32') {
     // eslint-disable-next-line
     const { reflinkFileSync } = require('@reflink/reflink') as typeof import('@reflink/reflink')
-    return (fr, to) => {
+    _cloneFunction = (fr, to) => {
       try {
         reflinkFileSync(fr, to)
       } catch (err: unknown) {
@@ -209,14 +212,16 @@ function createCloneFunction (): CloneFunction {
         if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EEXIST') throw err
       }
     }
-  }
-  return (src: string, dest: string) => {
-    try {
-      fs.copyFileSync(src, dest, constants.COPYFILE_FICLONE_FORCE)
-    } catch (err: unknown) {
-      if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
+  } else {
+    _cloneFunction = (src: string, dest: string) => {
+      try {
+        fs.copyFileSync(src, dest, constants.COPYFILE_FICLONE_FORCE)
+      } catch (err: unknown) {
+        if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
+      }
     }
   }
+  return _cloneFunction
 }
 
 function hardlinkPkg (
