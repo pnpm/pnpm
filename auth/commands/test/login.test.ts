@@ -4,13 +4,15 @@ import { jest } from '@jest/globals'
 
 import { login, type LoginContext, type LoginFetchResponse } from '../src/login.js'
 
-type TestStdin = { isTTY: boolean }
-
-const TEST_CONTEXT: LoginContext<TestStdin> = {
+const TEST_CONTEXT: LoginContext = {
   Date: { now: () => 0 },
   setTimeout: cb => {
     cb()
   },
+  createReadlineInterface: () => ({
+    once: () => {},
+    close: () => {},
+  }),
   enquirer: { prompt: async () => {
     throw new Error('Unexpected call to enquirer.prompt')
   } },
@@ -30,12 +32,6 @@ const TEST_CONTEXT: LoginContext<TestStdin> = {
     platform: 'linux',
     stdin: { isTTY: true },
     stdout: { isTTY: true },
-  },
-  readline: {
-    createInterface: () => ({
-      once: () => {},
-      close: () => {},
-    }),
   },
   readIniFile: async path => {
     throw new Error(`Unexpected call to readIniFile: ${path}`)
@@ -74,7 +70,7 @@ const createMockResponse = (init: {
   }
 }
 
-const createMockContext = (overrides?: Partial<LoginContext<TestStdin>>): LoginContext<TestStdin> => ({
+const createMockContext = (overrides?: Partial<LoginContext>): LoginContext => ({
   ...TEST_CONTEXT,
   ...overrides,
 })

@@ -33,9 +33,7 @@ function createMockResponse (init: {
   }
 }
 
-type TestStdin = { isTTY: boolean }
-
-const createOtpMockContext = (overrides?: Partial<OtpContext<TestStdin>>): OtpContext<TestStdin> => ({
+const createOtpMockContext = (overrides?: Partial<OtpContext>): OtpContext => ({
   Date: { now: () => 0 },
   setTimeout: (cb: () => void) => cb(),
   enquirer: { prompt: async () => ({ otp: '123456' }) },

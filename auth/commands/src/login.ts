@@ -13,7 +13,6 @@ import {
   offerToOpenBrowser,
   type OfferToOpenBrowserExecFile,
   type OfferToOpenBrowserReadlineInterface,
-  type OfferToOpenBrowserStdin,
   pollForWebAuthToken,
   SyntheticOtpError,
   type WebAuthFetchOptions,
@@ -127,9 +126,10 @@ export interface LoginFetchOptions {
   timeout?: number
 }
 
-export interface LoginContext<Stdin extends { isTTY?: boolean; pause?: () => void } = OfferToOpenBrowserStdin> {
+export interface LoginContext {
   Date: LoginDate
   setTimeout: (cb: () => void, ms: number) => void
+  createReadlineInterface: () => OfferToOpenBrowserReadlineInterface
   enquirer: LoginEnquirer
   execFile: OfferToOpenBrowserExecFile
   fetch: (url: string, options?: LoginFetchOptions) => Promise<LoginFetchResponse>
@@ -137,11 +137,8 @@ export interface LoginContext<Stdin extends { isTTY?: boolean; pause?: () => voi
   globalWarn: (message: string) => void
   process: {
     platform: string
-    stdin: Stdin
+    stdin: { isTTY?: boolean }
     stdout: { isTTY?: boolean }
-  }
-  readline: {
-    createInterface: (options: { input: Stdin }) => OfferToOpenBrowserReadlineInterface
   }
   readIniFile: (configPath: string) => Promise<object>
   writeIniFile: (configPath: string, settings: Record<string, unknown>) => Promise<void>
@@ -150,29 +147,28 @@ export interface LoginContext<Stdin extends { isTTY?: boolean; pause?: () => voi
 export const DEFAULT_CONTEXT: LoginContext = {
   Date,
   setTimeout,
+  createReadlineInterface: readline.createInterface.bind(null, { input: process.stdin }),
   enquirer,
   execFile,
   fetch,
   globalInfo,
   globalWarn,
   process,
-  readline,
   readIniFile,
   writeIniFile,
 }
 
-export interface LoginParams<Stdin extends { isTTY?: boolean; pause?: () => void } = OfferToOpenBrowserStdin> {
-  context?: LoginContext<Stdin>
+export interface LoginParams {
+  context?: LoginContext
   opts: LoginCommandOptions
 }
 
-export async function login<Stdin extends { isTTY?: boolean; pause?: () => void } = OfferToOpenBrowserStdin> ({ context, opts }: LoginParams<Stdin>): Promise<string> {
-  const ctx = context ?? (DEFAULT_CONTEXT as unknown as LoginContext<Stdin>)
+export async function login ({ context = DEFAULT_CONTEXT, opts }: LoginParams): Promise<string> {
   const {
     process,
     readIniFile,
     writeIniFile,
-  } = ctx
+  } = context
 
   const registry = normalizeRegistryUrl(opts.registry ?? 'https://registry.npmjs.org/')
 
@@ -194,10 +190,10 @@ export async function login<Stdin extends { isTTY?: boolean; pause?: () => void 
   // Try web-based login first, fall back to classic login
   let token: string
   try {
-    token = await webLogin({ context: ctx, fetchOptions, registry })
+    token = await webLogin({ context, fetchOptions, registry })
   } catch (err) {
     if (err instanceof WebLoginError && (err.httpStatus === 404 || err.httpStatus === 405)) {
-      token = await classicLogin({ context: ctx, fetchOptions, registry })
+      token = await classicLogin({ context, fetchOptions, registry })
     } else {
       throw err
     }
@@ -212,17 +208,17 @@ export async function login<Stdin extends { isTTY?: boolean; pause?: () => void 
   return `Logged in on ${registry}`
 }
 
-interface WebLoginParams<Stdin extends { isTTY?: boolean; pause?: () => void }> {
-  context: Pick<LoginContext<Stdin>, 'Date' | 'setTimeout' | 'execFile' | 'fetch' | 'globalInfo' | 'globalWarn' | 'process' | 'readline'>
+interface WebLoginParams {
+  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'createReadlineInterface' | 'execFile' | 'fetch' | 'globalInfo' | 'globalWarn' | 'process'>
   fetchOptions: WebAuthFetchOptions
   registry: string
 }
 
-async function webLogin<Stdin extends { isTTY?: boolean; pause?: () => void }> ({
+async function webLogin ({
   context,
   fetchOptions,
   registry,
-}: WebLoginParams<Stdin>): Promise<string> {
+}: WebLoginParams): Promise<string> {
   const {
     fetch,
     globalInfo,
@@ -263,17 +259,17 @@ async function webLogin<Stdin extends { isTTY?: boolean; pause?: () => void }> (
   })
 }
 
-interface ClassicLoginParams<Stdin extends { isTTY?: boolean; pause?: () => void }> {
-  context: Pick<LoginContext<Stdin>, 'Date' | 'setTimeout' | 'enquirer' | 'execFile' | 'fetch' | 'globalInfo' | 'globalWarn' | 'process' | 'readline'>
+interface ClassicLoginParams {
+  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'createReadlineInterface' | 'enquirer' | 'execFile' | 'fetch' | 'globalInfo' | 'globalWarn' | 'process'>
   fetchOptions: WebAuthFetchOptions
   registry: string
 }
 
-async function classicLogin<Stdin extends { isTTY?: boolean; pause?: () => void }> ({
+async function classicLogin ({
   context,
   fetchOptions,
   registry,
-}: ClassicLoginParams<Stdin>): Promise<string> {
+}: ClassicLoginParams): Promise<string> {
   const { enquirer, fetch, globalInfo, globalWarn } = context
 
   const { username } = await enquirer.prompt({

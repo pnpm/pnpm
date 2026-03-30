@@ -5,7 +5,6 @@ export {
   type OfferToOpenBrowserExecFile,
   type OfferToOpenBrowserParams,
   type OfferToOpenBrowserReadlineInterface,
-  type OfferToOpenBrowserStdin,
 } from './offerToOpenBrowser.js'
 export {
   pollForWebAuthToken,

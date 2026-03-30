@@ -1,7 +1,7 @@
 import { PnpmError } from '@pnpm/error'
 
 import { generateQrCode } from './generateQrCode.js'
-import type { OfferToOpenBrowserExecFile, OfferToOpenBrowserReadlineInterface, OfferToOpenBrowserStdin } from './offerToOpenBrowser.js'
+import type { OfferToOpenBrowserExecFile, OfferToOpenBrowserReadlineInterface } from './offerToOpenBrowser.js'
 import { offerToOpenBrowser } from './offerToOpenBrowser.js'
 import type { WebAuthFetchOptions, WebAuthFetchResponse } from './pollForWebAuthToken.js'
 import { pollForWebAuthToken } from './pollForWebAuthToken.js'
@@ -24,22 +24,16 @@ interface OtpDate {
   now: () => number
 }
 
-export interface OtpContext<Stdin extends { isTTY?: boolean; pause?: () => void } = OfferToOpenBrowserStdin> {
+export interface OtpContext {
   Date: OtpDate
   setTimeout: (cb: () => void, ms: number) => void
+  createReadlineInterface?: () => OfferToOpenBrowserReadlineInterface
   enquirer: OtpEnquirer
   execFile?: OfferToOpenBrowserExecFile
   fetch: (url: string, options: WebAuthFetchOptions) => Promise<WebAuthFetchResponse>
   globalInfo: (message: string) => void
   globalWarn: (message: string) => void
-  process: {
-    platform?: string
-    stdin: Stdin
-    stdout: { isTTY?: boolean }
-  }
-  readline?: {
-    createInterface: (options: { input: Stdin }) => OfferToOpenBrowserReadlineInterface
-  }
+  process: Record<'stdin' | 'stdout', { isTTY?: boolean }> & { platform?: string }
 }
 
 interface OtpErrorBody {
@@ -58,8 +52,8 @@ export const isOtpError = (error: unknown): error is OtpError =>
   'code' in error &&
   error.code === 'EOTP'
 
-export interface OtpHandlingParams<T, Stdin extends { isTTY?: boolean; pause?: () => void } = OfferToOpenBrowserStdin> {
-  context: OtpContext<Stdin>
+export interface OtpHandlingParams<T> {
+  context: OtpContext
   fetchOptions: WebAuthFetchOptions
   operation: (otp?: string) => Promise<T>
 }
@@ -79,11 +73,11 @@ export interface OtpHandlingParams<T, Stdin extends { isTTY?: boolean; pause?: (
  *
  * @see https://github.com/npm/cli/blob/7d900c46/lib/utils/otplease.js for npm's implementation.
  */
-export async function withOtpHandling<T, Stdin extends { isTTY?: boolean; pause?: () => void } = OfferToOpenBrowserStdin> ({
+export async function withOtpHandling<T> ({
   context,
   fetchOptions,
   operation,
-}: OtpHandlingParams<T, Stdin>): Promise<T> {
+}: OtpHandlingParams<T>): Promise<T> {
   const {
     enquirer,
     globalInfo,
