@@ -19,6 +19,7 @@ const DEFAULT_MAX_SOCKETS = 50
 // congestion window. In benchmarks this was slower than opening ~50 independent HTTP/1.1
 // connections that each get their own congestion window and can saturate bandwidth in parallel.
 setGlobalDispatcher(new Agent({
+  connections: DEFAULT_MAX_SOCKETS,
   keepAliveTimeout: 30_000,
   keepAliveMaxTimeout: 600_000,
   connect: {

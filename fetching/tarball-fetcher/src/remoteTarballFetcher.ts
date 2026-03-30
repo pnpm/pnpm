@@ -134,9 +134,8 @@ export function createDownloader (
         }
 
         const contentLength = res.headers.has('content-length') && res.headers.get('content-length')
-        const size = typeof contentLength === 'string'
-          ? parseInt(contentLength, 10)
-          : null
+        const parsedLength = typeof contentLength === 'string' ? parseInt(contentLength, 10) : NaN
+        const size = Number.isFinite(parsedLength) && parsedLength >= 0 ? parsedLength : null
         if (opts.onStart != null) {
           opts.onStart(size, currentAttempt)
         }
@@ -151,6 +150,13 @@ export function createDownloader (
           data = Buffer.from(new SharedArrayBuffer(size))
           for await (const chunk of res.body!) {
             const c = chunk as Uint8Array
+            if (downloaded + c.byteLength > size) {
+              throw new BadTarballError({
+                expectedSize: size,
+                receivedSize: downloaded + c.byteLength,
+                tarballUrl: url,
+              })
+            }
             data.set(c, downloaded)
             downloaded += c.byteLength
             onProgress?.(downloaded)
