@@ -7,6 +7,12 @@ export {
   type WebAuthFetchResponse,
   type WebAuthFetchResponseHeaders,
 } from './pollForWebAuthToken.js'
+export {
+  type EnterKeyListener,
+  pollWithBrowserOpen,
+  type PollWithBrowserOpenContext,
+  type PollWithBrowserOpenParams,
+} from './pollWithBrowserOpen.js'
 export { WebAuthTimeoutError } from './WebAuthTimeoutError.js'
 export {
   isOtpError,
