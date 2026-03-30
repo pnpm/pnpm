@@ -92,7 +92,7 @@ export async function offerToOpenBrowser ({
   // npm uses Promise.all([opener, poll]) which blocks the entire flow until the
   // user presses Enter — even if authentication already succeeded on another
   // device:
-  // https://github.com/npm/npm-profile/blob/d1a48be4259/lib/index.js#L136-L148
+  // https://github.com/npm/npm-profile/blob/d1a48be4259/lib/index.js#L85-L98
   try {
     return await pollPromise
   } finally {
