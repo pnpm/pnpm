@@ -4,4 +4,4 @@
 "pnpm": minor
 ---
 
-Improved HTTP performance with HTTP/2 multiplexing, connection pipelining, Happy Eyeballs (dual-stack), and better keep-alive settings. Tarball downloads with known size now pre-allocate memory to avoid double-copy overhead.
+Improved HTTP performance with Happy Eyeballs (dual-stack), better keep-alive settings, and an optimized global dispatcher. Tarball downloads with known size now pre-allocate memory to avoid double-copy overhead.
