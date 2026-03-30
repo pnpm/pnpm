@@ -168,6 +168,8 @@ function createHttpProxyDispatcher (
       ? `Basic ${Buffer.from(`${decodeURIComponent(proxyUrl.username)}:${decodeURIComponent(proxyUrl.password)}`).toString('base64')}`
       : undefined,
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
+    keepAliveTimeout: 30_000,
+    keepAliveMaxTimeout: 600_000,
     requestTls: isHttps
       ? {
         ca: tlsConfig.ca,
