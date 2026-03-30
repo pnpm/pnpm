@@ -67,8 +67,7 @@ function createAutoImporter (): ImportIndexedPackage {
         // than copying.  If the probe succeeds, we switch to the full
         // clone importer (with ENOTSUP fallback for transient failures
         // during heavy parallel I/O) for all subsequent packages.
-        const clone = createCloneFunction()
-        if (!tryClonePkg(clone, to, opts)) return undefined
+        if (!tryClonePkg(to, opts)) return undefined
         packageImportMethodLogger.debug({ method: 'clone' })
         auto = createClonePkg()
         return 'clone'
@@ -108,8 +107,7 @@ function createCloneOrCopyImporter (): ImportIndexedPackage {
     opts: ImportOptions
   ): string | undefined {
     try {
-      const clone = createCloneFunction()
-      if (!tryClonePkg(clone, to, opts)) return undefined
+      if (!tryClonePkg(to, opts)) return undefined
       packageImportMethodLogger.debug({ method: 'clone' })
       auto = createClonePkg()
       return 'clone'
@@ -131,10 +129,10 @@ type CloneFunction = (src: string, dest: string) => void
  * through to a faster method (e.g. hardlinks).
  */
 function tryClonePkg (
-  clone: CloneFunction,
   to: string,
   opts: ImportOptions
 ): 'clone' | undefined {
+  const clone = createCloneFunction()
   if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
     importIndexedDir({ importFile: clone, importFileAtomic: clone }, to, opts.filesMap, opts)
     return 'clone'
