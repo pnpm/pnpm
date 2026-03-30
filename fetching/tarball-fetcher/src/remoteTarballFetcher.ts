@@ -150,15 +150,16 @@ export function createDownloader (
           data = Buffer.from(new SharedArrayBuffer(size))
           for await (const chunk of res.body!) {
             const c = chunk as Uint8Array
-            if (downloaded + c.byteLength > size) {
+            const nextDownloaded = downloaded + c.byteLength
+            if (nextDownloaded > size) {
               throw new BadTarballError({
                 expectedSize: size,
-                receivedSize: downloaded + c.byteLength,
+                receivedSize: nextDownloaded,
                 tarballUrl: url,
               })
             }
             data.set(c, downloaded)
-            downloaded += c.byteLength
+            downloaded = nextDownloaded
             onProgress?.(downloaded)
           }
           if (size !== downloaded) {
