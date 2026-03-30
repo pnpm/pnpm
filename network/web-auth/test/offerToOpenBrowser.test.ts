@@ -35,7 +35,11 @@ function createMockReadlineInterface (): MockReadlineInterface {
   }
 }
 
-function createMockContext (overrides?: Omit<Partial<OfferToOpenBrowserContext>, 'process'> & { process?: Partial<OfferToOpenBrowserContext['process']> }): OfferToOpenBrowserContext {
+type MockContextOverrides = Omit<Partial<OfferToOpenBrowserContext>, 'process'> & {
+  process?: Partial<OfferToOpenBrowserContext['process']>
+}
+
+function createMockContext (overrides?: MockContextOverrides): OfferToOpenBrowserContext {
   return {
     globalInfo: () => {},
     globalWarn: () => {},

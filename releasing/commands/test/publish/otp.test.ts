@@ -16,7 +16,11 @@ function createOkResponse (): OtpPublishResponse {
   return { ok: true, status: 200, statusText: 'OK', text: async () => '' }
 }
 
-function createMockContext (overrides?: Omit<Partial<OtpContext>, 'process'> & { process?: Partial<OtpContext['process']> }): OtpContext {
+type MockContextOverrides = Omit<Partial<OtpContext>, 'process'> & {
+  process?: Partial<OtpContext['process']>
+}
+
+function createMockContext (overrides?: MockContextOverrides): OtpContext {
   return {
     Date: { now: () => 0 },
     setTimeout: (cb: () => void) => cb(),

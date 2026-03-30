@@ -33,7 +33,11 @@ function createMockResponse (init: {
   }
 }
 
-const createOtpMockContext = (overrides?: Omit<Partial<OtpContext>, 'process'> & { process?: Partial<OtpContext['process']> }): OtpContext => ({
+type MockContextOverrides = Omit<Partial<OtpContext>, 'process'> & {
+  process?: Partial<OtpContext['process']>
+}
+
+const createOtpMockContext = (overrides?: MockContextOverrides): OtpContext => ({
   Date: { now: () => 0 },
   setTimeout: (cb: () => void) => cb(),
   enquirer: { prompt: async () => ({ otp: '123456' }) },
