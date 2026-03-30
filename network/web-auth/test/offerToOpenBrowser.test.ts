@@ -283,7 +283,7 @@ describe('offerToOpenBrowser', () => {
       pollPromise: Promise.resolve('tok'),
     })
 
-    expect(globalInfo).toHaveBeenCalledWith('Press ENTER to open in browser...')
+    expect(globalInfo).toHaveBeenCalledWith('Press ENTER to open the URL in your browser.')
   })
 
   it('cleans up when poll rejects', async () => {

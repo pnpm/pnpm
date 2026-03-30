@@ -74,7 +74,7 @@ export async function offerToOpenBrowser ({
     return pollPromise
   }
 
-  globalInfo('Press ENTER to open in browser...')
+  globalInfo('Press ENTER to open the URL in your browser.')
 
   rl.once('line', () => {
     runExecFile(execFile, cmd, args).catch((err) => {

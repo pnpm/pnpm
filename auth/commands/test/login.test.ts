@@ -134,7 +134,7 @@ describe('login', () => {
     })
     expect(globalInfo.mock.calls).toEqual([
       [expect.stringContaining('https://example.com/auth/login')],
-      ['Press ENTER to open in browser...'],
+      ['Press ENTER to open the URL in your browser.'],
     ])
   })
 
@@ -573,7 +573,7 @@ describe('login', () => {
     await expect(promise).rejects.toHaveProperty(['message'], 'EACCES: permission denied')
     expect(globalInfo.mock.calls).toEqual([
       [expect.stringContaining('https://example.org/auth/login')],
-      ['Press ENTER to open in browser...'],
+      ['Press ENTER to open the URL in your browser.'],
     ])
   })
 })
