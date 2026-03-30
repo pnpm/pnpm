@@ -61,10 +61,15 @@ function createAutoImporter (): ImportIndexedPackage {
     // Hence, we prefer reflinks by default only on Linux and macOS.
     if (process.platform !== 'win32') {
       try {
-        const _clonePkg = createClonePkg()
-        if (!_clonePkg(to, opts)) return undefined
+        // Probe with the raw clone function (no ENOTSUP fallback).
+        // On filesystems that don't support reflinks (e.g. ext4), this
+        // throws and we fall through to hardlinks — which is much faster
+        // than copying.  If the probe succeeds, we switch to the full
+        // clone importer (with ENOTSUP fallback for transient failures
+        // during heavy parallel I/O) for all subsequent packages.
+        if (!tryClonePkg(to, opts)) return undefined
         packageImportMethodLogger.debug({ method: 'clone' })
-        auto = _clonePkg
+        auto = createClonePkg()
         return 'clone'
       } catch {
         // ignore
@@ -102,10 +107,9 @@ function createCloneOrCopyImporter (): ImportIndexedPackage {
     opts: ImportOptions
   ): string | undefined {
     try {
-      const _clonePkg = createClonePkg()
-      if (!_clonePkg(to, opts)) return undefined
+      if (!tryClonePkg(to, opts)) return undefined
       packageImportMethodLogger.debug({ method: 'clone' })
-      auto = _clonePkg
+      auto = createClonePkg()
       return 'clone'
     } catch {
       // ignore
@@ -117,6 +121,24 @@ function createCloneOrCopyImporter (): ImportIndexedPackage {
 }
 
 type CloneFunction = (src: string, dest: string) => void
+
+/**
+ * Import a single package using a raw clone function (no ENOTSUP fallback).
+ * Used by auto-mode to probe whether the filesystem supports cloning.
+ * If cloning isn't supported, the error propagates so the caller can fall
+ * through to a faster method (e.g. hardlinks).
+ */
+function tryClonePkg (
+  to: string,
+  opts: ImportOptions
+): 'clone' | undefined {
+  if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
+    const clone = createCloneFunction()
+    importIndexedDir({ importFile: clone, importFileAtomic: clone }, to, opts.filesMap, opts)
+    return 'clone'
+  }
+  return undefined
+}
 
 /**
  * Creates a clone-based package importer.  Reflinks are atomic, so clone can
@@ -169,13 +191,16 @@ function pickFileFromFilesMap (filesMap: FilesMap): string {
   return filesMap.keys().next().value!
 }
 
+let _cloneFunction: CloneFunction | undefined
+
 function createCloneFunction (): CloneFunction {
+  if (_cloneFunction) return _cloneFunction
   // Node.js currently does not natively support reflinks on Windows and macOS.
   // Hence, we use a third party solution.
   if (process.platform === 'darwin' || process.platform === 'win32') {
     // eslint-disable-next-line
     const { reflinkFileSync } = require('@reflink/reflink') as typeof import('@reflink/reflink')
-    return (fr, to) => {
+    _cloneFunction = (fr, to) => {
       try {
         reflinkFileSync(fr, to)
       } catch (err: unknown) {
@@ -185,14 +210,16 @@ function createCloneFunction (): CloneFunction {
         if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EEXIST') throw err
       }
     }
-  }
-  return (src: string, dest: string) => {
-    try {
-      fs.copyFileSync(src, dest, constants.COPYFILE_FICLONE_FORCE)
-    } catch (err: unknown) {
-      if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
+  } else {
+    _cloneFunction = (src: string, dest: string) => {
+      try {
+        fs.copyFileSync(src, dest, constants.COPYFILE_FICLONE_FORCE)
+      } catch (err: unknown) {
+        if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
+      }
     }
   }
+  return _cloneFunction
 }
 
 function hardlinkPkg (
