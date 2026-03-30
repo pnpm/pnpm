@@ -41,15 +41,15 @@ export async function offerToOpenBrowser ({
   context,
   pollPromise,
 }: OfferToOpenBrowserParams): Promise<string> {
-  const { createReadlineInterface, execFile, globalInfo, globalWarn, process: proc } = context
+  const { createReadlineInterface, execFile, globalInfo, globalWarn, process } = context
 
-  if (!createReadlineInterface || !execFile || !proc.stdin.isTTY) {
+  if (!createReadlineInterface || !execFile || !process.stdin.isTTY) {
     return pollPromise
   }
 
   let cmd: string
   let args: string[]
-  switch (proc.platform) {
+  switch (process.platform) {
     case 'darwin':
       cmd = 'open'
       args = [authUrl]
