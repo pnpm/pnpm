@@ -10,6 +10,8 @@ import { SocksClient } from 'socks'
 import { Agent, type Dispatcher, ProxyAgent, setGlobalDispatcher } from 'undici'
 
 const DEFAULT_MAX_SOCKETS = 50
+const KEEP_ALIVE_TIMEOUT = 30_000
+const KEEP_ALIVE_MAX_TIMEOUT = 600_000
 
 // Set an optimized global dispatcher so that requests without custom options
 // (no proxy, no custom certs) still benefit from better keep-alive and Happy Eyeballs.
@@ -20,8 +22,8 @@ const DEFAULT_MAX_SOCKETS = 50
 // connections that each get their own congestion window and can saturate bandwidth in parallel.
 setGlobalDispatcher(new Agent({
   connections: DEFAULT_MAX_SOCKETS,
-  keepAliveTimeout: 30_000,
-  keepAliveMaxTimeout: 600_000,
+  keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
+  keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
   connect: {
     autoSelectFamily: true,
   },
