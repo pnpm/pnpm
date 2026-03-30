@@ -16,7 +16,9 @@ function createOkResponse (): OtpPublishResponse {
   return { ok: true, status: 200, statusText: 'OK', text: async () => '' }
 }
 
-function createMockContext (overrides?: Partial<OtpContext>): OtpContext {
+type TestStdin = { isTTY: boolean }
+
+function createMockContext (overrides?: Partial<OtpContext<TestStdin>>): OtpContext<TestStdin> {
   return {
     Date: { now: () => 0 },
     setTimeout: (cb: () => void) => cb(),

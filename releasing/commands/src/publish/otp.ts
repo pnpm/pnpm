@@ -1,5 +1,6 @@
 import {
   type OtpContext as BaseOtpContext,
+  type OfferToOpenBrowserStdin,
   type WebAuthFetchOptions,
   withOtpHandling,
 } from '@pnpm/network.web-auth'
@@ -21,12 +22,12 @@ export type OtpPublishFn = (
   options: PublishOptions
 ) => Promise<OtpPublishResponse>
 
-export interface OtpContext extends BaseOtpContext {
+export interface OtpContext<Stdin extends { isTTY?: boolean; pause?: () => void } = OfferToOpenBrowserStdin> extends BaseOtpContext<Stdin> {
   publish: OtpPublishFn
 }
 
-export interface OtpParams {
-  context?: OtpContext
+export interface OtpParams<Stdin extends { isTTY?: boolean; pause?: () => void } = OfferToOpenBrowserStdin> {
+  context?: OtpContext<Stdin>
   manifest: ExportedManifest
   publishOptions: PublishOptions
   tarballData: Buffer
@@ -40,13 +41,14 @@ export interface OtpParams {
  * @see https://github.com/npm/cli/blob/7d900c46/lib/utils/otplease.js for npm's implementation.
  * @see https://github.com/npm/npm-profile/blob/main/lib/index.js for the webauth polling flow.
  */
-export async function publishWithOtpHandling ({
-  context = SHARED_CONTEXT,
+export async function publishWithOtpHandling<Stdin extends { isTTY?: boolean; pause?: () => void } = OfferToOpenBrowserStdin> ({
+  context,
   manifest,
   publishOptions,
   tarballData,
-}: OtpParams): Promise<OtpPublishResponse> {
-  const { publish } = context
+}: OtpParams<Stdin>): Promise<OtpPublishResponse> {
+  const ctx = context ?? (SHARED_CONTEXT as unknown as OtpContext<Stdin>)
+  const { publish } = ctx
 
   const fetchOptions: WebAuthFetchOptions = {
     method: 'GET',
@@ -60,7 +62,7 @@ export async function publishWithOtpHandling ({
   }
 
   return withOtpHandling({
-    context,
+    context: ctx,
     fetchOptions,
     // When otp is undefined (first attempt), { ...publishOptions, otp } adds
     // otp: undefined to the options. This is safe because libnpmpublish treats
