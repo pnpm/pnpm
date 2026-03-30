@@ -89,9 +89,10 @@ export async function offerToOpenBrowser ({
   // on their phone (via QR code or pasted URL) without ever pressing Enter, so
   // the poll must be able to complete independently.
   //
-  // npm's implementation uses Promise.all([opener, poll]) which blocks the
-  // entire flow until the user presses Enter — even if authentication already
-  // succeeded on another device. We intentionally avoid that pattern here.
+  // npm uses Promise.all([opener, poll]) which blocks the entire flow until the
+  // user presses Enter — even if authentication already succeeded on another
+  // device:
+  // https://github.com/npm/npm-profile/blob/d1a48be4259/lib/index.js#L136-L148
   try {
     return await pollPromise
   } finally {
