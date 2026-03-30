@@ -5,20 +5,11 @@ import {
 
 export const requestRetryLogger = logger<RequestRetryMessage>('request-retry')
 
-export interface RequestRetryError {
-  name?: string
-  message?: string
-  // HTTP status codes (numeric)
-  status?: number
-  statusCode?: number
-  // System error properties
+export interface RequestRetryError extends Error {
+  httpStatusCode?: string
+  status?: string
   errno?: number
   code?: string
-  // undici wraps the actual error in a cause property
-  cause?: {
-    code?: string
-    errno?: number
-  }
 }
 
 export interface RequestRetryMessage {

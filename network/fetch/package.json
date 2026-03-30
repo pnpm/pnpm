@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/network.fetch",
   "version": "1000.2.6",
-  "description": "Native fetch with retries",
+  "description": "node-fetch with retries",
   "keywords": [
     "pnpm",
     "pnpm11",
@@ -33,15 +33,12 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
-    "@pnpm/config.nerf-dart": "catalog:",
     "@pnpm/core-loggers": "workspace:*",
-    "@pnpm/error": "workspace:*",
     "@pnpm/fetching.types": "workspace:*",
+    "@pnpm/network.agent": "catalog:",
     "@pnpm/types": "workspace:*",
     "@zkochan/retry": "catalog:",
-    "lru-cache": "catalog:",
-    "socks": "catalog:",
-    "undici": "catalog:"
+    "node-fetch": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -49,7 +46,8 @@
   "devDependencies": {
     "@pnpm/logger": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
-    "https-proxy-server-express": "catalog:"
+    "https-proxy-server-express": "catalog:",
+    "nock": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

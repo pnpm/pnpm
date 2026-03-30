@@ -17,11 +17,7 @@ test('print warning about request retry', async () => {
 
   requestRetryLogger.debug({
     attempt: 2,
-    error: {
-      name: 'Error',
-      message: 'Connection failed',
-      code: 'ECONNREFUSED',
-    },
+    error: new Error(),
     maxRetries: 5,
     method: 'GET',
     timeout: 12500,
@@ -31,5 +27,5 @@ test('print warning about request retry', async () => {
   expect.assertions(1)
 
   const output = await firstValueFrom(output$)
-  expect(output).toBe(formatWarn('GET https://foo.bar/qar error (ECONNREFUSED). Will retry in 12.5 seconds. 4 retries left.'))
+  expect(output).toBe(formatWarn('GET https://foo.bar/qar error (undefined). Will retry in 12.5 seconds. 4 retries left.'))
 })

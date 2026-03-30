@@ -6,7 +6,7 @@ import { createTarballFetcher, type TarballFetchers } from '@pnpm/fetching.tarba
 import type { FetchFromRegistry, GetAuthHeader, RetryTimeoutOptions } from '@pnpm/fetching.types'
 import type { CustomFetcher, CustomResolver } from '@pnpm/hooks.types'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
-import { createFetchFromRegistry, type DispatcherOptions } from '@pnpm/network.fetch'
+import { type AgentOptions, createFetchFromRegistry } from '@pnpm/network.fetch'
 import {
   createResolver as _createResolver,
   type ResolveFunction,
@@ -35,7 +35,7 @@ export type ClientOptions = {
   includeOnlyPackageFiles?: boolean
   preserveAbsolutePaths?: boolean
   fetchMinSpeedKiBps?: number
-} & ResolverFactoryOptions & DispatcherOptions
+} & ResolverFactoryOptions & AgentOptions
 
 export interface Client {
   fetchers: Fetchers

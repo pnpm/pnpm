@@ -6,9 +6,10 @@ import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { Registries } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
+import nock from 'nock'
 import { temporaryDirectory } from 'tempy'
 
-import { getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
+import { retryLoadJsonFile } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -25,22 +26,27 @@ const fetch = createFetchFromRegistry({})
 const getAuthHeader = () => undefined
 const createResolveFromNpm = createNpmResolver.bind(null, fetch, getAuthHeader)
 
-afterEach(async () => {
-  await teardownMockAgent()
+afterEach(() => {
+  nock.cleanAll()
+  nock.disableNetConnect()
 })
 
-beforeEach(async () => {
-  await setupMockAgent()
+beforeEach(() => {
+  nock.enableNetConnect()
 })
 
 test('resolveFromJsr() on jsr', async () => {
   const slash = '%2F'
-  const defaultPool = getMockAgent().get(registries.default.replace(/\/$/, ''))
-  defaultPool.intercept({ path: `/@jsr${slash}rus__greet`, method: 'GET' }).reply(404, {})
-  defaultPool.intercept({ path: `/@jsr${slash}luca__cases`, method: 'GET' }).reply(404, {})
-  const jsrPool = getMockAgent().get(registries['@jsr'].replace(/\/$/, ''))
-  jsrPool.intercept({ path: `/@jsr${slash}rus__greet`, method: 'GET' }).reply(200, jsrRusGreetMeta)
-  jsrPool.intercept({ path: `/@jsr${slash}luca__cases`, method: 'GET' }).reply(200, jsrLucaCasesMeta)
+  nock(registries.default)
+    .get(`/@jsr${slash}rus__greet`)
+    .reply(404)
+    .get(`/@jsr${slash}luca__cases`)
+    .reply(404)
+  nock(registries['@jsr'])
+    .get(`/@jsr${slash}rus__greet`)
+    .reply(200, jsrRusGreetMeta)
+    .get(`/@jsr${slash}luca__cases`)
+    .reply(200, jsrLucaCasesMeta)
 
   const cacheDir = temporaryDirectory()
   const { resolveFromJsr } = createResolveFromNpm({
@@ -77,12 +83,16 @@ test('resolveFromJsr() on jsr', async () => {
 
 test('resolveFromJsr() on jsr with alias renaming', async () => {
   const slash = '%2F'
-  const defaultPool = getMockAgent().get(registries.default.replace(/\/$/, ''))
-  defaultPool.intercept({ path: `/@jsr${slash}rus__greet`, method: 'GET' }).reply(404, {})
-  defaultPool.intercept({ path: `/@jsr${slash}luca__cases`, method: 'GET' }).reply(404, {})
-  const jsrPool = getMockAgent().get(registries['@jsr'].replace(/\/$/, ''))
-  jsrPool.intercept({ path: `/@jsr${slash}rus__greet`, method: 'GET' }).reply(200, jsrRusGreetMeta)
-  jsrPool.intercept({ path: `/@jsr${slash}luca__cases`, method: 'GET' }).reply(200, jsrLucaCasesMeta)
+  nock(registries.default)
+    .get(`/@jsr${slash}rus__greet`)
+    .reply(404)
+    .get(`/@jsr${slash}luca__cases`)
+    .reply(404)
+  nock(registries['@jsr'])
+    .get(`/@jsr${slash}rus__greet`)
+    .reply(200, jsrRusGreetMeta)
+    .get(`/@jsr${slash}luca__cases`)
+    .reply(200, jsrLucaCasesMeta)
 
   const cacheDir = temporaryDirectory()
   const { resolveFromJsr } = createResolveFromNpm({

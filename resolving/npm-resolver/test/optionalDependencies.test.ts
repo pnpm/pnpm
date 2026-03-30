@@ -2,9 +2,8 @@
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
 import type { Registries } from '@pnpm/types'
+import nock from 'nock'
 import { temporaryDirectory } from 'tempy'
-
-import { getMockAgent, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
 const registries = {
   default: 'https://registry.npmjs.org/',
@@ -14,12 +13,13 @@ const fetch = createFetchFromRegistry({})
 const getAuthHeader = () => undefined
 const createResolveFromNpm = createNpmResolver.bind(null, fetch, getAuthHeader)
 
-afterEach(async () => {
-  await teardownMockAgent()
+afterEach(() => {
+  nock.cleanAll()
+  nock.disableNetConnect()
 })
 
-beforeEach(async () => {
-  await setupMockAgent()
+beforeEach(() => {
+  nock.enableNetConnect()
 })
 
 describe('optional dependencies', () => {
@@ -44,9 +44,10 @@ describe('optional dependencies', () => {
       },
     }
 
-    // Mock the full metadata request for optional dependency
-    getMockAgent().get(registries.default.replace(/\/$/, ''))
-      .intercept({ path: '/platform-pkg', method: 'GET' })
+    // Verify that full metadata is requested (no abbreviated Accept header)
+    const scope = nock(registries.default)
+      .get('/platform-pkg')
+      .matchHeader('accept', (value) => !value.includes('application/vnd.npm.install-v1+json'))
       .reply(200, packageMeta)
 
     const { resolveFromNpm } = createResolveFromNpm({
@@ -67,6 +68,7 @@ describe('optional dependencies', () => {
     expect(result!.manifest!.libc).toEqual(['glibc'])
     expect(result!.manifest!.os).toEqual(['linux'])
     expect(result!.manifest!.cpu).toEqual(['x64'])
+    expect(scope.isDone()).toBe(true)
   })
 
   test('abbreviated and full metadata are cached separately', async () => {
@@ -106,19 +108,17 @@ describe('optional dependencies', () => {
       },
     }
 
-    const mockPool = getMockAgent().get(registries.default.replace(/\/$/, ''))
-    // First request: abbreviated metadata for regular dependency (accept header prefers abbreviated)
-    mockPool.intercept({
-      path: '/cache-test',
-      method: 'GET',
-      headers: { accept: /application\/vnd\.npm\.install-v1\+json/ },
-    }).reply(200, abbreviatedMeta)
-    // Second request: full metadata for optional dependency (accept header prefers full JSON)
-    mockPool.intercept({
-      path: '/cache-test',
-      method: 'GET',
-      headers: { accept: /application\/json/ },
-    }).reply(200, fullMeta)
+    // First request: abbreviated metadata for regular dependency
+    const abbreviatedScope = nock(registries.default)
+      .get('/cache-test')
+      .matchHeader('accept', /application\/vnd\.npm\.install-v1\+json/)
+      .reply(200, abbreviatedMeta)
+
+    // Second request: full metadata for optional dependency
+    const fullScope = nock(registries.default)
+      .get('/cache-test')
+      .matchHeader('accept', (value) => !value.includes('application/vnd.npm.install-v1+json'))
+      .reply(200, fullMeta)
 
     const cacheDir = temporaryDirectory()
 
@@ -141,5 +141,8 @@ describe('optional dependencies', () => {
       {}
     )
     expect(optionalResult!.manifest!.scripts).toEqual({ test: 'jest', build: 'tsc' })
+
+    expect(abbreviatedScope.isDone()).toBe(true)
+    expect(fullScope.isDone()).toBe(true)
   })
 })

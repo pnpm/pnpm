@@ -190,7 +190,7 @@ export async function handler (opts: AuditOptions): Promise<{ exitCode: number, 
   const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.rawConfig, userSettings: opts.userConfig })
   try {
     auditReport = await audit(lockfile, getAuthHeader, {
-      dispatcherOptions: {
+      agentOptions: {
         ca: opts.ca,
         cert: opts.cert,
         httpProxy: opts.httpProxy,

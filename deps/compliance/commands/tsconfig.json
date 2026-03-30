@@ -68,9 +68,6 @@
       "path": "../../../store/path"
     },
     {
-      "path": "../../../testing/mock-agent"
-    },
-    {
       "path": "../../../workspace/project-manifest-reader"
     },
     {

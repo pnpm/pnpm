@@ -52,8 +52,8 @@
     "@pnpm/deps.compliance.audit": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@pnpm/testing.mock-agent": "workspace:*",
-    "@types/ramda": "catalog:"
+    "@types/ramda": "catalog:",
+    "nock": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

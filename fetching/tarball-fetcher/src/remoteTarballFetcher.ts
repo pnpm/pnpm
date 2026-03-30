@@ -1,3 +1,4 @@
+import assert from 'node:assert'
 import type { IncomingMessage } from 'node:http'
 import util from 'node:util'
 
@@ -87,25 +88,9 @@ export function createDownloader (
             reject(op.mainError())
             return
           }
-          // Extract error properties into a plain object because Error properties
-          // are non-enumerable and don't serialize well through the logging system
-          const errorInfo = {
-            name: error.name,
-            message: error.message,
-            code: error.code,
-            errno: error.errno,
-            // For HTTP errors from our ResponseError class
-            status: error.status,
-            statusCode: error.statusCode,
-            // undici wraps the actual network error in a cause property
-            cause: error.cause ? {
-              code: error.cause.code,
-              errno: error.cause.errno,
-            } : undefined,
-          }
           requestRetryLogger.debug({
             attempt,
-            error: errorInfo,
+            error,
             maxRetries: retryOpts.retries,
             method: 'GET',
             timeout,
@@ -146,10 +131,11 @@ export function createDownloader (
           : undefined
         const startTime = Date.now()
         let downloaded = 0
-        const chunks: Uint8Array[] = []
+        const chunks: Buffer[] = []
+        // This will handle the 'data', 'error', and 'end' events.
         for await (const chunk of res.body!) {
-          chunks.push(chunk as Uint8Array)
-          downloaded += (chunk as Uint8Array).byteLength
+          chunks.push(chunk as Buffer)
+          downloaded += chunk.length
           onProgress?.(downloaded)
         }
         if (size !== null && size !== downloaded) {
@@ -169,16 +155,16 @@ export function createDownloader (
         data = Buffer.from(new SharedArrayBuffer(downloaded))
         let offset: number = 0
         for (const chunk of chunks) {
-          data.set(chunk, offset)
-          offset += chunk.byteLength
+          chunk.copy(data, offset)
+          offset += chunk.length
         }
       } catch (err: unknown) {
-        const error = util.types.isNativeError(err) ? err : new Error(String(err), { cause: err })
-        Object.assign(error, {
+        assert(util.types.isNativeError(err))
+        Object.assign(err, {
           attempts: currentAttempt,
           resource: url,
         })
-        throw error
+        throw err
       }
       return addFilesFromTarball({
         buffer: data,

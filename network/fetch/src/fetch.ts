@@ -1,8 +1,13 @@
+import assert from 'node:assert'
+import util from 'node:util'
+
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import { operation, type RetryTimeoutOptions } from '@zkochan/retry'
-import { type Dispatcher, fetch as undiciFetch } from 'undici'
+import nodeFetch, { type Request, type RequestInit as NodeRequestInit, Response } from 'node-fetch'
 
-export { type RetryTimeoutOptions }
+export { isRedirect } from 'node-fetch'
+
+export { Response, type RetryTimeoutOptions }
 
 interface URLLike {
   href: string
@@ -13,18 +18,11 @@ const NO_RETRY_ERROR_CODES = new Set([
   'ERR_OSSL_PEM_NO_START_LINE',
 ])
 
-const REDIRECT_CODES = new Set([301, 302, 303, 307, 308])
+export type RequestInfo = string | URLLike | Request
 
-export function isRedirect (statusCode: number): boolean {
-  return REDIRECT_CODES.has(statusCode)
-}
-
-export type RequestInfo = string | URLLike | URL
-
-export interface RequestInit extends globalThis.RequestInit {
+export interface RequestInit extends NodeRequestInit {
   retry?: RetryTimeoutOptions
   timeout?: number
-  dispatcher?: Dispatcher
 }
 
 export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<Response> {
@@ -42,13 +40,9 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
   try {
     return await new Promise((resolve, reject) => {
       op.attempt(async (attempt) => {
-        const urlString = typeof url === 'string' ? url : url.href ?? url.toString()
-        const { retry: _retry, timeout, dispatcher, ...fetchOpts } = opts
-        const signal = timeout ? AbortSignal.timeout(timeout) : undefined
         try {
-          // undici's Response type differs slightly from globalThis.Response (iterator types),
-          // requiring the double cast. This is a known TypeScript/undici compatibility issue.
-          const res = await undiciFetch(urlString, { ...fetchOpts, signal, dispatcher } as Parameters<typeof undiciFetch>[1]) as unknown as Response
+          // this will be retried
+          const res = await nodeFetch(url as any, opts) // eslint-disable-line
           // A retry on 409 sometimes helps when making requests to the Bit registry.
           if ((res.status >= 500 && res.status < 600) || [408, 409, 420, 429].includes(res.status)) {
             throw new ResponseError(res)
@@ -56,44 +50,26 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
             resolve(res)
           }
         } catch (error: unknown) {
-          // Undici errors may not pass isNativeError check, so we handle them more carefully
-          const err = error as Error & { code?: string, cause?: { code?: string } }
-          // Check error code in both error.code and error.cause.code (undici wraps errors)
-          const errorCode = err?.code ?? err?.cause?.code
+          assert(util.types.isNativeError(error))
           if (
-            typeof errorCode === 'string' &&
-            NO_RETRY_ERROR_CODES.has(errorCode)
+            'code' in error &&
+            typeof error.code === 'string' &&
+            NO_RETRY_ERROR_CODES.has(error.code)
           ) {
             throw error
           }
-          const retryTimeout = op.retry(err)
-          if (retryTimeout === false) {
+          const timeout = op.retry(error)
+          if (timeout === false) {
             reject(op.mainError())
             return
           }
-          // Extract error properties into a plain object because Error properties
-          // are non-enumerable and don't serialize well through the logging system
-          const errorInfo = {
-            name: err.name,
-            message: err.message,
-            code: err.code,
-            errno: (err as Error & { errno?: number }).errno,
-            // For HTTP errors from ResponseError class
-            status: (err as Error & { status?: number }).status,
-            statusCode: (err as Error & { statusCode?: number }).statusCode,
-            // undici wraps the actual network error in a cause property
-            cause: err.cause ? {
-              code: err.cause.code,
-              errno: (err.cause as { errno?: number }).errno,
-            } : undefined,
-          }
           requestRetryLogger.debug({
             attempt,
-            error: errorInfo,
+            error,
             maxRetries,
             method: opts.method ?? 'GET',
-            timeout: retryTimeout,
-            url: urlString,
+            timeout,
+            url: url.toString(),
           })
         }
       })

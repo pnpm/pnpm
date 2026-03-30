@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import { audit } from '@pnpm/deps.compliance.commands'
 import { fixtures } from '@pnpm/test-fixtures'
-import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
+import nock from 'nock'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS } from './utils/options.js'
@@ -10,19 +10,11 @@ import * as responses from './utils/responses/index.js'
 
 const f = fixtures(import.meta.dirname)
 
-beforeEach(async () => {
-  await setupMockAgent()
-})
-
-afterEach(async () => {
-  await teardownMockAgent()
-})
-
 test('overrides are added for vulnerable dependencies', async () => {
   const tmp = f.prepare('has-vulnerabilities')
 
-  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
-    .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+  nock(AUDIT_REGISTRY)
+    .post('/-/npm/v1/security/audits/quick')
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
@@ -44,8 +36,8 @@ test('overrides are added for vulnerable dependencies', async () => {
 test('no overrides are added if no vulnerabilities are found', async () => {
   const tmp = f.prepare('fixture')
 
-  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
-    .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+  nock(AUDIT_REGISTRY)
+    .post('/-/npm/v1/security/audits/quick')
     .reply(200, responses.NO_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
@@ -63,8 +55,8 @@ test('no overrides are added if no vulnerabilities are found', async () => {
 test('CVEs found in the allow list are not added as overrides', async () => {
   const tmp = f.prepare('has-vulnerabilities')
 
-  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
-    .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+  nock(AUDIT_REGISTRY)
+    .post('/-/npm/v1/security/audits/quick')
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({

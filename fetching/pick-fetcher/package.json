@@ -45,8 +45,8 @@
     "@pnpm/store.create-cafs-store": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "tempy": "catalog:",
-    "undici": "catalog:"
+    "nock": "catalog:",
+    "tempy": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

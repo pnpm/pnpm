@@ -1,7 +1,5 @@
 import fs from 'node:fs'
 
-export { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
-
 export async function retryLoadJsonFile<T> (filePath: string): Promise<T> {
   let retry = 0
   /* eslint-disable no-await-in-loop */

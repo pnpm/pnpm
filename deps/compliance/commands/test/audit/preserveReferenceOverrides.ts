@@ -2,36 +2,26 @@ import path from 'node:path'
 
 import { audit } from '@pnpm/deps.compliance.commands'
 import { fixtures } from '@pnpm/test-fixtures'
-import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
+import nock from 'nock'
 import { readYamlFileSync } from 'read-yaml-file'
 
-import { DEFAULT_OPTS } from './utils/options.js'
+import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS } from './utils/options.js'
 import * as responses from './utils/responses/index.js'
 
 const f = fixtures(import.meta.dirname)
 
-const registries = DEFAULT_OPTS.registries
-
-beforeEach(async () => {
-  await setupMockAgent()
-})
-
-afterEach(async () => {
-  await teardownMockAgent()
-})
-
 test('overrides with references (via $) are preserved during audit --fix', async () => {
   const tmp = f.prepare('preserve-reference-overrides')
 
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
-    .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+  nock(AUDIT_REGISTRY)
+    .post('/-/npm/v1/security/audits/quick')
     .reply(200, responses.ALL_VULN_RESP)
 
   const { manifest: initialManifest } = await readProjectManifest(tmp)
 
   const { exitCode, output } = await audit.handler({
-    ...DEFAULT_OPTS,
+    ...AUDIT_REGISTRY_OPTS,
     auditLevel: 'moderate',
     dir: tmp,
     rootProjectManifestDir: tmp,

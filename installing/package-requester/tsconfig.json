@@ -61,9 +61,6 @@
       "path": "../../store/index"
     },
     {
-      "path": "../../testing/mock-agent"
-    },
-    {
       "path": "../../worker"
     },
     {

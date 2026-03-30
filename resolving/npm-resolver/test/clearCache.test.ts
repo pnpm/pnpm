@@ -2,9 +2,8 @@ import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
 import type { Registries } from '@pnpm/types'
+import nock from 'nock'
 import { temporaryDirectory } from 'tempy'
-
-import { getMockAgent, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
 const registries: Registries = {
   default: 'https://registry.npmjs.org/',
@@ -14,12 +13,14 @@ const fetch = createFetchFromRegistry({})
 const getAuthHeader = () => undefined
 const createResolveFromNpm = createNpmResolver.bind(null, fetch, getAuthHeader)
 
-beforeEach(async () => {
-  await setupMockAgent()
+beforeEach(() => {
+  nock.disableNetConnect()
 })
 
-afterEach(async () => {
-  await teardownMockAgent()
+afterEach(() => {
+  // https://github.com/nock/nock?tab=readme-ov-file#resetting-netconnect
+  nock.cleanAll()
+  nock.enableNetConnect()
 })
 
 test('metadata is fetched again after calling clearCache()', async () => {
@@ -42,8 +43,8 @@ test('metadata is fetched again after calling clearCache()', async () => {
     },
   }
 
-  const mockPool = getMockAgent().get('https://registry.npmjs.org')
-  mockPool.intercept({ path: `/${name}`, method: 'GET' })
+  nock(registries.default)
+    .get(`/${name}`)
     .reply(200, meta)
 
   const cacheDir = temporaryDirectory()
@@ -65,16 +66,19 @@ test('metadata is fetched again after calling clearCache()', async () => {
   }
   meta['dist-tags'].latest = '3.1.0'
 
-  mockPool.intercept({ path: `/${name}`, method: 'GET' })
+  const scope = nock(registries.default)
+    .get(`/${name}`)
     .reply(200, meta)
 
   // Until the cache is cleared, the resolver will still return 3.0.0.
   const res2 = await resolveFromNpm({ alias: name, bareSpecifier: 'latest' }, {})
   expect(res2?.id).toBe(`${name}@3.0.0`)
+  expect(scope.isDone()).toBe(false)
 
   clearCache()
 
   // After clearing cache, the resolver should start returning 3.1.0.
   const res3 = await resolveFromNpm({ alias: name, bareSpecifier: 'latest' }, {})
   expect(res3?.id).toBe(`${name}@3.1.0`)
+  expect(scope.isDone()).toBe(true)
 })

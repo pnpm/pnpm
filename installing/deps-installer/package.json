@@ -139,7 +139,6 @@
     "@pnpm/store.path": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
-    "@pnpm/testing.mock-agent": "workspace:*",
     "@pnpm/testing.temp-store": "workspace:*",
     "@types/fs-extra": "catalog:",
     "@types/is-windows": "catalog:",

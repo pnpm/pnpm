@@ -19,14 +19,19 @@ import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { prepareEmpty, preparePackages, tempDir } from '@pnpm/prepare'
 import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
-import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import type { DepPath, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import { loadJsonFileSync } from 'load-json-file'
+import nock from 'nock'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { testDefaults } from './utils/index.js'
+
+afterEach(() => {
+  nock.abortPendingRequests()
+  nock.cleanAll()
+})
 
 const f = fixtures(import.meta.dirname)
 
@@ -41,10 +46,8 @@ test('lockfile has correct format', async () => {
   // Mock the HEAD request that isRepoPublic() in @pnpm/resolving.git-resolver makes to check if the repo is public.
   // Without this, transient network failures cause the resolver to fall back to git+https:// instead of
   // resolving via the codeload tarball URL.
-  await setupMockAgent()
-  getMockAgent().enableNetConnect()
-  getMockAgent().get('https://github.com')
-    .intercept({ path: '/kevva/is-negative', method: 'HEAD' })
+  const githubNock = nock('https://github.com', { allowUnmocked: true })
+    .head('/kevva/is-negative')
     .reply(200)
   const project = prepareEmpty()
 
@@ -78,7 +81,7 @@ test('lockfile has correct format', async () => {
   expect((lockfile.packages[id].resolution as TarballResolution).tarball).toBeFalsy()
 
   expect(lockfile.packages).toHaveProperty(['is-negative@https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c'])
-  await teardownMockAgent()
+  githubNock.done()
 })
 
 test('lockfile has dev deps even when installing for prod only', async () => {
@@ -822,10 +825,8 @@ test('lockfile file has correct format when lockfile directory does not equal th
   // Mock the HEAD request that isRepoPublic() in @pnpm/resolving.git-resolver makes to check if the repo is public.
   // Without this, transient network failures cause the resolver to fall back to git+https:// instead of
   // resolving via the codeload tarball URL.
-  await setupMockAgent()
-  getMockAgent().enableNetConnect()
-  getMockAgent().get('https://github.com')
-    .intercept({ path: '/kevva/is-negative', method: 'HEAD' })
+  const githubNock = nock('https://github.com', { allowUnmocked: true })
+    .head('/kevva/is-negative')
     .reply(200)
   prepareEmpty()
 
@@ -901,7 +902,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
 
     expect(lockfile.packages).toHaveProperty(['is-negative@https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c'])
   }
-  await teardownMockAgent()
+  githubNock.done()
 })
 
 test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, async () => {
@@ -1088,15 +1089,13 @@ const isPositiveMeta = loadJsonFileSync<any>(path.join(REGISTRY_MIRROR_DIR, 'is-
 const tarballPath = f.find('is-positive-3.1.0.tgz')
 
 test('tarball domain differs from registry domain', async () => {
-  await setupMockAgent()
-  getMockAgent().enableNetConnect(/localhost/)
-  getMockAgent().get('https://registry.example.com')
-    .intercept({ path: '/is-positive', method: 'GET' })
+  nock('https://registry.example.com', { allowUnmocked: true })
+    .get('/is-positive')
     .reply(200, isPositiveMeta)
-  const tarballContent = fs.readFileSync(tarballPath)
-  getMockAgent().get('https://registry.npmjs.org')
-    .intercept({ path: '/is-positive/-/is-positive-3.1.0.tgz', method: 'GET' })
-    .reply(200, tarballContent, { headers: { 'content-length': String(tarballContent.length) } })
+
+  nock('https://registry.npmjs.org', { allowUnmocked: true })
+    .get('/is-positive/-/is-positive-3.1.0.tgz')
+    .replyWithFile(200, tarballPath)
 
   const project = prepareEmpty()
 
@@ -1145,18 +1144,15 @@ test('tarball domain differs from registry domain', async () => {
       'is-positive@3.1.0': {},
     },
   })
-  await teardownMockAgent()
 })
 
 test('tarball installed through non-standard URL endpoint from the registry domain', async () => {
-  await setupMockAgent()
-  getMockAgent().enableNetConnect(/localhost/)
-  const mockPool = getMockAgent().get('https://registry.npmjs.org')
-  mockPool.intercept({ path: '/is-positive/download/is-positive-3.1.0.tgz', method: 'HEAD' })
-    .reply(200, '').persist()
-  const tarballContent2 = fs.readFileSync(tarballPath)
-  mockPool.intercept({ path: '/is-positive/download/is-positive-3.1.0.tgz', method: 'GET' })
-    .reply(200, tarballContent2, { headers: { 'content-length': String(tarballContent2.length) } }).persist()
+  nock('https://registry.npmjs.org', { allowUnmocked: true })
+    .head('/is-positive/download/is-positive-3.1.0.tgz')
+    .reply(200, '')
+  nock('https://registry.npmjs.org', { allowUnmocked: true })
+    .get('/is-positive/download/is-positive-3.1.0.tgz')
+    .replyWithFile(200, tarballPath)
 
   const project = prepareEmpty()
 
@@ -1205,7 +1201,6 @@ test('tarball installed through non-standard URL endpoint from the registry doma
       'is-positive@https://registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz': {},
     },
   })
-  await teardownMockAgent()
 })
 
 // TODO: fix merge conflicts with the new lockfile format (TODOv8)
