@@ -170,8 +170,8 @@ function createHttpProxyDispatcher (
       ? `Basic ${Buffer.from(`${decodeURIComponent(proxyUrl.username)}:${decodeURIComponent(proxyUrl.password)}`).toString('base64')}`
       : undefined,
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
-    keepAliveTimeout: 30_000,
-    keepAliveMaxTimeout: 600_000,
+    keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
+    keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
     requestTls: isHttps
       ? {
         ca: tlsConfig.ca,
@@ -201,8 +201,8 @@ function createSocksDispatcher (
 
   return new Agent({
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
-    keepAliveTimeout: 30_000,
-    keepAliveMaxTimeout: 600_000,
+    keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
+    keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
     connect: async (connectOpts, callback) => {
       try {
         const { socket } = await SocksClient.createConnection({
@@ -273,8 +273,8 @@ function getNonProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispat
   const agent = new Agent({
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
     connectTimeout,
-    keepAliveTimeout: 30_000,
-    keepAliveMaxTimeout: 600_000,
+    keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
+    keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
     connect: isHttps
       ? {
         autoSelectFamily: true,
