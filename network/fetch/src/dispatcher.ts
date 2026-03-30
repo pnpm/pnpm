@@ -7,9 +7,27 @@ import { PnpmError } from '@pnpm/error'
 import type { SslConfig } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
 import { SocksClient } from 'socks'
-import { Agent, type Dispatcher, ProxyAgent } from 'undici'
+import { Agent, type Dispatcher, ProxyAgent, setGlobalDispatcher } from 'undici'
 
 const DEFAULT_MAX_SOCKETS = 50
+const KEEP_ALIVE_TIMEOUT = 30_000 // 30 seconds
+const KEEP_ALIVE_MAX_TIMEOUT = 600_000 // 10 minutes
+
+// Set an optimized global dispatcher so that requests without custom options
+// (no proxy, no custom certs) still benefit from better keep-alive and Happy Eyeballs.
+//
+// Note: we intentionally do NOT enable HTTP/2 (allowH2) or HTTP/1.1 pipelining here.
+// With HTTP/2, undici multiplexes many streams over 1-2 TCP connections sharing a single
+// congestion window. In benchmarks this was slower than opening ~50 independent HTTP/1.1
+// connections that each get their own congestion window and can saturate bandwidth in parallel.
+setGlobalDispatcher(new Agent({
+  connections: DEFAULT_MAX_SOCKETS,
+  keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
+  keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
+  connect: {
+    autoSelectFamily: true,
+  },
+}))
 
 const DISPATCHER_CACHE = new LRUCache<string, Dispatcher>({
   max: 50,
@@ -152,6 +170,8 @@ function createHttpProxyDispatcher (
       ? `Basic ${Buffer.from(`${decodeURIComponent(proxyUrl.username)}:${decodeURIComponent(proxyUrl.password)}`).toString('base64')}`
       : undefined,
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
+    keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
+    keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
     requestTls: isHttps
       ? {
         ca: tlsConfig.ca,
@@ -181,6 +201,8 @@ function createSocksDispatcher (
 
   return new Agent({
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
+    keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
+    keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
     connect: async (connectOpts, callback) => {
       try {
         const { socket } = await SocksClient.createConnection({
@@ -251,10 +273,11 @@ function getNonProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispat
   const agent = new Agent({
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
     connectTimeout,
-    keepAliveTimeout: 4000,
-    keepAliveMaxTimeout: 15000,
+    keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
+    keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
     connect: isHttps
       ? {
+        autoSelectFamily: true,
         ca,
         cert,
         key: certKey,
@@ -262,6 +285,7 @@ function getNonProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispat
         localAddress: opts.localAddress,
       }
       : {
+        autoSelectFamily: true,
         localAddress: opts.localAddress,
       },
   })
