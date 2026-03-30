@@ -70,7 +70,7 @@ const createMockResponse = (init: {
   }
 }
 
-const createMockContext = (overrides?: Partial<LoginContext>): LoginContext => ({
+const createMockContext = (overrides?: Omit<Partial<LoginContext>, 'process'> & { process?: Partial<LoginContext['process']> }): LoginContext => ({
   ...TEST_CONTEXT,
   ...overrides,
   process: {
