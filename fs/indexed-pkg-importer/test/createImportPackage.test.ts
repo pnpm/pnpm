@@ -325,6 +325,7 @@ testOnLinuxOnly('packageImportMethod=auto: ENOTSUP on clone uses hardlinks for a
   // worked and selected it for all packages.  On ext4 (no reflink support),
   // this caused every file to be copied instead of hardlinked — a multi-second
   // regression on large projects.
+  jest.mocked(gfs.linkSync).mockReset()
   const importPackage = createIndexedPkgImporter('auto')
   jest.mocked(gfs.copyFileSync).mockImplementation((_src, _dest, flags?: number) => {
     if (flags === fs.constants.COPYFILE_FICLONE_FORCE) {
