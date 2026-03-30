@@ -12,7 +12,8 @@ import {
   generateQrCode,
   offerToOpenBrowser,
   type OfferToOpenBrowserExecFile,
-  type OfferToOpenBrowserReadline,
+  type OfferToOpenBrowserReadlineInterface,
+  type OfferToOpenBrowserStdin,
   pollForWebAuthToken,
   SyntheticOtpError,
   type WebAuthFetchOptions,
@@ -126,7 +127,7 @@ export interface LoginFetchOptions {
   timeout?: number
 }
 
-export interface LoginContext {
+export interface LoginContext<Stdin extends { isTTY?: boolean; pause?: () => void } = OfferToOpenBrowserStdin> {
   Date: LoginDate
   setTimeout: (cb: () => void, ms: number) => void
   enquirer: LoginEnquirer
@@ -136,10 +137,12 @@ export interface LoginContext {
   globalWarn: (message: string) => void
   process: {
     platform: string
-    stdin: NodeJS.ReadableStream & { isTTY?: boolean }
+    stdin: Stdin
     stdout: { isTTY?: boolean }
   }
-  readline: OfferToOpenBrowserReadline
+  readline: {
+    createInterface: (options: { input: Stdin }) => OfferToOpenBrowserReadlineInterface
+  }
   readIniFile: (configPath: string) => Promise<object>
   writeIniFile: (configPath: string, settings: Record<string, unknown>) => Promise<void>
 }
@@ -158,17 +161,18 @@ export const DEFAULT_CONTEXT: LoginContext = {
   writeIniFile,
 }
 
-export interface LoginParams {
-  context?: LoginContext
+export interface LoginParams<Stdin extends { isTTY?: boolean; pause?: () => void } = OfferToOpenBrowserStdin> {
+  context?: LoginContext<Stdin>
   opts: LoginCommandOptions
 }
 
-export async function login ({ context = DEFAULT_CONTEXT, opts }: LoginParams): Promise<string> {
+export async function login<Stdin extends { isTTY?: boolean; pause?: () => void } = OfferToOpenBrowserStdin> ({ context, opts }: LoginParams<Stdin>): Promise<string> {
+  const ctx = context ?? (DEFAULT_CONTEXT as unknown as LoginContext<Stdin>)
   const {
     process,
     readIniFile,
     writeIniFile,
-  } = context
+  } = ctx
 
   const registry = normalizeRegistryUrl(opts.registry ?? 'https://registry.npmjs.org/')
 
@@ -190,10 +194,10 @@ export async function login ({ context = DEFAULT_CONTEXT, opts }: LoginParams): 
   // Try web-based login first, fall back to classic login
   let token: string
   try {
-    token = await webLogin({ context, fetchOptions, registry })
+    token = await webLogin({ context: ctx, fetchOptions, registry })
   } catch (err) {
     if (err instanceof WebLoginError && (err.httpStatus === 404 || err.httpStatus === 405)) {
-      token = await classicLogin({ context, fetchOptions, registry })
+      token = await classicLogin({ context: ctx, fetchOptions, registry })
     } else {
       throw err
     }
@@ -208,17 +212,17 @@ export async function login ({ context = DEFAULT_CONTEXT, opts }: LoginParams): 
   return `Logged in on ${registry}`
 }
 
-interface WebLoginParams {
-  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'execFile' | 'fetch' | 'globalInfo' | 'globalWarn' | 'process' | 'readline'>
+interface WebLoginParams<Stdin extends { isTTY?: boolean; pause?: () => void }> {
+  context: Pick<LoginContext<Stdin>, 'Date' | 'setTimeout' | 'execFile' | 'fetch' | 'globalInfo' | 'globalWarn' | 'process' | 'readline'>
   fetchOptions: WebAuthFetchOptions
   registry: string
 }
 
-async function webLogin ({
+async function webLogin<Stdin extends { isTTY?: boolean; pause?: () => void }> ({
   context,
   fetchOptions,
   registry,
-}: WebLoginParams): Promise<string> {
+}: WebLoginParams<Stdin>): Promise<string> {
   const {
     fetch,
     globalInfo,
@@ -259,17 +263,17 @@ async function webLogin ({
   })
 }
 
-interface ClassicLoginParams {
-  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'enquirer' | 'execFile' | 'fetch' | 'globalInfo' | 'globalWarn' | 'process' | 'readline'>
+interface ClassicLoginParams<Stdin extends { isTTY?: boolean; pause?: () => void }> {
+  context: Pick<LoginContext<Stdin>, 'Date' | 'setTimeout' | 'enquirer' | 'execFile' | 'fetch' | 'globalInfo' | 'globalWarn' | 'process' | 'readline'>
   fetchOptions: WebAuthFetchOptions
   registry: string
 }
 
-async function classicLogin ({
+async function classicLogin<Stdin extends { isTTY?: boolean; pause?: () => void }> ({
   context,
   fetchOptions,
   registry,
-}: ClassicLoginParams): Promise<string> {
+}: ClassicLoginParams<Stdin>): Promise<string> {
   const { enquirer, fetch, globalInfo, globalWarn } = context
 
   const { username } = await enquirer.prompt({

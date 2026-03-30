@@ -4,7 +4,6 @@ export {
   type OfferToOpenBrowserContext,
   type OfferToOpenBrowserExecFile,
   type OfferToOpenBrowserParams,
-  type OfferToOpenBrowserReadline,
   type OfferToOpenBrowserReadlineInterface,
   type OfferToOpenBrowserStdin,
 } from './offerToOpenBrowser.js'

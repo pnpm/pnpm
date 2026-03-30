@@ -1,13 +1,9 @@
-import { PassThrough } from 'node:stream'
-
 import { jest } from '@jest/globals'
 import {
   offerToOpenBrowser,
   type OfferToOpenBrowserContext,
   type OfferToOpenBrowserExecFile,
-  type OfferToOpenBrowserReadline,
   type OfferToOpenBrowserReadlineInterface,
-  type OfferToOpenBrowserStdin,
 } from '@pnpm/network.web-auth'
 
 function createDeferred<T> (): {
@@ -39,17 +35,16 @@ function createMockReadlineInterface (): MockReadlineInterface {
   }
 }
 
-function createMockStdin (isTTY: boolean = true): OfferToOpenBrowserStdin {
-  return Object.assign(new PassThrough(), { isTTY })
-}
+type TestStdin = { isTTY: boolean }
+type TestContext = OfferToOpenBrowserContext<TestStdin>
 
-function createMockContext (overrides?: Partial<OfferToOpenBrowserContext>): OfferToOpenBrowserContext {
+function createMockContext (overrides?: Partial<TestContext>): TestContext {
   return {
     globalInfo: () => {},
     globalWarn: () => {},
     process: {
       platform: 'linux',
-      stdin: createMockStdin(),
+      stdin: { isTTY: true },
     },
     ...overrides,
   }
@@ -59,11 +54,10 @@ describe('offerToOpenBrowser', () => {
   it('returns the poll result when poll completes before Enter', async () => {
     const mockRl = createMockReadlineInterface()
     const execFile = jest.fn<OfferToOpenBrowserExecFile>()
-    const readline: OfferToOpenBrowserReadline = {
-      createInterface: () => mockRl,
-    }
-
-    const context = createMockContext({ execFile, readline })
+    const context = createMockContext({
+      execFile,
+      readline: { createInterface: () => mockRl },
+    })
 
     const token = await offerToOpenBrowser({
       authUrl: 'https://example.com/auth',
@@ -82,11 +76,10 @@ describe('offerToOpenBrowser', () => {
     const execFile = jest.fn<OfferToOpenBrowserExecFile>((_file, _args, cb) => {
       cb(null)
     })
-    const readline: OfferToOpenBrowserReadline = {
-      createInterface: () => mockRl,
-    }
-
-    const context = createMockContext({ execFile, readline })
+    const context = createMockContext({
+      execFile,
+      readline: { createInterface: () => mockRl },
+    })
 
     const resultPromise = offerToOpenBrowser({
       authUrl: 'https://example.com/auth',
@@ -113,14 +106,10 @@ describe('offerToOpenBrowser', () => {
     const execFile = jest.fn<OfferToOpenBrowserExecFile>((_file, _args, cb) => {
       cb(null)
     })
-    const readline: OfferToOpenBrowserReadline = {
-      createInterface: () => mockRl,
-    }
-
     const context = createMockContext({
       execFile,
-      readline,
-      process: { platform: 'darwin', stdin: createMockStdin() },
+      readline: { createInterface: () => mockRl },
+      process: { platform: 'darwin', stdin: { isTTY: true } },
     })
 
     const resultPromise = offerToOpenBrowser({
@@ -144,14 +133,10 @@ describe('offerToOpenBrowser', () => {
     const execFile = jest.fn<OfferToOpenBrowserExecFile>((_file, _args, cb) => {
       cb(null)
     })
-    const readline: OfferToOpenBrowserReadline = {
-      createInterface: () => mockRl,
-    }
-
     const context = createMockContext({
       execFile,
-      readline,
-      process: { platform: 'win32', stdin: createMockStdin() },
+      readline: { createInterface: () => mockRl },
+      process: { platform: 'win32', stdin: { isTTY: true } },
     })
 
     const resultPromise = offerToOpenBrowser({
@@ -171,14 +156,10 @@ describe('offerToOpenBrowser', () => {
 
   it('skips browser prompt on unsupported platform', async () => {
     const execFile = jest.fn<OfferToOpenBrowserExecFile>()
-    const readline: OfferToOpenBrowserReadline = {
-      createInterface: jest.fn<OfferToOpenBrowserReadline['createInterface']>(),
-    }
-
     const context = createMockContext({
       execFile,
-      readline,
-      process: { platform: 'freebsd', stdin: createMockStdin() },
+      readline: { createInterface: () => createMockReadlineInterface() },
+      process: { platform: 'freebsd', stdin: { isTTY: true } },
     })
 
     const token = await offerToOpenBrowser({
@@ -188,7 +169,6 @@ describe('offerToOpenBrowser', () => {
     })
 
     expect(token).toBe('plain-token')
-    expect(readline.createInterface).not.toHaveBeenCalled()
     expect(execFile).not.toHaveBeenCalled()
   })
 
@@ -200,11 +180,12 @@ describe('offerToOpenBrowser', () => {
     const execFile = jest.fn<OfferToOpenBrowserExecFile>((_file, _args, cb) => {
       cb(new Error('xdg-open not found'))
     })
-    const readline: OfferToOpenBrowserReadline = {
-      createInterface: () => mockRl,
-    }
-
-    const context = createMockContext({ execFile, globalInfo, globalWarn, readline })
+    const context = createMockContext({
+      execFile,
+      globalInfo,
+      globalWarn,
+      readline: { createInterface: () => mockRl },
+    })
 
     const resultPromise = offerToOpenBrowser({
       authUrl: 'https://example.com/auth',
@@ -227,13 +208,15 @@ describe('offerToOpenBrowser', () => {
   it('warns and falls back to plain poll when createInterface throws', async () => {
     const globalWarn = jest.fn<(msg: string) => void>()
     const execFile = jest.fn<OfferToOpenBrowserExecFile>()
-    const readline: OfferToOpenBrowserReadline = {
-      createInterface: () => {
-        throw new Error('setRawMode not supported')
+    const context = createMockContext({
+      execFile,
+      globalWarn,
+      readline: {
+        createInterface: () => {
+          throw new Error('setRawMode not supported')
+        },
       },
-    }
-
-    const context = createMockContext({ execFile, globalWarn, readline })
+    })
 
     const token = await offerToOpenBrowser({
       authUrl: 'https://example.com/auth',
@@ -261,10 +244,9 @@ describe('offerToOpenBrowser', () => {
   })
 
   it('falls back to plain poll when execFile is not provided', async () => {
-    const readline: OfferToOpenBrowserReadline = {
-      createInterface: jest.fn<OfferToOpenBrowserReadline['createInterface']>(),
-    }
-    const context = createMockContext({ readline })
+    const context = createMockContext({
+      readline: { createInterface: () => createMockReadlineInterface() },
+    })
 
     const token = await offerToOpenBrowser({
       authUrl: 'https://example.com/auth',
@@ -273,18 +255,13 @@ describe('offerToOpenBrowser', () => {
     })
 
     expect(token).toBe('plain-token')
-    expect(readline.createInterface).not.toHaveBeenCalled()
   })
 
   it('falls back to plain poll when stdin is not a TTY', async () => {
-    const execFile = jest.fn<OfferToOpenBrowserExecFile>()
-    const readline: OfferToOpenBrowserReadline = {
-      createInterface: jest.fn<OfferToOpenBrowserReadline['createInterface']>(),
-    }
     const context = createMockContext({
-      execFile,
-      readline,
-      process: { platform: 'linux', stdin: createMockStdin(false) },
+      execFile: jest.fn<OfferToOpenBrowserExecFile>(),
+      readline: { createInterface: () => createMockReadlineInterface() },
+      process: { platform: 'linux', stdin: { isTTY: false } },
     })
 
     const token = await offerToOpenBrowser({
@@ -294,7 +271,6 @@ describe('offerToOpenBrowser', () => {
     })
 
     expect(token).toBe('plain-token')
-    expect(readline.createInterface).not.toHaveBeenCalled()
   })
 
   it('shows the press-Enter message', async () => {

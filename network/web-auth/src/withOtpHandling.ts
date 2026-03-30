@@ -1,7 +1,7 @@
 import { PnpmError } from '@pnpm/error'
 
 import { generateQrCode } from './generateQrCode.js'
-import type { OfferToOpenBrowserExecFile, OfferToOpenBrowserReadline } from './offerToOpenBrowser.js'
+import type { OfferToOpenBrowserExecFile, OfferToOpenBrowserReadlineInterface, OfferToOpenBrowserStdin } from './offerToOpenBrowser.js'
 import { offerToOpenBrowser } from './offerToOpenBrowser.js'
 import type { WebAuthFetchOptions, WebAuthFetchResponse } from './pollForWebAuthToken.js'
 import { pollForWebAuthToken } from './pollForWebAuthToken.js'
@@ -24,7 +24,7 @@ interface OtpDate {
   now: () => number
 }
 
-export interface OtpContext {
+export interface OtpContext<Stdin extends { isTTY?: boolean; pause?: () => void } = OfferToOpenBrowserStdin> {
   Date: OtpDate
   setTimeout: (cb: () => void, ms: number) => void
   enquirer: OtpEnquirer
@@ -34,10 +34,12 @@ export interface OtpContext {
   globalWarn: (message: string) => void
   process: {
     platform?: string
-    stdin: NodeJS.ReadableStream & { isTTY?: boolean }
+    stdin: Stdin
     stdout: { isTTY?: boolean }
   }
-  readline?: OfferToOpenBrowserReadline
+  readline?: {
+    createInterface: (options: { input: Stdin }) => OfferToOpenBrowserReadlineInterface
+  }
 }
 
 interface OtpErrorBody {
@@ -56,8 +58,8 @@ export const isOtpError = (error: unknown): error is OtpError =>
   'code' in error &&
   error.code === 'EOTP'
 
-export interface OtpHandlingParams<T> {
-  context: OtpContext
+export interface OtpHandlingParams<T, Stdin extends { isTTY?: boolean; pause?: () => void } = OfferToOpenBrowserStdin> {
+  context: OtpContext<Stdin>
   fetchOptions: WebAuthFetchOptions
   operation: (otp?: string) => Promise<T>
 }
@@ -77,11 +79,11 @@ export interface OtpHandlingParams<T> {
  *
  * @see https://github.com/npm/cli/blob/7d900c46/lib/utils/otplease.js for npm's implementation.
  */
-export async function withOtpHandling<T> ({
+export async function withOtpHandling<T, Stdin extends { isTTY?: boolean; pause?: () => void } = OfferToOpenBrowserStdin> ({
   context,
   fetchOptions,
   operation,
-}: OtpHandlingParams<T>): Promise<T> {
+}: OtpHandlingParams<T, Stdin>): Promise<T> {
   const {
     enquirer,
     globalInfo,

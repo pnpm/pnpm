@@ -3,32 +3,28 @@ export interface OfferToOpenBrowserReadlineInterface {
   close: () => void
 }
 
-export interface OfferToOpenBrowserReadline {
-  createInterface: (options: { input: NodeJS.ReadableStream }) => OfferToOpenBrowserReadlineInterface
-}
-
 export interface OfferToOpenBrowserExecFile {
   (file: string, args: readonly string[], callback: (error: Error | null) => void): unknown
 }
 
-export interface OfferToOpenBrowserStdin extends NodeJS.ReadableStream {
-  isTTY?: boolean
-}
+export type OfferToOpenBrowserStdin = NodeJS.ReadableStream & { isTTY?: boolean }
 
-export interface OfferToOpenBrowserContext {
+export interface OfferToOpenBrowserContext<Stdin extends { isTTY?: boolean; pause?: () => void } = OfferToOpenBrowserStdin> {
   execFile?: OfferToOpenBrowserExecFile
   globalInfo: (message: string) => void
   globalWarn: (message: string) => void
   process: {
     platform?: string
-    stdin: OfferToOpenBrowserStdin
+    stdin: Stdin
   }
-  readline?: OfferToOpenBrowserReadline
+  readline?: {
+    createInterface: (options: { input: Stdin }) => OfferToOpenBrowserReadlineInterface
+  }
 }
 
-export interface OfferToOpenBrowserParams {
+export interface OfferToOpenBrowserParams<Stdin extends { isTTY?: boolean; pause?: () => void } = OfferToOpenBrowserStdin> {
   authUrl: string
-  context: OfferToOpenBrowserContext
+  context: OfferToOpenBrowserContext<Stdin>
   pollPromise: Promise<string>
 }
 
@@ -44,11 +40,11 @@ export interface OfferToOpenBrowserParams {
  * Error-tolerant: failures in the keyboard listener or browser opening are
  * logged as warnings and do not interrupt the poll.
  */
-export async function offerToOpenBrowser ({
+export async function offerToOpenBrowser<Stdin extends { isTTY?: boolean; pause?: () => void } = OfferToOpenBrowserStdin> ({
   authUrl,
   context,
   pollPromise,
-}: OfferToOpenBrowserParams): Promise<string> {
+}: OfferToOpenBrowserParams<Stdin>): Promise<string> {
   const { execFile, globalInfo, globalWarn, process: proc, readline } = context
 
   if (!readline || !execFile || !proc.stdin.isTTY) {
@@ -95,7 +91,7 @@ export async function offerToOpenBrowser ({
     return await pollPromise
   } finally {
     rl.close()
-    proc.stdin.pause()
+    proc.stdin.pause?.()
   }
 }
 

@@ -1,11 +1,12 @@
 import path from 'node:path'
-import { PassThrough } from 'node:stream'
 
 import { jest } from '@jest/globals'
 
 import { login, type LoginContext, type LoginFetchResponse } from '../src/login.js'
 
-const TEST_CONTEXT: LoginContext = {
+type TestStdin = { isTTY: boolean }
+
+const TEST_CONTEXT: LoginContext<TestStdin> = {
   Date: { now: () => 0 },
   setTimeout: cb => {
     cb()
@@ -27,7 +28,7 @@ const TEST_CONTEXT: LoginContext = {
   },
   process: {
     platform: 'linux',
-    stdin: Object.assign(new PassThrough(), { isTTY: true as const }),
+    stdin: { isTTY: true },
     stdout: { isTTY: true },
   },
   readline: {
@@ -73,7 +74,7 @@ const createMockResponse = (init: {
   }
 }
 
-const createMockContext = (overrides?: Partial<LoginContext>): LoginContext => ({
+const createMockContext = (overrides?: Partial<LoginContext<TestStdin>>): LoginContext<TestStdin> => ({
   ...TEST_CONTEXT,
   ...overrides,
 })
@@ -83,7 +84,7 @@ describe('login', () => {
     const context = createMockContext({
       process: {
         platform: 'linux',
-        stdin: Object.assign(new PassThrough(), { isTTY: false as const }),
+        stdin: { isTTY: false },
         stdout: { isTTY: true },
       },
     })
