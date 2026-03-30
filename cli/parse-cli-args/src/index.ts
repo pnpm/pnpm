@@ -5,7 +5,6 @@ import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
 
 const RECURSIVE_CMDS = new Set(['recursive', 'multi', 'm'])
 const SPECIALLY_ESCAPED_CMDS = new Set(['run', 'dlx'])
-const BUILTIN_PREFIX = 'pm'
 
 export interface ParsedCliArgs {
   argv: {
@@ -19,7 +18,6 @@ export interface ParsedCliArgs {
   cmd: string | null
   unknownOptions: Map<string, string[]>
   fallbackCommandUsed: boolean
-  builtInCommandForced: boolean
   workspaceDir: string | undefined
 }
 
@@ -54,11 +52,6 @@ export async function parseCliArgs (
     { escapeArgs: opts.escapeArgs }
   )
 
-  const builtInCommandForced = inputArgv[0] === BUILTIN_PREFIX && noptExploratoryResults.argv.remain[0] === BUILTIN_PREFIX
-  if (builtInCommandForced) {
-    noptExploratoryResults.argv.remain.splice(0, 1)
-    inputArgv.splice(0, 1)
-  }
   const recursiveCommandUsed = RECURSIVE_CMDS.has(noptExploratoryResults.argv.remain[0])
   let commandName = getCommandName(noptExploratoryResults.argv.remain)
   let cmd = commandName ? opts.getCommandLongName(commandName) : null
@@ -85,7 +78,6 @@ export async function parseCliArgs (
         params: noptExploratoryResults.argv.remain,
         unknownOptions: new Map(),
         fallbackCommandUsed: false,
-        builtInCommandForced,
         workspaceDir: await getWorkspaceDir(noptExploratoryResults),
       }
     }
@@ -99,7 +91,6 @@ export async function parseCliArgs (
       params: noptExploratoryResults.argv.remain,
       unknownOptions: new Map(),
       fallbackCommandUsed: false,
-      builtInCommandForced,
     }
   }
 
@@ -205,7 +196,6 @@ export async function parseCliArgs (
     params,
     workspaceDir,
     fallbackCommandUsed,
-    builtInCommandForced,
     ...normalizeOptions(options, knownOptions),
   }
 }

@@ -400,42 +400,6 @@ test('dlx parses CLI options in between "dlx" and the command name', async () =>
   ])
 })
 
-test('"pm" prefix forces built-in command', async () => {
-  const { cmd, builtInCommandForced, params } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-  }, ['pm', 'clean'])
-  expect(cmd).toBe('clean')
-  expect(builtInCommandForced).toBe(true)
-  expect(params).toStrictEqual([])
-})
-
-test('"pm" prefix is only recognized as the first argument', async () => {
-  const { cmd, builtInCommandForced } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    fallbackCommand: 'run',
-    getCommandLongName: (name) => name === 'run' ? 'run' : null,
-    universalOptionsTypes: { dir: String },
-  }, ['--dir', 'foo', 'pm'])
-  // "pm" after options is treated as an unknown command, falling back to "run"
-  expect(cmd).toBe('run')
-  expect(builtInCommandForced).toBe(false)
-})
-
-test('"pm" prefix works with command options', async () => {
-  const { cmd, builtInCommandForced, options } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    getTypesByCommandName: (commandName: string) => {
-      if (commandName === 'clean') {
-        return { lockfile: Boolean }
-      }
-      return {}
-    },
-  }, ['pm', 'clean', '--lockfile'])
-  expect(cmd).toBe('clean')
-  expect(builtInCommandForced).toBe(true)
-  expect(options.lockfile).toBe(true)
-})
-
 test('dlx stops parsing after "--"', async () => {
   const { params, options, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,

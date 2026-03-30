@@ -10,7 +10,6 @@ import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
-import type { ParsedCliArgs } from '@pnpm/cli.parse-cli-args'
 import type { Config } from '@pnpm/config.reader'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
@@ -28,6 +27,7 @@ import { checkForUpdates } from './checkForUpdates.js'
 import { NOT_IMPLEMENTED_COMMAND_SET, overridableByScriptCommands, pnpmCmds, rcOptionsTypes, recursiveByDefaultCommands, skipPackageManagerCheckForCommand } from './cmd/index.js'
 import { formatUnknownOptionsError } from './formatError.js'
 import { getConfig, installConfigDepsAndLoadHooks } from './getConfig.js'
+import type { ParsedCliArgsWithBuiltIn } from './parseCliArgs.js'
 import { parseCliArgs } from './parseCliArgs.js'
 import { initReporter, type ReporterType } from './reporter/index.js'
 import { switchCliVersion } from './switchCliVersion.js'
@@ -56,7 +56,7 @@ const DEPRECATED_OPTIONS = new Set([
 ])
 
 export async function main (inputArgv: string[]): Promise<void> {
-  let parsedCliArgs!: ParsedCliArgs
+  let parsedCliArgs!: ParsedCliArgsWithBuiltIn
   try {
     parsedCliArgs = await parseCliArgs(inputArgv)
   } catch (err: any) { // eslint-disable-line
