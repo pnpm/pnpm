@@ -44,7 +44,7 @@
     "@pnpm/resolving.registry.pkg-metadata-filter": "workspace:*",
     "@pnpm/resolving.registry.types": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
-    "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.calves": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.range-resolver": "workspace:*",

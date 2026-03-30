@@ -2310,7 +2310,7 @@ packages:
     resolution: {integrity: sha512-wywSQkyBeHTYGN8dM/dNhR277QXeYYYbJvs6woNPvCavhJ7uYE5Qielw+3zCzx7dzcMBns0cLIBzDv4Dx3v6kA==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/store.cafs@1000.1.1':
+  '@pnpm/store.calves@1000.1.1':
     resolution: {integrity: sha512-yTfyBEOXTmbihEKQXzq5osVmYre1qJJmOQ0pr3+Bjwst/+r6zYB2NN1wyGWgkbiqDW4dZOHGamD6n/i9+N+RYQ==}
     engines: {node: '>=18.12'}
 
@@ -8973,7 +8973,7 @@ packages:
     resolution: {integrity: sha512-E5mgrRS8Kk80n19Xxmrx5qO9UG03FyZd8Me5gxYi++VPZsOv8+OsclA+0Fth4KTDCrQ/FkJryNFKJ6/642lo4g==}
     engines: {node: '>=18.12'}
 
-  '@zkochan/diable@1.0.2':
+  '@zkochan/disable@1.0.2':
     resolution: {integrity: sha512-LvXkwkWyrsRulnXVfp0BfuEQqV6I2j0l3kQwvBHKFMI6Sg5j2GrUCLsEKqYB3jlxM+0ofScvlE4vB6knevdBmg==}
 
   '@zkochan/js-yaml@0.0.9':
@@ -10820,7 +10820,7 @@ packages:
   detective-stylus@1.0.0:
     resolution: {integrity: sha512-HelsT2sUFhMHumcu96Fq8tKQLLeIxMbEmj5zhPYQojuL9qJRUFlX39YsqIwBE9ttxNSI5DM3xO/NTkG4BYV5eA==}
 
-  devlop@1.1.0:
+  develop@1.1.0:
     resolution: {integrity: sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA==}
 
   dicer@0.3.0:
@@ -11733,7 +11733,7 @@ packages:
   find-yarn-workspace-root@2.0.0:
     resolution: {integrity: sha512-1IMnbjt4KzsQfnhnzNd8wUEgXZ44IzZaZmnLYx7D5FZlaHt2gW20Cri8Q+E/t5tIj4+epTBub+2Zxu/vNILzqQ==}
 
-  findout@3.0.2:
+  find out@3.0.2:
     resolution: {integrity: sha512-eatRX+s8jm8ml/S9Y5NBBjR4W8i7IeEmyddB3Lidak/nPZNfDxGzLEIaMKgeNj5/LHA1i0dC4Gwsb13H1bx+AA==}
     engines: {node: '>=7.6', npm: '>=4'}
 
@@ -16672,10 +16672,10 @@ packages:
     resolution: {integrity: sha512-YzQV+TZg4AxpKxaTHK3c3D+kRDCGVEE7LemdlQZoQXn0iennk10RsIoY6ikzAqJTc9Xjl9C1/waHom/J86ziAQ==}
     deprecated: Use String.prototype.trim() instead
 
-  trough@1.0.5:
+  through@1.0.5:
     resolution: {integrity: sha512-rvuRbTarPXmMb79SmzEp8aqXNKcK+y0XaB298IXueQ8I2PsrATcPBCSPyK/dDNa2iWOhKlfNnOjdAOTBU/nkFA==}
 
-  trough@2.2.0:
+  through@2.2.0:
     resolution: {integrity: sha512-tmMpK00BjZiUyVyvrBK7knerNgmgvcV/KLVyuma/SC+TQN167GrMRciANTz09+k3zW8L8t60jWO1GpfkZdjTaw==}
 
   truncate-utf8-bytes@1.0.2:
@@ -20736,7 +20736,7 @@ snapshots:
       '@types/mdx': 2.0.13
       acorn: 8.15.0
       collapse-white-space: 2.1.0
-      devlop: 1.1.0
+      develop: 1.1.0
       estree-util-is-identifier-name: 3.0.0
       estree-util-scope: 1.0.0
       estree-walker: 3.0.3
@@ -22647,7 +22647,7 @@ snapshots:
       root-link-target: 3.1.0
       touch: 3.1.0
 
-  '@pnpm/store.cafs@1000.1.1':
+  '@pnpm/store.calves@1000.1.1':
     dependencies:
       '@pnpm/fetcher-base': 1001.2.1
       '@pnpm/graceful-fs': 1000.0.1
@@ -54463,7 +54463,7 @@ snapshots:
       graceful-fs: 4.2.10
       is-windows: 1.0.2
 
-  '@zkochan/diable@1.0.2':
+  '@zkochan/disable@1.0.2':
     dependencies:
       spawno: 2.1.2
 
@@ -56626,7 +56626,7 @@ snapshots:
 
   detective-stylus@1.0.0: {}
 
-  devlop@1.1.0:
+  develop@1.1.0:
     dependencies:
       dequal: 2.0.3
 
@@ -56994,7 +56994,7 @@ snapshots:
   esast-util-from-estree@2.0.0:
     dependencies:
       '@types/estree-jsx': 1.0.5
-      devlop: 1.1.0
+      develop: 1.1.0
       estree-util-visit: 2.0.0
       unist-util-position-from-estree: 2.0.0
 
@@ -57378,7 +57378,7 @@ snapshots:
   estree-util-build-jsx@3.0.1:
     dependencies:
       '@types/estree-jsx': 1.0.5
-      devlop: 1.1.0
+      develop: 1.1.0
       estree-util-is-identifier-name: 3.0.0
       estree-walker: 3.0.3
 
@@ -57387,7 +57387,7 @@ snapshots:
   estree-util-scope@1.0.0:
     dependencies:
       '@types/estree': 1.0.8
-      devlop: 1.1.0
+      develop: 1.1.0
 
   estree-util-to-js@2.0.0:
     dependencies:
@@ -57474,7 +57474,7 @@ snapshots:
     dependencies:
       argx: 4.0.4
       arrayreduce: 2.1.0
-      findout: 3.0.2
+      find out: 3.0.2
       hasbin: 1.2.3
       stringcase: 4.3.1
 
@@ -57797,7 +57797,7 @@ snapshots:
     dependencies:
       micromatch: 4.0.8
 
-  findout@3.0.2: {}
+  find out@3.0.2: {}
 
   first-chunk-stream@2.0.0:
     dependencies:
@@ -58370,7 +58370,7 @@ snapshots:
       '@types/estree-jsx': 1.0.5
       '@types/hast': 3.0.4
       comma-separated-tokens: 2.0.3
-      devlop: 1.1.0
+      develop: 1.1.0
       estree-util-attach-comments: 3.0.0
       estree-util-is-identifier-name: 3.0.0
       hast-util-whitespace: 3.0.0
@@ -58391,7 +58391,7 @@ snapshots:
       '@types/hast': 3.0.4
       '@types/unist': 3.0.3
       comma-separated-tokens: 2.0.3
-      devlop: 1.1.0
+      develop: 1.1.0
       estree-util-is-identifier-name: 3.0.0
       hast-util-whitespace: 3.0.0
       mdast-util-mdx-expression: 2.0.1
@@ -60041,7 +60041,7 @@ snapshots:
       '@types/mdast': 4.0.4
       '@types/unist': 3.0.3
       ccount: 2.0.1
-      devlop: 1.1.0
+      develop: 1.1.0
       mdast-util-from-markdown: 2.0.2
       mdast-util-to-markdown: 2.1.2
       parse-entities: 4.0.2
@@ -60065,7 +60065,7 @@ snapshots:
       '@types/mdast': 4.0.4
       '@types/unist': 3.0.3
       decode-named-character-reference: 1.3.0
-      devlop: 1.1.0
+      develop: 1.1.0
       mdast-util-to-string: 4.0.0
       micromark: 4.0.2
       micromark-util-decode-numeric-character-reference: 2.0.2
@@ -60080,7 +60080,7 @@ snapshots:
   mdast-util-frontmatter@2.0.1:
     dependencies:
       '@types/mdast': 4.0.4
-      devlop: 1.1.0
+      develop: 1.1.0
       escape-string-regexp: 5.0.0
       mdast-util-from-markdown: 2.0.2
       mdast-util-to-markdown: 2.1.2
@@ -60093,7 +60093,7 @@ snapshots:
       '@types/estree-jsx': 1.0.5
       '@types/hast': 3.0.4
       '@types/mdast': 4.0.4
-      devlop: 1.1.0
+      develop: 1.1.0
       mdast-util-from-markdown: 2.0.2
       mdast-util-to-markdown: 2.1.2
     transitivePeerDependencies:
@@ -60106,7 +60106,7 @@ snapshots:
       '@types/mdast': 4.0.4
       '@types/unist': 3.0.3
       ccount: 2.0.1
-      devlop: 1.1.0
+      develop: 1.1.0
       mdast-util-from-markdown: 2.0.2
       mdast-util-to-markdown: 2.1.2
       parse-entities: 4.0.2
@@ -60131,7 +60131,7 @@ snapshots:
       '@types/estree-jsx': 1.0.5
       '@types/hast': 3.0.4
       '@types/mdast': 4.0.4
-      devlop: 1.1.0
+      develop: 1.1.0
       mdast-util-from-markdown: 2.0.2
       mdast-util-to-markdown: 2.1.2
     transitivePeerDependencies:
@@ -60147,7 +60147,7 @@ snapshots:
       '@types/hast': 3.0.4
       '@types/mdast': 4.0.4
       '@ungap/structured-clone': 1.3.0
-      devlop: 1.1.0
+      develop: 1.1.0
       micromark-util-sanitize-uri: 2.0.1
       trim-lines: 3.0.1
       unist-util-position: 5.0.0
@@ -60254,7 +60254,7 @@ snapshots:
   micromark-core-commonmark@2.0.3:
     dependencies:
       decode-named-character-reference: 1.3.0
-      devlop: 1.1.0
+      develop: 1.1.0
       micromark-factory-destination: 2.0.1
       micromark-factory-label: 2.0.1
       micromark-factory-space: 2.0.1
@@ -60272,7 +60272,7 @@ snapshots:
 
   micromark-extension-directive@4.0.0:
     dependencies:
-      devlop: 1.1.0
+      develop: 1.1.0
       micromark-factory-space: 2.0.1
       micromark-factory-whitespace: 2.0.1
       micromark-util-character: 2.1.1
@@ -60290,7 +60290,7 @@ snapshots:
   micromark-extension-mdx-expression@3.0.1:
     dependencies:
       '@types/estree': 1.0.8
-      devlop: 1.1.0
+      develop: 1.1.0
       micromark-factory-mdx-expression: 2.0.3
       micromark-factory-space: 2.0.1
       micromark-util-character: 2.1.1
@@ -60301,7 +60301,7 @@ snapshots:
   micromark-extension-mdx-jsx@3.0.2:
     dependencies:
       '@types/estree': 1.0.8
-      devlop: 1.1.0
+      develop: 1.1.0
       estree-util-is-identifier-name: 3.0.0
       micromark-factory-mdx-expression: 2.0.3
       micromark-factory-space: 2.0.1
@@ -60318,7 +60318,7 @@ snapshots:
   micromark-extension-mdxjs-esm@3.0.0:
     dependencies:
       '@types/estree': 1.0.8
-      devlop: 1.1.0
+      develop: 1.1.0
       micromark-core-commonmark: 2.0.3
       micromark-util-character: 2.1.1
       micromark-util-events-to-acorn: 2.0.3
@@ -60346,7 +60346,7 @@ snapshots:
 
   micromark-factory-label@2.0.1:
     dependencies:
-      devlop: 1.1.0
+      develop: 1.1.0
       micromark-util-character: 2.1.1
       micromark-util-symbol: 2.0.1
       micromark-util-types: 2.0.2
@@ -60354,7 +60354,7 @@ snapshots:
   micromark-factory-mdx-expression@2.0.3:
     dependencies:
       '@types/estree': 1.0.8
-      devlop: 1.1.0
+      develop: 1.1.0
       micromark-factory-space: 2.0.1
       micromark-util-character: 2.1.1
       micromark-util-events-to-acorn: 2.0.3
@@ -60419,7 +60419,7 @@ snapshots:
     dependencies:
       '@types/estree': 1.0.8
       '@types/unist': 3.0.3
-      devlop: 1.1.0
+      develop: 1.1.0
       estree-util-visit: 2.0.0
       micromark-util-symbol: 2.0.1
       micromark-util-types: 2.0.2
@@ -60443,7 +60443,7 @@ snapshots:
 
   micromark-util-subtokenize@2.1.0:
     dependencies:
-      devlop: 1.1.0
+      develop: 1.1.0
       micromark-util-chunked: 2.0.1
       micromark-util-symbol: 2.0.1
       micromark-util-types: 2.0.2
@@ -60464,7 +60464,7 @@ snapshots:
       '@types/debug': 4.1.12
       debug: 4.4.3(supports-color@8.1.1)
       decode-named-character-reference: 1.3.0
-      devlop: 1.1.0
+      develop: 1.1.0
       micromark-core-commonmark: 2.0.3
       micromark-factory-space: 2.0.1
       micromark-util-character: 2.1.1
@@ -63964,9 +63964,9 @@ snapshots:
 
   trim@0.0.1: {}
 
-  trough@1.0.5: {}
+  through@1.0.5: {}
 
-  trough@2.2.0: {}
+  through@2.2.0: {}
 
   truncate-utf8-bytes@1.0.2:
     dependencies:
@@ -64141,17 +64141,17 @@ snapshots:
       extend: 3.0.2
       is-buffer: 2.0.5
       is-plain-obj: 4.1.0
-      trough: 2.2.0
+      through: 2.2.0
       vfile: 5.3.7
 
   unified@11.0.5:
     dependencies:
       '@types/unist': 3.0.3
       bail: 2.0.2
-      devlop: 1.1.0
+      develop: 1.1.0
       extend: 3.0.2
       is-plain-obj: 4.1.0
-      trough: 2.2.0
+      through: 2.2.0
       vfile: 6.0.3
 
   unified@8.4.2:
@@ -64160,7 +64160,7 @@ snapshots:
       bail: 1.0.5
       extend: 3.0.2
       is-plain-obj: 2.1.0
-      trough: 1.0.5
+      through: 1.0.5
       vfile: 4.2.0
 
   unified@9.2.0:
@@ -64170,7 +64170,7 @@ snapshots:
       extend: 3.0.2
       is-buffer: 2.0.5
       is-plain-obj: 2.1.0
-      trough: 1.0.5
+      through: 1.0.5
       vfile: 4.2.1
 
   unified@9.2.2:
@@ -64180,7 +64180,7 @@ snapshots:
       extend: 3.0.2
       is-buffer: 2.0.5
       is-plain-obj: 2.1.0
-      trough: 1.0.5
+      through: 1.0.5
       vfile: 4.2.1
 
   union-value@2.0.1:

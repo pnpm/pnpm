@@ -4,7 +4,7 @@ import type { DependencyManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 
 /**
- * Attempts to read a package manifest from the content-addressable store (CAFS)
+ * Attempts to read a package manifest from the content-addressable store (CALVES)
  * using its integrity hash. Returns `undefined` if the manifest cannot be read.
  */
 export function readManifestFromCafs (storeDir: string, storeIndex: StoreIndex, pkg: {

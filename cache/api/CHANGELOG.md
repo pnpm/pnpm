@@ -14,7 +14,7 @@
 - Updated dependencies [7c1382f]
   - @pnpm/npm-resolver@1004.4.0
   - @pnpm/config@1004.4.2
-  - @pnpm/store.cafs@1000.0.19
+  - @pnpm/store.calves@1000.0.19
 
 ## 1000.0.34
 
@@ -29,7 +29,7 @@
 
 - Updated dependencies [9b9faa5]
 - Updated dependencies [fb4da0c]
-  - @pnpm/store.cafs@1000.0.18
+  - @pnpm/store.calves@1000.0.18
   - @pnpm/npm-resolver@1004.3.0
   - @pnpm/config@1004.4.0
 
@@ -66,7 +66,7 @@
 - Updated dependencies [e792927]
   - @pnpm/npm-resolver@1004.2.0
   - @pnpm/config@1004.3.0
-  - @pnpm/store.cafs@1000.0.17
+  - @pnpm/store.calves@1000.0.17
 
 ## 1000.0.28
 
@@ -77,7 +77,7 @@
   - @pnpm/constants@1001.3.0
   - @pnpm/config@1004.2.1
   - @pnpm/npm-resolver@1004.1.3
-  - @pnpm/store.cafs@1000.0.16
+  - @pnpm/store.calves@1000.0.16
 
 ## 1000.0.27
 
@@ -88,7 +88,7 @@
   - @pnpm/config@1004.2.0
   - @pnpm/constants@1001.2.0
   - @pnpm/npm-resolver@1004.1.2
-  - @pnpm/store.cafs@1000.0.15
+  - @pnpm/store.calves@1000.0.15
 
 ## 1000.0.26
 
@@ -111,7 +111,7 @@
 - Updated dependencies [046af72]
   - @pnpm/npm-resolver@1004.1.0
   - @pnpm/config@1004.0.0
-  - @pnpm/store.cafs@1000.0.14
+  - @pnpm/store.calves@1000.0.14
 
 ## 1000.0.24
 
@@ -119,7 +119,7 @@
 
 - Updated dependencies [8d175c0]
   - @pnpm/config@1003.1.1
-  - @pnpm/store.cafs@1000.0.13
+  - @pnpm/store.calves@1000.0.13
 
 ## 1000.0.23
 
@@ -135,7 +135,7 @@
 - Updated dependencies [6cf010c]
   - @pnpm/config@1003.1.0
   - @pnpm/npm-resolver@1004.0.1
-  - @pnpm/store.cafs@1000.0.12
+  - @pnpm/store.calves@1000.0.12
 
 ## 1000.0.22
 
@@ -154,7 +154,7 @@
   - @pnpm/config@1003.0.0
   - @pnpm/npm-resolver@1004.0.0
   - @pnpm/logger@1001.0.0
-  - @pnpm/store.cafs@1000.0.11
+  - @pnpm/store.calves@1000.0.11
 
 ## 1000.0.20
 
@@ -162,7 +162,7 @@
 
 - Updated dependencies [81f441c]
   - @pnpm/npm-resolver@1003.0.0
-  - @pnpm/store.cafs@1000.0.10
+  - @pnpm/store.calves@1000.0.10
   - @pnpm/config@1002.7.2
 
 ## 1000.0.19
@@ -174,7 +174,7 @@
 - Updated dependencies [01f2bcf]
   - @pnpm/npm-resolver@1002.0.0
   - @pnpm/config@1002.7.1
-  - @pnpm/store.cafs@1000.0.9
+  - @pnpm/store.calves@1000.0.9
 
 ## 1000.0.18
 
@@ -194,7 +194,7 @@
 - Updated dependencies [5f7be64]
   - @pnpm/config@1002.6.0
   - @pnpm/npm-resolver@1001.0.1
-  - @pnpm/store.cafs@1000.0.8
+  - @pnpm/store.calves@1000.0.8
 
 ## 1000.0.16
 
@@ -204,7 +204,7 @@
 - Updated dependencies [3d52365]
   - @pnpm/config@1002.5.4
   - @pnpm/npm-resolver@1001.0.0
-  - @pnpm/store.cafs@1000.0.7
+  - @pnpm/store.calves@1000.0.7
 
 ## 1000.0.15
 
@@ -237,7 +237,7 @@
 - Updated dependencies [d965748]
   - @pnpm/config@1002.5.0
   - @pnpm/npm-resolver@1000.1.5
-  - @pnpm/store.cafs@1000.0.6
+  - @pnpm/store.calves@1000.0.6
 
 ## 1000.0.11
 
@@ -254,7 +254,7 @@
 - Updated dependencies [e32b1a2]
   - @pnpm/config@1002.4.0
   - @pnpm/npm-resolver@1000.1.4
-  - @pnpm/store.cafs@1000.0.5
+  - @pnpm/store.calves@1000.0.5
 
 ## 1000.0.9
 
@@ -286,14 +286,14 @@
   - @pnpm/constants@1001.1.0
   - @pnpm/config@1002.2.0
   - @pnpm/npm-resolver@1000.1.3
-  - @pnpm/store.cafs@1000.0.4
+  - @pnpm/store.calves@1000.0.4
 
 ## 1000.0.5
 
 ### Patch Changes
 
 - @pnpm/config@1002.1.2
-- @pnpm/store.cafs@1000.0.3
+- @pnpm/store.calves@1000.0.3
 
 ## 1000.0.4
 
@@ -302,7 +302,7 @@
 - Updated dependencies [1f5169f]
   - @pnpm/config@1002.1.1
   - @pnpm/npm-resolver@1000.1.2
-  - @pnpm/store.cafs@1000.0.2
+  - @pnpm/store.calves@1000.0.2
 
 ## 1000.0.3
 
@@ -331,7 +331,7 @@
   - @pnpm/config@1001.0.0
   - @pnpm/constants@1001.0.0
   - @pnpm/npm-resolver@1000.1.0
-  - @pnpm/store.cafs@1000.0.1
+  - @pnpm/store.calves@1000.0.1
 
 ## 0.1.4
 
@@ -351,7 +351,7 @@
 - Updated dependencies [c4f5231]
   - @pnpm/constants@10.0.0
   - @pnpm/config@22.0.0
-  - @pnpm/store.cafs@5.0.0
+  - @pnpm/store.calves@5.0.0
   - @pnpm/npm-resolver@22.0.0
 
 ## 0.1.3
@@ -361,7 +361,7 @@
 - Updated dependencies [222d10a]
 - Updated dependencies [a1f4df2]
   - @pnpm/npm-resolver@21.1.1
-  - @pnpm/store.cafs@4.0.2
+  - @pnpm/store.calves@4.0.2
   - @pnpm/config@21.8.5
 
 ## 0.1.2
@@ -369,7 +369,7 @@
 ### Patch Changes
 
 - Updated dependencies [db7ff76]
-  - @pnpm/store.cafs@4.0.1
+  - @pnpm/store.calves@4.0.1
   - @pnpm/config@21.8.4
   - @pnpm/npm-resolver@21.1.0
 

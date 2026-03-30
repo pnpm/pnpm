@@ -306,7 +306,7 @@
 
 ### Major Changes
 
-- 043d988fc: Breaking change to the API. Defaul export is not used.
+- 043d988fc: Breaking change to the API. Default export is not used.
 - f884689e0: Require `@pnpm/logger` v5.
 
 ### Patch Changes
@@ -450,7 +450,7 @@
 
 ### Patch Changes
 
-- 782ef2490: Default options should not be overriden by undefined options.
+- 782ef2490: Default options should not be overridden by undefined options.
 - Updated dependencies [3c7e5eced]
   - @pnpm/npm-registry-agent@5.0.2
 

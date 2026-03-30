@@ -6,7 +6,7 @@ import {
   type CafsLocker,
   createCafs,
 } from '@pnpm/store.cafs'
-import type { Cafs, FilesMap, PackageFilesResponse } from '@pnpm/store.cafs-types'
+import type { Calves, FilesMap, PackageFilesResponse } from '@pnpm/store.cafs-types'
 import type {
   ImportIndexedPackage,
   ImportIndexedPackageAsync,
@@ -128,7 +128,7 @@ export function createCafsStore (
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
     cafsLocker?: CafsLocker
   }
-): Cafs {
+): Calves {
   const baseTempDir = path.join(storeDir, 'tmp')
   const importPackage = createPackageImporter({
     importIndexedPackage: opts?.importPackage,

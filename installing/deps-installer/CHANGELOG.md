@@ -5211,7 +5211,7 @@
 
 ### Patch Changes
 
-- cadefe5b6: Print a warning when the integrity of more than 1K files is checked in the CAFS.
+- cadefe5b6: Print a warning when the integrity of more than 1K files is checked in the CALVES.
 - 315871260: Use Yarn's compatibility database to patch broken packages in the ecosystem with package extensions.
 - Updated dependencies [0075fcd23]
   - @pnpm/modules-cleaner@12.0.3
@@ -7169,15 +7169,15 @@
 ### Patch Changes
 
 - b5d694e7f: Use pnpm.overrides instead of resolutions. Still support resolutions for partial compatibility with Yarn and for avoiding a breaking change.
-- c03a2b2cb: Allow to specify the overriden dependency's parent package.
+- c03a2b2cb: Allow to specify the overridden dependency's parent package.
 
-  For example, if `foo` should be overriden only in dependencies of bar v2, this configuration may be used:
+  For example, if `foo` should be overridden only in dependencies of bar v2, this configuration may be used:
 
   ```json
   {
     ...
     "pnpm": {
-      "overriden": {
+      "overridden": {
         "bar@2>foo": "1.0.0"
       }
     }

@@ -6,7 +6,7 @@ import { FetchError } from '@pnpm/error'
 import type { FetchOptions, FetchResult } from '@pnpm/fetching.fetcher-base'
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
-import type { Cafs } from '@pnpm/store.cafs-types'
+import type { Calves } from '@pnpm/store.cafs-types'
 import type { StoreIndex } from '@pnpm/store.index'
 import { addFilesFromTarball } from '@pnpm/worker'
 import * as retry from '@zkochan/retry'
@@ -22,7 +22,7 @@ export interface HttpResponse {
 
 export type DownloadOptions = {
   getAuthHeaderByURI: (registry: string) => string | undefined
-  cafs: Cafs
+  calves: Calves
   registry?: string
   onStart?: (totalSize: number | null, attempt: number) => void
   onProgress?: (downloaded: number) => void
@@ -182,7 +182,7 @@ export function createDownloader (
       }
       return addFilesFromTarball({
         buffer: data,
-        storeDir: opts.cafs.storeDir,
+        storeDir: opts.calves.storeDir,
         storeIndex: opts.storeIndex,
         readManifest: opts.readManifest,
         integrity: opts.integrity,

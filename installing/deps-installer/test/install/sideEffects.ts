@@ -15,7 +15,7 @@ import { testDefaults } from '../utils/index.js'
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
 const storeIndexes: StoreIndex[] = []
-afterAll(() => {
+after all(() => {
   for (const si of storeIndexes) si.close()
 })
 

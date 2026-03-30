@@ -21,7 +21,7 @@
   - @pnpm/core-loggers@1001.0.4
   - @pnpm/dependency-path@1001.1.3
   - @pnpm/read-package-json@1000.1.2
-  - @pnpm/store.cafs@1000.0.19
+  - @pnpm/store.calves@1000.0.19
   - @pnpm/pick-fetcher@1001.0.0
 
 ## 1007.0.0
@@ -37,7 +37,7 @@
 
 - Updated dependencies [9b9faa5]
   - @pnpm/graceful-fs@1000.0.1
-  - @pnpm/store.cafs@1000.0.18
+  - @pnpm/store.calves@1000.0.18
   - @pnpm/worker@1000.1.14
   - @pnpm/dependency-path@1001.1.2
 
@@ -64,7 +64,7 @@
   - @pnpm/core-loggers@1001.0.3
   - @pnpm/dependency-path@1001.1.1
   - @pnpm/resolver-base@1005.0.1
-  - @pnpm/store.cafs@1000.0.17
+  - @pnpm/store.calves@1000.0.17
   - @pnpm/store-controller-types@1004.0.2
   - @pnpm/worker@1000.1.12
   - @pnpm/pick-fetcher@1001.0.0
@@ -90,7 +90,7 @@
   - @pnpm/pick-fetcher@1001.0.0
   - @pnpm/read-package-json@1000.0.11
   - @pnpm/error@1000.0.4
-  - @pnpm/store.cafs@1000.0.16
+  - @pnpm/store.calves@1000.0.16
   - @pnpm/store-controller-types@1004.0.1
   - @pnpm/package-is-installable@1000.0.12
   - @pnpm/worker@1000.1.11
@@ -139,7 +139,7 @@
   - @pnpm/core-loggers@1001.0.2
   - @pnpm/dependency-path@1001.0.2
   - @pnpm/read-package-json@1000.0.10
-  - @pnpm/store.cafs@1000.0.15
+  - @pnpm/store.calves@1000.0.15
   - @pnpm/worker@1000.1.10
   - @pnpm/error@1000.0.3
 
@@ -168,7 +168,7 @@
   - @pnpm/pick-fetcher@1000.0.1
   - @pnpm/fetcher-base@1000.0.12
   - @pnpm/store-controller-types@1003.0.3
-  - @pnpm/store.cafs@1000.0.14
+  - @pnpm/store.calves@1000.0.14
   - @pnpm/worker@1000.1.8
 
 ## 1004.0.2
@@ -178,7 +178,7 @@
 - 509948d: Fix a regression (in v10.9.0) causing the `--lockfile-only` flag on `pnpm update` to produce a different `pnpm-lock.yaml` than an update without the flag.
 - Updated dependencies [509948d]
   - @pnpm/store-controller-types@1003.0.2
-  - @pnpm/store.cafs@1000.0.13
+  - @pnpm/store.calves@1000.0.13
   - @pnpm/worker@1000.1.7
 
 ## 1004.0.1
@@ -199,7 +199,7 @@
   - @pnpm/dependency-path@1000.0.9
   - @pnpm/read-package-json@1000.0.9
   - @pnpm/resolver-base@1003.0.1
-  - @pnpm/store.cafs@1000.0.12
+  - @pnpm/store.calves@1000.0.12
   - @pnpm/pick-fetcher@1000.0.0
 
 ## 1004.0.0
@@ -264,7 +264,7 @@
   - @pnpm/core-loggers@1001.0.0
   - @pnpm/logger@1001.0.0
   - @pnpm/types@1000.5.0
-  - @pnpm/store.cafs@1000.0.11
+  - @pnpm/store.calves@1000.0.11
   - @pnpm/fetcher-base@1000.0.10
   - @pnpm/pick-fetcher@1000.0.0
   - @pnpm/package-is-installable@1000.0.9
@@ -281,7 +281,7 @@
   - @pnpm/fetcher-base@1000.0.9
   - @pnpm/pick-fetcher@1000.0.0
   - @pnpm/store-controller-types@1002.0.1
-  - @pnpm/store.cafs@1000.0.10
+  - @pnpm/store.calves@1000.0.10
   - @pnpm/worker@1000.1.4
 
 ## 1003.0.0
@@ -303,7 +303,7 @@
   - @pnpm/fetcher-base@1000.0.8
   - @pnpm/dependency-path@1000.0.7
   - @pnpm/read-package-json@1000.0.7
-  - @pnpm/store.cafs@1000.0.9
+  - @pnpm/store.calves@1000.0.9
   - @pnpm/worker@1000.1.3
   - @pnpm/pick-fetcher@1000.0.0
 
@@ -320,7 +320,7 @@
   - @pnpm/dependency-path@1000.0.6
   - @pnpm/read-package-json@1000.0.6
   - @pnpm/resolver-base@1000.2.1
-  - @pnpm/store.cafs@1000.0.8
+  - @pnpm/store.calves@1000.0.8
   - @pnpm/store-controller-types@1001.0.5
   - @pnpm/worker@1000.1.2
   - @pnpm/pick-fetcher@1000.0.0
@@ -334,7 +334,7 @@
   - @pnpm/fetcher-base@1000.0.6
   - @pnpm/pick-fetcher@1000.0.0
   - @pnpm/store-controller-types@1001.0.4
-  - @pnpm/store.cafs@1000.0.7
+  - @pnpm/store.calves@1000.0.7
   - @pnpm/worker@1000.1.1
 
 ## 1002.0.0
@@ -363,7 +363,7 @@
   - @pnpm/core-loggers@1000.1.4
   - @pnpm/read-package-json@1000.0.5
   - @pnpm/resolver-base@1000.1.4
-  - @pnpm/store.cafs@1000.0.6
+  - @pnpm/store.calves@1000.0.6
   - @pnpm/store-controller-types@1001.0.3
   - @pnpm/worker@1000.0.7
   - @pnpm/pick-fetcher@1000.0.0
@@ -380,7 +380,7 @@
   - @pnpm/dependency-path@1000.0.3
   - @pnpm/read-package-json@1000.0.4
   - @pnpm/resolver-base@1000.1.3
-  - @pnpm/store.cafs@1000.0.5
+  - @pnpm/store.calves@1000.0.5
   - @pnpm/store-controller-types@1001.0.2
   - @pnpm/worker@1000.0.6
   - @pnpm/pick-fetcher@1000.0.0
@@ -398,7 +398,7 @@
   - @pnpm/dependency-path@1000.0.2
   - @pnpm/read-package-json@1000.0.3
   - @pnpm/resolver-base@1000.1.2
-  - @pnpm/store.cafs@1000.0.4
+  - @pnpm/store.calves@1000.0.4
   - @pnpm/store-controller-types@1001.0.1
   - @pnpm/worker@1000.0.5
   - @pnpm/pick-fetcher@1000.0.0
@@ -415,7 +415,7 @@
 
 - Updated dependencies [dde650b]
   - @pnpm/store-controller-types@1001.0.0
-  - @pnpm/store.cafs@1000.0.3
+  - @pnpm/store.calves@1000.0.3
   - @pnpm/worker@1000.0.4
 
 ## 1000.1.2
@@ -430,7 +430,7 @@
   - @pnpm/dependency-path@1000.0.1
   - @pnpm/read-package-json@1000.0.2
   - @pnpm/resolver-base@1000.1.1
-  - @pnpm/store.cafs@1000.0.2
+  - @pnpm/store.calves@1000.0.2
   - @pnpm/store-controller-types@1000.1.1
   - @pnpm/worker@1000.0.3
   - @pnpm/pick-fetcher@1000.0.0
@@ -457,7 +457,7 @@
   - @pnpm/store-controller-types@1000.1.0
   - @pnpm/resolver-base@1000.1.0
   - @pnpm/error@1000.0.1
-  - @pnpm/store.cafs@1000.0.1
+  - @pnpm/store.calves@1000.0.1
   - @pnpm/fetcher-base@1000.0.1
   - @pnpm/pick-fetcher@1000.0.0
   - @pnpm/package-is-installable@1000.0.1
@@ -487,7 +487,7 @@
 - Updated dependencies [099e6af]
 - Updated dependencies [d55b259]
   - @pnpm/dependency-path@6.0.0
-  - @pnpm/store.cafs@5.0.0
+  - @pnpm/store.calves@5.0.0
   - @pnpm/package-is-installable@9.0.12
   - @pnpm/worker@2.0.0
   - @pnpm/error@6.0.3
@@ -502,7 +502,7 @@
 - Updated dependencies [222d10a]
 - Updated dependencies [a1f4df2]
   - @pnpm/worker@1.0.13
-  - @pnpm/store.cafs@4.0.2
+  - @pnpm/store.calves@4.0.2
   - @pnpm/package-is-installable@9.0.11
   - @pnpm/dependency-path@5.1.7
 
@@ -511,7 +511,7 @@
 ### Patch Changes
 
 - Updated dependencies [db7ff76]
-  - @pnpm/store.cafs@4.0.1
+  - @pnpm/store.calves@4.0.1
   - @pnpm/worker@1.0.12
 
 ## 25.2.8
@@ -530,7 +530,7 @@
 - Updated dependencies [d500d9f]
 - Updated dependencies [db420ab]
   - @pnpm/types@12.2.0
-  - @pnpm/store.cafs@4.0.0
+  - @pnpm/store.calves@4.0.0
   - @pnpm/package-is-installable@9.0.9
   - @pnpm/fetcher-base@16.0.7
   - @pnpm/core-loggers@10.0.7
@@ -553,7 +553,7 @@
   - @pnpm/dependency-path@5.1.5
   - @pnpm/read-package-json@9.0.7
   - @pnpm/resolver-base@13.0.3
-  - @pnpm/store.cafs@3.0.8
+  - @pnpm/store.calves@3.0.8
   - @pnpm/store-controller-types@18.1.5
   - @pnpm/worker@1.0.9
   - @pnpm/pick-fetcher@3.0.0
@@ -577,7 +577,7 @@
   - @pnpm/dependency-path@5.1.4
   - @pnpm/read-package-json@9.0.6
   - @pnpm/resolver-base@13.0.2
-  - @pnpm/store.cafs@3.0.7
+  - @pnpm/store.calves@3.0.7
   - @pnpm/store-controller-types@18.1.4
   - @pnpm/worker@1.0.8
   - @pnpm/pick-fetcher@3.0.0
@@ -594,7 +594,7 @@
   - @pnpm/dependency-path@5.1.3
   - @pnpm/read-package-json@9.0.5
   - @pnpm/resolver-base@13.0.1
-  - @pnpm/store.cafs@3.0.6
+  - @pnpm/store.calves@3.0.6
   - @pnpm/store-controller-types@18.1.3
   - @pnpm/worker@1.0.7
   - @pnpm/pick-fetcher@3.0.0
@@ -605,7 +605,7 @@
 
 - Updated dependencies [afe520d]
 - Updated dependencies [afe520d]
-  - @pnpm/store.cafs@3.0.5
+  - @pnpm/store.calves@3.0.5
   - @pnpm/worker@1.0.6
 
 ## 25.2.1
@@ -623,7 +623,7 @@
   - @pnpm/core-loggers@10.0.3
   - @pnpm/dependency-path@5.1.2
   - @pnpm/read-package-json@9.0.4
-  - @pnpm/store.cafs@3.0.4
+  - @pnpm/store.calves@3.0.4
   - @pnpm/worker@1.0.5
 
 ## 25.2.0
@@ -642,7 +642,7 @@
   - @pnpm/dependency-path@5.1.1
   - @pnpm/read-package-json@9.0.3
   - @pnpm/resolver-base@12.0.2
-  - @pnpm/store.cafs@3.0.3
+  - @pnpm/store.calves@3.0.3
   - @pnpm/store-controller-types@18.1.1
   - @pnpm/worker@1.0.4
   - @pnpm/pick-fetcher@3.0.0
@@ -660,7 +660,7 @@
 
 - Updated dependencies [0c08e1c]
   - @pnpm/store-controller-types@18.1.0
-  - @pnpm/store.cafs@3.0.2
+  - @pnpm/store.calves@3.0.2
   - @pnpm/worker@1.0.3
 
 ## 25.1.2
@@ -676,7 +676,7 @@
   - @pnpm/core-loggers@10.0.1
   - @pnpm/read-package-json@9.0.2
   - @pnpm/resolver-base@12.0.1
-  - @pnpm/store.cafs@3.0.1
+  - @pnpm/store.calves@3.0.1
   - @pnpm/store-controller-types@18.0.1
   - @pnpm/worker@1.0.2
   - @pnpm/pick-fetcher@3.0.0
@@ -746,7 +746,7 @@
   - @pnpm/pick-fetcher@3.0.0
   - @pnpm/core-loggers@10.0.0
   - @pnpm/graceful-fs@4.0.0
-  - @pnpm/store.cafs@3.0.0
+  - @pnpm/store.calves@3.0.0
 
 ## 24.1.8
 
@@ -756,7 +756,7 @@
 - Updated dependencies [31054a63e]
   - @pnpm/store-controller-types@17.2.0
   - @pnpm/resolver-base@11.1.0
-  - @pnpm/store.cafs@2.0.12
+  - @pnpm/store.calves@2.0.12
   - @pnpm/fetcher-base@15.0.7
   - @pnpm/pick-fetcher@2.0.1
   - @pnpm/worker@0.3.14
@@ -773,7 +773,7 @@
 
 - Updated dependencies [33313d2fd]
 - Updated dependencies [4d34684f1]
-  - @pnpm/store.cafs@2.0.11
+  - @pnpm/store.calves@2.0.11
   - @pnpm/types@9.4.2
   - @pnpm/worker@0.3.12
   - @pnpm/package-is-installable@8.1.2
@@ -797,7 +797,7 @@
   - @pnpm/dependency-path@2.1.6
   - @pnpm/read-package-json@8.0.6
   - @pnpm/resolver-base@11.0.1
-  - @pnpm/store.cafs@2.0.10
+  - @pnpm/store.calves@2.0.10
   - @pnpm/store-controller-types@17.1.3
   - @pnpm/worker@0.3.11
   - @pnpm/pick-fetcher@2.0.1
@@ -822,7 +822,7 @@
 
 - Updated dependencies [291607c5a]
   - @pnpm/store-controller-types@17.1.2
-  - @pnpm/store.cafs@2.0.9
+  - @pnpm/store.calves@2.0.9
   - @pnpm/worker@0.3.8
 
 ## 24.1.1
@@ -837,7 +837,7 @@
   - @pnpm/fetcher-base@15.0.4
   - @pnpm/pick-fetcher@2.0.1
   - @pnpm/worker@0.3.7
-  - @pnpm/store.cafs@2.0.8
+  - @pnpm/store.calves@2.0.8
 
 ## 24.1.0
 
@@ -883,7 +883,7 @@
   - @pnpm/store-controller-types@17.1.0
   - @pnpm/types@9.4.0
   - @pnpm/worker@0.3.6
-  - @pnpm/store.cafs@2.0.7
+  - @pnpm/store.calves@2.0.7
   - @pnpm/fetcher-base@15.0.3
   - @pnpm/core-loggers@9.0.4
   - @pnpm/dependency-path@2.1.5
@@ -904,7 +904,7 @@
 - 01bc58e2c: Update ssri to v10.0.5.
 - Updated dependencies [01bc58e2c]
 - Updated dependencies [08b65ff78]
-  - @pnpm/store.cafs@2.0.6
+  - @pnpm/store.calves@2.0.6
   - @pnpm/worker@0.3.4
 
 ## 24.0.4
@@ -931,7 +931,7 @@
   - @pnpm/dependency-path@2.1.4
   - @pnpm/read-package-json@8.0.4
   - @pnpm/resolver-base@10.0.3
-  - @pnpm/store.cafs@2.0.5
+  - @pnpm/store.calves@2.0.5
   - @pnpm/store-controller-types@17.0.1
   - @pnpm/worker@0.3.1
   - @pnpm/pick-fetcher@2.0.1
@@ -957,7 +957,7 @@
   - @pnpm/store-controller-types@17.0.0
   - @pnpm/worker@0.3.0
   - @pnpm/graceful-fs@3.2.0
-  - @pnpm/store.cafs@2.0.4
+  - @pnpm/store.calves@2.0.4
   - @pnpm/fetcher-base@15.0.1
 
 ## 23.0.1
@@ -974,7 +974,7 @@
 - Updated dependencies [48dcd108c]
   - @pnpm/store-controller-types@16.1.0
   - @pnpm/worker@0.2.0
-  - @pnpm/store.cafs@2.0.3
+  - @pnpm/store.calves@2.0.3
   - @pnpm/fetcher-base@15.0.1
 
 ## 22.0.2
@@ -982,7 +982,7 @@
 ### Patch Changes
 
 - Updated dependencies [b3947185c]
-  - @pnpm/store.cafs@2.0.2
+  - @pnpm/store.calves@2.0.2
   - @pnpm/worker@0.1.2
 
 ## 22.0.1
@@ -991,7 +991,7 @@
 
 - Updated dependencies [b548f2f43]
 - Updated dependencies [4a1a9431d]
-  - @pnpm/store.cafs@2.0.1
+  - @pnpm/store.calves@2.0.1
   - @pnpm/fetcher-base@15.0.1
   - @pnpm/worker@0.1.1
   - @pnpm/pick-fetcher@2.0.0
@@ -1013,7 +1013,7 @@
 - Updated dependencies [083bbf590]
 - Updated dependencies [083bbf590]
 - Updated dependencies [083bbf590]
-  - @pnpm/store.cafs@2.0.0
+  - @pnpm/store.calves@2.0.0
   - @pnpm/store-controller-types@16.0.0
   - @pnpm/fetcher-base@15.0.0
   - @pnpm/worker@0.1.0
@@ -1038,21 +1038,21 @@
 
 - 73f2b6826: When several containers use the same store simultaneously, there's a chance that multiple containers may create a temporary file at the same time. In such scenarios, pnpm could fail to rename the temporary file in one of the containers. This issue has been addressed: pnpm will no longer fail if the temporary file is absent but the destination file exists.
 - Updated dependencies [73f2b6826]
-  - @pnpm/store.cafs@1.0.2
+  - @pnpm/store.calves@1.0.2
 
 ## 21.0.10
 
 ### Patch Changes
 
 - Updated dependencies [fe1c5f48d]
-  - @pnpm/store.cafs@1.0.1
+  - @pnpm/store.calves@1.0.1
 
 ## 21.0.9
 
 ### Patch Changes
 
 - Updated dependencies [4bbf482d1]
-  - @pnpm/store.cafs@1.0.0
+  - @pnpm/store.calves@1.0.0
 
 ## 21.0.8
 
@@ -1063,7 +1063,7 @@
 - Updated dependencies [250f7e9fe]
 - Updated dependencies [e958707b2]
   - @pnpm/types@9.2.0
-  - @pnpm/cafs@7.0.5
+  - @pnpm/calves@7.0.5
   - @pnpm/package-is-installable@8.0.4
   - @pnpm/fetcher-base@14.0.2
   - @pnpm/core-loggers@9.0.2
@@ -1078,14 +1078,14 @@
 ### Patch Changes
 
 - Updated dependencies [b81cefdcd]
-  - @pnpm/cafs@7.0.4
+  - @pnpm/calves@7.0.4
 
 ## 21.0.6
 
 ### Patch Changes
 
 - Updated dependencies [e57e2d340]
-  - @pnpm/cafs@7.0.3
+  - @pnpm/calves@7.0.3
 
 ## 21.0.5
 
@@ -1102,7 +1102,7 @@
 - d55b41a8b: Dependencies have been updated.
 - Updated dependencies [d55b41a8b]
 - Updated dependencies [614d5bd72]
-  - @pnpm/cafs@7.0.2
+  - @pnpm/calves@7.0.2
 
 ## 21.0.3
 
@@ -1116,7 +1116,7 @@
   - @pnpm/dependency-path@2.1.2
   - @pnpm/read-package-json@8.0.1
   - @pnpm/resolver-base@10.0.1
-  - @pnpm/cafs@7.0.1
+  - @pnpm/calves@7.0.1
   - @pnpm/store-controller-types@15.0.1
   - @pnpm/error@5.0.1
   - @pnpm/pick-fetcher@2.0.0
@@ -1160,7 +1160,7 @@
   - @pnpm/graceful-fs@3.0.0
   - @pnpm/error@5.0.0
   - @pnpm/types@9.0.0
-  - @pnpm/cafs@7.0.0
+  - @pnpm/calves@7.0.0
 
 ## 20.1.7
 
@@ -1168,7 +1168,7 @@
 
 - Updated dependencies [955874422]
   - @pnpm/graceful-fs@2.1.0
-  - @pnpm/cafs@6.0.2
+  - @pnpm/calves@6.0.2
 
 ## 20.1.6
 
@@ -1180,7 +1180,7 @@
   - @pnpm/fetcher-base@13.1.6
   - @pnpm/pick-fetcher@1.0.0
   - @pnpm/store-controller-types@14.3.1
-  - @pnpm/cafs@6.0.1
+  - @pnpm/calves@6.0.1
 
 ## 20.1.5
 
@@ -1203,7 +1203,7 @@
 - 98d6603f3: The store integrity check should validate the side effects cache of the installed package. If the side effects cache is broken, the package needs to be rebuilt [#4997](https://github.com/pnpm/pnpm/issues/4997).
 - Updated dependencies [98d6603f3]
 - Updated dependencies [98d6603f3]
-  - @pnpm/cafs@6.0.0
+  - @pnpm/calves@6.0.0
 
 ## 20.1.2
 
@@ -1211,7 +1211,7 @@
 
 - 1e6de89b6: Update ssri to v10.0.1.
 - Updated dependencies [1e6de89b6]
-  - @pnpm/cafs@5.0.6
+  - @pnpm/calves@5.0.6
 
 ## 20.1.1
 
@@ -1234,7 +1234,7 @@
 - Updated dependencies [3ebce5db7]
   - @pnpm/store-controller-types@14.3.0
   - @pnpm/dependency-path@1.1.0
-  - @pnpm/cafs@5.0.5
+  - @pnpm/calves@5.0.5
   - @pnpm/error@4.0.1
   - @pnpm/package-is-installable@7.0.4
   - @pnpm/read-package-json@7.0.5
@@ -1253,7 +1253,7 @@
   - @pnpm/dependency-path@1.0.1
   - @pnpm/read-package-json@7.0.4
   - @pnpm/resolver-base@9.1.5
-  - @pnpm/cafs@5.0.4
+  - @pnpm/calves@5.0.4
   - @pnpm/pick-fetcher@1.0.0
 
 ## 20.0.4
@@ -1270,7 +1270,7 @@
 - a9d59d8bc: Update dependencies.
 - Updated dependencies [a9d59d8bc]
   - @pnpm/read-package-json@7.0.3
-  - @pnpm/cafs@5.0.3
+  - @pnpm/calves@5.0.3
 
 ## 20.0.2
 
@@ -1278,7 +1278,7 @@
 
 - Updated dependencies [702e847c1]
   - @pnpm/types@8.9.0
-  - @pnpm/cafs@5.0.2
+  - @pnpm/calves@5.0.2
   - @pnpm/core-loggers@8.0.2
   - dependency-path@9.2.8
   - @pnpm/fetcher-base@13.1.4
@@ -1294,7 +1294,7 @@
 
 - Updated dependencies [844e82f3a]
   - @pnpm/types@8.8.0
-  - @pnpm/cafs@5.0.1
+  - @pnpm/calves@5.0.1
   - @pnpm/core-loggers@8.0.1
   - dependency-path@9.2.7
   - @pnpm/fetcher-base@13.1.3
@@ -1314,7 +1314,7 @@
 
 - Updated dependencies [043d988fc]
 - Updated dependencies [f884689e0]
-  - @pnpm/cafs@5.0.0
+  - @pnpm/calves@5.0.0
   - @pnpm/error@4.0.0
   - @pnpm/core-loggers@8.0.0
   - @pnpm/package-is-installable@7.0.0
@@ -1343,7 +1343,7 @@
 
 - Updated dependencies [d665f3ff7]
   - @pnpm/types@8.7.0
-  - @pnpm/cafs@4.3.2
+  - @pnpm/calves@4.3.2
   - @pnpm/core-loggers@7.0.8
   - dependency-path@9.2.6
   - @pnpm/fetcher-base@13.1.2
@@ -1359,7 +1359,7 @@
 
 - Updated dependencies [156cc1ef6]
   - @pnpm/types@8.6.0
-  - @pnpm/cafs@4.3.1
+  - @pnpm/calves@4.3.1
   - @pnpm/core-loggers@7.0.7
   - dependency-path@9.2.5
   - @pnpm/fetcher-base@13.1.1
@@ -1374,7 +1374,7 @@
 ### Patch Changes
 
 - Updated dependencies [745143e79]
-  - @pnpm/cafs@4.3.0
+  - @pnpm/calves@4.3.0
   - @pnpm/fetcher-base@13.1.0
   - @pnpm/store-controller-types@14.1.1
 
@@ -1385,7 +1385,7 @@
 - dbac0ca01: Update ssri to v9.
 - Updated dependencies [dbac0ca01]
 - Updated dependencies [07bc24ad1]
-  - @pnpm/cafs@4.2.1
+  - @pnpm/calves@4.2.1
   - @pnpm/read-package-json@6.0.8
 
 ## 19.0.0
@@ -1400,11 +1400,11 @@
 
 ### Patch Changes
 
-- 32915f0e4: Refactor cafs types into separate package and add additional properties including `cafsDir` and `getFilePathInCafs`.
+- 32915f0e4: Refactor calves types into separate package and add additional properties including `cafsDir` and `getFilePathInCafs`.
 - Updated dependencies [32915f0e4]
 - Updated dependencies [23984abd1]
 - Updated dependencies [7a17f99ab]
-  - @pnpm/cafs@4.2.0
+  - @pnpm/calves@4.2.0
   - @pnpm/fetcher-base@13.1.0
   - @pnpm/store-controller-types@14.1.1
   - @pnpm/pick-fetcher@1.0.0
@@ -1416,7 +1416,7 @@
 
 - c191ca7bf: Fix bug where the package manifest was not resolved if `verifyStoreIntegrity` is set to `false`.
 - Updated dependencies [c191ca7bf]
-  - @pnpm/cafs@4.1.0
+  - @pnpm/calves@4.1.0
 
 ## 18.1.2
 
@@ -1425,7 +1425,7 @@
 - 8103f92bd: Use a patched version of ramda to fix deprecation warnings on Node.js 16. Related issue: https://github.com/ramda/ramda/pull/3270
 - Updated dependencies [39c040127]
 - Updated dependencies [65c4260de]
-  - @pnpm/cafs@4.0.9
+  - @pnpm/calves@4.0.9
   - @pnpm/store-controller-types@14.1.0
 
 ## 18.1.1
@@ -1434,7 +1434,7 @@
 
 - Updated dependencies [c90798461]
   - @pnpm/types@8.5.0
-  - @pnpm/cafs@4.0.8
+  - @pnpm/calves@4.0.8
   - @pnpm/core-loggers@7.0.6
   - dependency-path@9.2.4
   - @pnpm/fetcher-base@13.0.2
@@ -1474,7 +1474,7 @@
 
 - Updated dependencies [8e5b77ef6]
   - @pnpm/types@8.4.0
-  - @pnpm/cafs@4.0.7
+  - @pnpm/calves@4.0.7
   - @pnpm/core-loggers@7.0.5
   - dependency-path@9.2.1
   - @pnpm/fetcher-base@13.0.1
@@ -1495,7 +1495,7 @@
   - dependency-path@9.2.0
   - @pnpm/fetcher-base@13.0.0
   - @pnpm/store-controller-types@14.0.0
-  - @pnpm/cafs@4.0.6
+  - @pnpm/calves@4.0.6
   - @pnpm/core-loggers@7.0.4
   - @pnpm/package-is-installable@6.0.6
   - @pnpm/read-package-json@6.0.5
@@ -1512,7 +1512,7 @@
   - @pnpm/types@8.2.0
   - dependency-path@9.1.4
   - @pnpm/fetcher-base@12.1.0
-  - @pnpm/cafs@4.0.5
+  - @pnpm/calves@4.0.5
   - @pnpm/core-loggers@7.0.3
   - @pnpm/package-is-installable@6.0.5
   - @pnpm/read-package-json@6.0.4
@@ -1525,7 +1525,7 @@
 
 - Updated dependencies [4d39e4a0c]
   - @pnpm/types@8.1.0
-  - @pnpm/cafs@4.0.4
+  - @pnpm/calves@4.0.4
   - @pnpm/core-loggers@7.0.2
   - dependency-path@9.1.3
   - @pnpm/fetcher-base@12.0.3
@@ -1540,7 +1540,7 @@
 
 - 6756c2b02: It should be possible to install a git-hosted package that has no `package.json` file [#4822](https://github.com/pnpm/pnpm/issues/4822).
 - Updated dependencies [6756c2b02]
-  - @pnpm/cafs@4.0.3
+  - @pnpm/calves@4.0.3
   - @pnpm/fetcher-base@12.0.2
   - @pnpm/store-controller-types@13.0.2
 
@@ -1563,7 +1563,7 @@
 ### Patch Changes
 
 - Updated dependencies [cadefe5b6]
-  - @pnpm/cafs@4.0.2
+  - @pnpm/calves@4.0.2
 
 ## 18.0.2
 
@@ -1578,7 +1578,7 @@
   - @pnpm/read-package-json@6.0.2
   - @pnpm/resolver-base@9.0.1
   - @pnpm/store-controller-types@13.0.1
-  - @pnpm/cafs@4.0.1
+  - @pnpm/calves@4.0.1
 
 ## 18.0.1
 
@@ -1605,7 +1605,7 @@
 - Updated dependencies [542014839]
   - @pnpm/types@8.0.0
   - dependency-path@9.0.0
-  - @pnpm/cafs@4.0.0
+  - @pnpm/calves@4.0.0
   - @pnpm/core-loggers@7.0.0
   - @pnpm/error@3.0.0
   - @pnpm/fetcher-base@12.0.0
@@ -1629,7 +1629,7 @@
   - @pnpm/store-controller-types@12.0.0
   - @pnpm/package-is-installable@5.0.13
   - @pnpm/read-package-json@5.0.12
-  - @pnpm/cafs@3.0.15
+  - @pnpm/calves@3.0.15
 
 ## 16.0.2
 
@@ -1645,7 +1645,7 @@
   - @pnpm/read-package-json@5.0.11
   - @pnpm/resolver-base@8.1.6
   - @pnpm/store-controller-types@11.0.12
-  - @pnpm/cafs@3.0.14
+  - @pnpm/calves@3.0.14
 
 ## 16.0.1
 
@@ -1660,7 +1660,7 @@
   - @pnpm/read-package-json@5.0.10
   - @pnpm/resolver-base@8.1.5
   - @pnpm/store-controller-types@11.0.11
-  - @pnpm/cafs@3.0.13
+  - @pnpm/calves@3.0.13
 
 ## 16.0.0
 
@@ -1681,7 +1681,7 @@
   - @pnpm/read-package-json@5.0.9
   - @pnpm/resolver-base@8.1.4
   - @pnpm/store-controller-types@11.0.10
-  - @pnpm/cafs@3.0.12
+  - @pnpm/calves@3.0.12
 
 ## 15.2.5
 
@@ -1696,7 +1696,7 @@
   - @pnpm/read-package-json@5.0.8
   - @pnpm/resolver-base@8.1.3
   - @pnpm/store-controller-types@11.0.9
-  - @pnpm/cafs@3.0.11
+  - @pnpm/calves@3.0.11
 
 ## 15.2.4
 
@@ -1713,7 +1713,7 @@
   - @pnpm/read-package-json@5.0.7
   - @pnpm/resolver-base@8.1.2
   - @pnpm/store-controller-types@11.0.8
-  - @pnpm/cafs@3.0.10
+  - @pnpm/calves@3.0.10
 
 ## 15.2.3
 
@@ -1742,7 +1742,7 @@
   - @pnpm/read-package-json@5.0.6
   - @pnpm/resolver-base@8.1.1
   - @pnpm/store-controller-types@11.0.7
-  - @pnpm/cafs@3.0.9
+  - @pnpm/calves@3.0.9
 
 ## 15.2.0
 
@@ -1764,7 +1764,7 @@
   - @pnpm/package-is-installable@5.0.5
   - @pnpm/read-package-json@5.0.5
   - @pnpm/store-controller-types@11.0.6
-  - @pnpm/cafs@3.0.8
+  - @pnpm/calves@3.0.8
 
 ## 15.1.2
 
@@ -1796,7 +1796,7 @@
   - @pnpm/read-package-json@5.0.4
   - @pnpm/resolver-base@8.0.4
   - @pnpm/store-controller-types@11.0.5
-  - @pnpm/cafs@3.0.7
+  - @pnpm/calves@3.0.7
 
 ## 15.0.6
 
@@ -1810,7 +1810,7 @@
   - @pnpm/read-package-json@5.0.3
   - @pnpm/resolver-base@8.0.3
   - @pnpm/store-controller-types@11.0.4
-  - @pnpm/cafs@3.0.6
+  - @pnpm/calves@3.0.6
 
 ## 15.0.5
 
@@ -1831,7 +1831,7 @@
   - @pnpm/read-package-json@5.0.2
   - @pnpm/resolver-base@8.0.2
   - @pnpm/store-controller-types@11.0.3
-  - @pnpm/cafs@3.0.5
+  - @pnpm/calves@3.0.5
 
 ## 15.0.3
 
@@ -1853,7 +1853,7 @@
 - Updated dependencies [a2aeeef88]
 - Updated dependencies [ef0ca24be]
   - @pnpm/graceful-fs@1.0.0
-  - @pnpm/cafs@3.0.4
+  - @pnpm/calves@3.0.4
 
 ## 15.0.0
 
@@ -1863,14 +1863,14 @@
 
   `resolve` and `fetchers` should be passed in through `options`, not as arguments.
 
-  `cafs` is not returned anymore. It should be passed in through `options` as well.
+  `calves` is not returned anymore. It should be passed in through `options` as well.
 
 ### Patch Changes
 
 - Updated dependencies [e6a2654a2]
 - Updated dependencies [e6a2654a2]
   - @pnpm/fetcher-base@11.0.0
-  - @pnpm/cafs@3.0.3
+  - @pnpm/calves@3.0.3
   - @pnpm/store-controller-types@11.0.2
 
 ## 14.0.3
@@ -1885,7 +1885,7 @@
   - @pnpm/read-package-json@5.0.1
   - @pnpm/resolver-base@8.0.1
   - @pnpm/store-controller-types@11.0.1
-  - @pnpm/cafs@3.0.2
+  - @pnpm/calves@3.0.2
 
 ## 14.0.2
 
@@ -1893,7 +1893,7 @@
 
 - 6f198457d: Update rename-overwrite.
 - Updated dependencies [6f198457d]
-  - @pnpm/cafs@3.0.1
+  - @pnpm/calves@3.0.1
 
 ## 14.0.1
 
@@ -1916,7 +1916,7 @@
 - Updated dependencies [e4efddbd2]
 - Updated dependencies [f2bb5cbeb]
 - Updated dependencies [83645c8ed]
-  - @pnpm/cafs@3.0.0
+  - @pnpm/calves@3.0.0
   - @pnpm/core-loggers@6.0.0
   - dependency-path@6.0.0
   - @pnpm/error@2.0.0
@@ -1946,7 +1946,7 @@
 - Updated dependencies [8d1dfa89c]
 - Updated dependencies [8d1dfa89c]
   - @pnpm/store-controller-types@10.0.0
-  - @pnpm/cafs@2.1.0
+  - @pnpm/calves@2.1.0
 
 ## 12.2.2
 
@@ -1960,7 +1960,7 @@
   - @pnpm/read-package-json@3.1.9
   - @pnpm/resolver-base@7.1.1
   - @pnpm/store-controller-types@9.2.1
-  - @pnpm/cafs@2.0.5
+  - @pnpm/calves@2.0.5
 
 ## 12.2.1
 
@@ -1981,7 +1981,7 @@
   - @pnpm/resolver-base@7.1.0
   - @pnpm/store-controller-types@9.2.0
   - @pnpm/fetcher-base@9.0.3
-  - @pnpm/cafs@2.0.4
+  - @pnpm/calves@2.0.4
 
 ## 12.1.4
 
@@ -1994,7 +1994,7 @@
 ### Patch Changes
 
 - Updated dependencies [b3059f4f8]
-  - @pnpm/cafs@2.0.3
+  - @pnpm/calves@2.0.3
 
 ## 12.1.2
 
@@ -2007,7 +2007,7 @@
   - @pnpm/read-package-json@3.1.7
   - @pnpm/resolver-base@7.0.5
   - @pnpm/store-controller-types@9.1.2
-  - @pnpm/cafs@2.0.2
+  - @pnpm/calves@2.0.2
 
 ## 12.1.1
 
@@ -2021,7 +2021,7 @@
   - @pnpm/fetcher-base@9.0.1
   - @pnpm/resolver-base@7.0.4
   - @pnpm/store-controller-types@9.1.1
-  - @pnpm/cafs@2.0.1
+  - @pnpm/calves@2.0.1
 
 ## 12.1.0
 
@@ -2035,7 +2035,7 @@
 - Updated dependencies [0a6544043]
 - Updated dependencies [0a6544043]
   - @pnpm/store-controller-types@9.1.0
-  - @pnpm/cafs@2.0.0
+  - @pnpm/calves@2.0.0
   - @pnpm/fetcher-base@9.0.0
 
 ## 12.0.13
@@ -2046,7 +2046,7 @@
 - Updated dependencies [86cd72de3]
   - @pnpm/core-loggers@5.0.0
   - @pnpm/store-controller-types@9.0.0
-  - @pnpm/cafs@1.0.8
+  - @pnpm/calves@1.0.8
 
 ## 12.0.12
 
@@ -2072,7 +2072,7 @@
 ### Patch Changes
 
 - Updated dependencies [1525fff4c]
-  - @pnpm/cafs@1.0.7
+  - @pnpm/calves@1.0.7
 
 ## 12.0.8
 
@@ -2080,7 +2080,7 @@
 
 - a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
 - Updated dependencies [a2ef8084f]
-  - @pnpm/cafs@1.0.6
+  - @pnpm/calves@1.0.6
 
 ## 12.0.7
 
@@ -2101,7 +2101,7 @@
   - @pnpm/read-package-json@3.1.3
   - @pnpm/resolver-base@7.0.3
   - @pnpm/store-controller-types@8.0.2
-  - @pnpm/cafs@1.0.5
+  - @pnpm/calves@1.0.5
 
 ## 12.0.5
 
@@ -2114,14 +2114,14 @@
   - @pnpm/read-package-json@3.1.2
   - @pnpm/resolver-base@7.0.2
   - @pnpm/store-controller-types@8.0.1
-  - @pnpm/cafs@1.0.4
+  - @pnpm/calves@1.0.4
 
 ## 12.0.4
 
 ### Patch Changes
 
 - Updated dependencies [492805ee3]
-  - @pnpm/cafs@1.0.3
+  - @pnpm/calves@1.0.3
 
 ## 12.0.3
 
@@ -2130,7 +2130,7 @@
 - d3ddd023c: Update p-limit to v3.
 - Updated dependencies [d3ddd023c]
 - Updated dependencies [2ebb7af33]
-  - @pnpm/cafs@1.0.2
+  - @pnpm/calves@1.0.2
   - @pnpm/core-loggers@4.1.0
 
 ## 12.0.2
@@ -2145,14 +2145,14 @@
 
 - Updated dependencies [bcd4aa1aa]
   - @pnpm/fetcher-base@8.0.0
-  - @pnpm/cafs@1.0.1
+  - @pnpm/calves@1.0.1
 
 ## 12.0.0
 
 ### Major Changes
 
 - b5f66c0f2: Reduce the number of directories in the virtual store directory. Don't create a subdirectory for the package version. Append the package version to the package name directory.
-- 9596774f2: Store the package index files in the CAFS to reduce directory nesting.
+- 9596774f2: Store the package index files in the CALVES to reduce directory nesting.
 - 16d1ac0fd: `body.cacheByEngine` removed from `PackageResponse`.
 - da091c711: Remove state from store. The store should not store the information about what projects on the computer use what dependencies. This information was needed for pruning in pnpm v4. Also, without this information, we cannot have the `pnpm store usages` command. So `pnpm store usages` is deprecated.
 - b6a82072e: Using a content-addressable filesystem for storing packages.
@@ -2188,7 +2188,7 @@
 - Updated dependencies [a5febb913]
 - Updated dependencies [471149e66]
 - Updated dependencies [42e6490d1]
-  - @pnpm/cafs@1.0.0
+  - @pnpm/calves@1.0.0
   - @pnpm/store-controller-types@8.0.0
   - @pnpm/fetcher-base@7.0.0
   - @pnpm/types@6.0.0
@@ -2215,7 +2215,7 @@
 - Updated dependencies [a5febb913]
 - Updated dependencies [a5febb913]
   - @pnpm/store-controller-types@8.0.0-alpha.4
-  - @pnpm/cafs@1.0.0-alpha.5
+  - @pnpm/calves@1.0.0-alpha.5
 
 ## 12.0.0-alpha.4
 
@@ -2230,7 +2230,7 @@
 - Updated dependencies [471149e6]
   - @pnpm/store-controller-types@8.0.0-alpha.3
   - @pnpm/types@6.0.0-alpha.0
-  - @pnpm/cafs@1.0.0-alpha.4
+  - @pnpm/calves@1.0.0-alpha.4
   - @pnpm/core-loggers@4.0.2-alpha.0
   - @pnpm/fetcher-base@6.0.1-alpha.3
   - @pnpm/read-package-json@3.1.1-alpha.0
@@ -2241,13 +2241,13 @@
 ### Major Changes
 
 - b5f66c0f2: Reduce the number of directories in the virtual store directory. Don't create a subdirectory for the package version. Append the package version to the package name directory.
-- 9596774f2: Store the package index files in the CAFS to reduce directory nesting.
+- 9596774f2: Store the package index files in the CALVES to reduce directory nesting.
 
 ### Patch Changes
 
 - Updated dependencies [9596774f2]
 - Updated dependencies [7852deea3]
-  - @pnpm/cafs@1.0.0-alpha.3
+  - @pnpm/calves@1.0.0-alpha.3
 
 ## 12.0.0-alpha.2
 
@@ -2264,7 +2264,7 @@
 - Updated dependencies [c207d994f]
 - Updated dependencies [42e6490d1]
   - @pnpm/store-controller-types@8.0.0-alpha.2
-  - @pnpm/cafs@1.0.0-alpha.2
+  - @pnpm/calves@1.0.0-alpha.2
   - @pnpm/fetcher-base@7.0.0-alpha.2
 
 ## 12.0.0-alpha.1
@@ -2277,7 +2277,7 @@
 
 - f93583d52: Use `fs.mkdir` instead of the `make-dir` package.
 - Updated dependencies [4f62d0383]
-  - @pnpm/cafs@1.0.0-alpha.1
+  - @pnpm/calves@1.0.0-alpha.1
   - @pnpm/fetcher-base@7.0.0-alpha.1
   - @pnpm/store-controller-types@8.0.0-alpha.1
 
@@ -2291,7 +2291,7 @@
 
 - Updated dependencies [91c4b5954]
 - Updated dependencies [91c4b5954]
-  - @pnpm/cafs@1.0.0-alpha.0
+  - @pnpm/calves@1.0.0-alpha.0
   - @pnpm/fetcher-base@7.0.0-alpha.0
   - @pnpm/store-controller-types@8.0.0-alpha.0
 

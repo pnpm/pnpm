@@ -19,7 +19,7 @@ import {
   type PackageFilesIndex,
   type VerifyResult,
 } from '@pnpm/store.cafs'
-import type { Cafs, FilesMap, PackageFiles, SideEffectsDiff } from '@pnpm/store.cafs-types'
+import type { Calves, FilesMap, PackageFiles, SideEffectsDiff } from '@pnpm/store.cafs-types'
 import { createCafsStore } from '@pnpm/store.create-cafs-store'
 import { packForStorage, StoreIndex } from '@pnpm/store.index'
 import type { BundledManifest, DependencyManifest } from '@pnpm/types'
@@ -43,7 +43,7 @@ export function startWorker (): void {
 }
 
 const cafsCache = new Map<string, CafsFunctions>()
-const cafsStoreCache = new Map<string, Cafs>()
+const cafsStoreCache = new Map<string, Calves>()
 const cafsLocker = new Map<string, number>()
 const storeIndexCache = new Map<string, StoreIndex>()
 
@@ -198,13 +198,13 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
   if (!cafsCache.has(storeDir)) {
     cafsCache.set(storeDir, createCafs(storeDir))
   }
-  const cafs = cafsCache.get(storeDir)!
-  let { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, true)
+  const calves = cafsCache.get(storeDir)!
+  let { filesIndex, manifest } = calves.addFilesFromTarball(buffer, true)
   if (appendManifest && manifest == null) {
     manifest = appendManifest
-    addManifestToCafs(cafs, filesIndex, appendManifest)
+    addManifestToCafs(calves, filesIndex, appendManifest)
   } else if (!filesIndex.has('package.json')) {
-    addPlaceholderPackageJsonToCafs(cafs, filesIndex)
+    addPlaceholderPackageJsonToCafs(calves, filesIndex)
   }
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   const bundledManifest = manifest != null ? normalizeBundledManifest(manifest) : undefined
@@ -295,17 +295,17 @@ function addFilesFromDir (
   if (!cafsCache.has(storeDir)) {
     cafsCache.set(storeDir, createCafs(storeDir))
   }
-  const cafs = cafsCache.get(storeDir)!
-  let { filesIndex, manifest } = cafs.addFilesFromDir(dir, {
+  const calves = cafsCache.get(storeDir)!
+  let { filesIndex, manifest } = calves.addFilesFromDir(dir, {
     files,
     includeNodeModules,
     readManifest: true,
   })
   if (appendManifest && manifest == null) {
     manifest = appendManifest
-    addManifestToCafs(cafs, filesIndex, appendManifest)
+    addManifestToCafs(calves, filesIndex, appendManifest)
   } else if (!filesIndex.has('package.json')) {
-    addPlaceholderPackageJsonToCafs(cafs, filesIndex)
+    addPlaceholderPackageJsonToCafs(calves, filesIndex)
   }
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   const bundledManifest = manifest != null ? normalizeBundledManifest(manifest) : undefined
@@ -354,13 +354,13 @@ function addFilesFromDir (
   return { status: 'success', value: { filesMap, manifest: bundledManifest, requiresBuild }, indexWrites }
 }
 
-function addManifestToCafs (cafs: CafsFunctions, filesIndex: FilesIndex, manifest: DependencyManifest): void {
+function addManifestToCafs (calves: CafsFunctions, filesIndex: FilesIndex, manifest: DependencyManifest): void {
   const fileBuffer = Buffer.from(JSON.stringify(manifest, null, 2), 'utf8')
   const mode = 0o644
   filesIndex.set('package.json', {
     mode,
     size: fileBuffer.length,
-    ...cafs.addFile(fileBuffer, mode),
+    ...calves.addFile(fileBuffer, mode),
   })
 }
 
@@ -371,12 +371,12 @@ const PLACEHOLDER_PACKAGE_JSON = Buffer.from(JSON.stringify({ _pnpmPlaceholder: 
 // universal completion marker for the indexed package importer.
 // The _pnpmPlaceholder field tells the package requester to ignore it
 // when reading the manifest.
-function addPlaceholderPackageJsonToCafs (cafs: CafsFunctions, filesIndex: FilesIndex): void {
+function addPlaceholderPackageJsonToCafs (calves: CafsFunctions, filesIndex: FilesIndex): void {
   const mode = 0o644
   filesIndex.set('package.json', {
     mode,
     size: PLACEHOLDER_PACKAGE_JSON.length,
-    ...cafs.addFile(PLACEHOLDER_PACKAGE_JSON, mode),
+    ...calves.addFile(PLACEHOLDER_PACKAGE_JSON, mode),
   })
 }
 

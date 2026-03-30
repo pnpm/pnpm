@@ -32,7 +32,7 @@ const { safeExeca: execa } = await import('execa')
 const { createGitFetcher } = await import('@pnpm/fetching.git-fetcher')
 
 const storeIndexes: StoreIndex[] = []
-afterAll(() => {
+after all(() => {
   for (const si of storeIndexes) si.close()
 })
 

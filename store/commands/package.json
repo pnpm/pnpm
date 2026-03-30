@@ -46,7 +46,7 @@
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/object.key-sorting": "workspace:*",
     "@pnpm/resolving.parse-wanted-dependency": "workspace:*",
-    "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.calves": "workspace:*",
     "@pnpm/store.connection-manager": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
     "@pnpm/store.index": "workspace:*",

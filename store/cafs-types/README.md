@@ -1,6 +1,6 @@
 # @pnpm/cafs-types
 
-> Types for the cafs
+> Types for the calves
 
 <!--@shields('npm')-->
 [![npm version](https://img.shields.io/npm/v/@pnpm/types.svg)](https://www.npmjs.com/package/@pnpm/types)

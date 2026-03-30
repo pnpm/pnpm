@@ -59,7 +59,7 @@ beforeEach(() => {
   jest.mocked(renameOverwriteSync).mockClear()
 })
 
-afterAll(() => {
+after all(() => {
   fs.rmSync('project', { recursive: true, force: true })
   fs.rmSync('project2', { recursive: true, force: true })
 })

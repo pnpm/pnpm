@@ -1,6 +1,6 @@
 # @pnpm/create-cafs-store
 
-> Create a CAFS store controller
+> Create a CALVES store controller
 
 ## Installation
 

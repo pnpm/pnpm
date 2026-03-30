@@ -9,7 +9,7 @@ import type {
   GetAuthHeader,
   RetryTimeoutOptions,
 } from '@pnpm/fetching.types'
-import type { Cafs } from '@pnpm/store.cafs-types'
+import type { Calves } from '@pnpm/store.cafs-types'
 import type { StoreIndex } from '@pnpm/store.index'
 import { TarballIntegrityError } from '@pnpm/worker'
 
@@ -76,7 +76,7 @@ async function fetchFromTarball (
     offline?: boolean
     storeIndex: StoreIndex
   },
-  cafs: Cafs,
+  calves: Calves,
   resolution: {
     integrity?: string
     registry?: string
@@ -90,7 +90,7 @@ async function fetchFromTarball (
   }
   return ctx.download(resolution.tarball, {
     getAuthHeaderByURI: ctx.getAuthHeaderByURI,
-    cafs,
+    calves,
     storeIndex: ctx.storeIndex,
     integrity: resolution.integrity,
     readManifest: opts.readManifest,

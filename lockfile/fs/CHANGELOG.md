@@ -525,7 +525,7 @@
 
 ### Patch Changes
 
-- 9c4ae87bd: Convertion should work for all lockfile v6 formats, not just 6.0.
+- 9c4ae87bd: Conversion should work for all lockfile v6 formats, not just 6.0.
 - Updated dependencies [9c4ae87bd]
 - Updated dependencies [a9e0b7cbf]
 - Updated dependencies [9c4ae87bd]

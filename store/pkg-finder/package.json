@@ -33,7 +33,7 @@
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/fetching.directory-fetcher": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
-    "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.calves": "workspace:*",
     "@pnpm/store.index": "workspace:*"
   },
   "devDependencies": {

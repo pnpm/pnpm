@@ -2,7 +2,7 @@ import { PnpmError } from '@pnpm/error'
 import type { BinaryFetcher, DirectoryFetcher, Fetchers, FetchFunction, FetchOptions, GitFetcher } from '@pnpm/fetching.fetcher-base'
 import type { CustomFetcher } from '@pnpm/hooks.types'
 import type { AtomicResolution } from '@pnpm/resolving.resolver-base'
-import type { Cafs } from '@pnpm/store.cafs-types'
+import type { Calves } from '@pnpm/store.cafs-types'
 
 export async function pickFetcher (
   fetcherByHostingType: Fetchers,
@@ -22,9 +22,9 @@ export async function pickFetcher (
 
         if (canFetch) {
           // Return a wrapper FetchFunction that calls the custom fetcher's fetch method
-          // The custom fetcher's fetch receives cafs, resolution, opts, and the standard fetchers for delegation
-          return async (cafs: Cafs, resolution: AtomicResolution, fetchOpts: FetchOptions) => {
-            return customFetcher.fetch!(cafs, resolution, fetchOpts, fetcherByHostingType)
+          // The custom fetcher's fetch receives calves, resolution, opts, and the standard fetchers for delegation
+          return async (calves: Calves, resolution: AtomicResolution, fetchOpts: FetchOptions) => {
+            return customFetcher.fetch!(calves, resolution, fetchOpts, fetcherByHostingType)
           }
         }
       }

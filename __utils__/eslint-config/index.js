@@ -220,7 +220,7 @@ export default tseslint.config(
         beforeEach: 'readonly',
         afterEach: 'readonly',
         beforeAll: 'readonly',
-        afterAll: 'readonly',
+        after all: 'readonly',
         fail: 'readonly',
       },
     },

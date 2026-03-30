@@ -11,7 +11,7 @@
   - @pnpm/lockfile.fs@1001.1.21
   - @pnpm/lockfile.utils@1003.0.3
   - @pnpm/dependency-path@1001.1.3
-  - @pnpm/store.cafs@1000.0.19
+  - @pnpm/store.calves@1000.0.19
 
 ## 1001.0.33
 
@@ -26,7 +26,7 @@
 
 - Updated dependencies [9b9faa5]
 - Updated dependencies [fb4da0c]
-  - @pnpm/store.cafs@1000.0.18
+  - @pnpm/store.calves@1000.0.18
   - @pnpm/config@1004.4.0
   - @pnpm/dependency-path@1001.1.2
   - @pnpm/lockfile.fs@1001.1.20
@@ -51,7 +51,7 @@
   - @pnpm/lockfile.fs@1001.1.18
   - @pnpm/lockfile.utils@1003.0.1
   - @pnpm/dependency-path@1001.1.1
-  - @pnpm/store.cafs@1000.0.17
+  - @pnpm/store.calves@1000.0.17
 
 ## 1001.0.29
 
@@ -64,7 +64,7 @@
   - @pnpm/lockfile.fs@1001.1.17
   - @pnpm/config@1004.2.1
   - @pnpm/store-path@1000.0.4
-  - @pnpm/store.cafs@1000.0.16
+  - @pnpm/store.calves@1000.0.16
 
 ## 1001.0.28
 
@@ -79,7 +79,7 @@
   - @pnpm/config@1004.2.0
   - @pnpm/lockfile.fs@1001.1.16
   - @pnpm/dependency-path@1001.0.2
-  - @pnpm/store.cafs@1000.0.15
+  - @pnpm/store.calves@1000.0.15
   - @pnpm/store-path@1000.0.3
 
 ## 1001.0.27
@@ -113,7 +113,7 @@
 - Updated dependencies [046af72]
   - @pnpm/config@1004.0.0
   - @pnpm/lockfile.utils@1001.0.12
-  - @pnpm/store.cafs@1000.0.14
+  - @pnpm/store.calves@1000.0.14
   - @pnpm/lockfile.fs@1001.1.13
 
 ## 1001.0.24
@@ -122,7 +122,7 @@
 
 - Updated dependencies [8d175c0]
   - @pnpm/config@1003.1.1
-  - @pnpm/store.cafs@1000.0.13
+  - @pnpm/store.calves@1000.0.13
 
 ## 1001.0.23
 
@@ -142,7 +142,7 @@
   - @pnpm/types@1000.6.0
   - @pnpm/lockfile.utils@1001.0.11
   - @pnpm/dependency-path@1000.0.9
-  - @pnpm/store.cafs@1000.0.12
+  - @pnpm/store.calves@1000.0.12
 
 ## 1001.0.22
 
@@ -161,7 +161,7 @@
   - @pnpm/config@1003.0.0
   - @pnpm/logger@1001.0.0
   - @pnpm/types@1000.5.0
-  - @pnpm/store.cafs@1000.0.11
+  - @pnpm/store.calves@1000.0.11
   - @pnpm/lockfile.utils@1001.0.10
   - @pnpm/lockfile.fs@1001.1.11
   - @pnpm/dependency-path@1000.0.8
@@ -171,7 +171,7 @@
 ### Patch Changes
 
 - @pnpm/lockfile.utils@1001.0.9
-- @pnpm/store.cafs@1000.0.10
+- @pnpm/store.calves@1000.0.10
 - @pnpm/lockfile.fs@1001.1.10
 - @pnpm/config@1002.7.2
 
@@ -187,7 +187,7 @@
   - @pnpm/lockfile.fs@1001.1.9
   - @pnpm/lockfile.utils@1001.0.8
   - @pnpm/dependency-path@1000.0.7
-  - @pnpm/store.cafs@1000.0.9
+  - @pnpm/store.calves@1000.0.9
 
 ## 1001.0.18
 
@@ -210,7 +210,7 @@
   - @pnpm/lockfile.fs@1001.1.8
   - @pnpm/lockfile.utils@1001.0.7
   - @pnpm/dependency-path@1000.0.6
-  - @pnpm/store.cafs@1000.0.8
+  - @pnpm/store.calves@1000.0.8
 
 ## 1001.0.16
 
@@ -219,7 +219,7 @@
 - Updated dependencies [936430a]
   - @pnpm/config@1002.5.4
   - @pnpm/lockfile.utils@1001.0.6
-  - @pnpm/store.cafs@1000.0.7
+  - @pnpm/store.calves@1000.0.7
   - @pnpm/lockfile.fs@1001.1.7
 
 ## 1001.0.15
@@ -256,7 +256,7 @@
   - @pnpm/dependency-path@1000.0.4
   - @pnpm/lockfile.fs@1001.1.5
   - @pnpm/lockfile.utils@1001.0.4
-  - @pnpm/store.cafs@1000.0.6
+  - @pnpm/store.calves@1000.0.6
 
 ## 1001.0.11
 
@@ -277,7 +277,7 @@
   - @pnpm/lockfile.fs@1001.1.4
   - @pnpm/lockfile.utils@1001.0.3
   - @pnpm/dependency-path@1000.0.3
-  - @pnpm/store.cafs@1000.0.5
+  - @pnpm/store.calves@1000.0.5
 
 ## 1001.0.9
 
@@ -313,14 +313,14 @@
   - @pnpm/store-path@1000.0.2
   - @pnpm/lockfile.utils@1001.0.2
   - @pnpm/dependency-path@1000.0.2
-  - @pnpm/store.cafs@1000.0.4
+  - @pnpm/store.calves@1000.0.4
 
 ## 1001.0.5
 
 ### Patch Changes
 
 - @pnpm/config@1002.1.2
-- @pnpm/store.cafs@1000.0.3
+- @pnpm/store.calves@1000.0.3
 
 ## 1001.0.4
 
@@ -333,7 +333,7 @@
   - @pnpm/lockfile.fs@1001.1.1
   - @pnpm/lockfile.utils@1001.0.1
   - @pnpm/dependency-path@1000.0.1
-  - @pnpm/store.cafs@1000.0.2
+  - @pnpm/store.calves@1000.0.2
 
 ## 1001.0.3
 
@@ -372,7 +372,7 @@
   - @pnpm/lockfile.utils@1001.0.0
   - @pnpm/lockfile.fs@1001.0.0
   - @pnpm/store-path@1000.0.1
-  - @pnpm/store.cafs@1000.0.1
+  - @pnpm/store.calves@1000.0.1
 
 ## 0.7.0
 
@@ -403,7 +403,7 @@
 - Updated dependencies [d55b259]
   - @pnpm/config@22.0.0
   - @pnpm/dependency-path@6.0.0
-  - @pnpm/store.cafs@5.0.0
+  - @pnpm/store.calves@5.0.0
   - @pnpm/lockfile.fs@1.0.6
   - @pnpm/store-path@9.0.3
   - @pnpm/lockfile.utils@1.0.5
@@ -413,7 +413,7 @@
 ### Patch Changes
 
 - Updated dependencies [a1f4df2]
-  - @pnpm/store.cafs@4.0.2
+  - @pnpm/store.calves@4.0.2
   - @pnpm/dependency-path@5.1.7
   - @pnpm/config@21.8.5
   - @pnpm/lockfile.fs@1.0.5
@@ -424,7 +424,7 @@
 ### Patch Changes
 
 - Updated dependencies [db7ff76]
-  - @pnpm/store.cafs@4.0.1
+  - @pnpm/store.calves@4.0.1
   - @pnpm/config@21.8.4
 
 ## 0.6.17
@@ -442,7 +442,7 @@
 - Updated dependencies [d500d9f]
 - Updated dependencies [db420ab]
   - @pnpm/types@12.2.0
-  - @pnpm/store.cafs@4.0.0
+  - @pnpm/store.calves@4.0.0
   - @pnpm/config@21.8.3
   - @pnpm/lockfile.fs@1.0.3
   - @pnpm/lockfile.utils@1.0.3
@@ -458,7 +458,7 @@
   - @pnpm/lockfile.fs@1.0.2
   - @pnpm/lockfile.utils@1.0.2
   - @pnpm/dependency-path@5.1.5
-  - @pnpm/store.cafs@3.0.8
+  - @pnpm/store.calves@3.0.8
 
 ## 0.6.14
 
@@ -485,7 +485,7 @@
   - @pnpm/lockfile.fs@1.0.1
   - @pnpm/lockfile.utils@1.0.1
   - @pnpm/dependency-path@5.1.4
-  - @pnpm/store.cafs@3.0.7
+  - @pnpm/store.calves@3.0.7
 
 ## 0.6.11
 
@@ -507,7 +507,7 @@
   - @pnpm/lockfile-file@9.1.3
   - @pnpm/lockfile-utils@11.0.4
   - @pnpm/dependency-path@5.1.3
-  - @pnpm/store.cafs@3.0.6
+  - @pnpm/store.calves@3.0.6
 
 ## 0.6.9
 
@@ -515,7 +515,7 @@
 
 - Updated dependencies [afe520d]
 - Updated dependencies [afe520d]
-  - @pnpm/store.cafs@3.0.5
+  - @pnpm/store.calves@3.0.5
   - @pnpm/config@21.6.1
 
 ## 0.6.8
@@ -530,7 +530,7 @@
   - @pnpm/lockfile-utils@11.0.3
   - @pnpm/lockfile-file@9.1.2
   - @pnpm/dependency-path@5.1.2
-  - @pnpm/store.cafs@3.0.4
+  - @pnpm/store.calves@3.0.4
 
 ## 0.6.7
 
@@ -546,7 +546,7 @@
   - @pnpm/lockfile-file@9.1.1
   - @pnpm/lockfile-utils@11.0.2
   - @pnpm/dependency-path@5.1.1
-  - @pnpm/store.cafs@3.0.3
+  - @pnpm/store.calves@3.0.3
 
 ## 0.6.6
 
@@ -569,7 +569,7 @@
 
 ### Patch Changes
 
-- @pnpm/store.cafs@3.0.2
+- @pnpm/store.calves@3.0.2
 - @pnpm/config@21.2.3
 
 ## 0.6.3
@@ -583,7 +583,7 @@
   - @pnpm/dependency-path@5.0.0
   - @pnpm/config@21.2.2
   - @pnpm/lockfile-file@9.0.6
-  - @pnpm/store.cafs@3.0.1
+  - @pnpm/store.calves@3.0.1
 
 ## 0.6.2
 
@@ -669,13 +669,13 @@
   - @pnpm/lockfile-utils@10.0.0
   - @pnpm/lockfile-file@9.0.0
   - @pnpm/store-path@9.0.0
-  - @pnpm/store.cafs@3.0.0
+  - @pnpm/store.calves@3.0.0
 
 ## 0.4.37
 
 ### Patch Changes
 
-- @pnpm/store.cafs@2.0.12
+- @pnpm/store.calves@2.0.12
 - @pnpm/lockfile-utils@9.0.5
 - @pnpm/config@20.4.2
 
@@ -703,7 +703,7 @@
 - Updated dependencies [33313d2fd]
 - Updated dependencies [4d34684f1]
   - @pnpm/config@20.3.0
-  - @pnpm/store.cafs@2.0.11
+  - @pnpm/store.calves@2.0.11
   - @pnpm/types@9.4.2
   - @pnpm/lockfile-file@8.1.6
   - @pnpm/lockfile-utils@9.0.4
@@ -720,7 +720,7 @@
   - @pnpm/lockfile-file@8.1.5
   - @pnpm/lockfile-utils@9.0.3
   - @pnpm/dependency-path@2.1.6
-  - @pnpm/store.cafs@2.0.10
+  - @pnpm/store.calves@2.0.10
 
 ## 0.4.32
 
@@ -740,7 +740,7 @@
 
 ### Patch Changes
 
-- @pnpm/store.cafs@2.0.9
+- @pnpm/store.calves@2.0.9
 - @pnpm/config@20.1.2
 
 ## 0.4.29
@@ -751,7 +751,7 @@
 - Updated dependencies [7d65d901a]
   - @pnpm/lockfile-utils@9.0.0
   - @pnpm/store-path@8.0.1
-  - @pnpm/store.cafs@2.0.8
+  - @pnpm/store.calves@2.0.8
   - @pnpm/config@20.1.1
 
 ## 0.4.28
@@ -762,7 +762,7 @@
 - Updated dependencies [d6592964f]
   - @pnpm/types@9.4.0
   - @pnpm/config@20.1.0
-  - @pnpm/store.cafs@2.0.7
+  - @pnpm/store.calves@2.0.7
   - @pnpm/lockfile-file@8.1.4
   - @pnpm/lockfile-utils@8.0.7
   - @pnpm/dependency-path@2.1.5
@@ -774,7 +774,7 @@
 - Updated dependencies [01bc58e2c]
 - Updated dependencies [ac5abd3ff]
 - Updated dependencies [b60bb6cbe]
-  - @pnpm/store.cafs@2.0.6
+  - @pnpm/store.calves@2.0.6
   - @pnpm/config@20.0.0
 
 ## 0.4.26
@@ -796,7 +796,7 @@
   - @pnpm/lockfile-file@8.1.3
   - @pnpm/lockfile-utils@8.0.6
   - @pnpm/dependency-path@2.1.4
-  - @pnpm/store.cafs@2.0.5
+  - @pnpm/store.calves@2.0.5
 
 ## 0.4.24
 
@@ -811,14 +811,14 @@
 
 ### Patch Changes
 
-- @pnpm/store.cafs@2.0.4
+- @pnpm/store.calves@2.0.4
 - @pnpm/config@19.0.3
 
 ## 0.4.22
 
 ### Patch Changes
 
-- @pnpm/store.cafs@2.0.3
+- @pnpm/store.calves@2.0.3
 - @pnpm/config@19.0.2
 
 ## 0.4.21
@@ -826,7 +826,7 @@
 ### Patch Changes
 
 - Updated dependencies [b3947185c]
-  - @pnpm/store.cafs@2.0.2
+  - @pnpm/store.calves@2.0.2
   - @pnpm/config@19.0.1
 
 ## 0.4.20
@@ -834,7 +834,7 @@
 ### Patch Changes
 
 - Updated dependencies [b548f2f43]
-  - @pnpm/store.cafs@2.0.1
+  - @pnpm/store.calves@2.0.1
   - @pnpm/config@19.0.1
 
 ## 0.4.19
@@ -845,7 +845,7 @@
 - Updated dependencies [cb8bcc8df]
 - Updated dependencies [083bbf590]
 - Updated dependencies [e9aa6f682]
-  - @pnpm/store.cafs@2.0.0
+  - @pnpm/store.calves@2.0.0
   - @pnpm/config@19.0.0
   - @pnpm/lockfile-utils@8.0.4
 
@@ -854,7 +854,7 @@
 ### Patch Changes
 
 - Updated dependencies [73f2b6826]
-  - @pnpm/store.cafs@1.0.2
+  - @pnpm/store.calves@1.0.2
   - @pnpm/config@18.4.4
 
 ## 0.4.17
@@ -862,7 +862,7 @@
 ### Patch Changes
 
 - Updated dependencies [fe1c5f48d]
-  - @pnpm/store.cafs@1.0.1
+  - @pnpm/store.calves@1.0.1
   - @pnpm/config@18.4.4
 
 ## 0.4.16
@@ -870,7 +870,7 @@
 ### Patch Changes
 
 - Updated dependencies [4bbf482d1]
-  - @pnpm/store.cafs@1.0.0
+  - @pnpm/store.calves@1.0.0
   - @pnpm/config@18.4.4
 
 ## 0.4.15
@@ -881,7 +881,7 @@
 - Updated dependencies [250f7e9fe]
 - Updated dependencies [e958707b2]
   - @pnpm/types@9.2.0
-  - @pnpm/cafs@7.0.5
+  - @pnpm/calves@7.0.5
   - @pnpm/config@18.4.4
   - @pnpm/lockfile-file@8.1.2
   - @pnpm/lockfile-utils@8.0.3
@@ -898,7 +898,7 @@
 ### Patch Changes
 
 - Updated dependencies [b81cefdcd]
-  - @pnpm/cafs@7.0.4
+  - @pnpm/calves@7.0.4
   - @pnpm/config@18.4.2
 
 ## 0.4.12
@@ -908,7 +908,7 @@
 - Updated dependencies [e2d631217]
 - Updated dependencies [e57e2d340]
   - @pnpm/config@18.4.2
-  - @pnpm/cafs@7.0.3
+  - @pnpm/calves@7.0.3
 
 ## 0.4.11
 
@@ -925,7 +925,7 @@
 
 - Updated dependencies [d55b41a8b]
 - Updated dependencies [614d5bd72]
-  - @pnpm/cafs@7.0.2
+  - @pnpm/calves@7.0.2
   - @pnpm/config@18.4.0
 
 ## 0.4.9
@@ -941,7 +941,7 @@
   - @pnpm/config@18.4.0
   - @pnpm/lockfile-utils@8.0.1
   - @pnpm/dependency-path@2.1.2
-  - @pnpm/cafs@7.0.1
+  - @pnpm/calves@7.0.1
 
 ## 0.4.8
 
@@ -1037,7 +1037,7 @@
   - @pnpm/dependency-path@2.0.0
   - @pnpm/store-path@8.0.0
   - @pnpm/types@9.0.0
-  - @pnpm/cafs@7.0.0
+  - @pnpm/calves@7.0.0
 
 ## 0.3.42
 
@@ -1060,7 +1060,7 @@
 - Updated dependencies [e505b58e3]
   - @pnpm/lockfile-file@7.0.6
   - @pnpm/config@17.0.0
-  - @pnpm/cafs@6.0.2
+  - @pnpm/calves@6.0.2
 
 ## 0.3.39
 
@@ -1107,7 +1107,7 @@
 
 - @pnpm/lockfile-utils@5.0.7
 - @pnpm/config@16.6.1
-- @pnpm/cafs@6.0.1
+- @pnpm/calves@6.0.1
 
 ## 0.3.32
 
@@ -1154,7 +1154,7 @@
 
 - Updated dependencies [98d6603f3]
 - Updated dependencies [98d6603f3]
-  - @pnpm/cafs@6.0.0
+  - @pnpm/calves@6.0.0
   - @pnpm/config@16.5.1
 
 ## 0.3.26
@@ -1169,7 +1169,7 @@
 ### Patch Changes
 
 - Updated dependencies [1e6de89b6]
-  - @pnpm/cafs@5.0.6
+  - @pnpm/calves@5.0.6
   - @pnpm/config@16.4.3
 
 ## 0.3.24
@@ -1200,7 +1200,7 @@
   - @pnpm/lockfile-file@7.0.0
   - @pnpm/config@16.4.0
   - @pnpm/dependency-path@1.1.0
-  - @pnpm/cafs@5.0.5
+  - @pnpm/calves@5.0.5
   - @pnpm/lockfile-utils@5.0.3
 
 ## 0.3.21
@@ -1240,7 +1240,7 @@
   - @pnpm/lockfile-file@6.0.5
   - @pnpm/lockfile-utils@5.0.2
   - @pnpm/dependency-path@1.0.1
-  - @pnpm/cafs@5.0.4
+  - @pnpm/calves@5.0.4
 
 ## 0.3.16
 
@@ -1271,7 +1271,7 @@
 - Updated dependencies [a9d59d8bc]
   - @pnpm/config@16.1.7
   - @pnpm/lockfile-file@6.0.3
-  - @pnpm/cafs@5.0.3
+  - @pnpm/calves@5.0.3
 
 ## 0.3.12
 
@@ -1325,7 +1325,7 @@
 
 - Updated dependencies [702e847c1]
   - @pnpm/types@8.9.0
-  - @pnpm/cafs@5.0.2
+  - @pnpm/calves@5.0.2
   - @pnpm/config@16.0.5
   - dependency-path@9.2.8
   - @pnpm/lockfile-file@6.0.2
@@ -1360,7 +1360,7 @@
 - Updated dependencies [844e82f3a]
   - @pnpm/config@16.0.1
   - @pnpm/types@8.8.0
-  - @pnpm/cafs@5.0.1
+  - @pnpm/calves@5.0.1
   - dependency-path@9.2.7
   - @pnpm/lockfile-file@6.0.1
   - @pnpm/lockfile-utils@4.2.7
@@ -1378,7 +1378,7 @@
 - Updated dependencies [645384bfd]
 - Updated dependencies [f884689e0]
 - Updated dependencies [3c117996e]
-  - @pnpm/cafs@5.0.0
+  - @pnpm/calves@5.0.0
   - @pnpm/config@16.0.0
   - @pnpm/lockfile-file@6.0.0
   - @pnpm/store-path@7.0.0
@@ -1411,7 +1411,7 @@
 - Updated dependencies [d665f3ff7]
   - @pnpm/types@8.7.0
   - @pnpm/config@15.10.9
-  - @pnpm/cafs@4.3.2
+  - @pnpm/calves@4.3.2
   - dependency-path@9.2.6
   - @pnpm/lockfile-file@5.3.6
   - @pnpm/lockfile-utils@4.2.6
@@ -1434,7 +1434,7 @@
 
 - Updated dependencies [156cc1ef6]
   - @pnpm/types@8.6.0
-  - @pnpm/cafs@4.3.1
+  - @pnpm/calves@4.3.1
   - @pnpm/config@15.10.6
   - dependency-path@9.2.5
   - @pnpm/lockfile-file@5.3.5
@@ -1490,7 +1490,7 @@
 ### Patch Changes
 
 - Updated dependencies [745143e79]
-  - @pnpm/cafs@4.3.0
+  - @pnpm/calves@4.3.0
   - @pnpm/config@15.9.3
 
 ## 0.2.31
@@ -1498,7 +1498,7 @@
 ### Patch Changes
 
 - Updated dependencies [dbac0ca01]
-  - @pnpm/cafs@4.2.1
+  - @pnpm/calves@4.2.1
   - @pnpm/config@15.9.2
 
 ## 0.2.30
@@ -1506,7 +1506,7 @@
 ### Patch Changes
 
 - Updated dependencies [32915f0e4]
-  - @pnpm/cafs@4.2.0
+  - @pnpm/calves@4.2.0
   - @pnpm/config@15.9.1
   - @pnpm/lockfile-utils@4.2.4
 
@@ -1516,7 +1516,7 @@
 
 - Updated dependencies [c191ca7bf]
 - Updated dependencies [1e5482da4]
-  - @pnpm/cafs@4.1.0
+  - @pnpm/calves@4.1.0
   - @pnpm/lockfile-file@5.3.3
   - @pnpm/config@15.9.0
 
@@ -1530,7 +1530,7 @@
 - Updated dependencies [8103f92bd]
 - Updated dependencies [65c4260de]
 - Updated dependencies [29a81598a]
-  - @pnpm/cafs@4.0.9
+  - @pnpm/calves@4.0.9
   - @pnpm/config@15.9.0
   - @pnpm/lockfile-file@5.3.2
   - @pnpm/lockfile-utils@4.2.3
@@ -1545,7 +1545,7 @@
   - @pnpm/lockfile-file@5.3.1
   - @pnpm/types@8.5.0
   - @pnpm/config@15.8.1
-  - @pnpm/cafs@4.0.8
+  - @pnpm/calves@4.0.8
   - dependency-path@9.2.4
   - @pnpm/lockfile-utils@4.2.2
 
@@ -1650,7 +1650,7 @@
   - @pnpm/types@8.4.0
   - @pnpm/lockfile-file@5.1.2
   - @pnpm/lockfile-utils@4.0.7
-  - @pnpm/cafs@4.0.7
+  - @pnpm/calves@4.0.7
   - @pnpm/config@15.4.1
   - dependency-path@9.2.1
 
@@ -1664,7 +1664,7 @@
   - @pnpm/types@8.3.0
   - dependency-path@9.2.0
   - @pnpm/config@15.4.0
-  - @pnpm/cafs@4.0.6
+  - @pnpm/calves@4.0.6
   - @pnpm/lockfile-file@5.1.1
   - @pnpm/lockfile-utils@4.0.6
 
@@ -1679,7 +1679,7 @@
   - @pnpm/config@15.3.0
   - @pnpm/lockfile-file@5.1.0
   - dependency-path@9.1.4
-  - @pnpm/cafs@4.0.5
+  - @pnpm/calves@4.0.5
   - @pnpm/lockfile-utils@4.0.5
 
 ## 0.2.11
@@ -1698,7 +1698,7 @@
 - Updated dependencies [d5730ba81]
   - @pnpm/types@8.1.0
   - @pnpm/config@15.2.0
-  - @pnpm/cafs@4.0.4
+  - @pnpm/calves@4.0.4
   - dependency-path@9.1.3
   - @pnpm/lockfile-file@5.0.4
   - @pnpm/lockfile-utils@4.0.4
@@ -1708,7 +1708,7 @@
 ### Patch Changes
 
 - Updated dependencies [6756c2b02]
-  - @pnpm/cafs@4.0.3
+  - @pnpm/calves@4.0.3
   - @pnpm/config@15.1.4
 
 ## 0.2.8
@@ -1747,7 +1747,7 @@
 ### Patch Changes
 
 - Updated dependencies [cadefe5b6]
-  - @pnpm/cafs@4.0.2
+  - @pnpm/calves@4.0.2
   - @pnpm/config@15.1.1
 
 ## 0.2.3
@@ -1760,7 +1760,7 @@
   - dependency-path@9.1.1
   - @pnpm/lockfile-file@5.0.2
   - @pnpm/lockfile-utils@4.0.2
-  - @pnpm/cafs@4.0.1
+  - @pnpm/calves@4.0.1
 
 ## 0.2.2
 
@@ -1801,7 +1801,7 @@
 - Updated dependencies [542014839]
   - @pnpm/types@8.0.0
   - dependency-path@9.0.0
-  - @pnpm/cafs@4.0.0
+  - @pnpm/calves@4.0.0
   - @pnpm/lockfile-file@5.0.0
   - @pnpm/lockfile-utils@4.0.0
 
@@ -1810,7 +1810,7 @@
 ### Patch Changes
 
 - @pnpm/lockfile-file@4.3.1
-- @pnpm/cafs@3.0.15
+- @pnpm/calves@3.0.15
 
 ## 0.1.22
 
@@ -1821,7 +1821,7 @@
   - @pnpm/types@7.10.0
   - @pnpm/lockfile-utils@3.2.1
   - dependency-path@8.0.11
-  - @pnpm/cafs@3.0.14
+  - @pnpm/calves@3.0.14
 
 ## 0.1.21
 
@@ -1839,7 +1839,7 @@
   - dependency-path@8.0.10
   - @pnpm/lockfile-file@4.2.6
   - @pnpm/lockfile-utils@3.1.6
-  - @pnpm/cafs@3.0.13
+  - @pnpm/calves@3.0.13
 
 ## 0.1.19
 
@@ -1850,7 +1850,7 @@
   - dependency-path@8.0.9
   - @pnpm/lockfile-file@4.2.5
   - @pnpm/lockfile-utils@3.1.5
-  - @pnpm/cafs@3.0.12
+  - @pnpm/calves@3.0.12
 
 ## 0.1.18
 
@@ -1869,7 +1869,7 @@
   - dependency-path@8.0.8
   - @pnpm/lockfile-file@4.2.3
   - @pnpm/lockfile-utils@3.1.4
-  - @pnpm/cafs@3.0.11
+  - @pnpm/calves@3.0.11
 
 ## 0.1.16
 
@@ -1880,7 +1880,7 @@
   - dependency-path@8.0.7
   - @pnpm/lockfile-file@4.2.2
   - @pnpm/lockfile-utils@3.1.3
-  - @pnpm/cafs@3.0.10
+  - @pnpm/calves@3.0.10
 
 ## 0.1.15
 
@@ -1898,7 +1898,7 @@
   - dependency-path@8.0.6
   - @pnpm/lockfile-file@4.2.1
   - @pnpm/lockfile-utils@3.1.1
-  - @pnpm/cafs@3.0.9
+  - @pnpm/calves@3.0.9
 
 ## 0.1.13
 
@@ -1911,7 +1911,7 @@
   - @pnpm/lockfile-file@4.2.0
   - @pnpm/lockfile-utils@3.1.0
   - dependency-path@8.0.5
-  - @pnpm/cafs@3.0.8
+  - @pnpm/calves@3.0.8
 
 ## 0.1.12
 
@@ -1922,7 +1922,7 @@
   - dependency-path@8.0.4
   - @pnpm/lockfile-file@4.1.1
   - @pnpm/lockfile-utils@3.0.8
-  - @pnpm/cafs@3.0.7
+  - @pnpm/calves@3.0.7
 
 ## 0.1.11
 
@@ -1934,7 +1934,7 @@
   - @pnpm/types@7.3.0
   - dependency-path@8.0.3
   - @pnpm/lockfile-utils@3.0.7
-  - @pnpm/cafs@3.0.6
+  - @pnpm/calves@3.0.6
 
 ## 0.1.10
 
@@ -1960,7 +1960,7 @@
   - dependency-path@8.0.1
   - @pnpm/lockfile-file@4.0.3
   - @pnpm/lockfile-utils@3.0.5
-  - @pnpm/cafs@3.0.5
+  - @pnpm/calves@3.0.5
 
 ## 0.1.7
 
@@ -1983,13 +1983,13 @@
 ### Patch Changes
 
 - Updated dependencies [ef0ca24be]
-  - @pnpm/cafs@3.0.4
+  - @pnpm/calves@3.0.4
 
 ## 0.1.4
 
 ### Patch Changes
 
-- @pnpm/cafs@3.0.3
+- @pnpm/calves@3.0.3
 
 ## 0.1.3
 
@@ -2000,14 +2000,14 @@
   - dependency-path@7.0.1
   - @pnpm/lockfile-file@4.0.1
   - @pnpm/lockfile-utils@3.0.2
-  - @pnpm/cafs@3.0.2
+  - @pnpm/calves@3.0.2
 
 ## 0.1.2
 
 ### Patch Changes
 
 - Updated dependencies [6f198457d]
-  - @pnpm/cafs@3.0.1
+  - @pnpm/calves@3.0.1
 
 ## 0.1.1
 
@@ -2035,7 +2035,7 @@
 - Updated dependencies [f7750baed]
 - Updated dependencies [83645c8ed]
 - Updated dependencies [9c2a878c3]
-  - @pnpm/cafs@3.0.0
+  - @pnpm/calves@3.0.0
   - dependency-path@6.0.0
   - @pnpm/lockfile-file@4.0.0
   - @pnpm/lockfile-utils@3.0.0
@@ -2046,7 +2046,7 @@
 ### Patch Changes
 
 - Updated dependencies [8d1dfa89c]
-  - @pnpm/cafs@2.1.0
+  - @pnpm/calves@2.1.0
 
 ## 0.0.5
 
@@ -2065,7 +2065,7 @@
   - @pnpm/types@6.4.0
   - @pnpm/lockfile-utils@2.0.22
   - dependency-path@5.1.1
-  - @pnpm/cafs@2.0.5
+  - @pnpm/calves@2.0.5
 
 ## 0.0.3
 

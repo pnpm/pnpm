@@ -14,7 +14,7 @@
   - @pnpm/store-controller-types@1004.1.0
   - @pnpm/package-requester@1008.0.0
   - @pnpm/fetcher-base@1001.0.2
-  - @pnpm/store.cafs@1000.0.19
+  - @pnpm/store.calves@1000.0.19
   - @pnpm/create-cafs-store@1000.0.20
 
 ## 1003.0.0
@@ -30,7 +30,7 @@
 ### Patch Changes
 
 - Updated dependencies [9b9faa5]
-  - @pnpm/store.cafs@1000.0.18
+  - @pnpm/store.calves@1000.0.18
   - @pnpm/create-cafs-store@1000.0.19
   - @pnpm/worker@1000.1.14
   - @pnpm/package-requester@1006.0.3
@@ -52,7 +52,7 @@
   - @pnpm/package-requester@1006.0.1
   - @pnpm/fetcher-base@1001.0.1
   - @pnpm/resolver-base@1005.0.1
-  - @pnpm/store.cafs@1000.0.17
+  - @pnpm/store.calves@1000.0.17
   - @pnpm/store-controller-types@1004.0.2
   - @pnpm/worker@1000.1.12
   - @pnpm/create-cafs-store@1000.0.18
@@ -68,7 +68,7 @@
   - @pnpm/fetcher-base@1001.0.0
   - @pnpm/package-requester@1006.0.0
   - @pnpm/resolver-base@1005.0.0
-  - @pnpm/store.cafs@1000.0.16
+  - @pnpm/store.calves@1000.0.16
   - @pnpm/create-cafs-store@1000.0.17
   - @pnpm/store-controller-types@1004.0.1
   - @pnpm/worker@1000.1.11
@@ -85,7 +85,7 @@
   - @pnpm/store-controller-types@1004.0.0
   - @pnpm/resolver-base@1004.1.0
   - @pnpm/fetcher-base@1000.1.0
-  - @pnpm/store.cafs@1000.0.15
+  - @pnpm/store.calves@1000.0.15
   - @pnpm/worker@1000.1.10
   - @pnpm/create-cafs-store@1000.0.16
 
@@ -113,7 +113,7 @@
   - @pnpm/fetcher-base@1000.0.12
   - @pnpm/package-requester@1004.0.3
   - @pnpm/store-controller-types@1003.0.3
-  - @pnpm/store.cafs@1000.0.14
+  - @pnpm/store.calves@1000.0.14
   - @pnpm/create-cafs-store@1000.0.15
   - @pnpm/worker@1000.1.8
 
@@ -124,7 +124,7 @@
 - Updated dependencies [509948d]
   - @pnpm/package-requester@1004.0.2
   - @pnpm/store-controller-types@1003.0.2
-  - @pnpm/store.cafs@1000.0.13
+  - @pnpm/store.calves@1000.0.13
   - @pnpm/create-cafs-store@1000.0.14
   - @pnpm/worker@1000.1.7
 
@@ -143,7 +143,7 @@
   - @pnpm/store-controller-types@1003.0.1
   - @pnpm/fetcher-base@1000.0.11
   - @pnpm/resolver-base@1003.0.1
-  - @pnpm/store.cafs@1000.0.12
+  - @pnpm/store.calves@1000.0.12
 
 ## 1002.0.2
 
@@ -158,7 +158,7 @@
   - @pnpm/resolver-base@1003.0.0
   - @pnpm/logger@1001.0.0
   - @pnpm/types@1000.5.0
-  - @pnpm/store.cafs@1000.0.11
+  - @pnpm/store.calves@1000.0.11
   - @pnpm/create-cafs-store@1000.0.12
   - @pnpm/fetcher-base@1000.0.10
   - @pnpm/worker@1000.1.5
@@ -173,7 +173,7 @@
   - @pnpm/package-requester@1003.0.1
   - @pnpm/store-controller-types@1002.0.1
   - @pnpm/create-cafs-store@1000.0.11
-  - @pnpm/store.cafs@1000.0.10
+  - @pnpm/store.calves@1000.0.10
   - @pnpm/worker@1000.1.4
 
 ## 1002.0.0
@@ -191,7 +191,7 @@
   - @pnpm/resolver-base@1001.0.0
   - @pnpm/package-requester@1003.0.0
   - @pnpm/fetcher-base@1000.0.8
-  - @pnpm/store.cafs@1000.0.9
+  - @pnpm/store.calves@1000.0.9
   - @pnpm/worker@1000.1.3
   - @pnpm/create-cafs-store@1000.0.10
 
@@ -211,7 +211,7 @@
   - @pnpm/fetcher-base@1000.0.7
   - @pnpm/package-requester@1002.0.2
   - @pnpm/resolver-base@1000.2.1
-  - @pnpm/store.cafs@1000.0.8
+  - @pnpm/store.calves@1000.0.8
   - @pnpm/store-controller-types@1001.0.5
   - @pnpm/worker@1000.1.2
   - @pnpm/create-cafs-store@1000.0.9
@@ -225,7 +225,7 @@
   - @pnpm/fetcher-base@1000.0.6
   - @pnpm/package-requester@1002.0.1
   - @pnpm/store-controller-types@1001.0.4
-  - @pnpm/store.cafs@1000.0.7
+  - @pnpm/store.calves@1000.0.7
   - @pnpm/create-cafs-store@1000.0.8
   - @pnpm/worker@1000.1.1
 
@@ -253,7 +253,7 @@
   - @pnpm/fetcher-base@1000.0.5
   - @pnpm/package-requester@1001.0.3
   - @pnpm/resolver-base@1000.1.4
-  - @pnpm/store.cafs@1000.0.6
+  - @pnpm/store.calves@1000.0.6
   - @pnpm/store-controller-types@1001.0.3
   - @pnpm/worker@1000.0.7
   - @pnpm/create-cafs-store@1000.0.7
@@ -268,7 +268,7 @@
   - @pnpm/fetcher-base@1000.0.4
   - @pnpm/package-requester@1001.0.2
   - @pnpm/resolver-base@1000.1.3
-  - @pnpm/store.cafs@1000.0.5
+  - @pnpm/store.calves@1000.0.5
   - @pnpm/store-controller-types@1001.0.2
   - @pnpm/worker@1000.0.6
 
@@ -281,7 +281,7 @@
   - @pnpm/fetcher-base@1000.0.3
   - @pnpm/package-requester@1001.0.1
   - @pnpm/resolver-base@1000.1.2
-  - @pnpm/store.cafs@1000.0.4
+  - @pnpm/store.calves@1000.0.4
   - @pnpm/store-controller-types@1001.0.1
   - @pnpm/worker@1000.0.5
   - @pnpm/create-cafs-store@1000.0.5
@@ -293,7 +293,7 @@
 - Updated dependencies [dde650b]
   - @pnpm/package-requester@1001.0.0
   - @pnpm/store-controller-types@1001.0.0
-  - @pnpm/store.cafs@1000.0.3
+  - @pnpm/store.calves@1000.0.3
   - @pnpm/create-cafs-store@1000.0.4
   - @pnpm/worker@1000.0.4
 
@@ -306,7 +306,7 @@
   - @pnpm/fetcher-base@1000.0.2
   - @pnpm/package-requester@1000.1.2
   - @pnpm/resolver-base@1000.1.1
-  - @pnpm/store.cafs@1000.0.2
+  - @pnpm/store.calves@1000.0.2
   - @pnpm/store-controller-types@1000.1.1
   - @pnpm/worker@1000.0.3
   - @pnpm/create-cafs-store@1000.0.3
@@ -328,7 +328,7 @@
   - @pnpm/package-requester@1000.1.0
   - @pnpm/store-controller-types@1000.1.0
   - @pnpm/resolver-base@1000.1.0
-  - @pnpm/store.cafs@1000.0.1
+  - @pnpm/store.calves@1000.0.1
   - @pnpm/create-cafs-store@1000.0.1
   - @pnpm/fetcher-base@1000.0.1
   - @pnpm/worker@1000.0.1
@@ -353,7 +353,7 @@
 - Updated dependencies [d433cb9]
 - Updated dependencies [099e6af]
   - @pnpm/package-requester@26.0.0
-  - @pnpm/store.cafs@5.0.0
+  - @pnpm/store.calves@5.0.0
   - @pnpm/worker@2.0.0
   - @pnpm/create-cafs-store@7.0.12
   - @pnpm/fetcher-base@16.0.7
@@ -366,7 +366,7 @@
 - Updated dependencies [222d10a]
 - Updated dependencies [a1f4df2]
   - @pnpm/worker@1.0.13
-  - @pnpm/store.cafs@4.0.2
+  - @pnpm/store.calves@4.0.2
   - @pnpm/package-requester@25.2.10
   - @pnpm/create-cafs-store@7.0.11
 
@@ -375,7 +375,7 @@
 ### Patch Changes
 
 - Updated dependencies [db7ff76]
-  - @pnpm/store.cafs@4.0.1
+  - @pnpm/store.calves@4.0.1
   - @pnpm/package-requester@25.2.9
   - @pnpm/create-cafs-store@7.0.10
   - @pnpm/worker@1.0.12
@@ -400,7 +400,7 @@
 - Updated dependencies [d500d9f]
 - Updated dependencies [db420ab]
   - @pnpm/types@12.2.0
-  - @pnpm/store.cafs@4.0.0
+  - @pnpm/store.calves@4.0.0
   - @pnpm/fetcher-base@16.0.7
   - @pnpm/package-requester@25.2.7
   - @pnpm/resolver-base@13.0.4
@@ -417,7 +417,7 @@
   - @pnpm/fetcher-base@16.0.6
   - @pnpm/package-requester@25.2.6
   - @pnpm/resolver-base@13.0.3
-  - @pnpm/store.cafs@3.0.8
+  - @pnpm/store.calves@3.0.8
   - @pnpm/store-controller-types@18.1.5
   - @pnpm/worker@1.0.9
   - @pnpm/create-cafs-store@7.0.8
@@ -437,7 +437,7 @@
   - @pnpm/fetcher-base@16.0.5
   - @pnpm/package-requester@25.2.4
   - @pnpm/resolver-base@13.0.2
-  - @pnpm/store.cafs@3.0.7
+  - @pnpm/store.calves@3.0.7
   - @pnpm/store-controller-types@18.1.4
   - @pnpm/worker@1.0.8
   - @pnpm/create-cafs-store@7.0.7
@@ -451,7 +451,7 @@
   - @pnpm/fetcher-base@16.0.4
   - @pnpm/package-requester@25.2.3
   - @pnpm/resolver-base@13.0.1
-  - @pnpm/store.cafs@3.0.6
+  - @pnpm/store.calves@3.0.6
   - @pnpm/store-controller-types@18.1.3
   - @pnpm/worker@1.0.7
   - @pnpm/create-cafs-store@7.0.6
@@ -462,7 +462,7 @@
 
 - Updated dependencies [afe520d]
 - Updated dependencies [afe520d]
-  - @pnpm/store.cafs@3.0.5
+  - @pnpm/store.calves@3.0.5
   - @pnpm/create-cafs-store@7.0.5
   - @pnpm/package-requester@25.2.2
   - @pnpm/worker@1.0.6
@@ -478,7 +478,7 @@
   - @pnpm/fetcher-base@16.0.3
   - @pnpm/package-requester@25.2.1
   - @pnpm/store-controller-types@18.1.2
-  - @pnpm/store.cafs@3.0.4
+  - @pnpm/store.calves@3.0.4
   - @pnpm/worker@1.0.5
   - @pnpm/create-cafs-store@7.0.4
 
@@ -496,7 +496,7 @@
   - @pnpm/types@10.1.1
   - @pnpm/fetcher-base@16.0.2
   - @pnpm/resolver-base@12.0.2
-  - @pnpm/store.cafs@3.0.3
+  - @pnpm/store.calves@3.0.3
   - @pnpm/store-controller-types@18.1.1
   - @pnpm/worker@1.0.4
   - @pnpm/create-cafs-store@7.0.3
@@ -519,7 +519,7 @@
 - Updated dependencies [0c08e1c]
   - @pnpm/store-controller-types@18.1.0
   - @pnpm/package-requester@25.1.3
-  - @pnpm/store.cafs@3.0.2
+  - @pnpm/store.calves@3.0.2
   - @pnpm/create-cafs-store@7.0.2
   - @pnpm/worker@1.0.3
 
@@ -532,7 +532,7 @@
   - @pnpm/fetcher-base@16.0.1
   - @pnpm/package-requester@25.1.2
   - @pnpm/resolver-base@12.0.1
-  - @pnpm/store.cafs@3.0.1
+  - @pnpm/store.calves@3.0.1
   - @pnpm/store-controller-types@18.0.1
   - @pnpm/worker@1.0.2
   - @pnpm/create-cafs-store@7.0.1
@@ -588,7 +588,7 @@
   - @pnpm/resolver-base@12.0.0
   - @pnpm/create-cafs-store@7.0.0
   - @pnpm/fetcher-base@16.0.0
-  - @pnpm/store.cafs@3.0.0
+  - @pnpm/store.calves@3.0.0
 
 ## 19.0.15
 
@@ -598,7 +598,7 @@
   - @pnpm/package-requester@24.1.8
   - @pnpm/store-controller-types@17.2.0
   - @pnpm/resolver-base@11.1.0
-  - @pnpm/store.cafs@2.0.12
+  - @pnpm/store.calves@2.0.12
   - @pnpm/create-cafs-store@6.0.13
   - @pnpm/fetcher-base@15.0.7
   - @pnpm/worker@0.3.14
@@ -617,7 +617,7 @@
 
 - Updated dependencies [33313d2fd]
 - Updated dependencies [4d34684f1]
-  - @pnpm/store.cafs@2.0.11
+  - @pnpm/store.calves@2.0.11
   - @pnpm/types@9.4.2
   - @pnpm/create-cafs-store@6.0.11
   - @pnpm/package-requester@24.1.6
@@ -635,7 +635,7 @@
   - @pnpm/fetcher-base@15.0.5
   - @pnpm/package-requester@24.1.5
   - @pnpm/resolver-base@11.0.1
-  - @pnpm/store.cafs@2.0.10
+  - @pnpm/store.calves@2.0.10
   - @pnpm/store-controller-types@17.1.3
   - @pnpm/worker@0.3.11
   - @pnpm/create-cafs-store@6.0.10
@@ -664,7 +664,7 @@
 - Updated dependencies [291607c5a]
   - @pnpm/store-controller-types@17.1.2
   - @pnpm/package-requester@24.1.2
-  - @pnpm/store.cafs@2.0.9
+  - @pnpm/store.calves@2.0.9
   - @pnpm/create-cafs-store@6.0.8
   - @pnpm/worker@0.3.8
 
@@ -681,7 +681,7 @@
   - @pnpm/store-controller-types@17.1.1
   - @pnpm/fetcher-base@15.0.4
   - @pnpm/worker@0.3.7
-  - @pnpm/store.cafs@2.0.8
+  - @pnpm/store.calves@2.0.8
 
 ## 19.0.7
 
@@ -693,7 +693,7 @@
   - @pnpm/store-controller-types@17.1.0
   - @pnpm/types@9.4.0
   - @pnpm/worker@0.3.6
-  - @pnpm/store.cafs@2.0.7
+  - @pnpm/store.calves@2.0.7
   - @pnpm/create-cafs-store@6.0.6
   - @pnpm/fetcher-base@15.0.3
   - @pnpm/resolver-base@10.0.4
@@ -714,7 +714,7 @@
 - Updated dependencies [01bc58e2c]
 - Updated dependencies [08b65ff78]
   - @pnpm/package-requester@24.0.5
-  - @pnpm/store.cafs@2.0.6
+  - @pnpm/store.calves@2.0.6
   - @pnpm/worker@0.3.4
   - @pnpm/create-cafs-store@6.0.4
 
@@ -744,7 +744,7 @@
   - @pnpm/fetcher-base@15.0.2
   - @pnpm/package-requester@24.0.2
   - @pnpm/resolver-base@10.0.3
-  - @pnpm/store.cafs@2.0.5
+  - @pnpm/store.calves@2.0.5
   - @pnpm/store-controller-types@17.0.1
   - @pnpm/worker@0.3.1
 
@@ -764,7 +764,7 @@
   - @pnpm/worker@0.3.0
   - @pnpm/package-requester@24.0.0
   - @pnpm/create-cafs-store@6.0.0
-  - @pnpm/store.cafs@2.0.4
+  - @pnpm/store.calves@2.0.4
   - @pnpm/fetcher-base@15.0.1
 
 ## 18.0.1
@@ -785,7 +785,7 @@
   - @pnpm/create-cafs-store@5.1.0
   - @pnpm/worker@0.2.0
   - @pnpm/package-requester@23.0.0
-  - @pnpm/store.cafs@2.0.3
+  - @pnpm/store.calves@2.0.3
   - @pnpm/fetcher-base@15.0.1
 
 ## 17.0.2
@@ -793,7 +793,7 @@
 ### Patch Changes
 
 - Updated dependencies [b3947185c]
-  - @pnpm/store.cafs@2.0.2
+  - @pnpm/store.calves@2.0.2
   - @pnpm/package-requester@22.0.2
   - @pnpm/create-cafs-store@5.0.2
   - @pnpm/worker@0.1.2
@@ -804,7 +804,7 @@
 
 - Updated dependencies [b548f2f43]
 - Updated dependencies [4a1a9431d]
-  - @pnpm/store.cafs@2.0.1
+  - @pnpm/store.calves@2.0.1
   - @pnpm/fetcher-base@15.0.1
   - @pnpm/package-requester@22.0.1
   - @pnpm/create-cafs-store@5.0.1
@@ -826,7 +826,7 @@
 - Updated dependencies [083bbf590]
 - Updated dependencies [083bbf590]
 - Updated dependencies [083bbf590]
-  - @pnpm/store.cafs@2.0.0
+  - @pnpm/store.calves@2.0.0
   - @pnpm/create-cafs-store@5.0.0
   - @pnpm/package-requester@22.0.0
   - @pnpm/store-controller-types@16.0.0
@@ -857,7 +857,7 @@
 
 - Updated dependencies [73f2b6826]
   - @pnpm/package-requester@21.0.11
-  - @pnpm/store.cafs@1.0.2
+  - @pnpm/store.calves@1.0.2
   - @pnpm/create-cafs-store@4.0.8
 
 ## 16.0.10
@@ -865,7 +865,7 @@
 ### Patch Changes
 
 - Updated dependencies [fe1c5f48d]
-  - @pnpm/store.cafs@1.0.1
+  - @pnpm/store.calves@1.0.1
   - @pnpm/package-requester@21.0.10
   - @pnpm/create-cafs-store@4.0.7
 
@@ -874,7 +874,7 @@
 ### Patch Changes
 
 - Updated dependencies [4bbf482d1]
-  - @pnpm/store.cafs@1.0.0
+  - @pnpm/store.calves@1.0.0
   - @pnpm/package-requester@21.0.9
   - @pnpm/create-cafs-store@4.0.6
 
@@ -886,7 +886,7 @@
 - Updated dependencies [250f7e9fe]
 - Updated dependencies [e958707b2]
   - @pnpm/types@9.2.0
-  - @pnpm/cafs@7.0.5
+  - @pnpm/calves@7.0.5
   - @pnpm/package-requester@21.0.8
   - @pnpm/fetcher-base@14.0.2
   - @pnpm/resolver-base@10.0.2
@@ -898,7 +898,7 @@
 ### Patch Changes
 
 - Updated dependencies [b81cefdcd]
-  - @pnpm/cafs@7.0.4
+  - @pnpm/calves@7.0.4
   - @pnpm/package-requester@21.0.7
   - @pnpm/create-cafs-store@4.0.4
 
@@ -907,7 +907,7 @@
 ### Patch Changes
 
 - Updated dependencies [e57e2d340]
-  - @pnpm/cafs@7.0.3
+  - @pnpm/calves@7.0.3
   - @pnpm/package-requester@21.0.6
   - @pnpm/create-cafs-store@4.0.3
 
@@ -927,7 +927,7 @@
 - Updated dependencies [d55b41a8b]
 - Updated dependencies [614d5bd72]
   - @pnpm/package-requester@21.0.4
-  - @pnpm/cafs@7.0.2
+  - @pnpm/calves@7.0.2
   - @pnpm/create-cafs-store@4.0.2
 
 ## 16.0.3
@@ -939,7 +939,7 @@
   - @pnpm/fetcher-base@14.0.1
   - @pnpm/package-requester@21.0.3
   - @pnpm/resolver-base@10.0.1
-  - @pnpm/cafs@7.0.1
+  - @pnpm/calves@7.0.1
   - @pnpm/store-controller-types@15.0.1
   - @pnpm/create-cafs-store@4.0.1
 
@@ -971,14 +971,14 @@
   - @pnpm/create-cafs-store@4.0.0
   - @pnpm/fetcher-base@14.0.0
   - @pnpm/types@9.0.0
-  - @pnpm/cafs@7.0.0
+  - @pnpm/calves@7.0.0
 
 ## 15.1.8
 
 ### Patch Changes
 
 - @pnpm/package-requester@20.1.7
-- @pnpm/cafs@6.0.2
+- @pnpm/calves@6.0.2
 - @pnpm/create-cafs-store@3.1.6
 
 ## 15.1.7
@@ -992,7 +992,7 @@
   - @pnpm/package-requester@20.1.6
   - @pnpm/store-controller-types@14.3.1
   - @pnpm/create-cafs-store@3.1.5
-  - @pnpm/cafs@6.0.1
+  - @pnpm/calves@6.0.1
 
 ## 15.1.6
 
@@ -1019,7 +1019,7 @@
 
 - Updated dependencies [98d6603f3]
 - Updated dependencies [98d6603f3]
-  - @pnpm/cafs@6.0.0
+  - @pnpm/calves@6.0.0
   - @pnpm/package-requester@20.1.3
   - @pnpm/create-cafs-store@3.1.3
 
@@ -1030,7 +1030,7 @@
 - 1e6de89b6: Update ssri to v10.0.1.
 - Updated dependencies [1e6de89b6]
   - @pnpm/package-requester@20.1.2
-  - @pnpm/cafs@5.0.6
+  - @pnpm/calves@5.0.6
   - @pnpm/create-cafs-store@3.1.2
 
 ## 15.1.1
@@ -1051,7 +1051,7 @@
 - Updated dependencies [c7b05cd9a]
   - @pnpm/package-requester@20.1.0
   - @pnpm/store-controller-types@14.3.0
-  - @pnpm/cafs@5.0.5
+  - @pnpm/calves@5.0.5
   - @pnpm/create-cafs-store@3.1.1
 
 ## 15.0.5
@@ -1066,7 +1066,7 @@
   - @pnpm/fetcher-base@13.1.5
   - @pnpm/package-requester@20.0.5
   - @pnpm/resolver-base@9.1.5
-  - @pnpm/cafs@5.0.4
+  - @pnpm/calves@5.0.4
 
 ## 15.0.4
 
@@ -1081,7 +1081,7 @@
 - a9d59d8bc: Update dependencies.
 - Updated dependencies [a9d59d8bc]
   - @pnpm/package-requester@20.0.3
-  - @pnpm/cafs@5.0.3
+  - @pnpm/calves@5.0.3
   - @pnpm/create-cafs-store@3.0.3
 
 ## 15.0.2
@@ -1090,7 +1090,7 @@
 
 - Updated dependencies [702e847c1]
   - @pnpm/types@8.9.0
-  - @pnpm/cafs@5.0.2
+  - @pnpm/calves@5.0.2
   - @pnpm/fetcher-base@13.1.4
   - @pnpm/package-requester@20.0.2
   - @pnpm/resolver-base@9.1.4
@@ -1103,7 +1103,7 @@
 
 - Updated dependencies [844e82f3a]
   - @pnpm/types@8.8.0
-  - @pnpm/cafs@5.0.1
+  - @pnpm/calves@5.0.1
   - @pnpm/fetcher-base@13.1.3
   - @pnpm/package-requester@20.0.1
   - @pnpm/resolver-base@9.1.3
@@ -1120,7 +1120,7 @@
 
 - Updated dependencies [043d988fc]
 - Updated dependencies [f884689e0]
-  - @pnpm/cafs@5.0.0
+  - @pnpm/calves@5.0.0
   - @pnpm/create-cafs-store@3.0.0
   - @pnpm/package-requester@20.0.0
 
@@ -1143,7 +1143,7 @@
 
 - Updated dependencies [d665f3ff7]
   - @pnpm/types@8.7.0
-  - @pnpm/cafs@4.3.2
+  - @pnpm/calves@4.3.2
   - @pnpm/fetcher-base@13.1.2
   - @pnpm/package-requester@19.0.4
   - @pnpm/resolver-base@9.1.2
@@ -1156,7 +1156,7 @@
 
 - Updated dependencies [156cc1ef6]
   - @pnpm/types@8.6.0
-  - @pnpm/cafs@4.3.1
+  - @pnpm/calves@4.3.1
   - @pnpm/fetcher-base@13.1.1
   - @pnpm/package-requester@19.0.3
   - @pnpm/resolver-base@9.1.1
@@ -1175,7 +1175,7 @@
 ### Patch Changes
 
 - Updated dependencies [745143e79]
-  - @pnpm/cafs@4.3.0
+  - @pnpm/calves@4.3.0
   - @pnpm/create-cafs-store@2.2.2
   - @pnpm/package-requester@19.0.2
   - @pnpm/fetcher-base@13.1.0
@@ -1187,7 +1187,7 @@
 
 - dbac0ca01: Update ssri to v9.
 - Updated dependencies [dbac0ca01]
-  - @pnpm/cafs@4.2.1
+  - @pnpm/calves@4.2.1
   - @pnpm/package-requester@19.0.1
   - @pnpm/create-cafs-store@2.2.1
 
@@ -1202,7 +1202,7 @@
 - Updated dependencies [32915f0e4]
 - Updated dependencies [23984abd1]
 - Updated dependencies [7a17f99ab]
-  - @pnpm/cafs@4.2.0
+  - @pnpm/calves@4.2.0
   - @pnpm/create-cafs-store@2.2.0
   - @pnpm/fetcher-base@13.1.0
   - @pnpm/package-requester@19.0.0
@@ -1214,7 +1214,7 @@
 ### Patch Changes
 
 - Updated dependencies [c191ca7bf]
-  - @pnpm/cafs@4.1.0
+  - @pnpm/calves@4.1.0
   - @pnpm/package-requester@18.1.3
   - @pnpm/create-cafs-store@2.1.1
 
@@ -1230,7 +1230,7 @@
 - Updated dependencies [39c040127]
 - Updated dependencies [8103f92bd]
 - Updated dependencies [65c4260de]
-  - @pnpm/cafs@4.0.9
+  - @pnpm/calves@4.0.9
   - @pnpm/package-requester@18.1.2
   - @pnpm/create-cafs-store@2.1.0
   - @pnpm/store-controller-types@14.1.0
@@ -1241,7 +1241,7 @@
 
 - Updated dependencies [c90798461]
   - @pnpm/types@8.5.0
-  - @pnpm/cafs@4.0.8
+  - @pnpm/calves@4.0.8
   - @pnpm/fetcher-base@13.0.2
   - @pnpm/package-requester@18.1.1
   - @pnpm/resolver-base@9.0.6
@@ -1288,7 +1288,7 @@
 
 - Updated dependencies [8e5b77ef6]
   - @pnpm/types@8.4.0
-  - @pnpm/cafs@4.0.7
+  - @pnpm/calves@4.0.7
   - @pnpm/fetcher-base@13.0.1
   - @pnpm/package-requester@18.0.10
   - @pnpm/resolver-base@9.0.5
@@ -1314,7 +1314,7 @@
   - @pnpm/create-cafs-store@2.0.0
   - @pnpm/fetcher-base@13.0.0
   - @pnpm/store-controller-types@14.0.0
-  - @pnpm/cafs@4.0.6
+  - @pnpm/calves@4.0.6
   - @pnpm/package-requester@18.0.9
   - @pnpm/resolver-base@9.0.4
 
@@ -1330,7 +1330,7 @@
   - @pnpm/package-requester@18.0.8
   - @pnpm/create-cafs-store@1.1.0
   - @pnpm/fetcher-base@12.1.0
-  - @pnpm/cafs@4.0.5
+  - @pnpm/calves@4.0.5
   - @pnpm/resolver-base@9.0.3
   - @pnpm/store-controller-types@13.0.4
 
@@ -1340,7 +1340,7 @@
 
 - Updated dependencies [4d39e4a0c]
   - @pnpm/types@8.1.0
-  - @pnpm/cafs@4.0.4
+  - @pnpm/calves@4.0.4
   - @pnpm/fetcher-base@12.0.3
   - @pnpm/package-requester@18.0.7
   - @pnpm/resolver-base@9.0.2
@@ -1352,7 +1352,7 @@
 ### Patch Changes
 
 - Updated dependencies [6756c2b02]
-  - @pnpm/cafs@4.0.3
+  - @pnpm/calves@4.0.3
   - @pnpm/fetcher-base@12.0.2
   - @pnpm/package-requester@18.0.6
   - @pnpm/store-controller-types@13.0.2
@@ -1375,7 +1375,7 @@
 ### Patch Changes
 
 - Updated dependencies [cadefe5b6]
-  - @pnpm/cafs@4.0.2
+  - @pnpm/calves@4.0.2
   - @pnpm/create-cafs-store@1.0.1
   - @pnpm/package-requester@18.0.3
 
@@ -1391,7 +1391,7 @@
   - @pnpm/fetcher-base@12.0.1
   - @pnpm/resolver-base@9.0.1
   - @pnpm/store-controller-types@13.0.1
-  - @pnpm/cafs@4.0.1
+  - @pnpm/calves@4.0.1
 
 ## 13.0.1
 
@@ -1413,7 +1413,7 @@
 - Updated dependencies [542014839]
   - @pnpm/types@8.0.0
   - @pnpm/package-requester@18.0.0
-  - @pnpm/cafs@4.0.0
+  - @pnpm/calves@4.0.0
   - @pnpm/core-loggers@7.0.0
   - @pnpm/fetcher-base@12.0.0
   - @pnpm/resolver-base@9.0.0
@@ -1426,7 +1426,7 @@
 - Updated dependencies [5c525db13]
   - @pnpm/package-requester@17.0.0
   - @pnpm/store-controller-types@12.0.0
-  - @pnpm/cafs@3.0.15
+  - @pnpm/calves@3.0.15
 
 ## 12.1.11
 
@@ -1440,7 +1440,7 @@
   - @pnpm/fetcher-base@11.1.6
   - @pnpm/resolver-base@8.1.6
   - @pnpm/store-controller-types@11.0.12
-  - @pnpm/cafs@3.0.14
+  - @pnpm/calves@3.0.14
 
 ## 12.1.10
 
@@ -1470,7 +1470,7 @@
   - @pnpm/package-requester@16.0.1
   - @pnpm/resolver-base@8.1.5
   - @pnpm/store-controller-types@11.0.11
-  - @pnpm/cafs@3.0.13
+  - @pnpm/calves@3.0.13
 
 ## 12.1.7
 
@@ -1490,7 +1490,7 @@
   - @pnpm/package-requester@15.2.6
   - @pnpm/resolver-base@8.1.4
   - @pnpm/store-controller-types@11.0.10
-  - @pnpm/cafs@3.0.12
+  - @pnpm/calves@3.0.12
 
 ## 12.1.5
 
@@ -1503,7 +1503,7 @@
   - @pnpm/package-requester@15.2.5
   - @pnpm/resolver-base@8.1.3
   - @pnpm/store-controller-types@11.0.9
-  - @pnpm/cafs@3.0.11
+  - @pnpm/calves@3.0.11
 
 ## 12.1.4
 
@@ -1519,7 +1519,7 @@
   - @pnpm/fetcher-base@11.1.2
   - @pnpm/resolver-base@8.1.2
   - @pnpm/store-controller-types@11.0.8
-  - @pnpm/cafs@3.0.10
+  - @pnpm/calves@3.0.10
 
 ## 12.1.3
 
@@ -1546,7 +1546,7 @@
   - @pnpm/package-requester@15.2.1
   - @pnpm/resolver-base@8.1.1
   - @pnpm/store-controller-types@11.0.7
-  - @pnpm/cafs@3.0.9
+  - @pnpm/calves@3.0.9
 
 ## 12.1.0
 
@@ -1567,7 +1567,7 @@
   - @pnpm/package-requester@15.2.0
   - @pnpm/core-loggers@6.0.5
   - @pnpm/store-controller-types@11.0.6
-  - @pnpm/cafs@3.0.8
+  - @pnpm/calves@3.0.8
 
 ## 12.0.15
 
@@ -1601,7 +1601,7 @@
   - @pnpm/package-requester@15.0.7
   - @pnpm/resolver-base@8.0.4
   - @pnpm/store-controller-types@11.0.5
-  - @pnpm/cafs@3.0.7
+  - @pnpm/calves@3.0.7
 
 ## 12.0.11
 
@@ -1614,7 +1614,7 @@
   - @pnpm/package-requester@15.0.6
   - @pnpm/resolver-base@8.0.3
   - @pnpm/store-controller-types@11.0.4
-  - @pnpm/cafs@3.0.6
+  - @pnpm/calves@3.0.6
 
 ## 12.0.10
 
@@ -1633,7 +1633,7 @@
   - @pnpm/fetcher-base@11.0.1
   - @pnpm/resolver-base@8.0.2
   - @pnpm/store-controller-types@11.0.3
-  - @pnpm/cafs@3.0.5
+  - @pnpm/calves@3.0.5
 
 ## 12.0.8
 
@@ -1653,7 +1653,7 @@
 ### Patch Changes
 
 - Updated dependencies [ef0ca24be]
-  - @pnpm/cafs@3.0.4
+  - @pnpm/calves@3.0.4
   - @pnpm/package-requester@15.0.1
 
 ## 12.0.5
@@ -1672,7 +1672,7 @@
 - Updated dependencies [e6a2654a2]
   - @pnpm/fetcher-base@11.0.0
   - @pnpm/package-requester@15.0.0
-  - @pnpm/cafs@3.0.3
+  - @pnpm/calves@3.0.3
   - @pnpm/store-controller-types@11.0.2
 
 ## 12.0.3
@@ -1686,7 +1686,7 @@
   - @pnpm/fetcher-base@10.0.1
   - @pnpm/resolver-base@8.0.1
   - @pnpm/store-controller-types@11.0.1
-  - @pnpm/cafs@3.0.2
+  - @pnpm/calves@3.0.2
 
 ## 12.0.2
 
@@ -1695,7 +1695,7 @@
 - 6f198457d: Update rename-overwrite.
 - e3d9b3215: Update make-empty-dir.
 - Updated dependencies [6f198457d]
-  - @pnpm/cafs@3.0.1
+  - @pnpm/calves@3.0.1
   - @pnpm/package-requester@14.0.2
 
 ## 12.0.1
@@ -1716,7 +1716,7 @@
 - Updated dependencies [97b986fbc]
 - Updated dependencies [90487a3a8]
 - Updated dependencies [83645c8ed]
-  - @pnpm/cafs@3.0.0
+  - @pnpm/calves@3.0.0
   - @pnpm/core-loggers@6.0.0
   - @pnpm/fetcher-base@10.0.0
   - @pnpm/package-requester@14.0.0
@@ -1756,7 +1756,7 @@
 - Updated dependencies [8d1dfa89c]
   - @pnpm/package-requester@13.0.0
   - @pnpm/store-controller-types@10.0.0
-  - @pnpm/cafs@2.1.0
+  - @pnpm/calves@2.1.0
 
 ## 10.1.18
 
@@ -1781,7 +1781,7 @@
   - @pnpm/package-requester@12.2.2
   - @pnpm/resolver-base@7.1.1
   - @pnpm/store-controller-types@9.2.1
-  - @pnpm/cafs@2.0.5
+  - @pnpm/calves@2.0.5
 
 ## 10.1.15
 
@@ -1816,7 +1816,7 @@
   - @pnpm/resolver-base@7.1.0
   - @pnpm/store-controller-types@9.2.0
   - @pnpm/fetcher-base@9.0.3
-  - @pnpm/cafs@2.0.4
+  - @pnpm/calves@2.0.4
 
 ## 10.1.10
 
@@ -1849,7 +1849,7 @@
 
 - 01aecf038: Do not try to copy a file during linking, if the target already exists.
 - Updated dependencies [b3059f4f8]
-  - @pnpm/cafs@2.0.3
+  - @pnpm/calves@2.0.3
   - @pnpm/package-requester@12.1.3
 
 ## 10.1.5
@@ -1863,7 +1863,7 @@
   - @pnpm/package-requester@12.1.2
   - @pnpm/resolver-base@7.0.5
   - @pnpm/store-controller-types@9.1.2
-  - @pnpm/cafs@2.0.2
+  - @pnpm/calves@2.0.2
 
 ## 10.1.4
 
@@ -1876,7 +1876,7 @@
   - @pnpm/package-requester@12.1.1
   - @pnpm/resolver-base@7.0.4
   - @pnpm/store-controller-types@9.1.1
-  - @pnpm/cafs@2.0.1
+  - @pnpm/calves@2.0.1
 
 ## 10.1.3
 
@@ -1909,7 +1909,7 @@
 - Updated dependencies [0a6544043]
   - @pnpm/package-requester@12.1.0
   - @pnpm/store-controller-types@9.1.0
-  - @pnpm/cafs@2.0.0
+  - @pnpm/calves@2.0.0
   - @pnpm/fetcher-base@9.0.0
 
 ## 10.0.2
@@ -1937,7 +1937,7 @@
   - @pnpm/core-loggers@5.0.0
   - @pnpm/store-controller-types@9.0.0
   - @pnpm/package-requester@12.0.13
-  - @pnpm/cafs@1.0.8
+  - @pnpm/calves@1.0.8
 
 ## 9.1.8
 
@@ -1971,7 +1971,7 @@
 ### Patch Changes
 
 - Updated dependencies [1525fff4c]
-  - @pnpm/cafs@1.0.7
+  - @pnpm/calves@1.0.7
   - @pnpm/package-requester@12.0.9
 
 ## 9.1.3
@@ -1992,7 +1992,7 @@
 
 - a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
 - Updated dependencies [a2ef8084f]
-  - @pnpm/cafs@1.0.6
+  - @pnpm/calves@1.0.6
   - @pnpm/package-requester@12.0.8
 
 ## 9.1.0
@@ -2043,7 +2043,7 @@
   - @pnpm/package-requester@12.0.6
   - @pnpm/resolver-base@7.0.3
   - @pnpm/store-controller-types@8.0.2
-  - @pnpm/cafs@1.0.5
+  - @pnpm/calves@1.0.5
 
 ## 9.0.9
 
@@ -2068,14 +2068,14 @@
   - @pnpm/package-requester@12.0.5
   - @pnpm/resolver-base@7.0.2
   - @pnpm/store-controller-types@8.0.1
-  - @pnpm/cafs@1.0.4
+  - @pnpm/calves@1.0.4
 
 ## 9.0.6
 
 ### Patch Changes
 
 - Updated dependencies [492805ee3]
-  - @pnpm/cafs@1.0.3
+  - @pnpm/calves@1.0.3
   - @pnpm/package-requester@12.0.4
 
 ## 9.0.5
@@ -2091,7 +2091,7 @@
 - d3ddd023c: Update p-limit to v3.
 - Updated dependencies [d3ddd023c]
 - Updated dependencies [2ebb7af33]
-  - @pnpm/cafs@1.0.2
+  - @pnpm/calves@1.0.2
   - @pnpm/package-requester@12.0.3
   - @pnpm/core-loggers@4.1.0
 
@@ -2116,7 +2116,7 @@
 - Updated dependencies [bcd4aa1aa]
   - @pnpm/fetcher-base@8.0.0
   - @pnpm/package-requester@12.0.1
-  - @pnpm/cafs@1.0.1
+  - @pnpm/calves@1.0.1
 
 ## 9.0.0
 
@@ -2160,7 +2160,7 @@
 - Updated dependencies [471149e66]
 - Updated dependencies [42e6490d1]
   - @pnpm/package-requester@12.0.0
-  - @pnpm/cafs@1.0.0
+  - @pnpm/calves@1.0.0
   - @pnpm/store-controller-types@8.0.0
   - @pnpm/fetcher-base@7.0.0
   - @pnpm/types@6.0.0
@@ -2185,7 +2185,7 @@
 - Updated dependencies [a5febb913]
   - @pnpm/package-requester@12.0.0-alpha.5
   - @pnpm/store-controller-types@8.0.0-alpha.4
-  - @pnpm/cafs@1.0.0-alpha.5
+  - @pnpm/calves@1.0.0-alpha.5
 
 ## 9.0.0-alpha.4
 
@@ -2204,7 +2204,7 @@
   - @pnpm/package-requester@12.0.0-alpha.4
   - @pnpm/store-controller-types@8.0.0-alpha.3
   - @pnpm/types@6.0.0-alpha.0
-  - @pnpm/cafs@1.0.0-alpha.4
+  - @pnpm/calves@1.0.0-alpha.4
   - @pnpm/core-loggers@4.0.2-alpha.0
   - @pnpm/fetcher-base@6.0.1-alpha.3
   - @pnpm/resolver-base@7.0.1-alpha.0
@@ -2221,7 +2221,7 @@
 - Updated dependencies [9596774f2]
 - Updated dependencies [7852deea3]
   - @pnpm/package-requester@12.0.0-alpha.3
-  - @pnpm/cafs@1.0.0-alpha.3
+  - @pnpm/calves@1.0.0-alpha.3
 
 ## 9.0.0-alpha.2
 
@@ -2234,7 +2234,7 @@
 - Updated dependencies [42e6490d1]
   - @pnpm/package-requester@12.0.0-alpha.2
   - @pnpm/store-controller-types@8.0.0-alpha.2
-  - @pnpm/cafs@1.0.0-alpha.2
+  - @pnpm/calves@1.0.0-alpha.2
   - @pnpm/fetcher-base@7.0.0-alpha.2
 
 ## 9.0.0-alpha.1
@@ -2247,7 +2247,7 @@
 
 - Updated dependencies [4f62d0383]
 - Updated dependencies [f93583d52]
-  - @pnpm/cafs@1.0.0-alpha.1
+  - @pnpm/calves@1.0.0-alpha.1
   - @pnpm/fetcher-base@7.0.0-alpha.1
   - @pnpm/package-requester@12.0.0-alpha.1
   - @pnpm/store-controller-types@8.0.0-alpha.1
@@ -2262,7 +2262,7 @@
 
 - Updated dependencies [91c4b5954]
 - Updated dependencies [91c4b5954]
-  - @pnpm/cafs@1.0.0-alpha.0
+  - @pnpm/calves@1.0.0-alpha.0
   - @pnpm/fetcher-base@7.0.0-alpha.0
   - @pnpm/package-requester@12.0.0-alpha.0
   - @pnpm/store-controller-types@8.0.0-alpha.0

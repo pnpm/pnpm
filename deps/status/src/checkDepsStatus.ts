@@ -68,7 +68,7 @@ export type CheckDepsStatusOptions = Pick<Config,
 } & WorkspaceStateSettings
 
 export interface CheckDepsStatusResult {
-  upToDate: boolean | undefined
+  up-to-date: boolean | undefined
   issue?: string
   workspaceState: WorkspaceState | undefined
 }
@@ -77,7 +77,7 @@ export async function checkDepsStatus (opts: CheckDepsStatusOptions): Promise<Ch
   const workspaceState = loadWorkspaceState(opts.workspaceDir ?? opts.rootProjectManifestDir)
   if (!workspaceState) {
     return {
-      upToDate: false,
+      up-to-date: false,
       issue: 'Cannot check whether dependencies are outdated',
       workspaceState,
     }
@@ -87,7 +87,7 @@ export async function checkDepsStatus (opts: CheckDepsStatusOptions): Promise<Ch
   } catch (error) {
     if (util.types.isNativeError(error) && 'code' in error && String(error.code).startsWith('ERR_PNPM_RUN_CHECK_DEPS_')) {
       return {
-        upToDate: false,
+        up-to-date: false,
         issue: error.message,
         workspaceState,
       }
@@ -96,7 +96,7 @@ export async function checkDepsStatus (opts: CheckDepsStatusOptions): Promise<Ch
     // We want to ensure that pnpm CLI never crashes when checking the status of dependencies.
     // In the worst-case scenario, the install will run redundantly.
     return {
-      upToDate: undefined,
+      up-to-date: undefined,
       issue: util.types.isNativeError(error) ? error.message : undefined,
       workspaceState,
     }
@@ -121,11 +121,11 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
 
   if (nodeLinker === 'pnp') {
     globalWarn('verify-deps-before-run does not work with node-linker=pnp')
-    return { upToDate: true, workspaceState: undefined }
+    return { up-to-date: true, workspaceState: undefined }
   }
 
   if (opts.ignoreFilteredInstallCache && workspaceState.filteredInstall) {
-    return { upToDate: undefined, workspaceState }
+    return { up-to-date: undefined, workspaceState }
   }
 
   if (workspaceState.settings) {
@@ -135,7 +135,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       if (ignoredSettings.has(settingName as keyof WorkspaceStateSettings)) continue
       if (!equals(settingValue, opts[settingName as keyof WorkspaceStateSettings])) {
         return {
-          upToDate: false,
+          up-to-date: false,
           issue: `The value of the ${settingName} setting has changed`,
           workspaceState,
         }
@@ -144,7 +144,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
   }
   if ((opts.configDependencies != null || workspaceState.configDependencies != null) && !equals(opts.configDependencies ?? {}, workspaceState.configDependencies ?? {})) {
     return {
-      upToDate: false,
+      up-to-date: false,
       issue: 'Configuration dependencies are not up to date',
       workspaceState,
     }
@@ -156,7 +156,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       filter(value => value != null, catalogs ?? {})
     )) {
       return {
-        upToDate: false,
+        up-to-date: false,
         issue: 'Catalogs cache outdated',
         workspaceState,
       }
@@ -170,7 +170,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       })
     ) {
       return {
-        upToDate: false,
+        up-to-date: false,
         issue: 'The workspace structure has changed since last install',
         workspaceState,
       }
@@ -208,7 +208,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
         })) continue
         const id = project.manifest.name ?? project.rootDir
         return {
-          upToDate: false,
+          up-to-date: false,
           issue: `Workspace package ${id} has dependencies but does not have a modules directory`,
           workspaceState,
         }
@@ -222,7 +222,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
 
     if (modifiedProjects.length === 0) {
       logger.debug({ msg: 'No manifest files were modified since the last validation. Exiting check.' })
-      return { upToDate: true, workspaceState }
+      return { up-to-date: true, workspaceState }
     }
 
     const issue = await patchesOrHooksAreModified({
@@ -233,7 +233,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       previousPnpmfiles: workspaceState.pnpmfiles,
     })
     if (issue) {
-      return { upToDate: false, issue, workspaceState }
+      return { up-to-date: false, issue, workspaceState }
     }
 
     logger.debug({ msg: 'Some manifest files were modified since the last validation. Continuing check.' })
@@ -315,7 +315,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       }))
     } catch (err) {
       return {
-        upToDate: false,
+        up-to-date: false,
         issue: (util.types.isNativeError(err) && 'message' in err) ? err.message : undefined,
         workspaceState,
       }
@@ -330,7 +330,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       filteredInstall: workspaceState.filteredInstall,
     })
 
-    return { upToDate: true, workspaceState }
+    return { up-to-date: true, workspaceState }
   }
 
   if (!allProjects) {
@@ -375,7 +375,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       previousPnpmfiles: workspaceState.pnpmfiles,
     })
     if (issue) {
-      return { upToDate: false, issue, workspaceState }
+      return { up-to-date: false, issue, workspaceState }
     }
 
     if (currentLockfileStats && wantedLockfileStats.mtime.valueOf() > currentLockfileStats.mtime.valueOf()) {
@@ -410,7 +410,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
         })
       } catch (err) {
         return {
-          upToDate: false,
+          up-to-date: false,
           issue: (util.types.isNativeError(err) && 'message' in err) ? err.message : undefined,
           workspaceState,
         }
@@ -426,14 +426,14 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       }
     }
 
-    return { upToDate: true, workspaceState }
+    return { up-to-date: true, workspaceState }
   }
 
   // `opts.allProject` being `undefined` means that the run command was not run with `--recursive`.
   // `rootProjectManifest` being `undefined` means that there's no root manifest.
   // Both means that `pnpm run` would fail, so checking lockfiles here is pointless.
   globalWarn('Skipping check.')
-  return { upToDate: undefined, workspaceState }
+  return { up-to-date: undefined, workspaceState }
 }
 
 interface AssertWantedLockfileUpToDateContext {

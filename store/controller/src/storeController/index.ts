@@ -46,7 +46,7 @@ export function createPackageStore (
   if (!fs.existsSync(path.join(storeDir, 'files'))) {
     initStoreDir(storeDir).catch()
   }
-  const cafs = createCafsStore(storeDir, {
+  const calves = createCafsStore(storeDir, {
     cafsLocker: initOpts.cafsLocker,
     packageImportMethod: initOpts.packageImportMethod,
   })
@@ -57,7 +57,7 @@ export function createPackageStore (
     pnpmVersion: initOpts.pnpmVersion,
     resolve,
     fetchers,
-    cafs,
+    calves,
     ignoreFile: initOpts.ignoreFile,
     networkConcurrency: initOpts.networkConcurrency,
     storeDir: initOpts.storeDir,
@@ -74,7 +74,7 @@ export function createPackageStore (
     fetchPackage: packageRequester.fetchPackageToStore,
     getFilesIndexFilePath: packageRequester.getFilesIndexFilePath,
     importPackage: initOpts.importPackage
-      ? createPackageImporterAsync({ importIndexedPackage: initOpts.importPackage, storeDir: cafs.storeDir })
+      ? createPackageImporterAsync({ importIndexedPackage: initOpts.importPackage, storeDir: calves.storeDir })
       : (targetDir, opts) => importPackage({
         ...opts,
         packageImportMethod: initOpts.packageImportMethod,
@@ -89,7 +89,7 @@ export function createPackageStore (
 
   async function upload (builtPkgLocation: string, opts: { filesIndexFile: string, sideEffectsCacheKey: string }): Promise<void> {
     await addFilesFromDir({
-      storeDir: cafs.storeDir,
+      storeDir: calves.storeDir,
       storeIndex: initOpts.storeIndex,
       dir: builtPkgLocation,
       sideEffectsCacheKey: opts.sideEffectsCacheKey,

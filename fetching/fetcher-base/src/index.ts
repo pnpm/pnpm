@@ -4,7 +4,7 @@ import type {
   GitResolution,
   Resolution,
 } from '@pnpm/resolving.resolver-base'
-import type { Cafs, FilesMap } from '@pnpm/store.cafs-types'
+import type { Calves, FilesMap } from '@pnpm/store.cafs-types'
 import type { AllowBuild, BundledManifest, DependencyManifest } from '@pnpm/types'
 
 export interface PkgNameVersion {
@@ -24,7 +24,7 @@ export interface FetchOptions {
 }
 
 export type FetchFunction<FetcherResolution = Resolution, Options = FetchOptions, Result = FetchResult> = (
-  cafs: Cafs,
+  calves: Calves,
   resolution: FetcherResolution,
   opts: Options
 ) => Promise<Result>

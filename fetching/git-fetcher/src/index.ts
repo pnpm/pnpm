@@ -25,8 +25,8 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
   const allowedHosts = new Set(createOpts?.gitShallowHosts ?? [])
   const ignoreScripts = createOpts.ignoreScripts ?? false
 
-  const gitFetcher: GitFetcher = async (cafs, resolution, opts) => {
-    const tempLocation = await cafs.tempDir()
+  const gitFetcher: GitFetcher = async (calves, resolution, opts) => {
+    const tempLocation = await calves.tempDir()
     if (allowedHosts.size > 0 && shouldUseShallow(resolution.repo, allowedHosts)) {
       await execGit(['init'], { cwd: tempLocation })
       await execGit(['remote', 'add', 'origin', resolution.repo], { cwd: tempLocation })
@@ -63,7 +63,7 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
     // Even though we have the index of the package,
     // the linking of files to the store is in progress.
     return addFilesFromDir({
-      storeDir: cafs.storeDir,
+      storeDir: calves.storeDir,
       storeIndex: createOpts.storeIndex,
       dir: pkgDir,
       files,

@@ -19,7 +19,7 @@ export function createBinaryFetcher (ctx: {
   storeIndex: StoreIndex
   offline?: boolean
 }): { binary: BinaryFetcher } {
-  const fetchBinary: BinaryFetcher = async (cafs, resolution, opts) => {
+  const fetchBinary: BinaryFetcher = async (calves, resolution, opts) => {
     if (ctx.offline) {
       throw new PnpmError('CANNOT_DOWNLOAD_BINARY_OFFLINE', `Cannot download binary "${resolution.url}" because offline mode is enabled.`)
     }
@@ -33,7 +33,7 @@ export function createBinaryFetcher (ctx: {
     let fetchResult!: FetchResult
     switch (resolution.archive) {
       case 'tarball': {
-        fetchResult = await ctx.fetchFromRemoteTarball(cafs, {
+        fetchResult = await ctx.fetchFromRemoteTarball(calves, {
           tarball: resolution.url,
           integrity: resolution.integrity,
         }, {
@@ -43,14 +43,14 @@ export function createBinaryFetcher (ctx: {
         break
       }
       case 'zip': {
-        const tempLocation = await cafs.tempDir()
+        const tempLocation = await calves.tempDir()
         await downloadAndUnpackZip(ctx.fetch, {
           url: resolution.url,
           integrity: resolution.integrity,
           basename: resolution.prefix ?? '',
         }, tempLocation)
         fetchResult = await addFilesFromDir({
-          storeDir: cafs.storeDir,
+          storeDir: calves.storeDir,
           storeIndex: ctx.storeIndex,
           dir: tempLocation,
           filesIndexFile: opts.filesIndexFile,

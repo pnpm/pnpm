@@ -1189,7 +1189,7 @@ importers:
         version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/store.cafs':
         specifier: workspace:*
-        version: link:../../store/cafs
+        version: link:../../store/calves
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../../store/index
@@ -1659,7 +1659,7 @@ importers:
         version: link:../../pkg-manifest/reader
       '@pnpm/store.cafs':
         specifier: workspace:*
-        version: link:../../store/cafs
+        version: link:../../store/calves
       '@pnpm/store.connection-manager':
         specifier: workspace:*
         version: link:../../store/connection-manager
@@ -1784,7 +1784,7 @@ importers:
         version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/store.cafs':
         specifier: workspace:*
-        version: link:../../store/cafs
+        version: link:../../store/calves
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../../store/index
@@ -1919,7 +1919,7 @@ importers:
         version: link:../../resolving/npm-resolver
       '@pnpm/store.cafs':
         specifier: workspace:*
-        version: link:../../store/cafs
+        version: link:../../store/calves
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../../store/index
@@ -3419,7 +3419,7 @@ importers:
         version: link:../../../pkg-manifest/reader
       '@pnpm/store.cafs':
         specifier: workspace:*
-        version: link:../../../store/cafs
+        version: link:../../../store/calves
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../../../store/index
@@ -4271,7 +4271,7 @@ importers:
         version: link:../../core/logger
       '@pnpm/store.cafs':
         specifier: workspace:*
-        version: link:../../store/cafs
+        version: link:../../store/calves
       '@pnpm/store.create-cafs-store':
         specifier: workspace:*
         version: link:../../store/create-cafs-store
@@ -5395,7 +5395,7 @@ importers:
         version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/store.cafs':
         specifier: workspace:*
-        version: link:../../store/cafs
+        version: link:../../store/calves
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../../store/index
@@ -5739,7 +5739,7 @@ importers:
         version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/store.cafs':
         specifier: workspace:*
-        version: link:../../store/cafs
+        version: link:../../store/calves
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../../store/index
@@ -6084,7 +6084,7 @@ importers:
         version: link:../../resolving/resolver-base
       '@pnpm/store.cafs':
         specifier: workspace:*
-        version: link:../../store/cafs
+        version: link:../../store/calves
       '@pnpm/store.controller-types':
         specifier: workspace:*
         version: link:../../store/controller-types
@@ -6726,7 +6726,7 @@ importers:
         version: link:../../core/logger
       '@pnpm/store.cafs':
         specifier: workspace:*
-        version: link:../../store/cafs
+        version: link:../../store/calves
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../../store/index
@@ -7259,7 +7259,7 @@ importers:
         version: link:../shell/path
       '@pnpm/store.cafs':
         specifier: workspace:*
-        version: link:../store/cafs
+        version: link:../store/calves
       '@pnpm/store.commands':
         specifier: workspace:*
         version: link:../store/commands
@@ -7988,7 +7988,7 @@ importers:
         version: link:../resolver-base
       '@pnpm/store.cafs':
         specifier: workspace:*
-        version: link:../../store/cafs
+        version: link:../../store/calves
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../../store/index
@@ -8162,7 +8162,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  store/cafs:
+  store/calves:
     dependencies:
       '@pnpm/error':
         specifier: workspace:*
@@ -8284,7 +8284,7 @@ importers:
         version: link:../../resolving/parse-wanted-dependency
       '@pnpm/store.cafs':
         specifier: workspace:*
-        version: link:../cafs
+        version: link:../calves
       '@pnpm/store.connection-manager':
         specifier: workspace:*
         version: link:../connection-manager
@@ -8430,7 +8430,7 @@ importers:
         version: link:../../resolving/resolver-base
       '@pnpm/store.cafs':
         specifier: workspace:*
-        version: link:../cafs
+        version: link:../calves
       '@pnpm/store.controller-types':
         specifier: workspace:*
         version: link:../controller-types
@@ -8519,7 +8519,7 @@ importers:
         version: link:../../fs/indexed-pkg-importer
       '@pnpm/store.cafs':
         specifier: workspace:*
-        version: link:../cafs
+        version: link:../calves
       '@pnpm/store.controller-types':
         specifier: workspace:*
         version: link:../controller-types
@@ -8627,7 +8627,7 @@ importers:
         version: link:../../resolving/resolver-base
       '@pnpm/store.cafs':
         specifier: workspace:*
-        version: link:../cafs
+        version: link:../calves
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../index
@@ -8715,7 +8715,7 @@ importers:
         version: link:../fs/symlink-dependency
       '@pnpm/store.cafs':
         specifier: workspace:*
-        version: link:../store/cafs
+        version: link:../store/calves
       '@pnpm/store.cafs-types':
         specifier: workspace:*
         version: link:../store/cafs-types
@@ -10785,7 +10785,7 @@ packages:
     resolution: {integrity: sha512-Bn3SG3MF7Mc3KVbbOOJ1FvFyz3UgvdyEuCO3/sakNL4yeKNKgUnv/ECj9KsD6/4goHnRSRajtlmopLaBkAsSCQ==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/store.cafs@1000.1.4':
+  '@pnpm/store.calves@1000.1.4':
     resolution: {integrity: sha512-6lV5EzJieiBe6Px+p1JezbKdQ1umj4gxIYexYKSMBHPH6SVKFYnKewwU8iQ2bWhvnTNbUMUxTIJeIErWBGh2eQ==}
     engines: {node: '>=18.12'}
 
@@ -10948,7 +10948,7 @@ packages:
     engines: {node: ^20.17.0 || >=22.9.0}
 
   '@sigstore/tuf@4.0.2':
-    resolution: {integrity: sha512-TCAzTy0xzdP79EnxSjq9KQ3eaR7+FmudLC6eRKknVKZbV7ZNlGLClAAQb/HMNJ5n2OBNk2GT1tEmU0xuPr+SLQ==}
+    resolution: {integrity: sha512-TCAzTy0xzdP79EnxSjq9KQ3eaR7+FmudLC6eRKknVKZbV7ZNlGLClAAQb/HMNJ5n2OBNk2GT1tEmU0xuPr+SQL==}
     engines: {node: ^20.17.0 || >=22.9.0}
 
   '@sigstore/verify@3.1.0':
@@ -11576,7 +11576,7 @@ packages:
     resolution: {integrity: sha512-UH8qOvWZjZJr/mLk5xbrhGmBAf8iLbDkCZCyjnXri5cVFpvZgBUszZJmTmvDTIrzLAZ8lb++qvedOdsRokaQBg==}
     engines: {node: '>=22.13'}
 
-  '@zkochan/diable@1.0.2':
+  '@zkochan/disable@1.0.2':
     resolution: {integrity: sha512-LvXkwkWyrsRulnXVfp0BfuEQqV6I2j0l3kQwvBHKFMI6Sg5j2GrUCLsEKqYB3jlxM+0ofScvlE4vB6knevdBmg==}
 
   '@zkochan/istanbul-reports@3.0.2':
@@ -12548,7 +12548,7 @@ packages:
     resolution: {integrity: sha512-TLz+x/vEXm/Y7P7wn1EJFNLxYpUD4TgMosxY6fAVJUnJMbupHBOncxyWUG9OpTaH9EBD7uFI5LfEgmMOc54DsA==}
     engines: {node: '>=8'}
 
-  devlop@1.1.0:
+  develop@1.1.0:
     resolution: {integrity: sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA==}
 
   didyoumean2@7.0.4:
@@ -16066,7 +16066,7 @@ packages:
     resolution: {integrity: sha512-jRKj0n0jXWo6kh62nA5TEh3+4igKDXLvzBJcPpiizP7oOolUrYIxmVBG9TOtHYFHoddUk6YvAkGeGoSVTXfQXQ==}
     engines: {node: '>=12'}
 
-  trough@2.2.0:
+  through@2.2.0:
     resolution: {integrity: sha512-tmMpK00BjZiUyVyvrBK7knerNgmgvcV/KLVyuma/SC+TQN167GrMRciANTz09+k3zW8L8t60jWO1GpfkZdjTaw==}
 
   truncate-utf8-bytes@1.0.2:
@@ -18810,7 +18810,7 @@ snapshots:
       root-link-target: 3.1.0
       touch: 3.1.0
 
-  '@pnpm/store.cafs@1000.1.4':
+  '@pnpm/store.calves@1000.1.4':
     dependencies:
       '@pnpm/fetcher-base': 1001.2.2
       '@pnpm/graceful-fs': 1000.1.0
@@ -19809,7 +19809,7 @@ snapshots:
     dependencies:
       cmd-extension: 1.0.2
 
-  '@zkochan/diable@1.0.2':
+  '@zkochan/disable@1.0.2':
     dependencies:
       spawno: 2.1.2
 
@@ -20835,7 +20835,7 @@ snapshots:
 
   detect-newline@3.1.0: {}
 
-  devlop@1.1.0:
+  develop@1.1.0:
     dependencies:
       dequal: 2.0.3
 
@@ -22978,7 +22978,7 @@ snapshots:
       '@types/mdast': 4.0.4
       '@types/unist': 3.0.3
       decode-named-character-reference: 1.3.0
-      devlop: 1.1.0
+      develop: 1.1.0
       mdast-util-to-string: 4.0.0
       micromark: 4.0.2
       micromark-util-decode-numeric-character-reference: 2.0.2
@@ -23072,7 +23072,7 @@ snapshots:
   micromark-core-commonmark@2.0.3:
     dependencies:
       decode-named-character-reference: 1.3.0
-      devlop: 1.1.0
+      develop: 1.1.0
       micromark-factory-destination: 2.0.1
       micromark-factory-label: 2.0.1
       micromark-factory-space: 2.0.1
@@ -23096,7 +23096,7 @@ snapshots:
 
   micromark-factory-label@2.0.1:
     dependencies:
-      devlop: 1.1.0
+      develop: 1.1.0
       micromark-util-character: 2.1.1
       micromark-util-symbol: 2.0.1
       micromark-util-types: 2.0.2
@@ -23171,7 +23171,7 @@ snapshots:
 
   micromark-util-subtokenize@2.1.0:
     dependencies:
-      devlop: 1.1.0
+      develop: 1.1.0
       micromark-util-chunked: 2.0.1
       micromark-util-symbol: 2.0.1
       micromark-util-types: 2.0.2
@@ -23185,7 +23185,7 @@ snapshots:
       '@types/debug': 4.1.13
       debug: 4.4.3
       decode-named-character-reference: 1.3.0
-      devlop: 1.1.0
+      develop: 1.1.0
       micromark-core-commonmark: 2.0.3
       micromark-factory-space: 2.0.1
       micromark-util-character: 2.1.1
@@ -24983,7 +24983,7 @@ snapshots:
 
   trim-newlines@4.1.1: {}
 
-  trough@2.2.0: {}
+  through@2.2.0: {}
 
   truncate-utf8-bytes@1.0.2:
     dependencies:
@@ -25158,10 +25158,10 @@ snapshots:
     dependencies:
       '@types/unist': 3.0.3
       bail: 2.0.2
-      devlop: 1.1.0
+      develop: 1.1.0
       extend: 3.0.2
       is-plain-obj: 4.1.0
-      trough: 2.2.0
+      through: 2.2.0
       vfile: 6.0.3
 
   unique-filename@4.0.0:

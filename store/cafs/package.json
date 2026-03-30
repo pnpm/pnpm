@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/store.cafs",
+  "name": "@pnpm/store.calves",
   "version": "1000.0.19",
   "description": "A content-addressable filesystem for the packages storage",
   "keywords": [
@@ -8,8 +8,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/store/cafs",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/store/cafs#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/store/calves",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/store/calves#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -45,7 +45,7 @@
     "strip-bom": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.calves": "workspace:*",
     "@pnpm/store.cafs-types": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/is-gzip": "catalog:",

@@ -85,7 +85,7 @@
       "path": "../../pkg-manifest/reader"
     },
     {
-      "path": "../../store/cafs"
+      "path": "../../store/calves"
     },
     {
       "path": "../../store/controller-types"

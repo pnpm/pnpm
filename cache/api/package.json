@@ -34,7 +34,7 @@
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/resolving.npm-resolver": "workspace:*",
-    "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.calves": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "encode-registry": "catalog:",
     "tinyglobby": "catalog:"

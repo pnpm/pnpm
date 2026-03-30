@@ -880,7 +880,7 @@
 
 ### Patch Changes
 
-- 32915f0e4: Refactor cafs types into separate package and add additional properties including `cafsDir` and `getFilePathInCafs`.
+- 32915f0e4: Refactor calves types into separate package and add additional properties including `cafsDir` and `getFilePathInCafs`.
 - Updated dependencies [32915f0e4]
 - Updated dependencies [23984abd1]
   - @pnpm/fetcher-base@13.1.0
@@ -1131,7 +1131,7 @@
 
 ### Patch Changes
 
-- 3b147ced9: Do not remove the Git temporary directory because it might still be in the process of linking to the CAFS.
+- 3b147ced9: Do not remove the Git temporary directory because it might still be in the process of linking to the CALVES.
 
 ## 9.2.0
 

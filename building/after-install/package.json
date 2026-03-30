@@ -50,7 +50,7 @@
     "@pnpm/lockfile.walker": "workspace:*",
     "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/pkg-manifest.reader": "workspace:*",
-    "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.calves": "workspace:*",
     "@pnpm/store.connection-manager": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
     "@pnpm/store.index": "workspace:*",

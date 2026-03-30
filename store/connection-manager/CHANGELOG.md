@@ -3209,7 +3209,7 @@
 
 ### Patch Changes
 
-- d9310c034: Replace diable with a fork that has fewer dependencies.
+- d9310c034: Replace disable with a fork that has fewer dependencies.
   - @pnpm/client@1.0.1
   - @pnpm/package-store@9.0.13
   - @pnpm/server@8.0.5

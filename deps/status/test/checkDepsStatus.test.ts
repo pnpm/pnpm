@@ -48,7 +48,7 @@ describe('checkDepsStatus - settings change detection', () => {
     jest.clearAllMocks()
   })
 
-  it('returns upToDate: false when overrides have changed', async () => {
+  it('returns up-to-date: false when overrides have changed', async () => {
     const lastValidatedTimestamp = Date.now() - 10_000
     const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,
@@ -74,11 +74,11 @@ describe('checkDepsStatus - settings change detection', () => {
     }
     const result = await checkDepsStatus(opts)
 
-    expect(result.upToDate).toBe(false)
+    expect(result.up-to-date).toBe(false)
     expect(result.issue).toBe('The value of the overrides setting has changed')
   })
 
-  it('returns upToDate: false when packageExtensions have changed', async () => {
+  it('returns up-to-date: false when packageExtensions have changed', async () => {
     const lastValidatedTimestamp = Date.now() - 10_000
     const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,
@@ -104,11 +104,11 @@ describe('checkDepsStatus - settings change detection', () => {
     }
     const result = await checkDepsStatus(opts)
 
-    expect(result.upToDate).toBe(false)
+    expect(result.up-to-date).toBe(false)
     expect(result.issue).toBe('The value of the packageExtensions setting has changed')
   })
 
-  it('returns upToDate: false when ignoredOptionalDependencies have changed', async () => {
+  it('returns up-to-date: false when ignoredOptionalDependencies have changed', async () => {
     const lastValidatedTimestamp = Date.now() - 10_000
     const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,
@@ -134,11 +134,11 @@ describe('checkDepsStatus - settings change detection', () => {
     }
     const result = await checkDepsStatus(opts)
 
-    expect(result.upToDate).toBe(false)
+    expect(result.up-to-date).toBe(false)
     expect(result.issue).toBe('The value of the ignoredOptionalDependencies setting has changed')
   })
 
-  it('returns upToDate: false when patchedDependencies have changed', async () => {
+  it('returns up-to-date: false when patchedDependencies have changed', async () => {
     const lastValidatedTimestamp = Date.now() - 10_000
     const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,
@@ -164,11 +164,11 @@ describe('checkDepsStatus - settings change detection', () => {
     }
     const result = await checkDepsStatus(opts)
 
-    expect(result.upToDate).toBe(false)
+    expect(result.up-to-date).toBe(false)
     expect(result.issue).toBe('The value of the patchedDependencies setting has changed')
   })
 
-  it('returns upToDate: false when peersSuffixMaxLength has changed', async () => {
+  it('returns up-to-date: false when peersSuffixMaxLength has changed', async () => {
     const lastValidatedTimestamp = Date.now() - 10_000
     const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,
@@ -194,7 +194,7 @@ describe('checkDepsStatus - settings change detection', () => {
     }
     const result = await checkDepsStatus(opts)
 
-    expect(result.upToDate).toBe(false)
+    expect(result.up-to-date).toBe(false)
     expect(result.issue).toBe('The value of the peersSuffixMaxLength setting has changed')
   })
 })
@@ -205,7 +205,7 @@ describe('checkDepsStatus - pnpmfile modification', () => {
     jest.clearAllMocks()
   })
 
-  it('returns upToDate: false when a pnpmfile was modified', async () => {
+  it('returns up-to-date: false when a pnpmfile was modified', async () => {
     const lastValidatedTimestamp = Date.now() - 10_000
     const beforeLastValidation = lastValidatedTimestamp - 10_000
     const afterLastValidation = lastValidatedTimestamp + 1_000
@@ -259,7 +259,7 @@ describe('checkDepsStatus - pnpmfile modification', () => {
     }
     const result = await checkDepsStatus(opts)
 
-    expect(result.upToDate).toBe(false)
+    expect(result.up-to-date).toBe(false)
     expect(result.issue).toBe('pnpmfile at "modifiedPnpmfile.js" was modified')
   })
 })

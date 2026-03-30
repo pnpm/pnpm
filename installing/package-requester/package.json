@@ -43,7 +43,7 @@
     "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/hooks.types": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
-    "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.calves": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/types": "workspace:*",

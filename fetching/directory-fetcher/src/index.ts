@@ -23,7 +23,7 @@ export function createDirectoryFetcher (
   const readFileStat: ReadFileStat = opts?.resolveSymlinks === true ? realFileStat : fileStat
   const fetchFromDir = opts?.includeOnlyPackageFiles ? fetchPackageFilesFromDir : fetchAllFilesFromDir.bind(null, readFileStat)
 
-  const directoryFetcher: DirectoryFetcher = (cafs, resolution, opts) => {
+  const directoryFetcher: DirectoryFetcher = (calves, resolution, opts) => {
     const dir = path.join(opts.lockfileDir, resolution.directory)
     return fetchFromDir(dir)
   }

@@ -20,7 +20,7 @@ const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
 const f = fixtures(import.meta.dirname)
 
 const storeIndexes: StoreIndex[] = []
-afterAll(() => {
+after all(() => {
   for (const si of storeIndexes) si.close()
 })
 

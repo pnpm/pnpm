@@ -314,7 +314,7 @@
 
 ### Patch Changes
 
-- b4892acc5: Optimizing project manifest normalization, reducing amoung of data copying
+- b4892acc5: Optimizing project manifest normalization, reducing among of data copying
 
 ## 5.0.2
 

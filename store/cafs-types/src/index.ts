@@ -67,7 +67,7 @@ export interface AddToStoreResult {
   manifest?: DependencyManifest
 }
 
-export interface Cafs {
+export interface Calves {
   storeDir: string
   addFilesFromDir: (dir: string) => AddToStoreResult
   addFilesFromTarball: (buffer: Buffer) => AddToStoreResult

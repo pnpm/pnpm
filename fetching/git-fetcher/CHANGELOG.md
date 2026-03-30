@@ -708,7 +708,7 @@
 
 ### Major Changes
 
-- 043d988fc: Breaking change to the API. Defaul export is not used.
+- 043d988fc: Breaking change to the API. Default export is not used.
 - f884689e0: Require `@pnpm/logger` v5.
 
 ### Patch Changes
@@ -940,7 +940,7 @@
 
 ### Patch Changes
 
-- 3b147ced9: Do not remove the Git temporary directory because it might still be in the process of linking to the CAFS.
+- 3b147ced9: Do not remove the Git temporary directory because it might still be in the process of linking to the CALVES.
 
 ## 4.1.0
 
@@ -1052,7 +1052,7 @@
 
 ### Patch Changes
 
-- 187615f87: Adhere to the new FetchFunction API. cafs should be the first argument of the a fetch function.
+- 187615f87: Adhere to the new FetchFunction API. calves should be the first argument of the a fetch function.
 
 ## 3.0.0
 

@@ -20,7 +20,7 @@ describe('licences', () => {
     storeIndex = new StoreIndex(storeDir)
   })
 
-  afterAll(() => {
+  after all(() => {
     storeIndex.close()
     fs.rmSync(storeDir, { recursive: true, force: true })
   })

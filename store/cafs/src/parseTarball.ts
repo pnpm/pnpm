@@ -120,7 +120,7 @@ export function parseTarball (buffer: Buffer): IParseResult {
       // The file mode is an octal number encoded as UTF-8. It is terminated by a NUL or space. Maximum length 8 characters.
         mode = parseOctal(blockStart + MODE_OFFSET, 8)
 
-        // The TAR format is an append-only data structure; as such later entries with the same name supercede earlier ones.
+        // The TAR format is an append-only data structure; as such later entries with the same name supersede earlier ones.
         files.set(fileName.replaceAll('//', '/'), { offset: blockStart + 512, mode, size: fileSize })
         break
       case FILE_TYPE_DIRECTORY:

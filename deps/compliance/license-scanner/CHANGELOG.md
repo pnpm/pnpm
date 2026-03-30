@@ -16,14 +16,14 @@
   - @pnpm/lockfile.walker@1001.0.16
   - @pnpm/dependency-path@1001.1.3
   - @pnpm/read-package-json@1000.1.2
-  - @pnpm/store.cafs@1000.0.19
+  - @pnpm/store.calves@1000.0.19
 
 ## 1001.0.26
 
 ### Patch Changes
 
 - Updated dependencies [9b9faa5]
-  - @pnpm/store.cafs@1000.0.18
+  - @pnpm/store.calves@1000.0.18
   - @pnpm/dependency-path@1001.1.2
   - @pnpm/directory-fetcher@1000.1.13
   - @pnpm/lockfile.detect-dep-types@1001.0.15
@@ -58,7 +58,7 @@
   - @pnpm/lockfile.utils@1003.0.1
   - @pnpm/lockfile.walker@1001.0.14
   - @pnpm/dependency-path@1001.1.1
-  - @pnpm/store.cafs@1000.0.17
+  - @pnpm/store.calves@1000.0.17
 
 ## 1001.0.23
 
@@ -77,7 +77,7 @@
   - @pnpm/lockfile.walker@1001.0.13
   - @pnpm/error@1000.0.4
   - @pnpm/directory-fetcher@1000.1.10
-  - @pnpm/store.cafs@1000.0.16
+  - @pnpm/store.calves@1000.0.16
   - @pnpm/package-is-installable@1000.0.12
 
 ## 1001.0.22
@@ -97,7 +97,7 @@
   - @pnpm/lockfile.walker@1001.0.12
   - @pnpm/dependency-path@1001.0.2
   - @pnpm/read-package-json@1000.0.10
-  - @pnpm/store.cafs@1000.0.15
+  - @pnpm/store.calves@1000.0.15
   - @pnpm/error@1000.0.3
 
 ## 1001.0.21
@@ -133,14 +133,14 @@
 
 - @pnpm/directory-fetcher@1000.1.8
 - @pnpm/lockfile.utils@1001.0.12
-- @pnpm/store.cafs@1000.0.14
+- @pnpm/store.calves@1000.0.14
 - @pnpm/lockfile.fs@1001.1.13
 
 ## 1001.0.17
 
 ### Patch Changes
 
-- @pnpm/store.cafs@1000.0.13
+- @pnpm/store.calves@1000.0.13
 
 ## 1001.0.16
 
@@ -159,7 +159,7 @@
   - @pnpm/lockfile.walker@1001.0.9
   - @pnpm/dependency-path@1000.0.9
   - @pnpm/read-package-json@1000.0.9
-  - @pnpm/store.cafs@1000.0.12
+  - @pnpm/store.calves@1000.0.12
 
 ## 1001.0.15
 
@@ -169,7 +169,7 @@
 - Updated dependencies [5b73df1]
   - @pnpm/logger@1001.0.0
   - @pnpm/types@1000.5.0
-  - @pnpm/store.cafs@1000.0.11
+  - @pnpm/store.calves@1000.0.11
   - @pnpm/directory-fetcher@1000.1.6
   - @pnpm/lockfile.utils@1001.0.10
   - @pnpm/package-is-installable@1000.0.9
@@ -186,7 +186,7 @@
 
 - @pnpm/directory-fetcher@1000.1.5
 - @pnpm/lockfile.utils@1001.0.9
-- @pnpm/store.cafs@1000.0.10
+- @pnpm/store.calves@1000.0.10
 - @pnpm/lockfile.fs@1001.1.10
 
 ## 1001.0.13
@@ -204,7 +204,7 @@
   - @pnpm/lockfile.walker@1001.0.7
   - @pnpm/dependency-path@1000.0.7
   - @pnpm/read-package-json@1000.0.7
-  - @pnpm/store.cafs@1000.0.9
+  - @pnpm/store.calves@1000.0.9
 
 ## 1001.0.12
 
@@ -222,7 +222,7 @@
   - @pnpm/lockfile.walker@1001.0.6
   - @pnpm/dependency-path@1000.0.6
   - @pnpm/read-package-json@1000.0.6
-  - @pnpm/store.cafs@1000.0.8
+  - @pnpm/store.calves@1000.0.8
 
 ## 1001.0.11
 
@@ -230,7 +230,7 @@
 
 - @pnpm/directory-fetcher@1000.1.2
 - @pnpm/lockfile.utils@1001.0.6
-- @pnpm/store.cafs@1000.0.7
+- @pnpm/store.calves@1000.0.7
 - @pnpm/lockfile.fs@1001.1.7
 
 ## 1001.0.10
@@ -258,7 +258,7 @@
   - @pnpm/lockfile.utils@1001.0.4
   - @pnpm/lockfile.walker@1001.0.4
   - @pnpm/read-package-json@1000.0.5
-  - @pnpm/store.cafs@1000.0.6
+  - @pnpm/store.calves@1000.0.6
 
 ## 1001.0.8
 
@@ -276,7 +276,7 @@
   - @pnpm/lockfile.walker@1001.0.3
   - @pnpm/dependency-path@1000.0.3
   - @pnpm/read-package-json@1000.0.4
-  - @pnpm/store.cafs@1000.0.5
+  - @pnpm/store.calves@1000.0.5
 
 ## 1001.0.7
 
@@ -306,14 +306,14 @@
   - @pnpm/lockfile.walker@1001.0.2
   - @pnpm/dependency-path@1000.0.2
   - @pnpm/read-package-json@1000.0.3
-  - @pnpm/store.cafs@1000.0.4
+  - @pnpm/store.calves@1000.0.4
 
 ## 1001.0.4
 
 ### Patch Changes
 
 - @pnpm/directory-fetcher@1000.0.3
-- @pnpm/store.cafs@1000.0.3
+- @pnpm/store.calves@1000.0.3
 
 ## 1001.0.3
 
@@ -330,7 +330,7 @@
   - @pnpm/lockfile.walker@1001.0.1
   - @pnpm/dependency-path@1000.0.1
   - @pnpm/read-package-json@1000.0.2
-  - @pnpm/store.cafs@1000.0.2
+  - @pnpm/store.calves@1000.0.2
 
 ## 1001.0.2
 
@@ -361,7 +361,7 @@
   - @pnpm/lockfile.utils@1001.0.0
   - @pnpm/lockfile.fs@1001.0.0
   - @pnpm/error@1000.0.1
-  - @pnpm/store.cafs@1000.0.1
+  - @pnpm/store.calves@1000.0.1
   - @pnpm/directory-fetcher@1000.0.1
   - @pnpm/package-is-installable@1000.0.1
   - @pnpm/read-package-json@1000.0.1
@@ -389,7 +389,7 @@
 - Updated dependencies [099e6af]
 - Updated dependencies [d55b259]
   - @pnpm/dependency-path@6.0.0
-  - @pnpm/store.cafs@5.0.0
+  - @pnpm/store.calves@5.0.0
   - @pnpm/package-is-installable@9.0.12
   - @pnpm/lockfile.fs@1.0.6
   - @pnpm/error@6.0.3
@@ -404,7 +404,7 @@
 ### Patch Changes
 
 - Updated dependencies [a1f4df2]
-  - @pnpm/store.cafs@4.0.2
+  - @pnpm/store.calves@4.0.2
   - @pnpm/package-is-installable@9.0.11
   - @pnpm/dependency-path@5.1.7
   - @pnpm/lockfile.detect-dep-types@2.0.9
@@ -418,7 +418,7 @@
 ### Patch Changes
 
 - Updated dependencies [db7ff76]
-  - @pnpm/store.cafs@4.0.1
+  - @pnpm/store.calves@4.0.1
   - @pnpm/directory-fetcher@8.0.9
 
 ## 3.1.15
@@ -438,7 +438,7 @@
 - Updated dependencies [d500d9f]
 - Updated dependencies [db420ab]
   - @pnpm/types@12.2.0
-  - @pnpm/store.cafs@4.0.0
+  - @pnpm/store.calves@4.0.0
   - @pnpm/package-is-installable@9.0.9
   - @pnpm/directory-fetcher@8.0.8
   - @pnpm/lockfile.detect-dep-types@2.0.8
@@ -464,7 +464,7 @@
   - @pnpm/lockfile.walker@1.0.2
   - @pnpm/dependency-path@5.1.5
   - @pnpm/read-package-json@9.0.7
-  - @pnpm/store.cafs@3.0.8
+  - @pnpm/store.calves@3.0.8
 
 ## 3.1.12
 
@@ -488,7 +488,7 @@
   - @pnpm/directory-fetcher@8.0.6
   - @pnpm/dependency-path@5.1.4
   - @pnpm/read-package-json@9.0.6
-  - @pnpm/store.cafs@3.0.7
+  - @pnpm/store.calves@3.0.7
 
 ## 3.1.10
 
@@ -520,7 +520,7 @@
   - @pnpm/lockfile-walker@9.0.4
   - @pnpm/dependency-path@5.1.3
   - @pnpm/read-package-json@9.0.5
-  - @pnpm/store.cafs@3.0.6
+  - @pnpm/store.calves@3.0.6
 
 ## 3.1.8
 
@@ -528,7 +528,7 @@
 
 - Updated dependencies [afe520d]
 - Updated dependencies [afe520d]
-  - @pnpm/store.cafs@3.0.5
+  - @pnpm/store.calves@3.0.5
   - @pnpm/directory-fetcher@8.0.4
 
 ## 3.1.7
@@ -547,7 +547,7 @@
   - @pnpm/lockfile-walker@9.0.3
   - @pnpm/dependency-path@5.1.2
   - @pnpm/read-package-json@9.0.4
-  - @pnpm/store.cafs@3.0.4
+  - @pnpm/store.calves@3.0.4
 
 ## 3.1.6
 
@@ -564,7 +564,7 @@
   - @pnpm/lockfile-walker@9.0.2
   - @pnpm/dependency-path@5.1.1
   - @pnpm/read-package-json@9.0.3
-  - @pnpm/store.cafs@3.0.3
+  - @pnpm/store.calves@3.0.3
 
 ## 3.1.5
 
@@ -583,7 +583,7 @@
 
 ### Patch Changes
 
-- @pnpm/store.cafs@3.0.2
+- @pnpm/store.calves@3.0.2
 - @pnpm/directory-fetcher@8.0.2
 
 ## 3.1.3
@@ -602,7 +602,7 @@
   - @pnpm/directory-fetcher@8.0.2
   - @pnpm/lockfile-file@9.0.6
   - @pnpm/read-package-json@9.0.2
-  - @pnpm/store.cafs@3.0.1
+  - @pnpm/store.calves@3.0.1
 
 ## 3.1.2
 
@@ -688,7 +688,7 @@
   - @pnpm/lockfile-walker@8.0.0
   - @pnpm/lockfile-types@6.0.0
   - @pnpm/lockfile-file@9.0.0
-  - @pnpm/store.cafs@3.0.0
+  - @pnpm/store.calves@3.0.0
   - @pnpm/lockfile.detect-dep-types@1.0.0
 
 ## 2.3.0
@@ -699,7 +699,7 @@
 
 ### Patch Changes
 
-- @pnpm/store.cafs@2.0.12
+- @pnpm/store.calves@2.0.12
 - @pnpm/directory-fetcher@7.0.11
 - @pnpm/lockfile-utils@9.0.5
 
@@ -723,7 +723,7 @@
 
 - Updated dependencies [33313d2fd]
 - Updated dependencies [4d34684f1]
-  - @pnpm/store.cafs@2.0.11
+  - @pnpm/store.calves@2.0.11
   - @pnpm/lockfile-types@5.1.5
   - @pnpm/types@9.4.2
   - @pnpm/lockfile-file@8.1.6
@@ -748,7 +748,7 @@
   - @pnpm/directory-fetcher@7.0.8
   - @pnpm/dependency-path@2.1.6
   - @pnpm/read-package-json@8.0.6
-  - @pnpm/store.cafs@2.0.10
+  - @pnpm/store.calves@2.0.10
 
 ## 2.2.6
 
@@ -768,7 +768,7 @@
 
 ### Patch Changes
 
-- @pnpm/store.cafs@2.0.9
+- @pnpm/store.calves@2.0.9
 - @pnpm/directory-fetcher@7.0.7
 
 ## 2.2.3
@@ -784,7 +784,7 @@
 - Updated dependencies [4c2450208]
   - @pnpm/lockfile-utils@9.0.0
   - @pnpm/directory-fetcher@7.0.5
-  - @pnpm/store.cafs@2.0.8
+  - @pnpm/store.calves@2.0.8
 
 ## 2.2.1
 
@@ -834,7 +834,7 @@
 - Updated dependencies [43ce9e4a6]
   - @pnpm/package-is-installable@8.1.0
   - @pnpm/types@9.4.0
-  - @pnpm/store.cafs@2.0.7
+  - @pnpm/store.calves@2.0.7
   - @pnpm/directory-fetcher@7.0.3
   - @pnpm/lockfile-file@8.1.4
   - @pnpm/lockfile-types@5.1.3
@@ -854,7 +854,7 @@
 ### Patch Changes
 
 - Updated dependencies [01bc58e2c]
-  - @pnpm/store.cafs@2.0.6
+  - @pnpm/store.calves@2.0.6
   - @pnpm/directory-fetcher@7.0.2
 
 ## 2.0.21
@@ -871,7 +871,7 @@
   - @pnpm/lockfile-walker@7.0.5
   - @pnpm/dependency-path@2.1.4
   - @pnpm/read-package-json@8.0.4
-  - @pnpm/store.cafs@2.0.5
+  - @pnpm/store.calves@2.0.5
 
 ## 2.0.20
 
@@ -884,14 +884,14 @@
 
 ### Patch Changes
 
-- @pnpm/store.cafs@2.0.4
+- @pnpm/store.calves@2.0.4
 - @pnpm/directory-fetcher@7.0.1
 
 ## 2.0.18
 
 ### Patch Changes
 
-- @pnpm/store.cafs@2.0.3
+- @pnpm/store.calves@2.0.3
 - @pnpm/directory-fetcher@7.0.0
 
 ## 2.0.17
@@ -899,7 +899,7 @@
 ### Patch Changes
 
 - Updated dependencies [b3947185c]
-  - @pnpm/store.cafs@2.0.2
+  - @pnpm/store.calves@2.0.2
   - @pnpm/directory-fetcher@7.0.0
 
 ## 2.0.16
@@ -909,7 +909,7 @@
 - Updated dependencies [b548f2f43]
 - Updated dependencies [4a1a9431d]
 - Updated dependencies [d92070876]
-  - @pnpm/store.cafs@2.0.1
+  - @pnpm/store.calves@2.0.1
   - @pnpm/directory-fetcher@7.0.0
 
 ## 2.0.15
@@ -920,7 +920,7 @@
 - Updated dependencies [d57e4de6d]
 - Updated dependencies [083bbf590]
 - Updated dependencies [e9aa6f682]
-  - @pnpm/store.cafs@2.0.0
+  - @pnpm/store.calves@2.0.0
   - @pnpm/directory-fetcher@6.1.0
   - @pnpm/lockfile-utils@8.0.4
 
@@ -929,7 +929,7 @@
 ### Patch Changes
 
 - Updated dependencies [73f2b6826]
-  - @pnpm/store.cafs@1.0.2
+  - @pnpm/store.calves@1.0.2
   - @pnpm/directory-fetcher@6.0.4
 
 ## 2.0.13
@@ -937,7 +937,7 @@
 ### Patch Changes
 
 - Updated dependencies [fe1c5f48d]
-  - @pnpm/store.cafs@1.0.1
+  - @pnpm/store.calves@1.0.1
   - @pnpm/directory-fetcher@6.0.4
 
 ## 2.0.12
@@ -945,7 +945,7 @@
 ### Patch Changes
 
 - Updated dependencies [4bbf482d1]
-  - @pnpm/store.cafs@1.0.0
+  - @pnpm/store.calves@1.0.0
   - @pnpm/directory-fetcher@6.0.4
 
 ## 2.0.11
@@ -956,7 +956,7 @@
 - Updated dependencies [250f7e9fe]
 - Updated dependencies [e958707b2]
   - @pnpm/types@9.2.0
-  - @pnpm/cafs@7.0.5
+  - @pnpm/calves@7.0.5
   - @pnpm/package-is-installable@8.0.4
   - @pnpm/lockfile-file@8.1.2
   - @pnpm/lockfile-types@5.1.1
@@ -977,7 +977,7 @@
 ### Patch Changes
 
 - Updated dependencies [b81cefdcd]
-  - @pnpm/cafs@7.0.4
+  - @pnpm/calves@7.0.4
   - @pnpm/directory-fetcher@6.0.2
 
 ## 2.0.8
@@ -986,7 +986,7 @@
 
 - c686768f0: `pnpm license ls` should work even when there is a patched git protocol dependency [#6595](https://github.com/pnpm/pnpm/issues/6595)
 - Updated dependencies [e57e2d340]
-  - @pnpm/cafs@7.0.3
+  - @pnpm/calves@7.0.3
   - @pnpm/directory-fetcher@6.0.2
 
 ## 2.0.7
@@ -1008,7 +1008,7 @@
 - 4b97f1f07: Don't use await in loops.
 - Updated dependencies [d55b41a8b]
 - Updated dependencies [614d5bd72]
-  - @pnpm/cafs@7.0.2
+  - @pnpm/calves@7.0.2
   - @pnpm/directory-fetcher@6.0.1
 
 ## 2.0.5
@@ -1026,7 +1026,7 @@
   - @pnpm/package-is-installable@8.0.2
   - @pnpm/dependency-path@2.1.2
   - @pnpm/read-package-json@8.0.1
-  - @pnpm/cafs@7.0.1
+  - @pnpm/calves@7.0.1
   - @pnpm/error@5.0.1
   - @pnpm/directory-fetcher@6.0.1
 
@@ -1091,7 +1091,7 @@
   - @pnpm/lockfile-walker@7.0.0
   - @pnpm/error@5.0.0
   - @pnpm/types@9.0.0
-  - @pnpm/cafs@7.0.0
+  - @pnpm/calves@7.0.0
 
 ## 1.0.17
 
@@ -1099,7 +1099,7 @@
 
 - Updated dependencies [787c43dcc]
   - @pnpm/lockfile-file@7.0.6
-  - @pnpm/cafs@6.0.2
+  - @pnpm/calves@6.0.2
   - @pnpm/directory-fetcher@5.1.6
 
 ## 1.0.16
@@ -1121,7 +1121,7 @@
 
 - @pnpm/directory-fetcher@5.1.5
 - @pnpm/lockfile-utils@5.0.7
-- @pnpm/cafs@6.0.1
+- @pnpm/calves@6.0.1
 
 ## 1.0.13
 
@@ -1149,7 +1149,7 @@
 
 - Updated dependencies [98d6603f3]
 - Updated dependencies [98d6603f3]
-  - @pnpm/cafs@6.0.0
+  - @pnpm/calves@6.0.0
   - @pnpm/directory-fetcher@5.1.4
 
 ## 1.0.10
@@ -1157,7 +1157,7 @@
 ### Patch Changes
 
 - Updated dependencies [1e6de89b6]
-  - @pnpm/cafs@5.0.6
+  - @pnpm/calves@5.0.6
   - @pnpm/directory-fetcher@5.1.4
 
 ## 1.0.9
@@ -1185,7 +1185,7 @@
 - Updated dependencies [3ebce5db7]
   - @pnpm/lockfile-file@7.0.0
   - @pnpm/dependency-path@1.1.0
-  - @pnpm/cafs@5.0.5
+  - @pnpm/calves@5.0.5
   - @pnpm/error@4.0.1
   - @pnpm/lockfile-utils@5.0.3
   - @pnpm/lockfile-walker@6.0.5
@@ -1212,7 +1212,7 @@
   - @pnpm/lockfile-walker@6.0.4
   - @pnpm/dependency-path@1.0.1
   - @pnpm/read-package-json@7.0.4
-  - @pnpm/cafs@5.0.4
+  - @pnpm/calves@5.0.4
   - @pnpm/directory-fetcher@5.1.3
 
 ## 1.0.4
@@ -1238,7 +1238,7 @@
 - Updated dependencies [a9d59d8bc]
   - @pnpm/lockfile-file@6.0.3
   - @pnpm/read-package-json@7.0.3
-  - @pnpm/cafs@5.0.3
+  - @pnpm/calves@5.0.3
   - @pnpm/directory-fetcher@5.1.2
 
 ## 1.0.1

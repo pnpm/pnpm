@@ -47,16 +47,16 @@ afterEach(async () => {
   await mockAgent.close()
 })
 
-afterAll(() => {
+after all(() => {
   setGlobalDispatcher(originalDispatcher)
 })
 
 const storeDir = temporaryDirectory()
 const filesIndexFile = path.join(storeDir, 'index.json')
-const cafs = createCafsStore(storeDir)
+const calves = createCafsStore(storeDir)
 const storeIndex = new StoreIndex(storeDir)
 
-afterAll(() => {
+after all(() => {
   storeIndex.close()
 })
 
@@ -103,7 +103,7 @@ test('fail when tarball size does not match content-length', async () => {
   }
 
   await expect(
-    fetch.remoteTarball(cafs, resolution, {
+    fetch.remoteTarball(calves, resolution, {
       filesIndexFile,
       lockfileDir: process.cwd(),
       pkg,
@@ -134,7 +134,7 @@ test('retry when tarball size does not match content-length', async () => {
 
   const resolution = { tarball: `${registry}/foo.tgz` }
 
-  const result = await fetch.remoteTarball(cafs, resolution, {
+  const result = await fetch.remoteTarball(calves, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
     pkg,
@@ -164,7 +164,7 @@ test('fail when integrity check fails two times in a row', async () => {
   }
 
   await expect(
-    fetch.remoteTarball(cafs, resolution, {
+    fetch.remoteTarball(calves, resolution, {
       filesIndexFile,
       lockfileDir: process.cwd(),
       pkg,
@@ -203,7 +203,7 @@ test('retry when integrity check fails', async () => {
   }
 
   const params: Array<[number | null, number]> = []
-  await fetch.remoteTarball(cafs, resolution, {
+  await fetch.remoteTarball(calves, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
     onStart (size, attempts) {
@@ -227,7 +227,7 @@ test('fail when integrity check of local file fails', async () => {
   }
 
   await expect(
-    fetch.localTarball(cafs, resolution, {
+    fetch.localTarball(calves, resolution, {
       filesIndexFile,
       lockfileDir: process.cwd(),
       pkg,
@@ -253,7 +253,7 @@ test("don't fail when integrity check of local file succeeds", async () => {
     tarball: 'file:tar.tgz',
   }
 
-  const { filesMap } = await fetch.localTarball(cafs, resolution, {
+  const { filesMap } = await fetch.localTarball(calves, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
     pkg,
@@ -281,7 +281,7 @@ test("don't fail when fetching a local tarball in offline mode", async () => {
       retries: 1,
     },
   })
-  const { filesMap } = await fetch.localTarball(cafs, resolution, {
+  const { filesMap } = await fetch.localTarball(calves, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
     pkg,
@@ -310,7 +310,7 @@ test('fail when trying to fetch a non-local tarball in offline mode', async () =
     },
   })
   await expect(
-    fetch.remoteTarball(cafs, resolution, {
+    fetch.remoteTarball(calves, resolution, {
       filesIndexFile,
       lockfileDir: process.cwd(),
       pkg,
@@ -340,7 +340,7 @@ test('retry on server error', async () => {
     tarball: `${registry}/foo.tgz`,
   }
 
-  const index = await fetch.remoteTarball(cafs, resolution, {
+  const index = await fetch.remoteTarball(calves, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
     pkg,
@@ -361,7 +361,7 @@ test('throw error when accessing private package w/o authorization', async () =>
   }
 
   await expect(
-    fetch.remoteTarball(cafs, resolution, {
+    fetch.remoteTarball(calves, resolution, {
       filesIndexFile,
       lockfileDir: process.cwd(),
       pkg,
@@ -391,7 +391,7 @@ test('do not retry when package does not exist', async () => {
   }
 
   await expect(
-    fetch.remoteTarball(cafs, resolution, {
+    fetch.remoteTarball(calves, resolution, {
       filesIndexFile,
       lockfileDir: process.cwd(),
       pkg,
@@ -442,7 +442,7 @@ test('accessing private packages', async () => {
     tarball: `${registry}/foo.tgz`,
   }
 
-  const index = await fetch.remoteTarball(cafs, resolution, {
+  const index = await fetch.remoteTarball(calves, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
     pkg,
@@ -464,7 +464,7 @@ test('fetch a big repository', async () => {
 
   const resolution = { tarball: 'https://codeload.github.com/sveltejs/action-deploy-docs/tar.gz/a65fbf5a90f53c9d72fed4daaca59da50f074355' }
 
-  const result = await fetch.gitHostedTarball(cafs, resolution, {
+  const result = await fetch.gitHostedTarball(calves, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
     pkg,
@@ -482,7 +482,7 @@ test('fail when preparing a git-hosted package', async () => {
   const resolution = { tarball: 'https://codeload.github.com/pnpm-e2e/prepare-script-fails/tar.gz/ba58874aae1210a777eb309dd01a9fdacc7e54e7' }
 
   await expect(
-    fetch.gitHostedTarball(cafs, resolution, {
+    fetch.gitHostedTarball(calves, resolution, {
       allowBuild: (pkgName) => pkgName === '@pnpm.e2e/prepare-script-fails',
       filesIndexFile,
       lockfileDir: process.cwd(),
@@ -499,7 +499,7 @@ test('take only the files included in the package, when fetching a git-hosted pa
 
   const resolution = { tarball: 'https://codeload.github.com/pnpm-e2e/pkg-with-ignored-files/tar.gz/958d6d487217512bb154d02836e9b5b922a600d8' }
 
-  const result = await fetch.gitHostedTarball(cafs, resolution, {
+  const result = await fetch.gitHostedTarball(calves, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
     pkg,
@@ -526,7 +526,7 @@ test('fail when extracting a broken tarball', async () => {
   }
 
   await expect(
-    fetch.remoteTarball(cafs, resolution, {
+    fetch.remoteTarball(calves, resolution, {
       filesIndexFile,
       lockfileDir: process.cwd(),
       pkg,
@@ -554,7 +554,7 @@ test('do not build the package when scripts are ignored', async () => {
       retries: 1,
     },
   })
-  const { filesMap } = await fetch.gitHostedTarball(cafs, resolution, {
+  const { filesMap } = await fetch.gitHostedTarball(calves, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
     pkg,
@@ -571,7 +571,7 @@ test('when extracting files with the same name, pick the last ones', async () =>
     tarball: `file:${tar}`,
   }
 
-  const { filesMap, manifest } = await fetch.localTarball(cafs, resolution, {
+  const { filesMap, manifest } = await fetch.localTarball(calves, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
     readManifest: true,
@@ -603,7 +603,7 @@ test('use the subfolder when path is present', async () => {
       retries: 1,
     },
   })
-  const { filesMap } = await fetch.gitHostedTarball(cafs, resolution, {
+  const { filesMap } = await fetch.gitHostedTarball(calves, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
     pkg,
@@ -634,7 +634,7 @@ test('prevent directory traversal attack when path is present', async () => {
     },
   })
 
-  await expect(() => fetch.gitHostedTarball(cafs, resolution, {
+  await expect(() => fetch.gitHostedTarball(calves, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
     pkg,
@@ -662,7 +662,7 @@ test('fail when path is not exists', async () => {
     },
   })
 
-  await expect(() => fetch.gitHostedTarball(cafs, resolution, {
+  await expect(() => fetch.gitHostedTarball(calves, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
     pkg,

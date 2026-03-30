@@ -3,7 +3,7 @@ import { createClient, createResolver } from '@pnpm/installing.client'
 import { StoreIndex } from '@pnpm/store.index'
 
 const storeIndexes: StoreIndex[] = []
-afterAll(() => {
+after all(() => {
   for (const si of storeIndexes) si.close()
 })
 
@@ -15,7 +15,7 @@ test('createClient()', () => {
     cacheDir: '',
     rawConfig: {},
     registries: {
-      default: 'https://reigstry.npmjs.org/',
+      default: 'https://registry.npmjs.org/',
     },
     storeDir: '.store',
     storeIndex,
@@ -29,7 +29,7 @@ test('createResolver()', () => {
     cacheDir: '',
     rawConfig: {},
     registries: {
-      default: 'https://reigstry.npmjs.org/',
+      default: 'https://registry.npmjs.org/',
     },
     storeDir: '.store',
   })

@@ -78,7 +78,7 @@ exports[`pnpm licenses: should correctly read LICENSE file with executable file 
 │                              │         │ https://github.com/nfroidure/SVGPathData#readme       │
 ├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
 │ svgicons2svgfont             │ MIT     │ Nicolas Froidure                                      │
-│                              │         │ Read a set of SVG icons and ouput a SVG font          │
+│                              │         │ Read a set of SVG icons and output a SVG font          │
 │                              │         │ https://github.com/nfroidure/svgicons2svgfont         │
 ├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
 │ util-deprecate               │ MIT     │ Nathan Rajlich                                        │
@@ -87,7 +87,7 @@ exports[`pnpm licenses: should correctly read LICENSE file with executable file 
 │                              │         │ https://github.com/TooTallNate/util-deprecate         │
 ├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
 │ varstream                    │ MIT     │ Nicolas Froidure                                      │
-│                              │         │ Stream variables beetween 2 JavaScript threads        │
+│                              │         │ Stream variables between 2 JavaScript threads        │
 │                              │         │ (client/server, ipc, worker/main thread).             │
 │                              │         │ https://github.com/nfroidure/VarStream#readme         │
 └──────────────────────────────┴─────────┴───────────────────────────────────────────────────────┘

@@ -13,8 +13,8 @@ test('addFilesFromDir does not loop infinitely on recursive symlinks', () => {
   // Create a symlink pointing to the current directory
   fs.symlinkSync('.', path.join(srcDir, 'self'))
 
-  const cafs = createCafs(storeDir)
-  const { filesIndex } = cafs.addFilesFromDir(srcDir)
+  const calves = createCafs(storeDir)
+  const { filesIndex } = calves.addFilesFromDir(srcDir)
 
   expect(filesIndex.has('file.txt')).toBe(true)
   expect(filesIndex.has('self/file.txt')).toBe(false)

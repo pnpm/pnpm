@@ -156,7 +156,7 @@ interface CustomResolver {
 interface CustomFetcher {
   // Fetch phase - complete fetcher replacement
   canFetch?: (pkgId: string, resolution: Resolution) => boolean | Promise<boolean>
-  fetch?: (cafs: Cafs, resolution: Resolution, opts: FetchOptions, fetchers: Fetchers) => FetchResult | Promise<FetchResult>
+  fetch?: (calves: Calves, resolution: Resolution, opts: FetchOptions, fetchers: Fetchers) => FetchResult | Promise<FetchResult>
 }
 ```
 
@@ -169,7 +169,7 @@ interface CustomFetcher {
 **Custom Fetcher Methods:**
 
 * `canFetch(pkgId, resolution)` - Returns `true` if this fetcher can handle fetching for the given resolution
-* `fetch(cafs, resolution, opts, fetchers)` - Completely handles fetching the package contents. Receives the content-addressable file system (cafs), the resolution, fetch options, and pnpm's standard fetchers for delegation. Must return a FetchResult with the package files.
+* `fetch(calves, resolution, opts, fetchers)` - Completely handles fetching the package contents. Receives the content-addressable file system (calves), the resolution, fetch options, and pnpm's standard fetchers for delegation. Must return a FetchResult with the package files.
 
 **Example - Reusing pnpm's fetcher utilities:**
 
@@ -209,7 +209,7 @@ const customFetcher = {
     return resolution.type === 'custom:cdn'
   },
 
-  fetch: async (cafs, resolution, opts, fetchers) => {
+  fetch: async (calves, resolution, opts, fetchers) => {
     // Delegate to pnpm's standard tarball fetcher
     // Transform the custom resolution to a standard tarball resolution
     const tarballResolution = {
@@ -217,7 +217,7 @@ const customFetcher = {
       integrity: resolution.integrity,
     }
 
-    return fetchers.remoteTarball(cafs, tarballResolution, opts)
+    return fetchers.remoteTarball(calves, tarballResolution, opts)
   },
 }
 

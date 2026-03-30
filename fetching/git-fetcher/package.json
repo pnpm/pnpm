@@ -48,7 +48,7 @@
     "@jest/globals": "catalog:",
     "@pnpm/fetching.git-fetcher": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.calves": "workspace:*",
     "@pnpm/store.create-cafs-store": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",

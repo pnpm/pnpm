@@ -13,7 +13,7 @@ import { rimrafSync } from '@zkochan/rimraf'
 import { testDefaults } from '../utils/index.js'
 
 const storeIndexes: StoreIndex[] = []
-afterAll(() => {
+after all(() => {
   for (const si of storeIndexes) si.close()
 })
 

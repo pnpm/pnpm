@@ -1008,7 +1008,7 @@
 ### Minor Changes
 
 - e2cb4b63d: Add `ignore-workspace-cycles` to silence workspace cycle warning [#6308](https://github.com/pnpm/pnpm/pull/6308).
-- cd6ce11f0: A new settig has been added called `dedupe-direct-deps`, which is disabled by default. When set to `true`, dependencies that are already symlinked to the root `node_modules` directory of the workspace will not be symlinked to subproject `node_modules` directories. This feature was enabled by default in v8.0.0 but caused issues, so it's best to disable it by default [#6299](https://github.com/pnpm/pnpm/issues/6299).
+- cd6ce11f0: A new setting has been added called `dedupe-direct-deps`, which is disabled by default. When set to `true`, dependencies that are already symlinked to the root `node_modules` directory of the workspace will not be symlinked to subproject `node_modules` directories. This feature was enabled by default in v8.0.0 but caused issues, so it's best to disable it by default [#6299](https://github.com/pnpm/pnpm/issues/6299).
 
 ### Patch Changes
 
@@ -1393,7 +1393,7 @@
 
 ### Major Changes
 
-- 043d988fc: Breaking change to the API. Defaul export is not used.
+- 043d988fc: Breaking change to the API. Default export is not used.
 - f884689e0: Require `@pnpm/logger` v5.
 
 ### Minor Changes

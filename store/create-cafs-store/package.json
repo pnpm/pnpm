@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/store.create-cafs-store",
   "version": "1000.0.20",
-  "description": "Create a CAFS store controller",
+  "description": "Create a CALVES store controller",
   "keywords": [
     "pnpm",
     "pnpm11",
@@ -45,7 +45,7 @@
     "@pnpm/building.pkg-requires-build": "workspace:*",
     "@pnpm/fetching.fetcher-base": "workspace:*",
     "@pnpm/fs.indexed-pkg-importer": "workspace:*",
-    "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.calves": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
     "memoize": "catalog:",
     "path-temp": "catalog:",

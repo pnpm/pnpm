@@ -17,8 +17,8 @@ const f = fixtures(import.meta.dirname)
 describe('cafs', () => {
   it('unpack', () => {
     const dest = temporaryDirectory()
-    const cafs = createCafs(dest)
-    const { filesIndex } = cafs.addFilesFromTarball(
+    const calves = createCafs(dest)
+    const { filesIndex } = calves.addFilesFromTarball(
       fs.readFileSync(f.find('node-gyp-6.1.0.tgz'))
     )
     expect(filesIndex.size).toBe(121)
@@ -169,8 +169,8 @@ describe('checkPkgFilesIntegrity()', () => {
 
 test('file names are normalized when unpacking a tarball', () => {
   const dest = temporaryDirectory()
-  const cafs = createCafs(dest)
-  const { filesIndex } = cafs.addFilesFromTarball(
+  const calves = createCafs(dest)
+  const { filesIndex } = calves.addFilesFromTarball(
     fs.readFileSync(f.find('colorize-semver-diff.tgz'))
   )
   expect(Array.from(filesIndex.keys()).sort()).toStrictEqual([
@@ -184,16 +184,16 @@ test('file names are normalized when unpacking a tarball', () => {
 
 test('broken magic in tarball headers is handled gracefully', () => {
   const dest = temporaryDirectory()
-  const cafs = createCafs(dest)
-  cafs.addFilesFromTarball(
+  const calves = createCafs(dest)
+  calves.addFilesFromTarball(
     fs.readFileSync(f.find('jquery.dirtyforms-2.0.0.tgz'))
   )
 })
 
 test('unpack an older version of tar that prefixes with spaces', () => {
   const dest = temporaryDirectory()
-  const cafs = createCafs(dest)
-  const { filesIndex } = cafs.addFilesFromTarball(
+  const calves = createCafs(dest)
+  const { filesIndex } = calves.addFilesFromTarball(
     fs.readFileSync(f.find('parsers-3.0.0-rc.48.1.tgz'))
   )
   expect(Array.from(filesIndex.keys()).sort()).toStrictEqual([
@@ -220,8 +220,8 @@ test('unpack an older version of tar that prefixes with spaces', () => {
 
 test('unpack a tarball that contains hard links', () => {
   const dest = temporaryDirectory()
-  const cafs = createCafs(dest)
-  const { filesIndex } = cafs.addFilesFromTarball(
+  const calves = createCafs(dest)
+  const { filesIndex } = calves.addFilesFromTarball(
     fs.readFileSync(f.find('vue.examples.todomvc.todo-store-0.0.1.tgz'))
   )
   expect(filesIndex.size).toBeGreaterThan(0)
@@ -300,8 +300,8 @@ function createTarballWithEntry (fileName: string, content: string): Buffer {
 // Related issue: https://github.com/pnpm/pnpm/issues/7120
 test('unpack should not fail when the tarball format seems to be not USTAR or GNU TAR', () => {
   const dest = temporaryDirectory()
-  const cafs = createCafs(dest)
-  const { filesIndex } = cafs.addFilesFromTarball(
+  const calves = createCafs(dest)
+  const { filesIndex } = calves.addFilesFromTarball(
     fs.readFileSync(f.find('devextreme-17.1.6.tgz'))
   )
   expect(filesIndex.size).toBeGreaterThan(0)

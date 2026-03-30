@@ -18,7 +18,7 @@ import { testDefaults } from '../utils/index.js'
 const f = fixtures(import.meta.dirname)
 
 const storeIndexes: StoreIndex[] = []
-afterAll(() => {
+after all(() => {
   for (const si of storeIndexes) si.close()
 })
 

@@ -10,7 +10,7 @@
 
 - @pnpm/exec.pkg-requires-build@1000.0.11
 - @pnpm/symlink-dependency@1000.0.12
-- @pnpm/store.cafs@1000.0.19
+- @pnpm/store.calves@1000.0.19
 - @pnpm/cafs-types@1000.0.0
 - @pnpm/create-cafs-store@1000.0.20
 - @pnpm/fs.hard-link-dir@1000.0.2
@@ -28,7 +28,7 @@
 - Updated dependencies [9b9faa5]
   - @pnpm/fs.hard-link-dir@1000.0.2
   - @pnpm/graceful-fs@1000.0.1
-  - @pnpm/store.cafs@1000.0.18
+  - @pnpm/store.calves@1000.0.18
   - @pnpm/create-cafs-store@1000.0.19
   - @pnpm/symlink-dependency@1000.0.11
 
@@ -47,7 +47,7 @@
 
 - @pnpm/exec.pkg-requires-build@1000.0.10
 - @pnpm/symlink-dependency@1000.0.11
-- @pnpm/store.cafs@1000.0.17
+- @pnpm/store.calves@1000.0.17
 - @pnpm/cafs-types@1000.0.0
 - @pnpm/fs.hard-link-dir@1000.0.1
 - @pnpm/create-cafs-store@1000.0.18
@@ -57,7 +57,7 @@
 ### Patch Changes
 
 - @pnpm/error@1000.0.4
-- @pnpm/store.cafs@1000.0.16
+- @pnpm/store.calves@1000.0.16
 - @pnpm/create-cafs-store@1000.0.17
 - @pnpm/fs.hard-link-dir@1000.0.1
 - @pnpm/symlink-dependency@1000.0.10
@@ -68,7 +68,7 @@
 
 - @pnpm/exec.pkg-requires-build@1000.0.9
 - @pnpm/symlink-dependency@1000.0.10
-- @pnpm/store.cafs@1000.0.15
+- @pnpm/store.calves@1000.0.15
 - @pnpm/cafs-types@1000.0.0
 - @pnpm/create-cafs-store@1000.0.16
 - @pnpm/error@1000.0.3
@@ -84,7 +84,7 @@
 
 ### Patch Changes
 
-- @pnpm/store.cafs@1000.0.14
+- @pnpm/store.calves@1000.0.14
 - @pnpm/create-cafs-store@1000.0.15
 - @pnpm/fs.hard-link-dir@1000.0.1
 - @pnpm/symlink-dependency@1000.0.9
@@ -93,7 +93,7 @@
 
 ### Patch Changes
 
-- @pnpm/store.cafs@1000.0.13
+- @pnpm/store.calves@1000.0.13
 - @pnpm/create-cafs-store@1000.0.14
 - @pnpm/fs.hard-link-dir@1000.0.1
 - @pnpm/symlink-dependency@1000.0.9
@@ -108,7 +108,7 @@
   - @pnpm/symlink-dependency@1000.0.9
   - @pnpm/fs.hard-link-dir@1000.0.1
   - @pnpm/exec.pkg-requires-build@1000.0.8
-  - @pnpm/store.cafs@1000.0.12
+  - @pnpm/store.calves@1000.0.12
   - @pnpm/cafs-types@1000.0.0
 
 ## 1000.1.5
@@ -117,7 +117,7 @@
 
 - Updated dependencies [8a9f3a4]
   - @pnpm/logger@1001.0.0
-  - @pnpm/store.cafs@1000.0.11
+  - @pnpm/store.calves@1000.0.11
   - @pnpm/create-cafs-store@1000.0.12
   - @pnpm/symlink-dependency@1000.0.8
   - @pnpm/exec.pkg-requires-build@1000.0.7
@@ -129,7 +129,7 @@
 ### Patch Changes
 
 - @pnpm/create-cafs-store@1000.0.11
-- @pnpm/store.cafs@1000.0.10
+- @pnpm/store.calves@1000.0.10
 - @pnpm/fs.hard-link-dir@1000.0.0
 - @pnpm/symlink-dependency@1000.0.7
 
@@ -139,7 +139,7 @@
 
 - @pnpm/exec.pkg-requires-build@1000.0.6
 - @pnpm/symlink-dependency@1000.0.7
-- @pnpm/store.cafs@1000.0.9
+- @pnpm/store.calves@1000.0.9
 - @pnpm/cafs-types@1000.0.0
 - @pnpm/create-cafs-store@1000.0.10
 - @pnpm/fs.hard-link-dir@1000.0.0
@@ -150,7 +150,7 @@
 
 - @pnpm/exec.pkg-requires-build@1000.0.5
 - @pnpm/symlink-dependency@1000.0.6
-- @pnpm/store.cafs@1000.0.8
+- @pnpm/store.calves@1000.0.8
 - @pnpm/cafs-types@1000.0.0
 - @pnpm/fs.hard-link-dir@1000.0.0
 - @pnpm/create-cafs-store@1000.0.9
@@ -159,7 +159,7 @@
 
 ### Patch Changes
 
-- @pnpm/store.cafs@1000.0.7
+- @pnpm/store.calves@1000.0.7
 - @pnpm/create-cafs-store@1000.0.8
 - @pnpm/fs.hard-link-dir@1000.0.0
 - @pnpm/symlink-dependency@1000.0.5
@@ -183,7 +183,7 @@
 
 - @pnpm/exec.pkg-requires-build@1000.0.4
 - @pnpm/symlink-dependency@1000.0.5
-- @pnpm/store.cafs@1000.0.6
+- @pnpm/store.calves@1000.0.6
 - @pnpm/cafs-types@1000.0.0
 - @pnpm/fs.hard-link-dir@1000.0.0
 - @pnpm/create-cafs-store@1000.0.7
@@ -195,7 +195,7 @@
 - @pnpm/create-cafs-store@1000.0.6
 - @pnpm/exec.pkg-requires-build@1000.0.3
 - @pnpm/symlink-dependency@1000.0.4
-- @pnpm/store.cafs@1000.0.5
+- @pnpm/store.calves@1000.0.5
 - @pnpm/cafs-types@1000.0.0
 - @pnpm/fs.hard-link-dir@1000.0.0
 
@@ -206,7 +206,7 @@
 - @pnpm/error@1000.0.2
 - @pnpm/exec.pkg-requires-build@1000.0.2
 - @pnpm/symlink-dependency@1000.0.3
-- @pnpm/store.cafs@1000.0.4
+- @pnpm/store.calves@1000.0.4
 - @pnpm/cafs-types@1000.0.0
 - @pnpm/fs.hard-link-dir@1000.0.0
 - @pnpm/create-cafs-store@1000.0.5
@@ -215,7 +215,7 @@
 
 ### Patch Changes
 
-- @pnpm/store.cafs@1000.0.3
+- @pnpm/store.calves@1000.0.3
 - @pnpm/create-cafs-store@1000.0.4
 - @pnpm/fs.hard-link-dir@1000.0.0
 - @pnpm/symlink-dependency@1000.0.2
@@ -226,7 +226,7 @@
 
 - @pnpm/exec.pkg-requires-build@1000.0.1
 - @pnpm/symlink-dependency@1000.0.2
-- @pnpm/store.cafs@1000.0.2
+- @pnpm/store.calves@1000.0.2
 - @pnpm/cafs-types@1000.0.0
 - @pnpm/fs.hard-link-dir@1000.0.0
 - @pnpm/create-cafs-store@1000.0.3
@@ -245,7 +245,7 @@
 ### Patch Changes
 
 - @pnpm/error@1000.0.1
-- @pnpm/store.cafs@1000.0.1
+- @pnpm/store.calves@1000.0.1
 - @pnpm/create-cafs-store@1000.0.1
 - @pnpm/fs.hard-link-dir@1000.0.0
 - @pnpm/symlink-dependency@1000.0.0
@@ -260,7 +260,7 @@
 
 - Updated dependencies [d433cb9]
 - Updated dependencies [099e6af]
-  - @pnpm/store.cafs@5.0.0
+  - @pnpm/store.calves@5.0.0
   - @pnpm/cafs-types@6.0.0
   - @pnpm/error@6.0.3
   - @pnpm/create-cafs-store@7.0.12
@@ -276,7 +276,7 @@
 - Updated dependencies [222d10a]
 - Updated dependencies [a1f4df2]
   - @pnpm/crypto.polyfill@1.0.0
-  - @pnpm/store.cafs@4.0.2
+  - @pnpm/store.calves@4.0.2
   - @pnpm/create-cafs-store@7.0.11
   - @pnpm/fs.hard-link-dir@4.0.0
   - @pnpm/symlink-dependency@8.0.8
@@ -286,7 +286,7 @@
 ### Patch Changes
 
 - Updated dependencies [db7ff76]
-  - @pnpm/store.cafs@4.0.1
+  - @pnpm/store.calves@4.0.1
   - @pnpm/create-cafs-store@7.0.10
   - @pnpm/fs.hard-link-dir@4.0.0
   - @pnpm/symlink-dependency@8.0.8
@@ -305,7 +305,7 @@
 ### Patch Changes
 
 - Updated dependencies [db420ab]
-  - @pnpm/store.cafs@4.0.0
+  - @pnpm/store.calves@4.0.0
   - @pnpm/exec.pkg-requires-build@1.0.7
   - @pnpm/symlink-dependency@8.0.8
   - @pnpm/cafs-types@5.0.0
@@ -318,7 +318,7 @@
 
 - @pnpm/exec.pkg-requires-build@1.0.6
 - @pnpm/symlink-dependency@8.0.7
-- @pnpm/store.cafs@3.0.8
+- @pnpm/store.calves@3.0.8
 - @pnpm/cafs-types@5.0.0
 - @pnpm/fs.hard-link-dir@4.0.0
 - @pnpm/create-cafs-store@7.0.8
@@ -329,7 +329,7 @@
 
 - @pnpm/exec.pkg-requires-build@1.0.5
 - @pnpm/symlink-dependency@8.0.6
-- @pnpm/store.cafs@3.0.7
+- @pnpm/store.calves@3.0.7
 - @pnpm/cafs-types@5.0.0
 - @pnpm/fs.hard-link-dir@4.0.0
 - @pnpm/create-cafs-store@7.0.7
@@ -340,7 +340,7 @@
 
 - @pnpm/exec.pkg-requires-build@1.0.4
 - @pnpm/symlink-dependency@8.0.5
-- @pnpm/store.cafs@3.0.6
+- @pnpm/store.calves@3.0.6
 - @pnpm/cafs-types@5.0.0
 - @pnpm/fs.hard-link-dir@4.0.0
 - @pnpm/create-cafs-store@7.0.6
@@ -351,7 +351,7 @@
 
 - Updated dependencies [afe520d]
 - Updated dependencies [afe520d]
-  - @pnpm/store.cafs@3.0.5
+  - @pnpm/store.calves@3.0.5
   - @pnpm/symlink-dependency@8.0.4
   - @pnpm/create-cafs-store@7.0.5
   - @pnpm/fs.hard-link-dir@4.0.0
@@ -362,7 +362,7 @@
 
 - @pnpm/exec.pkg-requires-build@1.0.3
 - @pnpm/symlink-dependency@8.0.3
-- @pnpm/store.cafs@3.0.4
+- @pnpm/store.calves@3.0.4
 - @pnpm/cafs-types@5.0.0
 - @pnpm/create-cafs-store@7.0.4
 - @pnpm/fs.hard-link-dir@4.0.0
@@ -373,7 +373,7 @@
 
 - @pnpm/exec.pkg-requires-build@1.0.2
 - @pnpm/symlink-dependency@8.0.2
-- @pnpm/store.cafs@3.0.3
+- @pnpm/store.calves@3.0.3
 - @pnpm/cafs-types@5.0.0
 - @pnpm/fs.hard-link-dir@4.0.0
 - @pnpm/create-cafs-store@7.0.3
@@ -382,7 +382,7 @@
 
 ### Patch Changes
 
-- @pnpm/store.cafs@3.0.2
+- @pnpm/store.calves@3.0.2
 - @pnpm/create-cafs-store@7.0.2
 - @pnpm/fs.hard-link-dir@4.0.0
 - @pnpm/symlink-dependency@8.0.1
@@ -393,7 +393,7 @@
 
 - @pnpm/exec.pkg-requires-build@1.0.1
 - @pnpm/symlink-dependency@8.0.1
-- @pnpm/store.cafs@3.0.1
+- @pnpm/store.calves@3.0.1
 - @pnpm/cafs-types@5.0.0
 - @pnpm/fs.hard-link-dir@4.0.0
 - @pnpm/create-cafs-store@7.0.1
@@ -432,14 +432,14 @@
   - @pnpm/fs.hard-link-dir@4.0.0
   - @pnpm/cafs-types@5.0.0
   - @pnpm/graceful-fs@4.0.0
-  - @pnpm/store.cafs@3.0.0
+  - @pnpm/store.calves@3.0.0
   - @pnpm/exec.pkg-requires-build@1.0.0
 
 ## 0.3.14
 
 ### Patch Changes
 
-- @pnpm/store.cafs@2.0.12
+- @pnpm/store.calves@2.0.12
 - @pnpm/create-cafs-store@6.0.13
 - @pnpm/fs.hard-link-dir@3.0.0
 - @pnpm/symlink-dependency@7.1.4
@@ -455,7 +455,7 @@
 ### Patch Changes
 
 - Updated dependencies [33313d2fd]
-  - @pnpm/store.cafs@2.0.11
+  - @pnpm/store.calves@2.0.11
   - @pnpm/create-cafs-store@6.0.11
   - @pnpm/symlink-dependency@7.1.4
   - @pnpm/cafs-types@4.0.0
@@ -466,7 +466,7 @@
 ### Patch Changes
 
 - @pnpm/symlink-dependency@7.1.3
-- @pnpm/store.cafs@2.0.10
+- @pnpm/store.calves@2.0.10
 - @pnpm/cafs-types@4.0.0
 - @pnpm/fs.hard-link-dir@3.0.0
 - @pnpm/create-cafs-store@6.0.10
@@ -487,7 +487,7 @@
 
 ### Patch Changes
 
-- @pnpm/store.cafs@2.0.9
+- @pnpm/store.calves@2.0.9
 - @pnpm/create-cafs-store@6.0.8
 - @pnpm/fs.hard-link-dir@3.0.0
 - @pnpm/symlink-dependency@7.1.2
@@ -498,7 +498,7 @@
 
 - Updated dependencies [cfc017ee3]
   - @pnpm/create-cafs-store@6.0.7
-  - @pnpm/store.cafs@2.0.8
+  - @pnpm/store.calves@2.0.8
   - @pnpm/fs.hard-link-dir@3.0.0
   - @pnpm/symlink-dependency@7.1.2
 
@@ -509,7 +509,7 @@
 - 6390033cd: Directory hard linking moved to the worker.
 - Updated dependencies [6390033cd]
   - @pnpm/fs.hard-link-dir@3.0.0
-  - @pnpm/store.cafs@2.0.7
+  - @pnpm/store.calves@2.0.7
   - @pnpm/create-cafs-store@6.0.6
   - @pnpm/symlink-dependency@7.1.2
   - @pnpm/cafs-types@4.0.0
@@ -526,7 +526,7 @@
 
 - 08b65ff78: Update @rushstack/worker-pool.
 - Updated dependencies [01bc58e2c]
-  - @pnpm/store.cafs@2.0.6
+  - @pnpm/store.calves@2.0.6
   - @pnpm/create-cafs-store@6.0.4
   - @pnpm/symlink-dependency@7.1.1
 
@@ -548,7 +548,7 @@
 
 - @pnpm/create-cafs-store@6.0.1
 - @pnpm/symlink-dependency@7.1.1
-- @pnpm/store.cafs@2.0.5
+- @pnpm/store.calves@2.0.5
 - @pnpm/cafs-types@4.0.0
 
 ## 0.3.0
@@ -564,7 +564,7 @@
   - @pnpm/create-cafs-store@6.0.0
   - @pnpm/cafs-types@4.0.0
   - @pnpm/graceful-fs@3.2.0
-  - @pnpm/store.cafs@2.0.4
+  - @pnpm/store.calves@2.0.4
   - @pnpm/symlink-dependency@7.1.0
 
 ## 0.2.1
@@ -587,14 +587,14 @@
   - @pnpm/create-cafs-store@5.1.0
   - @pnpm/cafs-types@3.1.0
   - @pnpm/symlink-dependency@7.1.0
-  - @pnpm/store.cafs@2.0.3
+  - @pnpm/store.calves@2.0.3
 
 ## 0.1.2
 
 ### Patch Changes
 
 - Updated dependencies [b3947185c]
-  - @pnpm/store.cafs@2.0.2
+  - @pnpm/store.calves@2.0.2
   - @pnpm/create-cafs-store@5.0.2
 
 ## 0.1.1
@@ -603,7 +603,7 @@
 
 - Updated dependencies [b548f2f43]
 - Updated dependencies [4a1a9431d]
-  - @pnpm/store.cafs@2.0.1
+  - @pnpm/store.calves@2.0.1
   - @pnpm/cafs-types@3.0.1
   - @pnpm/create-cafs-store@5.0.1
 
@@ -619,7 +619,7 @@
 - Updated dependencies [f2009d175]
 - Updated dependencies [083bbf590]
 - Updated dependencies [083bbf590]
-  - @pnpm/store.cafs@2.0.0
+  - @pnpm/store.calves@2.0.0
   - @pnpm/create-cafs-store@5.0.0
   - @pnpm/cafs-types@3.0.0
   - @pnpm/graceful-fs@3.1.0

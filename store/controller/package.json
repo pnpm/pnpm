@@ -50,7 +50,7 @@
     "@pnpm/hooks.types": "workspace:*",
     "@pnpm/installing.package-requester": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
-    "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.calves": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
     "@pnpm/store.create-cafs-store": "workspace:*",
     "@pnpm/store.index": "workspace:*",

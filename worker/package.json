@@ -39,7 +39,7 @@
     "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/fs.hard-link-dir": "workspace:*",
     "@pnpm/fs.symlink-dependency": "workspace:*",
-    "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.calves": "workspace:*",
     "@pnpm/store.cafs-types": "workspace:*",
     "@pnpm/store.create-cafs-store": "workspace:*",
     "@pnpm/store.index": "workspace:*",

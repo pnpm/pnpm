@@ -1,7 +1,7 @@
 import type { Fetchers, FetchOptions, FetchResult } from '@pnpm/fetching.fetcher-base'
 import type { LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
 import type { Resolution, WantedDependency } from '@pnpm/resolving.resolver-base'
-import type { Cafs } from '@pnpm/store.cafs-types'
+import type { Calves } from '@pnpm/store.cafs-types'
 import type { Registries } from '@pnpm/types'
 
 // Custom resolution types must use scoped naming to avoid conflicts with pnpm's built-in types
@@ -100,19 +100,19 @@ export interface CustomFetcher {
   /**
    * Called to fetch and extract a package's contents.
    * This is a complete fetcher implementation that should download/copy the package
-   * and add its files to the content-addressable file system (cafs).
+   * and add its files to the content-addressable file system (calves).
    *
    * The fetchers parameter provides access to pnpm's standard fetchers, allowing you
    * to delegate to them (e.g., transform a custom resolution to a tarball URL and use
    * fetchers.remoteTarball).
    *
-   * @param cafs - The content-addressable file system to add package files to
+   * @param calves - The content-addressable file system to add package files to
    * @param resolution - The resolution object containing fetch information
    * @param opts - Fetch options including package manifest
    * @param fetchers - Standard pnpm fetchers available for delegation (remoteTarball, localTarball, git, etc.)
    * @returns FetchResult with files index and other package information
    */
-  fetch?: (cafs: Cafs, resolution: Resolution, opts: FetchOptions, fetchers: Fetchers) => FetchResult | Promise<FetchResult>
+  fetch?: (calves: Calves, resolution: Resolution, opts: FetchOptions, fetchers: Fetchers) => FetchResult | Promise<FetchResult>
 }
 
 export {

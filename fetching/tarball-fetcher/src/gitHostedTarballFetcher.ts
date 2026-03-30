@@ -5,7 +5,7 @@ import { preparePackage } from '@pnpm/exec.prepare-package'
 import type { FetchFunction, FetchOptions } from '@pnpm/fetching.fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
-import type { Cafs, FilesMap } from '@pnpm/store.cafs-types'
+import type { Calves, FilesMap } from '@pnpm/store.cafs-types'
 import type { StoreIndex } from '@pnpm/store.index'
 import type { BundledManifest } from '@pnpm/types'
 import { addFilesFromDir } from '@pnpm/worker'
@@ -25,9 +25,9 @@ export interface CreateGitHostedTarballFetcher {
 }
 
 export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction, fetcherOpts: CreateGitHostedTarballFetcher): FetchFunction {
-  const fetch = async (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
+  const fetch = async (calves: Calves, resolution: Resolution, opts: FetchOptions) => {
     const rawFilesIndexFile = `${opts.filesIndexFile}\traw`
-    const { filesMap, manifest, requiresBuild } = await fetchRemoteTarball(cafs, resolution, {
+    const { filesMap, manifest, requiresBuild } = await fetchRemoteTarball(calves, resolution, {
       ...opts,
       filesIndexFile: rawFilesIndexFile,
     })
@@ -35,7 +35,7 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
     // written during tarball extraction is visible to subsequent reads.
     fetcherOpts.storeIndex.flush()
     try {
-      const prepareResult = await prepareGitHostedPkg(filesMap, cafs, rawFilesIndexFile, opts.filesIndexFile, fetcherOpts, opts, resolution)
+      const prepareResult = await prepareGitHostedPkg(filesMap, calves, rawFilesIndexFile, opts.filesIndexFile, fetcherOpts, opts, resolution)
       if (prepareResult.ignoredBuild) {
         globalWarn(`The git-hosted package fetched from "${resolution.tarball}" has to be built but the build scripts were ignored.`)
       }
@@ -62,15 +62,15 @@ interface PrepareGitHostedPkgResult {
 
 async function prepareGitHostedPkg (
   filesMap: FilesMap,
-  cafs: Cafs,
+  calves: Calves,
   rawFilesIndexFile: string,
   filesIndexFile: string,
   opts: CreateGitHostedTarballFetcher,
   fetcherOpts: FetchOptions,
   resolution: Resolution
 ): Promise<PrepareGitHostedPkgResult> {
-  const tempLocation = await cafs.tempDir()
-  cafs.importPackage(tempLocation, {
+  const tempLocation = await calves.tempDir()
+  calves.importPackage(tempLocation, {
     filesResponse: {
       filesMap,
       resolvedFrom: 'remote',
@@ -110,7 +110,7 @@ async function prepareGitHostedPkg (
   // the linking of files to the store is in progress.
   return {
     ...await addFilesFromDir({
-      storeDir: cafs.storeDir,
+      storeDir: calves.storeDir,
       storeIndex: opts.storeIndex,
       dir: pkgDir,
       files,

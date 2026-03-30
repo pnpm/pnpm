@@ -44,7 +44,7 @@
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/pkg-manifest.reader": "workspace:*",
-    "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.calves": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",

@@ -161,11 +161,11 @@ export async function installDeps (
   params: string[]
 ): Promise<void> {
   if (!opts.update && !opts.dedupe && params.length === 0 && opts.optimisticRepeatInstall) {
-    const { upToDate } = await checkDepsStatus({
+    const { up-to-date } = await checkDepsStatus({
       ...opts,
       ignoreFilteredInstallCache: true,
     })
-    if (upToDate) {
+    if (up-to-date) {
       if (opts.hooks?.customResolvers?.some(r => r.shouldRefreshResolution)) {
         logger.warn({
           message: 'shouldRefreshResolution hooks were skipped because optimisticRepeatInstall is enabled.',

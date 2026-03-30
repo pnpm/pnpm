@@ -11,7 +11,7 @@ import type { GetPackageInfoOptions, PackageInfo } from '../lib/getPkgInfo.js'
 import type { LicensePackage } from '../lib/licenses.js'
 
 const tmpStoreDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-license-spec-'))
-afterAll(() => {
+after all(() => {
   fs.rmSync(tmpStoreDir, { recursive: true, force: true })
 })
 

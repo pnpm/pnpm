@@ -19,10 +19,10 @@ export interface ReadPackageFileMapOptions {
  *
  * Handles three types of package resolutions:
  * - Directory packages: fetches the file list from the local directory
- * - Packages with integrity: looks up the index file in the CAFS by integrity hash
+ * - Packages with integrity: looks up the index file in the CALVES by integrity hash
  * - Tarball packages: looks up the index file by package directory name
  *
- * For CAFS packages, the content-addressed digests are resolved to file
+ * For CALVES packages, the content-addressed digests are resolved to file
  * paths upfront, so callers get a uniform map regardless of resolution type.
  *
  * Note: this function does not include files from side effects (post-install

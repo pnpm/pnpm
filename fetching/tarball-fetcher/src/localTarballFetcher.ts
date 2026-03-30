@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import type { FetchFunction, FetchOptions } from '@pnpm/fetching.fetcher-base'
 import gfs from '@pnpm/fs.graceful-fs'
-import type { Cafs } from '@pnpm/store.cafs-types'
+import type { Calves } from '@pnpm/store.cafs-types'
 import type { StoreIndex } from '@pnpm/store.index'
 import { addFilesFromTarball } from '@pnpm/worker'
 
@@ -15,11 +15,11 @@ interface Resolution {
 }
 
 export function createLocalTarballFetcher (storeIndex: StoreIndex): FetchFunction {
-  const fetch = (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
+  const fetch = (calves: Calves, resolution: Resolution, opts: FetchOptions) => {
     const tarball = resolvePath(opts.lockfileDir, resolution.tarball.slice(5))
     const buffer = gfs.readFileSync(tarball)
     return addFilesFromTarball({
-      storeDir: cafs.storeDir,
+      storeDir: calves.storeDir,
       storeIndex,
       buffer,
       filesIndexFile: opts.filesIndexFile,

@@ -28,7 +28,7 @@ const registries = { default: registry }
 const authConfig = { registry }
 
 const storeIndexes: StoreIndex[] = []
-afterAll(() => {
+after all(() => {
   for (const si of storeIndexes) si.close()
 })
 
@@ -63,11 +63,11 @@ afterEach(async () => {
 
 test('request package', async () => {
   const storeDir = temporaryDirectory()
-  const cafs = createCafsStore(storeDir)
+  const calves = createCafsStore(storeDir)
   const requestPackage = createPackageRequester({
     resolve,
     fetchers,
-    cafs,
+    calves,
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
@@ -104,11 +104,11 @@ test('request package', async () => {
 
 test('request package but skip fetching', async () => {
   const storeDir = temporaryDirectory()
-  const cafs = createCafsStore(storeDir)
+  const calves = createCafsStore(storeDir)
   const requestPackage = createPackageRequester({
     resolve,
     fetchers,
-    cafs,
+    calves,
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
@@ -143,11 +143,11 @@ test('request package but skip fetching', async () => {
 
 test('request package but skip fetching, when resolution is already available', async () => {
   const storeDir = temporaryDirectory()
-  const cafs = createCafsStore(storeDir)
+  const calves = createCafsStore(storeDir)
   const requestPackage = createPackageRequester({
     resolve,
     fetchers,
-    cafs,
+    calves,
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
@@ -200,7 +200,7 @@ test('refetch local tarball if its integrity has changed', async () => {
   const tarball = `file:${tarballRelativePath}`
   const wantedPackage = { bareSpecifier: tarball }
   const storeDir = temporaryDirectory()
-  const cafs = createCafsStore(storeDir)
+  const calves = createCafsStore(storeDir)
   const localFetchers = createFetchersForStore(storeDir)
   const pkgId = `file:${normalize(tarballRelativePath)}`
   const requestPackageOpts = {
@@ -216,7 +216,7 @@ test('refetch local tarball if its integrity has changed', async () => {
     const requestPackage = createPackageRequester({
       resolve,
       fetchers: localFetchers,
-      cafs,
+      calves,
       storeDir,
       verifyStoreIntegrity: true,
       virtualStoreDirMaxLength: 120,
@@ -248,7 +248,7 @@ test('refetch local tarball if its integrity has changed', async () => {
     const requestPackage = createPackageRequester({
       resolve,
       fetchers: localFetchers,
-      cafs,
+      calves,
       storeDir,
       verifyStoreIntegrity: true,
       virtualStoreDirMaxLength: 120,
@@ -275,7 +275,7 @@ test('refetch local tarball if its integrity has changed', async () => {
     const requestPackage = createPackageRequester({
       resolve,
       fetchers: localFetchers,
-      cafs,
+      calves,
       storeDir,
       verifyStoreIntegrity: true,
       virtualStoreDirMaxLength: 120,
@@ -308,7 +308,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
   const tarball = `file:${tarballPath}`
   const wantedPackage = { bareSpecifier: tarball }
   const storeDir = path.join(projectDir, 'store')
-  const cafs = createCafsStore(storeDir)
+  const calves = createCafsStore(storeDir)
   const localFetchers = createFetchersForStore(storeDir)
   const requestPackageOpts = {
     downloadPriority: 0,
@@ -322,7 +322,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
     const requestPackage = createPackageRequester({
       resolve,
       fetchers: localFetchers,
-      cafs,
+      calves,
       storeDir,
       verifyStoreIntegrity: true,
       virtualStoreDirMaxLength: 120,
@@ -345,7 +345,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
     const requestPackage = createPackageRequester({
       resolve,
       fetchers: localFetchers,
-      cafs,
+      calves,
       storeDir,
       verifyStoreIntegrity: true,
       virtualStoreDirMaxLength: 120,
@@ -365,7 +365,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
     const requestPackage = createPackageRequester({
       resolve,
       fetchers: localFetchers,
-      cafs,
+      calves,
       storeDir,
       verifyStoreIntegrity: true,
       virtualStoreDirMaxLength: 120,
@@ -383,7 +383,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
 
 test('force fetch when resolution integrity differs from current package integrity', async () => {
   const storeDir = temporaryDirectory()
-  const cafs = createCafsStore(storeDir)
+  const calves = createCafsStore(storeDir)
   const projectDir = temporaryDirectory()
 
   // Create a custom resolver that returns a different integrity than the current package
@@ -407,7 +407,7 @@ test('force fetch when resolution integrity differs from current package integri
   const requestPackage = createPackageRequester({
     resolve: customResolve,
     fetchers,
-    cafs,
+    calves,
     storeDir,
     verifyStoreIntegrity: true,
     virtualStoreDirMaxLength: 120,
@@ -443,12 +443,12 @@ test('force fetch when resolution integrity differs from current package integri
 
 test('fetchPackageToStore()', async () => {
   const storeDir = temporaryDirectory()
-  const cafs = createCafsStore(storeDir)
+  const calves = createCafsStore(storeDir)
   const localFetchers = createFetchersForStore(storeDir)
   const packageRequester = createPackageRequester({
     resolve,
     fetchers: localFetchers,
-    cafs,
+    calves,
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
@@ -512,11 +512,11 @@ test('fetchPackageToStore()', async () => {
 
 test('fetchPackageToStore() concurrency check', async () => {
   const storeDir = temporaryDirectory()
-  const cafs = createCafsStore(storeDir)
+  const calves = createCafsStore(storeDir)
   const packageRequester = createPackageRequester({
     resolve,
     fetchers,
-    cafs,
+    calves,
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
@@ -605,11 +605,11 @@ test('fetchPackageToStore() does not cache errors', async () => {
   })
 
   const storeDir = temporaryDirectory()
-  const cafs = createCafsStore(storeDir)
+  const calves = createCafsStore(storeDir)
   const packageRequester = createPackageRequester({
     resolve: noRetry.resolve,
     fetchers: noRetry.fetchers,
-    cafs,
+    calves,
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
@@ -656,11 +656,11 @@ test('fetchPackageToStore() does not cache errors', async () => {
 // This test was added to cover the issue described here: https://github.com/pnpm/supi/issues/65
 test('always return a package manifest in the response', async () => {
   const storeDir = temporaryDirectory()
-  const cafs = createCafsStore(storeDir)
+  const calves = createCafsStore(storeDir)
   const requestPackage = createPackageRequester({
     resolve,
     fetchers,
-    cafs,
+    calves,
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
@@ -721,11 +721,11 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
     })
 
   const storeDir = temporaryDirectory()
-  const cafs = createCafsStore(storeDir)
+  const calves = createCafsStore(storeDir)
   const packageRequester = createPackageRequester({
     resolve,
     fetchers,
-    cafs,
+    calves,
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
@@ -777,11 +777,11 @@ test('refetch package to store if it has been modified', async () => {
 
   let indexJsFile!: string
   {
-    const cafs = createCafsStore(storeDir)
+    const calves = createCafsStore(storeDir)
     const packageRequester = createPackageRequester({
       resolve,
       fetchers: localFetchers,
-      cafs,
+      calves,
       networkConcurrency: 1,
       storeDir,
       verifyStoreIntegrity: true,
@@ -816,11 +816,11 @@ test('refetch package to store if it has been modified', async () => {
   streamParser.on('data', reporter)
 
   {
-    const cafs = createCafsStore(storeDir)
+    const calves = createCafsStore(storeDir)
     const packageRequester = createPackageRequester({
       resolve,
       fetchers: localFetchers,
-      cafs,
+      calves,
       networkConcurrency: 1,
       storeDir,
       verifyStoreIntegrity: true,
@@ -856,11 +856,11 @@ test('refetch package to store if it has been modified', async () => {
 
 test('do not fetch an optional package that is not installable', async () => {
   const storeDir = temporaryDirectory()
-  const cafs = createCafsStore(storeDir)
+  const calves = createCafsStore(storeDir)
   const requestPackage = createPackageRequester({
     resolve,
     fetchers,
-    cafs,
+    calves,
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
@@ -892,11 +892,11 @@ test('fetch a git package without a package.json', async () => {
   const commit = 'aeb6b15f9c9957c8fa56f9731e914c4d8a6d2f2b'
 
   const storeDir = temporaryDirectory()
-  const cafs = createCafsStore(storeDir)
+  const calves = createCafsStore(storeDir)
   const requestPackage = createPackageRequester({
     resolve,
     fetchers,
-    cafs,
+    calves,
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
@@ -922,7 +922,7 @@ test('fetch a git package without a package.json', async () => {
 
 test('throw exception if the package data in the store differs from the expected data', async () => {
   const storeDir = temporaryDirectory()
-  const cafs = createCafsStore(storeDir)
+  const calves = createCafsStore(storeDir)
   const localFetchers = createFetchersForStore(storeDir)
   let pkgResponse!: PackageResponse
 
@@ -930,7 +930,7 @@ test('throw exception if the package data in the store differs from the expected
     const requestPackage = createPackageRequester({
       resolve,
       fetchers: localFetchers,
-      cafs,
+      calves,
       networkConcurrency: 1,
       storeDir,
       verifyStoreIntegrity: true,
@@ -952,7 +952,7 @@ test('throw exception if the package data in the store differs from the expected
     const requestPackage = createPackageRequester({
       resolve,
       fetchers: localFetchers,
-      cafs,
+      calves,
       networkConcurrency: 1,
       storeDir,
       verifyStoreIntegrity: true,
@@ -976,7 +976,7 @@ test('throw exception if the package data in the store differs from the expected
     const requestPackage = createPackageRequester({
       resolve,
       fetchers: localFetchers,
-      cafs,
+      calves,
       networkConcurrency: 1,
       storeDir,
       verifyStoreIntegrity: true,
@@ -1000,7 +1000,7 @@ test('throw exception if the package data in the store differs from the expected
     const requestPackage = createPackageRequester({
       resolve,
       fetchers: localFetchers,
-      cafs,
+      calves,
       networkConcurrency: 1,
       storeDir,
       verifyStoreIntegrity: true,
@@ -1023,7 +1023,7 @@ test('throw exception if the package data in the store differs from the expected
     const requestPackage = createPackageRequester({
       resolve,
       fetchers,
-      cafs,
+      calves,
       networkConcurrency: 1,
       storeDir,
       verifyStoreIntegrity: true,
@@ -1045,12 +1045,12 @@ test('throw exception if the package data in the store differs from the expected
 
 test("don't throw an error if the package was updated, so the expectedPkg has a different version than the version in the store", async () => {
   const storeDir = temporaryDirectory()
-  const cafs = createCafsStore(storeDir)
+  const calves = createCafsStore(storeDir)
   {
     const requestPackage = createPackageRequester({
       resolve,
       fetchers,
-      cafs,
+      calves,
       networkConcurrency: 1,
       storeDir,
       verifyStoreIntegrity: true,
@@ -1069,7 +1069,7 @@ test("don't throw an error if the package was updated, so the expectedPkg has a 
   const requestPackage = createPackageRequester({
     resolve,
     fetchers,
-    cafs,
+    calves,
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
@@ -1091,12 +1091,12 @@ test("don't throw an error if the package was updated, so the expectedPkg has a 
 
 test('the version in the bundled manifest should be normalized', async () => {
   const storeDir = temporaryDirectory()
-  const cafs = createCafsStore(storeDir)
+  const calves = createCafsStore(storeDir)
 
   const requestPackage = createPackageRequester({
     resolve,
     fetchers,
-    cafs,
+    calves,
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
@@ -1114,7 +1114,7 @@ test('the version in the bundled manifest should be normalized', async () => {
 
 test('should skip store integrity check and resolve manifest if fetchRawManifest is true', async () => {
   const storeDir = temporaryDirectory()
-  const cafs = createCafsStore(storeDir)
+  const calves = createCafsStore(storeDir)
 
   let pkgResponse!: PackageResponse
 
@@ -1122,7 +1122,7 @@ test('should skip store integrity check and resolve manifest if fetchRawManifest
     const requestPackage = createPackageRequester({
       resolve,
       fetchers,
-      cafs,
+      calves,
       networkConcurrency: 1,
       storeDir,
       verifyStoreIntegrity: false,
@@ -1145,7 +1145,7 @@ test('should skip store integrity check and resolve manifest if fetchRawManifest
     const requestPackage = createPackageRequester({
       resolve,
       fetchers,
-      cafs,
+      calves,
       networkConcurrency: 1,
       storeDir,
       verifyStoreIntegrity: false,
@@ -1178,11 +1178,11 @@ test('should skip store integrity check and resolve manifest if fetchRawManifest
 
 test('HTTP tarball without integrity gets integrity computed during fetch', async () => {
   const storeDir = temporaryDirectory()
-  const cafs = createCafsStore(storeDir)
+  const calves = createCafsStore(storeDir)
   const requestPackage = createPackageRequester({
     resolve,
     fetchers,
-    cafs,
+    calves,
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
@@ -1209,7 +1209,7 @@ test('HTTP tarball without integrity gets integrity computed during fetch', asyn
 
 test('should pass optional flag to resolve function', async () => {
   const storeDir = temporaryDirectory()
-  const cafs = createCafsStore(storeDir)
+  const calves = createCafsStore(storeDir)
 
   let capturedOptional: boolean | undefined
   const mockResolve: typeof resolve = async (wantedDependency, _options) => {
@@ -1220,7 +1220,7 @@ test('should pass optional flag to resolve function', async () => {
   const requestPackage = createPackageRequester({
     resolve: mockResolve,
     fetchers,
-    cafs,
+    calves,
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,

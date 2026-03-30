@@ -2073,7 +2073,7 @@
 
 - Ensure consistent output for scripts executed concurrently, both within a single project and across multiple projects. Each script's output will now be printed in a separate section of the terminal, when running multiple scripts in a single project [using regex](https://pnpm.io/cli/run#running-multiple-scripts) [#6692](https://github.com/pnpm/pnpm/issues/6692).
 - The `--parallel` CLI flag should work on single project [#6692](https://github.com/pnpm/pnpm/issues/6692).
-- Optimizing project manifest normalization, reducing amoung of data copying [#6763](https://github.com/pnpm/pnpm/pull/6763).
+- Optimizing project manifest normalization, reducing among of data copying [#6763](https://github.com/pnpm/pnpm/pull/6763).
 - Move loading `wantedLockfile` outside `dependenciesHierarchyForPackage`, preventing OOM crash when loading the same lock file too many times [#6757](https://github.com/pnpm/pnpm/pull/6757).
 - Replace ineffective use of ramda `difference` with better alternative [#6760](https://github.com/pnpm/pnpm/pull/6760).
 
@@ -2981,7 +2981,7 @@
 
 ### Patch Changes
 
-- extend cafs with getFilePathByModeInCafs [#5232](https://github.com/pnpm/pnpm/pull/5232).
+- extend calves with getFilePathByModeInCafs [#5232](https://github.com/pnpm/pnpm/pull/5232).
 
 ## 7.9.3
 
@@ -4821,7 +4821,7 @@
 
 - When pnpm crashes because the Node.js version is unsupported, the error message will now contain a link to the compatibility page of the pnpm documentation website.
 
-- `pnpm pubish -r` prints an info message if there are no pending packages to be published.
+- `pnpm publish -r` prints an info message if there are no pending packages to be published.
 
 ## 5.15.3
 
@@ -5034,7 +5034,7 @@
   }
   ```
 
-  You may specify the package to which the overriden dependency belongs by separating the package selector from the dependency selector with a ">", for example `qar@1>zoo` will only override the `zoo` dependency of any `qar@1` dependency.
+  You may specify the package to which the overridden dependency belongs by separating the package selector from the dependency selector with a ">", for example `qar@1>zoo` will only override the `zoo` dependency of any `qar@1` dependency.
 
 - A new setting added for specifying the shell to use, when running scripts: script-shell [#2942](https://github.com/pnpm/pnpm/issues/2942)
 

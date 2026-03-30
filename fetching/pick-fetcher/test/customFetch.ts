@@ -8,7 +8,7 @@ import { createTarballFetcher } from '@pnpm/fetching.tarball-fetcher'
 import type { CustomFetcher } from '@pnpm/hooks.types'
 import { clearDispatcherCache, createFetchFromRegistry } from '@pnpm/network.fetch'
 import type { AtomicResolution } from '@pnpm/resolving.resolver-base'
-import type { Cafs } from '@pnpm/store.cafs-types'
+import type { Calves } from '@pnpm/store.cafs-types'
 import { createCafsStore } from '@pnpm/store.create-cafs-store'
 import { StoreIndex } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -25,7 +25,7 @@ beforeAll(() => {
   originalDispatcher = getGlobalDispatcher()
 })
 
-afterAll(() => {
+after all(() => {
   storeIndex.close()
   setGlobalDispatcher(originalDispatcher)
 })
@@ -44,12 +44,12 @@ function createMockFetchers (partial: Partial<Fetchers> = {}): Fetchers {
   }
 }
 
-function createMockCafs (partial: Partial<Cafs> = {}): Cafs {
+function createMockCafs (partial: Partial<Calves> = {}): Calves {
   return {
     addFilesFromDir: jest.fn(),
     addFilesFromTarball: jest.fn() as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     ...partial,
-  } as Cafs
+  } as Calves
 }
 
 function createMockResolution (resolution: Partial<AtomicResolution> & Record<string, any>): any { // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -152,13 +152,13 @@ describe('custom fetcher implementation examples', () => {
       ).rejects.toThrow('Network error during fetch')
     })
 
-    test('should pass CAFS to custom fetcher for file operations', async () => {
-      let receivedCafs: Cafs | null = null
+    test('should pass CALVES to custom fetcher for file operations', async () => {
+      let receivedCafs: Calves | null = null
 
       const customFetcher = createMockCustomFetcher(
         () => true,
-        async (cafs) => {
-          receivedCafs = cafs
+        async (calves) => {
+          receivedCafs = calves
           return {
             filesMap: new Map(),
             manifest: { name: 'pkg', version: '1.0.0' },
@@ -294,7 +294,7 @@ describe('custom fetcher implementation examples', () => {
 
       try {
         const storeDir = temporaryDirectory()
-        const cafs = createCafsStore(storeDir)
+        const calves = createCafsStore(storeDir)
         const filesIndexFile = path.join(storeDir, 'index.json')
 
         // Create standard fetchers to pass to custom fetcher
@@ -308,7 +308,7 @@ describe('custom fetcher implementation examples', () => {
         // Custom fetcher that maps custom URLs to tarballs
         const customFetcher = createMockCustomFetcher(
           (_pkgId, resolution) => resolution.type === 'custom:url' && Boolean((resolution as any).customUrl), // eslint-disable-line @typescript-eslint/no-explicit-any
-          async (cafs, resolution, opts, fetchers) => {
+          async (calves, resolution, opts, fetchers) => {
             // Map custom resolution to tarball resolution
             const tarballResolution = {
               tarball: (resolution as any).customUrl, // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -316,7 +316,7 @@ describe('custom fetcher implementation examples', () => {
             }
 
             // Delegate to standard tarball fetcher (passed via fetchers parameter)
-            return fetchers.remoteTarball(cafs, tarballResolution, opts)
+            return fetchers.remoteTarball(calves, tarballResolution, opts)
           }
         )
 
@@ -332,7 +332,7 @@ describe('custom fetcher implementation examples', () => {
         )
 
         const result = await fetcher(
-          cafs,
+          calves,
           customResolution,
           createMockFetchOptions({ filesIndexFile, lockfileDir: process.cwd() })
         )
@@ -346,7 +346,7 @@ describe('custom fetcher implementation examples', () => {
 
     test('custom fetcher can delegate to localTarball fetcher', async () => {
       const storeDir = temporaryDirectory()
-      const cafs = createCafsStore(storeDir)
+      const calves = createCafsStore(storeDir)
       const filesIndexFile = path.join(storeDir, 'index.json')
 
       const fetchFromRegistry = createFetchFromRegistry({})
@@ -359,13 +359,13 @@ describe('custom fetcher implementation examples', () => {
       // Custom fetcher that maps custom local paths to tarballs
       const customFetcher = createMockCustomFetcher(
         (_pkgId, resolution) => resolution.type === 'custom:local' && Boolean((resolution as any).localPath), // eslint-disable-line @typescript-eslint/no-explicit-any
-        async (cafs, resolution, opts, fetchers) => {
+        async (calves, resolution, opts, fetchers) => {
           const tarballResolution = {
             tarball: `file:${(resolution as any).localPath}`, // eslint-disable-line @typescript-eslint/no-explicit-any
             integrity: tarballIntegrity,
           }
 
-          return fetchers.localTarball(cafs, tarballResolution, opts)
+          return fetchers.localTarball(calves, tarballResolution, opts)
         }
       )
 
@@ -381,7 +381,7 @@ describe('custom fetcher implementation examples', () => {
       )
 
       const result = await fetcher(
-        cafs,
+        calves,
         customResolution,
         createMockFetchOptions({ filesIndexFile, lockfileDir: process.cwd() })
       )
@@ -403,7 +403,7 @@ describe('custom fetcher implementation examples', () => {
 
       try {
         const storeDir = temporaryDirectory()
-        const cafs = createCafsStore(storeDir)
+        const calves = createCafsStore(storeDir)
         const filesIndexFile = path.join(storeDir, 'index.json')
 
         const fetchFromRegistry = createFetchFromRegistry({})
@@ -416,7 +416,7 @@ describe('custom fetcher implementation examples', () => {
         // Custom fetcher that transforms custom resolution to tarball URL
         const customFetcher = createMockCustomFetcher(
           (_pkgId, resolution) => resolution.type === 'custom:registry',
-          async (cafs, resolution, opts, fetchers) => {
+          async (calves, resolution, opts, fetchers) => {
             // Transform custom registry format to standard tarball URL
             const tarballUrl = `${registry}${(resolution as any).packageName}.tgz` // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -425,7 +425,7 @@ describe('custom fetcher implementation examples', () => {
               integrity: tarballIntegrity,
             }
 
-            return fetchers.remoteTarball(cafs, tarballResolution, opts)
+            return fetchers.remoteTarball(calves, tarballResolution, opts)
           }
         )
 
@@ -441,7 +441,7 @@ describe('custom fetcher implementation examples', () => {
         )
 
         const result = await fetcher(
-          cafs,
+          calves,
           customResolution,
           createMockFetchOptions({ filesIndexFile, lockfileDir: process.cwd() })
         )
@@ -455,7 +455,7 @@ describe('custom fetcher implementation examples', () => {
 
     test('custom fetcher can use gitHostedTarball fetcher for custom git URLs', async () => {
       const storeDir = temporaryDirectory()
-      const cafs = createCafsStore(storeDir)
+      const calves = createCafsStore(storeDir)
       const filesIndexFile = path.join(storeDir, 'index.json')
 
       const fetchFromRegistry = createFetchFromRegistry({})
@@ -468,13 +468,13 @@ describe('custom fetcher implementation examples', () => {
       // Custom fetcher that maps custom git resolution to git-hosted tarball
       const customFetcher = createMockCustomFetcher(
         (_pkgId, resolution) => resolution.type === 'custom:git',
-        async (cafs, resolution, opts, fetchers) => {
+        async (calves, resolution, opts, fetchers) => {
           // Map custom git resolution to GitHub codeload URL
           const tarballResolution = {
             tarball: `https://codeload.github.com/${(resolution as any).repo}/tar.gz/${(resolution as any).commit}`, // eslint-disable-line @typescript-eslint/no-explicit-any
           }
 
-          return fetchers.gitHostedTarball(cafs, tarballResolution, opts)
+          return fetchers.gitHostedTarball(calves, tarballResolution, opts)
         }
       )
 
@@ -491,7 +491,7 @@ describe('custom fetcher implementation examples', () => {
       )
 
       const result = await fetcher(
-        cafs,
+        calves,
         customResolution,
         createMockFetchOptions({ filesIndexFile, lockfileDir: process.cwd() })
       )

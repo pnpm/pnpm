@@ -28,7 +28,7 @@ import type {
 import {
   normalizeBundledManifest,
 } from '@pnpm/store.cafs'
-import type { Cafs } from '@pnpm/store.cafs-types'
+import type { Calves } from '@pnpm/store.cafs-types'
 import type {
   BundledManifest,
   FetchPackageToStoreFunction,
@@ -76,7 +76,7 @@ export function createPackageRequester (
     pnpmVersion?: string
     resolve: ResolveFunction
     fetchers: Fetchers
-    cafs: Cafs
+    calves: Calves
     ignoreFile?: (filename: string) => boolean
     networkConcurrency?: number
     storeDir: string
@@ -97,7 +97,7 @@ export function createPackageRequester (
     concurrency: networkConcurrency,
   })
 
-  const fetch = fetcher.bind(null, opts.fetchers, opts.cafs, opts.customFetchers)
+  const fetch = fetcher.bind(null, opts.fetchers, opts.calves, opts.customFetchers)
   const readPkgFromCafs = _readPkgFromCafs.bind(null, {
     storeDir: opts.storeDir,
     verifyStoreIntegrity: opts.verifyStoreIntegrity,
@@ -641,7 +641,7 @@ async function tarballIsUpToDate (
 
 async function fetcher (
   fetcherByHostingType: Fetchers,
-  cafs: Cafs,
+  calves: Calves,
   customFetchers: CustomFetcher[] | undefined,
   packageId: string,
   resolution: AtomicResolution,
@@ -653,7 +653,7 @@ async function fetcher (
       customFetchers,
       packageId,
     })
-    const result = await fetch(cafs, resolution as any, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const result = await fetch(calves, resolution as any, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
     return result
   } catch (err: any) { // eslint-disable-line
     packageRequestLogger.warn({

@@ -381,7 +381,7 @@
 
 ### Patch Changes
 
-- 32915f0e4: Refactor cafs types into separate package and add additional properties including `cafsDir` and `getFilePathInCafs`.
+- 32915f0e4: Refactor calves types into separate package and add additional properties including `cafsDir` and `getFilePathInCafs`.
 - Updated dependencies [23984abd1]
   - @pnpm/resolver-base@9.1.0
 
@@ -554,7 +554,7 @@
 
 ### Major Changes
 
-- e6a2654a2: `importPackage()` and `tempDir()` added to the `Cafs` type.
+- e6a2654a2: `importPackage()` and `tempDir()` added to the `Calves` type.
 
 ### Minor Changes
 

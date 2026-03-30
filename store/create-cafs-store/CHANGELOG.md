@@ -8,7 +8,7 @@
   - @pnpm/store-controller-types@1004.1.0
   - @pnpm/exec.pkg-requires-build@1000.0.11
   - @pnpm/fetcher-base@1001.0.2
-  - @pnpm/store.cafs@1000.0.19
+  - @pnpm/store.calves@1000.0.19
   - @pnpm/fs.indexed-pkg-importer@1000.1.14
 
 ## 1000.0.19
@@ -17,7 +17,7 @@
 
 - Updated dependencies [9b9faa5]
   - @pnpm/fs.indexed-pkg-importer@1000.1.13
-  - @pnpm/store.cafs@1000.0.18
+  - @pnpm/store.calves@1000.0.18
 
 ## 1000.0.18
 
@@ -25,7 +25,7 @@
 
 - @pnpm/exec.pkg-requires-build@1000.0.10
 - @pnpm/fetcher-base@1001.0.1
-- @pnpm/store.cafs@1000.0.17
+- @pnpm/store.calves@1000.0.17
 - @pnpm/store-controller-types@1004.0.2
 - @pnpm/fs.indexed-pkg-importer@1000.1.12
 
@@ -35,7 +35,7 @@
 
 - Updated dependencies [d1edf73]
   - @pnpm/fetcher-base@1001.0.0
-  - @pnpm/store.cafs@1000.0.16
+  - @pnpm/store.calves@1000.0.16
   - @pnpm/store-controller-types@1004.0.1
   - @pnpm/fs.indexed-pkg-importer@1000.1.11
 
@@ -48,7 +48,7 @@
   - @pnpm/store-controller-types@1004.0.0
   - @pnpm/fetcher-base@1000.1.0
   - @pnpm/exec.pkg-requires-build@1000.0.9
-  - @pnpm/store.cafs@1000.0.15
+  - @pnpm/store.calves@1000.0.15
   - @pnpm/fs.indexed-pkg-importer@1000.1.10
 
 ## 1000.0.15
@@ -57,7 +57,7 @@
 
 - @pnpm/fetcher-base@1000.0.12
 - @pnpm/store-controller-types@1003.0.3
-- @pnpm/store.cafs@1000.0.14
+- @pnpm/store.calves@1000.0.14
 - @pnpm/fs.indexed-pkg-importer@1000.1.9
 
 ## 1000.0.14
@@ -67,7 +67,7 @@
 - Updated dependencies [509948d]
   - @pnpm/store-controller-types@1003.0.2
   - @pnpm/fs.indexed-pkg-importer@1000.1.8
-  - @pnpm/store.cafs@1000.0.13
+  - @pnpm/store.calves@1000.0.13
 
 ## 1000.0.13
 
@@ -80,7 +80,7 @@
   - @pnpm/store-controller-types@1003.0.1
   - @pnpm/exec.pkg-requires-build@1000.0.8
   - @pnpm/fetcher-base@1000.0.11
-  - @pnpm/store.cafs@1000.0.12
+  - @pnpm/store.calves@1000.0.12
 
 ## 1000.0.12
 
@@ -92,7 +92,7 @@
   - @pnpm/store-controller-types@1003.0.0
   - @pnpm/logger@1001.0.0
   - @pnpm/fs.indexed-pkg-importer@1000.1.6
-  - @pnpm/store.cafs@1000.0.11
+  - @pnpm/store.calves@1000.0.11
   - @pnpm/fetcher-base@1000.0.10
   - @pnpm/exec.pkg-requires-build@1000.0.7
 
@@ -104,7 +104,7 @@
   - @pnpm/fs.indexed-pkg-importer@1000.1.5
   - @pnpm/fetcher-base@1000.0.9
   - @pnpm/store-controller-types@1002.0.1
-  - @pnpm/store.cafs@1000.0.10
+  - @pnpm/store.calves@1000.0.10
 
 ## 1000.0.10
 
@@ -114,7 +114,7 @@
   - @pnpm/store-controller-types@1002.0.0
   - @pnpm/exec.pkg-requires-build@1000.0.6
   - @pnpm/fetcher-base@1000.0.8
-  - @pnpm/store.cafs@1000.0.9
+  - @pnpm/store.calves@1000.0.9
   - @pnpm/fs.indexed-pkg-importer@1000.1.4
 
 ## 1000.0.9
@@ -123,7 +123,7 @@
 
 - @pnpm/exec.pkg-requires-build@1000.0.5
 - @pnpm/fetcher-base@1000.0.7
-- @pnpm/store.cafs@1000.0.8
+- @pnpm/store.calves@1000.0.8
 - @pnpm/store-controller-types@1001.0.5
 - @pnpm/fs.indexed-pkg-importer@1000.1.3
 
@@ -133,7 +133,7 @@
 
 - @pnpm/fetcher-base@1000.0.6
 - @pnpm/store-controller-types@1001.0.4
-- @pnpm/store.cafs@1000.0.7
+- @pnpm/store.calves@1000.0.7
 - @pnpm/fs.indexed-pkg-importer@1000.1.2
 
 ## 1000.0.7
@@ -142,7 +142,7 @@
 
 - @pnpm/exec.pkg-requires-build@1000.0.4
 - @pnpm/fetcher-base@1000.0.5
-- @pnpm/store.cafs@1000.0.6
+- @pnpm/store.calves@1000.0.6
 - @pnpm/store-controller-types@1001.0.3
 - @pnpm/fs.indexed-pkg-importer@1000.1.1
 
@@ -154,7 +154,7 @@
   - @pnpm/fs.indexed-pkg-importer@1000.1.0
   - @pnpm/exec.pkg-requires-build@1000.0.3
   - @pnpm/fetcher-base@1000.0.4
-  - @pnpm/store.cafs@1000.0.5
+  - @pnpm/store.calves@1000.0.5
   - @pnpm/store-controller-types@1001.0.2
 
 ## 1000.0.5
@@ -163,7 +163,7 @@
 
 - @pnpm/exec.pkg-requires-build@1000.0.2
 - @pnpm/fetcher-base@1000.0.3
-- @pnpm/store.cafs@1000.0.4
+- @pnpm/store.calves@1000.0.4
 - @pnpm/store-controller-types@1001.0.1
 - @pnpm/fs.indexed-pkg-importer@1000.0.5
 
@@ -174,7 +174,7 @@
 - Updated dependencies [dde650b]
   - @pnpm/store-controller-types@1001.0.0
   - @pnpm/fs.indexed-pkg-importer@1000.0.4
-  - @pnpm/store.cafs@1000.0.3
+  - @pnpm/store.calves@1000.0.3
 
 ## 1000.0.3
 
@@ -182,7 +182,7 @@
 
 - @pnpm/exec.pkg-requires-build@1000.0.1
 - @pnpm/fetcher-base@1000.0.2
-- @pnpm/store.cafs@1000.0.2
+- @pnpm/store.calves@1000.0.2
 - @pnpm/store-controller-types@1000.1.1
 - @pnpm/fs.indexed-pkg-importer@1000.0.3
 
@@ -199,7 +199,7 @@
 - Updated dependencies [6483b64]
   - @pnpm/store-controller-types@1000.1.0
   - @pnpm/fs.indexed-pkg-importer@1000.0.1
-  - @pnpm/store.cafs@1000.0.1
+  - @pnpm/store.calves@1000.0.1
   - @pnpm/fetcher-base@1000.0.1
 
 ## 7.0.12
@@ -208,7 +208,7 @@
 
 - Updated dependencies [d433cb9]
 - Updated dependencies [099e6af]
-  - @pnpm/store.cafs@5.0.0
+  - @pnpm/store.calves@5.0.0
   - @pnpm/fetcher-base@16.0.7
   - @pnpm/store-controller-types@18.1.6
   - @pnpm/fs.indexed-pkg-importer@6.0.9
@@ -218,7 +218,7 @@
 ### Patch Changes
 
 - Updated dependencies [a1f4df2]
-  - @pnpm/store.cafs@4.0.2
+  - @pnpm/store.calves@4.0.2
   - @pnpm/fs.indexed-pkg-importer@6.0.9
 
 ## 7.0.10
@@ -226,7 +226,7 @@
 ### Patch Changes
 
 - Updated dependencies [db7ff76]
-  - @pnpm/store.cafs@4.0.1
+  - @pnpm/store.calves@4.0.1
   - @pnpm/fs.indexed-pkg-importer@6.0.9
 
 ## 7.0.9
@@ -234,7 +234,7 @@
 ### Patch Changes
 
 - Updated dependencies [db420ab]
-  - @pnpm/store.cafs@4.0.0
+  - @pnpm/store.calves@4.0.0
   - @pnpm/exec.pkg-requires-build@1.0.7
   - @pnpm/fetcher-base@16.0.7
   - @pnpm/store-controller-types@18.1.6
@@ -246,7 +246,7 @@
 
 - @pnpm/exec.pkg-requires-build@1.0.6
 - @pnpm/fetcher-base@16.0.6
-- @pnpm/store.cafs@3.0.8
+- @pnpm/store.calves@3.0.8
 - @pnpm/store-controller-types@18.1.5
 - @pnpm/fs.indexed-pkg-importer@6.0.8
 
@@ -256,7 +256,7 @@
 
 - @pnpm/exec.pkg-requires-build@1.0.5
 - @pnpm/fetcher-base@16.0.5
-- @pnpm/store.cafs@3.0.7
+- @pnpm/store.calves@3.0.7
 - @pnpm/store-controller-types@18.1.4
 - @pnpm/fs.indexed-pkg-importer@6.0.7
 
@@ -266,7 +266,7 @@
 
 - @pnpm/exec.pkg-requires-build@1.0.4
 - @pnpm/fetcher-base@16.0.4
-- @pnpm/store.cafs@3.0.6
+- @pnpm/store.calves@3.0.6
 - @pnpm/store-controller-types@18.1.3
 - @pnpm/fs.indexed-pkg-importer@6.0.6
 
@@ -277,7 +277,7 @@
 - Updated dependencies [afe520d]
 - Updated dependencies [afe520d]
   - @pnpm/fs.indexed-pkg-importer@6.0.5
-  - @pnpm/store.cafs@3.0.5
+  - @pnpm/store.calves@3.0.5
 
 ## 7.0.4
 
@@ -286,7 +286,7 @@
 - @pnpm/fetcher-base@16.0.3
 - @pnpm/store-controller-types@18.1.2
 - @pnpm/exec.pkg-requires-build@1.0.3
-- @pnpm/store.cafs@3.0.4
+- @pnpm/store.calves@3.0.4
 - @pnpm/fs.indexed-pkg-importer@6.0.4
 
 ## 7.0.3
@@ -295,7 +295,7 @@
 
 - @pnpm/exec.pkg-requires-build@1.0.2
 - @pnpm/fetcher-base@16.0.2
-- @pnpm/store.cafs@3.0.3
+- @pnpm/store.calves@3.0.3
 - @pnpm/store-controller-types@18.1.1
 - @pnpm/fs.indexed-pkg-importer@6.0.3
 
@@ -306,7 +306,7 @@
 - Updated dependencies [0c08e1c]
   - @pnpm/store-controller-types@18.1.0
   - @pnpm/fs.indexed-pkg-importer@6.0.2
-  - @pnpm/store.cafs@3.0.2
+  - @pnpm/store.calves@3.0.2
 
 ## 7.0.1
 
@@ -314,7 +314,7 @@
 
 - @pnpm/exec.pkg-requires-build@1.0.1
 - @pnpm/fetcher-base@16.0.1
-- @pnpm/store.cafs@3.0.1
+- @pnpm/store.calves@3.0.1
 - @pnpm/store-controller-types@18.0.1
 - @pnpm/fs.indexed-pkg-importer@6.0.1
 
@@ -338,7 +338,7 @@
   - @pnpm/store-controller-types@18.0.0
   - @pnpm/fs.indexed-pkg-importer@6.0.0
   - @pnpm/fetcher-base@16.0.0
-  - @pnpm/store.cafs@3.0.0
+  - @pnpm/store.calves@3.0.0
   - @pnpm/exec.pkg-requires-build@1.0.0
 
 ## 6.0.13
@@ -350,7 +350,7 @@
 - Updated dependencies [df9b16aa9]
   - @pnpm/store-controller-types@17.2.0
   - @pnpm/fs.indexed-pkg-importer@5.0.13
-  - @pnpm/store.cafs@2.0.12
+  - @pnpm/store.calves@2.0.12
   - @pnpm/fetcher-base@15.0.7
 
 ## 6.0.12
@@ -366,7 +366,7 @@
 
 - Updated dependencies [33313d2fd]
   - @pnpm/fs.indexed-pkg-importer@5.0.11
-  - @pnpm/store.cafs@2.0.11
+  - @pnpm/store.calves@2.0.11
   - @pnpm/fetcher-base@15.0.6
   - @pnpm/store-controller-types@17.1.4
 
@@ -375,7 +375,7 @@
 ### Patch Changes
 
 - @pnpm/fetcher-base@15.0.5
-- @pnpm/store.cafs@2.0.10
+- @pnpm/store.calves@2.0.10
 - @pnpm/store-controller-types@17.1.3
 - @pnpm/fs.indexed-pkg-importer@5.0.10
 
@@ -393,7 +393,7 @@
 - Updated dependencies [291607c5a]
   - @pnpm/store-controller-types@17.1.2
   - @pnpm/fs.indexed-pkg-importer@5.0.8
-  - @pnpm/store.cafs@2.0.9
+  - @pnpm/store.calves@2.0.9
 
 ## 6.0.7
 
@@ -406,7 +406,7 @@
   - @pnpm/exec.files-include-install-scripts@1.0.0
   - @pnpm/fetcher-base@15.0.4
   - @pnpm/fs.indexed-pkg-importer@5.0.7
-  - @pnpm/store.cafs@2.0.8
+  - @pnpm/store.calves@2.0.8
 
 ## 6.0.6
 
@@ -415,7 +415,7 @@
 - Updated dependencies [43ce9e4a6]
   - @pnpm/store-controller-types@17.1.0
   - @pnpm/fs.indexed-pkg-importer@5.0.6
-  - @pnpm/store.cafs@2.0.7
+  - @pnpm/store.calves@2.0.7
   - @pnpm/fetcher-base@15.0.3
 
 ## 6.0.5
@@ -431,7 +431,7 @@
 
 - Updated dependencies [01bc58e2c]
 - Updated dependencies [6dfbca86b]
-  - @pnpm/store.cafs@2.0.6
+  - @pnpm/store.calves@2.0.6
   - @pnpm/fs.indexed-pkg-importer@5.0.4
 
 ## 6.0.3
@@ -455,7 +455,7 @@
 - Updated dependencies [ee6e0734e]
   - @pnpm/fs.indexed-pkg-importer@5.0.1
   - @pnpm/fetcher-base@15.0.2
-  - @pnpm/store.cafs@2.0.5
+  - @pnpm/store.calves@2.0.5
   - @pnpm/store-controller-types@17.0.1
 
 ## 6.0.0
@@ -470,7 +470,7 @@
 - Updated dependencies [9caa33d53]
   - @pnpm/store-controller-types@17.0.0
   - @pnpm/fs.indexed-pkg-importer@5.0.0
-  - @pnpm/store.cafs@2.0.4
+  - @pnpm/store.calves@2.0.4
   - @pnpm/fetcher-base@15.0.1
 
 ## 5.1.1
@@ -491,7 +491,7 @@
 - Updated dependencies [03cdccc6e]
   - @pnpm/store-controller-types@16.1.0
   - @pnpm/fs.indexed-pkg-importer@4.1.0
-  - @pnpm/store.cafs@2.0.3
+  - @pnpm/store.calves@2.0.3
   - @pnpm/fetcher-base@15.0.1
 
 ## 5.0.2
@@ -499,7 +499,7 @@
 ### Patch Changes
 
 - Updated dependencies [b3947185c]
-  - @pnpm/store.cafs@2.0.2
+  - @pnpm/store.calves@2.0.2
   - @pnpm/fs.indexed-pkg-importer@4.0.1
 
 ## 5.0.1
@@ -508,7 +508,7 @@
 
 - Updated dependencies [b548f2f43]
 - Updated dependencies [4a1a9431d]
-  - @pnpm/store.cafs@2.0.1
+  - @pnpm/store.calves@2.0.1
   - @pnpm/fetcher-base@15.0.1
   - @pnpm/store-controller-types@16.0.1
   - @pnpm/fs.indexed-pkg-importer@4.0.1
@@ -528,7 +528,7 @@
 - Updated dependencies [70b2830ac]
 - Updated dependencies [083bbf590]
 - Updated dependencies [083bbf590]
-  - @pnpm/store.cafs@2.0.0
+  - @pnpm/store.calves@2.0.0
   - @pnpm/fs.indexed-pkg-importer@4.0.0
   - @pnpm/store-controller-types@16.0.0
   - @pnpm/fetcher-base@15.0.0
@@ -538,7 +538,7 @@
 ### Patch Changes
 
 - Updated dependencies [73f2b6826]
-  - @pnpm/store.cafs@1.0.2
+  - @pnpm/store.calves@1.0.2
   - @pnpm/fs.indexed-pkg-importer@3.0.2
 
 ## 4.0.7
@@ -546,7 +546,7 @@
 ### Patch Changes
 
 - Updated dependencies [fe1c5f48d]
-  - @pnpm/store.cafs@1.0.1
+  - @pnpm/store.calves@1.0.1
   - @pnpm/fs.indexed-pkg-importer@3.0.2
 
 ## 4.0.6
@@ -554,7 +554,7 @@
 ### Patch Changes
 
 - Updated dependencies [4bbf482d1]
-  - @pnpm/store.cafs@1.0.0
+  - @pnpm/store.calves@1.0.0
   - @pnpm/fs.indexed-pkg-importer@3.0.2
 
 ## 4.0.5
@@ -563,7 +563,7 @@
 
 - Updated dependencies [250f7e9fe]
 - Updated dependencies [e958707b2]
-  - @pnpm/cafs@7.0.5
+  - @pnpm/calves@7.0.5
   - @pnpm/fs.indexed-pkg-importer@3.0.2
   - @pnpm/fetcher-base@14.0.2
   - @pnpm/store-controller-types@15.0.2
@@ -573,7 +573,7 @@
 ### Patch Changes
 
 - Updated dependencies [b81cefdcd]
-  - @pnpm/cafs@7.0.4
+  - @pnpm/calves@7.0.4
   - @pnpm/fs.indexed-pkg-importer@3.0.1
 
 ## 4.0.3
@@ -581,7 +581,7 @@
 ### Patch Changes
 
 - Updated dependencies [e57e2d340]
-  - @pnpm/cafs@7.0.3
+  - @pnpm/calves@7.0.3
   - @pnpm/fs.indexed-pkg-importer@3.0.1
 
 ## 4.0.2
@@ -590,7 +590,7 @@
 
 - Updated dependencies [d55b41a8b]
 - Updated dependencies [614d5bd72]
-  - @pnpm/cafs@7.0.2
+  - @pnpm/calves@7.0.2
   - @pnpm/fs.indexed-pkg-importer@3.0.1
 
 ## 4.0.1
@@ -598,7 +598,7 @@
 ### Patch Changes
 
 - @pnpm/fetcher-base@14.0.1
-- @pnpm/cafs@7.0.1
+- @pnpm/calves@7.0.1
 - @pnpm/store-controller-types@15.0.1
 - @pnpm/fs.indexed-pkg-importer@3.0.1
 
@@ -614,7 +614,7 @@
   - @pnpm/store-controller-types@15.0.0
   - @pnpm/fs.indexed-pkg-importer@3.0.0
   - @pnpm/fetcher-base@14.0.0
-  - @pnpm/cafs@7.0.0
+  - @pnpm/calves@7.0.0
 
 ## 3.1.6
 
@@ -622,7 +622,7 @@
 
 - Updated dependencies [955874422]
   - @pnpm/fs.indexed-pkg-importer@2.1.4
-  - @pnpm/cafs@6.0.2
+  - @pnpm/calves@6.0.2
 
 ## 3.1.5
 
@@ -631,7 +631,7 @@
 - @pnpm/fetcher-base@13.1.6
 - @pnpm/store-controller-types@14.3.1
 - @pnpm/fs.indexed-pkg-importer@2.1.3
-- @pnpm/cafs@6.0.1
+- @pnpm/calves@6.0.1
 
 ## 3.1.4
 
@@ -646,7 +646,7 @@
 
 - Updated dependencies [98d6603f3]
 - Updated dependencies [98d6603f3]
-  - @pnpm/cafs@6.0.0
+  - @pnpm/calves@6.0.0
   - @pnpm/fs.indexed-pkg-importer@2.1.1
 
 ## 3.1.2
@@ -654,7 +654,7 @@
 ### Patch Changes
 
 - Updated dependencies [1e6de89b6]
-  - @pnpm/cafs@5.0.6
+  - @pnpm/calves@5.0.6
   - @pnpm/fs.indexed-pkg-importer@2.1.1
 
 ## 3.1.1
@@ -665,7 +665,7 @@
 - Updated dependencies [c7b05cd9a]
   - @pnpm/store-controller-types@14.3.0
   - @pnpm/fs.indexed-pkg-importer@2.1.1
-  - @pnpm/cafs@5.0.5
+  - @pnpm/calves@5.0.5
 
 ## 3.1.0
 
@@ -679,21 +679,21 @@
   - @pnpm/fs.indexed-pkg-importer@2.1.0
   - @pnpm/store-controller-types@14.2.0
   - @pnpm/fetcher-base@13.1.5
-  - @pnpm/cafs@5.0.4
+  - @pnpm/calves@5.0.4
 
 ## 3.0.3
 
 ### Patch Changes
 
 - Updated dependencies [a9d59d8bc]
-  - @pnpm/cafs@5.0.3
+  - @pnpm/calves@5.0.3
   - @pnpm/fs.indexed-pkg-importer@2.0.2
 
 ## 3.0.2
 
 ### Patch Changes
 
-- @pnpm/cafs@5.0.2
+- @pnpm/calves@5.0.2
 - @pnpm/fetcher-base@13.1.4
 - @pnpm/store-controller-types@14.1.5
 - @pnpm/fs.indexed-pkg-importer@2.0.2
@@ -702,7 +702,7 @@
 
 ### Patch Changes
 
-- @pnpm/cafs@5.0.1
+- @pnpm/calves@5.0.1
 - @pnpm/fetcher-base@13.1.3
 - @pnpm/store-controller-types@14.1.4
 - @pnpm/fs.indexed-pkg-importer@2.0.1
@@ -711,14 +711,14 @@
 
 ### Major Changes
 
-- 043d988fc: Breaking change to the API. Defaul export is not used.
+- 043d988fc: Breaking change to the API. Default export is not used.
 - f884689e0: Require `@pnpm/logger` v5.
 
 ### Patch Changes
 
 - Updated dependencies [043d988fc]
 - Updated dependencies [f884689e0]
-  - @pnpm/cafs@5.0.0
+  - @pnpm/calves@5.0.0
   - @pnpm/fs.indexed-pkg-importer@2.0.0
 
 ## 2.2.5
@@ -731,7 +731,7 @@
 
 ### Patch Changes
 
-- @pnpm/cafs@4.3.2
+- @pnpm/calves@4.3.2
 - @pnpm/fetcher-base@13.1.2
 - @pnpm/store-controller-types@14.1.3
 - @pnpm/fs.indexed-pkg-importer@1.1.3
@@ -740,7 +740,7 @@
 
 ### Patch Changes
 
-- @pnpm/cafs@4.3.1
+- @pnpm/calves@4.3.1
 - @pnpm/fetcher-base@13.1.1
 - @pnpm/store-controller-types@14.1.2
 - @pnpm/fs.indexed-pkg-importer@1.1.2
@@ -750,7 +750,7 @@
 ### Patch Changes
 
 - Updated dependencies [745143e79]
-  - @pnpm/cafs@4.3.0
+  - @pnpm/calves@4.3.0
   - @pnpm/fetcher-base@13.1.0
   - @pnpm/store-controller-types@14.1.1
   - @pnpm/fs.indexed-pkg-importer@1.1.1
@@ -760,20 +760,20 @@
 ### Patch Changes
 
 - Updated dependencies [dbac0ca01]
-  - @pnpm/cafs@4.2.1
+  - @pnpm/calves@4.2.1
   - @pnpm/fs.indexed-pkg-importer@1.1.1
 
 ## 2.2.0
 
 ### Minor Changes
 
-- 32915f0e4: Refactor cafs types into separate package and add additional properties including `cafsDir` and `getFilePathInCafs`.
+- 32915f0e4: Refactor calves types into separate package and add additional properties including `cafsDir` and `getFilePathInCafs`.
 
 ### Patch Changes
 
 - Updated dependencies [32915f0e4]
 - Updated dependencies [23984abd1]
-  - @pnpm/cafs@4.2.0
+  - @pnpm/calves@4.2.0
   - @pnpm/fetcher-base@13.1.0
   - @pnpm/store-controller-types@14.1.1
   - @pnpm/fs.indexed-pkg-importer@1.1.1
@@ -783,7 +783,7 @@
 ### Patch Changes
 
 - Updated dependencies [c191ca7bf]
-  - @pnpm/cafs@4.1.0
+  - @pnpm/calves@4.1.0
   - @pnpm/fs.indexed-pkg-importer@1.1.0
 
 ## 2.1.0
@@ -796,7 +796,7 @@
 
 - Updated dependencies [39c040127]
 - Updated dependencies [65c4260de]
-  - @pnpm/cafs@4.0.9
+  - @pnpm/calves@4.0.9
   - @pnpm/fs.indexed-pkg-importer@1.1.0
   - @pnpm/store-controller-types@14.1.0
 
@@ -804,7 +804,7 @@
 
 ### Patch Changes
 
-- @pnpm/cafs@4.0.8
+- @pnpm/calves@4.0.8
 - @pnpm/fetcher-base@13.0.2
 - @pnpm/store-controller-types@14.0.2
 - @pnpm/fs.indexed-pkg-importer@1.0.1
@@ -820,7 +820,7 @@
 
 ### Patch Changes
 
-- @pnpm/cafs@4.0.7
+- @pnpm/calves@4.0.7
 - @pnpm/core-loggers@7.0.5
 - @pnpm/fetcher-base@13.0.1
 - @pnpm/store-controller-types@14.0.1
@@ -841,7 +841,7 @@
 - Updated dependencies [47b5e45dd]
   - @pnpm/fetcher-base@13.0.0
   - @pnpm/store-controller-types@14.0.0
-  - @pnpm/cafs@4.0.6
+  - @pnpm/calves@4.0.6
   - @pnpm/core-loggers@7.0.4
 
 ## 1.1.0
@@ -855,7 +855,7 @@
 
 - Updated dependencies [0abfe1718]
   - @pnpm/fetcher-base@12.1.0
-  - @pnpm/cafs@4.0.5
+  - @pnpm/calves@4.0.5
   - @pnpm/core-loggers@7.0.3
   - @pnpm/store-controller-types@13.0.4
 
@@ -863,7 +863,7 @@
 
 ### Patch Changes
 
-- @pnpm/cafs@4.0.4
+- @pnpm/calves@4.0.4
 - @pnpm/core-loggers@7.0.2
 - @pnpm/fetcher-base@12.0.3
 - @pnpm/store-controller-types@13.0.3
@@ -873,7 +873,7 @@
 ### Patch Changes
 
 - Updated dependencies [6756c2b02]
-  - @pnpm/cafs@4.0.3
+  - @pnpm/calves@4.0.3
   - @pnpm/fetcher-base@12.0.2
   - @pnpm/store-controller-types@13.0.2
 
@@ -882,7 +882,7 @@
 ### Patch Changes
 
 - Updated dependencies [cadefe5b6]
-  - @pnpm/cafs@4.0.2
+  - @pnpm/calves@4.0.2
 
 ## 1.0.0
 
@@ -895,4 +895,4 @@
 - @pnpm/core-loggers@7.0.1
 - @pnpm/fetcher-base@12.0.1
 - @pnpm/store-controller-types@13.0.1
-- @pnpm/cafs@4.0.1
+- @pnpm/calves@4.0.1
