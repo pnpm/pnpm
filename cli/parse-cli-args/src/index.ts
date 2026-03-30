@@ -54,19 +54,10 @@ export async function parseCliArgs (
     { escapeArgs: opts.escapeArgs }
   )
 
-  const builtInCommandForced = noptExploratoryResults.argv.remain[0] === BUILTIN_PREFIX
+  const builtInCommandForced = inputArgv[0] === BUILTIN_PREFIX && noptExploratoryResults.argv.remain[0] === BUILTIN_PREFIX
   if (builtInCommandForced) {
-    // The first non-option token (the built-in prefix) starts at this position
-    const pmIndexInArgv = noptExploratoryResults.argv.original.length - noptExploratoryResults.argv.remain.length
     noptExploratoryResults.argv.remain.splice(0, 1)
-    // Also remove 'pm' from inputArgv so the second nopt call sees the real command
-    if (
-      pmIndexInArgv >= 0 &&
-      pmIndexInArgv < inputArgv.length &&
-      inputArgv[pmIndexInArgv] === BUILTIN_PREFIX
-    ) {
-      inputArgv.splice(pmIndexInArgv, 1)
-    }
+    inputArgv.splice(0, 1)
   }
   const recursiveCommandUsed = RECURSIVE_CMDS.has(noptExploratoryResults.argv.remain[0])
   let commandName = getCommandName(noptExploratoryResults.argv.remain)
