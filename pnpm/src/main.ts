@@ -49,12 +49,6 @@ process.stdout.on('error', (err: NodeJS.ErrnoException) => {
   throw err
 })
 
-const DEPRECATED_OPTIONS = new Set([
-  'independent-leaves',
-  'lock',
-  'resolution-strategy',
-])
-
 export async function main (inputArgv: string[]): Promise<void> {
   let parsedCliArgs!: ParsedCliArgsWithBuiltIn
   try {
@@ -82,21 +76,9 @@ export async function main (inputArgv: string[]): Promise<void> {
   }
 
   if (unknownOptions.size > 0 && !fallbackCommandUsed && !(cmd && NOT_IMPLEMENTED_COMMAND_SET.has(cmd))) {
-    const unknownOptionsArray = Array.from(unknownOptions.keys())
-    if (unknownOptionsArray.every((option) => DEPRECATED_OPTIONS.has(option))) {
-      let deprecationMsg = `${chalk.bgYellow.black('\u2009WARN\u2009')}`
-      if (unknownOptionsArray.length === 1) {
-        const deprecatedOption = unknownOptionsArray[0] as string
-        deprecationMsg += ` ${chalk.yellow(`Deprecated option: '${deprecatedOption}'`)}`
-      } else {
-        deprecationMsg += ` ${chalk.yellow(`Deprecated options: ${unknownOptionsArray.map((unknownOption: string) => `'${unknownOption}'`).join(', ')}`)}`
-      }
-      console.log(deprecationMsg)
-    } else {
-      printError(formatUnknownOptionsError(unknownOptions), `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
-      process.exitCode = 1
-      return
-    }
+    printError(formatUnknownOptionsError(unknownOptions), `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
+    process.exitCode = 1
+    return
   }
 
   let config: Config & {
