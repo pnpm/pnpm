@@ -132,8 +132,8 @@ function tryClonePkg (
   to: string,
   opts: ImportOptions
 ): 'clone' | undefined {
-  const clone = createCloneFunction()
   if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
+    const clone = createCloneFunction()
     importIndexedDir({ importFile: clone, importFileAtomic: clone }, to, opts.filesMap, opts)
     return 'clone'
   }
