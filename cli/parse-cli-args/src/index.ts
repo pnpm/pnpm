@@ -56,11 +56,16 @@ export async function parseCliArgs (
 
   const builtInCommandForced = noptExploratoryResults.argv.remain[0] === BUILTIN_PREFIX
   if (builtInCommandForced) {
+    // The first non-option token (the built-in prefix) starts at this position
+    const pmIndexInArgv = noptExploratoryResults.argv.original.length - noptExploratoryResults.argv.remain.length
     noptExploratoryResults.argv.remain.splice(0, 1)
     // Also remove 'pm' from inputArgv so the second nopt call sees the real command
-    const pmIndex = inputArgv.indexOf(BUILTIN_PREFIX)
-    if (pmIndex !== -1) {
-      inputArgv.splice(pmIndex, 1)
+    if (
+      pmIndexInArgv >= 0 &&
+      pmIndexInArgv < inputArgv.length &&
+      inputArgv[pmIndexInArgv] === BUILTIN_PREFIX
+    ) {
+      inputArgv.splice(pmIndexInArgv, 1)
     }
   }
   const recursiveCommandUsed = RECURSIVE_CMDS.has(noptExploratoryResults.argv.remain[0])
@@ -89,7 +94,7 @@ export async function parseCliArgs (
         params: noptExploratoryResults.argv.remain,
         unknownOptions: new Map(),
         fallbackCommandUsed: false,
-        builtInCommandForced: false,
+        builtInCommandForced,
         workspaceDir: await getWorkspaceDir(noptExploratoryResults),
       }
     }
@@ -103,7 +108,7 @@ export async function parseCliArgs (
       params: noptExploratoryResults.argv.remain,
       unknownOptions: new Map(),
       fallbackCommandUsed: false,
-      builtInCommandForced: false,
+      builtInCommandForced,
     }
   }
 
