@@ -39,11 +39,12 @@ function createMockContext (overrides?: Partial<OfferToOpenBrowserContext>): Off
   return {
     globalInfo: () => {},
     globalWarn: () => {},
+    ...overrides,
     process: {
       platform: 'linux',
       stdin: { isTTY: true },
+      ...overrides?.process,
     },
-    ...overrides,
   }
 }
 
@@ -106,7 +107,7 @@ describe('offerToOpenBrowser', () => {
     const context = createMockContext({
       createReadlineInterface: () => mockRl,
       execFile,
-      process: { platform: 'darwin', stdin: { isTTY: true } },
+      process: { platform: 'darwin' },
     })
 
     const resultPromise = offerToOpenBrowser({
@@ -133,7 +134,7 @@ describe('offerToOpenBrowser', () => {
     const context = createMockContext({
       createReadlineInterface: () => mockRl,
       execFile,
-      process: { platform: 'win32', stdin: { isTTY: true } },
+      process: { platform: 'win32' },
     })
 
     const resultPromise = offerToOpenBrowser({
@@ -156,7 +157,25 @@ describe('offerToOpenBrowser', () => {
     const context = createMockContext({
       createReadlineInterface: createMockReadlineInterface,
       execFile,
-      process: { platform: 'freebsd', stdin: { isTTY: true } },
+      process: { platform: 'freebsd' },
+    })
+
+    const token = await offerToOpenBrowser({
+      authUrl: 'https://example.com/auth',
+      context,
+      pollPromise: Promise.resolve('plain-token'),
+    })
+
+    expect(token).toBe('plain-token')
+    expect(execFile).not.toHaveBeenCalled()
+  })
+
+  it('skips browser prompt when platform is undefined', async () => {
+    const execFile = jest.fn<OfferToOpenBrowserExecFile>()
+    const context = createMockContext({
+      createReadlineInterface: createMockReadlineInterface,
+      execFile,
+      process: { platform: undefined },
     })
 
     const token = await offerToOpenBrowser({
@@ -256,7 +275,7 @@ describe('offerToOpenBrowser', () => {
     const context = createMockContext({
       createReadlineInterface: createMockReadlineInterface,
       execFile: jest.fn<OfferToOpenBrowserExecFile>(),
-      process: { platform: 'linux', stdin: { isTTY: false } },
+      process: { stdin: { isTTY: false } },
     })
 
     const token = await offerToOpenBrowser({

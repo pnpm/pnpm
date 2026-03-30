@@ -33,9 +33,13 @@ function createMockContext (overrides?: Partial<OtpContext>): OtpContext {
     globalWarn: msg => {
       throw new Error(`Unexpected call to globalWarn: ${msg}`)
     },
-    process: { stdin: { isTTY: true }, stdout: { isTTY: true } },
     publish: async () => createOkResponse(),
     ...overrides,
+    process: {
+      stdin: { isTTY: true },
+      stdout: { isTTY: true },
+      ...overrides?.process,
+    },
   }
 }
 
@@ -66,7 +70,7 @@ describe('publishWithOtpHandling', () => {
 
   it('throws OtpNonInteractiveError when terminal is not interactive', async () => {
     const context = createMockContext({
-      process: { stdin: { isTTY: false }, stdout: { isTTY: true } },
+      process: { stdin: { isTTY: false } },
       publish: async () => {
         throw Object.assign(new Error('otp'), { code: 'EOTP' })
       },

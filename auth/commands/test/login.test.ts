@@ -73,15 +73,17 @@ const createMockResponse = (init: {
 const createMockContext = (overrides?: Partial<LoginContext>): LoginContext => ({
   ...TEST_CONTEXT,
   ...overrides,
+  process: {
+    ...TEST_CONTEXT.process,
+    ...overrides?.process,
+  },
 })
 
 describe('login', () => {
   it('should throw in non-interactive terminal', async () => {
     const context = createMockContext({
       process: {
-        platform: 'linux',
         stdin: { isTTY: false },
-        stdout: { isTTY: true },
       },
     })
     const opts = { configDir: '/mock/config', dir: '/mock', rawConfig: {} }

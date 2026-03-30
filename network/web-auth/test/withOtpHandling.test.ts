@@ -47,11 +47,12 @@ const createOtpMockContext = (overrides?: Partial<OtpContext>): OtpContext => ({
   globalWarn: msg => {
     throw new Error(`Unexpected call to globalWarn: ${msg}`)
   },
+  ...overrides,
   process: {
     stdin: { isTTY: true },
     stdout: { isTTY: true },
+    ...overrides?.process,
   },
-  ...overrides,
 })
 
 const fetchOptions: WebAuthFetchOptions = { method: 'GET' }
@@ -74,10 +75,7 @@ describe('withOtpHandling', () => {
 
   it('throws OtpNonInteractiveError when terminal is not interactive', async () => {
     const context = createOtpMockContext({
-      process: {
-        stdin: { isTTY: false },
-        stdout: { isTTY: true },
-      },
+      process: { stdin: { isTTY: false } },
     })
     const operation = async () => {
       throw Object.assign(new Error('otp'), { code: 'EOTP' })
@@ -88,10 +86,7 @@ describe('withOtpHandling', () => {
 
   it('throws OtpNonInteractiveError when stdout is not interactive', async () => {
     const context = createOtpMockContext({
-      process: {
-        stdin: { isTTY: true },
-        stdout: { isTTY: false },
-      },
+      process: { stdout: { isTTY: false } },
     })
     const operation = async () => {
       throw Object.assign(new Error('otp'), { code: 'EOTP' })
