@@ -6,8 +6,8 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   checkLicenseCompliance,
   collectDirectDeps,
-  resolveInclude,
   type LicenseViolation,
+  resolveInclude,
 } from '@pnpm/deps.compliance.license-checker'
 import { findDependencyLicenses } from '@pnpm/deps.compliance.license-scanner'
 import { PnpmError } from '@pnpm/error'
