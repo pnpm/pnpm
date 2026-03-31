@@ -66,7 +66,7 @@ export async function licensesDisallow (
 
   const unrecognized = licenses.filter((l) => extractLicenseIds(l).length === 0)
   if (unrecognized.length > 0) {
-    lines.push(`Note: not standard SPDX identifiers (will still be matched literally): ${unrecognized.join(', ')}`)
+    lines.push(`Note: could not be parsed as SPDX expressions; will be matched literally: ${unrecognized.join(', ')}`)
   }
 
   return { output: lines.join('\n'), exitCode: 0 }
