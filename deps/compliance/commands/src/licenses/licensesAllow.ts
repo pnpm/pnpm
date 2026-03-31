@@ -1,5 +1,5 @@
 import { writeSettings } from '@pnpm/config.writer'
-import { extractLicenseIds } from '@pnpm/deps.compliance.license-checker'
+import { normalizeLicenseArgs } from '@pnpm/deps.compliance.license-checker'
 import { PnpmError } from '@pnpm/error'
 import type { LicensesConfig, ProjectManifest } from '@pnpm/types'
 
@@ -30,10 +30,11 @@ export async function licensesAllow (
     )
   }
 
+  const { ids, expanded, unparseable } = normalizeLicenseArgs(licenses)
   const currentAllowed = opts.licenses?.allowed ?? []
   const currentDisallowed = opts.licenses?.disallowed ?? []
-  const newAllowed = [...new Set([...currentAllowed, ...licenses])]
-  const newDisallowed = currentDisallowed.filter((l) => !licenses.includes(l))
+  const newAllowed = [...new Set([...currentAllowed, ...ids])]
+  const newDisallowed = currentDisallowed.filter((l) => !ids.includes(l))
 
   const updatedConfig: LicensesConfig = {
     ...opts.licenses,
@@ -51,7 +52,7 @@ export async function licensesAllow (
     },
   })
 
-  const added = licenses.filter((l) => !currentAllowed.includes(l))
+  const added = ids.filter((l) => !currentAllowed.includes(l))
   const lines: string[] = []
   if (added.length > 0) {
     lines.push(`Added to allowed licenses: ${added.join(', ')}`)
@@ -59,14 +60,17 @@ export async function licensesAllow (
     lines.push('All specified licenses are already in the allowed list')
   }
 
-  const removedFromDisallowed = currentDisallowed.filter((l) => licenses.includes(l))
+  const removedFromDisallowed = currentDisallowed.filter((l) => ids.includes(l))
   if (removedFromDisallowed.length > 0) {
     lines.push(`Removed from disallowed licenses: ${removedFromDisallowed.join(', ')}`)
   }
 
-  const unrecognized = licenses.filter((l) => extractLicenseIds(l).length === 0)
-  if (unrecognized.length > 0) {
-    lines.push(`Note: could not be parsed as SPDX expressions; will be matched literally: ${unrecognized.join(', ')}`)
+  if (expanded.length > 0) {
+    lines.push(`Expanded to individual license IDs: ${expanded.join(', ')}`)
+  }
+
+  if (unparseable.length > 0) {
+    lines.push(`Note: could not be parsed as SPDX expressions; will be matched literally: ${unparseable.join(', ')}`)
   }
 
   return { output: lines.join('\n'), exitCode: 0 }

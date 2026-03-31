@@ -71,7 +71,7 @@ export function checkLicenseCompliance (
         reason: formatReason(match.reason, effectiveLicense),
       }
       // Explicitly disallowed licenses are always violations, even in loose mode.
-      // In loose mode, only unlisted/unknown licenses are downgraded to warnings.
+      // Any other policy failure in loose mode is downgraded to a warning.
       if (mode === 'strict' || match.reason === 'explicitly-disallowed') {
         result.violations.push(violation)
       } else {
