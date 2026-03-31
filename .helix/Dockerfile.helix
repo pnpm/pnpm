@@ -1,12 +1,12 @@
-FROM node:20.16.0
+FROM node:24-bookworm-slim
 
 # Install git, git-lfs, and CA certificates (required by HTTPS git operations and husky hooks)
 RUN apt-get update && apt-get install -y git git-lfs ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN update-ca-certificates
 RUN git lfs install --skip-smudge
 
-# Install pnpm matching the repo's packageManager field
-RUN npm install -g pnpm@10.0.0-alpha.2
+# Install pnpm matching the repo devEngines.packageManager field
+RUN npm install -g pnpm@11.0.0-beta.6
 
 WORKDIR /app
 
@@ -16,9 +16,8 @@ COPY . .
 # Install all workspace dependencies (aligned with run-tests-eval.sh)
 RUN pnpm install --frozen-lockfile
 
-# Pre-cache Node 20.16.0 in pnpm's env store so the registry mock server
-# (used by jest globalSetup) can spawn with useNodeVersion: '20.16.0'
-RUN pnpm env use --global 20.16.0 || true
+# Pre-cache Node runtime used by jest globalSetup / registry mock when tests request it
+RUN pnpm env use --global 24.6.0 || true
 
 # Compile the pnpm CLI package (needed for cross-package imports in tests)
 RUN pnpm run compile-only || true

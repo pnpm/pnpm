@@ -17,32 +17,31 @@ pnpm install --frozen-lockfile
 # 2. LFS_FIXTURES: their test fixtures are binary .tgz files tracked via Git LFS.
 #    Without LFS the files are 129-byte pointer stubs and tests fail with bad
 #    tarball/checksum errors.
+# Package names follow pnpm v11 workspace layout (scoped @pnpm/<domain>.<pkg>).
 EXCLUDED_PACKAGES=(
   # -- REGISTRY_MOCK --
   "@pnpm/cache.commands"
-  "@pnpm/plugin-commands-rebuild"
-  "@pnpm/plugin-commands-script-runners"
-  "@pnpm/plugin-commands-patching"
-  "@pnpm/core"
-  "@pnpm/headless"
-  "@pnpm/package-requester"
-  "@pnpm/plugin-commands-installation"
+  "@pnpm/building.commands"
+  "@pnpm/exec.commands"
+  "@pnpm/patching.commands"
+  "@pnpm/installing.client"
+  "@pnpm/installing.commands"
+  "@pnpm/installing.package-requester"
   "pnpm"
-  "@pnpm/plugin-commands-deploy"
-  "@pnpm/plugin-commands-publishing"
-  "@pnpm/outdated"
-  "@pnpm/plugin-commands-listing"
-  "@pnpm/plugin-commands-outdated"
-  "@pnpm/plugin-commands-store"
+  "@pnpm/releasing.commands"
+  "@pnpm/deps.inspection.commands"
+  "@pnpm/deps.inspection.outdated"
+  "@pnpm/deps.inspection.list"
+  "@pnpm/store.commands"
+  "@pnpm/engine.pm.commands"
   # -- LFS_FIXTURES --
-  "@pnpm/tarball-fetcher"
+  "@pnpm/fetching.tarball-fetcher"
   "@pnpm/store.cafs"
-  "@pnpm/local-resolver"
-  "@pnpm/tools.plugin-commands-self-updater"
+  "@pnpm/resolving.local-resolver"
   # -- TIMEOUT/INFRA --
-  "@pnpm/server"
+  "@pnpm/store.connection-manager"
   # -- STALE_SNAPSHOT (existing-solution branch has outdated snapshot) --
-  "@pnpm/default-reporter"
+  "@pnpm/cli.default-reporter"
 )
 
 # Build pnpm --filter exclusion args

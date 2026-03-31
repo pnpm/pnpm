@@ -1,53 +1,58 @@
 {
-  "name": "@pnpm/directory-fetcher",
-  "version": "8.0.9",
+  "name": "@pnpm/fetching.directory-fetcher",
+  "version": "1000.1.14",
   "description": "A fetcher for local directory packages",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "fetcher"
+  ],
+  "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/fetching/directory-fetcher",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/fetching/directory-fetcher#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
   "scripts": {
-    "_test": "jest",
-    "test": "pnpm run compile && pnpm run _test",
+    "test": "pn compile && pn .test",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix"
-  },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/fetching/directory-fetcher",
-  "engines": {
-    "node": ">=18.12"
-  },
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "fetcher"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/fetching/directory-fetcher#readme",
-  "peerDependencies": {
-    "@pnpm/logger": "^5.1.0"
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
-    "@pnpm/exec.pkg-requires-build": "workspace:*",
-    "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/building.pkg-requires-build": "workspace:*",
+    "@pnpm/fetching.fetcher-base": "workspace:*",
     "@pnpm/fs.packlist": "workspace:*",
-    "@pnpm/read-project-manifest": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
-    "@pnpm/types": "workspace:*"
+    "@pnpm/resolving.resolver-base": "workspace:*",
+    "@pnpm/store.cafs-types": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/directory-fetcher": "workspace:*",
+    "@jest/globals": "catalog:",
+    "@pnpm/fetching.directory-fetcher": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/test-fixtures": "workspace:*"
+    "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
+    "@zkochan/rimraf": "catalog:"
   },
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=22.13"
   },
   "jest": {
     "preset": "@pnpm/jest-config"
