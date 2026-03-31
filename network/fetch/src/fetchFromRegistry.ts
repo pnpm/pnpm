@@ -48,6 +48,9 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
         userAgent: defaultOpts.userAgent,
       }),
     }
+    if (opts?.ifNoneMatch) {
+      headers['if-none-match'] = opts.ifNoneMatch
+    }
     if (opts?.ifModifiedSince) {
       headers['if-modified-since'] = opts.ifModifiedSince
     }

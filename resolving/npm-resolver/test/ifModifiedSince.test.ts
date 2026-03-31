@@ -9,7 +9,7 @@ import type { Registries } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
 
-import { getMockAgent, setupMockAgent, teardownMockAgent } from './utils/index.js'
+import { getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
 
@@ -35,12 +35,17 @@ beforeEach(async () => {
 
 test('use local cache when registry returns 304 Not Modified', async () => {
   const cacheDir = temporaryDirectory()
-  // Write cached metadata to disk
+  // Write cached metadata with etag to disk
+  const cachedMeta = {
+    ...isPositiveMeta,
+    etag: '"abc123"',
+    lastModified: 'Wed, 17 Aug 2017 19:26:00 GMT',
+  }
   const cacheDir2 = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
   fs.mkdirSync(cacheDir2, { recursive: true })
   fs.writeFileSync(
     path.join(cacheDir2, 'is-positive.json'),
-    JSON.stringify(isPositiveMeta),
+    JSON.stringify(cachedMeta),
     'utf8'
   )
 
@@ -63,29 +68,16 @@ test('use local cache when registry returns 304 Not Modified', async () => {
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
 })
 
-test('fetch fresh metadata when registry returns 200', async () => {
+test('store etag and lastModified from 200 response in cache', async () => {
   const cacheDir = temporaryDirectory()
-  // Write stale cached metadata with only v1.0.0
-  const staleMeta = {
-    name: 'is-positive',
-    versions: {
-      '1.0.0': isPositiveMeta.versions['1.0.0'],
-    },
-    'dist-tags': { latest: '1.0.0' },
-    modified: '2015-06-02T12:03:51.069Z',
+  const responseHeaders = {
+    etag: '"xyz789"',
+    'last-modified': 'Thu, 18 Aug 2017 10:00:00 GMT',
   }
-  const cacheDir2 = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
-  fs.mkdirSync(cacheDir2, { recursive: true })
-  fs.writeFileSync(
-    path.join(cacheDir2, 'is-positive.json'),
-    JSON.stringify(staleMeta),
-    'utf8'
-  )
 
-  // Registry returns fresh metadata
   getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
-    .reply(200, isPositiveMeta)
+    .reply(200, isPositiveMeta, { headers: responseHeaders })
 
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
@@ -99,10 +91,17 @@ test('fetch fresh metadata when registry returns 200', async () => {
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
+
+  // Verify etag and lastModified were saved to disk cache
+  const cachePath = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org/is-positive.json`)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const savedMeta = await retryLoadJsonFile<any>(cachePath)
+  expect(savedMeta.etag).toBe('"xyz789"')
+  expect(savedMeta.lastModified).toBe('Thu, 18 Aug 2017 10:00:00 GMT')
 })
 
-test('fetch without If-Modified-Since when no local cache exists', async () => {
-  // No cache file, so no If-Modified-Since header — normal 200 response
+test('fetch without conditional headers when no local cache exists', async () => {
+  // No cache file → no ETag/Last-Modified to send → normal 200 response
   getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)

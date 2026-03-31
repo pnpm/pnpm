@@ -88,7 +88,7 @@ function pickPackageFromMetaUsingTime (
 
 export async function pickPackage (
   ctx: {
-    fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean, ifModifiedSince?: Date }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
+    fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean, etag?: string, lastModified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
     fullMetadata?: boolean
     metaCache: PackageMetaCache
     cacheDir: string
@@ -213,17 +213,18 @@ export async function pickPackage (
     }
 
     try {
-      const cachedMtime = await limit(async () => getFileMtime(pkgMirror))
+      // Load cached metadata to get conditional request headers (ETag, Last-Modified)
+      metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
       const fetchResult = await ctx.fetch(spec.name, {
         authHeaderValue: opts.authHeaderValue,
         fullMetadata,
-        ifModifiedSince: cachedMtime ?? undefined,
+        etag: metaCachedInStore?.etag,
+        lastModified: metaCachedInStore?.lastModified,
         registry: opts.registry,
       })
 
       // 304 Not Modified — registry confirmed local cache is still fresh
       if (fetchResult.notModified) {
-        metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
         if (metaCachedInStore != null) {
           ctx.metaCache.set(cacheKey, metaCachedInStore)
           return {
@@ -242,15 +243,23 @@ export async function pickPackage (
         meta = clearMeta(meta)
       } else if (typeof fetchResult.jsonText === 'string') {
         // Reuse the raw JSON text from the registry response to avoid re-stringifying.
-        // Inject cachedAt at the start of the JSON object. To be robust against BOMs or
-        // leading whitespace/newlines, locate the first '{' and splice after it.
+        // Inject cachedAt and cache validation headers at the start of the JSON object.
         const jsonText = fetchResult.jsonText
         const firstBraceIndex = jsonText.indexOf('{')
         if (firstBraceIndex !== -1) {
-          jsonToSave = `{"cachedAt":${cachedAt},${jsonText.slice(firstBraceIndex + 1)}`
+          let injectedFields = `"cachedAt":${cachedAt}`
+          if (fetchResult.etag) {
+            injectedFields += `,"etag":${JSON.stringify(fetchResult.etag)}`
+          }
+          if (fetchResult.lastModified) {
+            injectedFields += `,"lastModified":${JSON.stringify(fetchResult.lastModified)}`
+          }
+          jsonToSave = `{${injectedFields},${jsonText.slice(firstBraceIndex + 1)}`
         }
       }
       meta.cachedAt = cachedAt
+      meta.etag = fetchResult.etag
+      meta.lastModified = fetchResult.lastModified
       // only save meta to cache, when it is fresh
       ctx.metaCache.set(cacheKey, meta)
       if (!opts.dryRun) {
@@ -315,6 +324,8 @@ function clearMeta (pkg: PackageMeta): PackageMeta {
     versions,
     time: pkg.time,
     cachedAt: pkg.cachedAt,
+    etag: pkg.etag,
+    lastModified: pkg.lastModified,
   }
 }
 
@@ -323,15 +334,6 @@ function encodePkgName (pkgName: string): string {
     return `${pkgName}_${createHexHash(pkgName)}`
   }
   return pkgName
-}
-
-async function getFileMtime (filePath: string): Promise<Date | null> {
-  try {
-    const stat = await fs.stat(filePath)
-    return stat.mtime
-  } catch {
-    return null
-  }
 }
 
 async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {

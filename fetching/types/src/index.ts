@@ -14,6 +14,7 @@ export type FetchFromRegistry = (
     compress?: boolean
     fullMetadata?: boolean
     ifModifiedSince?: string
+    ifNoneMatch?: string
     retry?: RetryTimeoutOptions
     timeout?: number
   }
