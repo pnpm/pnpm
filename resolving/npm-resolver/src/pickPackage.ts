@@ -206,8 +206,13 @@ export async function pickPackage (
                 pickedPackage,
               }
             }
-          } catch (err) {
-            if (ctx.strictPublishedByCheck) {
+          } catch (err: unknown) {
+            // Don't rethrow ERR_PNPM_MISSING_TIME from cached abbreviated metadata —
+            // let the code fall through to the network fetch path which will get full metadata.
+            if (
+              ctx.strictPublishedByCheck &&
+              !(isMissingTimeError(err))
+            ) {
               throw err
             }
           }
@@ -246,8 +251,15 @@ export async function pickPackage (
       // When minimumReleaseAge is active and we fetched abbreviated metadata,
       // check if the package was recently modified and needs full metadata
       // for per-version time-based filtering.
-      if (opts.publishedBy && !fullMetadata && meta.time == null) {
-        if (!meta.modified || new Date(meta.modified) >= opts.publishedBy) {
+      if (
+        opts.publishedBy &&
+        !fullMetadata &&
+        meta.time == null &&
+        opts.publishedByExclude?.(spec.name) !== true
+      ) {
+        const modifiedDate = meta.modified ? new Date(meta.modified) : null
+        const isModifiedValid = modifiedDate != null && !Number.isNaN(modifiedDate.getTime())
+        if (!isModifiedValid || modifiedDate >= opts.publishedBy) {
           fetchResult = await ctx.fetch(spec.name, {
             authHeaderValue: opts.authHeaderValue,
             fullMetadata: true,
@@ -349,6 +361,15 @@ function encodePkgName (pkgName: string): string {
     return `${pkgName}_${createHexHash(pkgName)}`
   }
   return pkgName
+}
+
+function isMissingTimeError (err: unknown): boolean {
+  return (
+    err != null &&
+    typeof err === 'object' &&
+    'code' in err &&
+    (err as { code: string }).code === 'ERR_PNPM_MISSING_TIME'
+  )
 }
 
 async function getFileMtime (filePath: string): Promise<Date | null> {

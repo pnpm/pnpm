@@ -42,13 +42,16 @@ export function pickPackageFromMeta (
         assertMetaHasTime(meta)
         const trustedVersions = Array.isArray(excludeResult) ? excludeResult : undefined
         meta = filterPkgMetadataByPublishDate(meta, publishedBy, trustedVersions)
-      } else if (!meta.modified || new Date(meta.modified) >= publishedBy) {
-        // Abbreviated metadata without per-version timestamps, and the package
-        // was recently modified (or has no modified field). We cannot determine
-        // which individual versions are mature enough — need full metadata.
-        assertMetaHasTime(meta)
+      } else {
+        const modifiedDate = parseModifiedDate(meta.modified)
+        if (modifiedDate == null || modifiedDate >= publishedBy) {
+          // Abbreviated metadata without per-version timestamps, and the package
+          // was recently modified (or has no/invalid modified field). We cannot determine
+          // which individual versions are mature enough — need full metadata.
+          assertMetaHasTime(meta)
+        }
+        // else: meta.modified < publishedBy — all versions are old enough, no filtering needed
       }
-      // else: meta.modified < publishedBy — all versions are old enough, no filtering needed
     }
   }
   if ((!meta.versions || Object.keys(meta.versions).length === 0) && !publishedBy) {
@@ -108,6 +111,13 @@ export function assertMetaHasTime (meta: PackageMeta): asserts meta is PackageMe
   if (meta.time == null) {
     throw new PnpmError('MISSING_TIME', `The metadata of ${meta.name} is missing the "time" field`)
   }
+}
+
+function parseModifiedDate (modified: string | undefined): Date | null {
+  if (!modified) return null
+  const date = new Date(modified)
+  if (Number.isNaN(date.getTime())) return null
+  return date
 }
 
 const semverRangeCache = new Map<string, semver.Range | null>()
