@@ -63,7 +63,7 @@ export interface NormalizedLicenseArgs {
   /** Expressions that were expanded to leaf IDs */
   expanded: string[]
   /** Strings that could not be parsed as SPDX */
-  unparseable: string[]
+  unrecognized: string[]
 }
 
 /**
@@ -77,13 +77,13 @@ export interface NormalizedLicenseArgs {
 export function normalizeLicenseArgs (args: string[]): NormalizedLicenseArgs {
   const ids: string[] = []
   const expanded: string[] = []
-  const unparseable: string[] = []
+  const unrecognized: string[] = []
 
   for (const arg of args) {
     const extractedIds = extractLicenseIds(arg)
     if (extractedIds.length === 0) {
       // Non-SPDX string — keep for literal matching
-      unparseable.push(arg)
+      unrecognized.push(arg)
       ids.push(arg)
     } else if (extractedIds.length === 1) {
       // Simple ID, WITH expression, or plus — keep the original argument
@@ -98,5 +98,5 @@ export function normalizeLicenseArgs (args: string[]): NormalizedLicenseArgs {
     }
   }
 
-  return { ids: [...new Set(ids)], expanded, unparseable }
+  return { ids: [...new Set(ids)], expanded, unrecognized }
 }
