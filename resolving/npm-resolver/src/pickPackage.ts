@@ -14,7 +14,7 @@ import { pick } from 'ramda'
 import { renameOverwrite } from 'rename-overwrite'
 import semver from 'semver'
 
-import type { FetchMetadataResult } from './fetch.js'
+import type { FetchMetadataNotModifiedResult, FetchMetadataResult } from './fetch.js'
 import type { RegistryPackageSpec } from './parseBareSpecifier.js'
 import {
   pickLowestVersionByVersionRange,
@@ -88,7 +88,7 @@ function pickPackageFromMetaUsingTime (
 
 export async function pickPackage (
   ctx: {
-    fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean }) => Promise<FetchMetadataResult>
+    fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean, ifModifiedSince?: Date }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
     fullMetadata?: boolean
     metaCache: PackageMetaCache
     cacheDir: string
@@ -213,11 +213,28 @@ export async function pickPackage (
     }
 
     try {
+      const cachedMtime = await limit(async () => getFileMtime(pkgMirror))
       const fetchResult = await ctx.fetch(spec.name, {
         authHeaderValue: opts.authHeaderValue,
         fullMetadata,
+        ifModifiedSince: cachedMtime ?? undefined,
         registry: opts.registry,
       })
+
+      // 304 Not Modified — registry confirmed local cache is still fresh
+      if (fetchResult.notModified) {
+        metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
+        if (metaCachedInStore != null) {
+          ctx.metaCache.set(cacheKey, metaCachedInStore)
+          return {
+            meta: metaCachedInStore,
+            pickedPackage: _pickPackageFromMeta(metaCachedInStore),
+          }
+        }
+        throw new PnpmError('CACHE_MISSING_AFTER_304',
+          `Metadata cache for ${spec.name} is unreadable after receiving 304 Not Modified`)
+      }
+
       const cachedAt = Date.now()
       let meta = fetchResult.meta
       let jsonToSave: string | undefined
@@ -306,6 +323,15 @@ function encodePkgName (pkgName: string): string {
     return `${pkgName}_${createHexHash(pkgName)}`
   }
   return pkgName
+}
+
+async function getFileMtime (filePath: string): Promise<Date | null> {
+  try {
+    const stat = await fs.stat(filePath)
+    return stat.mtime
+  } catch {
+    return null
+  }
 }
 
 async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {

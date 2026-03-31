@@ -22,6 +22,11 @@ interface RegistryResponse {
 export interface FetchMetadataResult {
   meta: PackageMeta
   jsonText: string
+  notModified?: false
+}
+
+export interface FetchMetadataNotModifiedResult {
+  notModified: true
 }
 
 // https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
@@ -60,6 +65,7 @@ export interface FetchMetadataOptions {
   registry: string
   authHeaderValue?: string
   fullMetadata?: boolean
+  ifModifiedSince?: Date
 }
 
 export async function fetchMetadataFromFromRegistry (
@@ -68,9 +74,10 @@ export async function fetchMetadataFromFromRegistry (
   {
     authHeaderValue,
     fullMetadata,
+    ifModifiedSince,
     registry,
   }: FetchMetadataOptions
-): Promise<FetchMetadataResult> {
+): Promise<FetchMetadataResult | FetchMetadataNotModifiedResult> {
   const uri = toUri(pkgName, registry)
   const op = retry.operation(fetchOpts.retry)
   return new Promise((resolve, reject) => {
@@ -82,11 +89,16 @@ export async function fetchMetadataFromFromRegistry (
           authHeaderValue,
           compress: true,
           fullMetadata,
+          ifModifiedSince: ifModifiedSince?.toUTCString(),
           retry: fetchOpts.retry,
           timeout: fetchOpts.timeout,
         }) as RegistryResponse
       } catch (error: any) { // eslint-disable-line
         reject(new PnpmError('META_FETCH_FAIL', `GET ${uri}: ${error.message as string}`, { attempts: attempt, cause: error }))
+        return
+      }
+      if (response.status === 304) {
+        resolve({ notModified: true })
         return
       }
       if (response.status >= 400) {
