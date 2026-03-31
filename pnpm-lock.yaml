@@ -648,6 +648,9 @@ catalogs:
     sort-keys:
       specifier: ^6.0.0
       version: 6.0.0
+    spdx-expression-parse:
+      specifier: ^4.0.0
+      version: 4.0.0
     split-cmd:
       specifier: ^1.1.0
       version: 1.1.0
@@ -2738,7 +2741,7 @@ importers:
         specifier: workspace:*
         version: link:../../../core/types
       spdx-expression-parse:
-        specifier: ^4.0.0
+        specifier: 'catalog:'
         version: 4.0.0
     devDependencies:
       '@jest/globals':
