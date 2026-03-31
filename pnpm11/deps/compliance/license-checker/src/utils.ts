@@ -1,5 +1,7 @@
 import type { LicensesConfig, ProjectManifest } from '@pnpm/types'
 
+import { extractLicenseIds } from './spdxMatcher.js'
+
 export interface IncludeFlags {
   dev?: boolean
   production?: boolean
@@ -7,7 +9,7 @@ export interface IncludeFlags {
 }
 
 export function resolveInclude (
-  environment: string,
+  environment: NonNullable<LicensesConfig['environment']>,
   opts?: IncludeFlags
 ): { dependencies: boolean, devDependencies: boolean, optionalDependencies: boolean } {
   if (environment === 'prod') {
@@ -53,4 +55,48 @@ export function collectDirectDeps (
 export function shouldRunLicenseCheck (licenses?: LicensesConfig | null): boolean {
   const mode = licenses?.mode
   return mode === 'strict' || mode === 'loose'
+}
+
+export interface NormalizedLicenseArgs {
+  /** License IDs to add to the policy list */
+  ids: string[]
+  /** Expressions that were expanded to leaf IDs */
+  expanded: string[]
+  /** Strings that could not be parsed as SPDX */
+  unparseable: string[]
+}
+
+/**
+ * Normalizes license arguments for allow/disallow commands.
+ * - Simple IDs (e.g. "MIT") are kept as-is
+ * - WITH expressions (e.g. "Apache-2.0 WITH LLVM-exception") are kept as-is
+ * - Plus expressions (e.g. "GPL-2.0+") are kept as-is
+ * - Compound expressions (e.g. "MIT OR Apache-2.0") are expanded to leaf IDs
+ * - Non-SPDX strings are kept as-is (for literal matching)
+ */
+export function normalizeLicenseArgs (args: string[]): NormalizedLicenseArgs {
+  const ids: string[] = []
+  const expanded: string[] = []
+  const unparseable: string[] = []
+
+  for (const arg of args) {
+    const extractedIds = extractLicenseIds(arg)
+    if (extractedIds.length === 0) {
+      // Non-SPDX string — keep for literal matching
+      unparseable.push(arg)
+      ids.push(arg)
+    } else if (extractedIds.length === 1) {
+      // Simple ID, WITH expression, or plus — keep the original argument
+      // so "GPL-2.0+" and "Apache-2.0 WITH LLVM-exception" are preserved
+      ids.push(arg)
+    } else {
+      // Compound expression — expand to leaf IDs
+      expanded.push(arg)
+      for (const id of extractedIds) {
+        ids.push(id)
+      }
+    }
+  }
+
+  return { ids: [...new Set(ids)], expanded, unparseable }
 }

@@ -1411,6 +1411,54 @@ test('cliOptionsTypes registers the supply-chain policy options', () => {
   expect(optionTypes).toHaveProperty('trust-policy-ignore-after')
 })
 
+describe('license compliance after update', () => {
+  test('pnpm update fails when a disallowed license is present in strict mode', async () => {
+    prepare({
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    })
+
+    await install.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    })
+
+    await expect(
+      update.handler({
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+        licenses: {
+          disallowed: ['MIT'],
+          mode: 'strict',
+        },
+      })
+    ).rejects.toThrow('license violation')
+  })
+
+  test('pnpm update succeeds when licenses.mode is none', async () => {
+    prepare({
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    })
+
+    await install.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    })
+
+    await update.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      licenses: {
+        disallowed: ['MIT'],
+        mode: 'none',
+      },
+    })
+  })
+})
+
 function createPackageVulnerabilityAudit (vulnerablePackage: string): PackageVulnerabilityAudit {
   return {
     isVulnerable: (packageName, version) => packageName === vulnerablePackage && version === '100.0.0',
