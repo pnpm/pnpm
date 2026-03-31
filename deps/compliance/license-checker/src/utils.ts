@@ -79,16 +79,23 @@ export function normalizeLicenseArgs (args: string[]): NormalizedLicenseArgs {
   const expanded: string[] = []
   const unrecognized: string[] = []
 
-  for (const arg of args) {
+  for (const rawArg of args) {
+    const arg = rawArg.trim()
     const extractedIds = extractLicenseIds(arg)
     if (extractedIds.length === 0) {
       // Non-SPDX string — keep for literal matching
       unrecognized.push(arg)
       ids.push(arg)
     } else if (extractedIds.length === 1) {
-      // Simple ID, WITH expression, or plus — keep the original argument
-      // so "GPL-2.0+" and "Apache-2.0 WITH LLVM-exception" are preserved
-      ids.push(arg)
+      // Keep the original form only for WITH/plus expressions where the
+      // literal matters for policy matching (e.g. "GPL-2.0+" or
+      // "Apache-2.0 WITH LLVM-exception"). Otherwise use the extracted ID
+      // to avoid storing parenthesized variants like "(MIT)".
+      if (/\bWITH\b/.test(arg) || arg.endsWith('+')) {
+        ids.push(arg)
+      } else {
+        ids.push(extractedIds[0])
+      }
     } else {
       // Compound expression — expand to leaf IDs
       expanded.push(arg)
