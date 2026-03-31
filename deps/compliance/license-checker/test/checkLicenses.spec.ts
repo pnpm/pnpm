@@ -1,5 +1,4 @@
 import { describe, expect, it } from '@jest/globals'
-
 import { checkLicenseCompliance, type LicensePackageInfo } from '@pnpm/deps.compliance.license-checker'
 
 function pkg (overrides: Partial<LicensePackageInfo> = {}): LicensePackageInfo {

@@ -1,5 +1,4 @@
 import { describe, expect, it } from '@jest/globals'
-
 import { extractLicenseIds, matchLicenseAgainstPolicy } from '@pnpm/deps.compliance.license-checker'
 
 describe('extractLicenseIds', () => {

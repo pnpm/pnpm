@@ -1,6 +1,6 @@
 export {
-  checkLicensesAfterInstall,
   type CheckAfterInstallOptions,
+  checkLicensesAfterInstall,
 } from './checkAfterInstall.js'
 export {
   checkLicenseCompliance,
@@ -10,13 +10,13 @@ export {
 } from './checkLicenses.js'
 export {
   extractLicenseIds,
-  matchLicenseAgainstPolicy,
   type LicenseMatchResult,
+  matchLicenseAgainstPolicy,
   type MatchPolicyOptions,
 } from './spdxMatcher.js'
 export {
   collectDirectDeps,
+  type IncludeFlags,
   resolveInclude,
   shouldRunLicenseCheck,
-  type IncludeFlags,
 } from './utils.js'
