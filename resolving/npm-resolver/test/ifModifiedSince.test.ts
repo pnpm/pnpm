@@ -36,10 +36,10 @@ beforeEach(async () => {
 test('use local cache when registry returns 304 Not Modified', async () => {
   const cacheDir = temporaryDirectory()
   // Write cached metadata with etag to disk
+  // is-positive.json already has modified: "2017-08-17T19:26:00.508Z"
   const cachedMeta = {
     ...isPositiveMeta,
     etag: '"abc123"',
-    lastModified: 'Wed, 17 Aug 2017 19:26:00 GMT',
   }
   const cacheDir2 = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
   fs.mkdirSync(cacheDir2, { recursive: true })
@@ -72,7 +72,6 @@ test('store etag and lastModified from 200 response in cache', async () => {
   const cacheDir = temporaryDirectory()
   const responseHeaders = {
     etag: '"xyz789"',
-    'last-modified': 'Thu, 18 Aug 2017 10:00:00 GMT',
   }
 
   getMockAgent().get(registries.default.replace(/\/$/, ''))
@@ -97,7 +96,6 @@ test('store etag and lastModified from 200 response in cache', async () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const savedMeta = await retryLoadJsonFile<any>(cachePath)
   expect(savedMeta.etag).toBe('"xyz789"')
-  expect(savedMeta.lastModified).toBe('Thu, 18 Aug 2017 10:00:00 GMT')
 })
 
 test('fetch without conditional headers when no local cache exists', async () => {

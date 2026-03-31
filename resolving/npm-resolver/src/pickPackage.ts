@@ -88,7 +88,7 @@ function pickPackageFromMetaUsingTime (
 
 export async function pickPackage (
   ctx: {
-    fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean, etag?: string, lastModified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
+    fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean, etag?: string, modified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
     fullMetadata?: boolean
     metaCache: PackageMetaCache
     cacheDir: string
@@ -219,7 +219,7 @@ export async function pickPackage (
         authHeaderValue: opts.authHeaderValue,
         fullMetadata,
         etag: metaCachedInStore?.etag,
-        lastModified: metaCachedInStore?.lastModified,
+        modified: metaCachedInStore?.modified ?? metaCachedInStore?.time?.modified,
         registry: opts.registry,
       })
 
@@ -251,15 +251,11 @@ export async function pickPackage (
           if (fetchResult.etag) {
             injectedFields += `,"etag":${JSON.stringify(fetchResult.etag)}`
           }
-          if (fetchResult.lastModified) {
-            injectedFields += `,"lastModified":${JSON.stringify(fetchResult.lastModified)}`
-          }
           jsonToSave = `{${injectedFields},${jsonText.slice(firstBraceIndex + 1)}`
         }
       }
       meta.cachedAt = cachedAt
       meta.etag = fetchResult.etag
-      meta.lastModified = fetchResult.lastModified
       // only save meta to cache, when it is fresh
       ctx.metaCache.set(cacheKey, meta)
       if (!opts.dryRun) {
@@ -323,9 +319,9 @@ function clearMeta (pkg: PackageMeta): PackageMeta {
     'dist-tags': pkg['dist-tags'],
     versions,
     time: pkg.time,
+    modified: pkg.modified,
     cachedAt: pkg.cachedAt,
     etag: pkg.etag,
-    lastModified: pkg.lastModified,
   }
 }
 

@@ -26,7 +26,6 @@ export interface FetchMetadataResult {
   meta: PackageMeta
   jsonText: string
   etag?: string
-  lastModified?: string
   notModified?: false
 }
 
@@ -71,7 +70,7 @@ export interface FetchMetadataOptions {
   authHeaderValue?: string
   fullMetadata?: boolean
   etag?: string
-  lastModified?: string
+  modified?: string
 }
 
 export async function fetchMetadataFromFromRegistry (
@@ -81,7 +80,7 @@ export async function fetchMetadataFromFromRegistry (
     authHeaderValue,
     etag: cachedEtag,
     fullMetadata,
-    lastModified: cachedLastModified,
+    modified: cachedModified,
     registry,
   }: FetchMetadataOptions
 ): Promise<FetchMetadataResult | FetchMetadataNotModifiedResult> {
@@ -97,7 +96,7 @@ export async function fetchMetadataFromFromRegistry (
           compress: true,
           fullMetadata,
           ifNoneMatch: cachedEtag,
-          ifModifiedSince: cachedLastModified,
+          ifModifiedSince: cachedModified ? new Date(cachedModified).toUTCString() : undefined,
           retry: fetchOpts.retry,
           timeout: fetchOpts.timeout,
         }) as RegistryResponse
@@ -132,7 +131,6 @@ export async function fetchMetadataFromFromRegistry (
           meta,
           jsonText,
           etag: response.headers.get('etag') ?? undefined,
-          lastModified: response.headers.get('last-modified') ?? undefined,
         })
       } catch (error: any) { // eslint-disable-line
         const timeout = op.retry(
