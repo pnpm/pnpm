@@ -2720,9 +2720,6 @@ importers:
 
   deps/compliance/license-checker:
     dependencies:
-      '@pnpm/constants':
-        specifier: workspace:*
-        version: link:../../../core/constants
       '@pnpm/deps.compliance.license-scanner':
         specifier: workspace:*
         version: link:../license-scanner

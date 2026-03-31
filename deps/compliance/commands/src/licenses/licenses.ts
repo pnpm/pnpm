@@ -9,9 +9,9 @@ import { PnpmError } from '@pnpm/error'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
-import type { LicensesCommandResult } from './LicensesCommandResult.js'
 import { licensesAllow } from './licensesAllow.js'
 import { licensesCheck } from './licensesCheck.js'
+import type { LicensesCommandResult } from './LicensesCommandResult.js'
 import { licensesDisallow } from './licensesDisallow.js'
 import { type LicensesCommandOptions, licensesList } from './licensesList.js'
 
