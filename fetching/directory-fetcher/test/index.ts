@@ -1,11 +1,14 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'fs'
 import path from 'path'
-import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
+import { createDirectoryFetcher } from '../src'
 // @ts-expect-error
 import { debug } from '@pnpm/logger'
 import { fixtures } from '@pnpm/test-fixtures'
-import { sync as rimraf } from '@zkochan/rimraf'
+
+function rimrafSync (target: string) {
+  fs.rmSync(target, { recursive: true, force: true })
+}
 
 const f = fixtures(__dirname)
 jest.mock('@pnpm/logger', () => {
@@ -89,7 +92,7 @@ describe('package with broken symlink', () => {
   beforeAll(() => {
     // Git on Windows often checks out symlinks as plain files; create a real broken symlink at runtime (same as other symlink tests in this file).
     process.chdir(brokenSymlinkPkg)
-    rimraf('not-exists')
+    rimrafSync('not-exists')
     fs.symlinkSync('this-symlink-target-does-not-exist', path.resolve('not-exists'), 'file')
   })
 
@@ -124,9 +127,9 @@ describe('fetch resolves symlinked files to their real locations', () => {
   const srcPath = f.find('simple-pkg')
   beforeAll(async () => {
     process.chdir(f.find('pkg-with-symlinked-dir-and-files'))
-    rimraf('index.js')
+    rimrafSync('index.js')
     fs.symlinkSync(indexJsPath, path.resolve('index.js'), 'file')
-    rimraf('src')
+    rimrafSync('src')
     fs.symlinkSync(srcPath, path.resolve('src'), 'dir')
   })
   test('fetch resolves symlinked files to their real locations', async () => {
