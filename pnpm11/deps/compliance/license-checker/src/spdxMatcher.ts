@@ -1,4 +1,3 @@
-// @ts-expect-error spdx-expression-parse is CJS-only and does not ship types
 import spdxParse from 'spdx-expression-parse'
 
 export interface LicenseMatchResult {
@@ -12,21 +11,7 @@ export interface MatchPolicyOptions {
   mode: 'strict' | 'loose'
 }
 
-// -- spdx-expression-parse AST types --
-
-interface SpdxLicense {
-  license: string
-  plus?: boolean
-  exception?: string
-}
-
-interface SpdxConjunction {
-  left: SpdxNode
-  conjunction: 'and' | 'or'
-  right: SpdxNode
-}
-
-type SpdxNode = SpdxLicense | SpdxConjunction
+type SpdxNode = spdxParse.SpdxLicense | spdxParse.SpdxConjunction
 
 export function matchLicenseAgainstPolicy (
   license: string,
@@ -75,7 +60,7 @@ function evaluateNode (node: SpdxNode, opts: MatchPolicyOptions): LicenseMatchRe
   return evaluateLicenseNode(node, opts)
 }
 
-function evaluateLicenseNode (node: SpdxLicense, opts: MatchPolicyOptions): LicenseMatchResult {
+function evaluateLicenseNode (node: spdxParse.SpdxLicense, opts: MatchPolicyOptions): LicenseMatchResult {
   // Build the full literal form for WITH/plus variants so policy entries
   // written as exact strings (e.g. "Apache-2.0 WITH LLVM-exception" or
   // "GPL-2.0+") can match.
@@ -97,7 +82,11 @@ function evaluateLicenseNode (node: SpdxLicense, opts: MatchPolicyOptions): Lice
     }
   }
 
-  // Check allowed — any candidate match is an allow
+  // Check allowed — any candidate match is an allow.
+  // When no allowed list is configured, the check is skipped entirely
+  // (even in strict mode). This lets users use strict mode with only a
+  // disallowed list to block specific licenses without enumerating every
+  // permitted license.
   if (opts.allowed && opts.allowed.size > 0) {
     for (const id of candidates) {
       if (opts.allowed.has(id)) {

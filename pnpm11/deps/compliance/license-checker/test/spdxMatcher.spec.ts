@@ -78,12 +78,11 @@ describe('matchLicenseAgainstPolicy', () => {
       expect(result.reason).toBe('unknown-license')
     })
 
-    it('requires ALL parts of OR expression to be allowed', () => {
+    it('allows OR expression if at least one part is allowed', () => {
       const result = matchLicenseAgainstPolicy('MIT OR GPL-3.0-only', {
         allowed: new Set(['MIT']),
         mode: 'strict',
       })
-      // OR: either side passing is enough — MIT is allowed
       expect(result.allowed).toBe(true)
       expect(result.reason).toBe('explicitly-allowed')
     })
