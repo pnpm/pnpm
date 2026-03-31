@@ -81,6 +81,7 @@ export function normalizeLicenseArgs (args: string[]): NormalizedLicenseArgs {
 
   for (const rawArg of args) {
     const arg = rawArg.trim()
+    if (arg.length === 0) continue
     const extractedIds = extractLicenseIds(arg)
     if (extractedIds.length === 0) {
       // Non-SPDX string — keep for literal matching
@@ -89,10 +90,11 @@ export function normalizeLicenseArgs (args: string[]): NormalizedLicenseArgs {
     } else if (extractedIds.length === 1) {
       // Keep the original form only for WITH/plus expressions where the
       // literal matters for policy matching (e.g. "GPL-2.0+" or
-      // "Apache-2.0 WITH LLVM-exception"). Otherwise use the extracted ID
-      // to avoid storing parenthesized variants like "(MIT)".
+      // "Apache-2.0 WITH LLVM-exception"). Strip outer parentheses to
+      // ensure the stored form matches what the evaluator checks.
+      // Otherwise use the extracted ID.
       if (/\bWITH\b/.test(arg) || arg.endsWith('+')) {
-        ids.push(arg)
+        ids.push(stripOuterParens(arg))
       } else {
         ids.push(extractedIds[0])
       }
@@ -106,4 +108,11 @@ export function normalizeLicenseArgs (args: string[]): NormalizedLicenseArgs {
   }
 
   return { ids: [...new Set(ids)], expanded, unrecognized }
+}
+
+function stripOuterParens (s: string): string {
+  while (s.startsWith('(') && s.endsWith(')')) {
+    s = s.slice(1, -1).trim()
+  }
+  return s
 }
