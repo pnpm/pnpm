@@ -88,7 +88,7 @@ export async function handler (
   const registry = pickRegistryForPackage(opts.registries, packageName)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.rawConfig ?? {}, userSettings: opts.userConfig ?? {} })
-  const { meta: metadata } = await fetchMetadataFromFromRegistry(
+  const fetchResult = await fetchMetadataFromFromRegistry(
     {
       fetch: fetchFromRegistry,
       retry: {
@@ -107,6 +107,10 @@ export async function handler (
       fullMetadata: true,
     }
   )
+  if (fetchResult.notModified) {
+    throw new PnpmError('UNEXPECTED_304', `Unexpected 304 response for ${packageName}`)
+  }
+  const { meta: metadata } = fetchResult
   const data = pickPackageFromMeta(
     pickVersionByVersionRange,
     { preferredVersionSelectors: undefined },
