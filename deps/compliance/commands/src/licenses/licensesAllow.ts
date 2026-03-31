@@ -30,7 +30,7 @@ export async function licensesAllow (
     )
   }
 
-  const { ids, expanded, unparseable } = normalizeLicenseArgs(licenses)
+  const { ids, expanded, unrecognized } = normalizeLicenseArgs(licenses)
   const currentAllowed = opts.licenses?.allowed ?? []
   const currentDisallowed = opts.licenses?.disallowed ?? []
   const newAllowed = [...new Set([...currentAllowed, ...ids])]
@@ -69,8 +69,8 @@ export async function licensesAllow (
     lines.push(`Expanded to individual license IDs: ${expanded.join(', ')}`)
   }
 
-  if (unparseable.length > 0) {
-    lines.push(`Note: could not be parsed as SPDX expressions; will be matched literally: ${unparseable.join(', ')}`)
+  if (unrecognized.length > 0) {
+    lines.push(`Note: could not be parsed as SPDX expressions; will be matched literally: ${unrecognized.join(', ')}`)
   }
 
   return { output: lines.join('\n'), exitCode: 0 }
