@@ -39,8 +39,8 @@ declare module '@pnpm/npm-conf/lib/conf' {
 }
 
 declare module '@pnpm/npm-lifecycle' {
-  const anything: any
-  export = anything
+  export function lifecycle (pkg: any, stage: string, wd: string, opts: any): Promise<void>
+  export function makeEnv (data: any, opts: any, prefix?: string | null, env?: any): Record<string, string>
 }
 
 declare module '@pnpm/npm-package-arg' {

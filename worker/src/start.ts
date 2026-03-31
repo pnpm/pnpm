@@ -4,11 +4,10 @@ import path from 'node:path'
 import { parentPort } from 'node:worker_threads'
 
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
-import type { Cafs, FilesMap, PackageFiles, SideEffectsDiff } from '@pnpm/cafs-types'
-import { createCafsStore } from '@pnpm/create-cafs-store'
 import { formatIntegrity, parseIntegrity } from '@pnpm/crypto.integrity'
 import { PnpmError } from '@pnpm/error'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
+import { symlinkDependencySync } from '@pnpm/fs.symlink-dependency'
 import {
   buildFileMapsFromIndex,
   type CafsFunctions,
@@ -20,8 +19,9 @@ import {
   type PackageFilesIndex,
   type VerifyResult,
 } from '@pnpm/store.cafs'
+import type { Cafs, FilesMap, PackageFiles, SideEffectsDiff } from '@pnpm/store.cafs-types'
+import { createCafsStore } from '@pnpm/store.create-cafs-store'
 import { packForStorage, StoreIndex } from '@pnpm/store.index'
-import { symlinkDependencySync } from '@pnpm/symlink-dependency'
 import type { BundledManifest, DependencyManifest } from '@pnpm/types'
 
 import { equalOrSemverEqual } from './equalOrSemverEqual.js'
@@ -78,94 +78,94 @@ async function handleMessage (
   }
   try {
     switch (message.type) {
-    case 'extract': {
-      parentPort!.postMessage(addTarballToStore(message))
-      break
-    }
-    case 'link': {
-      parentPort!.postMessage(importPackage(message))
-      break
-    }
-    case 'add-dir': {
-      parentPort!.postMessage(addFilesFromDir(message))
-      break
-    }
-    case 'init-store': {
-      parentPort!.postMessage(initStore(message))
-      break
-    }
-    case 'readPkgFromCafs': {
-      const { storeDir, filesIndexFile, verifyStoreIntegrity, expectedPkg, strictStorePkgContentCheck } = message
-      const pkgFilesIndex = getStoreIndex(storeDir).get(filesIndexFile) as PackageFilesIndex | undefined
-      if (!pkgFilesIndex) {
-        parentPort!.postMessage({
-          status: 'success',
-          value: {
-            verified: false,
-            pkgFilesIndex: null,
-          },
-        })
-        return
+      case 'extract': {
+        parentPort!.postMessage(addTarballToStore(message))
+        break
       }
-      const warnings: string[] = []
-      if (expectedPkg) {
-        if (
-          (
-            pkgFilesIndex.manifest?.name != null &&
+      case 'link': {
+        parentPort!.postMessage(importPackage(message))
+        break
+      }
+      case 'add-dir': {
+        parentPort!.postMessage(addFilesFromDir(message))
+        break
+      }
+      case 'init-store': {
+        parentPort!.postMessage(initStore(message))
+        break
+      }
+      case 'readPkgFromCafs': {
+        const { storeDir, filesIndexFile, verifyStoreIntegrity, expectedPkg, strictStorePkgContentCheck } = message
+        const pkgFilesIndex = getStoreIndex(storeDir).get(filesIndexFile) as PackageFilesIndex | undefined
+        if (!pkgFilesIndex) {
+          parentPort!.postMessage({
+            status: 'success',
+            value: {
+              verified: false,
+              pkgFilesIndex: null,
+            },
+          })
+          return
+        }
+        const warnings: string[] = []
+        if (expectedPkg) {
+          if (
+            (
+              pkgFilesIndex.manifest?.name != null &&
             expectedPkg.name != null &&
             pkgFilesIndex.manifest.name.toLowerCase() !== expectedPkg.name.toLowerCase()
-          ) ||
+            ) ||
           (
             pkgFilesIndex.manifest?.version != null &&
             expectedPkg.version != null &&
             !equalOrSemverEqual(pkgFilesIndex.manifest.version, expectedPkg.version)
           )
-        ) {
-          const msg = 'Package name or version mismatch found while reading from the store.'
-          const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. Expected package: ${expectedPkg.name}@${expectedPkg.version}. Actual package in the store: ${pkgFilesIndex.manifest?.name}@${pkgFilesIndex.manifest?.version}.`
-          if (strictStorePkgContentCheck ?? true) {
-            throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', msg, {
-              hint: `${hint}\n\nIf you want to ignore this issue, set strictStorePkgContentCheck to false in your configuration`,
-            })
-          } else {
-            warnings.push(`${msg} ${hint}`)
+          ) {
+            const msg = 'Package name or version mismatch found while reading from the store.'
+            const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. Expected package: ${expectedPkg.name}@${expectedPkg.version}. Actual package in the store: ${pkgFilesIndex.manifest?.name}@${pkgFilesIndex.manifest?.version}.`
+            if (strictStorePkgContentCheck ?? true) {
+              throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', msg, {
+                hint: `${hint}\n\nIf you want to ignore this issue, set strictStorePkgContentCheck to false in your configuration`,
+              })
+            } else {
+              warnings.push(`${msg} ${hint}`)
+            }
           }
         }
-      }
-      let verifyResult: VerifyResult
-      if (verifyStoreIntegrity) {
-        verifyResult = checkPkgFilesIntegrity(storeDir, pkgFilesIndex)
-      } else {
-        verifyResult = buildFileMapsFromIndex(storeDir, pkgFilesIndex)
-      }
-      const bundledManifest = pkgFilesIndex.manifest
-      const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(bundledManifest, verifyResult.filesMap)
+        let verifyResult: VerifyResult
+        if (verifyStoreIntegrity) {
+          verifyResult = checkPkgFilesIntegrity(storeDir, pkgFilesIndex)
+        } else {
+          verifyResult = buildFileMapsFromIndex(storeDir, pkgFilesIndex)
+        }
+        const bundledManifest = pkgFilesIndex.manifest
+        const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(bundledManifest, verifyResult.filesMap)
 
-      parentPort!.postMessage({
-        status: 'success',
-        warnings,
-        value: {
-          verified: verifyResult.passed,
-          bundledManifest,
-          files: {
-            filesMap: verifyResult.filesMap,
-            sideEffectsMaps: verifyResult.sideEffectsMaps,
-            resolvedFrom: 'store',
-            requiresBuild,
+        parentPort!.postMessage({
+          status: 'success',
+          warnings,
+          value: {
+            verified: verifyResult.passed,
+            bundledManifest,
+            files: {
+              filesMap: verifyResult.filesMap,
+              sideEffectsMaps: verifyResult.sideEffectsMaps,
+              resolvedFrom: 'store',
+              requiresBuild,
+            },
           },
-        },
-      })
-      break
-    }
-    case 'symlinkAllModules': {
-      parentPort!.postMessage(symlinkAllModules(message))
-      break
-    }
-    case 'hardLinkDir': {
-      hardLinkDir(message.src, message.destDirs)
-      parentPort!.postMessage({ status: 'success' })
-      break
-    }
+        })
+        break
+      }
+      case 'symlinkAllModules': {
+        parentPort!.postMessage(symlinkAllModules(message))
+        break
+      }
+      case 'hardLinkDir': {
+        hardLinkDir(message.src, message.destDirs)
+        parentPort!.postMessage({ status: 'success' })
+        break
+      }
     }
   } catch (e: any) { // eslint-disable-line
     parentPort!.postMessage({
@@ -203,6 +203,8 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
   if (appendManifest && manifest == null) {
     manifest = appendManifest
     addManifestToCafs(cafs, filesIndex, appendManifest)
+  } else if (!filesIndex.has('package.json')) {
+    addPlaceholderPackageJsonToCafs(cafs, filesIndex)
   }
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   const bundledManifest = manifest != null ? normalizeBundledManifest(manifest) : undefined
@@ -302,6 +304,8 @@ function addFilesFromDir (
   if (appendManifest && manifest == null) {
     manifest = appendManifest
     addManifestToCafs(cafs, filesIndex, appendManifest)
+  } else if (!filesIndex.has('package.json')) {
+    addPlaceholderPackageJsonToCafs(cafs, filesIndex)
   }
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   const bundledManifest = manifest != null ? normalizeBundledManifest(manifest) : undefined
@@ -357,6 +361,22 @@ function addManifestToCafs (cafs: CafsFunctions, filesIndex: FilesIndex, manifes
     mode,
     size: fileBuffer.length,
     ...cafs.addFile(fileBuffer, mode),
+  })
+}
+
+const PLACEHOLDER_PACKAGE_JSON = Buffer.from(JSON.stringify({ _pnpmPlaceholder: 'This file was generated by pnpm. The original package did not contain a package.json.' }), 'utf8')
+
+// Packages that lack a package.json (e.g. injected packages in a Bit
+// workspace) get a synthetic one so that package.json can serve as a
+// universal completion marker for the indexed package importer.
+// The _pnpmPlaceholder field tells the package requester to ignore it
+// when reading the manifest.
+function addPlaceholderPackageJsonToCafs (cafs: CafsFunctions, filesIndex: FilesIndex): void {
+  const mode = 0o644
+  filesIndex.set('package.json', {
+    mode,
+    size: PLACEHOLDER_PACKAGE_JSON.length,
+    ...cafs.addFile(PLACEHOLDER_PACKAGE_JSON, mode),
   })
 }
 

@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/normalize-registries",
+  "name": "@pnpm/config.normalize-registries",
   "version": "1000.1.4",
   "description": "Accepts a mapping of registry URLs and returns a mapping with the same URLs but normalized",
   "keywords": [
@@ -24,10 +24,10 @@
     "!*.map"
   ],
   "scripts": {
-    "test": "pnpm run compile",
+    "test": "pn compile",
     "lint": "eslint \"src/**/*.ts\"",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {
     "@pnpm/types": "workspace:*",
@@ -35,7 +35,7 @@
     "ramda": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/normalize-registries": "workspace:*",
+    "@pnpm/config.normalize-registries": "workspace:*",
     "@types/ramda": "catalog:"
   },
   "engines": {

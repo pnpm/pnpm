@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals'
-import { integrityToHashes } from '@pnpm/sbom'
+import { integrityToHashes } from '@pnpm/deps.compliance.sbom'
 
 describe('integrityToHashes', () => {
   it('should return empty array for undefined', () => {

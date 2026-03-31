@@ -6,11 +6,11 @@ import {
   cacheListRegistries,
   cacheView,
 } from '@pnpm/cache.api'
-import { docsUrl } from '@pnpm/cli-utils'
-import { type Config, types as allTypes } from '@pnpm/config'
+import { docsUrl } from '@pnpm/cli.utils'
+import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
-import { getStorePath } from '@pnpm/store-path'
+import { getStorePath } from '@pnpm/store.path'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
@@ -67,43 +67,43 @@ export async function handler (opts: CacheCommandOptions, params: string[]): Pro
     : ABBREVIATED_META_DIR
   const cacheDir = path.join(opts.cacheDir, cacheType)
   switch (params[0]) {
-  case 'list-registries':
-    return cacheListRegistries({
-      ...opts,
-      cacheDir,
-    })
-  case 'list':
-    return cacheList({
-      ...opts,
-      cacheDir,
-      registry: opts.cliOptions['registry'],
-    }, params.slice(1))
-  case 'delete':
-    return cacheDelete({
-      ...opts,
-      cacheDir,
-      registry: opts.cliOptions['registry'],
-    }, params.slice(1))
-  case 'view': {
-    if (!params[1]) {
-      throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm cache view` requires the package name')
+    case 'list-registries':
+      return cacheListRegistries({
+        ...opts,
+        cacheDir,
+      })
+    case 'list':
+      return cacheList({
+        ...opts,
+        cacheDir,
+        registry: opts.cliOptions['registry'],
+      }, params.slice(1))
+    case 'delete':
+      return cacheDelete({
+        ...opts,
+        cacheDir,
+        registry: opts.cliOptions['registry'],
+      }, params.slice(1))
+    case 'view': {
+      if (!params[1]) {
+        throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm cache view` requires the package name')
+      }
+      if (params.length > 2) {
+        throw new PnpmError('TOO_MANY_PARAMS', '`pnpm cache view` only accepts one package name')
+      }
+      const storeDir = await getStorePath({
+        pkgRoot: process.cwd(),
+        storePath: opts.storeDir,
+        pnpmHomeDir: opts.pnpmHomeDir,
+      })
+      return cacheView({
+        ...opts,
+        cacheDir,
+        storeDir,
+        registry: opts.cliOptions['registry'],
+      }, params[1])
     }
-    if (params.length > 2) {
-      throw new PnpmError('TOO_MANY_PARAMS', '`pnpm cache view` only accepts one package name')
-    }
-    const storeDir = await getStorePath({
-      pkgRoot: process.cwd(),
-      storePath: opts.storeDir,
-      pnpmHomeDir: opts.pnpmHomeDir,
-    })
-    return cacheView({
-      ...opts,
-      cacheDir,
-      storeDir,
-      registry: opts.cliOptions['registry'],
-    }, params[1])
-  }
-  default:
-    return help()
+    default:
+      return help()
   }
 }

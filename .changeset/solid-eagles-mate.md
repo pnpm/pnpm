@@ -1,5 +1,5 @@
 ---
-"@pnpm/workspace.manifest-writer": patch
+"@pnpm/workspace.workspace-manifest-writer": patch
 "pnpm": patch
 ---
 

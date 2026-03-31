@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/env.system-node-version",
+  "name": "@pnpm/engine.runtime.system-node-version",
   "version": "1000.0.11",
   "description": "Detects the current system node version",
   "keywords": [
@@ -26,19 +26,19 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
-    "test": "pnpm run compile && pnpm run _test",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
-    "@pnpm/cli-meta": "workspace:*",
+    "@pnpm/cli.meta": "workspace:*",
     "execa": "catalog:",
     "memoize": "catalog:"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/env.system-node-version": "workspace:*"
+    "@pnpm/engine.runtime.system-node-version": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

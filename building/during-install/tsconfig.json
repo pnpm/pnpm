@@ -10,19 +10,31 @@
   ],
   "references": [
     {
-      "path": "../../bins/link-bins"
+      "path": "../../bins/linker"
     },
     {
-      "path": "../../config/config"
+      "path": "../../config/reader"
     },
     {
-      "path": "../../deps/calc-dep-state"
+      "path": "../../core/core-loggers"
     },
     {
-      "path": "../../deps/dependency-path"
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../deps/graph-hasher"
     },
     {
       "path": "../../deps/graph-sequencer"
+    },
+    {
+      "path": "../../deps/path"
     },
     {
       "path": "../../exec/lifecycle"
@@ -31,28 +43,16 @@
       "path": "../../fs/hard-link-dir"
     },
     {
-      "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/logger"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
       "path": "../../patching/apply-patch"
     },
     {
       "path": "../../patching/types"
     },
     {
-      "path": "../../pkg-manifest/read-package-json"
+      "path": "../../pkg-manifest/reader"
     },
     {
-      "path": "../../store/store-controller-types"
+      "path": "../../store/controller-types"
     },
     {
       "path": "../../worker"

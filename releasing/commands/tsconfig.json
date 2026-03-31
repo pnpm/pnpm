@@ -1,0 +1,115 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../__utils__/assert-project"
+    },
+    {
+      "path": "../../__utils__/prepare"
+    },
+    {
+      "path": "../../__utils__/test-fixtures"
+    },
+    {
+      "path": "../../__utils__/test-ipc-server"
+    },
+    {
+      "path": "../../bins/resolver"
+    },
+    {
+      "path": "../../catalogs/config"
+    },
+    {
+      "path": "../../catalogs/types"
+    },
+    {
+      "path": "../../cli/common-cli-options-help"
+    },
+    {
+      "path": "../../cli/utils"
+    },
+    {
+      "path": "../../config/pick-registry-for-package"
+    },
+    {
+      "path": "../../config/reader"
+    },
+    {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../deps/path"
+    },
+    {
+      "path": "../../engine/runtime/commands"
+    },
+    {
+      "path": "../../exec/lifecycle"
+    },
+    {
+      "path": "../../fetching/directory-fetcher"
+    },
+    {
+      "path": "../../fs/indexed-pkg-importer"
+    },
+    {
+      "path": "../../fs/is-empty-dir-or-nothing"
+    },
+    {
+      "path": "../../fs/packlist"
+    },
+    {
+      "path": "../../hooks/pnpmfile"
+    },
+    {
+      "path": "../../installing/client"
+    },
+    {
+      "path": "../../installing/commands"
+    },
+    {
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/types"
+    },
+    {
+      "path": "../../network/fetch"
+    },
+    {
+      "path": "../../network/git-utils"
+    },
+    {
+      "path": "../../network/web-auth"
+    },
+    {
+      "path": "../../resolving/resolver-base"
+    },
+    {
+      "path": "../../workspace/projects-filter"
+    },
+    {
+      "path": "../../workspace/projects-sorter"
+    },
+    {
+      "path": "../exportable-manifest"
+    }
+  ]
+}

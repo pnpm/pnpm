@@ -1,4 +1,4 @@
-import type { DependencyNode } from '@pnpm/reviewing.dependencies-hierarchy'
+import type { DependencyNode } from '@pnpm/deps.inspection.tree-builder'
 import { prop, sortBy } from 'ramda'
 
 import type { PackageDependencyHierarchy } from './types.js'

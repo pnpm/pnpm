@@ -13,7 +13,16 @@
       "path": "../../__utils__/prepare"
     },
     {
-      "path": "../../bins/link-bins"
+      "path": "../../bins/linker"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
     },
     {
       "path": "../../fetching/directory-fetcher"
@@ -22,19 +31,10 @@
       "path": "../../installing/modules-yaml"
     },
     {
-      "path": "../../packages/error"
+      "path": "../../pkg-manifest/reader"
     },
     {
-      "path": "../../packages/logger"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manifest/read-package-json"
-    },
-    {
-      "path": "../find-packages"
+      "path": "../projects-reader"
     }
   ]
 }

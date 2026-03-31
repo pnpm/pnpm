@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/dedupe.issues-renderer",
+  "name": "@pnpm/installing.dedupe.issues-renderer",
   "version": "1000.0.1",
   "description": "Visualize pnpm dedupe --check issues.",
   "keywords": [
@@ -24,19 +24,19 @@
     "!*.map"
   ],
   "scripts": {
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
-    "test": "pnpm run compile && pnpm run _test",
+    "test": "pn compile && pn .test",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
-    "@pnpm/dedupe.types": "workspace:*",
+    "@pnpm/installing.dedupe.types": "workspace:*",
     "@pnpm/text.tree-renderer": "workspace:*",
     "chalk": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/dedupe.issues-renderer": "workspace:*"
+    "@pnpm/installing.dedupe.issues-renderer": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

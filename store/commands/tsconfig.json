@@ -1,0 +1,94 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../__utils__/assert-store"
+    },
+    {
+      "path": "../../__utils__/prepare"
+    },
+    {
+      "path": "../../cli/utils"
+    },
+    {
+      "path": "../../config/normalize-registries"
+    },
+    {
+      "path": "../../config/reader"
+    },
+    {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../crypto/integrity"
+    },
+    {
+      "path": "../../deps/path"
+    },
+    {
+      "path": "../../exec/commands"
+    },
+    {
+      "path": "../../fs/graceful-fs"
+    },
+    {
+      "path": "../../global/packages"
+    },
+    {
+      "path": "../../installing/client"
+    },
+    {
+      "path": "../../installing/context"
+    },
+    {
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/types"
+    },
+    {
+      "path": "../../lockfile/utils"
+    },
+    {
+      "path": "../../object/key-sorting"
+    },
+    {
+      "path": "../../resolving/parse-wanted-dependency"
+    },
+    {
+      "path": "../cafs"
+    },
+    {
+      "path": "../connection-manager"
+    },
+    {
+      "path": "../controller"
+    },
+    {
+      "path": "../controller-types"
+    },
+    {
+      "path": "../index"
+    },
+    {
+      "path": "../path"
+    }
+  ]
+}

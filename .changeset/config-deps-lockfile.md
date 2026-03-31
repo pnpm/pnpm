@@ -1,14 +1,13 @@
 ---
-"@pnpm/config.deps-installer": minor
+"@pnpm/installing.env-installer": minor
 "@pnpm/constants": patch
 "@pnpm/lockfile.fs": minor
 "@pnpm/lockfile.types": minor
 "@pnpm/lockfile.utils": minor
 "@pnpm/types": patch
-"@pnpm/tools.plugin-commands-self-updater": minor
-"@pnpm/calc-dep-state": minor
-"@pnpm/plugin-commands-setup": patch
-"@pnpm/resolve-dependencies": patch
+"@pnpm/engine.pm.commands": minor
+"@pnpm/deps.graph-hasher": minor
+"@pnpm/installing.deps-resolver": patch
 "pnpm": minor
 ---
 

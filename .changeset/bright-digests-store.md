@@ -1,11 +1,11 @@
 ---
-"@pnpm/cafs-types": major
+"@pnpm/store.cafs-types": major
 "@pnpm/store.cafs": major
 "@pnpm/worker": major
-"@pnpm/package-store": major
-"@pnpm/plugin-commands-store-inspecting": major
-"@pnpm/license-scanner": major
-"@pnpm/mount-modules": major
+"@pnpm/store.controller": major
+"@pnpm/store.commands": major
+"@pnpm/deps.compliance.license-scanner": major
+"@pnpm/modules-mounter.daemon": major
 "pnpm": major
 ---
 

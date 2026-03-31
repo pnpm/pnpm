@@ -3,6 +3,11 @@ name: Benchmarks
 on:
   workflow_dispatch:
     inputs:
+      pr_number:
+        description: 'PR number to benchmark (works with fork PRs too)'
+        required: false
+        default: ''
+        type: string
       runs:
         description: 'Number of benchmark runs per scenario'
         required: false
@@ -30,8 +35,19 @@ jobs:
       with:
         fetch-depth: 0
 
+    - name: Checkout PR head
+      if: inputs.pr_number != ''
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        PR_NUMBER="${{ inputs.pr_number }}"
+        echo "Fetching PR #$PR_NUMBER head..."
+        git fetch origin "refs/pull/${PR_NUMBER}/head:refs/remotes/origin/pr-${PR_NUMBER}"
+        git checkout "origin/pr-${PR_NUMBER}"
+        echo "Checked out PR #$PR_NUMBER at $(git rev-parse --short HEAD)"
+
     - name: Install pnpm
-      uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      uses: pnpm/action-setup@6e7bdbda5fe05107efc88b23b7ed00aa05f84ca0
       with:
         standalone: true
 
@@ -80,7 +96,11 @@ jobs:
         cat "$RESULTS_FILE"
         echo "-------------------------"
 
-        PR_NUMBER=$(gh pr list --head "${{ github.ref_name }}" --json number --jq '.[0].number' 2>/dev/null || echo "")
+        if [ -n "${{ inputs.pr_number }}" ]; then
+          PR_NUMBER="${{ inputs.pr_number }}"
+        else
+          PR_NUMBER=$(gh pr list --head "${{ github.ref_name }}" --json number --jq '.[0].number' 2>/dev/null || echo "")
+        fi
 
         if [ -z "$PR_NUMBER" ]; then
           echo "::notice::No open PR found for branch ${{ github.ref_name }}. Results printed above."

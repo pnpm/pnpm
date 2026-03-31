@@ -40,15 +40,15 @@
     "lint": "eslint src/**/*.ts test/**/*.ts",
     "lint-test": "tslint -c tslint.json --project test",
     "compile": "rimraf tsconfig.tsbuildinfo lib && tsc --build",
-    "prepublishOnly": "pnpm run compile",
-    "pretest": "pnpm install -C test/fixture/project --force --no-shared-workspace-lockfile",
-    "test": "pnpm pretest && pnpm run compile && jest"
+    "prepublishOnly": "pn compile",
+    "pretest": "pn install -C test/fixture/project --force --no-shared-workspace-lockfile",
+    "test": "pn pretest && pn compile && jest"
   },
   "dependencies": {
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/constants": "workspace:*",
+    "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
-    "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/types": "workspace:*",
     "is-windows": "catalog:",

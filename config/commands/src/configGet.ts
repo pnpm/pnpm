@@ -1,0 +1,64 @@
+import { isIniConfigKey, types } from '@pnpm/config.reader'
+import { getObjectValueByPropertyPath } from '@pnpm/object.property-path'
+import { isCamelCase, isStrictlyKebabCase } from '@pnpm/text.naming-cases'
+import kebabCase from 'lodash.kebabcase'
+
+import type { ConfigCommandOptions } from './ConfigCommandOptions.js'
+import { parseConfigPropertyPath } from './parseConfigPropertyPath.js'
+import { processConfig } from './processConfig.js'
+
+export function configGet (opts: ConfigCommandOptions, key: string): { output: string, exitCode: number } {
+  const isScopedKey = key.startsWith('@')
+  const configResult = getRcConfig(opts.rawConfig, key, isScopedKey) ?? getConfigByPropertyPath(opts.rawConfig, key)
+  const output = displayConfig(configResult?.value, opts)
+  return { output, exitCode: 0 }
+}
+
+interface Found<Value> {
+  value: Value
+}
+
+function getRcConfig (rawConfig: Record<string, unknown>, key: string, isScopedKey: boolean): Found<unknown> | undefined {
+  if (isScopedKey) {
+    const value = rawConfig[key]
+    return { value }
+  }
+  const rcKey = isCamelCase(key) ? kebabCase(key) : key
+  if (Object.hasOwn(types, rcKey)) {
+    const value = rawConfig[rcKey]
+    return { value }
+  }
+  if (isStrictlyKebabCase(key)) {
+    const value = rawConfig[key]
+    return { value }
+  }
+  if (isIniConfigKey(key)) {
+    const value = rawConfig[key]
+    return { value }
+  }
+  return undefined
+}
+
+function getConfigByPropertyPath (rawConfig: Record<string, unknown>, propertyPath: string): Found<unknown> {
+  const parsedPropertyPath = Array.from(parseConfigPropertyPath(propertyPath))
+  if (parsedPropertyPath.length === 0) {
+    return {
+      value: processConfig(rawConfig),
+    }
+  }
+  return {
+    value: getObjectValueByPropertyPath(rawConfig, parsedPropertyPath),
+  }
+}
+
+type DisplayConfigOptions = Pick<ConfigCommandOptions, 'json'>
+
+function displayConfig (config: unknown, opts: DisplayConfigOptions): string {
+  if (Boolean(opts.json) || Array.isArray(config)) {
+    return JSON.stringify(config, undefined, 2)
+  }
+  if (typeof config === 'object' && config != null) {
+    return JSON.stringify(config, undefined, 2)
+  }
+  return String(config)
+}

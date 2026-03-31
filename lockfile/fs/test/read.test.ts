@@ -4,9 +4,9 @@ import { jest } from '@jest/globals'
 import type { DepPath, ProjectId } from '@pnpm/types'
 import { temporaryDirectory } from 'tempy'
 
-jest.unstable_mockModule('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
+jest.unstable_mockModule('@pnpm/network.git-utils', () => ({ getCurrentBranch: jest.fn() }))
 
-const { getCurrentBranch } = await import('@pnpm/git-utils')
+const { getCurrentBranch } = await import('@pnpm/network.git-utils')
 const {
   existsNonEmptyWantedLockfile,
   readCurrentLockfile,

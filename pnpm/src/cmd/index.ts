@@ -1,34 +1,26 @@
-import { rebuild } from '@pnpm/building.build-commands'
-import { approveBuilds, ignoredBuilds } from '@pnpm/building.policy-commands'
+import { login } from '@pnpm/auth.commands'
+import { approveBuilds, ignoredBuilds, rebuild } from '@pnpm/building.commands'
 import { cache } from '@pnpm/cache.commands'
-import type { CompletionFunc } from '@pnpm/command'
-import { types as allTypes } from '@pnpm/config'
-import { audit } from '@pnpm/plugin-commands-audit'
-import { createCompletionServer, generateCompletion } from '@pnpm/plugin-commands-completion'
-import { config, getCommand, setCommand } from '@pnpm/plugin-commands-config'
-import { deploy } from '@pnpm/plugin-commands-deploy'
-import { doctor } from '@pnpm/plugin-commands-doctor'
-import { env } from '@pnpm/plugin-commands-env'
-import { init } from '@pnpm/plugin-commands-init'
-import { add, ci, dedupe, fetch, importCommand, install, link, prune, remove, unlink, update } from '@pnpm/plugin-commands-installation'
-import { licenses } from '@pnpm/plugin-commands-licenses'
-import { list, ll, why } from '@pnpm/plugin-commands-listing'
-import { outdated } from '@pnpm/plugin-commands-outdated'
-import { patch, patchCommit, patchRemove } from '@pnpm/plugin-commands-patching'
-import { pack, publish } from '@pnpm/plugin-commands-publishing'
-import { sbom } from '@pnpm/plugin-commands-sbom'
+import type { CommandHandlerMap, CompletionFunc } from '@pnpm/cli.command'
+import { createCompletionServer, doctor, generateCompletion } from '@pnpm/cli.commands'
+import { config, getCommand, setCommand } from '@pnpm/config.commands'
+import { types as allTypes } from '@pnpm/config.reader'
+import { audit, licenses, sbom } from '@pnpm/deps.compliance.commands'
+import { list, ll, outdated, peers, view, why } from '@pnpm/deps.inspection.commands'
+import { selfUpdate, setup } from '@pnpm/engine.pm.commands'
+import { env, runtime } from '@pnpm/engine.runtime.commands'
 import {
   create,
   dlx,
   exec,
   restart,
   run,
-} from '@pnpm/plugin-commands-script-runners'
-import { setup } from '@pnpm/plugin-commands-setup'
-import { store } from '@pnpm/plugin-commands-store'
-import { catFile, catIndex, findHash } from '@pnpm/plugin-commands-store-inspecting'
-import { runtime } from '@pnpm/runtime.commands'
-import { selfUpdate } from '@pnpm/tools.plugin-commands-self-updater'
+} from '@pnpm/exec.commands'
+import { add, dedupe, fetch, importCommand, install, link, prune, remove, unlink, update } from '@pnpm/installing.commands'
+import { patch, patchCommit, patchRemove } from '@pnpm/patching.commands'
+import { deploy, pack, publish, version } from '@pnpm/releasing.commands'
+import { catFile, catIndex, findHash, store } from '@pnpm/store.commands'
+import { init } from '@pnpm/workspace.commands'
 import { pick } from 'ramda'
 
 import { parseCliArgs } from '../parseCliArgs.js'
@@ -36,8 +28,10 @@ import { shorthands as universalShorthands } from '../shorthands.js'
 import type { PnpmOptions } from '../types.js'
 import * as bin from './bin.js'
 import * as clean from './clean.js'
+import * as ci from './cleanInstall.js'
 import { createHelp } from './help.js'
 import * as installTest from './installTest.js'
+import { NOT_IMPLEMENTED_COMMAND_SET, notImplementedCommandDefinitions } from './notImplemented.js'
 import * as recursive from './recursive.js'
 import * as root from './root.js'
 
@@ -66,11 +60,11 @@ export const GLOBAL_OPTIONS = pick([
 export type CommandResponse = string | { output?: string, exitCode: number }
 
 export type Command = (
-  (opts: PnpmOptions | any, params: string[]) => CommandResponse | Promise<CommandResponse> // eslint-disable-line @typescript-eslint/no-explicit-any
+  (opts: PnpmOptions | any, params: string[], commands?: CommandHandlerMap) => CommandResponse | Promise<CommandResponse> // eslint-disable-line @typescript-eslint/no-explicit-any
 ) | (
-  (opts: PnpmOptions | any, params: string[]) => void // eslint-disable-line @typescript-eslint/no-explicit-any
+  (opts: PnpmOptions | any, params: string[], commands?: CommandHandlerMap) => void // eslint-disable-line @typescript-eslint/no-explicit-any
 ) | (
-  (opts: PnpmOptions | any, params: string[]) => Promise<void> // eslint-disable-line @typescript-eslint/no-explicit-any
+  (opts: PnpmOptions | any, params: string[], commands?: CommandHandlerMap) => Promise<void> // eslint-disable-line @typescript-eslint/no-explicit-any
 )
 
 export interface CommandDefinition {
@@ -110,6 +104,16 @@ export interface CommandDefinition {
    * If true, this command should not care about what package manager is specified in the "packageManager" field of "package.json".
    */
   skipPackageManagerCheck?: boolean
+  /**
+   * If true, this command runs on all workspace projects by default when executed inside a workspace.
+   */
+  recursiveByDefault?: boolean
+  /**
+   * If true, a same-named script in package.json takes precedence over this
+   * built-in command. This applies to all command names including aliases
+   * (e.g. both "clean" and "purge").
+   */
+  overridableByScript?: boolean
 }
 
 const helpByCommandName: Record<string, () => string> = {}
@@ -143,6 +147,7 @@ const commands: CommandDefinition[] = [
   installTest,
   link,
   list,
+  login,
   ll,
   licenses,
   outdated,
@@ -150,6 +155,7 @@ const commands: CommandDefinition[] = [
   patch,
   patchCommit,
   patchRemove,
+  peers,
   prune,
   publish,
   rebuild,
@@ -166,8 +172,11 @@ const commands: CommandDefinition[] = [
   findHash,
   unlink,
   update,
+  version,
+  view,
   why,
   createHelp(helpByCommandName),
+  ...notImplementedCommandDefinitions,
 ]
 
 const handlerByCommandName: Record<string, Command> = {}
@@ -177,6 +186,8 @@ const completionByCommandName: Record<string, CompletionFunc> = {}
 const shorthandsByCommandName: Record<string, Record<string, string | string[]>> = {}
 const rcOptionsTypes: Record<string, unknown> = {}
 const skipPackageManagerCheckForCommandArray = ['completion-server']
+const recursiveByDefaultCommandArray: string[] = []
+const overridableByScriptCommandArray: string[] = []
 
 for (let i = 0; i < commands.length; i++) {
   const {
@@ -188,6 +199,8 @@ for (let i = 0; i < commands.length; i++) {
     rcOptionsTypes,
     shorthands,
     skipPackageManagerCheck,
+    recursiveByDefault,
+    overridableByScript,
   } = commands[i]
   if (!commandNames || commandNames.length === 0) {
     throw new Error(`The command at index ${i} doesn't have command names`)
@@ -204,6 +217,12 @@ for (let i = 0; i < commands.length; i++) {
   }
   if (skipPackageManagerCheck) {
     skipPackageManagerCheckForCommandArray.push(...commandNames)
+  }
+  if (recursiveByDefault) {
+    recursiveByDefaultCommandArray.push(...commandNames)
+  }
+  if (overridableByScript) {
+    overridableByScriptCommandArray.push(...commandNames)
   }
   if (commandNames.length > 1) {
     const fullName = commandNames[0]
@@ -240,4 +259,8 @@ export function getCommandFullName (commandName: string): string | null {
     (handlerByCommandName[commandName] ? commandName : null)
 }
 
-export { rcOptionsTypes, shorthandsByCommandName }
+export const recursiveByDefaultCommands = new Set(recursiveByDefaultCommandArray)
+
+export const overridableByScriptCommands = new Set(overridableByScriptCommandArray)
+
+export { NOT_IMPLEMENTED_COMMAND_SET, rcOptionsTypes, shorthandsByCommandName }

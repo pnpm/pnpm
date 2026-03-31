@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/hoist",
+  "name": "@pnpm/installing.linking.hoist",
   "version": "1002.0.8",
   "description": "Hoists dependencies in a node_modules created by pnpm",
   "keywords": [
@@ -28,16 +28,16 @@
   },
   "scripts": {
     "start": "tsgo --watch",
-    "test": "pnpm run compile",
+    "test": "pn compile",
     "lint": "eslint \"src/**/*.ts\"",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {
+    "@pnpm/bins.linker": "workspace:*",
+    "@pnpm/config.matcher": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
-    "@pnpm/link-bins": "workspace:*",
-    "@pnpm/matcher": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
     "is-subdir": "catalog:",
@@ -49,7 +49,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/hoist": "workspace:*",
+    "@pnpm/installing.linking.hoist": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@types/ramda": "catalog:"
   },

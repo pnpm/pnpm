@@ -1,9 +1,9 @@
-import { audit } from '@pnpm/audit'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
+import { audit } from '@pnpm/deps.compliance.audit'
 import type { PnpmError } from '@pnpm/error'
 import { fixtures } from '@pnpm/test-fixtures'
+import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import type { DepPath, ProjectId } from '@pnpm/types'
-import nock from 'nock'
 
 import { lockfileToAuditTree } from '../lib/lockfileToAuditTree.js'
 
@@ -460,53 +460,51 @@ describe('audit', () => {
   test('an error is thrown if the audit endpoint responds with a non-OK code', async () => {
     const registry = 'http://registry.registry/'
     const getAuthHeader = () => undefined
-    nock(registry, {
-      badheaders: ['authorization'],
-    })
-      .post('/-/npm/v1/security/audits/quick')
+    await setupMockAgent()
+    getMockAgent().get('http://registry.registry')
+      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(500, { message: 'Something bad happened' })
-    nock(registry, {
-      badheaders: ['authorization'],
-    })
-      .post('/-/npm/v1/security/audits')
+    getMockAgent().get('http://registry.registry')
+      .intercept({ path: '/-/npm/v1/security/audits', method: 'POST' })
       .reply(500, { message: 'Fallback failed too' })
 
-    let err!: PnpmError
     try {
-      await audit({
-        importers: {},
-        lockfileVersion: LOCKFILE_VERSION,
-      },
-      getAuthHeader,
-      {
-        lockfileDir: f.find('one-project'),
-        registry,
-        retry: {
-          retries: 0,
+      let err!: PnpmError
+      try {
+        await audit({
+          importers: {},
+          lockfileVersion: LOCKFILE_VERSION,
         },
-        virtualStoreDirMaxLength: 120,
-      })
-    } catch (_err: any) { // eslint-disable-line
-      err = _err
-    }
+        getAuthHeader,
+        {
+          lockfileDir: f.find('one-project'),
+          registry,
+          retry: {
+            retries: 0,
+          },
+          virtualStoreDirMaxLength: 120,
+        })
+      } catch (_err: any) { // eslint-disable-line
+        err = _err
+      }
 
-    expect(err).toBeDefined()
-    expect(err.code).toBe('ERR_PNPM_AUDIT_BAD_RESPONSE')
-    expect(err.message).toBe('The audit endpoint (at http://registry.registry/-/npm/v1/security/audits/quick) responded with 500: {"message":"Something bad happened"}. Fallback endpoint (at http://registry.registry/-/npm/v1/security/audits) responded with 500: {"message":"Fallback failed too"}')
+      expect(err).toBeDefined()
+      expect(err.code).toBe('ERR_PNPM_AUDIT_BAD_RESPONSE')
+      expect(err.message).toBe('The audit endpoint (at http://registry.registry/-/npm/v1/security/audits/quick) responded with 500: {"message":"Something bad happened"}. Fallback endpoint (at http://registry.registry/-/npm/v1/security/audits) responded with 500: {"message":"Fallback failed too"}')
+    } finally {
+      await teardownMockAgent()
+    }
   })
 
   test('falls back to /audits if /audits/quick fails', async () => {
     const registry = 'http://registry.registry/'
     const getAuthHeader = () => undefined
-    nock(registry, {
-      badheaders: ['authorization'],
-    })
-      .post('/-/npm/v1/security/audits/quick')
+    await setupMockAgent()
+    getMockAgent().get('http://registry.registry')
+      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
       .reply(500, { message: 'Something bad happened' })
-    nock(registry, {
-      badheaders: ['authorization'],
-    })
-      .post('/-/npm/v1/security/audits')
+    getMockAgent().get('http://registry.registry')
+      .intercept({ path: '/-/npm/v1/security/audits', method: 'POST' })
       .reply(200, {
         actions: [],
         advisories: {},
@@ -526,35 +524,88 @@ describe('audit', () => {
         muted: [],
       })
 
-    expect(await audit({
-      importers: {},
-      lockfileVersion: LOCKFILE_VERSION,
-    },
-    getAuthHeader,
-    {
-      lockfileDir: f.find('one-project'),
-      registry,
-      retry: {
-        retries: 0,
+    try {
+      expect(await audit({
+        importers: {},
+        lockfileVersion: LOCKFILE_VERSION,
       },
-      virtualStoreDirMaxLength: 120,
-    })).toEqual({
-      actions: [],
-      advisories: {},
-      metadata: {
-        dependencies: 0,
-        devDependencies: 0,
-        optionalDependencies: 0,
-        totalDependencies: 0,
-        vulnerabilities: {
-          critical: 0,
-          high: 0,
-          info: 0,
-          low: 0,
-          moderate: 0,
+      getAuthHeader,
+      {
+        lockfileDir: f.find('one-project'),
+        registry,
+        retry: {
+          retries: 0,
         },
-      },
-      muted: [],
-    })
+        virtualStoreDirMaxLength: 120,
+      })).toEqual({
+        actions: [],
+        advisories: {},
+        metadata: {
+          dependencies: 0,
+          devDependencies: 0,
+          optionalDependencies: 0,
+          totalDependencies: 0,
+          vulnerabilities: {
+            critical: 0,
+            high: 0,
+            info: 0,
+            low: 0,
+            moderate: 0,
+          },
+        },
+        muted: [],
+      })
+    } finally {
+      await teardownMockAgent()
+    }
+  })
+
+  test('sends authorization header when getAuthHeader returns a value', async () => {
+    const registry = 'http://registry.registry/'
+    const getAuthHeader = () => 'Bearer test-token'
+    await setupMockAgent()
+    // intercept will only match if the authorization header is present and correct
+    getMockAgent().get('http://registry.registry')
+      .intercept({
+        path: '/-/npm/v1/security/audits/quick',
+        method: 'POST',
+        headers: { authorization: 'Bearer test-token' },
+      })
+      .reply(200, { actions: [], advisories: {}, metadata: { dependencies: 0, devDependencies: 0, optionalDependencies: 0, totalDependencies: 0, vulnerabilities: { critical: 0, high: 0, info: 0, low: 0, moderate: 0 } }, muted: [] })
+
+    try {
+      const result = await audit(
+        { importers: {}, lockfileVersion: LOCKFILE_VERSION },
+        getAuthHeader,
+        { lockfileDir: f.find('one-project'), registry, retry: { retries: 0 }, virtualStoreDirMaxLength: 120 }
+      )
+      expect(result.advisories).toEqual({})
+    } finally {
+      await teardownMockAgent()
+    }
+  })
+
+  test('does not send authorization header when getAuthHeader returns undefined', async () => {
+    const registry = 'http://registry.registry/'
+    const getAuthHeader = () => undefined
+    await setupMockAgent()
+    let capturedHeaders: Record<string, string> = {}
+    getMockAgent().get('http://registry.registry')
+      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .reply(200, (opts) => {
+        capturedHeaders = opts.headers as Record<string, string>
+        return { actions: [], advisories: {}, metadata: { dependencies: 0, devDependencies: 0, optionalDependencies: 0, totalDependencies: 0, vulnerabilities: { critical: 0, high: 0, info: 0, low: 0, moderate: 0 } }, muted: [] }
+      })
+
+    try {
+      await audit(
+        { importers: {}, lockfileVersion: LOCKFILE_VERSION },
+        getAuthHeader,
+        { lockfileDir: f.find('one-project'), registry, retry: { retries: 0 }, virtualStoreDirMaxLength: 120 }
+      )
+      expect(capturedHeaders).not.toHaveProperty('authorization')
+    } finally {
+      await teardownMockAgent()
+    }
   })
 })

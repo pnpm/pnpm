@@ -26,14 +26,14 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix",
-    "test": "pnpm run compile"
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
+    "test": "pn compile"
   },
   "dependencies": {
+    "@pnpm/bins.resolver": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
-    "@pnpm/package-bins": "workspace:*",
-    "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:"
   },

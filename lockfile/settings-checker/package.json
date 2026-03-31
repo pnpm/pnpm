@@ -28,16 +28,16 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
-    "test": "pnpm run compile",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "test": "pn compile",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {
     "@pnpm/catalogs.types": "workspace:*",
+    "@pnpm/config.parse-overrides": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.verification": "workspace:*",
-    "@pnpm/parse-overrides": "workspace:*",
     "p-map-values": "catalog:",
     "ramda": "catalog:"
   },

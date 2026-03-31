@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/fetcher-base",
+  "name": "@pnpm/fetching.fetcher-base",
   "version": "1001.0.2",
   "description": "Types for pnpm-compatible fetchers",
   "keywords": [
@@ -27,18 +27,18 @@
   "scripts": {
     "start": "tsgo --watch",
     "lint": "eslint \"src/**/*.ts\"",
-    "test": "pnpm run compile",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "test": "pn compile",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {
-    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@types/ssri": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/cafs-types": "workspace:*",
-    "@pnpm/fetcher-base": "workspace:*"
+    "@pnpm/fetching.fetcher-base": "workspace:*",
+    "@pnpm/store.cafs-types": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

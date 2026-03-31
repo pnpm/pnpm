@@ -1,9 +1,9 @@
 import path from 'node:path'
 
+import { buildDependenciesTree, buildDependentsTree, createPackagesSearcher, type DependenciesTree, type DependencyNode, type ImporterInfo } from '@pnpm/deps.inspection.tree-builder'
 import { readCurrentLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
-import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { buildDependenciesTree, buildDependentsTree, createPackagesSearcher, type DependenciesTree, type DependencyNode, type ImporterInfo } from '@pnpm/reviewing.dependencies-hierarchy'
 import type { DependenciesField, Finder, Registries } from '@pnpm/types'
+import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 
 import { renderDependentsJson, renderDependentsParseable, renderDependentsTree } from './renderDependentsTree.js'
 import { renderJson } from './renderJson.js'
@@ -11,7 +11,7 @@ import { renderParseable } from './renderParseable.js'
 import { renderTree } from './renderTree.js'
 import type { PackageDependencyHierarchy } from './types.js'
 
-export type { DependencyNode } from '@pnpm/reviewing.dependencies-hierarchy'
+export type { DependencyNode } from '@pnpm/deps.inspection.tree-builder'
 export {
   type PackageDependencyHierarchy,
   renderDependentsJson,
@@ -221,9 +221,9 @@ type Printer = (packages: PackageDependencyHierarchy[], opts: {
 
 function getPrinter (reportAs: 'parseable' | 'tree' | 'json'): Printer {
   switch (reportAs) {
-  case 'parseable': return renderParseable
-  case 'json': return renderJson
-  case 'tree': return renderTree
+    case 'parseable': return renderParseable
+    case 'json': return renderJson
+    case 'tree': return renderTree
   }
 }
 
@@ -278,8 +278,8 @@ export async function whyForPackages (
   })
 
   switch (reportAs) {
-  case 'json': return renderDependentsJson(trees, { long, depth })
-  case 'parseable': return renderDependentsParseable(trees, { long, depth })
-  case 'tree': return renderDependentsTree(trees, { long, depth })
+    case 'json': return renderDependentsJson(trees, { long, depth })
+    case 'parseable': return renderDependentsParseable(trees, { long, depth })
+    case 'tree': return renderDependentsTree(trees, { long, depth })
   }
 }

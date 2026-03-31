@@ -1,12 +1,12 @@
 ---
-"@pnpm/plugin-commands-installation": minor
-"@pnpm/resolve-dependencies": minor
-"@pnpm/package-requester": minor
-"@pnpm/store-controller-types": minor
-"@pnpm/resolver-base": minor
-"@pnpm/npm-resolver": minor
-"@pnpm/core": minor
-"@pnpm/config": minor
+"@pnpm/installing.commands": minor
+"@pnpm/installing.deps-resolver": minor
+"@pnpm/installing.package-requester": minor
+"@pnpm/store.controller-types": minor
+"@pnpm/resolving.resolver-base": minor
+"@pnpm/resolving.npm-resolver": minor
+"@pnpm/installing.deps-installer": minor
+"@pnpm/config.reader": minor
 "pnpm": minor
 ---
 

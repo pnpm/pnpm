@@ -1,9 +1,9 @@
-import type { Config } from '@pnpm/config'
+import { toOutput$ } from '@pnpm/cli.default-reporter'
+import type { Config } from '@pnpm/config.reader'
 import {
   deprecationLogger,
   stageLogger,
 } from '@pnpm/core-loggers'
-import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser } from '@pnpm/logger'
 import chalk from 'chalk'
 import normalizeNewline from 'normalize-newline'

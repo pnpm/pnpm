@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/parse-wanted-dependency",
+  "name": "@pnpm/resolving.parse-wanted-dependency",
   "version": "1001.0.0",
   "description": "Parse dependency specifier",
   "keywords": [
@@ -24,16 +24,16 @@
     "!*.map"
   ],
   "scripts": {
-    "test": "pnpm run compile",
+    "test": "pn compile",
     "lint": "eslint \"src/**/*.ts\"",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {
     "validate-npm-package-name": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/parse-wanted-dependency": "workspace:*",
+    "@pnpm/resolving.parse-wanted-dependency": "workspace:*",
     "@types/validate-npm-package-name": "catalog:"
   },
   "engines": {

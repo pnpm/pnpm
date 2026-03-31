@@ -18,6 +18,7 @@ _docpress
 lib
 dist
 tsconfig.tsbuildinfo
+tsconfig.lint.tsbuildinfo
 test.lib/
 
 # Visual Studio Code configs
@@ -48,6 +49,8 @@ RELEASE.md
 .turbo
 .eslintcache
 .claude
+.local-settings
+.pnpm-typecheck.json
 
 ## custom modules-dir fixture
 __fixtures__/custom-modules-dir/**/fake_modules/

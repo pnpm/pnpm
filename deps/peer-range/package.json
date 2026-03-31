@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/semver.peer-range",
+  "name": "@pnpm/deps.peer-range",
   "version": "1000.0.0",
   "description": "Validates peer ranges",
   "keywords": [
@@ -27,15 +27,15 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
-    "test": "pnpm run compile",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "test": "pn compile",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {
     "semver": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/semver.peer-range": "workspace:*",
+    "@pnpm/deps.peer-range": "workspace:*",
     "@types/semver": "catalog:"
   },
   "engines": {

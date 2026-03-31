@@ -10,22 +10,22 @@
   ],
   "references": [
     {
-      "path": "../../../bins/link-bins"
+      "path": "../../../bins/linker"
     },
     {
       "path": "../../../config/matcher"
     },
     {
-      "path": "../../../packages/constants"
+      "path": "../../../core/constants"
     },
     {
-      "path": "../../../packages/core-loggers"
+      "path": "../../../core/core-loggers"
     },
     {
-      "path": "../../../packages/logger"
+      "path": "../../../core/logger"
     },
     {
-      "path": "../../../packages/types"
+      "path": "../../../core/types"
     }
   ]
 }

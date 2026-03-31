@@ -1,7 +1,7 @@
 import path from 'node:path'
 
+import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 

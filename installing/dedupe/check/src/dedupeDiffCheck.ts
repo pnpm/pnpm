@@ -2,7 +2,7 @@ import type {
   DedupeCheckIssues,
   ResolutionChangesByAlias,
   SnapshotsChanges,
-} from '@pnpm/dedupe.types'
+} from '@pnpm/installing.dedupe.types'
 import type { LockfileObject, ResolvedDependencies } from '@pnpm/lockfile.types'
 import { DEPENDENCIES_FIELDS, type DepPath } from '@pnpm/types'
 

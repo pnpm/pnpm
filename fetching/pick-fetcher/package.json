@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/pick-fetcher",
+  "name": "@pnpm/fetching.pick-fetcher",
   "version": "1001.0.0",
   "description": "Pick a package fetcher by type",
   "keywords": [
@@ -25,28 +25,28 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
-    "test": "pnpm run compile && pnpm run _test",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
-    "@pnpm/cafs-types": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/fetching.fetcher-base": "workspace:*",
     "@pnpm/hooks.types": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*"
+    "@pnpm/resolving.resolver-base": "workspace:*",
+    "@pnpm/store.cafs-types": "workspace:*"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/create-cafs-store": "workspace:*",
-    "@pnpm/fetch": "workspace:*",
-    "@pnpm/pick-fetcher": "workspace:*",
+    "@pnpm/fetching.pick-fetcher": "workspace:*",
+    "@pnpm/fetching.tarball-fetcher": "workspace:*",
+    "@pnpm/network.fetch": "workspace:*",
+    "@pnpm/store.create-cafs-store": "workspace:*",
     "@pnpm/store.index": "workspace:*",
-    "@pnpm/tarball-fetcher": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "nock": "catalog:",
-    "tempy": "catalog:"
+    "tempy": "catalog:",
+    "undici": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

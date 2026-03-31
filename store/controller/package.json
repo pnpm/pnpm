@@ -1,0 +1,84 @@
+{
+  "name": "@pnpm/store.controller",
+  "version": "1004.0.0",
+  "description": "A storage for packages",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "cache",
+    "central storage",
+    "global store",
+    "maching store",
+    "packages",
+    "storage",
+    "store"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/store/controller",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/store/controller#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "start": "tsgo --watch",
+    "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "pretest": "rimraf .tmp",
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "pn pretest && cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/crypto.hash": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/fetching.fetcher-base": "workspace:*",
+    "@pnpm/hooks.types": "workspace:*",
+    "@pnpm/installing.package-requester": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.controller-types": "workspace:*",
+    "@pnpm/store.create-cafs-store": "workspace:*",
+    "@pnpm/store.index": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@zkochan/rimraf": "catalog:",
+    "is-subdir": "catalog:",
+    "pretty-bytes": "catalog:",
+    "ramda": "catalog:",
+    "ssri": "catalog:",
+    "symlink-dir": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:",
+    "@pnpm/worker": "workspace:^"
+  },
+  "devDependencies": {
+    "@pnpm/installing.client": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/store.controller": "workspace:*",
+    "@types/ramda": "catalog:",
+    "@types/ssri": "catalog:",
+    "tempy": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

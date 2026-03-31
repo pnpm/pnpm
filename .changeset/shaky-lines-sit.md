@@ -1,8 +1,8 @@
 ---
-"@pnpm/plugin-commands-listing": patch
-"@pnpm/reviewing.dependencies-hierarchy": patch
+"@pnpm/deps.inspection.commands": patch
+"@pnpm/deps.inspection.tree-builder": patch
 "@pnpm/types": patch
-"@pnpm/list": patch
+"@pnpm/deps.inspection.list": patch
 "pnpm": patch
 ---
 

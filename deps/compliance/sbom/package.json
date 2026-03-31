@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/sbom",
+  "name": "@pnpm/deps.compliance.sbom",
   "version": "1000.0.0-0",
   "description": "Generate SBOM from pnpm lockfile",
   "keywords": [
@@ -27,11 +27,11 @@
     "!*.map"
   ],
   "scripts": {
-    "test": "pnpm run compile && pnpm run _test",
+    "test": "pn compile && pn .test",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "prepublishOnly": "pnpm run compile",
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@cyclonedx/cyclonedx-library": "catalog:",
@@ -39,7 +39,7 @@
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/lockfile.walker": "workspace:*",
-    "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/store.pkg-finder": "workspace:*",
     "@pnpm/types": "workspace:*",
@@ -51,8 +51,8 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
+    "@pnpm/deps.compliance.sbom": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/sbom": "workspace:*",
     "@types/ssri": "catalog:"
   },
   "engines": {

@@ -27,12 +27,12 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
-    "compile": "tsgo --build && pnpm run lint --fix",
-    "prepublishOnly": "pnpm run compile"
+    "compile": "tsgo --build && pn lint --fix",
+    "prepublishOnly": "pn compile"
   },
   "dependencies": {
     "@pnpm/patching.types": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*"
   },
   "devDependencies": {

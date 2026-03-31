@@ -7,9 +7,9 @@ import {
   type FetchErrorResponse,
   PnpmError,
 } from '@pnpm/error'
-import type { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetching-types'
+import type { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
-import type { PackageMeta } from '@pnpm/registry.types'
+import type { PackageMeta } from '@pnpm/resolving.registry.types'
 import * as retry from '@zkochan/retry'
 
 interface RegistryResponse {
@@ -86,7 +86,7 @@ export async function fetchMetadataFromFromRegistry (
           timeout: fetchOpts.timeout,
         }) as RegistryResponse
       } catch (error: any) { // eslint-disable-line
-        reject(new PnpmError('META_FETCH_FAIL', `GET ${uri}: ${error.message as string}`, { attempts: attempt }))
+        reject(new PnpmError('META_FETCH_FAIL', `GET ${uri}: ${error.message as string}`, { attempts: attempt, cause: error }))
         return
       }
       if (response.status >= 400) {
@@ -99,7 +99,7 @@ export async function fetchMetadataFromFromRegistry (
       }
 
       // Here we only retry broken JSON responses.
-      // Other HTTP issues are retried by the @pnpm/fetch library
+      // Other HTTP issues are retried by the @pnpm/network.fetch library
       try {
         const jsonText = await response.text()
         const meta = JSON.parse(jsonText) as PackageMeta
@@ -117,9 +117,17 @@ export async function fetchMetadataFromFromRegistry (
           reject(op.mainError())
           return
         }
+        // Extract error properties into a plain object because Error properties
+        // are non-enumerable and don't serialize well through the logging system
+        const errorInfo = {
+          name: error.name,
+          message: error.message,
+          code: error.code,
+          errno: error.errno,
+        }
         requestRetryLogger.debug({
           attempt,
-          error,
+          error: errorInfo,
           maxRetries: fetchOpts.retry.retries!,
           method: 'GET',
           timeout,

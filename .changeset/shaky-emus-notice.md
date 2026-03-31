@@ -1,6 +1,6 @@
 ---
-"@pnpm/cli-utils": patch
-"@pnpm/config": patch
+"@pnpm/cli.utils": patch
+"@pnpm/config.reader": patch
 "pnpm": patch
 ---
 

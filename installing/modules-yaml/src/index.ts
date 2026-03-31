@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import fs from '@pnpm/graceful-fs'
+import fs from '@pnpm/fs.graceful-fs'
 import type {
   DependenciesField,
   DepPath,
@@ -69,31 +69,31 @@ export async function readModulesManifest (modulesDir: string): Promise<Modules 
     modules.virtualStoreDir = path.join(modulesDir, modules.virtualStoreDir)
   }
   switch (modules.shamefullyHoist) {
-  case true:
-    if (modules.publicHoistPattern == null) {
-      modules.publicHoistPattern = ['*']
-    }
-    if ((modules.hoistedAliases != null) && !modules.hoistedDependencies) {
-      modules.hoistedDependencies = mapValues(
-        (aliases) => Object.fromEntries(aliases.map((alias) => [alias, 'public' as const])),
-        modules.hoistedAliases
-      )
-    }
-    break
-  case false:
-    if (modules.publicHoistPattern == null) {
-      modules.publicHoistPattern = []
-    }
-    if ((modules.hoistedAliases != null) && !modules.hoistedDependencies) {
-      modules.hoistedDependencies = {}
-      for (const depPath of Object.keys(modules.hoistedAliases)) {
-        modules.hoistedDependencies[depPath as DepPath] = {}
-        for (const alias of modules.hoistedAliases[depPath as DepPath]) {
-          modules.hoistedDependencies[depPath as DepPath][alias] = 'private'
+    case true:
+      if (modules.publicHoistPattern == null) {
+        modules.publicHoistPattern = ['*']
+      }
+      if ((modules.hoistedAliases != null) && !modules.hoistedDependencies) {
+        modules.hoistedDependencies = mapValues(
+          (aliases) => Object.fromEntries(aliases.map((alias) => [alias, 'public' as const])),
+          modules.hoistedAliases
+        )
+      }
+      break
+    case false:
+      if (modules.publicHoistPattern == null) {
+        modules.publicHoistPattern = []
+      }
+      if ((modules.hoistedAliases != null) && !modules.hoistedDependencies) {
+        modules.hoistedDependencies = {}
+        for (const depPath of Object.keys(modules.hoistedAliases)) {
+          modules.hoistedDependencies[depPath as DepPath] = {}
+          for (const alias of modules.hoistedAliases[depPath as DepPath]) {
+            modules.hoistedDependencies[depPath as DepPath][alias] = 'private'
+          }
         }
       }
-    }
-    break
+      break
   }
   if (!modules.prunedAt) {
     modules.prunedAt = new Date().toUTCString()

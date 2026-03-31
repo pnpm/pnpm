@@ -1,10 +1,10 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 
-import { depPathToFilename } from '@pnpm/dependency-path'
+import { depPathToFilename } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { type PackageSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
-import { readPackageJson } from '@pnpm/read-package-json'
+import { readPackageJson } from '@pnpm/pkg-manifest.reader'
 import type { StoreIndex } from '@pnpm/store.index'
 import { readPackageFileMap } from '@pnpm/store.pkg-finder'
 import type { PackageManifest, Registries } from '@pnpm/types'

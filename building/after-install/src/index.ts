@@ -2,23 +2,24 @@ import assert from 'node:assert'
 import path from 'node:path'
 import util from 'node:util'
 
+import { linkBins } from '@pnpm/bins.linker'
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import { createAllowBuildFunction } from '@pnpm/building.policy'
-import { calcDepState, type DepsStateCache, lockfileToDepGraph } from '@pnpm/calc-dep-state'
 import {
   LAYOUT_VERSION,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
-import * as dp from '@pnpm/dependency-path'
+import { calcDepState, type DepsStateCache, lockfileToDepGraph } from '@pnpm/deps.graph-hasher'
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
+import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
-import { getContext, type PnpmContext } from '@pnpm/get-context'
 import {
   runLifecycleHooksConcurrently,
   runPostinstallHooks,
-} from '@pnpm/lifecycle'
-import { linkBins } from '@pnpm/link-bins'
+} from '@pnpm/exec.lifecycle'
+import { getContext, type PnpmContext } from '@pnpm/installing.context'
+import { writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import type { TarballResolution } from '@pnpm/lockfile.types'
 import {
   type LockfileObject,
@@ -28,12 +29,11 @@ import {
 } from '@pnpm/lockfile.utils'
 import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
 import { logger, streamParser } from '@pnpm/logger'
-import { writeModulesManifest } from '@pnpm/modules-yaml'
 import npa from '@pnpm/npm-package-arg'
-import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
+import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
+import { createStoreController } from '@pnpm/store.connection-manager'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
-import { createStoreController } from '@pnpm/store-connection-manager'
 import type {
   DepPath,
   IgnoredBuilds,
@@ -77,7 +77,7 @@ function findPackages (
     })
 }
 
-// TODO: move this logic to separate package as this is also used in dependencies-hierarchy
+// TODO: move this logic to separate package as this is also used in tree-builder
 function matches (
   searched: PackageSelector[],
   manifest: { name: string, version?: string }
@@ -146,16 +146,17 @@ export async function buildSelectedPkgs (
     hoistedDependencies: ctx.hoistedDependencies,
     hoistPattern: ctx.hoistPattern,
     included: ctx.include,
-    ignoredBuilds: ignoredPkgs,
+    ignoredBuilds: mergeIgnoredBuilds(ctx.modulesFile?.ignoredBuilds, ignoredPkgs, pkgs as DepPath[]),
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: ctx.pendingBuilds,
     publicHoistPattern: ctx.publicHoistPattern,
     registries: ctx.registries,
     skipped: Array.from(ctx.skipped),
-    storeDir: ctx.storeDir,
-    virtualStoreDir: ctx.virtualStoreDir,
-    virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
+    storeDir: ctx.modulesFile?.storeDir ?? ctx.storeDir,
+    virtualStoreDir: ctx.modulesFile?.virtualStoreDir ?? ctx.virtualStoreDir,
+    virtualStoreDirMaxLength: ctx.modulesFile?.virtualStoreDirMaxLength ?? ctx.virtualStoreDirMaxLength,
+    allowBuilds: opts.allowBuilds,
   })
   return {
     ignoredBuilds: ignoredPkgs,
@@ -321,11 +322,11 @@ async function _rebuild (
   const _allowBuild = createAllowBuildFunction(opts) ?? (() => undefined)
   const allowBuild = (pkgName: string, version: string, depPath: DepPath) => {
     switch (_allowBuild(pkgName, version)) {
-    case true: return true
-    case undefined: {
-      ignoredPkgs.add(depPath)
-      break
-    }
+      case true: return true
+      case undefined: {
+        ignoredPkgs.add(depPath)
+        break
+      }
     }
     return false
   }
@@ -479,4 +480,29 @@ function binDirsInAllParentDirs (pkgRoot: string, lockfileDir: string): string[]
   } while (path.relative(dir, lockfileDir) !== '')
   binDirs.push(path.join(lockfileDir, 'node_modules/.bin'))
   return binDirs
+}
+
+/**
+ * Merge new ignoredBuilds from a selective rebuild with existing ones.
+ * Keeps existing entries for packages that weren't part of this rebuild.
+ */
+function mergeIgnoredBuilds (
+  existing: IgnoredBuilds | undefined,
+  newIgnored: IgnoredBuilds,
+  rebuiltPkgs: DepPath[]
+): IgnoredBuilds | undefined {
+  if (!existing?.size && !newIgnored.size) return undefined
+  const rebuiltSet = new Set<DepPath>(rebuiltPkgs)
+  const merged = new Set<DepPath>()
+  if (existing) {
+    for (const depPath of existing) {
+      if (!rebuiltSet.has(depPath)) {
+        merged.add(depPath)
+      }
+    }
+  }
+  for (const depPath of newIgnored) {
+    merged.add(depPath)
+  }
+  return merged.size ? merged : undefined
 }

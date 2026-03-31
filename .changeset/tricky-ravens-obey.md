@@ -1,7 +1,7 @@
 ---
-"@pnpm/package-requester": minor
-"@pnpm/store-controller-types": minor
-"@pnpm/fetcher-base": minor
+"@pnpm/installing.package-requester": minor
+"@pnpm/store.controller-types": minor
+"@pnpm/fetching.fetcher-base": minor
 "@pnpm/worker": minor
 "pnpm": minor
 ---

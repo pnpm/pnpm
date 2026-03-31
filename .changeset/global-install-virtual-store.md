@@ -1,5 +1,5 @@
 ---
-"@pnpm/config": major
+"@pnpm/config.reader": major
 "pnpm": major
 ---
 

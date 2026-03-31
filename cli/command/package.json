@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/command",
+  "name": "@pnpm/cli.command",
   "version": "1000.0.0",
   "description": "Types and utils for pnpm commands",
   "keywords": [
@@ -25,15 +25,15 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
-    "test": "pnpm run compile",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "test": "pn compile",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {
     "@pnpm/tabtab": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/command": "workspace:*"
+    "@pnpm/cli.command": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

@@ -32,8 +32,8 @@
   "scripts": {
     "lint": "eslint src/**/*.ts",
     "compile": "rimraf tsconfig.tsbuildinfo lib && tsc --build",
-    "test": "pnpm run compile",
-    "prepublishOnly": "pnpm run compile"
+    "test": "pn compile",
+    "prepublishOnly": "pn compile"
   },
   "dependencies": {
     "@pnpm/prepare-temp-dir": "workspace:*",

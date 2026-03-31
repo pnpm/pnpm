@@ -1,6 +1,6 @@
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import type { PatchInfo } from '@pnpm/patching.types'
-import type { PkgRequestFetchResult } from '@pnpm/store-controller-types'
+import type { PkgRequestFetchResult } from '@pnpm/store.controller-types'
 import type { DepPath, PkgIdWithPatchHash } from '@pnpm/types'
 import { filter } from 'ramda'
 

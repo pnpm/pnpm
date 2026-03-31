@@ -26,27 +26,27 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
-    "test": "pnpm run compile && pnpm run _test",
-    "prepublishOnly": "pnpm run compile",
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "pn compile",
     "start": "tsgo --watch",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
-    "@pnpm/config": "workspace:*",
+    "@pnpm/config.parse-overrides": "workspace:*",
+    "@pnpm/config.reader": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/crypto.object-hasher": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/get-context": "workspace:*",
+    "@pnpm/installing.context": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.settings-checker": "workspace:*",
     "@pnpm/lockfile.verification": "workspace:*",
-    "@pnpm/parse-overrides": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/workspace.find-packages": "workspace:*",
-    "@pnpm/workspace.read-manifest": "workspace:*",
+    "@pnpm/workspace.projects-reader": "workspace:*",
     "@pnpm/workspace.state": "workspace:*",
+    "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
     "ramda": "catalog:"
   },
   "peerDependencies": {
@@ -56,7 +56,7 @@
     "@jest/globals": "catalog:",
     "@pnpm/deps.status": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/write-project-manifest": "workspace:*",
+    "@pnpm/workspace.project-manifest-writer": "workspace:*",
     "@types/ramda": "catalog:"
   },
   "engines": {

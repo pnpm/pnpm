@@ -2,26 +2,26 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import type { Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config.reader'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import type { LockfileFile } from '@pnpm/lockfile.types'
-import { readModulesManifest } from '@pnpm/modules-yaml'
+import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import {
   prepare,
   prepareEmpty,
   preparePackages,
   tempDir as makeTempDir,
 } from '@pnpm/prepare'
-import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { addDistTag } from '@pnpm/registry-mock'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import type { ProjectManifest } from '@pnpm/types'
-import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import type { WorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
+import type { WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { rimrafSync } from '@zkochan/rimraf'
 import { safeExeca as execa } from 'execa'
 import { readYamlFileSync } from 'read-yaml-file'
-import symlink from 'symlink-dir'
+import { symlinkDir } from 'symlink-dir'
 import { temporaryDirectory } from 'tempy'
 import { writeYamlFileSync } from 'write-yaml-file'
 
@@ -802,7 +802,7 @@ test('recursive install with shared-workspace-lockfile builds workspace projects
   server1.clear()
   server2.clear()
 
-  // TODO: duplicate this test in @pnpm/headless
+  // TODO: duplicate this test in @pnpm/installing.deps-restorer
   await execPnpm(['recursive', 'install', '--frozen-lockfile', '--link-workspace-packages', '--shared-workspace-lockfile=true'])
 
   expect(server1.getLines()).toStrictEqual([
@@ -945,7 +945,7 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
     },
   ])
 
-  await symlink('workspace-2/package-2', 'workspace-1/package-2')
+  await symlinkDir('workspace-2/package-2', 'workspace-1/package-2')
 
   writeYamlFileSync('workspace-1/pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   writeYamlFileSync('workspace-2/pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
@@ -1417,7 +1417,7 @@ test('root package is included when not specified', async () => {
   )
   const workspacePackagePatterns = ['project-', '!store/**']
   writeYamlFileSync('pnpm-workspace.yaml', { packages: workspacePackagePatterns })
-  const workspacePackages = await findWorkspacePackages(tempDir, { engineStrict: false, patterns: workspacePackagePatterns })
+  const workspacePackages = await findWorkspaceProjects(tempDir, { engineStrict: false, patterns: workspacePackagePatterns })
 
   expect(workspacePackages.some(project => {
     const relativePath = path.join('.', path.relative(tempDir, project.rootDir))
@@ -1455,7 +1455,7 @@ test("root package can't be ignored using '!.' (or any other such glob)", async 
   )
   const workspacePackagePatterns = ['project-', '!.', '!./', '!store/**']
   writeYamlFileSync('pnpm-workspace.yaml', { packages: workspacePackagePatterns })
-  const workspacePackages = await findWorkspacePackages(tempDir, { engineStrict: false, patterns: workspacePackagePatterns })
+  const workspacePackages = await findWorkspaceProjects(tempDir, { engineStrict: false, patterns: workspacePackagePatterns })
 
   expect(workspacePackages.some(project => {
     const relativePath = path.join('.', path.relative(tempDir, project.rootDir))
@@ -1891,12 +1891,6 @@ test('overrides in workspace project should be taken into account when shared-wo
     {
       name: 'project-1',
       version: '1.0.0',
-
-      pnpm: {
-        overrides: {
-          'is-odd': '1.0.0',
-        },
-      },
     },
     {
       name: 'project-2',
@@ -1907,6 +1901,13 @@ test('overrides in workspace project should be taken into account when shared-wo
   writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['**', '!store/**'],
     sharedWorkspaceLockfile: false,
+    packageConfigs: {
+      'project-1': {
+        overrides: {
+          'is-odd': '1.0.0',
+        },
+      },
+    },
   })
 
   await execPnpm(['install'])

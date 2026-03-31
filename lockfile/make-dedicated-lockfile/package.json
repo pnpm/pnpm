@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/make-dedicated-lockfile",
+  "name": "@pnpm/lockfile.make-dedicated-lockfile",
   "version": "1000.0.28",
   "description": "Creates a dedicated lockfile for a subset of workspace projects",
   "keywords": [
@@ -28,26 +28,26 @@
   "bin": "./bin/make-dedicated-lockfile.js",
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
-    "test": "pnpm run compile && pnpm run _test",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "test": "pn compile && pn --filter=pnpm compile && pn .test",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
     "@pnpm/exec": "catalog:",
-    "@pnpm/exportable-manifest": "workspace:*",
-    "@pnpm/find-workspace-dir": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.pruner": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/releasing.exportable-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
+    "@pnpm/workspace.root-finder": "workspace:*",
     "ramda": "catalog:",
     "rename-overwrite": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/make-dedicated-lockfile": "workspace:*",
+    "@pnpm/lockfile.make-dedicated-lockfile": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "catalog:",
     "execa": "catalog:"

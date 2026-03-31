@@ -1,0 +1,50 @@
+{
+  "name": "@pnpm/deps.graph-hasher",
+  "version": "1002.0.8",
+  "description": "Calculates the state of a dependency",
+  "keywords": [
+    "pnpm",
+    "pnpm11"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/deps/graph-hasher",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/deps/graph-hasher#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/crypto.object-hasher": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
+    "@pnpm/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@pnpm/deps.graph-hasher": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

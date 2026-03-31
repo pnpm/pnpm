@@ -1,0 +1,43 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../__utils__/prepare"
+    },
+    {
+      "path": "../../cli/utils"
+    },
+    {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../object/key-sorting"
+    },
+    {
+      "path": "../../object/property-path"
+    },
+    {
+      "path": "../../text/naming-cases"
+    },
+    {
+      "path": "../../workspace/workspace-manifest-writer"
+    },
+    {
+      "path": "../reader"
+    }
+  ]
+}

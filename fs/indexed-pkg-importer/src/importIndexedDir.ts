@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import gfs from '@pnpm/graceful-fs'
+import gfs from '@pnpm/fs.graceful-fs'
 import { globalInfo, globalWarn, logger } from '@pnpm/logger'
 import { rimrafSync } from '@zkochan/rimraf'
 import fsx from 'fs-extra'
@@ -15,8 +15,17 @@ const filenameConflictsLogger = logger('_filename-conflicts')
 
 export type ImportFile = (src: string, dest: string) => void
 
+export interface Importer {
+  importFile: ImportFile
+  // Used for writing package.json, which is the completion marker and must
+  // be written atomically.  For hard links and reflinks importFile is already
+  // atomic so callers pass the same function.  The copy path passes a
+  // temp-file + rename wrapper instead.
+  importFileAtomic: ImportFile
+}
+
 export function importIndexedDir (
-  importFile: ImportFile,
+  importer: Importer,
   newDir: string,
   filenames: Map<string, string>,
   opts: {
@@ -24,9 +33,40 @@ export function importIndexedDir (
     safeToSkip?: boolean
   }
 ): void {
+  // Fast path: import directly without staging.  Callers already verified
+  // the target package is missing (pkgExistsAtTargetDir / pkgLinkedToStore),
+  // so we can write straight into newDir and skip the temp dir + rename.
+  // On any error, clean up and fall through to the staging path which has
+  // full error handling (EEXIST dedup, ENOENT sanitized-filename retry, etc.).
+  // keepModulesDir needs the staging path to preserve the existing node_modules.
+  if (!opts.keepModulesDir) try {
+    // For safeToSkip (content-addressed GVS), use non-destructive mkdirSync
+    // so concurrent importers don't wipe each other's files.
+    if (opts.safeToSkip) {
+      fs.mkdirSync(newDir, { recursive: true })
+    } else {
+      makeEmptyDirSync(newDir, { recursive: true })
+    }
+    tryImportIndexedDir(importer, newDir, filenames)
+    return
+  } catch (err) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') {
+      // A concurrent importer may have completed the directory.
+      // If all files match, there's nothing left to do.
+      if (allFilesMatch(newDir, filenames)) return
+    } else {
+      try {
+        rimrafSync(newDir)
+      } catch {} // eslint-disable-line:no-empty
+    }
+  }
+  // Staging path: create in temp dir, then atomically rename.
+  // The dir rename is itself atomic, so individual file atomicity is not
+  // needed here — use importFile for everything.
   const stage = pathTemp(newDir)
   try {
-    tryImportIndexedDir(importFile, stage, filenames)
+    makeEmptyDirSync(stage, { recursive: true })
+    tryImportIndexedDir({ importFile: importer.importFile, importFileAtomic: importer.importFile }, stage, filenames)
     if (opts.keepModulesDir) {
       // Keeping node_modules is needed only when the hoisted node linker is used.
       moveOrMergeModulesDirs(path.join(newDir, 'node_modules'), path.join(stage, 'node_modules'))
@@ -48,18 +88,12 @@ export function importIndexedDir (
         'which is an issue on case-insensitive filesystems. ' +
         `The conflicting file names are: ${JSON.stringify(Object.fromEntries(conflictingFileNames))}`
       )
-      importIndexedDir(importFile, newDir, uniqueFileMap, opts)
+      importIndexedDir(importer, newDir, uniqueFileMap, opts)
       return
     }
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      const { sanitizedFilenames, invalidFilenames } = sanitizeFilenames(filenames)
-      if (invalidFilenames.length === 0) throw err
-      globalWarn(`\
-The package linked to "${path.relative(process.cwd(), newDir)}" had \
-files with invalid names: ${invalidFilenames.join(', ')}. \
-They were renamed.`)
-      importIndexedDir(importFile, newDir, sanitizedFilenames, opts)
-      return
+      if (retryWithSanitizedFilenames(importer, newDir, filenames, opts)) return
+      throw err
     }
     throw err
   }
@@ -118,6 +152,22 @@ function allFilesMatch (dir: string, filenames: Map<string, string>): boolean {
   return true
 }
 
+function retryWithSanitizedFilenames (
+  importer: Importer,
+  newDir: string,
+  filenames: Map<string, string>,
+  opts: { keepModulesDir?: boolean, safeToSkip?: boolean }
+): boolean {
+  const { sanitizedFilenames, invalidFilenames } = sanitizeFilenames(filenames)
+  if (invalidFilenames.length === 0) return false
+  globalWarn(`\
+The package linked to "${path.relative(process.cwd(), newDir)}" had \
+files with invalid names: ${invalidFilenames.join(', ')}. \
+They were renamed.`)
+  importIndexedDir(importer, newDir, sanitizedFilenames, opts)
+  return true
+}
+
 interface SanitizeFilenamesResult {
   sanitizedFilenames: Map<string, string>
   invalidFilenames: string[]
@@ -136,8 +186,11 @@ function sanitizeFilenames (filenames: Map<string, string>): SanitizeFilenamesRe
   return { sanitizedFilenames, invalidFilenames }
 }
 
-function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames: Map<string, string>): void {
-  makeEmptyDirSync(newDir, { recursive: true })
+function tryImportIndexedDir (
+  { importFile, importFileAtomic }: Importer,
+  newDir: string,
+  filenames: Map<string, string>
+): void {
   const allDirs = new Set<string>()
   for (const f of filenames.keys()) {
     const dir = path.dirname(f)
@@ -147,9 +200,20 @@ function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames:
   Array.from(allDirs)
     .sort((d1, d2) => d1.length - d2.length) // from shortest to longest
     .forEach((dir) => fs.mkdirSync(path.join(newDir, dir), { recursive: true }))
+  // Write package.json last so it acts as a completion marker.
+  // pkgExistsAtTargetDir() checks for package.json to decide if a package
+  // is already imported — writing it last ensures a crash mid-import won't
+  // leave a partially-populated directory that appears fully imported.
+  let packageJsonSrc: string | undefined
   for (const [f, src] of filenames) {
-    const dest = path.join(newDir, f)
-    importFile(src, dest)
+    if (f === 'package.json') {
+      packageJsonSrc = src
+      continue
+    }
+    importFile(src, path.join(newDir, f))
+  }
+  if (packageJsonSrc !== undefined) {
+    importFileAtomic(packageJsonSrc, path.join(newDir, 'package.json'))
   }
 }
 
@@ -182,16 +246,16 @@ function moveOrMergeModulesDirs (src: string, dest: string): void {
     renameEvenAcrossDevices(src, dest)
   } catch (err: unknown) {
     switch (util.types.isNativeError(err) && 'code' in err && err.code) {
-    case 'ENOENT':
+      case 'ENOENT':
       // If src directory doesn't exist, there is nothing to do
-      return
-    case 'ENOTEMPTY':
-    case 'EPERM': // This error code is thrown on Windows
+        return
+      case 'ENOTEMPTY':
+      case 'EPERM': // This error code is thrown on Windows
       // The newly added dependency might have node_modules if it has bundled dependencies.
-      mergeModulesDirs(src, dest)
-      return
-    default:
-      throw err
+        mergeModulesDirs(src, dest)
+        return
+      default:
+        throw err
     }
   }
 }

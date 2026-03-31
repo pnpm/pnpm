@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/env.path",
+  "name": "@pnpm/shell.path",
   "version": "1000.0.0",
   "description": "Functions for changing PATH env variable",
   "keywords": [
@@ -26,16 +26,16 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
-    "test": "pnpm run compile && pnpm run _test",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "path-name": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/env.path": "workspace:*"
+    "@pnpm/shell.path": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

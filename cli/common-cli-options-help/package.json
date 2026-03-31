@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/common-cli-options-help",
+  "name": "@pnpm/cli.common-cli-options-help",
   "version": "1000.0.1",
   "description": "Help for some common CLI options",
   "keywords": [
@@ -25,12 +25,12 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
-    "test": "pnpm run compile",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "test": "pn compile",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix"
   },
   "devDependencies": {
-    "@pnpm/common-cli-options-help": "workspace:*"
+    "@pnpm/cli.common-cli-options-help": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

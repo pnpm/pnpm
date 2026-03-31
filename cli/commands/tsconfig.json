@@ -1,0 +1,40 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../config/reader"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../workspace/projects-reader"
+    },
+    {
+      "path": "../../workspace/root-finder"
+    },
+    {
+      "path": "../../workspace/workspace-manifest-reader"
+    },
+    {
+      "path": "../command"
+    },
+    {
+      "path": "../parse-cli-args"
+    },
+    {
+      "path": "../utils"
+    }
+  ]
+}

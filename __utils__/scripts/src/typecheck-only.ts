@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
-import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
+import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { sync as execa } from 'execa'
 import glob from 'fast-glob'
 import normalizePath from 'normalize-path'
@@ -14,7 +15,7 @@ const typingsDir = path.resolve(import.meta.dirname, '__typings__')
 
 async function main (): Promise<void> {
   const workspace = await readWorkspaceManifest(repoRoot)
-  const packages = await findWorkspacePackages(repoRoot, {
+  const packages = await findWorkspaceProjects(repoRoot, {
     patterns: workspace!.packages,
   })
   const patterns = packages
@@ -54,8 +55,14 @@ async function main (): Promise<void> {
     JSON.stringify(typeCheckTSConfig, undefined, 2)
   )
 
-  console.log('Running tsgo --build...')
-  execa('tsgo', ['--build', '--singleThreaded', typeCheckDir], {
+  const singleThreaded = resolveThreadingMode(repoRoot)
+  const args = ['--build']
+  if (singleThreaded) {
+    args.push('--singleThreaded')
+  }
+  args.push(typeCheckDir)
+  console.log(`Running tsgo --build${singleThreaded ? ' --singleThreaded' : ''}...`)
+  execa('tsgo', args, {
     // The INIT_CWD variable is populated by package managers and points towards
     // the user's original working directory. It's more useful to run TypeScript
     // from the user's actual working directory so any type checking errors can
@@ -70,6 +77,47 @@ async function main (): Promise<void> {
     stdio: 'inherit',
   })
   console.log('Running tsgo build done')
+}
+
+const AUTO_SINGLE_THREAD_MEMORY_THRESHOLD_GB = 8
+
+function resolveThreadingMode (repoRoot: string): boolean {
+  const { mode, source } = readThreadingMode(repoRoot)
+  switch (mode) {
+    case 'single-threaded':
+      return true
+    case 'multi-threaded':
+      return false
+    case 'auto':
+      return os.totalmem() / (1024 ** 3) < AUTO_SINGLE_THREAD_MEMORY_THRESHOLD_GB
+    default:
+      throw new Error(
+        `Invalid threading mode "${mode}" from ${source}. ` +
+        'Valid values: auto, single-threaded, multi-threaded.'
+      )
+  }
+}
+
+function readThreadingMode (repoRoot: string): { mode: string, source: string } {
+  const envValue = process.env.PNPM_TYPECHECK_THREADING?.trim().toLowerCase()
+  if (envValue) {
+    return { mode: envValue, source: 'PNPM_TYPECHECK_THREADING env var' }
+  }
+
+  for (const configPath of [
+    path.join(repoRoot, '.local-settings', 'pnpm-typecheck.json'),
+    path.join(repoRoot, '.pnpm-typecheck.json'),
+  ]) {
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+      const threading = typeof config.threading === 'string' ? config.threading.trim().toLowerCase() : ''
+      if (threading) {
+        return { mode: threading, source: configPath }
+      }
+    }
+  }
+
+  return { mode: 'auto', source: 'default' }
 }
 
 main().catch((error: unknown) => {

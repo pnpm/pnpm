@@ -33,10 +33,21 @@ export interface PackageInRegistry extends PackageManifest {
       oidcConfigId: string
     }
   }
+  maintainers?: Array<{
+    name: string
+    email?: string
+    url?: string
+  }>
+  contributors?: Array<{
+    name: string
+    email?: string
+    url?: string
+  }>
   dist: {
     integrity?: string
     shasum: string
     tarball: string
+    unpackedSize?: number
     attestations?: {
       provenance?: {
         predicateType: string

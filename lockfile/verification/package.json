@@ -26,20 +26,20 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
-    "test": "pnpm run compile && pnpm run _test",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
-    "@pnpm/dependency-path": "workspace:*",
-    "@pnpm/get-context": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
+    "@pnpm/installing.context": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
-    "@pnpm/read-package-json": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
     "p-every": "catalog:",
     "ramda": "catalog:",

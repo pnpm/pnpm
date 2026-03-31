@@ -1,0 +1,34 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../../config/reader"
+    },
+    {
+      "path": "../../../core/error"
+    },
+    {
+      "path": "../../../core/types"
+    },
+    {
+      "path": "../../../crypto/shasums-file"
+    },
+    {
+      "path": "../../../fetching/types"
+    },
+    {
+      "path": "../../../network/fetch"
+    },
+    {
+      "path": "../../../resolving/resolver-base"
+    }
+  ]
+}

@@ -31,17 +31,17 @@ jobs:
     - name: Checkout Commit
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - name: Install pnpm
-      uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      uses: pnpm/action-setup@6e7bdbda5fe05107efc88b23b7ed00aa05f84ca0
       with:
         standalone: true
     - name: Setup Node
-      run: pnpm runtime -g set node ${{ inputs.node }}
+      run: pn runtime -g set node ${{ inputs.node }}
       timeout-minutes: 2
     # npm is needed for preparing git-hosted dependencies (e.g. in dlx tests)
     - name: Verify npm
       run: npm --version
     - name: pnpm install
-      run: pnpm install
+      run: pn install
       timeout-minutes: 3
     - name: Download compiled artifacts
       uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
@@ -68,6 +68,6 @@ jobs:
         fi
     - name: Run tests (${{ steps.test-scope.outputs.scope }})
       timeout-minutes: 70
-      run: pnpm run ${{ steps.test-scope.outputs.script }}
+      run: pn run ${{ steps.test-scope.outputs.script }}
       env:
         PNPM_WORKERS: 3

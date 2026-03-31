@@ -6,6 +6,7 @@ import { prepare } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
 import isWindows from 'is-windows'
 import PATH_NAME from 'path-name'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import {
   addDistTag,
@@ -56,7 +57,7 @@ test('global installation', async () => {
   const pnpmHome = path.join(global, 'pnpm')
   fs.mkdirSync(global)
 
-  const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
 
   await execPnpm(['add', '--global', 'is-positive'], { env })
 
@@ -86,7 +87,7 @@ test('global install warns when project has packageManager configured', async ()
   const pnpmHome = path.join(global, 'pnpm')
   fs.mkdirSync(global)
 
-  const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
 
   const { status } = execPnpmSync([
     'add',
@@ -102,7 +103,7 @@ test('global installation to custom directory with --global-dir', async () => {
   prepare()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
-  const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome }
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome }
 
   await execPnpm(['add', '--global', '--global-dir=../global', 'is-positive'], { env })
 
@@ -120,7 +121,7 @@ test('always install latest when doing global installation without spec', async 
   const pnpmHome = path.join(global, 'pnpm')
   fs.mkdirSync(global)
 
-  const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
 
   await execPnpm(['add', '-g', '@pnpm.e2e/peer-c@1'], { env })
   await execPnpm(['add', '-g', '@pnpm.e2e/peer-c'], { env })
@@ -142,7 +143,7 @@ test('run lifecycle events of global packages in correct working directory', asy
   fs.mkdirSync(pnpmHome, { recursive: true })
 
   const env = {
-    [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]!}`,
+    [PATH_NAME]: `${path.join(pnpmHome, 'bin')}${path.delimiter}${process.env[PATH_NAME]!}`,
     PNPM_HOME: pnpmHome,
     XDG_DATA_HOME: global,
   }
@@ -164,12 +165,14 @@ test.skip('dangerously-allow-all-builds=true in global config', async () => {
     name: 'local',
     version: '0.0.0',
     private: true,
-    pnpm: {
-      allowBuilds: {}, // don't allow any dependencies to be built
-    },
+  }
+
+  const workspaceManifest: Record<string, unknown> = {
+    allowBuilds: {}, // don't allow any dependencies to be built
   }
 
   const project = prepare(manifest)
+  writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
 
   const home = path.resolve('..', 'home/username')
   const cfgHome = path.resolve(home, '.config')
@@ -185,7 +188,7 @@ test.skip('dangerously-allow-all-builds=true in global config', async () => {
   ].join('\n'))
 
   const env = {
-    [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]!}`,
+    [PATH_NAME]: `${path.join(pnpmHome, 'bin')}${path.delimiter}${process.env[PATH_NAME]!}`,
     HOME: home,
     XDG_CONFIG_HOME: cfgHome,
     PNPM_HOME: pnpmHome,
@@ -201,7 +204,8 @@ test.skip('dangerously-allow-all-builds=true in global config', async () => {
   expect(fs.readdirSync(path.resolve('node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).not.toContain('created-by-postinstall')
 
   // global config should be used if local config did not specify
-  delete manifest.pnpm!.allowBuilds
+  delete workspaceManifest.allowBuilds
+  writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
   project.writePackageJson(manifest)
   fs.rmSync('node_modules', { recursive: true })
   fs.rmSync('pnpm-lock.yaml')
@@ -219,12 +223,14 @@ test.skip('dangerously-allow-all-builds=false in global config', async () => {
     name: 'local',
     version: '0.0.0',
     private: true,
-    pnpm: {
-      allowBuilds: { '@pnpm.e2e/postinstall-calls-pnpm': true },
-    },
+  }
+
+  const workspaceManifest: Record<string, unknown> = {
+    allowBuilds: { '@pnpm.e2e/postinstall-calls-pnpm': true },
   }
 
   const project = prepare(manifest)
+  writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
 
   const home = path.resolve('..', 'home/username')
   const cfgHome = path.resolve(home, '.config')
@@ -240,7 +246,7 @@ test.skip('dangerously-allow-all-builds=false in global config', async () => {
   ].join('\n'))
 
   const env = {
-    [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]!}`,
+    [PATH_NAME]: `${path.join(pnpmHome, 'bin')}${path.delimiter}${process.env[PATH_NAME]!}`,
     HOME: home,
     XDG_CONFIG_HOME: cfgHome,
     PNPM_HOME: pnpmHome,
@@ -256,7 +262,8 @@ test.skip('dangerously-allow-all-builds=false in global config', async () => {
   expect(fs.readdirSync(path.resolve('node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).toContain('created-by-postinstall')
 
   // global config should be used if local config did not specify
-  delete manifest.pnpm!.allowBuilds
+  delete workspaceManifest.allowBuilds
+  writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
   project.writePackageJson(manifest)
   fs.rmSync('node_modules', { recursive: true })
   fs.rmSync('pnpm-lock.yaml')
@@ -270,7 +277,7 @@ test('global update to latest', async () => {
   const pnpmHome = path.join(global, 'pnpm')
   fs.mkdirSync(global)
 
-  const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
 
   await execPnpm(['add', '--global', 'is-positive@1'], { env })
   await execPnpm(['update', '--global', '--latest'], { env })
@@ -287,7 +294,7 @@ test('global update should not crash if there are no global packages', async () 
   const pnpmHome = path.join(global, 'pnpm')
   fs.mkdirSync(global)
 
-  const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
 
   expect(execPnpmSync(['update', '--global'], { env }).status).toBe(0)
 })
@@ -298,7 +305,7 @@ test('global add cleans up stale bins when re-adding a package with different bi
   const pnpmHome = path.join(global, 'pnpm')
   fs.mkdirSync(pnpmHome, { recursive: true })
 
-  const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
 
   // Create v1 tarball with bin "old-bin"
   const pkgDir = path.resolve('..', 'my-tool')
@@ -313,7 +320,7 @@ test('global add cleans up stale bins when re-adding a package with different bi
   execPnpmSync(['pack', '--pack-destination', pkgDir], { cwd: path.join(pkgDir, 'package') })
 
   await execPnpm(['add', '-g', tarballV1], { env })
-  expect(fs.existsSync(path.join(pnpmHome, 'old-bin'))).toBeTruthy()
+  expect(fs.existsSync(path.join(pnpmHome, 'bin', 'old-bin'))).toBeTruthy()
 
   // Create v2 tarball with bin "new-bin"
   fs.writeFileSync(path.join(pkgDir, 'package', 'package.json'), JSON.stringify({
@@ -328,8 +335,8 @@ test('global add cleans up stale bins when re-adding a package with different bi
   await execPnpm(['add', '-g', tarballV2], { env })
 
   // old-bin should be gone, new-bin should exist
-  expect(fs.existsSync(path.join(pnpmHome, 'old-bin'))).toBeFalsy()
-  expect(fs.existsSync(path.join(pnpmHome, 'new-bin'))).toBeTruthy()
+  expect(fs.existsSync(path.join(pnpmHome, 'bin', 'old-bin'))).toBeFalsy()
+  expect(fs.existsSync(path.join(pnpmHome, 'bin', 'new-bin'))).toBeTruthy()
 })
 
 test('global add refuses to install when bin name conflicts with another global package', async () => {
@@ -338,7 +345,7 @@ test('global add refuses to install when bin name conflicts with another global 
   const pnpmHome = path.join(global, 'pnpm')
   fs.mkdirSync(pnpmHome, { recursive: true })
 
-  const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
 
   // Create two local packages that both expose a bin called "my-bin"
   const pkgA = path.resolve('..', 'pkg-a')
@@ -388,8 +395,9 @@ test('global add from a local directory using "."', () => {
   }))
   fs.writeFileSync(path.join(localPkg, 'index.js'), '#!/usr/bin/env node\nconsole.log("hello")\n')
 
+  const globalBin = path.join(pnpmHome, 'bin')
   const env = {
-    [PATH_NAME]: pnpmHome,
+    [PATH_NAME]: globalBin,
     PNPM_HOME: pnpmHome,
     XDG_DATA_HOME: global,
     pnpm_config_store_dir: path.resolve('..', 'store'),
@@ -404,17 +412,17 @@ test('global add from a local directory using "."', () => {
   expect(findGlobalPkg(globalPkgDir(pnpmHome), 'my-local-tool')).toBeTruthy()
 
   // Verify the bin was linked
-  expect(fs.existsSync(path.join(pnpmHome, 'my-local-tool'))).toBeTruthy()
+  expect(fs.existsSync(path.join(pnpmHome, 'bin', 'my-local-tool'))).toBeTruthy()
 
   // Install globally using a file: relative selector
   execPnpmSync(['add', '-g', 'file:./'], { cwd: localPkg, env, expectSuccess: true })
   expect(findGlobalPkg(globalPkgDir(pnpmHome), 'my-local-tool')).toBeTruthy()
-  expect(fs.existsSync(path.join(pnpmHome, 'my-local-tool'))).toBeTruthy()
+  expect(fs.existsSync(path.join(pnpmHome, 'bin', 'my-local-tool'))).toBeTruthy()
 
   // Install globally using a link: relative selector
   execPnpmSync(['add', '-g', 'link:../my-local-tool'], { cwd: process.cwd(), env, expectSuccess: true })
   expect(findGlobalPkg(globalPkgDir(pnpmHome), 'my-local-tool')).toBeTruthy()
-  expect(fs.existsSync(path.join(pnpmHome, 'my-local-tool'))).toBeTruthy()
+  expect(fs.existsSync(path.join(pnpmHome, 'bin', 'my-local-tool'))).toBeTruthy()
 })
 
 test('global remove deletes install group and bin shims', async () => {
@@ -423,7 +431,7 @@ test('global remove deletes install group and bin shims', async () => {
   const pnpmHome = path.join(global, 'pnpm')
   fs.mkdirSync(pnpmHome, { recursive: true })
 
-  const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
 
   // Create two packages with bins and install them together as a group
   const pkgA = path.resolve('..', 'tool-a')
@@ -446,13 +454,13 @@ test('global remove deletes install group and bin shims', async () => {
 
   // Install as a group
   await execPnpm(['add', '-g', pkgA, pkgB], { env })
-  expect(fs.existsSync(path.join(pnpmHome, 'tool-a-bin'))).toBeTruthy()
-  expect(fs.existsSync(path.join(pnpmHome, 'tool-b-bin'))).toBeTruthy()
+  expect(fs.existsSync(path.join(pnpmHome, 'bin', 'tool-a-bin'))).toBeTruthy()
+  expect(fs.existsSync(path.join(pnpmHome, 'bin', 'tool-b-bin'))).toBeTruthy()
 
   // Remove one package — entire group (both bins) should be removed
   await execPnpm(['remove', '-g', 'tool-a'], { env })
-  expect(fs.existsSync(path.join(pnpmHome, 'tool-a-bin'))).toBeFalsy()
-  expect(fs.existsSync(path.join(pnpmHome, 'tool-b-bin'))).toBeFalsy()
+  expect(fs.existsSync(path.join(pnpmHome, 'bin', 'tool-a-bin'))).toBeFalsy()
+  expect(fs.existsSync(path.join(pnpmHome, 'bin', 'tool-b-bin'))).toBeFalsy()
   expect(findGlobalPkg(globalPkgDir(pnpmHome), 'tool-a')).toBeNull()
   expect(findGlobalPkg(globalPkgDir(pnpmHome), 'tool-b')).toBeNull()
 })

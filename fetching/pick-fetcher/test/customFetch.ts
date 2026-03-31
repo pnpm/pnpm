@@ -1,23 +1,33 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { jest } from '@jest/globals'
-import type { Cafs } from '@pnpm/cafs-types'
-import { createCafsStore } from '@pnpm/create-cafs-store'
-import { createFetchFromRegistry } from '@pnpm/fetch'
-import type { Fetchers, FetchFunction, FetchOptions } from '@pnpm/fetcher-base'
+import type { Fetchers, FetchFunction, FetchOptions } from '@pnpm/fetching.fetcher-base'
+import { pickFetcher } from '@pnpm/fetching.pick-fetcher'
+import { createTarballFetcher } from '@pnpm/fetching.tarball-fetcher'
 import type { CustomFetcher } from '@pnpm/hooks.types'
-import { pickFetcher } from '@pnpm/pick-fetcher'
-import type { AtomicResolution } from '@pnpm/resolver-base'
+import { clearDispatcherCache, createFetchFromRegistry } from '@pnpm/network.fetch'
+import type { AtomicResolution } from '@pnpm/resolving.resolver-base'
+import type { Cafs } from '@pnpm/store.cafs-types'
+import { createCafsStore } from '@pnpm/store.create-cafs-store'
 import { StoreIndex } from '@pnpm/store.index'
-import { createTarballFetcher } from '@pnpm/tarball-fetcher'
 import { fixtures } from '@pnpm/test-fixtures'
-import nock from 'nock'
 import { temporaryDirectory } from 'tempy'
+import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 
 const f = fixtures(import.meta.dirname)
 const storeIndex = new StoreIndex(temporaryDirectory())
+
+
+let originalDispatcher: Dispatcher
+
+beforeAll(() => {
+  originalDispatcher = getGlobalDispatcher()
+})
+
 afterAll(() => {
   storeIndex.close()
+  setGlobalDispatcher(originalDispatcher)
 })
 
 // Test helpers to reduce type casting
@@ -271,58 +281,67 @@ describe('custom fetcher implementation examples', () => {
     const tarballIntegrity = 'sha1-HssnaJydJVE+rbyZFKc/VAi+enY='
 
     test('custom fetcher can delegate to remoteTarball fetcher', async () => {
-      const scope = nock(registry)
-        .get('/custom-pkg.tgz')
-        .replyWithFile(200, tarballPath, {
-          'Content-Length': '1279',
-        })
+      clearDispatcherCache()
+      const mockAgent = new MockAgent()
+      mockAgent.disableNetConnect()
+      setGlobalDispatcher(mockAgent)
 
-      const storeDir = temporaryDirectory()
-      const cafs = createCafsStore(storeDir)
-      const filesIndexFile = path.join(storeDir, 'index.json')
-
-      // Create standard fetchers to pass to custom fetcher
-      const fetchFromRegistry = createFetchFromRegistry({})
-      const tarballFetchers = createTarballFetcher(
-        fetchFromRegistry,
-        () => undefined,
-        { rawConfig: {}, storeIndex }
-      )
-
-      // Custom fetcher that maps custom URLs to tarballs
-      const customFetcher = createMockCustomFetcher(
-        (_pkgId, resolution) => resolution.type === 'custom:url' && Boolean((resolution as any).customUrl), // eslint-disable-line @typescript-eslint/no-explicit-any
-        async (cafs, resolution, opts, fetchers) => {
-          // Map custom resolution to tarball resolution
-          const tarballResolution = {
-            tarball: (resolution as any).customUrl, // eslint-disable-line @typescript-eslint/no-explicit-any
-            integrity: tarballIntegrity,
-          }
-
-          // Delegate to standard tarball fetcher (passed via fetchers parameter)
-          return fetchers.remoteTarball(cafs, tarballResolution, opts)
-        }
-      )
-
-      const customResolution = createMockResolution({
-        type: 'custom:url',
-        customUrl: `${registry}custom-pkg.tgz`,
+      const tarballContent = fs.readFileSync(tarballPath)
+      const mockPool = mockAgent.get('http://localhost:4873')
+      mockPool.intercept({ path: '/custom-pkg.tgz', method: 'GET' }).reply(200, tarballContent, {
+        headers: { 'content-length': String(tarballContent.length) },
       })
 
-      const fetcher = await pickFetcher(
-        tarballFetchers as Fetchers,
-        customResolution,
-        { customFetchers: [customFetcher], packageId: 'custom-pkg@1.0.0' }
-      )
+      try {
+        const storeDir = temporaryDirectory()
+        const cafs = createCafsStore(storeDir)
+        const filesIndexFile = path.join(storeDir, 'index.json')
 
-      const result = await fetcher(
-        cafs,
-        customResolution,
-        createMockFetchOptions({ filesIndexFile, lockfileDir: process.cwd() })
-      )
+        // Create standard fetchers to pass to custom fetcher
+        const fetchFromRegistry = createFetchFromRegistry({})
+        const tarballFetchers = createTarballFetcher(
+          fetchFromRegistry,
+          () => undefined,
+          { rawConfig: {}, storeIndex }
+        )
 
-      expect(result.filesMap.get('package.json')).toBeTruthy()
-      expect(scope.isDone()).toBeTruthy()
+        // Custom fetcher that maps custom URLs to tarballs
+        const customFetcher = createMockCustomFetcher(
+          (_pkgId, resolution) => resolution.type === 'custom:url' && Boolean((resolution as any).customUrl), // eslint-disable-line @typescript-eslint/no-explicit-any
+          async (cafs, resolution, opts, fetchers) => {
+            // Map custom resolution to tarball resolution
+            const tarballResolution = {
+              tarball: (resolution as any).customUrl, // eslint-disable-line @typescript-eslint/no-explicit-any
+              integrity: tarballIntegrity,
+            }
+
+            // Delegate to standard tarball fetcher (passed via fetchers parameter)
+            return fetchers.remoteTarball(cafs, tarballResolution, opts)
+          }
+        )
+
+        const customResolution = createMockResolution({
+          type: 'custom:url',
+          customUrl: `${registry}custom-pkg.tgz`,
+        })
+
+        const fetcher = await pickFetcher(
+          tarballFetchers as Fetchers,
+          customResolution,
+          { customFetchers: [customFetcher], packageId: 'custom-pkg@1.0.0' }
+        )
+
+        const result = await fetcher(
+          cafs,
+          customResolution,
+          createMockFetchOptions({ filesIndexFile, lockfileDir: process.cwd() })
+        )
+
+        expect(result.filesMap.get('package.json')).toBeTruthy()
+      } finally {
+        await mockAgent.close()
+        setGlobalDispatcher(originalDispatcher)
+      }
     })
 
     test('custom fetcher can delegate to localTarball fetcher', async () => {
@@ -371,58 +390,67 @@ describe('custom fetcher implementation examples', () => {
     })
 
     test('custom fetcher can transform resolution before delegating to tarball fetcher', async () => {
-      const scope = nock(registry)
-        .get('/transformed-pkg.tgz')
-        .replyWithFile(200, tarballPath, {
-          'Content-Length': '1279',
-        })
+      clearDispatcherCache()
+      const mockAgent = new MockAgent()
+      mockAgent.disableNetConnect()
+      setGlobalDispatcher(mockAgent)
 
-      const storeDir = temporaryDirectory()
-      const cafs = createCafsStore(storeDir)
-      const filesIndexFile = path.join(storeDir, 'index.json')
-
-      const fetchFromRegistry = createFetchFromRegistry({})
-      const tarballFetchers = createTarballFetcher(
-        fetchFromRegistry,
-        () => undefined,
-        { rawConfig: {}, storeIndex }
-      )
-
-      // Custom fetcher that transforms custom resolution to tarball URL
-      const customFetcher = createMockCustomFetcher(
-        (_pkgId, resolution) => resolution.type === 'custom:registry',
-        async (cafs, resolution, opts, fetchers) => {
-          // Transform custom registry format to standard tarball URL
-          const tarballUrl = `${registry}${(resolution as any).packageName}.tgz` // eslint-disable-line @typescript-eslint/no-explicit-any
-
-          const tarballResolution = {
-            tarball: tarballUrl,
-            integrity: tarballIntegrity,
-          }
-
-          return fetchers.remoteTarball(cafs, tarballResolution, opts)
-        }
-      )
-
-      const customResolution = createMockResolution({
-        type: 'custom:registry',
-        packageName: 'transformed-pkg',
+      const tarballContent = fs.readFileSync(tarballPath)
+      const mockPool = mockAgent.get('http://localhost:4873')
+      mockPool.intercept({ path: '/transformed-pkg.tgz', method: 'GET' }).reply(200, tarballContent, {
+        headers: { 'content-length': String(tarballContent.length) },
       })
 
-      const fetcher = await pickFetcher(
-        tarballFetchers as Fetchers,
-        customResolution,
-        { customFetchers: [customFetcher], packageId: 'transformed-pkg@1.0.0' }
-      )
+      try {
+        const storeDir = temporaryDirectory()
+        const cafs = createCafsStore(storeDir)
+        const filesIndexFile = path.join(storeDir, 'index.json')
 
-      const result = await fetcher(
-        cafs,
-        customResolution,
-        createMockFetchOptions({ filesIndexFile, lockfileDir: process.cwd() })
-      )
+        const fetchFromRegistry = createFetchFromRegistry({})
+        const tarballFetchers = createTarballFetcher(
+          fetchFromRegistry,
+          () => undefined,
+          { rawConfig: {}, storeIndex }
+        )
 
-      expect(result.filesMap.get('package.json')).toBeTruthy()
-      expect(scope.isDone()).toBeTruthy()
+        // Custom fetcher that transforms custom resolution to tarball URL
+        const customFetcher = createMockCustomFetcher(
+          (_pkgId, resolution) => resolution.type === 'custom:registry',
+          async (cafs, resolution, opts, fetchers) => {
+            // Transform custom registry format to standard tarball URL
+            const tarballUrl = `${registry}${(resolution as any).packageName}.tgz` // eslint-disable-line @typescript-eslint/no-explicit-any
+
+            const tarballResolution = {
+              tarball: tarballUrl,
+              integrity: tarballIntegrity,
+            }
+
+            return fetchers.remoteTarball(cafs, tarballResolution, opts)
+          }
+        )
+
+        const customResolution = createMockResolution({
+          type: 'custom:registry',
+          packageName: 'transformed-pkg',
+        })
+
+        const fetcher = await pickFetcher(
+          tarballFetchers as Fetchers,
+          customResolution,
+          { customFetchers: [customFetcher], packageId: 'transformed-pkg@1.0.0' }
+        )
+
+        const result = await fetcher(
+          cafs,
+          customResolution,
+          createMockFetchOptions({ filesIndexFile, lockfileDir: process.cwd() })
+        )
+
+        expect(result.filesMap.get('package.json')).toBeTruthy()
+      } finally {
+        await mockAgent.close()
+        setGlobalDispatcher(originalDispatcher)
+      }
     })
 
     test('custom fetcher can use gitHostedTarball fetcher for custom git URLs', async () => {

@@ -24,16 +24,16 @@
     "!*.map"
   ],
   "scripts": {
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
-    "test": "pnpm run compile && pnpm run _test",
+    "test": "pn compile && pn .test",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
-    "@pnpm/fetcher-base": "workspace:*",
-    "@pnpm/fetching-types": "workspace:*",
+    "@pnpm/fetching.fetcher-base": "workspace:*",
+    "@pnpm/fetching.types": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "adm-zip": "catalog:",
     "is-subdir": "catalog:",

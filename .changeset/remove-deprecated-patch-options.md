@@ -1,16 +1,16 @@
 ---
-"@pnpm/plugin-commands-installation": major
-"@pnpm/plugin-commands-deploy": major
-"@pnpm/plugin-commands-patching": major
-"@pnpm/package-bins": major
+"@pnpm/installing.commands": major
+"@pnpm/releasing.commands": major
+"@pnpm/patching.commands": major
+"@pnpm/bins.resolver": major
 "@pnpm/patching.apply-patch": major
 "@pnpm/patching.config": major
 "@pnpm/patching.types": major
-"@pnpm/headless": major
-"@pnpm/build-modules": major
-"@pnpm/core": major
+"@pnpm/installing.deps-restorer": major
+"@pnpm/building.during-install": major
+"@pnpm/installing.deps-installer": major
 "@pnpm/types": major
-"@pnpm/config": major
+"@pnpm/config.reader": major
 "pnpm": major
 ---
 

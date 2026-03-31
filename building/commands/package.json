@@ -1,0 +1,86 @@
+{
+  "name": "@pnpm/building.commands",
+  "version": "1000.0.0-0",
+  "description": "Commands for rebuilding and managing dependency builds",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "rebuild"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/building/commands",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/building/commands#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pn compile && pn --filter=pnpm compile && pn .test",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/building.after-install": "workspace:*",
+    "@pnpm/cli.command": "workspace:*",
+    "@pnpm/cli.common-cli-options-help": "workspace:*",
+    "@pnpm/cli.utils": "workspace:*",
+    "@pnpm/config.reader": "workspace:*",
+    "@pnpm/config.writer": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/installing.commands": "workspace:*",
+    "@pnpm/installing.modules-yaml": "workspace:*",
+    "@pnpm/prepare-temp-dir": "workspace:*",
+    "@pnpm/store.connection-manager": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
+    "@pnpm/workspace.projects-sorter": "workspace:*",
+    "chalk": "catalog:",
+    "enquirer": "catalog:",
+    "p-limit": "catalog:",
+    "ramda": "catalog:",
+    "render-help": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/assert-project": "workspace:*",
+    "@pnpm/building.commands": "workspace:*",
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/crypto.object-hasher": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/registry-mock": "catalog:",
+    "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.index": "workspace:*",
+    "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/test-ipc-server": "workspace:*",
+    "@pnpm/workspace.projects-filter": "workspace:*",
+    "@types/ramda": "catalog:",
+    "execa": "catalog:",
+    "load-json-file": "catalog:",
+    "read-yaml-file": "catalog:",
+    "write-package": "catalog:",
+    "write-yaml-file": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config/with-registry"
+  }
+}

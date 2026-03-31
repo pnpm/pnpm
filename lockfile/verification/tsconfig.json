@@ -16,25 +16,25 @@
       "path": "../../catalogs/types"
     },
     {
+      "path": "../../core/constants"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../crypto/hash"
     },
     {
-      "path": "../../deps/dependency-path"
+      "path": "../../deps/path"
     },
     {
-      "path": "../../installing/get-context"
+      "path": "../../installing/context"
     },
     {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/logger"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manifest/read-package-json"
+      "path": "../../pkg-manifest/reader"
     },
     {
       "path": "../../resolving/resolver-base"

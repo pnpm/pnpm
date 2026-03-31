@@ -1,0 +1,61 @@
+{
+  "name": "@pnpm/releasing.exportable-manifest",
+  "version": "1000.1.7",
+  "description": "Creates an exportable manifest",
+  "keywords": [
+    "pnpm",
+    "pnpm11"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/releasing/exportable-manifest",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/releasing/exportable-manifest#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pn compile && pn --filter=pnpm compile && pn .test",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@npm/types": "catalog:",
+    "@pnpm/bins.resolver": "workspace:*",
+    "@pnpm/catalogs.resolver": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/resolving.jsr-specifier-parser": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
+    "p-map-values": "catalog:",
+    "ramda": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm/catalogs.config": "workspace:*",
+    "@pnpm/catalogs.types": "workspace:*",
+    "@pnpm/hooks.pnpmfile": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/releasing.exportable-manifest": "workspace:*",
+    "@types/cross-spawn": "catalog:",
+    "@types/ramda": "catalog:",
+    "cross-spawn": "catalog:",
+    "write-yaml-file": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

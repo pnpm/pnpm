@@ -2,7 +2,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { PnpmError } from '@pnpm/error'
-import type { PkgResolutionId } from '@pnpm/resolver-base'
+import type { PkgResolutionId } from '@pnpm/resolving.resolver-base'
 import normalize from 'normalize-path'
 
 // @ts-expect-error

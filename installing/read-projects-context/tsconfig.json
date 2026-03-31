@@ -13,13 +13,13 @@
       "path": "../../config/normalize-registries"
     },
     {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../lockfile/fs"
-    },
-    {
-      "path": "../../packages/logger"
-    },
-    {
-      "path": "../../packages/types"
     },
     {
       "path": "../modules-yaml"

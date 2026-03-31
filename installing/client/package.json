@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/client",
+  "name": "@pnpm/installing.client",
   "version": "1001.1.4",
   "description": "Creates the package resolve and fetch functions",
   "keywords": [
@@ -27,30 +27,29 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
-    "test": "pnpm run compile && pnpm run _test",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
-    "@pnpm/default-resolver": "workspace:*",
-    "@pnpm/directory-fetcher": "workspace:*",
-    "@pnpm/fetch": "workspace:*",
-    "@pnpm/fetching-types": "workspace:*",
     "@pnpm/fetching.binary-fetcher": "workspace:*",
-    "@pnpm/git-fetcher": "workspace:*",
+    "@pnpm/fetching.directory-fetcher": "workspace:*",
+    "@pnpm/fetching.git-fetcher": "workspace:*",
+    "@pnpm/fetching.tarball-fetcher": "workspace:*",
+    "@pnpm/fetching.types": "workspace:*",
     "@pnpm/hooks.types": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
-    "@pnpm/node.fetcher": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/network.fetch": "workspace:*",
+    "@pnpm/resolving.default-resolver": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.index": "workspace:*",
-    "@pnpm/tarball-fetcher": "workspace:*",
     "@pnpm/types": "workspace:*",
     "ramda": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/client": "workspace:*",
-    "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/fetching.fetcher-base": "workspace:*",
+    "@pnpm/installing.client": "workspace:*",
     "@types/ramda": "catalog:"
   },
   "engines": {

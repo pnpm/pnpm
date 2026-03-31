@@ -15,20 +15,19 @@ export function getAuthHeadersFromConfig (
   for (const [key, value] of Object.entries(allSettings)) {
     const [uri, authType] = splitKey(key)
     switch (authType) {
-    case '_authToken': {
-      authHeaderValueByURI[uri] = `Bearer ${value}`
-      continue
-    }
-    case '_auth': {
-      authHeaderValueByURI[uri] = `Basic ${value}`
-      continue
-    }
-    case 'username': {
-      if (`${uri}:_password` in allSettings) {
-        const password = Buffer.from(allSettings[`${uri}:_password`], 'base64').toString('utf8')
-        authHeaderValueByURI[uri] = `Basic ${Buffer.from(`${value}:${password}`).toString('base64')}`
+      case '_authToken': {
+        authHeaderValueByURI[uri] = `Bearer ${value}`
+        continue
       }
-    }
+      case '_auth': {
+        authHeaderValueByURI[uri] = `Basic ${value}`
+        continue
+      }
+      case 'username': {
+        if (`${uri}:_password` in allSettings) {
+          authHeaderValueByURI[uri] = basicAuth(value, allSettings[`${uri}:_password`])
+        }
+      }
     }
   }
   for (const [key, value] of Object.entries(userSettings)) {
@@ -45,9 +44,14 @@ export function getAuthHeadersFromConfig (
   } else if (allSettings['_auth']) {
     authHeaderValueByURI[registry] = `Basic ${allSettings['_auth']}`
   } else if (allSettings['_password'] && allSettings['username']) {
-    authHeaderValueByURI[registry] = `Basic ${Buffer.from(`${allSettings['username']}:${allSettings['_password']}`).toString('base64')}`
+    authHeaderValueByURI[registry] = basicAuth(allSettings['username'], allSettings['_password'])
   }
   return authHeaderValueByURI
+}
+
+function basicAuth (username: string, encodedPassword: string): string {
+  const password = Buffer.from(encodedPassword, 'base64').toString('utf8')
+  return `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`
 }
 
 function splitKey (key: string): string[] {
@@ -68,5 +72,14 @@ export function loadToken (helperPath: string, settingName: string): string {
   if (spawnResult.status !== 0) {
     throw new PnpmError('TOKEN_HELPER_ERROR_STATUS', `Error running "${helperPath}" as a token helper, configured as ${settingName}. Exit code ${spawnResult.status?.toString() ?? ''}`)
   }
-  return spawnResult.stdout.toString('utf8').trimEnd()
+  const token = spawnResult.stdout.toString('utf8').trimEnd()
+  if (!token) {
+    throw new PnpmError('TOKEN_HELPER_EMPTY_TOKEN', `Token helper "${helperPath}", configured as ${settingName}, returned an empty token`)
+  }
+  // If the token already contains an auth scheme (e.g. "Bearer ...", "Basic ..."),
+  // return it as-is.
+  if (/^[A-Z]+ /i.test(token)) {
+    return token
+  }
+  return `Bearer ${token}`
 }

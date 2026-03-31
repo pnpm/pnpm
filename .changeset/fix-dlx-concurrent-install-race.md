@@ -1,8 +1,8 @@
 ---
 "@pnpm/fs.indexed-pkg-importer": patch
-"@pnpm/plugin-commands-script-runners": patch
-"@pnpm/core": patch
-"@pnpm/link-bins": patch
+"@pnpm/exec.commands": patch
+"@pnpm/installing.deps-installer": patch
+"@pnpm/bins.linker": patch
 "pnpm": patch
 ---
 

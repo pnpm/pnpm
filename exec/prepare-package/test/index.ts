@@ -1,7 +1,7 @@
 import path from 'node:path'
 
+import { preparePackage } from '@pnpm/exec.prepare-package'
 import { tempDir } from '@pnpm/prepare'
-import { preparePackage } from '@pnpm/prepare-package'
 import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 

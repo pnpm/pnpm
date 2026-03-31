@@ -1,14 +1,13 @@
 import path from 'node:path'
 
+import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
 import type {
   FetchFromRegistry,
   GetAuthHeader,
   RetryTimeoutOptions,
-} from '@pnpm/fetching-types'
-import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
-import type { PackageInRegistry, PackageMeta } from '@pnpm/registry.types'
-import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
+} from '@pnpm/fetching.types'
+import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type {
   DirectoryResolution,
   PkgResolutionId,
@@ -19,7 +18,7 @@ import type {
   WorkspacePackage,
   WorkspacePackages,
   WorkspacePackagesByVersion,
-} from '@pnpm/resolver-base'
+} from '@pnpm/resolving.resolver-base'
 import { storeIndexKey } from '@pnpm/store.index'
 import type {
   DependencyManifest,
@@ -31,9 +30,10 @@ import type {
 import {
   readPkgFromCafs,
 } from '@pnpm/worker'
+import { resolveWorkspaceRange } from '@pnpm/workspace.range-resolver'
 import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
-import pMemoize from 'p-memoize'
+import pMemoize, { pMemoizeClear } from 'p-memoize'
 import { clone } from 'ramda'
 import semver from 'semver'
 import ssri from 'ssri'
@@ -52,7 +52,7 @@ import {
   pickPackage,
   type PickPackageOptions,
 } from './pickPackage.js'
-import { pickVersionByVersionRange } from './pickPackageFromMeta.js'
+import { pickPackageFromMeta, pickVersionByVersionRange } from './pickPackageFromMeta.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
 import { whichVersionIsPinned } from './whichVersionIsPinned.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
@@ -110,9 +110,13 @@ function formatTimeAgo (date: Date): string {
 }
 
 export {
+  fetchMetadataFromFromRegistry,
+  type FetchMetadataFromFromRegistryOptions,
   type PackageMeta,
   type PackageMetaCache,
   parseBareSpecifier,
+  pickPackageFromMeta,
+  pickVersionByVersionRange,
   type RegistryPackageSpec,
   RegistryResponseError,
   workspacePrefToNpm,
@@ -230,6 +234,7 @@ export function createNpmResolver (
     resolveFromJsr: resolveJsr.bind(null, ctx),
     clearCache: () => {
       metaCache.clear()
+      pMemoizeClear(fetch)
     },
   }
 }
@@ -660,16 +665,16 @@ function pickMatchingLocalVersionOrNull (
   spec: RegistryPackageSpec
 ): string | null {
   switch (spec.type) {
-  case 'tag':
-    return semver.maxSatisfying(Array.from(versions.keys()), '*', {
-      includePrerelease: true,
-    })
-  case 'version':
-    return versions.has(spec.fetchSpec) ? spec.fetchSpec : null
-  case 'range':
-    return resolveWorkspaceRange(spec.fetchSpec, Array.from(versions.keys()))
-  default:
-    return null
+    case 'tag':
+      return semver.maxSatisfying(Array.from(versions.keys()), '*', {
+        includePrerelease: true,
+      })
+    case 'version':
+      return versions.has(spec.fetchSpec) ? spec.fetchSpec : null
+    case 'range':
+      return resolveWorkspaceRange(spec.fetchSpec, Array.from(versions.keys()))
+    default:
+      return null
   }
 }
 
@@ -741,10 +746,10 @@ function calcSpecifierForWorkspaceDep ({
       if ([`${prefix}*`, `${prefix}^`, `${prefix}~`].includes(specifier)) return specifier
       const pinnedVersion = whichVersionIsPinned(specifier)
       switch (pinnedVersion) {
-      case 'major': return `${prefix}^`
-      case 'minor': return `${prefix}~`
-      case 'patch':
-      case 'none': return `${prefix}*`
+        case 'major': return `${prefix}^`
+        case 'minor': return `${prefix}~`
+        case 'patch':
+        case 'none': return `${prefix}*`
       }
     }
     return `${prefix}^`
@@ -793,14 +798,14 @@ function getIntegrity (dist: {
 
 function createVersionSpec (version: string, pinnedVersion?: PinnedVersion): string {
   switch (pinnedVersion ?? 'major') {
-  case 'none':
-  case 'major':
-    return `^${version}`
-  case 'minor':
-    return `~${version}`
-  case 'patch':
-    return version
-  default:
-    throw new PnpmError('BAD_PINNED_VERSION', `Cannot pin '${pinnedVersion ?? 'undefined'}'`)
+    case 'none':
+    case 'major':
+      return `^${version}`
+    case 'minor':
+      return `~${version}`
+    case 'patch':
+      return version
+    default:
+      throw new PnpmError('BAD_PINNED_VERSION', `Cannot pin '${pinnedVersion ?? 'undefined'}'`)
   }
 }

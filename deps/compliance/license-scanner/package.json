@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/license-scanner",
+  "name": "@pnpm/deps.compliance.license-scanner",
   "version": "1001.0.27",
   "description": "Check for licenses packages",
   "keywords": [
@@ -25,22 +25,22 @@
     "!*.map"
   ],
   "scripts": {
-    "test": "pnpm run compile && pnpm run _test",
+    "test": "pn compile && pn .test",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "prepublishOnly": "pnpm run compile",
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
-    "@pnpm/dependency-path": "workspace:*",
+    "@pnpm/config.package-is-installable": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/lockfile.detect-dep-types": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/lockfile.walker": "workspace:*",
-    "@pnpm/package-is-installable": "workspace:*",
-    "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/store.pkg-finder": "workspace:*",
     "@pnpm/types": "workspace:*",
@@ -55,7 +55,7 @@
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/constants": "workspace:*",
-    "@pnpm/license-scanner": "workspace:*",
+    "@pnpm/deps.compliance.license-scanner": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:"

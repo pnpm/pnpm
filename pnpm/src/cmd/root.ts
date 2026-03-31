@@ -1,7 +1,7 @@
 import path from 'node:path'
 
-import { docsUrl } from '@pnpm/cli-utils'
-import { types as allTypes } from '@pnpm/config'
+import { docsUrl } from '@pnpm/cli.utils'
+import { types as allTypes } from '@pnpm/config.reader'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 

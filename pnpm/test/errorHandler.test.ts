@@ -51,7 +51,7 @@ testOnPosix('should clean up child processes when process exited', async () => {
   const barPort = await getPort()
   process.chdir(multipleScriptsErrorExit)
   execPnpmSync(['run', '/^dev:.*/'], {
-    stdio: 'inherit',
+    stdio: 'pipe',
     env: {
       FOO_PORT: fooPort.toString(),
       BAR_PORT: barPort.toString(),

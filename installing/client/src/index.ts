@@ -1,18 +1,18 @@
+import { createBinaryFetcher } from '@pnpm/fetching.binary-fetcher'
+import { createDirectoryFetcher } from '@pnpm/fetching.directory-fetcher'
+import type { BinaryFetcher, DirectoryFetcher, GitFetcher } from '@pnpm/fetching.fetcher-base'
+import { createGitFetcher } from '@pnpm/fetching.git-fetcher'
+import { createTarballFetcher, type TarballFetchers } from '@pnpm/fetching.tarball-fetcher'
+import type { FetchFromRegistry, GetAuthHeader, RetryTimeoutOptions } from '@pnpm/fetching.types'
+import type { CustomFetcher, CustomResolver } from '@pnpm/hooks.types'
+import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
+import { createFetchFromRegistry, type DispatcherOptions } from '@pnpm/network.fetch'
 import {
   createResolver as _createResolver,
   type ResolveFunction,
   type ResolverFactoryOptions,
-} from '@pnpm/default-resolver'
-import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
-import { type AgentOptions, createFetchFromRegistry } from '@pnpm/fetch'
-import type { BinaryFetcher, DirectoryFetcher, GitFetcher } from '@pnpm/fetcher-base'
-import { createBinaryFetcher } from '@pnpm/fetching.binary-fetcher'
-import type { FetchFromRegistry, GetAuthHeader, RetryTimeoutOptions } from '@pnpm/fetching-types'
-import { createGitFetcher } from '@pnpm/git-fetcher'
-import type { CustomFetcher, CustomResolver } from '@pnpm/hooks.types'
-import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
+} from '@pnpm/resolving.default-resolver'
 import type { StoreIndex } from '@pnpm/store.index'
-import { createTarballFetcher, type TarballFetchers } from '@pnpm/tarball-fetcher'
 import type { SslConfig } from '@pnpm/types'
 
 export type { ResolveFunction }
@@ -35,7 +35,7 @@ export type ClientOptions = {
   includeOnlyPackageFiles?: boolean
   preserveAbsolutePaths?: boolean
   fetchMinSpeedKiBps?: number
-} & ResolverFactoryOptions & AgentOptions
+} & ResolverFactoryOptions & DispatcherOptions
 
 export interface Client {
   fetchers: Fetchers

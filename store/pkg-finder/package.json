@@ -25,14 +25,14 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
-    "compile": "tsgo --build && pnpm run lint --fix",
-    "prepublishOnly": "pnpm run compile",
-    "test": "pnpm run compile"
+    "compile": "tsgo --build && pn lint --fix",
+    "prepublishOnly": "pn compile",
+    "test": "pn compile"
   },
   "dependencies": {
-    "@pnpm/dependency-path": "workspace:*",
-    "@pnpm/directory-fetcher": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
+    "@pnpm/fetching.directory-fetcher": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.index": "workspace:*"
   },

@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/outdated",
+  "name": "@pnpm/deps.inspection.outdated",
   "version": "1001.1.1",
   "description": "Check for outdated packages",
   "keywords": [
@@ -25,28 +25,28 @@
     "!*.map"
   ],
   "scripts": {
-    "test": "pnpm run compile && pnpm run _test",
+    "test": "pn compile && pn .test",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "prepublishOnly": "pnpm run compile",
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
-    "@pnpm/client": "workspace:*",
+    "@pnpm/config.matcher": "workspace:*",
+    "@pnpm/config.parse-overrides": "workspace:*",
+    "@pnpm/config.pick-registry-for-package": "workspace:*",
     "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/constants": "workspace:*",
-    "@pnpm/dependency-path": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/hooks.read-package-hook": "workspace:*",
+    "@pnpm/installing.client": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
-    "@pnpm/manifest-utils": "workspace:*",
-    "@pnpm/matcher": "workspace:*",
-    "@pnpm/npm-resolver": "workspace:*",
-    "@pnpm/parse-overrides": "workspace:*",
-    "@pnpm/pick-registry-for-package": "workspace:*",
+    "@pnpm/pkg-manifest.utils": "workspace:*",
+    "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/types": "workspace:*",
     "ramda": "catalog:",
     "semver": "catalog:"
@@ -56,9 +56,9 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
+    "@pnpm/deps.inspection.outdated": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/outdated": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:"
   },

@@ -1,5 +1,5 @@
 ---
-"@pnpm/build-modules": major
+"@pnpm/building.during-install": major
 ---
 
 Replaced fetchingBundledManifest with fetching.

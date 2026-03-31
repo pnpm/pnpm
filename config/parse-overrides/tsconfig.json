@@ -16,7 +16,7 @@
       "path": "../../catalogs/types"
     },
     {
-      "path": "../../packages/error"
+      "path": "../../core/error"
     },
     {
       "path": "../../resolving/parse-wanted-dependency"

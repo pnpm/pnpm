@@ -1,5 +1,5 @@
 ---
-"@pnpm/plugin-commands-config": major
+"@pnpm/config.commands": major
 "pnpm": major
 ---
 

@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import gfs from '@pnpm/graceful-fs'
+import gfs from '@pnpm/fs.graceful-fs'
 import { globalWarn } from '@pnpm/logger'
 import { pathTemp } from 'path-temp'
 import { renameOverwriteSync } from 'rename-overwrite'

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exe",
-  "version": "11.0.0-alpha.16",
+  "version": "11.0.0-beta.6",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -18,12 +18,18 @@
   "files": [
     "setup.js",
     "prepare.js",
-    "dist/"
+    "dist/",
+    "pn.cmd",
+    "pn.ps1",
+    "pnpx.cmd",
+    "pnpx.ps1",
+    "pnx.cmd",
+    "pnx.ps1"
   ],
   "scripts": {
     "preinstall": "node setup.js",
     "prepare": "node prepare.js",
-    "prepublishOnly": "pnpm --filter=pnpm run prepublishOnly && node ./scripts/build-artifacts.ts"
+    "prepublishOnly": "pn --filter=pnpm prepublishOnly && node ./scripts/build-artifacts.ts"
   },
   "dependencies": {
     "@reflink/reflink": "catalog:"
@@ -37,15 +43,23 @@
     "@pnpm/win-x64": "workspace:*"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/exe": "workspace:*",
+    "@pnpm/jest-config": "workspace:*",
     "execa": "catalog:",
     "tar": "catalog:"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   },
   "preferGlobal": true,
   "publishConfig": {
     "tag": "next-10",
     "bin": {
-      "pnpm": "pnpm"
+      "pnpm": "pnpm",
+      "pn": "pn",
+      "pnpx": "pnpx",
+      "pnx": "pnx"
     }
   }
 }

@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/pnpmfile",
+  "name": "@pnpm/hooks.pnpmfile",
   "version": "1002.1.3",
   "description": "Reading a .pnpmfile.cjs",
   "keywords": [
@@ -25,10 +25,10 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
-    "test": "pnpm run compile && pnpm run _test",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
@@ -36,7 +36,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/hooks.types": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
-    "@pnpm/store-controller-types": "workspace:*",
+    "@pnpm/store.controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "chalk": "catalog:",
     "path-absolute": "catalog:"
@@ -45,9 +45,9 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/fetching.fetcher-base": "workspace:*",
+    "@pnpm/hooks.pnpmfile": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/pnpmfile": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*"
   },
   "engines": {

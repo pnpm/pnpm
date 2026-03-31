@@ -1,5 +1,5 @@
 ---
-"@pnpm/build-modules": patch
+"@pnpm/building.during-install": patch
 "pnpm": patch
 ---
 

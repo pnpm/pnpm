@@ -1,0 +1,8 @@
+{
+  "name": "node",
+  "version": "1.0.0",
+  "bin": {
+    "node": "index.js",
+    "npx": "npx.js"
+  }
+}

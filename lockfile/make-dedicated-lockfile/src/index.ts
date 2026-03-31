@@ -1,7 +1,6 @@
 import path from 'node:path'
 
 import pnpmExec from '@pnpm/exec'
-import { createExportableManifest } from '@pnpm/exportable-manifest'
 import {
   getLockfileImporterId,
   type ProjectSnapshot,
@@ -9,8 +8,9 @@ import {
   writeWantedLockfile,
 } from '@pnpm/lockfile.fs'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
-import { readProjectManifest } from '@pnpm/read-project-manifest'
+import { createExportableManifest } from '@pnpm/releasing.exportable-manifest'
 import { DEPENDENCIES_FIELDS, type ProjectId, type ProjectManifest } from '@pnpm/types'
+import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { pickBy } from 'ramda'
 import { renameOverwrite } from 'rename-overwrite'
 
@@ -38,7 +38,7 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
 
   const { manifest, writeProjectManifest } = await readProjectManifest(projectDir)
   const publishManifest = await createExportableManifest(projectDir, manifest, {
-    // Since @pnpm/make-dedicated-lockfile is deprecated, avoid supporting new
+    // Since @pnpm/lockfile.make-dedicated-lockfile is deprecated, avoid supporting new
     // features like pnpm catalogs. Passing in an empty catalog object
     // intentionally.
     catalogs: {},

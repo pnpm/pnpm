@@ -22,10 +22,19 @@ if (!fs.existsSync(bin)) process.exit(0)
 linkSync(bin, path.resolve(ownDir, executable))
 
 if (platform === 'win') {
+  // On Windows, also hardlink the binary as 'pnpm' (no .exe extension).
+  // npm's bin shims point to the name from publishConfig.bin, and npm
+  // does NOT re-read package.json after preinstall, so rewriting the bin
+  // entry has no effect on the shims. The file at the original name must
+  // be the real binary so the shim can execute it.
+  linkSync(bin, path.resolve(ownDir, 'pnpm'))
+
   const pkgJsonPath = path.resolve(ownDir, 'package.json')
   const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
-  fs.writeFileSync(path.resolve(ownDir, 'pnpm'), 'This file intentionally left blank')
   pkg.bin.pnpm = 'pnpm.exe'
+  pkg.bin.pn = 'pn.cmd'
+  pkg.bin.pnpx = 'pnpx.cmd'
+  pkg.bin.pnx = 'pnx.cmd'
   fs.writeFileSync(pkgJsonPath, JSON.stringify(pkg, null, 2))
 }
 

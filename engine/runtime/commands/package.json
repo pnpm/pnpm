@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/runtime.commands",
+  "name": "@pnpm/engine.runtime.commands",
   "version": "1000.0.0-0",
   "description": "pnpm commands for managing runtimes",
   "keywords": [
@@ -26,16 +26,18 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix",
-    "test": "pnpm run compile && pnpm run _test"
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
+    "test": "pn compile && pn .test",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:*",
-    "@pnpm/config": "workspace:*",
+    "@pnpm/cli.utils": "workspace:*",
+    "@pnpm/config.reader": "workspace:*",
+    "@pnpm/engine.runtime.node-resolver": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.pnpm-cli-runner": "workspace:*",
+    "@pnpm/network.fetch": "workspace:*",
     "render-help": "catalog:"
   },
   "peerDependencies": {
@@ -43,8 +45,8 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
+    "@pnpm/engine.runtime.commands": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/runtime.commands": "workspace:*",
     "cross-env": "catalog:"
   },
   "engines": {

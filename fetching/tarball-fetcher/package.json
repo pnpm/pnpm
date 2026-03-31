@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/tarball-fetcher",
+  "name": "@pnpm/fetching.tarball-fetcher",
   "version": "1003.0.0",
   "description": "Fetcher for packages hosted as tarballs",
   "keywords": [
@@ -27,19 +27,19 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "prepublishOnly": "pnpm run compile",
-    "_test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest",
-    "test": "pnpm run compile && pnpm run _test",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "prepublishOnly": "pn compile",
+    "test": "pn compile && pn .test",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/fetcher-base": "workspace:*",
-    "@pnpm/fetching-types": "workspace:*",
+    "@pnpm/exec.prepare-package": "workspace:*",
+    "@pnpm/fetching.fetcher-base": "workspace:*",
+    "@pnpm/fetching.types": "workspace:*",
+    "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/fs.packlist": "workspace:*",
-    "@pnpm/graceful-fs": "workspace:*",
-    "@pnpm/prepare-package": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/retry": "catalog:",
@@ -53,11 +53,11 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/cafs-types": "workspace:*",
-    "@pnpm/create-cafs-store": "workspace:*",
-    "@pnpm/fetch": "workspace:*",
+    "@pnpm/fetching.tarball-fetcher": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/tarball-fetcher": "workspace:*",
+    "@pnpm/network.fetch": "workspace:*",
+    "@pnpm/store.cafs-types": "workspace:*",
+    "@pnpm/store.create-cafs-store": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
@@ -65,9 +65,9 @@
     "@types/ramda": "catalog:",
     "@types/retry": "catalog:",
     "@types/ssri": "catalog:",
-    "nock": "catalog:",
     "ssri": "catalog:",
-    "tempy": "catalog:"
+    "tempy": "catalog:",
+    "undici": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

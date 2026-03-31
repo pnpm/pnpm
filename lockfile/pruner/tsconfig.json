@@ -10,13 +10,13 @@
   ],
   "references": [
     {
-      "path": "../../deps/dependency-path"
+      "path": "../../core/constants"
     },
     {
-      "path": "../../packages/constants"
+      "path": "../../core/types"
     },
     {
-      "path": "../../packages/types"
+      "path": "../../deps/path"
     },
     {
       "path": "../types"

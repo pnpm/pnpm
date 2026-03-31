@@ -16,11 +16,12 @@ import {
 const f = fixtures(import.meta.dirname)
 const hasOutdatedDepsFixture = f.find('has-outdated-deps')
 
-test('some commands pass through to npm', () => {
+test('commands that were previously passed through to npm now fail', () => {
   const result = execPnpmSync(['dist-tag', 'ls', 'is-positive'])
 
-  expect(result.status).toBe(0)
-  expect(result.stdout.toString()).not.toContain('Usage: pnpm [command] [flags]')
+  expect(result.status).not.toBe(0)
+  const output = result.stdout.toString() + result.stderr.toString()
+  expect(output).toContain('ERR_PNPM_NOT_IMPLEMENTED')
 })
 
 test('installs in the folder where the package.json file is', async () => {
@@ -51,13 +52,13 @@ test('pnpm import does not move modules created by npm', async () => {
   expect(packageManifestInodeBefore).toBe(packageManifestInodeAfter)
 })
 
-test('pass through to npm with all the args', async () => {
+test('previously passed through commands fail without package.json', async () => {
   prepare()
   rimrafSync('package.json')
 
   const result = execPnpmSync(['dist-tag', 'ls', 'pnpm'])
 
-  expect(result.status).toBe(0)
+  expect(result.status).not.toBe(0)
 })
 
 test('pnpm fails when an unsupported command is used', async () => {
@@ -86,22 +87,22 @@ test('command fails when an unsupported flag is used', async () => {
   expect(stderr.toString()).toMatch(/Unknown option: 'save-dev'/)
 })
 
-test('command does not fail when a deprecated option is used', async () => {
+test('command fails when a deprecated option is used', async () => {
   prepare()
 
-  const { status, stdout } = execPnpmSync(['install', '--no-lock'])
+  const { status, stderr } = execPnpmSync(['install', '--no-lock'])
 
-  expect(status).toBe(0)
-  expect(stdout.toString()).toMatch(/Deprecated option: 'lock'/)
+  expect(status).toBe(1)
+  expect(stderr.toString()).toMatch(/Unknown option: 'lock'/)
 })
 
-test('command does not fail when deprecated options are used', async () => {
+test('command fails when deprecated options are used', async () => {
   prepare()
 
-  const { status, stdout } = execPnpmSync(['install', '--no-lock', '--independent-leaves'])
+  const { status, stderr } = execPnpmSync(['install', '--no-lock', '--independent-leaves'])
 
-  expect(status).toBe(0)
-  expect(stdout.toString()).toMatch(/Deprecated options: 'lock', 'independent-leaves'/)
+  expect(status).toBe(1)
+  expect(stderr.toString()).toMatch(/Unknown options: 'lock', 'independent-leaves'/)
 })
 
 test('adding new dep does not fail if node_modules was created with --public-hoist-pattern=eslint-*', async () => {

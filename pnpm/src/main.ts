@@ -9,24 +9,25 @@ if (!global['pnpm__startedAt']) {
 import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
-import { isExecutedByCorepack, packageManager } from '@pnpm/cli-meta'
-import { getConfig, installConfigDepsAndLoadHooks } from '@pnpm/cli-utils'
-import type { Config } from '@pnpm/config'
+import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
+import type { Config } from '@pnpm/config.reader'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
-import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
 import { globalWarn, logger } from '@pnpm/logger'
-import type { ParsedCliArgs } from '@pnpm/parse-cli-args'
 import type { EngineDependency } from '@pnpm/types'
 import { finishWorkers } from '@pnpm/worker'
+import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
+import { filterProjectsFromDir } from '@pnpm/workspace.projects-filter'
 import chalk from 'chalk'
 import loudRejection from 'loud-rejection'
 import { isEmpty } from 'ramda'
 import semver from 'semver'
 
 import { checkForUpdates } from './checkForUpdates.js'
-import { pnpmCmds, rcOptionsTypes, skipPackageManagerCheckForCommand } from './cmd/index.js'
+import { NOT_IMPLEMENTED_COMMAND_SET, overridableByScriptCommands, pnpmCmds, rcOptionsTypes, recursiveByDefaultCommands, skipPackageManagerCheckForCommand } from './cmd/index.js'
 import { formatUnknownOptionsError } from './formatError.js'
+import { getConfig, installConfigDepsAndLoadHooks } from './getConfig.js'
+import type { ParsedCliArgsWithBuiltIn } from './parseCliArgs.js'
 import { parseCliArgs } from './parseCliArgs.js'
 import { initReporter, type ReporterType } from './reporter/index.js'
 import { switchCliVersion } from './switchCliVersion.js'
@@ -34,6 +35,10 @@ import { switchCliVersion } from './switchCliVersion.js'
 export const REPORTER_INITIALIZED = Symbol('reporterInitialized')
 
 loudRejection()
+
+function isRootOnlyPatterns (patterns: string[]): boolean {
+  return patterns.length === 1 && patterns[0] === '.'
+}
 
 // This prevents the program from crashing when the pipe's read side closes early
 // (e.g., when running `pnpm config list | head`)
@@ -44,14 +49,8 @@ process.stdout.on('error', (err: NodeJS.ErrnoException) => {
   throw err
 })
 
-const DEPRECATED_OPTIONS = new Set([
-  'independent-leaves',
-  'lock',
-  'resolution-strategy',
-])
-
 export async function main (inputArgv: string[]): Promise<void> {
-  let parsedCliArgs!: ParsedCliArgs
+  let parsedCliArgs!: ParsedCliArgsWithBuiltIn
   try {
     parsedCliArgs = await parseCliArgs(inputArgv)
   } catch (err: any) { // eslint-disable-line
@@ -60,12 +59,13 @@ export async function main (inputArgv: string[]): Promise<void> {
     process.exitCode = 1
     return
   }
-  const {
+  let {
     argv,
     params: cliParams,
     options: cliOptions,
     cmd,
     fallbackCommandUsed,
+    builtInCommandForced,
     unknownOptions,
     workspaceDir,
   } = parsedCliArgs
@@ -75,22 +75,10 @@ export async function main (inputArgv: string[]): Promise<void> {
     return
   }
 
-  if (unknownOptions.size > 0 && !fallbackCommandUsed) {
-    const unknownOptionsArray = Array.from(unknownOptions.keys())
-    if (unknownOptionsArray.every((option) => DEPRECATED_OPTIONS.has(option))) {
-      let deprecationMsg = `${chalk.bgYellow.black('\u2009WARN\u2009')}`
-      if (unknownOptionsArray.length === 1) {
-        const deprecatedOption = unknownOptionsArray[0] as string
-        deprecationMsg += ` ${chalk.yellow(`Deprecated option: '${deprecatedOption}'`)}`
-      } else {
-        deprecationMsg += ` ${chalk.yellow(`Deprecated options: ${unknownOptionsArray.map((unknownOption: string) => `'${unknownOption}'`).join(', ')}`)}`
-      }
-      console.log(deprecationMsg)
-    } else {
-      printError(formatUnknownOptionsError(unknownOptions), `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
-      process.exitCode = 1
-      return
-    }
+  if (unknownOptions.size > 0 && !fallbackCommandUsed && !(cmd && NOT_IMPLEMENTED_COMMAND_SET.has(cmd))) {
+    printError(formatUnknownOptionsError(unknownOptions), `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
+    process.exitCode = 1
+    return
   }
 
   let config: Config & {
@@ -146,6 +134,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     const hint = err['hint'] ? err['hint'] : `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`
     printError(err.message, hint)
     process.exitCode = 1
+    await finishWorkers()
     return
   }
   if (cmd == null && cliOptions.version) {
@@ -184,8 +173,41 @@ export async function main (inputArgv: string[]): Promise<void> {
     global[REPORTER_INITIALIZED] = reporterType
   }
 
+  // Commands with scriptOverride: if the current project's package.json has a
+  // script with the same name, run the script instead of the built-in command.
+  const typedCommandName = argv.remain[0]
+  if (cmd != null && !builtInCommandForced && overridableByScriptCommands.has(typedCommandName) && !cliOptions.global) {
+    const currentDirManifest = config.dir === config.rootProjectManifestDir
+      ? config.rootProjectManifest
+      : await safeReadProjectManifestOnly(config.dir)
+    if (currentDirManifest?.scripts?.[typedCommandName]) {
+      // Redirect to "pnpm run <cmd>"
+      cmd = 'run'
+      cliParams.unshift(typedCommandName)
+      fallbackCommandUsed = true
+      config.fallbackCommandUsed = true
+      config.extraEnv = {
+        ...config.extraEnv,
+        npm_command: 'run-script',
+      }
+    } else if (
+      workspaceDir &&
+      config.dir !== config.rootProjectManifestDir &&
+      config.rootProjectManifest?.scripts?.[typedCommandName]
+    ) {
+      throw new PnpmError(
+        'SCRIPT_OVERRIDE_IN_WORKSPACE_ROOT',
+        `The workspace root has a "${typedCommandName}" script, ` +
+        `so the built-in "pnpm ${typedCommandName}" command cannot run from a subdirectory`,
+        {
+          hint: `Run "pnpm run ${typedCommandName}" from the workspace root to execute the script`,
+        }
+      )
+    }
+  }
+
   if (
-    (cmd === 'install' || cmd === 'import' || cmd === 'dedupe' || cmd === 'patch-commit' || cmd === 'patch' || cmd === 'patch-remove' || cmd === 'approve-builds' || cmd === 'audit') &&
+    cmd != null && recursiveByDefaultCommands.has(cmd) &&
     typeof workspaceDir === 'string'
   ) {
     cliOptions['recursive'] = true
@@ -209,11 +231,18 @@ export async function main (inputArgv: string[]): Promise<void> {
     const relativeWSDirPath = () => path.relative(process.cwd(), wsDir) || '.'
     if (config.workspaceRoot) {
       filters.push({ filter: `{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length) })
-    } else if (filters.length === 0 && workspaceDir && config.workspacePackagePatterns && !config.includeWorkspaceRoot && (cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test')) {
+    } else if (
+      filters.length === 0 &&
+      workspaceDir &&
+      config.workspacePackagePatterns &&
+      !isRootOnlyPatterns(config.workspacePackagePatterns) &&
+      !config.includeWorkspaceRoot &&
+      (cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test')
+    ) {
       filters.push({ filter: `!{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length) })
     }
 
-    const filterResults = await filterPackagesFromDir(wsDir, filters, {
+    const filterResults = await filterProjectsFromDir(wsDir, filters, {
       engineStrict: config.engineStrict,
       nodeVersion: config.nodeVersion,
       patterns: config.workspacePackagePatterns,
@@ -295,7 +324,8 @@ export async function main (inputArgv: string[]): Promise<void> {
       // TypeScript doesn't currently infer that the type of config
       // is `Omit<typeof config, 'reporter'>` after the `delete config.reporter` statement
       config as Omit<typeof config, 'reporter'>,
-      cliParams
+      cliParams,
+      pnpmCmds
     )
     try {
       if (result instanceof Promise) {

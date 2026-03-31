@@ -1,4 +1,4 @@
-import { parseCliArgs as parseCliArgsLib, type ParsedCliArgs } from '@pnpm/parse-cli-args'
+import { parseCliArgs as parseCliArgsLib, type ParsedCliArgs } from '@pnpm/cli.parse-cli-args'
 
 import {
   getCliOptionsTypes,
@@ -9,14 +9,18 @@ import {
 import { shorthands as universalShorthands } from './shorthands.js'
 
 const RENAMED_OPTIONS = {
-  'lockfile-directory': 'lockfile-dir',
   prefix: 'dir',
-  'shrinkwrap-directory': 'lockfile-dir',
   store: 'store-dir',
 }
 
-export async function parseCliArgs (inputArgv: string[]): Promise<ParsedCliArgs> {
-  return parseCliArgsLib({
+export type ParsedCliArgsWithBuiltIn = ParsedCliArgs & { builtInCommandForced: boolean }
+
+export async function parseCliArgs (inputArgv: string[]): Promise<ParsedCliArgsWithBuiltIn> {
+  const builtInCommandForced = inputArgv[0] === 'pm'
+  if (builtInCommandForced) {
+    inputArgv.splice(0, 1)
+  }
+  const result = await parseCliArgsLib({
     fallbackCommand: 'run',
     escapeArgs: ['create', 'exec', 'test'],
     getCommandLongName: getCommandFullName,
@@ -26,4 +30,5 @@ export async function parseCliArgs (inputArgv: string[]): Promise<ParsedCliArgs>
     universalOptionsTypes: GLOBAL_OPTIONS,
     universalShorthands,
   }, inputArgv)
+  return { ...result, builtInCommandForced }
 }

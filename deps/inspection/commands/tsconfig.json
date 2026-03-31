@@ -1,0 +1,88 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../../__utils__/prepare"
+    },
+    {
+      "path": "../../../__utils__/test-fixtures"
+    },
+    {
+      "path": "../../../cli/command"
+    },
+    {
+      "path": "../../../cli/common-cli-options-help"
+    },
+    {
+      "path": "../../../cli/utils"
+    },
+    {
+      "path": "../../../config/matcher"
+    },
+    {
+      "path": "../../../config/pick-registry-for-package"
+    },
+    {
+      "path": "../../../config/reader"
+    },
+    {
+      "path": "../../../core/constants"
+    },
+    {
+      "path": "../../../core/error"
+    },
+    {
+      "path": "../../../core/types"
+    },
+    {
+      "path": "../../../global/commands"
+    },
+    {
+      "path": "../../../global/packages"
+    },
+    {
+      "path": "../../../installing/commands"
+    },
+    {
+      "path": "../../../installing/modules-yaml"
+    },
+    {
+      "path": "../../../lockfile/fs"
+    },
+    {
+      "path": "../../../network/auth-header"
+    },
+    {
+      "path": "../../../network/fetch"
+    },
+    {
+      "path": "../../../resolving/default-resolver"
+    },
+    {
+      "path": "../../../resolving/npm-resolver"
+    },
+    {
+      "path": "../../../store/path"
+    },
+    {
+      "path": "../../../workspace/projects-filter"
+    },
+    {
+      "path": "../list"
+    },
+    {
+      "path": "../outdated"
+    },
+    {
+      "path": "../peers-checker"
+    }
+  ]
+}

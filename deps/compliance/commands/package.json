@@ -1,0 +1,87 @@
+{
+  "name": "@pnpm/deps.compliance.commands",
+  "version": "1000.0.0",
+  "description": "pnpm commands for audit, licenses, and sbom",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "audit",
+    "licenses",
+    "sbom"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/deps/compliance/commands",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/deps/compliance/commands#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
+    "update-responses": "node test/audit/utils/responses/update.ts",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/cli.command": "workspace:*",
+    "@pnpm/cli.common-cli-options-help": "workspace:*",
+    "@pnpm/cli.meta": "workspace:*",
+    "@pnpm/cli.utils": "workspace:*",
+    "@pnpm/config.reader": "workspace:*",
+    "@pnpm/config.writer": "workspace:*",
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/deps.compliance.audit": "workspace:*",
+    "@pnpm/deps.compliance.license-scanner": "workspace:*",
+    "@pnpm/deps.compliance.sbom": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/installing.commands": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
+    "@pnpm/lockfile.walker": "workspace:*",
+    "@pnpm/network.auth-header": "workspace:*",
+    "@pnpm/store.path": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
+    "@zkochan/table": "catalog:",
+    "chalk": "catalog:",
+    "memoize": "catalog:",
+    "ramda": "catalog:",
+    "render-help": "catalog:",
+    "semver": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm/deps.compliance.commands": "workspace:*",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/registry-mock": "catalog:",
+    "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/testing.mock-agent": "workspace:*",
+    "@pnpm/workspace.projects-filter": "workspace:*",
+    "@types/ramda": "catalog:",
+    "@types/semver": "catalog:",
+    "@types/zkochan__table": "catalog:",
+    "load-json-file": "catalog:",
+    "nock": "catalog:",
+    "read-yaml-file": "catalog:",
+    "tempy": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config/with-registry"
+  }
+}

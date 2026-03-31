@@ -9,8 +9,8 @@ import {
   iteratePkgMeta,
   lockfileToDepGraph,
   type PkgMetaAndSnapshot,
-} from '@pnpm/calc-dep-state'
-import * as dp from '@pnpm/dependency-path'
+} from '@pnpm/deps.graph-hasher'
+import * as dp from '@pnpm/deps.path'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,

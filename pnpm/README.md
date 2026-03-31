@@ -140,8 +140,13 @@ To quote the [Rush](https://rushjs.io/) team:
         </a>
       </td>
       <td align="center" valign="middle">
+        <a href="https://cybozu.co.jp/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/cybozu.svg" width="70" alt="Cybozu"></a>
+      </td>
+      <td align="center" valign="middle">
         <a href="https://devowl.io/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/devowlio.svg" width="100" alt="devowl.io"></a>
       </td>
+    </tr>
+    <tr>
       <td align="center" valign="middle">
         <a href="https://uscreen.de/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <picture>
@@ -151,8 +156,6 @@ To quote the [Rush](https://rushjs.io/) team:
           </picture>
         </a>
       </td>
-    </tr>
-    <tr>
       <td align="center" valign="middle">
         <a href="https://www.leniolabs.com/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/leniolabs.jpg" width="40" alt="Leniolabs_"></a>
       </td>
@@ -165,6 +168,8 @@ To quote the [Rush](https://rushjs.io/) team:
           </picture>
         </a>
       </td>
+    </tr>
+    <tr>
       <td align="center" valign="middle">
         <a href="https://cerbos.dev/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <picture>
@@ -174,8 +179,6 @@ To quote the [Rush](https://rushjs.io/) team:
           </picture>
         </a>
       </td>
-    </tr>
-    <tr>
       <td align="center" valign="middle">
         <a href="https://time.now/?utm_source=pnpm&utm_medium=readme" target="_blank">⏱️ Time.now</a>
       </td>

@@ -1,0 +1,59 @@
+{
+  "name": "@pnpm/workspace.commands",
+  "version": "1000.2.19",
+  "description": "Create a package.json file",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "init"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/workspace/commands",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/workspace/commands#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/cli.meta": "workspace:*",
+    "@pnpm/cli.utils": "workspace:*",
+    "@pnpm/config.reader": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/object.key-sorting": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.project-manifest-writer": "workspace:*",
+    "camelcase-keys": "catalog:",
+    "ramda": "catalog:",
+    "render-help": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/workspace.commands": "workspace:*",
+    "@types/ramda": "catalog:",
+    "load-json-file": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

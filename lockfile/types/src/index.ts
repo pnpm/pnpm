@@ -1,4 +1,4 @@
-import type { PlatformAssetTarget } from '@pnpm/resolver-base'
+import type { PlatformAssetTarget } from '@pnpm/resolving.resolver-base'
 import type { DependenciesMeta, DepPath, ProjectId } from '@pnpm/types'
 
 export type { ProjectId }
@@ -8,6 +8,7 @@ import type { SpecifierAndResolution } from './lockfileFileTypes.js'
 
 export interface LockfileSettings {
   autoInstallPeers?: boolean
+  dedupePeers?: boolean
   excludeLinksFromLockfile?: boolean
   peersSuffixMaxLength?: number
   injectWorkspacePackages?: boolean
@@ -165,13 +166,15 @@ export type PackageBin = string | { [name: string]: string }
  */
 export type ResolvedDependencies = Record<string, string>
 
+export interface EnvImporterSnapshot {
+  configDependencies: Record<string, SpecifierAndResolution>
+  packageManagerDependencies?: Record<string, SpecifierAndResolution>
+}
+
 export interface EnvLockfile {
   lockfileVersion: string
-  importers: {
-    '.': {
-      configDependencies: Record<string, SpecifierAndResolution>
-      packageManagerDependencies?: Record<string, SpecifierAndResolution>
-    }
+  importers: Record<string, EnvImporterSnapshot> & {
+    '.': EnvImporterSnapshot
   }
   packages: Record<string, LockfilePackageInfo>
   snapshots: Record<string, LockfilePackageSnapshot>
