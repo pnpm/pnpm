@@ -13,6 +13,7 @@ import { renderHelp } from 'render-help'
 import { getFetchFullMetadata } from './getFetchFullMetadata.js'
 import type { InstallCommandOptions } from './install.js'
 import { installDeps } from './installDeps.js'
+import { runLicenseCheck } from './runLicenseCheck.js'
 
 export const shorthands: Record<string, string> = {
   'save-catalog': '--save-catalog-name=default',
@@ -295,7 +296,7 @@ export async function handler (
     for (const pkg of opts.allowBuild) {
       mergedAllowBuilds[pkg] = true
     }
-    return installDeps({
+    await installDeps({
       ...opts,
       allowBuilds: mergedAllowBuilds,
       rebuildHandler: commands?.rebuild,
@@ -303,12 +304,18 @@ export async function handler (
       include,
       includeDirect: include,
     }, params)
+    // License check runs after add/update but not after install or remove.
+    // install is excluded per the issue spec to avoid impacting user experience.
+    // remove is excluded because it can only reduce the dependency surface.
+    await runLicenseCheck(opts)
+    return
   }
-  return installDeps({
+  await installDeps({
     ...opts,
     rebuildHandler: commands?.rebuild,
     fetchFullMetadata: getFetchFullMetadata(opts),
     include,
     includeDirect: include,
   }, params)
+  await runLicenseCheck(opts)
 }
