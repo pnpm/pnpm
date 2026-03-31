@@ -45,7 +45,8 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/deps.compliance.license-checker": "workspace:*"
+    "@pnpm/deps.compliance.license-checker": "workspace:*",
+    "@pnpm/logger": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"
