@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { FULL_FILTERED_META_DIR } from '@pnpm/constants'
+import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR } from '@pnpm/constants'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -20,6 +20,7 @@ const registries: Registries = {
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const badDatesMeta = loadJsonFileSync<any>(f.find('bad-dates.json'))
 const isPositiveMeta = loadJsonFileSync<any>(f.find('is-positive-full.json'))
+const isPositiveAbbreviatedMeta = loadJsonFileSync<any>(f.find('is-positive.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const fetch = createFetchFromRegistry({})
@@ -151,4 +152,81 @@ test('should skip time field validation for excluded packages', async () => {
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.manifest.version).toBe('3.1.0')
+})
+
+test('use abbreviated metadata when modified date is older than publishedBy', async () => {
+  // is-positive abbreviated has modified: "2017-08-17T19:26:00.508Z"
+  // publishedBy is set to 2018, so modified < publishedBy → all versions are old enough
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveAbbreviatedMeta)
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
+    publishedBy: new Date('2018-01-01T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+})
+
+test('re-fetch full metadata when abbreviated modified date is recent', async () => {
+  // Abbreviated has modified in the future relative to publishedBy → needs full metadata
+  const recentAbbreviated = {
+    ...isPositiveAbbreviatedMeta,
+    modified: '2015-06-10T00:00:00.000Z',
+  }
+
+  const agent = getMockAgent().get(registries.default.replace(/\/$/, ''))
+  // First request: abbreviated
+  agent.intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, recentAbbreviated)
+  // Second request: full metadata (re-fetch)
+  agent.intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registries,
+  })
+  // publishedBy is 2015-06-05, modified is 2015-06-10 → modified >= publishedBy → needs full
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^1.0.0' }, {
+    publishedBy: new Date('2015-06-05T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  // 1.0.0 was published 2015-06-02, which is before publishedBy (2015-06-05)
+  expect(resolveResult!.id).toBe('is-positive@1.0.0')
+})
+
+test('use cached metadata based on file mtime when publishedBy is set', async () => {
+  const cacheDir = temporaryDirectory()
+  // Write abbreviated metadata to the abbreviated cache dir
+  const cacheDir2 = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
+  fs.mkdirSync(cacheDir2, { recursive: true })
+  const cachePath = path.join(cacheDir2, 'is-positive.json')
+  fs.writeFileSync(cachePath, JSON.stringify(isPositiveAbbreviatedMeta), 'utf8')
+
+  // No mock agent intercepts — the test verifies no network request is made.
+  // If a request were attempted, it would fail.
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registries,
+  })
+  // publishedBy in the past relative to file mtime (file was just written = now)
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
+    publishedBy: new Date('2020-01-01T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
 })

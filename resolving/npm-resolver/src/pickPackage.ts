@@ -194,19 +194,22 @@ export async function pickPackage (
       }
     }
     if (opts.publishedBy) {
-      metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
-      if (metaCachedInStore?.cachedAt && new Date(metaCachedInStore.cachedAt) >= opts.publishedBy) {
-        try {
-          const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
-          if (pickedPackage) {
-            return {
-              meta: metaCachedInStore,
-              pickedPackage,
+      const mtime = await limit(async () => getFileMtime(pkgMirror))
+      if (mtime != null && mtime >= opts.publishedBy) {
+        metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
+        if (metaCachedInStore != null) {
+          try {
+            const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
+            if (pickedPackage) {
+              return {
+                meta: metaCachedInStore,
+                pickedPackage,
+              }
             }
-          }
-        } catch (err) {
-          if (ctx.strictPublishedByCheck) {
-            throw err
+          } catch (err) {
+            if (ctx.strictPublishedByCheck) {
+              throw err
+            }
           }
         }
       }
@@ -215,7 +218,7 @@ export async function pickPackage (
     try {
       // Load cached metadata to get conditional request headers (ETag, Last-Modified)
       metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
-      const fetchResult = await ctx.fetch(spec.name, {
+      let fetchResult = await ctx.fetch(spec.name, {
         authHeaderValue: opts.authHeaderValue,
         fullMetadata,
         etag: metaCachedInStore?.etag,
@@ -239,6 +242,21 @@ export async function pickPackage (
 
       const cachedAt = Date.now()
       let meta = fetchResult.meta
+
+      // When minimumReleaseAge is active and we fetched abbreviated metadata,
+      // check if the package was recently modified and needs full metadata
+      // for per-version time-based filtering.
+      if (opts.publishedBy && !fullMetadata && meta.time == null) {
+        if (!meta.modified || new Date(meta.modified) >= opts.publishedBy) {
+          fetchResult = await ctx.fetch(spec.name, {
+            authHeaderValue: opts.authHeaderValue,
+            fullMetadata: true,
+            registry: opts.registry,
+          })
+          meta = fetchResult.meta
+        }
+      }
+
       let jsonToSave: string | undefined
       if (ctx.filterMetadata) {
         meta = clearMeta(meta)
@@ -331,6 +349,15 @@ function encodePkgName (pkgName: string): string {
     return `${pkgName}_${createHexHash(pkgName)}`
   }
   return pkgName
+}
+
+async function getFileMtime (filePath: string): Promise<Date | null> {
+  try {
+    const stat = await fs.stat(filePath)
+    return stat.mtime
+  } catch {
+    return null
+  }
 }
 
 async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {

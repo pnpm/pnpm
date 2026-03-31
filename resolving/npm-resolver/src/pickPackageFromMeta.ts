@@ -37,9 +37,18 @@ export function pickPackageFromMeta (
   if (publishedBy) {
     const excludeResult = publishedByExclude?.(meta.name) ?? false
     if (excludeResult !== true) {
-      assertMetaHasTime(meta)
-      const trustedVersions = Array.isArray(excludeResult) ? excludeResult : undefined
-      meta = filterPkgMetadataByPublishDate(meta, publishedBy, trustedVersions)
+      if (meta.time != null) {
+        // Full metadata with per-version timestamps: filter normally
+        assertMetaHasTime(meta)
+        const trustedVersions = Array.isArray(excludeResult) ? excludeResult : undefined
+        meta = filterPkgMetadataByPublishDate(meta, publishedBy, trustedVersions)
+      } else if (!meta.modified || new Date(meta.modified) >= publishedBy) {
+        // Abbreviated metadata without per-version timestamps, and the package
+        // was recently modified (or has no modified field). We cannot determine
+        // which individual versions are mature enough — need full metadata.
+        assertMetaHasTime(meta)
+      }
+      // else: meta.modified < publishedBy — all versions are old enough, no filtering needed
     }
   }
   if ((!meta.versions || Object.keys(meta.versions).length === 0) && !publishedBy) {

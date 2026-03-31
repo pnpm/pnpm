@@ -97,7 +97,6 @@ export async function handler (
   const fullMetadata = (
     (
       opts.resolutionMode === 'time-based' ||
-      Boolean(opts.minimumReleaseAge) ||
       opts.trustPolicy === 'no-downgrade'
     ) && !opts.registrySupportsTimeField
   )
