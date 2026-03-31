@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
+import { readWorkspaceManifest, validateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 
 test('readWorkspaceManifest() works with a valid workspace file', async () => {
   const manifest = await readWorkspaceManifest(path.join(import.meta.dirname, '__fixtures__/ok'))
@@ -152,5 +152,77 @@ describe('readWorkspaceManifest() reads default catalog defined alongside named 
         },
       },
     })
+  })
+})
+
+describe('validateWorkspaceManifest() licenses field', () => {
+  test('accepts valid licenses config', () => {
+    expect(() => validateWorkspaceManifest({
+      packages: ['packages/**'],
+      licenses: { allowed: ['MIT', 'ISC'], mode: 'strict', environment: 'prod', depth: 'shallow' },
+    })).not.toThrow()
+  })
+
+  test('throws when licenses is not an object', () => {
+    expect(() => validateWorkspaceManifest({
+      packages: ['packages/**'],
+      licenses: 'MIT',
+    })).toThrow('licenses must be an object')
+  })
+
+  test('throws when licenses is an array', () => {
+    expect(() => validateWorkspaceManifest({
+      packages: ['packages/**'],
+      licenses: ['MIT'],
+    })).toThrow('licenses must be an object')
+  })
+
+  test('throws when allowed is not an array', () => {
+    expect(() => validateWorkspaceManifest({
+      packages: ['packages/**'],
+      licenses: { allowed: 'MIT' },
+    })).toThrow('licenses.allowed must be an array')
+  })
+
+  test('throws when allowed contains non-strings', () => {
+    expect(() => validateWorkspaceManifest({
+      packages: ['packages/**'],
+      licenses: { allowed: ['MIT', 123] },
+    })).toThrow('licenses.allowed must contain only strings')
+  })
+
+  test('throws when mode is invalid', () => {
+    expect(() => validateWorkspaceManifest({
+      packages: ['packages/**'],
+      licenses: { mode: 'invalid' },
+    })).toThrow('licenses.mode must be one of: strict, loose, none')
+  })
+
+  test('throws when environment is invalid', () => {
+    expect(() => validateWorkspaceManifest({
+      packages: ['packages/**'],
+      licenses: { environment: 'staging' },
+    })).toThrow('licenses.environment must be one of: prod, dev, all')
+  })
+
+  test('throws when depth is invalid', () => {
+    expect(() => validateWorkspaceManifest({
+      packages: ['packages/**'],
+      licenses: { depth: 'medium' },
+    })).toThrow('licenses.depth must be one of: deep, shallow')
+  })
+
+  test('throws when overrides has invalid value type', () => {
+    expect(() => validateWorkspaceManifest({
+      packages: ['packages/**'],
+      licenses: { overrides: { pkg: 123 } },
+    })).toThrow('licenses.overrides["pkg"] must be a boolean or string')
+  })
+
+  test('throws when overrides is not an object', () => {
+    expect(() => validateWorkspaceManifest({
+      packages: ['packages/**'],
+      licenses: { overrides: 'not-an-object' },
+    })).toThrow('licenses.overrides must be an object')
   })
 })

@@ -329,6 +329,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'resolutionMode'
 | 'ignoreWorkspaceCycles'
 | 'disallowWorkspaceCycles'
+| 'licenses' // On the type for add/update license checking; pnpm install intentionally does not trigger license checks per issue #10570
 | 'updateConfig'
 | 'overrides'
 | 'packageExtensions'

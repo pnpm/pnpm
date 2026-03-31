@@ -21,6 +21,7 @@ import { renderHelp } from 'render-help'
 import type { InstallCommandOptions } from '../install.js'
 import { installDeps } from '../installDeps.js'
 import { parseUpdateParam } from '../recursive.js'
+import { runLicenseCheck } from '../runLicenseCheck.js'
 import { type ChoiceRow, getUpdateChoices } from './getUpdateChoices.js'
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
@@ -309,7 +310,7 @@ async function update (
   ) {
     updateMatching = createMatcher(dependencies)
   }
-  return installDeps({
+  await installDeps({
     ...opts,
     rebuildHandler,
     allowNew: false,
@@ -323,6 +324,7 @@ async function update (
     updatePackageManifest: opts.save !== false,
     resolutionMode: opts.save === false ? 'highest' : opts.resolutionMode,
   }, dependencies)
+  await runLicenseCheck(opts)
 }
 
 function makeIncludeDependenciesFromCLI (opts: {

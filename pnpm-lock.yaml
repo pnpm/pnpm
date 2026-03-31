@@ -228,7 +228,7 @@ catalogs:
       version: 3.0.2
     '@pnpm/config.nerf-dart':
       specifier: ^1.0.0
-      version: 1.0.1
+      version: 1.0.0
     '@pnpm/exec':
       specifier: ^2.0.0
       version: 2.0.0
@@ -237,7 +237,7 @@ catalogs:
       version: 3.0.2
     '@pnpm/logger':
       specifier: '>=1001.0.0 <1002.0.0'
-      version: 1001.0.1
+      version: 1001.0.0
     '@pnpm/meta-updater':
       specifier: 2.0.6
       version: 2.0.6
@@ -978,7 +978,9 @@ packageExtensionsChecksum: sha256-87FOGilaYY8gmnjYsryuV/BI3ZuhaaJd/1fN2oxQwzY=
 pnpmfileChecksum: sha256-FyKtfMeHqu9zq1rXAr8P3zdA0NAXUioGdY0esg+SB5s=
 
 patchedDependencies:
-  graceful-fs@4.2.11: 68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1
+  graceful-fs@4.2.11:
+    hash: 68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1
+    path: __patches__/graceful-fs@4.2.11.patch
 
 importers:
 
@@ -1360,7 +1362,7 @@ importers:
     devDependencies:
       '@pnpm/logger':
         specifier: 'catalog:'
-        version: 1001.0.1
+        version: 1001.0.0
       '@pnpm/scripts':
         specifier: workspace:*
         version: 'link:'
@@ -1650,7 +1652,7 @@ importers:
         version: link:../../lockfile/walker
       '@pnpm/logger':
         specifier: 'catalog:'
-        version: 1001.0.1
+        version: 1001.0.0
       '@pnpm/npm-package-arg':
         specifier: 'catalog:'
         version: 2.0.0
@@ -2457,7 +2459,7 @@ importers:
         version: link:../../hooks/pnpmfile
       '@pnpm/logger':
         specifier: 'catalog:'
-        version: 1001.0.1
+        version: 1001.0.0
       '@pnpm/network.git-utils':
         specifier: workspace:*
         version: link:../../network/git-utils
@@ -2793,6 +2795,9 @@ importers:
       '@pnpm/deps.compliance.audit':
         specifier: workspace:*
         version: link:../audit
+      '@pnpm/deps.compliance.license-checker':
+        specifier: workspace:*
+        version: link:../license-checker
       '@pnpm/deps.compliance.license-scanner':
         specifier: workspace:*
         version: link:../license-scanner
@@ -2890,6 +2895,40 @@ importers:
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
+
+  deps/compliance/license-checker:
+    dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../../core/constants
+      '@pnpm/deps.compliance.license-scanner':
+        specifier: workspace:*
+        version: link:../license-scanner
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../../core/error
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../../lockfile/fs
+      '@pnpm/logger':
+        specifier: 'catalog:'
+        version: 1001.0.0
+      '@pnpm/store.path':
+        specifier: workspace:*
+        version: link:../../../store/path
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../../core/types
+      spdx-expression-parse:
+        specifier: ^4.0.0
+        version: 4.0.0
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
+      '@pnpm/deps.compliance.license-checker':
+        specifier: workspace:*
+        version: 'link:'
 
   deps/compliance/license-scanner:
     dependencies:
@@ -3148,7 +3187,7 @@ importers:
         version: link:../../../lockfile/fs
       '@pnpm/logger':
         specifier: 'catalog:'
-        version: 1001.0.1
+        version: 1001.0.0
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../../network/auth-header
@@ -3524,7 +3563,7 @@ importers:
         version: link:../../lockfile/verification
       '@pnpm/logger':
         specifier: 'catalog:'
-        version: 1001.0.1
+        version: 1001.0.0
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
@@ -4854,6 +4893,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants
+      '@pnpm/deps.compliance.license-checker':
+        specifier: workspace:*
+        version: link:../../deps/compliance/license-checker
       '@pnpm/deps.inspection.outdated':
         specifier: workspace:*
         version: link:../../deps/inspection/outdated
@@ -5817,7 +5859,7 @@ importers:
         version: link:../../lockfile/utils
       '@pnpm/logger':
         specifier: 'catalog:'
-        version: 1001.0.1
+        version: 1001.0.0
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../network/auth-header
@@ -6767,7 +6809,7 @@ importers:
     dependencies:
       '@pnpm/config.nerf-dart':
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 1.0.0
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
@@ -6783,7 +6825,7 @@ importers:
     dependencies:
       '@pnpm/config.nerf-dart':
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 1.0.0
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../core/core-loggers
@@ -7051,7 +7093,7 @@ importers:
         version: link:../../core/error
       '@pnpm/logger':
         specifier: 'catalog:'
-        version: 1001.0.1
+        version: 1001.0.0
       '@pnpm/patching.types':
         specifier: workspace:*
         version: link:../types
@@ -8859,7 +8901,7 @@ importers:
         version: link:../../fs/graceful-fs
       '@pnpm/logger':
         specifier: 'catalog:'
-        version: 1001.0.1
+        version: 1001.0.0
       '@pnpm/pkg-manifest.utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/utils
@@ -10359,6 +10401,10 @@ packages:
     resolution: {integrity: sha512-GD6nKLyKF+ev15Tj3pS8y6cTVPIuAqTyhPrUFMfmodFvhEDdYKN/gdGimkc9GJLfHVC/SuCVFg49YNJyoW7niA==}
     engines: {node: '>=18.12'}
 
+  '@pnpm/config.nerf-dart@1.0.0':
+    resolution: {integrity: sha512-/jnjwmeLVEXzfk+za2qJams03KtFe4C5s2fT623SZ6UxhYqzHd+Zin/NzrCFY1/IHMHMP1ScFDDgAd36GrKxEA==}
+    engines: {node: '>=18.12'}
+
   '@pnpm/config.nerf-dart@1.0.1':
     resolution: {integrity: sha512-03d2l21gAyzGVr9SR6rS5pvCTnZ4HaNdi8jB2Y/UGvszzrNbA+AJVObVw6SulNQ1Eah3SHB9wCezJwtP+jYIcA==}
     engines: {node: '>=18.12'}
@@ -10536,6 +10582,10 @@ packages:
 
   '@pnpm/log.group@3.0.2':
     resolution: {integrity: sha512-8TmkCqpbKf+OxdkfOwZ4OeOwyJJ/2nGi0osI44pZzxjXNNa4gywQrGsgtpdls+R2cAMoYHVahN9mi8VJ3cznaQ==}
+    engines: {node: '>=18.12'}
+
+  '@pnpm/logger@1001.0.0':
+    resolution: {integrity: sha512-nj80XtTHHt7T+b5stLWszzd166MbGx4eTOu9+6h6RdelKMlSWhrb7KUb0j90tYk+yoGx8TeMVdJCaoBnkLp8xw==}
     engines: {node: '>=18.12'}
 
   '@pnpm/logger@1001.0.1':
@@ -11867,8 +11917,8 @@ packages:
       bare-buffer:
         optional: true
 
-  bare-os@3.8.4:
-    resolution: {integrity: sha512-4JboWUl7/2LhgU536tjUszzaVC8/WEWKtyX5crayvlN71ih8+O2SdvBhotQeDsuhhmPZmLCrPBJEcwVPhI/kkQ==}
+  bare-os@3.8.6:
+    resolution: {integrity: sha512-l8xaNWWb/bXuzgsrlF5jaa5QYDJ9S0ddd54cP6CH+081+5iPrbJiCfBWQqrWYzmUhCbsH+WR6qxo9MeHVCr0MQ==}
     engines: {bare: '>=1.14.0'}
 
   bare-path@3.0.0:
@@ -14553,6 +14603,11 @@ packages:
   natural-compare@1.4.0:
     resolution: {integrity: sha512-OWND8ei3VtNC9h7V60qff3SVobHr996CTwgxubgyQYEpg290h9J0buyECNNJexkFm5sOajh5G116RYA1c8ZMSw==}
 
+  ndjson@2.0.0:
+    resolution: {integrity: sha512-nGl7LRGrzugTtaFcJMhLbpzJM6XdivmbkdlaGcrk/LXg2KL/YBC6z1g70xh0/al+oFuVFP8N8kiWRucmeEH/qQ==}
+    engines: {node: '>=10'}
+    hasBin: true
+
   negotiator@0.6.3:
     resolution: {integrity: sha512-+EUsqGPLsM+j/zdChZjsnX51g4XrHFOIXwfnCVPGlQk/k5giakcKsuxCObBRu6DSm9opw/O6slWbJdghQM4bBg==}
     engines: {node: '>= 0.6'}
@@ -15748,6 +15803,9 @@ packages:
   split-cmd@1.1.0:
     resolution: {integrity: sha512-WhWthSU0kpuxXPbm3QW/QGS+B7ngFb+E1SGXccrUO/ZBcwnG0zuHk1E8v0UJ9HfyDi46k8wZ3dcl5gwa4c2v8g==}
 
+  split2@3.2.2:
+    resolution: {integrity: sha512-9NThjpgZnifTkJpzTZ7Eue85S49QwpNhZTq6GRJwObb6jnLFNGB7Qm73V5HewTROPyxD0C29xqmaI68bQtV+hg==}
+
   split2@4.2.0:
     resolution: {integrity: sha512-UcjcJOWknrNkF6PLX83qcHM6KHgVKNkV62Y8a5uYDVv9ydGQVwAHMKqHdJje1VTWpljG0WYpCDhrCdAOYH4TWg==}
     engines: {node: '>= 10.x'}
@@ -15998,6 +16056,9 @@ packages:
 
   through2@2.0.5:
     resolution: {integrity: sha512-/mrRod8xqpA+IHSLyGCQ2s8SPHiCDEeQJSep1jqLYeEUClOFG2Qsh+4FU6G9VeqpZnGW/Su8LQGc4YKni5rYSQ==}
+
+  through2@4.0.2:
+    resolution: {integrity: sha512-iOqSav00cVxEEICeD7TjLB1sueEL+81Wpzp2bY17uZjZN0pWZPuo4suZ/61VujxmqSGFfgOcNuTZ85QJwNZQpw==}
 
   through@2.3.8:
     resolution: {integrity: sha512-w89qg7PI8wAdvX60bMDP+bFoD5Dvhm9oLheFp5O4a2QF0cSBGsBX4qZmadPMvVqlLJBBci+WqGGOAPvcDeNSVg==}
@@ -17966,6 +18027,8 @@ snapshots:
 
   '@pnpm/config.env-replace@3.0.2': {}
 
+  '@pnpm/config.nerf-dart@1.0.0': {}
+
   '@pnpm/config.nerf-dart@1.0.1': {}
 
   '@pnpm/config@1004.11.0(@pnpm/logger@1001.0.1)':
@@ -18306,6 +18369,11 @@ snapshots:
   '@pnpm/log.group@3.0.2':
     dependencies:
       ci-info: 3.9.0
+
+  '@pnpm/logger@1001.0.0':
+    dependencies:
+      bole: 5.0.28
+      ndjson: 2.0.0
 
   '@pnpm/logger@1001.0.1':
     dependencies:
@@ -20108,11 +20176,11 @@ snapshots:
       - bare-abort-controller
       - react-native-b4a
 
-  bare-os@3.8.4: {}
+  bare-os@3.8.6: {}
 
   bare-path@3.0.0:
     dependencies:
-      bare-os: 3.8.4
+      bare-os: 3.8.6
 
   bare-stream@2.11.0(bare-events@2.8.2):
     dependencies:
@@ -20178,7 +20246,7 @@ snapshots:
       http-errors: 2.0.1
       iconv-lite: 0.7.2
       on-finished: 2.4.1
-      qs: 6.14.2
+      qs: 6.15.0
       raw-body: 3.0.2
       type-is: 2.0.1
     transitivePeerDependencies:
@@ -23343,6 +23411,14 @@ snapshots:
 
   natural-compare@1.4.0: {}
 
+  ndjson@2.0.0:
+    dependencies:
+      json-stringify-safe: 5.0.1
+      minimist: 1.2.8
+      readable-stream: 3.6.2
+      split2: 3.2.2
+      through2: 4.0.2
+
   negotiator@0.6.3: {}
 
   negotiator@0.6.4: {}
@@ -24629,6 +24705,10 @@ snapshots:
 
   split-cmd@1.1.0: {}
 
+  split2@3.2.2:
+    dependencies:
+      readable-stream: 3.6.2
+
   split2@4.2.0: {}
 
   sprintf-js@1.0.3: {}
@@ -24935,6 +25015,10 @@ snapshots:
     dependencies:
       readable-stream: 2.3.8
       xtend: 4.0.2
+
+  through2@4.0.2:
+    dependencies:
+      readable-stream: 3.6.2
 
   through@2.3.8: {}
 

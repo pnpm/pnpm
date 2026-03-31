@@ -33,6 +33,8 @@ export type LicensesCommandOptions = {
 | 'rootProjectManifestDir'
 | 'supportedArchitectures'
 | 'virtualStoreDirMaxLength'
+| 'licenses'
+| 'workspaceDir'
 > &
 Partial<Pick<Config, 'userConfig'>>
 
