@@ -17,6 +17,8 @@ export {
 export {
   collectDirectDeps,
   type IncludeFlags,
+  normalizeLicenseArgs,
+  type NormalizedLicenseArgs,
   resolveInclude,
   shouldRunLicenseCheck,
 } from './utils.js'
