@@ -83,6 +83,9 @@
       "path": "../audit"
     },
     {
+      "path": "../license-checker"
+    },
+    {
       "path": "../license-scanner"
     },
     {

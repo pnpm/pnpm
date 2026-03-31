@@ -10,6 +10,9 @@ import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import type { LicensesCommandResult } from './LicensesCommandResult.js'
+import { licensesAllow } from './licensesAllow.js'
+import { licensesCheck } from './licensesCheck.js'
+import { licensesDisallow } from './licensesDisallow.js'
 import { type LicensesCommandOptions, licensesList } from './licensesList.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
@@ -37,7 +40,7 @@ export const commandNames = ['licenses']
 
 export function help (): string {
   return renderHelp({
-    description: 'Check the licenses of the installed packages.',
+    description: 'Manage license compliance policy and check installed packages.',
     descriptionLists: [
       {
         title: 'Options',
@@ -77,6 +80,11 @@ To display the details, pass this option.',
       'pnpm licenses ls --long',
       'pnpm licenses list',
       'pnpm licenses list --long',
+      'pnpm licenses check',
+      'pnpm licenses check prod',
+      'pnpm licenses check dev',
+      'pnpm licenses allow <license> [license...]',
+      'pnpm licenses disallow <license> [license...]',
     ],
   })
 }
@@ -98,6 +106,12 @@ export async function handler (
     case 'list':
     case 'ls':
       return licensesList(opts)
+    case 'check':
+      return licensesCheck(opts, params.slice(1))
+    case 'allow':
+      return licensesAllow(opts, params.slice(1))
+    case 'disallow':
+      return licensesDisallow(opts, params.slice(1))
     default: {
       throw new PnpmError('LICENSES_UNKNOWN_SUBCOMMAND', 'This subcommand is not known')
     }
