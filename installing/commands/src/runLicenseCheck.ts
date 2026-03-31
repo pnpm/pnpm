@@ -7,6 +7,11 @@ export async function runLicenseCheck (opts: InstallCommandOptions): Promise<voi
   if (!shouldRunLicenseCheck(opts.licenses)) {
     return
   }
+  // Skip when packages aren't fetched into the store (lockfile/resolution-only
+  // operations), since the license scanner needs store index files.
+  if (opts.lockfileOnly) {
+    return
+  }
   const manifest = await readProjectManifestOnly(opts.dir)
   await checkLicensesAfterInstall({
     licenses: opts.licenses,
