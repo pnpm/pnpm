@@ -5,8 +5,8 @@
   "keywords": [
     "pnpm",
     "pnpm11",
-    "licenses",
-    "compliance"
+    "compliance",
+    "licenses"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
@@ -39,7 +39,7 @@
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/store.path": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "spdx-expression-parse": "^4.0.0"
+    "spdx-expression-parse": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
