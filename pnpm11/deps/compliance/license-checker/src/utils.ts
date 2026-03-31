@@ -50,6 +50,7 @@ export function collectDirectDeps (
   return deps
 }
 
-export function shouldRunLicenseCheck (licenses?: LicensesConfig): boolean {
-  return licenses !== undefined && licenses.mode !== 'none' && licenses.mode !== undefined
+export function shouldRunLicenseCheck (licenses?: LicensesConfig | null): boolean {
+  const mode = licenses?.mode
+  return mode === 'strict' || mode === 'loose'
 }
