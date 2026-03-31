@@ -22,6 +22,10 @@ export interface CheckAfterInstallOptions {
   manifest: ProjectManifest
   supportedArchitectures?: SupportedArchitectures
   selectedProjectsGraph?: Record<string, { package: { manifest: ProjectManifest } }>
+  /** CLI include flags (--prod, --dev, --no-optional) to scope the scan */
+  dev?: boolean
+  production?: boolean
+  optional?: boolean
 }
 
 export async function checkLicensesAfterInstall (opts: CheckAfterInstallOptions): Promise<void> {
@@ -49,7 +53,7 @@ export async function checkLicensesAfterInstall (opts: CheckAfterInstallOptions)
     : undefined
 
   let licensePackages = await findDependencyLicenses({
-    include: resolveInclude(opts.licenses!.environment ?? 'all'),
+    include: resolveInclude(opts.licenses!.environment ?? 'all', opts),
     lockfileDir,
     storeDir,
     virtualStoreDir: opts.virtualStoreDir ?? path.join(opts.modulesDir ?? 'node_modules', '.pnpm'),

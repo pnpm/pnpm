@@ -26,5 +26,8 @@ export async function runLicenseCheck (opts: InstallCommandOptions): Promise<voi
     manifest,
     supportedArchitectures: opts.supportedArchitectures,
     selectedProjectsGraph: opts.selectedProjectsGraph,
+    dev: opts.dev,
+    production: opts.production,
+    optional: opts.optional,
   })
 }
