@@ -2729,9 +2729,6 @@ importers:
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../../lockfile/fs
-      '@pnpm/logger':
-        specifier: 'catalog:'
-        version: 1001.0.0
       '@pnpm/store.path':
         specifier: workspace:*
         version: link:../../../store/path
@@ -2748,6 +2745,9 @@ importers:
       '@pnpm/deps.compliance.license-checker':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../../core/logger
 
   deps/compliance/license-scanner:
     dependencies:
