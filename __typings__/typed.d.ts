@@ -213,6 +213,23 @@ declare module '@pnpm/npm-conf/lib/types' {
   export = npmTypes
 }
 
+declare module 'spdx-expression-parse' {
+  namespace spdxParse {
+    interface SpdxLicense {
+      license: string
+      plus?: boolean
+      exception?: string
+    }
+    interface SpdxConjunction {
+      left: SpdxLicense | SpdxConjunction
+      conjunction: 'and' | 'or'
+      right: SpdxLicense | SpdxConjunction
+    }
+  }
+  function spdxParse (source: string): spdxParse.SpdxLicense | spdxParse.SpdxConjunction
+  export = spdxParse
+}
+
 declare module 'npm-packlist' {
   interface PacklistTree {
     path: string
