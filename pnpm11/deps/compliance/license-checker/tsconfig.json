@@ -1,0 +1,34 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../../core/constants"
+    },
+    {
+      "path": "../../../core/error"
+    },
+    {
+      "path": "../../../core/logger"
+    },
+    {
+      "path": "../../../core/types"
+    },
+    {
+      "path": "../../../lockfile/fs"
+    },
+    {
+      "path": "../../../store/path"
+    },
+    {
+      "path": "../license-scanner"
+    }
+  ]
+}

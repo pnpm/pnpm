@@ -178,6 +178,15 @@ export interface AuditConfig {
   ignoreGhsas?: string[]
 }
 
+export interface LicensesConfig {
+  allowed?: string[]
+  disallowed?: string[]
+  overrides?: Record<string, boolean | string>
+  mode?: 'strict' | 'loose' | 'none'
+  environment?: 'prod' | 'dev' | 'all'
+  depth?: 'deep' | 'shallow'
+}
+
 export interface PnpmSettings {
   npmrcAuthFile?: string
   registries?: Registries
@@ -195,6 +204,7 @@ export interface PnpmSettings {
     ignoreDependencies?: string[]
   }
   auditConfig?: AuditConfig
+  licenses?: LicensesConfig
   requiredScripts?: string[]
   supportedArchitectures?: SupportedArchitectures
   nodeDownloadMirrors?: Record<string, string>

@@ -24,7 +24,7 @@ export type OptionsFromRootManifest = {
   supportedArchitectures?: SupportedArchitectures
   allowBuilds?: Record<string, boolean | string>
   requiredScripts?: string[]
-} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'updateConfig'>
+} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'licenses' | 'updateConfig'>
 
 interface GetOptionsFromPnpmSettingsOptions {
   manifest?: ProjectManifest

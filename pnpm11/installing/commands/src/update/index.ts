@@ -23,6 +23,7 @@ import type { InstallCommandOptions } from '../install.js'
 import { createVulnerabilityUpdateMatching, installDeps } from '../installDeps.js'
 import { parseUpdateParam } from '../recursive.js'
 import { createGlobalPolicyCallbacks } from '../resolutionPolicyManifest.js'
+import { runLicenseCheck } from '../runLicenseCheck.js'
 import { getUpdateChoices } from './getUpdateChoices.js'
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
@@ -338,6 +339,7 @@ async function update (
     // `dry-run` turn `update` into a no-op check.
     dryRun: false,
   }, dependencies)
+  await runLicenseCheck(opts)
 }
 
 function makeIncludeDependenciesFromCLI (opts: {
