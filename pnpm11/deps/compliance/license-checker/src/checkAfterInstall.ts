@@ -1,6 +1,5 @@
 import path from 'node:path'
 
-import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { findDependencyLicenses } from '@pnpm/deps.compliance.license-scanner'
 import { PnpmError } from '@pnpm/error'
 import { getLockfileImporterId, readWantedLockfile } from '@pnpm/lockfile.fs'
