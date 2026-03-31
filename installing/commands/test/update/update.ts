@@ -412,3 +412,51 @@ test('should not update tag version when --latest not set', async () => {
   expect(manifest.dependencies?.['@pnpm.e2e/peer-c']).toBe('canary')
   expect(manifest.dependencies?.['@pnpm.e2e/foo']).toBe('1.0.0')
 })
+
+describe('license compliance after update', () => {
+  test('pnpm update fails when a disallowed license is present in strict mode', async () => {
+    prepare({
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    })
+
+    await install.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    })
+
+    await expect(
+      update.handler({
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+        licenses: {
+          disallowed: ['MIT'],
+          mode: 'strict',
+        },
+      })
+    ).rejects.toThrow('license violation')
+  })
+
+  test('pnpm update succeeds when licenses.mode is none', async () => {
+    prepare({
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    })
+
+    await install.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    })
+
+    await update.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      licenses: {
+        disallowed: ['MIT'],
+        mode: 'none',
+      },
+    })
+  })
+})
