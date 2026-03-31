@@ -25,6 +25,7 @@ import {
 import type { InstallCommandOptions } from './install.js'
 import { installDeps } from './installDeps.js'
 import { createGlobalPolicyCallbacks } from './resolutionPolicyManifest.js'
+import { runLicenseCheck } from './runLicenseCheck.js'
 import { warnAboutLinkedPeerDependencies } from './warnAboutLinkedPeerDependencies.js'
 
 export {
@@ -287,6 +288,10 @@ export async function handler (
       dryRun: false,
     }, params)
   }
+  // License check runs after add/update but not after install or remove.
+  // install is excluded per the issue spec to avoid impacting user experience.
+  // remove is excluded because it can only reduce the dependency surface.
+  await runLicenseCheck(opts)
   await Promise.all(params.map(async (param) => warnIfLinkedWithPeers(param, opts.dir)))
 }
 

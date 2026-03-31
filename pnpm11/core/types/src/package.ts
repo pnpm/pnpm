@@ -271,6 +271,15 @@ export interface WorkspaceTaskSettings {
   dependsOn?: string[]
 }
 
+export interface LicensesConfig {
+  allowed?: string[]
+  disallowed?: string[]
+  overrides?: Record<string, boolean | string>
+  mode?: 'strict' | 'loose' | 'none'
+  environment?: 'prod' | 'dev' | 'all'
+  depth?: 'deep' | 'shallow'
+}
+
 export interface PnpmSettings {
   npmrcAuthFile?: string
   /**
@@ -316,6 +325,7 @@ export interface PnpmSettings {
    * compatibility until the next major version.
    */
   auditConfig?: AuditConfig
+  licenses?: LicensesConfig
   requiredScripts?: string[]
   supportedArchitectures?: SupportedArchitectures
   nodeDownloadMirrors?: Record<string, string>

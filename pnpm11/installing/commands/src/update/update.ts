@@ -15,6 +15,7 @@ import type { IncludedDependencies, PackageVulnerabilityAudit } from '@pnpm/type
 import type { InstallCommandOptions } from '../install.js'
 import { createVulnerabilityUpdateMatching, installDeps } from '../installDeps.js'
 import { addIgnorePatterns, createUpdateMatching, expandUpdateSelectorsForMatching, parseUpdateParam } from '../recursive.js'
+import { runLicenseCheck } from '../runLicenseCheck.js'
 import { captureUpdateChangesetContext, generateUpdateChangeset } from './generateUpdateChangeset.js'
 
 export type UpdateCommandOptions = InstallCommandOptions & {
@@ -114,6 +115,7 @@ async function installUpdates (
     // `dry-run` turn `update` into a no-op check.
     dryRun: false,
   }, packageDependencies)
+  await runLicenseCheck(opts)
 }
 
 export function getGitHubActionsDir (opts: UpdateCommandOptions): string {

@@ -42,6 +42,8 @@ export type LicensesCommandOptions = {
 | 'selectedProjectsGraph'
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
+| 'licenses'
+| 'workspaceDir'
 > &
 Partial<Pick<Config, 'userConfig'>>
 
