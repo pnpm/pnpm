@@ -99,9 +99,12 @@ export async function pickPackage (
     metaCachedInStore = loadMetaFromDb(ctx.metadataDb, dbName, fullMetadata)
 
     if (ctx.offline) {
-      if (metaCachedInStore != null) return {
-        meta: metaCachedInStore,
-        pickedPackage: _pickPackageFromMeta(metaCachedInStore),
+      if (metaCachedInStore != null) {
+        ctx.metaCache.set(cacheKey, metaCachedInStore)
+        return {
+          meta: metaCachedInStore,
+          pickedPackage: _pickPackageFromMeta(metaCachedInStore),
+        }
       }
       throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror for ${spec.name}`)
     }
@@ -109,6 +112,7 @@ export async function pickPackage (
     if (metaCachedInStore != null) {
       const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
       if (pickedPackage) {
+        ctx.metaCache.set(cacheKey, metaCachedInStore)
         return { meta: metaCachedInStore, pickedPackage }
       }
     }
@@ -120,6 +124,7 @@ export async function pickPackage (
       try {
         const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
         if (pickedPackage) {
+          ctx.metaCache.set(cacheKey, metaCachedInStore)
           return { meta: metaCachedInStore, pickedPackage }
         }
       } catch (err) {
@@ -133,6 +138,7 @@ export async function pickPackage (
       try {
         const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
         if (pickedPackage) {
+          ctx.metaCache.set(cacheKey, metaCachedInStore)
           return { meta: metaCachedInStore, pickedPackage }
         }
       } catch (err: unknown) {
@@ -163,6 +169,7 @@ export async function pickPackage (
       if (metaCachedInStore != null) {
         const cachedAt = Date.now()
         metaCachedInStore.cachedAt = cachedAt
+        ctx.metaCache.set(cacheKey, metaCachedInStore)
         ctx.metadataDb.updateCachedAt(dbName, cachedAt)
         return { meta: metaCachedInStore, pickedPackage: _pickPackageFromMeta(metaCachedInStore) }
       }
