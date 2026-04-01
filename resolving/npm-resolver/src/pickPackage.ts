@@ -194,19 +194,27 @@ export async function pickPackage (
       }
     }
     if (opts.publishedBy) {
-      metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
-      if (metaCachedInStore?.cachedAt && new Date(metaCachedInStore.cachedAt) >= opts.publishedBy) {
-        try {
-          const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
-          if (pickedPackage) {
-            return {
-              meta: metaCachedInStore,
-              pickedPackage,
+      const mtime = await limit(async () => getFileMtime(pkgMirror))
+      if (mtime != null && mtime >= opts.publishedBy) {
+        metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
+        if (metaCachedInStore != null) {
+          try {
+            const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
+            if (pickedPackage) {
+              return {
+                meta: metaCachedInStore,
+                pickedPackage,
+              }
             }
-          }
-        } catch (err) {
-          if (ctx.strictPublishedByCheck) {
-            throw err
+          } catch (err: unknown) {
+            // Don't rethrow ERR_PNPM_MISSING_TIME from cached abbreviated metadata —
+            // let the code fall through to the network fetch path which will get full metadata.
+            if (
+              ctx.strictPublishedByCheck &&
+              !(isMissingTimeError(err))
+            ) {
+              throw err
+            }
           }
         }
       }
@@ -215,7 +223,7 @@ export async function pickPackage (
     try {
       // Load cached metadata to get conditional request headers (ETag, Last-Modified)
       metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
-      const fetchResult = await ctx.fetch(spec.name, {
+      let fetchResult = await ctx.fetch(spec.name, {
         authHeaderValue: opts.authHeaderValue,
         fullMetadata,
         etag: metaCachedInStore?.etag,
@@ -239,28 +247,53 @@ export async function pickPackage (
 
       const cachedAt = Date.now()
       let meta = fetchResult.meta
-      let jsonToSave: string | undefined
-      if (ctx.filterMetadata) {
-        meta = clearMeta(meta)
-      } else if (typeof fetchResult.jsonText === 'string') {
-        // Reuse the raw JSON text from the registry response to avoid re-stringifying.
-        // Inject cachedAt and cache validation headers at the start of the JSON object.
-        const jsonText = fetchResult.jsonText
-        const firstBraceIndex = jsonText.indexOf('{')
-        if (firstBraceIndex !== -1) {
-          let injectedFields = `"cachedAt":${cachedAt}`
-          if (fetchResult.etag) {
-            injectedFields += `,"etag":${JSON.stringify(fetchResult.etag)}`
+      let resultToSave: FetchMetadataResult = fetchResult
+
+      // When minimumReleaseAge is active and we fetched abbreviated metadata,
+      // check if the package was recently modified and needs full metadata
+      // for per-version time-based filtering.
+      if (
+        opts.publishedBy &&
+        !fullMetadata &&
+        meta.time == null &&
+        opts.publishedByExclude?.(spec.name) !== true
+      ) {
+        const modifiedDate = meta.modified ? new Date(meta.modified) : null
+        const isModifiedValid = modifiedDate != null && !Number.isNaN(modifiedDate.getTime())
+        if (!isModifiedValid || modifiedDate >= opts.publishedBy) {
+          // Save the abbreviated metadata to the abbreviated cache before re-fetching full.
+          if (!opts.dryRun) {
+            const abbreviatedJson = prepareJsonForDisk(fetchResult, cachedAt)
+            // Fire-and-forget save to the abbreviated cache path (pkgMirror).
+            runLimited(pkgMirror, (limit) => limit(async () => {
+              try {
+                await saveMeta(pkgMirror, abbreviatedJson)
+              } catch (err: any) { // eslint-disable-line
+                // We don't care if this file was not written to the cache
+              }
+            }))
           }
-          jsonToSave = `{${injectedFields},${jsonText.slice(firstBraceIndex + 1)}`
+          const fullFetchResult = await ctx.fetch(spec.name, {
+            authHeaderValue: opts.authHeaderValue,
+            fullMetadata: true,
+            registry: opts.registry,
+          })
+          if (!fullFetchResult.notModified) {
+            resultToSave = fullFetchResult
+            meta = fullFetchResult.meta
+          }
         }
       }
+
+      if (ctx.filterMetadata) {
+        meta = clearMeta(meta)
+      }
       meta.cachedAt = cachedAt
-      meta.etag = fetchResult.etag
+      meta.etag = resultToSave.etag
       // only save meta to cache, when it is fresh
       ctx.metaCache.set(cacheKey, meta)
       if (!opts.dryRun) {
-        const jsonForDisk = jsonToSave ?? JSON.stringify(meta)
+        const jsonForDisk = ctx.filterMetadata ? JSON.stringify(meta) : prepareJsonForDisk(resultToSave, cachedAt)
         runLimited(pkgMirror, (limit) => limit(async () => {
           try {
             await saveMeta(pkgMirror, jsonForDisk)
@@ -331,6 +364,38 @@ function encodePkgName (pkgName: string): string {
     return `${pkgName}_${createHexHash(pkgName)}`
   }
   return pkgName
+}
+
+function prepareJsonForDisk (fetchResult: FetchMetadataResult, cachedAt: number): string {
+  if (typeof fetchResult.jsonText === 'string') {
+    const firstBraceIndex = fetchResult.jsonText.indexOf('{')
+    if (firstBraceIndex !== -1) {
+      let injectedFields = `"cachedAt":${cachedAt}`
+      if (fetchResult.etag) {
+        injectedFields += `,"etag":${JSON.stringify(fetchResult.etag)}`
+      }
+      return `{${injectedFields},${fetchResult.jsonText.slice(firstBraceIndex + 1)}`
+    }
+  }
+  return JSON.stringify({ ...fetchResult.meta, cachedAt, etag: fetchResult.etag })
+}
+
+function isMissingTimeError (err: unknown): boolean {
+  return (
+    err != null &&
+    typeof err === 'object' &&
+    'code' in err &&
+    (err as { code: string }).code === 'ERR_PNPM_MISSING_TIME'
+  )
+}
+
+async function getFileMtime (filePath: string): Promise<Date | null> {
+  try {
+    const stat = await fs.stat(filePath)
+    return stat.mtime
+  } catch {
+    return null
+  }
 }
 
 async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {

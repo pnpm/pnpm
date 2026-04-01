@@ -62,7 +62,6 @@ export async function createNewStoreController (
   const fullMetadata = opts.fetchFullMetadata ?? (
     (
       opts.resolutionMode === 'time-based' ||
-      Boolean(opts.minimumReleaseAge) ||
       opts.trustPolicy === 'no-downgrade'
     ) && !opts.registrySupportsTimeField
   )
