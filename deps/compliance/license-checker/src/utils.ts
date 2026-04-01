@@ -8,13 +8,19 @@ export interface IncludeFlags {
   optional?: boolean
 }
 
+// Determines which dependency types to include in a license scan.
+// `environment` is a policy-level setting (from licenses.environment in
+// pnpm-workspace.yaml) that controls which dep types the license policy
+// applies to. `opts` are CLI-level flags (--prod, --dev, --no-optional)
+// that control what was actually installed — when present, they further
+// narrow the scan to avoid traversing dep types that weren't fetched.
 export function resolveInclude (
   environment: NonNullable<LicensesConfig['environment']>,
   opts?: IncludeFlags
 ): { dependencies: boolean, devDependencies: boolean, optionalDependencies: boolean } {
   if (environment === 'prod') {
     return {
-      dependencies: true,
+      dependencies: opts?.production !== false,
       devDependencies: false,
       optionalDependencies: opts?.optional !== false,
     }
@@ -22,7 +28,7 @@ export function resolveInclude (
   if (environment === 'dev') {
     return {
       dependencies: false,
-      devDependencies: true,
+      devDependencies: opts?.dev !== false,
       optionalDependencies: false,
     }
   }
