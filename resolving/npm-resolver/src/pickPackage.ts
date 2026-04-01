@@ -283,8 +283,6 @@ function resolveFromIndex (
   if (lightMeta.name) {
     manifest.name = lightMeta.name
   }
-
-  versions[pickedStub.version] = manifest
   return { meta: lightMeta, pickedPackage: manifest }
 }
 
