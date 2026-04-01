@@ -3,6 +3,7 @@ import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { Registries } from '@pnpm/types'
+import getRegistryName from 'encode-registry'
 import { loadJsonFileSync } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
 
@@ -13,8 +14,7 @@ const f = fixtures(import.meta.dirname)
 const registries: Registries = {
   default: 'https://registry.npmjs.org/',
 }
-
-const REG = 'registry.npmjs.org'
+const REG = getRegistryName(registries.default)
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const badDatesMeta = loadJsonFileSync<any>(f.find('bad-dates.json'))

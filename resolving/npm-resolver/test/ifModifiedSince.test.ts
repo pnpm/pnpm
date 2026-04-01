@@ -3,6 +3,7 @@ import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { Registries } from '@pnpm/types'
+import getRegistryName from 'encode-registry'
 import { loadJsonFileSync } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
 
@@ -31,11 +32,13 @@ beforeEach(async () => {
   await setupMockAgent()
 })
 
+const REG = getRegistryName(registries.default)
+
 test('use local cache when registry returns 304 Not Modified', async () => {
   const cacheDir = temporaryDirectory()
   // Seed cached metadata with etag in SQLite
   const db = new MetadataCache(cacheDir)
-  db.set('is-positive', 'abbreviated', JSON.stringify(isPositiveMeta), {
+  db.set(`${REG}/is-positive`, 'abbreviated', JSON.stringify(isPositiveMeta), {
     etag: '"abc123"',
     cachedAt: Date.now(),
   })
@@ -91,7 +94,7 @@ test('store etag from 200 response in cache', async () => {
 
   // Verify etag was saved to SQLite cache
   // The resolve function does not wait for the cache write, so retry
-  const etag = await retryGetEtag(cacheDir, 'is-positive', 'abbreviated')
+  const etag = await retryGetEtag(cacheDir, `${REG}/is-positive`, 'abbreviated')
   expect(etag).toBe('"xyz789"')
 })
 

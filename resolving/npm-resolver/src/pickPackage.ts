@@ -2,6 +2,7 @@ import type { MetadataCache, MetadataType } from '@pnpm/cache.metadata'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
+import getRegistryName from 'encode-registry'
 import { pick } from 'ramda'
 import semver from 'semver'
 
@@ -93,8 +94,11 @@ export async function pickPackage (
   const metaType: MetadataType = fullMetadata
     ? (ctx.filterMetadata ? 'full-filtered' : 'full')
     : 'abbreviated'
+  // DB name includes registry to avoid collisions across registries
+  const registryName = getRegistryName(opts.registry)
+  const dbName = `${registryName}/${spec.name}`
   // Cache key includes fullMetadata to avoid returning abbreviated metadata when full metadata is requested.
-  const cacheKey = fullMetadata ? `${spec.name}:full` : spec.name
+  const cacheKey = fullMetadata ? `${dbName}:full` : dbName
   const cachedMeta = ctx.metaCache.get(cacheKey)
   if (cachedMeta != null) {
     return {
@@ -105,7 +109,7 @@ export async function pickPackage (
 
   let metaCachedInStore: PackageMeta | null | undefined
   if (ctx.offline === true || ctx.preferOffline === true || opts.pickLowestVersion) {
-    metaCachedInStore = loadMetaFromDb(ctx.metadataDb, spec.name, metaType)
+    metaCachedInStore = loadMetaFromDb(ctx.metadataDb, dbName, metaType)
 
     if (ctx.offline) {
       if (metaCachedInStore != null) return {
@@ -128,7 +132,7 @@ export async function pickPackage (
   }
 
   if (!opts.updateToLatest && spec.type === 'version') {
-    metaCachedInStore = metaCachedInStore ?? loadMetaFromDb(ctx.metadataDb, spec.name, metaType)
+    metaCachedInStore = metaCachedInStore ?? loadMetaFromDb(ctx.metadataDb, dbName, metaType)
     // use the cached meta only if it has the required package version
     // otherwise it is probably out of date
     if ((metaCachedInStore?.versions?.[spec.fetchSpec]) != null) {
@@ -148,7 +152,7 @@ export async function pickPackage (
     }
   }
   if (opts.publishedBy) {
-    metaCachedInStore = metaCachedInStore ?? loadMetaFromDb(ctx.metadataDb, spec.name, metaType)
+    metaCachedInStore = metaCachedInStore ?? loadMetaFromDb(ctx.metadataDb, dbName, metaType)
     if (metaCachedInStore?.cachedAt && new Date(metaCachedInStore.cachedAt) >= opts.publishedBy) {
       try {
         const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
@@ -172,24 +176,30 @@ export async function pickPackage (
   }
 
   try {
-    // Cheap lookup for conditional request headers — no JSON parsing needed
-    const headers = ctx.metadataDb.getHeaders(spec.name, metaType)
+    // Reuse headers from already-loaded metadata, or do a cheap DB lookup
+    let etag = metaCachedInStore?.etag
+    let modified = metaCachedInStore?.modified ?? metaCachedInStore?.time?.modified
+    if (!etag && !modified) {
+      const headers = ctx.metadataDb.getHeaders(dbName, metaType)
+      etag = headers?.etag
+      modified = headers?.modified
+    }
     let fetchResult = await ctx.fetch(spec.name, {
       authHeaderValue: opts.authHeaderValue,
       fullMetadata,
-      etag: headers?.etag,
-      modified: headers?.modified,
+      etag,
+      modified,
       registry: opts.registry,
     })
 
     // 304 Not Modified — registry confirmed local cache is still fresh
     if (fetchResult.notModified) {
-      metaCachedInStore = metaCachedInStore ?? loadMetaFromDb(ctx.metadataDb, spec.name, metaType)
+      metaCachedInStore = metaCachedInStore ?? loadMetaFromDb(ctx.metadataDb, dbName, metaType)
       if (metaCachedInStore != null) {
         const cachedAt = Date.now()
         metaCachedInStore.cachedAt = cachedAt
         ctx.metaCache.set(cacheKey, metaCachedInStore)
-        ctx.metadataDb.updateCachedAt(spec.name, metaType, cachedAt)
+        ctx.metadataDb.updateCachedAt(dbName, metaType, cachedAt)
         return {
           meta: metaCachedInStore,
           pickedPackage: _pickPackageFromMeta(metaCachedInStore),
@@ -220,7 +230,7 @@ export async function pickPackage (
         if (!opts.dryRun) {
           const abbreviatedData = typeof fetchResult.jsonText === 'string' ? fetchResult.jsonText : JSON.stringify(meta)
           try {
-            ctx.metadataDb.set(spec.name, 'abbreviated', abbreviatedData, {
+            ctx.metadataDb.set(dbName, 'abbreviated', abbreviatedData, {
               etag: fetchResult.etag,
               modified: meta.modified ?? meta.time?.modified,
               cachedAt,
@@ -255,7 +265,7 @@ export async function pickPackage (
     if (!opts.dryRun) {
       const dataForDb = jsonToSave ?? JSON.stringify(meta)
       try {
-        ctx.metadataDb.set(spec.name, metaTypeToSave, dataForDb, {
+        ctx.metadataDb.set(dbName, metaTypeToSave, dataForDb, {
           etag: fetchResult.etag,
           modified: meta.modified ?? meta.time?.modified,
           cachedAt,
@@ -270,7 +280,7 @@ export async function pickPackage (
     }
   } catch (err: any) { // eslint-disable-line
     err.spec = spec
-    const meta = loadMetaFromDb(ctx.metadataDb, spec.name, metaType)
+    const meta = loadMetaFromDb(ctx.metadataDb, dbName, metaType)
     if (meta == null) throw err
     logger.error(err, err)
     logger.debug({ message: `Using cached meta from DB for ${spec.name}` })

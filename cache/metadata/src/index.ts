@@ -184,10 +184,17 @@ export class MetadataCache {
 
   /**
    * Update cachedAt without rewriting the data.
+   * Falls back from abbreviated → full-filtered → full.
    */
   updateCachedAt (name: string, type: MetadataType, cachedAt: number): void {
     sqliteRetry(() => {
-      this.stmtUpdateCachedAt.run(cachedAt, name, type)
+      let result = this.stmtUpdateCachedAt.run(cachedAt, name, type)
+      if (result.changes === 0 && type === 'abbreviated') {
+        result = this.stmtUpdateCachedAt.run(cachedAt, name, 'full-filtered')
+        if (result.changes === 0) {
+          this.stmtUpdateCachedAt.run(cachedAt, name, 'full')
+        }
+      }
     })
   }
 
