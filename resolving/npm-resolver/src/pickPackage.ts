@@ -231,7 +231,7 @@ export async function pickPackage (
           const abbreviatedData = typeof fetchResult.jsonText === 'string' ? fetchResult.jsonText : JSON.stringify(meta)
           ctx.metadataDb.queueSet(dbName, 'abbreviated', abbreviatedData, {
             etag: fetchResult.etag,
-            modified: meta.modified ?? meta.time?.modified,
+            modified: meta.modified,
             cachedAt,
           })
         }
