@@ -1,5 +1,3 @@
-import path from 'node:path'
-
 import {
   cacheDelete,
   cacheList,
@@ -8,7 +6,6 @@ import {
 } from '@pnpm/cache.api'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
-import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { getStorePath } from '@pnpm/store.path'
 import { pick } from 'ramda'
@@ -59,29 +56,22 @@ export function help (): string {
   })
 }
 
-export type CacheCommandOptions = Pick<Config, 'cacheDir' | 'storeDir' | 'pnpmHomeDir' | 'cliOptions' | 'resolutionMode' | 'registrySupportsTimeField'>
+export type CacheCommandOptions = Pick<Config, 'cacheDir' | 'storeDir' | 'pnpmHomeDir' | 'cliOptions'>
 
 export async function handler (opts: CacheCommandOptions, params: string[]): Promise<string | undefined> {
-  const cacheType = (opts.resolutionMode === 'time-based' && !opts.registrySupportsTimeField)
-    ? FULL_FILTERED_META_DIR
-    : ABBREVIATED_META_DIR
-  const cacheDir = path.join(opts.cacheDir, cacheType)
   switch (params[0]) {
     case 'list-registries':
       return cacheListRegistries({
-        ...opts,
-        cacheDir,
+        cacheDir: opts.cacheDir,
       })
     case 'list':
       return cacheList({
-        ...opts,
-        cacheDir,
+        cacheDir: opts.cacheDir,
         registry: opts.cliOptions['registry'],
       }, params.slice(1))
     case 'delete':
       return cacheDelete({
-        ...opts,
-        cacheDir,
+        cacheDir: opts.cacheDir,
         registry: opts.cliOptions['registry'],
       }, params.slice(1))
     case 'view': {
@@ -97,8 +87,7 @@ export async function handler (opts: CacheCommandOptions, params: string[]): Pro
         pnpmHomeDir: opts.pnpmHomeDir,
       })
       return cacheView({
-        ...opts,
-        cacheDir,
+        cacheDir: opts.cacheDir,
         storeDir,
         registry: opts.cliOptions['registry'],
       }, params[1])

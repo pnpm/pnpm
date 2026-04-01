@@ -1,12 +1,26 @@
-import fs from 'node:fs'
-import path from 'node:path'
-
-import { findMetadataFiles } from './cacheList.js'
+import { MetadataCache } from '@pnpm/cache.metadata'
+import getRegistryName from 'encode-registry'
 
 export async function cacheDelete (opts: { cacheDir: string, registry?: string }, filter: string[]): Promise<string> {
-  const metaFiles = await findMetadataFiles(opts, filter)
-  for (const metaFile of metaFiles) {
-    fs.unlinkSync(path.join(opts.cacheDir, metaFile))
+  const db = new MetadataCache(opts.cacheDir)
+  try {
+    const names = db.listNames()
+    const prefix = opts.registry ? getRegistryName(opts.registry) : undefined
+    const deleted: string[] = []
+    for (const name of names) {
+      if (prefix && !name.startsWith(`${prefix}/`)) continue
+      const pkgName = name.slice(name.indexOf('/') + 1)
+      if (filter.length > 0 && !filter.some((f) => globMatch(pkgName, f))) continue
+      db.delete(name)
+      deleted.push(`${name}.json`)
+    }
+    return deleted.sort().join('\n')
+  } finally {
+    db.close()
   }
-  return metaFiles.sort().join('\n')
+}
+
+function globMatch (str: string, pattern: string): boolean {
+  const regex = new RegExp(`^${pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.')}$`)
+  return regex.test(str)
 }

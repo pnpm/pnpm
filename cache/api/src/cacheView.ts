@@ -1,10 +1,7 @@
-import fs from 'node:fs'
-import path from 'node:path'
-
+import { MetadataCache } from '@pnpm/cache.metadata'
 import type { PackageMeta } from '@pnpm/resolving.npm-resolver'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import getRegistryName from 'encode-registry'
-import { glob } from 'tinyglobby'
 
 interface CachedVersions {
   cachedVersions: string[]
@@ -14,25 +11,26 @@ interface CachedVersions {
 }
 
 export async function cacheView (opts: { cacheDir: string, storeDir: string, registry?: string }, packageName: string): Promise<string> {
-  const prefix = opts.registry ? `${getRegistryName(opts.registry)}` : '*'
-  const metaFilePaths = (await glob(`${prefix}/${packageName}.json`, {
-    cwd: opts.cacheDir,
-    expandDirectories: false,
-  })).sort()
-  const metaFilesByPath: Record<string, CachedVersions> = {}
+  const db = new MetadataCache(opts.cacheDir)
   const storeIndex = new StoreIndex(opts.storeDir)
   try {
-    for (const filePath of metaFilePaths) {
-      let metaObject: PackageMeta | null
-      try {
-        metaObject = JSON.parse(fs.readFileSync(path.join(opts.cacheDir, filePath), 'utf8')) as PackageMeta
-      } catch {
-        continue
-      }
-      if (!metaObject) continue
+    const names = db.listNames()
+    const prefix = opts.registry ? getRegistryName(opts.registry) : undefined
+    const result: Record<string, CachedVersions> = {}
+    for (const name of names) {
+      if (prefix && !name.startsWith(`${prefix}/`)) continue
+      const pkgName = name.slice(name.indexOf('/') + 1)
+      if (pkgName !== packageName) continue
+      const registryName = name.slice(0, name.indexOf('/'))
+      // Try all types, pick first available
+      const row = db.get(name, 'abbreviated')
+        ?? db.get(name, 'full-filtered')
+        ?? db.get(name, 'full')
+      if (!row) continue
+      const meta = JSON.parse(row.data) as PackageMeta
       const cachedVersions: string[] = []
       const nonCachedVersions: string[] = []
-      for (const [version, manifest] of Object.entries(metaObject.versions)) {
+      for (const [version, manifest] of Object.entries(meta.versions)) {
         if (!manifest.dist.integrity) continue
         const key = storeIndexKey(manifest.dist.integrity, `${manifest.name}@${manifest.version}`)
         if (storeIndex.has(key)) {
@@ -41,19 +39,16 @@ export async function cacheView (opts: { cacheDir: string, storeDir: string, reg
           nonCachedVersions.push(version)
         }
       }
-      let registryName = filePath
-      while (path.dirname(registryName) !== '.') {
-        registryName = path.dirname(registryName)
-      }
-      metaFilesByPath[registryName.replaceAll('+', ':')] = {
+      result[registryName.replaceAll('+', ':')] = {
         cachedVersions,
         nonCachedVersions,
-        cachedAt: metaObject.cachedAt ? new Date(metaObject.cachedAt).toString() : undefined,
-        distTags: metaObject['dist-tags'],
+        cachedAt: row.cachedAt ? new Date(row.cachedAt).toString() : undefined,
+        distTags: meta['dist-tags'],
       }
     }
+    return JSON.stringify(result, null, 2)
   } finally {
     storeIndex.close()
+    db.close()
   }
-  return JSON.stringify(metaFilesByPath, null, 2)
 }

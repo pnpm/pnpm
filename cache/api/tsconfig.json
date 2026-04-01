@@ -10,19 +10,16 @@
   ],
   "references": [
     {
-      "path": "../../config/reader"
+      "path": "../metadata"
     },
     {
-      "path": "../../core/constants"
+      "path": "../../config/reader"
     },
     {
       "path": "../../core/logger"
     },
     {
       "path": "../../resolving/npm-resolver"
-    },
-    {
-      "path": "../../store/cafs"
     },
     {
       "path": "../../store/index"
