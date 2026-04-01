@@ -284,10 +284,7 @@ function resolveFromIndex (
     manifest.name = lightMeta.name
   }
 
-  // Build the full meta for the in-memory cache with just this version populated
   versions[pickedStub.version] = manifest
-  ctx.metaCache.set(cacheKey, lightMeta)
-
   return { meta: lightMeta, pickedPackage: manifest }
 }
 
