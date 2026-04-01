@@ -226,6 +226,7 @@ export async function pickPackage (
       // 304 Not Modified — registry confirmed local cache is still fresh
       if (fetchResult.notModified) {
         if (metaCachedInStore != null) {
+          metaCachedInStore.cachedAt = Date.now()
           ctx.metaCache.set(cacheKey, metaCachedInStore)
           return {
             meta: metaCachedInStore,

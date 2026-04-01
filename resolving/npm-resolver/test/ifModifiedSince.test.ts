@@ -49,9 +49,15 @@ test('use local cache when registry returns 304 Not Modified', async () => {
     'utf8'
   )
 
-  // Registry returns 304 Not Modified
+  // Registry returns 304 Not Modified — verify conditional headers are sent
   getMockAgent().get(registries.default.replace(/\/$/, ''))
-    .intercept({ path: '/is-positive', method: 'GET' })
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: {
+        'if-none-match': '"abc123"',
+      },
+    })
     .reply(304, '')
 
   const { resolveFromNpm } = createResolveFromNpm({
@@ -68,7 +74,7 @@ test('use local cache when registry returns 304 Not Modified', async () => {
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
 })
 
-test('store etag and lastModified from 200 response in cache', async () => {
+test('store etag from 200 response in cache', async () => {
   const cacheDir = temporaryDirectory()
   const responseHeaders = {
     etag: '"xyz789"',
@@ -91,7 +97,7 @@ test('store etag and lastModified from 200 response in cache', async () => {
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
 
-  // Verify etag and lastModified were saved to disk cache
+  // Verify etag was saved to disk cache
   const cachePath = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org/is-positive.json`)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const savedMeta = await retryLoadJsonFile<any>(cachePath)
