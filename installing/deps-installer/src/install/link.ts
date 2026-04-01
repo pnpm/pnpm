@@ -32,6 +32,7 @@ import type {
   Registries,
 } from '@pnpm/types'
 import { symlinkAllModules } from '@pnpm/worker'
+import { rimraf } from '@zkochan/rimraf'
 import pLimit from 'p-limit'
 import { pathExists } from 'path-exists'
 import { difference, equals, isEmpty, pick, pickBy, props } from 'ramda'
@@ -339,6 +340,10 @@ interface LinkNewPackagesResult {
   added: number
 }
 
+type ModulesLinkJob = Pick<DependenciesGraphNode, 'children' | 'modules' | 'name' | 'optionalDependencies'> & {
+  removedAliases?: string[]
+}
+
 async function linkNewPackages (
   currentLockfile: LockfileObject,
   wantedLockfile: LockfileObject,
@@ -365,10 +370,9 @@ async function linkNewPackages (
     prefix: opts.lockfileDir,
   })
 
-  const existingWithUpdatedDeps = []
+  const existingWithUpdatedDeps: ModulesLinkJob[] = []
   if (!opts.force && (currentLockfile.packages != null) && (wantedLockfile.packages != null)) {
     // add subdependencies that have been updated
-    // TODO: no need to relink everything. Can be relinked only what was changed
     for (const depPath of wantedRelDepPaths) {
       if (currentLockfile.packages[depPath] &&
         (!equals(currentLockfile.packages[depPath].dependencies, wantedLockfile.packages[depPath].dependencies) ||
@@ -378,7 +382,22 @@ async function linkNewPackages (
         // TODO: come up with a test that triggers the usecase of depGraph[depPath] undefined
         // see related issue: https://github.com/pnpm/pnpm/issues/870
         if (depGraph[depPath] && !newDepPathsSet.has(depPath)) {
-          existingWithUpdatedDeps.push(depGraph[depPath])
+          const { changedChildren, removedAliases } = getChangedChildren(
+            currentLockfile.packages[depPath].dependencies,
+            currentLockfile.packages[depPath].optionalDependencies,
+            wantedLockfile.packages[depPath].dependencies,
+            wantedLockfile.packages[depPath].optionalDependencies,
+            depGraph[depPath].children
+          )
+          if (!isEmpty(changedChildren) || removedAliases.length > 0) {
+            existingWithUpdatedDeps.push({
+              children: changedChildren,
+              modules: depGraph[depPath].modules,
+              name: depGraph[depPath].name,
+              optionalDependencies: depGraph[depPath].optionalDependencies,
+              removedAliases,
+            })
+          }
         }
       }
     }
@@ -509,13 +528,14 @@ async function linkAllPkgs (
 }
 
 async function linkAllModules (
-  depNodes: DependenciesGraphNode[],
+  depNodes: ModulesLinkJob[],
   depGraph: DependenciesGraph,
   opts: {
     lockfileDir: string
     optional: boolean
   }
 ): Promise<void> {
+  await Promise.all(depNodes.flatMap((depNode) => (depNode.removedAliases ?? []).map(async (alias) => removeObsoleteChild(depNode.modules, alias))))
   await symlinkAllModules({
     deps: depNodes.map((depNode) => {
       const children = opts.optional
@@ -538,4 +558,45 @@ async function linkAllModules (
       }
     }),
   })
+}
+
+function getChangedChildren (
+  currentDependencies: Record<string, string> | undefined,
+  currentOptionalDependencies: Record<string, string> | undefined,
+  wantedDependencies: Record<string, string> | undefined,
+  wantedOptionalDependencies: Record<string, string> | undefined,
+  allChildren: Record<string, DepPath>
+): { changedChildren: Record<string, DepPath>, removedAliases: string[] } {
+  const currentChildren = {
+    ...currentDependencies,
+    ...currentOptionalDependencies,
+  }
+  const wantedChildren = {
+    ...wantedDependencies,
+    ...wantedOptionalDependencies,
+  }
+  const changedChildren: Record<string, DepPath> = {}
+  const removedAliases: string[] = []
+  for (const [alias, wantedChildDepPath] of Object.entries(wantedChildren)) {
+    const optionalityChanged = Boolean(currentOptionalDependencies?.[alias]) !== Boolean(wantedOptionalDependencies?.[alias])
+    if (currentChildren[alias] !== wantedChildDepPath || optionalityChanged) {
+      const resolvedChildDepPath = allChildren[alias]
+      if (resolvedChildDepPath != null) {
+        changedChildren[alias] = resolvedChildDepPath
+      }
+    }
+  }
+  for (const alias of Object.keys(currentChildren)) {
+    if (!(alias in wantedChildren)) {
+      removedAliases.push(alias)
+    }
+  }
+  return { changedChildren, removedAliases }
+}
+
+async function removeObsoleteChild (modulesDir: string, alias: string): Promise<void> {
+  await rimraf(path.join(modulesDir, alias))
+  if (alias[0] === '@') {
+    await fs.rmdir(path.join(modulesDir, alias.split('/')[0])).catch(() => {})
+  }
 }
