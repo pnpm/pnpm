@@ -750,6 +750,8 @@ test('offline resolution succeeds when package meta is found in the store', asyn
     // This request will save the package's meta in the store
     await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {})
   }
+  // Flush any pending DB writes before opening a new resolver on the same cacheDir
+  closeAllMetadataCaches()
 
   {
     const { resolveFromNpm } = createResolveFromNpm({
@@ -800,6 +802,7 @@ test('when prefer offline is used, meta from store is used, where latest might b
     // This request will save the package's meta in the store
     await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {})
   }
+  closeAllMetadataCaches()
 
   getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })

@@ -62,9 +62,20 @@ export function closeAllMetadataCaches (): void {
   }
 }
 
+interface PendingWrite {
+  name: string
+  type: MetadataType
+  data: string
+  etag: string | null
+  modified: string | null
+  cachedAt: number
+}
+
 export class MetadataCache {
   private db: DatabaseSyncType
   private closed = false
+  private pendingWrites: PendingWrite[] = []
+  private flushScheduled = false
   private stmtGetHeaders: StatementSync
   private stmtGet: StatementSync
   private stmtSet: StatementSync
@@ -169,7 +180,7 @@ export class MetadataCache {
   }
 
   /**
-   * Store metadata for a package.
+   * Store metadata for a package (synchronous).
    */
   set (
     name: string,
@@ -179,6 +190,62 @@ export class MetadataCache {
   ): void {
     sqliteRetry(() => {
       this.stmtSet.run(name, type, opts.etag ?? null, opts.modified ?? null, opts.cachedAt, data)
+    })
+  }
+
+  /**
+   * Queue a write to be flushed on the next tick.
+   * Avoids blocking the event loop during resolution.
+   */
+  queueSet (
+    name: string,
+    type: MetadataType,
+    data: string,
+    opts: { etag?: string, modified?: string, cachedAt: number }
+  ): void {
+    this.pendingWrites.push({
+      name,
+      type,
+      data,
+      etag: opts.etag ?? null,
+      modified: opts.modified ?? null,
+      cachedAt: opts.cachedAt,
+    })
+    if (!this.flushScheduled) {
+      this.flushScheduled = true
+      process.nextTick(() => this.flush())
+    }
+  }
+
+  /**
+   * Flush all pending queued writes in a single transaction.
+   */
+  flush (): void {
+    this.flushScheduled = false
+    if (this.pendingWrites.length === 0 || this.closed) return
+    const writes = this.pendingWrites
+    this.pendingWrites = []
+    sqliteRetry(() => {
+      if (writes.length === 1) {
+        const w = writes[0]
+        this.stmtSet.run(w.name, w.type, w.etag, w.modified, w.cachedAt, w.data)
+        return
+      }
+      this.db.exec('BEGIN IMMEDIATE')
+      let committed = false
+      try {
+        for (const w of writes) {
+          this.stmtSet.run(w.name, w.type, w.etag, w.modified, w.cachedAt, w.data)
+        }
+        this.db.exec('COMMIT')
+        committed = true
+      } finally {
+        if (!committed) {
+          try {
+            this.db.exec('ROLLBACK')
+          } catch {}
+        }
+      }
     })
   }
 
@@ -232,6 +299,7 @@ export class MetadataCache {
 
   close (): void {
     if (this.closed) return
+    this.flush()
     this.closed = true
     openInstances.delete(this)
     process.removeListener('exit', this.exitHandler)

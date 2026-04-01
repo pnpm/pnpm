@@ -238,6 +238,7 @@ export function createNpmResolver (
     clearCache: () => {
       metaCache.clear()
       pMemoizeClear(fetch)
+      metadataDb.flush()
     },
   }
 }

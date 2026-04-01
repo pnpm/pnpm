@@ -229,15 +229,11 @@ export async function pickPackage (
         // Save the abbreviated metadata to the DB before re-fetching full.
         if (!opts.dryRun) {
           const abbreviatedData = typeof fetchResult.jsonText === 'string' ? fetchResult.jsonText : JSON.stringify(meta)
-          try {
-            ctx.metadataDb.set(dbName, 'abbreviated', abbreviatedData, {
-              etag: fetchResult.etag,
-              modified: meta.modified ?? meta.time?.modified,
-              cachedAt,
-            })
-          } catch {
-            // We don't care if this was not written to the cache
-          }
+          ctx.metadataDb.queueSet(dbName, 'abbreviated', abbreviatedData, {
+            etag: fetchResult.etag,
+            modified: meta.modified ?? meta.time?.modified,
+            cachedAt,
+          })
         }
         const fullFetchResult = await ctx.fetch(spec.name, {
           authHeaderValue: opts.authHeaderValue,
@@ -264,15 +260,11 @@ export async function pickPackage (
     ctx.metaCache.set(cacheKey, meta)
     if (!opts.dryRun) {
       const dataForDb = jsonToSave ?? JSON.stringify(meta)
-      try {
-        ctx.metadataDb.set(dbName, metaTypeToSave, dataForDb, {
-          etag: fetchResult.etag,
-          modified: meta.modified ?? meta.time?.modified,
-          cachedAt,
-        })
-      } catch {
-        // We don't care if this was not written to the cache
-      }
+      ctx.metadataDb.queueSet(dbName, metaTypeToSave, dataForDb, {
+        etag: fetchResult.etag,
+        modified: meta.modified ?? meta.time?.modified,
+        cachedAt,
+      })
     }
     return {
       meta,
@@ -329,6 +321,7 @@ function clearMeta (pkg: PackageMeta): PackageMeta {
 }
 
 function loadMetaFromDb (db: MetadataCache, name: string, type: MetadataType): PackageMeta | null {
+  db.flush()
   const row = db.get(name, type)
   if (!row) return null
   const meta = JSON.parse(row.data) as PackageMeta
