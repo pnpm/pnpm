@@ -141,7 +141,7 @@ export async function createNewStoreController (
   const origClose = ctrl.close.bind(ctrl)
   ctrl.close = async () => {
     await origClose()
-    metadataDb.close()
+    metadataDb.flush()
   }
   return {
     ctrl,

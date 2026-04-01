@@ -184,6 +184,7 @@ export class MetadataCache {
    * Cheap — no manifest data touched.
    */
   getHeaders (name: string): MetadataHeaders | undefined {
+    if (this.closed) return undefined
     const pending = this.findPendingIndex(name)
     if (pending) {
       return {
@@ -204,6 +205,7 @@ export class MetadataCache {
    * Does NOT load per-version manifests — very cheap.
    */
   getIndex (name: string): MetadataIndex | null {
+    if (this.closed) return null
     const pending = this.findPendingIndex(name)
     if (pending) {
       return {
@@ -238,6 +240,7 @@ export class MetadataCache {
    * Get a single version's manifest. Falls back from requested type to 'full'.
    */
   getManifest (name: string, version: string, type: string): string | null {
+    if (this.closed) return null
     const pending = this.findPendingManifest(name, version, type)
     if (pending) return pending.manifest
     const row = sqliteRetry(() => this.stmtGetManifest.get(name, version, type, type)) as { manifest: string } | undefined
@@ -297,6 +300,7 @@ export class MetadataCache {
    * Update cachedAt without rewriting data.
    */
   updateCachedAt (name: string, cachedAt: number): void {
+    if (this.closed) return
     sqliteRetry(() => {
       this.stmtUpdateCachedAt.run(cachedAt, name)
     })
