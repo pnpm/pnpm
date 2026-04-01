@@ -27,9 +27,9 @@ test('install with lockfileOnly = true', async () => {
   const { cafsHasNot } = assertStore(opts.storeDir)
 
   cafsHasNot('@pnpm.e2e/pkg-with-1-dep', '100.0.0')
-  expect(hasCachedMeta(opts.cacheDir, `localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep`)).toBeTruthy()
+  expect(hasCachedMeta(opts.cacheDir, `localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep`)).toBeTruthy()
   cafsHasNot('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
-  expect(hasCachedMeta(opts.cacheDir, `localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/dep-of-pkg-with-1-dep`)).toBeTruthy()
+  expect(hasCachedMeta(opts.cacheDir, `localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/dep-of-pkg-with-1-dep`)).toBeTruthy()
   project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 
   expect(manifest.dependencies!['@pnpm.e2e/pkg-with-1-dep']).toBeTruthy()
@@ -45,9 +45,9 @@ test('install with lockfileOnly = true', async () => {
   await install(manifest, opts)
 
   cafsHasNot('@pnpm.e2e/pkg-with-1-dep', '100.0.0')
-  expect(hasCachedMeta(opts.cacheDir, `localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep`)).toBeTruthy()
+  expect(hasCachedMeta(opts.cacheDir, `localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep`)).toBeTruthy()
   cafsHasNot('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
-  expect(hasCachedMeta(opts.cacheDir, `localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/dep-of-pkg-with-1-dep`)).toBeTruthy()
+  expect(hasCachedMeta(opts.cacheDir, `localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/dep-of-pkg-with-1-dep`)).toBeTruthy()
   project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 
   expect(project.readCurrentLockfile()).toBeFalsy()
