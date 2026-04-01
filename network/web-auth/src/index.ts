@@ -22,6 +22,7 @@ export {
   type OtpEnquirer,
   type OtpHandlingParams,
   OtpNonInteractiveError,
+  type OtpProcess,
   type OtpPromptOptions,
   type OtpPromptResponse,
   OtpSecondChallengeError,

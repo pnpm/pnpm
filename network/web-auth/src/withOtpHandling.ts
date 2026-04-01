@@ -24,6 +24,12 @@ interface OtpDate {
   now: () => number
 }
 
+export interface OtpProcess {
+  platform?: NodeJS.Platform
+  stdin: { isTTY?: boolean }
+  stdout: { isTTY?: boolean }
+}
+
 export interface OtpContext {
   Date: OtpDate
   setTimeout: (cb: () => void, ms: number) => void
@@ -33,7 +39,7 @@ export interface OtpContext {
   fetch: (url: string, options: WebAuthFetchOptions) => Promise<WebAuthFetchResponse>
   globalInfo: (message: string) => void
   globalWarn: (message: string) => void
-  process: Record<'stdin' | 'stdout', { isTTY?: boolean }> & { platform?: NodeJS.Platform }
+  process: OtpProcess
 }
 
 interface OtpErrorBody {
