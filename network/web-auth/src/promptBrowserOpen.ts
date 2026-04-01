@@ -1,28 +1,28 @@
-export interface OfferToOpenBrowserReadlineInterface {
+export interface PromptBrowserOpenReadlineInterface {
   once: (event: string, listener: () => void) => void
   close: () => void
 }
 
-export interface OfferToOpenBrowserExecFile {
+export interface PromptBrowserOpenExecFile {
   (file: string, args: readonly string[], callback: (error: Error | null) => void): unknown
 }
 
-export interface OfferToOpenBrowserProcess {
+export interface PromptBrowserOpenProcess {
   platform?: NodeJS.Platform
   stdin: { isTTY?: boolean }
 }
 
-export interface OfferToOpenBrowserContext {
-  createReadlineInterface?: () => OfferToOpenBrowserReadlineInterface
-  execFile?: OfferToOpenBrowserExecFile
+export interface PromptBrowserOpenContext {
+  createReadlineInterface?: () => PromptBrowserOpenReadlineInterface
+  execFile?: PromptBrowserOpenExecFile
   globalInfo: (message: string) => void
   globalWarn: (message: string) => void
-  process: OfferToOpenBrowserProcess
+  process: PromptBrowserOpenProcess
 }
 
-export interface OfferToOpenBrowserParams {
+export interface PromptBrowserOpenParams {
   authUrl: string
-  context: OfferToOpenBrowserContext
+  context: PromptBrowserOpenContext
   pollPromise: Promise<string>
 }
 
@@ -38,11 +38,11 @@ export interface OfferToOpenBrowserParams {
  * Error-tolerant: failures in the keyboard listener or browser opening are
  * logged as warnings and do not interrupt the poll.
  */
-export async function offerToOpenBrowser ({
+export async function promptBrowserOpen ({
   authUrl,
   context,
   pollPromise,
-}: OfferToOpenBrowserParams): Promise<string> {
+}: PromptBrowserOpenParams): Promise<string> {
   const { createReadlineInterface, execFile, globalInfo, globalWarn, process } = context
 
   if (!createReadlineInterface || !execFile || !process.stdin.isTTY) {
@@ -68,7 +68,7 @@ export async function offerToOpenBrowser ({
       return pollPromise
   }
 
-  let rl: OfferToOpenBrowserReadlineInterface
+  let rl: PromptBrowserOpenReadlineInterface
   try {
     rl = createReadlineInterface()
   } catch (err) {
@@ -102,7 +102,7 @@ export async function offerToOpenBrowser ({
 }
 
 function runExecFile (
-  execFile: OfferToOpenBrowserExecFile,
+  execFile: PromptBrowserOpenExecFile,
   cmd: string,
   args: string[]
 ): Promise<void> {

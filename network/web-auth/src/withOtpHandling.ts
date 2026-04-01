@@ -1,10 +1,10 @@
 import { PnpmError } from '@pnpm/error'
 
 import { generateQrCode } from './generateQrCode.js'
-import type { OfferToOpenBrowserExecFile, OfferToOpenBrowserReadlineInterface } from './offerToOpenBrowser.js'
-import { offerToOpenBrowser } from './offerToOpenBrowser.js'
 import type { WebAuthFetchOptions, WebAuthFetchResponse } from './pollForWebAuthToken.js'
 import { pollForWebAuthToken } from './pollForWebAuthToken.js'
+import type { PromptBrowserOpenExecFile, PromptBrowserOpenReadlineInterface } from './promptBrowserOpen.js'
+import { promptBrowserOpen } from './promptBrowserOpen.js'
 
 export interface OtpEnquirer {
   prompt: (options: OtpPromptOptions) => Promise<OtpPromptResponse | undefined>
@@ -27,9 +27,9 @@ interface OtpDate {
 export interface OtpContext {
   Date: OtpDate
   setTimeout: (cb: () => void, ms: number) => void
-  createReadlineInterface?: () => OfferToOpenBrowserReadlineInterface
+  createReadlineInterface?: () => PromptBrowserOpenReadlineInterface
   enquirer: OtpEnquirer
-  execFile?: OfferToOpenBrowserExecFile
+  execFile?: PromptBrowserOpenExecFile
   fetch: (url: string, options: WebAuthFetchOptions) => Promise<WebAuthFetchResponse>
   globalInfo: (message: string) => void
   globalWarn: (message: string) => void
@@ -102,7 +102,7 @@ export async function withOtpHandling<T> ({
         doneUrl: error.body.doneUrl,
         fetchOptions,
       })
-      otp = await offerToOpenBrowser({
+      otp = await promptBrowserOpen({
         authUrl: error.body.authUrl,
         context,
         pollPromise,

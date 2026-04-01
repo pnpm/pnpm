@@ -10,10 +10,10 @@ import { globalInfo, globalWarn } from '@pnpm/logger'
 import { fetch } from '@pnpm/network.fetch'
 import {
   generateQrCode,
-  offerToOpenBrowser,
-  type OfferToOpenBrowserExecFile,
-  type OfferToOpenBrowserReadlineInterface,
   pollForWebAuthToken,
+  promptBrowserOpen,
+  type PromptBrowserOpenExecFile,
+  type PromptBrowserOpenReadlineInterface,
   SyntheticOtpError,
   type WebAuthFetchOptions,
   withOtpHandling,
@@ -135,9 +135,9 @@ export interface LoginProcess {
 export interface LoginContext {
   Date: LoginDate
   setTimeout: (cb: () => void, ms: number) => void
-  createReadlineInterface: () => OfferToOpenBrowserReadlineInterface
+  createReadlineInterface: () => PromptBrowserOpenReadlineInterface
   enquirer: LoginEnquirer
-  execFile: OfferToOpenBrowserExecFile
+  execFile: PromptBrowserOpenExecFile
   fetch: (url: string, options?: LoginFetchOptions) => Promise<LoginFetchResponse>
   globalInfo: (message: string) => void
   globalWarn: (message: string) => void
@@ -254,7 +254,7 @@ async function webLogin ({
 
   const pollPromise = pollForWebAuthToken({ context, doneUrl: body.doneUrl, fetchOptions })
 
-  return offerToOpenBrowser({
+  return promptBrowserOpen({
     authUrl: body.loginUrl,
     context,
     pollPromise,

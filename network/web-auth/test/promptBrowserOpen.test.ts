@@ -1,9 +1,9 @@
 import { jest } from '@jest/globals'
 import {
-  offerToOpenBrowser,
-  type OfferToOpenBrowserContext,
-  type OfferToOpenBrowserExecFile,
-  type OfferToOpenBrowserReadlineInterface,
+  promptBrowserOpen,
+  type PromptBrowserOpenContext,
+  type PromptBrowserOpenExecFile,
+  type PromptBrowserOpenReadlineInterface,
 } from '@pnpm/network.web-auth'
 
 function createDeferred<T> (): {
@@ -20,7 +20,7 @@ function createDeferred<T> (): {
   return { promise, resolve, reject }
 }
 
-interface MockReadlineInterface extends OfferToOpenBrowserReadlineInterface {
+interface MockReadlineInterface extends PromptBrowserOpenReadlineInterface {
   simulateEnterKeypress: () => void
 }
 
@@ -35,11 +35,11 @@ const createMockReadlineInterface = (): MockReadlineInterface => {
   }
 }
 
-type MockContextOverrides = Omit<Partial<OfferToOpenBrowserContext>, 'process'> & {
-  process?: Partial<OfferToOpenBrowserContext['process']>
+type MockContextOverrides = Omit<Partial<PromptBrowserOpenContext>, 'process'> & {
+  process?: Partial<PromptBrowserOpenContext['process']>
 }
 
-const createMockContext = (overrides?: MockContextOverrides): OfferToOpenBrowserContext => ({
+const createMockContext = (overrides?: MockContextOverrides): PromptBrowserOpenContext => ({
   globalInfo: () => {},
   globalWarn: () => {},
   ...overrides,
@@ -50,16 +50,16 @@ const createMockContext = (overrides?: MockContextOverrides): OfferToOpenBrowser
   },
 })
 
-describe('offerToOpenBrowser', () => {
+describe('promptBrowserOpen', () => {
   it('returns the poll result when poll completes before Enter keypress', async () => {
     const mockRl = createMockReadlineInterface()
-    const execFile = jest.fn<OfferToOpenBrowserExecFile>()
+    const execFile = jest.fn<PromptBrowserOpenExecFile>()
     const context = createMockContext({
       createReadlineInterface: () => mockRl,
       execFile,
     })
 
-    const token = await offerToOpenBrowser({
+    const token = await promptBrowserOpen({
       authUrl: 'https://example.com/auth',
       context,
       pollPromise: Promise.resolve('my-token'),
@@ -73,7 +73,7 @@ describe('offerToOpenBrowser', () => {
   it('opens browser via execFile when Enter key is pressed before poll completes', async () => {
     const mockRl = createMockReadlineInterface()
     const pollDeferred = createDeferred<string>()
-    const execFile = jest.fn<OfferToOpenBrowserExecFile>((_file, _args, cb) => {
+    const execFile = jest.fn<PromptBrowserOpenExecFile>((_file, _args, cb) => {
       cb(null)
     })
     const context = createMockContext({
@@ -81,7 +81,7 @@ describe('offerToOpenBrowser', () => {
       execFile,
     })
 
-    const resultPromise = offerToOpenBrowser({
+    const resultPromise = promptBrowserOpen({
       authUrl: 'https://example.com/auth',
       context,
       pollPromise: pollDeferred.promise,
@@ -103,7 +103,7 @@ describe('offerToOpenBrowser', () => {
   it('uses "open" on darwin', async () => {
     const mockRl = createMockReadlineInterface()
     const pollDeferred = createDeferred<string>()
-    const execFile = jest.fn<OfferToOpenBrowserExecFile>((_file, _args, cb) => {
+    const execFile = jest.fn<PromptBrowserOpenExecFile>((_file, _args, cb) => {
       cb(null)
     })
     const context = createMockContext({
@@ -112,7 +112,7 @@ describe('offerToOpenBrowser', () => {
       process: { platform: 'darwin' },
     })
 
-    const resultPromise = offerToOpenBrowser({
+    const resultPromise = promptBrowserOpen({
       authUrl: 'https://example.com/auth',
       context,
       pollPromise: pollDeferred.promise,
@@ -130,7 +130,7 @@ describe('offerToOpenBrowser', () => {
   it('uses "cmd /c start" on win32', async () => {
     const mockRl = createMockReadlineInterface()
     const pollDeferred = createDeferred<string>()
-    const execFile = jest.fn<OfferToOpenBrowserExecFile>((_file, _args, cb) => {
+    const execFile = jest.fn<PromptBrowserOpenExecFile>((_file, _args, cb) => {
       cb(null)
     })
     const context = createMockContext({
@@ -139,7 +139,7 @@ describe('offerToOpenBrowser', () => {
       process: { platform: 'win32' },
     })
 
-    const resultPromise = offerToOpenBrowser({
+    const resultPromise = promptBrowserOpen({
       authUrl: 'https://example.com/auth',
       context,
       pollPromise: pollDeferred.promise,
@@ -155,14 +155,14 @@ describe('offerToOpenBrowser', () => {
   })
 
   it('skips browser prompt on unsupported platform', async () => {
-    const execFile = jest.fn<OfferToOpenBrowserExecFile>()
+    const execFile = jest.fn<PromptBrowserOpenExecFile>()
     const context = createMockContext({
       createReadlineInterface: createMockReadlineInterface,
       execFile,
       process: { platform: 'freebsd' },
     })
 
-    const token = await offerToOpenBrowser({
+    const token = await promptBrowserOpen({
       authUrl: 'https://example.com/auth',
       context,
       pollPromise: Promise.resolve('plain-token'),
@@ -173,14 +173,14 @@ describe('offerToOpenBrowser', () => {
   })
 
   it('skips browser prompt when platform is undefined', async () => {
-    const execFile = jest.fn<OfferToOpenBrowserExecFile>()
+    const execFile = jest.fn<PromptBrowserOpenExecFile>()
     const context = createMockContext({
       createReadlineInterface: createMockReadlineInterface,
       execFile,
       process: { platform: undefined },
     })
 
-    const token = await offerToOpenBrowser({
+    const token = await promptBrowserOpen({
       authUrl: 'https://example.com/auth',
       context,
       pollPromise: Promise.resolve('plain-token'),
@@ -195,7 +195,7 @@ describe('offerToOpenBrowser', () => {
     const pollDeferred = createDeferred<string>()
     const globalWarn = jest.fn<(msg: string) => void>()
     const globalInfo = jest.fn<(msg: string) => void>()
-    const execFile = jest.fn<OfferToOpenBrowserExecFile>((_file, _args, cb) => {
+    const execFile = jest.fn<PromptBrowserOpenExecFile>((_file, _args, cb) => {
       cb(new Error('xdg-open not found'))
     })
     const context = createMockContext({
@@ -205,7 +205,7 @@ describe('offerToOpenBrowser', () => {
       globalWarn,
     })
 
-    const resultPromise = offerToOpenBrowser({
+    const resultPromise = promptBrowserOpen({
       authUrl: 'https://example.com/auth',
       context,
       pollPromise: pollDeferred.promise,
@@ -225,7 +225,7 @@ describe('offerToOpenBrowser', () => {
 
   it('warns and falls back to plain poll when createReadlineInterface throws', async () => {
     const globalWarn = jest.fn<(msg: string) => void>()
-    const execFile = jest.fn<OfferToOpenBrowserExecFile>()
+    const execFile = jest.fn<PromptBrowserOpenExecFile>()
     const context = createMockContext({
       createReadlineInterface: () => {
         throw new Error('setRawMode not supported')
@@ -234,7 +234,7 @@ describe('offerToOpenBrowser', () => {
       globalWarn,
     })
 
-    const token = await offerToOpenBrowser({
+    const token = await promptBrowserOpen({
       authUrl: 'https://example.com/auth',
       context,
       pollPromise: Promise.resolve('fallback-token'),
@@ -247,10 +247,10 @@ describe('offerToOpenBrowser', () => {
 
   it('falls back to plain poll when createReadlineInterface is not provided', async () => {
     const context = createMockContext({
-      execFile: jest.fn<OfferToOpenBrowserExecFile>(),
+      execFile: jest.fn<PromptBrowserOpenExecFile>(),
     })
 
-    const token = await offerToOpenBrowser({
+    const token = await promptBrowserOpen({
       authUrl: 'https://example.com/auth',
       context,
       pollPromise: Promise.resolve('plain-token'),
@@ -264,7 +264,7 @@ describe('offerToOpenBrowser', () => {
       createReadlineInterface: createMockReadlineInterface,
     })
 
-    const token = await offerToOpenBrowser({
+    const token = await promptBrowserOpen({
       authUrl: 'https://example.com/auth',
       context,
       pollPromise: Promise.resolve('plain-token'),
@@ -276,11 +276,11 @@ describe('offerToOpenBrowser', () => {
   it('falls back to plain poll when stdin is not a TTY', async () => {
     const context = createMockContext({
       createReadlineInterface: createMockReadlineInterface,
-      execFile: jest.fn<OfferToOpenBrowserExecFile>(),
+      execFile: jest.fn<PromptBrowserOpenExecFile>(),
       process: { stdin: { isTTY: false } },
     })
 
-    const token = await offerToOpenBrowser({
+    const token = await promptBrowserOpen({
       authUrl: 'https://example.com/auth',
       context,
       pollPromise: Promise.resolve('plain-token'),
@@ -294,11 +294,11 @@ describe('offerToOpenBrowser', () => {
     const globalInfo = jest.fn<(msg: string) => void>()
     const context = createMockContext({
       createReadlineInterface: () => mockRl,
-      execFile: jest.fn<OfferToOpenBrowserExecFile>(),
+      execFile: jest.fn<PromptBrowserOpenExecFile>(),
       globalInfo,
     })
 
-    await offerToOpenBrowser({
+    await promptBrowserOpen({
       authUrl: 'https://example.com/auth',
       context,
       pollPromise: Promise.resolve('tok'),
@@ -311,10 +311,10 @@ describe('offerToOpenBrowser', () => {
     const mockRl = createMockReadlineInterface()
     const context = createMockContext({
       createReadlineInterface: () => mockRl,
-      execFile: jest.fn<OfferToOpenBrowserExecFile>(),
+      execFile: jest.fn<PromptBrowserOpenExecFile>(),
     })
 
-    await expect(offerToOpenBrowser({
+    await expect(promptBrowserOpen({
       authUrl: 'https://example.com/auth',
       context,
       pollPromise: Promise.reject(new Error('timeout')),
