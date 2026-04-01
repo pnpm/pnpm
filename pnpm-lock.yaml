@@ -3853,6 +3853,9 @@ importers:
       '@pnpm/bins.resolver':
         specifier: workspace:*
         version: link:../../bins/resolver
+      '@pnpm/cache.metadata':
+        specifier: workspace:*
+        version: link:../../cache/metadata
       '@pnpm/catalogs.resolver':
         specifier: workspace:*
         version: link:../../catalogs/resolver
@@ -4772,6 +4775,9 @@ importers:
 
   installing/client:
     dependencies:
+      '@pnpm/cache.metadata':
+        specifier: workspace:*
+        version: link:../../cache/metadata
       '@pnpm/fetching.binary-fetcher':
         specifier: workspace:*
         version: link:../../fetching/binary-fetcher
@@ -4812,9 +4818,6 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
-      '@pnpm/cache.metadata':
-        specifier: workspace:*
-        version: link:../../cache/metadata
       '@pnpm/fetching.fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
@@ -7965,6 +7968,9 @@ importers:
 
   resolving/npm-resolver:
     dependencies:
+      '@pnpm/cache.metadata':
+        specifier: workspace:*
+        version: link:../../cache/metadata
       '@pnpm/config.pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package
@@ -8059,9 +8065,6 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
     devDependencies:
-      '@pnpm/cache.metadata':
-        specifier: workspace:*
-        version: link:../../cache/metadata
       '@pnpm/config.version-policy':
         specifier: workspace:*
         version: link:../../config/version-policy
@@ -8394,6 +8397,9 @@ importers:
 
   store/connection-manager:
     dependencies:
+      '@pnpm/cache.metadata':
+        specifier: workspace:*
+        version: link:../../cache/metadata
       '@pnpm/cli.meta':
         specifier: workspace:*
         version: link:../../cli/meta
@@ -8713,9 +8719,6 @@ importers:
       '@pnpm/building.pkg-requires-build':
         specifier: workspace:*
         version: link:../building/pkg-requires-build
-      '@pnpm/cache.metadata':
-        specifier: workspace:*
-        version: link:../cache/metadata
       '@pnpm/crypto.integrity':
         specifier: workspace:*
         version: link:../crypto/integrity
@@ -8731,15 +8734,6 @@ importers:
       '@pnpm/fs.symlink-dependency':
         specifier: workspace:*
         version: link:../fs/symlink-dependency
-      '@pnpm/resolving.registry.pkg-metadata-filter':
-        specifier: workspace:*
-        version: link:../resolving/registry/pkg-metadata-filter
-      '@pnpm/resolving.registry.types':
-        specifier: workspace:*
-        version: link:../resolving/registry/types
-      '@pnpm/resolving.resolver-base':
-        specifier: workspace:*
-        version: link:../resolving/resolver-base
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../store/cafs
@@ -8761,9 +8755,6 @@ importers:
       p-limit:
         specifier: 'catalog:'
         version: 7.3.0
-      ramda:
-        specifier: 'catalog:'
-        version: '@pnpm/ramda@0.28.1'
       semver:
         specifier: 'catalog:'
         version: 7.7.4
@@ -8780,9 +8771,6 @@ importers:
       '@types/is-windows':
         specifier: 'catalog:'
         version: 1.0.2
-      '@types/ramda':
-        specifier: 'catalog:'
-        version: 0.31.1
       '@types/semver':
         specifier: 'catalog:'
         version: 7.7.1

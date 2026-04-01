@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs'
 
+import { MetadataCache } from '@pnpm/cache.metadata'
 import { packageManager } from '@pnpm/cli.meta'
 import type { Config } from '@pnpm/config.reader'
 import { type ClientOptions, createClient } from '@pnpm/installing.client'
@@ -67,6 +68,7 @@ export async function createNewStoreController (
   )
   await fs.mkdir(opts.storeDir, { recursive: true })
   const storeIndex = new StoreIndex(opts.storeDir)
+  const metadataDb = new MetadataCache(opts.cacheDir)
   const { resolve, fetchers, clearResolutionCache } = createClient({
     customResolvers: opts.hooks?.customResolvers,
     customFetchers: opts.hooks?.customFetchers,
@@ -109,6 +111,7 @@ export async function createNewStoreController (
     gitShallowHosts: opts.gitShallowHosts,
     resolveSymlinksInInjectedDirs: opts.resolveSymlinksInInjectedDirs,
     includeOnlyPackageFiles: !opts.deployAllFiles,
+    metadataDb,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
     preserveAbsolutePaths: opts.preserveAbsolutePaths,
     strictPublishedByCheck: Boolean(opts.minimumReleaseAge),
@@ -135,6 +138,11 @@ export async function createNewStoreController (
     customFetchers: opts.hooks?.customFetchers,
     storeIndex,
   })
+  const origClose = ctrl.close.bind(ctrl)
+  ctrl.close = async () => {
+    await origClose()
+    metadataDb.flush()
+  }
   return {
     ctrl,
     dir: opts.storeDir,
