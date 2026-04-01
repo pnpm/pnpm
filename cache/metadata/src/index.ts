@@ -39,14 +39,12 @@ export interface MetadataHeaders {
   modified?: string
 }
 
-export interface MetadataIndex {
-  distTags: string
-  versions: string
-  time?: string
+export interface MetadataRow {
+  data: string
   etag?: string
   modified?: string
   cachedAt?: number
-  isFull?: boolean
+  isFull: boolean
 }
 
 const openInstances = new Set<MetadataCache>()
@@ -63,10 +61,7 @@ interface PendingWrite {
   modified: string | null
   cachedAt: number
   isFull: boolean
-  distTags: string
-  versions: string
-  time: string | null
-  blob: string
+  data: string
 }
 
 export class MetadataCache {
@@ -74,13 +69,10 @@ export class MetadataCache {
   private closed = false
   private pendingWrites: PendingWrite[] = []
   private flushScheduled = false
-  private stmtGetIndex: StatementSync
   private stmtGetHeaders: StatementSync
-  private stmtSetIndex: StatementSync
-  private stmtGetBlob: StatementSync
-  private stmtSetBlob: StatementSync
-  private stmtDeleteIndex: StatementSync
-  private stmtDeleteBlob: StatementSync
+  private stmtGet: StatementSync
+  private stmtSet: StatementSync
+  private stmtDelete: StatementSync
   private stmtListNames: StatementSync
   private stmtUpdateCachedAt: StatementSync
   private readonly exitHandler: () => void
@@ -98,47 +90,32 @@ export class MetadataCache {
       this.db.exec('PRAGMA temp_store=MEMORY')
       this.db.exec('PRAGMA wal_autocheckpoint=10000')
       this.db.exec(`
-        CREATE TABLE IF NOT EXISTS metadata_index (
+        CREATE TABLE IF NOT EXISTS metadata (
           name TEXT PRIMARY KEY,
           etag TEXT,
           modified TEXT,
           cached_at INTEGER,
           is_full INTEGER NOT NULL DEFAULT 0,
-          dist_tags TEXT NOT NULL,
-          versions TEXT NOT NULL,
-          time TEXT
-        ) WITHOUT ROWID
-      `)
-      this.db.exec(`
-        CREATE TABLE IF NOT EXISTS metadata_blobs (
-          name TEXT PRIMARY KEY,
           data TEXT NOT NULL
         ) WITHOUT ROWID
       `)
-      // Drop old per-version manifests table if it exists
+      // Drop tables from previous schema versions
+      this.db.exec('DROP TABLE IF EXISTS metadata_index')
+      this.db.exec('DROP TABLE IF EXISTS metadata_blobs')
       this.db.exec('DROP TABLE IF EXISTS metadata_manifests')
-      // Drop old single-table design if it exists
-      this.db.exec('DROP TABLE IF EXISTS metadata')
     })
-    this.stmtGetIndex = this.db.prepare(
-      'SELECT dist_tags, versions, time, etag, modified, cached_at, is_full FROM metadata_index WHERE name = ?'
-    )
     this.stmtGetHeaders = this.db.prepare(
-      'SELECT etag, modified FROM metadata_index WHERE name = ?'
+      'SELECT etag, modified FROM metadata WHERE name = ?'
     )
-    this.stmtSetIndex = this.db.prepare(
-      'INSERT OR REPLACE INTO metadata_index (name, etag, modified, cached_at, is_full, dist_tags, versions, time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    this.stmtGet = this.db.prepare(
+      'SELECT data, etag, modified, cached_at, is_full FROM metadata WHERE name = ?'
     )
-    this.stmtGetBlob = this.db.prepare(
-      'SELECT data FROM metadata_blobs WHERE name = ?'
+    this.stmtSet = this.db.prepare(
+      'INSERT OR REPLACE INTO metadata (name, etag, modified, cached_at, is_full, data) VALUES (?, ?, ?, ?, ?, ?)'
     )
-    this.stmtSetBlob = this.db.prepare(
-      'INSERT OR REPLACE INTO metadata_blobs (name, data) VALUES (?, ?)'
-    )
-    this.stmtDeleteIndex = this.db.prepare('DELETE FROM metadata_index WHERE name = ?')
-    this.stmtDeleteBlob = this.db.prepare('DELETE FROM metadata_blobs WHERE name = ?')
-    this.stmtListNames = this.db.prepare('SELECT name FROM metadata_index')
-    this.stmtUpdateCachedAt = this.db.prepare('UPDATE metadata_index SET cached_at = ? WHERE name = ?')
+    this.stmtDelete = this.db.prepare('DELETE FROM metadata WHERE name = ?')
+    this.stmtListNames = this.db.prepare('SELECT name FROM metadata')
+    this.stmtUpdateCachedAt = this.db.prepare('UPDATE metadata SET cached_at = ? WHERE name = ?')
     this.exitHandler = () => this.close()
     const currentMax = process.getMaxListeners()
     if (currentMax !== 0 && currentMax < openInstances.size + 11) {
@@ -172,24 +149,20 @@ export class MetadataCache {
     }
   }
 
-  getIndex (name: string): MetadataIndex | null {
+  get (name: string): MetadataRow | null {
     if (this.closed) return null
     const pending = this.findPending(name)
     if (pending) {
       return {
-        distTags: pending.distTags,
-        versions: pending.versions,
-        time: pending.time ?? undefined,
+        data: pending.data,
         etag: pending.etag ?? undefined,
         modified: pending.modified ?? undefined,
         cachedAt: pending.cachedAt,
         isFull: pending.isFull,
       }
     }
-    const row = sqliteRetry(() => this.stmtGetIndex.get(name)) as {
-      dist_tags: string
-      versions: string
-      time: string | null
+    const row = sqliteRetry(() => this.stmtGet.get(name)) as {
+      data: string
       etag: string | null
       modified: string | null
       cached_at: number | null
@@ -197,9 +170,7 @@ export class MetadataCache {
     } | undefined
     if (!row) return null
     return {
-      distTags: row.dist_tags,
-      versions: row.versions,
-      time: row.time ?? undefined,
+      data: row.data,
       etag: row.etag ?? undefined,
       modified: row.modified ?? undefined,
       cachedAt: row.cached_at ?? undefined,
@@ -207,52 +178,19 @@ export class MetadataCache {
     }
   }
 
-  /**
-   * Get the raw JSON blob for a package.
-   * Used after version picking to extract the resolved version's manifest.
-   */
-  getBlob (name: string): string | null {
-    if (this.closed) return null
-    const pending = this.findPending(name)
-    if (pending) return pending.blob
-    const row = sqliteRetry(() => this.stmtGetBlob.get(name)) as { data: string } | undefined
-    return row?.data ?? null
-  }
-
-  /**
-   * Queue a write. Extracts index fields cheaply from parsed meta,
-   * stores the raw JSON blob as-is (zero serialization on hot path).
-   */
-  queueWrite (
+  queueSet (
     name: string,
-    meta: {
-      'dist-tags'?: Record<string, string>
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      versions?: Record<string, any> | null
-      time?: Record<string, string> & { unpublished?: unknown }
-      modified?: string
-    },
-    rawJson: string,
-    opts: { etag?: string, cachedAt: number, isFull?: boolean }
+    data: string,
+    opts: { etag?: string, modified?: string, cachedAt: number, isFull?: boolean }
   ): void {
-    if (!meta['dist-tags'] || !meta.versions) return
-    const versionsCompact: Record<string, { deprecated?: string }> = {}
-    for (const [v, manifest] of Object.entries(meta.versions)) {
-      versionsCompact[v] = manifest.deprecated ? { deprecated: manifest.deprecated as string } : {}
-    }
-
     this.pendingWrites.push({
       name,
       etag: opts.etag ?? null,
-      modified: meta.modified ?? meta.time?.modified ?? null,
+      modified: opts.modified ?? null,
       cachedAt: opts.cachedAt,
       isFull: opts.isFull ?? false,
-      distTags: JSON.stringify(meta['dist-tags']),
-      versions: JSON.stringify(versionsCompact),
-      time: meta.time ? JSON.stringify(meta.time) : null,
-      blob: rawJson,
+      data,
     })
-
     if (!this.flushScheduled) {
       this.flushScheduled = true
       process.nextTick(() => this.flush())
@@ -272,12 +210,16 @@ export class MetadataCache {
     const writes = this.pendingWrites
     this.pendingWrites = []
     sqliteRetry(() => {
+      if (writes.length === 1) {
+        const w = writes[0]
+        this.stmtSet.run(w.name, w.etag, w.modified, w.cachedAt, w.isFull ? 1 : 0, w.data)
+        return
+      }
       this.db.exec('BEGIN IMMEDIATE')
       let committed = false
       try {
         for (const w of writes) {
-          this.stmtSetIndex.run(w.name, w.etag, w.modified, w.cachedAt, w.isFull ? 1 : 0, w.distTags, w.versions, w.time)
-          this.stmtSetBlob.run(w.name, w.blob)
+          this.stmtSet.run(w.name, w.etag, w.modified, w.cachedAt, w.isFull ? 1 : 0, w.data)
         }
         this.db.exec('COMMIT')
         committed = true
@@ -292,25 +234,11 @@ export class MetadataCache {
   }
 
   delete (name: string): boolean {
-    let changes!: number | bigint
+    let result!: { changes: number | bigint }
     sqliteRetry(() => {
-      this.db.exec('BEGIN IMMEDIATE')
-      let committed = false
-      try {
-        const r1 = this.stmtDeleteIndex.run(name)
-        this.stmtDeleteBlob.run(name)
-        changes = r1.changes
-        this.db.exec('COMMIT')
-        committed = true
-      } finally {
-        if (!committed) {
-          try {
-            this.db.exec('ROLLBACK')
-          } catch {}
-        }
-      }
+      result = this.stmtDelete.run(name)
     })
-    return changes > 0
+    return result.changes > 0
   }
 
   listNames (): string[] {

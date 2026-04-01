@@ -12,7 +12,7 @@ import { testDefaults } from '../utils/index.js'
 function hasCachedMeta (cacheDir: string, name: string): boolean {
   const db = new MetadataCache(cacheDir)
   try {
-    return db.getIndex(name) != null
+    return db.get(name) != null
   } finally {
     db.close()
   }

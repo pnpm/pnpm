@@ -1,7 +1,7 @@
-import type { MetadataCache, MetadataIndex } from '@pnpm/cache.metadata'
+import type { MetadataCache } from '@pnpm/cache.metadata'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
-import type { PackageInRegistry, PackageMeta, PackageMetaTime } from '@pnpm/resolving.registry.types'
+import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import { pick } from 'ramda'
 import semver from 'semver'
 
@@ -80,51 +80,51 @@ export async function pickPackage (
 
   validatePackageName(spec.name)
 
-  // Use full metadata for optional dependencies to get libc field.
-  // See: https://github.com/pnpm/pnpm/issues/9950
   const fullMetadata = opts.optional === true || ctx.fullMetadata === true
-  // DB name includes registry to avoid collisions across registries
   const registryName = getRegistryHost(opts.registry)
   const dbName = `${registryName}/${spec.name}`
 
-  // Try to resolve from the DB index (cheap — no per-version manifest parsing)
-  // Skip DB cache if full metadata is needed but only abbreviated is cached
-  let cachedIndex: MetadataIndex | null | undefined
-  const canUseIndex = (idx: MetadataIndex) => !fullMetadata || idx.isFull
+  let metaCachedInStore: PackageMeta | null | undefined
   if (ctx.offline === true || ctx.preferOffline === true || opts.pickLowestVersion) {
-    cachedIndex = ctx.metadataDb.getIndex(dbName)
-    if (cachedIndex && canUseIndex(cachedIndex)) {
-      const result = resolveFromIndex(ctx.metadataDb, cachedIndex, dbName, spec, _pickPackageFromMeta)
-      if (ctx.offline) {
-        if (result) return result
-        throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror for ${spec.name}`)
+    metaCachedInStore = loadMetaFromDb(ctx.metadataDb, dbName, fullMetadata)
+
+    if (ctx.offline) {
+      if (metaCachedInStore != null) return {
+        meta: metaCachedInStore,
+        pickedPackage: _pickPackageFromMeta(metaCachedInStore),
       }
-      if (result) return result
-    } else if (ctx.offline) {
       throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror for ${spec.name}`)
+    }
+
+    if (metaCachedInStore != null) {
+      const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
+      if (pickedPackage) {
+        return { meta: metaCachedInStore, pickedPackage }
+      }
     }
   }
 
   if (!opts.updateToLatest && spec.type === 'version') {
-    cachedIndex = cachedIndex ?? ctx.metadataDb.getIndex(dbName)
-    if (cachedIndex && canUseIndex(cachedIndex)) {
-      const versionsMap = JSON.parse(cachedIndex.versions) as Record<string, unknown>
-      if (spec.fetchSpec in versionsMap) {
-        try {
-          const result = resolveFromIndex(ctx.metadataDb, cachedIndex, dbName, spec, _pickPackageFromMeta)
-          if (result) return result
-        } catch (err) {
-          if (ctx.strictPublishedByCheck) throw err
+    metaCachedInStore = metaCachedInStore ?? loadMetaFromDb(ctx.metadataDb, dbName, fullMetadata)
+    if ((metaCachedInStore?.versions?.[spec.fetchSpec]) != null) {
+      try {
+        const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
+        if (pickedPackage) {
+          return { meta: metaCachedInStore, pickedPackage }
         }
+      } catch (err) {
+        if (ctx.strictPublishedByCheck) throw err
       }
     }
   }
   if (opts.publishedBy) {
-    cachedIndex = cachedIndex ?? ctx.metadataDb.getIndex(dbName)
-    if (cachedIndex && canUseIndex(cachedIndex) && cachedIndex.cachedAt && new Date(cachedIndex.cachedAt) >= opts.publishedBy) {
+    metaCachedInStore = metaCachedInStore ?? loadMetaFromDb(ctx.metadataDb, dbName, fullMetadata)
+    if (metaCachedInStore?.cachedAt && new Date(metaCachedInStore.cachedAt) >= opts.publishedBy) {
       try {
-        const result = resolveFromIndex(ctx.metadataDb, cachedIndex, dbName, spec, _pickPackageFromMeta)
-        if (result) return result
+        const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
+        if (pickedPackage) {
+          return { meta: metaCachedInStore, pickedPackage }
+        }
       } catch (err: unknown) {
         if (ctx.strictPublishedByCheck && !isMissingTimeError(err)) throw err
       }
@@ -132,9 +132,8 @@ export async function pickPackage (
   }
 
   try {
-    // Reuse headers from index, or do a cheap DB lookup
-    let etag = cachedIndex?.etag
-    let modified = cachedIndex?.modified
+    let etag = metaCachedInStore?.etag
+    let modified = metaCachedInStore?.modified ?? metaCachedInStore?.time?.modified
     if (!etag || !modified) {
       const headers = ctx.metadataDb.getHeaders(dbName)
       etag = etag ?? headers?.etag
@@ -148,14 +147,14 @@ export async function pickPackage (
       registry: opts.registry,
     })
 
-    // 304 Not Modified — registry confirmed local cache is still fresh
+    // 304 Not Modified
     if (fetchResult.notModified) {
-      cachedIndex = cachedIndex ?? ctx.metadataDb.getIndex(dbName)
-      if (cachedIndex) {
+      metaCachedInStore = metaCachedInStore ?? loadMetaFromDb(ctx.metadataDb, dbName, fullMetadata)
+      if (metaCachedInStore != null) {
         const cachedAt = Date.now()
+        metaCachedInStore.cachedAt = cachedAt
         ctx.metadataDb.updateCachedAt(dbName, cachedAt)
-        const result = resolveFromIndex(ctx.metadataDb, { ...cachedIndex, cachedAt }, dbName, spec, _pickPackageFromMeta)
-        if (result) return result
+        return { meta: metaCachedInStore, pickedPackage: _pickPackageFromMeta(metaCachedInStore) }
       }
       throw new PnpmError('CACHE_MISSING_AFTER_304',
         `Metadata cache for ${spec.name} is unreadable after receiving 304 Not Modified`)
@@ -163,9 +162,9 @@ export async function pickPackage (
 
     const cachedAt = Date.now()
     let meta = fetchResult.meta
+
     // When minimumReleaseAge is active and we fetched abbreviated metadata,
-    // check if the package was recently modified and needs full metadata
-    // for per-version time-based filtering.
+    // check if the package was recently modified and needs full metadata.
     if (
       opts.publishedBy &&
       !fullMetadata &&
@@ -178,7 +177,11 @@ export async function pickPackage (
         // Save abbreviated metadata before re-fetching full
         if (!opts.dryRun) {
           const abbreviatedJson = typeof fetchResult.jsonText === 'string' ? fetchResult.jsonText : JSON.stringify(meta)
-          ctx.metadataDb.queueWrite(dbName, meta, abbreviatedJson, { etag: fetchResult.etag, cachedAt })
+          ctx.metadataDb.queueSet(dbName, abbreviatedJson, {
+            etag: fetchResult.etag,
+            modified: meta.modified,
+            cachedAt,
+          })
         }
         const fullFetchResult = await ctx.fetch(spec.name, {
           authHeaderValue: opts.authHeaderValue,
@@ -201,74 +204,22 @@ export async function pickPackage (
       const rawJson = (ctx.filterMetadata || typeof fetchResult.jsonText !== 'string')
         ? JSON.stringify(meta)
         : fetchResult.jsonText
-      ctx.metadataDb.queueWrite(dbName, meta, rawJson, {
+      ctx.metadataDb.queueSet(dbName, rawJson, {
         etag: fetchResult.etag,
+        modified: meta.modified ?? meta.time?.modified,
         cachedAt,
         isFull: fullMetadata,
       })
     }
-    return {
-      meta,
-      pickedPackage: _pickPackageFromMeta(meta),
-    }
+    return { meta, pickedPackage: _pickPackageFromMeta(meta) }
   } catch (err: any) { // eslint-disable-line
     err.spec = spec
-    cachedIndex = cachedIndex ?? ctx.metadataDb.getIndex(dbName)
-    if (!cachedIndex) throw err
+    const meta = loadMetaFromDb(ctx.metadataDb, dbName, fullMetadata)
+    if (meta == null) throw err
     logger.error(err, err)
     logger.debug({ message: `Using cached meta from DB for ${spec.name}` })
-    const result = resolveFromIndex(ctx.metadataDb, cachedIndex, dbName, spec, _pickPackageFromMeta)
-    if (result) return result
-    throw err
+    return { meta, pickedPackage: _pickPackageFromMeta(meta) }
   }
-}
-
-/**
- * Build a lightweight PackageMeta from the DB index and resolve.
- * Only parses the picked version's manifest — not all versions.
- */
-function resolveFromIndex (
-  metadataDb: MetadataCache,
-  index: MetadataIndex,
-  dbName: string,
-  spec: RegistryPackageSpec,
-  pickFn: (meta: PackageMeta) => PackageInRegistry | null
-): { meta: PackageMeta, pickedPackage: PackageInRegistry | null } | null {
-  const distTags = JSON.parse(index.distTags) as Record<string, string>
-  const versionsCompact = JSON.parse(index.versions) as Record<string, { deprecated?: string }>
-  const time = index.time ? JSON.parse(index.time) as PackageMetaTime : undefined
-
-  // Build lightweight meta with stub version objects (just version + deprecated)
-  const versions: Record<string, PackageInRegistry> = {}
-  for (const [v, info] of Object.entries(versionsCompact)) {
-    versions[v] = { version: v, deprecated: info.deprecated } as PackageInRegistry
-  }
-
-  const lightMeta: PackageMeta = {
-    name: spec.name,
-    'dist-tags': distTags,
-    versions,
-    time,
-    modified: index.modified,
-    cachedAt: index.cachedAt,
-    etag: index.etag,
-  }
-
-  const pickedStub = pickFn(lightMeta)
-  if (!pickedStub) return null
-
-  // Load the blob and extract just the picked version's manifest
-  const blob = metadataDb.getBlob(dbName)
-  if (!blob) return null
-
-  const fullMeta = JSON.parse(blob) as PackageMeta
-  const manifest = fullMeta.versions[pickedStub.version]
-  if (!manifest) return null
-
-  if (spec.name) {
-    manifest.name = spec.name
-  }
-  return { meta: lightMeta, pickedPackage: manifest }
 }
 
 function clearMeta (pkg: PackageMeta): PackageMeta {
@@ -304,6 +255,17 @@ function clearMeta (pkg: PackageMeta): PackageMeta {
     time: pkg.time,
     modified: pkg.modified,
   }
+}
+
+function loadMetaFromDb (db: MetadataCache, name: string, needsFull: boolean): PackageMeta | null {
+  const row = db.get(name)
+  if (!row) return null
+  if (needsFull && !row.isFull) return null
+  const meta = JSON.parse(row.data) as PackageMeta
+  meta.cachedAt = row.cachedAt
+  meta.etag = row.etag
+  meta.modified = row.modified ?? meta.modified
+  return meta
 }
 
 function isMissingTimeError (err: unknown): boolean {

@@ -63,8 +63,9 @@ test('request metadata when the one in cache does not have a version satisfying 
     time: {},
   }
   const db = new MetadataCache(cacheDir)
-  db.queueWrite(`${REG}/bad-dates`, cachedMeta, JSON.stringify(cachedMeta), {
+  db.queueSet(`${REG}/bad-dates`, JSON.stringify(cachedMeta), {
     cachedAt: new Date('2016-08-17T19:26:00.508Z').getTime(),
+    isFull: true,
   })
   db.flush()
   db.close()
@@ -106,8 +107,9 @@ test('do not pick version that does not satisfy the date requirement even if it 
     },
   }
   const db = new MetadataCache(cacheDir)
-  db.queueWrite(`${REG}/foo`, fooMeta, JSON.stringify(fooMeta), {
+  db.queueSet(`${REG}/foo`, JSON.stringify(fooMeta), {
     cachedAt: new Date('2016-08-17T19:26:00.508Z').getTime(),
+    isFull: true,
   })
   db.flush()
   db.close()
@@ -134,8 +136,9 @@ test('should skip time field validation for excluded packages', async () => {
   const { time: _time, ...metaWithoutTime } = isPositiveMeta
 
   const db = new MetadataCache(cacheDir)
-  db.queueWrite(`${REG}/is-positive`, metaWithoutTime, JSON.stringify(metaWithoutTime), {
+  db.queueSet(`${REG}/is-positive`, JSON.stringify(metaWithoutTime), {
     cachedAt: Date.now(),
+    isFull: true,
   })
   db.flush()
   db.close()
@@ -219,7 +222,7 @@ test('use cached metadata based on cachedAt when publishedBy is set', async () =
   const cacheDir = temporaryDirectory()
   // Seed the SQLite cache with abbreviated metadata and a recent cachedAt
   const db = new MetadataCache(cacheDir)
-  db.queueWrite(`${REG}/is-positive`, isPositiveAbbreviatedMeta, JSON.stringify(isPositiveAbbreviatedMeta), {
+  db.queueSet(`${REG}/is-positive`, JSON.stringify(isPositiveAbbreviatedMeta), {
     cachedAt: Date.now(),
   })
   db.flush()

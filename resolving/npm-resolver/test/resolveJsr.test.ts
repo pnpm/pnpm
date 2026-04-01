@@ -68,7 +68,7 @@ test('resolveFromJsr() on jsr', async () => {
   // so we must delay for a bit in order to read it
   const meta = await retryLoadFromCache(cacheDir, '@jsr/rus__greet', 'abbreviated', 'https://npm.jsr.io/')
   expect(meta.versions).toBeTruthy()
-  expect(meta.distTags).toBeTruthy()
+  expect(meta['dist-tags']).toBeTruthy()
 })
 
 test('resolveFromJsr() on jsr with alias renaming', async () => {
@@ -106,7 +106,7 @@ test('resolveFromJsr() on jsr with alias renaming', async () => {
   // so we must delay for a bit in order to read it
   const meta = await retryLoadFromCache(cacheDir, '@jsr/rus__greet', 'abbreviated', 'https://npm.jsr.io/')
   expect(meta.versions).toBeTruthy()
-  expect(meta.distTags).toBeTruthy()
+  expect(meta['dist-tags']).toBeTruthy()
 })
 
 test('resolveFromJsr() on jsr with packages without scope', async () => {

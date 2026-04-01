@@ -22,13 +22,9 @@ export async function cacheView (opts: { cacheDir: string, storeDir: string, reg
       const pkgName = name.slice(slashIdx + 1)
       if (pkgName !== packageName) continue
       const registryName = name.slice(0, slashIdx)
-      const index = db.getIndex(name)
-      if (!index) continue
-      const distTags = JSON.parse(index.distTags) as Record<string, string>
-      // Load blob to check integrity per version
-      const blob = db.getBlob(name)
-      if (!blob) continue
-      const meta = JSON.parse(blob) as { versions: Record<string, { name?: string, dist?: { integrity?: string } }> }
+      const row = db.get(name)
+      if (!row) continue
+      const meta = JSON.parse(row.data) as { 'dist-tags': Record<string, string>, versions: Record<string, { name?: string, dist?: { integrity?: string } }> }
       const cachedVersions: string[] = []
       const nonCachedVersions: string[] = []
       for (const [version, manifest] of Object.entries(meta.versions)) {
@@ -46,8 +42,8 @@ export async function cacheView (opts: { cacheDir: string, storeDir: string, reg
       result[registryName] = {
         cachedVersions,
         nonCachedVersions,
-        cachedAt: index.cachedAt ? new Date(index.cachedAt).toString() : undefined,
-        distTags,
+        cachedAt: row.cachedAt ? new Date(row.cachedAt).toString() : undefined,
+        distTags: meta['dist-tags'],
       }
     }
     return JSON.stringify(result, null, 2)
