@@ -42,6 +42,35 @@ test('safeToSkip skips when target already exists (content-addressed)', () => {
   expect(renameOverwriteSyncMock).not.toHaveBeenCalled()
 })
 
+test('safeToSkip skips importing when the completion marker already exists', () => {
+  const tmp = tempDir()
+  const srcDir = path.join(tmp, 'src')
+  const newDir = path.join(tmp, 'dest')
+  const srcPackageJson = path.join(srcDir, 'package.json')
+  const srcIndexJs = path.join(srcDir, 'index.js')
+
+  fs.mkdirSync(srcDir, { recursive: true })
+  fs.writeFileSync(srcPackageJson, '{"name":"pkg","version":"1.0.0"}')
+  fs.writeFileSync(srcIndexJs, 'module.exports = 1')
+
+  fs.mkdirSync(newDir, { recursive: true })
+  fs.copyFileSync(srcPackageJson, path.join(newDir, 'package.json'))
+  fs.copyFileSync(srcIndexJs, path.join(newDir, 'index.js'))
+
+  const importFileMock = jest.fn(() => {
+    throw new Error('importer should not run when the completion marker already exists')
+  })
+  const filenames = new Map([
+    ['index.js', srcIndexJs],
+    ['package.json', srcPackageJson],
+  ])
+
+  importIndexedDir({ importFile: importFileMock, importFileAtomic: importFileMock }, newDir, filenames, { safeToSkip: true })
+
+  expect(importFileMock).not.toHaveBeenCalled()
+  expect(renameOverwriteSyncMock).not.toHaveBeenCalled()
+})
+
 test('safeToSkip creates dir when target does not exist', () => {
   const tmp = tempDir()
   const srcFile = path.join(tmp, 'src', 'index.js')

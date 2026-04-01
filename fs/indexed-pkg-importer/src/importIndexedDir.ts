@@ -33,6 +33,10 @@ export function importIndexedDir (
     safeToSkip?: boolean
   }
 ): void {
+  if (opts.safeToSkip && pkgExistsAtTargetDir(newDir, filenames)) {
+    return
+  }
+
   // Fast path: import directly without staging.  Callers already verified
   // the target package is missing (pkgExistsAtTargetDir / pkgLinkedToStore),
   // so we can write straight into newDir and skip the temp dir + rename.
@@ -125,6 +129,20 @@ export function importIndexedDir (
     } catch {} // eslint-disable-line:no-empty
     throw renameErr
   }
+}
+
+function pkgExistsAtTargetDir (targetDir: string, filesMap: Map<string, string>): boolean {
+  return fs.existsSync(path.join(targetDir, pickFileFromFilesMap(filesMap)))
+}
+
+function pickFileFromFilesMap (filesMap: Map<string, string>): string {
+  if (filesMap.has('package.json')) {
+    return 'package.json'
+  }
+  if (filesMap.size === 0) {
+    throw new Error('pickFileFromFilesMap cannot pick a file from an empty FilesMap')
+  }
+  return filesMap.keys().next().value!
 }
 
 function allFilesMatch (dir: string, filenames: Map<string, string>): boolean {

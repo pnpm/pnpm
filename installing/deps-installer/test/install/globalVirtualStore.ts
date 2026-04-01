@@ -103,6 +103,57 @@ test('reinstall from warm global virtual store after deleting node_modules', asy
   expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0', files[0], 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
 })
 
+test('fresh install into a second project reuses a warm global virtual store', async () => {
+  const manifest = {
+    name: 'project',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }
+  preparePackages([
+    { location: 'project-1', package: manifest },
+    { location: 'project-2', package: manifest },
+  ])
+
+  const cwd = process.cwd()
+  const project1Dir = path.resolve('project-1')
+  const project2Dir = path.resolve('project-2')
+  const globalVirtualStoreDir = path.resolve('links')
+  const opts = testDefaults({
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+    hoistPattern: ['*'],
+  })
+
+  try {
+    process.chdir(project1Dir)
+    await install(manifest, opts)
+    fs.copyFileSync(path.join(project1Dir, 'pnpm-lock.yaml'), path.join(project2Dir, 'pnpm-lock.yaml'))
+
+    const originalImportPackage = opts.storeController.importPackage
+    let importCount = 0
+    opts.storeController.importPackage = (async (targetDir, importOpts) => {
+      const result = await originalImportPackage(targetDir, importOpts)
+      if (result.importMethod != null) {
+        importCount++
+      }
+      return result
+    }) as typeof originalImportPackage
+
+    process.chdir(project2Dir)
+    await install(manifest, {
+      ...opts,
+      frozenLockfile: true,
+    })
+
+    expect(importCount).toBe(0)
+    expect(fs.existsSync(path.join(project2Dir, 'node_modules/.pnpm/lock.yaml'))).toBeTruthy()
+  } finally {
+    process.chdir(cwd)
+  }
+})
+
 test('modules are correctly updated when using a global virtual store', async () => {
   prepareEmpty()
   const globalVirtualStoreDir = path.resolve('links')
