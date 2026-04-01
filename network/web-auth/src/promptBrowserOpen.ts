@@ -85,7 +85,7 @@ export async function promptBrowserOpen ({
     })
   })
 
-  // IMPORTANT: Only await pollPromise — do NOT await the Enter keypress.
+  // Only await pollPromise — do NOT await the Enter keypress.
   //
   // The Enter listener is a fire-and-forget side effect. Users may authenticate
   // on their phone (via QR code or pasted URL) without ever pressing Enter, so
