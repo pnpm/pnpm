@@ -62,24 +62,26 @@ export async function promptBrowserOpen ({
     return pollPromise
   }
 
+  const canonicalUrl = parsedUrl.href
+
   let cmd: string
   let args: string[]
   switch (process.platform) {
     case 'darwin':
       cmd = 'open'
-      args = [authUrl]
+      args = [canonicalUrl]
       break
     case 'win32': {
       cmd = 'cmd'
-      // Escape cmd.exe metacharacters so characters like & in query strings
-      // are not interpreted as command separators.
-      const escapedUrl = authUrl.replace(/[&|<>^%]/g, '^$&')
+      // Escape cmd.exe metacharacters so characters like &, (), and ! in
+      // query strings are not interpreted as operators or expanded.
+      const escapedUrl = canonicalUrl.replace(/[&|<>^%()!]/g, '^$&')
       args = ['/c', 'start', '', escapedUrl]
       break
     }
     case 'linux':
       cmd = 'xdg-open'
-      args = [authUrl]
+      args = [canonicalUrl]
       break
     default:
       return pollPromise
