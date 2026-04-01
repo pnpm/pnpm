@@ -9,7 +9,9 @@ export interface PackageMeta {
   'dist-tags': Record<string, string>
   versions: Record<string, PackageInRegistry>
   time?: PackageMetaTime
+  modified?: string
   cachedAt?: number
+  etag?: string
 }
 
 export interface PackageMetaWithTime extends PackageMeta {

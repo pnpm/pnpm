@@ -14,7 +14,7 @@ import { pick } from 'ramda'
 import { renameOverwrite } from 'rename-overwrite'
 import semver from 'semver'
 
-import type { FetchMetadataResult } from './fetch.js'
+import type { FetchMetadataNotModifiedResult, FetchMetadataResult } from './fetch.js'
 import type { RegistryPackageSpec } from './parseBareSpecifier.js'
 import {
   pickLowestVersionByVersionRange,
@@ -88,7 +88,7 @@ function pickPackageFromMetaUsingTime (
 
 export async function pickPackage (
   ctx: {
-    fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean }) => Promise<FetchMetadataResult>
+    fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean, etag?: string, modified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
     fullMetadata?: boolean
     metaCache: PackageMetaCache
     cacheDir: string
@@ -213,11 +213,30 @@ export async function pickPackage (
     }
 
     try {
+      // Load cached metadata to get conditional request headers (ETag, Last-Modified)
+      metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
       const fetchResult = await ctx.fetch(spec.name, {
         authHeaderValue: opts.authHeaderValue,
         fullMetadata,
+        etag: metaCachedInStore?.etag,
+        modified: metaCachedInStore?.modified ?? metaCachedInStore?.time?.modified,
         registry: opts.registry,
       })
+
+      // 304 Not Modified — registry confirmed local cache is still fresh
+      if (fetchResult.notModified) {
+        if (metaCachedInStore != null) {
+          metaCachedInStore.cachedAt = Date.now()
+          ctx.metaCache.set(cacheKey, metaCachedInStore)
+          return {
+            meta: metaCachedInStore,
+            pickedPackage: _pickPackageFromMeta(metaCachedInStore),
+          }
+        }
+        throw new PnpmError('CACHE_MISSING_AFTER_304',
+          `Metadata cache for ${spec.name} is unreadable after receiving 304 Not Modified`)
+      }
+
       const cachedAt = Date.now()
       let meta = fetchResult.meta
       let jsonToSave: string | undefined
@@ -225,15 +244,19 @@ export async function pickPackage (
         meta = clearMeta(meta)
       } else if (typeof fetchResult.jsonText === 'string') {
         // Reuse the raw JSON text from the registry response to avoid re-stringifying.
-        // Inject cachedAt at the start of the JSON object. To be robust against BOMs or
-        // leading whitespace/newlines, locate the first '{' and splice after it.
+        // Inject cachedAt and cache validation headers at the start of the JSON object.
         const jsonText = fetchResult.jsonText
         const firstBraceIndex = jsonText.indexOf('{')
         if (firstBraceIndex !== -1) {
-          jsonToSave = `{"cachedAt":${cachedAt},${jsonText.slice(firstBraceIndex + 1)}`
+          let injectedFields = `"cachedAt":${cachedAt}`
+          if (fetchResult.etag) {
+            injectedFields += `,"etag":${JSON.stringify(fetchResult.etag)}`
+          }
+          jsonToSave = `{${injectedFields},${jsonText.slice(firstBraceIndex + 1)}`
         }
       }
       meta.cachedAt = cachedAt
+      meta.etag = fetchResult.etag
       // only save meta to cache, when it is fresh
       ctx.metaCache.set(cacheKey, meta)
       if (!opts.dryRun) {
@@ -297,7 +320,9 @@ function clearMeta (pkg: PackageMeta): PackageMeta {
     'dist-tags': pkg['dist-tags'],
     versions,
     time: pkg.time,
+    modified: pkg.modified,
     cachedAt: pkg.cachedAt,
+    etag: pkg.etag,
   }
 }
 
