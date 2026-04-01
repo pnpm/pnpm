@@ -40,6 +40,9 @@
       "path": "../../building/policy"
     },
     {
+      "path": "../../cache/metadata"
+    },
+    {
       "path": "../../catalogs/protocol-parser"
     },
     {
