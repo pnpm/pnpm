@@ -1,4 +1,4 @@
-import { closeAllMetadataCaches, MetadataCache, type MetadataType } from '@pnpm/cache.metadata'
+import { closeAllMetadataCaches, MetadataCache } from '@pnpm/cache.metadata'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -37,10 +37,11 @@ test('use local cache when registry returns 304 Not Modified', async () => {
   const cacheDir = temporaryDirectory()
   // Seed cached metadata with etag in SQLite
   const db = new MetadataCache(cacheDir)
-  db.set(`${REG}/is-positive`, 'abbreviated', JSON.stringify(isPositiveMeta), {
+  db.queueWrite(`${REG}/is-positive`, 'abbreviated', isPositiveMeta, {
     etag: '"abc123"',
     cachedAt: Date.now(),
   })
+  db.flush()
   db.close()
 
   // Registry returns 304 Not Modified — verify conditional headers are sent
@@ -93,7 +94,7 @@ test('store etag from 200 response in cache', async () => {
 
   // Verify etag was saved to SQLite cache
   // The resolve function does not wait for the cache write, so retry
-  const etag = await retryGetEtag(cacheDir, `${REG}/is-positive`, 'abbreviated')
+  const etag = await retryGetEtag(cacheDir, `${REG}/is-positive`)
   expect(etag).toBe('"xyz789"')
 })
 
@@ -118,13 +119,13 @@ test('fetch without conditional headers when no local cache exists', async () =>
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
 })
 
-async function retryGetEtag (cacheDir: string, name: string, type: MetadataType): Promise<string | undefined> {
+async function retryGetEtag (cacheDir: string, name: string): Promise<string | undefined> {
   let etag: string | undefined
   /* eslint-disable no-await-in-loop */
   for (let i = 0; i < 6; i++) {
     await new Promise((resolve) => setTimeout(resolve, 500))
     const db = new MetadataCache(cacheDir)
-    const headers = db.getHeaders(name, type)
+    const headers = db.getHeaders(name)
     db.close()
     if (headers?.etag) {
       etag = headers.etag

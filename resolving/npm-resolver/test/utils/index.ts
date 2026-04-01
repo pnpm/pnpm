@@ -1,4 +1,4 @@
-import { MetadataCache, type MetadataType } from '@pnpm/cache.metadata'
+import { MetadataCache, type MetadataIndex } from '@pnpm/cache.metadata'
 
 export { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 
@@ -6,7 +6,7 @@ export function registryHost (registry?: string): string {
   return new URL(registry ?? 'https://registry.npmjs.org/').host
 }
 
-export async function retryLoadFromCache<T> (cacheDir: string, name: string, type: MetadataType, registry?: string): Promise<T> {
+export async function retryLoadFromCache (cacheDir: string, name: string, _type?: string, registry?: string): Promise<MetadataIndex> {
   const dbName = `${registryHost(registry)}/${name}`
   let retry = 0
   /* eslint-disable no-await-in-loop */
@@ -14,11 +14,11 @@ export async function retryLoadFromCache<T> (cacheDir: string, name: string, typ
     await delay(500)
     const db = new MetadataCache(cacheDir)
     try {
-      const row = db.get(dbName, type)
-      if (row) {
-        return JSON.parse(row.data) as T
+      const index = db.getIndex(dbName)
+      if (index) {
+        return index
       }
-      if (retry > 2) throw new Error(`No cache entry found for ${dbName} (${type})`)
+      if (retry > 2) throw new Error(`No cache entry found for ${dbName}`)
       retry++
     } finally {
       db.close()

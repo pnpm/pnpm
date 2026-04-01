@@ -36,15 +36,15 @@ function sleepSync (ms: number): void {
   Atomics.wait(sleepBuffer, 0, 0, ms)
 }
 
-export type MetadataType = 'abbreviated' | 'full' | 'full-filtered'
-
 export interface MetadataHeaders {
   etag?: string
   modified?: string
 }
 
-export interface MetadataRow {
-  data: string
+export interface MetadataIndex {
+  distTags: string
+  versions: string
+  time?: string
   etag?: string
   modified?: string
   cachedAt?: number
@@ -62,27 +62,40 @@ export function closeAllMetadataCaches (): void {
   }
 }
 
-interface PendingWrite {
+interface PendingIndexWrite {
+  kind: 'index'
   name: string
-  type: MetadataType
-  data: string
   etag: string | null
   modified: string | null
   cachedAt: number
+  distTags: string
+  versions: string
+  time: string | null
 }
+
+interface PendingManifestWrite {
+  kind: 'manifest'
+  name: string
+  version: string
+  type: string
+  manifest: string
+}
+
+type PendingWrite = PendingIndexWrite | PendingManifestWrite
 
 export class MetadataCache {
   private db: DatabaseSyncType
   private closed = false
   private pendingWrites: PendingWrite[] = []
   private flushScheduled = false
+  private stmtGetIndex: StatementSync
   private stmtGetHeaders: StatementSync
-  private stmtGet: StatementSync
-  private stmtSet: StatementSync
-  private stmtDeleteName: StatementSync
-  private stmtDeleteNameType: StatementSync
+  private stmtSetIndex: StatementSync
+  private stmtGetManifest: StatementSync
+  private stmtSetManifest: StatementSync
+  private stmtDeleteIndex: StatementSync
+  private stmtDeleteManifests: StatementSync
   private stmtListNames: StatementSync
-  private stmtListNamesByType: StatementSync
   private stmtUpdateCachedAt: StatementSync
   private readonly exitHandler: () => void
 
@@ -99,31 +112,45 @@ export class MetadataCache {
       this.db.exec('PRAGMA temp_store=MEMORY')
       this.db.exec('PRAGMA wal_autocheckpoint=10000')
       this.db.exec(`
-        CREATE TABLE IF NOT EXISTS metadata (
-          name TEXT NOT NULL,
-          type TEXT NOT NULL,
+        CREATE TABLE IF NOT EXISTS metadata_index (
+          name TEXT PRIMARY KEY,
           etag TEXT,
           modified TEXT,
           cached_at INTEGER,
-          data TEXT NOT NULL,
-          PRIMARY KEY (name, type)
+          dist_tags TEXT NOT NULL,
+          versions TEXT NOT NULL,
+          time TEXT
+        ) WITHOUT ROWID
+      `)
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS metadata_manifests (
+          name TEXT NOT NULL,
+          version TEXT NOT NULL,
+          type TEXT NOT NULL,
+          manifest TEXT NOT NULL,
+          PRIMARY KEY (name, version, type)
         ) WITHOUT ROWID
       `)
     })
+    this.stmtGetIndex = this.db.prepare(
+      'SELECT dist_tags, versions, time, etag, modified, cached_at FROM metadata_index WHERE name = ?'
+    )
     this.stmtGetHeaders = this.db.prepare(
-      'SELECT etag, modified FROM metadata WHERE name = ? AND type = ?'
+      'SELECT etag, modified FROM metadata_index WHERE name = ?'
     )
-    this.stmtGet = this.db.prepare(
-      'SELECT data, etag, modified, cached_at FROM metadata WHERE name = ? AND type = ?'
+    this.stmtSetIndex = this.db.prepare(
+      'INSERT OR REPLACE INTO metadata_index (name, etag, modified, cached_at, dist_tags, versions, time) VALUES (?, ?, ?, ?, ?, ?, ?)'
     )
-    this.stmtSet = this.db.prepare(
-      'INSERT OR REPLACE INTO metadata (name, type, etag, modified, cached_at, data) VALUES (?, ?, ?, ?, ?, ?)'
+    this.stmtGetManifest = this.db.prepare(
+      'SELECT manifest FROM metadata_manifests WHERE name = ? AND version = ? AND type IN (?, \'full\') ORDER BY CASE type WHEN ? THEN 0 ELSE 1 END LIMIT 1'
     )
-    this.stmtDeleteName = this.db.prepare('DELETE FROM metadata WHERE name = ?')
-    this.stmtDeleteNameType = this.db.prepare('DELETE FROM metadata WHERE name = ? AND type = ?')
-    this.stmtListNames = this.db.prepare('SELECT DISTINCT name FROM metadata')
-    this.stmtListNamesByType = this.db.prepare('SELECT DISTINCT name FROM metadata WHERE type = ?')
-    this.stmtUpdateCachedAt = this.db.prepare('UPDATE metadata SET cached_at = ? WHERE name = ? AND type = ?')
+    this.stmtSetManifest = this.db.prepare(
+      'INSERT OR REPLACE INTO metadata_manifests (name, version, type, manifest) VALUES (?, ?, ?, ?)'
+    )
+    this.stmtDeleteIndex = this.db.prepare('DELETE FROM metadata_index WHERE name = ?')
+    this.stmtDeleteManifests = this.db.prepare('DELETE FROM metadata_manifests WHERE name = ?')
+    this.stmtListNames = this.db.prepare('SELECT name FROM metadata_index')
+    this.stmtUpdateCachedAt = this.db.prepare('UPDATE metadata_index SET cached_at = ? WHERE name = ?')
     this.exitHandler = () => this.close()
     const currentMax = process.getMaxListeners()
     if (currentMax !== 0 && currentMax < openInstances.size + 11) {
@@ -133,40 +160,38 @@ export class MetadataCache {
     openInstances.add(this)
   }
 
-  private findPendingWrite (name: string, type: MetadataType): PendingWrite | undefined {
-    const types: MetadataType[] = type === 'abbreviated'
-      ? ['abbreviated', 'full-filtered', 'full']
-      : [type]
-    for (const t of types) {
-      for (let i = this.pendingWrites.length - 1; i >= 0; i--) {
-        if (this.pendingWrites[i].name === name && this.pendingWrites[i].type === t) {
-          return this.pendingWrites[i]
-        }
-      }
+  private findPendingIndex (name: string): PendingIndexWrite | undefined {
+    for (let i = this.pendingWrites.length - 1; i >= 0; i--) {
+      const w = this.pendingWrites[i]
+      if (w.kind === 'index' && w.name === name) return w
     }
     return undefined
   }
 
+  private findPendingManifest (name: string, version: string, type: string): PendingManifestWrite | undefined {
+    let fullFallback: PendingManifestWrite | undefined
+    for (let i = this.pendingWrites.length - 1; i >= 0; i--) {
+      const w = this.pendingWrites[i]
+      if (w.kind !== 'manifest' || w.name !== name || w.version !== version) continue
+      if (w.type === type) return w
+      if (w.type === 'full' && !fullFallback) fullFallback = w
+    }
+    return fullFallback
+  }
+
   /**
-   * Get only the conditional-request headers for a package.
-   * This is cheap — no JSON parsing.
-   * Falls back from abbreviated → full-filtered → full.
+   * Get the conditional-request headers for a package.
+   * Cheap — no manifest data touched.
    */
-  getHeaders (name: string, type: MetadataType): MetadataHeaders | undefined {
-    const pending = this.findPendingWrite(name, type)
+  getHeaders (name: string): MetadataHeaders | undefined {
+    const pending = this.findPendingIndex(name)
     if (pending) {
       return {
         etag: pending.etag ?? undefined,
         modified: pending.modified ?? undefined,
       }
     }
-    let row = sqliteRetry(() => this.stmtGetHeaders.get(name, type)) as { etag: string | null, modified: string | null } | undefined
-    if (!row && type === 'abbreviated') {
-      row = sqliteRetry(() => this.stmtGetHeaders.get(name, 'full-filtered')) as typeof row
-      if (!row) {
-        row = sqliteRetry(() => this.stmtGetHeaders.get(name, 'full')) as typeof row
-      }
-    }
+    const row = sqliteRetry(() => this.stmtGetHeaders.get(name)) as { etag: string | null, modified: string | null } | undefined
     if (!row) return undefined
     return {
       etag: row.etag ?? undefined,
@@ -175,34 +200,34 @@ export class MetadataCache {
   }
 
   /**
-   * Get full metadata for a package.
-   * Falls back from abbreviated → full-filtered → full.
+   * Get the index data for resolution: dist-tags, version keys, time, and cache headers.
+   * Does NOT load per-version manifests — very cheap.
    */
-  get (name: string, type: MetadataType): MetadataRow | null {
-    const pending = this.findPendingWrite(name, type)
+  getIndex (name: string): MetadataIndex | null {
+    const pending = this.findPendingIndex(name)
     if (pending) {
       return {
-        data: pending.data,
+        distTags: pending.distTags,
+        versions: pending.versions,
+        time: pending.time ?? undefined,
         etag: pending.etag ?? undefined,
         modified: pending.modified ?? undefined,
         cachedAt: pending.cachedAt,
       }
     }
-    let row = sqliteRetry(() => this.stmtGet.get(name, type)) as {
-      data: string
+    const row = sqliteRetry(() => this.stmtGetIndex.get(name)) as {
+      dist_tags: string
+      versions: string
+      time: string | null
       etag: string | null
       modified: string | null
       cached_at: number | null
     } | undefined
-    if (!row && type === 'abbreviated') {
-      row = sqliteRetry(() => this.stmtGet.get(name, 'full-filtered')) as typeof row
-      if (!row) {
-        row = sqliteRetry(() => this.stmtGet.get(name, 'full')) as typeof row
-      }
-    }
     if (!row) return null
     return {
-      data: row.data,
+      distTags: row.dist_tags,
+      versions: row.versions,
+      time: row.time ?? undefined,
       etag: row.etag ?? undefined,
       modified: row.modified ?? undefined,
       cachedAt: row.cached_at ?? undefined,
@@ -210,37 +235,57 @@ export class MetadataCache {
   }
 
   /**
-   * Store metadata for a package (synchronous).
+   * Get a single version's manifest. Falls back from requested type to 'full'.
    */
-  set (
-    name: string,
-    type: MetadataType,
-    data: string,
-    opts: { etag?: string, modified?: string, cachedAt: number }
-  ): void {
-    sqliteRetry(() => {
-      this.stmtSet.run(name, type, opts.etag ?? null, opts.modified ?? null, opts.cachedAt, data)
-    })
+  getManifest (name: string, version: string, type: string): string | null {
+    const pending = this.findPendingManifest(name, version, type)
+    if (pending) return pending.manifest
+    const row = sqliteRetry(() => this.stmtGetManifest.get(name, version, type, type)) as { manifest: string } | undefined
+    return row?.manifest ?? null
   }
 
   /**
-   * Queue a write to be flushed on the next tick.
-   * Avoids blocking the event loop during resolution.
+   * Queue index + manifests from a parsed PackageMeta.
    */
-  queueSet (
+  queueWrite (
     name: string,
-    type: MetadataType,
-    data: string,
-    opts: { etag?: string, modified?: string, cachedAt: number }
+    type: string,
+    meta: {
+      'dist-tags'?: Record<string, string>
+      versions?: Record<string, { version?: string, deprecated?: string }> | null
+      time?: Record<string, string> & { unpublished?: unknown }
+      modified?: string
+    },
+    opts: { etag?: string, cachedAt: number }
   ): void {
+    if (!meta['dist-tags'] || !meta.versions) return
+    // Build compact versions map (version → {deprecated?} only)
+    const versionsCompact: Record<string, { deprecated?: string }> = {}
+    for (const [v, manifest] of Object.entries(meta.versions)) {
+      versionsCompact[v] = manifest.deprecated ? { deprecated: manifest.deprecated as string } : {}
+    }
+
     this.pendingWrites.push({
+      kind: 'index',
       name,
-      type,
-      data,
       etag: opts.etag ?? null,
-      modified: opts.modified ?? null,
+      modified: meta.modified ?? meta.time?.modified ?? null,
       cachedAt: opts.cachedAt,
+      distTags: JSON.stringify(meta['dist-tags']),
+      versions: JSON.stringify(versionsCompact),
+      time: meta.time ? JSON.stringify(meta.time) : null,
     })
+
+    for (const [v, manifest] of Object.entries(meta.versions)) {
+      this.pendingWrites.push({
+        kind: 'manifest',
+        name,
+        version: v,
+        type,
+        manifest: JSON.stringify(manifest),
+      })
+    }
+
     if (!this.flushScheduled) {
       this.flushScheduled = true
       process.nextTick(() => this.flush())
@@ -248,7 +293,16 @@ export class MetadataCache {
   }
 
   /**
-   * Flush all pending queued writes in a single transaction.
+   * Update cachedAt without rewriting data.
+   */
+  updateCachedAt (name: string, cachedAt: number): void {
+    sqliteRetry(() => {
+      this.stmtUpdateCachedAt.run(cachedAt, name)
+    })
+  }
+
+  /**
+   * Flush all pending writes in a single transaction.
    */
   flush (): void {
     this.flushScheduled = false
@@ -256,16 +310,15 @@ export class MetadataCache {
     const writes = this.pendingWrites
     this.pendingWrites = []
     sqliteRetry(() => {
-      if (writes.length === 1) {
-        const w = writes[0]
-        this.stmtSet.run(w.name, w.type, w.etag, w.modified, w.cachedAt, w.data)
-        return
-      }
       this.db.exec('BEGIN IMMEDIATE')
       let committed = false
       try {
         for (const w of writes) {
-          this.stmtSet.run(w.name, w.type, w.etag, w.modified, w.cachedAt, w.data)
+          if (w.kind === 'index') {
+            this.stmtSetIndex.run(w.name, w.etag, w.modified, w.cachedAt, w.distTags, w.versions, w.time)
+          } else {
+            this.stmtSetManifest.run(w.name, w.version, w.type, w.manifest)
+          }
         }
         this.db.exec('COMMIT')
         committed = true
@@ -280,50 +333,35 @@ export class MetadataCache {
   }
 
   /**
-   * Update cachedAt without rewriting the data.
-   * Falls back from abbreviated → full-filtered → full.
+   * Delete all data for a package.
    */
-  updateCachedAt (name: string, type: MetadataType, cachedAt: number): void {
+  delete (name: string): boolean {
+    let changes!: number | bigint
     sqliteRetry(() => {
-      let result = this.stmtUpdateCachedAt.run(cachedAt, name, type)
-      if (result.changes === 0 && type === 'abbreviated') {
-        result = this.stmtUpdateCachedAt.run(cachedAt, name, 'full-filtered')
-        if (result.changes === 0) {
-          this.stmtUpdateCachedAt.run(cachedAt, name, 'full')
+      this.db.exec('BEGIN IMMEDIATE')
+      let committed = false
+      try {
+        const r1 = this.stmtDeleteIndex.run(name)
+        this.stmtDeleteManifests.run(name)
+        changes = r1.changes
+        this.db.exec('COMMIT')
+        committed = true
+      } finally {
+        if (!committed) {
+          try {
+            this.db.exec('ROLLBACK')
+          } catch {}
         }
       }
     })
+    return changes > 0
   }
 
   /**
-   * Delete all metadata for a package name.
+   * List all package names.
    */
-  delete (name: string): boolean {
-    let result!: { changes: number | bigint }
-    sqliteRetry(() => {
-      result = this.stmtDeleteName.run(name)
-    })
-    return result.changes > 0
-  }
-
-  /**
-   * Delete metadata for a specific package name and type.
-   */
-  deleteByType (name: string, type: MetadataType): boolean {
-    let result!: { changes: number | bigint }
-    sqliteRetry(() => {
-      result = this.stmtDeleteNameType.run(name, type)
-    })
-    return result.changes > 0
-  }
-
-  /**
-   * List all distinct package names, optionally filtered by type.
-   */
-  listNames (type?: MetadataType): string[] {
-    const rows = type
-      ? sqliteRetry(() => this.stmtListNamesByType.all(type))
-      : sqliteRetry(() => this.stmtListNames.all())
+  listNames (): string[] {
+    const rows = sqliteRetry(() => this.stmtListNames.all())
     return (rows as Array<{ name: string }>).map((r) => r.name)
   }
 
@@ -335,13 +373,9 @@ export class MetadataCache {
     process.removeListener('exit', this.exitHandler)
     try {
       this.db.exec('PRAGMA optimize')
-    } catch {
-      // Safe to ignore if the DB is locked.
-    }
+    } catch {}
     try {
       this.db.close()
-    } catch {
-      // The OS will reclaim it on process exit.
-    }
+    } catch {}
   }
 }

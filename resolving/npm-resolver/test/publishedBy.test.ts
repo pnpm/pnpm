@@ -63,9 +63,10 @@ test('request metadata when the one in cache does not have a version satisfying 
     time: {},
   }
   const db = new MetadataCache(cacheDir)
-  db.set(`${REG}/bad-dates`, 'full-filtered', JSON.stringify(cachedMeta), {
+  db.queueWrite(`${REG}/bad-dates`, 'full-filtered', cachedMeta, {
     cachedAt: new Date('2016-08-17T19:26:00.508Z').getTime(),
   })
+  db.flush()
   db.close()
 
   getMockAgent().get(registries.default.replace(/\/$/, ''))
@@ -105,9 +106,10 @@ test('do not pick version that does not satisfy the date requirement even if it 
     },
   }
   const db = new MetadataCache(cacheDir)
-  db.set(`${REG}/foo`, 'full-filtered', JSON.stringify(fooMeta), {
+  db.queueWrite(`${REG}/foo`, 'full-filtered', fooMeta, {
     cachedAt: new Date('2016-08-17T19:26:00.508Z').getTime(),
   })
+  db.flush()
   db.close()
 
   getMockAgent().get(registries.default.replace(/\/$/, ''))
@@ -132,9 +134,10 @@ test('should skip time field validation for excluded packages', async () => {
   const { time: _time, ...metaWithoutTime } = isPositiveMeta
 
   const db = new MetadataCache(cacheDir)
-  db.set(`${REG}/is-positive`, 'full-filtered', JSON.stringify(metaWithoutTime), {
+  db.queueWrite(`${REG}/is-positive`, 'full-filtered', metaWithoutTime, {
     cachedAt: Date.now(),
   })
+  db.flush()
   db.close()
 
   getMockAgent().get(registries.default.replace(/\/$/, ''))
@@ -216,9 +219,10 @@ test('use cached metadata based on cachedAt when publishedBy is set', async () =
   const cacheDir = temporaryDirectory()
   // Seed the SQLite cache with abbreviated metadata and a recent cachedAt
   const db = new MetadataCache(cacheDir)
-  db.set(`${REG}/is-positive`, 'abbreviated', JSON.stringify(isPositiveAbbreviatedMeta), {
+  db.queueWrite(`${REG}/is-positive`, 'abbreviated', isPositiveAbbreviatedMeta, {
     cachedAt: Date.now(),
   })
+  db.flush()
   db.close()
 
   // No mock agent intercepts — the test verifies no network request is made.

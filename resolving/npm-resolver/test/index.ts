@@ -74,10 +74,9 @@ test('resolveFromNpm()', async () => {
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadFromCache<any>(cacheDir, 'is-positive', 'abbreviated') // eslint-disable-line @typescript-eslint/no-explicit-any
-  expect(meta.name).toBeTruthy()
+  const meta = await retryLoadFromCache(cacheDir, 'is-positive')
   expect(meta.versions).toBeTruthy()
-  expect(meta['dist-tags']).toBeTruthy()
+  expect(meta.distTags).toBeTruthy()
 })
 
 test('resolveFromNpm() strips port 80 from http tarball URLs', async () => {
@@ -127,8 +126,9 @@ test('resolveFromNpm() does not save mutated meta to the cache', async () => {
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadFromCache<any>(cacheDir, 'is-positive', 'abbreviated') // eslint-disable-line @typescript-eslint/no-explicit-any
-  expect(meta.versions['1.0.0'].version).toBe('1.0.0')
+  const meta = await retryLoadFromCache(cacheDir, 'is-positive')
+  const versions = JSON.parse(meta.versions)
+  expect(versions).toHaveProperty(['1.0.0'])
 })
 
 test('resolveFromNpm() should save metadata to a unique file when the package name has upper case letters', async () => {
@@ -149,10 +149,9 @@ test('resolveFromNpm() should save metadata to a unique file when the package na
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadFromCache<any>(cacheDir, 'JSON', 'abbreviated') // eslint-disable-line @typescript-eslint/no-explicit-any
-  expect(meta.name).toBeTruthy()
+  const meta = await retryLoadFromCache(cacheDir, 'JSON')
   expect(meta.versions).toBeTruthy()
-  expect(meta['dist-tags']).toBeTruthy()
+  expect(meta.distTags).toBeTruthy()
 })
 
 test('relative workspace protocol is skipped', async () => {
@@ -1089,10 +1088,9 @@ test('resolve when tarball URL is requested from the registry', async () => {
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadFromCache<any>(cacheDir, 'is-positive', 'abbreviated') // eslint-disable-line @typescript-eslint/no-explicit-any
-  expect(meta.name).toBeTruthy()
+  const meta = await retryLoadFromCache(cacheDir, 'is-positive')
   expect(meta.versions).toBeTruthy()
-  expect(meta['dist-tags']).toBeTruthy()
+  expect(meta.distTags).toBeTruthy()
 })
 
 test('resolve when tarball URL is requested from the registry and alias is not specified', async () => {
@@ -1122,10 +1120,9 @@ test('resolve when tarball URL is requested from the registry and alias is not s
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadFromCache<any>(cacheDir, 'is-positive', 'abbreviated') // eslint-disable-line @typescript-eslint/no-explicit-any
-  expect(meta.name).toBeTruthy()
+  const meta = await retryLoadFromCache(cacheDir, 'is-positive')
   expect(meta.versions).toBeTruthy()
-  expect(meta['dist-tags']).toBeTruthy()
+  expect(meta.distTags).toBeTruthy()
 })
 
 test('resolve from local directory when it matches the latest version of the package', async () => {
@@ -1896,10 +1893,9 @@ test('resolveFromNpm() should always return the name of the package that is spec
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadFromCache<any>(cacheDir, 'is-positive', 'abbreviated') // eslint-disable-line @typescript-eslint/no-explicit-any
-  expect(meta.name).toBeTruthy()
+  const meta = await retryLoadFromCache(cacheDir, 'is-positive')
   expect(meta.versions).toBeTruthy()
-  expect(meta['dist-tags']).toBeTruthy()
+  expect(meta.distTags).toBeTruthy()
 })
 
 test('request to metadata is retried if the received JSON is broken', async () => {

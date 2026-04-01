@@ -1,5 +1,4 @@
 import { MetadataCache } from '@pnpm/cache.metadata'
-import type { PackageMeta } from '@pnpm/resolving.npm-resolver'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 
 interface CachedVersions {
@@ -23,17 +22,25 @@ export async function cacheView (opts: { cacheDir: string, storeDir: string, reg
       const pkgName = name.slice(slashIdx + 1)
       if (pkgName !== packageName) continue
       const registryName = name.slice(0, slashIdx)
-      // Try all types, pick first available
-      const row = db.get(name, 'abbreviated')
-        ?? db.get(name, 'full-filtered')
-        ?? db.get(name, 'full')
-      if (!row) continue
-      const meta = JSON.parse(row.data) as PackageMeta
+      const index = db.getIndex(name)
+      if (!index) continue
+      const distTags = JSON.parse(index.distTags) as Record<string, string>
+      const versionsMap = JSON.parse(index.versions) as Record<string, unknown>
       const cachedVersions: string[] = []
       const nonCachedVersions: string[] = []
-      for (const [version, manifest] of Object.entries(meta.versions)) {
-        if (!manifest.dist.integrity) continue
-        const key = storeIndexKey(manifest.dist.integrity, `${manifest.name}@${manifest.version}`)
+      for (const version of Object.keys(versionsMap)) {
+        // Load manifest to check integrity
+        const manifestJson = db.getManifest(name, version, 'abbreviated')
+        if (!manifestJson) {
+          nonCachedVersions.push(version)
+          continue
+        }
+        const manifest = JSON.parse(manifestJson) as { name?: string, dist?: { integrity?: string } }
+        if (!manifest.dist?.integrity) {
+          nonCachedVersions.push(version)
+          continue
+        }
+        const key = storeIndexKey(manifest.dist.integrity, `${manifest.name ?? pkgName}@${version}`)
         if (storeIndex.has(key)) {
           cachedVersions.push(version)
         } else {
@@ -43,8 +50,8 @@ export async function cacheView (opts: { cacheDir: string, storeDir: string, reg
       result[registryName] = {
         cachedVersions,
         nonCachedVersions,
-        cachedAt: row.cachedAt ? new Date(row.cachedAt).toString() : undefined,
-        distTags: meta['dist-tags'],
+        cachedAt: index.cachedAt ? new Date(index.cachedAt).toString() : undefined,
+        distTags,
       }
     }
     return JSON.stringify(result, null, 2)

@@ -66,12 +66,9 @@ test('resolveFromJsr() on jsr', async () => {
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadFromCache<any>(cacheDir, '@jsr/rus__greet', 'abbreviated', 'https://npm.jsr.io/') // eslint-disable-line @typescript-eslint/no-explicit-any
-  expect(meta).toMatchObject({
-    name: expect.any(String),
-    versions: expect.any(Object),
-    'dist-tags': expect.any(Object),
-  })
+  const meta = await retryLoadFromCache(cacheDir, '@jsr/rus__greet', 'abbreviated', 'https://npm.jsr.io/')
+  expect(meta.versions).toBeTruthy()
+  expect(meta.distTags).toBeTruthy()
 })
 
 test('resolveFromJsr() on jsr with alias renaming', async () => {
@@ -107,12 +104,9 @@ test('resolveFromJsr() on jsr with alias renaming', async () => {
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadFromCache<any>(cacheDir, '@jsr/rus__greet', 'abbreviated', 'https://npm.jsr.io/') // eslint-disable-line @typescript-eslint/no-explicit-any
-  expect(meta).toMatchObject({
-    name: expect.any(String),
-    versions: expect.any(Object),
-    'dist-tags': expect.any(Object),
-  })
+  const meta = await retryLoadFromCache(cacheDir, '@jsr/rus__greet', 'abbreviated', 'https://npm.jsr.io/')
+  expect(meta.versions).toBeTruthy()
+  expect(meta.distTags).toBeTruthy()
 })
 
 test('resolveFromJsr() on jsr with packages without scope', async () => {

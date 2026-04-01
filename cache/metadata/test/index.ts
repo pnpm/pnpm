@@ -5,132 +5,161 @@ afterEach(() => {
   closeAllMetadataCaches()
 })
 
-test('set and get metadata', () => {
+test('queueWrite and getIndex', () => {
   const cacheDir = temporaryDirectory()
   const db = new MetadataCache(cacheDir)
 
-  db.set('is-positive', 'abbreviated', '{"name":"is-positive","versions":{}}', {
-    etag: '"abc123"',
+  db.queueWrite('is-positive', 'abbreviated', {
+    'dist-tags': { latest: '1.0.0' },
+    versions: { '1.0.0': {} },
     modified: '2017-08-17T19:26:00.508Z',
+  }, {
+    etag: '"abc123"',
     cachedAt: Date.now(),
   })
+  db.flush()
 
-  const row = db.get('is-positive', 'abbreviated')
-  expect(row).not.toBeNull()
-  expect(row!.etag).toBe('"abc123"')
-  expect(row!.modified).toBe('2017-08-17T19:26:00.508Z')
-  expect(JSON.parse(row!.data).name).toBe('is-positive')
+  const index = db.getIndex('is-positive')
+  expect(index).not.toBeNull()
+  expect(index!.etag).toBe('"abc123"')
+  expect(index!.modified).toBe('2017-08-17T19:26:00.508Z')
+  expect(JSON.parse(index!.distTags)).toEqual({ latest: '1.0.0' })
+  expect(JSON.parse(index!.versions)).toEqual({ '1.0.0': {} })
 })
 
 test('getHeaders returns only headers without parsing data', () => {
   const cacheDir = temporaryDirectory()
   const db = new MetadataCache(cacheDir)
 
-  db.set('is-positive', 'abbreviated', '{"name":"is-positive"}', {
-    etag: '"xyz"',
+  db.queueWrite('is-positive', 'abbreviated', {
+    'dist-tags': { latest: '1.0.0' },
+    versions: { '1.0.0': {} },
     modified: '2020-01-01T00:00:00.000Z',
+  }, {
+    etag: '"xyz"',
     cachedAt: Date.now(),
   })
+  db.flush()
 
-  const headers = db.getHeaders('is-positive', 'abbreviated')
+  const headers = db.getHeaders('is-positive')
   expect(headers).toEqual({
     etag: '"xyz"',
     modified: '2020-01-01T00:00:00.000Z',
   })
 })
 
-test('abbreviated falls back to full-filtered then full', () => {
+test('getManifest returns the stored manifest for a version', () => {
   const cacheDir = temporaryDirectory()
   const db = new MetadataCache(cacheDir)
 
-  db.set('foo', 'full', '{"name":"foo","time":{"1.0.0":"2020-01-01"}}', {
+  db.queueWrite('foo', 'abbreviated', {
+    'dist-tags': { latest: '1.0.0' },
+    versions: {
+      '1.0.0': { version: '1.0.0', name: 'foo' },
+    },
+  }, {
+    cachedAt: Date.now(),
+  })
+  db.flush()
+
+  const manifest = db.getManifest('foo', '1.0.0', 'abbreviated')
+  expect(manifest).not.toBeNull()
+  expect(JSON.parse(manifest!)).toMatchObject({ version: '1.0.0', name: 'foo' })
+})
+
+test('getManifest falls back from requested type to full', () => {
+  const cacheDir = temporaryDirectory()
+  const db = new MetadataCache(cacheDir)
+
+  db.queueWrite('foo', 'full', {
+    'dist-tags': { latest: '1.0.0' },
+    versions: {
+      '1.0.0': { version: '1.0.0', name: 'foo', scripts: { test: 'jest' } },
+    },
+    time: { '1.0.0': '2020-01-01' },
+  }, {
     etag: '"full-etag"',
     cachedAt: Date.now(),
   })
+  db.flush()
 
-  // Request abbreviated — should get the full row
-  const row = db.get('foo', 'abbreviated')
-  expect(row).not.toBeNull()
-  expect(row!.etag).toBe('"full-etag"')
-  expect(JSON.parse(row!.data).time).toBeDefined()
+  // Request abbreviated — should fall back to the full manifest
+  const manifest = db.getManifest('foo', '1.0.0', 'abbreviated')
+  expect(manifest).not.toBeNull()
+  expect(JSON.parse(manifest!).scripts).toBeDefined()
 
-  const headers = db.getHeaders('foo', 'abbreviated')
-  expect(headers?.etag).toBe('"full-etag"')
+  // Index should also be available
+  const index = db.getIndex('foo')
+  expect(index).not.toBeNull()
+  expect(index!.etag).toBe('"full-etag"')
 })
 
-test('abbreviated prefers full-filtered over full', () => {
+test('delete removes all data for a package', () => {
   const cacheDir = temporaryDirectory()
   const db = new MetadataCache(cacheDir)
 
-  db.set('bar', 'full', '{"name":"bar"}', { etag: '"full"', cachedAt: Date.now() })
-  db.set('bar', 'full-filtered', '{"name":"bar"}', { etag: '"filtered"', cachedAt: Date.now() })
-
-  const row = db.get('bar', 'abbreviated')
-  expect(row!.etag).toBe('"filtered"')
-})
-
-test('delete removes all types for a package', () => {
-  const cacheDir = temporaryDirectory()
-  const db = new MetadataCache(cacheDir)
-
-  db.set('pkg', 'abbreviated', '{}', { cachedAt: Date.now() })
-  db.set('pkg', 'full', '{}', { cachedAt: Date.now() })
+  db.queueWrite('pkg', 'abbreviated', {
+    'dist-tags': { latest: '1.0.0' },
+    versions: { '1.0.0': {} },
+  }, { cachedAt: Date.now() })
+  db.flush()
 
   expect(db.delete('pkg')).toBe(true)
-  expect(db.get('pkg', 'abbreviated')).toBeNull()
-  expect(db.get('pkg', 'full')).toBeNull()
+  expect(db.getIndex('pkg')).toBeNull()
+  expect(db.getManifest('pkg', '1.0.0', 'abbreviated')).toBeNull()
 })
 
 test('listNames returns distinct package names', () => {
   const cacheDir = temporaryDirectory()
   const db = new MetadataCache(cacheDir)
 
-  db.set('a', 'abbreviated', '{}', { cachedAt: Date.now() })
-  db.set('a', 'full', '{}', { cachedAt: Date.now() })
-  db.set('b', 'abbreviated', '{}', { cachedAt: Date.now() })
+  db.queueWrite('a', 'abbreviated', {
+    'dist-tags': { latest: '1.0.0' },
+    versions: { '1.0.0': {} },
+  }, { cachedAt: Date.now() })
+  db.queueWrite('b', 'abbreviated', {
+    'dist-tags': { latest: '1.0.0' },
+    versions: { '1.0.0': {} },
+  }, { cachedAt: Date.now() })
+  db.flush()
 
   const names = db.listNames()
   expect(names.sort()).toEqual(['a', 'b'])
-})
-
-test('listNames filters by type', () => {
-  const cacheDir = temporaryDirectory()
-  const db = new MetadataCache(cacheDir)
-
-  db.set('a', 'abbreviated', '{}', { cachedAt: Date.now() })
-  db.set('b', 'full', '{}', { cachedAt: Date.now() })
-
-  expect(db.listNames('abbreviated')).toEqual(['a'])
-  expect(db.listNames('full')).toEqual(['b'])
 })
 
 test('updateCachedAt changes only the timestamp', () => {
   const cacheDir = temporaryDirectory()
   const db = new MetadataCache(cacheDir)
 
-  db.set('pkg', 'abbreviated', '{"original":true}', {
+  db.queueWrite('pkg', 'abbreviated', {
+    'dist-tags': { latest: '1.0.0' },
+    versions: { '1.0.0': {} },
+  }, {
     etag: '"e"',
     cachedAt: 1000,
   })
+  db.flush()
 
-  db.updateCachedAt('pkg', 'abbreviated', 2000)
+  db.updateCachedAt('pkg', 2000)
 
-  const row = db.get('pkg', 'abbreviated')
-  expect(row!.cachedAt).toBe(2000)
-  expect(row!.etag).toBe('"e"')
-  expect(JSON.parse(row!.data).original).toBe(true)
+  const index = db.getIndex('pkg')
+  expect(index!.cachedAt).toBe(2000)
+  expect(index!.etag).toBe('"e"')
 })
 
 test('persists across close and reopen', () => {
   const cacheDir = temporaryDirectory()
   const db1 = new MetadataCache(cacheDir)
-  db1.set('persist', 'abbreviated', '{"v":1}', { cachedAt: 1 })
+  db1.queueWrite('persist', 'abbreviated', {
+    'dist-tags': { latest: '1.0.0' },
+    versions: { '1.0.0': { version: '1.0.0' } },
+  }, { cachedAt: 1 })
   db1.close()
 
   const db2 = new MetadataCache(cacheDir)
-  const row = db2.get('persist', 'abbreviated')
-  expect(row).not.toBeNull()
-  expect(JSON.parse(row!.data).v).toBe(1)
+  const index = db2.getIndex('persist')
+  expect(index).not.toBeNull()
+  expect(JSON.parse(index!.versions)).toHaveProperty(['1.0.0'])
   db2.close()
 })
 
@@ -138,6 +167,7 @@ test('returns null for missing package', () => {
   const cacheDir = temporaryDirectory()
   const db = new MetadataCache(cacheDir)
 
-  expect(db.get('nonexistent', 'abbreviated')).toBeNull()
-  expect(db.getHeaders('nonexistent', 'abbreviated')).toBeUndefined()
+  expect(db.getIndex('nonexistent')).toBeNull()
+  expect(db.getHeaders('nonexistent')).toBeUndefined()
+  expect(db.getManifest('nonexistent', '1.0.0', 'abbreviated')).toBeNull()
 })
