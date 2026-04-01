@@ -11,7 +11,6 @@ import {
   type JsrResolveResult,
   type NpmResolveResult,
   type PackageMeta,
-  type PackageMetaCache,
   type ResolveFromNpmOptions,
   type ResolverFactoryOptions,
   type WorkspaceResolveResult,
@@ -26,7 +25,6 @@ import { resolveFromTarball, type TarballResolveResult } from '@pnpm/resolving.t
 
 export type {
   PackageMeta,
-  PackageMetaCache,
   ResolveFunction,
   ResolverFactoryOptions,
 }

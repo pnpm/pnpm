@@ -15,12 +15,6 @@ import {
 } from './pickPackageFromMeta.js'
 import { toRaw } from './toRaw.js'
 
-export interface PackageMetaCache {
-  get: (key: string) => PackageMeta | undefined
-  set: (key: string, meta: PackageMeta) => void
-  has: (key: string) => boolean
-}
-
 export interface PickPackageOptions extends PickPackageFromMetaOptions {
   authHeaderValue?: string
   pickLowestVersion?: boolean
@@ -48,7 +42,6 @@ export async function pickPackage (
   ctx: {
     fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean, etag?: string, modified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
     fullMetadata?: boolean
-    metaCache: PackageMetaCache
     metadataDb: MetadataCache
     offline?: boolean
     preferOffline?: boolean
@@ -96,22 +89,13 @@ export async function pickPackage (
   // DB name includes registry to avoid collisions across registries
   const registryName = getRegistryHost(opts.registry)
   const dbName = `${registryName}/${spec.name}`
-  // Cache key includes fullMetadata to avoid returning abbreviated metadata when full metadata is requested.
-  const cacheKey = fullMetadata ? `${dbName}:full` : dbName
-  const cachedMeta = ctx.metaCache.get(cacheKey)
-  if (cachedMeta != null) {
-    return {
-      meta: cachedMeta,
-      pickedPackage: _pickPackageFromMeta(cachedMeta),
-    }
-  }
 
   // Try to resolve from the DB index (cheap — no per-version manifest parsing)
   let cachedIndex: MetadataIndex | null | undefined
   if (ctx.offline === true || ctx.preferOffline === true || opts.pickLowestVersion) {
     cachedIndex = ctx.metadataDb.getIndex(dbName)
     if (cachedIndex) {
-      const result = resolveFromIndex(ctx, cachedIndex, dbName, manifestType, cacheKey, spec, _pickPackageFromMeta)
+      const result = resolveFromIndex(ctx.metadataDb, cachedIndex, dbName, manifestType, spec, _pickPackageFromMeta)
       if (ctx.offline) {
         if (result) return result
         throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror for ${spec.name}`)
@@ -128,7 +112,7 @@ export async function pickPackage (
       const versionsMap = JSON.parse(cachedIndex.versions) as Record<string, unknown>
       if (spec.fetchSpec in versionsMap) {
         try {
-          const result = resolveFromIndex(ctx, cachedIndex, dbName, manifestType, cacheKey, spec, _pickPackageFromMeta)
+          const result = resolveFromIndex(ctx.metadataDb, cachedIndex, dbName, manifestType, spec, _pickPackageFromMeta)
           if (result) return result
         } catch (err) {
           if (ctx.strictPublishedByCheck) throw err
@@ -140,7 +124,7 @@ export async function pickPackage (
     cachedIndex = cachedIndex ?? ctx.metadataDb.getIndex(dbName)
     if (cachedIndex?.cachedAt && new Date(cachedIndex.cachedAt) >= opts.publishedBy) {
       try {
-        const result = resolveFromIndex(ctx, cachedIndex, dbName, manifestType, cacheKey, spec, _pickPackageFromMeta)
+        const result = resolveFromIndex(ctx.metadataDb, cachedIndex, dbName, manifestType, spec, _pickPackageFromMeta)
         if (result) return result
       } catch (err: unknown) {
         if (ctx.strictPublishedByCheck && !isMissingTimeError(err)) throw err
@@ -171,7 +155,7 @@ export async function pickPackage (
       if (cachedIndex) {
         const cachedAt = Date.now()
         ctx.metadataDb.updateCachedAt(dbName, cachedAt)
-        const result = resolveFromIndex(ctx, { ...cachedIndex, cachedAt }, dbName, manifestType, cacheKey, spec, _pickPackageFromMeta)
+        const result = resolveFromIndex(ctx.metadataDb, { ...cachedIndex, cachedAt }, dbName, manifestType, spec, _pickPackageFromMeta)
         if (result) return result
       }
       throw new PnpmError('CACHE_MISSING_AFTER_304',
@@ -216,7 +200,6 @@ export async function pickPackage (
     }
     meta.cachedAt = cachedAt
     meta.etag = fetchResult.etag
-    ctx.metaCache.set(cacheKey, meta)
     if (!opts.dryRun) {
       ctx.metadataDb.queueWrite(dbName, typeToSave, meta, {
         etag: fetchResult.etag,
@@ -233,7 +216,7 @@ export async function pickPackage (
     if (!cachedIndex) throw err
     logger.error(err, err)
     logger.debug({ message: `Using cached meta from DB for ${spec.name}` })
-    const result = resolveFromIndex(ctx, cachedIndex, dbName, manifestType, cacheKey, spec, _pickPackageFromMeta)
+    const result = resolveFromIndex(ctx.metadataDb, cachedIndex, dbName, manifestType, spec, _pickPackageFromMeta)
     if (result) return result
     throw err
   }
@@ -244,11 +227,10 @@ export async function pickPackage (
  * Only parses the picked version's manifest — not all versions.
  */
 function resolveFromIndex (
-  ctx: { metadataDb: MetadataCache, metaCache: PackageMetaCache },
+  metadataDb: MetadataCache,
   index: MetadataIndex,
   dbName: string,
   manifestType: string,
-  cacheKey: string,
   spec: RegistryPackageSpec,
   pickFn: (meta: PackageMeta) => PackageInRegistry | null
 ): { meta: PackageMeta, pickedPackage: PackageInRegistry | null } | null {
@@ -276,7 +258,7 @@ function resolveFromIndex (
   if (!pickedStub) return null
 
   // Load only the resolved version's full manifest from DB
-  const manifestJson = ctx.metadataDb.getManifest(dbName, pickedStub.version, manifestType)
+  const manifestJson = metadataDb.getManifest(dbName, pickedStub.version, manifestType)
   if (!manifestJson) return null
 
   const manifest = JSON.parse(manifestJson) as PackageInRegistry

@@ -32,7 +32,6 @@ import {
   readPkgFromCafs,
 } from '@pnpm/worker'
 import { resolveWorkspaceRange } from '@pnpm/workspace.range-resolver'
-import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
 import pMemoize, { pMemoizeClear } from 'p-memoize'
 import { clone } from 'ramda'
@@ -49,7 +48,6 @@ import {
   type RegistryPackageSpec,
 } from './parseBareSpecifier.js'
 import {
-  type PackageMetaCache,
   pickPackage,
   type PickPackageOptions,
 } from './pickPackage.js'
@@ -114,7 +112,6 @@ export {
   fetchMetadataFromFromRegistry,
   type FetchMetadataFromFromRegistryOptions,
   type PackageMeta,
-  type PackageMetaCache,
   parseBareSpecifier,
   pickPackageFromMeta,
   pickVersionByVersionRange,
@@ -184,10 +181,6 @@ export function createNpmResolver (
   const fetch = pMemoize(fetchMetadataFromFromRegistry.bind(null, fetchOpts), {
     cacheKey: (...args) => JSON.stringify(args),
   })
-  const metaCache = new LRUCache<string, PackageMeta>({
-    max: 10000,
-    ttl: 120 * 1000, // 2 minutes
-  })
   // Create peek function if storeDir is provided
   const storeDir = opts.storeDir
   const peekLockerForPeek = new Map<string, Promise<DependencyManifest | undefined>>()
@@ -222,7 +215,6 @@ export function createNpmResolver (
       fetch,
       fullMetadata: opts.fullMetadata,
       filterMetadata: opts.filterMetadata,
-      metaCache,
       metadataDb,
       offline: opts.offline,
       preferOffline: opts.preferOffline,
@@ -236,7 +228,6 @@ export function createNpmResolver (
     resolveFromNpm: resolveNpm.bind(null, ctx),
     resolveFromJsr: resolveJsr.bind(null, ctx),
     clearCache: () => {
-      metaCache.clear()
       pMemoizeClear(fetch)
       metadataDb.flush()
     },
