@@ -1,7 +1,4 @@
-import fs from 'node:fs'
-import path from 'node:path'
-
-import { ABBREVIATED_META_DIR } from '@pnpm/constants'
+import { closeAllMetadataCaches, MetadataCache, type MetadataType } from '@pnpm/cache.metadata'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -9,7 +6,7 @@ import type { Registries } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
 
-import { getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
+import { getMockAgent, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
 
@@ -26,6 +23,7 @@ const getAuthHeader = () => undefined
 const createResolveFromNpm = createNpmResolver.bind(null, fetch, getAuthHeader)
 
 afterEach(async () => {
+  closeAllMetadataCaches()
   await teardownMockAgent()
 })
 
@@ -35,19 +33,13 @@ beforeEach(async () => {
 
 test('use local cache when registry returns 304 Not Modified', async () => {
   const cacheDir = temporaryDirectory()
-  // Write cached metadata with etag to disk
-  // is-positive.json already has modified: "2017-08-17T19:26:00.508Z"
-  const cachedMeta = {
-    ...isPositiveMeta,
+  // Seed cached metadata with etag in SQLite
+  const db = new MetadataCache(cacheDir)
+  db.set('is-positive', 'abbreviated', JSON.stringify(isPositiveMeta), {
     etag: '"abc123"',
-  }
-  const cacheDir2 = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
-  fs.mkdirSync(cacheDir2, { recursive: true })
-  fs.writeFileSync(
-    path.join(cacheDir2, 'is-positive.json'),
-    JSON.stringify(cachedMeta),
-    'utf8'
-  )
+    cachedAt: Date.now(),
+  })
+  db.close()
 
   // Registry returns 304 Not Modified — verify conditional headers are sent
   getMockAgent().get(registries.default.replace(/\/$/, ''))
@@ -97,11 +89,10 @@ test('store etag from 200 response in cache', async () => {
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
 
-  // Verify etag was saved to disk cache
-  const cachePath = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org/is-positive.json`)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const savedMeta = await retryLoadJsonFile<any>(cachePath)
-  expect(savedMeta.etag).toBe('"xyz789"')
+  // Verify etag was saved to SQLite cache
+  // The resolve function does not wait for the cache write, so retry
+  const etag = await retryGetEtag(cacheDir, 'is-positive', 'abbreviated')
+  expect(etag).toBe('"xyz789"')
 })
 
 test('fetch without conditional headers when no local cache exists', async () => {
@@ -124,3 +115,20 @@ test('fetch without conditional headers when no local cache exists', async () =>
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
 })
+
+async function retryGetEtag (cacheDir: string, name: string, type: MetadataType): Promise<string | undefined> {
+  let etag: string | undefined
+  /* eslint-disable no-await-in-loop */
+  for (let i = 0; i < 6; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    const db = new MetadataCache(cacheDir)
+    const headers = db.getHeaders(name, type)
+    db.close()
+    if (headers?.etag) {
+      etag = headers.etag
+      break
+    }
+  }
+  /* eslint-enable no-await-in-loop */
+  return etag
+}

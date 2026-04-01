@@ -1,17 +1,8 @@
-import { promises as fs } from 'node:fs'
-import path from 'node:path'
-
-import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR } from '@pnpm/constants'
-import { createHexHash } from '@pnpm/crypto.hash'
+import type { MetadataCache, MetadataType } from '@pnpm/cache.metadata'
 import { PnpmError } from '@pnpm/error'
-import gfs from '@pnpm/fs.graceful-fs'
 import { logger } from '@pnpm/logger'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
-import getRegistryName from 'encode-registry'
-import pLimit, { type LimitFunction } from 'p-limit'
-import { fastPathTemp as pathTemp } from 'path-temp'
 import { pick } from 'ramda'
-import { renameOverwrite } from 'rename-overwrite'
 import semver from 'semver'
 
 import type { FetchMetadataNotModifiedResult, FetchMetadataResult } from './fetch.js'
@@ -28,39 +19,6 @@ export interface PackageMetaCache {
   get: (key: string) => PackageMeta | undefined
   set: (key: string, meta: PackageMeta) => void
   has: (key: string) => boolean
-}
-
-interface RefCountedLimiter {
-  count: number
-  limit: LimitFunction
-}
-
-/**
- * prevents simultaneous operations on the meta.json
- * otherwise it would cause EPERM exceptions
- */
-const metafileOperationLimits = {} as {
-  [pkgMirror: string]: RefCountedLimiter | undefined
-}
-
-/**
- * To prevent metafileOperationLimits from holding onto objects in memory on
- * the order of the number of packages, refcount the limiters and drop them
- * once they are no longer needed. Callers of this function should ensure
- * that the limiter is no longer referenced once fn's Promise has resolved.
- */
-async function runLimited<T> (pkgMirror: string, fn: (limit: LimitFunction) => Promise<T>): Promise<T> {
-  let entry!: RefCountedLimiter
-  try {
-    entry = metafileOperationLimits[pkgMirror] ??= { count: 0, limit: pLimit(1) }
-    entry.count++
-    return await fn(entry.limit)
-  } finally {
-    entry.count--
-    if (entry.count === 0) {
-      metafileOperationLimits[pkgMirror] = undefined
-    }
-  }
 }
 
 export interface PickPackageOptions extends PickPackageFromMetaOptions {
@@ -91,7 +49,7 @@ export async function pickPackage (
     fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean, etag?: string, modified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
     fullMetadata?: boolean
     metaCache: PackageMetaCache
-    cacheDir: string
+    metadataDb: MetadataCache
     offline?: boolean
     preferOffline?: boolean
     filterMetadata?: boolean
@@ -132,9 +90,9 @@ export async function pickPackage (
   // Use full metadata for optional dependencies to get libc field.
   // See: https://github.com/pnpm/pnpm/issues/9950
   const fullMetadata = opts.optional === true || ctx.fullMetadata === true
-  const metaDir = fullMetadata
-    ? (ctx.filterMetadata ? FULL_FILTERED_META_DIR : FULL_META_DIR)
-    : ABBREVIATED_META_DIR
+  const metaType: MetadataType = fullMetadata
+    ? (ctx.filterMetadata ? 'full-filtered' : 'full')
+    : 'abbreviated'
   // Cache key includes fullMetadata to avoid returning abbreviated metadata when full metadata is requested.
   const cacheKey = fullMetadata ? `${spec.name}:full` : spec.name
   const cachedMeta = ctx.metaCache.get(cacheKey)
@@ -145,24 +103,36 @@ export async function pickPackage (
     }
   }
 
-  const registryName = getRegistryName(opts.registry)
-  const pkgMirror = path.join(ctx.cacheDir, metaDir, registryName, `${encodePkgName(spec.name)}.json`)
+  let metaCachedInStore: PackageMeta | null | undefined
+  if (ctx.offline === true || ctx.preferOffline === true || opts.pickLowestVersion) {
+    metaCachedInStore = loadMetaFromDb(ctx.metadataDb, spec.name, metaType)
 
-  return runLimited(pkgMirror, async (limit) => {
-    let metaCachedInStore: PackageMeta | null | undefined
-    if (ctx.offline === true || ctx.preferOffline === true || opts.pickLowestVersion) {
-      metaCachedInStore = await limit(async () => loadMeta(pkgMirror))
-
-      if (ctx.offline) {
-        if (metaCachedInStore != null) return {
-          meta: metaCachedInStore,
-          pickedPackage: _pickPackageFromMeta(metaCachedInStore),
-        }
-
-        throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
+    if (ctx.offline) {
+      if (metaCachedInStore != null) return {
+        meta: metaCachedInStore,
+        pickedPackage: _pickPackageFromMeta(metaCachedInStore),
       }
 
-      if (metaCachedInStore != null) {
+      throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror for ${spec.name}`)
+    }
+
+    if (metaCachedInStore != null) {
+      const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
+      if (pickedPackage) {
+        return {
+          meta: metaCachedInStore,
+          pickedPackage,
+        }
+      }
+    }
+  }
+
+  if (!opts.updateToLatest && spec.type === 'version') {
+    metaCachedInStore = metaCachedInStore ?? loadMetaFromDb(ctx.metadataDb, spec.name, metaType)
+    // use the cached meta only if it has the required package version
+    // otherwise it is probably out of date
+    if ((metaCachedInStore?.versions?.[spec.fetchSpec]) != null) {
+      try {
         const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
         if (pickedPackage) {
           return {
@@ -170,154 +140,145 @@ export async function pickPackage (
             pickedPackage,
           }
         }
-      }
-    }
-
-    if (!opts.updateToLatest && spec.type === 'version') {
-      metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
-      // use the cached meta only if it has the required package version
-      // otherwise it is probably out of date
-      if ((metaCachedInStore?.versions?.[spec.fetchSpec]) != null) {
-        try {
-          const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
-          if (pickedPackage) {
-            return {
-              meta: metaCachedInStore,
-              pickedPackage,
-            }
-          }
-        } catch (err) {
-          if (ctx.strictPublishedByCheck) {
-            throw err
-          }
+      } catch (err) {
+        if (ctx.strictPublishedByCheck) {
+          throw err
         }
       }
     }
-    if (opts.publishedBy) {
-      const mtime = await limit(async () => getFileMtime(pkgMirror))
-      if (mtime != null && mtime >= opts.publishedBy) {
-        metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
-        if (metaCachedInStore != null) {
-          try {
-            const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
-            if (pickedPackage) {
-              return {
-                meta: metaCachedInStore,
-                pickedPackage,
-              }
-            }
-          } catch (err: unknown) {
-            // Don't rethrow ERR_PNPM_MISSING_TIME from cached abbreviated metadata —
-            // let the code fall through to the network fetch path which will get full metadata.
-            if (
-              ctx.strictPublishedByCheck &&
-              !(isMissingTimeError(err))
-            ) {
-              throw err
-            }
-          }
-        }
-      }
-    }
-
-    try {
-      // Load cached metadata to get conditional request headers (ETag, Last-Modified)
-      metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
-      let fetchResult = await ctx.fetch(spec.name, {
-        authHeaderValue: opts.authHeaderValue,
-        fullMetadata,
-        etag: metaCachedInStore?.etag,
-        modified: metaCachedInStore?.modified ?? metaCachedInStore?.time?.modified,
-        registry: opts.registry,
-      })
-
-      // 304 Not Modified — registry confirmed local cache is still fresh
-      if (fetchResult.notModified) {
-        if (metaCachedInStore != null) {
-          metaCachedInStore.cachedAt = Date.now()
-          ctx.metaCache.set(cacheKey, metaCachedInStore)
+  }
+  if (opts.publishedBy) {
+    metaCachedInStore = metaCachedInStore ?? loadMetaFromDb(ctx.metadataDb, spec.name, metaType)
+    if (metaCachedInStore?.cachedAt && new Date(metaCachedInStore.cachedAt) >= opts.publishedBy) {
+      try {
+        const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
+        if (pickedPackage) {
           return {
             meta: metaCachedInStore,
-            pickedPackage: _pickPackageFromMeta(metaCachedInStore),
+            pickedPackage,
           }
         }
-        throw new PnpmError('CACHE_MISSING_AFTER_304',
-          `Metadata cache for ${spec.name} is unreadable after receiving 304 Not Modified`)
-      }
-
-      const cachedAt = Date.now()
-      let meta = fetchResult.meta
-      let resultToSave: FetchMetadataResult = fetchResult
-
-      // When minimumReleaseAge is active and we fetched abbreviated metadata,
-      // check if the package was recently modified and needs full metadata
-      // for per-version time-based filtering.
-      if (
-        opts.publishedBy &&
-        !fullMetadata &&
-        meta.time == null &&
-        opts.publishedByExclude?.(spec.name) !== true
-      ) {
-        const modifiedDate = meta.modified ? new Date(meta.modified) : null
-        const isModifiedValid = modifiedDate != null && !Number.isNaN(modifiedDate.getTime())
-        if (!isModifiedValid || modifiedDate >= opts.publishedBy) {
-          // Save the abbreviated metadata to the abbreviated cache before re-fetching full.
-          if (!opts.dryRun) {
-            const abbreviatedJson = prepareJsonForDisk(fetchResult, cachedAt)
-            // Fire-and-forget save to the abbreviated cache path (pkgMirror).
-            runLimited(pkgMirror, (limit) => limit(async () => {
-              try {
-                await saveMeta(pkgMirror, abbreviatedJson)
-              } catch (err: any) { // eslint-disable-line
-                // We don't care if this file was not written to the cache
-              }
-            }))
-          }
-          const fullFetchResult = await ctx.fetch(spec.name, {
-            authHeaderValue: opts.authHeaderValue,
-            fullMetadata: true,
-            registry: opts.registry,
-          })
-          if (!fullFetchResult.notModified) {
-            resultToSave = fullFetchResult
-            meta = fullFetchResult.meta
-          }
+      } catch (err: unknown) {
+        // Don't rethrow ERR_PNPM_MISSING_TIME from cached abbreviated metadata —
+        // let the code fall through to the network fetch path which will get full metadata.
+        if (
+          ctx.strictPublishedByCheck &&
+          !(isMissingTimeError(err))
+        ) {
+          throw err
         }
-      }
-
-      if (ctx.filterMetadata) {
-        meta = clearMeta(meta)
-      }
-      meta.cachedAt = cachedAt
-      meta.etag = resultToSave.etag
-      // only save meta to cache, when it is fresh
-      ctx.metaCache.set(cacheKey, meta)
-      if (!opts.dryRun) {
-        const jsonForDisk = ctx.filterMetadata ? JSON.stringify(meta) : prepareJsonForDisk(resultToSave, cachedAt)
-        runLimited(pkgMirror, (limit) => limit(async () => {
-          try {
-            await saveMeta(pkgMirror, jsonForDisk)
-          } catch (err: any) { // eslint-disable-line
-            // We don't care if this file was not written to the cache
-          }
-        }))
-      }
-      return {
-        meta,
-        pickedPackage: _pickPackageFromMeta(meta),
-      }
-    } catch (err: any) { // eslint-disable-line
-      err.spec = spec
-      const meta = await loadMeta(pkgMirror) // TODO: add test for this usecase
-      if (meta == null) throw err
-      logger.error(err, err)
-      logger.debug({ message: `Using cached meta from ${pkgMirror}` })
-      return {
-        meta,
-        pickedPackage: _pickPackageFromMeta(meta),
       }
     }
-  })
+  }
+
+  try {
+    // Cheap lookup for conditional request headers — no JSON parsing needed
+    const headers = ctx.metadataDb.getHeaders(spec.name, metaType)
+    let fetchResult = await ctx.fetch(spec.name, {
+      authHeaderValue: opts.authHeaderValue,
+      fullMetadata,
+      etag: headers?.etag,
+      modified: headers?.modified,
+      registry: opts.registry,
+    })
+
+    // 304 Not Modified — registry confirmed local cache is still fresh
+    if (fetchResult.notModified) {
+      metaCachedInStore = metaCachedInStore ?? loadMetaFromDb(ctx.metadataDb, spec.name, metaType)
+      if (metaCachedInStore != null) {
+        const cachedAt = Date.now()
+        metaCachedInStore.cachedAt = cachedAt
+        ctx.metaCache.set(cacheKey, metaCachedInStore)
+        ctx.metadataDb.updateCachedAt(spec.name, metaType, cachedAt)
+        return {
+          meta: metaCachedInStore,
+          pickedPackage: _pickPackageFromMeta(metaCachedInStore),
+        }
+      }
+      throw new PnpmError('CACHE_MISSING_AFTER_304',
+        `Metadata cache for ${spec.name} is unreadable after receiving 304 Not Modified`)
+    }
+
+    const cachedAt = Date.now()
+    let meta = fetchResult.meta
+    let jsonToSave: string | undefined
+    let metaTypeToSave: MetadataType = metaType
+
+    // When minimumReleaseAge is active and we fetched abbreviated metadata,
+    // check if the package was recently modified and needs full metadata
+    // for per-version time-based filtering.
+    if (
+      opts.publishedBy &&
+      !fullMetadata &&
+      meta.time == null &&
+      opts.publishedByExclude?.(spec.name) !== true
+    ) {
+      const modifiedDate = meta.modified ? new Date(meta.modified) : null
+      const isModifiedValid = modifiedDate != null && !Number.isNaN(modifiedDate.getTime())
+      if (!isModifiedValid || modifiedDate >= opts.publishedBy) {
+        // Save the abbreviated metadata to the DB before re-fetching full.
+        if (!opts.dryRun) {
+          const abbreviatedData = typeof fetchResult.jsonText === 'string' ? fetchResult.jsonText : JSON.stringify(meta)
+          try {
+            ctx.metadataDb.set(spec.name, 'abbreviated', abbreviatedData, {
+              etag: fetchResult.etag,
+              modified: meta.modified ?? meta.time?.modified,
+              cachedAt,
+            })
+          } catch {
+            // We don't care if this was not written to the cache
+          }
+        }
+        const fullFetchResult = await ctx.fetch(spec.name, {
+          authHeaderValue: opts.authHeaderValue,
+          fullMetadata: true,
+          registry: opts.registry,
+        })
+        if (!fullFetchResult.notModified) {
+          fetchResult = fullFetchResult
+          meta = fullFetchResult.meta
+          metaTypeToSave = ctx.filterMetadata ? 'full-filtered' : 'full'
+        }
+      }
+    }
+
+    if (ctx.filterMetadata) {
+      meta = clearMeta(meta)
+      jsonToSave = undefined
+    } else if (typeof fetchResult.jsonText === 'string') {
+      jsonToSave = fetchResult.jsonText
+    }
+    meta.cachedAt = cachedAt
+    meta.etag = fetchResult.etag
+    // only save meta to cache, when it is fresh
+    ctx.metaCache.set(cacheKey, meta)
+    if (!opts.dryRun) {
+      const dataForDb = jsonToSave ?? JSON.stringify(meta)
+      try {
+        ctx.metadataDb.set(spec.name, metaTypeToSave, dataForDb, {
+          etag: fetchResult.etag,
+          modified: meta.modified ?? meta.time?.modified,
+          cachedAt,
+        })
+      } catch {
+        // We don't care if this was not written to the cache
+      }
+    }
+    return {
+      meta,
+      pickedPackage: _pickPackageFromMeta(meta),
+    }
+  } catch (err: any) { // eslint-disable-line
+    err.spec = spec
+    const meta = loadMetaFromDb(ctx.metadataDb, spec.name, metaType)
+    if (meta == null) throw err
+    logger.error(err, err)
+    logger.debug({ message: `Using cached meta from DB for ${spec.name}` })
+    return {
+      meta,
+      pickedPackage: _pickPackageFromMeta(meta),
+    }
+  }
 }
 
 function clearMeta (pkg: PackageMeta): PackageMeta {
@@ -354,30 +315,16 @@ function clearMeta (pkg: PackageMeta): PackageMeta {
     versions,
     time: pkg.time,
     modified: pkg.modified,
-    cachedAt: pkg.cachedAt,
-    etag: pkg.etag,
   }
 }
 
-function encodePkgName (pkgName: string): string {
-  if (pkgName !== pkgName.toLowerCase()) {
-    return `${pkgName}_${createHexHash(pkgName)}`
-  }
-  return pkgName
-}
-
-function prepareJsonForDisk (fetchResult: FetchMetadataResult, cachedAt: number): string {
-  if (typeof fetchResult.jsonText === 'string') {
-    const firstBraceIndex = fetchResult.jsonText.indexOf('{')
-    if (firstBraceIndex !== -1) {
-      let injectedFields = `"cachedAt":${cachedAt}`
-      if (fetchResult.etag) {
-        injectedFields += `,"etag":${JSON.stringify(fetchResult.etag)}`
-      }
-      return `{${injectedFields},${fetchResult.jsonText.slice(firstBraceIndex + 1)}`
-    }
-  }
-  return JSON.stringify({ ...fetchResult.meta, cachedAt, etag: fetchResult.etag })
+function loadMetaFromDb (db: MetadataCache, name: string, type: MetadataType): PackageMeta | null {
+  const row = db.get(name, type)
+  if (!row) return null
+  const meta = JSON.parse(row.data) as PackageMeta
+  meta.cachedAt = row.cachedAt
+  meta.etag = row.etag
+  return meta
 }
 
 function isMissingTimeError (err: unknown): boolean {
@@ -387,37 +334,6 @@ function isMissingTimeError (err: unknown): boolean {
     'code' in err &&
     (err as { code: string }).code === 'ERR_PNPM_MISSING_TIME'
   )
-}
-
-async function getFileMtime (filePath: string): Promise<Date | null> {
-  try {
-    const stat = await fs.stat(filePath)
-    return stat.mtime
-  } catch {
-    return null
-  }
-}
-
-async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
-  try {
-    const data = await gfs.readFile(pkgMirror, 'utf8')
-    return JSON.parse(data) as PackageMeta
-  } catch {
-    return null
-  }
-}
-
-const createdDirs = new Set<string>()
-
-async function saveMeta (pkgMirror: string, json: string): Promise<void> {
-  const dir = path.dirname(pkgMirror)
-  if (!createdDirs.has(dir)) {
-    await fs.mkdir(dir, { recursive: true })
-    createdDirs.add(dir)
-  }
-  const temp = pathTemp(pkgMirror)
-  await gfs.writeFile(temp, json, 'utf8')
-  await renameOverwrite(temp, pkgMirror)
 }
 
 function validatePackageName (pkgName: string) {

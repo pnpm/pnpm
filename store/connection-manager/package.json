@@ -31,6 +31,7 @@
     "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {
+    "@pnpm/cache.metadata": "workspace:*",
     "@pnpm/cli.meta": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/installing.client": "workspace:*",

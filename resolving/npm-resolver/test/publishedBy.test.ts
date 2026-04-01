@@ -1,7 +1,4 @@
-import fs from 'node:fs'
-import path from 'node:path'
-
-import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR } from '@pnpm/constants'
+import { closeAllMetadataCaches, MetadataCache } from '@pnpm/cache.metadata'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -17,6 +14,8 @@ const registries: Registries = {
   default: 'https://registry.npmjs.org/',
 }
 
+const REG = 'registry.npmjs.org'
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const badDatesMeta = loadJsonFileSync<any>(f.find('bad-dates.json'))
 const isPositiveMeta = loadJsonFileSync<any>(f.find('is-positive-full.json'))
@@ -28,6 +27,7 @@ const getAuthHeader = () => undefined
 const createResolveFromNpm = createNpmResolver.bind(null, fetch, getAuthHeader)
 
 afterEach(async () => {
+  closeAllMetadataCaches()
   await teardownMockAgent()
 })
 
@@ -62,10 +62,12 @@ test('request metadata when the one in cache does not have a version satisfying 
     'dist-tags': {},
     versions: {},
     time: {},
-    cachedAt: '2016-08-17T19:26:00.508Z',
   }
-  fs.mkdirSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org`), { recursive: true })
-  fs.writeFileSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org/bad-dates.json`), JSON.stringify(cachedMeta), 'utf8')
+  const db = new MetadataCache(cacheDir)
+  db.set(`${REG}/bad-dates`, 'full-filtered', JSON.stringify(cachedMeta), {
+    cachedAt: new Date('2016-08-17T19:26:00.508Z').getTime(),
+  })
+  db.close()
 
   getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/bad-dates', method: 'GET' })
@@ -102,10 +104,12 @@ test('do not pick version that does not satisfy the date requirement even if it 
     time: {
       '1.0.0': '2016-08-17T19:26:00.508Z',
     },
-    cachedAt: '2016-08-17T19:26:00.508Z',
   }
-  fs.mkdirSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org`), { recursive: true })
-  fs.writeFileSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org/foo.json`), JSON.stringify(fooMeta), 'utf8')
+  const db = new MetadataCache(cacheDir)
+  db.set(`${REG}/foo`, 'full-filtered', JSON.stringify(fooMeta), {
+    cachedAt: new Date('2016-08-17T19:26:00.508Z').getTime(),
+  })
+  db.close()
 
   getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/foo', method: 'GET' })
@@ -128,8 +132,11 @@ test('should skip time field validation for excluded packages', async () => {
   const cacheDir = temporaryDirectory()
   const { time: _time, ...metaWithoutTime } = isPositiveMeta
 
-  fs.mkdirSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org`), { recursive: true })
-  fs.writeFileSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org/is-positive.json`), JSON.stringify(metaWithoutTime), 'utf8')
+  const db = new MetadataCache(cacheDir)
+  db.set(`${REG}/is-positive`, 'full-filtered', JSON.stringify(metaWithoutTime), {
+    cachedAt: Date.now(),
+  })
+  db.close()
 
   getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
@@ -206,13 +213,14 @@ test('re-fetch full metadata when abbreviated modified date is recent', async ()
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
 })
 
-test('use cached metadata based on file mtime when publishedBy is set', async () => {
+test('use cached metadata based on cachedAt when publishedBy is set', async () => {
   const cacheDir = temporaryDirectory()
-  // Write abbreviated metadata to the abbreviated cache dir
-  const cacheDir2 = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
-  fs.mkdirSync(cacheDir2, { recursive: true })
-  const cachePath = path.join(cacheDir2, 'is-positive.json')
-  fs.writeFileSync(cachePath, JSON.stringify(isPositiveAbbreviatedMeta), 'utf8')
+  // Seed the SQLite cache with abbreviated metadata and a recent cachedAt
+  const db = new MetadataCache(cacheDir)
+  db.set(`${REG}/is-positive`, 'abbreviated', JSON.stringify(isPositiveAbbreviatedMeta), {
+    cachedAt: Date.now(),
+  })
+  db.close()
 
   // No mock agent intercepts — the test verifies no network request is made.
   // If a request were attempted, it would fail.
@@ -222,7 +230,7 @@ test('use cached metadata based on file mtime when publishedBy is set', async ()
     cacheDir,
     registries,
   })
-  // publishedBy in the past relative to file mtime (file was just written = now)
+  // publishedBy in the past relative to cachedAt (cachedAt was just set = now)
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
     publishedBy: new Date('2020-01-01T00:00:00.000Z'),
   })

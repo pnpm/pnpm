@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../cache/metadata"
+    },
+    {
       "path": "../../__utils__/prepare"
     },
     {

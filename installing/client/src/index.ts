@@ -1,3 +1,4 @@
+import type { MetadataCache } from '@pnpm/cache.metadata'
 import { createBinaryFetcher } from '@pnpm/fetching.binary-fetcher'
 import { createDirectoryFetcher } from '@pnpm/fetching.directory-fetcher'
 import type { BinaryFetcher, DirectoryFetcher, GitFetcher } from '@pnpm/fetching.fetcher-base'
@@ -22,6 +23,7 @@ export type ClientOptions = {
   customResolvers?: CustomResolver[]
   customFetchers?: CustomFetcher[]
   ignoreScripts?: boolean
+  metadataDb?: MetadataCache
   rawConfig: Record<string, string>
   sslConfigs?: Record<string, SslConfig>
   retry?: RetryTimeoutOptions
