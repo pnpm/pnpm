@@ -1920,9 +1920,6 @@ importers:
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../../store/index
-      encode-registry:
-        specifier: 'catalog:'
-        version: 3.0.1
     devDependencies:
       '@pnpm/cache.api':
         specifier: workspace:*

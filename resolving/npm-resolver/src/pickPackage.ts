@@ -2,7 +2,6 @@ import type { MetadataCache, MetadataType } from '@pnpm/cache.metadata'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
-import getRegistryName from 'encode-registry'
 import { pick } from 'ramda'
 import semver from 'semver'
 
@@ -95,7 +94,7 @@ export async function pickPackage (
     ? (ctx.filterMetadata ? 'full-filtered' : 'full')
     : 'abbreviated'
   // DB name includes registry to avoid collisions across registries
-  const registryName = getRegistryName(opts.registry)
+  const registryName = getRegistryHost(opts.registry)
   const dbName = `${registryName}/${spec.name}`
   // Cache key includes fullMetadata to avoid returning abbreviated metadata when full metadata is requested.
   const cacheKey = fullMetadata ? `${dbName}:full` : dbName
@@ -337,6 +336,17 @@ function isMissingTimeError (err: unknown): boolean {
     'code' in err &&
     (err as { code: string }).code === 'ERR_PNPM_MISSING_TIME'
   )
+}
+
+const registryHostCache = new Map<string, string>()
+
+function getRegistryHost (registry: string): string {
+  let host = registryHostCache.get(registry)
+  if (host == null) {
+    host = new URL(registry).host
+    registryHostCache.set(registry, host)
+  }
+  return host
 }
 
 function validatePackageName (pkgName: string) {

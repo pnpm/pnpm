@@ -1,5 +1,4 @@
 import { MetadataCache } from '@pnpm/cache.metadata'
-import getRegistryName from 'encode-registry'
 
 export async function cacheListRegistries (opts: { cacheDir: string }): Promise<string> {
   const db = new MetadataCache(opts.cacheDir)
@@ -22,7 +21,7 @@ export async function cacheList (opts: { cacheDir: string, registry?: string }, 
   const db = new MetadataCache(opts.cacheDir)
   try {
     const names = db.listNames()
-    const prefix = opts.registry ? getRegistryName(opts.registry) : undefined
+    const prefix = opts.registry ? new URL(opts.registry).host : undefined
     const results: string[] = []
     for (const name of names) {
       const slashIdx = name.indexOf('/')

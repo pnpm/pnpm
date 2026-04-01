@@ -1,11 +1,10 @@
 import { MetadataCache } from '@pnpm/cache.metadata'
-import getRegistryName from 'encode-registry'
 
 export async function cacheDelete (opts: { cacheDir: string, registry?: string }, filter: string[]): Promise<string> {
   const db = new MetadataCache(opts.cacheDir)
   try {
     const names = db.listNames()
-    const prefix = opts.registry ? getRegistryName(opts.registry) : undefined
+    const prefix = opts.registry ? new URL(opts.registry).host : undefined
     const deleted: string[] = []
     for (const name of names) {
       const slashIdx = name.indexOf('/')

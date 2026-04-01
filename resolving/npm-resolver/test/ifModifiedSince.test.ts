@@ -3,11 +3,10 @@ import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { Registries } from '@pnpm/types'
-import getRegistryName from 'encode-registry'
 import { loadJsonFileSync } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
 
-import { getMockAgent, setupMockAgent, teardownMockAgent } from './utils/index.js'
+import { getMockAgent, registryHost, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
 
@@ -32,7 +31,7 @@ beforeEach(async () => {
   await setupMockAgent()
 })
 
-const REG = getRegistryName(registries.default)
+const REG = registryHost(registries.default)
 
 test('use local cache when registry returns 304 Not Modified', async () => {
   const cacheDir = temporaryDirectory()

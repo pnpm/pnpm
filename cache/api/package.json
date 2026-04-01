@@ -34,8 +34,7 @@
     "@pnpm/cache.metadata": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/resolving.npm-resolver": "workspace:*",
-    "@pnpm/store.index": "workspace:*",
-    "encode-registry": "catalog:"
+    "@pnpm/store.index": "workspace:*"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"

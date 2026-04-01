@@ -1,7 +1,6 @@
 import { MetadataCache } from '@pnpm/cache.metadata'
 import type { PackageMeta } from '@pnpm/resolving.npm-resolver'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
-import getRegistryName from 'encode-registry'
 
 interface CachedVersions {
   cachedVersions: string[]
@@ -15,7 +14,7 @@ export async function cacheView (opts: { cacheDir: string, storeDir: string, reg
   const storeIndex = new StoreIndex(opts.storeDir)
   try {
     const names = db.listNames()
-    const prefix = opts.registry ? getRegistryName(opts.registry) : undefined
+    const prefix = opts.registry ? new URL(opts.registry).host : undefined
     const result: Record<string, CachedVersions> = {}
     for (const name of names) {
       const slashIdx = name.indexOf('/')
@@ -41,7 +40,7 @@ export async function cacheView (opts: { cacheDir: string, storeDir: string, reg
           nonCachedVersions.push(version)
         }
       }
-      result[registryName.replaceAll('+', ':')] = {
+      result[registryName] = {
         cachedVersions,
         nonCachedVersions,
         cachedAt: row.cachedAt ? new Date(row.cachedAt).toString() : undefined,

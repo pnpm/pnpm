@@ -1,10 +1,13 @@
 import { MetadataCache, type MetadataType } from '@pnpm/cache.metadata'
-import getRegistryName from 'encode-registry'
 
 export { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 
+export function registryHost (registry?: string): string {
+  return new URL(registry ?? 'https://registry.npmjs.org/').host
+}
+
 export async function retryLoadFromCache<T> (cacheDir: string, name: string, type: MetadataType, registry?: string): Promise<T> {
-  const dbName = `${getRegistryName(registry ?? 'https://registry.npmjs.org/')}/${name}`
+  const dbName = `${registryHost(registry)}/${name}`
   let retry = 0
   /* eslint-disable no-await-in-loop */
   while (true) {
