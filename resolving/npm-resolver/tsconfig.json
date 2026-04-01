@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../../cache/metadata"
+      "path": "../../__utils__/test-fixtures"
     },
     {
-      "path": "../../__utils__/test-fixtures"
+      "path": "../../cache/metadata"
     },
     {
       "path": "../../config/pick-registry-for-package"

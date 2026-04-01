@@ -10,9 +10,6 @@
   ],
   "references": [
     {
-      "path": "../../cache/metadata"
-    },
-    {
       "path": "../../__utils__/prepare"
     },
     {
@@ -20,6 +17,9 @@
     },
     {
       "path": "../../bins/resolver"
+    },
+    {
+      "path": "../../cache/metadata"
     },
     {
       "path": "../../catalogs/resolver"
