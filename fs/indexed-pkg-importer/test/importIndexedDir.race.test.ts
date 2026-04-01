@@ -88,6 +88,34 @@ test('fast-path failure does not delete directory populated by another process',
   expect(fs.existsSync(path.join(newDir, 'index.js'))).toBe(true)
 })
 
+test('safeToSkip does not re-import files when target already exists', () => {
+  const tmp = tempDir()
+  const packageJson = path.join(tmp, 'src', 'package.json')
+  const indexFile = path.join(tmp, 'src', 'index.js')
+  const newDir = path.join(tmp, 'dest')
+  const importFile = jest.fn((src: string, dest: string) => fs.copyFileSync(src, dest))
+
+  fs.mkdirSync(path.join(tmp, 'src'), { recursive: true })
+  fs.mkdirSync(newDir, { recursive: true })
+  fs.writeFileSync(packageJson, '{"name":"pkg","version":"1.0.0"}')
+  fs.writeFileSync(indexFile, 'module.exports = 1')
+  fs.copyFileSync(packageJson, path.join(newDir, 'package.json'))
+  fs.copyFileSync(indexFile, path.join(newDir, 'index.js'))
+
+  importIndexedDir(
+    { importFile, importFileAtomic: importFile },
+    newDir,
+    new Map([
+      ['index.js', indexFile],
+      ['package.json', packageJson],
+    ]),
+    { safeToSkip: true }
+  )
+
+  expect(importFile).not.toHaveBeenCalled()
+  expect(renameOverwriteSyncMock).not.toHaveBeenCalled()
+})
+
 test('safeToSkip creates dir when target does not exist', () => {
   const tmp = tempDir()
   const srcFile = path.join(tmp, 'src', 'index.js')

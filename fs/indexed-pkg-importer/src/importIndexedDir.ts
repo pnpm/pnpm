@@ -33,6 +33,9 @@ export function importIndexedDir (
     safeToSkip?: boolean
   }
 ): void {
+  // Content-addressed targets like the global virtual store do not need to be
+  // re-imported once all expected files are present.
+  if (opts.safeToSkip && !opts.keepModulesDir && hasAllFiles(newDir, filenames)) return
   // Fast path: import directly without staging.  Callers already verified
   // the target package is missing (pkgExistsAtTargetDir / pkgLinkedToStore),
   // so we can write straight into newDir and skip the temp dir + rename.
@@ -121,6 +124,17 @@ export function importIndexedDir (
     } catch {} // eslint-disable-line:no-empty
     throw renameErr
   }
+}
+
+function hasAllFiles (dir: string, filenames: Map<string, string>): boolean {
+  for (const filename of filenames.keys()) {
+    try {
+      fs.statSync(path.join(dir, filename))
+    } catch {
+      return false
+    }
+  }
+  return true
 }
 
 function allFilesMatch (dir: string, filenames: Map<string, string>): boolean {

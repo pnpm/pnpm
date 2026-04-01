@@ -103,6 +103,58 @@ test('reinstall from warm global virtual store after deleting node_modules', asy
   expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0', files[0], 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
 })
 
+test('fresh project install reuses warm global virtual store without re-importing packages', async () => {
+  prepareEmpty()
+  const project1Dir = path.resolve('project-1')
+  const project2Dir = path.resolve('project-2')
+  const globalVirtualStoreDir = path.resolve('links')
+  const sharedStoreDir = path.resolve('store')
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }
+
+  fs.mkdirSync(project1Dir, { recursive: true })
+  fs.mkdirSync(project2Dir, { recursive: true })
+  fs.writeFileSync(path.join(project1Dir, 'package.json'), JSON.stringify(manifest, null, 2))
+  fs.writeFileSync(path.join(project2Dir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+  await install(manifest, testDefaults({
+    dir: project1Dir,
+    lockfileDir: project1Dir,
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+    storeDir: sharedStoreDir,
+  }))
+
+  fs.copyFileSync(path.join(project1Dir, 'pnpm-lock.yaml'), path.join(project2Dir, 'pnpm-lock.yaml'))
+
+  const opts = testDefaults({
+    dir: project2Dir,
+    lockfileDir: project2Dir,
+    frozenLockfile: true,
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+    storeDir: sharedStoreDir,
+  })
+  const originalImportPackage = opts.storeController.importPackage
+  let performedImports = 0
+  opts.storeController.importPackage = async (...args) => {
+    const result = await originalImportPackage(...args)
+    if (result.importMethod != null) {
+      performedImports++
+    }
+    return result
+  }
+
+  await install(manifest, opts)
+
+  expect(performedImports).toBe(0)
+  expect(fs.existsSync(path.join(project2Dir, 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.join(project2Dir, 'node_modules/.pnpm/lock.yaml'))).toBeTruthy()
+})
+
 test('modules are correctly updated when using a global virtual store', async () => {
   prepareEmpty()
   const globalVirtualStoreDir = path.resolve('links')
