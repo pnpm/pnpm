@@ -215,6 +215,7 @@ why it works fine with the Node.js ecosystem, read this small article: [Flat nod
 - [Frequently Asked Questions](https://pnpm.io/faq)
 - [X](https://x.com/pnpmjs)
 - [Bluesky](https://bsky.app/profile/pnpm.io)
+- [Discord](https://bit.ly/pnpm-discord-invite)
 
 ## Benchmark
 
