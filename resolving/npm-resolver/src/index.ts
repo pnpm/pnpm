@@ -209,12 +209,14 @@ export function createNpmResolver (
       return request
     }
   }
+  const metaCache = new Map<string, PackageMeta>()
   const ctx: ResolveFromNpmContext = {
     getAuthHeaderValueByURI: getAuthHeader,
     pickPackage: pickPackage.bind(null, {
       fetch,
       fullMetadata: opts.fullMetadata,
       filterMetadata: opts.filterMetadata,
+      metaCache,
       metadataDb,
       offline: opts.offline,
       preferOffline: opts.preferOffline,
@@ -228,6 +230,7 @@ export function createNpmResolver (
     resolveFromNpm: resolveNpm.bind(null, ctx),
     resolveFromJsr: resolveJsr.bind(null, ctx),
     clearCache: () => {
+      metaCache.clear()
       pMemoizeClear(fetch)
       metadataDb.flush()
     },
