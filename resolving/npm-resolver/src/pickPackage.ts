@@ -147,9 +147,9 @@ export async function pickPackage (
       registry: opts.registry,
     })
 
-    // 304 Not Modified
+    // 304 Not Modified — trust whatever is cached, the registry just validated it
     if (fetchResult.notModified) {
-      metaCachedInStore = metaCachedInStore ?? loadMetaFromDb(ctx.metadataDb, dbName, fullMetadata)
+      metaCachedInStore = metaCachedInStore ?? loadMetaFromDb(ctx.metadataDb, dbName, false)
       if (metaCachedInStore != null) {
         const cachedAt = Date.now()
         metaCachedInStore.cachedAt = cachedAt
