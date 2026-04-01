@@ -96,11 +96,12 @@ export function normalizeLicenseArgs (args: string[]): NormalizedLicenseArgs {
     } else if (extractedIds.length === 1) {
       // Keep the original form only for WITH/plus expressions where the
       // literal matters for policy matching (e.g. "GPL-2.0+" or
-      // "Apache-2.0 WITH LLVM-exception"). Strip outer parentheses to
-      // ensure the stored form matches what the evaluator checks.
+      // "Apache-2.0 WITH LLVM-exception"). Strip outer parentheses first
+      // to ensure the stored form matches what the evaluator checks.
       // Otherwise use the extracted ID.
-      if (/\bWITH\b/.test(arg) || arg.endsWith('+')) {
-        ids.push(stripOuterParens(arg))
+      const normalized = stripOuterParens(arg)
+      if (/\bWITH\b/.test(normalized) || normalized.endsWith('+')) {
+        ids.push(normalized)
       } else {
         ids.push(extractedIds[0])
       }
