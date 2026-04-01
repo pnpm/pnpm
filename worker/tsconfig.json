@@ -13,6 +13,9 @@
       "path": "../building/pkg-requires-build"
     },
     {
+      "path": "../cache/metadata"
+    },
+    {
       "path": "../core/error"
     },
     {
@@ -32,6 +35,15 @@
     },
     {
       "path": "../fs/symlink-dependency"
+    },
+    {
+      "path": "../resolving/registry/pkg-metadata-filter"
+    },
+    {
+      "path": "../resolving/registry/types"
+    },
+    {
+      "path": "../resolving/resolver-base"
     },
     {
       "path": "../store/cafs"

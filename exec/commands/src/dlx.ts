@@ -3,7 +3,6 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
-import { MetadataCache } from '@pnpm/cache.metadata'
 import {
   type CatalogResolver,
   resolveFromCatalog,
@@ -102,13 +101,11 @@ export async function handler (
     ) && !opts.registrySupportsTimeField
   )
   const catalogResolver = resolveFromCatalog.bind(null, opts.catalogs ?? {})
-  const metadataDb = new MetadataCache(opts.cacheDir)
   const { resolve } = createResolver({
     ...opts,
     authConfig: opts.rawConfig,
     fullMetadata,
     filterMetadata: fullMetadata,
-    metadataDb,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,

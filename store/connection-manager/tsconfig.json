@@ -10,9 +10,6 @@
   ],
   "references": [
     {
-      "path": "../../cache/metadata"
-    },
-    {
       "path": "../../cli/meta"
     },
     {

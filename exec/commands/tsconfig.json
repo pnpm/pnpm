@@ -19,9 +19,6 @@
       "path": "../../bins/resolver"
     },
     {
-      "path": "../../cache/metadata"
-    },
-    {
       "path": "../../catalogs/resolver"
     },
     {

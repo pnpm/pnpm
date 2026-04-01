@@ -1,6 +1,5 @@
 import path from 'node:path'
 
-import { MetadataCache } from '@pnpm/cache.metadata'
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
 import type {
@@ -126,7 +125,6 @@ export interface ResolverFactoryOptions {
   storeDir?: string
   fullMetadata?: boolean
   filterMetadata?: boolean
-  metadataDb?: MetadataCache
   offline?: boolean
   preferOffline?: boolean
   retry?: RetryTimeoutOptions
@@ -171,7 +169,6 @@ export function createNpmResolver (
   if (typeof opts.cacheDir !== 'string') {
     throw new TypeError('`opts.cacheDir` is required and needs to be a string')
   }
-  const metadataDb = opts.metadataDb ?? new MetadataCache(opts.cacheDir)
   const fetchOpts: FetchMetadataFromFromRegistryOptions = {
     fetch: fetchFromRegistry,
     retry: opts.retry ?? {},
@@ -215,7 +212,7 @@ export function createNpmResolver (
       fetch,
       fullMetadata: opts.fullMetadata,
       filterMetadata: opts.filterMetadata,
-      metadataDb,
+      cacheDir: opts.cacheDir,
       offline: opts.offline,
       preferOffline: opts.preferOffline,
       strictPublishedByCheck: opts.strictPublishedByCheck,
@@ -229,7 +226,6 @@ export function createNpmResolver (
     resolveFromJsr: resolveJsr.bind(null, ctx),
     clearCache: () => {
       pMemoizeClear(fetch)
-      metadataDb.flush()
     },
   }
 }

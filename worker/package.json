@@ -34,11 +34,15 @@
   },
   "dependencies": {
     "@pnpm/building.pkg-requires-build": "workspace:*",
+    "@pnpm/cache.metadata": "workspace:*",
     "@pnpm/crypto.integrity": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/fs.hard-link-dir": "workspace:*",
     "@pnpm/fs.symlink-dependency": "workspace:*",
+    "@pnpm/resolving.registry.pkg-metadata-filter": "workspace:*",
+    "@pnpm/resolving.registry.types": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.cafs-types": "workspace:*",
     "@pnpm/store.create-cafs-store": "workspace:*",
@@ -46,6 +50,7 @@
     "@rushstack/worker-pool": "catalog:",
     "is-windows": "catalog:",
     "p-limit": "catalog:",
+    "ramda": "catalog:",
     "semver": "catalog:"
   },
   "peerDependencies": {
@@ -56,6 +61,7 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/worker": "workspace:*",
     "@types/is-windows": "catalog:",
+    "@types/ramda": "catalog:",
     "@types/semver": "catalog:"
   },
   "engines": {

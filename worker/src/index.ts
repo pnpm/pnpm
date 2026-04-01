@@ -16,8 +16,24 @@ import type {
   AddDirToStoreMessage,
   HardLinkDirMessage,
   LinkPkgMessage,
+  ResolveMetadataDataMessage,
+  ResolveMetadataDataResult,
+  ResolveMetadataMessage,
+  ResolveMetadataResult,
   SymlinkAllModulesMessage,
   TarballExtractMessage,
+} from './types.js'
+
+export type {
+  ResolveMetadataDataResult,
+  ResolveMetadataResult,
+}
+export type {
+  ResolveMetadataDataMessage,
+  ResolveMetadataMessage,
+  ResolveMetadataSpec,
+  SerializedPackageInRegistry,
+  SerializedPackageMeta,
 } from './types.js'
 
 let workerPool: WorkerPool | undefined
@@ -365,5 +381,53 @@ export async function initStoreDir (storeDir: string): Promise<void> {
       type: 'init-store',
       storeDir,
     })
+  })
+}
+
+export async function resolveMetadataInWorker (
+  opts: Omit<ResolveMetadataMessage, 'type'>
+): Promise<ResolveMetadataResult> {
+  if (!workerPool) {
+    workerPool = createTarballWorkerPool()
+  }
+  const localWorker = await workerPool.checkoutWorkerAsync(true)
+  return new Promise<ResolveMetadataResult>((resolve, reject) => {
+    localWorker.once('message', ({ status, error, ...rest }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      workerPool!.checkinWorker(localWorker)
+      if (status === 'error') {
+        const cause = error.cause ? new Error(error.cause.message) : undefined
+        reject(new PnpmError(error.code ?? 'RESOLVE_METADATA', error.message as string, { hint: error.hint, cause }))
+        return
+      }
+      resolve({ status, ...rest })
+    })
+    localWorker.postMessage({
+      type: 'resolve-metadata',
+      ...opts,
+    } as ResolveMetadataMessage)
+  })
+}
+
+export async function resolveMetadataDataInWorker (
+  opts: Omit<ResolveMetadataDataMessage, 'type'>
+): Promise<ResolveMetadataDataResult> {
+  if (!workerPool) {
+    workerPool = createTarballWorkerPool()
+  }
+  const localWorker = await workerPool.checkoutWorkerAsync(true)
+  return new Promise<ResolveMetadataDataResult>((resolve, reject) => {
+    localWorker.once('message', ({ status, error, ...rest }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      workerPool!.checkinWorker(localWorker)
+      if (status === 'error') {
+        const cause = error.cause ? new Error(error.cause.message) : undefined
+        reject(new PnpmError(error.code ?? 'RESOLVE_METADATA_DATA', error.message as string, { hint: error.hint, cause }))
+        return
+      }
+      resolve({ status, ...rest })
+    })
+    localWorker.postMessage({
+      type: 'resolve-metadata-data',
+      ...opts,
+    } as ResolveMetadataDataMessage)
   })
 }

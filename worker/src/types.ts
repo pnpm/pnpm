@@ -1,3 +1,4 @@
+import type { VersionSelectors } from '@pnpm/resolving.resolver-base'
 import type { PackageFilesResponse } from '@pnpm/store.cafs-types'
 import type { DependencyManifest } from '@pnpm/types'
 
@@ -73,3 +74,91 @@ export interface HardLinkDirMessage {
   src: string
   destDirs: string[]
 }
+
+export interface ResolveMetadataSpec {
+  type: 'tag' | 'version' | 'range'
+  name: string
+  fetchSpec: string
+}
+
+export interface ResolveMetadataMessage {
+  type: 'resolve-metadata'
+  cacheDir: string
+  spec: ResolveMetadataSpec
+  registry: string
+  offline?: boolean
+  preferOffline?: boolean
+  pickLowestVersion?: boolean
+  updateToLatest?: boolean
+  fullMetadata?: boolean
+  filterMetadata?: boolean
+  strictPublishedByCheck?: boolean
+  dryRun: boolean
+  publishedBy?: number // timestamp — Date doesn't serialize
+  publishedByExcludeResult?: boolean | string[] // pre-computed on main thread
+  preferredVersionSelectors?: VersionSelectors
+}
+
+export interface ResolveMetadataHitResult {
+  status: 'success'
+  cacheHit: true
+  pickedPackage: SerializedPackageInRegistry | null
+  meta: SerializedPackageMeta
+}
+
+export interface ResolveMetadataMissResult {
+  status: 'success'
+  cacheHit: false
+  needsFetch: true
+  etag?: string
+  modified?: string
+}
+
+export type ResolveMetadataResult = ResolveMetadataHitResult | ResolveMetadataMissResult
+
+export interface ResolveMetadataDataMessage {
+  type: 'resolve-metadata-data'
+  cacheDir: string
+  spec: ResolveMetadataSpec
+  registry: string
+  jsonText: string
+  etag?: string
+  notModified?: boolean
+  fullMetadata?: boolean
+  filterMetadata?: boolean
+  strictPublishedByCheck?: boolean
+  dryRun: boolean
+  pickLowestVersion?: boolean
+  updateToLatest?: boolean
+  publishedBy?: number
+  publishedByExcludeResult?: boolean | string[]
+  preferredVersionSelectors?: VersionSelectors
+}
+
+export interface ResolveMetadataDataSuccessResult {
+  status: 'success'
+  pickedPackage: SerializedPackageInRegistry | null
+  meta: SerializedPackageMeta
+  needsFullRefetch?: false
+}
+
+export interface ResolveMetadataDataRefetchResult {
+  status: 'success'
+  needsFullRefetch: true
+  meta: SerializedPackageMeta
+}
+
+export type ResolveMetadataDataResult = ResolveMetadataDataSuccessResult | ResolveMetadataDataRefetchResult
+
+// Serializable versions of registry types (no Date objects, no functions)
+export interface SerializedPackageMeta {
+  name: string
+  'dist-tags': Record<string, string>
+  versions: Record<string, SerializedPackageInRegistry>
+  time?: Record<string, string> & { unpublished?: { time: string, versions: string[] } }
+  modified?: string
+  cachedAt?: number
+  etag?: string
+}
+
+export type SerializedPackageInRegistry = Record<string, unknown>

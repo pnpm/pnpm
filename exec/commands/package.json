@@ -34,7 +34,6 @@
   },
   "dependencies": {
     "@pnpm/bins.resolver": "workspace:*",
-    "@pnpm/cache.metadata": "workspace:*",
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/cli.command": "workspace:*",
     "@pnpm/cli.common-cli-options-help": "workspace:*",

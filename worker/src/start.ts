@@ -25,12 +25,15 @@ import { packForStorage, StoreIndex } from '@pnpm/store.index'
 import type { BundledManifest, DependencyManifest } from '@pnpm/types'
 
 import { equalOrSemverEqual } from './equalOrSemverEqual.js'
+import { closeAllMetadataCaches, handleResolveMetadata, handleResolveMetadataData } from './resolveMetadata.js'
 import type {
   AddDirToStoreMessage,
   HardLinkDirMessage,
   InitStoreMessage,
   LinkPkgMessage,
   ReadPkgFromCafsMessage,
+  ResolveMetadataDataMessage,
+  ResolveMetadataMessage,
   SymlinkAllModulesMessage,
   TarballExtractMessage,
 } from './types.js'
@@ -63,6 +66,8 @@ async function handleMessage (
   | SymlinkAllModulesMessage
   | HardLinkDirMessage
   | InitStoreMessage
+  | ResolveMetadataMessage
+  | ResolveMetadataDataMessage
   | false
 ): Promise<void> {
   if (message === false) {
@@ -74,6 +79,7 @@ async function handleMessage (
       idx.close()
     }
     storeIndexCache.clear()
+    closeAllMetadataCaches()
     process.exit(0)
   }
   try {
@@ -166,6 +172,14 @@ async function handleMessage (
         parentPort!.postMessage({ status: 'success' })
         break
       }
+      case 'resolve-metadata': {
+        parentPort!.postMessage(handleResolveMetadata(message))
+        break
+      }
+      case 'resolve-metadata-data': {
+        parentPort!.postMessage(handleResolveMetadataData(message))
+        break
+      }
     }
   } catch (e: any) { // eslint-disable-line
     parentPort!.postMessage({
@@ -174,6 +188,7 @@ async function handleMessage (
         code: e.code,
         message: e.message ?? e.toString(),
         hint: e.hint,
+        cause: e.cause ? { message: e.cause.message ?? String(e.cause) } : undefined,
       },
     })
   }
