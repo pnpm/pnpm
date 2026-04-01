@@ -34,8 +34,8 @@ export function importIndexedDir (
   }
 ): void {
   // Content-addressed targets like the global virtual store do not need to be
-  // re-imported once all expected files are present.
-  if (opts.safeToSkip && !opts.keepModulesDir && hasAllFiles(newDir, filenames)) return
+  // re-imported once all expected files are present with matching metadata.
+  if (opts.safeToSkip && !opts.keepModulesDir && hasExpectedFileLayout(newDir, filenames)) return
   // Fast path: import directly without staging.  Callers already verified
   // the target package is missing (pkgExistsAtTargetDir / pkgLinkedToStore),
   // so we can write straight into newDir and skip the temp dir + rename.
@@ -126,10 +126,18 @@ export function importIndexedDir (
   }
 }
 
-function hasAllFiles (dir: string, filenames: Map<string, string>): boolean {
-  for (const filename of filenames.keys()) {
+function hasExpectedFileLayout (dir: string, filenames: Map<string, string>): boolean {
+  for (const [filename, src] of filenames) {
+    const target = path.join(dir, filename)
     try {
-      fs.statSync(path.join(dir, filename))
+      const targetStat = gfs.statSync(target)
+      if (!targetStat.isFile()) return false
+      const srcStat = gfs.statSync(src)
+      if (targetStat.ino === srcStat.ino && targetStat.dev === srcStat.dev) continue
+      if (targetStat.size !== srcStat.size) return false
+      if (filename === 'package.json' && !gfs.readFileSync(target).equals(gfs.readFileSync(src))) {
+        return false
+      }
     } catch {
       return false
     }
