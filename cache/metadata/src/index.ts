@@ -3,14 +3,12 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 import type { DatabaseSync as DatabaseSyncType, StatementSync } from 'node:sqlite'
 
-// Use createRequire to load node:sqlite because it is a prefix-only builtin
-// that Jest's ESM module resolver cannot handle.
 const req = createRequire(import.meta.url)
 const { DatabaseSync } = req('node:sqlite') as { DatabaseSync: typeof DatabaseSyncType }
 
 const SQLITE_BUSY = 5
 const RETRY_DELAY_MS = 50
-const MAX_RETRIES = 100 // ~5 seconds total
+const MAX_RETRIES = 100
 
 function sqliteRetry<T> (fn: () => T): T {
   for (let attempt = 0; ; attempt++) {
@@ -48,40 +46,28 @@ export interface MetadataIndex {
   etag?: string
   modified?: string
   cachedAt?: number
+  isFull?: boolean
 }
 
 const openInstances = new Set<MetadataCache>()
 
-/**
- * Close all open MetadataCache instances.
- * Useful in tests that need to remove the cache directory.
- */
 export function closeAllMetadataCaches (): void {
   for (const mc of openInstances) {
     mc.close()
   }
 }
 
-interface PendingIndexWrite {
-  kind: 'index'
+interface PendingWrite {
   name: string
   etag: string | null
   modified: string | null
   cachedAt: number
+  isFull: boolean
   distTags: string
   versions: string
   time: string | null
+  blob: string
 }
-
-interface PendingManifestWrite {
-  kind: 'manifest'
-  name: string
-  version: string
-  type: string
-  manifest: string
-}
-
-type PendingWrite = PendingIndexWrite | PendingManifestWrite
 
 export class MetadataCache {
   private db: DatabaseSyncType
@@ -91,10 +77,10 @@ export class MetadataCache {
   private stmtGetIndex: StatementSync
   private stmtGetHeaders: StatementSync
   private stmtSetIndex: StatementSync
-  private stmtGetManifest: StatementSync
-  private stmtSetManifest: StatementSync
+  private stmtGetBlob: StatementSync
+  private stmtSetBlob: StatementSync
   private stmtDeleteIndex: StatementSync
-  private stmtDeleteManifests: StatementSync
+  private stmtDeleteBlob: StatementSync
   private stmtListNames: StatementSync
   private stmtUpdateCachedAt: StatementSync
   private readonly exitHandler: () => void
@@ -117,38 +103,40 @@ export class MetadataCache {
           etag TEXT,
           modified TEXT,
           cached_at INTEGER,
+          is_full INTEGER NOT NULL DEFAULT 0,
           dist_tags TEXT NOT NULL,
           versions TEXT NOT NULL,
           time TEXT
         ) WITHOUT ROWID
       `)
       this.db.exec(`
-        CREATE TABLE IF NOT EXISTS metadata_manifests (
-          name TEXT NOT NULL,
-          version TEXT NOT NULL,
-          type TEXT NOT NULL,
-          manifest TEXT NOT NULL,
-          PRIMARY KEY (name, version, type)
+        CREATE TABLE IF NOT EXISTS metadata_blobs (
+          name TEXT PRIMARY KEY,
+          data TEXT NOT NULL
         ) WITHOUT ROWID
       `)
+      // Drop old per-version manifests table if it exists
+      this.db.exec('DROP TABLE IF EXISTS metadata_manifests')
+      // Drop old single-table design if it exists
+      this.db.exec('DROP TABLE IF EXISTS metadata')
     })
     this.stmtGetIndex = this.db.prepare(
-      'SELECT dist_tags, versions, time, etag, modified, cached_at FROM metadata_index WHERE name = ?'
+      'SELECT dist_tags, versions, time, etag, modified, cached_at, is_full FROM metadata_index WHERE name = ?'
     )
     this.stmtGetHeaders = this.db.prepare(
       'SELECT etag, modified FROM metadata_index WHERE name = ?'
     )
     this.stmtSetIndex = this.db.prepare(
-      'INSERT OR REPLACE INTO metadata_index (name, etag, modified, cached_at, dist_tags, versions, time) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      'INSERT OR REPLACE INTO metadata_index (name, etag, modified, cached_at, is_full, dist_tags, versions, time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     )
-    this.stmtGetManifest = this.db.prepare(
-      'SELECT manifest FROM metadata_manifests WHERE name = ? AND version = ? AND type IN (?, \'full\') ORDER BY CASE type WHEN ? THEN 0 ELSE 1 END LIMIT 1'
+    this.stmtGetBlob = this.db.prepare(
+      'SELECT data FROM metadata_blobs WHERE name = ?'
     )
-    this.stmtSetManifest = this.db.prepare(
-      'INSERT OR REPLACE INTO metadata_manifests (name, version, type, manifest) VALUES (?, ?, ?, ?)'
+    this.stmtSetBlob = this.db.prepare(
+      'INSERT OR REPLACE INTO metadata_blobs (name, data) VALUES (?, ?)'
     )
     this.stmtDeleteIndex = this.db.prepare('DELETE FROM metadata_index WHERE name = ?')
-    this.stmtDeleteManifests = this.db.prepare('DELETE FROM metadata_manifests WHERE name = ?')
+    this.stmtDeleteBlob = this.db.prepare('DELETE FROM metadata_blobs WHERE name = ?')
     this.stmtListNames = this.db.prepare('SELECT name FROM metadata_index')
     this.stmtUpdateCachedAt = this.db.prepare('UPDATE metadata_index SET cached_at = ? WHERE name = ?')
     this.exitHandler = () => this.close()
@@ -160,32 +148,16 @@ export class MetadataCache {
     openInstances.add(this)
   }
 
-  private findPendingIndex (name: string): PendingIndexWrite | undefined {
+  private findPending (name: string): PendingWrite | undefined {
     for (let i = this.pendingWrites.length - 1; i >= 0; i--) {
-      const w = this.pendingWrites[i]
-      if (w.kind === 'index' && w.name === name) return w
+      if (this.pendingWrites[i].name === name) return this.pendingWrites[i]
     }
     return undefined
   }
 
-  private findPendingManifest (name: string, version: string, type: string): PendingManifestWrite | undefined {
-    let fullFallback: PendingManifestWrite | undefined
-    for (let i = this.pendingWrites.length - 1; i >= 0; i--) {
-      const w = this.pendingWrites[i]
-      if (w.kind !== 'manifest' || w.name !== name || w.version !== version) continue
-      if (w.type === type) return w
-      if (w.type === 'full' && !fullFallback) fullFallback = w
-    }
-    return fullFallback
-  }
-
-  /**
-   * Get the conditional-request headers for a package.
-   * Cheap — no manifest data touched.
-   */
   getHeaders (name: string): MetadataHeaders | undefined {
     if (this.closed) return undefined
-    const pending = this.findPendingIndex(name)
+    const pending = this.findPending(name)
     if (pending) {
       return {
         etag: pending.etag ?? undefined,
@@ -200,13 +172,9 @@ export class MetadataCache {
     }
   }
 
-  /**
-   * Get the index data for resolution: dist-tags, version keys, time, and cache headers.
-   * Does NOT load per-version manifests — very cheap.
-   */
   getIndex (name: string): MetadataIndex | null {
     if (this.closed) return null
-    const pending = this.findPendingIndex(name)
+    const pending = this.findPending(name)
     if (pending) {
       return {
         distTags: pending.distTags,
@@ -215,6 +183,7 @@ export class MetadataCache {
         etag: pending.etag ?? undefined,
         modified: pending.modified ?? undefined,
         cachedAt: pending.cachedAt,
+        isFull: pending.isFull,
       }
     }
     const row = sqliteRetry(() => this.stmtGetIndex.get(name)) as {
@@ -224,6 +193,7 @@ export class MetadataCache {
       etag: string | null
       modified: string | null
       cached_at: number | null
+      is_full: number
     } | undefined
     if (!row) return null
     return {
@@ -233,26 +203,28 @@ export class MetadataCache {
       etag: row.etag ?? undefined,
       modified: row.modified ?? undefined,
       cachedAt: row.cached_at ?? undefined,
+      isFull: row.is_full === 1,
     }
   }
 
   /**
-   * Get a single version's manifest. Falls back from requested type to 'full'.
+   * Get the raw JSON blob for a package.
+   * Used after version picking to extract the resolved version's manifest.
    */
-  getManifest (name: string, version: string, type: string): string | null {
+  getBlob (name: string): string | null {
     if (this.closed) return null
-    const pending = this.findPendingManifest(name, version, type)
-    if (pending) return pending.manifest
-    const row = sqliteRetry(() => this.stmtGetManifest.get(name, version, type, type)) as { manifest: string } | undefined
-    return row?.manifest ?? null
+    const pending = this.findPending(name)
+    if (pending) return pending.blob
+    const row = sqliteRetry(() => this.stmtGetBlob.get(name)) as { data: string } | undefined
+    return row?.data ?? null
   }
 
   /**
-   * Queue index + manifests from a parsed PackageMeta.
+   * Queue a write. Extracts index fields cheaply from parsed meta,
+   * stores the raw JSON blob as-is (zero serialization on hot path).
    */
   queueWrite (
     name: string,
-    type: string,
     meta: {
       'dist-tags'?: Record<string, string>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -260,35 +232,26 @@ export class MetadataCache {
       time?: Record<string, string> & { unpublished?: unknown }
       modified?: string
     },
-    opts: { etag?: string, cachedAt: number }
+    rawJson: string,
+    opts: { etag?: string, cachedAt: number, isFull?: boolean }
   ): void {
     if (!meta['dist-tags'] || !meta.versions) return
-    // Build compact versions map (version → {deprecated?} only)
     const versionsCompact: Record<string, { deprecated?: string }> = {}
     for (const [v, manifest] of Object.entries(meta.versions)) {
       versionsCompact[v] = manifest.deprecated ? { deprecated: manifest.deprecated as string } : {}
     }
 
     this.pendingWrites.push({
-      kind: 'index',
       name,
       etag: opts.etag ?? null,
       modified: meta.modified ?? meta.time?.modified ?? null,
       cachedAt: opts.cachedAt,
+      isFull: opts.isFull ?? false,
       distTags: JSON.stringify(meta['dist-tags']),
       versions: JSON.stringify(versionsCompact),
       time: meta.time ? JSON.stringify(meta.time) : null,
+      blob: rawJson,
     })
-
-    for (const [v, manifest] of Object.entries(meta.versions)) {
-      this.pendingWrites.push({
-        kind: 'manifest',
-        name,
-        version: v,
-        type,
-        manifest: JSON.stringify(manifest),
-      })
-    }
 
     if (!this.flushScheduled) {
       this.flushScheduled = true
@@ -296,9 +259,6 @@ export class MetadataCache {
     }
   }
 
-  /**
-   * Update cachedAt without rewriting data.
-   */
   updateCachedAt (name: string, cachedAt: number): void {
     if (this.closed) return
     sqliteRetry(() => {
@@ -306,9 +266,6 @@ export class MetadataCache {
     })
   }
 
-  /**
-   * Flush all pending writes in a single transaction.
-   */
   flush (): void {
     this.flushScheduled = false
     if (this.pendingWrites.length === 0 || this.closed) return
@@ -319,11 +276,8 @@ export class MetadataCache {
       let committed = false
       try {
         for (const w of writes) {
-          if (w.kind === 'index') {
-            this.stmtSetIndex.run(w.name, w.etag, w.modified, w.cachedAt, w.distTags, w.versions, w.time)
-          } else {
-            this.stmtSetManifest.run(w.name, w.version, w.type, w.manifest)
-          }
+          this.stmtSetIndex.run(w.name, w.etag, w.modified, w.cachedAt, w.isFull ? 1 : 0, w.distTags, w.versions, w.time)
+          this.stmtSetBlob.run(w.name, w.blob)
         }
         this.db.exec('COMMIT')
         committed = true
@@ -337,9 +291,6 @@ export class MetadataCache {
     })
   }
 
-  /**
-   * Delete all data for a package.
-   */
   delete (name: string): boolean {
     let changes!: number | bigint
     sqliteRetry(() => {
@@ -347,7 +298,7 @@ export class MetadataCache {
       let committed = false
       try {
         const r1 = this.stmtDeleteIndex.run(name)
-        this.stmtDeleteManifests.run(name)
+        this.stmtDeleteBlob.run(name)
         changes = r1.changes
         this.db.exec('COMMIT')
         committed = true
@@ -362,9 +313,6 @@ export class MetadataCache {
     return changes > 0
   }
 
-  /**
-   * List all package names.
-   */
   listNames (): string[] {
     const rows = sqliteRetry(() => this.stmtListNames.all())
     return (rows as Array<{ name: string }>).map((r) => r.name)

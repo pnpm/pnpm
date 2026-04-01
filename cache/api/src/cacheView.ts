@@ -25,17 +25,13 @@ export async function cacheView (opts: { cacheDir: string, storeDir: string, reg
       const index = db.getIndex(name)
       if (!index) continue
       const distTags = JSON.parse(index.distTags) as Record<string, string>
-      const versionsMap = JSON.parse(index.versions) as Record<string, unknown>
+      // Load blob to check integrity per version
+      const blob = db.getBlob(name)
+      if (!blob) continue
+      const meta = JSON.parse(blob) as { versions: Record<string, { name?: string, dist?: { integrity?: string } }> }
       const cachedVersions: string[] = []
       const nonCachedVersions: string[] = []
-      for (const version of Object.keys(versionsMap)) {
-        // Load manifest to check integrity
-        const manifestJson = db.getManifest(name, version, 'abbreviated')
-        if (!manifestJson) {
-          nonCachedVersions.push(version)
-          continue
-        }
-        const manifest = JSON.parse(manifestJson) as { name?: string, dist?: { integrity?: string } }
+      for (const [version, manifest] of Object.entries(meta.versions)) {
         if (!manifest.dist?.integrity) {
           nonCachedVersions.push(version)
           continue

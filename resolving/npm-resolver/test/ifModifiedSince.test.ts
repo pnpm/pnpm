@@ -37,7 +37,7 @@ test('use local cache when registry returns 304 Not Modified', async () => {
   const cacheDir = temporaryDirectory()
   // Seed cached metadata with etag in SQLite
   const db = new MetadataCache(cacheDir)
-  db.queueWrite(`${REG}/is-positive`, 'abbreviated', isPositiveMeta, {
+  db.queueWrite(`${REG}/is-positive`, isPositiveMeta, JSON.stringify(isPositiveMeta), {
     etag: '"abc123"',
     cachedAt: Date.now(),
   })

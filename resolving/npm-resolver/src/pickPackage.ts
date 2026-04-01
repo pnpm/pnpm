@@ -83,19 +83,18 @@ export async function pickPackage (
   // Use full metadata for optional dependencies to get libc field.
   // See: https://github.com/pnpm/pnpm/issues/9950
   const fullMetadata = opts.optional === true || ctx.fullMetadata === true
-  const manifestType = fullMetadata
-    ? (ctx.filterMetadata ? 'full-filtered' : 'full')
-    : 'abbreviated'
   // DB name includes registry to avoid collisions across registries
   const registryName = getRegistryHost(opts.registry)
   const dbName = `${registryName}/${spec.name}`
 
   // Try to resolve from the DB index (cheap — no per-version manifest parsing)
+  // Skip DB cache if full metadata is needed but only abbreviated is cached
   let cachedIndex: MetadataIndex | null | undefined
+  const canUseIndex = (idx: MetadataIndex) => !fullMetadata || idx.isFull
   if (ctx.offline === true || ctx.preferOffline === true || opts.pickLowestVersion) {
     cachedIndex = ctx.metadataDb.getIndex(dbName)
-    if (cachedIndex) {
-      const result = resolveFromIndex(ctx.metadataDb, cachedIndex, dbName, manifestType, spec, _pickPackageFromMeta)
+    if (cachedIndex && canUseIndex(cachedIndex)) {
+      const result = resolveFromIndex(ctx.metadataDb, cachedIndex, dbName, spec, _pickPackageFromMeta)
       if (ctx.offline) {
         if (result) return result
         throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror for ${spec.name}`)
@@ -108,11 +107,11 @@ export async function pickPackage (
 
   if (!opts.updateToLatest && spec.type === 'version') {
     cachedIndex = cachedIndex ?? ctx.metadataDb.getIndex(dbName)
-    if (cachedIndex) {
+    if (cachedIndex && canUseIndex(cachedIndex)) {
       const versionsMap = JSON.parse(cachedIndex.versions) as Record<string, unknown>
       if (spec.fetchSpec in versionsMap) {
         try {
-          const result = resolveFromIndex(ctx.metadataDb, cachedIndex, dbName, manifestType, spec, _pickPackageFromMeta)
+          const result = resolveFromIndex(ctx.metadataDb, cachedIndex, dbName, spec, _pickPackageFromMeta)
           if (result) return result
         } catch (err) {
           if (ctx.strictPublishedByCheck) throw err
@@ -122,9 +121,9 @@ export async function pickPackage (
   }
   if (opts.publishedBy) {
     cachedIndex = cachedIndex ?? ctx.metadataDb.getIndex(dbName)
-    if (cachedIndex?.cachedAt && new Date(cachedIndex.cachedAt) >= opts.publishedBy) {
+    if (cachedIndex && canUseIndex(cachedIndex) && cachedIndex.cachedAt && new Date(cachedIndex.cachedAt) >= opts.publishedBy) {
       try {
-        const result = resolveFromIndex(ctx.metadataDb, cachedIndex, dbName, manifestType, spec, _pickPackageFromMeta)
+        const result = resolveFromIndex(ctx.metadataDb, cachedIndex, dbName, spec, _pickPackageFromMeta)
         if (result) return result
       } catch (err: unknown) {
         if (ctx.strictPublishedByCheck && !isMissingTimeError(err)) throw err
@@ -155,7 +154,7 @@ export async function pickPackage (
       if (cachedIndex) {
         const cachedAt = Date.now()
         ctx.metadataDb.updateCachedAt(dbName, cachedAt)
-        const result = resolveFromIndex(ctx.metadataDb, { ...cachedIndex, cachedAt }, dbName, manifestType, spec, _pickPackageFromMeta)
+        const result = resolveFromIndex(ctx.metadataDb, { ...cachedIndex, cachedAt }, dbName, spec, _pickPackageFromMeta)
         if (result) return result
       }
       throw new PnpmError('CACHE_MISSING_AFTER_304',
@@ -164,8 +163,6 @@ export async function pickPackage (
 
     const cachedAt = Date.now()
     let meta = fetchResult.meta
-    let typeToSave = manifestType
-
     // When minimumReleaseAge is active and we fetched abbreviated metadata,
     // check if the package was recently modified and needs full metadata
     // for per-version time-based filtering.
@@ -178,9 +175,10 @@ export async function pickPackage (
       const modifiedDate = meta.modified ? new Date(meta.modified) : null
       const isModifiedValid = modifiedDate != null && !Number.isNaN(modifiedDate.getTime())
       if (!isModifiedValid || modifiedDate >= opts.publishedBy) {
-        // Save abbreviated index + manifests before re-fetching full
+        // Save abbreviated metadata before re-fetching full
         if (!opts.dryRun) {
-          ctx.metadataDb.queueWrite(dbName, 'abbreviated', meta, { etag: fetchResult.etag, cachedAt })
+          const abbreviatedJson = typeof fetchResult.jsonText === 'string' ? fetchResult.jsonText : JSON.stringify(meta)
+          ctx.metadataDb.queueWrite(dbName, meta, abbreviatedJson, { etag: fetchResult.etag, cachedAt })
         }
         const fullFetchResult = await ctx.fetch(spec.name, {
           authHeaderValue: opts.authHeaderValue,
@@ -190,7 +188,6 @@ export async function pickPackage (
         if (!fullFetchResult.notModified) {
           fetchResult = fullFetchResult
           meta = fullFetchResult.meta
-          typeToSave = ctx.filterMetadata ? 'full-filtered' : 'full'
         }
       }
     }
@@ -201,9 +198,13 @@ export async function pickPackage (
     meta.cachedAt = cachedAt
     meta.etag = fetchResult.etag
     if (!opts.dryRun) {
-      ctx.metadataDb.queueWrite(dbName, typeToSave, meta, {
+      const rawJson = (ctx.filterMetadata || typeof fetchResult.jsonText !== 'string')
+        ? JSON.stringify(meta)
+        : fetchResult.jsonText
+      ctx.metadataDb.queueWrite(dbName, meta, rawJson, {
         etag: fetchResult.etag,
         cachedAt,
+        isFull: fullMetadata,
       })
     }
     return {
@@ -216,7 +217,7 @@ export async function pickPackage (
     if (!cachedIndex) throw err
     logger.error(err, err)
     logger.debug({ message: `Using cached meta from DB for ${spec.name}` })
-    const result = resolveFromIndex(ctx.metadataDb, cachedIndex, dbName, manifestType, spec, _pickPackageFromMeta)
+    const result = resolveFromIndex(ctx.metadataDb, cachedIndex, dbName, spec, _pickPackageFromMeta)
     if (result) return result
     throw err
   }
@@ -230,7 +231,6 @@ function resolveFromIndex (
   metadataDb: MetadataCache,
   index: MetadataIndex,
   dbName: string,
-  manifestType: string,
   spec: RegistryPackageSpec,
   pickFn: (meta: PackageMeta) => PackageInRegistry | null
 ): { meta: PackageMeta, pickedPackage: PackageInRegistry | null } | null {
@@ -257,13 +257,16 @@ function resolveFromIndex (
   const pickedStub = pickFn(lightMeta)
   if (!pickedStub) return null
 
-  // Load only the resolved version's full manifest from DB
-  const manifestJson = metadataDb.getManifest(dbName, pickedStub.version, manifestType)
-  if (!manifestJson) return null
+  // Load the blob and extract just the picked version's manifest
+  const blob = metadataDb.getBlob(dbName)
+  if (!blob) return null
 
-  const manifest = JSON.parse(manifestJson) as PackageInRegistry
-  if (lightMeta.name) {
-    manifest.name = lightMeta.name
+  const fullMeta = JSON.parse(blob) as PackageMeta
+  const manifest = fullMeta.versions[pickedStub.version]
+  if (!manifest) return null
+
+  if (spec.name) {
+    manifest.name = spec.name
   }
   return { meta: lightMeta, pickedPackage: manifest }
 }
