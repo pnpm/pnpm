@@ -12,7 +12,7 @@ export async function runLicenseCheck (opts: InstallCommandOptions): Promise<voi
   if (opts.lockfileOnly) {
     return
   }
-  const manifest = await readProjectManifestOnly(opts.dir)
+  const manifest = await readProjectManifestOnly(opts.dir, opts)
   await checkLicensesAfterInstall({
     licenses: opts.licenses,
     dir: opts.dir,
