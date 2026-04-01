@@ -69,10 +69,14 @@ export async function promptBrowserOpen ({
       cmd = 'open'
       args = [authUrl]
       break
-    case 'win32':
+    case 'win32': {
       cmd = 'cmd'
-      args = ['/c', 'start', '', authUrl]
+      // Escape cmd.exe metacharacters so characters like & in query strings
+      // are not interpreted as command separators.
+      const escapedUrl = authUrl.replace(/[&|<>^%]/g, '^$&')
+      args = ['/c', 'start', '', escapedUrl]
       break
+    }
     case 'linux':
       cmd = 'xdg-open'
       args = [authUrl]

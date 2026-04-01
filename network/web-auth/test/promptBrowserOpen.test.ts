@@ -176,7 +176,8 @@ describe('promptBrowserOpen', () => {
     mockRl.simulateEnterKeypress()
     await new Promise<void>(resolve => queueMicrotask(resolve))
 
-    expect(execFile).toHaveBeenCalledWith('cmd', ['/c', 'start', '', authUrl], expect.any(Function))
+    // & and % are escaped with ^ for cmd.exe
+    expect(execFile).toHaveBeenCalledWith('cmd', ['/c', 'start', '', 'https://example.com/auth?token=abc^&redirect=https^%3A^%2F^%2Fexample.com'], expect.any(Function))
 
     pollDeferred.resolve('tok')
     await resultPromise
