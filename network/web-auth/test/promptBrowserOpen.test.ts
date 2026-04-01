@@ -154,6 +154,34 @@ describe('promptBrowserOpen', () => {
     await resultPromise
   })
 
+  it('passes URLs with query parameters to execFile on win32', async () => {
+    const mockRl = createMockReadlineInterface()
+    const pollDeferred = createDeferred<string>()
+    const execFile = jest.fn<PromptBrowserOpenExecFile>((_file, _args, cb) => {
+      cb(null)
+    })
+    const authUrl = 'https://example.com/auth?token=abc&redirect=https%3A%2F%2Fexample.com'
+    const context = createMockContext({
+      createReadlineInterface: () => mockRl,
+      execFile,
+      process: { platform: 'win32' },
+    })
+
+    const resultPromise = promptBrowserOpen({
+      authUrl,
+      context,
+      pollPromise: pollDeferred.promise,
+    })
+
+    mockRl.simulateEnterKeypress()
+    await new Promise<void>(resolve => queueMicrotask(resolve))
+
+    expect(execFile).toHaveBeenCalledWith('cmd', ['/c', 'start', '', authUrl], expect.any(Function))
+
+    pollDeferred.resolve('tok')
+    await resultPromise
+  })
+
   it('skips browser prompt on unsupported platform', async () => {
     const execFile = jest.fn<PromptBrowserOpenExecFile>()
     const context = createMockContext({
