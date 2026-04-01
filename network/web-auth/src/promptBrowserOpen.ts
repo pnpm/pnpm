@@ -81,18 +81,19 @@ export async function promptBrowserOpen ({
       // call it from child_process without a native addon.
       //
       // All process-spawning alternatives have drawbacks:
-      //   - cmd /c start:    cmd.exe re-parses args; metacharacters in URLs
-      //                      (&, |, ^, %, etc.) are treated as shell operators
+      //   - cmd /c start:    cmd.exe re-parses args; special characters in
+      //                      URLs (&, |, ^, %, etc.) are treated as shell
+      //                      operators
       //   - explorer.exe:    breaks on URLs with query strings (?key=value),
       //                      opening File Explorer instead of the browser
       //                      (https://github.com/dotnet/runtime/issues/108817)
-      //   - rundll32:        undocumented, can strip query params on Win 7+
+      //   - url.dll:         undocumented, can strip query params on Win 7+
       //   - PowerShell:      slow startup, own escaping issues
       //
       // Since pnpm already ships native addons, a small Rust/N-API addon
       // calling ShellExecuteW directly could replace this in the future.
       //
-      // For now, use cmd /c start with metacharacter escaping (^ prefix).
+      // For now, use cmd /c start with ^ escaping for special characters.
       const escapedUrl = canonicalUrl.replace(/[&|<>^%()!]/g, '^$&')
       args = ['/c', 'start', '', escapedUrl]
       break
