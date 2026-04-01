@@ -10,9 +10,6 @@
   ],
   "references": [
     {
-      "path": "../metadata"
-    },
-    {
       "path": "../../config/reader"
     },
     {
@@ -23,6 +20,9 @@
     },
     {
       "path": "../../store/index"
+    },
+    {
+      "path": "../metadata"
     }
   ]
 }
