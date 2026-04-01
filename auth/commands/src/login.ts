@@ -126,6 +126,12 @@ export interface LoginFetchOptions {
   timeout?: number
 }
 
+export interface LoginProcess {
+  platform: NodeJS.Platform
+  stdin: { isTTY?: boolean }
+  stdout: { isTTY?: boolean }
+}
+
 export interface LoginContext {
   Date: LoginDate
   setTimeout: (cb: () => void, ms: number) => void
@@ -135,11 +141,7 @@ export interface LoginContext {
   fetch: (url: string, options?: LoginFetchOptions) => Promise<LoginFetchResponse>
   globalInfo: (message: string) => void
   globalWarn: (message: string) => void
-  process: {
-    platform: string
-    stdin: { isTTY?: boolean }
-    stdout: { isTTY?: boolean }
-  }
+  process: LoginProcess
   readIniFile: (configPath: string) => Promise<object>
   writeIniFile: (configPath: string, settings: Record<string, unknown>) => Promise<void>
 }

@@ -7,15 +7,17 @@ export interface OfferToOpenBrowserExecFile {
   (file: string, args: readonly string[], callback: (error: Error | null) => void): unknown
 }
 
+export interface OfferToOpenBrowserProcess {
+  platform?: NodeJS.Platform
+  stdin: { isTTY?: boolean }
+}
+
 export interface OfferToOpenBrowserContext {
   createReadlineInterface?: () => OfferToOpenBrowserReadlineInterface
   execFile?: OfferToOpenBrowserExecFile
   globalInfo: (message: string) => void
   globalWarn: (message: string) => void
-  process: {
-    platform?: string
-    stdin: { isTTY?: boolean }
-  }
+  process: OfferToOpenBrowserProcess
 }
 
 export interface OfferToOpenBrowserParams {

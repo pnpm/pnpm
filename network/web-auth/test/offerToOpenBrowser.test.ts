@@ -21,17 +21,17 @@ function createDeferred<T> (): {
 }
 
 interface MockReadlineInterface extends OfferToOpenBrowserReadlineInterface {
-  simulateEnter: () => void
+  simulateEnterKeypress: () => void
 }
 
-function createMockReadlineInterface (): MockReadlineInterface {
+const createMockReadlineInterface = (): MockReadlineInterface => {
   let lineListener: (() => void) | undefined
   return {
     once: (_event: string, listener: () => void) => {
       lineListener = listener
     },
     close: jest.fn<() => void>(),
-    simulateEnter: () => lineListener?.(),
+    simulateEnterKeypress: () => lineListener?.(),
   }
 }
 
@@ -39,21 +39,19 @@ type MockContextOverrides = Omit<Partial<OfferToOpenBrowserContext>, 'process'> 
   process?: Partial<OfferToOpenBrowserContext['process']>
 }
 
-function createMockContext (overrides?: MockContextOverrides): OfferToOpenBrowserContext {
-  return {
-    globalInfo: () => {},
-    globalWarn: () => {},
-    ...overrides,
-    process: {
-      platform: 'linux',
-      stdin: { isTTY: true },
-      ...overrides?.process,
-    },
-  }
-}
+const createMockContext = (overrides?: MockContextOverrides): OfferToOpenBrowserContext => ({
+  globalInfo: () => {},
+  globalWarn: () => {},
+  ...overrides,
+  process: {
+    platform: 'linux',
+    stdin: { isTTY: true },
+    ...overrides?.process,
+  },
+})
 
 describe('offerToOpenBrowser', () => {
-  it('returns the poll result when poll completes before Enter', async () => {
+  it('returns the poll result when poll completes before Enter keypress', async () => {
     const mockRl = createMockReadlineInterface()
     const execFile = jest.fn<OfferToOpenBrowserExecFile>()
     const context = createMockContext({
@@ -72,7 +70,7 @@ describe('offerToOpenBrowser', () => {
     expect(execFile).not.toHaveBeenCalled()
   })
 
-  it('opens browser via execFile when Enter is pressed before poll completes', async () => {
+  it('opens browser via execFile when Enter key is pressed before poll completes', async () => {
     const mockRl = createMockReadlineInterface()
     const pollDeferred = createDeferred<string>()
     const execFile = jest.fn<OfferToOpenBrowserExecFile>((_file, _args, cb) => {
@@ -89,7 +87,7 @@ describe('offerToOpenBrowser', () => {
       pollPromise: pollDeferred.promise,
     })
 
-    mockRl.simulateEnter()
+    mockRl.simulateEnterKeypress()
 
     await new Promise<void>(resolve => queueMicrotask(resolve))
 
@@ -120,7 +118,7 @@ describe('offerToOpenBrowser', () => {
       pollPromise: pollDeferred.promise,
     })
 
-    mockRl.simulateEnter()
+    mockRl.simulateEnterKeypress()
     await new Promise<void>(resolve => queueMicrotask(resolve))
 
     expect(execFile).toHaveBeenCalledWith('open', ['https://example.com/auth'], expect.any(Function))
@@ -147,7 +145,7 @@ describe('offerToOpenBrowser', () => {
       pollPromise: pollDeferred.promise,
     })
 
-    mockRl.simulateEnter()
+    mockRl.simulateEnterKeypress()
     await new Promise<void>(resolve => queueMicrotask(resolve))
 
     expect(execFile).toHaveBeenCalledWith('cmd', ['/c', 'start', '', 'https://example.com/auth'], expect.any(Function))
@@ -213,7 +211,7 @@ describe('offerToOpenBrowser', () => {
       pollPromise: pollDeferred.promise,
     })
 
-    mockRl.simulateEnter()
+    mockRl.simulateEnterKeypress()
 
     await new Promise<void>(resolve => queueMicrotask(resolve))
     await new Promise<void>(resolve => queueMicrotask(resolve))

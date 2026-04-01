@@ -33,7 +33,7 @@ export interface OtpContext {
   fetch: (url: string, options: WebAuthFetchOptions) => Promise<WebAuthFetchResponse>
   globalInfo: (message: string) => void
   globalWarn: (message: string) => void
-  process: Record<'stdin' | 'stdout', { isTTY?: boolean }> & { platform?: string }
+  process: Record<'stdin' | 'stdout', { isTTY?: boolean }> & { platform?: NodeJS.Platform }
 }
 
 interface OtpErrorBody {
