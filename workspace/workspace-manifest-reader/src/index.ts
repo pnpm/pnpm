@@ -102,7 +102,7 @@ function assertValidWorkspaceManifestPackages (manifest: { packages?: unknown })
   }
 }
 
-function assertValidWorkspaceManifestLicenses (manifest: Record<string, unknown>): asserts manifest is { licenses?: PnpmSettings['licenses'] } {
+function assertValidWorkspaceManifestLicenses (manifest: { licenses?: unknown, [key: string]: unknown }): asserts manifest is { licenses?: PnpmSettings['licenses'] } {
   if (manifest.licenses == null) {
     return
   }
