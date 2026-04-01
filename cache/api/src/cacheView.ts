@@ -18,10 +18,12 @@ export async function cacheView (opts: { cacheDir: string, storeDir: string, reg
     const prefix = opts.registry ? getRegistryName(opts.registry) : undefined
     const result: Record<string, CachedVersions> = {}
     for (const name of names) {
+      const slashIdx = name.indexOf('/')
+      if (slashIdx === -1) continue
       if (prefix && !name.startsWith(`${prefix}/`)) continue
-      const pkgName = name.slice(name.indexOf('/') + 1)
+      const pkgName = name.slice(slashIdx + 1)
       if (pkgName !== packageName) continue
-      const registryName = name.slice(0, name.indexOf('/'))
+      const registryName = name.slice(0, slashIdx)
       // Try all types, pick first available
       const row = db.get(name, 'abbreviated')
         ?? db.get(name, 'full-filtered')

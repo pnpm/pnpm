@@ -133,12 +133,33 @@ export class MetadataCache {
     openInstances.add(this)
   }
 
+  private findPendingWrite (name: string, type: MetadataType): PendingWrite | undefined {
+    const types: MetadataType[] = type === 'abbreviated'
+      ? ['abbreviated', 'full-filtered', 'full']
+      : [type]
+    for (const t of types) {
+      for (let i = this.pendingWrites.length - 1; i >= 0; i--) {
+        if (this.pendingWrites[i].name === name && this.pendingWrites[i].type === t) {
+          return this.pendingWrites[i]
+        }
+      }
+    }
+    return undefined
+  }
+
   /**
    * Get only the conditional-request headers for a package.
    * This is cheap — no JSON parsing.
    * Falls back from abbreviated → full-filtered → full.
    */
   getHeaders (name: string, type: MetadataType): MetadataHeaders | undefined {
+    const pending = this.findPendingWrite(name, type)
+    if (pending) {
+      return {
+        etag: pending.etag ?? undefined,
+        modified: pending.modified ?? undefined,
+      }
+    }
     let row = sqliteRetry(() => this.stmtGetHeaders.get(name, type)) as { etag: string | null, modified: string | null } | undefined
     if (!row && type === 'abbreviated') {
       row = sqliteRetry(() => this.stmtGetHeaders.get(name, 'full-filtered')) as typeof row
@@ -158,6 +179,15 @@ export class MetadataCache {
    * Falls back from abbreviated → full-filtered → full.
    */
   get (name: string, type: MetadataType): MetadataRow | null {
+    const pending = this.findPendingWrite(name, type)
+    if (pending) {
+      return {
+        data: pending.data,
+        etag: pending.etag ?? undefined,
+        modified: pending.modified ?? undefined,
+        cachedAt: pending.cachedAt,
+      }
+    }
     let row = sqliteRetry(() => this.stmtGet.get(name, type)) as {
       data: string
       etag: string | null

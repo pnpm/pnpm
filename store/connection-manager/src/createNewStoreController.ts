@@ -117,28 +117,34 @@ export async function createNewStoreController (
     strictPublishedByCheck: Boolean(opts.minimumReleaseAge),
     storeIndex,
   })
+  const ctrl = createPackageStore(resolve, fetchers, {
+    cafsLocker: opts.cafsLocker,
+    engineStrict: opts.engineStrict,
+    force: opts.force,
+    nodeVersion: opts.nodeVersion,
+    pnpmVersion: packageManager.version,
+    ignoreFile: opts.ignoreFile,
+    importPackage: opts.hooks?.importPackage,
+    networkConcurrency: opts.networkConcurrency,
+    packageImportMethod: opts.packageImportMethod,
+    cacheDir: opts.cacheDir,
+    storeDir: opts.storeDir,
+    verifyStoreIntegrity: typeof opts.verifyStoreIntegrity === 'boolean'
+      ? opts.verifyStoreIntegrity
+      : true,
+    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+    strictStorePkgContentCheck: opts.strictStorePkgContentCheck,
+    clearResolutionCache,
+    customFetchers: opts.hooks?.customFetchers,
+    storeIndex,
+  })
+  const origClose = ctrl.close.bind(ctrl)
+  ctrl.close = async () => {
+    await origClose()
+    metadataDb.close()
+  }
   return {
-    ctrl: createPackageStore(resolve, fetchers, {
-      cafsLocker: opts.cafsLocker,
-      engineStrict: opts.engineStrict,
-      force: opts.force,
-      nodeVersion: opts.nodeVersion,
-      pnpmVersion: packageManager.version,
-      ignoreFile: opts.ignoreFile,
-      importPackage: opts.hooks?.importPackage,
-      networkConcurrency: opts.networkConcurrency,
-      packageImportMethod: opts.packageImportMethod,
-      cacheDir: opts.cacheDir,
-      storeDir: opts.storeDir,
-      verifyStoreIntegrity: typeof opts.verifyStoreIntegrity === 'boolean'
-        ? opts.verifyStoreIntegrity
-        : true,
-      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-      strictStorePkgContentCheck: opts.strictStorePkgContentCheck,
-      clearResolutionCache,
-      customFetchers: opts.hooks?.customFetchers,
-      storeIndex,
-    }),
+    ctrl,
     dir: opts.storeDir,
   }
 }

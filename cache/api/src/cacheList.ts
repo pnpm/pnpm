@@ -25,8 +25,10 @@ export async function cacheList (opts: { cacheDir: string, registry?: string }, 
     const prefix = opts.registry ? getRegistryName(opts.registry) : undefined
     const results: string[] = []
     for (const name of names) {
+      const slashIdx = name.indexOf('/')
+      if (slashIdx === -1) continue
       if (prefix && !name.startsWith(`${prefix}/`)) continue
-      const pkgName = name.slice(name.indexOf('/') + 1)
+      const pkgName = name.slice(slashIdx + 1)
       if (filter.length > 0 && !filter.some((f) => globMatch(pkgName, f))) continue
       results.push(`${name}.json`)
     }

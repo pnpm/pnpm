@@ -179,10 +179,10 @@ export async function pickPackage (
     // Reuse headers from already-loaded metadata, or do a cheap DB lookup
     let etag = metaCachedInStore?.etag
     let modified = metaCachedInStore?.modified ?? metaCachedInStore?.time?.modified
-    if (!etag && !modified) {
+    if (!etag || !modified) {
       const headers = ctx.metadataDb.getHeaders(dbName, metaType)
-      etag = headers?.etag
-      modified = headers?.modified
+      etag = etag ?? headers?.etag
+      modified = modified ?? headers?.modified
     }
     let fetchResult = await ctx.fetch(spec.name, {
       authHeaderValue: opts.authHeaderValue,
@@ -321,12 +321,12 @@ function clearMeta (pkg: PackageMeta): PackageMeta {
 }
 
 function loadMetaFromDb (db: MetadataCache, name: string, type: MetadataType): PackageMeta | null {
-  db.flush()
   const row = db.get(name, type)
   if (!row) return null
   const meta = JSON.parse(row.data) as PackageMeta
   meta.cachedAt = row.cachedAt
   meta.etag = row.etag
+  meta.modified = row.modified ?? meta.modified
   return meta
 }
 
