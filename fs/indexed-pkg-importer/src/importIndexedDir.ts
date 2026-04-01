@@ -54,10 +54,6 @@ export function importIndexedDir (
       // A concurrent importer may have completed the directory.
       // If all files match, there's nothing left to do.
       if (allFilesMatch(newDir, filenames)) return
-    } else {
-      try {
-        rimrafSync(newDir)
-      } catch {} // eslint-disable-line:no-empty
     }
   }
   // Staging path: create in temp dir, then atomically rename.
