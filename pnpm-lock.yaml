@@ -5384,6 +5384,9 @@ importers:
       '@pnpm/assert-store':
         specifier: workspace:*
         version: link:../../__utils__/assert-store
+      '@pnpm/cache.metadata':
+        specifier: workspace:*
+        version: link:../../cache/metadata
       '@pnpm/installing.deps-installer':
         specifier: workspace:*
         version: 'link:'

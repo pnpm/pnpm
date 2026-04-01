@@ -25,11 +25,22 @@ export async function prune ({ cacheDir, storeDir, storeIndex }: PruneOptions, r
   await pruneGlobalVirtualStore(storeDir)
 
   // 2. Clean up metadata cache
+  // Remove legacy file-based metadata directories
   const metadataDirs = await getSubdirsSafely(cacheDir)
   await Promise.all(metadataDirs.map(async (metadataDir) => {
     if (!metadataDir.startsWith('metadata')) return
     try {
       await rimraf(path.join(cacheDir, metadataDir))
+    } catch (err: unknown) {
+      if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
+        throw err
+      }
+    }
+  }))
+  // Remove SQLite metadata cache
+  await Promise.all(['metadata.db', 'metadata.db-wal', 'metadata.db-shm'].map(async (dbFile) => {
+    try {
+      await fs.unlink(path.join(cacheDir, dbFile))
     } catch (err: unknown) {
       if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
         throw err
