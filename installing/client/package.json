@@ -49,9 +49,11 @@
     "ramda": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/cache.metadata": "workspace:*",
     "@pnpm/fetching.fetcher-base": "workspace:*",
     "@pnpm/installing.client": "workspace:*",
-    "@types/ramda": "catalog:"
+    "@types/ramda": "catalog:",
+    "tempy": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

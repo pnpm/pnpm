@@ -4830,6 +4830,9 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.31.1
+      tempy:
+        specifier: 'catalog:'
+        version: 3.0.0
 
   installing/commands:
     dependencies:
