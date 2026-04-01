@@ -49,6 +49,19 @@ export async function promptBrowserOpen ({
     return pollPromise
   }
 
+  // Validate the URL before passing it to a shell command. On Windows,
+  // cmd.exe re-parses execFile arguments and would interpret shell
+  // metacharacters (&, |, etc.) in the URL as operators.
+  let parsedUrl: URL
+  try {
+    parsedUrl = new URL(authUrl)
+  } catch {
+    return pollPromise
+  }
+  if (parsedUrl.protocol !== 'https:' && parsedUrl.protocol !== 'http:') {
+    return pollPromise
+  }
+
   let cmd: string
   let args: string[]
   switch (process.platform) {
