@@ -252,7 +252,8 @@ export class MetadataCache {
     type: string,
     meta: {
       'dist-tags'?: Record<string, string>
-      versions?: Record<string, { version?: string, deprecated?: string }> | null
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      versions?: Record<string, any> | null
       time?: Record<string, string> & { unpublished?: unknown }
       modified?: string
     },
