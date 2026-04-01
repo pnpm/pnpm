@@ -86,90 +86,67 @@ export async function pickPackage (
   const dbName = `${registryName}/${spec.name}`
   const cacheKey = fullMetadata ? `${dbName}:full` : dbName
 
-  const cachedMeta = ctx.metaCache.get(cacheKey)
-  if (cachedMeta != null) {
-    return {
-      meta: cachedMeta,
-      pickedPackage: _pickPackageFromMeta(cachedMeta),
+  let metaCachedInStore: PackageMeta | null | undefined = ctx.metaCache.get(cacheKey)
+  if (metaCachedInStore == null) {
+    metaCachedInStore = loadMetaFromDb(ctx.metadataDb, dbName, fullMetadata)
+    if (metaCachedInStore != null) {
+      ctx.metaCache.set(cacheKey, metaCachedInStore)
     }
   }
 
-  let metaCachedInStore: PackageMeta | null | undefined
-  if (ctx.offline === true || ctx.preferOffline === true || opts.pickLowestVersion) {
-    metaCachedInStore = loadMetaFromDb(ctx.metadataDb, dbName, fullMetadata)
-
-    if (ctx.offline) {
-      if (metaCachedInStore != null) {
-        ctx.metaCache.set(cacheKey, metaCachedInStore)
-        return {
-          meta: metaCachedInStore,
-          pickedPackage: _pickPackageFromMeta(metaCachedInStore),
-        }
-      }
-      throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror for ${spec.name}`)
-    }
-
-    if (metaCachedInStore != null) {
+  if (metaCachedInStore != null) {
+    if (ctx.offline === true || ctx.preferOffline === true || opts.pickLowestVersion) {
       const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
       if (pickedPackage) {
-        ctx.metaCache.set(cacheKey, metaCachedInStore)
         return { meta: metaCachedInStore, pickedPackage }
       }
+      if (ctx.offline) {
+        throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror for ${spec.name}`)
+      }
     }
-  }
 
-  if (!opts.updateToLatest && spec.type === 'version') {
-    metaCachedInStore = metaCachedInStore ?? loadMetaFromDb(ctx.metadataDb, dbName, fullMetadata)
-    if ((metaCachedInStore?.versions?.[spec.fetchSpec]) != null) {
-      try {
-        const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
-        if (pickedPackage) {
-          ctx.metaCache.set(cacheKey, metaCachedInStore)
-          return { meta: metaCachedInStore, pickedPackage }
+    if (!opts.updateToLatest && spec.type === 'version') {
+      if ((metaCachedInStore.versions?.[spec.fetchSpec]) != null) {
+        try {
+          const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
+          if (pickedPackage) {
+            return { meta: metaCachedInStore, pickedPackage }
+          }
+        } catch (err) {
+          if (ctx.strictPublishedByCheck) throw err
         }
-      } catch (err) {
-        if (ctx.strictPublishedByCheck) throw err
       }
     }
-  }
-  if (opts.publishedBy) {
-    metaCachedInStore = metaCachedInStore ?? loadMetaFromDb(ctx.metadataDb, dbName, fullMetadata)
-    if (metaCachedInStore?.cachedAt && new Date(metaCachedInStore.cachedAt) >= opts.publishedBy) {
-      try {
-        const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
-        if (pickedPackage) {
-          ctx.metaCache.set(cacheKey, metaCachedInStore)
-          return { meta: metaCachedInStore, pickedPackage }
+    if (opts.publishedBy) {
+      if (metaCachedInStore.cachedAt && new Date(metaCachedInStore.cachedAt) >= opts.publishedBy) {
+        try {
+          const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
+          if (pickedPackage) {
+            return { meta: metaCachedInStore, pickedPackage }
+          }
+        } catch (err: unknown) {
+          if (ctx.strictPublishedByCheck && !isMissingTimeError(err)) throw err
         }
-      } catch (err: unknown) {
-        if (ctx.strictPublishedByCheck && !isMissingTimeError(err)) throw err
       }
     }
+  } else if (ctx.offline) {
+    throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror for ${spec.name}`)
   }
 
   try {
-    let etag = metaCachedInStore?.etag
-    let modified = metaCachedInStore?.modified ?? metaCachedInStore?.time?.modified
-    if (!etag || !modified) {
-      const headers = ctx.metadataDb.getHeaders(dbName)
-      etag = etag ?? headers?.etag
-      modified = modified ?? headers?.modified
-    }
     let fetchResult = await ctx.fetch(spec.name, {
       authHeaderValue: opts.authHeaderValue,
       fullMetadata,
-      etag,
-      modified,
+      etag: metaCachedInStore?.etag,
+      modified: metaCachedInStore?.modified ?? metaCachedInStore?.time?.modified,
       registry: opts.registry,
     })
 
     // 304 Not Modified — trust whatever is cached, the registry just validated it
     if (fetchResult.notModified) {
-      metaCachedInStore = metaCachedInStore ?? loadMetaFromDb(ctx.metadataDb, dbName, false)
       if (metaCachedInStore != null) {
         const cachedAt = Date.now()
         metaCachedInStore.cachedAt = cachedAt
-        ctx.metaCache.set(cacheKey, metaCachedInStore)
         ctx.metadataDb.updateCachedAt(dbName, cachedAt)
         return { meta: metaCachedInStore, pickedPackage: _pickPackageFromMeta(metaCachedInStore) }
       }

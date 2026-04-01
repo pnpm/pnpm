@@ -69,6 +69,7 @@ export class MetadataCache {
   private closed = false
   private pendingWrites: PendingWrite[] = []
   private pendingByName = new Map<string, PendingWrite>()
+  private pendingCachedAtUpdates = new Map<string, number>()
   private flushScheduled = false
   private stmtGetHeaders: StatementSync
   private stmtGet: StatementSync
@@ -98,8 +99,9 @@ export class MetadataCache {
           cached_at INTEGER,
           is_full INTEGER NOT NULL DEFAULT 0,
           data TEXT NOT NULL
-        ) WITHOUT ROWID
+        )
       `)
+      this.db.exec('CREATE INDEX IF NOT EXISTS idx_metadata_headers ON metadata (name, etag, modified)')
       // Drop tables from previous schema versions
       this.db.exec('DROP TABLE IF EXISTS metadata_index')
       this.db.exec('DROP TABLE IF EXISTS metadata_blobs')
@@ -171,7 +173,7 @@ export class MetadataCache {
       data: row.data,
       etag: row.etag ?? undefined,
       modified: row.modified ?? undefined,
-      cachedAt: row.cached_at ?? undefined,
+      cachedAt: this.pendingCachedAtUpdates.get(name) ?? row.cached_at ?? undefined,
       isFull: row.is_full === 1,
     }
   }
@@ -191,36 +193,60 @@ export class MetadataCache {
     }
     this.pendingWrites.push(entry)
     this.pendingByName.set(name, entry)
+    this.pendingCachedAtUpdates.delete(name)
+    this.scheduleFlush()
+  }
+
+  updateCachedAt (name: string, cachedAt: number): void {
+    if (this.closed) return
+    const pending = this.findPending(name)
+    if (pending) {
+      pending.cachedAt = cachedAt
+      return
+    }
+    this.pendingCachedAtUpdates.set(name, cachedAt)
+    this.scheduleFlush()
+  }
+
+  private scheduleFlush (): void {
     if (!this.flushScheduled) {
       this.flushScheduled = true
       process.nextTick(() => this.flush())
     }
   }
 
-  updateCachedAt (name: string, cachedAt: number): void {
-    if (this.closed) return
-    sqliteRetry(() => {
-      this.stmtUpdateCachedAt.run(cachedAt, name)
-    })
-  }
-
   flush (): void {
     this.flushScheduled = false
-    if (this.pendingWrites.length === 0 || this.closed) return
+    if (this.pendingWrites.length === 0 && this.pendingCachedAtUpdates.size === 0) return
+    if (this.closed) return
+
     const writes = this.pendingWrites
     this.pendingWrites = []
     this.pendingByName.clear()
+
+    const updates = Array.from(this.pendingCachedAtUpdates.entries())
+    this.pendingCachedAtUpdates.clear()
+
     sqliteRetry(() => {
-      if (writes.length === 1) {
-        const w = writes[0]
-        this.stmtSet.run(w.name, w.etag, w.modified, w.cachedAt, w.isFull ? 1 : 0, w.data)
+      if (writes.length + updates.length === 1) {
+        if (writes.length === 1) {
+          const w = writes[0]
+          this.stmtSet.run(w.name, w.etag, w.modified, w.cachedAt, w.isFull ? 1 : 0, w.data)
+        } else {
+          const [name, cachedAt] = updates[0]
+          this.stmtUpdateCachedAt.run(cachedAt, name)
+        }
         return
       }
+
       this.db.exec('BEGIN IMMEDIATE')
       let committed = false
       try {
         for (const w of writes) {
           this.stmtSet.run(w.name, w.etag, w.modified, w.cachedAt, w.isFull ? 1 : 0, w.data)
+        }
+        for (const [name, cachedAt] of updates) {
+          this.stmtUpdateCachedAt.run(cachedAt, name)
         }
         this.db.exec('COMMIT')
         committed = true
