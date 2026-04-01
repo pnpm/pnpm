@@ -7,6 +7,7 @@ import {
   statsLogger,
 } from '@pnpm/core-loggers'
 import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
+import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { symlinkDependency } from '@pnpm/fs.symlink-dependency'
 import type {
   DependenciesGraph,
@@ -372,21 +373,39 @@ async function linkNewPackages (
 
   const existingWithUpdatedDeps: ModulesLinkJob[] = []
   if (!opts.force && (currentLockfile.packages != null) && (wantedLockfile.packages != null)) {
+    const currentPackages = currentLockfile.packages
+    const wantedPackages = wantedLockfile.packages
     // add subdependencies that have been updated
-    for (const depPath of wantedRelDepPaths) {
-      if (currentLockfile.packages[depPath] &&
-        (!equals(currentLockfile.packages[depPath].dependencies, wantedLockfile.packages[depPath].dependencies) ||
-        !isEmpty(currentLockfile.packages[depPath].optionalDependencies ?? {}) ||
-        !isEmpty(wantedLockfile.packages[depPath].optionalDependencies ?? {}))
+    await Promise.all(wantedRelDepPaths.map(async (depPath) => {
+      if (currentPackages[depPath] &&
+        (!equals(currentPackages[depPath].dependencies, wantedPackages[depPath].dependencies) ||
+        !isEmpty(currentPackages[depPath].optionalDependencies ?? {}) ||
+        !isEmpty(wantedPackages[depPath].optionalDependencies ?? {}))
       ) {
         // TODO: come up with a test that triggers the usecase of depGraph[depPath] undefined
         // see related issue: https://github.com/pnpm/pnpm/issues/870
         if (depGraph[depPath] && !newDepPathsSet.has(depPath)) {
+          const { actualChildrenChanged, removedAliases: actualRemovedAliases } = await getActualChildrenDiff(
+            depGraph[depPath],
+            depGraph,
+            opts.lockfileDir,
+            opts.optional
+          )
+          if (actualChildrenChanged) {
+            existingWithUpdatedDeps.push({
+              children: depGraph[depPath].children,
+              modules: depGraph[depPath].modules,
+              name: depGraph[depPath].name,
+              optionalDependencies: depGraph[depPath].optionalDependencies,
+              removedAliases: actualRemovedAliases,
+            })
+            return
+          }
           const { changedChildren, removedAliases } = getChangedChildren(
-            currentLockfile.packages[depPath].dependencies,
-            currentLockfile.packages[depPath].optionalDependencies,
-            wantedLockfile.packages[depPath].dependencies,
-            wantedLockfile.packages[depPath].optionalDependencies,
+            currentPackages[depPath].dependencies,
+            currentPackages[depPath].optionalDependencies,
+            wantedPackages[depPath].dependencies,
+            wantedPackages[depPath].optionalDependencies,
             depGraph[depPath].children
           )
           if (!isEmpty(changedChildren) || removedAliases.length > 0) {
@@ -400,7 +419,7 @@ async function linkNewPackages (
           }
         }
       }
-    }
+    }))
   }
 
   if (!newDepPathsSet.size && (existingWithUpdatedDeps.length === 0)) return { newDepPaths: [], added }
@@ -538,21 +557,8 @@ async function linkAllModules (
   await Promise.all(depNodes.flatMap((depNode) => (depNode.removedAliases ?? []).map(async (alias) => removeObsoleteChild(depNode.modules, alias))))
   await symlinkAllModules({
     deps: depNodes.map((depNode) => {
-      const children = opts.optional
-        ? depNode.children
-        : pickBy((_, childAlias) => !depNode.optionalDependencies.has(childAlias), depNode.children)
-      const childrenPaths: Record<string, string> = {}
-      for (const [alias, childDepPath] of Object.entries(children ?? {})) {
-        if (childDepPath.startsWith('link:')) {
-          childrenPaths[alias] = path.resolve(opts.lockfileDir, childDepPath.slice(5))
-        } else {
-          const pkg = depGraph[childDepPath]
-          if (!pkg || !pkg.installable && pkg.optional || alias === depNode.name) continue
-          childrenPaths[alias] = pkg.dir
-        }
-      }
       return {
-        children: childrenPaths,
+        children: getChildrenPaths(depNode, depGraph, opts.lockfileDir, opts.optional),
         modules: depNode.modules,
         name: depNode.name,
       }
@@ -594,9 +600,49 @@ function getChangedChildren (
   return { changedChildren, removedAliases }
 }
 
+async function getActualChildrenDiff (
+  depNode: ModulesLinkJob,
+  depGraph: DependenciesGraph,
+  lockfileDir: string,
+  optional: boolean
+): Promise<{ actualChildrenChanged: boolean, removedAliases: string[] }> {
+  if (depNode.optionalDependencies.size === 0) {
+    return { actualChildrenChanged: false, removedAliases: [] }
+  }
+  const currentAliases = new Set((await readModulesDir(depNode.modules) ?? []).filter((alias) => alias !== depNode.name))
+  const nextAliases = new Set(Object.keys(getChildrenPaths(depNode, depGraph, lockfileDir, optional)))
+  const removedAliases = Array.from(currentAliases).filter((alias) => !nextAliases.has(alias))
+  const actualChildrenChanged = removedAliases.length > 0 ||
+    Array.from(nextAliases).some((alias) => !currentAliases.has(alias))
+  return { actualChildrenChanged, removedAliases }
+}
+
 async function removeObsoleteChild (modulesDir: string, alias: string): Promise<void> {
   await rimraf(path.join(modulesDir, alias))
   if (alias[0] === '@') {
     await fs.rmdir(path.join(modulesDir, alias.split('/')[0])).catch(() => {})
   }
+}
+
+function getChildrenPaths (
+  depNode: ModulesLinkJob,
+  depGraph: DependenciesGraph,
+  lockfileDir: string,
+  optional: boolean
+): Record<string, string> {
+  const children = optional
+    ? depNode.children
+    : pickBy((_, childAlias) => !depNode.optionalDependencies.has(childAlias), depNode.children)
+  const childrenPaths: Record<string, string> = {}
+  for (const [alias, childDepPath] of Object.entries(children ?? {})) {
+    if (alias === depNode.name) continue
+    if (childDepPath.startsWith('link:')) {
+      childrenPaths[alias] = path.resolve(lockfileDir, childDepPath.slice(5))
+      continue
+    }
+    const pkg = depGraph[childDepPath]
+    if (!pkg || !pkg.installable && pkg.optional) continue
+    childrenPaths[alias] = pkg.dir
+  }
+  return childrenPaths
 }
