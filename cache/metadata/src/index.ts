@@ -68,6 +68,7 @@ export class MetadataCache {
   private db: DatabaseSyncType
   private closed = false
   private pendingWrites: PendingWrite[] = []
+  private pendingByName = new Map<string, PendingWrite>()
   private flushScheduled = false
   private stmtGetHeaders: StatementSync
   private stmtGet: StatementSync
@@ -126,10 +127,7 @@ export class MetadataCache {
   }
 
   private findPending (name: string): PendingWrite | undefined {
-    for (let i = this.pendingWrites.length - 1; i >= 0; i--) {
-      if (this.pendingWrites[i].name === name) return this.pendingWrites[i]
-    }
-    return undefined
+    return this.pendingByName.get(name)
   }
 
   getHeaders (name: string): MetadataHeaders | undefined {
@@ -183,14 +181,16 @@ export class MetadataCache {
     data: string,
     opts: { etag?: string, modified?: string, cachedAt: number, isFull?: boolean }
   ): void {
-    this.pendingWrites.push({
+    const entry: PendingWrite = {
       name,
       etag: opts.etag ?? null,
       modified: opts.modified ?? null,
       cachedAt: opts.cachedAt,
       isFull: opts.isFull ?? false,
       data,
-    })
+    }
+    this.pendingWrites.push(entry)
+    this.pendingByName.set(name, entry)
     if (!this.flushScheduled) {
       this.flushScheduled = true
       process.nextTick(() => this.flush())
@@ -209,6 +209,7 @@ export class MetadataCache {
     if (this.pendingWrites.length === 0 || this.closed) return
     const writes = this.pendingWrites
     this.pendingWrites = []
+    this.pendingByName.clear()
     sqliteRetry(() => {
       if (writes.length === 1) {
         const w = writes[0]
