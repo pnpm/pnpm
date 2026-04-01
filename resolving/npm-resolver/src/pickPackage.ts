@@ -247,6 +247,7 @@ export async function pickPackage (
 
       const cachedAt = Date.now()
       let meta = fetchResult.meta
+      let resultToSave: FetchMetadataResult = fetchResult
 
       // When minimumReleaseAge is active and we fetched abbreviated metadata,
       // check if the package was recently modified and needs full metadata
@@ -272,12 +273,15 @@ export async function pickPackage (
               }
             }))
           }
-          fetchResult = await ctx.fetch(spec.name, {
+          const fullFetchResult = await ctx.fetch(spec.name, {
             authHeaderValue: opts.authHeaderValue,
             fullMetadata: true,
             registry: opts.registry,
           })
-          meta = fetchResult.meta
+          if (!fullFetchResult.notModified) {
+            resultToSave = fullFetchResult
+            meta = fullFetchResult.meta
+          }
         }
       }
 
@@ -285,11 +289,11 @@ export async function pickPackage (
         meta = clearMeta(meta)
       }
       meta.cachedAt = cachedAt
-      meta.etag = fetchResult.etag
+      meta.etag = resultToSave.etag
       // only save meta to cache, when it is fresh
       ctx.metaCache.set(cacheKey, meta)
       if (!opts.dryRun) {
-        const jsonForDisk = ctx.filterMetadata ? JSON.stringify(meta) : prepareJsonForDisk(fetchResult, cachedAt)
+        const jsonForDisk = ctx.filterMetadata ? JSON.stringify(meta) : prepareJsonForDisk(resultToSave, cachedAt)
         runLimited(pkgMirror, (limit) => limit(async () => {
           try {
             await saveMeta(pkgMirror, jsonForDisk)
