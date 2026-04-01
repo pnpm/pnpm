@@ -96,7 +96,7 @@ export async function pickPackage (
 
   let metaCachedInStore: PackageMeta | null | undefined
   if (ctx.offline === true || ctx.preferOffline === true || opts.pickLowestVersion) {
-    metaCachedInStore = await loadMetaFromDb(ctx.metadataDb, dbName, fullMetadata)
+    metaCachedInStore = loadMetaFromDb(ctx.metadataDb, dbName, fullMetadata)
 
     if (ctx.offline) {
       if (metaCachedInStore != null) return {
@@ -115,7 +115,7 @@ export async function pickPackage (
   }
 
   if (!opts.updateToLatest && spec.type === 'version') {
-    metaCachedInStore = metaCachedInStore ?? await loadMetaFromDb(ctx.metadataDb, dbName, fullMetadata)
+    metaCachedInStore = metaCachedInStore ?? loadMetaFromDb(ctx.metadataDb, dbName, fullMetadata)
     if ((metaCachedInStore?.versions?.[spec.fetchSpec]) != null) {
       try {
         const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
@@ -128,7 +128,7 @@ export async function pickPackage (
     }
   }
   if (opts.publishedBy) {
-    metaCachedInStore = metaCachedInStore ?? await loadMetaFromDb(ctx.metadataDb, dbName, fullMetadata)
+    metaCachedInStore = metaCachedInStore ?? loadMetaFromDb(ctx.metadataDb, dbName, fullMetadata)
     if (metaCachedInStore?.cachedAt && new Date(metaCachedInStore.cachedAt) >= opts.publishedBy) {
       try {
         const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
@@ -159,7 +159,7 @@ export async function pickPackage (
 
     // 304 Not Modified — trust whatever is cached, the registry just validated it
     if (fetchResult.notModified) {
-      metaCachedInStore = metaCachedInStore ?? await loadMetaFromDb(ctx.metadataDb, dbName, false)
+      metaCachedInStore = metaCachedInStore ?? loadMetaFromDb(ctx.metadataDb, dbName, false)
       if (metaCachedInStore != null) {
         const cachedAt = Date.now()
         metaCachedInStore.cachedAt = cachedAt
@@ -225,7 +225,7 @@ export async function pickPackage (
     return { meta, pickedPackage: _pickPackageFromMeta(meta) }
   } catch (err: any) { // eslint-disable-line
     err.spec = spec
-    const meta = await loadMetaFromDb(ctx.metadataDb, dbName, fullMetadata)
+    const meta = loadMetaFromDb(ctx.metadataDb, dbName, fullMetadata)
     if (meta == null) throw err
     logger.error(err, err)
     logger.debug({ message: `Using cached meta from DB for ${spec.name}` })
@@ -268,12 +268,7 @@ function clearMeta (pkg: PackageMeta): PackageMeta {
   }
 }
 
-const yieldToEventLoop = (): Promise<void> => new Promise((resolve) => {
-  setImmediate(resolve)
-})
-
-async function loadMetaFromDb (db: MetadataCache, name: string, needsFull: boolean): Promise<PackageMeta | null> {
-  await yieldToEventLoop()
+function loadMetaFromDb (db: MetadataCache, name: string, needsFull: boolean): PackageMeta | null {
   const row = db.get(name)
   if (!row) return null
   if (needsFull && !row.isFull) return null
