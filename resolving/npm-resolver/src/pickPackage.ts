@@ -84,7 +84,7 @@ export async function pickPackage (
   const fullMetadata = opts.optional === true || ctx.fullMetadata === true
   const registryName = getRegistryHost(opts.registry)
   const dbName = `${registryName}/${spec.name}`
-  const cacheKey = fullMetadata ? `${dbName}:full` : dbName
+  const cacheKey = fullMetadata ? `${spec.name}:full` : spec.name
 
   let metaCachedInStore: PackageMeta | null | undefined = ctx.metaCache.get(cacheKey)
   if (metaCachedInStore == null) {

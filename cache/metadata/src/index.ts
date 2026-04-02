@@ -25,7 +25,10 @@ function sqliteRetry<T> (fn: () => T): T {
 }
 
 function isSqliteBusy (err: any): boolean { // eslint-disable-line @typescript-eslint/no-explicit-any
-  return (err?.errcode & 0xFF) === SQLITE_BUSY
+  if (typeof err?.errcode === 'number') {
+    return (err.errcode & 0xFF) === SQLITE_BUSY
+  }
+  return err?.code === 'ERR_SQLITE_BUSY' || (err?.message && String(err.message).includes('BUSY'))
 }
 
 const sleepBuffer = new Int32Array(new SharedArrayBuffer(4))
@@ -81,16 +84,18 @@ export class MetadataCache {
 
   constructor (cacheDir: string) {
     const dbPath = path.join(cacheDir, 'metadata.db')
+    const dbExists = fs.existsSync(dbPath)
     fs.mkdirSync(cacheDir, { recursive: true })
     this.db = new DatabaseSync(dbPath)
     this.db.exec('PRAGMA busy_timeout=5000')
     sqliteRetry(() => {
+      if (!dbExists) {
+        this.db.exec('PRAGMA page_size=16384')
+      }
       this.db.exec('PRAGMA journal_mode=WAL')
       this.db.exec('PRAGMA synchronous=NORMAL')
       this.db.exec('PRAGMA mmap_size=536870912')
-      this.db.exec('PRAGMA cache_size=-32000')
-      this.db.exec('PRAGMA temp_store=MEMORY')
-      this.db.exec('PRAGMA wal_autocheckpoint=10000')
+      this.db.exec('PRAGMA cache_size=-64000')
       this.db.exec(`
         CREATE TABLE IF NOT EXISTS metadata (
           name TEXT PRIMARY KEY,
@@ -99,13 +104,13 @@ export class MetadataCache {
           cached_at INTEGER,
           is_full INTEGER NOT NULL DEFAULT 0,
           data TEXT NOT NULL
-        )
+        ) WITHOUT ROWID
       `)
-      this.db.exec('CREATE INDEX IF NOT EXISTS idx_metadata_headers ON metadata (name, etag, modified)')
       // Drop tables from previous schema versions
       this.db.exec('DROP TABLE IF EXISTS metadata_index')
       this.db.exec('DROP TABLE IF EXISTS metadata_blobs')
       this.db.exec('DROP TABLE IF EXISTS metadata_manifests')
+      this.db.exec('DROP INDEX IF EXISTS idx_metadata_headers')
     })
     this.stmtGetHeaders = this.db.prepare(
       'SELECT etag, modified FROM metadata WHERE name = ?'
