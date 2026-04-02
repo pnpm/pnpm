@@ -1,3 +1,6 @@
+import { execFile } from 'node:child_process'
+import readline from 'node:readline'
+
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { fetch } from '@pnpm/network.fetch'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
@@ -28,8 +31,10 @@ type SharedContext =
 
 export const SHARED_CONTEXT: SharedContext = {
   Date,
+  createReadlineInterface: readline.createInterface.bind(null, { input: process.stdin }),
   ciInfo,
   enquirer,
+  execFile,
   fetch,
   globalInfo,
   globalWarn,

@@ -7,6 +7,14 @@ export {
   type WebAuthFetchResponse,
   type WebAuthFetchResponseHeaders,
 } from './pollForWebAuthToken.js'
+export {
+  promptBrowserOpen,
+  type PromptBrowserOpenContext,
+  type PromptBrowserOpenExecFile,
+  type PromptBrowserOpenParams,
+  type PromptBrowserOpenProcess,
+  type PromptBrowserOpenReadlineInterface,
+} from './promptBrowserOpen.js'
 export { WebAuthTimeoutError } from './WebAuthTimeoutError.js'
 export {
   isOtpError,
@@ -14,6 +22,7 @@ export {
   type OtpEnquirer,
   type OtpHandlingParams,
   OtpNonInteractiveError,
+  type OtpProcess,
   type OtpPromptOptions,
   type OtpPromptResponse,
   OtpSecondChallengeError,

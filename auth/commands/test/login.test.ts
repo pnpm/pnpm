@@ -9,9 +9,16 @@ const TEST_CONTEXT: LoginContext = {
   setTimeout: cb => {
     cb()
   },
+  createReadlineInterface: () => ({
+    once: () => {},
+    close: () => {},
+  }),
   enquirer: { prompt: async () => {
     throw new Error('Unexpected call to enquirer.prompt')
   } },
+  execFile: () => {
+    throw new Error('Unexpected call to execFile')
+  },
   fetch: async url => {
     throw new Error(`Unexpected call to fetch: ${url}`)
   },
@@ -22,6 +29,7 @@ const TEST_CONTEXT: LoginContext = {
     throw new Error(`Unexpected call to globalWarn: ${message}`)
   },
   process: {
+    platform: 'linux',
     stdin: { isTTY: true },
     stdout: { isTTY: true },
   },
@@ -62,9 +70,17 @@ const createMockResponse = (init: {
   }
 }
 
-const createMockContext = (overrides?: Partial<LoginContext>): LoginContext => ({
+type MockContextOverrides = Omit<Partial<LoginContext>, 'process'> & {
+  process?: Partial<LoginContext['process']>
+}
+
+const createMockContext = (overrides?: MockContextOverrides): LoginContext => ({
   ...TEST_CONTEXT,
   ...overrides,
+  process: {
+    ...TEST_CONTEXT.process,
+    ...overrides?.process,
+  },
 })
 
 describe('login', () => {
@@ -72,7 +88,6 @@ describe('login', () => {
     const context = createMockContext({
       process: {
         stdin: { isTTY: false },
-        stdout: { isTTY: true },
       },
     })
     const opts = { configDir: '/mock/config', dir: '/mock', rawConfig: {} }
@@ -123,7 +138,10 @@ describe('login', () => {
     expect(savedSettings).toMatchObject({
       '//example.com/npm/:_authToken': 'web-auth-token-123',
     })
-    expect(globalInfo.mock.calls).toEqual([[expect.stringContaining('https://example.com/auth/login')]])
+    expect(globalInfo.mock.calls).toEqual([
+      [expect.stringContaining('https://example.com/auth/login')],
+      ['Press ENTER to open the URL in your browser.'],
+    ])
   })
 
   it('should fall back to classic login when web login returns 404', async () => {
@@ -559,6 +577,9 @@ describe('login', () => {
     const promise = login({ context, opts })
     await expect(promise).rejects.toHaveProperty(['code'], 'EACCES')
     await expect(promise).rejects.toHaveProperty(['message'], 'EACCES: permission denied')
-    expect(globalInfo.mock.calls).toEqual([[expect.stringContaining('https://example.org/auth/login')]])
+    expect(globalInfo.mock.calls).toEqual([
+      [expect.stringContaining('https://example.org/auth/login')],
+      ['Press ENTER to open the URL in your browser.'],
+    ])
   })
 })

@@ -1,4 +1,6 @@
+import { execFile } from 'node:child_process'
 import path from 'node:path'
+import readline from 'node:readline'
 import util from 'node:util'
 
 import { docsUrl } from '@pnpm/cli.utils'
@@ -9,6 +11,9 @@ import { fetch } from '@pnpm/network.fetch'
 import {
   generateQrCode,
   pollForWebAuthToken,
+  promptBrowserOpen,
+  type PromptBrowserOpenExecFile,
+  type PromptBrowserOpenReadlineInterface,
   SyntheticOtpError,
   type WebAuthFetchOptions,
   withOtpHandling,
@@ -121,14 +126,22 @@ export interface LoginFetchOptions {
   timeout?: number
 }
 
+export interface LoginProcess {
+  platform: NodeJS.Platform
+  stdin: { isTTY?: boolean }
+  stdout: { isTTY?: boolean }
+}
+
 export interface LoginContext {
   Date: LoginDate
   setTimeout: (cb: () => void, ms: number) => void
+  createReadlineInterface: () => PromptBrowserOpenReadlineInterface
   enquirer: LoginEnquirer
+  execFile: PromptBrowserOpenExecFile
   fetch: (url: string, options?: LoginFetchOptions) => Promise<LoginFetchResponse>
   globalInfo: (message: string) => void
   globalWarn: (message: string) => void
-  process: Record<'stdin' | 'stdout', { isTTY?: boolean }>
+  process: LoginProcess
   readIniFile: (configPath: string) => Promise<object>
   writeIniFile: (configPath: string, settings: Record<string, unknown>) => Promise<void>
 }
@@ -136,7 +149,9 @@ export interface LoginContext {
 export const DEFAULT_CONTEXT: LoginContext = {
   Date,
   setTimeout,
+  createReadlineInterface: readline.createInterface.bind(null, { input: process.stdin }),
   enquirer,
+  execFile,
   fetch,
   globalInfo,
   globalWarn,
@@ -196,7 +211,7 @@ export async function login ({ context = DEFAULT_CONTEXT, opts }: LoginParams): 
 }
 
 interface WebLoginParams {
-  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'fetch' | 'globalInfo'>
+  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'createReadlineInterface' | 'execFile' | 'fetch' | 'globalInfo' | 'globalWarn' | 'process'>
   fetchOptions: WebAuthFetchOptions
   registry: string
 }
@@ -237,11 +252,17 @@ async function webLogin ({
   const qrCode = generateQrCode(body.loginUrl)
   globalInfo(`Authenticate your account at:\n${body.loginUrl}\n\n${qrCode}`)
 
-  return pollForWebAuthToken({ context, doneUrl: body.doneUrl, fetchOptions })
+  const pollPromise = pollForWebAuthToken({ context, doneUrl: body.doneUrl, fetchOptions })
+
+  return promptBrowserOpen({
+    authUrl: body.loginUrl,
+    context,
+    pollPromise,
+  })
 }
 
 interface ClassicLoginParams {
-  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'enquirer' | 'fetch' | 'globalInfo' | 'globalWarn' | 'process'>
+  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'createReadlineInterface' | 'enquirer' | 'execFile' | 'fetch' | 'globalInfo' | 'globalWarn' | 'process'>
   fetchOptions: WebAuthFetchOptions
   registry: string
 }
