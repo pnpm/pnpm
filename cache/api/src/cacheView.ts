@@ -24,7 +24,8 @@ export async function cacheView (opts: { cacheDir: string, storeDir: string, reg
       const registryName = name.slice(0, slashIdx)
       const row = db.get(name)
       if (!row) continue
-      const meta = JSON.parse(row.data) as { 'dist-tags': Record<string, string>, versions: Record<string, { name?: string, dist?: { integrity?: string } }> }
+      const data = typeof row.data === 'string' ? row.data : Buffer.from(row.data).toString()
+      const meta = JSON.parse(data) as { 'dist-tags': Record<string, string>, versions: Record<string, { name?: string, dist?: { integrity?: string } }> }
       const cachedVersions: string[] = []
       const nonCachedVersions: string[] = []
       for (const [version, manifest] of Object.entries(meta.versions)) {

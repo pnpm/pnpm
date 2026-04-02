@@ -16,7 +16,10 @@ export async function retryLoadFromCache (cacheDir: string, name: string, _type?
     const db = new MetadataCache(cacheDir)
     try {
       const row = db.get(dbName)
-      if (row) return JSON.parse(row.data)
+      if (row) {
+        const data = typeof row.data === 'string' ? row.data : Buffer.from(row.data).toString()
+        return JSON.parse(data)
+      }
       if (retry > 2) throw new Error(`No cache entry found for ${dbName}`)
       retry++
     } finally {
