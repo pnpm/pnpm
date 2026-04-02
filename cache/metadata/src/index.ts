@@ -12,7 +12,7 @@ export interface MetadataHeaders {
 }
 
 export interface MetadataRow {
-  data: string | Uint8Array
+  data: Uint8Array | string
   etag?: string
   modified?: string
   cachedAt?: number
@@ -63,6 +63,7 @@ function getDbState (cacheDir: string): DbState {
   db.exec('PRAGMA cache_size=-64000')
   db.exec('PRAGMA temp_store=MEMORY')
   db.exec('PRAGMA wal_autocheckpoint=10000')
+  db.exec('PRAGMA journal_size_limit=67108864')
   db.exec(`
     CREATE TABLE IF NOT EXISTS metadata (
       name TEXT PRIMARY KEY,
@@ -70,7 +71,7 @@ function getDbState (cacheDir: string): DbState {
       modified TEXT,
       cached_at INTEGER,
       is_full INTEGER NOT NULL DEFAULT 0,
-      data TEXT NOT NULL
+      data BLOB NOT NULL
     )
   `)
   db.exec('CREATE INDEX IF NOT EXISTS idx_metadata_headers ON metadata (name, etag, modified)')
@@ -203,7 +204,7 @@ export class MetadataCache {
       }
     }
     const row = this.state.stmtGet.get(name) as {
-      data: string | Uint8Array
+      data: Uint8Array | string
       etag: string | null
       modified: string | null
       cached_at: number | null
