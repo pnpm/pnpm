@@ -39,7 +39,8 @@ describe('isEmptyDirOrNothing', () => {
   })
 
   it('should return false on an empty file', () => {
-    const emptyFilePath = path.join(os.tmpdir(), `empty-file-${process.pid}-${Date.now()}`)
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'is-empty-dir-or-nothing-'))
+    const emptyFilePath = path.join(tempDir, 'empty-file')
     fs.writeFileSync(emptyFilePath, '', 'utf8')
 
     try {
@@ -47,7 +48,7 @@ describe('isEmptyDirOrNothing', () => {
 
       expect(result).toBe(false)
     } finally {
-      fs.unlinkSync(emptyFilePath)
+      fs.rmSync(tempDir, { recursive: true, force: true })
     }
   })
 })
