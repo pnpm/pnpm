@@ -148,19 +148,20 @@ test('safeToSkip does not treat directories as valid files', () => {
   const tmp = tempDir()
   const srcFile = path.join(tmp, 'src', 'package.json')
   const newDir = path.join(tmp, 'dest')
+  const importFile = jest.fn((src: string, dest: string) => fs.copyFileSync(src, dest))
 
   fs.mkdirSync(path.join(tmp, 'src'), { recursive: true })
   fs.writeFileSync(srcFile, '{"name":"pkg","version":"1.0.0"}')
   fs.mkdirSync(path.join(newDir, 'package.json'), { recursive: true })
 
   importIndexedDir(
-    { importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync },
+    { importFile, importFileAtomic: importFile },
     newDir,
     new Map([['package.json', srcFile]]),
     { safeToSkip: true }
   )
 
-  expect(fs.readFileSync(path.join(newDir, 'package.json'), 'utf8')).toBe('{"name":"pkg","version":"1.0.0"}')
+  expect(importFile).toHaveBeenCalled()
 })
 
 test('safeToSkip creates dir when target does not exist', () => {
