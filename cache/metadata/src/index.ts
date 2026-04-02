@@ -47,7 +47,7 @@ interface DbState {
   pendingByName: Map<string, PendingWrite>
   pendingCachedAtUpdates: Map<string, number>
   flushScheduled: boolean
-  headerCache: Map<string, HeaderEntry>
+  headerCache: Map<string, HeaderEntry | null>
 }
 
 const dbStates = new Map<string, DbState>()
@@ -61,17 +61,21 @@ function getDbState (cacheDir: string): DbState {
   fs.mkdirSync(resolvedDir, { recursive: true })
   const dbExists = fs.existsSync(dbPath)
   const db = new DatabaseSync(dbPath)
+
+  // High-performance PRAGMAs
   db.exec('PRAGMA busy_timeout=5000')
   if (!dbExists) {
     db.exec('PRAGMA page_size=16384')
   }
   db.exec('PRAGMA journal_mode=WAL')
   db.exec('PRAGMA synchronous=OFF')
+  db.exec('PRAGMA locking_mode=EXCLUSIVE') // Drastically speeds up single-process access
   db.exec('PRAGMA mmap_size=536870912')
   db.exec('PRAGMA cache_size=-64000')
   db.exec('PRAGMA temp_store=MEMORY')
   db.exec('PRAGMA wal_autocheckpoint=10000')
   db.exec('PRAGMA journal_size_limit=67108864')
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS metadata (
       name TEXT PRIMARY KEY,
@@ -80,32 +84,14 @@ function getDbState (cacheDir: string): DbState {
       cached_at INTEGER,
       is_full INTEGER NOT NULL DEFAULT 0,
       data TEXT NOT NULL
-    ) WITHOUT ROWID
+    )
   `)
   db.exec('CREATE INDEX IF NOT EXISTS idx_metadata_headers ON metadata (name, etag, modified)')
-
-  // Populate header cache
-  const headerCache = new Map<string, HeaderEntry>()
-  const rows = db.prepare('SELECT name, etag, modified, cached_at, is_full FROM metadata').all() as Array<{
-    name: string
-    etag: string | null
-    modified: string | null
-    cached_at: number | null
-    is_full: number
-  }>
-  for (const row of rows) {
-    headerCache.set(row.name, {
-      etag: row.etag ?? undefined,
-      modified: row.modified ?? undefined,
-      cachedAt: row.cached_at ?? undefined,
-      isFull: row.is_full === 1,
-    })
-  }
 
   state = {
     db,
     stmtGet: db.prepare('SELECT data, etag, modified, cached_at, is_full FROM metadata WHERE name = ?'),
-    stmtGetHeaders: db.prepare('SELECT etag, modified FROM metadata WHERE name = ?'),
+    stmtGetHeaders: db.prepare('SELECT etag, modified, cached_at, is_full FROM metadata WHERE name = ?'),
     stmtSet: db.prepare('INSERT OR REPLACE INTO metadata (name, etag, modified, cached_at, is_full, data) VALUES (?, ?, ?, ?, ?, ?)'),
     stmtDelete: db.prepare('DELETE FROM metadata WHERE name = ?'),
     stmtListNames: db.prepare('SELECT name FROM metadata'),
@@ -114,7 +100,7 @@ function getDbState (cacheDir: string): DbState {
     pendingByName: new Map(),
     pendingCachedAtUpdates: new Map(),
     flushScheduled: false,
-    headerCache,
+    headerCache: new Map(), // Lazy populated
   }
   dbStates.set(resolvedDir, state)
   return state
@@ -197,6 +183,32 @@ export class MetadataCache {
     this.state = getDbState(cacheDir)
   }
 
+  private getHeader (name: string): HeaderEntry | undefined {
+    const cached = this.state.headerCache.get(name)
+    if (cached !== undefined) return cached ?? undefined
+
+    const row = this.state.stmtGetHeaders.get(name) as {
+      etag: string | null
+      modified: string | null
+      cached_at: number | null
+      is_full: number
+    } | undefined
+
+    if (!row) {
+      this.state.headerCache.set(name, null)
+      return undefined
+    }
+
+    const entry: HeaderEntry = {
+      etag: row.etag ?? undefined,
+      modified: row.modified ?? undefined,
+      cachedAt: row.cached_at ?? undefined,
+      isFull: row.is_full === 1,
+    }
+    this.state.headerCache.set(name, entry)
+    return entry
+  }
+
   getHeaders (name: string): MetadataHeaders | undefined {
     const pending = this.state.pendingByName.get(name)
     if (pending) {
@@ -205,7 +217,7 @@ export class MetadataCache {
         modified: pending.modified ?? undefined,
       }
     }
-    const header = this.state.headerCache.get(name)
+    const header = this.getHeader(name)
     if (!header) return undefined
     return {
       etag: header.etag,
@@ -224,7 +236,9 @@ export class MetadataCache {
         isFull: pending.isFull,
       }
     }
-    const header = this.state.headerCache.get(name)
+
+    // Check if we even have this entry before doing a full read
+    const header = this.getHeader(name)
     if (!header) return null
 
     const row = this.state.stmtGet.get(name) as {
@@ -302,12 +316,13 @@ export class MetadataCache {
 
   delete (name: string): boolean {
     const result = this.state.stmtDelete.run(name)
-    this.state.headerCache.delete(name)
+    this.state.headerCache.set(name, null)
     return result.changes > 0
   }
 
   listNames (): string[] {
-    return Array.from(this.state.headerCache.keys())
+    const rows = this.state.stmtListNames.all() as Array<{ name: string }>
+    return rows.map((r) => r.name)
   }
 
   close (): void {
