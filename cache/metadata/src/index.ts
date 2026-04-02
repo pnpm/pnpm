@@ -62,14 +62,12 @@ function getDbState (cacheDir: string): DbState {
   const dbExists = fs.existsSync(dbPath)
   const db = new DatabaseSync(dbPath)
 
-  // High-performance PRAGMAs
   db.exec('PRAGMA busy_timeout=5000')
   if (!dbExists) {
     db.exec('PRAGMA page_size=16384')
   }
   db.exec('PRAGMA journal_mode=WAL')
-  db.exec('PRAGMA synchronous=OFF')
-  db.exec('PRAGMA locking_mode=EXCLUSIVE') // Drastically speeds up single-process access
+  db.exec('PRAGMA synchronous=NORMAL')
   db.exec('PRAGMA mmap_size=536870912')
   db.exec('PRAGMA cache_size=-64000')
   db.exec('PRAGMA temp_store=MEMORY')
@@ -86,7 +84,6 @@ function getDbState (cacheDir: string): DbState {
       data TEXT NOT NULL
     )
   `)
-  db.exec('CREATE INDEX IF NOT EXISTS idx_metadata_headers ON metadata (name, etag, modified)')
 
   state = {
     db,
@@ -100,46 +97,49 @@ function getDbState (cacheDir: string): DbState {
     pendingByName: new Map(),
     pendingCachedAtUpdates: new Map(),
     flushScheduled: false,
-    headerCache: new Map(), // Lazy populated
+    headerCache: new Map(),
   }
   dbStates.set(resolvedDir, state)
   return state
 }
 
+const MAX_BATCH_SIZE = 20
+
 function flushState (state: DbState): void {
-  state.flushScheduled = false
-  if (state.pendingWrites.length === 0 && state.pendingCachedAtUpdates.size === 0) return
+  if (state.pendingWrites.length === 0 && state.pendingCachedAtUpdates.size === 0) {
+    state.flushScheduled = false
+    return
+  }
 
-  const writes = state.pendingWrites
-  state.pendingWrites = []
-  state.pendingByName.clear()
+  // Process a chunk of writes
+  const writesChunk = state.pendingWrites.splice(0, MAX_BATCH_SIZE)
+  for (const w of writesChunk) {
+    state.pendingByName.delete(w.name)
+  }
 
-  const updates = Array.from(state.pendingCachedAtUpdates.entries())
-  state.pendingCachedAtUpdates.clear()
-
-  if (writes.length + updates.length === 1) {
-    try {
-      if (writes.length === 1) {
-        const w = writes[0]
-        state.stmtSet.run(w.name, w.etag, w.modified, w.cachedAt, w.isFull ? 1 : 0, w.data)
-      } else {
-        const [name, cachedAt] = updates[0]
-        state.stmtUpdateCachedAt.run(cachedAt, name)
-      }
-      return
-    } catch (_err) {
-      // ignore
+  // Process a chunk of updates
+  const updatesChunk: Array<[string, number]> = []
+  if (writesChunk.length < MAX_BATCH_SIZE) {
+    const updatesKeys = Array.from(state.pendingCachedAtUpdates.keys()).slice(0, MAX_BATCH_SIZE - writesChunk.length)
+    for (const key of updatesKeys) {
+      updatesChunk.push([key, state.pendingCachedAtUpdates.get(key)!])
+      state.pendingCachedAtUpdates.delete(key)
     }
+  }
+
+  if (writesChunk.length + updatesChunk.length === 0) {
+    state.flushScheduled = false
+    return
   }
 
   try {
     state.db.exec('BEGIN IMMEDIATE')
     let committed = false
     try {
-      for (const w of writes) {
+      for (const w of writesChunk) {
         state.stmtSet.run(w.name, w.etag, w.modified, w.cachedAt, w.isFull ? 1 : 0, w.data)
       }
-      for (const [name, cachedAt] of updates) {
+      for (const [name, cachedAt] of updatesChunk) {
         state.stmtUpdateCachedAt.run(cachedAt, name)
       }
       state.db.exec('COMMIT')
@@ -154,11 +154,36 @@ function flushState (state: DbState): void {
   } catch (_err) {
     // ignore
   }
+
+  // Schedule next chunk if there's more to do
+  if (state.pendingWrites.length > 0 || state.pendingCachedAtUpdates.size > 0) {
+    setImmediate(() => flushState(state))
+  } else {
+    state.flushScheduled = false
+  }
 }
 
 export function closeAllMetadataCaches (): void {
   for (const state of dbStates.values()) {
-    flushState(state)
+    // Final synchronous flush of everything remaining
+    const writes = state.pendingWrites
+    state.pendingWrites = []
+    const updates = Array.from(state.pendingCachedAtUpdates.entries())
+    state.pendingCachedAtUpdates.clear()
+
+    if (writes.length + updates.length > 0) {
+      try {
+        state.db.exec('BEGIN IMMEDIATE')
+        for (const w of writes) {
+          state.stmtSet.run(w.name, w.etag, w.modified, w.cachedAt, w.isFull ? 1 : 0, w.data)
+        }
+        for (const [name, cachedAt] of updates) {
+          state.stmtUpdateCachedAt.run(cachedAt, name)
+        }
+        state.db.exec('COMMIT')
+      } catch {}
+    }
+
     try {
       state.db.exec('PRAGMA optimize')
       state.db.close()
@@ -168,8 +193,22 @@ export function closeAllMetadataCaches (): void {
 }
 
 process.on('exit', () => {
+  // We can't use setImmediate here, must be sync
   for (const state of dbStates.values()) {
-    flushState(state)
+    const writes = state.pendingWrites
+    const updates = Array.from(state.pendingCachedAtUpdates.entries())
+    if (writes.length + updates.length > 0) {
+      try {
+        state.db.exec('BEGIN IMMEDIATE')
+        for (const w of writes) {
+          state.stmtSet.run(w.name, w.etag, w.modified, w.cachedAt, w.isFull ? 1 : 0, w.data)
+        }
+        for (const [name, cachedAt] of updates) {
+          state.stmtUpdateCachedAt.run(cachedAt, name)
+        }
+        state.db.exec('COMMIT')
+      } catch {}
+    }
     try {
       state.db.close()
     } catch {}
@@ -237,7 +276,6 @@ export class MetadataCache {
       }
     }
 
-    // Check if we even have this entry before doing a full read
     const header = this.getHeader(name)
     if (!header) return null
 
@@ -275,7 +313,6 @@ export class MetadataCache {
     this.state.pendingByName.set(name, entry)
     this.state.pendingCachedAtUpdates.delete(name)
 
-    // Update header cache
     this.state.headerCache.set(name, {
       etag: opts.etag,
       modified: opts.modified,
@@ -294,7 +331,6 @@ export class MetadataCache {
       this.state.pendingCachedAtUpdates.set(name, cachedAt)
     }
 
-    // Update header cache
     const header = this.state.headerCache.get(name)
     if (header) {
       header.cachedAt = cachedAt
@@ -311,7 +347,38 @@ export class MetadataCache {
   }
 
   flush (): void {
-    flushState(this.state)
+    // Process everything immediately
+    while (this.state.pendingWrites.length > 0 || this.state.pendingCachedAtUpdates.size > 0) {
+      const writesChunk = this.state.pendingWrites.splice(0, MAX_BATCH_SIZE)
+      for (const w of writesChunk) {
+        this.state.pendingByName.delete(w.name)
+      }
+      const updatesChunk: Array<[string, number]> = []
+      if (writesChunk.length < MAX_BATCH_SIZE) {
+        const updatesKeys = Array.from(this.state.pendingCachedAtUpdates.keys()).slice(0, MAX_BATCH_SIZE - writesChunk.length)
+        for (const key of updatesKeys) {
+          updatesChunk.push([key, this.state.pendingCachedAtUpdates.get(key)!])
+          this.state.pendingCachedAtUpdates.delete(key)
+        }
+      }
+      if (writesChunk.length + updatesChunk.length > 0) {
+        try {
+          this.state.db.exec('BEGIN IMMEDIATE')
+          for (const w of writesChunk) {
+            this.state.stmtSet.run(w.name, w.etag, w.modified, w.cachedAt, w.isFull ? 1 : 0, w.data)
+          }
+          for (const [name, cachedAt] of updatesChunk) {
+            this.state.stmtUpdateCachedAt.run(cachedAt, name)
+          }
+          this.state.db.exec('COMMIT')
+        } catch {
+          try {
+            this.state.db.exec('ROLLBACK')
+          } catch {}
+        }
+      }
+    }
+    this.state.flushScheduled = false
   }
 
   delete (name: string): boolean {
