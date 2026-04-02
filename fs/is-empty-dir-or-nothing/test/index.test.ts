@@ -37,4 +37,17 @@ describe('isEmptyDirOrNothing', () => {
     const result = isEmptyDirOrNothing(dirWithFilesPath)
     expect(result).toBe(false)
   })
+
+  it('should return false on an empty file', () => {
+    const emptyFilePath = path.join(os.tmpdir(), `empty-file-${process.pid}-${Date.now()}`)
+    fs.writeFileSync(emptyFilePath, '', 'utf8')
+
+    try {
+      const result = isEmptyDirOrNothing(emptyFilePath)
+
+      expect(result).toBe(false)
+    } finally {
+      fs.unlinkSync(emptyFilePath)
+    }
+  })
 })
