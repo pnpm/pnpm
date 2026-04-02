@@ -48,6 +48,7 @@ import {
   type RegistryPackageSpec,
 } from './parseBareSpecifier.js'
 import {
+  clearPickPackageCache,
   pickPackage,
   type PickPackageOptions,
 } from './pickPackage.js'
@@ -221,6 +222,7 @@ export function createNpmResolver (
       offline: opts.offline,
       preferOffline: opts.preferOffline,
       strictPublishedByCheck: opts.strictPublishedByCheck,
+      cacheDir: opts.cacheDir,
     }),
     registries: opts.registries,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
@@ -231,6 +233,7 @@ export function createNpmResolver (
     resolveFromJsr: resolveJsr.bind(null, ctx),
     clearCache: () => {
       metaCache.clear()
+      clearPickPackageCache(opts.cacheDir)
       pMemoizeClear(fetch)
       metadataDb.flush()
     },
