@@ -19,6 +19,13 @@ export interface MetadataRow {
   isFull: boolean
 }
 
+interface HeaderEntry {
+  etag?: string
+  modified?: string
+  cachedAt?: number
+  isFull: boolean
+}
+
 interface PendingWrite {
   name: string
   etag: string | null
@@ -28,16 +35,10 @@ interface PendingWrite {
   data: string | Uint8Array
 }
 
-interface HeaderEntry {
-  etag?: string
-  modified?: string
-  cachedAt?: number
-  isFull: boolean
-}
-
 interface DbState {
   db: DatabaseSyncType
   stmtGet: StatementSync
+  stmtGetHeaders: StatementSync
   stmtSet: StatementSync
   stmtDelete: StatementSync
   stmtListNames: StatementSync
@@ -81,6 +82,7 @@ function getDbState (cacheDir: string): DbState {
       data TEXT NOT NULL
     ) WITHOUT ROWID
   `)
+  db.exec('CREATE INDEX IF NOT EXISTS idx_metadata_headers ON metadata (name, etag, modified)')
 
   // Populate header cache
   const headerCache = new Map<string, HeaderEntry>()
@@ -103,6 +105,7 @@ function getDbState (cacheDir: string): DbState {
   state = {
     db,
     stmtGet: db.prepare('SELECT data, etag, modified, cached_at, is_full FROM metadata WHERE name = ?'),
+    stmtGetHeaders: db.prepare('SELECT etag, modified FROM metadata WHERE name = ?'),
     stmtSet: db.prepare('INSERT OR REPLACE INTO metadata (name, etag, modified, cached_at, is_full, data) VALUES (?, ?, ?, ?, ?, ?)'),
     stmtDelete: db.prepare('DELETE FROM metadata WHERE name = ?'),
     stmtListNames: db.prepare('SELECT name FROM metadata'),
