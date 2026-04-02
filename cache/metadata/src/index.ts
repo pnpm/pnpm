@@ -12,7 +12,7 @@ export interface MetadataHeaders {
 }
 
 export interface MetadataRow {
-  data: Uint8Array | string
+  data: string | Uint8Array
   etag?: string
   modified?: string
   cachedAt?: number
@@ -31,6 +31,7 @@ interface PendingWrite {
 interface DbState {
   db: DatabaseSyncType
   stmtGet: StatementSync
+  stmtGetHeaders: StatementSync
   stmtSet: StatementSync
   stmtDelete: StatementSync
   stmtListNames: StatementSync
@@ -61,6 +62,7 @@ function getDbState (cacheDir: string): DbState {
   db.exec('PRAGMA mmap_size=536870912')
   db.exec('PRAGMA cache_size=-64000')
   db.exec('PRAGMA temp_store=MEMORY')
+  db.exec('PRAGMA wal_autocheckpoint=10000')
   db.exec(`
     CREATE TABLE IF NOT EXISTS metadata (
       name TEXT PRIMARY KEY,
@@ -68,19 +70,21 @@ function getDbState (cacheDir: string): DbState {
       modified TEXT,
       cached_at INTEGER,
       is_full INTEGER NOT NULL DEFAULT 0,
-      data BLOB NOT NULL
+      data TEXT NOT NULL
     )
   `)
+  db.exec('CREATE INDEX IF NOT EXISTS idx_metadata_headers ON metadata (name, etag, modified)')
+
   // Drop tables from previous schema versions
   db.exec('DROP TABLE IF EXISTS metadata_index')
   db.exec('DROP TABLE IF EXISTS metadata_blobs')
   db.exec('DROP TABLE IF EXISTS metadata_manifests')
-  db.exec('DROP INDEX IF EXISTS idx_metadata_headers')
   db.exec('DROP TABLE IF EXISTS lookup_keys')
 
   state = {
     db,
     stmtGet: db.prepare('SELECT data, etag, modified, cached_at, is_full FROM metadata WHERE name = ?'),
+    stmtGetHeaders: db.prepare('SELECT etag, modified FROM metadata WHERE name = ?'),
     stmtSet: db.prepare('INSERT OR REPLACE INTO metadata (name, etag, modified, cached_at, is_full, data) VALUES (?, ?, ?, ?, ?, ?)'),
     stmtDelete: db.prepare('DELETE FROM metadata WHERE name = ?'),
     stmtListNames: db.prepare('SELECT name FROM metadata'),
@@ -104,6 +108,21 @@ function flushState (state: DbState): void {
 
   const updates = Array.from(state.pendingCachedAtUpdates.entries())
   state.pendingCachedAtUpdates.clear()
+
+  if (writes.length + updates.length === 1) {
+    try {
+      if (writes.length === 1) {
+        const w = writes[0]
+        state.stmtSet.run(w.name, w.etag, w.modified, w.cachedAt, w.isFull ? 1 : 0, w.data)
+      } else {
+        const [name, cachedAt] = updates[0]
+        state.stmtUpdateCachedAt.run(cachedAt, name)
+      }
+      return
+    } catch (_err) {
+      // ignore
+    }
+  }
 
   try {
     state.db.exec('BEGIN IMMEDIATE')
@@ -164,7 +183,7 @@ export class MetadataCache {
         modified: pending.modified ?? undefined,
       }
     }
-    const row = this.state.stmtGet.get(name) as { etag: string | null, modified: string | null } | undefined
+    const row = this.state.stmtGetHeaders.get(name) as { etag: string | null, modified: string | null } | undefined
     if (!row) return undefined
     return {
       etag: row.etag ?? undefined,
@@ -184,7 +203,7 @@ export class MetadataCache {
       }
     }
     const row = this.state.stmtGet.get(name) as {
-      data: Uint8Array
+      data: string | Uint8Array
       etag: string | null
       modified: string | null
       cached_at: number | null

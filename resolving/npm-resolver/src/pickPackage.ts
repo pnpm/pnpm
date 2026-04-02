@@ -87,7 +87,9 @@ export async function pickPackage (
   const cacheKey = fullMetadata ? `${spec.name}:full` : spec.name
 
   let metaCachedInStore: PackageMeta | null | undefined = ctx.metaCache.get(cacheKey)
-  if (metaCachedInStore == null) {
+
+  // Lazy load only if definitely needed for picking without fetching
+  if (metaCachedInStore == null && (ctx.offline === true || ctx.preferOffline === true || opts.pickLowestVersion)) {
     metaCachedInStore = loadMetaFromDb(ctx.metadataDb, dbName, fullMetadata)
     if (metaCachedInStore != null) {
       ctx.metaCache.set(cacheKey, metaCachedInStore)
@@ -134,19 +136,29 @@ export async function pickPackage (
   }
 
   try {
+    let etag = metaCachedInStore?.etag
+    let modified = metaCachedInStore?.modified ?? metaCachedInStore?.time?.modified
+    if (!etag || !modified) {
+      const headers = ctx.metadataDb.getHeaders(dbName)
+      etag = etag ?? headers?.etag
+      modified = modified ?? headers?.modified
+    }
+
     let fetchResult = await ctx.fetch(spec.name, {
       authHeaderValue: opts.authHeaderValue,
       fullMetadata,
-      etag: metaCachedInStore?.etag,
-      modified: metaCachedInStore?.modified ?? metaCachedInStore?.time?.modified,
+      etag,
+      modified,
       registry: opts.registry,
     })
 
     // 304 Not Modified — trust whatever is cached, the registry just validated it
     if (fetchResult.notModified) {
-      if (metaCachedInStore != null) {
-        metaCachedInStore.cachedAt = Date.now()
-        return { meta: metaCachedInStore, pickedPackage: _pickPackageFromMeta(metaCachedInStore) }
+      const meta = metaCachedInStore ?? loadMetaFromDb(ctx.metadataDb, dbName, fullMetadata)
+      if (meta != null) {
+        meta.cachedAt = Date.now()
+        ctx.metaCache.set(cacheKey, meta)
+        return { meta, pickedPackage: _pickPackageFromMeta(meta) }
       }
       throw new PnpmError('CACHE_MISSING_AFTER_304',
         `Metadata cache for ${spec.name} is unreadable after receiving 304 Not Modified`)
