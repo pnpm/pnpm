@@ -12,7 +12,7 @@ export interface MetadataHeaders {
 }
 
 export interface MetadataRow {
-  data: string
+  data: Uint8Array | string
   etag?: string
   modified?: string
   cachedAt?: number
@@ -25,7 +25,7 @@ interface PendingWrite {
   modified: string | null
   cachedAt: number
   isFull: boolean
-  data: string
+  data: string | Uint8Array
 }
 
 interface DbState {
@@ -35,7 +35,6 @@ interface DbState {
   stmtDelete: StatementSync
   stmtListNames: StatementSync
   stmtUpdateCachedAt: StatementSync
-  stmtGetMany: StatementSync
   pendingWrites: PendingWrite[]
   pendingByName: Map<string, PendingWrite>
   pendingCachedAtUpdates: Map<string, number>
@@ -69,17 +68,15 @@ function getDbState (cacheDir: string): DbState {
       modified TEXT,
       cached_at INTEGER,
       is_full INTEGER NOT NULL DEFAULT 0,
-      data TEXT NOT NULL
-    ) WITHOUT ROWID
+      data BLOB NOT NULL
+    )
   `)
-  // Create temporary table for batch lookups
-  db.exec('CREATE TEMPORARY TABLE IF NOT EXISTS lookup_keys (name TEXT PRIMARY KEY) WITHOUT ROWID')
-
   // Drop tables from previous schema versions
   db.exec('DROP TABLE IF EXISTS metadata_index')
   db.exec('DROP TABLE IF EXISTS metadata_blobs')
   db.exec('DROP TABLE IF EXISTS metadata_manifests')
   db.exec('DROP INDEX IF EXISTS idx_metadata_headers')
+  db.exec('DROP TABLE IF EXISTS lookup_keys')
 
   state = {
     db,
@@ -88,7 +85,6 @@ function getDbState (cacheDir: string): DbState {
     stmtDelete: db.prepare('DELETE FROM metadata WHERE name = ?'),
     stmtListNames: db.prepare('SELECT name FROM metadata'),
     stmtUpdateCachedAt: db.prepare('UPDATE metadata SET cached_at = ? WHERE name = ?'),
-    stmtGetMany: db.prepare('SELECT m.name, m.data, m.etag, m.modified, m.cached_at, m.is_full FROM metadata m JOIN lookup_keys l ON m.name = l.name'),
     pendingWrites: [],
     pendingByName: new Map(),
     pendingCachedAtUpdates: new Map(),
@@ -108,21 +104,6 @@ function flushState (state: DbState): void {
 
   const updates = Array.from(state.pendingCachedAtUpdates.entries())
   state.pendingCachedAtUpdates.clear()
-
-  if (writes.length + updates.length === 1) {
-    try {
-      if (writes.length === 1) {
-        const w = writes[0]
-        state.stmtSet.run(w.name, w.etag, w.modified, w.cachedAt, w.isFull ? 1 : 0, w.data)
-      } else {
-        const [name, cachedAt] = updates[0]
-        state.stmtUpdateCachedAt.run(cachedAt, name)
-      }
-      return
-    } catch (_err) {
-      // ignore
-    }
-  }
 
   try {
     state.db.exec('BEGIN IMMEDIATE')
@@ -203,7 +184,7 @@ export class MetadataCache {
       }
     }
     const row = this.state.stmtGet.get(name) as {
-      data: string
+      data: Uint8Array
       etag: string | null
       modified: string | null
       cached_at: number | null
@@ -221,7 +202,7 @@ export class MetadataCache {
 
   queueSet (
     name: string,
-    data: string,
+    data: string | Uint8Array,
     opts: { etag?: string, modified?: string, cachedAt: number, isFull?: boolean }
   ): void {
     const entry: PendingWrite = {
@@ -267,63 +248,6 @@ export class MetadataCache {
   listNames (): string[] {
     const rows = this.state.stmtListNames.all()
     return (rows as Array<{ name: string }>).map((r) => r.name)
-  }
-
-  getMany (names: string[]): Record<string, MetadataRow> {
-    if (names.length === 0) return {}
-    const result: Record<string, MetadataRow> = {}
-    const remainingNames: string[] = []
-
-    for (const name of names) {
-      const pending = this.state.pendingByName.get(name)
-      if (pending) {
-        result[name] = {
-          data: pending.data,
-          etag: pending.etag ?? undefined,
-          modified: pending.modified ?? undefined,
-          cachedAt: pending.cachedAt,
-          isFull: pending.isFull,
-        }
-      } else {
-        remainingNames.push(name)
-      }
-    }
-
-    if (remainingNames.length === 0) return result
-
-    this.state.db.exec('DELETE FROM lookup_keys')
-    const stmtInsertKey = this.state.db.prepare('INSERT INTO lookup_keys (name) VALUES (?)')
-    this.state.db.exec('BEGIN TRANSACTION')
-    try {
-      for (const name of remainingNames) {
-        stmtInsertKey.run(name)
-      }
-      this.state.db.exec('COMMIT')
-    } catch (err) {
-      this.state.db.exec('ROLLBACK')
-      throw err
-    }
-
-    const rows = this.state.stmtGetMany.all() as Array<{
-      name: string
-      data: string
-      etag: string | null
-      modified: string | null
-      cached_at: number | null
-      is_full: number
-    }>
-
-    for (const row of rows) {
-      result[row.name] = {
-        data: row.data,
-        etag: row.etag ?? undefined,
-        modified: row.modified ?? undefined,
-        cachedAt: this.state.pendingCachedAtUpdates.get(row.name) ?? row.cached_at ?? undefined,
-        isFull: row.is_full === 1,
-      }
-    }
-
-    return result
   }
 
   close (): void {

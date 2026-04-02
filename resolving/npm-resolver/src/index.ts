@@ -48,7 +48,6 @@ import {
   type RegistryPackageSpec,
 } from './parseBareSpecifier.js'
 import {
-  clearPickPackageCache,
   pickPackage,
   type PickPackageOptions,
 } from './pickPackage.js'
@@ -211,10 +210,6 @@ export function createNpmResolver (
     }
   }
   const metaCache = new Map<string, PackageMeta>()
-  const pendingBatch = {
-    names: new Set<string>(),
-    promise: null,
-  }
   const ctx: ResolveFromNpmContext = {
     getAuthHeaderValueByURI: getAuthHeader,
     pickPackage: pickPackage.bind(null, {
@@ -226,8 +221,6 @@ export function createNpmResolver (
       offline: opts.offline,
       preferOffline: opts.preferOffline,
       strictPublishedByCheck: opts.strictPublishedByCheck,
-      cacheDir: opts.cacheDir,
-      pendingBatch,
     }),
     registries: opts.registries,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
@@ -238,7 +231,6 @@ export function createNpmResolver (
     resolveFromJsr: resolveJsr.bind(null, ctx),
     clearCache: () => {
       metaCache.clear()
-      clearPickPackageCache(opts.cacheDir)
       pMemoizeClear(fetch)
       metadataDb.flush()
     },

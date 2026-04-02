@@ -1,5 +1,3 @@
-import path from 'node:path'
-
 import type { MetadataCache, MetadataRow } from '@pnpm/cache.metadata'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
@@ -40,24 +38,6 @@ function pickPackageFromMetaUsingTime (
   }, spec, meta)
 }
 
-// Use a global cache to share parsed metadata across all resolver instances
-// in the same process. Keyed by absolute cache directory to ensure test isolation.
-const GLOBAL_META_CACHE = new Map<string, PackageMeta>()
-
-export function clearPickPackageCache (cacheDir: string): void {
-  const prefix = path.resolve(cacheDir) + '|'
-  for (const key of GLOBAL_META_CACHE.keys()) {
-    if (key.startsWith(prefix)) {
-      GLOBAL_META_CACHE.delete(key)
-    }
-  }
-}
-
-interface PendingBatch {
-  names: Set<string>
-  promise: Promise<Record<string, MetadataRow>> | null
-}
-
 export async function pickPackage (
   ctx: {
     fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean, etag?: string, modified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
@@ -68,8 +48,6 @@ export async function pickPackage (
     preferOffline?: boolean
     filterMetadata?: boolean
     strictPublishedByCheck?: boolean
-    cacheDir: string
-    pendingBatch?: PendingBatch
   },
   spec: RegistryPackageSpec,
   opts: PickPackageOptions
@@ -107,37 +85,12 @@ export async function pickPackage (
   const registryName = getRegistryHost(opts.registry)
   const dbName = `${registryName}/${spec.name}`
   const cacheKey = fullMetadata ? `${spec.name}:full` : spec.name
-  const globalCacheKey = `${path.resolve(ctx.cacheDir)}|${dbName}${fullMetadata ? ':full' : ''}`
 
-  let metaCachedInStore: PackageMeta | null | undefined = ctx.metaCache.get(cacheKey) ?? GLOBAL_META_CACHE.get(globalCacheKey)
+  let metaCachedInStore: PackageMeta | null | undefined = ctx.metaCache.get(cacheKey)
   if (metaCachedInStore == null) {
-    if (ctx.pendingBatch) {
-      if (!ctx.pendingBatch.promise) {
-        ctx.pendingBatch.promise = new Promise((resolve) => {
-          process.nextTick(() => {
-            const names = Array.from(ctx.pendingBatch!.names)
-            const result = ctx.metadataDb.getMany(names)
-            ctx.pendingBatch!.promise = null
-            ctx.pendingBatch!.names.clear()
-            resolve(result)
-          })
-        })
-      }
-      ctx.pendingBatch.names.add(dbName)
-      const batchResult = await ctx.pendingBatch.promise
-      const row = batchResult[dbName]
-      if (row && (!fullMetadata || row.isFull)) {
-        metaCachedInStore = parseMetaFromRow(row)
-      }
-    }
-
-    if (metaCachedInStore == null) {
-      metaCachedInStore = loadMetaFromDb(ctx.metadataDb, dbName, fullMetadata)
-    }
-
+    metaCachedInStore = loadMetaFromDb(ctx.metadataDb, dbName, fullMetadata)
     if (metaCachedInStore != null) {
       ctx.metaCache.set(cacheKey, metaCachedInStore)
-      GLOBAL_META_CACHE.set(globalCacheKey, metaCachedInStore)
     }
   }
 
@@ -192,9 +145,7 @@ export async function pickPackage (
     // 304 Not Modified — trust whatever is cached, the registry just validated it
     if (fetchResult.notModified) {
       if (metaCachedInStore != null) {
-        const cachedAt = Date.now()
-        metaCachedInStore.cachedAt = cachedAt
-        ctx.metadataDb.updateCachedAt(dbName, cachedAt)
+        metaCachedInStore.cachedAt = Date.now()
         return { meta: metaCachedInStore, pickedPackage: _pickPackageFromMeta(metaCachedInStore) }
       }
       throw new PnpmError('CACHE_MISSING_AFTER_304',
@@ -242,7 +193,6 @@ export async function pickPackage (
     meta.cachedAt = cachedAt
     meta.etag = fetchResult.etag
     ctx.metaCache.set(cacheKey, meta)
-    GLOBAL_META_CACHE.set(globalCacheKey, meta)
     if (!opts.dryRun) {
       const rawJson = (ctx.filterMetadata || typeof fetchResult.jsonText !== 'string')
         ? JSON.stringify(meta)
@@ -308,7 +258,8 @@ function loadMetaFromDb (db: MetadataCache, name: string, needsFull: boolean): P
 }
 
 function parseMetaFromRow (row: MetadataRow): PackageMeta {
-  const meta = JSON.parse(row.data) as PackageMeta
+  const data = typeof row.data === 'string' ? row.data : Buffer.from(row.data).toString()
+  const meta = JSON.parse(data) as PackageMeta
   meta.cachedAt = row.cachedAt
   meta.etag = row.etag
   meta.modified = row.modified ?? meta.modified
