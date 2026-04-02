@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import type { MetadataCache } from '@pnpm/cache.metadata'
+import type { MetadataCache, MetadataRow } from '@pnpm/cache.metadata'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
@@ -53,6 +53,11 @@ export function clearPickPackageCache (cacheDir: string): void {
   }
 }
 
+interface PendingBatch {
+  names: Set<string>
+  promise: Promise<Record<string, MetadataRow>> | null
+}
+
 export async function pickPackage (
   ctx: {
     fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean, etag?: string, modified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
@@ -64,6 +69,7 @@ export async function pickPackage (
     filterMetadata?: boolean
     strictPublishedByCheck?: boolean
     cacheDir: string
+    pendingBatch?: PendingBatch
   },
   spec: RegistryPackageSpec,
   opts: PickPackageOptions
@@ -105,7 +111,30 @@ export async function pickPackage (
 
   let metaCachedInStore: PackageMeta | null | undefined = ctx.metaCache.get(cacheKey) ?? GLOBAL_META_CACHE.get(globalCacheKey)
   if (metaCachedInStore == null) {
-    metaCachedInStore = loadMetaFromDb(ctx.metadataDb, dbName, fullMetadata)
+    if (ctx.pendingBatch) {
+      if (!ctx.pendingBatch.promise) {
+        ctx.pendingBatch.promise = new Promise((resolve) => {
+          process.nextTick(() => {
+            const names = Array.from(ctx.pendingBatch!.names)
+            const result = ctx.metadataDb.getMany(names)
+            ctx.pendingBatch!.promise = null
+            ctx.pendingBatch!.names.clear()
+            resolve(result)
+          })
+        })
+      }
+      ctx.pendingBatch.names.add(dbName)
+      const batchResult = await ctx.pendingBatch.promise
+      const row = batchResult[dbName]
+      if (row && (!fullMetadata || row.isFull)) {
+        metaCachedInStore = parseMetaFromRow(row)
+      }
+    }
+
+    if (metaCachedInStore == null) {
+      metaCachedInStore = loadMetaFromDb(ctx.metadataDb, dbName, fullMetadata)
+    }
+
     if (metaCachedInStore != null) {
       ctx.metaCache.set(cacheKey, metaCachedInStore)
       GLOBAL_META_CACHE.set(globalCacheKey, metaCachedInStore)
@@ -275,6 +304,10 @@ function loadMetaFromDb (db: MetadataCache, name: string, needsFull: boolean): P
   const row = db.get(name)
   if (!row) return null
   if (needsFull && !row.isFull) return null
+  return parseMetaFromRow(row)
+}
+
+function parseMetaFromRow (row: MetadataRow): PackageMeta {
   const meta = JSON.parse(row.data) as PackageMeta
   meta.cachedAt = row.cachedAt
   meta.etag = row.etag

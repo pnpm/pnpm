@@ -211,6 +211,10 @@ export function createNpmResolver (
     }
   }
   const metaCache = new Map<string, PackageMeta>()
+  const pendingBatch = {
+    names: new Set<string>(),
+    promise: null,
+  }
   const ctx: ResolveFromNpmContext = {
     getAuthHeaderValueByURI: getAuthHeader,
     pickPackage: pickPackage.bind(null, {
@@ -223,6 +227,7 @@ export function createNpmResolver (
       preferOffline: opts.preferOffline,
       strictPublishedByCheck: opts.strictPublishedByCheck,
       cacheDir: opts.cacheDir,
+      pendingBatch,
     }),
     registries: opts.registries,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
