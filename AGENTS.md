@@ -42,6 +42,8 @@ The pnpm codebase is a monorepo managed by pnpm itself. The root contains functi
 
 ## Setup & Build
 
+**Note:** `pn` and `pnx` are literally just shorthands for `pnpm` and `pnpx` respectively. If these commands are not found while running pnpm scripts, just define them locally in `~/.local/bin`.
+
 To set up the environment and build the project:
 
 ```bash
