@@ -245,7 +245,7 @@ export async function getConfig (opts: {
   const mergedIniConfig: Record<string, unknown> = {}
   const allIniSources = [
     npmrcResult.pnpmBuiltinConfig,
-    ...npmrcResult.layers.slice().reverse(), // defaults → user → workspace → project → CLI
+    ...npmrcResult.layers.slice().reverse(), // defaults → user → workspace → CLI
     npmrcResult.pnpmAuthConfig, // pnpm auth file overrides layers
   ]
   for (const source of allIniSources) {
@@ -323,10 +323,11 @@ export async function getConfig (opts: {
     })
   }
   const networkConfigs = getNetworkConfigs(pnpmConfig.rawConfig)
-  pnpmConfig.registries = {
+  const registriesFromNpmrc = {
     default: normalizeRegistryUrl(pnpmConfig.rawConfig.registry),
     ...networkConfigs.registries,
   }
+  pnpmConfig.registries = { ...registriesFromNpmrc }
   pnpmConfig.authInfos = networkConfigs.authInfos ?? {} // TODO: remove `?? {}` (when possible)
   pnpmConfig.sslConfigs = networkConfigs.sslConfigs
   Object.assign(pnpmConfig, getDefaultAuthInfo(pnpmConfig.rawConfig))
@@ -441,12 +442,20 @@ export async function getConfig (opts: {
     }
   }
 
-  // Normalize registry URLs that may have been set by pnpm-workspace.yaml
-  if (pnpmConfig.registries) {
-    for (const [scope, url] of Object.entries(pnpmConfig.registries)) {
-      if (typeof url === 'string') {
-        pnpmConfig.registries[scope] = normalizeRegistryUrl(url)
-      }
+  // Merge registries from pnpm-workspace.yaml onto the .npmrc-based registries.
+  // The workspace manifest may have set pnpmConfig.registries via addSettingsFromWorkspaceManifestToConfig,
+  // but we need to ensure 'default' is always set and all URLs are normalized.
+  const workspaceRegistries = pnpmConfig.registries as Record<string, string> | undefined
+  pnpmConfig.registries = {
+    ...registriesFromNpmrc,
+    ...workspaceRegistries,
+  }
+  if (!pnpmConfig.registries.default) {
+    pnpmConfig.registries.default = registriesFromNpmrc.default
+  }
+  for (const [scope, url] of Object.entries(pnpmConfig.registries)) {
+    if (typeof url === 'string') {
+      pnpmConfig.registries[scope] = normalizeRegistryUrl(url)
     }
   }
 

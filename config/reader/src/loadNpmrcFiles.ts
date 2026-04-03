@@ -67,7 +67,7 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   // Read user .npmrc (from npmrcAuthFile setting or ~/.npmrc)
   const userConfig = readAndFilterNpmrc(userConfigPath, warnings, env)
 
-  // Read pnpm auth file (~/.config/pnpm/auth)
+  // Read pnpm auth file (~/.config/pnpm/auth.ini)
   const pnpmAuthConfig = readAndFilterNpmrc(
     path.join(opts.configDir, 'auth.ini'),
     warnings,
@@ -94,11 +94,11 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   ]
 
   // Handle cafile: read and set ca if cafile is configured.
-  // Include pnpmAuthConfig so `pnpm config set cafile --global` is expanded.
+  // Priority matches the effective config merge order.
   loadCAFile([
     opts.cliOptions,
-    workspaceNpmrc,
     pnpmAuthConfig,
+    workspaceNpmrc,
     userConfig,
     opts.defaultOptions,
   ])
