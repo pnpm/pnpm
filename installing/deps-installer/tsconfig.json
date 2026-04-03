@@ -148,6 +148,9 @@
       "path": "../../resolving/parse-wanted-dependency"
     },
     {
+      "path": "../../resolving/registry/types"
+    },
+    {
       "path": "../../resolving/resolver-base"
     },
     {
