@@ -3,45 +3,18 @@ import fs from 'node:fs'
 import { homedir } from 'node:os'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { getConfig } from '@pnpm/config.reader'
 import { tempDir } from '@pnpm/prepare'
 import pathName from 'path-name'
 import { symlinkDir } from 'symlink-dir'
 
 const globalBinDir = path.join(homedir(), '.local', 'pnpm')
-const isWindows = process.platform === 'win32'
 
-jest.mock('@pnpm/npm-conf/lib/conf', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const originalModule = jest.requireActual<any>('@pnpm/npm-conf/lib/conf')
-  class MockedConf extends originalModule {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    constructor (base: any, types: any) {
-      super(base, types)
-      const globalPrefixDirName = isWindows ? 'global-bin-dir-windows' : 'global-bin-dir'
-      this.prefix = this.globalPrefix = path.join(import.meta.dirname, globalPrefixDirName)
-      this.localPrefix = import.meta.dirname
-    }
-
-    get (name: string) {
-      if (name === 'prefix') {
-        return this.prefix
-      } else {
-        return super.get(name)
-      }
-    }
-
-    loadPrefix () {}
-  }
-  return MockedConf
-})
-
-const { getConfig } = await import('@pnpm/config.reader')
-
-test('respects global-bin-dir in npmrc', async () => {
+test('respects global-bin-dir from CLI', async () => {
   const { config } = await getConfig({
     cliOptions: {
       global: true,
+      'global-bin-dir': globalBinDir,
     },
     env: {
       [pathName]: `${globalBinDir}${path.delimiter}${process.env[pathName]!}`,
@@ -58,6 +31,7 @@ test('respects global-bin-dir rather than dir', async () => {
   const { config } = await getConfig({
     cliOptions: {
       global: true,
+      'global-bin-dir': globalBinDir,
       dir: import.meta.dirname,
     },
     env: {
@@ -72,10 +46,14 @@ test('respects global-bin-dir rather than dir', async () => {
 })
 
 test('an exception is thrown when the global dir is not in PATH', async () => {
+  const tmp = tempDir()
+  const binDir = path.join(tmp, 'not-in-path-bin')
+  fs.mkdirSync(binDir, { recursive: true })
   await expect(
     getConfig({
       cliOptions: {
         global: true,
+        'global-bin-dir': binDir,
         dir: import.meta.dirname,
       },
       env: {

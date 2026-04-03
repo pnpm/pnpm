@@ -4,7 +4,6 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { jest } from '@jest/globals'
-import loadNpmConf from '@pnpm/npm-conf'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import PATH from 'path-name'
@@ -957,6 +956,8 @@ test('warn user unknown settings in npmrc', async () => {
   ].join('\n')
   fs.writeFileSync('.npmrc', npmrc, 'utf8')
 
+  // Non-auth settings like typo-setting and mistake-setting are no longer
+  // read from .npmrc, so they won't trigger unknown setting warnings.
   const { warnings } = await getConfig({
     cliOptions: {},
     packageManager: {
@@ -966,9 +967,7 @@ test('warn user unknown settings in npmrc', async () => {
     checkUnknownSetting: true,
   })
 
-  expect(warnings).toStrictEqual([
-    'Your .npmrc file contains unknown setting: typo-setting, mistake-setting',
-  ])
+  expect(warnings).toStrictEqual([])
 
   const { warnings: noWarnings } = await getConfig({
     cliOptions: {},
@@ -998,9 +997,10 @@ test('getConfig() returns the userconfig', async () => {
   prepareEmpty()
   fs.mkdirSync('user-home')
   fs.writeFileSync(path.resolve('user-home', '.npmrc'), 'registry = https://registry.example.test', 'utf-8')
-  loadNpmConf.defaults.userconfig = path.resolve('user-home', '.npmrc')
   const { config } = await getConfig({
-    cliOptions: {},
+    cliOptions: {
+      userconfig: path.resolve('user-home', '.npmrc'),
+    },
     packageManager: {
       name: 'pnpm',
       version: '1.0.0',
@@ -1013,10 +1013,11 @@ test('getConfig() returns the userconfig even when overridden locally', async ()
   prepareEmpty()
   fs.mkdirSync('user-home')
   fs.writeFileSync(path.resolve('user-home', '.npmrc'), 'registry = https://registry.example.test', 'utf-8')
-  loadNpmConf.defaults.userconfig = path.resolve('user-home', '.npmrc')
   fs.writeFileSync('.npmrc', 'registry = https://project-local.example.test', 'utf-8')
   const { config } = await getConfig({
-    cliOptions: {},
+    cliOptions: {
+      userconfig: path.resolve('user-home', '.npmrc'),
+    },
     packageManager: {
       name: 'pnpm',
       version: '1.0.0',

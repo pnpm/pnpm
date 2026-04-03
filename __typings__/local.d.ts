@@ -24,20 +24,6 @@ declare module '@zkochan/libnpx/index' {
   export = anything
 }
 
-declare module '@pnpm/npm-conf' {
-  const anything: any
-  export = anything
-}
-
-declare module '@pnpm/npm-conf/lib/util.js' {
-  export function parseField (types: any, field: string, value: any): unknown
-}
-
-declare module '@pnpm/npm-conf/lib/conf' {
-  const anything: any
-  export = anything
-}
-
 declare module '@pnpm/npm-lifecycle' {
   export function lifecycle (pkg: any, stage: string, wd: string, opts: any): Promise<void>
   export function makeEnv (data: any, opts: any, prefix?: string | null, env?: any): Record<string, string>
