@@ -40,12 +40,26 @@ A new `npmrcAuthFile` setting can be added to `pnpm-workspace.yaml` or `~/.confi
 npmrcAuthFile: /custom/path/.npmrc
 ```
 
+### New `registries` setting in `pnpm-workspace.yaml`
+
+Registry URLs can now be configured in `pnpm-workspace.yaml`, so there's no need to commit `.npmrc` files with registry mappings:
+
+```yaml
+registries:
+  default: https://registry.npmjs.org/
+  "@my-org": https://private.example.com/
+  "@internal": https://nexus.corp.com/
+```
+
+This replaces the `.npmrc` settings `registry=...` and `@scope:registry=...`.
+
 ### Auth file read order (highest priority first)
 
 1. `~/.config/pnpm/auth.ini` — pnpm's own auth file (written by `pnpm login`)
-2. `<project>/.npmrc` — project-level
-3. `<workspace>/.npmrc` — workspace-level
-4. `~/.npmrc` (or custom `npmrcAuthFile`) — user-level fallback
+2. `<workspace>/.npmrc` — workspace root (or project root)
+3. `~/.npmrc` (or custom `npmrcAuthFile`) — user-level fallback
+
+Note: `.npmrc` is only read from the workspace root, not from individual package directories.
 
 ### Migration guide
 
@@ -63,7 +77,20 @@ npmrcAuthFile: /custom/path/.npmrc
    nodeLinker: hoisted
    ```
 
-2. **If you use `npm_config_*` env vars**, switch to `pnpm_config_*`:
+2. **Move scoped registry mappings from `.npmrc` to `pnpm-workspace.yaml`:**
+
+   Before (`.npmrc`):
+   ```ini
+   @my-org:registry=https://private.example.com
+   ```
+
+   After (`pnpm-workspace.yaml`):
+   ```yaml
+   registries:
+     "@my-org": https://private.example.com/
+   ```
+
+3. **If you use `npm_config_*` env vars**, switch to `pnpm_config_*`:
    ```sh
    # Before
    npm_config_registry=https://registry.example.com
@@ -72,4 +99,4 @@ npmrcAuthFile: /custom/path/.npmrc
    pnpm_config_registry=https://registry.example.com
    ```
 
-3. **Auth tokens in `~/.npmrc` still work.** No migration needed for registry authentication — pnpm continues to read `~/.npmrc` as a fallback.
+4. **Auth tokens in `~/.npmrc` still work.** No migration needed for registry authentication — pnpm continues to read `~/.npmrc` as a fallback.

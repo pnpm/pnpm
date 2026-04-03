@@ -1,3 +1,5 @@
+import type { Registries } from './misc.js'
+
 export type Dependencies = Record<string, string>
 
 export type PackageBin = string | { [commandName: string]: string }
@@ -169,6 +171,7 @@ export interface AuditConfig {
 
 export interface PnpmSettings {
   npmrcAuthFile?: string
+  registries?: Registries
   configDependencies?: ConfigDependencies
   allowBuilds?: Record<string, boolean | string>
   overrides?: Record<string, string>

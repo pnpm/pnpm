@@ -441,6 +441,15 @@ export async function getConfig (opts: {
     }
   }
 
+  // Normalize registry URLs that may have been set by pnpm-workspace.yaml
+  if (pnpmConfig.registries) {
+    for (const [scope, url] of Object.entries(pnpmConfig.registries)) {
+      if (typeof url === 'string') {
+        pnpmConfig.registries[scope] = normalizeRegistryUrl(url)
+      }
+    }
+  }
+
   // omit some schema that the custom parser can't yet handle
   const envPnpmTypes = omit([
     'init-version', // the type is a private function named 'semver'
