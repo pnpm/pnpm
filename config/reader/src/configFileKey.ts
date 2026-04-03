@@ -56,6 +56,7 @@ export type PnpmConfigFileKey = typeof pnpmConfigFileKeys[number]
  * They are usually CLI flags or workspace-only settings.
  */
 export const excludedPnpmKeys = [
+  'auto-dedupe',
   'auto-install-peers',
   'catalog-mode',
   'config-dir',

@@ -13,6 +13,7 @@ import { installDeps, type InstallDepsOptions } from './installDeps.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
+    'auto-dedupe',
     'cache-dir',
     'child-concurrency',
     'cpu',
@@ -126,6 +127,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           {
             description: 'Skip reinstall if the workspace state is up-to-date',
             name: '--optimistic-repeat-install',
+          },
+          {
+            description: 'Automatically deduplicate dependencies after installation',
+            name: '--auto-dedupe',
           },
           {
             description: '`optionalDependencies` are not installed',
@@ -266,6 +271,7 @@ Install all optionalDependencies even when they don\'t satisfy the current envir
 
 export type InstallCommandOptions = Pick<Config,
 | 'allProjects'
+| 'autoDedupe'
 | 'autoInstallPeers'
 | 'bail'
 | 'bin'
@@ -378,6 +384,9 @@ export async function handler (opts: InstallCommandOptions & { _calledFromLink?:
   if (opts.resolutionOnly) {
     installDepsOptions.lockfileOnly = true
     installDepsOptions.forceFullResolution = true
+  }
+  if (opts.autoDedupe) {
+    installDepsOptions.dedupe = true
   }
   return installDeps(installDepsOptions, [])
 }

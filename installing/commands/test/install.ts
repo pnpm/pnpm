@@ -12,6 +12,38 @@ import { DEFAULT_OPTS } from './utils/index.js'
 
 const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
 
+describe('auto-dedupe', () => {
+  test('cliOptionsTypes includes auto-dedupe', () => {
+    expect(install.cliOptionsTypes()).toHaveProperty('auto-dedupe')
+  })
+
+  test('install with autoDedupe deduplicates dependencies', async () => {
+    const rootProjectManifest = {
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    }
+    prepare(rootProjectManifest)
+
+    // First, install normally
+    await install.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      rootProjectManifest,
+    })
+
+    // Then, install with autoDedupe enabled — should not fail
+    await install.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      rootProjectManifest,
+      autoDedupe: true,
+    })
+
+    expect(fs.existsSync('node_modules/is-positive')).toBeTruthy()
+  })
+})
+
 test('install fails if no package.json is found', async () => {
   prepareEmpty()
 

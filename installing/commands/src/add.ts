@@ -24,6 +24,7 @@ export const shorthands: Record<string, string> = {
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
+    'auto-dedupe',
     'cache-dir',
     'cpu',
     'child-concurrency',
@@ -175,6 +176,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
           {
+            description: 'Automatically deduplicate dependencies after installation',
+            name: '--auto-dedupe',
+          },
+          {
             description: 'A list of package names that are allowed to run postinstall scripts during installation',
             name: '--allow-build',
           },
@@ -298,6 +303,7 @@ export async function handler (
     return installDeps({
       ...opts,
       allowBuilds: mergedAllowBuilds,
+      dedupe: opts.autoDedupe,
       rebuildHandler: commands?.rebuild,
       fetchFullMetadata: getFetchFullMetadata(opts),
       include,
@@ -306,6 +312,7 @@ export async function handler (
   }
   return installDeps({
     ...opts,
+    dedupe: opts.autoDedupe,
     rebuildHandler: commands?.rebuild,
     fetchFullMetadata: getFetchFullMetadata(opts),
     include,

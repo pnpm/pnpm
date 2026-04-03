@@ -26,6 +26,7 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
 
   allowNew: boolean
   autoConfirmAllPrompts?: boolean
+  autoDedupe?: boolean
   autoInstallPeers?: boolean
   bail: boolean
   color: 'always' | 'auto' | 'never'
