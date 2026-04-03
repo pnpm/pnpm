@@ -106,8 +106,16 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     opts.defaultOptions, // [4] defaults
   ]
 
-  // Handle cafile: read and set ca if cafile is configured
-  loadCAFile(layers)
+  // Handle cafile: read and set ca if cafile is configured.
+  // Include pnpmAuthConfig so `pnpm config set cafile --global` is expanded.
+  loadCAFile([
+    opts.cliOptions,
+    projectConfig,
+    workspaceConfig ?? {},
+    pnpmAuthConfig,
+    userConfig,
+    opts.defaultOptions,
+  ])
 
   return {
     projectConfig,

@@ -241,10 +241,15 @@ export async function getConfig (opts: {
     .map(([name, value]) => [camelcase(name, { locale: 'en-US' }), value])
   )
 
-  // Build merged auth/registry config from all layers (highest priority first)
+  // Build merged auth/registry config from all sources (lowest to highest priority)
   const mergedIniConfig: Record<string, unknown> = {}
-  for (let i = npmrcResult.layers.length - 1; i >= 0; i--) {
-    for (const [key, value] of Object.entries(npmrcResult.layers[i])) {
+  const allIniSources = [
+    npmrcResult.pnpmBuiltinConfig,
+    ...npmrcResult.layers.slice().reverse(), // defaults → user → workspace → project → CLI
+    npmrcResult.pnpmAuthConfig, // pnpm auth file overrides layers
+  ]
+  for (const source of allIniSources) {
+    for (const [key, value] of Object.entries(source)) {
       if (isIniConfigKey(key)) {
         mergedIniConfig[key] = value
       }
@@ -274,7 +279,8 @@ export async function getConfig (opts: {
     warnings.push(`Directory "${cwd}" contains the path delimiter character (${path.delimiter}), so binaries from node_modules/.bin will not be accessible via PATH. Consider renaming the directory.`)
   }
 
-  pnpmConfig.maxSockets = npmDefaults.maxsockets
+  // @ts-expect-error - maxsockets (lowercase) comes from npmConfigTypes, maxSockets (camelCase) is the Config field
+  pnpmConfig.maxSockets = pnpmConfig.maxSockets ?? pnpmConfig['maxsockets'] ?? npmDefaults.maxsockets
   // @ts-expect-error
   delete pnpmConfig['maxsockets']
 
