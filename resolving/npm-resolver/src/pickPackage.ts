@@ -252,6 +252,11 @@ export async function pickPackage (
       // When minimumReleaseAge is active and we fetched abbreviated metadata,
       // check if the package was recently modified and needs full metadata
       // for per-version time-based filtering.
+      //
+      // This two-step approach is intentional: abbreviated metadata is much smaller,
+      // and most packages won't have been modified recently enough to need the full
+      // document. We only upgrade to full metadata when the package's modification
+      // date is recent enough that some versions might not yet be "mature."
       if (
         opts.publishedBy &&
         !fullMetadata &&
