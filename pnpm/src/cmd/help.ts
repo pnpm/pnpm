@@ -268,11 +268,6 @@ function getHelpText ({ all }: { all: boolean }): string {
           name: 'deploy',
           advanced: true,
         },
-        {
-          description: 'Checks for known common issues with pnpm configuration',
-          name: 'doctor',
-          advanced: true,
-        },
       ],
     },
     {
