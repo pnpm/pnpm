@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import type { TrustPolicy } from '@pnpm/types'
 
 import { npmConfigTypes } from './npmConfigTypes.js'
@@ -74,7 +76,7 @@ export const pnpmTypes = {
   'node-linker': ['pnp', 'isolated', 'hoisted'],
   noproxy: String,
   'npm-path': String,
-  'npmrc-auth-file': String,
+  'npmrc-auth-file': path,
   offline: Boolean,
   'pack-destination': String,
   'pack-gzip-level': Number,

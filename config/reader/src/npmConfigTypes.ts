@@ -59,7 +59,7 @@ export const npmConfigTypes = {
   key: [null, String],
   'legacy-bundling': Boolean,
   link: Boolean,
-  'local-address': [] as never[],
+  'local-address': String,
   loglevel: ['silent', 'error', 'warn', 'notice', 'http', 'timing', 'info', 'verbose', 'silly'],
   logstream: Stream,
   'logs-max': Number,

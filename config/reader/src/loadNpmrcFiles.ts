@@ -49,7 +49,7 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     ? path.resolve(opts.dir)
     : findLocalPrefix(process.cwd())
 
-  const userConfigPath = opts.npmrcAuthFile ?? path.resolve(os.homedir(), '.npmrc')
+  const userConfigPath = normalizePath(opts.npmrcAuthFile) ?? path.resolve(os.homedir(), '.npmrc')
 
   // Read .npmrc from workspace root (or project root if no workspace)
   const workspaceNpmrcDir = opts.workspaceDir ?? localPrefix
@@ -160,6 +160,14 @@ function substituteEnv (value: string, env: Record<string, string | undefined>, 
     warnings.push(err instanceof Error ? err.message : String(err))
     return value
   }
+}
+
+function normalizePath (p: string | undefined): string | undefined {
+  if (p == null) return undefined
+  if (p.startsWith('~/') || p.startsWith('~\\')) {
+    p = path.join(os.homedir(), p.slice(2))
+  }
+  return path.resolve(p)
 }
 
 function isErrorWithCode (err: unknown, code: string): boolean {
