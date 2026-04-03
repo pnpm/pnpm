@@ -597,8 +597,6 @@ export async function getConfig (opts: {
 
   pnpmConfig.workspaceConcurrency = getWorkspaceConcurrency(pnpmConfig.workspaceConcurrency)
 
-  pnpmConfig.failedToLoadBuiltInConfig = false
-
   if (pnpmConfig.only === 'prod' || pnpmConfig.only === 'production' || !pnpmConfig.only && pnpmConfig.production) {
     pnpmConfig.production = true
     pnpmConfig.dev = false

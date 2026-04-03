@@ -103,7 +103,6 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
   preferSymlinkedExecutables?: boolean
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   registrySupportsTimeField?: boolean
-  failedToLoadBuiltInConfig: boolean
   resolvePeersFromWorkspaceRoot?: boolean
   deployAllFiles?: boolean
   forceLegacyDeploy?: boolean
