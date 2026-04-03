@@ -102,15 +102,14 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   }
 
   // Build rawConfig with same priority order
-  const rawConfig = Object.assign(
-    {},
-    pnpmBuiltinConfig,
-    opts.defaultOptions,
-    userConfig,
-    pnpmAuthConfig,
-    workspaceNpmrc,
-    opts.cliOptions
-  )
+  const rawConfig = {
+    ...pnpmBuiltinConfig,
+    ...opts.defaultOptions,
+    ...userConfig,
+    ...pnpmAuthConfig,
+    ...workspaceNpmrc,
+    ...opts.cliOptions,
+  }
 
   return {
     mergedConfig,
