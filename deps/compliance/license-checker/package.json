@@ -1,0 +1,57 @@
+{
+  "name": "@pnpm/deps.compliance.license-checker",
+  "version": "0.0.0",
+  "description": "Check license compliance against policy",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "compliance",
+    "licenses"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/deps/compliance/license-checker",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/deps/compliance/license-checker#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "test": "pn compile && pn .test",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/deps.compliance.license-scanner": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/store.path": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "spdx-expression-parse": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/deps.compliance.license-checker": "workspace:*",
+    "@pnpm/logger": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

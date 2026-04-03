@@ -443,3 +443,49 @@ describeOnLinuxOnly('filters optional dependencies based on pnpm.supportedArchit
     expect(pkgDirs).not.toContain(notFound)
   })
 })
+
+describe('license compliance after add', () => {
+  test('pnpm add fails when a disallowed license is present in strict mode', async () => {
+    prepare()
+
+    await expect(
+      add.handler({
+        ...DEFAULT_OPTIONS,
+        dir: process.cwd(),
+        linkWorkspacePackages: false,
+        licenses: {
+          disallowed: ['MIT'],
+          mode: 'strict',
+        },
+      }, ['is-positive@1.0.0'])
+    ).rejects.toThrow('license violation')
+  })
+
+  test('pnpm add succeeds when licenses.mode is none', async () => {
+    const project = prepare()
+
+    await add.handler({
+      ...DEFAULT_OPTIONS,
+      dir: process.cwd(),
+      linkWorkspacePackages: false,
+      licenses: {
+        disallowed: ['MIT'],
+        mode: 'none',
+      },
+    }, ['is-positive@1.0.0'])
+
+    project.has('is-positive')
+  })
+
+  test('pnpm add succeeds when no licenses config is set', async () => {
+    const project = prepare()
+
+    await add.handler({
+      ...DEFAULT_OPTIONS,
+      dir: process.cwd(),
+      linkWorkspacePackages: false,
+    }, ['is-positive@1.0.0'])
+
+    project.has('is-positive')
+  })
+})
