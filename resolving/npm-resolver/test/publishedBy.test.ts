@@ -212,7 +212,8 @@ test('use cached metadata based on file mtime when publishedBy is set', async ()
   const cacheDir2 = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
   fs.mkdirSync(cacheDir2, { recursive: true })
   const cachePath = path.join(cacheDir2, 'is-positive.json')
-  fs.writeFileSync(cachePath, JSON.stringify(isPositiveAbbreviatedMeta), 'utf8')
+  const headers = JSON.stringify({ cachedAt: Date.now(), modified: isPositiveAbbreviatedMeta.modified })
+  fs.writeFileSync(cachePath, `${headers}\n${JSON.stringify(isPositiveAbbreviatedMeta)}`, 'utf8')
 
   // No mock agent intercepts — the test verifies no network request is made.
   // If a request were attempted, it would fail.

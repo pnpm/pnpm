@@ -35,17 +35,14 @@ beforeEach(async () => {
 
 test('use local cache when registry returns 304 Not Modified', async () => {
   const cacheDir = temporaryDirectory()
-  // Write cached metadata with etag to disk
-  // is-positive.json already has modified: "2017-08-17T19:26:00.508Z"
-  const cachedMeta = {
-    ...isPositiveMeta,
-    etag: '"abc123"',
-  }
+  // Write cached metadata with etag to disk in NDJSON format:
+  // Line 1: cache headers, Line 2: registry metadata
   const cacheDir2 = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
   fs.mkdirSync(cacheDir2, { recursive: true })
+  const headers = JSON.stringify({ cachedAt: Date.now(), etag: '"abc123"', modified: isPositiveMeta.modified })
   fs.writeFileSync(
     path.join(cacheDir2, 'is-positive.json'),
-    JSON.stringify(cachedMeta),
+    `${headers}\n${JSON.stringify(isPositiveMeta)}`,
     'utf8'
   )
 

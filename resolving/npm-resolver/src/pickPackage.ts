@@ -221,18 +221,24 @@ export async function pickPackage (
     }
 
     try {
-      // Load cached metadata to get conditional request headers (ETag, Last-Modified)
-      metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
+      // Load only the cache headers (etag, modified) for conditional request headers.
+      // This avoids reading and parsing the full metadata file (which can be megabytes)
+      // when the registry returns 200 and the old metadata would be discarded anyway.
+      const cacheHeaders = metaCachedInStore != null
+        ? { etag: metaCachedInStore.etag, modified: metaCachedInStore.modified ?? metaCachedInStore.time?.modified }
+        : await limit(async () => loadMetaHeaders(pkgMirror))
       let fetchResult = await ctx.fetch(spec.name, {
         authHeaderValue: opts.authHeaderValue,
         fullMetadata,
-        etag: metaCachedInStore?.etag,
-        modified: metaCachedInStore?.modified ?? metaCachedInStore?.time?.modified,
+        etag: cacheHeaders?.etag,
+        modified: cacheHeaders?.modified,
         registry: opts.registry,
       })
 
-      // 304 Not Modified — registry confirmed local cache is still fresh
+      // 304 Not Modified — registry confirmed local cache is still fresh.
+      // Now we need the full metadata, so load it from disk.
       if (fetchResult.notModified) {
+        metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
         if (metaCachedInStore != null) {
           metaCachedInStore.cachedAt = Date.now()
           ctx.metaCache.set(cacheKey, metaCachedInStore)
@@ -298,7 +304,9 @@ export async function pickPackage (
       // only save meta to cache, when it is fresh
       ctx.metaCache.set(cacheKey, meta)
       if (!opts.dryRun) {
-        const jsonForDisk = ctx.filterMetadata ? JSON.stringify(meta) : prepareJsonForDisk(resultToSave, cachedAt)
+        const jsonForDisk = ctx.filterMetadata
+          ? `${JSON.stringify({ cachedAt, etag: resultToSave.etag, modified: meta.modified ?? meta.time?.modified })}\n${JSON.stringify(meta)}`
+          : prepareJsonForDisk(resultToSave, cachedAt)
         runLimited(pkgMirror, (limit) => limit(async () => {
           try {
             await saveMeta(pkgMirror, jsonForDisk)
@@ -359,8 +367,6 @@ function clearMeta (pkg: PackageMeta): PackageMeta {
     versions,
     time: pkg.time,
     modified: pkg.modified,
-    cachedAt: pkg.cachedAt,
-    etag: pkg.etag,
   }
 }
 
@@ -371,18 +377,16 @@ function encodePkgName (pkgName: string): string {
   return pkgName
 }
 
+/**
+ * Formats metadata for disk storage as two-line NDJSON:
+ *   Line 1: cache headers (etag, modified, cachedAt) — small, fast to read
+ *   Line 2: the full registry metadata JSON — unchanged from the registry response
+ */
 function prepareJsonForDisk (fetchResult: FetchMetadataResult, cachedAt: number): string {
-  if (typeof fetchResult.jsonText === 'string') {
-    const firstBraceIndex = fetchResult.jsonText.indexOf('{')
-    if (firstBraceIndex !== -1) {
-      let injectedFields = `"cachedAt":${cachedAt}`
-      if (fetchResult.etag) {
-        injectedFields += `,"etag":${JSON.stringify(fetchResult.etag)}`
-      }
-      return `{${injectedFields},${fetchResult.jsonText.slice(firstBraceIndex + 1)}`
-    }
-  }
-  return JSON.stringify({ ...fetchResult.meta, cachedAt, etag: fetchResult.etag })
+  const modified = fetchResult.meta.modified ?? fetchResult.meta.time?.modified
+  const headers = JSON.stringify({ cachedAt, etag: fetchResult.etag, modified })
+  const body = fetchResult.jsonText ?? JSON.stringify(fetchResult.meta)
+  return `${headers}\n${body}`
 }
 
 function isMissingTimeError (err: unknown): boolean {
@@ -403,10 +407,52 @@ async function getFileMtime (filePath: string): Promise<Date | null> {
   }
 }
 
+interface MetaHeaders {
+  cachedAt?: number
+  etag?: string
+  modified?: string
+}
+
+/**
+ * Reads only the first line of the cached NDJSON metadata file to extract
+ * the cache headers (etag, modified, cachedAt). This avoids reading and
+ * parsing the full metadata (which can be megabytes for popular packages)
+ * when we only need conditional-request headers.
+ */
+async function loadMetaHeaders (pkgMirror: string): Promise<MetaHeaders | null> {
+  let fh: fs.FileHandle | undefined
+  try {
+    fh = await fs.open(pkgMirror, 'r')
+    // The first line (headers JSON) is typically ~100 bytes; 1 KB is plenty.
+    const buf = Buffer.alloc(1024)
+    const { bytesRead } = await fh.read(buf, 0, 1024, 0)
+    if (bytesRead === 0) return null
+    const chunk = buf.toString('utf8', 0, bytesRead)
+    const newlineIdx = chunk.indexOf('\n')
+    if (newlineIdx === -1) return null
+    return JSON.parse(chunk.slice(0, newlineIdx)) as MetaHeaders
+  } catch {
+    return null
+  } finally {
+    await fh?.close()
+  }
+}
+
+/**
+ * Reads the full metadata from the cached NDJSON file.
+ * Line 1: cache headers (cachedAt, etag, modified)
+ * Line 2: registry metadata JSON
+ */
 async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
   try {
     const data = await gfs.readFile(pkgMirror, 'utf8')
-    return JSON.parse(data) as PackageMeta
+    const newlineIdx = data.indexOf('\n')
+    if (newlineIdx === -1) return null
+    const headers = JSON.parse(data.slice(0, newlineIdx)) as MetaHeaders
+    const meta = JSON.parse(data.slice(newlineIdx + 1)) as PackageMeta
+    meta.cachedAt = headers.cachedAt
+    meta.etag = headers.etag
+    return meta
   } catch {
     return null
   }
