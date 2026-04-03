@@ -288,14 +288,10 @@ export async function getConfig (opts: {
   pnpmConfig.workspaceDir = opts.workspaceDir
   pnpmConfig.workspaceRoot = cliOptions['workspace-root'] as boolean // This is needed to prevent pnpm reading workspaceRoot from env variables
 
-  // Build rawLocalConfig from project/workspace .npmrc + CLI options
-  const localLayers: Array<Record<string, unknown>> = [npmrcResult.projectConfig]
-  if (pnpmConfig.workspaceDir && pnpmConfig.workspaceDir !== cwd && npmrcResult.workspaceConfig) {
-    localLayers.push(npmrcResult.workspaceConfig)
-  }
+  // Build rawLocalConfig from workspace .npmrc + CLI options
   pnpmConfig.rawLocalConfig = Object.assign(
     {},
-    ...localLayers.reverse(),
+    npmrcResult.workspaceNpmrc,
     cliOptions
   )
   pnpmConfig.userAgent = pnpmConfig.rawLocalConfig['user-agent']
@@ -583,10 +579,8 @@ export async function getConfig (opts: {
 
   // TODO: consider removing checkUnknownSetting entirely
   if (opts.checkUnknownSetting) {
-    const settingKeys = Object.keys({
-      ...npmrcResult.workspaceConfig,
-      ...npmrcResult.projectConfig,
-    }).filter(key => key.trim() !== '')
+    const settingKeys = Object.keys(npmrcResult.workspaceNpmrc)
+      .filter(key => key.trim() !== '')
     const unknownKeys = []
     for (const key of settingKeys) {
       if (!rcOptions.includes(key) && !key.startsWith('//') && !(key[0] === '@' && key.endsWith(':registry'))) {

@@ -8,23 +8,20 @@ import { readIniFileSync } from 'read-ini-file'
 import { isIniConfigKey } from './auth.js'
 
 export interface NpmrcConfigResult {
-  /** Project .npmrc data (filtered to auth/registry keys) */
-  projectConfig: Record<string, unknown>
-  /** Workspace .npmrc data (filtered to auth/registry keys), if workspace differs from project */
-  workspaceConfig: Record<string, unknown> | undefined
+  /** Workspace (or project root) .npmrc data (filtered to auth/registry keys) */
+  workspaceNpmrc: Record<string, unknown>
   /** User ~/.npmrc data (filtered to auth/registry keys) */
   userConfig: Record<string, unknown>
-  /** pnpm auth file data (~/.config/pnpm/auth, filtered to auth/registry keys) */
+  /** pnpm auth file data (~/.config/pnpm/auth.ini, filtered to auth/registry keys) */
   pnpmAuthConfig: Record<string, unknown>
   /** pnpm builtin rc data + inline defaults */
   pnpmBuiltinConfig: Record<string, unknown>
   /**
    * All layers in priority order (highest first):
    * [0] = CLI options
-   * [1] = project .npmrc
-   * [2] = workspace .npmrc (empty if no workspace or same as project)
-   * [3] = user .npmrc (npmrcAuthFile or ~/.npmrc)
-   * [4] = defaults
+   * [1] = workspace .npmrc (or project root .npmrc)
+   * [2] = user .npmrc (npmrcAuthFile or ~/.npmrc)
+   * [3] = defaults
    */
   layers: Array<Record<string, unknown>>
   /** Resolved local prefix (CWD or nearest dir with package.json) */
@@ -59,22 +56,13 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
 
   const userConfigPath = opts.npmrcAuthFile ?? path.resolve(os.homedir(), '.npmrc')
 
-  // Read project .npmrc
-  const projectConfig = readAndFilterNpmrc(
-    path.resolve(localPrefix, '.npmrc'),
+  // Read .npmrc from workspace root (or project root if no workspace)
+  const workspaceNpmrcDir = opts.workspaceDir ?? localPrefix
+  const workspaceNpmrc = readAndFilterNpmrc(
+    path.resolve(workspaceNpmrcDir, '.npmrc'),
     warnings,
     env
   )
-
-  // Read workspace .npmrc (if different from project)
-  let workspaceConfig: Record<string, unknown> | undefined
-  if (opts.workspaceDir && opts.workspaceDir !== localPrefix) {
-    workspaceConfig = readAndFilterNpmrc(
-      path.resolve(opts.workspaceDir, '.npmrc'),
-      warnings,
-      env
-    )
-  }
 
   // Read user .npmrc (from npmrcAuthFile setting or ~/.npmrc)
   const userConfig = readAndFilterNpmrc(userConfigPath, warnings, env)
@@ -100,26 +88,23 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   // Build layers in priority order (highest first)
   const layers: Array<Record<string, unknown>> = [
     opts.cliOptions, // [0] CLI
-    projectConfig, // [1] project .npmrc
-    workspaceConfig ?? {}, // [2] workspace .npmrc
-    userConfig, // [3] user .npmrc
-    opts.defaultOptions, // [4] defaults
+    workspaceNpmrc, // [1] workspace .npmrc
+    userConfig, // [2] user .npmrc
+    opts.defaultOptions, // [3] defaults
   ]
 
   // Handle cafile: read and set ca if cafile is configured.
   // Include pnpmAuthConfig so `pnpm config set cafile --global` is expanded.
   loadCAFile([
     opts.cliOptions,
-    projectConfig,
-    workspaceConfig ?? {},
+    workspaceNpmrc,
     pnpmAuthConfig,
     userConfig,
     opts.defaultOptions,
   ])
 
   return {
-    projectConfig,
-    workspaceConfig,
+    workspaceNpmrc,
     userConfig,
     pnpmAuthConfig,
     pnpmBuiltinConfig,
