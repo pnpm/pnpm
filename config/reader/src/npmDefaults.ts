@@ -9,8 +9,8 @@ function getGlobalPrefix (): string {
     return path.dirname(process.execPath)
   }
   let prefix = path.dirname(path.dirname(process.execPath))
-  if (process.env.DESTDIR) {
-    prefix = path.join(process.env.DESTDIR, prefix)
+  if (process.env.DESTDIR) { // cspell:disable-line
+    prefix = path.join(process.env.DESTDIR, prefix) // cspell:disable-line
   }
   return prefix
 }

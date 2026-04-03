@@ -186,7 +186,7 @@ function isErrorWithCode (err: unknown, code: string): boolean {
 /**
  * Parse npm_config_* environment variables, keeping only auth/registry keys.
  * Converts env key format: npm_config_foo_bar → foo-bar
- * Special case: npm_config__authtoken → _authToken
+ * Special case: npm_config__authtoken → _authToken // cspell:disable-line
  */
 function parseNpmConfigEnvVars (env: Record<string, string | undefined>): Record<string, string> {
   const result: Record<string, string> = {}
@@ -216,7 +216,7 @@ function envKeyToSetting (x: string): string {
 
 function normalizeEnvKey (s: string): string {
   s = s.toLowerCase()
-  if (s === '_authtoken') return '_authToken'
+  if (s === '_authtoken') return '_authToken' // cspell:disable-line
   let r = s[0]
   for (let i = 1; i < s.length; i++) {
     r += s[i] === '_' ? '-' : s[i]
