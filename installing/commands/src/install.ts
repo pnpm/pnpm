@@ -290,6 +290,8 @@ export type InstallCommandOptions = Pick<Config,
 | 'ignoreScripts'
 | 'injectWorkspacePackages'
 | 'linkWorkspacePackages'
+| 'minimumReleaseAge'
+| 'minimumReleaseAgeExclude'
 | 'rawLocalConfig'
 | 'lockfileDir'
 | 'lockfileOnly'

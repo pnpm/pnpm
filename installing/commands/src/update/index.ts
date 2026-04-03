@@ -5,13 +5,14 @@ import {
   readDepNameCompletions,
   readProjectManifestOnly,
 } from '@pnpm/cli.utils'
-import { createMatcher } from '@pnpm/config.matcher'
+import { createMatcher as createPackageMatcher } from '@pnpm/config.matcher'
 import { types as allTypes } from '@pnpm/config.reader'
 import { outdatedDepsOfProjects } from '@pnpm/deps.inspection.outdated'
 import { PnpmError } from '@pnpm/error'
 import { handleGlobalUpdate } from '@pnpm/global.commands'
 import type { UpdateMatchingFunction } from '@pnpm/installing.deps-installer'
 import { globalInfo } from '@pnpm/logger'
+import { filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
 import type { IncludedDependencies, PackageVulnerabilityAudit, ProjectRootDir } from '@pnpm/types'
 import chalk from 'chalk'
 import enquirer from 'enquirer'
@@ -20,8 +21,17 @@ import { renderHelp } from 'render-help'
 
 import type { InstallCommandOptions } from '../install.js'
 import { installDeps } from '../installDeps.js'
-import { parseUpdateParam } from '../recursive.js'
+import {
+  createMatcher as createUpdateMatcher,
+  makeIgnorePatterns,
+  matchDependencies,
+  parseUpdateParam,
+} from '../recursive.js'
 import { type ChoiceRow, getUpdateChoices } from './getUpdateChoices.js'
+
+type UpdateCommandOptionsWithMinimumReleaseAgeExclude = UpdateCommandOptions & {
+  minimumReleaseAgeExclude?: string[]
+}
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
@@ -307,9 +317,9 @@ async function update (
   } else if (
     (dependencies.length > 0) && dependencies.every(dep => !dep.substring(1).includes('@')) && depth > 0 && !opts.latest
   ) {
-    updateMatching = createMatcher(dependencies)
+    updateMatching = createPackageMatcher(dependencies)
   }
-  return installDeps({
+  const installDepsOptions = {
     ...opts,
     rebuildHandler,
     allowNew: false,
@@ -322,7 +332,17 @@ async function update (
     updateMatching,
     updatePackageManifest: opts.save !== false,
     resolutionMode: opts.save === false ? 'highest' : opts.resolutionMode,
-  }, dependencies)
+  } as UpdateCommandOptionsWithMinimumReleaseAgeExclude
+  try {
+    return await installDeps(installDepsOptions, dependencies)
+  } catch (err: any) { // eslint-disable-line
+    const minimumReleaseAgeExclude = await getMinimumReleaseAgeExcludeForRetry(dependencies, installDepsOptions, includeDirect, err)
+    if (minimumReleaseAgeExclude == null) throw err
+    return installDeps({
+      ...installDepsOptions,
+      minimumReleaseAgeExclude,
+    }, dependencies)
+  }
 }
 
 function makeIncludeDependenciesFromCLI (opts: {
@@ -335,4 +355,53 @@ function makeIncludeDependenciesFromCLI (opts: {
     devDependencies: opts.dev === true || (opts.production !== true && opts.optional !== true),
     optionalDependencies: opts.optional === true || (opts.production !== true && opts.dev !== true),
   }
+}
+
+async function getMinimumReleaseAgeExcludeForRetry (
+  dependencies: string[],
+  opts: UpdateCommandOptionsWithMinimumReleaseAgeExclude,
+  includeDirect: IncludedDependencies,
+  err: { code?: string }
+): Promise<string[] | undefined> {
+  if (!opts.latest || err.code !== 'ERR_PNPM_NO_MATURE_MATCHING_VERSION' || !opts.minimumReleaseAgeExclude?.length) {
+    return undefined
+  }
+  const directDependencies = await getDirectDependenciesToUpdate(dependencies, opts, includeDirect)
+  if (directDependencies.length === 0) return undefined
+
+  const retryMinimumReleaseAgeExclude = opts.minimumReleaseAgeExclude.filter((pattern) => {
+    return !directDependencies.some((dependency) => minimumReleaseAgeExcludePatternMatchesDependency(pattern, dependency))
+  })
+  return retryMinimumReleaseAgeExclude.length === opts.minimumReleaseAgeExclude.length
+    ? undefined
+    : retryMinimumReleaseAgeExclude
+}
+
+async function getDirectDependenciesToUpdate (
+  dependencies: string[],
+  opts: UpdateCommandOptions,
+  includeDirect: IncludedDependencies
+): Promise<string[]> {
+  const manifest = await readProjectManifestOnly(opts.dir, opts)
+  const dependenciesToMatch = dependencies.length === 0
+    ? opts.updateConfig?.ignoreDependencies?.length
+      ? makeIgnorePatterns(opts.updateConfig.ignoreDependencies)
+      : []
+    : dependencies
+  if (dependenciesToMatch.length === 0) {
+    return Object.keys(filterDependenciesByType(manifest, includeDirect))
+  }
+  return matchDependencies(createUpdateMatcher(dependenciesToMatch), manifest, includeDirect)
+    .map((dependency) => parseUpdateParam(dependency).pattern)
+}
+
+function minimumReleaseAgeExcludePatternMatchesDependency (pattern: string, dependency: string): boolean {
+  return createPackageMatcher(getPackageNamePatternFromMinimumReleaseAgeExclude(pattern))(dependency)
+}
+
+function getPackageNamePatternFromMinimumReleaseAgeExclude (pattern: string): string {
+  const atIndex = pattern.startsWith('@')
+    ? pattern.indexOf('@', 1)
+    : pattern.indexOf('@')
+  return atIndex === -1 ? pattern : pattern.slice(0, atIndex)
 }
