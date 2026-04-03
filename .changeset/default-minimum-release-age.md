@@ -3,4 +3,4 @@
 "pnpm": major
 ---
 
-Set default `minimumReleaseAge` to 4320 minutes (3 days) to protect against supply chain attacks by default. Packages published less than 3 days ago will not be installed unless users explicitly set `minimum-release-age=0` in their `.npmrc` or `pnpm-workspace.yaml`.
+Set default `minimumReleaseAge` to 1440 minutes (1 day) to protect against supply chain attacks by default. Packages published less than 1 day ago will not be installed unless users explicitly set `minimumReleaseAge: 0` in `pnpm-workspace.yaml`.

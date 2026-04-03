@@ -1638,7 +1638,7 @@ test('pnpm_config_git_branch_lockfile env var overrides git-branch-lockfile from
   expect(config.useGitBranchLockfile).toBe(true)
 })
 
-test('minimumReleaseAge defaults to 4320 minutes (3 days)', async () => {
+test('minimumReleaseAge defaults to 1440 minutes (1 day)', async () => {
   prepareEmpty()
 
   const { config } = await getConfig({
@@ -1650,7 +1650,7 @@ test('minimumReleaseAge defaults to 4320 minutes (3 days)', async () => {
     },
   })
 
-  expect(config.minimumReleaseAge).toBe(4320)
+  expect(config.minimumReleaseAge).toBe(1440)
 })
 
 test('minimumReleaseAge can be overridden to 0 via .npmrc', async () => {
