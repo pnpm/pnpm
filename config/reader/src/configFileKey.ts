@@ -38,7 +38,7 @@ export const pnpmConfigFileKeys = [
   'network-concurrency',
   'noproxy',
   'npm-path',
-  'npmrc-path',
+  'npmrc-auth-file',
   'package-import-method',
   'prefer-frozen-lockfile',
   'prefer-offline',

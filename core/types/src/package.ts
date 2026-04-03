@@ -168,7 +168,7 @@ export interface AuditConfig {
 }
 
 export interface PnpmSettings {
-  npmrcPath?: string
+  npmrcAuthFile?: string
   configDependencies?: ConfigDependencies
   allowBuilds?: Record<string, boolean | string>
   overrides?: Record<string, string>

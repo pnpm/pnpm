@@ -23,7 +23,7 @@ export interface NpmrcConfigResult {
    * [0] = CLI options
    * [1] = project .npmrc
    * [2] = workspace .npmrc (empty if no workspace or same as project)
-   * [3] = user .npmrc (npmrcPath or ~/.npmrc)
+   * [3] = user .npmrc (npmrcAuthFile or ~/.npmrc)
    * [4] = defaults
    */
   layers: Array<Record<string, unknown>>
@@ -40,8 +40,8 @@ export interface LoadNpmrcConfigOpts {
   dir?: string
   /** Workspace directory */
   workspaceDir?: string
-  /** Custom path to user .npmrc (from npmrcPath setting, overrides ~/.npmrc) */
-  npmrcPath?: string
+  /** Custom path to user .npmrc (from npmrcAuthFile setting, overrides ~/.npmrc) */
+  npmrcAuthFile?: string
   /** pnpm config directory (for pnpm auth file) */
   configDir: string
   /** Module directory for pnpm builtin rc */
@@ -57,7 +57,7 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     ? path.resolve(opts.dir)
     : findLocalPrefix(process.cwd())
 
-  const userConfigPath = opts.npmrcPath ?? path.resolve(os.homedir(), '.npmrc')
+  const userConfigPath = opts.npmrcAuthFile ?? path.resolve(os.homedir(), '.npmrc')
 
   // Read project .npmrc
   const projectConfig = readAndFilterNpmrc(
@@ -76,7 +76,7 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     )
   }
 
-  // Read user .npmrc (from npmrcPath setting or ~/.npmrc)
+  // Read user .npmrc (from npmrcAuthFile setting or ~/.npmrc)
   const userConfig = readAndFilterNpmrc(userConfigPath, warnings, env)
 
   // Read pnpm auth file (~/.config/pnpm/auth)

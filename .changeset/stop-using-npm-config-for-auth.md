@@ -32,12 +32,12 @@ The following settings continue to be read from `.npmrc` files (project-level an
 - `local-address` — local network address binding
 - `git-shallow-hosts` — git shallow clone hosts
 
-### New `npmrcPath` setting
+### New `npmrcAuthFile` setting
 
-A new `npmrcPath` setting can be added to `pnpm-workspace.yaml` or `~/.config/pnpm/config.yaml` to specify a custom path to the user `.npmrc` file (defaults to `~/.npmrc`):
+A new `npmrcAuthFile` setting can be added to `pnpm-workspace.yaml` or `~/.config/pnpm/config.yaml` to specify a custom path to the user `.npmrc` file (defaults to `~/.npmrc`):
 
 ```yaml
-npmrcPath: /custom/path/.npmrc
+npmrcAuthFile: /custom/path/.npmrc
 ```
 
 ### Auth file read order (highest priority first)
@@ -45,7 +45,7 @@ npmrcPath: /custom/path/.npmrc
 1. `~/.config/pnpm/auth` — pnpm's own auth file (written by `pnpm login`)
 2. `<project>/.npmrc` — project-level
 3. `<workspace>/.npmrc` — workspace-level
-4. `~/.npmrc` (or custom `npmrcPath`) — user-level fallback
+4. `~/.npmrc` (or custom `npmrcAuthFile`) — user-level fallback
 
 ### Migration guide
 

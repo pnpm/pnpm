@@ -216,18 +216,18 @@ export async function getConfig (opts: {
 
   const configDir = getConfigDir(process)
 
-  // Read npmrcPath early from global config.yaml (before loading .npmrc files)
-  const globalYamlConfigForNpmrcPath = await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
-  const npmrcPath = cliOptions['npmrc-path'] as string | undefined
+  // Read npmrcAuthFile early from global config.yaml (before loading .npmrc files)
+  const globalYamlConfigForNpmrcAuthFile = await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
+  const npmrcAuthFile = cliOptions['npmrc-auth-file'] as string | undefined
     ?? cliOptions.userconfig as string | undefined
-    ?? globalYamlConfigForNpmrcPath?.npmrcPath
+    ?? globalYamlConfigForNpmrcAuthFile?.npmrcAuthFile
 
   const npmrcResult = loadNpmrcConfig({
     cliOptions,
     defaultOptions: defaultOptions as Record<string, unknown>,
     dir: cliOptions.dir as string | undefined,
     workspaceDir: opts.workspaceDir,
-    npmrcPath,
+    npmrcAuthFile,
     configDir: configDir as string,
     moduleDirname: import.meta.dirname,
     env: opts.env,
@@ -305,8 +305,8 @@ export async function getConfig (opts: {
     { 'user-agent': pnpmConfig.userAgent }
   )
 
-  // Reuse the global config.yaml already read for npmrcPath
-  const globalYamlConfig = globalYamlConfigForNpmrcPath
+  // Reuse the global config.yaml already read for npmrcAuthFile
+  const globalYamlConfig = globalYamlConfigForNpmrcAuthFile
   if (globalYamlConfig) {
     for (const key in globalYamlConfig) {
       if (!isConfigFileKey(kebabCase(key))) {
