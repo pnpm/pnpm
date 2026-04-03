@@ -233,8 +233,8 @@ catalog:
   # msgpackr 1.11.9 has broken type definitions (uses Iterable/Iterator without
   # required type arguments), incompatible with TypeScript 5.9.
   msgpackr: 1.11.8
-  nock: 13.3.4
   nm-prune: ^5.0.0
+  nock: 13.3.4
   normalize-newline: 5.0.0
   normalize-package-data: ^8.0.0
   normalize-path: ^3.0.0
@@ -419,7 +419,9 @@ overrides:
   json5@<2.2.2: 'catalog:'
   jsonwebtoken@<=8.5.1: '>=9.0.0'
   jws@<3.2.3: '^3.2.3'
+  lodash@<=4.17.23: '>=4.18.0'
   lodash@>=4.0.0 <=4.17.22: '^4.17.23'
+  lodash@>=4.0.0 <=4.17.23: '>=4.18.0'
   minimatch@>=7.0.0 <7.4.7: '^7.4.7'
   minimatch@>=9.0.0 <10.0.0: '>=10.2.4'
   nopt@5: npm:@pnpm/nopt@^0.2.1
