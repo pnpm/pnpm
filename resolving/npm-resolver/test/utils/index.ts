@@ -20,7 +20,7 @@ export async function retryLoadJsonFile<T> (filePath: string): Promise<T> {
 
 /**
  * Parses an NDJSON cache file: line 1 = headers, line 2 = metadata.
- * The headers (cachedAt, etag) are merged into the metadata object.
+ * The headers (etag, modified) are merged into the metadata object.
  */
 export function parseNdjsonMeta<T> (data: string): T {
   const newlineIdx = data.indexOf('\n')

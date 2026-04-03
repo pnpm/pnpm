@@ -297,10 +297,8 @@ export async function pickPackage (
       if (ctx.filterMetadata) {
         meta = clearMeta(meta)
       }
-      meta.etag = resultToSave.etag
-      // only save meta to cache, when it is fresh
-      ctx.metaCache.set(cacheKey, meta)
       if (!opts.dryRun) {
+        // Serialize before setting meta.etag so it only lives in the headers line, not the body.
         const jsonForDisk = ctx.filterMetadata
           ? `${JSON.stringify({ etag: resultToSave.etag, modified: meta.modified ?? meta.time?.modified })}\n${JSON.stringify(meta)}`
           : prepareJsonForDisk(resultToSave)
@@ -312,6 +310,9 @@ export async function pickPackage (
           }
         }))
       }
+      meta.etag = resultToSave.etag
+      // only save meta to cache, when it is fresh
+      ctx.metaCache.set(cacheKey, meta)
       return {
         meta,
         pickedPackage: _pickPackageFromMeta(meta),
