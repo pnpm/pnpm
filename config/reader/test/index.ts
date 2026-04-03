@@ -453,7 +453,7 @@ test('auth tokens from pnpm auth file override ~/.npmrc', async () => {
   const configHome = path.resolve('xdg-config')
   fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
   fs.writeFileSync(
-    path.join(configHome, 'pnpm', 'auth'),
+    path.join(configHome, 'pnpm', 'auth.ini'),
     '//registry.npmjs.org/:_authToken=fresh-token'
   )
 

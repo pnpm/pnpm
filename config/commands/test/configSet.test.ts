@@ -551,7 +551,7 @@ test('config set rejects complex property path', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
   fs.mkdirSync(configDir, { recursive: true })
-  fs.writeFileSync(path.join(configDir, 'auth'), 'store-dir=~/store')
+  fs.writeFileSync(path.join(configDir, 'auth.ini'), 'store-dir=~/store')
 
   await expect(config.handler({
     dir: process.cwd(),

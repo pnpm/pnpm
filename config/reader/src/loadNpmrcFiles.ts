@@ -81,7 +81,7 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
 
   // Read pnpm auth file (~/.config/pnpm/auth)
   const pnpmAuthConfig = readAndFilterNpmrc(
-    path.join(opts.configDir, 'auth'),
+    path.join(opts.configDir, 'auth.ini'),
     warnings,
     env
   )

@@ -16,7 +16,7 @@ pnpm no longer reads all settings from `.npmrc`. Only auth and registry settings
 
 **pnpm no longer reads the npm global config** at `$PREFIX/etc/npmrc`.
 
-**`pnpm login` writes auth tokens** to `~/.config/pnpm/auth`.
+**`pnpm login` writes auth tokens** to `~/.config/pnpm/auth.ini`.
 
 ### Settings still read from `.npmrc`
 
@@ -42,7 +42,7 @@ npmrcAuthFile: /custom/path/.npmrc
 
 ### Auth file read order (highest priority first)
 
-1. `~/.config/pnpm/auth` — pnpm's own auth file (written by `pnpm login`)
+1. `~/.config/pnpm/auth.ini` — pnpm's own auth file (written by `pnpm login`)
 2. `<project>/.npmrc` — project-level
 3. `<workspace>/.npmrc` — workspace-level
 4. `~/.npmrc` (or custom `npmrcAuthFile`) — user-level fallback

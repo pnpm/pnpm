@@ -28,7 +28,7 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
 
   if (isAuthSetting) {
     const configPath = opts.global
-      ? path.join(opts.configDir, 'auth')
+      ? path.join(opts.configDir, 'auth.ini')
       : path.join(opts.dir, '.npmrc')
     if (value != null && typeof value !== 'string' && isStringOnlyIniKey(key)) {
       throw new PnpmError('CONFIG_SET_AUTH_NON_STRING', `Cannot set ${key} to a non-string value (${JSON.stringify(value)})`)
@@ -63,7 +63,7 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
       break
     }
 
-    case 'auth':
+    case 'auth.ini':
     case '.npmrc': {
       const settings = await safeReadIniFile(configPath)
       key = validateIniConfigKey(key)

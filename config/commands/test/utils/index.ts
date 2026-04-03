@@ -37,7 +37,7 @@ export function readConfigFiles (globalConfigDir: string | undefined, localDir: 
 
   return {
     globalRc: globalConfigDir
-      ? tryRead(() => readIniFileSync(path.join(globalConfigDir, 'auth')) as Record<string, unknown>)
+      ? tryRead(() => readIniFileSync(path.join(globalConfigDir, 'auth.ini')) as Record<string, unknown>)
       : undefined,
     globalYaml: globalConfigDir
       ? tryRead(() => readYamlFileSync(path.join(globalConfigDir, 'config.yaml')))
@@ -56,7 +56,7 @@ export function writeConfigFiles (globalConfigDir: string | undefined, localDir:
     fs.mkdirSync(globalConfigDir, { recursive: true })
 
     if (data.globalRc) {
-      writeIniFileSync(path.join(globalConfigDir, 'auth'), data.globalRc)
+      writeIniFileSync(path.join(globalConfigDir, 'auth.ini'), data.globalRc)
     }
 
     if (data.globalYaml) {

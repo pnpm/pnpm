@@ -11,7 +11,7 @@ test('config delete on registry key not set', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
   fs.mkdirSync(configDir, { recursive: true })
-  fs.writeFileSync(path.join(configDir, 'auth'), '@my-company:registry=https://registry.my-company.example.com/')
+  fs.writeFileSync(path.join(configDir, 'auth.ini'), '@my-company:registry=https://registry.my-company.example.com/')
 
   await config.handler({
     dir: process.cwd(),
@@ -21,7 +21,7 @@ test('config delete on registry key not set', async () => {
     rawConfig: {},
   }, ['delete', 'registry'])
 
-  expect(readIniFileSync(path.join(configDir, 'auth'))).toEqual({
+  expect(readIniFileSync(path.join(configDir, 'auth.ini'))).toEqual({
     '@my-company:registry': 'https://registry.my-company.example.com/',
   })
 })
@@ -30,7 +30,7 @@ test('config delete on registry key set', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
   fs.mkdirSync(configDir, { recursive: true })
-  fs.writeFileSync(path.join(configDir, 'auth'), 'registry=https://registry.my-company.example.com/')
+  fs.writeFileSync(path.join(configDir, 'auth.ini'), 'registry=https://registry.my-company.example.com/')
 
   await config.handler({
     dir: process.cwd(),
@@ -40,14 +40,14 @@ test('config delete on registry key set', async () => {
     rawConfig: {},
   }, ['delete', 'registry'])
 
-  expect(readIniFileSync(path.join(configDir, 'auth'))).toEqual({})
+  expect(readIniFileSync(path.join(configDir, 'auth.ini'))).toEqual({})
 })
 
 test('config delete on npm-compatible key not set', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
   fs.mkdirSync(configDir, { recursive: true })
-  fs.writeFileSync(path.join(configDir, 'auth'), '@my-company:registry=https://registry.my-company.example.com/')
+  fs.writeFileSync(path.join(configDir, 'auth.ini'), '@my-company:registry=https://registry.my-company.example.com/')
 
   await config.handler({
     dir: process.cwd(),
@@ -57,7 +57,7 @@ test('config delete on npm-compatible key not set', async () => {
     rawConfig: {},
   }, ['delete', 'cafile'])
 
-  expect(readIniFileSync(path.join(configDir, 'auth'))).toEqual({
+  expect(readIniFileSync(path.join(configDir, 'auth.ini'))).toEqual({
     '@my-company:registry': 'https://registry.my-company.example.com/',
   })
 })
@@ -66,7 +66,7 @@ test('config delete on npm-compatible key set', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
   fs.mkdirSync(configDir, { recursive: true })
-  fs.writeFileSync(path.join(configDir, 'auth'), 'cafile=some-cafile')
+  fs.writeFileSync(path.join(configDir, 'auth.ini'), 'cafile=some-cafile')
 
   await config.handler({
     dir: process.cwd(),
@@ -78,7 +78,7 @@ test('config delete on npm-compatible key set', async () => {
 
   // NOTE: pnpm currently does not delete empty rc files.
   // TODO: maybe we should?
-  expect(readIniFileSync(path.join(configDir, 'auth'))).toEqual({})
+  expect(readIniFileSync(path.join(configDir, 'auth.ini'))).toEqual({})
 })
 
 test('config delete on pnpm-specific key not set', async () => {
