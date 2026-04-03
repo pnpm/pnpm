@@ -1637,3 +1637,73 @@ test('pnpm_config_git_branch_lockfile env var overrides git-branch-lockfile from
 
   expect(config.useGitBranchLockfile).toBe(true)
 })
+
+test('allowBuilds and trustPolicyExclude from pnpm-workspace.yaml are injected into extraEnv as pnpm_config_* for child processes', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    allowBuilds: {
+      esbuild: true,
+      'dd-trace': false,
+    },
+    trustPolicyExclude: [
+      'undici-types@6.21.0',
+      'semver@5.7.2 || 6.3.1',
+    ],
+    trustPolicy: 'no-downgrade',
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  // allowBuilds is an object — cannot be faithfully represented via npm_config_*
+  // so it must be forwarded as a JSON-encoded pnpm_config_allow_builds env var
+  expect(JSON.parse(config.extraEnv?.['pnpm_config_allow_builds'] ?? 'null')).toStrictEqual({
+    esbuild: true,
+    'dd-trace': false,
+  })
+
+  // trustPolicyExclude is an array — npm_config_trust_policy_exclude is skipped
+  // by @pnpm/npm-lifecycle, so it must be forwarded via pnpm_config_*
+  expect(JSON.parse(config.extraEnv?.['pnpm_config_trust_policy_exclude'] ?? 'null')).toStrictEqual([
+    'undici-types@6.21.0',
+    'semver@5.7.2 || 6.3.1',
+  ])
+
+  // scalar values like trustPolicy continue to be forwarded via npm_config_*
+  // and should NOT appear as a duplicate pnpm_config_* entry
+  expect(config.extraEnv?.['pnpm_config_trust_policy']).toBeUndefined()
+})
+
+test('user-provided pnpm_config_* env vars are not overridden by rawConfig injection', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    allowBuilds: { esbuild: true },
+    trustPolicyExclude: ['undici-types@6.21.0'],
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      pnpm_config_allow_builds: '{"user-provided":true}',
+      pnpm_config_trust_policy_exclude: '["user-provided@1.0.0"]',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  // User env vars must not be overridden
+  expect(config.extraEnv?.['pnpm_config_allow_builds']).toBeUndefined()
+  expect(config.extraEnv?.['pnpm_config_trust_policy_exclude']).toBeUndefined()
+})

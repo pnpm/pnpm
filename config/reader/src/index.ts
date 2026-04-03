@@ -38,7 +38,7 @@ import type {
 import { isConfigFileKey } from './configFileKey.js'
 import { extractAndRemoveDependencyBuildOptions, hasDependencyBuildOptions } from './dependencyBuildOptions.js'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs.js'
-import { parseEnvVars } from './env.js'
+import { parseEnvVars, type Schema } from './env.js'
 import { getDefaultAuthInfo, getNetworkConfigs } from './getNetworkConfigs.js'
 import { getOptionsFromPnpmSettings } from './getOptionsFromRootManifest.js'
 import {
@@ -442,14 +442,19 @@ export async function getConfig (opts: {
   }
 
   // omit some schema that the custom parser can't yet handle
-  const envPnpmTypes = omit([
-    'init-version', // the type is a private function named 'semver'
-    'node-version', // the type is a private function named 'semver'
-    'umask', // the type is a private function named 'Umask'
-    'logstream', // the custom parser doesn't have logic to handle 'Stream' yet
-  ], types)
+  const envPnpmTypes: Record<string, Schema> = {
+    ...omit([
+      'init-version', // the type is a private function named 'semver'
+      'node-version', // the type is a private function named 'semver'
+      'umask', // the type is a private function named 'Umask'
+      'logstream', // the custom parser doesn't have logic to handle 'Stream' yet
+    ], types),
+    // 'allow-builds' is not in types (it's not an .npmrc key), so we register it
+    // separately here so that pnpm_config_allow_builds env vars can be parsed.
+    'allow-builds': Object,
+  }
 
-  for (const { key, value } of parseEnvVars(key => envPnpmTypes[key as keyof typeof envPnpmTypes], env)) {
+  for (const { key, value } of parseEnvVars(key => envPnpmTypes[key], env)) {
     // undefined means that the env key was defined, but its value couldn't be parsed according to the schema
     // TODO: should we throw some error or print some warning here?
     if (value === undefined) continue
@@ -530,6 +535,19 @@ export async function getConfig (opts: {
         : 'node_modules/.pnpm'
 
     pnpmConfig.extraEnv['NODE_PATH'] = pathAbsolute(path.join(virtualStoreDir, 'node_modules'), cwd)
+  }
+  // Inject pnpm_config_* env vars for rawConfig values that cannot be faithfully
+  // represented via npm_config_* (such as arrays and plain objects), while
+  // preserving existing user-provided pnpm_config_* env vars.
+  // Only inject keys known to envPnpmTypes so the child process can actually parse them.
+  for (const [key, value] of Object.entries(pnpmConfig.rawConfig)) {
+    if (value === null || typeof value !== 'object') continue
+    const kebabKey = key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)
+    if (!(kebabKey in envPnpmTypes)) continue
+    const envKey = `pnpm_config_${kebabKey.replace(/-/g, '_')}`
+    if (!(envKey in env) && !(envKey in pnpmConfig.extraEnv)) {
+      pnpmConfig.extraEnv[envKey] = JSON.stringify(value)
+    }
   }
 
   if (!pnpmConfig.cacheDir) {

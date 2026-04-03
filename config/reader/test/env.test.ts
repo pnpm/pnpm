@@ -69,6 +69,25 @@ test('parseEnvVars works with booleans', () => {
   })
 })
 
+test('parseEnvVars works with objects', () => {
+  expect(pairsToObject(parseEnvVars(alwaysSchema(Object), {
+    HOME: '/home/fake-user',
+    PATH: '/bin:/usr/bin:/usr/local/bin:/home/fake-user/.bin:/home/fake-user/share/local/bin',
+    pnpm_config_allow_builds: '{"foo":true,"bar":false}',
+    pnpm_config_nested: '{"a":{"b":1}}',
+    pnpm_config_not_an_object: '"just a string"',
+    pnpm_config_an_array: '[1,2,3]',
+    pnpm_config_null_value: 'null',
+    pnpm_config_undefined_somehow: undefined,
+  }))).toStrictEqual({
+    allowBuilds: { foo: true, bar: false },
+    nested: { a: { b: 1 } },
+    notAnObject: undefined,
+    anArray: undefined,
+    nullValue: undefined,
+  })
+})
+
 test('parseEnvVars works with arrays', () => {
   expect(pairsToObject(parseEnvVars(alwaysSchema(Array), {
     HOME: '/home/fake-user',

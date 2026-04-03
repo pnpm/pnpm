@@ -10,6 +10,7 @@ export type ValueConstructor =
   | ArrayConstructor
   | BooleanConstructor
   | NumberConstructor
+  | ObjectConstructor
   | StringConstructor
 
 export type ModuleSchema =
@@ -111,6 +112,11 @@ function parseValueByConstructor (schema: ValueConstructor, envVar: string): unk
   if (schema === Array) {
     const value = tryParseObjectOrArray(envVar)
     return Array.isArray(value) ? value : undefined
+  }
+
+  if (schema === Object) {
+    const value = tryParseObjectOrArray(envVar)
+    return value !== null && typeof value === 'object' && !Array.isArray(value) ? value : undefined
   }
 
   if (schema === Boolean) {
