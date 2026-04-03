@@ -35,17 +35,14 @@ beforeEach(async () => {
 
 test('use local cache when registry returns 304 Not Modified', async () => {
   const cacheDir = temporaryDirectory()
-  // Write cached metadata with etag to disk
-  // is-positive.json already has modified: "2017-08-17T19:26:00.508Z"
-  const cachedMeta = {
-    ...isPositiveMeta,
-    etag: '"abc123"',
-  }
+  // Write cached metadata with etag to disk in NDJSON format:
+  // Line 1: cache headers, Line 2: registry metadata
   const cacheDir2 = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
   fs.mkdirSync(cacheDir2, { recursive: true })
+  const headers = JSON.stringify({ etag: '"abc123"', modified: isPositiveMeta.modified })
   fs.writeFileSync(
-    path.join(cacheDir2, 'is-positive.json'),
-    JSON.stringify(cachedMeta),
+    path.join(cacheDir2, 'is-positive.jsonl'),
+    `${headers}\n${JSON.stringify(isPositiveMeta)}`,
     'utf8'
   )
 
@@ -98,7 +95,7 @@ test('store etag from 200 response in cache', async () => {
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
 
   // Verify etag was saved to disk cache
-  const cachePath = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org/is-positive.json`)
+  const cachePath = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org/is-positive.jsonl`)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const savedMeta = await retryLoadJsonFile<any>(cachePath)
   expect(savedMeta.etag).toBe('"xyz789"')

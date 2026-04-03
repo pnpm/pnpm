@@ -10,7 +10,6 @@ export interface PackageMeta {
   versions: Record<string, PackageInRegistry>
   time?: PackageMetaTime
   modified?: string
-  cachedAt?: number
   etag?: string
 }
 

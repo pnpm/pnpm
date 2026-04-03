@@ -62,10 +62,13 @@ test('request metadata when the one in cache does not have a version satisfying 
     'dist-tags': {},
     versions: {},
     time: {},
-    cachedAt: '2016-08-17T19:26:00.508Z',
   }
   fs.mkdirSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org`), { recursive: true })
-  fs.writeFileSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org/bad-dates.json`), JSON.stringify(cachedMeta), 'utf8')
+  fs.writeFileSync(
+    path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org/bad-dates.jsonl`),
+    `${JSON.stringify({})}\n${JSON.stringify(cachedMeta)}`,
+    'utf8'
+  )
 
   getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/bad-dates', method: 'GET' })
@@ -102,10 +105,13 @@ test('do not pick version that does not satisfy the date requirement even if it 
     time: {
       '1.0.0': '2016-08-17T19:26:00.508Z',
     },
-    cachedAt: '2016-08-17T19:26:00.508Z',
   }
   fs.mkdirSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org`), { recursive: true })
-  fs.writeFileSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org/foo.json`), JSON.stringify(fooMeta), 'utf8')
+  fs.writeFileSync(
+    path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org/foo.jsonl`),
+    `${JSON.stringify({})}\n${JSON.stringify(fooMeta)}`,
+    'utf8'
+  )
 
   getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/foo', method: 'GET' })
@@ -129,7 +135,7 @@ test('should skip time field validation for excluded packages', async () => {
   const { time: _time, ...metaWithoutTime } = isPositiveMeta
 
   fs.mkdirSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org`), { recursive: true })
-  fs.writeFileSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org/is-positive.json`), JSON.stringify(metaWithoutTime), 'utf8')
+  fs.writeFileSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org/is-positive.jsonl`), JSON.stringify(metaWithoutTime), 'utf8')
 
   getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
@@ -211,8 +217,9 @@ test('use cached metadata based on file mtime when publishedBy is set', async ()
   // Write abbreviated metadata to the abbreviated cache dir
   const cacheDir2 = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
   fs.mkdirSync(cacheDir2, { recursive: true })
-  const cachePath = path.join(cacheDir2, 'is-positive.json')
-  fs.writeFileSync(cachePath, JSON.stringify(isPositiveAbbreviatedMeta), 'utf8')
+  const cachePath = path.join(cacheDir2, 'is-positive.jsonl')
+  const headers = JSON.stringify({ modified: isPositiveAbbreviatedMeta.modified })
+  fs.writeFileSync(cachePath, `${headers}\n${JSON.stringify(isPositiveAbbreviatedMeta)}`, 'utf8')
 
   // No mock agent intercepts — the test verifies no network request is made.
   // If a request were attempted, it would fail.
