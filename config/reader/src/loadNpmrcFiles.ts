@@ -8,22 +8,17 @@ import { readIniFileSync } from 'read-ini-file'
 import { isIniConfigKey } from './auth.js'
 
 export interface NpmrcConfigResult {
-  /** Workspace (or project root) .npmrc data (filtered to auth/registry keys) */
-  workspaceNpmrc: Record<string, unknown>
-  /** User ~/.npmrc data (filtered to auth/registry keys) */
-  userConfig: Record<string, unknown>
-  /** pnpm auth file data (~/.config/pnpm/auth.ini, filtered to auth/registry keys) */
-  pnpmAuthConfig: Record<string, unknown>
-  /** pnpm builtin rc data + inline defaults */
-  pnpmBuiltinConfig: Record<string, unknown>
   /**
-   * All layers in priority order (highest first):
-   * [0] = CLI options
-   * [1] = workspace .npmrc (or project root .npmrc)
-   * [2] = user .npmrc (npmrcAuthFile or ~/.npmrc)
-   * [3] = defaults
+   * Merged auth/registry config from all sources.
+   * Priority (lowest to highest): builtin < defaults < user < auth.ini < workspace < CLI
    */
-  layers: Array<Record<string, unknown>>
+  mergedConfig: Record<string, unknown>
+  /** Raw config suitable for pnpmConfig.rawConfig (filtered through pickIniConfig by consumer) */
+  rawConfig: Record<string, unknown>
+  /** Workspace .npmrc data (for rawLocalConfig and checkUnknownSetting) */
+  workspaceNpmrc: Record<string, unknown>
+  /** User ~/.npmrc data (for token helpers) */
+  userConfig: Record<string, unknown>
   /** Resolved local prefix (CWD or nearest dir with package.json) */
   localPrefix: string
   /** Warnings generated during loading */
@@ -85,16 +80,8 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     '@jsr:registry': 'https://npm.jsr.io/',
   }
 
-  // Build layers in priority order (highest first)
-  const layers: Array<Record<string, unknown>> = [
-    opts.cliOptions, // [0] CLI
-    workspaceNpmrc, // [1] workspace .npmrc
-    userConfig, // [2] user .npmrc
-    opts.defaultOptions, // [3] defaults
-  ]
-
-  // Handle cafile: read and set ca if cafile is configured.
-  // Priority matches the effective config merge order.
+  // Handle cafile: expand to ca certs.
+  // Priority: CLI > workspace > auth.ini > user > defaults
   loadCAFile([
     opts.cliOptions,
     workspaceNpmrc,
@@ -103,12 +90,33 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     opts.defaultOptions,
   ])
 
-  return {
-    workspaceNpmrc,
+  // Merge all sources (lowest to highest priority):
+  // builtin < defaults < user < auth.ini < workspace < CLI
+  const mergedConfig: Record<string, unknown> = {}
+  for (const source of [pnpmBuiltinConfig, opts.defaultOptions, userConfig, pnpmAuthConfig, workspaceNpmrc, opts.cliOptions]) {
+    for (const [key, value] of Object.entries(source)) {
+      if (isIniConfigKey(key)) {
+        mergedConfig[key] = value
+      }
+    }
+  }
+
+  // Build rawConfig with same priority order
+  const rawConfig = Object.assign(
+    {},
+    pnpmBuiltinConfig,
+    opts.defaultOptions,
     userConfig,
     pnpmAuthConfig,
-    pnpmBuiltinConfig,
-    layers,
+    workspaceNpmrc,
+    opts.cliOptions
+  )
+
+  return {
+    mergedConfig,
+    rawConfig,
+    workspaceNpmrc,
+    userConfig,
     localPrefix,
     warnings,
   }

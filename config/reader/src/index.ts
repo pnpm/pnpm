@@ -241,31 +241,12 @@ export async function getConfig (opts: {
     .map(([name, value]) => [camelcase(name, { locale: 'en-US' }), value])
   )
 
-  // Build merged auth/registry config from all sources (lowest to highest priority)
-  const mergedIniConfig: Record<string, unknown> = {}
-  // Priority (lowest to highest): builtin → defaults → user → pnpmAuth → workspace → CLI
-  const allIniSources = [
-    npmrcResult.pnpmBuiltinConfig,
-    npmrcResult.layers[3], // defaults
-    npmrcResult.layers[2], // user ~/.npmrc
-    npmrcResult.pnpmAuthConfig, // pnpm auth.ini
-    npmrcResult.layers[1], // workspace .npmrc
-    npmrcResult.layers[0], // CLI
-  ]
-  for (const source of allIniSources) {
-    for (const [key, value] of Object.entries(source)) {
-      if (isIniConfigKey(key)) {
-        mergedIniConfig[key] = value
-      }
-    }
-  }
-
   const pnpmConfig = Object.fromEntries(
     rcOptions
       .map((configKey) => [
         camelcase(configKey, { locale: 'en-US' }),
         isIniConfigKey(configKey)
-          ? (mergedIniConfig[configKey] ?? (defaultOptions as Record<string, unknown>)[configKey])
+          ? (npmrcResult.mergedConfig[configKey] ?? (defaultOptions as Record<string, unknown>)[configKey])
           : (defaultOptions as Record<string, unknown>)[configKey],
       ])
   ) as unknown as ConfigWithDeprecatedSettings
@@ -301,15 +282,9 @@ export async function getConfig (opts: {
   pnpmConfig.userAgent = pnpmConfig.rawLocalConfig['user-agent']
     ? pnpmConfig.rawLocalConfig['user-agent']
     : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
-  // Priority (lowest to highest): builtin < defaults < user < pnpmAuth < workspace < CLI
   pnpmConfig.rawConfig = Object.assign(
     {},
-    pickIniConfig(npmrcResult.pnpmBuiltinConfig),
-    pickIniConfig(npmrcResult.layers[3]), // defaults
-    pickIniConfig(npmrcResult.layers[2]), // user ~/.npmrc
-    pickIniConfig(npmrcResult.pnpmAuthConfig), // pnpm auth.ini
-    pickIniConfig(npmrcResult.layers[1]), // workspace .npmrc
-    pickIniConfig(npmrcResult.layers[0]), // CLI
+    pickIniConfig(npmrcResult.rawConfig),
     { 'user-agent': pnpmConfig.userAgent }
   )
 
