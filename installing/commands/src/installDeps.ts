@@ -201,6 +201,7 @@ when running add/update with the --workspace option')
     dependencies: true,
     devDependencies: true,
     optionalDependencies: true,
+    peerDependencies: false,
   }
   const forceHoistPattern = typeof opts.rawLocalConfig['hoist-pattern'] !== 'undefined' ||
     typeof opts.rawLocalConfig['hoist'] !== 'undefined'
