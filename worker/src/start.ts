@@ -276,8 +276,10 @@ function initStore ({ storeDir }: InitStoreMessage): { status: string } {
       }
     }
   }
-  // Initialize the SQLite index database
-  getStoreIndex(storeDir)
+  // The SQLite index database will be initialized lazily by getStoreIndex()
+  // on the first operation that needs it (e.g., readPkgFromCafs, addFilesFromDir).
+  // Eagerly opening it here races with the main thread's StoreIndex constructor,
+  // which can cause SQLITE_CANTOPEN on Windows due to mandatory file locking.
   return { status: 'success' }
 }
 

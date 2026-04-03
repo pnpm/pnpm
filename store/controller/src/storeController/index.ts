@@ -44,7 +44,7 @@ export function createPackageStore (
 ): StoreController {
   const storeDir = initOpts.storeDir
   if (!fs.existsSync(path.join(storeDir, 'files'))) {
-    initStoreDir(storeDir).catch()
+    initStoreDir(storeDir).catch(() => {})
   }
   const cafs = createCafsStore(storeDir, {
     cafsLocker: initOpts.cafsLocker,
