@@ -42,19 +42,39 @@ interface LocalTarget {
 
 type LocalProtocol = 'link:' | 'file:'
 
+const TARBALL_SPECIFIER_PATTERN = /\.(?:tgz|tar\.gz|tar)$/i
+const NAMED_PROTOCOL_PATTERN = /^[a-z][a-z0-9+.-]*:/i
+const WINDOWS_ABSOLUTE_PATH_PATTERN = /^[a-z]:[/\\]/i
+
 function createLocalTarget (override: VersionOverrideWithoutRawSelector, rootDir: string): LocalTarget | undefined {
-  let protocol: LocalProtocol | undefined
-  if (override.newBareSpecifier.startsWith('file:')) {
-    protocol = 'file:'
-  } else if (override.newBareSpecifier.startsWith('link:')) {
-    protocol = 'link:'
-  } else {
+  const localSpecifier = parseLocalOverrideSpecifier(override.newBareSpecifier)
+  if (!localSpecifier) {
     return undefined
   }
-  const pkgPath = override.newBareSpecifier.substring(protocol.length)
+  const pkgPath = localSpecifier.path
   const specifiedViaRelativePath = !path.isAbsolute(pkgPath)
   const absolutePath = specifiedViaRelativePath ? path.join(rootDir, pkgPath) : pkgPath
-  return { absolutePath, specifiedViaRelativePath, protocol }
+  return { absolutePath, specifiedViaRelativePath, protocol: localSpecifier.protocol }
+}
+
+function parseLocalOverrideSpecifier (
+  newBareSpecifier: string
+): { protocol: LocalProtocol, path: string } | undefined {
+  if (newBareSpecifier.startsWith('file:')) {
+    return { protocol: 'file:', path: newBareSpecifier.substring('file:'.length) }
+  }
+  if (newBareSpecifier.startsWith('link:')) {
+    return { protocol: 'link:', path: newBareSpecifier.substring('link:'.length) }
+  }
+  if (!isLocalTarballSpecifier(newBareSpecifier)) {
+    return undefined
+  }
+  return { protocol: 'file:', path: newBareSpecifier }
+}
+
+function isLocalTarballSpecifier (specifier: string): boolean {
+  if (!TARBALL_SPECIFIER_PATTERN.test(specifier)) return false
+  return WINDOWS_ABSOLUTE_PATH_PATTERN.test(specifier) || !NAMED_PROTOCOL_PATTERN.test(specifier)
 }
 
 interface VersionOverride extends VersionOverrideBase {
