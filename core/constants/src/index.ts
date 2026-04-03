@@ -16,7 +16,7 @@ export const WORKSPACE_MANIFEST_FILENAME = 'pnpm-workspace.yaml'
 // about all the packages published by the same name, not just the manifest
 // of one package/version
 //
-// Cache files use NDJSON format: line 1 is cache headers (etag, modified, cachedAt),
+// Cache files use NDJSON format: line 1 is cache headers (etag, modified),
 // line 2 is the registry metadata JSON.
 export const ABBREVIATED_META_DIR = 'v11/metadata'
 export const FULL_META_DIR = 'v11/metadata-full'

@@ -240,7 +240,6 @@ export async function pickPackage (
       if (fetchResult.notModified) {
         metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
         if (metaCachedInStore != null) {
-          metaCachedInStore.cachedAt = Date.now()
           ctx.metaCache.set(cacheKey, metaCachedInStore)
           return {
             meta: metaCachedInStore,
@@ -251,7 +250,6 @@ export async function pickPackage (
           `Metadata cache for ${spec.name} is unreadable after receiving 304 Not Modified`)
       }
 
-      const cachedAt = Date.now()
       let meta = fetchResult.meta
       let resultToSave: FetchMetadataResult = fetchResult
 
@@ -274,7 +272,7 @@ export async function pickPackage (
         if (!isModifiedValid || modifiedDate >= opts.publishedBy) {
           // Save the abbreviated metadata to the abbreviated cache before re-fetching full.
           if (!opts.dryRun) {
-            const abbreviatedJson = prepareJsonForDisk(fetchResult, cachedAt)
+            const abbreviatedJson = prepareJsonForDisk(fetchResult)
             // Fire-and-forget save to the abbreviated cache path (pkgMirror).
             runLimited(pkgMirror, (limit) => limit(async () => {
               try {
@@ -299,14 +297,13 @@ export async function pickPackage (
       if (ctx.filterMetadata) {
         meta = clearMeta(meta)
       }
-      meta.cachedAt = cachedAt
       meta.etag = resultToSave.etag
       // only save meta to cache, when it is fresh
       ctx.metaCache.set(cacheKey, meta)
       if (!opts.dryRun) {
         const jsonForDisk = ctx.filterMetadata
-          ? `${JSON.stringify({ cachedAt, etag: resultToSave.etag, modified: meta.modified ?? meta.time?.modified })}\n${JSON.stringify(meta)}`
-          : prepareJsonForDisk(resultToSave, cachedAt)
+          ? `${JSON.stringify({ etag: resultToSave.etag, modified: meta.modified ?? meta.time?.modified })}\n${JSON.stringify(meta)}`
+          : prepareJsonForDisk(resultToSave)
         runLimited(pkgMirror, (limit) => limit(async () => {
           try {
             await saveMeta(pkgMirror, jsonForDisk)
@@ -379,12 +376,12 @@ function encodePkgName (pkgName: string): string {
 
 /**
  * Formats metadata for disk storage as two-line NDJSON:
- *   Line 1: cache headers (etag, modified, cachedAt) — small, fast to read
+ *   Line 1: cache headers (etag, modified) — small, fast to read
  *   Line 2: the full registry metadata JSON — unchanged from the registry response
  */
-function prepareJsonForDisk (fetchResult: FetchMetadataResult, cachedAt: number): string {
+function prepareJsonForDisk (fetchResult: FetchMetadataResult): string {
   const modified = fetchResult.meta.modified ?? fetchResult.meta.time?.modified
-  const headers = JSON.stringify({ cachedAt, etag: fetchResult.etag, modified })
+  const headers = JSON.stringify({ etag: fetchResult.etag, modified })
   const body = fetchResult.jsonText ?? JSON.stringify(fetchResult.meta)
   return `${headers}\n${body}`
 }
@@ -408,14 +405,13 @@ async function getFileMtime (filePath: string): Promise<Date | null> {
 }
 
 interface MetaHeaders {
-  cachedAt?: number
   etag?: string
   modified?: string
 }
 
 /**
  * Reads only the first line of the cached NDJSON metadata file to extract
- * the cache headers (etag, modified, cachedAt). This avoids reading and
+ * the cache headers (etag, modified). This avoids reading and
  * parsing the full metadata (which can be megabytes for popular packages)
  * when we only need conditional-request headers.
  */
@@ -440,7 +436,7 @@ async function loadMetaHeaders (pkgMirror: string): Promise<MetaHeaders | null> 
 
 /**
  * Reads the full metadata from the cached NDJSON file.
- * Line 1: cache headers (cachedAt, etag, modified)
+ * Line 1: cache headers (etag, modified)
  * Line 2: registry metadata JSON
  */
 async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
@@ -450,7 +446,6 @@ async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
     if (newlineIdx === -1) return null
     const headers = JSON.parse(data.slice(0, newlineIdx)) as MetaHeaders
     const meta = JSON.parse(data.slice(newlineIdx + 1)) as PackageMeta
-    meta.cachedAt = headers.cachedAt
     meta.etag = headers.etag
     return meta
   } catch {

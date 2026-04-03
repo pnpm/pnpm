@@ -24,18 +24,17 @@ export async function cacheView (opts: { cacheDir: string, storeDir: string, reg
   try {
     for (const filePath of metaFilePaths) {
       let metaObject: PackageMeta | null
-      let cachedAt: number | undefined
+      const fullPath = path.join(opts.cacheDir, filePath)
+      let mtime: Date | undefined
       try {
-        const raw = fs.readFileSync(path.join(opts.cacheDir, filePath), 'utf8')
+        const raw = fs.readFileSync(fullPath, 'utf8')
+        mtime = fs.statSync(fullPath).mtime
         const newlineIdx = raw.indexOf('\n')
         if (newlineIdx !== -1) {
           // NDJSON format: line 1 = headers, line 2 = metadata
-          const headers = JSON.parse(raw.slice(0, newlineIdx))
-          cachedAt = headers.cachedAt
           metaObject = JSON.parse(raw.slice(newlineIdx + 1)) as PackageMeta
         } else {
           metaObject = JSON.parse(raw) as PackageMeta
-          cachedAt = metaObject.cachedAt
         }
       } catch {
         continue
@@ -59,7 +58,7 @@ export async function cacheView (opts: { cacheDir: string, storeDir: string, reg
       metaFilesByPath[registryName.replaceAll('+', ':')] = {
         cachedVersions,
         nonCachedVersions,
-        cachedAt: cachedAt ? new Date(cachedAt).toString() : undefined,
+        cachedAt: mtime?.toString(),
         distTags: metaObject['dist-tags'],
       }
     }
