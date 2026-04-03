@@ -272,7 +272,7 @@ export async function pickPackage (
         if (!isModifiedValid || modifiedDate >= opts.publishedBy) {
           // Save the abbreviated metadata to the abbreviated cache before re-fetching full.
           if (!opts.dryRun) {
-            const abbreviatedJson = prepareJsonForDisk(fetchResult)
+            const abbreviatedJson = prepareJsonForDisk(fetchResult.meta, fetchResult.etag, fetchResult.jsonText)
             // Fire-and-forget save to the abbreviated cache path (pkgMirror).
             runLimited(pkgMirror, (limit) => limit(async () => {
               try {
@@ -300,8 +300,8 @@ export async function pickPackage (
       if (!opts.dryRun) {
         // Serialize before setting meta.etag so it only lives in the headers line, not the body.
         const jsonForDisk = ctx.filterMetadata
-          ? `${JSON.stringify({ etag: resultToSave.etag, modified: meta.modified ?? meta.time?.modified })}\n${JSON.stringify(meta)}`
-          : prepareJsonForDisk(resultToSave)
+          ? prepareJsonForDisk(meta, resultToSave.etag)
+          : prepareJsonForDisk(resultToSave.meta, resultToSave.etag, resultToSave.jsonText)
         runLimited(pkgMirror, (limit) => limit(async () => {
           try {
             await saveMeta(pkgMirror, jsonForDisk)
@@ -380,10 +380,10 @@ function encodePkgName (pkgName: string): string {
  *   Line 1: cache headers (etag, modified) — small, fast to read
  *   Line 2: the full registry metadata JSON — unchanged from the registry response
  */
-function prepareJsonForDisk (fetchResult: FetchMetadataResult): string {
-  const modified = fetchResult.meta.modified ?? fetchResult.meta.time?.modified
-  const headers = JSON.stringify({ etag: fetchResult.etag, modified })
-  const body = fetchResult.jsonText ?? JSON.stringify(fetchResult.meta)
+function prepareJsonForDisk (meta: PackageMeta, etag: string | undefined, jsonText?: string): string {
+  const modified = meta.modified ?? meta.time?.modified
+  const headers = JSON.stringify({ etag, modified })
+  const body = jsonText ?? JSON.stringify(meta)
   return `${headers}\n${body}`
 }
 
