@@ -1,0 +1,15 @@
+name: Golden Solution Validation
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  prevalidate:
+    if: github.head_ref == 'golden-solution' || github.event_name == 'workflow_dispatch'
+    uses: handshake-coding/handshake-orchestration/.github/workflows/golden-solution-validation.yml@main
+    secrets: inherit
