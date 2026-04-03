@@ -209,6 +209,7 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
   packageLock: boolean
   pending: boolean
   userconfig: string
+  npmrcPath?: string
   workspacePrefix?: string
   dedupeDirectDeps?: boolean
   extendNodePath?: boolean

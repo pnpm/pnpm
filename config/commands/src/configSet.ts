@@ -63,7 +63,7 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
       break
     }
 
-    case 'rc':
+    case 'auth':
     case '.npmrc': {
       const settings = await safeReadIniFile(configPath)
       key = validateIniConfigKey(key)

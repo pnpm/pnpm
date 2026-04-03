@@ -443,17 +443,17 @@ test('registries in current directory\'s .npmrc have bigger priority then global
   })
 })
 
-test('auth tokens from pnpm global rc override ~/.npmrc', async () => {
+test('auth tokens from pnpm auth file override ~/.npmrc', async () => {
   prepareEmpty()
 
   // Set up a userconfig (.npmrc) with a stale token
   fs.writeFileSync('.npmrc', '//registry.npmjs.org/:_authToken=stale-token', 'utf8')
 
-  // Set up a pnpm global rc with a fresh token via XDG_CONFIG_HOME
+  // Set up a pnpm auth file with a fresh token via XDG_CONFIG_HOME
   const configHome = path.resolve('xdg-config')
   fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
   fs.writeFileSync(
-    path.join(configHome, 'pnpm', 'rc'),
+    path.join(configHome, 'pnpm', 'auth'),
     '//registry.npmjs.org/:_authToken=fresh-token'
   )
 

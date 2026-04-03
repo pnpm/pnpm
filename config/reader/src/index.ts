@@ -216,11 +216,18 @@ export async function getConfig (opts: {
 
   const configDir = getConfigDir(process)
 
+  // Read npmrcPath early from global config.yaml (before loading .npmrc files)
+  const globalYamlConfigForNpmrcPath = await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
+  const npmrcPath = cliOptions['npmrc-path'] as string | undefined
+    ?? cliOptions.userconfig as string | undefined
+    ?? globalYamlConfigForNpmrcPath?.npmrcPath
+
   const npmrcResult = loadNpmrcConfig({
     cliOptions,
     defaultOptions: defaultOptions as Record<string, unknown>,
     dir: cliOptions.dir as string | undefined,
     workspaceDir: opts.workspaceDir,
+    npmrcPath,
     configDir: configDir as string,
     moduleDirname: import.meta.dirname,
     env: opts.env,
@@ -288,25 +295,24 @@ export async function getConfig (opts: {
   pnpmConfig.userAgent = pnpmConfig.rawLocalConfig['user-agent']
     ? pnpmConfig.rawLocalConfig['user-agent']
     : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
-  // Priority (lowest to highest): builtin < layers < pnpm-global < CLI
+  // Priority (lowest to highest): builtin < layers < pnpm-auth < CLI
   pnpmConfig.rawConfig = Object.assign(
     {},
     pickIniConfig(npmrcResult.pnpmBuiltinConfig),
     ...npmrcResult.layers.map(pickIniConfig).reverse(),
-    pickIniConfig(npmrcResult.pnpmGlobalConfig),
+    pickIniConfig(npmrcResult.pnpmAuthConfig),
     pickIniConfig(cliOptions),
     { 'user-agent': pnpmConfig.userAgent },
-    { globalconfig: path.join(configDir, 'rc') },
-    { 'npm-globalconfig': npmDefaults.globalconfig }
   )
 
-  const globalYamlConfig = await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
-  for (const key in globalYamlConfig) {
-    if (!isConfigFileKey(kebabCase(key))) {
-      delete globalYamlConfig[key as keyof typeof globalYamlConfig]
-    }
-  }
+  // Reuse the global config.yaml already read for npmrcPath
+  const globalYamlConfig = globalYamlConfigForNpmrcPath
   if (globalYamlConfig) {
+    for (const key in globalYamlConfig) {
+      if (!isConfigFileKey(kebabCase(key))) {
+        delete globalYamlConfig[key as keyof typeof globalYamlConfig]
+      }
+    }
     addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
       configFromCliOpts,
       projectManifest: undefined,

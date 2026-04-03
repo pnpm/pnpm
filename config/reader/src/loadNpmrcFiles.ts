@@ -14,20 +14,17 @@ export interface NpmrcConfigResult {
   workspaceConfig: Record<string, unknown> | undefined
   /** User ~/.npmrc data (filtered to auth/registry keys) */
   userConfig: Record<string, unknown>
-  /** pnpm global rc data (filtered to auth/registry keys) */
-  pnpmGlobalConfig: Record<string, unknown>
+  /** pnpm auth file data (~/.config/pnpm/auth, filtered to auth/registry keys) */
+  pnpmAuthConfig: Record<string, unknown>
   /** pnpm builtin rc data + inline defaults */
   pnpmBuiltinConfig: Record<string, unknown>
   /**
-   * All layers in priority order (highest first), matching the old npmConfig.list layout:
+   * All layers in priority order (highest first):
    * [0] = CLI options
-   * [1] = npm_config_* env vars (auth/registry only)
-   * [2] = (empty — no builtin npm config)
-   * [3] = project .npmrc
-   * [4] = workspace .npmrc (empty if no workspace or same as project)
-   * [5] = user .npmrc
-   * [6] = global npmrc
-   * [7] = defaults
+   * [1] = project .npmrc
+   * [2] = workspace .npmrc (empty if no workspace or same as project)
+   * [3] = user .npmrc (npmrcPath or ~/.npmrc)
+   * [4] = defaults
    */
   layers: Array<Record<string, unknown>>
   /** Resolved local prefix (CWD or nearest dir with package.json) */
@@ -43,11 +40,9 @@ export interface LoadNpmrcConfigOpts {
   dir?: string
   /** Workspace directory */
   workspaceDir?: string
-  /** Path to user .npmrc (defaults to ~/.npmrc) */
-  userconfig?: string
-  /** Path to global npmrc */
-  globalconfig?: string
-  /** pnpm config directory (for pnpm global rc) */
+  /** Custom path to user .npmrc (from npmrcPath setting, overrides ~/.npmrc) */
+  npmrcPath?: string
+  /** pnpm config directory (for pnpm auth file) */
   configDir: string
   /** Module directory for pnpm builtin rc */
   moduleDirname: string
@@ -62,8 +57,7 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     ? path.resolve(opts.dir)
     : findLocalPrefix(process.cwd())
 
-  const userConfigPath = opts.userconfig ?? opts.cliOptions.userconfig as string ?? path.resolve(os.homedir(), '.npmrc')
-  const globalConfigPath = opts.globalconfig ?? opts.cliOptions.globalconfig as string ?? undefined
+  const userConfigPath = opts.npmrcPath ?? path.resolve(os.homedir(), '.npmrc')
 
   // Read project .npmrc
   const projectConfig = readAndFilterNpmrc(
@@ -82,17 +76,12 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     )
   }
 
-  // Read user ~/.npmrc
+  // Read user .npmrc (from npmrcPath setting or ~/.npmrc)
   const userConfig = readAndFilterNpmrc(userConfigPath, warnings, env)
 
-  // Read global npmrc
-  const globalConfig = globalConfigPath
-    ? readAndFilterNpmrc(globalConfigPath, warnings, env)
-    : {}
-
-  // Read pnpm global rc
-  const pnpmGlobalConfig = readAndFilterNpmrc(
-    path.join(opts.configDir, 'rc'),
+  // Read pnpm auth file (~/.config/pnpm/auth)
+  const pnpmAuthConfig = readAndFilterNpmrc(
+    path.join(opts.configDir, 'auth'),
     warnings,
     env
   )
@@ -108,19 +97,13 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     '@jsr:registry': 'https://npm.jsr.io/',
   }
 
-  // Parse npm_config_* env vars for auth/registry keys
-  const npmEnvConfig = parseNpmConfigEnvVars(env)
-
-  // Build layers in priority order (highest first), matching old npmConfig.list layout
+  // Build layers in priority order (highest first)
   const layers: Array<Record<string, unknown>> = [
     opts.cliOptions, // [0] CLI
-    npmEnvConfig, // [1] env
-    {}, // [2] builtin npm (always empty now)
-    projectConfig, // [3] project .npmrc
-    workspaceConfig ?? {}, // [4] workspace .npmrc
-    userConfig, // [5] user .npmrc
-    globalConfig, // [6] global npmrc
-    opts.defaultOptions, // [7] defaults
+    projectConfig, // [1] project .npmrc
+    workspaceConfig ?? {}, // [2] workspace .npmrc
+    userConfig, // [3] user .npmrc
+    opts.defaultOptions, // [4] defaults
   ]
 
   // Handle cafile: read and set ca if cafile is configured
@@ -130,7 +113,7 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     projectConfig,
     workspaceConfig,
     userConfig,
-    pnpmGlobalConfig,
+    pnpmAuthConfig,
     pnpmBuiltinConfig,
     layers,
     localPrefix,
@@ -181,47 +164,6 @@ function substituteEnv (value: string, env: Record<string, string | undefined>, 
 
 function isErrorWithCode (err: unknown, code: string): boolean {
   return err != null && typeof err === 'object' && 'code' in err && err.code === code
-}
-
-/**
- * Parse npm_config_* environment variables, keeping only auth/registry keys.
- * Converts env key format: npm_config_foo_bar → foo-bar
- * Special case: npm_config__authtoken → _authToken // cspell:disable-line
- */
-function parseNpmConfigEnvVars (env: Record<string, string | undefined>): Record<string, string> {
-  const result: Record<string, string> = {}
-  for (const [key, value] of Object.entries(env)) {
-    if (!/^npm_config_/i.test(key) || !value) continue
-    const configKey = envKeyToSetting(key.slice(11))
-    if (isIniConfigKey(configKey)) {
-      result[configKey] = value
-    }
-  }
-  return result
-}
-
-/**
- * Convert an npm_config_ env var suffix to a setting name.
- * Ported from @pnpm/npm-conf/lib/envKeyToSetting.js
- */
-function envKeyToSetting (x: string): string {
-  const colonIndex = x.indexOf(':')
-  if (colonIndex === -1) {
-    return normalizeEnvKey(x)
-  }
-  const firstPart = x.slice(0, colonIndex)
-  const secondPart = x.slice(colonIndex + 1)
-  return `${normalizeEnvKey(firstPart)}:${normalizeEnvKey(secondPart)}`
-}
-
-function normalizeEnvKey (s: string): string {
-  s = s.toLowerCase()
-  if (s === '_authtoken') return '_authToken' // cspell:disable-line
-  let r = s[0]
-  for (let i = 1; i < s.length; i++) {
-    r += s[i] === '_' ? '-' : s[i]
-  }
-  return r
 }
 
 /**

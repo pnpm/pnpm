@@ -74,6 +74,7 @@ export const pnpmTypes = {
   'node-linker': ['pnp', 'isolated', 'hoisted'],
   noproxy: String,
   'npm-path': String,
+  'npmrc-path': String,
   offline: Boolean,
   'pack-destination': String,
   'pack-gzip-level': Number,
