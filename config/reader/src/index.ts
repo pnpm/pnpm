@@ -243,10 +243,14 @@ export async function getConfig (opts: {
 
   // Build merged auth/registry config from all sources (lowest to highest priority)
   const mergedIniConfig: Record<string, unknown> = {}
+  // Priority (lowest to highest): builtin → defaults → user → pnpmAuth → workspace → CLI
   const allIniSources = [
     npmrcResult.pnpmBuiltinConfig,
-    ...npmrcResult.layers.slice().reverse(), // defaults → user → workspace → CLI
-    npmrcResult.pnpmAuthConfig, // pnpm auth file overrides layers
+    npmrcResult.layers[3], // defaults
+    npmrcResult.layers[2], // user ~/.npmrc
+    npmrcResult.pnpmAuthConfig, // pnpm auth.ini
+    npmrcResult.layers[1], // workspace .npmrc
+    npmrcResult.layers[0], // CLI
   ]
   for (const source of allIniSources) {
     for (const [key, value] of Object.entries(source)) {
@@ -297,13 +301,15 @@ export async function getConfig (opts: {
   pnpmConfig.userAgent = pnpmConfig.rawLocalConfig['user-agent']
     ? pnpmConfig.rawLocalConfig['user-agent']
     : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
-  // Priority (lowest to highest): builtin < layers < pnpm-auth < CLI
+  // Priority (lowest to highest): builtin < defaults < user < pnpmAuth < workspace < CLI
   pnpmConfig.rawConfig = Object.assign(
     {},
     pickIniConfig(npmrcResult.pnpmBuiltinConfig),
-    ...npmrcResult.layers.map(pickIniConfig).reverse(),
-    pickIniConfig(npmrcResult.pnpmAuthConfig),
-    pickIniConfig(cliOptions),
+    pickIniConfig(npmrcResult.layers[3]), // defaults
+    pickIniConfig(npmrcResult.layers[2]), // user ~/.npmrc
+    pickIniConfig(npmrcResult.pnpmAuthConfig), // pnpm auth.ini
+    pickIniConfig(npmrcResult.layers[1]), // workspace .npmrc
+    pickIniConfig(npmrcResult.layers[0]), // CLI
     { 'user-agent': pnpmConfig.userAgent }
   )
 

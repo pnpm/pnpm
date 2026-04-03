@@ -97,8 +97,8 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   // Priority matches the effective config merge order.
   loadCAFile([
     opts.cliOptions,
-    pnpmAuthConfig,
     workspaceNpmrc,
+    pnpmAuthConfig,
     userConfig,
     opts.defaultOptions,
   ])

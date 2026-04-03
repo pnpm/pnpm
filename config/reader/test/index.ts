@@ -446,8 +446,9 @@ test('registries in current directory\'s .npmrc have bigger priority then global
 test('auth tokens from pnpm auth file override ~/.npmrc', async () => {
   prepareEmpty()
 
-  // Set up a userconfig (.npmrc) with a stale token
-  fs.writeFileSync('.npmrc', '//registry.npmjs.org/:_authToken=stale-token', 'utf8')
+  // Set up a user .npmrc with a stale token
+  fs.mkdirSync('user-home')
+  fs.writeFileSync(path.resolve('user-home', '.npmrc'), '//registry.npmjs.org/:_authToken=stale-token', 'utf8')
 
   // Set up a pnpm auth file with a fresh token via XDG_CONFIG_HOME
   const configHome = path.resolve('xdg-config')
@@ -462,7 +463,7 @@ test('auth tokens from pnpm auth file override ~/.npmrc', async () => {
   try {
     const { config } = await getConfig({
       cliOptions: {
-        userconfig: path.resolve('.npmrc'),
+        userconfig: path.resolve('user-home', '.npmrc'),
       },
       env: {
         ...env,
@@ -475,6 +476,45 @@ test('auth tokens from pnpm auth file override ~/.npmrc', async () => {
     })
 
     expect(config.rawConfig['//registry.npmjs.org/:_authToken']).toBe('fresh-token')
+  } finally {
+    if (originalXdg != null) {
+      process.env.XDG_CONFIG_HOME = originalXdg
+    } else {
+      delete process.env.XDG_CONFIG_HOME
+    }
+  }
+})
+
+test('workspace .npmrc overrides pnpm auth file', async () => {
+  prepareEmpty()
+
+  // Set up a workspace .npmrc with a project-specific token
+  fs.writeFileSync('.npmrc', '//registry.npmjs.org/:_authToken=workspace-token', 'utf8')
+
+  // Set up a pnpm auth file with a different token
+  const configHome = path.resolve('xdg-config')
+  fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
+  fs.writeFileSync(
+    path.join(configHome, 'pnpm', 'auth.ini'),
+    '//registry.npmjs.org/:_authToken=global-token'
+  )
+
+  const originalXdg = process.env.XDG_CONFIG_HOME
+  process.env.XDG_CONFIG_HOME = configHome
+  try {
+    const { config } = await getConfig({
+      cliOptions: {},
+      env: {
+        ...env,
+        XDG_CONFIG_HOME: configHome,
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(config.rawConfig['//registry.npmjs.org/:_authToken']).toBe('workspace-token')
   } finally {
     if (originalXdg != null) {
       process.env.XDG_CONFIG_HOME = originalXdg
