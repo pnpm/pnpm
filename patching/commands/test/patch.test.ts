@@ -614,6 +614,30 @@ describe('patch and commit', () => {
     expect(patchContent).not.toContain('diff --git a/subdir/.DS_Store b/subdir/.DS_Store')
     expect(patchContent).not.toContain('// dummy content')
   })
+
+  test('patch-commit should throw an error if git is not found', async () => {
+    const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+
+    const opts = {
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
+      storeDir,
+    }
+
+    const originalPath = process.env.PATH
+    process.env.PATH = ''
+
+    try {
+      await expect(patchCommit.handler(opts, [patchDir])).rejects.toThrow('Unable to diff directories')
+    } finally {
+      process.env.PATH = originalPath
+    }
+  })
 })
 
 describe('multiple versions', () => {
