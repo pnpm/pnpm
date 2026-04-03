@@ -38,7 +38,7 @@ test('remove unreferenced packages', async () => {
     `--store-dir=${storeDir}`,
     `--cache-dir=${cacheDir}`,
     '--config.modules-cache-max-age=0',
-  ], { env: { npm_config_registry: REGISTRY } })
+  ], { env: { pnpm_config_registry: REGISTRY } })
 
   project.storeHas('is-negative', '2.1.0')
 
@@ -111,7 +111,7 @@ test('prune outputs total size of removed files', async () => {
     `--store-dir=${storeDir}`,
     `--cache-dir=${cacheDir}`,
     '--config.modules-cache-max-age=0',
-  ], { env: { npm_config_registry: REGISTRY } })
+  ], { env: { pnpm_config_registry: REGISTRY } })
 
   project.storeHas('is-negative', '2.1.0')
 
@@ -192,7 +192,7 @@ test('keep dependencies used by others', async () => {
   const storeDir = path.resolve('store')
   await execa('node', [pnpmBin, 'add', 'camelcase-keys@3.0.0', '--store-dir', storeDir, '--registry', REGISTRY])
   await execa('node', [pnpmBin, 'add', 'hastscript@3.0.0', '--save-dev', '--store-dir', storeDir, '--registry', REGISTRY])
-  await execa('node', [pnpmBin, 'remove', 'camelcase-keys', '--store-dir', storeDir], { env: { npm_config_registry: REGISTRY } })
+  await execa('node', [pnpmBin, 'remove', 'camelcase-keys', '--store-dir', storeDir], { env: { pnpm_config_registry: REGISTRY } })
 
   project.storeHas('camelcase-keys', '3.0.0')
   project.hasNot('camelcase-keys')
@@ -226,7 +226,7 @@ test('keep dependency used by package', async () => {
   const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
   await execa('node', [pnpmBin, 'add', 'is-not-positive@1.0.0', 'is-positive@3.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
-  await execa('node', [pnpmBin, 'remove', 'is-not-positive', '--store-dir', storeDir], { env: { npm_config_registry: REGISTRY } })
+  await execa('node', [pnpmBin, 'remove', 'is-not-positive', '--store-dir', storeDir], { env: { pnpm_config_registry: REGISTRY } })
 
   await store.handler({
     cacheDir,
