@@ -1,5 +1,3 @@
-import path from 'node:path'
-
 import { config } from '@pnpm/config.commands'
 
 import { getOutputString } from './utils/index.js'

@@ -302,7 +302,7 @@ export async function getConfig (opts: {
     ...npmrcResult.layers.map(pickIniConfig).reverse(),
     pickIniConfig(npmrcResult.pnpmAuthConfig),
     pickIniConfig(cliOptions),
-    { 'user-agent': pnpmConfig.userAgent },
+    { 'user-agent': pnpmConfig.userAgent }
   )
 
   // Reuse the global config.yaml already read for npmrcPath
