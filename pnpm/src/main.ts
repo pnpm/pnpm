@@ -324,7 +324,8 @@ export async function main (inputArgv: string[]): Promise<void> {
       // Spread config (settings) and context (runtime state) into a single
       // options object for command handlers. The original split objects are
       // also passed for handlers that need them separated (e.g. config commands).
-      { ...config, ...context, config, context } as Omit<typeof config & ConfigContext, 'reporter'>,
+      // Named "_config"/"_context" to avoid clashing with the "--config" CLI option.
+      { ...config, ...context, _config: config, _context: context } as Omit<typeof config & ConfigContext, 'reporter'>,
       cliParams,
       pnpmCmds
     )

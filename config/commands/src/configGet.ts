@@ -28,9 +28,9 @@ function lookupConfig (opts: ConfigCommandOptions, key: string, isScopedKey: boo
   // then fall back to authConfig (for keys like registry set in .npmrc)
   if (Object.hasOwn(types, kebabKey)) {
     const camelKey = camelcase(kebabKey, { locale: 'en-US' })
-    const explicit = opts.context.explicitlySetKeys
+    const explicit = opts._context.explicitlySetKeys
     if (!explicit || explicit.has(camelKey)) {
-      return { value: (opts.config as unknown as Record<string, unknown>)[camelKey] }
+      return { value: (opts._config as unknown as Record<string, unknown>)[camelKey] }
     }
     // Fall back to authConfig for INI keys (registry, ca, etc.)
     if (kebabKey in opts.authConfig) {
@@ -45,7 +45,7 @@ function lookupConfig (opts: ConfigCommandOptions, key: string, isScopedKey: boo
   // For keys not in types (e.g., package-extensions), look up via configToRecord
   // which excludes internal/sensitive fields.
   const camelKey = camelcase(key, { locale: 'en-US' })
-  const record = configToRecord(opts.config, opts.context.explicitlySetKeys)
+  const record = configToRecord(opts._config, opts._context.explicitlySetKeys)
   if (Object.hasOwn(record, camelKey)) {
     return { value: record[camelKey] }
   }
@@ -55,9 +55,9 @@ function lookupConfig (opts: ConfigCommandOptions, key: string, isScopedKey: boo
 function lookupByPropertyPath (opts: ConfigCommandOptions, propertyPath: string): Found<unknown> {
   const parsedPropertyPath = Array.from(parseConfigPropertyPath(propertyPath))
   if (parsedPropertyPath.length === 0) {
-    return { value: configToRecord(opts.config, opts.context.explicitlySetKeys) }
+    return { value: configToRecord(opts._config, opts._context.explicitlySetKeys) }
   }
-  const record = configToRecord(opts.config, opts.context.explicitlySetKeys)
+  const record = configToRecord(opts._config, opts._context.explicitlySetKeys)
   return {
     value: getObjectValueByPropertyPath(record, parsedPropertyPath),
   }

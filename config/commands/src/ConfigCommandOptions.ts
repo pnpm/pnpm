@@ -9,8 +9,8 @@ export type ConfigCommandOptions = Pick<Config,
 > & Pick<ConfigContext,
 | 'cliOptions'
 > & {
-  config: Config
-  context: ConfigContext
+  _config: Config
+  _context: ConfigContext
   json?: boolean
   location?: 'global' | 'project'
 }

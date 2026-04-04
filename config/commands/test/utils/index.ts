@@ -30,8 +30,8 @@ export function createConfigCommandOpts (
 ): ConfigCommandOptions {
   return {
     ...opts,
-    config: opts as unknown as Config,
-    context: {
+    _config: opts as unknown as Config,
+    _context: {
       cliOptions: opts.cliOptions ?? {},
       explicitlySetKeys: new Set(Object.keys(opts)),
       rawLocalConfig: {},
