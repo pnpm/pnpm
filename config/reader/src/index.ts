@@ -255,6 +255,7 @@ export async function getConfig (opts: {
   // Track which keys are explicitly set (not defaults)
   const explicitlySetKeys = new Set<string>(Object.keys(configFromCliOpts))
   pnpmConfig.explicitlySetKeys = explicitlySetKeys
+  pnpmConfig.cliOptions = cliOptions
 
   Object.assign(pnpmConfig, configFromCliOpts)
   // Resolving the current working directory to its actual location is crucial.
@@ -378,8 +379,8 @@ export async function getConfig (opts: {
   }
   pnpmConfig.packageManager = packageManager
 
+  pnpmConfig.rootProjectManifestDir = pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
   if (!opts.ignoreLocalSettings) {
-    pnpmConfig.rootProjectManifestDir = pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
     pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.rootProjectManifestDir) ?? undefined
     if (pnpmConfig.rootProjectManifest != null) {
       if (pnpmConfig.rootProjectManifest.workspaces?.length && !pnpmConfig.workspaceDir) {

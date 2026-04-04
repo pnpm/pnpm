@@ -7,7 +7,7 @@ import { censorProtectedSettings } from './protectedSettings.js'
 const INTERNAL_CONFIG_KEYS = new Set([
   'authConfig', 'authInfos', 'rawLocalConfig', 'cliOptions',
   'explicitlySetKeys',
-  'hooks', 'finders', 'allProjects', 'selectedProjectsGraph',
+  'hooks', 'finders', 'allProjects', 'allProjectsGraph', 'selectedProjectsGraph',
   'packageManager', 'wantedPackageManager', 'rootProjectManifest',
   'storeController', 'rootProjectManifestDir', 'sslConfigs',
 ])
