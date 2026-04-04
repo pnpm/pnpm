@@ -491,6 +491,7 @@ test('config set or delete throws missing params error', async () => {
     configDir,
     location: 'project',
     authConfig: {},
+    effectiveConfig: {},
   }, ['set'])).rejects.toThrow(new PnpmError('CONFIG_NO_PARAMS', '`pnpm config set` requires the config key'))
 
   await expect(config.handler({
@@ -499,6 +500,7 @@ test('config set or delete throws missing params error', async () => {
     configDir,
     location: 'project',
     authConfig: {},
+    effectiveConfig: {},
   }, ['delete'])).rejects.toThrow(new PnpmError('CONFIG_NO_PARAMS', '`pnpm config delete` requires the config key'))
 })
 
