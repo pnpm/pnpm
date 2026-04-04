@@ -184,10 +184,7 @@ export async function installDeps (
       throw new PnpmError('WORKSPACE_OPTION_OUTSIDE_WORKSPACE', '--workspace can only be used inside a workspace')
     }
     if (!opts.linkWorkspacePackages && !opts.saveWorkspaceProtocol) {
-      throw new PnpmError('BAD_OPTIONS', 'This workspace has link-workspace-packages turned off, \
-so dependencies are linked from the workspace only when the workspace protocol is used. \
-Either set link-workspace-packages to true or don\'t use the --no-save-workspace-protocol option \
-when running add/update with the --workspace option')
+      opts.saveWorkspaceProtocol = true
     }
     // @ts-expect-error
     opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
