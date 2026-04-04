@@ -984,7 +984,7 @@ test('dir is resolved to real path', async () => {
   expect(config.dir).toBe(realDir)
 })
 
-test('warn user unknown settings in npmrc', async () => {
+test('non-auth settings in npmrc do not produce warnings', async () => {
   prepare()
 
   const npmrc = [
@@ -1004,20 +1004,9 @@ test('warn user unknown settings in npmrc', async () => {
       name: 'pnpm',
       version: '1.0.0',
     },
-    checkUnknownSetting: true,
   })
 
   expect(warnings).toStrictEqual([])
-
-  const { warnings: noWarnings } = await getConfig({
-    cliOptions: {},
-    packageManager: {
-      name: 'pnpm',
-      version: '1.0.0',
-    },
-  })
-
-  expect(noWarnings).toStrictEqual([])
 })
 
 test('getConfig() converts noproxy to noProxy', async () => {

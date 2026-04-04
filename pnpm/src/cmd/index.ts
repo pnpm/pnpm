@@ -183,7 +183,6 @@ const cliOptionsTypesByCommandName: Record<string, () => Record<string, unknown>
 const aliasToFullName = new Map<string, string>()
 const completionByCommandName: Record<string, CompletionFunc> = {}
 const shorthandsByCommandName: Record<string, Record<string, string | string[]>> = {}
-const rcOptionsTypes: Record<string, unknown> = {}
 const skipPackageManagerCheckForCommandArray = ['completion-server']
 const recursiveByDefaultCommandArray: string[] = []
 const overridableByScriptCommandArray: string[] = []
@@ -195,7 +194,6 @@ for (let i = 0; i < commands.length; i++) {
     completion,
     handler,
     help,
-    rcOptionsTypes,
     shorthands,
     skipPackageManagerCheck,
     recursiveByDefault,
@@ -212,7 +210,6 @@ for (let i = 0; i < commands.length; i++) {
     if (completion != null) {
       completionByCommandName[commandName] = completion
     }
-    Object.assign(rcOptionsTypes, rcOptionsTypes())
   }
   if (skipPackageManagerCheck) {
     skipPackageManagerCheckForCommandArray.push(...commandNames)
@@ -262,4 +259,4 @@ export const recursiveByDefaultCommands = new Set(recursiveByDefaultCommandArray
 
 export const overridableByScriptCommands = new Set(overridableByScriptCommandArray)
 
-export { NOT_IMPLEMENTED_COMMAND_SET, rcOptionsTypes, shorthandsByCommandName }
+export { NOT_IMPLEMENTED_COMMAND_SET, shorthandsByCommandName }

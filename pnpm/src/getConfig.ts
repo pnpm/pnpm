@@ -15,9 +15,7 @@ export async function getConfig (
   opts: {
     excludeReporter: boolean
     globalDirShouldAllowWrite?: boolean
-    rcOptionsTypes: Record<string, unknown>
     workspaceDir: string | undefined
-    checkUnknownSetting?: boolean
     ignoreNonAuthSettingsFromLocal?: boolean
   }
 ): Promise<Config> {
@@ -25,9 +23,7 @@ export async function getConfig (
     cliOptions,
     globalDirShouldAllowWrite: opts.globalDirShouldAllowWrite,
     packageManager,
-    rcOptionsTypes: opts.rcOptionsTypes,
     workspaceDir: opts.workspaceDir,
-    checkUnknownSetting: opts.checkUnknownSetting,
     ignoreNonAuthSettingsFromLocal: opts.ignoreNonAuthSettingsFromLocal,
   })
   config.cliOptions = cliOptions
