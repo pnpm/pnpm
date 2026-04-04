@@ -194,6 +194,7 @@ function createEnv (opts?: { storeDir?: string }): NodeJS.ProcessEnv {
   const env: Record<string, string> = {
     pnpm_config_fetch_retries: fallback('fetchRetries', '4'),
     pnpm_config_hoist: fallback('hoist', 'true'),
+    pnpm_config_minimum_release_age: '0',
     pnpm_config_registry: fallback('registry', `http://localhost:${REGISTRY_MOCK_PORT}/`),
     pnpm_config_silent: 'true',
     pnpm_config_store_dir: opts?.storeDir ?? fallback('storeDir', '../store'),

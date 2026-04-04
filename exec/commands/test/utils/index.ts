@@ -35,6 +35,7 @@ export const DEFAULT_OPTS = {
   localAddress: undefined,
   lock: false,
   lockStaleDuration: 90,
+  minimumReleaseAge: 0,
   networkConcurrency: 16,
   offline: false,
   pending: false,
