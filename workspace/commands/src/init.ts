@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
-import { type Config, types as allTypes } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { sortKeysByPriority } from '@pnpm/object.key-sorting'
 import type { ProjectManifest } from '@pnpm/types'
@@ -55,7 +55,7 @@ export function help (): string {
 }
 
 export type InitOptions =
-  & Pick<Config, 'cliOptions'>
+  & Pick<ConfigContext, 'cliOptions'>
   & Partial<Pick<Config,
   | 'initPackageManager'
   | 'initType'

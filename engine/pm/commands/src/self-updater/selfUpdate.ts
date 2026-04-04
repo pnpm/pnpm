@@ -3,7 +3,7 @@ import path from 'node:path'
 import { linkBins } from '@pnpm/bins.linker'
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
-import { type Config, types as allTypes } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { createResolver } from '@pnpm/installing.client'
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
@@ -52,6 +52,7 @@ export type SelfUpdateCommandOptions = CreateStoreControllerOptions & Pick<Confi
 | 'managePackageManagerVersions'
 | 'modulesDir'
 | 'pnpmHomeDir'
+> & Pick<ConfigContext,
 | 'rootProjectManifestDir'
 | 'wantedPackageManager'
 >

@@ -5,7 +5,7 @@ import {
   docsUrl,
   tryReadProjectManifest,
 } from '@pnpm/cli.utils'
-import { type Config, types as allTypes } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
@@ -29,10 +29,7 @@ const isFilespec = isWindows ? /^(?:[./\\]|~\/|[a-z]:)/i : /^(?:[./]|~\/|[a-z]:)
 
 type LinkOpts = Pick<Config,
 | 'bin'
-| 'cliOptions'
 | 'engineStrict'
-| 'rootProjectManifest'
-| 'rootProjectManifestDir'
 | 'overrides'
 | 'saveDev'
 | 'saveOptional'
@@ -40,6 +37,10 @@ type LinkOpts = Pick<Config,
 | 'workspaceDir'
 | 'workspacePackagePatterns'
 | 'sharedWorkspaceLockfile'
+> & Pick<ConfigContext,
+| 'cliOptions'
+| 'rootProjectManifest'
+| 'rootProjectManifestDir'
 > & Partial<Pick<Config, 'linkWorkspacePackages'>> & install.InstallCommandOptions
 
 export const rcOptionsTypes = cliOptionsTypes

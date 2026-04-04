@@ -27,6 +27,7 @@ import { checkGlobalBinDir } from './checkGlobalBinDir.js'
 import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 import type {
   Config,
+  ConfigContext,
   ConfigWithDeprecatedSettings,
   ProjectConfig,
   UniversalOptions,
@@ -63,7 +64,7 @@ export {
   ProjectConfigUnsupportedFieldError,
 } from './projectConfig.js'
 
-export type { Config, ProjectConfig, UniversalOptions, VerifyDepsBeforeRun }
+export type { Config, ConfigContext, ProjectConfig, UniversalOptions, VerifyDepsBeforeRun }
 
 export { isIniConfigKey } from './auth.js'
 export { type ConfigFileKey, isConfigFileKey } from './configFileKey.js'
@@ -89,7 +90,7 @@ export async function getConfig (opts: {
   env?: Record<string, string | undefined>
   ignoreNonAuthSettingsFromLocal?: boolean
   ignoreLocalSettings?: boolean
-}): Promise<{ config: Config, warnings: string[] }> {
+}): Promise<{ config: Config, context: ConfigContext, warnings: string[] }> {
   if (opts.ignoreNonAuthSettingsFromLocal) {
     const { ignoreNonAuthSettingsFromLocal: _, ...authOpts } = opts
     const globalCfgOpts: typeof authOpts = {
@@ -101,7 +102,7 @@ export async function getConfig (opts: {
       },
     }
     const [final, authSrc] = await Promise.all([getConfig(globalCfgOpts), getConfig(authOpts)])
-    inheritAuthConfig(final.config, authSrc.config)
+    inheritAuthConfig(final, authSrc)
     final.warnings.push(...authSrc.warnings)
     return final
   }
@@ -241,7 +242,7 @@ export async function getConfig (opts: {
   const pnpmConfig = Object.fromEntries(
     Object.entries(defaultOptions)
       .map(([key, value]) => [camelcase(key, { locale: 'en-US' }), value])
-  ) as unknown as ConfigWithDeprecatedSettings
+  ) as unknown as (ConfigWithDeprecatedSettings & ConfigContext)
 
   for (const [key, value] of Object.entries(npmrcResult.mergedConfig)) {
     if (Object.hasOwn(types, key)) {
@@ -254,6 +255,7 @@ export async function getConfig (opts: {
   // Track which keys are explicitly set (not defaults)
   const explicitlySetKeys = new Set<string>(Object.keys(configFromCliOpts))
   pnpmConfig.explicitlySetKeys = explicitlySetKeys
+  pnpmConfig.cliOptions = cliOptions
 
   Object.assign(pnpmConfig, configFromCliOpts)
   // Resolving the current working directory to its actual location is crucial.
@@ -377,8 +379,8 @@ export async function getConfig (opts: {
   }
   pnpmConfig.packageManager = packageManager
 
+  pnpmConfig.rootProjectManifestDir = pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
   if (!opts.ignoreLocalSettings) {
-    pnpmConfig.rootProjectManifestDir = pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
     pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.rootProjectManifestDir) ?? undefined
     if (pnpmConfig.rootProjectManifest != null) {
       if (pnpmConfig.rootProjectManifest.workspaces?.length && !pnpmConfig.workspaceDir) {
@@ -622,7 +624,24 @@ export async function getConfig (opts: {
     }
   }
 
-  return { config: pnpmConfig, warnings }
+  const {
+    hooks, finders,
+    allProjects, selectedProjectsGraph, allProjectsGraph,
+    rootProjectManifest, rootProjectManifestDir,
+    cliOptions: ctxCliOptions, rawLocalConfig: ctxRawLocalConfig,
+    explicitlySetKeys: ctxExplicitlySetKeys,
+    packageManager: ctxPackageManager, wantedPackageManager,
+    ...config
+  } = pnpmConfig as Config & ConfigContext
+  const context: ConfigContext = {
+    hooks, finders,
+    allProjects, selectedProjectsGraph, allProjectsGraph,
+    rootProjectManifest, rootProjectManifestDir,
+    cliOptions: ctxCliOptions, rawLocalConfig: ctxRawLocalConfig,
+    explicitlySetKeys: ctxExplicitlySetKeys,
+    packageManager: ctxPackageManager, wantedPackageManager,
+  }
+  return { config, context, warnings }
 }
 
 function getProcessEnv (env: string): string | undefined {
@@ -719,7 +738,7 @@ function getNodeVersionFromEnginesRuntime (manifest: ProjectManifest): string | 
   return undefined
 }
 
-function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config, {
+function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigContext, {
   configFromCliOpts,
   projectManifest,
   workspaceManifest,

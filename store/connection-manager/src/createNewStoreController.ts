@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs'
 
 import { packageManager } from '@pnpm/cli.meta'
-import type { Config } from '@pnpm/config.reader'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { type ClientOptions, createClient } from '@pnpm/installing.client'
 import { type CafsLocker, createPackageStore, type StoreController } from '@pnpm/store.controller'
 import { StoreIndex } from '@pnpm/store.index'
@@ -28,7 +28,6 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'fetchMinSpeedKiBps'
 | 'gitShallowHosts'
 | 'ignoreScripts'
-| 'hooks'
 | 'httpProxy'
 | 'httpsProxy'
 | 'key'
@@ -51,7 +50,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'userAgent'
 | 'verifyStoreIntegrity'
 | 'virtualStoreDirMaxLength'
-> & {
+> & Pick<ConfigContext, 'hooks'> & {
   cafsLocker?: CafsLocker
   ignoreFile?: (filename: string) => boolean
   fetchFullMetadata?: boolean

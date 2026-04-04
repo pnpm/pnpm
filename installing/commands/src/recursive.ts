@@ -10,6 +10,7 @@ import {
 import { createMatcherWithIndex } from '@pnpm/config.matcher'
 import {
   type Config,
+  type ConfigContext,
   createProjectConfigRecord,
   getWorkspaceConcurrency,
   type OptionsFromRootManifest,
@@ -63,7 +64,6 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'depth'
 | 'globalPnpmfile'
 | 'hoistPattern'
-| 'hooks'
 | 'ignorePnpmfile'
 | 'ignoreScripts'
 | 'linkWorkspacePackages'
@@ -71,10 +71,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'lockfileOnly'
 | 'modulesDir'
 | 'allowBuilds'
-| 'rawLocalConfig'
 | 'registries'
-| 'rootProjectManifest'
-| 'rootProjectManifestDir'
 | 'save'
 | 'saveCatalogName'
 | 'saveDev'
@@ -90,6 +87,11 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'cleanupUnusedCatalogs'
 | 'packageConfigs'
 | 'updateConfig'
+> & Pick<ConfigContext,
+| 'hooks'
+| 'rawLocalConfig'
+| 'rootProjectManifest'
+| 'rootProjectManifestDir'
 > & {
   rebuildHandler?: CommandHandler
   include?: IncludedDependencies

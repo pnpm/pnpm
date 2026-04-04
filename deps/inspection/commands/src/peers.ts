@@ -1,6 +1,6 @@
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl } from '@pnpm/cli.utils'
-import { type Config, types as allTypes } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { checkPeerDependencies } from '@pnpm/deps.inspection.peers-checker'
 import type { PeerDependencyIssuesByProjects } from '@pnpm/types'
 import chalk from 'chalk'
@@ -66,8 +66,8 @@ export type PeersCommandOptions = Pick<Config,
 | 'dir'
 | 'modulesDir'
 | 'peerDependencyRules'
-| 'selectedProjectsGraph'
-> & Partial<Pick<Config, 'cliOptions'>> & {
+> & Pick<ConfigContext, 'selectedProjectsGraph'>
+& Partial<Pick<ConfigContext, 'cliOptions'>> & {
   json?: boolean
   lockfileDir?: string
   lockfileOnly?: boolean

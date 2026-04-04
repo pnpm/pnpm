@@ -4,7 +4,7 @@ import {
 } from '@pnpm/building.after-install'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli.utils'
-import { type Config, types as allTypes } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import type { LogBase } from '@pnpm/logger'
 import {
   createStoreController,
@@ -75,23 +75,24 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 }
 
 export type RebuildCommandOpts = Pick<Config,
-| 'allProjects'
 | 'dir'
 | 'engineStrict'
-| 'hooks'
 | 'lockfileDir'
 | 'nodeLinker'
-| 'rawLocalConfig'
-| 'rootProjectManifest'
-| 'rootProjectManifestDir'
 | 'registries'
 | 'scriptShell'
-| 'selectedProjectsGraph'
 | 'sideEffectsCache'
 | 'sideEffectsCacheReadonly'
 | 'scriptsPrependNodePath'
 | 'shellEmulator'
 | 'workspaceDir'
+> & Pick<ConfigContext,
+| 'allProjects'
+| 'hooks'
+| 'rawLocalConfig'
+| 'rootProjectManifest'
+| 'rootProjectManifestDir'
+| 'selectedProjectsGraph'
 > &
 CreateStoreControllerOptions &
 {

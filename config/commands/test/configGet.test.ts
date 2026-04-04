@@ -1,48 +1,48 @@
 import { config } from '@pnpm/config.commands'
 
-import { getOutputString } from './utils/index.js'
+import { createConfigCommandOpts, getOutputString } from './utils/index.js'
 
 test('config get', async () => {
-  const getResult = await config.handler({
+  const getResult = await config.handler(createConfigCommandOpts({
     dir: process.cwd(),
     cliOptions: {},
     configDir: process.cwd(),
     global: true,
     authConfig: {},
     storeDir: '~/store',
-  }, ['get', 'store-dir'])
+  }), ['get', 'store-dir'])
 
   expect(getOutputString(getResult)).toBe('~/store')
 })
 
 test('config get works with camelCase', async () => {
-  const getResult = await config.handler({
+  const getResult = await config.handler(createConfigCommandOpts({
     dir: process.cwd(),
     cliOptions: {},
     configDir: process.cwd(),
     global: true,
     authConfig: {},
     storeDir: '~/store',
-  }, ['get', 'storeDir'])
+  }), ['get', 'storeDir'])
 
   expect(getOutputString(getResult)).toBe('~/store')
 })
 
 test('config get a boolean should return string format', async () => {
-  const getResult = await config.handler({
+  const getResult = await config.handler(createConfigCommandOpts({
     dir: process.cwd(),
     cliOptions: {},
     configDir: process.cwd(),
     global: true,
     authConfig: {},
     updateNotifier: true,
-  }, ['get', 'update-notifier'])
+  }), ['get', 'update-notifier'])
 
   expect(getOutputString(getResult)).toBe('true')
 })
 
 test('config get on array should return a comma-separated list', async () => {
-  const getResult = await config.handler({
+  const getResult = await config.handler(createConfigCommandOpts({
     dir: process.cwd(),
     cliOptions: {},
     configDir: process.cwd(),
@@ -52,7 +52,7 @@ test('config get on array should return a comma-separated list', async () => {
       '*eslint*',
       '*prettier*',
     ],
-  }, ['get', 'public-hoist-pattern'])
+  }), ['get', 'public-hoist-pattern'])
 
   expect(JSON.parse(getOutputString(getResult))).toStrictEqual([
     '*eslint*',
@@ -61,7 +61,7 @@ test('config get on array should return a comma-separated list', async () => {
 })
 
 test('config get on object should return a JSON string', async () => {
-  const getResult = await config.handler({
+  const getResult = await config.handler(createConfigCommandOpts({
     dir: process.cwd(),
     cliOptions: {},
     configDir: process.cwd(),
@@ -70,7 +70,7 @@ test('config get on object should return a JSON string', async () => {
     catalog: {
       react: '^19.0.0',
     },
-  }, ['get', 'catalog'])
+  }), ['get', 'catalog'])
 
   expect(JSON.parse(getOutputString(getResult))).toStrictEqual({ react: '^19.0.0' })
 })
@@ -80,20 +80,15 @@ test('config get without key show list all settings', async () => {
     'store-dir': '~/store',
     'fetch-retries': '2',
   }
-  const getOutput = await config.handler({
+  const baseOpts = {
     dir: process.cwd(),
     cliOptions: {},
     configDir: process.cwd(),
-    global: true,
     authConfig,
-  }, ['get'])
+  }
+  const getOutput = await config.handler(createConfigCommandOpts(baseOpts), ['get'])
 
-  const listOutput = await config.handler({
-    dir: process.cwd(),
-    cliOptions: {},
-    configDir: process.cwd(),
-    authConfig,
-  }, ['list'])
+  const listOutput = await config.handler(createConfigCommandOpts(baseOpts), ['list'])
 
   expect(getOutput).toStrictEqual(listOutput)
 })
@@ -116,14 +111,14 @@ describe('config get with a property path', () => {
     trustPolicyExclude: ['foo', 'bar'],
     packageExtensions,
   }
-  const baseOpts = {
+  const baseOpts = createConfigCommandOpts({
     dir: process.cwd(),
     cliOptions: {},
     configDir: process.cwd(),
     global: true,
     authConfig: {},
     ...configData,
-  }
+  })
 
   describe('anything with --json', () => {
     test('«»', async () => {
@@ -211,7 +206,7 @@ describe('config get with a property path', () => {
 })
 
 test('config get with scoped registry key (global: false)', async () => {
-  const getResult = await config.handler({
+  const getResult = await config.handler(createConfigCommandOpts({
     dir: process.cwd(),
     cliOptions: {},
     configDir: process.cwd(),
@@ -219,13 +214,13 @@ test('config get with scoped registry key (global: false)', async () => {
     authConfig: {
       '@scope:registry': 'https://custom-registry.example.com/',
     },
-  }, ['get', '@scope:registry'])
+  }), ['get', '@scope:registry'])
 
   expect(getOutputString(getResult)).toBe('https://custom-registry.example.com/')
 })
 
 test('config get with scoped registry key (global: true)', async () => {
-  const getResult = await config.handler({
+  const getResult = await config.handler(createConfigCommandOpts({
     dir: process.cwd(),
     cliOptions: {},
     configDir: process.cwd(),
@@ -233,19 +228,19 @@ test('config get with scoped registry key (global: true)', async () => {
     authConfig: {
       '@scope:registry': 'https://custom-registry.example.com/',
     },
-  }, ['get', '@scope:registry'])
+  }), ['get', '@scope:registry'])
 
   expect(getOutputString(getResult)).toBe('https://custom-registry.example.com/')
 })
 
 test('config get with scoped registry key that does not exist', async () => {
-  const getResult = await config.handler({
+  const getResult = await config.handler(createConfigCommandOpts({
     dir: process.cwd(),
     cliOptions: {},
     configDir: process.cwd(),
     global: false,
     authConfig: {},
-  }, ['get', '@scope:registry'])
+  }), ['get', '@scope:registry'])
 
   expect(getOutputString(getResult)).toBe('undefined')
 })
@@ -261,13 +256,13 @@ describe('does not traverse the prototype chain (#10296)', () => {
     'valueOf',
     '__proto__',
   ])('%s', async key => {
-    const getResult = await config.handler({
+    const getResult = await config.handler(createConfigCommandOpts({
       dir: process.cwd(),
       cliOptions: {},
       configDir: process.cwd(),
       global: true,
       authConfig: {},
-    }, ['get', key])
+    }), ['get', key])
 
     expect(getOutputString(getResult)).toBe('undefined')
   })

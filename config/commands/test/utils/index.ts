@@ -1,12 +1,45 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { readIniFileSync } from 'read-ini-file'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeIniFileSync } from 'write-ini-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
+import type { ConfigCommandOptions } from '../../src/ConfigCommandOptions.js'
 import type { config } from '../../src/index.js'
+
+/**
+ * Build a {@link ConfigCommandOptions} object for tests.
+ *
+ * Accepts the flat shape that tests already use (settings like `storeDir`,
+ * `authConfig`, etc. mixed into a single object) and builds the `config`
+ * and `context` properties that the refactored config commands now expect.
+ */
+export function createConfigCommandOpts (
+  opts: Record<string, unknown> & {
+    dir: string
+    configDir: string
+    cliOptions: Record<string, unknown>
+    authConfig: Record<string, unknown>
+    global?: boolean
+    json?: boolean
+    location?: 'global' | 'project'
+  }
+): ConfigCommandOptions {
+  return {
+    ...opts,
+    _config: opts as unknown as Config,
+    _context: {
+      cliOptions: opts.cliOptions ?? {},
+      explicitlySetKeys: new Set(Object.keys(opts)),
+      rawLocalConfig: {},
+      rootProjectManifestDir: opts.dir,
+      packageManager: { name: 'pnpm', version: '0.0.0' },
+    } as ConfigContext,
+  } as ConfigCommandOptions
+}
 
 export function getOutputString (result: config.ConfigHandlerResult): string {
   if (result == null) throw new Error('output is null or undefined')

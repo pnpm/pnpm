@@ -1,6 +1,6 @@
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl } from '@pnpm/cli.utils'
-import { type Config, types as allTypes } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { list, listForPackages } from '@pnpm/deps.inspection.list'
 import { listGlobalPackages } from '@pnpm/global.commands'
 import type { Finder, IncludedDependencies } from '@pnpm/types'
@@ -84,16 +84,17 @@ For example: pnpm ls babel-* eslint-*',
 }
 
 export type ListCommandOptions = Pick<Config,
-| 'allProjects'
 | 'dev'
 | 'dir'
-| 'finders'
 | 'optional'
 | 'production'
-| 'selectedProjectsGraph'
 | 'modulesDir'
 | 'virtualStoreDirMaxLength'
-> & Partial<Pick<Config, 'cliOptions'>> & {
+> & Pick<ConfigContext,
+| 'allProjects'
+| 'finders'
+| 'selectedProjectsGraph'
+> & Partial<Pick<ConfigContext, 'cliOptions'>> & {
   alwaysPrintRootPackage?: boolean
   depth?: number
   excludePeers?: boolean

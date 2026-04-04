@@ -1,5 +1,5 @@
 import type { Config } from './Config.js'
-import { type InheritableConfig, inheritPickedConfig } from './inheritPickedConfig.js'
+import { type InheritableConfigPair, inheritPickedConfig } from './inheritPickedConfig.js'
 import type { types } from './types.js'
 
 const RAW_AUTH_CFG_KEYS = [
@@ -83,8 +83,8 @@ function pickAuthConfig (localCfg: Partial<Config>): Partial<Config> {
   return result as Partial<Config>
 }
 
-export function inheritAuthConfig (targetCfg: InheritableConfig, authSrcCfg: InheritableConfig): void {
-  inheritPickedConfig(targetCfg, authSrcCfg, pickAuthConfig, pickRawAuthConfig)
+export function inheritAuthConfig (target: InheritableConfigPair, src: InheritableConfigPair): void {
+  inheritPickedConfig(target, src, pickAuthConfig, pickRawAuthConfig)
 }
 
 /**

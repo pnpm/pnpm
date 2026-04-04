@@ -6,7 +6,7 @@ import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { FILTERING } from '@pnpm/cli.common-cli-options-help'
 import { readProjectManifest } from '@pnpm/cli.utils'
-import { type Config, getDefaultWorkspaceConcurrency, getWorkspaceConcurrency, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, getDefaultWorkspaceConcurrency, getWorkspaceConcurrency, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { packlist } from '@pnpm/fs.packlist'
 import type { Hooks } from '@pnpm/hooks.pnpmfile'
@@ -102,11 +102,12 @@ export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs
 | 'userAgent'
 > & Partial<Pick<Config, 'extraBinPaths'
 | 'extraEnv'
-| 'hooks'
 | 'recursive'
-| 'selectedProjectsGraph'
 | 'workspaceConcurrency'
 | 'workspaceDir'
+>> & Partial<Pick<ConfigContext,
+| 'hooks'
+| 'selectedProjectsGraph'
 >> & {
   argv: {
     original: string[]

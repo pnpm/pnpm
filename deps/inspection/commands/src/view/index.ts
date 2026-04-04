@@ -1,5 +1,5 @@
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
-import { type Config, types as allTypes } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
@@ -49,7 +49,7 @@ export function help (): string {
 }
 
 export async function handler (
-  opts: Config & {
+  opts: Config & ConfigContext & {
     json?: boolean
   },
   params: string[]

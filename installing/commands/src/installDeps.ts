@@ -6,7 +6,7 @@ import {
   readProjectManifestOnly,
   tryReadProjectManifest,
 } from '@pnpm/cli.utils'
-import type { Config } from '@pnpm/config.reader'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { checkDepsStatus } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
@@ -57,15 +57,12 @@ const OVERWRITE_UPDATE_OPTIONS = {
 }
 
 export type InstallDepsOptions = Pick<Config,
-| 'allProjects'
-| 'allProjectsGraph'
 | 'autoInstallPeers'
 | 'bail'
 | 'bin'
 | 'catalogs'
 | 'catalogMode'
 | 'cleanupUnusedCatalogs'
-| 'cliOptions'
 | 'dedupePeerDependents'
 | 'dedupePeers'
 | 'depth'
@@ -76,7 +73,6 @@ export type InstallDepsOptions = Pick<Config,
 | 'excludeLinksFromLockfile'
 | 'global'
 | 'globalPnpmfile'
-| 'hooks'
 | 'ignoreCurrentSpecifiers'
 | 'ignorePnpmfile'
 | 'ignoreScripts'
@@ -86,10 +82,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'lockfileOnly'
 | 'production'
 | 'preferWorkspacePackages'
-| 'rawLocalConfig'
 | 'registries'
-| 'rootProjectManifestDir'
-| 'rootProjectManifest'
 | 'save'
 | 'saveDev'
 | 'saveExact'
@@ -101,7 +94,6 @@ export type InstallDepsOptions = Pick<Config,
 | 'lockfileIncludeTarballUrl'
 | 'scriptsPrependNodePath'
 | 'scriptShell'
-| 'selectedProjectsGraph'
 | 'sideEffectsCache'
 | 'sideEffectsCacheReadonly'
 | 'sort'
@@ -119,6 +111,15 @@ export type InstallDepsOptions = Pick<Config,
 | 'configDependencies'
 | 'packageExtensions'
 | 'updateConfig'
+> & Pick<ConfigContext,
+| 'allProjects'
+| 'allProjectsGraph'
+| 'cliOptions'
+| 'hooks'
+| 'rawLocalConfig'
+| 'rootProjectManifestDir'
+| 'rootProjectManifest'
+| 'selectedProjectsGraph'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[]
