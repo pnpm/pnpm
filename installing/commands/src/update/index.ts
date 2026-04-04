@@ -295,9 +295,9 @@ async function update (
   }
   const includeDirect = makeIncludeDependenciesFromCLI(opts.cliOptions)
   const include = {
-    dependencies: opts.cliOptions.production !== false,
-    devDependencies: opts.cliOptions.dev !== false,
-    optionalDependencies: opts.cliOptions.optional !== false,
+    dependencies: opts.production !== false,
+    devDependencies: opts.dev !== false,
+    optionalDependencies: opts.optional !== false,
   }
   const depth = opts.depth ?? Infinity
   let updateMatching: UpdateMatchingFunction | undefined
