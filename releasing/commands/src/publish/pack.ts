@@ -99,6 +99,7 @@ export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs
 | 'embedReadme'
 | 'packGzipLevel'
 | 'nodeLinker'
+| 'userAgent'
 > & Partial<Pick<Config, 'extraBinPaths'
 | 'extraEnv'
 | 'hooks'
@@ -199,6 +200,7 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     rootModulesDir: await realpathMissing(path.join(opts.dir, 'node_modules')),
     stdio: 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
+    userAgent: opts.userAgent,
   })
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent([
