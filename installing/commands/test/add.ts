@@ -33,7 +33,6 @@ const DEFAULT_OPTIONS = {
   pnpmfile: ['.pnpmfile.cjs'],
   pnpmHomeDir: '',
   authConfig: { registry: REGISTRY_URL },
-  rawLocalConfig: { registry: REGISTRY_URL },
   registries: {
     default: REGISTRY_URL,
   },
@@ -175,10 +174,6 @@ test('add: fail when "workspace" option is true but linkWorkspacePackages is fal
       ...DEFAULT_OPTIONS,
       dir: path.resolve('project-1'),
       linkWorkspacePackages: false,
-      rawLocalConfig: {
-        ...DEFAULT_OPTIONS.rawLocalConfig,
-        'save-workspace-protocol': false,
-      },
       saveWorkspaceProtocol: false,
       workspace: true,
       workspaceDir: process.cwd(),

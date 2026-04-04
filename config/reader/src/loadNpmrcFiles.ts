@@ -15,7 +15,7 @@ export interface NpmrcConfigResult {
   mergedConfig: Record<string, unknown>
   /** Raw config suitable for pnpmConfig.authConfig (filtered through pickIniConfig by consumer) */
   rawConfig: Record<string, unknown>
-  /** Workspace .npmrc data (for rawLocalConfig) */
+  /** Workspace .npmrc data */
   workspaceNpmrc: Record<string, unknown>
   /** User ~/.npmrc data (for token helpers) */
   userConfig: Record<string, unknown>

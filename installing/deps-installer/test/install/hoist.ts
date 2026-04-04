@@ -211,7 +211,6 @@ test('hoistPattern=* throws exception when executed on node_modules installed w/
 
   await expect(
     addDependenciesToPackage(manifest, ['is-negative'], testDefaults({
-      forceHoistPattern: true,
       hoistPattern: '*',
     }))
   ).rejects.toThrow(/different hoist-pattern value/)
@@ -225,17 +224,9 @@ test('hoistPattern=undefined throws exception when executed on node_modules inst
   await expect(
     addDependenciesToPackage(manifest, ['is-negative'], {
       ...opts,
-      forceHoistPattern: true,
       hoistPattern: undefined,
     })
   ).rejects.toThrow(/different hoist-pattern value/)
-
-  // Install doesn't fail if the value of hoistPattern isn't forced
-  await addDependenciesToPackage(manifest, ['is-negative'], {
-    ...opts,
-    forceHoistPattern: false,
-    hoistPattern: undefined,
-  })
 })
 
 test('hoist by alias', async () => {

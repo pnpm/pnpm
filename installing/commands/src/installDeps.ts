@@ -116,7 +116,6 @@ export type InstallDepsOptions = Pick<Config,
 | 'allProjectsGraph'
 | 'cliOptions'
 | 'hooks'
-| 'rawLocalConfig'
 | 'rootProjectManifestDir'
 | 'rootProjectManifest'
 | 'selectedProjectsGraph'
@@ -185,14 +184,10 @@ export async function installDeps (
       throw new PnpmError('WORKSPACE_OPTION_OUTSIDE_WORKSPACE', '--workspace can only be used inside a workspace')
     }
     if (!opts.linkWorkspacePackages && !opts.saveWorkspaceProtocol) {
-      if (opts.rawLocalConfig['save-workspace-protocol'] === false) {
-        throw new PnpmError('BAD_OPTIONS', 'This workspace has link-workspace-packages turned off, \
+      throw new PnpmError('BAD_OPTIONS', 'This workspace has link-workspace-packages turned off, \
 so dependencies are linked from the workspace only when the workspace protocol is used. \
 Either set link-workspace-packages to true or don\'t use the --no-save-workspace-protocol option \
 when running add/update with the --workspace option')
-      } else {
-        opts.saveWorkspaceProtocol = true
-      }
     }
     // @ts-expect-error
     opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
@@ -203,10 +198,6 @@ when running add/update with the --workspace option')
     devDependencies: true,
     optionalDependencies: true,
   }
-  const forceHoistPattern = typeof opts.rawLocalConfig['hoist-pattern'] !== 'undefined' ||
-    typeof opts.rawLocalConfig['hoist'] !== 'undefined'
-  const forcePublicHoistPattern = typeof opts.rawLocalConfig['shamefully-hoist'] !== 'undefined' ||
-    typeof opts.rawLocalConfig['public-hoist-pattern'] !== 'undefined'
   const allProjects = opts.allProjects ?? (
     opts.workspaceDir
       ? await findWorkspaceProjects(opts.workspaceDir, { ...opts, patterns: opts.workspacePackagePatterns })
@@ -240,8 +231,6 @@ when running add/update with the --workspace option')
         params,
         {
           ...opts,
-          forceHoistPattern,
-          forcePublicHoistPattern,
           preferredVersions: opts.packageVulnerabilityAudit ? preferNonvulnerablePackageVersions(opts.packageVulnerabilityAudit) : undefined,
           allProjectsGraph,
           selectedProjectsGraph,
@@ -273,8 +262,6 @@ when running add/update with the --workspace option')
 
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
     ...opts,
-    forceHoistPattern,
-    forcePublicHoistPattern,
     // In case installation is done in a multi-package repository
     // The dependencies should be built first,
     // so ignoring scripts for now

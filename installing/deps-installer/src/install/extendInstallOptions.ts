@@ -74,7 +74,6 @@ export interface StrictInstallOptions {
   storeDir: string
   reporter: ReporterFunction
   force: boolean
-  forcePublicHoistPattern: boolean
   depth: number
   lockfileDir: string
   modulesDir: string
@@ -138,10 +137,8 @@ export interface StrictInstallOptions {
 
   publicHoistPattern: string[] | undefined
   hoistPattern: string[] | undefined
-  forceHoistPattern: boolean
 
   shamefullyHoist: boolean
-  forceShamefullyHoist: boolean
 
   global: boolean
   globalBin?: string

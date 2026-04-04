@@ -34,7 +34,6 @@ export function createConfigCommandOpts (
     _context: {
       cliOptions: opts.cliOptions ?? {},
       explicitlySetKeys: new Set(Object.keys(opts)),
-      rawLocalConfig: {},
       rootProjectManifestDir: opts.dir,
       packageManager: { name: 'pnpm', version: '0.0.0' },
     } as ConfigContext,

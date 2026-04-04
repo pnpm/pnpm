@@ -110,10 +110,8 @@ export interface GetContextOptions {
   workspacePackages?: WorkspacePackages
 
   hoistPattern?: string[] | undefined
-  forceHoistPattern?: boolean
 
   publicHoistPattern?: string[] | undefined
-  forcePublicHoistPattern?: boolean
   global?: boolean
 }
 
@@ -263,11 +261,9 @@ export async function getContextForSingleImporter (
     virtualStoreDirMaxLength: number
 
     hoistPattern?: string[] | undefined
-    forceHoistPattern?: boolean
-
+  
     publicHoistPattern?: string[] | undefined
-    forcePublicHoistPattern?: boolean
-  }
+    }
 ): Promise<PnpmSingleContext> {
   const {
     currentHoistPattern,

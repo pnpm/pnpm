@@ -30,7 +30,6 @@ type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,
 | 'sharedWorkspaceLockfile'
 > & Pick<ConfigContext,
 | 'hooks'
-| 'rawLocalConfig'
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
 > & {

@@ -330,7 +330,6 @@ export type InstallCommandOptions = Pick<Config,
 | 'allProjects'
 | 'cliOptions'
 | 'hooks'
-| 'rawLocalConfig'
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
 | 'allProjectsGraph'

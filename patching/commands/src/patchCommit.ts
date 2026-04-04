@@ -115,10 +115,6 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
   return install.handler({
     ...opts,
     patchedDependencies,
-    rawLocalConfig: {
-      ...opts.rawLocalConfig,
-      'frozen-lockfile': false,
-    },
   }) as Promise<undefined>
 }
 

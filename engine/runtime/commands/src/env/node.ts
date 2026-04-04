@@ -38,7 +38,6 @@ export type NvmNodeCommandOptions = Pick<Config,
 | 'supportedArchitectures'
 >> & Partial<Pick<ConfigContext,
 | 'cliOptions'
-| 'rawLocalConfig'
 >> & {
   remote?: boolean
 }
