@@ -115,6 +115,7 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
   return install.handler({
     ...opts,
     patchedDependencies,
+    frozenLockfile: false,
   }) as Promise<undefined>
 }
 
