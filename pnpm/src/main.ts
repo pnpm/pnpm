@@ -322,8 +322,9 @@ export async function main (inputArgv: string[]): Promise<void> {
     })
     let result = pnpmCmds[cmd ?? 'help'](
       // Spread config (settings) and context (runtime state) into a single
-      // options object for command handlers.
-      { ...config, ...context } as Omit<typeof config & ConfigContext, 'reporter'>,
+      // options object for command handlers. The original split objects are
+      // also passed for handlers that need them separated (e.g. config commands).
+      { ...config, ...context, config, context } as Omit<typeof config & ConfigContext, 'reporter'>,
       cliParams,
       pnpmCmds
     )

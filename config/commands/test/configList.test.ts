@@ -1,16 +1,16 @@
 import { config } from '@pnpm/config.commands'
 
-import { getOutputString } from './utils/index.js'
+import { createConfigCommandOpts, getOutputString } from './utils/index.js'
 
 test('config list', async () => {
-  const output = await config.handler({
+  const output = await config.handler(createConfigCommandOpts({
     dir: process.cwd(),
     cliOptions: {},
     configDir: process.cwd(),
     authConfig: {},
     storeDir: '~/store',
     fetchRetries: '2',
-  }, ['list'])
+  }), ['list'])
 
   expect(JSON.parse(getOutputString(output))).toMatchObject({
     fetchRetries: '2',
@@ -19,7 +19,7 @@ test('config list', async () => {
 })
 
 test('config list --json', async () => {
-  const output = await config.handler({
+  const output = await config.handler(createConfigCommandOpts({
     dir: process.cwd(),
     cliOptions: {},
     configDir: process.cwd(),
@@ -27,7 +27,7 @@ test('config list --json', async () => {
     authConfig: {},
     storeDir: '~/store',
     fetchRetries: '2',
-  }, ['list'])
+  }), ['list'])
 
   const parsed = JSON.parse(output as string)
   expect(parsed).toMatchObject({
@@ -43,14 +43,14 @@ test('config list censors protected settings', async () => {
     '//my-org.example.com:username': 'my-username-in-my-org',
   }
 
-  const output = await config.handler({
+  const output = await config.handler(createConfigCommandOpts({
     dir: process.cwd(),
     cliOptions: {},
     configDir: process.cwd(),
     storeDir: '~/store',
     fetchRetries: '2',
     authConfig,
-  }, ['list'])
+  }), ['list'])
 
   expect(JSON.parse(getOutputString(output))).toMatchObject({
     storeDir: '~/store',
@@ -68,7 +68,7 @@ test('config list --json censors protected settings', async () => {
     '//my-org.example.com:username': 'my-username-in-my-org',
   }
 
-  const output = await config.handler({
+  const output = await config.handler(createConfigCommandOpts({
     dir: process.cwd(),
     json: true,
     cliOptions: {},
@@ -76,7 +76,7 @@ test('config list --json censors protected settings', async () => {
     storeDir: '~/store',
     fetchRetries: '2',
     authConfig,
-  }, ['list'])
+  }), ['list'])
 
   expect(JSON.parse(getOutputString(output))).toMatchObject({
     storeDir: '~/store',

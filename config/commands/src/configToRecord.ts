@@ -1,11 +1,10 @@
-import { type Config, type ConfigContext, types } from '@pnpm/config.reader'
+import { type Config, types } from '@pnpm/config.reader'
 import { sortDirectKeys } from '@pnpm/object.key-sorting'
 import camelcase from 'camelcase'
 
 import { censorProtectedSettings } from './protectedSettings.js'
 
-// Config fields that are internal objects and should not appear in user-facing output.
-// These are on Config (not ConfigContext) but are not user settings.
+// Auth-related Config fields that are internal objects, not user settings.
 const NON_SETTING_CONFIG_KEYS = new Set([
   'authConfig', 'authInfos', 'sslConfigs',
 ])
@@ -14,14 +13,16 @@ const NON_SETTING_CONFIG_KEYS = new Set([
  * Convert a Config object to a camelCase record for display.
  * Only includes explicitly set values (from CLI, env vars, or workspace yaml),
  * not default values. Auth/registry keys from authConfig are always included.
+ *
+ * Accepts a clean Config object (without ConfigContext fields mixed in),
+ * so no INTERNAL_CONFIG_KEYS exclusion list is needed.
  */
-export function configToRecord (config: Config, context: Pick<ConfigContext, 'explicitlySetKeys'>): Record<string, unknown> {
+export function configToRecord (config: Config, explicitlySetKeys: Set<string>): Record<string, unknown> {
   const result: Record<string, unknown> = {}
-  const explicit = context.explicitlySetKeys
   // Add typed settings (only explicitly set ones if tracking is available)
   for (const kebabKey of Object.keys(types)) {
     const camelKey = camelcase(kebabKey, { locale: 'en-US' })
-    if (explicit && !explicit.has(camelKey)) continue
+    if (!explicitlySetKeys.has(camelKey)) continue
     const value = (config as unknown as Record<string, unknown>)[camelKey]
     if (value !== undefined) {
       result[camelKey] = value
@@ -30,7 +31,7 @@ export function configToRecord (config: Config, context: Pick<ConfigContext, 'ex
   // Add non-types config properties (e.g., packageExtensions, overrides)
   for (const [key, value] of Object.entries(config)) {
     if (value === undefined || NON_SETTING_CONFIG_KEYS.has(key)) continue
-    if (!(key in result) && (!explicit || explicit.has(key))) {
+    if (!(key in result) && explicitlySetKeys.has(key)) {
       result[key] = value
     }
   }
