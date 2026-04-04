@@ -10,8 +10,7 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 
-// Disable minimumReleaseAge for crossSpawn calls that invoke the pnpm CLI directly
-process.env.pnpm_config_minimum_release_age = '0'
+const SPAWN_ENV = { ...process.env, pnpm_config_minimum_release_age: '0' } as NodeJS.ProcessEnv
 
 const defaultOpts: MakePublishManifestOptions = {
   catalogs: {},
@@ -166,7 +165,7 @@ test('workspace deps are replaced', async () => {
 
   writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
-  crossSpawn.sync(pnpmBin, ['install', '--store-dir=store'])
+  crossSpawn.sync(pnpmBin, ['install', '--store-dir=store'], { env: SPAWN_ENV })
 
   process.chdir('workspace-protocol-package')
 
@@ -230,7 +229,7 @@ test('catalog deps are replaced', async () => {
   }
   writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
 
-  crossSpawn.sync(pnpmBin, ['install', '--store-dir=store'])
+  crossSpawn.sync(pnpmBin, ['install', '--store-dir=store'], { env: SPAWN_ENV })
 
   process.chdir('catalog-protocol-package')
 
