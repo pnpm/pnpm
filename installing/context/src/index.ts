@@ -261,9 +261,8 @@ export async function getContextForSingleImporter (
     virtualStoreDirMaxLength: number
 
     hoistPattern?: string[] | undefined
-  
     publicHoistPattern?: string[] | undefined
-    }
+  }
 ): Promise<PnpmSingleContext> {
   const {
     currentHoistPattern,
