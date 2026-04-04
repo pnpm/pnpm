@@ -21,6 +21,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'cert'
 | 'engineStrict'
 | 'force'
+| 'nodeDownloadMirrors'
 | 'nodeVersion'
 | 'fetchTimeout'
 | 'fetchWarnTimeoutMs'
@@ -85,6 +86,7 @@ export async function createNewStoreController (
     ignoreScripts: opts.ignoreScripts,
     key: opts.key,
     localAddress: opts.localAddress,
+    nodeDownloadMirrors: opts.nodeDownloadMirrors,
     noProxy: opts.noProxy,
     offline: opts.offline,
     preferOffline: opts.preferOffline,

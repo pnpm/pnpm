@@ -187,6 +187,7 @@ export interface PnpmSettings {
   auditConfig?: AuditConfig
   requiredScripts?: string[]
   supportedArchitectures?: SupportedArchitectures
+  nodeDownloadMirrors?: Record<string, string>
 }
 
 export interface ProjectManifest extends BaseManifest {

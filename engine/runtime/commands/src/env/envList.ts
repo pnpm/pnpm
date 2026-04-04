@@ -12,6 +12,6 @@ export async function envList (opts: NvmNodeCommandOptions, params: string[]): P
 async function listRemoteVersions (opts: NvmNodeCommandOptions, versionSpec?: string): Promise<string[]> {
   const fetch = createFetchFromRegistry(opts)
   const { releaseChannel, versionSpecifier } = versionSpec ? parseNodeSpecifier(versionSpec) : { releaseChannel: 'release', versionSpecifier: '' }
-  const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseChannel)
+  const nodeMirrorBaseUrl = getNodeMirror(opts.nodeDownloadMirrors, releaseChannel)
   return resolveNodeVersions(fetch, versionSpecifier, nodeMirrorBaseUrl)
 }

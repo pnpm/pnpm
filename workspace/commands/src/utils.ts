@@ -1,9 +1,3 @@
-import { spawnSync } from 'node:child_process'
-import fs from 'node:fs'
-import path from 'node:path'
-
-import camelcaseKeys from 'camelcase-keys'
-
 export interface Person {
   name?: string
   email?: string
@@ -21,44 +15,29 @@ export function personToString (person: Person): string {
   return name + email + url
 }
 
-export function workWithInitModule (localConfig: Record<string, string>): Record<string, string> {
-  const { initModule, ...restConfig } = localConfig
-  if (initModule) {
-    const filePath = path.resolve(localConfig.initModule)
-    const isFileExist = fs.existsSync(filePath)
-    if (['.js', '.cjs'].includes(path.extname(filePath)) && isFileExist) {
-      spawnSync('node', [filePath], {
-        stdio: 'inherit',
-      })
-    }
-  }
-  return restConfig
+export interface InitProperties {
+  initAuthorName?: string
+  initAuthorEmail?: string
+  initAuthorUrl?: string
+  initLicense?: string
+  initVersion?: string
 }
 
-export function workWithInitConfig (localConfig: Record<string, string>): Record<string, string> {
+export function getInitConfig (opts: InitProperties): Record<string, string> {
   const packageJson: Record<string, string> = {}
-  const authorInfo: Record<string, string> = {}
-  for (const localConfigKey in localConfig) {
-    if (localConfigKey.startsWith('init') && localConfigKey !== 'initPackageManager') {
-      const pureKey = localConfigKey.replace('init', '')
-      const value = localConfig[localConfigKey]
-      if (pureKey.startsWith('Author')) {
-        authorInfo[pureKey.replace('Author', '')] = value
-      } else {
-        packageJson[pureKey] = value
-      }
-    }
+  if (opts.initVersion) {
+    packageJson.version = opts.initVersion
   }
-
-  const author = personToString(camelcaseKeys(authorInfo))
+  if (opts.initLicense) {
+    packageJson.license = opts.initLicense
+  }
+  const author = personToString({
+    name: opts.initAuthorName,
+    email: opts.initAuthorEmail,
+    url: opts.initAuthorUrl,
+  })
   if (author) {
     packageJson.author = author
   }
-  return camelcaseKeys(packageJson)
-}
-
-export async function parseRawConfig (rawConfig: Record<string, string>): Promise<Record<string, string>> {
-  return workWithInitConfig(
-    workWithInitModule(camelcaseKeys(rawConfig))
-  )
+  return packageJson
 }

@@ -75,6 +75,7 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
   depth?: number
   engineStrict?: boolean
   nodeVersion?: string
+  nodeDownloadMirrors?: Record<string, string>
   offline?: boolean
   registry?: string
   optional?: boolean

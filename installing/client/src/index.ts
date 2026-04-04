@@ -26,6 +26,7 @@ export type ClientOptions = {
   retry?: RetryTimeoutOptions
   storeIndex: StoreIndex
   timeout?: number
+  nodeDownloadMirrors?: Record<string, string>
   unsafePerm?: boolean
   userAgent?: string
   userConfig?: Record<string, string>
