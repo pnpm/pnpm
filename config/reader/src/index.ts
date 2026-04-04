@@ -243,7 +243,7 @@ export async function getConfig (opts: {
   ) as unknown as ConfigWithDeprecatedSettings
 
   for (const [key, value] of Object.entries(npmrcResult.mergedConfig)) {
-    if (key in types) {
+    if (Object.hasOwn(types, key)) {
       ;(pnpmConfig as unknown as Record<string, unknown>)[camelcase(key, { locale: 'en-US' })] = value
     }
   }
