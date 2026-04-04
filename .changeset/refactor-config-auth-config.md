@@ -7,7 +7,7 @@
 "@pnpm/fetching.binary-fetcher": minor
 "@pnpm/installing.client": major
 "@pnpm/config.commands": minor
-"@pnpm/workspace.commands": minor
+"@pnpm/workspace.commands": major
 "@pnpm/engine.runtime.node-resolver": minor
 "@pnpm/resolving.default-resolver": minor
 "@pnpm/store.connection-manager": minor
@@ -25,3 +25,5 @@ nodeDownloadMirrors:
 ```
 
 Replaced `rawConfig: object` with `userAgent?: string` in lifecycle hook options. Removed unused `rawConfig` from fetcher and prepare-package options.
+
+Removed support for the npm `init-module` setting. Custom init scripts via `.pnpm-init.js` are no longer executed by `pnpm init`.

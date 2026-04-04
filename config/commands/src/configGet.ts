@@ -20,13 +20,18 @@ interface Found<Value> {
 }
 
 function lookupConfig (opts: ConfigCommandOptions, key: string, isScopedKey: boolean): Found<unknown> | undefined {
-  if (isScopedKey || isIniConfigKey(key)) {
+  if (isScopedKey) {
     return { value: opts.authConfig[key] }
   }
   const kebabKey = isCamelCase(key) ? kebabCase(key) : key
+  // Resolve typed keys (including INI keys like registry, ca, proxy) from Config
   if (Object.hasOwn(types, kebabKey)) {
     const camelKey = camelcase(kebabKey, { locale: 'en-US' })
     return { value: (opts as unknown as Record<string, unknown>)[camelKey] }
+  }
+  // Auth-specific INI keys (//host:_authToken, _auth, etc.) from authConfig
+  if (isIniConfigKey(key)) {
+    return { value: opts.authConfig[key] }
   }
   // For keys not in types (e.g., package-extensions), look up via configToRecord
   // which excludes internal/sensitive fields.
