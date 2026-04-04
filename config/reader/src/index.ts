@@ -51,6 +51,7 @@ export { types }
 
 export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 export { getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
+export type { AuthInfo } from './parseAuthInfo.js'
 export {
   createProjectConfigRecord,
   type CreateProjectConfigRecordOptions,
@@ -63,7 +64,6 @@ export {
   ProjectConfigsMatchItemIsNotAStringError,
   ProjectConfigUnsupportedFieldError,
 } from './projectConfig.js'
-
 export type { Config, ConfigContext, ProjectConfig, UniversalOptions, VerifyDepsBeforeRun }
 
 export { isIniConfigKey } from './auth.js'
@@ -308,9 +308,12 @@ export async function getConfig (opts: {
     ...networkConfigs.registries,
   }
   pnpmConfig.registries = { ...registriesFromNpmrc }
-  pnpmConfig.authInfos = networkConfigs.authInfos ?? {} // TODO: remove `?? {}` (when possible)
+  const defaultAuthInfo = getDefaultAuthInfo(pnpmConfig.authConfig)
+  pnpmConfig.authInfos = {
+    ...networkConfigs.authInfos,
+    ...defaultAuthInfo ? { '': defaultAuthInfo } : {},
+  }
   pnpmConfig.sslConfigs = networkConfigs.sslConfigs
-  Object.assign(pnpmConfig, getDefaultAuthInfo(pnpmConfig.authConfig))
   pnpmConfig.pnpmHomeDir = getDataDir({ env, platform: process.platform })
   let globalDirRoot
   if (pnpmConfig.globalDir) {

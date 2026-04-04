@@ -52,7 +52,7 @@ export interface ConfigContext {
  * User-facing settings + auth/network config.
  * Does NOT include runtime state — see {@link ConfigContext} for that.
  */
-export interface Config extends AuthInfo, OptionsFromRootManifest {
+export interface Config extends OptionsFromRootManifest {
   allowNew: boolean
   autoConfirmAllPrompts?: boolean
   autoInstallPeers?: boolean
