@@ -91,7 +91,6 @@ export async function main (inputArgv: string[]): Promise<void> {
     // When we just want to print the location of the global bin directory,
     // we don't need the write permission to it. Related issue: #2700
     const globalDirShouldAllowWrite = cmd !== 'root'
-    const isDlxOrCreateCommand = cmd === 'dlx' || cmd === 'create'
     if (cmd === 'link' && cliParams.length === 0) {
       cliOptions.global = true
     }
@@ -101,7 +100,7 @@ export async function main (inputArgv: string[]): Promise<void> {
       rcOptionsTypes,
       workspaceDir,
       checkUnknownSetting: false,
-      ignoreNonAuthSettingsFromLocal: isDlxOrCreateCommand,
+      ignoreNonAuthSettingsFromLocal: cmd === 'create',
     }) as typeof config
     if (!isExecutedByCorepack() && cmd !== 'setup' && config.wantedPackageManager != null) {
       const pm = config.wantedPackageManager
@@ -116,7 +115,7 @@ export async function main (inputArgv: string[]): Promise<void> {
       }
     }
     config = await installConfigDepsAndLoadHooks(config) as typeof config
-    if (isDlxOrCreateCommand || cmd === 'sbom') {
+    if (cmd === 'dlx' || cmd === 'create' || cmd === 'sbom') {
       config.useStderr = true
     }
     config.argv = argv
