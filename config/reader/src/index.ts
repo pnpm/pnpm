@@ -617,10 +617,6 @@ export async function getConfig (opts: {
     }
   }
 
-  // Build effectiveConfig for display by `pnpm config get/list`.
-  // Merges auth/registry keys from authConfig with typed settings in kebab-case.
-  pnpmConfig.effectiveConfig = buildEffectiveConfig(pnpmConfig)
-
   return { config: pnpmConfig, warnings }
 }
 
@@ -747,36 +743,3 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config, {
   pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
 }
 
-/**
- * Build a kebab-case record of all effective settings for display by `pnpm config get/list`.
- * Merges auth/registry keys from authConfig with typed settings.
- */
-const INTERNAL_CONFIG_KEYS = new Set([
-  'authConfig', 'rawLocalConfig', 'effectiveConfig', 'cliOptions',
-  'hooks', 'finders', 'allProjects', 'selectedProjectsGraph',
-  'packageManager', 'wantedPackageManager', 'rootProjectManifest',
-  'storeController', 'rootProjectManifestDir',
-])
-
-function buildEffectiveConfig (config: Config): Record<string, unknown> {
-  // Start with auth/registry keys from authConfig
-  const result: Record<string, unknown> = { ...config.authConfig }
-  // Add typed settings in kebab-case
-  for (const key of Object.keys(types)) {
-    const camelKey = camelcase(key, { locale: 'en-US' })
-    const value = (config as unknown as Record<string, unknown>)[camelKey]
-    if (value !== undefined) {
-      result[key] = value
-    }
-  }
-  // Add non-types config properties (e.g., packages, packageExtensions, overrides)
-  // These are camelCase settings from workspace yaml that don't have kebab equivalents.
-  for (const [key, value] of Object.entries(config)) {
-    if (value === undefined || INTERNAL_CONFIG_KEYS.has(key)) continue
-    if (!(key in result) && !(kebabCase(key) in result)) {
-      result[key] = value
-    }
-  }
-  result['user-agent'] = config.userAgent
-  return result
-}

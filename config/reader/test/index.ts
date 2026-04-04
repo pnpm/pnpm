@@ -257,7 +257,7 @@ test('.npmrc does not load pnpm settings', async () => {
   expect(config.authConfig.packages).toBeUndefined()
 })
 
-test('rc options appear as kebab-case in effectiveConfig even if it was defined as camelCase by pnpm-workspace.yaml', async () => {
+test('camelCase settings from pnpm-workspace.yaml are read into typed Config properties', async () => {
   prepareEmpty()
 
   writeYamlFileSync('pnpm-workspace.yaml', {
@@ -283,21 +283,10 @@ test('rc options appear as kebab-case in effectiveConfig even if it was defined 
     linkWorkspacePackages: true,
     nodeLinker: 'hoisted',
     sharedWorkspaceLockfile: true,
-    effectiveConfig: {
-      'ignore-scripts': true,
-      'link-workspace-packages': true,
-      'node-linker': 'hoisted',
-      'shared-workspace-lockfile': true,
-    },
   })
-
-  expect(config.effectiveConfig.ignoreScripts).toBeUndefined()
-  expect(config.effectiveConfig.linkWorkspacePackages).toBeUndefined()
-  expect(config.effectiveConfig.nodeLinker).toBeUndefined()
-  expect(config.effectiveConfig.sharedWorkspaceLockfile).toBeUndefined()
 })
 
-test('workspace-specific settings preserve case in effectiveConfig', async () => {
+test('workspace-specific settings are read into typed Config properties', async () => {
   prepareEmpty()
 
   writeYamlFileSync('pnpm-workspace.yaml', {
@@ -327,20 +316,7 @@ test('workspace-specific settings preserve case in effectiveConfig', async () =>
     workspaceDir: process.cwd(),
   })
 
-  expect(config.effectiveConfig.packages).toStrictEqual(['foo', 'bar'])
-  expect(config.effectiveConfig.packageExtensions).toStrictEqual({
-    '@babel/parser': {
-      peerDependencies: {
-        '@babel/types': '*',
-      },
-    },
-    'jest-circus': {
-      dependencies: {
-        slash: '3',
-      },
-    },
-  })
-  expect(config.effectiveConfig['package-extensions']).toBeUndefined()
+  expect(config.workspacePackagePatterns).toStrictEqual(['foo', 'bar'])
   expect(config.packageExtensions).toStrictEqual({
     '@babel/parser': {
       peerDependencies: {
@@ -1321,7 +1297,6 @@ test('settings from pnpm-workspace.yaml are read', async () => {
   })
 
   expect(config.trustPolicyExclude).toStrictEqual(['foo', 'bar'])
-  expect(config.effectiveConfig['trust-policy-exclude']).toStrictEqual(['foo', 'bar'])
 })
 
 test('settings sharedWorkspaceLockfile in pnpm-workspace.yaml should take effect', async () => {
@@ -1354,7 +1329,6 @@ test('settings shamefullyHoist in pnpm-workspace.yaml should take effect', async
   })
 
   expect(config.shamefullyHoist).toBe(true)
-  expect(config.effectiveConfig['shamefully-hoist']).toBe(true)
 })
 
 test('settings gitBranchLockfile in pnpm-workspace.yaml should take effect', async () => {
@@ -1371,7 +1345,6 @@ test('settings gitBranchLockfile in pnpm-workspace.yaml should take effect', asy
 
   expect(config.gitBranchLockfile).toBe(true)
   expect(config.useGitBranchLockfile).toBe(true)
-  expect(config.effectiveConfig['git-branch-lockfile']).toBe(true)
 })
 
 test('loads setting from environment variable pnpm_config_*', async () => {
@@ -1546,9 +1519,7 @@ describe('global config.yaml', () => {
     expect(config.dangerouslyAllowAllBuilds).toBe(true)
 
     // NOTE: the field may appear kebab-case here, but only internally,
-    //       `pnpm config list` would convert them to camelCase.
-    // TODO: switch to camelCase entirely later.
-    expect(config.effectiveConfig).toHaveProperty(['dangerously-allow-all-builds'])
+    expect(config.dangerouslyAllowAllBuilds).toBeDefined()
   })
 })
 

@@ -1,10 +1,11 @@
 import { types } from '@pnpm/config.reader'
 import { parsePropertyPath } from '@pnpm/object.property-path'
+import camelcase from 'camelcase'
 import kebabCase from 'lodash.kebabcase'
 
 /**
- * Just like {@link parsePropertyPath} but the first element may be converted into kebab-case
- * if it's part of {@link types}.
+ * Just like {@link parsePropertyPath} but the first element may be converted into camelCase
+ * if it's a known typed config key, to match the camelCase keys produced by {@link configToRecord}.
  */
 export function * parseConfigPropertyPath (propertyPath: string): Generator<string | number, void, void> {
   const iter = parsePropertyPath(propertyPath)
@@ -17,14 +18,14 @@ export function * parseConfigPropertyPath (propertyPath: string): Generator<stri
 }
 
 /**
- * Turn a top-level config name into kebab-case if it's part of {@link types}.
+ * Turn a top-level config name into camelCase if it's a known typed config key.
  * Otherwise, return the string as-is.
  */
 function normalizeTopLevelConfigName (configName: string | number): string {
   if (typeof configName === 'number') return configName.toString()
 
   const kebabKey = kebabCase(configName)
-  if (Object.hasOwn(types, kebabKey)) return kebabKey
+  if (Object.hasOwn(types, kebabKey)) return camelcase(kebabKey, { locale: 'en-US' })
 
   return configName
 }

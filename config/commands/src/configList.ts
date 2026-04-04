@@ -1,9 +1,10 @@
-import type { ConfigCommandOptions } from './ConfigCommandOptions.js'
-import { processConfig } from './processConfig.js'
+import type { Config } from '@pnpm/config.reader'
 
-export type ConfigListOptions = Pick<ConfigCommandOptions, 'effectiveConfig'>
+import type { ConfigCommandOptions } from './ConfigCommandOptions.js'
+import { configToRecord } from './configToRecord.js'
+
+export type ConfigListOptions = Pick<ConfigCommandOptions, 'authConfig'>
 
 export async function configList (opts: ConfigListOptions): Promise<string> {
-  const processedConfig = processConfig(opts.effectiveConfig)
-  return JSON.stringify(processedConfig, undefined, 2)
+  return JSON.stringify(configToRecord(opts as unknown as Config), undefined, 2)
 }

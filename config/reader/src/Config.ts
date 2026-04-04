@@ -39,8 +39,6 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
   filterProd: string[]
   rawLocalConfig: Record<string, any>, // eslint-disable-line
   authConfig: Record<string, any>, // eslint-disable-line
-  /** All effective settings in kebab-case, for display by `pnpm config get/list`. */
-  effectiveConfig: Record<string, unknown>
   dryRun?: boolean // This option might be not supported ever
   global?: boolean
   dir: string

@@ -18,7 +18,6 @@ test('config delete on registry key not set', async () => {
     cliOptions: {},
     configDir,
     global: true,
-    effectiveConfig: {},
     authConfig: {},
   }, ['delete', 'registry'])
 
@@ -38,7 +37,6 @@ test('config delete on registry key set', async () => {
     cliOptions: {},
     configDir,
     global: true,
-    effectiveConfig: {},
     authConfig: {},
   }, ['delete', 'registry'])
 
@@ -56,7 +54,6 @@ test('config delete on npm-compatible key not set', async () => {
     cliOptions: {},
     configDir,
     global: true,
-    effectiveConfig: {},
     authConfig: {},
   }, ['delete', 'cafile'])
 
@@ -76,7 +73,6 @@ test('config delete on npm-compatible key set', async () => {
     cliOptions: {},
     configDir,
     global: true,
-    effectiveConfig: {},
     authConfig: {},
   }, ['delete', 'cafile'])
 
@@ -98,7 +94,6 @@ test('config delete on pnpm-specific key not set', async () => {
     cliOptions: {},
     configDir,
     global: true,
-    effectiveConfig: {},
     authConfig: {},
   }, ['delete', 'store-dir'])
 
@@ -120,7 +115,6 @@ test('config delete on pnpm-specific key set', async () => {
     cliOptions: {},
     configDir,
     global: true,
-    effectiveConfig: {},
     authConfig: {},
   }, ['delete', 'cache-dir'])
 

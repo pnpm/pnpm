@@ -8,12 +8,8 @@ test('config get', async () => {
     cliOptions: {},
     configDir: process.cwd(),
     global: true,
-    authConfig: {
-      'store-dir': '~/store',
-    },
-    effectiveConfig: {
-      'store-dir': '~/store',
-    },
+    authConfig: {},
+    storeDir: '~/store',
   }, ['get', 'store-dir'])
 
   expect(getOutputString(getResult)).toBe('~/store')
@@ -25,12 +21,8 @@ test('config get works with camelCase', async () => {
     cliOptions: {},
     configDir: process.cwd(),
     global: true,
-    authConfig: {
-      'store-dir': '~/store',
-    },
-    effectiveConfig: {
-      'store-dir': '~/store',
-    },
+    authConfig: {},
+    storeDir: '~/store',
   }, ['get', 'storeDir'])
 
   expect(getOutputString(getResult)).toBe('~/store')
@@ -42,12 +34,8 @@ test('config get a boolean should return string format', async () => {
     cliOptions: {},
     configDir: process.cwd(),
     global: true,
-    authConfig: {
-      'update-notifier': true,
-    },
-    effectiveConfig: {
-      'update-notifier': true,
-    },
+    authConfig: {},
+    updateNotifier: true,
   }, ['get', 'update-notifier'])
 
   expect(getOutputString(getResult)).toBe('true')
@@ -59,18 +47,11 @@ test('config get on array should return a comma-separated list', async () => {
     cliOptions: {},
     configDir: process.cwd(),
     global: true,
-    authConfig: {
-      'public-hoist-pattern': [
-        '*eslint*',
-        '*prettier*',
-      ],
-    },
-    effectiveConfig: {
-      'public-hoist-pattern': [
-        '*eslint*',
-        '*prettier*',
-      ],
-    },
+    authConfig: {},
+    publicHoistPattern: [
+      '*eslint*',
+      '*prettier*',
+    ],
   }, ['get', 'public-hoist-pattern'])
 
   expect(JSON.parse(getOutputString(getResult))).toStrictEqual([
@@ -85,15 +66,9 @@ test('config get on object should return a JSON string', async () => {
     cliOptions: {},
     configDir: process.cwd(),
     global: true,
-    authConfig: {
-      catalog: {
-        react: '^19.0.0',
-      },
-    },
-    effectiveConfig: {
-      catalog: {
-        react: '^19.0.0',
-      },
+    authConfig: {},
+    catalog: {
+      react: '^19.0.0',
     },
   }, ['get', 'catalog'])
 
@@ -111,7 +86,6 @@ test('config get without key show list all settings', async () => {
     configDir: process.cwd(),
     global: true,
     authConfig,
-    effectiveConfig: authConfig,
   }, ['get'])
 
   const listOutput = await config.handler({
@@ -119,73 +93,66 @@ test('config get without key show list all settings', async () => {
     cliOptions: {},
     configDir: process.cwd(),
     authConfig,
-    effectiveConfig: authConfig,
   }, ['list'])
 
   expect(getOutput).toStrictEqual(listOutput)
 })
 
 describe('config get with a property path', () => {
-  // TODO: change `authConfig` into camelCase (to emulate pnpm-workspace.yaml)
-  const authConfig = {
-    'dlx-cache-max-age': '1234',
-    'trust-policy-exclude': ['foo', 'bar'],
-    packageExtensions: {
-      '@babel/parser': {
-        peerDependencies: {
-          '@babel/types': '*',
-        },
-      },
-      'jest-circus': {
-        dependencies: {
-          slash: '3',
-        },
+  const packageExtensions = {
+    '@babel/parser': {
+      peerDependencies: {
+        '@babel/types': '*',
       },
     },
+    'jest-circus': {
+      dependencies: {
+        slash: '3',
+      },
+    },
+  }
+  const configData = {
+    dlxCacheMaxAge: '1234',
+    trustPolicyExclude: ['foo', 'bar'],
+    packageExtensions,
+  }
+  const baseOpts = {
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: true,
+    authConfig: {},
+    ...configData,
   }
 
   describe('anything with --json', () => {
     test('«»', async () => {
       const getResult = await config.handler({
-        dir: process.cwd(),
-        cliOptions: {},
-        configDir: process.cwd(),
-        global: true,
+        ...baseOpts,
         json: true,
-        authConfig,
-        effectiveConfig: authConfig,
       }, ['get', ''])
 
-      expect(JSON.parse(getOutputString(getResult))).toStrictEqual({
-        dlxCacheMaxAge: authConfig['dlx-cache-max-age'],
-        trustPolicyExclude: authConfig['trust-policy-exclude'],
-        packageExtensions: authConfig.packageExtensions,
-      })
+      expect(JSON.parse(getOutputString(getResult))).toMatchObject(configData)
     })
 
     test.each([
-      ['dlx-cache-max-age', authConfig['dlx-cache-max-age']],
-      ['dlxCacheMaxAge', authConfig['dlx-cache-max-age']],
-      ['trust-policy-exclude', authConfig['trust-policy-exclude']],
-      ['trustPolicyExclude', authConfig['trust-policy-exclude']],
-      ['trustPolicyExclude[0]', authConfig['trust-policy-exclude'][0]],
-      ['trustPolicyExclude[1]', authConfig['trust-policy-exclude'][1]],
-      ['packageExtensions', authConfig.packageExtensions],
-      ['packageExtensions["@babel/parser"]', authConfig.packageExtensions['@babel/parser']],
-      ['packageExtensions["@babel/parser"].peerDependencies', authConfig.packageExtensions['@babel/parser'].peerDependencies],
-      ['packageExtensions["@babel/parser"].peerDependencies["@babel/types"]', authConfig.packageExtensions['@babel/parser'].peerDependencies['@babel/types']],
-      ['packageExtensions["jest-circus"]', authConfig.packageExtensions['jest-circus']],
-      ['packageExtensions["jest-circus"].dependencies', authConfig.packageExtensions['jest-circus'].dependencies],
-      ['packageExtensions["jest-circus"].dependencies.slash', authConfig.packageExtensions['jest-circus'].dependencies.slash],
+      ['dlx-cache-max-age', configData.dlxCacheMaxAge],
+      ['dlxCacheMaxAge', configData.dlxCacheMaxAge],
+      ['trust-policy-exclude', configData.trustPolicyExclude],
+      ['trustPolicyExclude', configData.trustPolicyExclude],
+      ['trustPolicyExclude[0]', configData.trustPolicyExclude[0]],
+      ['trustPolicyExclude[1]', configData.trustPolicyExclude[1]],
+      ['packageExtensions', configData.packageExtensions],
+      ['packageExtensions["@babel/parser"]', configData.packageExtensions['@babel/parser']],
+      ['packageExtensions["@babel/parser"].peerDependencies', configData.packageExtensions['@babel/parser'].peerDependencies],
+      ['packageExtensions["@babel/parser"].peerDependencies["@babel/types"]', configData.packageExtensions['@babel/parser'].peerDependencies['@babel/types']],
+      ['packageExtensions["jest-circus"]', configData.packageExtensions['jest-circus']],
+      ['packageExtensions["jest-circus"].dependencies', configData.packageExtensions['jest-circus'].dependencies],
+      ['packageExtensions["jest-circus"].dependencies.slash', configData.packageExtensions['jest-circus'].dependencies.slash],
     ] as Array<[string, unknown]>)('«%s»', async (propertyPath, expected) => {
       const getResult = await config.handler({
-        dir: process.cwd(),
-        cliOptions: {},
-        configDir: process.cwd(),
-        global: true,
+        ...baseOpts,
         json: true,
-        authConfig,
-        effectiveConfig: authConfig,
       }, ['get', propertyPath])
 
       expect(JSON.parse(getOutputString(getResult))).toStrictEqual(expected)
@@ -193,28 +160,22 @@ describe('config get with a property path', () => {
   })
 
   describe('object without --json', () => {
-    test.each([
-      // TODO: change `authConfig` into camelCase and replace this object with just `authConfig`.
-      ['', {
-        dlxCacheMaxAge: authConfig['dlx-cache-max-age'],
-        trustPolicyExclude: authConfig['trust-policy-exclude'],
-        packageExtensions: authConfig.packageExtensions,
-      }],
+    // Note: empty path returns all config including dir/global/configDir,
+    // so we use toMatchObject for the empty-path case.
+    test('«»', async () => {
+      const getResult = await config.handler(baseOpts, ['get', ''])
+      expect(JSON.parse(getOutputString(getResult))).toMatchObject(configData)
+    })
 
-      ['packageExtensions', authConfig.packageExtensions],
-      ['packageExtensions["@babel/parser"]', authConfig.packageExtensions['@babel/parser']],
-      ['packageExtensions["@babel/parser"].peerDependencies', authConfig.packageExtensions['@babel/parser'].peerDependencies],
-      ['packageExtensions["jest-circus"]', authConfig.packageExtensions['jest-circus']],
-      ['packageExtensions["jest-circus"].dependencies', authConfig.packageExtensions['jest-circus'].dependencies],
+    test.each([
+
+      ['packageExtensions', configData.packageExtensions],
+      ['packageExtensions["@babel/parser"]', configData.packageExtensions['@babel/parser']],
+      ['packageExtensions["@babel/parser"].peerDependencies', configData.packageExtensions['@babel/parser'].peerDependencies],
+      ['packageExtensions["jest-circus"]', configData.packageExtensions['jest-circus']],
+      ['packageExtensions["jest-circus"].dependencies', configData.packageExtensions['jest-circus'].dependencies],
     ] as Array<[string, unknown]>)('«%s»', async (propertyPath, expected) => {
-      const getResult = await config.handler({
-        dir: process.cwd(),
-        cliOptions: {},
-        configDir: process.cwd(),
-        global: true,
-        authConfig,
-        effectiveConfig: authConfig,
-      }, ['get', propertyPath])
+      const getResult = await config.handler(baseOpts, ['get', propertyPath])
 
       expect(JSON.parse(getOutputString(getResult))).toStrictEqual(expected)
     })
@@ -222,37 +183,28 @@ describe('config get with a property path', () => {
 
   describe('string without --json', () => {
     test.each([
-      ['dlx-cache-max-age', authConfig['dlx-cache-max-age']],
-      ['dlxCacheMaxAge', authConfig['dlx-cache-max-age']],
-      ['trustPolicyExclude[0]', authConfig['trust-policy-exclude'][0]],
-      ['trustPolicyExclude[1]', authConfig['trust-policy-exclude'][1]],
-      ['package-extensions', 'undefined'], // it cannot be defined by rc, it can't be kebab-case
-      ['packageExtensions["@babel/parser"].peerDependencies["@babel/types"]', authConfig.packageExtensions['@babel/parser'].peerDependencies['@babel/types']],
-      ['packageExtensions["jest-circus"].dependencies.slash', authConfig.packageExtensions['jest-circus'].dependencies.slash],
+      ['dlx-cache-max-age', configData.dlxCacheMaxAge],
+      ['dlxCacheMaxAge', configData.dlxCacheMaxAge],
+      ['trustPolicyExclude[0]', configData.trustPolicyExclude[0]],
+      ['trustPolicyExclude[1]', configData.trustPolicyExclude[1]],
+      ['packageExtensions["@babel/parser"].peerDependencies["@babel/types"]', configData.packageExtensions['@babel/parser'].peerDependencies['@babel/types']],
+      ['packageExtensions["jest-circus"].dependencies.slash', configData.packageExtensions['jest-circus'].dependencies.slash],
     ] as Array<[string, string]>)('«%s»', async (propertyPath, expected) => {
-      const getResult = await config.handler({
-        dir: process.cwd(),
-        cliOptions: {},
-        configDir: process.cwd(),
-        global: true,
-        authConfig,
-        effectiveConfig: authConfig,
-      }, ['get', propertyPath])
+      const getResult = await config.handler(baseOpts, ['get', propertyPath])
 
       expect(getOutputString(getResult)).toStrictEqual(expected)
     })
   })
 
   describe('non-rc kebab-case keys', () => {
-    test('«package-extensions»', async () => {
-      const getResult = await config.handler({
-        dir: process.cwd(),
-        cliOptions: {},
-        configDir: process.cwd(),
-        global: true,
-        authConfig,
-        effectiveConfig: authConfig,
-      }, ['get', 'package-extensions'])
+    test('«package-extensions» resolves to packageExtensions on Config', async () => {
+      const getResult = await config.handler(baseOpts, ['get', 'package-extensions'])
+
+      expect(JSON.parse(getOutputString(getResult))).toStrictEqual(configData.packageExtensions)
+    })
+
+    test('unknown kebab-case key returns undefined', async () => {
+      const getResult = await config.handler(baseOpts, ['get', 'no-such-setting'])
 
       expect(getOutputString(getResult)).toBe('undefined')
     })
@@ -266,9 +218,6 @@ test('config get with scoped registry key (global: false)', async () => {
     configDir: process.cwd(),
     global: false,
     authConfig: {
-      '@scope:registry': 'https://custom-registry.example.com/',
-    },
-    effectiveConfig: {
       '@scope:registry': 'https://custom-registry.example.com/',
     },
   }, ['get', '@scope:registry'])
@@ -285,9 +234,6 @@ test('config get with scoped registry key (global: true)', async () => {
     authConfig: {
       '@scope:registry': 'https://custom-registry.example.com/',
     },
-    effectiveConfig: {
-      '@scope:registry': 'https://custom-registry.example.com/',
-    },
   }, ['get', '@scope:registry'])
 
   expect(getOutputString(getResult)).toBe('https://custom-registry.example.com/')
@@ -300,7 +246,6 @@ test('config get with scoped registry key that does not exist', async () => {
     configDir: process.cwd(),
     global: false,
     authConfig: {},
-    effectiveConfig: {},
   }, ['get', '@scope:registry'])
 
   expect(getOutputString(getResult)).toBe('undefined')
@@ -323,7 +268,6 @@ describe('does not traverse the prototype chain (#10296)', () => {
       configDir: process.cwd(),
       global: true,
       authConfig: {},
-      effectiveConfig: {},
     }, ['get', key])
 
     expect(getOutputString(getResult)).toBe('undefined')

@@ -4,7 +4,6 @@ export type ConfigCommandOptions = Pick<Config,
 | 'configDir'
 | 'cliOptions'
 | 'dir'
-| 'effectiveConfig'
 | 'global'
 | 'authConfig'
 | 'workspaceDir'
