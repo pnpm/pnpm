@@ -14,7 +14,7 @@ import type { config } from '../../src/index.js'
  * Build a {@link ConfigCommandOptions} object for tests.
  *
  * Accepts the flat shape that tests already use (settings like `storeDir`,
- * `authConfig`, etc. mixed into a single object) and synthesises the `config`
+ * `authConfig`, etc. mixed into a single object) and builds the `config`
  * and `context` properties that the refactored config commands now expect.
  */
 export function createConfigCommandOpts (
