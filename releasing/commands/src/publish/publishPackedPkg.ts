@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 
-import type { Config } from '@pnpm/config.reader'
+import type { AuthInfo, Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
@@ -16,26 +16,15 @@ import { publishWithOtpHandling } from './otp.js'
 import type { PackResult } from './pack.js'
 import { allRegistryConfigKeys, type NormalizedRegistryUrl, parseSupportedRegistryUrl } from './registryConfigKeys.js'
 
-type AuthConfigKey =
-| 'authToken'
-| 'authUserPass'
-| 'tokenHelper'
-
 type SslConfigKey =
 | 'ca'
 | 'cert'
 | 'key'
 
-type AuthSslConfigKey =
-// default registry
-| AuthConfigKey
+export type PublishPackedPkgOptions = Pick<Config,
 | SslConfigKey
-// other registries
 | 'authInfos'
 | 'sslConfigs'
-
-export type PublishPackedPkgOptions = Pick<Config,
-| AuthSslConfigKey
 | 'dryRun'
 | 'fetchRetries'
 | 'fetchRetryFactor'
@@ -147,7 +136,7 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
 
 interface AuthSslInfo {
   registry: NormalizedRegistryUrl
-  auth: Pick<Config, AuthConfigKey>
+  auth: AuthInfo
   ssl: Pick<Config, SslConfigKey>
 }
 
@@ -158,13 +147,9 @@ interface AuthSslInfo {
  */
 function findAuthSslInfo (
   { name }: ExportedManifest,
-  {
-    authInfos,
-    sslConfigs,
-    registries,
-    ...defaultInfos
-  }: Pick<Config, AuthSslConfigKey | 'registries'>
+  opts: Pick<Config, 'authInfos' | 'sslConfigs' | 'registries' | SslConfigKey>
 ): Partial<AuthSslInfo> {
+  const { authInfos, sslConfigs, registries, ...defaultSsl } = opts
   // eslint-disable-next-line regexp/no-unused-capturing-group
   const scopedMatches = /@(?<scope>[^/]+)\/(?<slug>[^/]+)/.exec(name)
 
@@ -184,7 +169,7 @@ function findAuthSslInfo (
   const result: Partial<AuthSslInfo> = { registry }
 
   for (const registryConfigKey of allRegistryConfigKeys(initialRegistryConfigKey)) {
-    const auth: Pick<Config, AuthConfigKey> | undefined = authInfos[registryConfigKey]
+    const auth: AuthInfo | undefined = authInfos[registryConfigKey]
     const ssl: Pick<Config, SslConfigKey> | undefined = sslConfigs[registryConfigKey]
 
     result.auth ??= auth // old auth from longer path collectively overrides new auth from shorter path
@@ -205,9 +190,9 @@ function findAuthSslInfo (
 
   return {
     registry,
-    auth: result.auth ?? defaultInfos, // old auth from longer path collectively overrides default auth
+    auth: result.auth ?? authInfos[''], // old auth from longer path collectively overrides default auth
     ssl: {
-      ...defaultInfos,
+      ...defaultSsl,
       ...result.ssl, // old ssl from longer path individually overrides default ssl
     },
   }
@@ -216,10 +201,7 @@ function findAuthSslInfo (
 function extractToken ({
   authToken,
   tokenHelper,
-}: {
-  authToken?: string
-  tokenHelper?: [string, ...string[]]
-}): string | undefined {
+}: Pick<AuthInfo, 'authToken' | 'tokenHelper'>): string | undefined {
   if (authToken) return authToken
   if (tokenHelper) {
     return executeTokenHelper(tokenHelper, { globalWarn })
