@@ -95,7 +95,6 @@ test('recursive update prod dependencies only', async () => {
     ...DEFAULT_OPTS,
     allProjects,
     cliOptions: {
-      dev: false,
       optional: false,
       production: true,
     },
