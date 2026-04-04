@@ -25,6 +25,9 @@ const CREDENTIALS = [
 ]
 const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
 
+// Disable minimumReleaseAge for crossSpawn calls that invoke the pnpm CLI directly
+process.env.pnpm_config_minimum_release_age = '0'
+
 test('publish: package with package.json', async () => {
   prepare({
     name: 'test-publish-package.json',
