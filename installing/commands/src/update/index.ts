@@ -295,10 +295,15 @@ async function update (
     }
   }
   const includeDirect = makeIncludeDependenciesFromCLI(opts.cliOptions)
+  // include is always all-true for updates: updates should not change which
+  // dep types the modules directory supports. The filtering of which deps to
+  // actually resolve/update is handled by includeDirect (from CLI flags).
+  // This matches the original behavior where rawConfig didn't have derived
+  // values like dev=false from --prod, so include defaulted to all-true.
   const include = {
-    dependencies: opts.production !== false,
-    devDependencies: opts.dev !== false,
-    optionalDependencies: opts.optional !== false,
+    dependencies: true,
+    devDependencies: true,
+    optionalDependencies: true,
   }
   const depth = opts.depth ?? Infinity
   let updateMatching: UpdateMatchingFunction | undefined
