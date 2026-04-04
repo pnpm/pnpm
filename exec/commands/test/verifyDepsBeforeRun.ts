@@ -44,7 +44,6 @@ async function runTest (verifyDepsBeforeRun: VerifyDepsBeforeRun): Promise<void>
     extraBinPaths: [],
     extraEnv: {},
     pnpmHomeDir: '',
-
     verifyDepsBeforeRun,
     rootProjectManifest,
     rootProjectManifestDir: process.cwd(),

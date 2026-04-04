@@ -168,7 +168,6 @@ describe('config get with a property path', () => {
     })
 
     test.each([
-
       ['packageExtensions', configData.packageExtensions],
       ['packageExtensions["@babel/parser"]', configData.packageExtensions['@babel/parser']],
       ['packageExtensions["@babel/parser"].peerDependencies', configData.packageExtensions['@babel/parser'].peerDependencies],
