@@ -42,5 +42,9 @@ export function configToRecord (config: Config): Record<string, unknown> {
       result[key] = value
     }
   }
+  // Always include user-agent for debugging connectivity issues
+  if (config.userAgent) {
+    result.userAgent = config.userAgent
+  }
   return censorProtectedSettings(sortDirectKeys(result))
 }

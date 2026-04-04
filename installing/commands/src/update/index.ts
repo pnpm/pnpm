@@ -295,6 +295,11 @@ async function update (
     }
   }
   const includeDirect = makeIncludeDependenciesFromCLI(opts.cliOptions)
+  const include = {
+    dependencies: opts.production !== false,
+    devDependencies: opts.dev !== false,
+    optionalDependencies: opts.optional !== false,
+  }
   const depth = opts.depth ?? Infinity
   let updateMatching: UpdateMatchingFunction | undefined
   if (opts.packageVulnerabilityAudit != null) {
@@ -311,6 +316,7 @@ async function update (
     allowNew: false,
     depth,
     ignoreCurrentSpecifiers: false,
+    include,
     includeDirect,
     update: true,
     updateToLatest: opts.latest,

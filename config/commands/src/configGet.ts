@@ -24,15 +24,19 @@ function lookupConfig (opts: ConfigCommandOptions, key: string, isScopedKey: boo
     return { value: opts.authConfig[key] }
   }
   const kebabKey = isCamelCase(key) ? kebabCase(key) : key
-  // Resolve typed keys (including INI keys like registry, ca, proxy) from Config
+  // Resolve typed keys from Config — check explicitly set values first,
+  // then fall back to authConfig (for keys like registry set in .npmrc)
   if (Object.hasOwn(types, kebabKey)) {
     const camelKey = camelcase(kebabKey, { locale: 'en-US' })
     const explicit = (opts as unknown as Config).explicitlySetKeys
-    // If explicitlySetKeys is available, only return explicitly set values
-    if (explicit && !explicit.has(camelKey)) {
-      return { value: undefined }
+    if (!explicit || explicit.has(camelKey)) {
+      return { value: (opts as unknown as Record<string, unknown>)[camelKey] }
     }
-    return { value: (opts as unknown as Record<string, unknown>)[camelKey] }
+    // Fall back to authConfig for INI keys (registry, ca, etc.)
+    if (kebabKey in opts.authConfig) {
+      return { value: opts.authConfig[kebabKey] }
+    }
+    return { value: undefined }
   }
   // Auth-specific INI keys (//host:_authToken, _auth, etc.) from authConfig
   if (isIniConfigKey(key)) {
