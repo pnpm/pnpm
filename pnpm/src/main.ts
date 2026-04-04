@@ -10,7 +10,7 @@ import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
-import type { Config } from '@pnpm/config.reader'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn, logger } from '@pnpm/logger'
@@ -87,6 +87,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     parseable?: boolean
     json?: boolean
   }
+  let context: ConfigContext
   try {
     // When we just want to print the location of the global bin directory,
     // we don't need the write permission to it. Related issue: #2700
@@ -95,16 +96,16 @@ export async function main (inputArgv: string[]): Promise<void> {
     if (cmd === 'link' && cliParams.length === 0) {
       cliOptions.global = true
     }
-    config = await getConfig(cliOptions, {
+    ;({ config, context } = await getConfig(cliOptions, {
       excludeReporter: false,
       globalDirShouldAllowWrite,
       workspaceDir,
       ignoreNonAuthSettingsFromLocal: isDlxOrCreateCommand,
-    }) as typeof config
-    if (!isExecutedByCorepack() && cmd !== 'setup' && config.wantedPackageManager != null) {
-      const pm = config.wantedPackageManager
+    }) as { config: typeof config, context: ConfigContext })
+    if (!isExecutedByCorepack() && cmd !== 'setup' && context.wantedPackageManager != null) {
+      const pm = context.wantedPackageManager
       if (pm.onFail === 'download' && pm.name === 'pnpm' && cmd !== 'self-update') {
-        await switchCliVersion(config)
+        await switchCliVersion(config, context)
       } else if (pm.onFail !== 'ignore' && (!cmd || !skipPackageManagerCheckForCommand.has(cmd))) {
         if (cliOptions.global) {
           globalWarn('Using --global skips the package manager check for this project')
@@ -113,7 +114,7 @@ export async function main (inputArgv: string[]): Promise<void> {
         }
       }
     }
-    config = await installConfigDepsAndLoadHooks(config) as typeof config
+    ;({ config, context } = await installConfigDepsAndLoadHooks(config, context) as { config: typeof config, context: ConfigContext })
     if (isDlxOrCreateCommand || cmd === 'sbom') {
       config.useStderr = true
     }
@@ -167,7 +168,7 @@ export async function main (inputArgv: string[]): Promise<void> {
   if (printLogs) {
     initReporter(reporterType, {
       cmd,
-      config,
+      config: { ...config, ...context },
     })
     global[REPORTER_INITIALIZED] = reporterType
   }
@@ -176,8 +177,8 @@ export async function main (inputArgv: string[]): Promise<void> {
   // script with the same name, run the script instead of the built-in command.
   const typedCommandName = argv.remain[0]
   if (cmd != null && !builtInCommandForced && overridableByScriptCommands.has(typedCommandName) && !cliOptions.global) {
-    const currentDirManifest = config.dir === config.rootProjectManifestDir
-      ? config.rootProjectManifest
+    const currentDirManifest = config.dir === context.rootProjectManifestDir
+      ? context.rootProjectManifest
       : await safeReadProjectManifestOnly(config.dir)
     if (currentDirManifest?.scripts?.[typedCommandName]) {
       // Redirect to "pnpm run <cmd>"
@@ -191,8 +192,8 @@ export async function main (inputArgv: string[]): Promise<void> {
       }
     } else if (
       workspaceDir &&
-      config.dir !== config.rootProjectManifestDir &&
-      config.rootProjectManifest?.scripts?.[typedCommandName]
+      config.dir !== context.rootProjectManifestDir &&
+      context.rootProjectManifest?.scripts?.[typedCommandName]
     ) {
       throw new PnpmError(
         'SCRIPT_OVERRIDE_IN_WORKSPACE_ROOT',
@@ -261,9 +262,9 @@ export async function main (inputArgv: string[]): Promise<void> {
       process.exitCode = config.failIfNoMatch ? 1 : 0
       return
     }
-    config.allProjectsGraph = filterResults.allProjectsGraph
-    config.selectedProjectsGraph = filterResults.selectedProjectsGraph
-    if (isEmpty(config.selectedProjectsGraph)) {
+    context.allProjectsGraph = filterResults.allProjectsGraph
+    context.selectedProjectsGraph = filterResults.selectedProjectsGraph
+    if (isEmpty(context.selectedProjectsGraph)) {
       if (printLogs) {
         console.log(`No projects matched the filters in "${wsDir}"`)
       }
@@ -279,7 +280,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     if (filterResults.unmatchedFilters.length !== 0 && printLogs) {
       console.log(`No projects matched the filters "${filterResults.unmatchedFilters.join(', ')}" in "${wsDir}"`)
     }
-    config.allProjects = filterResults.allProjects
+    context.allProjects = filterResults.allProjects
     config.workspaceDir = wsDir
   }
 
@@ -313,16 +314,16 @@ export async function main (inputArgv: string[]): Promise<void> {
         !cliOptions['recursive']
           ? { selected: 1 }
           : {
-            selected: Object.keys(config.selectedProjectsGraph!).length,
-            total: config.allProjects!.length,
+            selected: Object.keys(context.selectedProjectsGraph!).length,
+            total: context.allProjects!.length,
           }
       ),
       ...(workspaceDir ? { workspacePrefix: workspaceDir } : {}),
     })
     let result = pnpmCmds[cmd ?? 'help'](
-      // TypeScript doesn't currently infer that the type of config
-      // is `Omit<typeof config, 'reporter'>` after the `delete config.reporter` statement
-      config as Omit<typeof config, 'reporter'>,
+      // Spread config (settings) and context (runtime state) into a single
+      // options object for command handlers.
+      { ...config, ...context } as Omit<typeof config & ConfigContext, 'reporter'>,
       cliParams,
       pnpmCmds
     )

@@ -14,22 +14,50 @@ import type {
 import type { OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
 import type { AuthInfo } from './parseAuthInfo.js'
 
-export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'authConfig' | 'rawLocalConfig'>
+export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'authConfig'> & Pick<ConfigContext, 'rawLocalConfig'>
 
 
 export type VerifyDepsBeforeRun = 'install' | 'warn' | 'error' | 'prompt' | false
 
-export interface Config extends AuthInfo, OptionsFromRootManifest {
+/**
+ * Runtime state, workspace context, and CLI metadata.
+ * These fields are NOT user-facing settings — they are computed at startup
+ * or populated later by the CLI harness (e.g. workspace filtering, hook loading).
+ */
+export interface ConfigContext {
+  // -- Runtime state --
+  hooks?: Hooks
+  finders?: Record<string, Finder>
+
+  // -- Workspace context --
   allProjects?: Project[]
   selectedProjectsGraph?: ProjectsGraph
   allProjectsGraph?: ProjectsGraph
+  rootProjectManifest?: ProjectManifest
+  rootProjectManifestDir: string
 
+  // -- CLI metadata --
+  cliOptions: Record<string, any> // eslint-disable-line
+  rawLocalConfig: Record<string, any> // eslint-disable-line
+  /** Keys explicitly set from workspace yaml, CLI, or env vars (not defaults). */
+  explicitlySetKeys: Set<string>
+  packageManager: {
+    name: string
+    version: string
+  }
+  wantedPackageManager?: EngineDependency
+}
+
+/**
+ * User-facing settings + auth/network config.
+ * Does NOT include runtime state — see {@link ConfigContext} for that.
+ */
+export interface Config extends AuthInfo, OptionsFromRootManifest {
   allowNew: boolean
   autoConfirmAllPrompts?: boolean
   autoInstallPeers?: boolean
   bail: boolean
   color: 'always' | 'auto' | 'never'
-  cliOptions: Record<string, any>, // eslint-disable-line
   useBetaCli: boolean
   excludeLinksFromLockfile: boolean
   extraBinPaths: string[]
@@ -37,10 +65,7 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
   failIfNoMatch: boolean
   filter: string[]
   filterProd: string[]
-  rawLocalConfig: Record<string, any>, // eslint-disable-line
   authConfig: Record<string, any>, // eslint-disable-line
-  /** Keys explicitly set from workspace yaml, CLI, or env vars (not defaults). */
-  explicitlySetKeys: Set<string>
   dryRun?: boolean // This option might be not supported ever
   global?: boolean
   dir: string
@@ -86,11 +111,6 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
   frozenLockfile?: boolean
   preferFrozenLockfile?: boolean
   only?: 'prod' | 'production' | 'dev' | 'development'
-  packageManager: {
-    name: string
-    version: string
-  }
-  wantedPackageManager?: EngineDependency
   preferOffline?: boolean
   sideEffectsCache?: boolean // for backward compatibility
   sideEffectsCacheReadonly?: boolean // for backward compatibility
@@ -144,8 +164,6 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
   ignorePnpmfile?: boolean
   pnpmfile: string[] | string
   tryLoadDefaultPnpmfile?: boolean
-  hooks?: Hooks
-  finders?: Record<string, Finder>
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   hoistPattern?: string[]
   publicHoistPattern?: string[] | string
@@ -203,8 +221,6 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
 
   testPattern?: string[]
   changedFilesIgnorePattern?: string[]
-  rootProjectManifestDir: string
-  rootProjectManifest?: ProjectManifest
   userConfig: Record<string, string>
 
   hoist: boolean

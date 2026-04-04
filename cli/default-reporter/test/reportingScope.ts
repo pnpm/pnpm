@@ -1,7 +1,7 @@
 import { setTimeout } from 'node:timers/promises'
 
 import { toOutput$ } from '@pnpm/cli.default-reporter'
-import type { Config } from '@pnpm/config.reader'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { scopeLogger } from '@pnpm/core-loggers'
 import { createStreamParser } from '@pnpm/logger'
 import { firstValueFrom } from 'rxjs'
@@ -33,7 +33,7 @@ test('prints scope of recursive install in a workspace when not all packages are
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { recursive: true } as Config,
+      config: { recursive: true } as Config & ConfigContext,
     },
     streamParser: createStreamParser(),
   })
@@ -54,7 +54,7 @@ test('prints scope of recursive install in a workspace when all packages are sel
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { recursive: true } as Config,
+      config: { recursive: true } as Config & ConfigContext,
     },
     streamParser: createStreamParser(),
   })
@@ -75,7 +75,7 @@ test('prints scope of recursive install not in a workspace when not all packages
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { recursive: true } as Config,
+      config: { recursive: true } as Config & ConfigContext,
     },
     streamParser: createStreamParser(),
   })
@@ -95,7 +95,7 @@ test('prints scope of recursive install not in a workspace when all packages are
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { recursive: true } as Config,
+      config: { recursive: true } as Config & ConfigContext,
     },
     streamParser: createStreamParser(),
   })

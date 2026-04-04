@@ -1,10 +1,10 @@
-import type { Config } from '@pnpm/config.reader'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
 import type {
   LogBase,
   ReadPackageHook,
 } from '@pnpm/types'
 
-export type PnpmOptions = Omit<Config, 'reporter' | 'pnpmfile'> & {
+export type PnpmOptions = Omit<Config & ConfigContext, 'reporter' | 'pnpmfile'> & {
   argv: {
     cooked: string[]
     original: string[]

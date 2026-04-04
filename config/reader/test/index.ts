@@ -678,7 +678,7 @@ test.skip('rawLocalConfig in a workspace', async () => {
   fs.writeFileSync('.npmrc', 'hoist-pattern=eslint-*', 'utf8')
 
   {
-    const { config } = await getConfig({
+    const { context } = await getConfig({
       cliOptions: {
         'save-exact': true,
       },
@@ -689,7 +689,7 @@ test.skip('rawLocalConfig in a workspace', async () => {
       workspaceDir,
     })
 
-    expect(config.rawLocalConfig).toStrictEqual({
+    expect(context.rawLocalConfig).toStrictEqual({
       'hoist-pattern': 'eslint-*',
       'save-exact': true,
     })
@@ -699,7 +699,7 @@ test.skip('rawLocalConfig in a workspace', async () => {
   fs.mkdirSync('package2')
   process.chdir('package2')
   {
-    const { config } = await getConfig({
+    const { context } = await getConfig({
       cliOptions: {
         'save-exact': true,
       },
@@ -710,7 +710,7 @@ test.skip('rawLocalConfig in a workspace', async () => {
       workspaceDir,
     })
 
-    expect(config.rawLocalConfig).toStrictEqual({
+    expect(context.rawLocalConfig).toStrictEqual({
       'hoist-pattern': '*',
       'save-exact': true,
     })
@@ -722,7 +722,7 @@ test.skip('rawLocalConfig', async () => {
 
   fs.writeFileSync('.npmrc', 'modules-dir=modules', 'utf8')
 
-  const { config } = await getConfig({
+  const { context } = await getConfig({
     cliOptions: {
       'save-exact': true,
     },
@@ -732,7 +732,7 @@ test.skip('rawLocalConfig', async () => {
     },
   })
 
-  expect(config.rawLocalConfig).toStrictEqual({
+  expect(context.rawLocalConfig).toStrictEqual({
     'modules-dir': 'modules',
     'save-exact': true,
   })

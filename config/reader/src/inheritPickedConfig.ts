@@ -1,17 +1,20 @@
-import type { Config } from './Config.js'
+import type { Config, ConfigContext } from './Config.js'
 
-export type InheritableConfig = Partial<Config> & Pick<Config, 'authConfig' | 'rawLocalConfig'>
+export interface InheritableConfigPair {
+  config: Partial<Config> & Pick<Config, 'authConfig'>
+  context: Pick<ConfigContext, 'rawLocalConfig'>
+}
 export type PickConfig = (cfg: Partial<Config>) => Partial<Config>
 export type PickRawConfig = (cfg: Record<string, unknown>) => Record<string, unknown>
 
 export function inheritPickedConfig (
-  targetCfg: InheritableConfig,
-  srcCfg: InheritableConfig,
+  target: InheritableConfigPair,
+  src: InheritableConfigPair,
   pickConfig: PickConfig,
   pickRawConfig: PickRawConfig,
   pickRawLocalConfig: PickRawConfig = pickRawConfig
 ): void {
-  Object.assign(targetCfg, pickConfig(srcCfg))
-  Object.assign(targetCfg.authConfig, pickRawConfig(srcCfg.authConfig))
-  Object.assign(targetCfg.rawLocalConfig, pickRawLocalConfig(srcCfg.rawLocalConfig))
+  Object.assign(target.config, pickConfig(src.config))
+  Object.assign(target.config.authConfig, pickRawConfig(src.config.authConfig))
+  Object.assign(target.context.rawLocalConfig, pickRawLocalConfig(src.context.rawLocalConfig))
 }

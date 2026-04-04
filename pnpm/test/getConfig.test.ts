@@ -64,7 +64,7 @@ describe('calcPnpmfilePathsOfPluginDeps', () => {
 test('hoist: false removes hoistPattern', async () => {
   prepare()
 
-  const config = await getConfig({
+  const { config } = await getConfig({
     hoist: false,
   }, {
     workspaceDir: '.',

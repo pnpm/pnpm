@@ -9,7 +9,7 @@ import {
   TABLE_OPTIONS,
 } from '@pnpm/cli.utils'
 import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
-import { type Config, types as allTypes } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import {
   outdatedDepsOfProjects,
   type OutdatedPackage,
@@ -139,7 +139,6 @@ export type OutdatedCommandOptions = {
   format?: 'table' | 'list' | 'json'
   sortBy?: 'name'
 } & Pick<Config,
-| 'allProjects'
 | 'ca'
 | 'cacheDir'
 | 'catalogs'
@@ -167,11 +166,13 @@ export type OutdatedCommandOptions = {
 | 'production'
 | 'authConfig'
 | 'registries'
-| 'selectedProjectsGraph'
 | 'strictSsl'
 | 'tag'
 | 'userAgent'
 | 'updateConfig'
+> & Pick<ConfigContext,
+| 'allProjects'
+| 'selectedProjectsGraph'
 > & Partial<Pick<Config, 'globalPkgDir' | 'userConfig'>>
 
 export async function handler (

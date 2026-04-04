@@ -7,7 +7,7 @@ import {
   readProjectManifestOnly,
   tryReadProjectManifest,
 } from '@pnpm/cli.utils'
-import { type Config, getWorkspaceConcurrency, types as allTypes } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, getWorkspaceConcurrency, types as allTypes } from '@pnpm/config.reader'
 import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import {
@@ -161,7 +161,6 @@ export type RunOpts =
   & { recursive?: boolean }
   & Pick<Config,
   | 'bin'
-  | 'cliOptions'
   | 'verifyDepsBeforeRun'
   | 'dir'
   | 'enablePrePostScripts'
@@ -177,9 +176,10 @@ export type RunOpts =
   | 'syncInjectedDepsAfterScripts'
   | 'userAgent'
   >
+  & Pick<ConfigContext, 'cliOptions'>
   & (
-    | { recursive?: false } & Partial<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
-    | { recursive: true } & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
+    | { recursive?: false } & Partial<Pick<ConfigContext, 'allProjects' | 'selectedProjectsGraph'> & Pick<Config, 'workspaceDir'>>
+    | { recursive: true } & Required<Pick<ConfigContext, 'allProjects' | 'selectedProjectsGraph'> & Pick<Config, 'workspaceDir'>>
   )
   & {
     argv?: {

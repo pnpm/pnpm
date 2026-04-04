@@ -1,5 +1,5 @@
 import { docsUrl, TABLE_OPTIONS } from '@pnpm/cli.utils'
-import { type Config, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { audit, type AuditAdvisory, type AuditLevelNumber, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts, type IgnoredAuditVulnerabilityCounts } from '@pnpm/deps.compliance.audit'
 import { PnpmError } from '@pnpm/error'
@@ -166,10 +166,11 @@ export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
 | 'optional'
 | 'userConfig'
 | 'authConfig'
-| 'rootProjectManifest'
-| 'rootProjectManifestDir'
 | 'virtualStoreDirMaxLength'
 | 'workspaceDir'
+> & Pick<ConfigContext,
+| 'rootProjectManifest'
+| 'rootProjectManifestDir'
 > & InstallCommandOptions
 
 const DEFAULT_FIX_METHOD = 'override'

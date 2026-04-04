@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import { FILTERING } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl, readProjectManifest } from '@pnpm/cli.utils'
-import { type Config, types as allTypes } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/exec.lifecycle'
 import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from '@pnpm/network.git-utils'
@@ -122,7 +122,8 @@ export async function handler (
     engineStrict?: boolean
     recursive?: boolean
     workspaceDir?: string
-  } & Pick<Config, 'allProjects' | 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme'>,
+  } & Pick<Config, 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme'>
+  & Pick<ConfigContext, 'allProjects'>,
   params: string[]
 ): Promise<{ exitCode?: number } | undefined> {
   const result = await publish(opts, params)
@@ -143,7 +144,8 @@ export async function publish (
     engineStrict?: boolean
     recursive?: boolean
     workspaceDir?: string
-  } & Pick<Config, 'allProjects' | 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme' | 'packGzipLevel'>,
+  } & Pick<Config, 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme' | 'packGzipLevel'>
+  & Pick<ConfigContext, 'allProjects'>,
   params: string[]
 ): Promise<PublishResult> {
   if (opts.gitChecks !== false && await isGitRepo()) {

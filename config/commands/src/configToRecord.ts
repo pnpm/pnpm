@@ -1,4 +1,4 @@
-import { type Config, types } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, types } from '@pnpm/config.reader'
 import { sortDirectKeys } from '@pnpm/object.key-sorting'
 import camelcase from 'camelcase'
 
@@ -17,7 +17,7 @@ const INTERNAL_CONFIG_KEYS = new Set([
  * Only includes explicitly set values (from CLI, env vars, or workspace yaml),
  * not default values. Auth/registry keys from authConfig are always included.
  */
-export function configToRecord (config: Config): Record<string, unknown> {
+export function configToRecord (config: Config & ConfigContext): Record<string, unknown> {
   const result: Record<string, unknown> = {}
   const explicit = config.explicitlySetKeys
   // Add typed settings (only explicitly set ones if tracking is available)

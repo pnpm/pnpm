@@ -1,4 +1,4 @@
-import { type Config, isIniConfigKey, types } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, isIniConfigKey, types } from '@pnpm/config.reader'
 import { getObjectValueByPropertyPath } from '@pnpm/object.property-path'
 import { isCamelCase } from '@pnpm/text.naming-cases'
 import camelcase from 'camelcase'
@@ -28,7 +28,7 @@ function lookupConfig (opts: ConfigCommandOptions, key: string, isScopedKey: boo
   // then fall back to authConfig (for keys like registry set in .npmrc)
   if (Object.hasOwn(types, kebabKey)) {
     const camelKey = camelcase(kebabKey, { locale: 'en-US' })
-    const explicit = (opts as unknown as Config).explicitlySetKeys
+    const explicit = (opts as unknown as Config & ConfigContext).explicitlySetKeys
     if (!explicit || explicit.has(camelKey)) {
       return { value: (opts as unknown as Record<string, unknown>)[camelKey] }
     }
@@ -45,7 +45,7 @@ function lookupConfig (opts: ConfigCommandOptions, key: string, isScopedKey: boo
   // For keys not in types (e.g., package-extensions), look up via configToRecord
   // which excludes internal/sensitive fields.
   const camelKey = camelcase(key, { locale: 'en-US' })
-  const record = configToRecord(opts as unknown as Config)
+  const record = configToRecord(opts as unknown as Config & ConfigContext)
   if (Object.hasOwn(record, camelKey)) {
     return { value: record[camelKey] }
   }
@@ -55,9 +55,9 @@ function lookupConfig (opts: ConfigCommandOptions, key: string, isScopedKey: boo
 function lookupByPropertyPath (opts: ConfigCommandOptions, propertyPath: string): Found<unknown> {
   const parsedPropertyPath = Array.from(parseConfigPropertyPath(propertyPath))
   if (parsedPropertyPath.length === 0) {
-    return { value: configToRecord(opts as unknown as Config) }
+    return { value: configToRecord(opts as unknown as Config & ConfigContext) }
   }
-  const record = configToRecord(opts as unknown as Config)
+  const record = configToRecord(opts as unknown as Config & ConfigContext)
   return {
     value: getObjectValueByPropertyPath(record, parsedPropertyPath),
   }

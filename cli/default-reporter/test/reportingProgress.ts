@@ -1,5 +1,5 @@
 import { toOutput$ } from '@pnpm/cli.default-reporter'
-import type { Config } from '@pnpm/config.reader'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
 import {
   fetchingProgressLogger,
   progressLogger,
@@ -25,7 +25,7 @@ test('prints progress beginning', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { dir: '/src/project' } as Config,
+      config: { dir: '/src/project' } as Config & ConfigContext,
     },
     streamParser: createStreamParser(),
   })
@@ -50,7 +50,7 @@ test('prints progress without added packages stats', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { dir: '/src/project' } as Config,
+      config: { dir: '/src/project' } as Config & ConfigContext,
     },
     reportingOptions: {
       hideAddedPkgsProgress: true,
@@ -78,7 +78,7 @@ test('prints all progress stats', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { dir: '/src/project' } as Config,
+      config: { dir: '/src/project' } as Config & ConfigContext,
     },
     streamParser: createStreamParser(),
   })
@@ -119,7 +119,7 @@ test('prints progress beginning of node_modules from not cwd', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { dir: '/src/projects' } as Config,
+      config: { dir: '/src/projects' } as Config & ConfigContext,
     },
     streamParser: createStreamParser(),
   })
@@ -144,7 +144,7 @@ test('prints progress beginning of node_modules from not cwd, when progress pref
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { dir: '/src/projects' } as Config,
+      config: { dir: '/src/projects' } as Config & ConfigContext,
     },
     streamParser: createStreamParser(),
     reportingOptions: {
@@ -172,7 +172,7 @@ test('prints progress beginning when appendOnly is true', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { dir: '/src/project' } as Config,
+      config: { dir: '/src/project' } as Config & ConfigContext,
     },
     reportingOptions: {
       appendOnly: true,
@@ -203,7 +203,7 @@ test('prints progress beginning during recursive install', async () => {
       config: {
         dir: '/src/project',
         recursive: true,
-      } as Config,
+      } as Config & ConfigContext,
     },
     streamParser: createStreamParser(),
   })
@@ -230,7 +230,7 @@ test('prints progress on first download', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { dir: '/src/project' } as Config,
+      config: { dir: '/src/project' } as Config & ConfigContext,
     },
     reportingOptions: { throttleProgress: 0 },
     streamParser: createStreamParser(),
@@ -264,7 +264,7 @@ test('moves fixed line to the end', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { dir: prefix } as Config,
+      config: { dir: prefix } as Config & ConfigContext,
     },
     reportingOptions: { throttleProgress: 0 },
     streamParser: createStreamParser(),
@@ -326,7 +326,7 @@ test('prints progress of big files download', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { dir: '/src/project' } as Config,
+      config: { dir: '/src/project' } as Config & ConfigContext,
     },
     reportingOptions: { throttleProgress: 0 },
     streamParser: createStreamParser(),

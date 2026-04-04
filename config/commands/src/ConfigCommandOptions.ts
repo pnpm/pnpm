@@ -1,12 +1,13 @@
-import type { Config } from '@pnpm/config.reader'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
 
 export type ConfigCommandOptions = Pick<Config,
 | 'configDir'
-| 'cliOptions'
 | 'dir'
 | 'global'
 | 'authConfig'
 | 'workspaceDir'
+> & Pick<ConfigContext,
+| 'cliOptions'
 > & {
   json?: boolean
   location?: 'global' | 'project'

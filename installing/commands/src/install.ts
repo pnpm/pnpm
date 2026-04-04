@@ -1,7 +1,7 @@
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import { FILTERING, OPTIONS, OUTPUT_OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl } from '@pnpm/cli.utils'
-import { type Config, types as allTypes } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
@@ -265,12 +265,10 @@ Install all optionalDependencies even when they don\'t satisfy the current envir
 }
 
 export type InstallCommandOptions = Pick<Config,
-| 'allProjects'
 | 'autoInstallPeers'
 | 'bail'
 | 'bin'
 | 'catalogs'
-| 'cliOptions'
 | 'configDependencies'
 | 'dedupeInjectedDeps'
 | 'dedupeDirectDeps'
@@ -285,12 +283,10 @@ export type InstallCommandOptions = Pick<Config,
 | 'frozenLockfile'
 | 'global'
 | 'globalPnpmfile'
-| 'hooks'
 | 'ignorePnpmfile'
 | 'ignoreScripts'
 | 'injectWorkspacePackages'
 | 'linkWorkspacePackages'
-| 'rawLocalConfig'
 | 'lockfileDir'
 | 'lockfileOnly'
 | 'modulesDir'
@@ -300,8 +296,6 @@ export type InstallCommandOptions = Pick<Config,
 | 'preferWorkspacePackages'
 | 'production'
 | 'registries'
-| 'rootProjectManifest'
-| 'rootProjectManifestDir'
 | 'save'
 | 'saveDev'
 | 'saveExact'
@@ -312,8 +306,6 @@ export type InstallCommandOptions = Pick<Config,
 | 'saveCatalogName'
 | 'saveWorkspaceProtocol'
 | 'lockfileIncludeTarballUrl'
-| 'allProjectsGraph'
-| 'selectedProjectsGraph'
 | 'sideEffectsCache'
 | 'sideEffectsCacheReadonly'
 | 'sort'
@@ -334,6 +326,15 @@ export type InstallCommandOptions = Pick<Config,
 | 'packageExtensions'
 | 'supportedArchitectures'
 | 'packageConfigs'
+> & Pick<ConfigContext,
+| 'allProjects'
+| 'cliOptions'
+| 'hooks'
+| 'rawLocalConfig'
+| 'rootProjectManifest'
+| 'rootProjectManifestDir'
+| 'allProjectsGraph'
+| 'selectedProjectsGraph'
 > & CreateStoreControllerOptions & Partial<Pick<Config, 'globalPkgDir'>> & {
   argv: {
     original: string[]

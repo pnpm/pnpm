@@ -8,6 +8,7 @@ import {
 } from '@pnpm/cli.utils'
 import {
   type Config,
+  type ConfigContext,
   createProjectConfigRecord,
   getWorkspaceConcurrency,
 } from '@pnpm/config.reader'
@@ -19,18 +20,19 @@ import pLimit from 'p-limit'
 
 type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,
 | 'hoistPattern'
-| 'hooks'
 | 'ignorePnpmfile'
 | 'ignoreScripts'
 | 'lockfileDir'
 | 'lockfileOnly'
 | 'nodeLinker'
 | 'packageConfigs'
-| 'rawLocalConfig'
 | 'registries'
+| 'sharedWorkspaceLockfile'
+> & Pick<ConfigContext,
+| 'hooks'
+| 'rawLocalConfig'
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
-| 'sharedWorkspaceLockfile'
 > & {
   pending?: boolean
 } & Partial<Pick<Config, 'bail' | 'sort' | 'workspaceConcurrency'>>
@@ -40,7 +42,7 @@ export async function recursiveRebuild (
   params: string[],
   opts: RecursiveRebuildOpts & {
     ignoredPackages?: Set<string>
-  } & Required<Pick<Config, 'selectedProjectsGraph' | 'workspaceDir'>>
+  } & Required<Pick<ConfigContext, 'selectedProjectsGraph'>> & Required<Pick<Config, 'workspaceDir'>>
 ): Promise<void> {
   if (allProjects.length === 0) {
     // It might make sense to throw an exception in this case
