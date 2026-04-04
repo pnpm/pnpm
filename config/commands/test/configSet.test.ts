@@ -7,7 +7,7 @@ import { tempDir } from '@pnpm/prepare'
 import { readIniFileSync } from 'read-ini-file'
 import { readYamlFileSync } from 'read-yaml-file'
 
-import { createConfigCommandOpts, type ConfigFilesData, readConfigFiles, writeConfigFiles } from './utils/index.js'
+import { type ConfigFilesData, createConfigCommandOpts, readConfigFiles, writeConfigFiles } from './utils/index.js'
 
 test('config set registry setting using the global option', async () => {
   const tmp = tempDir()

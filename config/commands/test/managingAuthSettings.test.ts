@@ -2,8 +2,8 @@ import path from 'node:path'
 
 import { config } from '@pnpm/config.commands'
 import { tempDir } from '@pnpm/prepare'
-import { createConfigCommandOpts } from './utils/index.js'
 
+import { createConfigCommandOpts } from './utils/index.js'
 import { type ConfigFilesData, readConfigFiles, writeConfigFiles } from './utils/index.js'
 
 describe.each(
