@@ -1,1 +1,8 @@
-pnpm commitlint --edit --config=commitlint.config.cjs
+#!/usr/bin/env sh
+set -eu
+
+if command -v pnpm >/dev/null; then
+  pnpm commitlint --edit --config=commitlint.config.cjs
+else
+  echo 'No pnpm command found. Skip linting commit message.' >&2
+fi

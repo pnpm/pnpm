@@ -1,1 +1,8 @@
-pnpm run lint --quiet
+#!/usr/bin/env sh
+set -eu
+
+if command -v pnpm >/dev/null; then
+  pnpm run lint --quiet
+else
+  echo 'No pnpm command found. Skip linting.' >&2
+fi
