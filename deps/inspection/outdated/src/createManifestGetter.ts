@@ -9,14 +9,14 @@ import type { DependencyManifest, PackageVersionPolicy } from '@pnpm/types'
 interface GetManifestOpts {
   dir: string
   lockfileDir: string
-  rawConfig: object
+  authConfig: object
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
 }
 
 export type ManifestGetterOptions = Omit<ClientOptions, 'authConfig' | 'minimumReleaseAgeExclude' | 'storeIndex'>
 & GetManifestOpts
-& { fullMetadata: boolean, rawConfig: Record<string, string> }
+& { fullMetadata: boolean, authConfig: Record<string, string> }
 
 export function createManifestGetter (
   opts: ManifestGetterOptions
@@ -27,7 +27,7 @@ export function createManifestGetter (
 
   const { resolve } = createResolver({
     ...opts,
-    authConfig: opts.rawConfig,
+    authConfig: opts.authConfig,
     filterMetadata: false, // We need all the data from metadata for "outdated --long" to work.
     strictPublishedByCheck: Boolean(opts.minimumReleaseAge),
   })

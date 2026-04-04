@@ -9,7 +9,6 @@ import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { AllowBuild, PackageManifest } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
 import { preferredPM } from 'preferred-pm'
-import { omit } from 'ramda'
 
 // We don't run prepublishOnly to prepare the dependency.
 // This might be counterintuitive as prepublishOnly is where a lot of packages put their build scripts.
@@ -23,8 +22,8 @@ const PREPUBLISH_SCRIPTS = [
 export interface PreparePackageOptions {
   allowBuild?: AllowBuild
   ignoreScripts?: boolean
-  rawConfig: Record<string, unknown>
   unsafePerm?: boolean
+  userAgent?: string
 }
 
 export async function preparePackage (opts: PreparePackageOptions, gitRootDir: string, subDir: string): Promise<{ shouldBeBuilt: boolean, pkgDir: string }> {
@@ -49,11 +48,9 @@ allowBuilds:
   const execOpts: RunLifecycleHookOptions = {
     depPath: `${manifest.name}@${manifest.version}`,
     pkgRoot: pkgDir,
-    // We can't prepare a package without running its lifecycle scripts.
-    // An alternative solution could be to throw an exception.
-    rawConfig: omit(['ignore-scripts'], opts.rawConfig),
     rootModulesDir: pkgDir, // We don't need this property but there is currently no way to not set it.
     unsafePerm: Boolean(opts.unsafePerm),
+    userAgent: opts.userAgent,
   }
   try {
     const installScriptName = `${pm}-install`

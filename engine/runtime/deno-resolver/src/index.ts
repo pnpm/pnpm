@@ -32,7 +32,6 @@ export interface DenoRuntimeResolveResult extends ResolveResult {
 export async function resolveDenoRuntime (
   ctx: {
     fetchFromRegistry: FetchFromRegistry
-    rawConfig: Record<string, string>
     offline?: boolean
     resolveFromNpm: NpmResolver
   },

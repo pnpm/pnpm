@@ -29,7 +29,7 @@ test('config set registry setting using the global option', async () => {
     cliOptions: {},
     configDir,
     global: true,
-    rawConfig: {},
+    authConfig: {},
   }, ['set', 'registry', 'https://npm-registry.example.com/'])
 
   expect(readConfigFiles(configDir, tmp)).toEqual({
@@ -61,7 +61,7 @@ test('config set npm-compatible setting using the global option', async () => {
     cliOptions: {},
     configDir,
     global: true,
-    rawConfig: {},
+    authConfig: {},
   }, ['set', 'cafile', 'some-cafile'])
 
   expect(readConfigFiles(configDir, tmp)).toEqual({
@@ -93,7 +93,7 @@ test('config set pnpm-specific key using the global option', async () => {
     cliOptions: {},
     configDir,
     global: true,
-    rawConfig: {},
+    authConfig: {},
   }, ['set', 'fetch-retries', '1'])
 
   expect(readConfigFiles(configDir, tmp)).toEqual({
@@ -125,7 +125,7 @@ test('config set using the location=global option', async () => {
     cliOptions: {},
     configDir,
     location: 'global',
-    rawConfig: {},
+    authConfig: {},
   }, ['set', 'fetchRetries', '1'])
 
   expect(readConfigFiles(configDir, tmp)).toEqual({
@@ -157,7 +157,7 @@ test('config set pnpm-specific setting using the location=project option', async
     cliOptions: {},
     configDir,
     location: 'project',
-    rawConfig: {},
+    authConfig: {},
   }, ['set', 'virtual-store-dir', '.pnpm'])
 
   expect(readConfigFiles(configDir, tmp)).toEqual({
@@ -179,7 +179,7 @@ test('config delete with location=project, when delete the last setting from pnp
     cliOptions: {},
     configDir,
     location: 'project',
-    rawConfig: {},
+    authConfig: {},
   }, ['set', 'virtual-store-dir', '.pnpm'])
 
   expect(readYamlFileSync(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({
@@ -191,7 +191,7 @@ test('config delete with location=project, when delete the last setting from pnp
     cliOptions: {},
     configDir,
     location: 'project',
-    rawConfig: {},
+    authConfig: {},
   }, ['delete', 'virtual-store-dir'])
 
   expect(fs.existsSync(path.join(tmp, 'pnpm-workspace.yaml'))).toBeFalsy()
@@ -218,7 +218,7 @@ test('config set registry setting using the location=project option', async () =
     cliOptions: {},
     configDir,
     location: 'project',
-    rawConfig: {},
+    authConfig: {},
   }, ['set', 'registry', 'https://npm-registry.example.com/'])
 
   expect(readConfigFiles(configDir, tmp)).toEqual({
@@ -251,7 +251,7 @@ test('config set npm-compatible setting using the location=project option', asyn
     cliOptions: {},
     configDir,
     location: 'project',
-    rawConfig: {},
+    authConfig: {},
   }, ['set', 'cafile', 'some-cafile'])
 
   expect(readConfigFiles(configDir, tmp)).toEqual({
@@ -273,7 +273,7 @@ test('config set saves the setting in the right format to pnpm-workspace.yaml', 
     cliOptions: {},
     configDir,
     location: 'project',
-    rawConfig: {},
+    authConfig: {},
   }, ['set', 'fetch-timeout', '1000'])
 
   expect(readYamlFileSync(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({
@@ -306,7 +306,7 @@ test('config set registry setting in project .npmrc file', async () => {
     configDir,
     global: false,
     location: 'project',
-    rawConfig: {},
+    authConfig: {},
   }, ['set', 'registry', 'https://npm-registry.example.com/'])
 
   expect(readConfigFiles(configDir, tmp)).toEqual({
@@ -343,7 +343,7 @@ test('config set npm-compatible setting in project .npmrc file', async () => {
     configDir,
     global: false,
     location: 'project',
-    rawConfig: {},
+    authConfig: {},
   }, ['set', 'cafile', 'some-cafile'])
 
   expect(readConfigFiles(configDir, tmp)).toEqual({
@@ -380,7 +380,7 @@ test('config set pnpm-specific setting in project pnpm-workspace.yaml file', asy
     configDir,
     global: false,
     location: 'project',
-    rawConfig: {},
+    authConfig: {},
   }, ['set', 'fetch-retries', '1'])
 
   expect(readConfigFiles(configDir, tmp)).toEqual({
@@ -416,7 +416,7 @@ test('config set key=value', async () => {
     cliOptions: {},
     configDir,
     location: 'project',
-    rawConfig: {},
+    authConfig: {},
   }, ['set', 'fetch-retries=1'])
 
   expect(readConfigFiles(configDir, tmp)).toEqual({
@@ -452,7 +452,7 @@ test('config set key=value, when value contains a "="', async () => {
     cliOptions: {},
     configDir,
     location: 'project',
-    rawConfig: {},
+    authConfig: {},
   }, ['set', 'lockfile-dir=foo=bar'])
 
   expect(readConfigFiles(configDir, tmp)).toEqual({
@@ -475,7 +475,7 @@ test('config set or delete throws missing params error', async () => {
     cliOptions: {},
     configDir,
     location: 'project',
-    rawConfig: {},
+    authConfig: {},
   }, ['set'])).rejects.toThrow(new PnpmError('CONFIG_NO_PARAMS', '`pnpm config set` requires the config key'))
 
   await expect(config.handler({
@@ -483,7 +483,7 @@ test('config set or delete throws missing params error', async () => {
     cliOptions: {},
     configDir,
     location: 'project',
-    rawConfig: {},
+    authConfig: {},
   }, ['delete'])).rejects.toThrow(new PnpmError('CONFIG_NO_PARAMS', '`pnpm config delete` requires the config key'))
 })
 
@@ -505,7 +505,7 @@ test('config set with dot leading key', async () => {
     cliOptions: {},
     configDir,
     global: true,
-    rawConfig: {},
+    authConfig: {},
   }, ['set', '.fetchRetries', '1'])
 
   expect(readConfigFiles(configDir, tmp)).toEqual({
@@ -535,7 +535,7 @@ test('config set with subscripted key', async () => {
     cliOptions: {},
     configDir,
     global: true,
-    rawConfig: {},
+    authConfig: {},
   }, ['set', '["fetch-retries"]', '1'])
 
   expect(readConfigFiles(configDir, tmp)).toEqual({
@@ -558,7 +558,7 @@ test('config set rejects complex property path', async () => {
     cliOptions: {},
     configDir,
     global: true,
-    rawConfig: {},
+    authConfig: {},
   }, ['set', '.catalog.react', '19'])).rejects.toMatchObject({
     code: 'ERR_PNPM_CONFIG_SET_DEEP_KEY',
   })
@@ -575,7 +575,7 @@ test('config set with location=project and json=true', async () => {
     configDir,
     location: 'project',
     json: true,
-    rawConfig: {},
+    authConfig: {},
   }, ['set', 'catalog', '{ "react": "19" }'])
 
   expect(readYamlFileSync(path.join(tmp, 'pnpm-workspace.yaml'))).toStrictEqual({
@@ -590,7 +590,7 @@ test('config set with location=project and json=true', async () => {
     configDir,
     location: 'project',
     json: true,
-    rawConfig: {},
+    authConfig: {},
   }, ['set', 'packageExtensions', JSON.stringify({
     '@babel/parser': {
       peerDependencies: {
@@ -642,7 +642,7 @@ test('config set refuses writing workspace-specific settings to the global confi
     configDir,
     location: 'global',
     json: true,
-    rawConfig: {},
+    authConfig: {},
   }, ['set', 'catalog', '{ "react": "19" }'])).rejects.toMatchObject({
     code: 'ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY',
     key: 'catalog',
@@ -654,7 +654,7 @@ test('config set refuses writing workspace-specific settings to the global confi
     configDir,
     location: 'global',
     json: true,
-    rawConfig: {},
+    authConfig: {},
   }, ['set', 'packageExtensions', JSON.stringify({
     '@babel/parser': {
       peerDependencies: {
@@ -677,7 +677,7 @@ test('config set refuses writing workspace-specific settings to the global confi
     configDir,
     location: 'global',
     json: true,
-    rawConfig: {},
+    authConfig: {},
   }, ['set', 'package-extensions', JSON.stringify({
     '@babel/parser': {
       peerDependencies: {
@@ -715,7 +715,7 @@ test('config set writes workspace-specific settings to pnpm-workspace.yaml', asy
     configDir,
     location: 'project',
     json: true,
-    rawConfig: {},
+    authConfig: {},
   }, ['set', 'catalog', JSON.stringify(catalog)])
   expect(readConfigFiles(configDir, tmp)).toEqual({
     ...initConfig,
@@ -743,7 +743,7 @@ test('config set writes workspace-specific settings to pnpm-workspace.yaml', asy
     configDir,
     location: 'project',
     json: true,
-    rawConfig: {},
+    authConfig: {},
   }, ['set', 'packageExtensions', JSON.stringify(packageExtensions)])
   expect(readConfigFiles(configDir, tmp)).toEqual({
     ...initConfig,
@@ -766,7 +766,7 @@ test('config set refuses kebab-case workspace-specific settings', async () => {
     configDir,
     location: 'project',
     json: true,
-    rawConfig: {},
+    authConfig: {},
   }, ['set', 'package-extensions', JSON.stringify({
     '@babel/parser': {
       peerDependencies: {
@@ -794,7 +794,7 @@ test('config set registry-specific setting with --location=project should create
     cliOptions: {},
     configDir,
     location: 'project',
-    rawConfig: {},
+    authConfig: {},
   }, ['set', '//registry.example.com/:_auth', 'test-auth-value'])
 
   expect(readIniFileSync(path.join(tmp, '.npmrc'))).toEqual({
@@ -813,7 +813,7 @@ test('config set scoped registry with --location=project should create .npmrc', 
     cliOptions: {},
     configDir,
     location: 'project',
-    rawConfig: {},
+    authConfig: {},
   }, ['set', '@myorg:registry', 'https://test-registry.example.com/'])
 
   expect(readIniFileSync(path.join(tmp, '.npmrc'))).toEqual({
@@ -836,7 +836,7 @@ test('config set when both pnpm-workspace.yaml and .npmrc exist, pnpm-workspace.
     cliOptions: {},
     configDir,
     location: 'project',
-    rawConfig: {},
+    authConfig: {},
   }, ['set', 'fetch-timeout', '2000'])
 
   expect(readYamlFileSync(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({
@@ -861,7 +861,7 @@ test('config set when only pnpm-workspace.yaml exists, writes to it', async () =
     cliOptions: {},
     configDir,
     location: 'project',
-    rawConfig: {},
+    authConfig: {},
   }, ['set', 'fetch-timeout', '3000'])
 
   expect(readYamlFileSync(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({

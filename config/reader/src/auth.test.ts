@@ -6,7 +6,7 @@ test('inheritAuthConfig copies only auth keys from source to target', () => {
     bin: 'foo',
     cacheDir: '/path/to/cache/dir',
     registry: 'https://npmjs.com/registry/',
-    rawConfig: {
+    authConfig: {
       'cache-dir': '/path/to/cache/dir',
       registry: 'https://npmjs.com/registry/',
     },
@@ -21,7 +21,7 @@ test('inheritAuthConfig copies only auth keys from source to target', () => {
     cacheDir: '/path/to/another/cache/dir',
     storeDir: '/path/to/custom/store/dir',
     registry: 'https://example.com/local-registry/',
-    rawConfig: {
+    authConfig: {
       registry: 'https://example.com/global-registry/',
       '//example.com/global-registry/:_auth': 'MY_SECRET_GLOBAL_AUTH',
     },
@@ -38,7 +38,7 @@ test('inheritAuthConfig copies only auth keys from source to target', () => {
     bin: 'foo',
     cacheDir: '/path/to/cache/dir',
     registry: 'https://example.com/local-registry/',
-    rawConfig: {
+    authConfig: {
       'cache-dir': '/path/to/cache/dir',
       registry: 'https://example.com/global-registry/',
       '//example.com/global-registry/:_auth': 'MY_SECRET_GLOBAL_AUTH',

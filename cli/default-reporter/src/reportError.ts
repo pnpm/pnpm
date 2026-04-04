@@ -420,7 +420,7 @@ function reportAuthError (
   config?: Config
 ): ErrorInfo {
   const foundSettings = [] as string[]
-  for (const [key, value] of Object.entries(config?.rawConfig ?? {})) {
+  for (const [key, value] of Object.entries(config?.authConfig ?? {})) {
     if (key[0] === '@') {
       foundSettings.push(`${key}=${String(value)}`)
       continue

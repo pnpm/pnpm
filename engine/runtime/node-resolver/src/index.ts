@@ -31,7 +31,7 @@ export interface NodeRuntimeResolveResult extends ResolveResult {
 export async function resolveNodeRuntime (
   ctx: {
     fetchFromRegistry: FetchFromRegistry
-    rawConfig: Record<string, string>
+    nodeDownloadMirrors?: Record<string, string>
     offline?: boolean
   },
   wantedDependency: WantedDependency,
@@ -50,7 +50,7 @@ export async function resolveNodeRuntime (
   if (ctx.offline) throw new PnpmError('NO_OFFLINE_NODEJS_RESOLUTION', 'Offline Node.js resolution is not supported')
   const versionSpec = wantedDependency.bareSpecifier.substring('runtime:'.length)
   const { releaseChannel, versionSpecifier } = parseNodeSpecifier(versionSpec)
-  const nodeMirrorBaseUrl = getNodeMirror(ctx.rawConfig, releaseChannel)
+  const nodeMirrorBaseUrl = getNodeMirror(ctx.nodeDownloadMirrors, releaseChannel)
   const version = await resolveNodeVersion(ctx.fetchFromRegistry, versionSpecifier, nodeMirrorBaseUrl)
   if (!version) {
     throw new PnpmError('NODEJS_VERSION_NOT_FOUND', `Could not find a Node.js version that satisfies ${versionSpec}`)

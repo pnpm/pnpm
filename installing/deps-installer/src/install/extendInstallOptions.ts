@@ -78,7 +78,7 @@ export interface StrictInstallOptions {
   depth: number
   lockfileDir: string
   modulesDir: string
-  rawConfig: Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+  authConfig: Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
   verifyStoreIntegrity: boolean
   engineStrict: boolean
   allowBuilds?: Record<string, boolean | string>
@@ -242,7 +242,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     preserveWorkspaceProtocol: true,
     pruneLockfileImporters: false,
     pruneStore: false,
-    rawConfig: {},
+    authConfig: {},
     registries: DEFAULT_REGISTRIES,
     resolutionMode: 'highest',
     saveWorkspaceProtocol: 'rolling',
@@ -338,7 +338,7 @@ export function extendOptions (
     extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`
   }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
-  extendedOpts.rawConfig['registry'] = extendedOpts.registries.default
+  extendedOpts.authConfig['registry'] = extendedOpts.registries.default
   if (extendedOpts.enableGlobalVirtualStore) {
     if (extendedOpts.virtualStoreDir == null) {
       extendedOpts.virtualStoreDir = path.join(extendedOpts.storeDir, 'links')

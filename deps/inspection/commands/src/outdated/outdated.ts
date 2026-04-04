@@ -165,7 +165,7 @@ export type OutdatedCommandOptions = {
 | 'offline'
 | 'optional'
 | 'production'
-| 'rawConfig'
+| 'authConfig'
 | 'registries'
 | 'selectedProjectsGraph'
 | 'strictSsl'

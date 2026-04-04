@@ -272,7 +272,7 @@ async function installFromLockfile (
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     sideEffectsCacheRead: false,
     sideEffectsCacheWrite: false,
-    rawConfig: {},
+    authConfig: {},
     unsafePerm: false,
     userAgent: '',
     packageManager: opts.packageManager ?? { name: 'pnpm', version: '' },

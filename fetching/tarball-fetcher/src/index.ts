@@ -40,7 +40,6 @@ export function createTarballFetcher (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
   opts: {
-    rawConfig: Record<string, unknown>
     unsafePerm?: boolean
     ignoreScripts?: boolean
     storeIndex: StoreIndex

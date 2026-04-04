@@ -413,8 +413,8 @@ export async function recursive (
               saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
               savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
             }),
-            rawConfig: {
-              ...installOpts.rawConfig,
+            authConfig: {
+              ...installOpts.authConfig,
               ...localConfig,
             },
             storeController: store.ctrl,

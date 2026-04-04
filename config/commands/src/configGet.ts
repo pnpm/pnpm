@@ -1,15 +1,16 @@
-import { isIniConfigKey, types } from '@pnpm/config.reader'
+import { type Config, isIniConfigKey, types } from '@pnpm/config.reader'
 import { getObjectValueByPropertyPath } from '@pnpm/object.property-path'
-import { isCamelCase, isStrictlyKebabCase } from '@pnpm/text.naming-cases'
+import { isCamelCase } from '@pnpm/text.naming-cases'
+import camelcase from 'camelcase'
 import kebabCase from 'lodash.kebabcase'
 
 import type { ConfigCommandOptions } from './ConfigCommandOptions.js'
+import { configToRecord } from './configToRecord.js'
 import { parseConfigPropertyPath } from './parseConfigPropertyPath.js'
-import { processConfig } from './processConfig.js'
 
 export function configGet (opts: ConfigCommandOptions, key: string): { output: string, exitCode: number } {
   const isScopedKey = key.startsWith('@')
-  const configResult = getRcConfig(opts.rawConfig, key, isScopedKey) ?? getConfigByPropertyPath(opts.rawConfig, key)
+  const configResult = lookupConfig(opts, key, isScopedKey) ?? (isPropertyPath(key) ? lookupByPropertyPath(opts, key) : { value: undefined })
   const output = displayConfig(configResult?.value, opts)
   return { output, exitCode: 0 }
 }
@@ -18,37 +19,52 @@ interface Found<Value> {
   value: Value
 }
 
-function getRcConfig (rawConfig: Record<string, unknown>, key: string, isScopedKey: boolean): Found<unknown> | undefined {
+function lookupConfig (opts: ConfigCommandOptions, key: string, isScopedKey: boolean): Found<unknown> | undefined {
   if (isScopedKey) {
-    const value = rawConfig[key]
-    return { value }
+    return { value: opts.authConfig[key] }
   }
-  const rcKey = isCamelCase(key) ? kebabCase(key) : key
-  if (Object.hasOwn(types, rcKey)) {
-    const value = rawConfig[rcKey]
-    return { value }
+  const kebabKey = isCamelCase(key) ? kebabCase(key) : key
+  // Resolve typed keys from Config — check explicitly set values first,
+  // then fall back to authConfig (for keys like registry set in .npmrc)
+  if (Object.hasOwn(types, kebabKey)) {
+    const camelKey = camelcase(kebabKey, { locale: 'en-US' })
+    const explicit = (opts as unknown as Config).explicitlySetKeys
+    if (!explicit || explicit.has(camelKey)) {
+      return { value: (opts as unknown as Record<string, unknown>)[camelKey] }
+    }
+    // Fall back to authConfig for INI keys (registry, ca, etc.)
+    if (kebabKey in opts.authConfig) {
+      return { value: opts.authConfig[kebabKey] }
+    }
+    return { value: undefined }
   }
-  if (isStrictlyKebabCase(key)) {
-    const value = rawConfig[key]
-    return { value }
-  }
+  // Auth-specific INI keys (//host:_authToken, _auth, etc.) from authConfig
   if (isIniConfigKey(key)) {
-    const value = rawConfig[key]
-    return { value }
+    return { value: opts.authConfig[key] }
+  }
+  // For keys not in types (e.g., package-extensions), look up via configToRecord
+  // which excludes internal/sensitive fields.
+  const camelKey = camelcase(key, { locale: 'en-US' })
+  const record = configToRecord(opts as unknown as Config)
+  if (Object.hasOwn(record, camelKey)) {
+    return { value: record[camelKey] }
   }
   return undefined
 }
 
-function getConfigByPropertyPath (rawConfig: Record<string, unknown>, propertyPath: string): Found<unknown> {
+function lookupByPropertyPath (opts: ConfigCommandOptions, propertyPath: string): Found<unknown> {
   const parsedPropertyPath = Array.from(parseConfigPropertyPath(propertyPath))
   if (parsedPropertyPath.length === 0) {
-    return {
-      value: processConfig(rawConfig),
-    }
+    return { value: configToRecord(opts as unknown as Config) }
   }
+  const record = configToRecord(opts as unknown as Config)
   return {
-    value: getObjectValueByPropertyPath(rawConfig, parsedPropertyPath),
+    value: getObjectValueByPropertyPath(record, parsedPropertyPath),
   }
+}
+
+function isPropertyPath (key: string): boolean {
+  return key === '' || key.includes('.') || key.includes('[')
 }
 
 type DisplayConfigOptions = Pick<ConfigCommandOptions, 'json'>

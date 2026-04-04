@@ -35,7 +35,7 @@ export type StrictBuildOptions = {
   production: boolean
   development: boolean
   optional: boolean
-  rawConfig: object
+  authConfig: object
   userConfig: Record<string, string>
   userAgent: string
   packageManager: {
@@ -73,7 +73,7 @@ const defaults = async (opts: BuildOptions): Promise<StrictBuildOptions> => {
     packageManager,
     pending: false,
     production: true,
-    rawConfig: {},
+    authConfig: {},
     registries: DEFAULT_REGISTRIES,
     scriptsPrependNodePath: false,
     shamefullyHoist: false,

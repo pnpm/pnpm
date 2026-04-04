@@ -160,7 +160,7 @@ export interface HeadlessOptions {
   disableRelinkLocalDirDeps?: boolean
   force: boolean
   storeDir: string
-  rawConfig: object
+  authConfig: object
   unsafePerm: boolean
   userAgent: string
   registries: Registries
@@ -234,7 +234,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     extraNodePaths: opts.extraNodePaths,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
     extraEnv: opts.extraEnv,
-    rawConfig: opts.rawConfig,
+    authConfig: opts.authConfig,
     resolveSymlinksInInjectedDirs: opts.resolveSymlinksInInjectedDirs,
     scriptsPrependNodePath: opts.scriptsPrependNodePath,
     scriptShell: opts.scriptShell,
@@ -575,7 +575,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       lockfileDir,
       optional: opts.include.optionalDependencies,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-      rawConfig: opts.rawConfig,
       rootModulesDir: virtualStoreDir,
       scriptsPrependNodePath: opts.scriptsPrependNodePath,
       scriptShell: opts.scriptShell,

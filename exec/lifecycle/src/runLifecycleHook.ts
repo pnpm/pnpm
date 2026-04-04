@@ -20,7 +20,6 @@ export interface RunLifecycleHookOptions {
   initCwd?: string
   optional?: boolean
   pkgRoot: string
-  rawConfig: object
   rootModulesDir: string
   scriptShell?: string
   silent?: boolean
@@ -28,6 +27,7 @@ export interface RunLifecycleHookOptions {
   shellEmulator?: boolean
   stdio?: string
   unsafePerm: boolean
+  userAgent?: string
 }
 
 export async function runLifecycleHook (
@@ -120,7 +120,7 @@ Please unset the scriptShell option, or configure it to a .exe instead.
       ...opts.extraEnv,
       INIT_CWD: opts.initCwd ?? process.cwd(),
       PNPM_SCRIPT_SRC_DIR: opts.pkgRoot,
-      ...('user-agent' in opts.rawConfig ? { npm_config_user_agent: (opts.rawConfig as Record<string, string>)['user-agent'] } : {}),
+      ...(opts.userAgent ? { npm_config_user_agent: opts.userAgent } : {}),
     },
     log: {
       clearProgress: noop,

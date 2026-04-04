@@ -41,7 +41,7 @@ test('CLI fails when store status finds modified packages', async () => {
       cacheDir,
       dir: process.cwd(),
       pnpmHomeDir: '',
-      rawConfig: {
+      authConfig: {
         registry: REGISTRY,
       },
       registries: modulesState!.registries!,
@@ -95,7 +95,7 @@ test('CLI does not fail when store status does not find modified packages', asyn
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
-    rawConfig: {
+    authConfig: {
       registry: REGISTRY,
     },
     registries: modulesState!.registries!,
@@ -141,7 +141,7 @@ storeDir: "${relativeStoreDir}"
     dir: subpackageDir,
     workspaceDir,
     pnpmHomeDir: '',
-    rawConfig: {
+    authConfig: {
       registry: REGISTRY,
     },
     registries: modulesState!.registries!,

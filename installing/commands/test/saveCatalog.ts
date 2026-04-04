@@ -85,7 +85,7 @@ test('saveCatalogName works with different protocols', async () => {
     .reply(200)
 
   const options = createOptions()
-  options.registries['@jsr'] = options.rawConfig['@jsr:registry'] = 'https://npm.jsr.io/'
+  options.registries['@jsr'] = options.authConfig['@jsr:registry'] = 'https://npm.jsr.io/'
   await add.handler(options, [
     '@pnpm.e2e/foo@100.1.0',
     'jsr:@rus/greet@0.0.3',

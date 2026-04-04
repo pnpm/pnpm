@@ -15,7 +15,7 @@ test('CLI prints the current store path', async () => {
     cacheDir: path.resolve('cache'),
     dir: process.cwd(),
     pnpmHomeDir: '',
-    rawConfig: {
+    authConfig: {
       registry: REGISTRY,
     },
     registries: { default: REGISTRY },
@@ -44,7 +44,7 @@ test('CLI prints the current store path when storeDir is relative', async () => 
     dir: subpackageDir,
     workspaceDir,
     pnpmHomeDir: '',
-    rawConfig: {
+    authConfig: {
       registry: REGISTRY,
     },
     registries: { default: REGISTRY },

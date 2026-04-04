@@ -26,8 +26,8 @@ export type RecursiveRunOpts = Pick<Config,
 | 'enablePrePostScripts'
 | 'unsafePerm'
 | 'pnpmHomeDir'
-| 'rawConfig'
 | 'requiredScripts'
+| 'userAgent'
 | 'rootProjectManifest'
 | 'scriptsPrependNodePath'
 | 'scriptShell'
@@ -123,7 +123,7 @@ export async function runRecursive (
             extraBinPaths: opts.extraBinPaths,
             extraEnv: opts.extraEnv,
             pkgRoot: prefix,
-            rawConfig: opts.rawConfig,
+            userAgent: opts.userAgent,
             rootModulesDir: await realpathMissing(path.join(prefix, 'node_modules')),
             scriptsPrependNodePath: opts.scriptsPrependNodePath,
             scriptShell: opts.scriptShell,

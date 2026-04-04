@@ -1,1 +1,1 @@
-pnpm run lint --quiet
+pnpm run compile-only && pnpm run lint --quiet

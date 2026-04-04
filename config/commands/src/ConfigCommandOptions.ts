@@ -5,9 +5,12 @@ export type ConfigCommandOptions = Pick<Config,
 | 'cliOptions'
 | 'dir'
 | 'global'
-| 'rawConfig'
+| 'authConfig'
 | 'workspaceDir'
 > & {
   json?: boolean
   location?: 'global' | 'project'
+  // The config commands receive the full Config object at runtime
+  // and read arbitrary typed properties for display.
+  [key: string]: unknown
 }

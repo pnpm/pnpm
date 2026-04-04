@@ -25,8 +25,6 @@ const IS_POSITIVE_TARBALL = f.find('is-positive-1.0.0.tgz')
 
 const registries = { default: registry }
 
-const authConfig = { registry }
-
 const storeIndexes: StoreIndex[] = []
 afterAll(() => {
   for (const si of storeIndexes) si.close()
@@ -36,10 +34,9 @@ const topStoreIndex = new StoreIndex('.store')
 storeIndexes.push(topStoreIndex)
 
 const { resolve, fetchers } = createClient({
-  authConfig,
+  authConfig: {},
   cacheDir: '.store',
   storeDir: '.store',
-  rawConfig: {},
   registries,
   storeIndex: topStoreIndex,
 })
@@ -48,8 +45,7 @@ function createFetchersForStore (storeDir: string) {
   const si = new StoreIndex(storeDir)
   storeIndexes.push(si)
   return createClient({
-    authConfig,
-    rawConfig: {},
+    authConfig: {},
     cacheDir: storeDir,
     storeDir,
     registries,
@@ -595,8 +591,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
   const noRetryStoreIndex = new StoreIndex('.store')
   storeIndexes.push(noRetryStoreIndex)
   const noRetry = createClient({
-    authConfig,
-    rawConfig: {},
+    authConfig: {},
     retry: { retries: 0 },
     cacheDir: '.pnpm',
     storeDir: '.store',

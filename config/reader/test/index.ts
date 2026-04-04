@@ -238,7 +238,7 @@ test('.npmrc does not load pnpm settings', async () => {
   })
 
   // rc options appear as usual
-  expect(config.rawConfig).toMatchObject({
+  expect(config.authConfig).toMatchObject({
     '//my-org.registry.example.com:username': 'some-employee',
     '//my-org.registry.example.com:_authToken': 'some-employee-token',
     '@my-org:registry': 'https://my-org.registry.example.com',
@@ -248,16 +248,16 @@ test('.npmrc does not load pnpm settings', async () => {
   })
 
   // workspace-specific settings are omitted
-  expect(config.rawConfig['dlx-cache-max-age']).toBeUndefined()
-  expect(config.rawConfig['dlxCacheMaxAge']).toBeUndefined()
+  expect(config.authConfig['dlx-cache-max-age']).toBeUndefined()
+  expect(config.authConfig['dlxCacheMaxAge']).toBeUndefined()
   expect(config.dlxCacheMaxAge).toBe(24 * 60) // TODO: refactor to make defaultOptions importable
-  expect(config.rawConfig['trust-policy-exclude']).toBeUndefined()
-  expect(config.rawConfig['trustPolicyExclude']).toBeUndefined()
+  expect(config.authConfig['trust-policy-exclude']).toBeUndefined()
+  expect(config.authConfig['trustPolicyExclude']).toBeUndefined()
   expect(config.trustPolicyExclude).toBeUndefined()
-  expect(config.rawConfig.packages).toBeUndefined()
+  expect(config.authConfig.packages).toBeUndefined()
 })
 
-test('rc options appear as kebab-case in rawConfig even if it was defined as camelCase by pnpm-workspace.yaml', async () => {
+test('camelCase settings from pnpm-workspace.yaml are read into typed Config properties', async () => {
   prepareEmpty()
 
   writeYamlFileSync('pnpm-workspace.yaml', {
@@ -283,21 +283,10 @@ test('rc options appear as kebab-case in rawConfig even if it was defined as cam
     linkWorkspacePackages: true,
     nodeLinker: 'hoisted',
     sharedWorkspaceLockfile: true,
-    rawConfig: {
-      'ignore-scripts': true,
-      'link-workspace-packages': true,
-      'node-linker': 'hoisted',
-      'shared-workspace-lockfile': true,
-    },
   })
-
-  expect(config.rawConfig.ignoreScripts).toBeUndefined()
-  expect(config.rawConfig.linkWorkspacePackages).toBeUndefined()
-  expect(config.rawConfig.nodeLinker).toBeUndefined()
-  expect(config.rawConfig.sharedWorkspaceLockfile).toBeUndefined()
 })
 
-test('workspace-specific settings preserve case in rawConfig', async () => {
+test('workspace-specific settings are read into typed Config properties', async () => {
   prepareEmpty()
 
   writeYamlFileSync('pnpm-workspace.yaml', {
@@ -327,20 +316,7 @@ test('workspace-specific settings preserve case in rawConfig', async () => {
     workspaceDir: process.cwd(),
   })
 
-  expect(config.rawConfig.packages).toStrictEqual(['foo', 'bar'])
-  expect(config.rawConfig.packageExtensions).toStrictEqual({
-    '@babel/parser': {
-      peerDependencies: {
-        '@babel/types': '*',
-      },
-    },
-    'jest-circus': {
-      dependencies: {
-        slash: '3',
-      },
-    },
-  })
-  expect(config.rawConfig['package-extensions']).toBeUndefined()
+  expect(config.workspacePackagePatterns).toStrictEqual(['foo', 'bar'])
   expect(config.packageExtensions).toStrictEqual({
     '@babel/parser': {
       peerDependencies: {
@@ -475,7 +451,7 @@ test('auth tokens from pnpm auth file override ~/.npmrc', async () => {
       },
     })
 
-    expect(config.rawConfig['//registry.npmjs.org/:_authToken']).toBe('fresh-token')
+    expect(config.authConfig['//registry.npmjs.org/:_authToken']).toBe('fresh-token')
   } finally {
     if (originalXdg != null) {
       process.env.XDG_CONFIG_HOME = originalXdg
@@ -514,7 +490,7 @@ test('workspace .npmrc overrides pnpm auth file', async () => {
       },
     })
 
-    expect(config.rawConfig['//registry.npmjs.org/:_authToken']).toBe('workspace-token')
+    expect(config.authConfig['//registry.npmjs.org/:_authToken']).toBe('workspace-token')
   } finally {
     if (originalXdg != null) {
       process.env.XDG_CONFIG_HOME = originalXdg
@@ -812,7 +788,7 @@ test.skip('read only supported settings from config', async () => {
   expect(config.storeDir).toBe('__store__')
   // @ts-expect-error
   expect(config['foo']).toBeUndefined() // NOTE: This line current fails as there are yet a way to verify fields in pnpm-workspace.yaml
-  expect(config.rawConfig['foo']).toBe('bar')
+  expect(config.authConfig['foo']).toBe('bar')
 })
 
 test('all CLI options are added to the config', async () => {
@@ -984,7 +960,7 @@ test('dir is resolved to real path', async () => {
   expect(config.dir).toBe(realDir)
 })
 
-test('warn user unknown settings in npmrc', async () => {
+test('non-auth settings in npmrc do not produce warnings', async () => {
   prepare()
 
   const npmrc = [
@@ -1004,20 +980,9 @@ test('warn user unknown settings in npmrc', async () => {
       name: 'pnpm',
       version: '1.0.0',
     },
-    checkUnknownSetting: true,
   })
 
   expect(warnings).toStrictEqual([])
-
-  const { warnings: noWarnings } = await getConfig({
-    cliOptions: {},
-    packageManager: {
-      name: 'pnpm',
-      version: '1.0.0',
-    },
-  })
-
-  expect(noWarnings).toStrictEqual([])
 })
 
 test('getConfig() converts noproxy to noProxy', async () => {
@@ -1332,7 +1297,6 @@ test('settings from pnpm-workspace.yaml are read', async () => {
   })
 
   expect(config.trustPolicyExclude).toStrictEqual(['foo', 'bar'])
-  expect(config.rawConfig['trust-policy-exclude']).toStrictEqual(['foo', 'bar'])
 })
 
 test('settings sharedWorkspaceLockfile in pnpm-workspace.yaml should take effect', async () => {
@@ -1365,7 +1329,6 @@ test('settings shamefullyHoist in pnpm-workspace.yaml should take effect', async
   })
 
   expect(config.shamefullyHoist).toBe(true)
-  expect(config.rawConfig['shamefully-hoist']).toBe(true)
 })
 
 test('settings gitBranchLockfile in pnpm-workspace.yaml should take effect', async () => {
@@ -1382,7 +1345,6 @@ test('settings gitBranchLockfile in pnpm-workspace.yaml should take effect', asy
 
   expect(config.gitBranchLockfile).toBe(true)
   expect(config.useGitBranchLockfile).toBe(true)
-  expect(config.rawConfig['git-branch-lockfile']).toBe(true)
 })
 
 test('loads setting from environment variable pnpm_config_*', async () => {
@@ -1557,9 +1519,7 @@ describe('global config.yaml', () => {
     expect(config.dangerouslyAllowAllBuilds).toBe(true)
 
     // NOTE: the field may appear kebab-case here, but only internally,
-    //       `pnpm config list` would convert them to camelCase.
-    // TODO: switch to camelCase entirely later.
-    expect(config.rawConfig).toHaveProperty(['dangerously-allow-all-builds'])
+    expect(config.dangerouslyAllowAllBuilds).toBeDefined()
   })
 })
 

@@ -13,13 +13,11 @@ describe('store.importPackage()', () => {
     const storeDir = path.join(tmp, 'store')
     const cacheDir = path.join(tmp, 'cache')
     const registry = 'https://registry.npmjs.org/'
-    const authConfig = { registry }
     const storeIndex = new StoreIndex(storeDir)
     const { resolve, fetchers, clearResolutionCache } = createClient({
-      authConfig,
+      authConfig: {},
       cacheDir: path.join(tmp, 'cache'),
       storeDir: path.join(tmp, 'store'),
-      rawConfig: {},
       storeIndex,
       registries: {
         default: registry,
@@ -59,13 +57,11 @@ describe('store.importPackage()', () => {
     const storeDir = path.join(tmp, 'store')
     const cacheDir = path.join(tmp, 'cache')
     const registry = 'https://registry.npmjs.org/'
-    const authConfig = { registry }
     const storeIndex = new StoreIndex(storeDir)
     const { resolve, fetchers, clearResolutionCache } = createClient({
-      authConfig,
+      authConfig: {},
       cacheDir: path.join(tmp, 'cache'),
       storeDir: path.join(tmp, 'store'),
-      rawConfig: {},
       storeIndex,
       registries: {
         default: registry,

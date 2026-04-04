@@ -22,7 +22,7 @@ import { omit } from 'ramda'
 import { realpathMissing } from 'realpath-missing'
 import semver from 'semver'
 
-import { inheritAuthConfig, isIniConfigKey, pickIniConfig } from './auth.js'
+import { inheritAuthConfig, pickIniConfig } from './auth.js'
 import { checkGlobalBinDir } from './checkGlobalBinDir.js'
 import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 import type {
@@ -85,9 +85,7 @@ export async function getConfig (opts: {
     name: string
     version: string
   }
-  rcOptionsTypes?: Record<string, unknown>
   workspaceDir?: string | undefined
-  checkUnknownSetting?: boolean
   env?: Record<string, string | undefined>
   ignoreNonAuthSettingsFromLocal?: boolean
   ignoreLocalSettings?: boolean
@@ -124,7 +122,6 @@ export async function getConfig (opts: {
   if (cliOptions.dir) {
     cliOptions.dir = await realpathMissing(cliOptions.dir)
   }
-  const rcOptionsTypes = { ...types, ...opts.rcOptionsTypes }
   const defaultOptions: Partial<KebabCaseConfig> = {
     'auto-install-peers': true,
     bail: true,
@@ -235,24 +232,28 @@ export async function getConfig (opts: {
   })
   const warnings = npmrcResult.warnings
 
-  const rcOptions = Object.keys(rcOptionsTypes)
-
   const configFromCliOpts = Object.fromEntries(Object.entries(cliOptions)
     .filter(([_, value]) => typeof value !== 'undefined')
     .map(([name, value]) => [camelcase(name, { locale: 'en-US' }), value])
   )
 
+  // Build initial config from defaults, then overlay auth/registry values from .npmrc
   const pnpmConfig = Object.fromEntries(
-    rcOptions
-      .map((configKey) => [
-        camelcase(configKey, { locale: 'en-US' }),
-        isIniConfigKey(configKey)
-          ? (npmrcResult.mergedConfig[configKey] ?? (defaultOptions as Record<string, unknown>)[configKey])
-          : (defaultOptions as Record<string, unknown>)[configKey],
-      ])
+    Object.entries(defaultOptions)
+      .map(([key, value]) => [camelcase(key, { locale: 'en-US' }), value])
   ) as unknown as ConfigWithDeprecatedSettings
 
+  for (const [key, value] of Object.entries(npmrcResult.mergedConfig)) {
+    if (Object.hasOwn(types, key)) {
+      ;(pnpmConfig as unknown as Record<string, unknown>)[camelcase(key, { locale: 'en-US' })] = value
+    }
+  }
+
   const globalDepsBuildConfig = extractAndRemoveDependencyBuildOptions(pnpmConfig)
+
+  // Track which keys are explicitly set (not defaults)
+  const explicitlySetKeys = new Set<string>(Object.keys(configFromCliOpts))
+  pnpmConfig.explicitlySetKeys = explicitlySetKeys
 
   Object.assign(pnpmConfig, configFromCliOpts)
   // Resolving the current working directory to its actual location is crucial.
@@ -280,14 +281,9 @@ export async function getConfig (opts: {
     npmrcResult.workspaceNpmrc,
     cliOptions
   )
-  pnpmConfig.userAgent = pnpmConfig.rawLocalConfig['user-agent']
-    ? pnpmConfig.rawLocalConfig['user-agent']
-    : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
-  pnpmConfig.rawConfig = Object.assign(
-    {},
-    pickIniConfig(npmrcResult.rawConfig),
-    { 'user-agent': pnpmConfig.userAgent }
-  )
+  pnpmConfig.userAgent = (cliOptions['user-agent'] as string | undefined)
+    ?? `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
+  pnpmConfig.authConfig = pickIniConfig(npmrcResult.rawConfig)
 
   // Reuse the global config.yaml already read for npmrcAuthFile
   const globalYamlConfig = globalYamlConfigForNpmrcAuthFile
@@ -304,15 +300,15 @@ export async function getConfig (opts: {
       workspaceManifest: globalYamlConfig,
     })
   }
-  const networkConfigs = getNetworkConfigs(pnpmConfig.rawConfig)
+  const networkConfigs = getNetworkConfigs(pnpmConfig.authConfig)
   const registriesFromNpmrc = {
-    default: normalizeRegistryUrl(pnpmConfig.rawConfig.registry),
+    default: normalizeRegistryUrl(pnpmConfig.authConfig.registry),
     ...networkConfigs.registries,
   }
   pnpmConfig.registries = { ...registriesFromNpmrc }
   pnpmConfig.authInfos = networkConfigs.authInfos ?? {} // TODO: remove `?? {}` (when possible)
   pnpmConfig.sslConfigs = networkConfigs.sslConfigs
-  Object.assign(pnpmConfig, getDefaultAuthInfo(pnpmConfig.rawConfig))
+  Object.assign(pnpmConfig, getDefaultAuthInfo(pnpmConfig.authConfig))
   pnpmConfig.pnpmHomeDir = getDataDir({ env, platform: process.platform })
   let globalDirRoot
   if (pnpmConfig.globalDir) {
@@ -446,7 +442,6 @@ export async function getConfig (opts: {
     'init-version', // the type is a private function named 'semver'
     'node-version', // the type is a private function named 'semver'
     'umask', // the type is a private function named 'Umask'
-    'logstream', // the custom parser doesn't have logic to handle 'Stream' yet
   ], types)
 
   for (const { key, value } of parseEnvVars(key => envPnpmTypes[key as keyof typeof envPnpmTypes], env)) {
@@ -458,6 +453,7 @@ export async function getConfig (opts: {
 
     // @ts-expect-error
     pnpmConfig[key] = value
+    explicitlySetKeys.add(key)
 
     if (key === 'registry') {
       if (typeof value !== 'string') {
@@ -576,21 +572,6 @@ export async function getConfig (opts: {
   }
   pnpmConfig.sideEffectsCacheRead = pnpmConfig.sideEffectsCache ?? pnpmConfig.sideEffectsCacheReadonly
   pnpmConfig.sideEffectsCacheWrite = pnpmConfig.sideEffectsCache
-
-  // TODO: consider removing checkUnknownSetting entirely
-  if (opts.checkUnknownSetting) {
-    const settingKeys = Object.keys(npmrcResult.workspaceNpmrc)
-      .filter(key => key.trim() !== '')
-    const unknownKeys = []
-    for (const key of settingKeys) {
-      if (!rcOptions.includes(key) && !key.startsWith('//') && !(key[0] === '@' && key.endsWith(':registry'))) {
-        unknownKeys.push(key)
-      }
-    }
-    if (unknownKeys.length > 0) {
-      warnings.push(`Your .npmrc file contains unknown setting: ${unknownKeys.join(', ')}`)
-    }
-  }
 
   if (pnpmConfig.sharedWorkspaceLockfile && !pnpmConfig.lockfileDir && pnpmConfig.workspaceDir) {
     pnpmConfig.lockfileDir = pnpmConfig.workspaceDir
@@ -755,13 +736,7 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config, {
 
     // @ts-expect-error
     pnpmConfig[key] = value
-
-    const kebabKey = kebabCase(key)
-    // Q: Why `types` instead of `rcOptionTypes`?
-    // A: `rcOptionTypes` includes options that would matter to the `npm` cli which wouldn't care about `pnpm-workspace.yaml`.
-    const isRc = kebabKey in types
-    const targetKey = isRc ? kebabKey : key
-    pnpmConfig.rawConfig[targetKey] = value
+    pnpmConfig.explicitlySetKeys.add(key)
   }
   // All the pnpm_config_ env variables should override the settings from pnpm-workspace.yaml,
   // as it happens with .npmrc.
@@ -770,7 +745,7 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config, {
   // Related issue: https://github.com/pnpm/pnpm/issues/10060
   if (process.env.pnpm_config_verify_deps_before_run != null) {
     pnpmConfig.verifyDepsBeforeRun = process.env.pnpm_config_verify_deps_before_run as VerifyDepsBeforeRun
-    pnpmConfig.rawConfig['verify-deps-before-run'] = pnpmConfig.verifyDepsBeforeRun
   }
   pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
 }
+

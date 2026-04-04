@@ -32,7 +32,7 @@ export function help (): string {
 
 export type CatIndexCommandOptions = Pick<
   Config,
-| 'rawConfig'
+| 'authConfig'
 | 'pnpmHomeDir'
 | 'storeDir'
 | 'lockfileDir'
@@ -70,7 +70,7 @@ export async function handler (opts: CatIndexCommandOptions, params: string[]): 
   })
   const { resolve } = createResolver({
     ...opts,
-    authConfig: opts.rawConfig,
+    authConfig: opts.authConfig,
   })
   const pkgSnapshot = await resolve(
     { alias, bareSpecifier },

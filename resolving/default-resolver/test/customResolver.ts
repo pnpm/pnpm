@@ -25,7 +25,6 @@ test('custom resolver intercepts matching packages', async () => {
 
   const { resolve } = createResolver(fetchFromRegistry, getAuthHeader, {
     customResolvers: [customResolver],
-    rawConfig: {},
     cacheDir: '/tmp/test-cache',
     offline: false,
     preferOffline: false,
@@ -71,7 +70,6 @@ test('custom resolver with synchronous methods', async () => {
 
   const { resolve } = createResolver(fetchFromRegistry, getAuthHeader, {
     customResolvers: [customResolver],
-    rawConfig: {},
     cacheDir: '/tmp/test-cache',
     offline: false,
     preferOffline: false,
@@ -116,7 +114,6 @@ test('multiple custom resolvers - first matching wins', async () => {
 
   const { resolve } = createResolver(fetchFromRegistry, getAuthHeader, {
     customResolvers: [resolver1, resolver2], // Order matters
-    rawConfig: {},
     cacheDir: '/tmp/test-cache',
     offline: false,
     preferOffline: false,
@@ -150,7 +147,6 @@ test('custom resolver error handling', async () => {
 
   const { resolve } = createResolver(async () => new Response(''), () => undefined, {
     customResolvers: [customResolver],
-    rawConfig: {},
     cacheDir: '/tmp/test-cache',
     offline: false,
     preferOffline: false,
@@ -175,7 +171,6 @@ test('preferredVersions are passed to custom resolver', async () => {
 
   const { resolve: resolvePackage } = createResolver(async () => new Response(''), () => undefined, {
     customResolvers: [customResolver],
-    rawConfig: {},
     cacheDir: '/tmp/test-cache',
     offline: false,
     preferOffline: false,
@@ -209,7 +204,6 @@ test('custom resolver can intercept any protocol', async () => {
 
   const { resolve } = createResolver(async () => new Response(''), () => undefined, {
     customResolvers: [customResolver],
-    rawConfig: {},
     cacheDir: '/tmp/test-cache',
     offline: false,
     preferOffline: false,
@@ -241,7 +235,6 @@ test('custom resolver falls through when not supported', async () => {
 
   const { resolve } = createResolver(async () => new Response(''), () => undefined, {
     customResolvers: [customResolver],
-    rawConfig: {},
     cacheDir: '/tmp/test-cache',
     offline: false,
     preferOffline: false,
@@ -275,7 +268,6 @@ test('custom resolver can override npm registry resolution', async () => {
 
   const { resolve } = createResolver(async () => new Response(''), () => undefined, {
     customResolvers: [npmStyleResolver],
-    rawConfig: {},
     cacheDir: '/tmp/test-cache',
     offline: false,
     preferOffline: false,
@@ -315,7 +307,6 @@ test('custom custom fetcher: reuse local tarball fetcher', async () => {
 
   const { resolve } = createResolver(async () => new Response(''), () => undefined, {
     customResolvers: [localTarballResolver],
-    rawConfig: {},
     cacheDir: '/tmp/test-cache',
     offline: false,
     preferOffline: false,
@@ -353,7 +344,6 @@ test('custom custom fetcher: reuse remote tarball downloader', async () => {
 
   const { resolve } = createResolver(async () => new Response(''), () => undefined, {
     customResolvers: [cdnResolver],
-    rawConfig: {},
     cacheDir: '/tmp/test-cache',
     offline: false,
     preferOffline: false,
@@ -395,7 +385,6 @@ test('custom custom fetcher: wrap npm registry with custom logic', async () => {
 
   const { resolve } = createResolver(async () => new Response(''), () => undefined, {
     customResolvers: [privateNpmResolver],
-    rawConfig: {},
     cacheDir: '/tmp/test-cache',
     offline: false,
     preferOffline: false,
@@ -445,7 +434,6 @@ test('custom resolver receives currentPkg when provided', async () => {
 
   const { resolve } = createResolver(fetchFromRegistry, getAuthHeader, {
     customResolvers: [customResolver],
-    rawConfig: {},
     cacheDir: '/tmp/test-cache',
     offline: false,
     preferOffline: false,

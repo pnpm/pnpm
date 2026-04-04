@@ -69,7 +69,6 @@ const fetchFromRegistry = createFetchFromRegistry({})
 const getAuthHeader = () => undefined
 const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
   storeIndex,
-  rawConfig: {},
   retry: {
     maxTimeout: 100,
     minTimeout: 0,
@@ -274,7 +273,6 @@ test("don't fail when fetching a local tarball in offline mode", async () => {
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
     storeIndex,
     offline: true,
-    rawConfig: {},
     retry: {
       maxTimeout: 100,
       minTimeout: 0,
@@ -302,7 +300,6 @@ test('fail when trying to fetch a non-local tarball in offline mode', async () =
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
     storeIndex,
     offline: true,
-    rawConfig: {},
     retry: {
       maxTimeout: 100,
       minTimeout: 0,
@@ -428,7 +425,6 @@ test('accessing private packages', async () => {
   const getAuthHeader = () => 'Bearer ofjergrg349gj3f2'
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
     storeIndex,
-    rawConfig: {},
     retry: {
       maxTimeout: 100,
       minTimeout: 0,
@@ -547,7 +543,6 @@ test('do not build the package when scripts are ignored', async () => {
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
     storeIndex,
     ignoreScripts: true,
-    rawConfig: {},
     retry: {
       maxTimeout: 100,
       minTimeout: 0,
@@ -596,7 +591,6 @@ test('use the subfolder when path is present', async () => {
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
     storeIndex,
     ignoreScripts: true,
-    rawConfig: {},
     retry: {
       maxTimeout: 100,
       minTimeout: 0,
@@ -626,7 +620,6 @@ test('prevent directory traversal attack when path is present', async () => {
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
     storeIndex,
     ignoreScripts: true,
-    rawConfig: {},
     retry: {
       maxTimeout: 100,
       minTimeout: 0,
@@ -654,7 +647,6 @@ test('fail when path is not exists', async () => {
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
     storeIndex,
     ignoreScripts: true,
-    rawConfig: {},
     retry: {
       maxTimeout: 100,
       minTimeout: 0,

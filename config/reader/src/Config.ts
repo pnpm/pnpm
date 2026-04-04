@@ -14,7 +14,7 @@ import type {
 import type { OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
 import type { AuthInfo } from './parseAuthInfo.js'
 
-export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'rawConfig' | 'rawLocalConfig'>
+export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'authConfig' | 'rawLocalConfig'>
 
 
 export type VerifyDepsBeforeRun = 'install' | 'warn' | 'error' | 'prompt' | false
@@ -38,7 +38,9 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
   filter: string[]
   filterProd: string[]
   rawLocalConfig: Record<string, any>, // eslint-disable-line
-  rawConfig: Record<string, any>, // eslint-disable-line
+  authConfig: Record<string, any>, // eslint-disable-line
+  /** Keys explicitly set from workspace yaml, CLI, or env vars (not defaults). */
+  explicitlySetKeys: Set<string>
   dryRun?: boolean // This option might be not supported ever
   global?: boolean
   dir: string
@@ -75,6 +77,7 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
   depth?: number
   engineStrict?: boolean
   nodeVersion?: string
+  nodeDownloadMirrors?: Record<string, string>
   offline?: boolean
   registry?: string
   optional?: boolean

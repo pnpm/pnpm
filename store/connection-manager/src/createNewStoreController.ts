@@ -12,7 +12,7 @@ type CreateResolverOptions = Pick<Config,
 | 'fetchRetryMaxtimeout'
 | 'fetchRetryMintimeout'
 | 'offline'
-| 'rawConfig'
+| 'authConfig'
 | 'verifyStoreIntegrity'
 > & Required<Pick<Config, 'cacheDir' | 'storeDir'>>
 
@@ -21,6 +21,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'cert'
 | 'engineStrict'
 | 'force'
+| 'nodeDownloadMirrors'
 | 'nodeVersion'
 | 'fetchTimeout'
 | 'fetchWarnTimeoutMs'
@@ -72,7 +73,6 @@ export async function createNewStoreController (
     customFetchers: opts.hooks?.customFetchers,
     userConfig: opts.userConfig,
     unsafePerm: opts.unsafePerm,
-    authConfig: opts.rawConfig,
     ca: opts.ca,
     cacheDir: opts.cacheDir,
     storeDir: opts.storeDir,
@@ -86,10 +86,11 @@ export async function createNewStoreController (
     ignoreScripts: opts.ignoreScripts,
     key: opts.key,
     localAddress: opts.localAddress,
+    nodeDownloadMirrors: opts.nodeDownloadMirrors,
     noProxy: opts.noProxy,
     offline: opts.offline,
     preferOffline: opts.preferOffline,
-    rawConfig: opts.rawConfig,
+    authConfig: opts.authConfig,
     sslConfigs: opts.sslConfigs,
     registries: opts.registries,
     retry: {
