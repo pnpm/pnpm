@@ -525,7 +525,7 @@ test('should recreate node_modules with hoisting', async () => {
     manifest,
     mutation: 'install',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({ hoistPattern: '*' }))
+  }, testDefaults({ hoistPattern: '*', confirmModulesPurge: false }))
 
   project.has('@pnpm.e2e/pkg-with-1-dep')
   project.has('.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')
