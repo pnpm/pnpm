@@ -163,7 +163,6 @@ export async function recursive (
     storeDir: store.dir,
     targetDependenciesField,
     workspacePackages,
-
   }) as InstallOptions
 
   const result: RecursiveSummary = {}
