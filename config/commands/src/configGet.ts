@@ -27,6 +27,11 @@ function lookupConfig (opts: ConfigCommandOptions, key: string, isScopedKey: boo
   // Resolve typed keys (including INI keys like registry, ca, proxy) from Config
   if (Object.hasOwn(types, kebabKey)) {
     const camelKey = camelcase(kebabKey, { locale: 'en-US' })
+    const explicit = (opts as unknown as Config).explicitlySetKeys
+    // If explicitlySetKeys is available, only return explicitly set values
+    if (explicit && !explicit.has(camelKey)) {
+      return { value: undefined }
+    }
     return { value: (opts as unknown as Record<string, unknown>)[camelKey] }
   }
   // Auth-specific INI keys (//host:_authToken, _auth, etc.) from authConfig

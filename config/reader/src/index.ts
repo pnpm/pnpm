@@ -250,6 +250,10 @@ export async function getConfig (opts: {
 
   const globalDepsBuildConfig = extractAndRemoveDependencyBuildOptions(pnpmConfig)
 
+  // Track which keys are explicitly set (not defaults)
+  const explicitlySetKeys = new Set<string>(Object.keys(configFromCliOpts))
+  pnpmConfig.explicitlySetKeys = explicitlySetKeys
+
   Object.assign(pnpmConfig, configFromCliOpts)
   // Resolving the current working directory to its actual location is crucial.
   // This prevents potential inconsistencies in the future, especially when processing or mapping subdirectories.
@@ -449,6 +453,7 @@ export async function getConfig (opts: {
 
     // @ts-expect-error
     pnpmConfig[key] = value
+    explicitlySetKeys.add(key)
 
     if (key === 'registry') {
       if (typeof value !== 'string') {
@@ -731,6 +736,7 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config, {
 
     // @ts-expect-error
     pnpmConfig[key] = value
+    pnpmConfig.explicitlySetKeys.add(key)
   }
   // All the pnpm_config_ env variables should override the settings from pnpm-workspace.yaml,
   // as it happens with .npmrc.

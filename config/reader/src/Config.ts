@@ -39,6 +39,8 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
   filterProd: string[]
   rawLocalConfig: Record<string, any>, // eslint-disable-line
   authConfig: Record<string, any>, // eslint-disable-line
+  /** Keys explicitly set from workspace yaml, CLI, or env vars (not defaults). */
+  explicitlySetKeys: Set<string>
   dryRun?: boolean // This option might be not supported ever
   global?: boolean
   dir: string
