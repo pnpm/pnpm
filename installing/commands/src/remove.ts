@@ -149,7 +149,6 @@ export async function handler (
   | 'allProjects'
   | 'allProjectsGraph'
   | 'hooks'
-  | 'rawLocalConfig'
   | 'rootProjectManifest'
   | 'rootProjectManifestDir'
   | 'selectedProjectsGraph'

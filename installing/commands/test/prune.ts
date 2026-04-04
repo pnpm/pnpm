@@ -32,7 +32,6 @@ const DEFAULT_OPTIONS = {
   pnpmHomeDir: '',
   preferWorkspacePackages: true,
   authConfig: { registry: REGISTRY_URL },
-  rawLocalConfig: { registry: REGISTRY_URL },
   registries: {
     default: REGISTRY_URL,
   },

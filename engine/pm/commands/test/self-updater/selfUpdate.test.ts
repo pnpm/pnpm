@@ -53,7 +53,6 @@ function prepareOptions (dir: string) {
     registries: {
       default: 'https://registry.npmjs.org/',
     },
-    rawLocalConfig: {},
     sort: false,
     rootProjectManifestDir: dir,
     bin: path.join(dir, 'bin'),

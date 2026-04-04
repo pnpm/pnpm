@@ -89,7 +89,6 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'updateConfig'
 > & Pick<ConfigContext,
 | 'hooks'
-| 'rawLocalConfig'
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
 > & {
@@ -100,8 +99,6 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   pending?: boolean
   workspace?: boolean
   allowNew?: boolean
-  forceHoistPattern?: boolean
-  forcePublicHoistPattern?: boolean
   ignoredPackages?: Set<string>
   update?: boolean
   updatePackageManifest?: boolean
@@ -166,9 +163,6 @@ export async function recursive (
     storeDir: store.dir,
     targetDependenciesField,
     workspacePackages,
-
-    forceHoistPattern: typeof opts.rawLocalConfig?.['hoist-pattern'] !== 'undefined' || typeof opts.rawLocalConfig?.['hoist'] !== 'undefined',
-    forceShamefullyHoist: typeof opts.rawLocalConfig?.['shamefully-hoist'] !== 'undefined',
   }) as InstallOptions
 
   const result: RecursiveSummary = {}

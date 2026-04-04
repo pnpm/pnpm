@@ -297,11 +297,9 @@ export async function mutateModules (
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       confirmModulesPurge: opts.confirmModulesPurge && !opts.ci,
 
-      forceHoistPattern: opts.forceHoistPattern,
       hoistPattern: opts.hoistPattern,
       currentHoistPattern: ctx.currentHoistPattern,
 
-      forcePublicHoistPattern: opts.forcePublicHoistPattern,
       publicHoistPattern: opts.publicHoistPattern,
       currentPublicHoistPattern: ctx.currentPublicHoistPattern,
       global: opts.global,

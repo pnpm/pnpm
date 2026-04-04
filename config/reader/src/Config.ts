@@ -14,7 +14,7 @@ import type {
 import type { OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
 import type { AuthInfo } from './parseAuthInfo.js'
 
-export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'authConfig'> & Pick<ConfigContext, 'rawLocalConfig'>
+export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'authConfig'>
 
 
 export type VerifyDepsBeforeRun = 'install' | 'warn' | 'error' | 'prompt' | false
@@ -38,7 +38,6 @@ export interface ConfigContext {
 
   // -- CLI metadata --
   cliOptions: Record<string, any> // eslint-disable-line
-  rawLocalConfig: Record<string, any> // eslint-disable-line
   /** Keys explicitly set from workspace yaml, CLI, or env vars (not defaults). */
   explicitlySetKeys: Set<string>
   packageManager: {
