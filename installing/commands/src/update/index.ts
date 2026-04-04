@@ -161,6 +161,7 @@ dependencies is not found inside the workspace',
 }
 
 export type UpdateCommandOptions = InstallCommandOptions & {
+  include?: IncludedDependencies
   interactive?: boolean
   latest?: boolean
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
