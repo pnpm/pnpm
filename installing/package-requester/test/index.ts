@@ -39,7 +39,7 @@ const { resolve, fetchers } = createClient({
   authConfig,
   cacheDir: '.store',
   storeDir: '.store',
-  rawConfig: {},
+  authConfig: {},
   registries,
   storeIndex: topStoreIndex,
 })
@@ -49,7 +49,7 @@ function createFetchersForStore (storeDir: string) {
   storeIndexes.push(si)
   return createClient({
     authConfig,
-    rawConfig: {},
+    authConfig: {},
     cacheDir: storeDir,
     storeDir,
     registries,
@@ -596,7 +596,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
   storeIndexes.push(noRetryStoreIndex)
   const noRetry = createClient({
     authConfig,
-    rawConfig: {},
+    authConfig: {},
     retry: { retries: 0 },
     cacheDir: '.pnpm',
     storeDir: '.store',

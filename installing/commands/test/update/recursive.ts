@@ -101,8 +101,8 @@ test('recursive update prod dependencies only', async () => {
     },
     dir: process.cwd(),
     lockfileDir: process.cwd(),
-    rawConfig: {
-      ...DEFAULT_OPTS.rawConfig,
+    authConfig: {
+      ...DEFAULT_OPTS.authConfig,
       optional: false,
     },
     recursive: true,

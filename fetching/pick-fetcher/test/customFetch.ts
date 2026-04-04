@@ -302,7 +302,7 @@ describe('custom fetcher implementation examples', () => {
         const tarballFetchers = createTarballFetcher(
           fetchFromRegistry,
           () => undefined,
-          { rawConfig: {}, storeIndex }
+          { authConfig: {}, storeIndex }
         )
 
         // Custom fetcher that maps custom URLs to tarballs
@@ -353,7 +353,7 @@ describe('custom fetcher implementation examples', () => {
       const tarballFetchers = createTarballFetcher(
         fetchFromRegistry,
         () => undefined,
-        { rawConfig: {}, storeIndex }
+        { authConfig: {}, storeIndex }
       )
 
       // Custom fetcher that maps custom local paths to tarballs
@@ -410,7 +410,7 @@ describe('custom fetcher implementation examples', () => {
         const tarballFetchers = createTarballFetcher(
           fetchFromRegistry,
           () => undefined,
-          { rawConfig: {}, storeIndex }
+          { authConfig: {}, storeIndex }
         )
 
         // Custom fetcher that transforms custom resolution to tarball URL
@@ -462,7 +462,7 @@ describe('custom fetcher implementation examples', () => {
       const tarballFetchers = createTarballFetcher(
         fetchFromRegistry,
         () => undefined,
-        { rawConfig: {}, storeIndex, ignoreScripts: true }
+        { authConfig: {}, storeIndex, ignoreScripts: true }
       )
 
       // Custom fetcher that maps custom git resolution to git-hosted tarball

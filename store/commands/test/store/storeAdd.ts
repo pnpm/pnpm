@@ -17,7 +17,7 @@ test('pnpm store add express@4.16.3', async () => {
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
-    rawConfig: {
+    authConfig: {
       registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
     },
     registries: { default: `http://localhost:${REGISTRY_MOCK_PORT}/` },
@@ -41,7 +41,7 @@ test('pnpm store add scoped package that uses not the standard registry', async 
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
-    rawConfig: {
+    authConfig: {
       registry: 'https://registry.npmjs.org/',
     },
     registries: {
@@ -71,7 +71,7 @@ test('should fail if some packages can not be added', async () => {
       cacheDir,
       dir: process.cwd(),
       pnpmHomeDir: '',
-      rawConfig: {
+      authConfig: {
         registry: 'https://registry.npmjs.org/',
       },
       registries: {

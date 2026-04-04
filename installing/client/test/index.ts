@@ -13,7 +13,7 @@ test('createClient()', () => {
   const client = createClient({
     authConfig: { registry: 'https://registry.npmjs.org/' },
     cacheDir: '',
-    rawConfig: {},
+    authConfig: {},
     registries: {
       default: 'https://reigstry.npmjs.org/',
     },
@@ -27,7 +27,7 @@ test('createResolver()', () => {
   const { resolve } = createResolver({
     authConfig: { registry: 'https://registry.npmjs.org/' },
     cacheDir: '',
-    rawConfig: {},
+    authConfig: {},
     registries: {
       default: 'https://reigstry.npmjs.org/',
     },

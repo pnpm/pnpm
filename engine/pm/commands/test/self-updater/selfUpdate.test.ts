@@ -60,7 +60,7 @@ function prepareOptions (dir: string) {
     workspaceConcurrency: 1,
     extraEnv: {},
     pnpmfile: '',
-    rawConfig: {},
+    authConfig: {},
     cacheDir: path.join(dir, '.cache'),
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     dir,

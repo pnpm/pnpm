@@ -9,7 +9,7 @@ test('createResolver()', () => {
     registries: {
       default: 'https://registry.npmjs.org/',
     },
-    rawConfig: {},
+    authConfig: {},
     storeDir: '.store',
   })
   expect(typeof resolve).toBe('function')

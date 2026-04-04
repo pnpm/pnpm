@@ -279,11 +279,7 @@ export async function getConfig (opts: {
   pnpmConfig.userAgent = pnpmConfig.rawLocalConfig['user-agent']
     ? pnpmConfig.rawLocalConfig['user-agent']
     : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
-  pnpmConfig.rawConfig = Object.assign(
-    {},
-    pickIniConfig(npmrcResult.rawConfig),
-    { 'user-agent': pnpmConfig.userAgent }
-  )
+  pnpmConfig.authConfig = pickIniConfig(npmrcResult.rawConfig)
 
   // Reuse the global config.yaml already read for npmrcAuthFile
   const globalYamlConfig = globalYamlConfigForNpmrcAuthFile
@@ -300,15 +296,15 @@ export async function getConfig (opts: {
       workspaceManifest: globalYamlConfig,
     })
   }
-  const networkConfigs = getNetworkConfigs(pnpmConfig.rawConfig)
+  const networkConfigs = getNetworkConfigs(pnpmConfig.authConfig)
   const registriesFromNpmrc = {
-    default: normalizeRegistryUrl(pnpmConfig.rawConfig.registry),
+    default: normalizeRegistryUrl(pnpmConfig.authConfig.registry),
     ...networkConfigs.registries,
   }
   pnpmConfig.registries = { ...registriesFromNpmrc }
   pnpmConfig.authInfos = networkConfigs.authInfos ?? {} // TODO: remove `?? {}` (when possible)
   pnpmConfig.sslConfigs = networkConfigs.sslConfigs
-  Object.assign(pnpmConfig, getDefaultAuthInfo(pnpmConfig.rawConfig))
+  Object.assign(pnpmConfig, getDefaultAuthInfo(pnpmConfig.authConfig))
   pnpmConfig.pnpmHomeDir = getDataDir({ env, platform: process.platform })
   let globalDirRoot
   if (pnpmConfig.globalDir) {
@@ -621,6 +617,10 @@ export async function getConfig (opts: {
     }
   }
 
+  // Build effectiveConfig for display by `pnpm config get/list`.
+  // Merges auth/registry keys from authConfig with typed settings in kebab-case.
+  pnpmConfig.effectiveConfig = buildEffectiveConfig(pnpmConfig)
+
   return { config: pnpmConfig, warnings }
 }
 
@@ -735,11 +735,6 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config, {
 
     // @ts-expect-error
     pnpmConfig[key] = value
-
-    const kebabKey = kebabCase(key)
-    const isRc = kebabKey in types
-    const targetKey = isRc ? kebabKey : key
-    pnpmConfig.rawConfig[targetKey] = value
   }
   // All the pnpm_config_ env variables should override the settings from pnpm-workspace.yaml,
   // as it happens with .npmrc.
@@ -748,7 +743,40 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config, {
   // Related issue: https://github.com/pnpm/pnpm/issues/10060
   if (process.env.pnpm_config_verify_deps_before_run != null) {
     pnpmConfig.verifyDepsBeforeRun = process.env.pnpm_config_verify_deps_before_run as VerifyDepsBeforeRun
-    pnpmConfig.rawConfig['verify-deps-before-run'] = pnpmConfig.verifyDepsBeforeRun
   }
   pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
+}
+
+/**
+ * Build a kebab-case record of all effective settings for display by `pnpm config get/list`.
+ * Merges auth/registry keys from authConfig with typed settings.
+ */
+const INTERNAL_CONFIG_KEYS = new Set([
+  'authConfig', 'rawLocalConfig', 'effectiveConfig', 'cliOptions',
+  'hooks', 'finders', 'allProjects', 'selectedProjectsGraph',
+  'packageManager', 'wantedPackageManager', 'rootProjectManifest',
+  'storeController', 'rootProjectManifestDir',
+])
+
+function buildEffectiveConfig (config: Config): Record<string, unknown> {
+  // Start with auth/registry keys from authConfig
+  const result: Record<string, unknown> = { ...config.authConfig }
+  // Add typed settings in kebab-case
+  for (const key of Object.keys(types)) {
+    const camelKey = camelcase(key, { locale: 'en-US' })
+    const value = (config as unknown as Record<string, unknown>)[camelKey]
+    if (value !== undefined) {
+      result[key] = value
+    }
+  }
+  // Add non-types config properties (e.g., packages, packageExtensions, overrides)
+  // These are camelCase settings from workspace yaml that don't have kebab equivalents.
+  for (const [key, value] of Object.entries(config)) {
+    if (value === undefined || INTERNAL_CONFIG_KEYS.has(key)) continue
+    if (!(key in result) && !(kebabCase(key) in result)) {
+      result[key] = value
+    }
+  }
+  result['user-agent'] = config.userAgent
+  return result
 }

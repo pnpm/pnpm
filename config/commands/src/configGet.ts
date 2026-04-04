@@ -9,7 +9,7 @@ import { processConfig } from './processConfig.js'
 
 export function configGet (opts: ConfigCommandOptions, key: string): { output: string, exitCode: number } {
   const isScopedKey = key.startsWith('@')
-  const configResult = getRcConfig(opts.rawConfig, key, isScopedKey) ?? getConfigByPropertyPath(opts.rawConfig, key)
+  const configResult = getRcConfig(opts.effectiveConfig, key, isScopedKey) ?? getConfigByPropertyPath(opts.effectiveConfig, key)
   const output = displayConfig(configResult?.value, opts)
   return { output, exitCode: 0 }
 }
@@ -18,36 +18,36 @@ interface Found<Value> {
   value: Value
 }
 
-function getRcConfig (rawConfig: Record<string, unknown>, key: string, isScopedKey: boolean): Found<unknown> | undefined {
+function getRcConfig (effectiveConfig: Record<string, unknown>, key: string, isScopedKey: boolean): Found<unknown> | undefined {
   if (isScopedKey) {
-    const value = rawConfig[key]
+    const value = effectiveConfig[key]
     return { value }
   }
   const rcKey = isCamelCase(key) ? kebabCase(key) : key
   if (Object.hasOwn(types, rcKey)) {
-    const value = rawConfig[rcKey]
+    const value = effectiveConfig[rcKey]
     return { value }
   }
   if (isStrictlyKebabCase(key)) {
-    const value = rawConfig[key]
+    const value = effectiveConfig[key]
     return { value }
   }
   if (isIniConfigKey(key)) {
-    const value = rawConfig[key]
+    const value = effectiveConfig[key]
     return { value }
   }
   return undefined
 }
 
-function getConfigByPropertyPath (rawConfig: Record<string, unknown>, propertyPath: string): Found<unknown> {
+function getConfigByPropertyPath (effectiveConfig: Record<string, unknown>, propertyPath: string): Found<unknown> {
   const parsedPropertyPath = Array.from(parseConfigPropertyPath(propertyPath))
   if (parsedPropertyPath.length === 0) {
     return {
-      value: processConfig(rawConfig),
+      value: processConfig(effectiveConfig),
     }
   }
   return {
-    value: getObjectValueByPropertyPath(rawConfig, parsedPropertyPath),
+    value: getObjectValueByPropertyPath(effectiveConfig, parsedPropertyPath),
   }
 }
 

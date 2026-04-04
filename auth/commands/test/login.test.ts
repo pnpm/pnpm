@@ -90,7 +90,7 @@ describe('login', () => {
         stdin: { isTTY: false },
       },
     })
-    const opts = { configDir: '/mock/config', dir: '/mock', rawConfig: {} }
+    const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {} }
     const promise = login({ context, opts })
     await expect(promise).rejects.toHaveProperty(['code'], 'ERR_PNPM_LOGIN_NON_INTERACTIVE')
     await expect(promise).rejects.toHaveProperty(['message'], 'The login command requires an interactive terminal')
@@ -130,7 +130,7 @@ describe('login', () => {
         throw new Error(`Unexpected call to fetch: ${url}`)
       },
     })
-    const opts = { configDir: '/custom/config', dir: '/mock', rawConfig: {}, registry: 'https://example.com/npm/' }
+    const opts = { configDir: '/custom/config', dir: '/mock', authConfig: {}, registry: 'https://example.com/npm/' }
     const result = await login({ context, opts })
     expect(result).toBe('Logged in on https://example.com/npm/')
     expect(fetchedUrls[0]).toBe('https://example.com/npm/-/v1/login')
@@ -183,7 +183,7 @@ describe('login', () => {
         },
       },
     })
-    const opts = { configDir: '/other/config', dir: '/mock', rawConfig: {}, registry: 'https://example.org' }
+    const opts = { configDir: '/other/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
     const result = await login({ context, opts })
     expect(result).toBe('Logged in on https://example.org/')
     expect(fetchedUrls[0]).toBe('https://example.org/-/v1/login')
@@ -240,7 +240,7 @@ describe('login', () => {
         },
       },
     })
-    const opts = { configDir: '/otp/config', dir: '/mock', rawConfig: {}, registry: 'https://example.org' }
+    const opts = { configDir: '/otp/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
     const result = await login({ context, opts })
     expect(result).toBe('Logged in on https://example.org/')
     expect(putCallCount).toBe(2)
@@ -302,7 +302,7 @@ describe('login', () => {
         },
       },
     })
-    const opts = { configDir: '/otp/config', dir: '/mock', rawConfig: {}, registry: 'https://example.org' }
+    const opts = { configDir: '/otp/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
     const result = await login({ context, opts })
     expect(result).toBe('Logged in on https://example.org/')
     expect(putCallCount).toBe(2)
@@ -338,7 +338,7 @@ describe('login', () => {
         },
       },
     })
-    const opts = { configDir: '/otp/config', dir: '/mock', rawConfig: {}, registry: 'https://example.org' }
+    const opts = { configDir: '/otp/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
     const promise = login({ context, opts })
     await expect(promise).rejects.toHaveProperty(['code'], 'ERR_PNPM_LOGIN_FAILED')
     await expect(promise).rejects.toHaveProperty(['message'], 'Login failed (HTTP 403): Forbidden')
@@ -367,7 +367,7 @@ describe('login', () => {
         },
       },
     })
-    const opts = { configDir: '/mock/config', dir: '/mock', rawConfig: {}, registry: 'https://example.org' }
+    const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
     const promise = login({ context, opts })
     await expect(promise).rejects.toHaveProperty(['code'], 'ERR_PNPM_LOGIN_MISSING_CREDENTIALS')
     await expect(promise).rejects.toHaveProperty(['message'], 'Username, password, and email are all required')
@@ -403,7 +403,7 @@ describe('login', () => {
         },
       },
     })
-    const opts = { configDir: '/mock/config', dir: '/mock', rawConfig: {}, registry: 'https://example.org' }
+    const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
     const promise = login({ context, opts })
     await expect(promise).rejects.toHaveProperty(['code'], 'ERR_PNPM_LOGIN_NO_TOKEN')
     await expect(promise).rejects.toHaveProperty(['message'], 'The registry did not return an authentication token')
@@ -424,7 +424,7 @@ describe('login', () => {
         throw new Error(`Unexpected call to fetch: ${url}`)
       },
     })
-    const opts = { configDir: '/mock/config', dir: '/mock', rawConfig: {}, registry: 'https://example.org' }
+    const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
     const promise = login({ context, opts })
     await expect(promise).rejects.toHaveProperty(['code'], 'ERR_PNPM_LOGIN_INVALID_RESPONSE')
     await expect(promise).rejects.toHaveProperty(['message'], 'The registry returned an invalid response for web-based login')
@@ -465,7 +465,7 @@ describe('login', () => {
         },
       },
     })
-    const opts = { configDir: '/mock/config', dir: '/mock', rawConfig: {}, registry: 'https://example.org' }
+    const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
     const result = await login({ context, opts })
     expect(result).toBe('Logged in on https://example.org/')
     expect(savedSettings).toMatchObject({
@@ -503,7 +503,7 @@ describe('login', () => {
         },
       },
     })
-    const opts = { configDir: '/otp/config', dir: '/mock', rawConfig: {}, registry: 'https://example.org' }
+    const opts = { configDir: '/otp/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
     const promise = login({ context, opts })
     await expect(promise).rejects.toHaveProperty(['code'], 'ERR_PNPM_LOGIN_FAILED')
     await expect(promise).rejects.toHaveProperty(['message'], 'Login failed (HTTP 401): Unauthorized')
@@ -538,7 +538,7 @@ describe('login', () => {
         })
       },
     })
-    const opts = { configDir: '/nonexistent/config', dir: '/mock', rawConfig: {}, registry: 'https://example.org' }
+    const opts = { configDir: '/nonexistent/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
     const result = await login({ context, opts })
     expect(result).toBe('Logged in on https://example.org/')
     expect(savedSettings).toMatchObject({
@@ -573,7 +573,7 @@ describe('login', () => {
         })
       },
     })
-    const opts = { configDir: '/broken/config', dir: '/mock', rawConfig: {}, registry: 'https://example.org' }
+    const opts = { configDir: '/broken/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
     const promise = login({ context, opts })
     await expect(promise).rejects.toHaveProperty(['code'], 'EACCES')
     await expect(promise).rejects.toHaveProperty(['message'], 'EACCES: permission denied')

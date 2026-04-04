@@ -213,7 +213,6 @@ Do you want to continue?`,
     extraBinPaths: opts.extraBinPaths,
     extraEnv: opts.extraEnv,
     pkgRoot: dir,
-    rawConfig: opts.rawConfig,
     rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
     stdio: 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.

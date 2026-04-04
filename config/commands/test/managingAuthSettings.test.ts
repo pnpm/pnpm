@@ -32,7 +32,8 @@ describe.each(
         cliOptions: {},
         configDir,
         global: true,
-        rawConfig: {},
+        authConfig: {},
+        effectiveConfig: {},
       }, ['set', `${key}=123`])
 
       expect(readConfigFiles(configDir, tmp)).toEqual({
@@ -56,7 +57,8 @@ describe.each(
         cliOptions: {},
         configDir,
         global: true,
-        rawConfig: {},
+        authConfig: {},
+        effectiveConfig: {},
       }, ['delete', key])
 
       expect(readConfigFiles(configDir, tmp)).toEqual({
@@ -84,7 +86,8 @@ describe.each(
         cliOptions: {},
         configDir,
         global: true,
-        rawConfig: {},
+        authConfig: {},
+        effectiveConfig: {},
       }, ['set', key, '"123"'])
 
       expect(readConfigFiles(configDir, tmp)).toEqual({
@@ -109,7 +112,8 @@ describe.each(
         cliOptions: {},
         configDir,
         global: true,
-        rawConfig: {},
+        authConfig: {},
+        effectiveConfig: {},
       }, ['delete', key])
 
       expect(readConfigFiles(configDir, tmp)).toEqual({
@@ -141,7 +145,8 @@ describe.each(
       cliOptions: {},
       configDir,
       global: true,
-      rawConfig: {},
+      authConfig: {},
+      effectiveConfig: {},
     }, ['set', `${key}=https://registry.example.com/`])
 
     expect(readConfigFiles(configDir, tmp)).toEqual({
@@ -165,7 +170,8 @@ describe.each(
       cliOptions: {},
       configDir,
       global: true,
-      rawConfig: {},
+      authConfig: {},
+      effectiveConfig: {},
     }, ['delete', key])
 
     expect(readConfigFiles(configDir, tmp)).toEqual({
@@ -195,7 +201,8 @@ describe.each(
       cliOptions: {},
       configDir,
       global: true,
-      rawConfig: {},
+      authConfig: {},
+      effectiveConfig: {},
     }, ['set', key, '{}'])).rejects.toMatchObject({
       code: 'ERR_PNPM_CONFIG_SET_AUTH_NON_STRING',
     })
@@ -224,7 +231,8 @@ describe.each(
       cliOptions: {},
       configDir,
       global: true,
-      rawConfig: {},
+      authConfig: {},
+      effectiveConfig: {},
     }, ['set', propertyPath, '123'])
 
     expect(readConfigFiles(configDir, tmp)).toEqual({
@@ -248,7 +256,8 @@ describe.each(
       cliOptions: {},
       configDir,
       global: true,
-      rawConfig: {},
+      authConfig: {},
+      effectiveConfig: {},
     }, ['delete', propertyPath])
 
     expect(readConfigFiles(configDir, tmp)).toEqual({

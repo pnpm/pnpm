@@ -7,7 +7,11 @@ test('config list', async () => {
     dir: process.cwd(),
     cliOptions: {},
     configDir: process.cwd(),
-    rawConfig: {
+    authConfig: {
+      'store-dir': '~/store',
+      'fetch-retries': '2',
+    },
+    effectiveConfig: {
       'store-dir': '~/store',
       'fetch-retries': '2',
     },
@@ -25,7 +29,11 @@ test('config list --json', async () => {
     cliOptions: {},
     configDir: process.cwd(),
     json: true,
-    rawConfig: {
+    authConfig: {
+      'store-dir': '~/store',
+      'fetch-retries': '2',
+    },
+    effectiveConfig: {
       'store-dir': '~/store',
       'fetch-retries': '2',
     },
@@ -38,7 +46,7 @@ test('config list --json', async () => {
 })
 
 test('config list censors protected settings', async () => {
-  const rawConfig = {
+  const authConfig = {
     'store-dir': '~/store',
     'fetch-retries': '2',
     username: 'general-username',
@@ -50,7 +58,8 @@ test('config list censors protected settings', async () => {
     dir: process.cwd(),
     cliOptions: {},
     configDir: process.cwd(),
-    rawConfig,
+    authConfig,
+    effectiveConfig: authConfig,
   }, ['list'])
 
   expect(JSON.parse(getOutputString(output))).toStrictEqual({
@@ -63,7 +72,7 @@ test('config list censors protected settings', async () => {
 })
 
 test('config list --json censors protected settings', async () => {
-  const rawConfig = {
+  const authConfig = {
     'store-dir': '~/store',
     'fetch-retries': '2',
     username: 'general-username',
@@ -76,14 +85,15 @@ test('config list --json censors protected settings', async () => {
     json: true,
     cliOptions: {},
     configDir: process.cwd(),
-    rawConfig,
+    authConfig,
+    effectiveConfig: authConfig,
   }, ['list'])
 
   expect(JSON.parse(getOutputString(output))).toStrictEqual({
-    storeDir: rawConfig['store-dir'],
-    fetchRetries: rawConfig['fetch-retries'],
+    storeDir: authConfig['store-dir'],
+    fetchRetries: authConfig['fetch-retries'],
     username: '(protected)',
-    '@my-org:registry': rawConfig['@my-org:registry'],
+    '@my-org:registry': authConfig['@my-org:registry'],
     '//my-org.example.com:username': '(protected)',
   })
 })

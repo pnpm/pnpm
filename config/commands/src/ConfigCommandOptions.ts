@@ -4,8 +4,9 @@ export type ConfigCommandOptions = Pick<Config,
 | 'configDir'
 | 'cliOptions'
 | 'dir'
+| 'effectiveConfig'
 | 'global'
-| 'rawConfig'
+| 'authConfig'
 | 'workspaceDir'
 > & {
   json?: boolean

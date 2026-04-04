@@ -63,7 +63,7 @@ export type LoginCommandOptions = Pick<Config,
 | 'fetchRetryMaxtimeout'
 | 'fetchRetryMintimeout'
 | 'fetchTimeout'
-| 'rawConfig'
+| 'authConfig'
 > & {
   registry?: string
 }

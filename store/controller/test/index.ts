@@ -19,7 +19,7 @@ describe('store.importPackage()', () => {
       authConfig,
       cacheDir: path.join(tmp, 'cache'),
       storeDir: path.join(tmp, 'store'),
-      rawConfig: {},
+      authConfig: {},
       storeIndex,
       registries: {
         default: registry,
@@ -65,7 +65,7 @@ describe('store.importPackage()', () => {
       authConfig,
       cacheDir: path.join(tmp, 'cache'),
       storeDir: path.join(tmp, 'store'),
-      rawConfig: {},
+      authConfig: {},
       storeIndex,
       registries: {
         default: registry,

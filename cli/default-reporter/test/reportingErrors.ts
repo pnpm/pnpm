@@ -412,7 +412,7 @@ some hint`)
 })
 
 test('prints authorization error with auth settings', async () => {
-  const rawConfig = {
+  const authConfig = {
     '//foo.bar:_auth': '9876543219',
     '//foo.bar:_authToken': '9876543219',
     '//foo.bar:_password': '9876543219',
@@ -424,7 +424,7 @@ test('prints authorization error with auth settings', async () => {
     username: 'nagy.gabor',
   }
   const output$ = toOutput$({
-    context: { argv: ['install'], config: { rawConfig } as any }, // eslint-disable-line
+    context: { argv: ['install'], config: { authConfig } as any }, // eslint-disable-line
     streamParser: createStreamParser(),
   })
 
@@ -452,7 +452,7 @@ ${ERROR_PAD}username=nagy.gabor`)
 
 test('prints authorization error without auth settings, where there are none', async () => {
   const output$ = toOutput$({
-    context: { argv: ['install'], config: { rawConfig: {} } as any }, // eslint-disable-line
+    context: { argv: ['install'], config: { authConfig: {} } as any }, // eslint-disable-line
     streamParser: createStreamParser(),
   })
 

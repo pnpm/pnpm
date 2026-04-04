@@ -47,7 +47,7 @@ test('remove unreferenced packages', async () => {
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
-    rawConfig: {
+    authConfig: {
       registry: REGISTRY,
     },
     registries: { default: REGISTRY },
@@ -72,7 +72,7 @@ test('remove unreferenced packages', async () => {
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
-    rawConfig: {
+    authConfig: {
       registry: REGISTRY,
     },
     registries: { default: REGISTRY },
@@ -120,7 +120,7 @@ test('prune outputs total size of removed files', async () => {
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
-    rawConfig: {
+    authConfig: {
       registry: REGISTRY,
     },
     registries: { default: REGISTRY },
@@ -158,7 +158,7 @@ test('remove packages that are used by project that no longer exist', async () =
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
-    rawConfig: {
+    authConfig: {
       registry: REGISTRY,
     },
     registries: { default: REGISTRY },
@@ -206,7 +206,7 @@ test('keep dependencies used by others', async () => {
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
-    rawConfig: {
+    authConfig: {
       registry: REGISTRY,
     },
     registries: { default: REGISTRY },
@@ -232,7 +232,7 @@ test('keep dependency used by package', async () => {
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
-    rawConfig: {
+    authConfig: {
       registry: REGISTRY,
     },
     registries: { default: REGISTRY },
@@ -256,7 +256,7 @@ test('prune will skip scanning non-directory in storeDir', async () => {
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
-    rawConfig: {
+    authConfig: {
       registry: REGISTRY,
     },
     registries: { default: REGISTRY },
@@ -283,7 +283,7 @@ test('prune does not fail if the store contains an unexpected directory', async 
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
-    rawConfig: {
+    authConfig: {
       registry: REGISTRY,
     },
     registries: { default: REGISTRY },
@@ -321,7 +321,7 @@ test('prune removes alien files from the store if the --force flag is used', asy
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
-    rawConfig: {
+    authConfig: {
       registry: REGISTRY,
     },
     registries: { default: REGISTRY },
@@ -352,7 +352,7 @@ describe('prune when store directory is not properly configured', () => {
         cacheDir: path.resolve('cache'),
         dir: process.cwd(),
         pnpmHomeDir: '',
-        rawConfig: {
+        authConfig: {
           registry: REGISTRY,
         },
         registries: { default: REGISTRY },
@@ -388,7 +388,7 @@ describe('prune when store directory is not properly configured', () => {
         cacheDir: path.resolve('cache'),
         dir: process.cwd(),
         pnpmHomeDir: '',
-        rawConfig: {
+        authConfig: {
           registry: REGISTRY,
         },
         registries: { default: REGISTRY },
@@ -449,7 +449,7 @@ test('prune removes cache directories that outlives dlx-cache-max-age', async ()
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
-    rawConfig: {
+    authConfig: {
       registry: REGISTRY,
     },
     registries: { default: REGISTRY },
@@ -514,7 +514,7 @@ describe('global virtual store prune', () => {
       cacheDir,
       dir: process.cwd(),
       pnpmHomeDir: '',
-      rawConfig: {
+      authConfig: {
         registry: REGISTRY,
       },
       registries: { default: REGISTRY },
@@ -582,7 +582,7 @@ describe('global virtual store prune', () => {
       cacheDir,
       dir: process.cwd(),
       pnpmHomeDir: '',
-      rawConfig: {
+      authConfig: {
         registry: REGISTRY,
       },
       registries: { default: REGISTRY },
@@ -653,7 +653,7 @@ describe('global virtual store prune', () => {
       cacheDir,
       dir: process.cwd(),
       pnpmHomeDir: '',
-      rawConfig: {
+      authConfig: {
         registry: REGISTRY,
       },
       registries: { default: REGISTRY },
@@ -737,7 +737,7 @@ describe('global virtual store prune', () => {
       cacheDir,
       dir: process.cwd(),
       pnpmHomeDir: '',
-      rawConfig: {
+      authConfig: {
         registry: REGISTRY,
       },
       registries: { default: REGISTRY },
