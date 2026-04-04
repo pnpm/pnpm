@@ -10,4 +10,7 @@ export type ConfigCommandOptions = Pick<Config,
 > & {
   json?: boolean
   location?: 'global' | 'project'
+  // The config commands receive the full Config object at runtime
+  // and read arbitrary typed properties for display.
+  [key: string]: unknown
 }
