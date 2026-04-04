@@ -41,7 +41,6 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/hooks.pnpmfile": "workspace:*",
     "@pnpm/network.git-utils": "workspace:*",
-    "@pnpm/npm-conf": "catalog:",
     "@pnpm/text.naming-cases": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
@@ -60,8 +59,7 @@
     "ramda": "catalog:",
     "read-ini-file": "catalog:",
     "realpath-missing": "catalog:",
-    "semver": "catalog:",
-    "which": "catalog:"
+    "semver": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -75,7 +73,6 @@
     "@types/lodash.kebabcase": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
-    "@types/which": "catalog:",
     "symlink-dir": "catalog:",
     "write-yaml-file": "catalog:"
   },

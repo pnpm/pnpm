@@ -81,11 +81,11 @@ patchedDependencies:
   })
 })
 
-test('dlx should work with npm_config_save_dev env variable', async () => {
+test('dlx should work with pnpm_config_save_dev env variable', async () => {
   prepareEmpty()
   execPnpmSync(['dlx', '@foo/touch-file-one-bin@latest'], {
     env: {
-      npm_config_save_dev: 'true',
+      pnpm_config_save_dev: 'true',
     },
     stdio: 'pipe',
     expectSuccess: true,

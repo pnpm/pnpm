@@ -7,8 +7,6 @@ import { createMatcher } from '@pnpm/config.matcher'
 import { GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { getCurrentBranch } from '@pnpm/network.git-utils'
-import loadNpmConf from '@pnpm/npm-conf'
-import type npmTypes from '@pnpm/npm-conf/lib/types.js'
 import { isCamelCase } from '@pnpm/text.naming-cases'
 import type { DevEngines, EngineDependency, ProjectManifest } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -23,7 +21,6 @@ import { pathAbsolute } from 'path-absolute'
 import { omit } from 'ramda'
 import { realpathMissing } from 'realpath-missing'
 import semver from 'semver'
-import which from 'which'
 
 import { inheritAuthConfig, isIniConfigKey, pickIniConfig } from './auth.js'
 import { checkGlobalBinDir } from './checkGlobalBinDir.js'
@@ -41,6 +38,8 @@ import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs.js'
 import { parseEnvVars } from './env.js'
 import { getDefaultAuthInfo, getNetworkConfigs } from './getNetworkConfigs.js'
 import { getOptionsFromPnpmSettings } from './getOptionsFromRootManifest.js'
+import { loadNpmrcConfig } from './loadNpmrcFiles.js'
+import { npmDefaults } from './npmDefaults.js'
 import {
   type CliOptions as SupportedArchitecturesCliOptions,
   overrideSupportedArchitecturesWithCLI,
@@ -75,9 +74,7 @@ type CamelToKebabCase<S extends string> = S extends `${infer T}${infer U}`
 
 type KebabCaseConfig = {
   [K in keyof ConfigWithDeprecatedSettings as CamelToKebabCase<K>]: ConfigWithDeprecatedSettings[K];
-} | typeof npmTypes.types
-
-const npmDefaults = loadNpmConf.defaults
+}
 
 export type CliOptions = Record<string, unknown> & SupportedArchitecturesCliOptions & { dir?: string, json?: boolean }
 
@@ -124,22 +121,8 @@ export async function getConfig (opts: {
     }
   }
 
-  // This is what npm does as well, overriding process.execPath with the resolved location of Node.
-  // The value of process.execPath is changed only for the duration of config initialization.
-  // Otherwise, npmConfig.globalPrefix would sometimes have the bad location.
-  //
-  // TODO: use this workaround only during global installation
-  const originalExecPath = process.execPath
-  try {
-    const node = await which(process.argv[0])
-    if (node.toUpperCase() !== process.execPath.toUpperCase()) {
-      process.execPath = node
-    }
-  } catch { } // eslint-disable-line:no-empty
-
   if (cliOptions.dir) {
     cliOptions.dir = await realpathMissing(cliOptions.dir)
-    cliOptions['prefix'] = cliOptions.dir // the npm config system still expects `prefix`
   }
   const rcOptionsTypes = { ...types, ...opts.rcOptionsTypes }
   const defaultOptions: Partial<KebabCaseConfig> = {
@@ -231,25 +214,25 @@ export async function getConfig (opts: {
     'peers-suffix-max-length': 1000,
   }
 
-  const { config: npmConfig, warnings, failedToLoadBuiltInConfig } = loadNpmConf(cliOptions, rcOptionsTypes, defaultOptions)
-
   const configDir = getConfigDir(process)
-  {
-    const warn = npmConfig.addFile(path.join(configDir as string, 'rc'), 'pnpm-global')
-    if (warn) warnings.push(warn)
-  }
-  npmConfig.add({
-    registry: 'https://registry.npmjs.org/',
-    '@jsr:registry': 'https://npm.jsr.io/',
-  }, 'pnpm-builtin')
-  {
-    const warn = npmConfig.addFile(path.resolve(path.join(import.meta.dirname, 'pnpmrc')), 'pnpm-builtin')
-    if (warn) warnings.push(warn)
-  }
 
-  delete cliOptions.prefix
+  // Read npmrcAuthFile early from global config.yaml (before loading .npmrc files)
+  const globalYamlConfigForNpmrcAuthFile = await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
+  const npmrcAuthFile = cliOptions['npmrc-auth-file'] as string | undefined
+    ?? cliOptions.userconfig as string | undefined
+    ?? globalYamlConfigForNpmrcAuthFile?.npmrcAuthFile
 
-  process.execPath = originalExecPath
+  const npmrcResult = loadNpmrcConfig({
+    cliOptions,
+    defaultOptions: defaultOptions as Record<string, unknown>,
+    dir: cliOptions.dir as string | undefined,
+    workspaceDir: opts.workspaceDir,
+    npmrcAuthFile,
+    configDir: configDir as string,
+    moduleDirname: import.meta.dirname,
+    env: opts.env,
+  })
+  const warnings = npmrcResult.warnings
 
   const rcOptions = Object.keys(rcOptionsTypes)
 
@@ -258,20 +241,22 @@ export async function getConfig (opts: {
     .map(([name, value]) => [camelcase(name, { locale: 'en-US' }), value])
   )
 
-  const pnpmConfig: ConfigWithDeprecatedSettings = Object.fromEntries(
+  const pnpmConfig = Object.fromEntries(
     rcOptions
       .map((configKey) => [
         camelcase(configKey, { locale: 'en-US' }),
-        isIniConfigKey(configKey) ? npmConfig.get(configKey) : (defaultOptions as Record<string, unknown>)[configKey],
+        isIniConfigKey(configKey)
+          ? (npmrcResult.mergedConfig[configKey] ?? (defaultOptions as Record<string, unknown>)[configKey])
+          : (defaultOptions as Record<string, unknown>)[configKey],
       ])
-  ) as ConfigWithDeprecatedSettings
+  ) as unknown as ConfigWithDeprecatedSettings
 
   const globalDepsBuildConfig = extractAndRemoveDependencyBuildOptions(pnpmConfig)
 
   Object.assign(pnpmConfig, configFromCliOpts)
   // Resolving the current working directory to its actual location is crucial.
   // This prevents potential inconsistencies in the future, especially when processing or mapping subdirectories.
-  const cwd = fs.realpathSync(betterPathResolve(cliOptions.dir ?? npmConfig.localPrefix))
+  const cwd = fs.realpathSync(betterPathResolve(cliOptions.dir ?? npmrcResult.localPrefix))
 
   // Unfortunately, there is no way to escape the PATH delimiter,
   // so directories added to PATH should not contain it.
@@ -279,42 +264,38 @@ export async function getConfig (opts: {
     warnings.push(`Directory "${cwd}" contains the path delimiter character (${path.delimiter}), so binaries from node_modules/.bin will not be accessible via PATH. Consider renaming the directory.`)
   }
 
-  pnpmConfig.maxSockets = npmConfig.maxsockets
+  // @ts-expect-error - maxsockets (lowercase) comes from npmConfigTypes, maxSockets (camelCase) is the Config field
+  pnpmConfig.maxSockets = pnpmConfig.maxSockets ?? pnpmConfig['maxsockets'] ?? npmDefaults.maxsockets
   // @ts-expect-error
   delete pnpmConfig['maxsockets']
 
   pnpmConfig.configDir = configDir
   pnpmConfig.workspaceDir = opts.workspaceDir
   pnpmConfig.workspaceRoot = cliOptions['workspace-root'] as boolean // This is needed to prevent pnpm reading workspaceRoot from env variables
+
+  // Build rawLocalConfig from workspace .npmrc + CLI options
   pnpmConfig.rawLocalConfig = Object.assign(
     {},
-    ...npmConfig.list.slice(3, pnpmConfig.workspaceDir && pnpmConfig.workspaceDir !== cwd ? 5 : 4).reverse(),
+    npmrcResult.workspaceNpmrc,
     cliOptions
   )
   pnpmConfig.userAgent = pnpmConfig.rawLocalConfig['user-agent']
     ? pnpmConfig.rawLocalConfig['user-agent']
     : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
-  const pnpmGlobalRcData = npmConfig.sources['pnpm-global']?.data
-  const pnpmGlobalRc = pnpmGlobalRcData
-    ? pickIniConfig(Object.fromEntries(Object.entries(pnpmGlobalRcData)))
-    : {}
   pnpmConfig.rawConfig = Object.assign(
     {},
-    ...npmConfig.list.map(pickIniConfig).reverse(),
-    pnpmGlobalRc,
-    pickIniConfig(cliOptions),
-    { 'user-agent': pnpmConfig.userAgent },
-    { globalconfig: path.join(configDir, 'rc') },
-    { 'npm-globalconfig': npmDefaults.globalconfig }
+    pickIniConfig(npmrcResult.rawConfig),
+    { 'user-agent': pnpmConfig.userAgent }
   )
 
-  const globalYamlConfig = await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
-  for (const key in globalYamlConfig) {
-    if (!isConfigFileKey(kebabCase(key))) {
-      delete globalYamlConfig[key as keyof typeof globalYamlConfig]
-    }
-  }
+  // Reuse the global config.yaml already read for npmrcAuthFile
+  const globalYamlConfig = globalYamlConfigForNpmrcAuthFile
   if (globalYamlConfig) {
+    for (const key in globalYamlConfig) {
+      if (!isConfigFileKey(kebabCase(key))) {
+        delete globalYamlConfig[key as keyof typeof globalYamlConfig]
+      }
+    }
     addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
       configFromCliOpts,
       projectManifest: undefined,
@@ -323,10 +304,11 @@ export async function getConfig (opts: {
     })
   }
   const networkConfigs = getNetworkConfigs(pnpmConfig.rawConfig)
-  pnpmConfig.registries = {
+  const registriesFromNpmrc = {
     default: normalizeRegistryUrl(pnpmConfig.rawConfig.registry),
     ...networkConfigs.registries,
   }
+  pnpmConfig.registries = { ...registriesFromNpmrc }
   pnpmConfig.authInfos = networkConfigs.authInfos ?? {} // TODO: remove `?? {}` (when possible)
   pnpmConfig.sslConfigs = networkConfigs.sslConfigs
   Object.assign(pnpmConfig, getDefaultAuthInfo(pnpmConfig.rawConfig))
@@ -341,7 +323,7 @@ export async function getConfig (opts: {
   pnpmConfig.dir = cwd
   if (cliOptions['global']) {
     delete pnpmConfig.workspaceDir
-    pnpmConfig.bin = npmConfig.get('global-bin-dir') ?? path.join(pnpmConfig.pnpmHomeDir, 'bin')
+    pnpmConfig.bin = pnpmConfig.globalBinDir ?? path.join(pnpmConfig.pnpmHomeDir, 'bin')
     if (pnpmConfig.bin) {
       fs.mkdirSync(pnpmConfig.bin, { recursive: true })
       await checkGlobalBinDir(pnpmConfig.bin, { env, shouldAllowWrite: opts.globalDirShouldAllowWrite })
@@ -438,6 +420,23 @@ export async function getConfig (opts: {
           workspaceManifest,
         })
       }
+    }
+  }
+
+  // Merge registries from pnpm-workspace.yaml onto the .npmrc-based registries.
+  // The workspace manifest may have set pnpmConfig.registries via addSettingsFromWorkspaceManifestToConfig,
+  // but we need to ensure 'default' is always set and all URLs are normalized.
+  const workspaceRegistries = pnpmConfig.registries as Record<string, string> | undefined
+  pnpmConfig.registries = {
+    ...registriesFromNpmrc,
+    ...workspaceRegistries,
+  }
+  if (!pnpmConfig.registries.default) {
+    pnpmConfig.registries.default = registriesFromNpmrc.default
+  }
+  for (const [scope, url] of Object.entries(pnpmConfig.registries)) {
+    if (typeof url === 'string') {
+      pnpmConfig.registries[scope] = normalizeRegistryUrl(url)
     }
   }
 
@@ -572,17 +571,15 @@ export async function getConfig (opts: {
       break
   }
   if (!pnpmConfig.userConfig) {
-    pnpmConfig.userConfig = npmConfig.sources.user?.data
+    pnpmConfig.userConfig = npmrcResult.userConfig as Record<string, string>
   }
   pnpmConfig.sideEffectsCacheRead = pnpmConfig.sideEffectsCache ?? pnpmConfig.sideEffectsCacheReadonly
   pnpmConfig.sideEffectsCacheWrite = pnpmConfig.sideEffectsCache
 
   // TODO: consider removing checkUnknownSetting entirely
   if (opts.checkUnknownSetting) {
-    const settingKeys = Object.keys({
-      ...npmConfig?.sources?.workspace?.data,
-      ...npmConfig?.sources?.project?.data,
-    }).filter(key => key.trim() !== '')
+    const settingKeys = Object.keys(npmrcResult.workspaceNpmrc)
+      .filter(key => key.trim() !== '')
     const unknownKeys = []
     for (const key of settingKeys) {
       if (!rcOptions.includes(key) && !key.startsWith('//') && !(key[0] === '@' && key.endsWith(':registry'))) {
@@ -599,8 +596,6 @@ export async function getConfig (opts: {
   }
 
   pnpmConfig.workspaceConcurrency = getWorkspaceConcurrency(pnpmConfig.workspaceConcurrency)
-
-  pnpmConfig.failedToLoadBuiltInConfig = failedToLoadBuiltInConfig
 
   if (pnpmConfig.only === 'prod' || pnpmConfig.only === 'production' || !pnpmConfig.only && pnpmConfig.production) {
     pnpmConfig.production = true

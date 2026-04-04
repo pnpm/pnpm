@@ -465,9 +465,9 @@ test('scripts work with PnP', async () => {
 
   await execa(pnpmBin, ['add', '@pnpm.e2e/hello-world-js-bin@1.0.0'], {
     env: {
-      NPM_CONFIG_REGISTRY: REGISTRY_URL,
-      NPM_CONFIG_NODE_LINKER: 'pnp',
-      NPM_CONFIG_SYMLINK: 'false',
+      pnpm_config_registry: REGISTRY_URL,
+      pnpm_config_node_linker: 'pnp',
+      pnpm_config_symlink: 'false',
     },
   })
   await run.handler({

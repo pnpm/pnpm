@@ -2,7 +2,7 @@ import { login } from '@pnpm/auth.commands'
 import { approveBuilds, ignoredBuilds, rebuild } from '@pnpm/building.commands'
 import { cache } from '@pnpm/cache.commands'
 import type { CommandHandlerMap, CompletionFunc } from '@pnpm/cli.command'
-import { createCompletionServer, doctor, generateCompletion } from '@pnpm/cli.commands'
+import { createCompletionServer, generateCompletion } from '@pnpm/cli.commands'
 import { config, getCommand, setCommand } from '@pnpm/config.commands'
 import { types as allTypes } from '@pnpm/config.reader'
 import { audit, licenses, sbom } from '@pnpm/deps.compliance.commands'
@@ -133,7 +133,6 @@ const commands: CommandDefinition[] = [
   create,
   deploy,
   dlx,
-  doctor,
   env,
   exec,
   runtime,

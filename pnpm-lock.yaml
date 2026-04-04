@@ -244,9 +244,6 @@ catalogs:
     '@pnpm/nopt':
       specifier: ^0.3.1
       version: 0.3.1
-    '@pnpm/npm-conf':
-      specifier: 3.0.2
-      version: 3.0.2
     '@pnpm/npm-lifecycle':
       specifier: 1100.0.0-1
       version: 1100.0.0-1
@@ -2463,9 +2460,6 @@ importers:
       '@pnpm/network.git-utils':
         specifier: workspace:*
         version: link:../../network/git-utils
-      '@pnpm/npm-conf':
-        specifier: 'catalog:'
-        version: 3.0.2
       '@pnpm/text.naming-cases':
         specifier: workspace:*
         version: link:../../text/naming-cases
@@ -2523,9 +2517,6 @@ importers:
       semver:
         specifier: 'catalog:'
         version: 7.7.4
-      which:
-        specifier: 'catalog:'
-        version: '@pnpm/which@3.0.1'
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -2551,9 +2542,6 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.7.1
-      '@types/which':
-        specifier: 'catalog:'
-        version: 3.0.4
       symlink-dir:
         specifier: 'catalog:'
         version: 10.0.1

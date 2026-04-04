@@ -103,7 +103,6 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
   preferSymlinkedExecutables?: boolean
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   registrySupportsTimeField?: boolean
-  failedToLoadBuiltInConfig: boolean
   resolvePeersFromWorkspaceRoot?: boolean
   deployAllFiles?: boolean
   forceLegacyDeploy?: boolean
@@ -209,6 +208,7 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
   packageLock: boolean
   pending: boolean
   userconfig: string
+  npmrcAuthFile?: string
   workspacePrefix?: string
   dedupeDirectDeps?: boolean
   extendNodePath?: boolean

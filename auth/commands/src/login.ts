@@ -201,7 +201,7 @@ export async function login ({ context = DEFAULT_CONTEXT, opts }: LoginParams): 
     }
   }
 
-  const configPath = path.join(opts.configDir, 'rc')
+  const configPath = path.join(opts.configDir, 'auth.ini')
   const settings = await safeReadIniFile(readIniFile, configPath) as Record<string, unknown>
   const registryConfigKey = getRegistryConfigKey(registry)
   settings[`${registryConfigKey}:_authToken`] = token

@@ -1,5 +1,8 @@
-import npmTypes from '@pnpm/npm-conf/lib/types.js'
+import path from 'node:path'
+
 import type { TrustPolicy } from '@pnpm/types'
+
+import { npmConfigTypes } from './npmConfigTypes.js'
 
 export const pnpmTypes = {
   'auto-install-peers': Boolean,
@@ -73,6 +76,7 @@ export const pnpmTypes = {
   'node-linker': ['pnp', 'isolated', 'hoisted'],
   noproxy: String,
   'npm-path': String,
+  'npmrc-auth-file': path,
   offline: Boolean,
   'pack-destination': String,
   'pack-gzip-level': Number,
@@ -149,5 +153,5 @@ export const pnpmTypes = {
 // TODO: After that, move `...pnpmTypes` down, `...npmTypes.types` up.
 export const types = {
   ...pnpmTypes,
-  ...npmTypes.types,
+  ...npmConfigTypes,
 }
