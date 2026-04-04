@@ -98,7 +98,11 @@ test('recursive update prod dependencies only', async () => {
       optional: false,
       production: true,
     },
-    optional: false,
+    include: {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: false,
+    },
     dir: process.cwd(),
     lockfileDir: process.cwd(),
     recursive: true,

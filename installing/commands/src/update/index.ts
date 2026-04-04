@@ -294,15 +294,6 @@ async function update (
     }
   }
   const includeDirect = makeIncludeDependenciesFromCLI(opts.cliOptions)
-  // Use cliOptions for include: only exclude dep types the user explicitly
-  // passed via CLI (e.g., --no-optional). Derived flags like dev=false from
-  // --prod should NOT change include, as that would conflict with the
-  // modules directory state (which was installed with all dep types).
-  const include = {
-    dependencies: opts.cliOptions.production !== false,
-    devDependencies: opts.cliOptions.dev !== false,
-    optionalDependencies: opts.cliOptions.optional !== false,
-  }
   const depth = opts.depth ?? Infinity
   let updateMatching: UpdateMatchingFunction | undefined
   if (opts.packageVulnerabilityAudit != null) {
@@ -319,7 +310,6 @@ async function update (
     allowNew: false,
     depth,
     ignoreCurrentSpecifiers: false,
-    include,
     includeDirect,
     update: true,
     updateToLatest: opts.latest,
