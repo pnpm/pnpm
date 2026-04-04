@@ -66,7 +66,7 @@ export async function recursivePublish (
   const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
   const { resolve } = createResolver({
     ...opts,
-    authConfig: opts.rawConfig,
+    rawConfig: opts.rawConfig,
     userConfig: opts.userConfig,
     retry: {
       factor: opts.fetchRetryFactor,

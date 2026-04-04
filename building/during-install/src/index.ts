@@ -43,7 +43,6 @@ export async function buildModules<T extends string> (
     lockfileDir: string
     optional: boolean
     preferSymlinkedExecutables?: boolean
-    rawConfig: object
     unsafePerm: boolean
     userAgent: string
     scriptsPrependNodePath?: boolean | 'warn-only'
@@ -141,7 +140,6 @@ async function buildDependency<T extends string> (
     lockfileDir: string
     optional: boolean
     preferSymlinkedExecutables?: boolean
-    rawConfig: object
     rootModulesDir: string
     scriptsPrependNodePath?: boolean | 'warn-only'
     scriptShell?: string
@@ -149,6 +147,7 @@ async function buildDependency<T extends string> (
     sideEffectsCacheWrite: boolean
     storeController: StoreController
     unsafePerm: boolean
+    userAgent?: string
     hoistedLocations?: Record<string, string[]>
     builtHoistedDeps?: Record<string, DeferredPromise<void>>
     enableGlobalVirtualStore?: boolean
@@ -184,12 +183,12 @@ async function buildDependency<T extends string> (
       initCwd: opts.lockfileDir,
       optional: depNode.optional,
       pkgRoot: depNode.dir,
-      rawConfig: opts.rawConfig,
       rootModulesDir: opts.rootModulesDir,
       scriptsPrependNodePath: opts.scriptsPrependNodePath,
       scriptShell: opts.scriptShell,
       shellEmulator: opts.shellEmulator,
       unsafePerm: opts.unsafePerm || false,
+      userAgent: opts.userAgent,
     })
     // Remove the .pnpm-needs-build marker before uploading side effects,
     // so it doesn't get cached as part of the package's side effects diff.

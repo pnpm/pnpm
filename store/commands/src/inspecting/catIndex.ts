@@ -70,7 +70,7 @@ export async function handler (opts: CatIndexCommandOptions, params: string[]): 
   })
   const { resolve } = createResolver({
     ...opts,
-    authConfig: opts.rawConfig,
+    rawConfig: opts.rawConfig,
   })
   const pkgSnapshot = await resolve(
     { alias, bareSpecifier },

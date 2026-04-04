@@ -275,7 +275,6 @@ so you may run "pnpm -w run ${scriptName}"`,
     extraBinPaths: opts.extraBinPaths,
     extraEnv: opts.extraEnv,
     pkgRoot: dir,
-    rawConfig: opts.rawConfig,
     rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
     scriptsPrependNodePath: opts.scriptsPrependNodePath,
     scriptShell: opts.scriptShell,
@@ -283,6 +282,7 @@ so you may run "pnpm -w run ${scriptName}"`,
     shellEmulator: opts.shellEmulator,
     stdio: (specifiedScripts.length > 1 && concurrency > 1) ? 'pipe' : 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
+    userAgent: opts.userAgent,
   }
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const pnpPath = (opts.workspaceDir && existsPnp(opts.workspaceDir)) ?? existsPnp(dir)

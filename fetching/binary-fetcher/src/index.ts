@@ -15,7 +15,6 @@ import { temporaryDirectory } from 'tempy'
 export function createBinaryFetcher (ctx: {
   fetch: FetchFromRegistry
   fetchFromRemoteTarball: FetchFunction
-  rawConfig: Record<string, string>
   storeIndex: StoreIndex
   offline?: boolean
 }): { binary: BinaryFetcher } {

@@ -156,7 +156,6 @@ export type ExecOpts = Required<Pick<Config, 'selectedProjectsGraph'>> & {
 | 'modulesDir'
 | 'nodeOptions'
 | 'pnpmHomeDir'
-| 'rawConfig'
 | 'recursive'
 | 'reporterHidePrefix'
 | 'userAgent'

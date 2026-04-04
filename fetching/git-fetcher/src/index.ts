@@ -15,7 +15,6 @@ import { safeExeca as execa } from 'execa'
 
 export interface CreateGitFetcherOptions {
   gitShallowHosts?: string[]
-  rawConfig: Record<string, unknown>
   storeIndex: StoreIndex
   unsafePerm?: boolean
   ignoreScripts?: boolean
@@ -44,7 +43,6 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
       const prepareResult = await preparePackage({
         allowBuild: opts.allowBuild,
         ignoreScripts: createOpts.ignoreScripts,
-        rawConfig: createOpts.rawConfig,
         unsafePerm: createOpts.unsafePerm,
       }, tempLocation, resolution.path ?? '')
       pkgDir = prepareResult.pkgDir

@@ -137,10 +137,6 @@ export async function recursiveRebuild (
               ...localConfig,
               dir: rootDir,
               pending: opts.pending === true,
-              rawConfig: {
-                ...rebuildOpts.rawConfig,
-                ...localConfig,
-              },
             }
           )
           result[rootDir].status = 'passed'

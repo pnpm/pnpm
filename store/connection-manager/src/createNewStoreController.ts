@@ -72,7 +72,6 @@ export async function createNewStoreController (
     customFetchers: opts.hooks?.customFetchers,
     userConfig: opts.userConfig,
     unsafePerm: opts.unsafePerm,
-    authConfig: opts.rawConfig,
     ca: opts.ca,
     cacheDir: opts.cacheDir,
     storeDir: opts.storeDir,

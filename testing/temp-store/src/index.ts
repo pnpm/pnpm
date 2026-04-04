@@ -25,8 +25,7 @@ export function createTempStore (opts?: {
   const storeDir = opts?.storeDir ?? path.resolve('.store')
   const storeIndex = new StoreIndex(storeDir)
   const { resolve, fetchers, clearResolutionCache } = createClient({
-    authConfig,
-    rawConfig: {},
+    rawConfig: authConfig,
     retry: {
       retries: 4,
       factor: 10,

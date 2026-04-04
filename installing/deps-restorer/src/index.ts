@@ -575,7 +575,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       lockfileDir,
       optional: opts.include.optionalDependencies,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-      rawConfig: opts.rawConfig,
       rootModulesDir: virtualStoreDir,
       scriptsPrependNodePath: opts.scriptsPrependNodePath,
       scriptShell: opts.scriptShell,
