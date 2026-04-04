@@ -89,6 +89,8 @@ Or a specific test case in a specific file:
 pnpm --filter <package_name> test <file_path> -t <test_name_pattern>
 ```
 
+**Never ignore test failures.** Do not dismiss a failing test as a "pre-existing" failure that is unrelated to your changes. Every test failure must be investigated and fixed. If a test was already broken before your changes, fix it as part of your work — do not silently skip it or treat it as acceptable.
+
 ## Linting
 
 To run all linting checks:
