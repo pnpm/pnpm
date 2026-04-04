@@ -17,6 +17,7 @@ export interface CreateGitFetcherOptions {
   gitShallowHosts?: string[]
   storeIndex: StoreIndex
   unsafePerm?: boolean
+  userAgent?: string
   ignoreScripts?: boolean
 }
 
@@ -44,6 +45,7 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
         allowBuild: opts.allowBuild,
         ignoreScripts: createOpts.ignoreScripts,
         unsafePerm: createOpts.unsafePerm,
+        userAgent: createOpts.userAgent,
       }, tempLocation, resolution.path ?? '')
       pkgDir = prepareResult.pkgDir
       if (ignoreScripts && prepareResult.shouldBeBuilt) {

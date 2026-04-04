@@ -23,6 +23,7 @@ export interface PreparePackageOptions {
   allowBuild?: AllowBuild
   ignoreScripts?: boolean
   unsafePerm?: boolean
+  userAgent?: string
 }
 
 export async function preparePackage (opts: PreparePackageOptions, gitRootDir: string, subDir: string): Promise<{ shouldBeBuilt: boolean, pkgDir: string }> {
@@ -49,6 +50,7 @@ allowBuilds:
     pkgRoot: pkgDir,
     rootModulesDir: pkgDir, // We don't need this property but there is currently no way to not set it.
     unsafePerm: Boolean(opts.unsafePerm),
+    userAgent: opts.userAgent,
   }
   try {
     const installScriptName = `${pm}-install`

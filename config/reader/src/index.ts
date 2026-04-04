@@ -280,9 +280,8 @@ export async function getConfig (opts: {
     npmrcResult.workspaceNpmrc,
     cliOptions
   )
-  pnpmConfig.userAgent = pnpmConfig.rawLocalConfig['user-agent']
-    ? pnpmConfig.rawLocalConfig['user-agent']
-    : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
+  pnpmConfig.userAgent = (cliOptions['user-agent'] as string | undefined)
+    ?? `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
   pnpmConfig.authConfig = pickIniConfig(npmrcResult.rawConfig)
 
   // Reuse the global config.yaml already read for npmrcAuthFile
