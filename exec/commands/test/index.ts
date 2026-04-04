@@ -49,7 +49,7 @@ test('pnpm run: returns correct exit code', async () => {
       extraBinPaths: [],
       extraEnv: {},
       pnpmHomeDir: '',
-  
+
     }, ['exit1'])
   } catch (_err: any) { // eslint-disable-line
     err = _err
@@ -351,7 +351,7 @@ test('"pnpm run" prints the list of available commands, including commands of th
       extraBinPaths: [],
       extraEnv: {},
       pnpmHomeDir: '',
-  
+
       selectedProjectsGraph,
       workspaceDir,
     }, [])
@@ -381,7 +381,7 @@ Commands of the root workspace project (to run them, use "pnpm -w run"):
       extraBinPaths: [],
       extraEnv: {},
       pnpmHomeDir: '',
-  
+
       selectedProjectsGraph,
       workspaceDir,
     }, [])
@@ -547,7 +547,7 @@ onlyOnWindows('pnpm shows error if script-shell is .cmd', async () => {
       extraBinPaths: [],
       extraEnv: {},
       pnpmHomeDir: '',
-  
+
       scriptShell: path.resolve('node_modules/.bin/shell-mock.cmd'),
     }, ['build'])
   }
@@ -688,7 +688,7 @@ test.each(['d', 'g', 'i', 'm', 'u', 'v', 'y', 's'])('pnpm run with RegExp script
       extraBinPaths: [],
       extraEnv: {},
       pnpmHomeDir: '',
-  
+
       workspaceConcurrency: 1,
     }, [`/build:.*/${flag}`])
   } catch (_err: any) { // eslint-disable-line
