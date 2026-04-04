@@ -4,5 +4,6 @@ import type { ConfigCommandOptions } from './ConfigCommandOptions.js'
 import { configToRecord } from './configToRecord.js'
 
 export async function configList (opts: ConfigCommandOptions): Promise<string> {
-  return JSON.stringify(configToRecord(opts as unknown as Config & ConfigContext), undefined, 2)
+  const combined = opts as unknown as Config & ConfigContext
+  return JSON.stringify(configToRecord(combined, combined), undefined, 2)
 }

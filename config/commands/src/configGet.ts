@@ -45,7 +45,7 @@ function lookupConfig (opts: ConfigCommandOptions, key: string, isScopedKey: boo
   // For keys not in types (e.g., package-extensions), look up via configToRecord
   // which excludes internal/sensitive fields.
   const camelKey = camelcase(key, { locale: 'en-US' })
-  const record = configToRecord(opts as unknown as Config & ConfigContext)
+  const record = configToRecord(opts as unknown as Config, opts as unknown as ConfigContext)
   if (Object.hasOwn(record, camelKey)) {
     return { value: record[camelKey] }
   }
@@ -55,9 +55,9 @@ function lookupConfig (opts: ConfigCommandOptions, key: string, isScopedKey: boo
 function lookupByPropertyPath (opts: ConfigCommandOptions, propertyPath: string): Found<unknown> {
   const parsedPropertyPath = Array.from(parseConfigPropertyPath(propertyPath))
   if (parsedPropertyPath.length === 0) {
-    return { value: configToRecord(opts as unknown as Config & ConfigContext) }
+    return { value: configToRecord(opts as unknown as Config, opts as unknown as ConfigContext) }
   }
-  const record = configToRecord(opts as unknown as Config & ConfigContext)
+  const record = configToRecord(opts as unknown as Config, opts as unknown as ConfigContext)
   return {
     value: getObjectValueByPropertyPath(record, parsedPropertyPath),
   }

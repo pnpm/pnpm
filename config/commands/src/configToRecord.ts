@@ -4,12 +4,10 @@ import camelcase from 'camelcase'
 
 import { censorProtectedSettings } from './protectedSettings.js'
 
-const INTERNAL_CONFIG_KEYS = new Set([
-  'authConfig', 'authInfos', 'rawLocalConfig', 'cliOptions',
-  'explicitlySetKeys',
-  'hooks', 'finders', 'allProjects', 'allProjectsGraph', 'selectedProjectsGraph',
-  'packageManager', 'wantedPackageManager', 'rootProjectManifest',
-  'storeController', 'rootProjectManifestDir', 'sslConfigs',
+// Config fields that are internal objects and should not appear in user-facing output.
+// These are on Config (not ConfigContext) but are not user settings.
+const NON_SETTING_CONFIG_KEYS = new Set([
+  'authConfig', 'authInfos', 'sslConfigs',
 ])
 
 /**
@@ -17,9 +15,9 @@ const INTERNAL_CONFIG_KEYS = new Set([
  * Only includes explicitly set values (from CLI, env vars, or workspace yaml),
  * not default values. Auth/registry keys from authConfig are always included.
  */
-export function configToRecord (config: Config & ConfigContext): Record<string, unknown> {
+export function configToRecord (config: Config, context: Pick<ConfigContext, 'explicitlySetKeys'>): Record<string, unknown> {
   const result: Record<string, unknown> = {}
-  const explicit = config.explicitlySetKeys
+  const explicit = context.explicitlySetKeys
   // Add typed settings (only explicitly set ones if tracking is available)
   for (const kebabKey of Object.keys(types)) {
     const camelKey = camelcase(kebabKey, { locale: 'en-US' })
@@ -31,7 +29,7 @@ export function configToRecord (config: Config & ConfigContext): Record<string, 
   }
   // Add non-types config properties (e.g., packageExtensions, overrides)
   for (const [key, value] of Object.entries(config)) {
-    if (value === undefined || INTERNAL_CONFIG_KEYS.has(key)) continue
+    if (value === undefined || NON_SETTING_CONFIG_KEYS.has(key)) continue
     if (!(key in result) && (!explicit || explicit.has(key))) {
       result[key] = value
     }
