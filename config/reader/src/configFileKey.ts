@@ -59,6 +59,7 @@ export const excludedPnpmKeys = [
   'auto-install-peers',
   'catalog-mode',
   'config-dir',
+  'confirm-modules-purge',
   'merge-git-branch-lockfiles',
   'merge-git-branch-lockfiles-branch-pattern',
   'deploy-all-files',
