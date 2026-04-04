@@ -1,6 +1,6 @@
 import { type Config, isIniConfigKey, types } from '@pnpm/config.reader'
 import { getObjectValueByPropertyPath } from '@pnpm/object.property-path'
-import { isCamelCase, isStrictlyKebabCase } from '@pnpm/text.naming-cases'
+import { isCamelCase } from '@pnpm/text.naming-cases'
 import camelcase from 'camelcase'
 import kebabCase from 'lodash.kebabcase'
 
@@ -10,7 +10,7 @@ import { parseConfigPropertyPath } from './parseConfigPropertyPath.js'
 
 export function configGet (opts: ConfigCommandOptions, key: string): { output: string, exitCode: number } {
   const isScopedKey = key.startsWith('@')
-  const configResult = lookupConfig(opts, key, isScopedKey) ?? lookupByPropertyPath(opts, key)
+  const configResult = lookupConfig(opts, key, isScopedKey) ?? (isPropertyPath(key) ? lookupByPropertyPath(opts, key) : { value: undefined })
   const output = displayConfig(configResult?.value, opts)
   return { output, exitCode: 0 }
 }
@@ -28,9 +28,12 @@ function lookupConfig (opts: ConfigCommandOptions, key: string, isScopedKey: boo
     const camelKey = camelcase(kebabKey, { locale: 'en-US' })
     return { value: (opts as unknown as Record<string, unknown>)[camelKey] }
   }
-  if (isStrictlyKebabCase(key)) {
-    const camelKey = camelcase(key, { locale: 'en-US' })
-    return { value: (opts as unknown as Record<string, unknown>)[camelKey] }
+  // For keys not in types (e.g., package-extensions), look up via configToRecord
+  // which excludes internal/sensitive fields.
+  const camelKey = camelcase(key, { locale: 'en-US' })
+  const record = configToRecord(opts as unknown as Config)
+  if (Object.hasOwn(record, camelKey)) {
+    return { value: record[camelKey] }
   }
   return undefined
 }
@@ -44,6 +47,10 @@ function lookupByPropertyPath (opts: ConfigCommandOptions, propertyPath: string)
   return {
     value: getObjectValueByPropertyPath(record, parsedPropertyPath),
   }
+}
+
+function isPropertyPath (key: string): boolean {
+  return key === '' || key.includes('.') || key.includes('[')
 }
 
 type DisplayConfigOptions = Pick<ConfigCommandOptions, 'json'>

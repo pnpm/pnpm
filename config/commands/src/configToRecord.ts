@@ -5,10 +5,10 @@ import camelcase from 'camelcase'
 import { censorProtectedSettings } from './protectedSettings.js'
 
 const INTERNAL_CONFIG_KEYS = new Set([
-  'authConfig', 'rawLocalConfig', 'cliOptions',
+  'authConfig', 'authInfos', 'rawLocalConfig', 'cliOptions',
   'hooks', 'finders', 'allProjects', 'selectedProjectsGraph',
   'packageManager', 'wantedPackageManager', 'rootProjectManifest',
-  'storeController', 'rootProjectManifestDir',
+  'storeController', 'rootProjectManifestDir', 'sslConfigs',
 ])
 
 /**
