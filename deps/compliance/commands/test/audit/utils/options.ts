@@ -43,7 +43,6 @@ export const DEFAULT_OPTS = {
   preferWorkspacePackages: true,
   proxy: undefined,
   authConfig,
-  rawLocalConfig: {},
   registries,
   rootProjectManifestDir: '',
   registry: registries.default,

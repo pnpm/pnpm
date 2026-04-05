@@ -12,12 +12,6 @@ test('inheritAuthConfig copies only auth keys from source to target', () => {
         registry: 'https://npmjs.com/registry/',
       },
     } as any, // eslint-disable-line
-    context: {
-      rawLocalConfig: {
-        bin: 'foo',
-        registry: 'https://npmjs.com/registry/',
-      },
-    },
   }
 
   inheritAuthConfig(target, {
@@ -31,15 +25,6 @@ test('inheritAuthConfig copies only auth keys from source to target', () => {
         '//example.com/global-registry/:_auth': 'MY_SECRET_GLOBAL_AUTH',
       },
     } as any, // eslint-disable-line
-    context: {
-      rawLocalConfig: {
-        bin: 'bar',
-        'cache-dir': '/path/to/another/cache/dir',
-        'store-dir': '/path/to/custom/store/dir',
-        registry: 'https://example.com/local-registry/',
-        '//example.com/local-registry/:_authToken': 'MY_SECRET_LOCAL_AUTH',
-      },
-    },
   })
 
   expect(target.config).toMatchObject({
@@ -51,10 +36,5 @@ test('inheritAuthConfig copies only auth keys from source to target', () => {
       registry: 'https://example.com/global-registry/',
       '//example.com/global-registry/:_auth': 'MY_SECRET_GLOBAL_AUTH',
     },
-  })
-  expect(target.context.rawLocalConfig).toStrictEqual({
-    bin: 'foo',
-    registry: 'https://example.com/local-registry/',
-    '//example.com/local-registry/:_authToken': 'MY_SECRET_LOCAL_AUTH',
   })
 })

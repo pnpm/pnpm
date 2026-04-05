@@ -277,12 +277,6 @@ export async function getConfig (opts: {
   pnpmConfig.workspaceDir = opts.workspaceDir
   pnpmConfig.workspaceRoot = cliOptions['workspace-root'] as boolean // This is needed to prevent pnpm reading workspaceRoot from env variables
 
-  // Build rawLocalConfig from workspace .npmrc + CLI options
-  pnpmConfig.rawLocalConfig = Object.assign(
-    {},
-    npmrcResult.workspaceNpmrc,
-    cliOptions
-  )
   pnpmConfig.userAgent = (cliOptions['user-agent'] as string | undefined)
     ?? `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
   pnpmConfig.authConfig = pickIniConfig(npmrcResult.rawConfig)
@@ -628,7 +622,7 @@ export async function getConfig (opts: {
     hooks, finders,
     allProjects, selectedProjectsGraph, allProjectsGraph,
     rootProjectManifest, rootProjectManifestDir,
-    cliOptions: ctxCliOptions, rawLocalConfig: ctxRawLocalConfig,
+    cliOptions: ctxCliOptions,
     explicitlySetKeys: ctxExplicitlySetKeys,
     packageManager: ctxPackageManager, wantedPackageManager,
     ...config
@@ -637,7 +631,7 @@ export async function getConfig (opts: {
     hooks, finders,
     allProjects, selectedProjectsGraph, allProjectsGraph,
     rootProjectManifest, rootProjectManifestDir,
-    cliOptions: ctxCliOptions, rawLocalConfig: ctxRawLocalConfig,
+    cliOptions: ctxCliOptions,
     explicitlySetKeys: ctxExplicitlySetKeys,
     packageManager: ctxPackageManager, wantedPackageManager,
   }

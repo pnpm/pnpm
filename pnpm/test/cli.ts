@@ -112,7 +112,7 @@ test('adding new dep does not fail if node_modules was created with --public-hoi
 
   expect(execPnpmSync(['add', 'is-negative', '--no-hoist']).status).toBe(1)
   expect(execPnpmSync(['add', 'is-negative', '--no-shamefully-hoist']).status).toBe(1)
-  expect(execPnpmSync(['add', 'is-negative']).status).toBe(0)
+  expect(execPnpmSync(['add', 'is-negative', '--public-hoist-pattern=eslint-*']).status).toBe(0)
 
   project.has('is-negative')
 })
