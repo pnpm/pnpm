@@ -27,7 +27,7 @@ export async function checkForUpdates (config: Config): Promise<void> {
 
   const { resolve } = createResolver({
     ...config,
-    credsByUri: config.credsByUri,
+    configByUri: config.configByUri,
     retry: {
       retries: 0,
     },

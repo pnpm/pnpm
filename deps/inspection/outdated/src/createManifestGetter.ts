@@ -4,19 +4,19 @@ import {
   createResolver,
   type ResolveFunction,
 } from '@pnpm/installing.client'
-import type { Creds, DependencyManifest, PackageVersionPolicy } from '@pnpm/types'
+import type { DependencyManifest, PackageVersionPolicy, RegistryConfig } from '@pnpm/types'
 
 interface GetManifestOpts {
   dir: string
   lockfileDir: string
-  credsByUri: object
+  configByUri: object
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
 }
 
-export type ManifestGetterOptions = Omit<ClientOptions, 'credsByUri' | 'minimumReleaseAgeExclude' | 'storeIndex'>
+export type ManifestGetterOptions = Omit<ClientOptions, 'configByUri' | 'minimumReleaseAgeExclude' | 'storeIndex'>
 & GetManifestOpts
-& { fullMetadata: boolean, credsByUri: Record<string, Creds> }
+& { fullMetadata: boolean, configByUri: Record<string, RegistryConfig> }
 
 export function createManifestGetter (
   opts: ManifestGetterOptions
@@ -27,7 +27,7 @@ export function createManifestGetter (
 
   const { resolve } = createResolver({
     ...opts,
-    credsByUri: opts.credsByUri,
+    configByUri: opts.configByUri,
     filterMetadata: false, // We need all the data from metadata for "outdated --long" to work.
     strictPublishedByCheck: Boolean(opts.minimumReleaseAge),
   })

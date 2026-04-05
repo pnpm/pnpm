@@ -4,7 +4,7 @@ import { URL } from 'node:url'
 
 import { nerfDart } from '@pnpm/config.nerf-dart'
 import { PnpmError } from '@pnpm/error'
-import type { Creds } from '@pnpm/types'
+import type { TlsConfig } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
 import { SocksClient } from 'socks'
 import { Agent, type Dispatcher, ProxyAgent, setGlobalDispatcher } from 'undici'
@@ -38,7 +38,7 @@ const DISPATCHER_CACHE = new LRUCache<string, Dispatcher>({
   },
 })
 
-export type ClientCertificates = Record<string, Partial<Pick<Creds, 'cert' | 'key' | 'ca'>>>
+export type ClientCertificates = Record<string, TlsConfig>
 
 export interface DispatcherOptions {
   ca?: string | string[] | Buffer

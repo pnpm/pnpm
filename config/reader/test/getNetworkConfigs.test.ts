@@ -21,9 +21,9 @@ test('without files', () => {
     '//example.com/foo:ca': 'some-ca',
   })).toStrictEqual({
     registries: {},
-    credsByUri: {
+    configByUri: {
       '//example.com/foo': {
-        ca: 'some-ca',
+        tls: { ca: 'some-ca' },
       },
     },
   } as NetworkConfigs)
@@ -32,9 +32,9 @@ test('without files', () => {
     '//example.com/foo:cert': 'some-cert',
   })).toStrictEqual({
     registries: {},
-    credsByUri: {
+    configByUri: {
       '//example.com/foo': {
-        cert: 'some-cert',
+        tls: { cert: 'some-cert' },
       },
     },
   } as NetworkConfigs)
@@ -47,10 +47,9 @@ test('without files', () => {
     registries: {
       '@foo': 'https://example.com/foo',
     },
-    credsByUri: {
+    configByUri: {
       '//example.com/foo': {
-        ca: 'some-ca',
-        cert: 'some-cert',
+        tls: { ca: 'some-ca', cert: 'some-cert' },
       },
     },
   } as NetworkConfigs)
@@ -70,16 +69,15 @@ test('with files', () => {
     registries: {
       '@foo': 'https://example.com/foo',
     },
-    credsByUri: {
+    configByUri: {
       '//example.com/foo': {
-        ca: 'some-ca',
-        cert: 'some-cert',
+        tls: { ca: 'some-ca', cert: 'some-cert' },
       },
     },
   } as NetworkConfigs)
 })
 
-test('auth and ssl combined', () => {
+test('auth and tls combined', () => {
   expect(getNetworkConfigs({
     '@foo:registry': 'https://example.com/foo',
     '//example.com/foo:_authToken': 'example auth token',
@@ -87,9 +85,9 @@ test('auth and ssl combined', () => {
     registries: {
       '@foo': 'https://example.com/foo',
     },
-    credsByUri: {
+    configByUri: {
       '//example.com/foo': {
-        authToken: 'example auth token',
+        creds: { authToken: 'example auth token' },
       },
     },
   } as NetworkConfigs)
@@ -101,11 +99,13 @@ test('auth and ssl combined', () => {
     registries: {
       '@foo': 'https://example.com/foo',
     },
-    credsByUri: {
+    configByUri: {
       '//example.com/foo': {
-        basicAuth: {
-          username: 'foo',
-          password: 'bar',
+        creds: {
+          basicAuth: {
+            username: 'foo',
+            password: 'bar',
+          },
         },
       },
     },
@@ -119,11 +119,13 @@ test('auth and ssl combined', () => {
     registries: {
       '@foo': 'https://example.com/foo',
     },
-    credsByUri: {
+    configByUri: {
       '//example.com/foo': {
-        basicAuth: {
-          username: 'foo',
-          password: 'bar',
+        creds: {
+          basicAuth: {
+            username: 'foo',
+            password: 'bar',
+          },
         },
       },
     },
@@ -136,9 +138,9 @@ test('auth and ssl combined', () => {
     registries: {
       '@foo': 'https://example.com/foo',
     },
-    credsByUri: {
+    configByUri: {
       '//example.com/foo': {
-        tokenHelper: ['node', './my-token-helper.cjs'],
+        creds: { tokenHelper: ['node', './my-token-helper.cjs'] },
       },
     },
   } as NetworkConfigs)
@@ -149,11 +151,10 @@ test('auth and ssl combined', () => {
     '//example.com/foo:key': 'some-key',
   })).toStrictEqual({
     registries: {},
-    credsByUri: {
+    configByUri: {
       '//example.com/foo': {
-        authToken: 'token',
-        cert: 'some-cert',
-        key: 'some-key',
+        creds: { authToken: 'token' },
+        tls: { cert: 'some-cert', key: 'some-key' },
       },
     },
   } as NetworkConfigs)

@@ -3,7 +3,7 @@ import path from 'node:path'
 import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addUser, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import type { Creds } from '@pnpm/types'
+import type { RegistryConfig } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 
 import { testDefaults } from '../utils/index.js'
@@ -19,13 +19,13 @@ test('a package that need authentication', async () => {
     username: 'foo',
   })
 
-  let credsByUri: Record<string, Creds> = {
-    [`//localhost:${REGISTRY_MOCK_PORT}/`]: { authToken: data.token },
+  let configByUri: Record<string, RegistryConfig> = {
+    [`//localhost:${REGISTRY_MOCK_PORT}/`]: { creds: { authToken: data.token } },
   }
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], testDefaults({}, {
-    credsByUri,
+    configByUri,
   }, {
-    credsByUri,
+    configByUri,
   }))
 
   project.has('@pnpm.e2e/needs-auth')
@@ -35,14 +35,14 @@ test('a package that need authentication', async () => {
   rimrafSync('node_modules')
   rimrafSync(path.join('..', '.store'))
 
-  credsByUri = {
-    [`//localhost:${REGISTRY_MOCK_PORT}/`]: { authToken: data.token },
+  configByUri = {
+    [`//localhost:${REGISTRY_MOCK_PORT}/`]: { creds: { authToken: data.token } },
   }
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/needs-auth'], testDefaults({}, {
-    credsByUri,
+    configByUri,
     registry: 'https://registry.npmjs.org/',
   }, {
-    credsByUri,
+    configByUri,
   }))
 
   project.has('@pnpm.e2e/needs-auth')
@@ -57,13 +57,13 @@ test('installing a package that need authentication, using password', async () =
     username: 'foo',
   })
 
-  const credsByUri: Record<string, Creds> = {
-    [`//localhost:${REGISTRY_MOCK_PORT}/`]: { basicAuth: { username: 'foo', password: 'bar' } },
+  const configByUri: Record<string, RegistryConfig> = {
+    [`//localhost:${REGISTRY_MOCK_PORT}/`]: { creds: { basicAuth: { username: 'foo', password: 'bar' } } },
   }
   await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], testDefaults({}, {
-    credsByUri,
+    configByUri,
   }, {
-    credsByUri,
+    configByUri,
   }))
 
   project.has('@pnpm.e2e/needs-auth')
@@ -78,13 +78,13 @@ test('a package that need authentication, legacy way', async () => {
     username: 'foo',
   })
 
-  const credsByUri: Record<string, Creds> = {
-    '': { basicAuth: { username: 'foo', password: 'bar' } },
+  const configByUri: Record<string, RegistryConfig> = {
+    '': { creds: { basicAuth: { username: 'foo', password: 'bar' } } },
   }
   await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], testDefaults({}, {
-    credsByUri,
+    configByUri,
   }, {
-    credsByUri,
+    configByUri,
   }))
 
   project.has('@pnpm.e2e/needs-auth')
@@ -99,8 +99,8 @@ test('a scoped package that need authentication specific to scope', async () => 
     username: 'foo',
   })
 
-  const credsByUri: Record<string, Creds> = {
-    [`//localhost:${REGISTRY_MOCK_PORT}/`]: { authToken: data.token },
+  const configByUri: Record<string, RegistryConfig> = {
+    [`//localhost:${REGISTRY_MOCK_PORT}/`]: { creds: { authToken: data.token } },
   }
   let opts = testDefaults({
     registries: {
@@ -108,10 +108,10 @@ test('a scoped package that need authentication specific to scope', async () => 
       '@private': `http://localhost:${REGISTRY_MOCK_PORT}/`,
     },
   }, {
-    credsByUri,
+    configByUri,
     registry: 'https://registry.npmjs.org/',
   }, {
-    credsByUri,
+    configByUri,
   })
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@private/foo'], opts)
 
@@ -128,10 +128,10 @@ test('a scoped package that need authentication specific to scope', async () => 
       '@private': `http://localhost:${REGISTRY_MOCK_PORT}/`,
     },
   }, {
-    credsByUri,
+    configByUri,
     registry: 'https://registry.npmjs.org/',
   }, {
-    credsByUri,
+    configByUri,
   })
   await addDependenciesToPackage(manifest, ['@private/foo'], opts)
 
@@ -147,8 +147,8 @@ test('a scoped package that need legacy authentication specific to scope', async
     username: 'foo',
   })
 
-  const credsByUri: Record<string, Creds> = {
-    [`//localhost:${REGISTRY_MOCK_PORT}/`]: { basicAuth: { username: 'foo', password: 'bar' } },
+  const configByUri: Record<string, RegistryConfig> = {
+    [`//localhost:${REGISTRY_MOCK_PORT}/`]: { creds: { basicAuth: { username: 'foo', password: 'bar' } } },
   }
   let opts = testDefaults({
     registries: {
@@ -156,10 +156,10 @@ test('a scoped package that need legacy authentication specific to scope', async
       '@private': `http://localhost:${REGISTRY_MOCK_PORT}/`,
     },
   }, {
-    credsByUri,
+    configByUri,
     registry: 'https://registry.npmjs.org/',
   }, {
-    credsByUri,
+    configByUri,
   })
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@private/foo'], opts)
 
@@ -176,10 +176,10 @@ test('a scoped package that need legacy authentication specific to scope', async
       '@private': `http://localhost:${REGISTRY_MOCK_PORT}/`,
     },
   }, {
-    credsByUri,
+    configByUri,
     registry: 'https://registry.npmjs.org/',
   }, {
-    credsByUri,
+    configByUri,
   })
   await addDependenciesToPackage(manifest, ['@private/foo'], opts)
 
@@ -195,18 +195,18 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
     username: 'foo',
   })
 
-  const credsByUri: Record<string, Creds> = {
-    [`//127.0.0.1:${REGISTRY_MOCK_PORT}/`]: { authToken: data.token },
+  const configByUri: Record<string, RegistryConfig> = {
+    [`//127.0.0.1:${REGISTRY_MOCK_PORT}/`]: { creds: { authToken: data.token } },
   }
   await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], testDefaults({
     registries: {
       default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
     },
   }, {
-    credsByUri,
+    configByUri,
     registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
   }, {
-    credsByUri,
+    configByUri,
   }))
 
   project.has('@pnpm.e2e/needs-auth')
@@ -221,18 +221,18 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
     username: 'foo',
   })
 
-  const credsByUri: Record<string, Creds> = {
-    [`//127.0.0.1:${REGISTRY_MOCK_PORT}/`]: { authToken: data.token },
+  const configByUri: Record<string, RegistryConfig> = {
+    [`//127.0.0.1:${REGISTRY_MOCK_PORT}/`]: { creds: { authToken: data.token } },
   }
   let opts = testDefaults({
     registries: {
       default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
     },
   }, {
-    credsByUri,
+    configByUri,
     registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
   }, {
-    credsByUri,
+    configByUri,
   })
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], opts)
@@ -247,10 +247,10 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
       default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
     },
   }, {
-    credsByUri,
+    configByUri,
     registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
   }, {
-    credsByUri,
+    configByUri,
   })
   await install(manifest, opts)
 

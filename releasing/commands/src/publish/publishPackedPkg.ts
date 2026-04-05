@@ -4,7 +4,7 @@ import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
-import type { Creds } from '@pnpm/types'
+import type { Creds, RegistryConfig } from '@pnpm/types'
 import type { PublishOptions } from 'libnpmpublish'
 
 import { displayError } from './displayError.js'
@@ -18,7 +18,7 @@ import type { PackResult } from './pack.js'
 import { allRegistryConfigKeys, type NormalizedRegistryUrl, parseSupportedRegistryUrl } from './registryConfigKeys.js'
 
 export type PublishPackedPkgOptions = Pick<Config,
-| 'credsByUri'
+| 'configByUri'
 | 'dryRun'
 | 'fetchRetries'
 | 'fetchRetryFactor'
@@ -59,7 +59,8 @@ export async function publishPackedPkg (
 }
 
 async function createPublishOptions (manifest: ExportedManifest, options: PublishPackedPkgOptions): Promise<PublishOptions> {
-  const { registry, creds } = findRegistryInfo(manifest, options)
+  const { registry, config } = findRegistryInfo(manifest, options)
+  const { creds, tls } = config ?? {}
 
   const {
     access,
@@ -101,9 +102,9 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
     // always fall back to prompting the user for an OTP code, even when the user
     // has no OTP set up.
     authType: 'web',
-    ca: creds?.ca,
-    cert: creds?.cert,
-    key: creds?.key,
+    ca: tls?.ca,
+    cert: tls?.cert,
+    key: tls?.key,
     npmCommand: 'publish',
     token: creds && extractToken(creds),
     username: creds?.basicAuth?.username,
@@ -123,7 +124,7 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
 
 interface RegistryInfo {
   registry: NormalizedRegistryUrl
-  creds: Creds
+  config: RegistryConfig
 }
 
 /**
@@ -132,7 +133,7 @@ interface RegistryInfo {
  */
 function findRegistryInfo (
   { name }: ExportedManifest,
-  { credsByUri, registries }: Pick<Config, 'credsByUri' | 'registries'>
+  { configByUri, registries }: Pick<Config, 'configByUri' | 'registries'>
 ): Partial<RegistryInfo> {
   // eslint-disable-next-line regexp/no-unused-capturing-group
   const scopedMatches = /@(?<scope>[^/]+)\/(?<slug>[^/]+)/.exec(name)
@@ -150,15 +151,15 @@ function findRegistryInfo (
     longestConfigKey: initialRegistryConfigKey,
   } = supportedRegistryInfo
 
-  let auth: Pick<Creds, 'authToken' | 'basicAuth' | 'tokenHelper'> | undefined
-  let ssl: Pick<Creds, 'cert' | 'key' | 'ca'> = {}
+  let creds: Creds | undefined
+  let tls: RegistryConfig['tls'] = {}
   for (const registryConfigKey of allRegistryConfigKeys(initialRegistryConfigKey)) {
-    const entry = credsByUri[registryConfigKey]
+    const entry = configByUri[registryConfigKey]
     if (!entry) continue
     // Auth from longer path collectively overrides shorter path
-    auth ??= entry
-    // SSL from longer path individually overrides shorter path
-    ssl = { ...entry, ...ssl }
+    creds ??= entry.creds
+    // TLS from longer path individually overrides shorter path
+    tls = { ...entry.tls, ...tls }
   }
 
   const isDefaultRegistry =
@@ -167,12 +168,12 @@ function findRegistryInfo (
     registry === parseSupportedRegistryUrl(registries.default)?.normalizedUrl
 
   if (isDefaultRegistry) {
-    auth ??= credsByUri['']
+    creds ??= configByUri['']?.creds
   }
 
   return {
     registry,
-    creds: { ...auth, ...ssl },
+    config: { creds, tls },
   }
 }
 

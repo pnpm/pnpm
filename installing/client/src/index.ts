@@ -13,12 +13,12 @@ import {
   type ResolverFactoryOptions,
 } from '@pnpm/resolving.default-resolver'
 import type { StoreIndex } from '@pnpm/store.index'
-import type { Creds } from '@pnpm/types'
+import type { RegistryConfig } from '@pnpm/types'
 
 export type { ResolveFunction }
 
 export type ClientOptions = {
-  credsByUri: Record<string, Creds>
+  configByUri: Record<string, RegistryConfig>
   customResolvers?: CustomResolver[]
   customFetchers?: CustomFetcher[]
   ignoreScripts?: boolean
@@ -43,7 +43,7 @@ export interface Client {
 
 export function createClient (opts: ClientOptions): Client {
   const fetchFromRegistry = createFetchFromRegistry(opts)
-  const getAuthHeader = createGetAuthHeaderByURI(opts.credsByUri, opts.registries?.default)
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri, opts.registries?.default)
 
   const { resolve, clearCache: clearResolutionCache } = _createResolver(fetchFromRegistry, getAuthHeader, { ...opts, customResolvers: opts.customResolvers })
   return {
@@ -55,7 +55,7 @@ export function createClient (opts: ClientOptions): Client {
 
 export function createResolver (opts: Omit<ClientOptions, 'storeIndex'>): { resolve: ResolveFunction, clearCache: () => void } {
   const fetchFromRegistry = createFetchFromRegistry(opts)
-  const getAuthHeader = createGetAuthHeaderByURI(opts.credsByUri, opts.registries?.default)
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri, opts.registries?.default)
 
   return _createResolver(fetchFromRegistry, getAuthHeader, { ...opts, customResolvers: opts.customResolvers })
 }

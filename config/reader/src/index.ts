@@ -303,18 +303,18 @@ export async function getConfig (opts: {
   }
   pnpmConfig.registries = { ...registriesFromNpmrc }
   const defaultCreds = getDefaultCreds(pnpmConfig.authConfig)
-  pnpmConfig.credsByUri = {
-    ...networkConfigs.credsByUri,
-    ...defaultCreds ? { '': defaultCreds } : {},
+  pnpmConfig.configByUri = {
+    ...networkConfigs.configByUri,
+    ...defaultCreds ? { '': { creds: defaultCreds } } : {},
   }
   // tokenHelper must only come from user-level config (~/.npmrc), not project-level,
   // to prevent project .npmrc from executing arbitrary commands.
   const userConfig = npmrcResult.userConfig as Record<string, string>
-  for (const [uri, parsedCreds] of Object.entries(pnpmConfig.credsByUri)) {
-    if (!parsedCreds.tokenHelper) continue
+  for (const [uri, registryConfig] of Object.entries(pnpmConfig.configByUri)) {
+    if (!registryConfig.creds?.tokenHelper) continue
     const rawKey = uri === '' ? 'tokenHelper' : `${uri}:tokenHelper`
     if (!(rawKey in userConfig)) {
-      delete parsedCreds.tokenHelper
+      delete registryConfig.creds.tokenHelper
     }
   }
   pnpmConfig.pnpmHomeDir = getDataDir({ env, platform: process.platform })

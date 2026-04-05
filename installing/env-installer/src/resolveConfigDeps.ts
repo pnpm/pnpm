@@ -12,14 +12,14 @@ import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@pnpm/network.fetch'
 import { createNpmResolver, type ResolverFactoryOptions } from '@pnpm/resolving.npm-resolver'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
-import type { ConfigDependencies, ConfigDependencySpecifiers, Creds } from '@pnpm/types'
+import type { ConfigDependencies, ConfigDependencySpecifiers, RegistryConfig } from '@pnpm/types'
 
 import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDeps.js'
 
 export type ResolveConfigDepsOpts = CreateFetchFromRegistryOptions & ResolverFactoryOptions & InstallConfigDepsOpts & {
   configDependencies?: ConfigDependencies
   rootDir: string
-  credsByUri?: Record<string, Creds>
+  configByUri?: Record<string, RegistryConfig>
 }
 
 export async function resolveConfigDeps (configDeps: string[], opts: ResolveConfigDepsOpts): Promise<void> {
@@ -28,7 +28,7 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
   }
 
   const fetch = createFetchFromRegistry(opts)
-  const getAuthHeader = createGetAuthHeaderByURI(opts.credsByUri ?? {}, opts.registries?.default)
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {}, opts.registries?.default)
   const { resolveFromNpm } = createNpmResolver(fetch, getAuthHeader, opts)
 
   // Extract existing specifiers from configDependencies (handles both old and new formats)

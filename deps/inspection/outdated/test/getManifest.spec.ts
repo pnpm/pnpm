@@ -8,7 +8,7 @@ test('getManifest()', async () => {
   const opts = {
     dir: '',
     lockfileDir: '',
-    credsByUri: {},
+    configByUri: {},
   }
 
   const resolve: ResolveFunction = async function (_wantedPackage, _opts) {
@@ -52,7 +52,7 @@ test('getManifest() with minimumReleaseAge filters latest when too new', async (
   const opts = {
     dir: '',
     lockfileDir: '',
-    credsByUri: {},
+    configByUri: {},
     minimumReleaseAge: 10080,
   }
 
@@ -78,7 +78,7 @@ test('getManifest() does not convert non-latest specifiers', async () => {
   const opts = {
     dir: '',
     lockfileDir: '',
-    credsByUri: {},
+    configByUri: {},
   }
 
   const resolve = jest.fn<ResolveFunction>(async (wantedPackage) => {
@@ -105,7 +105,7 @@ test('getManifest() returns null for NO_MATCHING_VERSION when publishedBy is set
   const opts = {
     dir: '',
     lockfileDir: '',
-    credsByUri: {},
+    configByUri: {},
   }
 
   const publishedBy = new Date(Date.now() - 10080 * 60 * 1000)
@@ -129,7 +129,7 @@ test('getManifest() throws NO_MATCHING_VERSION when publishedBy is not set', asy
   const opts = {
     dir: '',
     lockfileDir: '',
-    credsByUri: {},
+    configByUri: {},
   }
 
   const resolve: ResolveFunction = jest.fn(async function () {
@@ -145,7 +145,7 @@ test('getManifest() with minimumReleaseAgeExclude', async () => {
   const opts = {
     dir: '',
     lockfileDir: '',
-    credsByUri: {},
+    configByUri: {},
   }
 
   const publishedBy = new Date(Date.now() - 10080 * 60 * 1000)

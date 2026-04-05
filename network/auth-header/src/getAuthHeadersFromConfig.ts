@@ -1,23 +1,23 @@
 import { spawnSync } from 'node:child_process'
 
 import { PnpmError } from '@pnpm/error'
-import type { Creds, TokenHelper } from '@pnpm/types'
+import type { Creds, RegistryConfig, TokenHelper } from '@pnpm/types'
 
 export function getAuthHeadersFromCreds (
-  credsByUri: Record<string, Creds>,
+  configByUri: Record<string, RegistryConfig>,
   defaultRegistry: string
 ): Record<string, string> {
   const authHeaderValueByURI: Record<string, string> = {}
-  for (const [uri, parsedCreds] of Object.entries(credsByUri)) {
+  for (const [uri, registryConfig] of Object.entries(configByUri)) {
     if (uri === '') continue // default auth handled below
-    const header = credsToHeader(parsedCreds)
+    const header = credsToHeader(registryConfig.creds)
     if (header) {
       authHeaderValueByURI[uri] = header
     }
   }
-  const defaultAuth = credsByUri['']
-  if (defaultAuth) {
-    const header = credsToHeader(defaultAuth)
+  const defaultConfig = configByUri['']
+  if (defaultConfig?.creds) {
+    const header = credsToHeader(defaultConfig.creds)
     if (header) {
       authHeaderValueByURI[defaultRegistry] = header
     }
@@ -25,15 +25,16 @@ export function getAuthHeadersFromCreds (
   return authHeaderValueByURI
 }
 
-function credsToHeader (parsedCreds: Creds): string | undefined {
-  if (parsedCreds.tokenHelper) {
-    return executeTokenHelper(parsedCreds.tokenHelper)
+function credsToHeader (creds?: Creds): string | undefined {
+  if (!creds) return undefined
+  if (creds.tokenHelper) {
+    return executeTokenHelper(creds.tokenHelper)
   }
-  if (parsedCreds.authToken) {
-    return `Bearer ${parsedCreds.authToken}`
+  if (creds.authToken) {
+    return `Bearer ${creds.authToken}`
   }
-  if (parsedCreds.basicAuth) {
-    return `Basic ${Buffer.from(`${parsedCreds.basicAuth.username}:${parsedCreds.basicAuth.password}`, 'utf8').toString('base64')}`
+  if (creds.basicAuth) {
+    return `Basic ${Buffer.from(`${creds.basicAuth.username}:${creds.basicAuth.password}`, 'utf8').toString('base64')}`
   }
   return undefined
 }

@@ -12,7 +12,7 @@ type CreateResolverOptions = Pick<Config,
 | 'fetchRetryMaxtimeout'
 | 'fetchRetryMintimeout'
 | 'offline'
-| 'credsByUri'
+| 'configByUri'
 | 'verifyStoreIntegrity'
 > & Required<Pick<Config, 'cacheDir' | 'storeDir'>>
 
@@ -88,7 +88,7 @@ export async function createNewStoreController (
     noProxy: opts.noProxy,
     offline: opts.offline,
     preferOffline: opts.preferOffline,
-    credsByUri: opts.credsByUri,
+    configByUri: opts.configByUri,
     registries: opts.registries,
     retry: {
       factor: opts.fetchRetryFactor,

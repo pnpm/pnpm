@@ -1,12 +1,12 @@
 import fs from 'node:fs'
 
-import type { Creds } from '@pnpm/types'
+import type { Creds, RegistryConfig } from '@pnpm/types'
 import normalizeRegistryUrl from 'normalize-registry-url'
 
 import { parseCreds, type RawCreds } from './parseCreds.js'
 
 export interface NetworkConfigs {
-  credsByUri?: Record<string, Creds> // TODO: remove optional from here, this means that tests would have to be updated.
+  configByUri?: Record<string, RegistryConfig> // TODO: remove optional from here, this means that tests would have to be updated.
   registries: Record<string, string>
 }
 
@@ -31,19 +31,21 @@ export function getNetworkConfigs (rawConfig: Record<string, unknown>): NetworkC
     const parsedSsl = tryParseSslKey(configKey)
     if (parsedSsl) {
       const { registry, sslField, isFile } = parsedSsl
-      networkConfigs.credsByUri ??= {}
-      networkConfigs.credsByUri[registry] ??= {}
-      networkConfigs.credsByUri[registry][sslField] = isFile
+      networkConfigs.configByUri ??= {}
+      networkConfigs.configByUri[registry] ??= {}
+      networkConfigs.configByUri[registry].tls ??= {}
+      networkConfigs.configByUri[registry].tls[sslField] = isFile
         ? fs.readFileSync(value as string, 'utf8')
         : (value as string).replace(/\\n/g, '\n')
     }
   }
 
   for (const uri in rawCredsMap) {
-    const parsedCreds = parseCreds(rawCredsMap[uri])
-    if (parsedCreds) {
-      networkConfigs.credsByUri ??= {}
-      networkConfigs.credsByUri[uri] = { ...parsedCreds, ...networkConfigs.credsByUri[uri] }
+    const creds = parseCreds(rawCredsMap[uri])
+    if (creds) {
+      networkConfigs.configByUri ??= {}
+      networkConfigs.configByUri[uri] ??= {}
+      networkConfigs.configByUri[uri].creds = creds
     }
   }
 

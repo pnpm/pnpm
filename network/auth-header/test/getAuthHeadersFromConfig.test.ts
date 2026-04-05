@@ -29,8 +29,8 @@ const osFamily = os.platform() === 'win32' ? 'win32' : 'linux'
 describe('getAuthHeadersFromCreds()', () => {
   it('should convert auth token to Bearer header', () => {
     const result = getAuthHeadersFromCreds({
-      '//registry.npmjs.org/': { authToken: 'abc123' },
-      '//registry.hu/': { authToken: 'def456' },
+      '//registry.npmjs.org/': { creds: { authToken: 'abc123'  } },
+      '//registry.hu/': { creds: { authToken: 'def456'  } },
     }, '//registry.npmjs.org/')
     expect(result).toStrictEqual({
       '//registry.npmjs.org/': 'Bearer abc123',
@@ -39,7 +39,7 @@ describe('getAuthHeadersFromCreds()', () => {
   })
   it('should convert basicAuth to Basic header', () => {
     const result = getAuthHeadersFromCreds({
-      '//registry.foobar.eu/': { basicAuth: { username: 'foobar', password: 'foobar' } },
+      '//registry.foobar.eu/': { creds: { basicAuth: { username: 'foobar', password: 'foobar' }  } },
     }, '//registry.npmjs.org/')
     expect(result).toStrictEqual({
       '//registry.foobar.eu/': 'Basic Zm9vYmFyOmZvb2Jhcg==',
@@ -47,7 +47,7 @@ describe('getAuthHeadersFromCreds()', () => {
   })
   it('should handle default registry auth (empty key)', () => {
     const result = getAuthHeadersFromCreds({
-      '': { authToken: 'default-token' },
+      '': { creds: { authToken: 'default-token'  } },
     }, '//reg.com/')
     expect(result).toStrictEqual({
       '//reg.com/': 'Bearer default-token',
@@ -55,7 +55,7 @@ describe('getAuthHeadersFromCreds()', () => {
   })
   it('should execute tokenHelper', () => {
     const result = getAuthHeadersFromCreds({
-      '//registry.foobar.eu/': { tokenHelper: [osTokenHelper[osFamily]] },
+      '//registry.foobar.eu/': { creds: { tokenHelper: [osTokenHelper[osFamily]]  } },
     }, '//registry.npmjs.org/')
     expect(result).toStrictEqual({
       '//registry.foobar.eu/': 'Bearer token-from-spawn',
@@ -63,7 +63,7 @@ describe('getAuthHeadersFromCreds()', () => {
   })
   it('should prepend Bearer to raw token from tokenHelper', () => {
     const result = getAuthHeadersFromCreds({
-      '//registry.foobar.eu/': { tokenHelper: [osRawTokenHelper[osFamily]] },
+      '//registry.foobar.eu/': { creds: { tokenHelper: [osRawTokenHelper[osFamily]]  } },
     }, '//registry.npmjs.org/')
     expect(result).toStrictEqual({
       '//registry.foobar.eu/': 'Bearer raw-token-no-scheme',
@@ -71,12 +71,12 @@ describe('getAuthHeadersFromCreds()', () => {
   })
   it('should throw an error if the token helper fails', () => {
     expect(() => getAuthHeadersFromCreds({
-      '//reg.com/': { tokenHelper: [osErrorTokenHelper[osFamily]] },
+      '//reg.com/': { creds: { tokenHelper: [osErrorTokenHelper[osFamily]]  } },
     }, '//registry.npmjs.org/')).toThrow('Exit code')
   })
   it('should throw an error if the token helper returns an empty token', () => {
     expect(() => getAuthHeadersFromCreds({
-      '//reg.com/': { tokenHelper: [osEmptyTokenHelper[osFamily]] },
+      '//reg.com/': { creds: { tokenHelper: [osEmptyTokenHelper[osFamily]]  } },
     }, '//registry.npmjs.org/')).toThrow('returned an empty token')
   })
   it('should return empty object when no auth infos', () => {

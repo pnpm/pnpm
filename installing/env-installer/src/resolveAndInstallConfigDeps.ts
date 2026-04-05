@@ -10,7 +10,7 @@ import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@pnpm/network.fetch'
 import { createNpmResolver, type ResolverFactoryOptions } from '@pnpm/resolving.npm-resolver'
-import type { ConfigDependencies, Creds } from '@pnpm/types'
+import type { ConfigDependencies, RegistryConfig } from '@pnpm/types'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 
 import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDeps.js'
@@ -19,7 +19,7 @@ import { pruneEnvLockfile } from './pruneEnvLockfile.js'
 
 export type ResolveAndInstallConfigDepsOpts = CreateFetchFromRegistryOptions & ResolverFactoryOptions & InstallConfigDepsOpts & {
   rootDir: string
-  credsByUri?: Record<string, Creds>
+  configByUri?: Record<string, RegistryConfig>
 }
 
 /**
@@ -99,7 +99,7 @@ export async function resolveAndInstallConfigDeps (
 
   // Resolve missing deps
   const fetch = createFetchFromRegistry(opts)
-  const getAuthHeader = createGetAuthHeaderByURI(opts.credsByUri ?? {}, opts.registries?.default)
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {}, opts.registries?.default)
   const { resolveFromNpm } = createNpmResolver(fetch, getAuthHeader, opts)
 
   await Promise.all(depsToResolve.map(async ({ name, specifier }) => {

@@ -64,7 +64,7 @@ export async function handler (
   if (isExecutedByCorepack()) {
     throw new PnpmError('CANT_SELF_UPDATE_IN_COREPACK', 'You should update pnpm with corepack')
   }
-  const { resolve } = createResolver({ ...opts, credsByUri: opts.credsByUri })
+  const { resolve } = createResolver({ ...opts, configByUri: opts.configByUri })
   const pkgName = 'pnpm'
   const bareSpecifier = params[0] ?? 'latest'
   const resolution = await resolve({ alias: pkgName, bareSpecifier }, {

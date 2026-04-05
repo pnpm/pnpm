@@ -87,7 +87,7 @@ export async function handler (
   }
   const registry = pickRegistryForPackage(opts.registries, packageName)
   const fetchFromRegistry = createFetchFromRegistry(opts)
-  const getAuthHeader = createGetAuthHeaderByURI(opts.credsByUri ?? {}, opts.registries?.default)
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {}, opts.registries?.default)
   const fetchResult = await fetchMetadataFromFromRegistry(
     {
       fetch: fetchFromRegistry,

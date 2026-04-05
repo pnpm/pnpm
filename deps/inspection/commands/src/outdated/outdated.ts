@@ -164,7 +164,7 @@ export type OutdatedCommandOptions = {
 | 'offline'
 | 'optional'
 | 'production'
-| 'credsByUri'
+| 'configByUri'
 | 'registries'
 | 'strictSsl'
 | 'tag'

@@ -1,13 +1,13 @@
 import type { Catalogs } from '@pnpm/catalogs.types'
 import type { Hooks } from '@pnpm/hooks.pnpmfile'
 import type {
-  Creds,
   EngineDependency,
   Finder,
   Project,
   ProjectManifest,
   ProjectsGraph,
   Registries,
+  RegistryConfig,
   TrustPolicy,
 } from '@pnpm/types'
 
@@ -212,7 +212,7 @@ export interface Config extends OptionsFromRootManifest {
   blockExoticSubdeps?: boolean
 
   registries: Registries
-  credsByUri: Record<string, Creds>
+  configByUri: Record<string, RegistryConfig>
   ignoreWorkspaceRootCheck: boolean
   workspaceRoot: boolean
 
