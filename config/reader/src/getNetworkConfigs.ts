@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import type { SslConfig } from '@pnpm/types'
 import normalizeRegistryUrl from 'normalize-registry-url'
 
-import { type Creds, type CredsInput, parseCreds } from './parseAuthInfo.js'
+import { type Creds, type RawCreds, parseCreds } from './parseAuthInfo.js'
 
 export interface NetworkConfigs {
   credsByUri?: Record<string, Creds> // TODO: remove optional from here, this means that tests would have to be updated.
@@ -12,7 +12,7 @@ export interface NetworkConfigs {
 }
 
 export function getNetworkConfigs (rawConfig: Record<string, unknown>): NetworkConfigs {
-  const credsInputs: Record<string, CredsInput> = {}
+  const rawCredsMap: Record<string, RawCreds> = {}
   const sslConfigs: Record<string, SslConfig> = {}
   const registries: Record<string, string> = {}
   for (const [configKey, value] of Object.entries(rawConfig)) {
@@ -28,8 +28,8 @@ export function getNetworkConfigs (rawConfig: Record<string, unknown>): NetworkC
         continue
       case 'auth': {
         const { authInputKey, registry } = parsed
-        credsInputs[registry] ??= {}
-        credsInputs[registry][authInputKey] = value as string
+        rawCredsMap[registry] ??= {}
+        rawCredsMap[registry][authInputKey] = value as string
         continue
       }
       case 'ssl': {
@@ -56,8 +56,8 @@ export function getNetworkConfigs (rawConfig: Record<string, unknown>): NetworkC
     sslConfigs,
   }
 
-  for (const key in credsInputs) {
-    const parsedCreds = parseCreds(credsInputs[key])
+  for (const key in rawCredsMap) {
+    const parsedCreds = parseCreds(rawCredsMap[key])
     if (parsedCreds) {
       networkConfigs.credsByUri ??= {}
       networkConfigs.credsByUri[key] = parsedCreds
@@ -68,7 +68,7 @@ export function getNetworkConfigs (rawConfig: Record<string, unknown>): NetworkC
 }
 
 export function getDefaultCreds (rawConfig: Record<string, unknown>): Creds | undefined {
-  const input: CredsInput = {}
+  const input: RawCreds = {}
   for (const rawKey in AUTH_SUFFIX_KEY_MAP) {
     const key = AUTH_SUFFIX_KEY_MAP[rawKey]
     const value = rawConfig[rawKey] as string | undefined
@@ -80,7 +80,7 @@ export function getDefaultCreds (rawConfig: Record<string, unknown>): Creds | un
 }
 
 const AUTH_SUFFIX_RE = /:(?<key>_auth|_authToken|_password|username|tokenHelper)$/
-const AUTH_SUFFIX_KEY_MAP: Record<string, keyof CredsInput> = {
+const AUTH_SUFFIX_KEY_MAP: Record<string, keyof RawCreds> = {
   _auth: 'authPairBase64',
   _authToken: 'authToken',
   _password: 'authPassword',
@@ -91,7 +91,7 @@ const AUTH_SUFFIX_KEY_MAP: Record<string, keyof CredsInput> = {
 interface ParsedAuthSetting {
   target: 'auth'
   registry: string
-  authInputKey: keyof CredsInput
+  authInputKey: keyof RawCreds
 }
 
 function tryParseAuthSetting (key: string): ParsedAuthSetting | undefined {

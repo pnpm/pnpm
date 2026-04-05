@@ -4,7 +4,7 @@ import type { BasicAuth, Creds, TokenHelper } from '@pnpm/types'
 export type { BasicAuth, Creds, TokenHelper }
 
 /** Unparsed authentication information of each registry in the rc file. */
-export interface CredsInput {
+export interface RawCreds {
   /** Value of `_authToken` in the rc file. */
   authToken?: string
   /** Value of `_auth` in the rc file. */
@@ -17,7 +17,7 @@ export interface CredsInput {
   tokenHelper?: string
 }
 
-export function parseCreds (input: CredsInput): Creds | undefined {
+export function parseCreds (input: RawCreds): Creds | undefined {
   let parsedCreds: Creds | undefined
 
   if (input.tokenHelper) {
@@ -57,7 +57,7 @@ function parseBasicAuth ({
   authPairBase64,
   authUsername,
   authPassword,
-}: Pick<CredsInput, 'authPairBase64' | 'authUsername' | 'authPassword'>): BasicAuth | undefined {
+}: Pick<RawCreds, 'authPairBase64' | 'authUsername' | 'authPassword'>): BasicAuth | undefined {
   if (authPairBase64) {
     const pair = atob(authPairBase64)
     const colonIndex = pair.indexOf(':')
