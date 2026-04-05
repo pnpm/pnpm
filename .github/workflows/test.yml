@@ -16,6 +16,10 @@ permissions:
 jobs:
   test:
     name: Test
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.platform }}-${{ inputs.node }}
+      cancel-in-progress: true
+
     runs-on: ${{ inputs.platform }}
 
     steps:
