@@ -39,7 +39,6 @@ export const DEFAULT_OPTS = {
   pnpmHomeDir: '',
   preferWorkspacePackages: true,
   proxy: undefined,
-  authConfig,
   authInfos: {},
   registries,
   rootProjectManifestDir: '',
