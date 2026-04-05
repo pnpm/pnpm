@@ -136,7 +136,7 @@ test('fetch from registry with client certificate authentication', async () => {
 
   await proxyServer.start()
 
-  const sslConfigs = {
+  const credsByUri = {
     [`//localhost:${randomPort}/`]: {
       ca: fs.readFileSync(path.join(CERTS_DIR, 'ca-crt.pem'), 'utf8'),
       cert: fs.readFileSync(path.join(CERTS_DIR, 'client-crt.pem'), 'utf8'),
@@ -145,7 +145,7 @@ test('fetch from registry with client certificate authentication', async () => {
   }
 
   const fetchFromRegistry = createFetchFromRegistry({
-    sslConfigs,
+    credsByUri,
     strictSsl: false,
   })
 

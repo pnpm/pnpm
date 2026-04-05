@@ -39,7 +39,6 @@ export type CatIndexCommandOptions = Pick<
 | 'dir'
 | 'registries'
 | 'cacheDir'
-| 'sslConfigs'
 >
 
 export async function handler (opts: CatIndexCommandOptions, params: string[]): Promise<string> {

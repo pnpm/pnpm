@@ -17,15 +17,8 @@ import { publishWithOtpHandling } from './otp.js'
 import type { PackResult } from './pack.js'
 import { allRegistryConfigKeys, type NormalizedRegistryUrl, parseSupportedRegistryUrl } from './registryConfigKeys.js'
 
-type SslConfigKey =
-| 'ca'
-| 'cert'
-| 'key'
-
 export type PublishPackedPkgOptions = Pick<Config,
-| SslConfigKey
 | 'credsByUri'
-| 'sslConfigs'
 | 'dryRun'
 | 'fetchRetries'
 | 'fetchRetryFactor'
@@ -66,7 +59,7 @@ export async function publishPackedPkg (
 }
 
 async function createPublishOptions (manifest: ExportedManifest, options: PublishPackedPkgOptions): Promise<PublishOptions> {
-  const { registry, auth, ssl } = findAuthSslInfo(manifest, options)
+  const { registry, creds } = findRegistryInfo(manifest, options)
 
   const {
     access,
@@ -108,21 +101,14 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
     // always fall back to prompting the user for an OTP code, even when the user
     // has no OTP set up.
     authType: 'web',
-    ca: ssl?.ca,
-    cert: Array.isArray(ssl?.cert) ? ssl.cert.join('\n') : ssl?.cert,
-    key: ssl?.key,
+    ca: creds?.ca,
+    cert: creds?.cert,
+    key: creds?.key,
     npmCommand: 'publish',
-    token: auth && extractToken(auth),
-    username: auth?.basicAuth?.username,
-    password: auth?.basicAuth?.password,
+    token: creds && extractToken(creds),
+    username: creds?.basicAuth?.username,
+    password: creds?.basicAuth?.password,
   }
-
-  // This is necessary because getNetworkConfigs initialized them as { cert: '', key: '' }
-  // which may be a problem.
-  // The real fix is to change the type `SslConfig` into that of partial properties, but that
-  // is out of scope for now.
-  removeEmptyStringProperty(publishOptions, 'cert')
-  removeEmptyStringProperty(publishOptions, 'key')
 
   if (registry) {
     const oidcTokenProvenance = await fetchTokenAndProvenanceByOidcIfApplicable(publishOptions, manifest.name, registry, options)
@@ -135,22 +121,19 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
   return publishOptions
 }
 
-interface AuthSslInfo {
+interface RegistryInfo {
   registry: NormalizedRegistryUrl
-  auth: Creds
-  ssl: Pick<Config, SslConfigKey>
+  creds: Creds
 }
 
 /**
- * Find auth and ssl information according to {@link https://docs.npmjs.com/cli/v10/configuring-npm/npmrc#auth-related-configuration}.
- *
- * The example `.npmrc` demonstrated inheritance.
+ * Find credentials and SSL info for a package's registry.
+ * Follows {@link https://docs.npmjs.com/cli/v10/configuring-npm/npmrc#auth-related-configuration}.
  */
-function findAuthSslInfo (
+function findRegistryInfo (
   { name }: ExportedManifest,
-  opts: Pick<Config, 'credsByUri' | 'sslConfigs' | 'registries' | SslConfigKey>
-): Partial<AuthSslInfo> {
-  const { credsByUri, sslConfigs, registries, ...defaultSsl } = opts
+  { credsByUri, registries }: Pick<Config, 'credsByUri' | 'registries'>
+): Partial<RegistryInfo> {
   // eslint-disable-next-line regexp/no-unused-capturing-group
   const scopedMatches = /@(?<scope>[^/]+)\/(?<slug>[^/]+)/.exec(name)
 
@@ -167,35 +150,29 @@ function findAuthSslInfo (
     longestConfigKey: initialRegistryConfigKey,
   } = supportedRegistryInfo
 
-  const result: Partial<AuthSslInfo> = { registry }
-
+  let auth: Pick<Creds, 'authToken' | 'basicAuth' | 'tokenHelper'> | undefined
+  let ssl: Pick<Creds, 'cert' | 'key' | 'ca'> = {}
   for (const registryConfigKey of allRegistryConfigKeys(initialRegistryConfigKey)) {
-    const auth: Creds | undefined = credsByUri[registryConfigKey]
-    const ssl: Pick<Config, SslConfigKey> | undefined = sslConfigs[registryConfigKey]
-
-    result.auth ??= auth // old auth from longer path collectively overrides new auth from shorter path
-
-    result.ssl = {
-      ...ssl,
-      ...result.ssl, // old ssl from longer path individually overrides new ssl from shorter path
-    }
+    const entry = credsByUri[registryConfigKey]
+    if (!entry) continue
+    // Auth from longer path collectively overrides shorter path
+    auth ??= entry
+    // SSL from longer path individually overrides shorter path
+    ssl = { ...entry, ...ssl }
   }
 
-  if (
-    nonNormalizedRegistry !== registries.default &&
-    registry !== registries.default &&
-    registry !== parseSupportedRegistryUrl(registries.default)?.normalizedUrl
-  ) {
-    return result
+  const isDefaultRegistry =
+    nonNormalizedRegistry === registries.default ||
+    registry === registries.default ||
+    registry === parseSupportedRegistryUrl(registries.default)?.normalizedUrl
+
+  if (isDefaultRegistry) {
+    auth ??= credsByUri['']
   }
 
   return {
     registry,
-    auth: result.auth ?? credsByUri[''], // old auth from longer path collectively overrides default auth
-    ssl: {
-      ...defaultSsl,
-      ...result.ssl, // old ssl from longer path individually overrides default ssl
-    },
+    creds: { ...auth, ...ssl },
   }
 }
 
@@ -322,12 +299,6 @@ function appendAuthOptionsForRegistry (targetPublishOptions: PublishOptions, reg
   targetPublishOptions[`${registryConfigKey}:_authToken`] ??= targetPublishOptions.token
   targetPublishOptions[`${registryConfigKey}:username`] ??= targetPublishOptions.username
   targetPublishOptions[`${registryConfigKey}:_password`] ??= targetPublishOptions.password && btoa(targetPublishOptions.password)
-}
-
-function removeEmptyStringProperty<Key extends string> (object: Partial<Record<Key, string>>, key: Key): void {
-  if (!object[key]) {
-    delete object[key]
-  }
 }
 
 function pruneUndefined (object: Record<string, unknown>): void {

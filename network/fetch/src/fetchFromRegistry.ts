@@ -1,7 +1,7 @@
 import { URL } from 'node:url'
 
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
-import type { SslConfig } from '@pnpm/types'
+import type { Creds } from '@pnpm/types'
 
 import { type DispatcherOptions, getDispatcher } from './dispatcher.js'
 import { fetch, isRedirect, type RequestInit } from './fetch.js'
@@ -35,7 +35,7 @@ export type { DispatcherOptions }
 
 export interface CreateFetchFromRegistryOptions extends DispatcherOptions {
   userAgent?: string
-  sslConfigs?: Record<string, SslConfig>
+  credsByUri?: Record<string, Creds>
 }
 
 export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOptions): FetchFromRegistry {
@@ -64,7 +64,7 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
         ...defaultOpts,
         ...opts,
         strictSsl: defaultOpts.strictSsl ?? true,
-        clientCertificates: defaultOpts.sslConfigs,
+        clientCertificates: defaultOpts.credsByUri,
       }
 
       const response = await fetchWithDispatcher(urlObject, {

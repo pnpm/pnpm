@@ -4,7 +4,7 @@ import { URL } from 'node:url'
 
 import { nerfDart } from '@pnpm/config.nerf-dart'
 import { PnpmError } from '@pnpm/error'
-import type { SslConfig } from '@pnpm/types'
+import type { Creds } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
 import { SocksClient } from 'socks'
 import { Agent, type Dispatcher, ProxyAgent, setGlobalDispatcher } from 'undici'
@@ -49,7 +49,7 @@ export interface DispatcherOptions {
   httpProxy?: string
   httpsProxy?: string
   noProxy?: boolean | string
-  clientCertificates?: Record<string, SslConfig>
+  clientCertificates?: Record<string, Pick<Creds, 'cert' | 'key' | 'ca'>>
 }
 
 /**

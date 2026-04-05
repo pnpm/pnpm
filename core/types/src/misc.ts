@@ -34,7 +34,7 @@ export interface BasicAuth {
 /** Parsed value of `tokenHelper` of each registry in the rc file. */
 export type TokenHelper = [string, ...string[]]
 
-/** Authentication information of each registry in the rc file. */
+/** Per-registry authentication and SSL configuration. */
 export interface Creds {
   /** Parsed value of `_auth` of each registry in the rc file. */
   basicAuth?: BasicAuth
@@ -42,6 +42,12 @@ export interface Creds {
   authToken?: string
   /** Parsed value of `tokenHelper` of each registry in the rc file. */
   tokenHelper?: TokenHelper
+  /** Client certificate (PEM). */
+  cert?: string
+  /** Client private key (PEM). */
+  key?: string
+  /** Certificate authority (PEM). */
+  ca?: string
 }
 
 export type HoistedDependencies = Record<DepPath | ProjectId, Record<string, 'public' | 'private'>>

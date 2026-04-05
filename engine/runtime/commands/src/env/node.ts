@@ -24,7 +24,6 @@ export type NvmNodeCommandOptions = Pick<Config,
 > & Partial<Pick<Config,
 | 'cacheDir'
 | 'configDir'
-| 'sslConfigs'
 // Fields needed to forward opts to add.handler for env use
 | 'registries'
 | 'lockfileDir'

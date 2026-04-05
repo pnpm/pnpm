@@ -1017,8 +1017,7 @@ test('getConfig() should read inline SSL certificates from .npmrc', async () => 
   })
 
   // After processing, \n should be converted to actual newlines
-  expect(config.sslConfigs).toBeDefined()
-  expect(config.sslConfigs['//registry.example.com/']).toStrictEqual({
+  expect(config.credsByUri['//registry.example.com/']).toMatchObject({
     ca: inlineCa.replace(/\\n/g, '\n'),
     cert: inlineCert.replace(/\\n/g, '\n'),
     key: inlineKey.replace(/\\n/g, '\n'),

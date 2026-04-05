@@ -317,7 +317,6 @@ export async function getConfig (opts: {
       delete parsedCreds.tokenHelper
     }
   }
-  pnpmConfig.sslConfigs = networkConfigs.sslConfigs
   pnpmConfig.pnpmHomeDir = getDataDir({ env, platform: process.platform })
   let globalDirRoot
   if (pnpmConfig.globalDir) {

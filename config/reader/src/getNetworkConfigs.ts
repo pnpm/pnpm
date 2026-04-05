@@ -1,19 +1,18 @@
 import fs from 'node:fs'
 
-import type { SslConfig } from '@pnpm/types'
+import type { Creds } from '@pnpm/types'
 import normalizeRegistryUrl from 'normalize-registry-url'
 
-import { type Creds, parseCreds, type RawCreds } from './parseCreds.js'
+import { parseCreds, type RawCreds } from './parseCreds.js'
 
 export interface NetworkConfigs {
   credsByUri?: Record<string, Creds> // TODO: remove optional from here, this means that tests would have to be updated.
-  sslConfigs: Record<string, SslConfig>
   registries: Record<string, string>
 }
 
 export function getNetworkConfigs (rawConfig: Record<string, unknown>): NetworkConfigs {
   const rawCredsMap: Record<string, RawCreds> = {}
-  const sslConfigs: Record<string, SslConfig> = {}
+  const sslByUri: Record<string, Partial<Pick<Creds, 'cert' | 'key' | 'ca'>>> = {}
   const registries: Record<string, string> = {}
   for (const [configKey, value] of Object.entries(rawConfig)) {
     if (configKey[0] === '@' && configKey.endsWith(':registry')) {
@@ -31,9 +30,9 @@ export function getNetworkConfigs (rawConfig: Record<string, unknown>): NetworkC
 
     const parsedSsl = tryParseSslKey(configKey)
     if (parsedSsl) {
-      const { registry, sslConfigKey, isFile } = parsedSsl
-      sslConfigs[registry] ??= { cert: '', key: '' }
-      sslConfigs[registry][sslConfigKey] = isFile
+      const { registry, sslField, isFile } = parsedSsl
+      sslByUri[registry] ??= {}
+      sslByUri[registry][sslField] = isFile
         ? fs.readFileSync(value as string, 'utf8')
         : (value as string).replace(/\\n/g, '\n')
     }
@@ -45,14 +44,16 @@ export function getNetworkConfigs (rawConfig: Record<string, unknown>): NetworkC
   // existing tests which use `expect().to[Strict]Equal()` methods.
   const networkConfigs: NetworkConfigs = {
     registries,
-    sslConfigs,
   }
 
-  for (const uri in rawCredsMap) {
-    const parsedCreds = parseCreds(rawCredsMap[uri])
-    if (parsedCreds) {
+  // Collect all registry URIs that have either auth or SSL config
+  const allUris = new Set([...Object.keys(rawCredsMap), ...Object.keys(sslByUri)])
+  for (const uri of allUris) {
+    const parsedAuth = rawCredsMap[uri] ? parseCreds(rawCredsMap[uri]) : undefined
+    const ssl = sslByUri[uri]
+    if (parsedAuth || ssl) {
       networkConfigs.credsByUri ??= {}
-      networkConfigs.credsByUri[uri] = parsedCreds
+      networkConfigs.credsByUri[uri] = { ...parsedAuth, ...ssl }
     }
   }
 
@@ -100,9 +101,11 @@ function tryParseCredsKey (key: string): ParsedCredsKey | undefined {
 
 const SSL_SUFFIX_RE = /:(?<id>cert|key|ca)(?<kind>file)?$/
 
+type SslField = 'cert' | 'key' | 'ca'
+
 interface ParsedSslKey {
   registry: string
-  sslConfigKey: keyof SslConfig
+  sslField: SslField
   isFile: boolean
 }
 
@@ -112,7 +115,7 @@ function tryParseSslKey (key: string): ParsedSslKey | undefined {
     return undefined
   }
   const registry = key.slice(0, match.index!) // already includes the trailing slash
-  const sslConfigKey = match.groups.id as keyof SslConfig
+  const sslField = match.groups.id as SslField
   const isFile = Boolean(match.groups.kind)
-  return { registry, sslConfigKey, isFile }
+  return { registry, sslField, isFile }
 }

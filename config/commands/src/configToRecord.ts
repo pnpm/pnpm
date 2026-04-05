@@ -6,7 +6,7 @@ import { censorProtectedSettings } from './protectedSettings.js'
 
 // Auth-related Config fields that are internal objects, not user settings.
 const NON_SETTING_CONFIG_KEYS = new Set([
-  'authConfig', 'credsByUri', 'sslConfigs',
+  'authConfig', 'credsByUri',
 ])
 
 /**

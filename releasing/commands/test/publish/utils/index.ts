@@ -41,7 +41,6 @@ export const DEFAULT_OPTS = {
   sort: true,
   cacheDir: '../cache',
   strictSsl: false,
-  sslConfigs: {},
   userAgent: 'pnpm',
   userConfig: {},
   useRunningStoreServer: false,

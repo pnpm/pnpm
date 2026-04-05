@@ -52,7 +52,7 @@ export type StrictBuildOptions = {
   peersSuffixMaxLength: number
   strictStorePkgContentCheck: boolean
   fetchFullMetadata?: boolean
-} & Pick<Config, 'sslConfigs' | 'allowBuilds'>
+} & Pick<Config, 'allowBuilds'>
 
 export type BuildOptions = Partial<StrictBuildOptions> &
 Pick<StrictBuildOptions, 'storeDir' | 'storeController'> & Pick<ConfigContext, 'rootProjectManifest' | 'rootProjectManifestDir'>

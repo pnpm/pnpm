@@ -8,7 +8,6 @@ import type {
   ProjectManifest,
   ProjectsGraph,
   Registries,
-  SslConfig,
   TrustPolicy,
 } from '@pnpm/types'
 
@@ -214,7 +213,6 @@ export interface Config extends OptionsFromRootManifest {
 
   registries: Registries
   credsByUri: Record<string, Creds>
-  sslConfigs: Record<string, SslConfig>
   ignoreWorkspaceRootCheck: boolean
   workspaceRoot: boolean
 
