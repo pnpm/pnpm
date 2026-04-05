@@ -17,7 +17,7 @@ export type NvmNodeCommandOptions = Pick<Config,
 | 'localAddress'
 | 'noProxy'
 | 'nodeDownloadMirrors'
-| 'authConfig'
+| 'configByUri'
 | 'strictSsl'
 | 'storeDir'
 | 'pnpmHomeDir'

@@ -77,6 +77,7 @@ import {
   type ProjectManifest,
   type ProjectRootDir,
   type Registries,
+  type RegistryConfig,
   type SupportedArchitectures,
 } from '@pnpm/types'
 import { symlinkAllModules } from '@pnpm/worker'
@@ -160,7 +161,7 @@ export interface HeadlessOptions {
   disableRelinkLocalDirDeps?: boolean
   force: boolean
   storeDir: string
-  authConfig: object
+  configByUri: Record<string, RegistryConfig>
   unsafePerm: boolean
   userAgent: string
   registries: Registries
@@ -234,7 +235,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     extraNodePaths: opts.extraNodePaths,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
     extraEnv: opts.extraEnv,
-    authConfig: opts.authConfig,
+    configByUri: opts.configByUri,
     resolveSymlinksInInjectedDirs: opts.resolveSymlinksInInjectedDirs,
     scriptsPrependNodePath: opts.scriptsPrependNodePath,
     scriptShell: opts.scriptShell,

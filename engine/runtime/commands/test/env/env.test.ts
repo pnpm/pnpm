@@ -18,7 +18,7 @@ test('env use calls pnpm add with the correct arguments', async () => {
     cacheDir: '/tmp/cache',
     global: true,
     pnpmHomeDir: '/tmp/pnpm-home',
-    authConfig: {},
+    configByUri: {},
     storeDir: '/tmp/store',
   }, ['use', '18'])
 
@@ -33,7 +33,7 @@ test('env use passes lts specifier through unchanged', async () => {
     bin: '/usr/local/bin',
     global: true,
     pnpmHomeDir: '/tmp/pnpm-home',
-    authConfig: {},
+    configByUri: {},
     storeDir: '/tmp/store',
   }, ['use', 'lts'])
 
@@ -48,7 +48,7 @@ test('env use passes codename specifier through unchanged', async () => {
     bin: '/usr/local/bin',
     global: true,
     pnpmHomeDir: '/tmp/pnpm-home',
-    authConfig: {},
+    configByUri: {},
     storeDir: '/tmp/store',
   }, ['use', 'argon'])
 
@@ -64,7 +64,7 @@ test('fail if not run with --global', async () => {
       bin: '/usr/local/bin',
       global: false,
       pnpmHomeDir: '/tmp/pnpm-home',
-      authConfig: {},
+      configByUri: {},
     }, ['use', '18'])
   ).rejects.toEqual(new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env use <version>" can only be used with the "--global" option currently'))
 
@@ -78,7 +78,7 @@ test('fail if there is no global bin directory', async () => {
       bin: undefined,
       global: true,
       pnpmHomeDir: '/tmp/pnpm-home',
-      authConfig: {},
+      configByUri: {},
     }, ['use', 'lts'])
   ).rejects.toEqual(new PnpmError('CANNOT_MANAGE_NODE', 'Unable to manage Node.js because pnpm was not installed using the standalone installation script'))
 
