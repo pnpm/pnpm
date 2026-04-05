@@ -12,8 +12,8 @@ export interface NetworkConfigs {
 
 export function getNetworkConfigs (rawConfig: Record<string, unknown>): NetworkConfigs {
   const rawCredsMap: Record<string, RawCreds> = {}
-  const sslByUri: Record<string, Partial<Pick<Creds, 'cert' | 'key' | 'ca'>>> = {}
   const registries: Record<string, string> = {}
+  const networkConfigs: NetworkConfigs = { registries }
   for (const [configKey, value] of Object.entries(rawConfig)) {
     if (configKey[0] === '@' && configKey.endsWith(':registry')) {
       registries[configKey.slice(0, configKey.indexOf(':'))] = normalizeRegistryUrl(value as string)
@@ -31,29 +31,19 @@ export function getNetworkConfigs (rawConfig: Record<string, unknown>): NetworkC
     const parsedSsl = tryParseSslKey(configKey)
     if (parsedSsl) {
       const { registry, sslField, isFile } = parsedSsl
-      sslByUri[registry] ??= {}
-      sslByUri[registry][sslField] = isFile
+      networkConfigs.credsByUri ??= {}
+      networkConfigs.credsByUri[registry] ??= {}
+      networkConfigs.credsByUri[registry][sslField] = isFile
         ? fs.readFileSync(value as string, 'utf8')
         : (value as string).replace(/\\n/g, '\n')
     }
   }
 
-  // Instead of directly returning the object literal at the end of the function,
-  // we create a temporary object of `networkConfigs` to avoid adding
-  // `credsByUri: undefined` to the returning object to prevent the failures of
-  // existing tests which use `expect().to[Strict]Equal()` methods.
-  const networkConfigs: NetworkConfigs = {
-    registries,
-  }
-
-  // Collect all registry URIs that have either auth or SSL config
-  const allUris = new Set([...Object.keys(rawCredsMap), ...Object.keys(sslByUri)])
-  for (const uri of allUris) {
-    const parsedAuth = rawCredsMap[uri] ? parseCreds(rawCredsMap[uri]) : undefined
-    const ssl = sslByUri[uri]
-    if (parsedAuth || ssl) {
+  for (const uri in rawCredsMap) {
+    const parsedCreds = parseCreds(rawCredsMap[uri])
+    if (parsedCreds) {
       networkConfigs.credsByUri ??= {}
-      networkConfigs.credsByUri[uri] = { ...parsedAuth, ...ssl }
+      networkConfigs.credsByUri[uri] = { ...parsedCreds, ...networkConfigs.credsByUri[uri] }
     }
   }
 
