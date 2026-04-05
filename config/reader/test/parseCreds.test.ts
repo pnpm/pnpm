@@ -3,7 +3,7 @@ import {
   type Creds,
   parseCreds,
   TokenHelperUnsupportedCharacterError,
-} from '../src/parseAuthInfo.js'
+} from '../src/parseCreds.js'
 
 describe('parseCreds', () => {
   test('empty object', () => {
