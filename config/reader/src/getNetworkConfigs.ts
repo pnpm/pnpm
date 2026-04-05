@@ -3,16 +3,16 @@ import fs from 'node:fs'
 import type { SslConfig } from '@pnpm/types'
 import normalizeRegistryUrl from 'normalize-registry-url'
 
-import { type AuthInfoInput, type Creds, parseAuthInfo } from './parseAuthInfo.js'
+import { type CredsInput, type Creds, parseCreds } from './parseAuthInfo.js'
 
 export interface NetworkConfigs {
-  authInfos?: Record<string, Creds> // TODO: remove optional from here, this means that tests would have to be updated.
+  credsByUri?: Record<string, Creds> // TODO: remove optional from here, this means that tests would have to be updated.
   sslConfigs: Record<string, SslConfig>
   registries: Record<string, string>
 }
 
 export function getNetworkConfigs (rawConfig: Record<string, unknown>): NetworkConfigs {
-  const authInfoInputs: Record<string, AuthInfoInput> = {}
+  const credsInputs: Record<string, CredsInput> = {}
   const sslConfigs: Record<string, SslConfig> = {}
   const registries: Record<string, string> = {}
   for (const [configKey, value] of Object.entries(rawConfig)) {
@@ -28,8 +28,8 @@ export function getNetworkConfigs (rawConfig: Record<string, unknown>): NetworkC
         continue
       case 'auth': {
         const { authInputKey, registry } = parsed
-        authInfoInputs[registry] ??= {}
-        authInfoInputs[registry][authInputKey] = value as string
+        credsInputs[registry] ??= {}
+        credsInputs[registry][authInputKey] = value as string
         continue
       }
       case 'ssl': {
@@ -49,26 +49,26 @@ export function getNetworkConfigs (rawConfig: Record<string, unknown>): NetworkC
 
   // Instead of directly returning the object literal at the end of the function,
   // we create a temporary object of `networkConfigs` to avoid adding
-  // `authInfos: undefined` to the returning object to prevent the failures of
+  // `credsByUri: undefined` to the returning object to prevent the failures of
   // existing tests which use `expect().to[Strict]Equal()` methods.
   const networkConfigs: NetworkConfigs = {
     registries,
     sslConfigs,
   }
 
-  for (const key in authInfoInputs) {
-    const authInfo = parseAuthInfo(authInfoInputs[key])
-    if (authInfo) {
-      networkConfigs.authInfos ??= {}
-      networkConfigs.authInfos[key] = authInfo
+  for (const key in credsInputs) {
+    const parsedCreds = parseCreds(credsInputs[key])
+    if (parsedCreds) {
+      networkConfigs.credsByUri ??= {}
+      networkConfigs.credsByUri[key] = parsedCreds
     }
   }
 
   return networkConfigs
 }
 
-export function getDefaultAuthInfo (rawConfig: Record<string, unknown>): Creds | undefined {
-  const input: AuthInfoInput = {}
+export function getDefaultCreds (rawConfig: Record<string, unknown>): Creds | undefined {
+  const input: CredsInput = {}
   for (const rawKey in AUTH_SUFFIX_KEY_MAP) {
     const key = AUTH_SUFFIX_KEY_MAP[rawKey]
     const value = rawConfig[rawKey] as string | undefined
@@ -76,11 +76,11 @@ export function getDefaultAuthInfo (rawConfig: Record<string, unknown>): Creds |
       input[key] = value
     }
   }
-  return parseAuthInfo(input)
+  return parseCreds(input)
 }
 
 const AUTH_SUFFIX_RE = /:(?<key>_auth|_authToken|_password|username|tokenHelper)$/
-const AUTH_SUFFIX_KEY_MAP: Record<string, keyof AuthInfoInput> = {
+const AUTH_SUFFIX_KEY_MAP: Record<string, keyof CredsInput> = {
   _auth: 'authPairBase64',
   _authToken: 'authToken',
   _password: 'authPassword',
@@ -91,7 +91,7 @@ const AUTH_SUFFIX_KEY_MAP: Record<string, keyof AuthInfoInput> = {
 interface ParsedAuthSetting {
   target: 'auth'
   registry: string
-  authInputKey: keyof AuthInfoInput
+  authInputKey: keyof CredsInput
 }
 
 function tryParseAuthSetting (key: string): ParsedAuthSetting | undefined {

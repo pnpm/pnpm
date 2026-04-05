@@ -19,13 +19,13 @@ test('a package that need authentication', async () => {
     username: 'foo',
   })
 
-  let authInfos: Record<string, Creds> = {
+  let credsByUri: Record<string, Creds> = {
     [`//localhost:${REGISTRY_MOCK_PORT}/`]: { authToken: data.token },
   }
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], testDefaults({}, {
-    authInfos,
+    credsByUri,
   }, {
-    authInfos,
+    credsByUri,
   }))
 
   project.has('@pnpm.e2e/needs-auth')
@@ -35,14 +35,14 @@ test('a package that need authentication', async () => {
   rimrafSync('node_modules')
   rimrafSync(path.join('..', '.store'))
 
-  authInfos = {
+  credsByUri = {
     [`//localhost:${REGISTRY_MOCK_PORT}/`]: { authToken: data.token },
   }
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/needs-auth'], testDefaults({}, {
-    authInfos,
+    credsByUri,
     registry: 'https://registry.npmjs.org/',
   }, {
-    authInfos,
+    credsByUri,
   }))
 
   project.has('@pnpm.e2e/needs-auth')
@@ -57,13 +57,13 @@ test('installing a package that need authentication, using password', async () =
     username: 'foo',
   })
 
-  const authInfos: Record<string, Creds> = {
+  const credsByUri: Record<string, Creds> = {
     [`//localhost:${REGISTRY_MOCK_PORT}/`]: { authUserPass: { username: 'foo', password: 'bar' } },
   }
   await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], testDefaults({}, {
-    authInfos,
+    credsByUri,
   }, {
-    authInfos,
+    credsByUri,
   }))
 
   project.has('@pnpm.e2e/needs-auth')
@@ -78,13 +78,13 @@ test('a package that need authentication, legacy way', async () => {
     username: 'foo',
   })
 
-  const authInfos: Record<string, Creds> = {
+  const credsByUri: Record<string, Creds> = {
     '': { authUserPass: { username: 'foo', password: 'bar' } },
   }
   await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], testDefaults({}, {
-    authInfos,
+    credsByUri,
   }, {
-    authInfos,
+    credsByUri,
   }))
 
   project.has('@pnpm.e2e/needs-auth')
@@ -99,7 +99,7 @@ test('a scoped package that need authentication specific to scope', async () => 
     username: 'foo',
   })
 
-  const authInfos: Record<string, Creds> = {
+  const credsByUri: Record<string, Creds> = {
     [`//localhost:${REGISTRY_MOCK_PORT}/`]: { authToken: data.token },
   }
   let opts = testDefaults({
@@ -108,10 +108,10 @@ test('a scoped package that need authentication specific to scope', async () => 
       '@private': `http://localhost:${REGISTRY_MOCK_PORT}/`,
     },
   }, {
-    authInfos,
+    credsByUri,
     registry: 'https://registry.npmjs.org/',
   }, {
-    authInfos,
+    credsByUri,
   })
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@private/foo'], opts)
 
@@ -128,10 +128,10 @@ test('a scoped package that need authentication specific to scope', async () => 
       '@private': `http://localhost:${REGISTRY_MOCK_PORT}/`,
     },
   }, {
-    authInfos,
+    credsByUri,
     registry: 'https://registry.npmjs.org/',
   }, {
-    authInfos,
+    credsByUri,
   })
   await addDependenciesToPackage(manifest, ['@private/foo'], opts)
 
@@ -147,7 +147,7 @@ test('a scoped package that need legacy authentication specific to scope', async
     username: 'foo',
   })
 
-  const authInfos: Record<string, Creds> = {
+  const credsByUri: Record<string, Creds> = {
     [`//localhost:${REGISTRY_MOCK_PORT}/`]: { authUserPass: { username: 'foo', password: 'bar' } },
   }
   let opts = testDefaults({
@@ -156,10 +156,10 @@ test('a scoped package that need legacy authentication specific to scope', async
       '@private': `http://localhost:${REGISTRY_MOCK_PORT}/`,
     },
   }, {
-    authInfos,
+    credsByUri,
     registry: 'https://registry.npmjs.org/',
   }, {
-    authInfos,
+    credsByUri,
   })
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@private/foo'], opts)
 
@@ -176,10 +176,10 @@ test('a scoped package that need legacy authentication specific to scope', async
       '@private': `http://localhost:${REGISTRY_MOCK_PORT}/`,
     },
   }, {
-    authInfos,
+    credsByUri,
     registry: 'https://registry.npmjs.org/',
   }, {
-    authInfos,
+    credsByUri,
   })
   await addDependenciesToPackage(manifest, ['@private/foo'], opts)
 
@@ -195,7 +195,7 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
     username: 'foo',
   })
 
-  const authInfos: Record<string, Creds> = {
+  const credsByUri: Record<string, Creds> = {
     [`//127.0.0.1:${REGISTRY_MOCK_PORT}/`]: { authToken: data.token },
   }
   await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], testDefaults({
@@ -203,10 +203,10 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
       default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
     },
   }, {
-    authInfos,
+    credsByUri,
     registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
   }, {
-    authInfos,
+    credsByUri,
   }))
 
   project.has('@pnpm.e2e/needs-auth')
@@ -221,7 +221,7 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
     username: 'foo',
   })
 
-  const authInfos: Record<string, Creds> = {
+  const credsByUri: Record<string, Creds> = {
     [`//127.0.0.1:${REGISTRY_MOCK_PORT}/`]: { authToken: data.token },
   }
   let opts = testDefaults({
@@ -229,10 +229,10 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
       default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
     },
   }, {
-    authInfos,
+    credsByUri,
     registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
   }, {
-    authInfos,
+    credsByUri,
   })
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], opts)
@@ -247,10 +247,10 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
       default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
     },
   }, {
-    authInfos,
+    credsByUri,
     registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
   }, {
-    authInfos,
+    credsByUri,
   })
   await install(manifest, opts)
 

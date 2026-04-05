@@ -103,7 +103,7 @@ export async function handler (
   const catalogResolver = resolveFromCatalog.bind(null, opts.catalogs ?? {})
   const { resolve } = createResolver({
     ...opts,
-    authInfos: opts.authInfos,
+    credsByUri: opts.credsByUri,
     fullMetadata,
     filterMetadata: fullMetadata,
     retry: {

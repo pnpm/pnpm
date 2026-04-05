@@ -11,7 +11,7 @@ import { DEFAULT_OPTS } from './utils/index.js'
 // This must be a function because some of its values depend on CWD
 const createOptions = (jsr: string = 'https://npm.jsr.io/') => ({
   ...DEFAULT_OPTS,
-  authInfos: {},
+  credsByUri: {},
   registries: {
     ...DEFAULT_OPTS.registries,
     '@jsr': jsr,

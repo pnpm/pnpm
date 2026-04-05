@@ -39,7 +39,7 @@ export const DEFAULT_OPTS = {
   pnpmHomeDir: '',
   preferWorkspacePackages: true,
   proxy: undefined,
-  authInfos: {},
+  credsByUri: {},
   registries,
   rootProjectManifestDir: '',
   registry: registries.default,
@@ -62,7 +62,7 @@ export const AUDIT_REGISTRY_OPTS = {
   registries: {
     default: AUDIT_REGISTRY,
   },
-  authInfos: {},
+  credsByUri: {},
 }
 
 export const MOCK_REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
@@ -72,5 +72,5 @@ export const MOCK_REGISTRY_OPTS = {
   registries: {
     default: MOCK_REGISTRY,
   },
-  authInfos: {},
+  credsByUri: {},
 }

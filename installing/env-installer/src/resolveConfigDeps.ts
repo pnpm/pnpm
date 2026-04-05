@@ -19,7 +19,7 @@ import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDe
 export type ResolveConfigDepsOpts = CreateFetchFromRegistryOptions & ResolverFactoryOptions & InstallConfigDepsOpts & {
   configDependencies?: ConfigDependencies
   rootDir: string
-  authInfos?: Record<string, Creds>
+  credsByUri?: Record<string, Creds>
 }
 
 export async function resolveConfigDeps (configDeps: string[], opts: ResolveConfigDepsOpts): Promise<void> {
@@ -28,7 +28,7 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
   }
 
   const fetch = createFetchFromRegistry(opts)
-  const getAuthHeader = createGetAuthHeaderByURI(opts.authInfos ?? {}, opts.registries?.default)
+  const getAuthHeader = createGetAuthHeaderByURI(opts.credsByUri ?? {}, opts.registries?.default)
   const { resolveFromNpm } = createNpmResolver(fetch, getAuthHeader, opts)
 
   // Extract existing specifiers from configDependencies (handles both old and new formats)

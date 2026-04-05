@@ -19,7 +19,7 @@ export type PublishRecursiveOpts = Required<Pick<Config,
 | 'cacheDir'
 | 'dir'
 | 'pnpmHomeDir'
-| 'authInfos'
+| 'credsByUri'
 | 'registries'
 | 'workspaceDir'
 >> &
@@ -69,7 +69,7 @@ export async function recursivePublish (
   const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
   const { resolve } = createResolver({
     ...opts,
-    authInfos: opts.authInfos,
+    credsByUri: opts.credsByUri,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,

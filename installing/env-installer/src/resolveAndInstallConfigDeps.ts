@@ -19,7 +19,7 @@ import { pruneEnvLockfile } from './pruneEnvLockfile.js'
 
 export type ResolveAndInstallConfigDepsOpts = CreateFetchFromRegistryOptions & ResolverFactoryOptions & InstallConfigDepsOpts & {
   rootDir: string
-  authInfos?: Record<string, Creds>
+  credsByUri?: Record<string, Creds>
 }
 
 /**
@@ -99,7 +99,7 @@ export async function resolveAndInstallConfigDeps (
 
   // Resolve missing deps
   const fetch = createFetchFromRegistry(opts)
-  const getAuthHeader = createGetAuthHeaderByURI(opts.authInfos ?? {}, opts.registries?.default)
+  const getAuthHeader = createGetAuthHeaderByURI(opts.credsByUri ?? {}, opts.registries?.default)
   const { resolveFromNpm } = createNpmResolver(fetch, getAuthHeader, opts)
 
   await Promise.all(depsToResolve.map(async ({ name, specifier }) => {

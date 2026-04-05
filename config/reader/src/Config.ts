@@ -213,7 +213,7 @@ export interface Config extends OptionsFromRootManifest {
   blockExoticSubdeps?: boolean
 
   registries: Registries
-  authInfos: Record<string, Creds>
+  credsByUri: Record<string, Creds>
   sslConfigs: Record<string, SslConfig>
   ignoreWorkspaceRootCheck: boolean
   workspaceRoot: boolean

@@ -24,7 +24,7 @@ type SslConfigKey =
 
 export type PublishPackedPkgOptions = Pick<Config,
 | SslConfigKey
-| 'authInfos'
+| 'credsByUri'
 | 'sslConfigs'
 | 'dryRun'
 | 'fetchRetries'
@@ -148,9 +148,9 @@ interface AuthSslInfo {
  */
 function findAuthSslInfo (
   { name }: ExportedManifest,
-  opts: Pick<Config, 'authInfos' | 'sslConfigs' | 'registries' | SslConfigKey>
+  opts: Pick<Config, 'credsByUri' | 'sslConfigs' | 'registries' | SslConfigKey>
 ): Partial<AuthSslInfo> {
-  const { authInfos, sslConfigs, registries, ...defaultSsl } = opts
+  const { credsByUri, sslConfigs, registries, ...defaultSsl } = opts
   // eslint-disable-next-line regexp/no-unused-capturing-group
   const scopedMatches = /@(?<scope>[^/]+)\/(?<slug>[^/]+)/.exec(name)
 
@@ -170,7 +170,7 @@ function findAuthSslInfo (
   const result: Partial<AuthSslInfo> = { registry }
 
   for (const registryConfigKey of allRegistryConfigKeys(initialRegistryConfigKey)) {
-    const auth: Creds | undefined = authInfos[registryConfigKey]
+    const auth: Creds | undefined = credsByUri[registryConfigKey]
     const ssl: Pick<Config, SslConfigKey> | undefined = sslConfigs[registryConfigKey]
 
     result.auth ??= auth // old auth from longer path collectively overrides new auth from shorter path
@@ -191,7 +191,7 @@ function findAuthSslInfo (
 
   return {
     registry,
-    auth: result.auth ?? authInfos[''], // old auth from longer path collectively overrides default auth
+    auth: result.auth ?? credsByUri[''], // old auth from longer path collectively overrides default auth
     ssl: {
       ...defaultSsl,
       ...result.ssl, // old ssl from longer path individually overrides default ssl

@@ -1,6 +1,6 @@
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 
-const authInfos = {
+const credsByUri = {
   '//reg.com/': { authToken: 'abc123' },
   '//reg.co/tarballs/': { authToken: 'xxx' },
   '//reg.gg:8888/': { authToken: '0000' },
@@ -8,7 +8,7 @@ const authInfos = {
 }
 
 test('getAuthHeaderByURI()', () => {
-  const getAuthHeaderByURI = createGetAuthHeaderByURI(authInfos)
+  const getAuthHeaderByURI = createGetAuthHeaderByURI(credsByUri)
   expect(getAuthHeaderByURI('https://reg.com/')).toBe('Bearer abc123')
   expect(getAuthHeaderByURI('https://reg.com/foo/-/foo-1.0.0.tgz')).toBe('Bearer abc123')
   expect(getAuthHeaderByURI('https://reg.com:8080/foo/-/foo-1.0.0.tgz')).toBe('Bearer abc123')
@@ -27,7 +27,7 @@ test('getAuthHeaderByURI() basic auth without settings', () => {
 })
 
 test('getAuthHeaderByURI() basic auth with settings', () => {
-  const getAuthHeaderByURI = createGetAuthHeaderByURI(authInfos)
+  const getAuthHeaderByURI = createGetAuthHeaderByURI(credsByUri)
   expect(getAuthHeaderByURI('https://user:secret@reg.com/')).toBe('Basic ' + btoa('user:secret'))
   expect(getAuthHeaderByURI('https://user:secret@reg.com/foo/-/foo-1.0.0.tgz')).toBe('Basic ' + btoa('user:secret'))
   expect(getAuthHeaderByURI('https://user:secret@reg.com:8080/foo/-/foo-1.0.0.tgz')).toBe('Basic ' + btoa('user:secret'))
@@ -38,7 +38,7 @@ test('getAuthHeaderByURI() basic auth with settings', () => {
 })
 
 test('getAuthHeaderByURI() https port 443 checks', () => {
-  const getAuthHeaderByURI = createGetAuthHeaderByURI(authInfos)
+  const getAuthHeaderByURI = createGetAuthHeaderByURI(credsByUri)
   expect(getAuthHeaderByURI('https://custom.domain.com:443/artifactory/api/npm/npm-virtual/')).toBe('Bearer xyz')
   expect(getAuthHeaderByURI('https://custom.domain.com:443/artifactory/api/npm/')).toBeUndefined()
   expect(getAuthHeaderByURI('https://custom.domain.com:443/artifactory/api/npm/-/@platform/device-utils-1.0.0.tgz')).toBeUndefined()

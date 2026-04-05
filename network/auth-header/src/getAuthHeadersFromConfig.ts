@@ -3,21 +3,21 @@ import { spawnSync } from 'node:child_process'
 import { PnpmError } from '@pnpm/error'
 import type { Creds, TokenHelper } from '@pnpm/types'
 
-export function getAuthHeadersFromAuthInfos (
-  authInfos: Record<string, Creds>,
+export function getAuthHeadersFromCreds (
+  credsByUri: Record<string, Creds>,
   defaultRegistry: string
 ): Record<string, string> {
   const authHeaderValueByURI: Record<string, string> = {}
-  for (const [key, authInfo] of Object.entries(authInfos)) {
+  for (const [key, parsedCreds] of Object.entries(credsByUri)) {
     if (key === '') continue // default auth handled below
-    const header = authInfoToHeader(authInfo)
+    const header = credsToHeader(parsedCreds)
     if (header) {
       authHeaderValueByURI[key] = header
     }
   }
-  const defaultAuth = authInfos['']
+  const defaultAuth = credsByUri['']
   if (defaultAuth) {
-    const header = authInfoToHeader(defaultAuth)
+    const header = credsToHeader(defaultAuth)
     if (header) {
       authHeaderValueByURI[defaultRegistry] = header
     }
@@ -25,15 +25,15 @@ export function getAuthHeadersFromAuthInfos (
   return authHeaderValueByURI
 }
 
-function authInfoToHeader (authInfo: Creds): string | undefined {
-  if (authInfo.tokenHelper) {
-    return executeTokenHelper(authInfo.tokenHelper)
+function credsToHeader (parsedCreds: Creds): string | undefined {
+  if (parsedCreds.tokenHelper) {
+    return executeTokenHelper(parsedCreds.tokenHelper)
   }
-  if (authInfo.authToken) {
-    return `Bearer ${authInfo.authToken}`
+  if (parsedCreds.authToken) {
+    return `Bearer ${parsedCreds.authToken}`
   }
-  if (authInfo.authUserPass) {
-    return `Basic ${btoa(`${authInfo.authUserPass.username}:${authInfo.authUserPass.password}`)}`
+  if (parsedCreds.authUserPass) {
+    return `Basic ${btoa(`${parsedCreds.authUserPass.username}:${parsedCreds.authUserPass.password}`)}`
   }
   return undefined
 }

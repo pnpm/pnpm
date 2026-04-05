@@ -94,7 +94,7 @@ test('auth infos', () => {
     registries: {
       '@foo': 'https://example.com/foo',
     },
-    authInfos: {
+    credsByUri: {
       '//example.com/foo': {
         authToken: 'example auth token',
       },
@@ -109,7 +109,7 @@ test('auth infos', () => {
     registries: {
       '@foo': 'https://example.com/foo',
     },
-    authInfos: {
+    credsByUri: {
       '//example.com/foo': {
         authUserPass: {
           username: 'foo',
@@ -128,7 +128,7 @@ test('auth infos', () => {
     registries: {
       '@foo': 'https://example.com/foo',
     },
-    authInfos: {
+    credsByUri: {
       '//example.com/foo': {
         authUserPass: {
           username: 'foo',
@@ -146,7 +146,7 @@ test('auth infos', () => {
     registries: {
       '@foo': 'https://example.com/foo',
     },
-    authInfos: {
+    credsByUri: {
       '//example.com/foo': {
         tokenHelper: ['node', './my-token-helper.cjs'],
       },

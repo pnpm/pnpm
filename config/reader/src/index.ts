@@ -37,7 +37,7 @@ import { isConfigFileKey } from './configFileKey.js'
 import { extractAndRemoveDependencyBuildOptions, hasDependencyBuildOptions } from './dependencyBuildOptions.js'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs.js'
 import { parseEnvVars } from './env.js'
-import { getDefaultAuthInfo, getNetworkConfigs } from './getNetworkConfigs.js'
+import { getDefaultCreds, getNetworkConfigs } from './getNetworkConfigs.js'
 import { getOptionsFromPnpmSettings } from './getOptionsFromRootManifest.js'
 import { loadNpmrcConfig } from './loadNpmrcFiles.js'
 import { npmDefaults } from './npmDefaults.js'
@@ -302,21 +302,21 @@ export async function getConfig (opts: {
     ...networkConfigs.registries,
   }
   pnpmConfig.registries = { ...registriesFromNpmrc }
-  const defaultAuthInfo = getDefaultAuthInfo(pnpmConfig.authConfig)
-  pnpmConfig.authInfos = {
-    ...networkConfigs.authInfos,
-    ...defaultAuthInfo ? { '': defaultAuthInfo } : {},
+  const defaultCreds = getDefaultCreds(pnpmConfig.authConfig)
+  pnpmConfig.credsByUri = {
+    ...networkConfigs.credsByUri,
+    ...defaultCreds ? { '': defaultCreds } : {},
   }
   // tokenHelper must only come from user-level config (~/.npmrc), not project-level,
   // to prevent project .npmrc from executing arbitrary commands.
   const userConfig = npmrcResult.userConfig as Record<string, string>
-  const userAuthInfos = getNetworkConfigs(pickIniConfig(userConfig)).authInfos
-  const userDefaultAuthInfo = getDefaultAuthInfo(userConfig)
-  for (const [key, authInfo] of Object.entries(pnpmConfig.authInfos)) {
-    if (!authInfo.tokenHelper) continue
-    const userAuthInfo = key === '' ? userDefaultAuthInfo : userAuthInfos?.[key]
+  const userCreds = getNetworkConfigs(pickIniConfig(userConfig)).credsByUri
+  const userDefaultAuthInfo = getDefaultCreds(userConfig)
+  for (const [key, parsedCreds] of Object.entries(pnpmConfig.credsByUri)) {
+    if (!parsedCreds.tokenHelper) continue
+    const userAuthInfo = key === '' ? userDefaultAuthInfo : userCreds?.[key]
     if (!userAuthInfo?.tokenHelper) {
-      delete authInfo.tokenHelper
+      delete parsedCreds.tokenHelper
     }
   }
   pnpmConfig.sslConfigs = networkConfigs.sslConfigs

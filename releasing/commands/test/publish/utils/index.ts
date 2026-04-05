@@ -4,7 +4,7 @@ import { safeExeca as execa } from 'execa'
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
 
 export const DEFAULT_OPTS = {
-  authInfos: {},
+  credsByUri: {},
   argv: {
     original: [],
   },

@@ -4,7 +4,7 @@ import type { AuthUserPass, Creds, TokenHelper } from '@pnpm/types'
 export type { AuthUserPass, Creds, TokenHelper }
 
 /** Unparsed authentication information of each registry in the rc file. */
-export interface AuthInfoInput {
+export interface CredsInput {
   /** Value of `_authToken` in the rc file. */
   authToken?: string
   /** Value of `_auth` in the rc file. */
@@ -17,32 +17,32 @@ export interface AuthInfoInput {
   tokenHelper?: string
 }
 
-export function parseAuthInfo (input: AuthInfoInput): Creds | undefined {
-  let authInfo: Creds | undefined
+export function parseCreds (input: CredsInput): Creds | undefined {
+  let parsedCreds: Creds | undefined
 
   if (input.tokenHelper) {
-    authInfo = {
-      ...authInfo,
+    parsedCreds = {
+      ...parsedCreds,
       tokenHelper: parseTokenHelper(input.tokenHelper),
     }
   }
 
   if (input.authToken) {
-    authInfo = {
-      ...authInfo,
+    parsedCreds = {
+      ...parsedCreds,
       authToken: input.authToken,
     }
   }
 
   const authUserPass = getAuthUserPass(input)
   if (authUserPass) {
-    authInfo = {
-      ...authInfo,
+    parsedCreds = {
+      ...parsedCreds,
       authUserPass,
     }
   }
 
-  return authInfo
+  return parsedCreds
 }
 
 
@@ -57,7 +57,7 @@ function getAuthUserPass ({
   authPairBase64,
   authUsername,
   authPassword,
-}: Pick<AuthInfoInput, 'authPairBase64' | 'authUsername' | 'authPassword'>): AuthUserPass | undefined {
+}: Pick<CredsInput, 'authPairBase64' | 'authUsername' | 'authPassword'>): AuthUserPass | undefined {
   if (authPairBase64) {
     const pair = atob(authPairBase64)
     const colonIndex = pair.indexOf(':')
