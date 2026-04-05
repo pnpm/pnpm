@@ -47,13 +47,10 @@ test('remove unreferenced packages', async () => {
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
-    authConfig: {
-      registry: REGISTRY,
-    },
+    configByUri: {},
     registries: { default: REGISTRY },
     reporter,
     storeDir,
-    userConfig: {},
     dlxCacheMaxAge: Infinity,
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['prune'])
@@ -72,13 +69,10 @@ test('remove unreferenced packages', async () => {
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
-    authConfig: {
-      registry: REGISTRY,
-    },
+    configByUri: {},
     registries: { default: REGISTRY },
     reporter,
     storeDir,
-    userConfig: {},
     dlxCacheMaxAge: Infinity,
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['prune'])
@@ -120,13 +114,10 @@ test('prune outputs total size of removed files', async () => {
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
-    authConfig: {
-      registry: REGISTRY,
-    },
+    configByUri: {},
     registries: { default: REGISTRY },
     reporter,
     storeDir,
-    userConfig: {},
     dlxCacheMaxAge: Infinity,
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['prune'])
@@ -158,13 +149,10 @@ test('remove packages that are used by project that no longer exist', async () =
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
-    authConfig: {
-      registry: REGISTRY,
-    },
+    configByUri: {},
     registries: { default: REGISTRY },
     reporter,
     storeDir,
-    userConfig: {},
     dlxCacheMaxAge: Infinity,
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['prune'])
@@ -206,12 +194,9 @@ test('keep dependencies used by others', async () => {
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
-    authConfig: {
-      registry: REGISTRY,
-    },
+    configByUri: {},
     registries: { default: REGISTRY },
     storeDir,
-    userConfig: {},
     dlxCacheMaxAge: Infinity,
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['prune'])
@@ -232,12 +217,9 @@ test('keep dependency used by package', async () => {
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
-    authConfig: {
-      registry: REGISTRY,
-    },
+    configByUri: {},
     registries: { default: REGISTRY },
     storeDir,
-    userConfig: {},
     dlxCacheMaxAge: Infinity,
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['prune'])
@@ -256,12 +238,9 @@ test('prune will skip scanning non-directory in storeDir', async () => {
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
-    authConfig: {
-      registry: REGISTRY,
-    },
+    configByUri: {},
     registries: { default: REGISTRY },
     storeDir,
-    userConfig: {},
     dlxCacheMaxAge: Infinity,
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['prune'])
@@ -283,13 +262,10 @@ test('prune does not fail if the store contains an unexpected directory', async 
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
-    authConfig: {
-      registry: REGISTRY,
-    },
+    configByUri: {},
     registries: { default: REGISTRY },
     reporter,
     storeDir,
-    userConfig: {},
     dlxCacheMaxAge: Infinity,
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['prune'])
@@ -321,13 +297,10 @@ test('prune removes alien files from the store if the --force flag is used', asy
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
-    authConfig: {
-      registry: REGISTRY,
-    },
+    configByUri: {},
     registries: { default: REGISTRY },
     reporter,
     storeDir,
-    userConfig: {},
     force: true,
     dlxCacheMaxAge: Infinity,
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
@@ -352,13 +325,10 @@ describe('prune when store directory is not properly configured', () => {
         cacheDir: path.resolve('cache'),
         dir: process.cwd(),
         pnpmHomeDir: '',
-        authConfig: {
-          registry: REGISTRY,
-        },
+        configByUri: {},
         registries: { default: REGISTRY },
         reporter,
         storeDir: nonExistentStoreDir,
-        userConfig: {},
         dlxCacheMaxAge: Infinity,
         virtualStoreDirMaxLength: 120,
       }, ['prune'])
@@ -388,13 +358,10 @@ describe('prune when store directory is not properly configured', () => {
         cacheDir: path.resolve('cache'),
         dir: process.cwd(),
         pnpmHomeDir: '',
-        authConfig: {
-          registry: REGISTRY,
-        },
+        configByUri: {},
         registries: { default: REGISTRY },
         reporter: jest.fn(),
         storeDir: fileInPlaceOfStoreDir,
-        userConfig: {},
         dlxCacheMaxAge: Infinity,
         virtualStoreDirMaxLength: 120,
       }, ['prune'])
@@ -449,13 +416,10 @@ test('prune removes cache directories that outlives dlx-cache-max-age', async ()
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
-    authConfig: {
-      registry: REGISTRY,
-    },
+    configByUri: {},
     registries: { default: REGISTRY },
     reporter () {},
     storeDir,
-    userConfig: {},
     dlxCacheMaxAge: 7,
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['prune'])
@@ -514,12 +478,9 @@ describe('global virtual store prune', () => {
       cacheDir,
       dir: process.cwd(),
       pnpmHomeDir: '',
-      authConfig: {
-        registry: REGISTRY,
-      },
+      configByUri: {},
       registries: { default: REGISTRY },
       storeDir: path.join(storeDir, STORE_VERSION),
-      userConfig: {},
       dlxCacheMaxAge: Infinity,
       virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     }, ['prune'])
@@ -582,12 +543,9 @@ describe('global virtual store prune', () => {
       cacheDir,
       dir: process.cwd(),
       pnpmHomeDir: '',
-      authConfig: {
-        registry: REGISTRY,
-      },
+      configByUri: {},
       registries: { default: REGISTRY },
       storeDir: path.join(storeDir, STORE_VERSION),
-      userConfig: {},
       dlxCacheMaxAge: Infinity,
       virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     }, ['prune'])
@@ -653,12 +611,9 @@ describe('global virtual store prune', () => {
       cacheDir,
       dir: process.cwd(),
       pnpmHomeDir: '',
-      authConfig: {
-        registry: REGISTRY,
-      },
+      configByUri: {},
       registries: { default: REGISTRY },
       storeDir: path.join(storeDir, STORE_VERSION),
-      userConfig: {},
       dlxCacheMaxAge: Infinity,
       virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     }, ['prune'])
@@ -737,12 +692,9 @@ describe('global virtual store prune', () => {
       cacheDir,
       dir: process.cwd(),
       pnpmHomeDir: '',
-      authConfig: {
-        registry: REGISTRY,
-      },
+      configByUri: {},
       registries: { default: REGISTRY },
       storeDir: path.join(storeDir, STORE_VERSION),
-      userConfig: {},
       dlxCacheMaxAge: Infinity,
       virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     }, ['prune'])

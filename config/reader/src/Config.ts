@@ -7,12 +7,11 @@ import type {
   ProjectManifest,
   ProjectsGraph,
   Registries,
-  SslConfig,
+  RegistryConfig,
   TrustPolicy,
 } from '@pnpm/types'
 
 import type { OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
-import type { AuthInfo } from './parseAuthInfo.js'
 
 export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'authConfig'>
 
@@ -51,7 +50,7 @@ export interface ConfigContext {
  * User-facing settings + auth/network config.
  * Does NOT include runtime state — see {@link ConfigContext} for that.
  */
-export interface Config extends AuthInfo, OptionsFromRootManifest {
+export interface Config extends OptionsFromRootManifest {
   allowNew: boolean
   autoConfirmAllPrompts?: boolean
   autoInstallPeers?: boolean
@@ -213,8 +212,7 @@ export interface Config extends AuthInfo, OptionsFromRootManifest {
   blockExoticSubdeps?: boolean
 
   registries: Registries
-  authInfos: Record<string, AuthInfo>
-  sslConfigs: Record<string, SslConfig>
+  configByUri: Record<string, RegistryConfig>
   ignoreWorkspaceRootCheck: boolean
   workspaceRoot: boolean
 

@@ -4,7 +4,7 @@ import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/config.normalize-
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import type { LogBase } from '@pnpm/logger'
 import type { StoreController } from '@pnpm/store.controller-types'
-import type { Registries } from '@pnpm/types'
+import type { Registries, RegistryConfig } from '@pnpm/types'
 import { loadJsonFile } from 'load-json-file'
 
 export type StrictBuildOptions = {
@@ -35,7 +35,7 @@ export type StrictBuildOptions = {
   production: boolean
   development: boolean
   optional: boolean
-  authConfig: object
+  configByUri: Record<string, RegistryConfig>
   userConfig: Record<string, string>
   userAgent: string
   packageManager: {
@@ -52,7 +52,7 @@ export type StrictBuildOptions = {
   peersSuffixMaxLength: number
   strictStorePkgContentCheck: boolean
   fetchFullMetadata?: boolean
-} & Pick<Config, 'sslConfigs' | 'allowBuilds'>
+} & Pick<Config, 'allowBuilds'>
 
 export type BuildOptions = Partial<StrictBuildOptions> &
 Pick<StrictBuildOptions, 'storeDir' | 'storeController'> & Pick<ConfigContext, 'rootProjectManifest' | 'rootProjectManifestDir'>
@@ -73,7 +73,7 @@ const defaults = async (opts: BuildOptions): Promise<StrictBuildOptions> => {
     packageManager,
     pending: false,
     production: true,
-    authConfig: {},
+    configByUri: {},
     registries: DEFAULT_REGISTRIES,
     scriptsPrependNodePath: false,
     shamefullyHoist: false,

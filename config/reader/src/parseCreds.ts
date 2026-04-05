@@ -1,17 +1,10 @@
 import { PnpmError } from '@pnpm/error'
+import type { BasicAuth, Creds, TokenHelper } from '@pnpm/types'
 
-/** Authentication information of each registry in the rc file. */
-export interface AuthInfo {
-  /** Parsed value of `_auth` of each registry in the rc file. */
-  authUserPass?: AuthUserPass
-  /** The value of `_authToken` of each registry in the rc file. */
-  authToken?: string
-  /** Parsed value of `tokenHelper` of each registry in the rc file. */
-  tokenHelper?: TokenHelper
-}
+export type { BasicAuth, Creds, TokenHelper }
 
 /** Unparsed authentication information of each registry in the rc file. */
-export interface AuthInfoInput {
+export interface RawCreds {
   /** Value of `_authToken` in the rc file. */
   authToken?: string
   /** Value of `_auth` in the rc file. */
@@ -24,39 +17,34 @@ export interface AuthInfoInput {
   tokenHelper?: string
 }
 
-export function parseAuthInfo (input: AuthInfoInput): AuthInfo | undefined {
-  let authInfo: AuthInfo | undefined
+export function parseCreds (input: RawCreds): Creds | undefined {
+  let parsedCreds: Creds | undefined
 
   if (input.tokenHelper) {
-    authInfo = {
-      ...authInfo,
+    parsedCreds = {
+      ...parsedCreds,
       tokenHelper: parseTokenHelper(input.tokenHelper),
     }
   }
 
   if (input.authToken) {
-    authInfo = {
-      ...authInfo,
+    parsedCreds = {
+      ...parsedCreds,
       authToken: input.authToken,
     }
   }
 
-  const authUserPass = getAuthUserPass(input)
-  if (authUserPass) {
-    authInfo = {
-      ...authInfo,
-      authUserPass,
+  const basicAuth = parseBasicAuth(input)
+  if (basicAuth) {
+    parsedCreds = {
+      ...parsedCreds,
+      basicAuth,
     }
   }
 
-  return authInfo
+  return parsedCreds
 }
 
-/** Parsed value of `_auth` of each registry in the rc file. */
-export interface AuthUserPass {
-  username: string
-  password: string
-}
 
 /**
  * Extract a pair of username and password from either a base64 encoded string
@@ -65,11 +53,11 @@ export interface AuthUserPass {
  * The function input mirrors the rc file which has 3 properties to define username
  * and password which are: `_auth`, `username`, and `_password`.
  */
-function getAuthUserPass ({
+function parseBasicAuth ({
   authPairBase64,
   authUsername,
   authPassword,
-}: Pick<AuthInfoInput, 'authPairBase64' | 'authUsername' | 'authPassword'>): AuthUserPass | undefined {
+}: Pick<RawCreds, 'authPairBase64' | 'authUsername' | 'authPassword'>): BasicAuth | undefined {
   if (authPairBase64) {
     const pair = atob(authPairBase64)
     const colonIndex = pair.indexOf(':')
@@ -96,8 +84,6 @@ export class AuthMissingSeparatorError extends PnpmError {
   }
 }
 
-/** Parsed value of `tokenHelper` of each registry in the rc file. */
-export type TokenHelper = [string, ...string[]]
 
 /** Characters reserved for more advanced features in the future. */
 const RESERVED_CHARACTERS = new Set(['$', '%', '`', '"', "'"])

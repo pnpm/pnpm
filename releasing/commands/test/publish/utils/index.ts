@@ -4,7 +4,7 @@ import { safeExeca as execa } from 'execa'
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
 
 export const DEFAULT_OPTS = {
-  authInfos: {},
+  configByUri: {},
   argv: {
     original: [],
   },
@@ -36,13 +36,11 @@ export const DEFAULT_OPTS = {
   pnpmfile: ['./.pnpmfile.cjs'],
   pnpmHomeDir: '',
   proxy: undefined,
-  authConfig: { registry: REGISTRY },
   registries: { default: REGISTRY },
   registry: REGISTRY,
   sort: true,
   cacheDir: '../cache',
   strictSsl: false,
-  sslConfigs: {},
   userAgent: 'pnpm',
   userConfig: {},
   useRunningStoreServer: false,

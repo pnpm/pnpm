@@ -32,6 +32,7 @@ const RAW_AUTH_CFG_KEY_SUFFIXES = [
 const AUTH_CFG_KEYS = [
   'ca',
   'cert',
+  'configByUri',
   'key',
   'localAddress',
   'gitShallowHosts',

@@ -299,10 +299,7 @@ test('errors on fake registry', async () => {
   const promise = publish.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
-    authConfig: {
-      ...DEFAULT_OPTS.authConfig,
-      registry: fakeRegistry,
-    },
+    configByUri: {},
     registries: {
       ...DEFAULT_OPTS.registries,
       default: fakeRegistry,

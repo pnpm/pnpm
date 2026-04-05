@@ -409,10 +409,7 @@ export async function recursive (
               saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
               savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
             }),
-            authConfig: {
-              ...installOpts.authConfig,
-              ...localConfig,
-            },
+            configByUri: installOpts.configByUri,
             storeController: store.ctrl,
           }
         )

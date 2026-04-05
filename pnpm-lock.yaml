@@ -6761,6 +6761,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../core/types
     devDependencies:
       '@pnpm/network.auth-header':
         specifier: workspace:*

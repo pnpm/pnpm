@@ -17,14 +17,13 @@ export type NvmNodeCommandOptions = Pick<Config,
 | 'localAddress'
 | 'noProxy'
 | 'nodeDownloadMirrors'
-| 'authConfig'
+| 'configByUri'
 | 'strictSsl'
 | 'storeDir'
 | 'pnpmHomeDir'
 > & Partial<Pick<Config,
 | 'cacheDir'
 | 'configDir'
-| 'sslConfigs'
 // Fields needed to forward opts to add.handler for env use
 | 'registries'
 | 'lockfileDir'

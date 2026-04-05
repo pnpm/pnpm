@@ -19,7 +19,7 @@ export type PublishRecursiveOpts = Required<Pick<Config,
 | 'cacheDir'
 | 'dir'
 | 'pnpmHomeDir'
-| 'authConfig'
+| 'configByUri'
 | 'registries'
 | 'workspaceDir'
 >> &
@@ -51,7 +51,6 @@ Partial<Pick<Config,
 | 'strictSsl'
 | 'unsafePerm'
 | 'userAgent'
-| 'userConfig'
 | 'verifyStoreIntegrity'
 >> &
 Partial<Pick<ConfigContext,
@@ -70,8 +69,7 @@ export async function recursivePublish (
   const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
   const { resolve } = createResolver({
     ...opts,
-    authConfig: opts.authConfig,
-    userConfig: opts.userConfig,
+    configByUri: opts.configByUri,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,

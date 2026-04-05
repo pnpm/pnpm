@@ -19,10 +19,39 @@ export interface Registries {
   [scope: string]: string
 }
 
-export interface SslConfig {
-  cert: string
-  key: string
+/** Parsed value of `_auth` of each registry in the rc file. */
+export interface BasicAuth {
+  username: string
+  password: string
+}
+
+/** Parsed value of `tokenHelper` of each registry in the rc file. */
+export type TokenHelper = [string, ...string[]]
+
+/** Per-registry authentication credentials. */
+export interface Creds {
+  /** Parsed value of `_auth` of each registry in the rc file. */
+  basicAuth?: BasicAuth
+  /** The value of `_authToken` of each registry in the rc file. */
+  authToken?: string
+  /** Parsed value of `tokenHelper` of each registry in the rc file. */
+  tokenHelper?: TokenHelper
+}
+
+/** Per-registry TLS configuration. */
+export interface TlsConfig {
+  /** Client certificate (PEM). */
+  cert?: string
+  /** Client private key (PEM). */
+  key?: string
+  /** Certificate authority (PEM). */
   ca?: string
+}
+
+/** Per-registry configuration (credentials + TLS). */
+export interface RegistryConfig {
+  creds?: Creds
+  tls?: TlsConfig
 }
 
 export type HoistedDependencies = Record<DepPath | ProjectId, Record<string, 'public' | 'private'>>

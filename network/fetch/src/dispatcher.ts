@@ -4,7 +4,7 @@ import { URL } from 'node:url'
 
 import { nerfDart } from '@pnpm/config.nerf-dart'
 import { PnpmError } from '@pnpm/error'
-import type { SslConfig } from '@pnpm/types'
+import type { TlsConfig } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
 import { SocksClient } from 'socks'
 import { Agent, type Dispatcher, ProxyAgent, setGlobalDispatcher } from 'undici'
@@ -38,6 +38,8 @@ const DISPATCHER_CACHE = new LRUCache<string, Dispatcher>({
   },
 })
 
+export type ClientCertificates = Record<string, TlsConfig>
+
 export interface DispatcherOptions {
   ca?: string | string[] | Buffer
   cert?: string | string[] | Buffer
@@ -49,7 +51,7 @@ export interface DispatcherOptions {
   httpProxy?: string
   httpsProxy?: string
   noProxy?: boolean | string
-  clientCertificates?: Record<string, SslConfig>
+  clientCertificates?: ClientCertificates
 }
 
 /**
@@ -78,6 +80,15 @@ export function getDispatcher (uri: string, opts: DispatcherOptions): Dispatcher
   return getNonProxyDispatcher(parsedUri, opts)
 }
 
+function hasClientCertificates (certs?: ClientCertificates): boolean {
+  if (!certs) return false
+  for (const uri in certs) {
+    const entry = certs[uri]
+    if (entry.cert || entry.key || entry.ca) return true
+  }
+  return false
+}
+
 function needsCustomDispatcher (opts: DispatcherOptions): boolean {
   return Boolean(
     opts.httpProxy ||
@@ -87,7 +98,7 @@ function needsCustomDispatcher (opts: DispatcherOptions): boolean {
     opts.key ||
     opts.localAddress ||
     opts.strictSsl === false ||
-    opts.clientCertificates ||
+    hasClientCertificates(opts.clientCertificates) ||
     opts.maxSockets
   )
 }

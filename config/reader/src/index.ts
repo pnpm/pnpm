@@ -37,7 +37,7 @@ import { isConfigFileKey } from './configFileKey.js'
 import { extractAndRemoveDependencyBuildOptions, hasDependencyBuildOptions } from './dependencyBuildOptions.js'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs.js'
 import { parseEnvVars } from './env.js'
-import { getDefaultAuthInfo, getNetworkConfigs } from './getNetworkConfigs.js'
+import { getDefaultCreds, getNetworkConfigs } from './getNetworkConfigs.js'
 import { getOptionsFromPnpmSettings } from './getOptionsFromRootManifest.js'
 import { loadNpmrcConfig } from './loadNpmrcFiles.js'
 import { npmDefaults } from './npmDefaults.js'
@@ -51,6 +51,7 @@ export { types }
 
 export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 export { getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
+export type { Creds } from './parseCreds.js'
 export {
   createProjectConfigRecord,
   type CreateProjectConfigRecordOptions,
@@ -63,7 +64,6 @@ export {
   ProjectConfigsMatchItemIsNotAStringError,
   ProjectConfigUnsupportedFieldError,
 } from './projectConfig.js'
-
 export type { Config, ConfigContext, ProjectConfig, UniversalOptions, VerifyDepsBeforeRun }
 
 export { isIniConfigKey } from './auth.js'
@@ -302,9 +302,22 @@ export async function getConfig (opts: {
     ...networkConfigs.registries,
   }
   pnpmConfig.registries = { ...registriesFromNpmrc }
-  pnpmConfig.authInfos = networkConfigs.authInfos ?? {} // TODO: remove `?? {}` (when possible)
-  pnpmConfig.sslConfigs = networkConfigs.sslConfigs
-  Object.assign(pnpmConfig, getDefaultAuthInfo(pnpmConfig.authConfig))
+  const defaultCreds = getDefaultCreds(pnpmConfig.authConfig)
+  pnpmConfig.configByUri = {
+    ...networkConfigs.configByUri,
+    ...defaultCreds ? { '': { creds: defaultCreds } } : {},
+  }
+  // tokenHelper must only come from user-level config (~/.npmrc or global auth.ini),
+  // not project-level, to prevent project .npmrc from executing arbitrary commands.
+  const userConfig = npmrcResult.userConfig as Record<string, string>
+  for (const [key, value] of Object.entries(pnpmConfig.authConfig)) {
+    if (!key.endsWith('tokenHelper') && key !== 'tokenHelper') continue
+    if (!(key in userConfig) || userConfig[key] !== value) {
+      throw new PnpmError('TOKEN_HELPER_IN_PROJECT_CONFIG',
+        'tokenHelper must not be configured in project-level .npmrc',
+        { hint: `The key "${key}" was found in project config. Move it to ~/.npmrc or the global pnpm auth.ini.` })
+    }
+  }
   pnpmConfig.pnpmHomeDir = getDataDir({ env, platform: process.platform })
   let globalDirRoot
   if (pnpmConfig.globalDir) {

@@ -33,7 +33,7 @@ const DEFAULT_OPTS = {
   preferWorkspacePackages: true,
   proxy: undefined,
   pnpmHomeDir: '',
-  authConfig: { registry: REGISTRY },
+  configByUri: {},
   registries: { default: REGISTRY },
   registry: REGISTRY,
   rootProjectManifestDir: '',

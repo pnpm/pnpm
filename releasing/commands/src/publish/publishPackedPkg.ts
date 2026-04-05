@@ -4,6 +4,7 @@ import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
+import type { Creds, RegistryConfig } from '@pnpm/types'
 import type { PublishOptions } from 'libnpmpublish'
 
 import { displayError } from './displayError.js'
@@ -16,26 +17,8 @@ import { publishWithOtpHandling } from './otp.js'
 import type { PackResult } from './pack.js'
 import { allRegistryConfigKeys, type NormalizedRegistryUrl, parseSupportedRegistryUrl } from './registryConfigKeys.js'
 
-type AuthConfigKey =
-| 'authToken'
-| 'authUserPass'
-| 'tokenHelper'
-
-type SslConfigKey =
-| 'ca'
-| 'cert'
-| 'key'
-
-type AuthSslConfigKey =
-// default registry
-| AuthConfigKey
-| SslConfigKey
-// other registries
-| 'authInfos'
-| 'sslConfigs'
-
 export type PublishPackedPkgOptions = Pick<Config,
-| AuthSslConfigKey
+| 'configByUri'
 | 'dryRun'
 | 'fetchRetries'
 | 'fetchRetryFactor'
@@ -76,7 +59,8 @@ export async function publishPackedPkg (
 }
 
 async function createPublishOptions (manifest: ExportedManifest, options: PublishPackedPkgOptions): Promise<PublishOptions> {
-  const { registry, auth, ssl } = findAuthSslInfo(manifest, options)
+  const { registry, config } = findRegistryInfo(manifest, options)
+  const { creds, tls } = config ?? {}
 
   const {
     access,
@@ -118,21 +102,14 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
     // always fall back to prompting the user for an OTP code, even when the user
     // has no OTP set up.
     authType: 'web',
-    ca: ssl?.ca,
-    cert: Array.isArray(ssl?.cert) ? ssl.cert.join('\n') : ssl?.cert,
-    key: ssl?.key,
+    ca: tls?.ca,
+    cert: tls?.cert,
+    key: tls?.key,
     npmCommand: 'publish',
-    token: auth && extractToken(auth),
-    username: auth?.authUserPass?.username,
-    password: auth?.authUserPass?.password,
+    token: creds && extractToken(creds),
+    username: creds?.basicAuth?.username,
+    password: creds?.basicAuth?.password,
   }
-
-  // This is necessary because getNetworkConfigs initialized them as { cert: '', key: '' }
-  // which may be a problem.
-  // The real fix is to change the type `SslConfig` into that of partial properties, but that
-  // is out of scope for now.
-  removeEmptyStringProperty(publishOptions, 'cert')
-  removeEmptyStringProperty(publishOptions, 'key')
 
   if (registry) {
     const oidcTokenProvenance = await fetchTokenAndProvenanceByOidcIfApplicable(publishOptions, manifest.name, registry, options)
@@ -145,26 +122,19 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
   return publishOptions
 }
 
-interface AuthSslInfo {
+interface RegistryInfo {
   registry: NormalizedRegistryUrl
-  auth: Pick<Config, AuthConfigKey>
-  ssl: Pick<Config, SslConfigKey>
+  config: RegistryConfig
 }
 
 /**
- * Find auth and ssl information according to {@link https://docs.npmjs.com/cli/v10/configuring-npm/npmrc#auth-related-configuration}.
- *
- * The example `.npmrc` demonstrated inheritance.
+ * Find credentials and SSL info for a package's registry.
+ * Follows {@link https://docs.npmjs.com/cli/v10/configuring-npm/npmrc#auth-related-configuration}.
  */
-function findAuthSslInfo (
+function findRegistryInfo (
   { name }: ExportedManifest,
-  {
-    authInfos,
-    sslConfigs,
-    registries,
-    ...defaultInfos
-  }: Pick<Config, AuthSslConfigKey | 'registries'>
-): Partial<AuthSslInfo> {
+  { configByUri, registries }: Pick<Config, 'configByUri' | 'registries'>
+): Partial<RegistryInfo> {
   // eslint-disable-next-line regexp/no-unused-capturing-group
   const scopedMatches = /@(?<scope>[^/]+)\/(?<slug>[^/]+)/.exec(name)
 
@@ -181,45 +151,36 @@ function findAuthSslInfo (
     longestConfigKey: initialRegistryConfigKey,
   } = supportedRegistryInfo
 
-  const result: Partial<AuthSslInfo> = { registry }
-
+  let creds: Creds | undefined
+  let tls: RegistryConfig['tls'] = {}
   for (const registryConfigKey of allRegistryConfigKeys(initialRegistryConfigKey)) {
-    const auth: Pick<Config, AuthConfigKey> | undefined = authInfos[registryConfigKey]
-    const ssl: Pick<Config, SslConfigKey> | undefined = sslConfigs[registryConfigKey]
-
-    result.auth ??= auth // old auth from longer path collectively overrides new auth from shorter path
-
-    result.ssl = {
-      ...ssl,
-      ...result.ssl, // old ssl from longer path individually overrides new ssl from shorter path
-    }
+    const entry = configByUri[registryConfigKey]
+    if (!entry) continue
+    // Auth from longer path collectively overrides shorter path
+    creds ??= entry.creds
+    // TLS from longer path individually overrides shorter path
+    tls = { ...entry.tls, ...tls }
   }
 
-  if (
-    nonNormalizedRegistry !== registries.default &&
-    registry !== registries.default &&
-    registry !== parseSupportedRegistryUrl(registries.default)?.normalizedUrl
-  ) {
-    return result
+  const isDefaultRegistry =
+    nonNormalizedRegistry === registries.default ||
+    registry === registries.default ||
+    registry === parseSupportedRegistryUrl(registries.default)?.normalizedUrl
+
+  if (isDefaultRegistry) {
+    creds ??= configByUri['']?.creds
   }
 
   return {
     registry,
-    auth: result.auth ?? defaultInfos, // old auth from longer path collectively overrides default auth
-    ssl: {
-      ...defaultInfos,
-      ...result.ssl, // old ssl from longer path individually overrides default ssl
-    },
+    config: { creds, tls },
   }
 }
 
 function extractToken ({
   authToken,
   tokenHelper,
-}: {
-  authToken?: string
-  tokenHelper?: [string, ...string[]]
-}): string | undefined {
+}: Pick<Creds, 'authToken' | 'tokenHelper'>): string | undefined {
   if (authToken) return authToken
   if (tokenHelper) {
     return executeTokenHelper(tokenHelper, { globalWarn })
@@ -339,12 +300,6 @@ function appendAuthOptionsForRegistry (targetPublishOptions: PublishOptions, reg
   targetPublishOptions[`${registryConfigKey}:_authToken`] ??= targetPublishOptions.token
   targetPublishOptions[`${registryConfigKey}:username`] ??= targetPublishOptions.username
   targetPublishOptions[`${registryConfigKey}:_password`] ??= targetPublishOptions.password && btoa(targetPublishOptions.password)
-}
-
-function removeEmptyStringProperty<Key extends string> (object: Partial<Record<Key, string>>, key: Key): void {
-  if (!object[key]) {
-    delete object[key]
-  }
 }
 
 function pruneUndefined (object: Record<string, unknown>): void {

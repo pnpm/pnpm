@@ -43,7 +43,7 @@ export const DEFAULT_OPTS = {
   pnpmHomeDir: '',
   preferWorkspacePackages: true,
   proxy: undefined,
-  authConfig: { registry: REGISTRY_URL },
+  configByUri: {},
   rootProjectManifestDir: '',
   registries: { default: REGISTRY_URL },
   registry: REGISTRY_URL,
@@ -84,7 +84,7 @@ export const DLX_DEFAULT_OPTS = {
   pnpmfile: ['.pnpmfile.cjs'],
   pnpmHomeDir: '',
   preferWorkspacePackages: true,
-  authConfig: { registry: REGISTRY_URL },
+  configByUri: {},
   registries: {
     default: REGISTRY_URL,
   },

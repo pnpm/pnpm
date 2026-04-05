@@ -201,9 +201,8 @@ describe('plugin-commands-audit', () => {
       ...AUDIT_REGISTRY_OPTS,
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
-      authConfig: {
-        registry: AUDIT_REGISTRY,
-        [`${AUDIT_REGISTRY.replace(/^https?:/, '')}:_authToken`]: '123',
+      configByUri: {
+        '//audit.registry/': { creds: { authToken: '123' } },
       },
     })
 
