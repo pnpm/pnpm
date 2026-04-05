@@ -21,29 +21,21 @@ export function getNetworkConfigs (rawConfig: Record<string, unknown>): NetworkC
       continue
     }
 
-    const parsed = tryParseCredsKey(configKey) ?? tryParseSslKey(configKey)
+    const parsedCreds = tryParseCredsKey(configKey)
+    if (parsedCreds) {
+      const { credsField, registry } = parsedCreds
+      rawCredsMap[registry] ??= {}
+      rawCredsMap[registry][credsField] = value as string
+      continue
+    }
 
-    switch (parsed?.target) {
-      case undefined:
-        continue
-      case 'auth': {
-        const { credsField, registry } = parsed
-        rawCredsMap[registry] ??= {}
-        rawCredsMap[registry][credsField] = value as string
-        continue
-      }
-      case 'ssl': {
-        const { registry, sslConfigKey, isFile } = parsed
-        sslConfigs[registry] ??= { cert: '', key: '' }
-        sslConfigs[registry][sslConfigKey] = isFile
-          ? fs.readFileSync(value as string, 'utf8')
-          : (value as string).replace(/\\n/g, '\n')
-        continue
-      }
-      default: {
-        const _typeGuard: never = parsed
-        throw new Error(`Unhandled variant: ${JSON.stringify(_typeGuard)}`)
-      }
+    const parsedSsl = tryParseSslKey(configKey)
+    if (parsedSsl) {
+      const { registry, sslConfigKey, isFile } = parsedSsl
+      sslConfigs[registry] ??= { cert: '', key: '' }
+      sslConfigs[registry][sslConfigKey] = isFile
+        ? fs.readFileSync(value as string, 'utf8')
+        : (value as string).replace(/\\n/g, '\n')
     }
   }
 
@@ -89,7 +81,6 @@ const AUTH_SUFFIX_KEY_MAP: Record<string, keyof RawCreds> = {
 }
 
 interface ParsedCredsKey {
-  target: 'auth'
   registry: string
   credsField: keyof RawCreds
 }
@@ -104,13 +95,12 @@ function tryParseCredsKey (key: string): ParsedCredsKey | undefined {
   if (!credsField) {
     throw new Error(`Unexpected key: ${match.groups.key}`)
   }
-  return { target: 'auth', registry, credsField }
+  return { registry, credsField }
 }
 
 const SSL_SUFFIX_RE = /:(?<id>cert|key|ca)(?<kind>file)?$/
 
 interface ParsedSslKey {
-  target: 'ssl'
   registry: string
   sslConfigKey: keyof SslConfig
   isFile: boolean
@@ -124,5 +114,5 @@ function tryParseSslKey (key: string): ParsedSslKey | undefined {
   const registry = key.slice(0, match.index!) // already includes the trailing slash
   const sslConfigKey = match.groups.id as keyof SslConfig
   const isFile = Boolean(match.groups.kind)
-  return { target: 'ssl', registry, sslConfigKey, isFile }
+  return { registry, sslConfigKey, isFile }
 }
