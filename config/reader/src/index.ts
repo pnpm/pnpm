@@ -310,11 +310,12 @@ export async function getConfig (opts: {
   // tokenHelper must only come from user-level config (~/.npmrc), not project-level,
   // to prevent project .npmrc from executing arbitrary commands.
   const userConfig = npmrcResult.userConfig as Record<string, string>
-  for (const [uri, registryConfig] of Object.entries(pnpmConfig.configByUri)) {
-    if (!registryConfig.creds?.tokenHelper) continue
-    const rawKey = uri === '' ? 'tokenHelper' : `${uri}:tokenHelper`
-    if (!(rawKey in userConfig)) {
-      delete registryConfig.creds.tokenHelper
+  for (const [key, value] of Object.entries(pnpmConfig.authConfig)) {
+    if (!key.endsWith('tokenHelper') && key !== 'tokenHelper') continue
+    if (!(key in userConfig) || userConfig[key] !== value) {
+      throw new PnpmError('TOKEN_HELPER_NOT_IN_USER_CONFIG',
+        `tokenHelper must be configured in the user-level .npmrc (~/.npmrc), not in project configuration`,
+        { hint: `The key "${key}" was found in project config. Move it to ~/.npmrc.` })
     }
   }
   pnpmConfig.pnpmHomeDir = getDataDir({ env, platform: process.platform })
