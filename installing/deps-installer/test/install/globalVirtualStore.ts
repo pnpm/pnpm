@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { assertProject } from '@pnpm/assert-project'
 import { install, type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/installing.deps-installer'
@@ -126,6 +127,40 @@ test('modules are correctly updated when using a global virtual store', async ()
     expect(files).toHaveLength(1)
     expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/peer-c/2.0.0', files[0], 'node_modules/@pnpm.e2e/peer-c/package.json'))).toBeTruthy()
   }
+})
+
+test('GVS package runtime can resolve hoisted transitive dependencies', async () => {
+  prepareEmpty()
+  await Promise.all([
+    addDistTag({ package: '@pnpm.e2e/abc', version: '1.0.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/peer-b', version: '1.0.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' }),
+  ])
+  const globalVirtualStoreDir = path.resolve('links')
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/abc-parent-with-ab': '1.0.0',
+      '@pnpm.e2e/peer-c': '1.0.0',
+    },
+  }
+  await install(manifest, testDefaults({
+    enableGlobalVirtualStore: true,
+    hoistPattern: ['*'],
+    virtualStoreDir: globalVirtualStoreDir,
+  }))
+
+  const pkgVersionDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/abc-parent-with-ab/1.0.0')
+  const [hash] = fs.readdirSync(pkgVersionDir)
+  const gvsModulesDir = path.join(pkgVersionDir, hash, 'node_modules')
+  const pkgDir = path.join(gvsModulesDir, '@pnpm.e2e/abc-parent-with-ab')
+  const probeFile = path.join(pkgDir, 'probe.mjs')
+  fs.writeFileSync(probeFile, "import '@pnpm.e2e/dep-of-pkg-with-1-dep'\n", 'utf8')
+
+  expect(fs.existsSync(path.join(gvsModulesDir, '@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
+  await expect(import(pathToFileURL(probeFile).href)).resolves.toBeDefined()
 })
 
 test('GVS hashes are engine-agnostic for packages not in allowBuilds', async () => {
