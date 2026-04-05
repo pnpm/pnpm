@@ -56,11 +56,11 @@ export function getNetworkConfigs (rawConfig: Record<string, unknown>): NetworkC
     sslConfigs,
   }
 
-  for (const key in rawCredsMap) {
-    const parsedCreds = parseCreds(rawCredsMap[key])
+  for (const uri in rawCredsMap) {
+    const parsedCreds = parseCreds(rawCredsMap[uri])
     if (parsedCreds) {
       networkConfigs.credsByUri ??= {}
-      networkConfigs.credsByUri[key] = parsedCreds
+      networkConfigs.credsByUri[uri] = parsedCreds
     }
   }
 

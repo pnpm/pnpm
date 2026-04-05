@@ -8,11 +8,11 @@ export function getAuthHeadersFromCreds (
   defaultRegistry: string
 ): Record<string, string> {
   const authHeaderValueByURI: Record<string, string> = {}
-  for (const [key, parsedCreds] of Object.entries(credsByUri)) {
-    if (key === '') continue // default auth handled below
+  for (const [uri, parsedCreds] of Object.entries(credsByUri)) {
+    if (uri === '') continue // default auth handled below
     const header = credsToHeader(parsedCreds)
     if (header) {
-      authHeaderValueByURI[key] = header
+      authHeaderValueByURI[uri] = header
     }
   }
   const defaultAuth = credsByUri['']
