@@ -33,7 +33,6 @@ const DEFAULT_OPTIONS = {
   pnpmfile: ['.pnpmfile.cjs'],
   pnpmHomeDir: '',
   authInfos: {},
-  rawLocalConfig: { registry: REGISTRY_URL },
   registries: {
     default: REGISTRY_URL,
   },

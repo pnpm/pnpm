@@ -85,7 +85,6 @@ export const DLX_DEFAULT_OPTS = {
   pnpmHomeDir: '',
   preferWorkspacePackages: true,
   authInfos: {},
-  rawLocalConfig: { registry: REGISTRY_URL },
   registries: {
     default: REGISTRY_URL,
   },
