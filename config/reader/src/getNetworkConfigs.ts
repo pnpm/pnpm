@@ -21,7 +21,7 @@ export function getNetworkConfigs (rawConfig: Record<string, unknown>): NetworkC
       continue
     }
 
-    const parsed = tryParseAuthSetting(configKey) ?? tryParseSslSetting(configKey)
+    const parsed = tryParseCredsKey(configKey) ?? tryParseSslKey(configKey)
 
     switch (parsed?.target) {
       case undefined:
@@ -88,13 +88,13 @@ const AUTH_SUFFIX_KEY_MAP: Record<string, keyof RawCreds> = {
   tokenHelper: 'tokenHelper',
 }
 
-interface ParsedAuthSetting {
+interface ParsedCredsKey {
   target: 'auth'
   registry: string
   credsField: keyof RawCreds
 }
 
-function tryParseAuthSetting (key: string): ParsedAuthSetting | undefined {
+function tryParseCredsKey (key: string): ParsedCredsKey | undefined {
   const match = key.match(AUTH_SUFFIX_RE)
   if (!match?.groups) {
     return undefined
@@ -109,14 +109,14 @@ function tryParseAuthSetting (key: string): ParsedAuthSetting | undefined {
 
 const SSL_SUFFIX_RE = /:(?<id>cert|key|ca)(?<kind>file)?$/
 
-interface ParsedSslSetting {
+interface ParsedSslKey {
   target: 'ssl'
   registry: string
   sslConfigKey: keyof SslConfig
   isFile: boolean
 }
 
-function tryParseSslSetting (key: string): ParsedSslSetting | undefined {
+function tryParseSslKey (key: string): ParsedSslKey | undefined {
   const match = key.match(SSL_SUFFIX_RE)
   if (!match?.groups) {
     return undefined
