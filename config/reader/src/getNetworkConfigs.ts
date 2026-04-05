@@ -27,9 +27,9 @@ export function getNetworkConfigs (rawConfig: Record<string, unknown>): NetworkC
       case undefined:
         continue
       case 'auth': {
-        const { authInputKey, registry } = parsed
+        const { credsField, registry } = parsed
         rawCredsMap[registry] ??= {}
-        rawCredsMap[registry][authInputKey] = value as string
+        rawCredsMap[registry][credsField] = value as string
         continue
       }
       case 'ssl': {
@@ -91,7 +91,7 @@ const AUTH_SUFFIX_KEY_MAP: Record<string, keyof RawCreds> = {
 interface ParsedAuthSetting {
   target: 'auth'
   registry: string
-  authInputKey: keyof RawCreds
+  credsField: keyof RawCreds
 }
 
 function tryParseAuthSetting (key: string): ParsedAuthSetting | undefined {
@@ -100,11 +100,11 @@ function tryParseAuthSetting (key: string): ParsedAuthSetting | undefined {
     return undefined
   }
   const registry = key.slice(0, match.index!) // already includes the trailing slash
-  const authInputKey = AUTH_SUFFIX_KEY_MAP[match.groups.key]
-  if (!authInputKey) {
+  const credsField = AUTH_SUFFIX_KEY_MAP[match.groups.key]
+  if (!credsField) {
     throw new Error(`Unexpected key: ${match.groups.key}`)
   }
-  return { target: 'auth', registry, authInputKey }
+  return { target: 'auth', registry, credsField }
 }
 
 const SSL_SUFFIX_RE = /:(?<id>cert|key|ca)(?<kind>file)?$/
