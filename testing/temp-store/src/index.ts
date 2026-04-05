@@ -20,7 +20,7 @@ export function createTempStore (opts?: {
   clientOptions?: Partial<ClientOptions>
   storeOptions?: CreatePackageStoreOptions
 }): CreateTempStoreResult {
-  const credsByUri = {}
+  const credsByUri: ClientOptions['credsByUri'] = {}
   const cacheDir = path.resolve('cache')
   const storeDir = opts?.storeDir ?? path.resolve('.store')
   const storeIndex = new StoreIndex(storeDir)

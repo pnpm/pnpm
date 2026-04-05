@@ -38,6 +38,8 @@ const DISPATCHER_CACHE = new LRUCache<string, Dispatcher>({
   },
 })
 
+export type ClientCertificates = Record<string, Pick<Creds, 'cert' | 'key' | 'ca'>>
+
 export interface DispatcherOptions {
   ca?: string | string[] | Buffer
   cert?: string | string[] | Buffer
@@ -49,7 +51,7 @@ export interface DispatcherOptions {
   httpProxy?: string
   httpsProxy?: string
   noProxy?: boolean | string
-  clientCertificates?: Record<string, Pick<Creds, 'cert' | 'key' | 'ca'>>
+  clientCertificates?: ClientCertificates
 }
 
 /**
@@ -87,7 +89,7 @@ function needsCustomDispatcher (opts: DispatcherOptions): boolean {
     opts.key ||
     opts.localAddress ||
     opts.strictSsl === false ||
-    (opts.clientCertificates && Object.keys(opts.clientCertificates).length > 0) ||
+    opts.clientCertificates ||
     opts.maxSockets
   )
 }

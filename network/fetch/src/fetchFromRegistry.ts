@@ -3,7 +3,7 @@ import { URL } from 'node:url'
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
 import type { Creds } from '@pnpm/types'
 
-import { type DispatcherOptions, getDispatcher } from './dispatcher.js'
+import { type ClientCertificates, type DispatcherOptions, getDispatcher } from './dispatcher.js'
 import { fetch, isRedirect, type RequestInit } from './fetch.js'
 
 const USER_AGENT = 'pnpm' // or maybe make it `${pkg.name}/${pkg.version} (+https://npm.im/${pkg.name})`
@@ -39,6 +39,7 @@ export interface CreateFetchFromRegistryOptions extends DispatcherOptions {
 }
 
 export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOptions): FetchFromRegistry {
+  const clientCertificates = extractClientCertificates(defaultOpts.credsByUri)
   return async (url, opts): Promise<Response> => {
     const headers: Record<string, string> = {
       'user-agent': USER_AGENT,
@@ -64,7 +65,7 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
         ...defaultOpts,
         ...opts,
         strictSsl: defaultOpts.strictSsl ?? true,
-        clientCertificates: defaultOpts.credsByUri,
+        clientCertificates,
       }
 
       const response = await fetchWithDispatcher(urlObject, {
@@ -113,6 +114,17 @@ function getHeaders (
     headers['user-agent'] = opts.userAgent
   }
   return headers
+}
+
+function extractClientCertificates (credsByUri?: Record<string, Creds>): ClientCertificates | undefined {
+  if (!credsByUri) return undefined
+  let result: ClientCertificates | undefined
+  for (const [uri, creds] of Object.entries(credsByUri)) {
+    if (uri === '' || (!creds.cert && !creds.key && !creds.ca)) continue
+    result ??= {}
+    result[uri] = creds
+  }
+  return result
 }
 
 function resolveRedirectUrl (response: Response, currentUrl: URL): URL {
