@@ -1,10 +1,10 @@
 import { spawnSync } from 'node:child_process'
 
 import { PnpmError } from '@pnpm/error'
-import type { AuthInfo, TokenHelper } from '@pnpm/types'
+import type { Creds, TokenHelper } from '@pnpm/types'
 
 export function getAuthHeadersFromAuthInfos (
-  authInfos: Record<string, AuthInfo>,
+  authInfos: Record<string, Creds>,
   defaultRegistry: string
 ): Record<string, string> {
   const authHeaderValueByURI: Record<string, string> = {}
@@ -25,7 +25,7 @@ export function getAuthHeadersFromAuthInfos (
   return authHeaderValueByURI
 }
 
-function authInfoToHeader (authInfo: AuthInfo): string | undefined {
+function authInfoToHeader (authInfo: Creds): string | undefined {
   if (authInfo.tokenHelper) {
     return executeTokenHelper(authInfo.tokenHelper)
   }

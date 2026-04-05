@@ -13,12 +13,12 @@ import {
   type ResolverFactoryOptions,
 } from '@pnpm/resolving.default-resolver'
 import type { StoreIndex } from '@pnpm/store.index'
-import type { AuthInfo, SslConfig } from '@pnpm/types'
+import type { Creds, SslConfig } from '@pnpm/types'
 
 export type { ResolveFunction }
 
 export type ClientOptions = {
-  authInfos: Record<string, AuthInfo>
+  authInfos: Record<string, Creds>
   customResolvers?: CustomResolver[]
   customFetchers?: CustomFetcher[]
   ignoreScripts?: boolean

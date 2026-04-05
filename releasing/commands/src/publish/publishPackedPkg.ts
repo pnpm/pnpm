@@ -4,7 +4,7 @@ import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
-import type { AuthInfo } from '@pnpm/types'
+import type { Creds } from '@pnpm/types'
 import type { PublishOptions } from 'libnpmpublish'
 
 import { displayError } from './displayError.js'
@@ -137,7 +137,7 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
 
 interface AuthSslInfo {
   registry: NormalizedRegistryUrl
-  auth: AuthInfo
+  auth: Creds
   ssl: Pick<Config, SslConfigKey>
 }
 
@@ -170,7 +170,7 @@ function findAuthSslInfo (
   const result: Partial<AuthSslInfo> = { registry }
 
   for (const registryConfigKey of allRegistryConfigKeys(initialRegistryConfigKey)) {
-    const auth: AuthInfo | undefined = authInfos[registryConfigKey]
+    const auth: Creds | undefined = authInfos[registryConfigKey]
     const ssl: Pick<Config, SslConfigKey> | undefined = sslConfigs[registryConfigKey]
 
     result.auth ??= auth // old auth from longer path collectively overrides new auth from shorter path
@@ -202,7 +202,7 @@ function findAuthSslInfo (
 function extractToken ({
   authToken,
   tokenHelper,
-}: Pick<AuthInfo, 'authToken' | 'tokenHelper'>): string | undefined {
+}: Pick<Creds, 'authToken' | 'tokenHelper'>): string | undefined {
   if (authToken) return authToken
   if (tokenHelper) {
     return executeTokenHelper(tokenHelper, { globalWarn })

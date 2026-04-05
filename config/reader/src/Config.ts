@@ -1,7 +1,7 @@
 import type { Catalogs } from '@pnpm/catalogs.types'
 import type { Hooks } from '@pnpm/hooks.pnpmfile'
 import type {
-  AuthInfo,
+  Creds,
   EngineDependency,
   Finder,
   Project,
@@ -213,7 +213,7 @@ export interface Config extends OptionsFromRootManifest {
   blockExoticSubdeps?: boolean
 
   registries: Registries
-  authInfos: Record<string, AuthInfo>
+  authInfos: Record<string, Creds>
   sslConfigs: Record<string, SslConfig>
   ignoreWorkspaceRootCheck: boolean
   workspaceRoot: boolean

@@ -1,7 +1,7 @@
 import { PnpmError } from '@pnpm/error'
-import type { AuthInfo, AuthUserPass, TokenHelper } from '@pnpm/types'
+import type { Creds, AuthUserPass, TokenHelper } from '@pnpm/types'
 
-export type { AuthInfo, AuthUserPass, TokenHelper }
+export type { Creds, AuthUserPass, TokenHelper }
 
 /** Unparsed authentication information of each registry in the rc file. */
 export interface AuthInfoInput {
@@ -17,8 +17,8 @@ export interface AuthInfoInput {
   tokenHelper?: string
 }
 
-export function parseAuthInfo (input: AuthInfoInput): AuthInfo | undefined {
-  let authInfo: AuthInfo | undefined
+export function parseAuthInfo (input: AuthInfoInput): Creds | undefined {
+  let authInfo: Creds | undefined
 
   if (input.tokenHelper) {
     authInfo = {

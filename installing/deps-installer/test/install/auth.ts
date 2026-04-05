@@ -3,7 +3,7 @@ import path from 'node:path'
 import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addUser, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import type { AuthInfo } from '@pnpm/types'
+import type { Creds } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 
 import { testDefaults } from '../utils/index.js'
@@ -19,7 +19,7 @@ test('a package that need authentication', async () => {
     username: 'foo',
   })
 
-  let authInfos: Record<string, AuthInfo> = {
+  let authInfos: Record<string, Creds> = {
     [`//localhost:${REGISTRY_MOCK_PORT}/`]: { authToken: data.token },
   }
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], testDefaults({}, {
@@ -57,7 +57,7 @@ test('installing a package that need authentication, using password', async () =
     username: 'foo',
   })
 
-  const authInfos: Record<string, AuthInfo> = {
+  const authInfos: Record<string, Creds> = {
     [`//localhost:${REGISTRY_MOCK_PORT}/`]: { authUserPass: { username: 'foo', password: 'bar' } },
   }
   await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], testDefaults({}, {
@@ -78,7 +78,7 @@ test('a package that need authentication, legacy way', async () => {
     username: 'foo',
   })
 
-  const authInfos: Record<string, AuthInfo> = {
+  const authInfos: Record<string, Creds> = {
     '': { authUserPass: { username: 'foo', password: 'bar' } },
   }
   await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], testDefaults({}, {
@@ -99,7 +99,7 @@ test('a scoped package that need authentication specific to scope', async () => 
     username: 'foo',
   })
 
-  const authInfos: Record<string, AuthInfo> = {
+  const authInfos: Record<string, Creds> = {
     [`//localhost:${REGISTRY_MOCK_PORT}/`]: { authToken: data.token },
   }
   let opts = testDefaults({
@@ -147,7 +147,7 @@ test('a scoped package that need legacy authentication specific to scope', async
     username: 'foo',
   })
 
-  const authInfos: Record<string, AuthInfo> = {
+  const authInfos: Record<string, Creds> = {
     [`//localhost:${REGISTRY_MOCK_PORT}/`]: { authUserPass: { username: 'foo', password: 'bar' } },
   }
   let opts = testDefaults({
@@ -195,7 +195,7 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
     username: 'foo',
   })
 
-  const authInfos: Record<string, AuthInfo> = {
+  const authInfos: Record<string, Creds> = {
     [`//127.0.0.1:${REGISTRY_MOCK_PORT}/`]: { authToken: data.token },
   }
   await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], testDefaults({
@@ -221,7 +221,7 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
     username: 'foo',
   })
 
-  const authInfos: Record<string, AuthInfo> = {
+  const authInfos: Record<string, Creds> = {
     [`//127.0.0.1:${REGISTRY_MOCK_PORT}/`]: { authToken: data.token },
   }
   let opts = testDefaults({

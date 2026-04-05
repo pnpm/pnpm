@@ -51,7 +51,7 @@ export { types }
 
 export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 export { getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
-export type { AuthInfo } from './parseAuthInfo.js'
+export type { Creds } from './parseAuthInfo.js'
 export {
   createProjectConfigRecord,
   type CreateProjectConfigRecordOptions,

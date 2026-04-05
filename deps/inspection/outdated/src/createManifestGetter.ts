@@ -4,7 +4,7 @@ import {
   createResolver,
   type ResolveFunction,
 } from '@pnpm/installing.client'
-import type { AuthInfo, DependencyManifest, PackageVersionPolicy } from '@pnpm/types'
+import type { Creds, DependencyManifest, PackageVersionPolicy } from '@pnpm/types'
 
 interface GetManifestOpts {
   dir: string
@@ -16,7 +16,7 @@ interface GetManifestOpts {
 
 export type ManifestGetterOptions = Omit<ClientOptions, 'authInfos' | 'minimumReleaseAgeExclude' | 'storeIndex'>
 & GetManifestOpts
-& { fullMetadata: boolean, authInfos: Record<string, AuthInfo> }
+& { fullMetadata: boolean, authInfos: Record<string, Creds> }
 
 export function createManifestGetter (
   opts: ManifestGetterOptions

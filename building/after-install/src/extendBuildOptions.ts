@@ -4,7 +4,7 @@ import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/config.normalize-
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import type { LogBase } from '@pnpm/logger'
 import type { StoreController } from '@pnpm/store.controller-types'
-import type { AuthInfo, Registries } from '@pnpm/types'
+import type { Creds, Registries } from '@pnpm/types'
 import { loadJsonFile } from 'load-json-file'
 
 export type StrictBuildOptions = {
@@ -35,7 +35,7 @@ export type StrictBuildOptions = {
   production: boolean
   development: boolean
   optional: boolean
-  authInfos: Record<string, AuthInfo>
+  authInfos: Record<string, Creds>
   userConfig: Record<string, string>
   userAgent: string
   packageManager: {

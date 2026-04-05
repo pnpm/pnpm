@@ -35,7 +35,7 @@ export interface AuthUserPass {
 export type TokenHelper = [string, ...string[]]
 
 /** Authentication information of each registry in the rc file. */
-export interface AuthInfo {
+export interface Creds {
   /** Parsed value of `_auth` of each registry in the rc file. */
   authUserPass?: AuthUserPass
   /** The value of `_authToken` of each registry in the rc file. */

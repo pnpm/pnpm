@@ -3,10 +3,10 @@ import fs from 'node:fs'
 import type { SslConfig } from '@pnpm/types'
 import normalizeRegistryUrl from 'normalize-registry-url'
 
-import { type AuthInfo, type AuthInfoInput, parseAuthInfo } from './parseAuthInfo.js'
+import { type Creds, type AuthInfoInput, parseAuthInfo } from './parseAuthInfo.js'
 
 export interface NetworkConfigs {
-  authInfos?: Record<string, AuthInfo> // TODO: remove optional from here, this means that tests would have to be updated.
+  authInfos?: Record<string, Creds> // TODO: remove optional from here, this means that tests would have to be updated.
   sslConfigs: Record<string, SslConfig>
   registries: Record<string, string>
 }
@@ -67,7 +67,7 @@ export function getNetworkConfigs (rawConfig: Record<string, unknown>): NetworkC
   return networkConfigs
 }
 
-export function getDefaultAuthInfo (rawConfig: Record<string, unknown>): AuthInfo | undefined {
+export function getDefaultAuthInfo (rawConfig: Record<string, unknown>): Creds | undefined {
   const input: AuthInfoInput = {}
   for (const rawKey in AUTH_SUFFIX_KEY_MAP) {
     const key = AUTH_SUFFIX_KEY_MAP[rawKey]

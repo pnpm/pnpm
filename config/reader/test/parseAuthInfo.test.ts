@@ -1,5 +1,5 @@
 import {
-  type AuthInfo,
+  type Creds,
   AuthMissingSeparatorError,
   parseAuthInfo,
   TokenHelperUnsupportedCharacterError,
@@ -15,7 +15,7 @@ describe('parseAuthInfo', () => {
       authToken: 'example auth token',
     })).toStrictEqual({
       authToken: 'example auth token',
-    } as AuthInfo)
+    } as Creds)
   })
 
   test('authPairBase64', () => {
@@ -26,7 +26,7 @@ describe('parseAuthInfo', () => {
         username: 'foo',
         password: 'bar',
       },
-    } as AuthInfo)
+    } as Creds)
 
     expect(parseAuthInfo({
       authPairBase64: btoa('foo:bar:baz'),
@@ -35,7 +35,7 @@ describe('parseAuthInfo', () => {
         username: 'foo',
         password: 'bar:baz',
       },
-    } as AuthInfo)
+    } as Creds)
   })
 
   test('authPairBase64 must have a separator', () => {
@@ -53,7 +53,7 @@ describe('parseAuthInfo', () => {
         username: 'foo',
         password: 'bar',
       },
-    } as AuthInfo)
+    } as Creds)
 
     expect(parseAuthInfo({
       authUsername: 'foo',
@@ -69,25 +69,25 @@ describe('parseAuthInfo', () => {
       tokenHelper: 'example-token-helper --foo --bar baz',
     })).toStrictEqual({
       tokenHelper: ['example-token-helper', '--foo', '--bar', 'baz'],
-    } as AuthInfo)
+    } as Creds)
 
     expect(parseAuthInfo({
       tokenHelper: './example-token-helper.sh --foo --bar baz',
     })).toStrictEqual({
       tokenHelper: ['./example-token-helper.sh', '--foo', '--bar', 'baz'],
-    } as AuthInfo)
+    } as Creds)
 
     expect(parseAuthInfo({
       tokenHelper: 'node ./example-token-helper.js --foo --bar baz',
     })).toStrictEqual({
       tokenHelper: ['node', './example-token-helper.js', '--foo', '--bar', 'baz'],
-    } as AuthInfo)
+    } as Creds)
 
     expect(parseAuthInfo({
       tokenHelper: './example-token-helper.sh',
     })).toStrictEqual({
       tokenHelper: ['./example-token-helper.sh'],
-    } as AuthInfo)
+    } as Creds)
   })
 
   test('tokenHelper does not support environment variable', () => {

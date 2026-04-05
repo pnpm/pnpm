@@ -1,11 +1,11 @@
 import { nerfDart } from '@pnpm/config.nerf-dart'
-import type { AuthInfo } from '@pnpm/types'
+import type { Creds } from '@pnpm/types'
 
 import { getAuthHeadersFromAuthInfos } from './getAuthHeadersFromConfig.js'
 import { removePort } from './helpers/removePort.js'
 
 export function createGetAuthHeaderByURI (
-  authInfos: Record<string, AuthInfo>,
+  authInfos: Record<string, Creds>,
   defaultRegistry?: string
 ): (uri: string) => string | undefined {
   const registry = defaultRegistry ? nerfDart(defaultRegistry) : '//registry.npmjs.org/'
