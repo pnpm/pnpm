@@ -22,13 +22,15 @@ test('hoist the dependency graph', async () => {
 test('shamefully hoist the dependency graph', async () => {
   const project = prepare()
 
-  await execPnpm(['add', '--shamefully-hoist', 'express@4.16.2'])
+  writeYamlFileSync('pnpm-workspace.yaml', { shamefullyHoist: true })
+
+  await execPnpm(['add', 'express@4.16.2'])
 
   project.has('express')
   project.has('debug')
   project.has('cookie')
 
-  await execPnpm(['remove', '--shamefully-hoist', 'express'])
+  await execPnpm(['remove', 'express'])
 
   project.hasNot('express')
   project.hasNot('debug')
