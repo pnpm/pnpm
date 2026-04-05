@@ -34,7 +34,7 @@ export function parseCreds (input: CredsInput): Creds | undefined {
     }
   }
 
-  const basicAuth = getAuthUserPass(input)
+  const basicAuth = parseBasicAuth(input)
   if (basicAuth) {
     parsedCreds = {
       ...parsedCreds,
@@ -53,7 +53,7 @@ export function parseCreds (input: CredsInput): Creds | undefined {
  * The function input mirrors the rc file which has 3 properties to define username
  * and password which are: `_auth`, `username`, and `_password`.
  */
-function getAuthUserPass ({
+function parseBasicAuth ({
   authPairBase64,
   authUsername,
   authPassword,
