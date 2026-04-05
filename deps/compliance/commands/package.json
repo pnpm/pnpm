@@ -68,6 +68,7 @@
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/testing.command-defaults": "workspace:*",
     "@pnpm/testing.mock-agent": "workspace:*",
     "@pnpm/workspace.projects-filter": "workspace:*",
     "@types/ramda": "catalog:",

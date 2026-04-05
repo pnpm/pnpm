@@ -79,6 +79,9 @@
       "path": "../../store/path"
     },
     {
+      "path": "../../testing/command-defaults"
+    },
+    {
       "path": "../../workspace/injected-deps-syncer"
     },
     {

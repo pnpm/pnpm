@@ -1,60 +1,12 @@
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-
-const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
+import { DEFAULT_OPTS as BASE_OPTS } from '@pnpm/testing.command-defaults'
 
 export const DEFAULT_OPTS = {
-  argv: {
-    original: [],
-  },
+  ...BASE_OPTS,
   bail: false,
-  bin: 'node_modules/.bin',
-  ca: undefined,
-  cacheDir: '../cache',
-  cert: undefined,
   ci: false,
-  excludeLinksFromLockfile: false,
-  extraEnv: {},
-  cliOptions: {},
   deployAllFiles: false,
-  fetchRetries: 2,
-  fetchRetryFactor: 90,
-  fetchRetryMaxtimeout: 90,
-  fetchRetryMintimeout: 10,
-  filter: [] as string[],
   global: false,
-  httpsProxy: undefined,
-  include: {
-    dependencies: true,
-    devDependencies: true,
-    optionalDependencies: true,
-  },
-  key: undefined,
-  linkWorkspacePackages: true,
-  localAddress: undefined,
-  lock: false,
-  lockStaleDuration: 90,
-  minimumReleaseAge: 0,
-  networkConcurrency: 16,
-  offline: false,
-  pending: false,
-  pnpmfile: ['./.pnpmfile.cjs'],
-  pnpmHomeDir: '',
-  preferWorkspacePackages: true,
-  proxy: undefined,
-  configByUri: {},
-  registries: { default: REGISTRY },
-  registry: REGISTRY,
-  rootProjectManifestDir: '',
-  sort: true,
-  storeDir: '../store',
-  strictSsl: false,
   tag: 'latest',
-  userAgent: 'pnpm',
-  userConfig: {},
-  useRunningStoreServer: false,
-  useStoreServer: false,
-  workspaceConcurrency: 4,
-  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }
 
 export const DEFAULT_OUTDATED_OPTS = {

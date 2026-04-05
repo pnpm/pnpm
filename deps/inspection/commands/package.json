@@ -70,6 +70,7 @@
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/testing.command-defaults": "workspace:*",
     "@pnpm/workspace.projects-filter": "workspace:*",
     "@types/ramda": "catalog:",
     "@types/zkochan__table": "catalog:",

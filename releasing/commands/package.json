@@ -95,6 +95,7 @@
     "@pnpm/releasing.commands": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
+    "@pnpm/testing.command-defaults": "workspace:*",
     "@types/cross-spawn": "catalog:",
     "@types/is-windows": "catalog:",
     "@types/libnpmpublish": "catalog:",
