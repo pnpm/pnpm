@@ -1793,6 +1793,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
+      '@pnpm/testing.command-defaults':
+        specifier: workspace:*
+        version: link:../../testing/command-defaults
       '@pnpm/workspace.projects-filter':
         specifier: workspace:*
         version: link:../../workspace/projects-filter
@@ -2853,6 +2856,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../../__utils__/test-fixtures
+      '@pnpm/testing.command-defaults':
+        specifier: workspace:*
+        version: link:../../../testing/command-defaults
       '@pnpm/testing.mock-agent':
         specifier: workspace:*
         version: link:../../../testing/mock-agent
@@ -3197,6 +3203,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../../__utils__/test-fixtures
+      '@pnpm/testing.command-defaults':
+        specifier: workspace:*
+        version: link:../../../testing/command-defaults
       '@pnpm/workspace.projects-filter':
         specifier: workspace:*
         version: link:../../../workspace/projects-filter
@@ -3970,6 +3979,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
+      '@pnpm/testing.command-defaults':
+        specifier: workspace:*
+        version: link:../../testing/command-defaults
       '@pnpm/workspace.projects-filter':
         specifier: workspace:*
         version: link:../../workspace/projects-filter
@@ -5019,6 +5031,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
+      '@pnpm/testing.command-defaults':
+        specifier: workspace:*
+        version: link:../../testing/command-defaults
       '@pnpm/testing.mock-agent':
         specifier: workspace:*
         version: link:../../testing/mock-agent
@@ -7012,6 +7027,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/testing.command-defaults':
+        specifier: workspace:*
+        version: link:../../testing/command-defaults
       '@pnpm/workspace.projects-filter':
         specifier: workspace:*
         version: link:../../workspace/projects-filter
@@ -7704,6 +7722,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
+      '@pnpm/testing.command-defaults':
+        specifier: workspace:*
+        version: link:../../testing/command-defaults
       '@types/cross-spawn':
         specifier: 'catalog:'
         version: 6.0.6
@@ -8626,6 +8647,16 @@ importers:
         version: link:../index
     devDependencies:
       '@pnpm/store.pkg-finder':
+        specifier: workspace:*
+        version: 'link:'
+
+  testing/command-defaults:
+    dependencies:
+      '@pnpm/registry-mock':
+        specifier: 'catalog:'
+        version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+    devDependencies:
+      '@pnpm/testing.command-defaults':
         specifier: workspace:*
         version: 'link:'
 
