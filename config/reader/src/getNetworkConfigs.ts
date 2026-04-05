@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import type { SslConfig } from '@pnpm/types'
 import normalizeRegistryUrl from 'normalize-registry-url'
 
-import { type CredsInput, type Creds, parseCreds } from './parseAuthInfo.js'
+import { type Creds, type CredsInput, parseCreds } from './parseAuthInfo.js'
 
 export interface NetworkConfigs {
   credsByUri?: Record<string, Creds> // TODO: remove optional from here, this means that tests would have to be updated.
