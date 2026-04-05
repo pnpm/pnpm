@@ -33,14 +33,14 @@ function credsToHeader (parsedCreds: Creds): string | undefined {
     return `Bearer ${parsedCreds.authToken}`
   }
   if (parsedCreds.basicAuth) {
-    return `Basic ${btoa(`${parsedCreds.basicAuth.username}:${parsedCreds.basicAuth.password}`)}`
+    return `Basic ${Buffer.from(`${parsedCreds.basicAuth.username}:${parsedCreds.basicAuth.password}`, 'utf8').toString('base64')}`
   }
   return undefined
 }
 
 function executeTokenHelper (tokenHelper: TokenHelper): string {
   const [cmd, ...args] = tokenHelper
-  const spawnResult = spawnSync(cmd, args, { stdio: 'pipe', shell: true })
+  const spawnResult = spawnSync(cmd, args, { stdio: 'pipe' })
 
   if (spawnResult.status !== 0) {
     throw new PnpmError('TOKEN_HELPER_ERROR_STATUS', `Error running "${cmd}" as a token helper. Exit code ${spawnResult.status?.toString() ?? ''}`)
