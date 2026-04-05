@@ -36,7 +36,6 @@ export const DEFAULT_OPTS = {
   pnpmfile: ['./.pnpmfile.cjs'],
   pnpmHomeDir: '',
   proxy: undefined,
-  authConfig: { registry: REGISTRY },
   registries: { default: REGISTRY },
   registry: REGISTRY,
   sort: true,

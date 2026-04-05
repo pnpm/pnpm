@@ -33,7 +33,8 @@
   },
   "dependencies": {
     "@pnpm/config.nerf-dart": "catalog:",
-    "@pnpm/error": "workspace:*"
+    "@pnpm/error": "workspace:*",
+    "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
     "@pnpm/network.auth-header": "workspace:*",

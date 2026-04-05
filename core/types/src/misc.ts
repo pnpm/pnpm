@@ -25,6 +25,25 @@ export interface SslConfig {
   ca?: string
 }
 
+/** Parsed value of `_auth` of each registry in the rc file. */
+export interface AuthUserPass {
+  username: string
+  password: string
+}
+
+/** Parsed value of `tokenHelper` of each registry in the rc file. */
+export type TokenHelper = [string, ...string[]]
+
+/** Authentication information of each registry in the rc file. */
+export interface AuthInfo {
+  /** Parsed value of `_auth` of each registry in the rc file. */
+  authUserPass?: AuthUserPass
+  /** The value of `_authToken` of each registry in the rc file. */
+  authToken?: string
+  /** Parsed value of `tokenHelper` of each registry in the rc file. */
+  tokenHelper?: TokenHelper
+}
+
 export type HoistedDependencies = Record<DepPath | ProjectId, Record<string, 'public' | 'private'>>
 
 export type PkgResolutionId = string & { __brand: 'PkgResolutionId' }

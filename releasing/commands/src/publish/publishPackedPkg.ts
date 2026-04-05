@@ -1,9 +1,10 @@
 import fs from 'node:fs/promises'
 
-import type { AuthInfo, Config } from '@pnpm/config.reader'
+import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
+import type { AuthInfo } from '@pnpm/types'
 import type { PublishOptions } from 'libnpmpublish'
 
 import { displayError } from './displayError.js'

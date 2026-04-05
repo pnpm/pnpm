@@ -1,22 +1,15 @@
 import { nerfDart } from '@pnpm/config.nerf-dart'
+import type { AuthInfo } from '@pnpm/types'
 
-import { getAuthHeadersFromConfig, loadToken } from './getAuthHeadersFromConfig.js'
+import { getAuthHeadersFromAuthInfos } from './getAuthHeadersFromConfig.js'
 import { removePort } from './helpers/removePort.js'
 
-export {
-  loadToken,
-}
-
 export function createGetAuthHeaderByURI (
-  opts: {
-    allSettings: Record<string, string>
-    userSettings?: Record<string, string>
-  }
+  authInfos: Record<string, AuthInfo>,
+  defaultRegistry?: string
 ): (uri: string) => string | undefined {
-  const authHeaders = getAuthHeadersFromConfig({
-    allSettings: opts.allSettings,
-    userSettings: opts.userSettings ?? {},
-  })
+  const registry = defaultRegistry ? nerfDart(defaultRegistry) : '//registry.npmjs.org/'
+  const authHeaders = getAuthHeadersFromAuthInfos(authInfos, registry)
   if (Object.keys(authHeaders).length === 0) return (uri: string) => basicAuth(new URL(uri))
   return getAuthHeaderByURI.bind(null, authHeaders, getMaxParts(Object.keys(authHeaders)))
 }

@@ -164,8 +164,7 @@ export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
 | 'dev'
 | 'overrides'
 | 'optional'
-| 'userConfig'
-| 'authConfig'
+| 'authInfos'
 | 'virtualStoreDirMaxLength'
 | 'workspaceDir'
 > & Pick<ConfigContext,
@@ -188,7 +187,7 @@ export async function handler (opts: AuditOptions): Promise<{ exitCode: number, 
     optionalDependencies: opts.optional !== false,
   }
   let auditReport!: AuditReport
-  const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.authConfig, userSettings: opts.userConfig })
+  const getAuthHeader = createGetAuthHeaderByURI(opts.authInfos, opts.registries?.default)
   try {
     auditReport = await audit(lockfile, getAuthHeader, {
       dispatcherOptions: {

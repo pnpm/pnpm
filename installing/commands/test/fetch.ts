@@ -31,7 +31,8 @@ const DEFAULT_OPTIONS = {
   preferWorkspacePackages: true,
   pnpmfile: ['.pnpmfile.cjs'],
   pnpmHomeDir: '',
-  authConfig: { registry: REGISTRY_URL },
+  authInfos: {},
+  rawLocalConfig: { registry: REGISTRY_URL },
   registries: {
     default: REGISTRY_URL,
   },

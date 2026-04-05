@@ -15,12 +15,9 @@ test('CLI prints the current store path', async () => {
     cacheDir: path.resolve('cache'),
     dir: process.cwd(),
     pnpmHomeDir: '',
-    authConfig: {
-      registry: REGISTRY,
-    },
+    authInfos: {},
     registries: { default: REGISTRY },
     storeDir: '/home/example/.pnpm-store',
-    userConfig: {},
     dlxCacheMaxAge: 0,
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['path'])
@@ -44,12 +41,9 @@ test('CLI prints the current store path when storeDir is relative', async () => 
     dir: subpackageDir,
     workspaceDir,
     pnpmHomeDir: '',
-    authConfig: {
-      registry: REGISTRY,
-    },
+    authInfos: {},
     registries: { default: REGISTRY },
     storeDir: relativeStoreDir,
-    userConfig: {},
     dlxCacheMaxAge: 0,
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['path'])

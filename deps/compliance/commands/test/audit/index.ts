@@ -201,10 +201,7 @@ describe('plugin-commands-audit', () => {
       ...AUDIT_REGISTRY_OPTS,
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
-      authConfig: {
-        registry: AUDIT_REGISTRY,
-        [`${AUDIT_REGISTRY.replace(/^https?:/, '')}:_authToken`]: '123',
-      },
+      authInfos: {},
     })
 
     expect(stripAnsi(output)).toBe('No known vulnerabilities found\n')

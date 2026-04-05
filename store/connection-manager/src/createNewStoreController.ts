@@ -12,7 +12,7 @@ type CreateResolverOptions = Pick<Config,
 | 'fetchRetryMaxtimeout'
 | 'fetchRetryMintimeout'
 | 'offline'
-| 'authConfig'
+| 'authInfos'
 | 'verifyStoreIntegrity'
 > & Required<Pick<Config, 'cacheDir' | 'storeDir'>>
 
@@ -54,7 +54,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
   cafsLocker?: CafsLocker
   ignoreFile?: (filename: string) => boolean
   fetchFullMetadata?: boolean
-} & Partial<Pick<Config, 'userConfig' | 'deployAllFiles' | 'sslConfigs' | 'strictStorePkgContentCheck'>> & Pick<ClientOptions, 'resolveSymlinksInInjectedDirs'>
+} & Partial<Pick<Config, 'deployAllFiles' | 'sslConfigs' | 'strictStorePkgContentCheck'>> & Pick<ClientOptions, 'resolveSymlinksInInjectedDirs'>
 
 export async function createNewStoreController (
   opts: CreateNewStoreControllerOptions
@@ -70,7 +70,6 @@ export async function createNewStoreController (
   const { resolve, fetchers, clearResolutionCache } = createClient({
     customResolvers: opts.hooks?.customResolvers,
     customFetchers: opts.hooks?.customFetchers,
-    userConfig: opts.userConfig,
     unsafePerm: opts.unsafePerm,
     ca: opts.ca,
     cacheDir: opts.cacheDir,
@@ -89,7 +88,7 @@ export async function createNewStoreController (
     noProxy: opts.noProxy,
     offline: opts.offline,
     preferOffline: opts.preferOffline,
-    authConfig: opts.authConfig,
+    authInfos: opts.authInfos,
     sslConfigs: opts.sslConfigs,
     registries: opts.registries,
     retry: {

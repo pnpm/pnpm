@@ -17,12 +17,9 @@ test('pnpm store add express@4.16.3', async () => {
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
-    authConfig: {
-      registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
-    },
+    authInfos: {},
     registries: { default: `http://localhost:${REGISTRY_MOCK_PORT}/` },
     storeDir,
-    userConfig: {},
     dlxCacheMaxAge: 0,
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['add', 'express@4.16.3'])
@@ -41,15 +38,12 @@ test('pnpm store add scoped package that uses not the standard registry', async 
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
-    authConfig: {
-      registry: 'https://registry.npmjs.org/',
-    },
+    authInfos: {},
     registries: {
       '@foo': `http://localhost:${REGISTRY_MOCK_PORT}/`,
       default: 'https://registry.npmjs.org/',
     },
     storeDir,
-    userConfig: {},
     dlxCacheMaxAge: 0,
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['add', '@foo/no-deps@1.0.0'])
@@ -71,15 +65,12 @@ test('should fail if some packages can not be added', async () => {
       cacheDir,
       dir: process.cwd(),
       pnpmHomeDir: '',
-      authConfig: {
-        registry: 'https://registry.npmjs.org/',
-      },
+      authInfos: {},
       registries: {
         '@foo': `http://localhost:${REGISTRY_MOCK_PORT}/`,
         default: 'https://registry.npmjs.org/',
       },
       storeDir,
-      userConfig: {},
       dlxCacheMaxAge: 0,
       virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     }, ['add', '@pnpm/this-does-not-exist'])

@@ -41,12 +41,9 @@ test('CLI fails when store status finds modified packages', async () => {
       cacheDir,
       dir: process.cwd(),
       pnpmHomeDir: '',
-      authConfig: {
-        registry: REGISTRY,
-      },
+      authInfos: {},
       registries: modulesState!.registries!,
       storeDir,
-      userConfig: {},
       dlxCacheMaxAge: 0,
       virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     }, ['status'])
@@ -95,12 +92,9 @@ test('CLI does not fail when store status does not find modified packages', asyn
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
-    authConfig: {
-      registry: REGISTRY,
-    },
+    authInfos: {},
     registries: modulesState!.registries!,
     storeDir,
-    userConfig: {},
     dlxCacheMaxAge: 0,
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['status'])
@@ -141,12 +135,9 @@ storeDir: "${relativeStoreDir}"
     dir: subpackageDir,
     workspaceDir,
     pnpmHomeDir: '',
-    authConfig: {
-      registry: REGISTRY,
-    },
+    authInfos: {},
     registries: modulesState!.registries!,
     storeDir: relativeStoreDir,
-    userConfig: {},
     dlxCacheMaxAge: 0,
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['status'])

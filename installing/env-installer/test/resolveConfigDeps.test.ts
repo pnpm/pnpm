@@ -19,7 +19,6 @@ test('configuration dependency is resolved', async () => {
     },
     rootDir: process.cwd(),
     cacheDir: path.resolve('cache'),
-    userConfig: {},
     store: storeController,
     storeDir,
   })
@@ -55,7 +54,6 @@ test('fails with frozenLockfile', async () => {
     },
     rootDir: process.cwd(),
     cacheDir: path.resolve('cache'),
-    userConfig: {},
     store: storeController,
     storeDir,
     frozenLockfile: true,

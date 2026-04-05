@@ -95,7 +95,6 @@ export function help (): string {
 
 export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs'
 | 'ignoreScripts'
-| 'authConfig'
 | 'embedReadme'
 | 'packGzipLevel'
 | 'nodeLinker'

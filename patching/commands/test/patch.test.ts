@@ -25,9 +25,7 @@ const f = fixtures(import.meta.dirname)
 
 const basePatchOption = {
   pnpmHomeDir: '',
-  authConfig: {
-    registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
-  },
+  authInfos: {},
   registries: { default: `http://localhost:${REGISTRY_MOCK_PORT}/` },
   userConfig: {},
   virtualStoreDir: 'node_modules/.pnpm',

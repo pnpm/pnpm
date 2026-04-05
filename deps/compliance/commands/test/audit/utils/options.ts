@@ -3,9 +3,6 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 const registries = {
   default: 'https://registry.npmjs.org/',
 }
-const authConfig = {
-  registry: registries.default,
-}
 export const DEFAULT_OPTS = {
   argv: {
     original: [],
@@ -43,6 +40,7 @@ export const DEFAULT_OPTS = {
   preferWorkspacePackages: true,
   proxy: undefined,
   authConfig,
+  authInfos: {},
   registries,
   rootProjectManifestDir: '',
   registry: registries.default,
@@ -65,9 +63,7 @@ export const AUDIT_REGISTRY_OPTS = {
   registries: {
     default: AUDIT_REGISTRY,
   },
-  authConfig: {
-    registry: AUDIT_REGISTRY,
-  },
+  authInfos: {},
 }
 
 export const MOCK_REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
@@ -77,7 +73,5 @@ export const MOCK_REGISTRY_OPTS = {
   registries: {
     default: MOCK_REGISTRY,
   },
-  authConfig: {
-    registry: MOCK_REGISTRY,
-  },
+  authInfos: {},
 }

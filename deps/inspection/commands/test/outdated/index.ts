@@ -34,7 +34,7 @@ const OUTDATED_OPTIONS = {
   global: false,
   networkConcurrency: 16,
   offline: false,
-  authConfig: { registry: REGISTRY_URL },
+  authInfos: {},
   registries: { default: REGISTRY_URL },
   strictSsl: false,
   tag: 'latest',
@@ -83,7 +83,7 @@ test('pnpm outdated: show details (using the public registry to verify that full
     ...OUTDATED_OPTIONS,
     dir: process.cwd(),
     long: true,
-    authConfig: { registry: 'https://registry.npmjs.org/' },
+    authInfos: {},
     registries: { default: 'https://registry.npmjs.org/' },
   })
 

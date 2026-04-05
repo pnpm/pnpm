@@ -13,12 +13,12 @@ import {
   type ResolverFactoryOptions,
 } from '@pnpm/resolving.default-resolver'
 import type { StoreIndex } from '@pnpm/store.index'
-import type { SslConfig } from '@pnpm/types'
+import type { AuthInfo, SslConfig } from '@pnpm/types'
 
 export type { ResolveFunction }
 
 export type ClientOptions = {
-  authConfig: Record<string, string>
+  authInfos: Record<string, AuthInfo>
   customResolvers?: CustomResolver[]
   customFetchers?: CustomFetcher[]
   ignoreScripts?: boolean
@@ -29,7 +29,6 @@ export type ClientOptions = {
   nodeDownloadMirrors?: Record<string, string>
   unsafePerm?: boolean
   userAgent?: string
-  userConfig?: Record<string, string>
   gitShallowHosts?: string[]
   resolveSymlinksInInjectedDirs?: boolean
   includeOnlyPackageFiles?: boolean
@@ -45,7 +44,7 @@ export interface Client {
 
 export function createClient (opts: ClientOptions): Client {
   const fetchFromRegistry = createFetchFromRegistry(opts)
-  const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.authConfig, userSettings: opts.userConfig })
+  const getAuthHeader = createGetAuthHeaderByURI(opts.authInfos, opts.registries?.default)
 
   const { resolve, clearCache: clearResolutionCache } = _createResolver(fetchFromRegistry, getAuthHeader, { ...opts, customResolvers: opts.customResolvers })
   return {
@@ -57,7 +56,7 @@ export function createClient (opts: ClientOptions): Client {
 
 export function createResolver (opts: Omit<ClientOptions, 'storeIndex'>): { resolve: ResolveFunction, clearCache: () => void } {
   const fetchFromRegistry = createFetchFromRegistry(opts)
-  const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.authConfig, userSettings: opts.userConfig })
+  const getAuthHeader = createGetAuthHeaderByURI(opts.authInfos, opts.registries?.default)
 
   return _createResolver(fetchFromRegistry, getAuthHeader, { ...opts, customResolvers: opts.customResolvers })
 }

@@ -1,14 +1,7 @@
 import { PnpmError } from '@pnpm/error'
+import type { AuthInfo, AuthUserPass, TokenHelper } from '@pnpm/types'
 
-/** Authentication information of each registry in the rc file. */
-export interface AuthInfo {
-  /** Parsed value of `_auth` of each registry in the rc file. */
-  authUserPass?: AuthUserPass
-  /** The value of `_authToken` of each registry in the rc file. */
-  authToken?: string
-  /** Parsed value of `tokenHelper` of each registry in the rc file. */
-  tokenHelper?: TokenHelper
-}
+export type { AuthInfo, AuthUserPass, TokenHelper }
 
 /** Unparsed authentication information of each registry in the rc file. */
 export interface AuthInfoInput {
@@ -52,11 +45,6 @@ export function parseAuthInfo (input: AuthInfoInput): AuthInfo | undefined {
   return authInfo
 }
 
-/** Parsed value of `_auth` of each registry in the rc file. */
-export interface AuthUserPass {
-  username: string
-  password: string
-}
 
 /**
  * Extract a pair of username and password from either a base64 encoded string
@@ -96,8 +84,6 @@ export class AuthMissingSeparatorError extends PnpmError {
   }
 }
 
-/** Parsed value of `tokenHelper` of each registry in the rc file. */
-export type TokenHelper = [string, ...string[]]
 
 /** Characters reserved for more advanced features in the future. */
 const RESERVED_CHARACTERS = new Set(['$', '%', '`', '"', "'"])

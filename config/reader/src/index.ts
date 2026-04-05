@@ -307,6 +307,18 @@ export async function getConfig (opts: {
     ...networkConfigs.authInfos,
     ...defaultAuthInfo ? { '': defaultAuthInfo } : {},
   }
+  // tokenHelper must only come from user-level config (~/.npmrc), not project-level,
+  // to prevent project .npmrc from executing arbitrary commands.
+  const userConfig = npmrcResult.userConfig as Record<string, string>
+  const userAuthInfos = getNetworkConfigs(pickIniConfig(userConfig)).authInfos
+  const userDefaultAuthInfo = getDefaultAuthInfo(userConfig)
+  for (const [key, authInfo] of Object.entries(pnpmConfig.authInfos)) {
+    if (!authInfo.tokenHelper) continue
+    const userAuthInfo = key === '' ? userDefaultAuthInfo : userAuthInfos?.[key]
+    if (!userAuthInfo?.tokenHelper) {
+      delete authInfo.tokenHelper
+    }
+  }
   pnpmConfig.sslConfigs = networkConfigs.sslConfigs
   pnpmConfig.pnpmHomeDir = getDataDir({ env, platform: process.platform })
   let globalDirRoot

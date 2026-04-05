@@ -1,6 +1,7 @@
 import type { Catalogs } from '@pnpm/catalogs.types'
 import type { Hooks } from '@pnpm/hooks.pnpmfile'
 import type {
+  AuthInfo,
   EngineDependency,
   Finder,
   Project,
@@ -12,7 +13,6 @@ import type {
 } from '@pnpm/types'
 
 import type { OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
-import type { AuthInfo } from './parseAuthInfo.js'
 
 export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'authConfig'>
 
