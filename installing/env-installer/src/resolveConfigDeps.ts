@@ -12,7 +12,7 @@ import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@pnpm/network.fetch'
 import { createNpmResolver, type ResolverFactoryOptions } from '@pnpm/resolving.npm-resolver'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
-import type { Creds, ConfigDependencies, ConfigDependencySpecifiers } from '@pnpm/types'
+import type { ConfigDependencies, ConfigDependencySpecifiers, Creds } from '@pnpm/types'
 
 import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDeps.js'
 

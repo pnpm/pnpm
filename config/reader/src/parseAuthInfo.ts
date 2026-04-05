@@ -1,7 +1,7 @@
 import { PnpmError } from '@pnpm/error'
-import type { Creds, AuthUserPass, TokenHelper } from '@pnpm/types'
+import type { AuthUserPass, Creds, TokenHelper } from '@pnpm/types'
 
-export type { Creds, AuthUserPass, TokenHelper }
+export type { AuthUserPass, Creds, TokenHelper }
 
 /** Unparsed authentication information of each registry in the rc file. */
 export interface AuthInfoInput {

@@ -1,6 +1,6 @@
 import {
-  type Creds,
   AuthMissingSeparatorError,
+  type Creds,
   parseAuthInfo,
   TokenHelperUnsupportedCharacterError,
 } from '../src/parseAuthInfo.js'
