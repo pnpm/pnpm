@@ -310,12 +310,10 @@ export async function getConfig (opts: {
   // tokenHelper must only come from user-level config (~/.npmrc), not project-level,
   // to prevent project .npmrc from executing arbitrary commands.
   const userConfig = npmrcResult.userConfig as Record<string, string>
-  const userCreds = getNetworkConfigs(pickIniConfig(userConfig)).credsByUri
-  const userDefaultAuthInfo = getDefaultCreds(userConfig)
   for (const [key, parsedCreds] of Object.entries(pnpmConfig.credsByUri)) {
     if (!parsedCreds.tokenHelper) continue
-    const userAuthInfo = key === '' ? userDefaultAuthInfo : userCreds?.[key]
-    if (!userAuthInfo?.tokenHelper) {
+    const rawKey = key === '' ? 'tokenHelper' : `${key}:tokenHelper`
+    if (!(rawKey in userConfig)) {
       delete parsedCreds.tokenHelper
     }
   }
