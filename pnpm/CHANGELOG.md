@@ -1,6 +1,6 @@
 # pnpm
 
-## 11.0.0-beta.6
+## 11.0.0-beta.7
 
 ### Major Changes
 
@@ -35,7 +35,7 @@
 
 #### Configuration
 
-- Changed default values: `optimisticRepeatInstall` is now `true` and `verifyDepsBeforeRun` is now `install`.
+- Changed default values: `optimisticRepeatInstall` is now `true`, `verifyDepsBeforeRun` is now `install`, and `minimumReleaseAge` is now `1440` (1 day). Newly published packages will not be resolved until they are at least 1 day old. This protects against supply chain attacks by giving the community time to detect and remove compromised versions. To opt out, set `minimumReleaseAge: 0` in `pnpm-workspace.yaml` [#11158](https://github.com/pnpm/pnpm/pull/11158).
 - `pnpm config get` (without `--json`) no longer print INI formatted text.
   Instead, it would print JSON for both objects and arrays and raw string for
   strings, numbers, booleans, and nulls.
@@ -46,7 +46,24 @@
 - `pnpm config list` and `pnpm config get` (without argument) now show top-level keys as camelCase.
   Exception: Keys that start with `@` or `//` would be preserved (their cases don't change).
 - `pnpm config get` and `pnpm config list` no longer load non camelCase options from the workspace manifest (`pnpm-workspace.yaml`).
-- pnpm no longer loads non-auth and non-registry settings from rc files. Other settings must be defined in `pnpm-workspace.yaml`.
+- pnpm no longer reads all settings from `.npmrc`. Only auth and registry settings are read from `.npmrc` files. All other settings (like `hoistPattern`, `nodeLinker`, `shamefullyHoist`, etc.) must be configured in `pnpm-workspace.yaml` or the global `~/.config/pnpm/config.yaml` [#11189](https://github.com/pnpm/pnpm/pull/11189).
+
+  pnpm no longer reads `npm_config_*` environment variables. Use `pnpm_config_*` environment variables instead (e.g., `pnpm_config_registry` instead of `npm_config_registry`).
+
+  pnpm no longer reads the npm global config at `$PREFIX/etc/npmrc`.
+
+  `pnpm login` writes auth tokens to `~/.config/pnpm/auth.ini`.
+
+  New `registries` setting in `pnpm-workspace.yaml`:
+
+  ```yaml
+  registries:
+    default: https://registry.npmjs.org/
+    "@my-org": https://private.example.com/
+    "@internal": https://nexus.corp.com/
+  ```
+
+  Auth tokens in `~/.npmrc` still work — pnpm continues to read `~/.npmrc` as a fallback for registry authentication. The new `npmrcAuthFile` setting can be used to point to a different file instead of `~/.npmrc`.
 - Replace workspace project specific `.npmrc` with `packageConfigs` in `pnpm-workspace.yaml`.
 
   A workspace manifest with `packageConfigs` would look something like this:
@@ -188,6 +205,12 @@
 - Added a new `dedupePeers` setting that reduces peer dependency duplication. When enabled, peer dependency suffixes use version-only identifiers (`name@version`) instead of full dep paths, eliminating nested suffixes like `(foo@1.0.0(bar@2.0.0))`. This dramatically reduces the number of package instances in projects with many recursive peer dependencies [#11070](https://github.com/pnpm/pnpm/issues/11070).
 - Config dependencies are now installed into the global virtual store (`{storeDir}/links/`) and symlinked into `node_modules/.pnpm-config/`. This allows config dependencies to be shared across projects that use the same store, avoiding redundant fetches and imports [#10910](https://github.com/pnpm/pnpm/pull/10910).
 - Store config dependency and package manager integrity info in `pnpm-lock.yaml` instead of inlining it in `pnpm-workspace.yaml`. The workspace manifest now contains only clean version specifiers for `configDependencies`, while the resolved versions, integrity hashes, and tarball URLs are recorded in the lockfile as a separate YAML document. The env lockfile section also stores `packageManagerDependencies` resolved during version switching and self-update. Projects using the old inline-hash format are automatically migrated on install [#10912](https://github.com/pnpm/pnpm/pull/10912) [#10964](https://github.com/pnpm/pnpm/pull/10964).
+- Added `nodeDownloadMirrors` setting to configure custom Node.js download mirrors in `pnpm-workspace.yaml`. This replaces the `node-mirror:<channel>` `.npmrc` setting, which is no longer read [#11194](https://github.com/pnpm/pnpm/pull/11194):
+
+  ```yaml
+  nodeDownloadMirrors:
+    release: https://my-mirror.example.com/download/release/
+  ```
 
 #### Store
 
@@ -216,6 +239,10 @@
 - Skip the staging directory when importing packages into `node_modules`. This avoids the overhead of creating a temp dir and renaming per package [#11088](https://github.com/pnpm/pnpm/pull/11088).
 - Write CAS files directly to their final content-addressed path instead of writing to a temp file and renaming. Eliminates ~30k rename syscalls per cold install [#11087](https://github.com/pnpm/pnpm/pull/11087).
 - Optimize hot path string operations in content-addressable store and increase `gunzipSync` chunk size for fewer buffer allocations during tarball decompression [#11086](https://github.com/pnpm/pnpm/pull/11086).
+- Improved HTTP performance with Happy Eyeballs (dual-stack), better keep-alive settings, and an optimized global dispatcher. Tarball downloads with known size now pre-allocate memory to avoid double-copy overhead [#11151](https://github.com/pnpm/pnpm/pull/11151).
+- Use `If-Modified-Since` for conditional metadata fetches, avoiding re-downloading unchanged registry metadata [#11161](https://github.com/pnpm/pnpm/pull/11161).
+- Use abbreviated metadata when checking `minimumReleaseAge`, reducing the amount of data fetched from the registry [#11160](https://github.com/pnpm/pnpm/pull/11160).
+- Use NDJSON format for the metadata cache, improving read/write performance [#11188](https://github.com/pnpm/pnpm/pull/11188).
 
 ### Patch Changes
 
@@ -248,6 +275,8 @@
 - Fixed false "Command not found" error on Windows when the command exists but exits with a non-zero exit code [#11000](https://github.com/pnpm/pnpm/issues/11000).
 - Prepended `Bearer` to the authorization token generated by `tokenHelper` if it is missing, aligning with npm's behavior [#11097](https://github.com/pnpm/pnpm/pull/11097).
 - Propagate error cause when throwing `PnpmError` in `@pnpm/npm-resolver` [#10990](https://github.com/pnpm/pnpm/pull/10990).
+- Fix SQLite race condition during store initialization on Windows.
+- Remove `rimrafSync` in `importIndexedDir` fast-path error handler [#11168](https://github.com/pnpm/pnpm/pull/11168).
 
 ## 10.20.0
 
