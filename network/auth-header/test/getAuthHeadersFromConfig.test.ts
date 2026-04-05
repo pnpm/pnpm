@@ -37,9 +37,9 @@ describe('getAuthHeadersFromCreds()', () => {
       '//registry.hu/': 'Bearer def456',
     })
   })
-  it('should convert authUserPass to Basic header', () => {
+  it('should convert basicAuth to Basic header', () => {
     const result = getAuthHeadersFromCreds({
-      '//registry.foobar.eu/': { authUserPass: { username: 'foobar', password: 'foobar' } },
+      '//registry.foobar.eu/': { basicAuth: { username: 'foobar', password: 'foobar' } },
     }, '//registry.npmjs.org/')
     expect(result).toStrictEqual({
       '//registry.foobar.eu/': 'Basic Zm9vYmFyOmZvb2Jhcg==',

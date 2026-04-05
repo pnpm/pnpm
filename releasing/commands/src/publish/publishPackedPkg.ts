@@ -113,8 +113,8 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
     key: ssl?.key,
     npmCommand: 'publish',
     token: auth && extractToken(auth),
-    username: auth?.authUserPass?.username,
-    password: auth?.authUserPass?.password,
+    username: auth?.basicAuth?.username,
+    password: auth?.basicAuth?.password,
   }
 
   // This is necessary because getNetworkConfigs initialized them as { cert: '', key: '' }

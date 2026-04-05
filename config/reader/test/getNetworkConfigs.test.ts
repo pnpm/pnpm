@@ -111,7 +111,7 @@ test('auth infos', () => {
     },
     credsByUri: {
       '//example.com/foo': {
-        authUserPass: {
+        basicAuth: {
           username: 'foo',
           password: 'bar',
         },
@@ -130,7 +130,7 @@ test('auth infos', () => {
     },
     credsByUri: {
       '//example.com/foo': {
-        authUserPass: {
+        basicAuth: {
           username: 'foo',
           password: 'bar',
         },

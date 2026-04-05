@@ -22,7 +22,7 @@ describe('parseCreds', () => {
     expect(parseCreds({
       authPairBase64: btoa('foo:bar'),
     })).toStrictEqual({
-      authUserPass: {
+      basicAuth: {
         username: 'foo',
         password: 'bar',
       },
@@ -31,7 +31,7 @@ describe('parseCreds', () => {
     expect(parseCreds({
       authPairBase64: btoa('foo:bar:baz'),
     })).toStrictEqual({
-      authUserPass: {
+      basicAuth: {
         username: 'foo',
         password: 'bar:baz',
       },
@@ -49,7 +49,7 @@ describe('parseCreds', () => {
       authUsername: 'foo',
       authPassword: btoa('bar'),
     })).toStrictEqual({
-      authUserPass: {
+      basicAuth: {
         username: 'foo',
         password: 'bar',
       },

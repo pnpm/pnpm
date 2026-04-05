@@ -58,7 +58,7 @@ test('installing a package that need authentication, using password', async () =
   })
 
   const credsByUri: Record<string, Creds> = {
-    [`//localhost:${REGISTRY_MOCK_PORT}/`]: { authUserPass: { username: 'foo', password: 'bar' } },
+    [`//localhost:${REGISTRY_MOCK_PORT}/`]: { basicAuth: { username: 'foo', password: 'bar' } },
   }
   await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], testDefaults({}, {
     credsByUri,
@@ -79,7 +79,7 @@ test('a package that need authentication, legacy way', async () => {
   })
 
   const credsByUri: Record<string, Creds> = {
-    '': { authUserPass: { username: 'foo', password: 'bar' } },
+    '': { basicAuth: { username: 'foo', password: 'bar' } },
   }
   await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], testDefaults({}, {
     credsByUri,
@@ -148,7 +148,7 @@ test('a scoped package that need legacy authentication specific to scope', async
   })
 
   const credsByUri: Record<string, Creds> = {
-    [`//localhost:${REGISTRY_MOCK_PORT}/`]: { authUserPass: { username: 'foo', password: 'bar' } },
+    [`//localhost:${REGISTRY_MOCK_PORT}/`]: { basicAuth: { username: 'foo', password: 'bar' } },
   }
   let opts = testDefaults({
     registries: {

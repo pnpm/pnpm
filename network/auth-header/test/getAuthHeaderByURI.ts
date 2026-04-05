@@ -77,9 +77,9 @@ test('getAuthHeaderByURI() with default registry auth', () => {
   expect(getAuthHeaderByURI('https://registry.npmjs.org/foo/-/foo-1.0.0.tgz')).toBe('Bearer default-token')
 })
 
-test('getAuthHeaderByURI() with basic auth via authUserPass', () => {
+test('getAuthHeaderByURI() with basic auth via basicAuth', () => {
   const getAuthHeaderByURI = createGetAuthHeaderByURI({
-    '//reg.com/': { authUserPass: { username: 'user', password: 'pass' } },
+    '//reg.com/': { basicAuth: { username: 'user', password: 'pass' } },
   })
   expect(getAuthHeaderByURI('https://reg.com/')).toBe('Basic ' + btoa('user:pass'))
 })

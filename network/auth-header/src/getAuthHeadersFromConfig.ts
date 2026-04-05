@@ -32,8 +32,8 @@ function credsToHeader (parsedCreds: Creds): string | undefined {
   if (parsedCreds.authToken) {
     return `Bearer ${parsedCreds.authToken}`
   }
-  if (parsedCreds.authUserPass) {
-    return `Basic ${btoa(`${parsedCreds.authUserPass.username}:${parsedCreds.authUserPass.password}`)}`
+  if (parsedCreds.basicAuth) {
+    return `Basic ${btoa(`${parsedCreds.basicAuth.username}:${parsedCreds.basicAuth.password}`)}`
   }
   return undefined
 }

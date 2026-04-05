@@ -1,7 +1,7 @@
 import { PnpmError } from '@pnpm/error'
-import type { AuthUserPass, Creds, TokenHelper } from '@pnpm/types'
+import type { BasicAuth, Creds, TokenHelper } from '@pnpm/types'
 
-export type { AuthUserPass, Creds, TokenHelper }
+export type { BasicAuth, Creds, TokenHelper }
 
 /** Unparsed authentication information of each registry in the rc file. */
 export interface CredsInput {
@@ -34,11 +34,11 @@ export function parseCreds (input: CredsInput): Creds | undefined {
     }
   }
 
-  const authUserPass = getAuthUserPass(input)
-  if (authUserPass) {
+  const basicAuth = getAuthUserPass(input)
+  if (basicAuth) {
     parsedCreds = {
       ...parsedCreds,
-      authUserPass,
+      basicAuth,
     }
   }
 
@@ -57,7 +57,7 @@ function getAuthUserPass ({
   authPairBase64,
   authUsername,
   authPassword,
-}: Pick<CredsInput, 'authPairBase64' | 'authUsername' | 'authPassword'>): AuthUserPass | undefined {
+}: Pick<CredsInput, 'authPairBase64' | 'authUsername' | 'authPassword'>): BasicAuth | undefined {
   if (authPairBase64) {
     const pair = atob(authPairBase64)
     const colonIndex = pair.indexOf(':')

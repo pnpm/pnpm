@@ -26,7 +26,7 @@ export interface SslConfig {
 }
 
 /** Parsed value of `_auth` of each registry in the rc file. */
-export interface AuthUserPass {
+export interface BasicAuth {
   username: string
   password: string
 }
@@ -37,7 +37,7 @@ export type TokenHelper = [string, ...string[]]
 /** Authentication information of each registry in the rc file. */
 export interface Creds {
   /** Parsed value of `_auth` of each registry in the rc file. */
-  authUserPass?: AuthUserPass
+  basicAuth?: BasicAuth
   /** The value of `_authToken` of each registry in the rc file. */
   authToken?: string
   /** Parsed value of `tokenHelper` of each registry in the rc file. */
