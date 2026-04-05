@@ -87,7 +87,7 @@ function needsCustomDispatcher (opts: DispatcherOptions): boolean {
     opts.key ||
     opts.localAddress ||
     opts.strictSsl === false ||
-    opts.clientCertificates ||
+    (opts.clientCertificates && Object.keys(opts.clientCertificates).length > 0) ||
     opts.maxSockets
   )
 }
