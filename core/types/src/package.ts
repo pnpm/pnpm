@@ -188,6 +188,9 @@ export interface PnpmSettings {
   requiredScripts?: string[]
   supportedArchitectures?: SupportedArchitectures
   nodeDownloadMirrors?: Record<string, string>
+  httpProxy?: string
+  httpsProxy?: string
+  noProxy?: string | boolean
 }
 
 export interface ProjectManifest extends BaseManifest {

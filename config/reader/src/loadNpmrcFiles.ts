@@ -5,7 +5,7 @@ import path from 'node:path'
 import { envReplace } from '@pnpm/config.env-replace'
 import { readIniFileSync } from 'read-ini-file'
 
-import { isIniConfigKey } from './auth.js'
+import { isNpmrcReadableKey } from './auth.js'
 
 export interface NpmrcConfigResult {
   /**
@@ -95,7 +95,7 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   const mergedConfig: Record<string, unknown> = {}
   for (const source of [pnpmBuiltinConfig, opts.defaultOptions, userConfig, pnpmAuthConfig, workspaceNpmrc, opts.cliOptions]) {
     for (const [key, value] of Object.entries(source)) {
-      if (isIniConfigKey(key)) {
+      if (isNpmrcReadableKey(key)) {
         mergedConfig[key] = value
       }
     }
@@ -146,7 +146,7 @@ function readAndFilterNpmrc (
       : rawValue
 
     // Only keep auth/registry related keys
-    if (isIniConfigKey(key)) {
+    if (isNpmrcReadableKey(key)) {
       result[key] = value
     }
   }

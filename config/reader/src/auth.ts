@@ -7,14 +7,21 @@ const RAW_AUTH_CFG_KEYS = [
   'cafile',
   'cert',
   'key',
-  'local-address',
-  'git-shallow-hosts',
+  'registry',
+] satisfies Array<keyof typeof types>
+
+/**
+ * Network-related keys that should be readable from .npmrc (for migration from npm)
+ * but written to YAML config files (config.yaml / pnpm-workspace.yaml).
+ */
+const NETWORK_INI_KEYS = [
   'https-proxy',
   'proxy',
   'no-proxy',
-  'registry',
+  'http-proxy',
+  'local-address',
   'strict-ssl',
-] satisfies Array<keyof typeof types>
+]
 
 const RAW_AUTH_CFG_KEY_SUFFIXES = [
   ':ca',
@@ -34,14 +41,8 @@ const AUTH_CFG_KEYS = [
   'cert',
   'configByUri',
   'key',
-  'localAddress',
-  'gitShallowHosts',
-  'httpsProxy',
-  'httpProxy',
-  'noProxy',
   'registry',
   'registries',
-  'strictSsl',
 ] satisfies Array<keyof Config>
 
 const NPM_AUTH_SETTINGS = [
@@ -93,6 +94,14 @@ export function inheritAuthConfig (target: InheritableConfigPair, src: Inheritab
  */
 export const isIniConfigKey = (key: string): boolean =>
   key.startsWith('@') || key.startsWith('//') || NPM_AUTH_SETTINGS.includes(key)
+
+/**
+ * Whether the config key should be read from .npmrc files.
+ * This includes auth keys and proxy keys (proxy keys are readable from .npmrc
+ * for easier migration from npm, but are written to YAML config files).
+ */
+export const isNpmrcReadableKey = (key: string): boolean =>
+  isIniConfigKey(key) || NETWORK_INI_KEYS.includes(key)
 
 /**
  * Filter keys that are allowed to be read from an INI config file.

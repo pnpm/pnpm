@@ -870,3 +870,82 @@ test('config set when only pnpm-workspace.yaml exists, writes to it', async () =
   })
   expect(fs.existsSync(path.join(tmp, '.npmrc'))).toBeFalsy()
 })
+
+test('config set --global https-proxy writes to config.yaml, not auth.ini', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  const initConfig = {
+    globalRc: undefined,
+    globalYaml: undefined,
+    localRc: undefined,
+    localYaml: undefined,
+  } satisfies ConfigFilesData
+  writeConfigFiles(configDir, tmp, initConfig)
+
+  await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    global: true,
+    authConfig: {},
+  }), ['set', 'https-proxy', 'http://proxy.example.com:8443'])
+
+  const result = readConfigFiles(configDir, tmp)
+  expect(result.globalYaml).toEqual({
+    httpsProxy: 'http://proxy.example.com:8443',
+  })
+  // Must NOT write to auth.ini
+  expect(result.globalRc).toBeUndefined()
+})
+
+test('config set --global httpProxy writes to config.yaml', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  const initConfig = {
+    globalRc: undefined,
+    globalYaml: undefined,
+    localRc: undefined,
+    localYaml: undefined,
+  } satisfies ConfigFilesData
+  writeConfigFiles(configDir, tmp, initConfig)
+
+  await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    global: true,
+    authConfig: {},
+  }), ['set', 'httpProxy', 'http://proxy.example.com:8080'])
+
+  const result = readConfigFiles(configDir, tmp)
+  expect(result.globalYaml).toEqual({
+    httpProxy: 'http://proxy.example.com:8080',
+  })
+  expect(result.globalRc).toBeUndefined()
+})
+
+test('config set --global no-proxy writes to config.yaml', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  const initConfig = {
+    globalRc: undefined,
+    globalYaml: undefined,
+    localRc: undefined,
+    localYaml: undefined,
+  } satisfies ConfigFilesData
+  writeConfigFiles(configDir, tmp, initConfig)
+
+  await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    global: true,
+    authConfig: {},
+  }), ['set', 'no-proxy', 'localhost,127.0.0.1'])
+
+  const result = readConfigFiles(configDir, tmp)
+  expect(result.globalYaml).toEqual({
+    noProxy: 'localhost,127.0.0.1',
+  })
+  expect(result.globalRc).toBeUndefined()
+})

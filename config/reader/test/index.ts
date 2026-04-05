@@ -1451,6 +1451,102 @@ describe('global config.yaml', () => {
     // NOTE: the field may appear kebab-case here, but only internally,
     expect(config.dangerouslyAllowAllBuilds).toBeDefined()
   })
+
+  test('reads proxy settings from global config.yaml', async () => {
+    prepareEmpty()
+
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', {
+      httpProxy: 'http://proxy.example.com:8080',
+      httpsProxy: 'http://proxy.example.com:8443',
+      noProxy: 'localhost,127.0.0.1',
+    })
+
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.httpProxy).toBe('http://proxy.example.com:8080')
+    expect(config.httpsProxy).toBe('http://proxy.example.com:8443')
+    expect(config.noProxy).toBe('localhost,127.0.0.1')
+  })
+
+  test('proxy settings from global config.yaml override .npmrc', async () => {
+    prepareEmpty()
+
+    // Set proxy in .npmrc (npm-style keys)
+    fs.writeFileSync('.npmrc', 'https-proxy=http://npmrc-proxy.example.com:8080', 'utf8')
+
+    // Set different proxy in global config.yaml
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', {
+      httpsProxy: 'http://yaml-proxy.example.com:9090',
+    })
+
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    // Global YAML should override .npmrc
+    expect(config.httpsProxy).toBe('http://yaml-proxy.example.com:9090')
+  })
+
+  test('CLI flags override proxy settings from global config.yaml', async () => {
+    prepareEmpty()
+
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', {
+      httpsProxy: 'http://yaml-proxy.example.com:9090',
+    })
+
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    const { config } = await getConfig({
+      cliOptions: {
+        'https-proxy': 'http://cli-proxy.example.com:7070',
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.httpsProxy).toBe('http://cli-proxy.example.com:7070')
+  })
+})
+
+test('proxy settings are still read from .npmrc', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('.npmrc', 'https-proxy=http://npmrc-proxy.example.com:8080\nproxy=http://npmrc-http-proxy.example.com:3128\nno-proxy=internal.example.com', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.httpsProxy).toBe('http://npmrc-proxy.example.com:8080')
+  expect(config.httpProxy).toBe('http://npmrc-proxy.example.com:8080')
+  expect(config.noProxy).toBe('internal.example.com')
 })
 
 test('lockfile: false in pnpm-workspace.yaml sets useLockfile to false', async () => {
