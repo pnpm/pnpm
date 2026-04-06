@@ -54,6 +54,15 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
     if (opts?.ifModifiedSince) {
       headers['if-modified-since'] = opts.ifModifiedSince
     }
+    // Merge caller-provided headers (e.g. content-type, npm-otp) on top
+    if (opts?.headers) {
+      const optsHeaders = opts.headers instanceof Headers
+        ? Object.fromEntries(opts.headers.entries())
+        : Array.isArray(opts.headers)
+          ? Object.fromEntries(opts.headers)
+          : opts.headers
+      Object.assign(headers, optsHeaders)
+    }
 
     let redirects = 0
     let urlObject = new URL(url)
@@ -69,8 +78,10 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
 
       const response = await fetchWithDispatcher(urlObject, {
         dispatcherOptions,
+        body: opts?.body,
         // if verifying integrity, native fetch must not decompress
         headers,
+        method: opts?.method,
         redirect: 'manual',
         retry: opts?.retry,
         timeout: opts?.timeout ?? 60000,
