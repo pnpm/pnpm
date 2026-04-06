@@ -91,9 +91,6 @@
       "path": "../../lockfile/types"
     },
     {
-      "path": "../../network/auth-header"
-    },
-    {
       "path": "../../network/fetch"
     },
     {

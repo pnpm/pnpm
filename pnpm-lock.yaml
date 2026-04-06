@@ -7259,6 +7259,9 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../__utils__/prepare
+      '@pnpm/registry-access.commands':
+        specifier: workspace:*
+        version: link:../registry-access/commands
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
@@ -7545,6 +7548,67 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  registry-access/commands:
+    dependencies:
+      '@pnpm/cli.utils':
+        specifier: workspace:*
+        version: link:../../cli/utils
+      '@pnpm/config.reader':
+        specifier: workspace:*
+        version: link:../../config/reader
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
+      '@pnpm/network.auth-header':
+        specifier: workspace:*
+        version: link:../../network/auth-header
+      '@pnpm/network.fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../core/types
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+      render-help:
+        specifier: 'catalog:'
+        version: 2.0.0
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.4
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../core/logger
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@pnpm/registry-access.commands':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/registry-mock':
+        specifier: 'catalog:'
+        version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+      '@pnpm/releasing.commands':
+        specifier: workspace:*
+        version: link:../../releasing/commands
+      '@pnpm/testing.command-defaults':
+        specifier: workspace:*
+        version: link:../../testing/command-defaults
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.31.1
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.7.1
+      execa:
+        specifier: 'catalog:'
+        version: safe-execa@0.3.0
+
   releasing/commands:
     dependencies:
       '@pnpm/bins.resolver':
@@ -7604,9 +7668,6 @@ importers:
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
-      '@pnpm/network.auth-header':
-        specifier: workspace:*
-        version: link:../../network/auth-header
       '@pnpm/network.fetch':
         specifier: workspace:*
         version: link:../../network/fetch

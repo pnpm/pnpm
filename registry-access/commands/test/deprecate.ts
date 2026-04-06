@@ -1,20 +1,29 @@
 import { prepare } from '@pnpm/prepare'
+import { deprecate, undeprecate } from '@pnpm/registry-access.commands'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { deprecate, publish } from '@pnpm/releasing.commands'
+import { publish } from '@pnpm/releasing.commands'
+import { DEFAULT_OPTS as BASE_OPTS } from '@pnpm/testing.command-defaults'
 import { safeExeca as execa } from 'execa'
 
-import { DEFAULT_OPTS } from './utils/index.js'
+const DEFAULT_OPTS = {
+  ...BASE_OPTS,
+  bail: false,
+}
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
 
-const CREDENTIALS = [
-  `--registry=${REGISTRY}/`,
-  `--//localhost:${REGISTRY_MOCK_PORT}/:username=username`,
-  `--//localhost:${REGISTRY_MOCK_PORT}/:password=password`,
-  `--//localhost:${REGISTRY_MOCK_PORT}/:email=foo@bar.net`,
-]
+const CONFIG_BY_URI = {
+  [`//localhost:${REGISTRY_MOCK_PORT}/`]: {
+    creds: {
+      basicAuth: {
+        username: 'username',
+        password: 'password',
+      },
+    },
+  },
+}
 
-async function getDeprecation (pkgName: string, _version: string): Promise<string | undefined> {
+async function getDeprecation (pkgName: string): Promise<string | undefined> {
   const { stdout } = await execa('npm', [
     'view',
     `${pkgName}`,
@@ -38,19 +47,17 @@ test('deprecate: should deprecate a package', async () => {
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    argv: { original: ['publish', ...CREDENTIALS] },
+    argv: { original: ['publish'] },
     dir: process.cwd(),
   }, [])
 
   await deprecate.handler({
     ...DEFAULT_OPTS,
-    argv: { original: ['deprecate', ...CREDENTIALS] },
     cliOptions: {},
-    rawConfig: { registry: REGISTRY },
-    registry: REGISTRY,
+    configByUri: CONFIG_BY_URI,
   }, ['test-deprecate-package', 'This package is deprecated'])
 
-  const deprecated = await getDeprecation('test-deprecate-package', '0.0.1')
+  const deprecated = await getDeprecation('test-deprecate-package')
   expect(deprecated).toBe('This package is deprecated')
 })
 
@@ -62,23 +69,21 @@ test('deprecate: should deprecate a specific version', async () => {
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    argv: { original: ['publish', ...CREDENTIALS] },
+    argv: { original: ['publish'] },
     dir: process.cwd(),
   }, [])
 
   await deprecate.handler({
     ...DEFAULT_OPTS,
-    argv: { original: ['deprecate', ...CREDENTIALS] },
     cliOptions: {},
-    rawConfig: { registry: REGISTRY },
-    registry: REGISTRY,
+    configByUri: CONFIG_BY_URI,
   }, ['test-deprecate-specific@0.0.1', 'This version is deprecated'])
 
-  const deprecated = await getDeprecation('test-deprecate-specific', '0.0.1')
+  const deprecated = await getDeprecation('test-deprecate-specific')
   expect(deprecated).toBe('This version is deprecated')
 })
 
-test.skip('deprecate: should undeprecate a package with empty message', async () => {
+test.skip('undeprecate: should undeprecate a package', async () => {
   prepare({
     name: 'test-undeprecate-package',
     version: '0.0.1',
@@ -86,27 +91,23 @@ test.skip('deprecate: should undeprecate a package with empty message', async ()
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    argv: { original: ['publish', ...CREDENTIALS] },
+    argv: { original: ['publish'] },
     dir: process.cwd(),
   }, [])
 
   await deprecate.handler({
     ...DEFAULT_OPTS,
-    argv: { original: ['deprecate', ...CREDENTIALS] },
     cliOptions: {},
-    rawConfig: { registry: REGISTRY },
-    registry: REGISTRY,
+    configByUri: CONFIG_BY_URI,
   }, ['test-undeprecate-package', 'This package is deprecated'])
 
-  await deprecate.handler({
+  await undeprecate.handler({
     ...DEFAULT_OPTS,
-    argv: { original: ['deprecate', ...CREDENTIALS] },
     cliOptions: {},
-    rawConfig: { registry: REGISTRY },
-    registry: REGISTRY,
-  }, ['test-undeprecate-package', ''])
+    configByUri: CONFIG_BY_URI,
+  }, ['test-undeprecate-package'])
 
-  const deprecated = await getDeprecation('test-undeprecate-package', '0.0.1')
+  const deprecated = await getDeprecation('test-undeprecate-package')
   expect(deprecated).toBeFalsy()
 })
 
@@ -114,10 +115,7 @@ test('deprecate: should throw error when package not found', async () => {
   await expect(async () => {
     await deprecate.handler({
       ...DEFAULT_OPTS,
-      argv: { original: ['deprecate', ...CREDENTIALS] },
       cliOptions: {},
-      rawConfig: { registry: REGISTRY },
-      registry: REGISTRY,
     }, ['nonexistent-package-12345', 'This should fail'])
   }).rejects.toThrow('Package "nonexistent-package-12345" not found in registry')
 })
@@ -126,10 +124,7 @@ test('deprecate: should throw error when no package name provided', async () => 
   await expect(async () => {
     await deprecate.handler({
       ...DEFAULT_OPTS,
-      argv: { original: ['deprecate', ...CREDENTIALS] },
       cliOptions: {},
-      rawConfig: { registry: REGISTRY },
-      registry: REGISTRY,
     }, [])
   }).rejects.toThrow('Package name is required')
 })
