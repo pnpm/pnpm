@@ -66,15 +66,12 @@ describe('logout', () => {
   })
 
   it('should revoke token on registry and remove from auth.ini', async () => {
-    const fetchedUrls: Array<{ url: string, method?: string }> = []
+    const mockFetch = jest.fn(async () => createMockResponse({ ok: true, status: 200 }))
     let savedPath = ''
     let savedSettings: Record<string, unknown> = {}
 
     const context = createMockContext({
-      fetch: async (url, options) => {
-        fetchedUrls.push({ url, method: options?.method })
-        return createMockResponse({ ok: true, status: 200 })
-      },
+      fetch: mockFetch,
       readIniFile: async () => ({
         '//registry.npmjs.org/:_authToken': 'my-token-123',
         'other-setting': 'value',
@@ -96,23 +93,21 @@ describe('logout', () => {
     const result = await logout({ context, opts })
 
     expect(result).toBe('Logged out of https://registry.npmjs.org/')
-    expect(fetchedUrls).toEqual([
-      { url: 'https://registry.npmjs.org/-/user/token/my-token-123', method: 'DELETE' },
-    ])
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://registry.npmjs.org/-/user/token/my-token-123',
+      expect.objectContaining({ method: 'DELETE' })
+    )
     expect(savedPath).toBe(path.join('/custom/config', 'auth.ini'))
     expect(savedSettings).toEqual({ 'other-setting': 'value' })
     expect(savedSettings).not.toHaveProperty(['//registry.npmjs.org/:_authToken'])
   })
 
   it('should logout from a custom registry', async () => {
-    const fetchedUrls: Array<{ url: string, method?: string }> = []
+    const mockFetch = jest.fn(async () => createMockResponse({ ok: true, status: 200 }))
     let savedSettings: Record<string, unknown> = {}
 
     const context = createMockContext({
-      fetch: async (url, options) => {
-        fetchedUrls.push({ url, method: options?.method })
-        return createMockResponse({ ok: true, status: 200 })
-      },
+      fetch: mockFetch,
       readIniFile: async () => ({
         '//npm.example.com/:_authToken': 'custom-token',
       }),
@@ -133,9 +128,10 @@ describe('logout', () => {
     const result = await logout({ context, opts })
 
     expect(result).toBe('Logged out of https://npm.example.com/')
-    expect(fetchedUrls).toEqual([
-      { url: 'https://npm.example.com/-/user/token/custom-token', method: 'DELETE' },
-    ])
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://npm.example.com/-/user/token/custom-token',
+      expect.objectContaining({ method: 'DELETE' })
+    )
     expect(savedSettings).not.toHaveProperty(['//npm.example.com/:_authToken'])
   })
 
@@ -284,15 +280,12 @@ describe('logout', () => {
   })
 
   it('should URL-encode the token when revoking', async () => {
-    const fetchedUrls: string[] = []
+    const mockFetch = jest.fn(async () => createMockResponse({ ok: true, status: 200 }))
     const globalWarn = jest.fn()
 
     const context = createMockContext({
       globalWarn,
-      fetch: async (url) => {
-        fetchedUrls.push(url)
-        return createMockResponse({ ok: true, status: 200 })
-      },
+      fetch: mockFetch,
       readIniFile: async () => ({}),
       writeIniFile: async () => {},
     })
@@ -307,8 +300,9 @@ describe('logout', () => {
 
     await logout({ context, opts })
 
-    expect(fetchedUrls[0]).toBe(
-      'https://registry.npmjs.org/-/user/token/token%2Fwith%2Bspecial%3Dchars'
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://registry.npmjs.org/-/user/token/token%2Fwith%2Bspecial%3Dchars',
+      expect.anything()
     )
   })
 
@@ -341,14 +335,11 @@ describe('logout', () => {
   })
 
   it('should handle registry with a path', async () => {
-    const fetchedUrls: string[] = []
+    const mockFetch = jest.fn(async () => createMockResponse({ ok: true, status: 200 }))
     let savedSettings: Record<string, unknown> = {}
 
     const context = createMockContext({
-      fetch: async (url) => {
-        fetchedUrls.push(url)
-        return createMockResponse({ ok: true, status: 200 })
-      },
+      fetch: mockFetch,
       readIniFile: async () => ({
         '//example.com/npm/:_authToken': 'path-token',
       }),
@@ -369,7 +360,10 @@ describe('logout', () => {
     const result = await logout({ context, opts })
 
     expect(result).toBe('Logged out of https://example.com/npm/')
-    expect(fetchedUrls[0]).toBe('https://example.com/npm/-/user/token/path-token')
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://example.com/npm/-/user/token/path-token',
+      expect.anything()
+    )
     expect(savedSettings).not.toHaveProperty(['//example.com/npm/:_authToken'])
   })
 })
