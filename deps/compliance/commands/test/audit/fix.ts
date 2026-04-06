@@ -36,9 +36,17 @@ test('overrides are added for vulnerable dependencies', async () => {
   expect(exitCode).toBe(0)
   expect(output).toMatch(/Run "pnpm install"/)
 
-  const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  const manifest = readYamlFileSync<{ overrides?: Record<string, string>, minimumReleaseAgeExclude?: string[] }>(path.join(tmp, 'pnpm-workspace.yaml'))
   expect(manifest.overrides?.['axios@<=0.18.0']).toBe('>=0.18.1')
   expect(manifest.overrides?.['sync-exec@>=0.0.0']).toBeFalsy()
+
+  // minimumReleaseAgeExclude should contain the minimum patched versions
+  expect(manifest.minimumReleaseAgeExclude).toContain('axios@0.18.1')
+  expect(manifest.minimumReleaseAgeExclude).toContain('axios@0.21.1')
+  expect(manifest.minimumReleaseAgeExclude).toContain('axios@0.21.2')
+  // unfixable advisories (patched_versions: "<0.0.0") should not be included
+  expect(manifest.minimumReleaseAgeExclude).not.toContain('sync-exec@0.0.0')
+  expect(manifest.minimumReleaseAgeExclude).not.toContain('timespan@0.0.0')
 })
 
 test('no overrides are added if no vulnerabilities are found', async () => {

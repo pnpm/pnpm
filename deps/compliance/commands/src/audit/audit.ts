@@ -243,20 +243,24 @@ export async function handler (opts: AuditOptions): Promise<{ exitCode: number, 
     }
   }
   if (fixMethod === 'override') {
-    const newOverrides = await fix(auditReport, opts)
-    if (Object.values(newOverrides).length === 0) {
+    const { vulnOverrides, addedAgeExcludes } = await fix(auditReport, opts)
+    if (Object.values(vulnOverrides).length === 0) {
       return {
         exitCode: 0,
         output: 'No fixes were made',
       }
     }
-    return {
-      exitCode: 0,
-      output: `${Object.values(newOverrides).length} overrides were added to package.json to fix vulnerabilities.
+    let output = `${Object.values(vulnOverrides).length} overrides were added to package.json to fix vulnerabilities.
 Run "pnpm install" to apply the fixes.
 
 The added overrides:
-${JSON.stringify(newOverrides, null, 2)}`,
+${JSON.stringify(vulnOverrides, null, 2)}`
+    if (addedAgeExcludes.length > 0) {
+      output += `\n\n${addedAgeExcludes.length} entries were added to minimumReleaseAgeExclude to allow installing the patched versions:\n${addedAgeExcludes.join('\n')}`
+    }
+    return {
+      exitCode: 0,
+      output,
     }
   }
   if (opts.ignore !== undefined || opts.ignoreUnfixable) {
