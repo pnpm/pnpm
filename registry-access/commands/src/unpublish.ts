@@ -3,7 +3,7 @@ import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
-import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, fetchWithDispatcher } from '@pnpm/network.fetch'
+import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type FetchFromRegistry } from '@pnpm/network.fetch'
 import npa from '@pnpm/npm-package-arg'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type { Registries, RegistryConfig } from '@pnpm/types'
@@ -131,9 +131,9 @@ async function unpublishPackage (
     if (versionsToUnpublish.length === 0) {
       throw new PnpmError('NO_MATCHING_VERSIONS', `No versions match "${versionRange}"`)
     }
-    return unpublishVersions(packageUrl, pkg, versionsToUnpublish, opts, authHeader)
+    return unpublishVersions(packageUrl, pkg, versionsToUnpublish, fetchFromRegistry, authHeader, opts.cliOptions)
   } else {
-    return unpublishAll(packageUrl, pkg, opts, authHeader)
+    return unpublishAll(packageUrl, pkg, fetchFromRegistry, authHeader, opts.cliOptions)
   }
 }
 
@@ -141,8 +141,9 @@ async function unpublishVersions (
   packageUrl: string,
   pkg: PackageMeta,
   versionsToUnpublish: string[],
-  opts: UnpublishOptions,
-  authHeader: string | undefined
+  fetchFromRegistry: FetchFromRegistry,
+  authHeader: string | undefined,
+  cliOptions: UnpublishOptions['cliOptions']
 ): Promise<string> {
   for (const ver of versionsToUnpublish) {
     delete pkg.versions[ver]
@@ -150,14 +151,13 @@ async function unpublishVersions (
 
   delete pkg.time
 
-  const otp = opts.cliOptions?.otp
+  const otp = cliOptions?.otp
 
-  const putResponse = await fetchWithDispatcher(packageUrl, {
-    dispatcherOptions: opts,
+  const putResponse = await fetchFromRegistry(packageUrl, {
+    authHeaderValue: authHeader,
     method: 'PUT',
     headers: {
       'content-type': 'application/json',
-      ...(authHeader ? { authorization: authHeader } : {}),
       ...(otp ? { 'npm-otp': otp } : {}),
     },
     body: JSON.stringify(pkg),
@@ -180,12 +180,13 @@ async function unpublishVersions (
 async function unpublishAll (
   packageUrl: string,
   pkg: PackageMeta,
-  opts: UnpublishOptions,
-  authHeader: string | undefined
+  fetchFromRegistry: FetchFromRegistry,
+  authHeader: string | undefined,
+  cliOptions: UnpublishOptions['cliOptions']
 ): Promise<string> {
   const packageName = pkg.name
   const versionCount = Object.keys(pkg.versions).length
-  const force = opts.cliOptions?.force ?? false
+  const force = cliOptions?.force ?? false
 
   if (!force) {
     const versionsList = Object.keys(pkg.versions).join(', ')
@@ -194,12 +195,11 @@ This is a protection mechanism to prevent accidental unpublish of packages with 
 If you want to unpublish a specific version, run pnpm unpublish ${packageName}@<version>`)
   }
 
-  const deleteResponse = await fetchWithDispatcher(packageUrl, {
-    dispatcherOptions: opts,
+  const deleteResponse = await fetchFromRegistry(packageUrl, {
+    authHeaderValue: authHeader,
     method: 'DELETE',
     headers: {
-      ...(authHeader ? { authorization: authHeader } : {}),
-      ...(opts.cliOptions?.otp ? { 'npm-otp': opts.cliOptions.otp } : {}),
+      ...(cliOptions?.otp ? { 'npm-otp': cliOptions.otp } : {}),
     },
   })
 
