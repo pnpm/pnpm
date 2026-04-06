@@ -225,7 +225,7 @@ describe('logout', () => {
 
     expect(result).toBe('Logged out of https://registry.npmjs.org/')
     expect(globalWarn).toHaveBeenCalledWith(
-      expect.stringContaining('was not found in /config/auth.ini')
+      expect.stringContaining(`was not found in ${path.join('/config', 'auth.ini')}`)
     )
     expect(globalWarn).toHaveBeenCalledWith(
       expect.stringContaining('must be removed manually')
@@ -258,7 +258,7 @@ describe('logout', () => {
 
     expect(result).toBe('Logged out of https://registry.npmjs.org/')
     expect(globalWarn).toHaveBeenCalledWith(
-      expect.stringContaining('was not found in /nonexistent/config/auth.ini')
+      expect.stringContaining(`was not found in ${path.join('/nonexistent/config', 'auth.ini')}`)
     )
   })
 
