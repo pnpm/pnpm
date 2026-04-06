@@ -49,7 +49,7 @@ export async function handler (
     throw new PnpmError('DEPRECATE_MESSAGE_REQUIRED', 'Deprecation message is required. To un-deprecate, use the undeprecate command.')
   }
 
-  const { name, version } = parsePackageSpec(packageSpec)
+  const { name, versionRange } = parsePackageSpec(packageSpec)
 
-  await updateDeprecation(name, version, message, opts, false)
+  await updateDeprecation(name, versionRange, message, opts, false)
 }

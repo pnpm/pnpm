@@ -7565,6 +7565,9 @@ importers:
       '@pnpm/network.fetch':
         specifier: workspace:*
         version: link:../../network/fetch
+      '@pnpm/npm-package-arg':
+        specifier: 'catalog:'
+        version: 2.0.0
       '@pnpm/resolving.registry.types':
         specifier: workspace:*
         version: link:../../resolving/registry/types

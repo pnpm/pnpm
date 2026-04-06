@@ -46,7 +46,7 @@ export async function handler (
     throw new PnpmError('UNDEPRECATE_NO_MESSAGE', 'The undeprecate command does not accept a message.')
   }
 
-  const { name, version } = parsePackageSpec(params[0])
+  const { name, versionRange } = parsePackageSpec(params[0])
 
-  await updateDeprecation(name, version, '', opts, true)
+  await updateDeprecation(name, versionRange, '', opts, true)
 }

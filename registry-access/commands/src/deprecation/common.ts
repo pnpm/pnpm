@@ -3,6 +3,7 @@ import { PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { fetch } from '@pnpm/network.fetch'
+import npa from '@pnpm/npm-package-arg'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type { Registries, RegistryConfig } from '@pnpm/types'
 import { pick } from 'ramda'
@@ -29,29 +30,18 @@ export interface DeprecateOptions {
   registries?: Registries
 }
 
-export function parsePackageSpec (spec: string): { name: string, version: string | undefined } {
-  const atIndex = spec.lastIndexOf('@')
-  const scopeEndIndex = spec.indexOf('/')
-
-  let name: string
-  let version: string | undefined
-
-  if (atIndex > 0 && (scopeEndIndex === -1 || atIndex > scopeEndIndex)) {
-    name = spec.substring(0, atIndex)
-    version = spec.substring(atIndex + 1)
-  } else if (spec.startsWith('@')) {
-    const slashIndex = spec.indexOf('/')
-    if (slashIndex === -1) {
-      throw new PnpmError('INVALID_PACKAGE_SPEC', `Invalid package spec: ${spec}`)
-    }
-    name = spec
-    version = undefined
-  } else {
-    name = spec
-    version = undefined
+export function parsePackageSpec (spec: string): { name: string, versionRange: string | undefined } {
+  let parsed: ReturnType<typeof npa>
+  try {
+    parsed = npa(spec)
+  } catch {
+    throw new PnpmError('INVALID_PACKAGE_SPEC', `Invalid package spec: ${spec}`)
   }
-
-  return { name, version }
+  if (!parsed.name) {
+    throw new PnpmError('INVALID_PACKAGE_SPEC', `Invalid package spec: ${spec}`)
+  }
+  const versionRange = parsed.rawSpec || undefined
+  return { name: parsed.name, versionRange }
 }
 
 export async function updateDeprecation (
