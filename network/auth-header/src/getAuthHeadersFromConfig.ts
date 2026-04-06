@@ -41,7 +41,9 @@ function credsToHeader (creds?: Creds): string | undefined {
 
 function executeTokenHelper (tokenHelper: TokenHelper): string {
   const [cmd, ...args] = tokenHelper
-  const spawnResult = spawnSync(cmd, args, { stdio: 'pipe' })
+  // On Windows, .bat/.cmd files require a shell to execute.
+  const shell = process.platform === 'win32' && /\.(?:bat|cmd)$/i.test(cmd)
+  const spawnResult = spawnSync(cmd, args, { stdio: 'pipe', shell })
 
   if (spawnResult.status !== 0) {
     throw new PnpmError('TOKEN_HELPER_ERROR_STATUS', `Error running "${cmd}" as a token helper. Exit code ${spawnResult.status?.toString() ?? ''}`)
