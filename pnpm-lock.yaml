@@ -957,7 +957,7 @@ overrides:
   minimatch@>=9.0.0 <10.0.0: '>=10.2.4'
   nopt@5: npm:@pnpm/nopt@^0.2.1
   on-headers@<1.1.0: '>=1.1.0'
-  path-to-regexp@<0.1.12: ^0.1.12
+  path-to-regexp@<0.1.13: ^0.1.13
   path-to-regexp@>=4.0.0 <6.3.0: '>=6.3.0'
   path-to-regexp@>=7.0.0 <8.0.0: '>=8.0.0'
   postman-request>qs: ^6.14.1
@@ -7259,6 +7259,9 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../__utils__/prepare
+      '@pnpm/registry-access.commands':
+        specifier: workspace:*
+        version: link:../registry-access/commands
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
@@ -7544,6 +7547,73 @@ importers:
       pd:
         specifier: workspace:*
         version: 'link:'
+
+  registry-access/commands:
+    dependencies:
+      '@pnpm/cli.utils':
+        specifier: workspace:*
+        version: link:../../cli/utils
+      '@pnpm/config.pick-registry-for-package':
+        specifier: workspace:*
+        version: link:../../config/pick-registry-for-package
+      '@pnpm/config.reader':
+        specifier: workspace:*
+        version: link:../../config/reader
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
+      '@pnpm/network.auth-header':
+        specifier: workspace:*
+        version: link:../../network/auth-header
+      '@pnpm/network.fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
+      '@pnpm/npm-package-arg':
+        specifier: 'catalog:'
+        version: 2.0.0
+      '@pnpm/resolving.registry.types':
+        specifier: workspace:*
+        version: link:../../resolving/registry/types
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../core/types
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+      render-help:
+        specifier: 'catalog:'
+        version: 2.0.0
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.4
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@pnpm/registry-access.commands':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/registry-mock':
+        specifier: 'catalog:'
+        version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+      '@pnpm/releasing.commands':
+        specifier: workspace:*
+        version: link:../../releasing/commands
+      '@pnpm/testing.command-defaults':
+        specifier: workspace:*
+        version: link:../../testing/command-defaults
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.31.1
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.7.1
+      execa:
+        specifier: 'catalog:'
+        version: safe-execa@0.3.0
 
   releasing/commands:
     dependencies:
