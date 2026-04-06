@@ -34,10 +34,10 @@
       "path": "../../network/fetch"
     },
     {
-      "path": "../../resolving/registry/types"
+      "path": "../../releasing/commands"
     },
     {
-      "path": "../../releasing/commands"
+      "path": "../../resolving/registry/types"
     },
     {
       "path": "../../testing/command-defaults"
