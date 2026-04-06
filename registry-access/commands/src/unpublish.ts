@@ -1,20 +1,15 @@
 import { docsUrl } from '@pnpm/cli.utils'
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
-import { types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type FetchFromRegistry } from '@pnpm/network.fetch'
-import npa from '@pnpm/npm-package-arg'
 import type { Registries, RegistryConfig } from '@pnpm/types'
-import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
 
-export function rcOptionsTypes (): Record<string, unknown> {
-  return pick([
-    'registry',
-  ], allTypes)
-}
+import { parsePackageSpec, rcOptionsTypes } from './common.js'
+
+export { rcOptionsTypes }
 
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
@@ -99,20 +94,6 @@ export async function handler (
   const { name, versionRange } = parsePackageSpec(packageSpec)
 
   return unpublishPackage(name, versionRange, opts)
-}
-
-function parsePackageSpec (spec: string): { name: string, versionRange: string | undefined } {
-  let parsed: ReturnType<typeof npa>
-  try {
-    parsed = npa(spec)
-  } catch {
-    throw new PnpmError('INVALID_PACKAGE_SPEC', `Invalid package spec: ${spec}`)
-  }
-  if (!parsed.name) {
-    throw new PnpmError('INVALID_PACKAGE_SPEC', `Invalid package spec: ${spec}`)
-  }
-  const versionRange = parsed.rawSpec || undefined
-  return { name: parsed.name, versionRange }
 }
 
 async function unpublishPackage (

@@ -26,7 +26,6 @@ const NOT_IMPLEMENTED_COMMANDS = [
   'stars',
   'team',
   'token',
-  'unpublish',
   'unstar',
   'whoami',
   'xmas',
