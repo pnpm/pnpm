@@ -1,7 +1,8 @@
+import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
-import { fetch } from '@pnpm/network.fetch'
+import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, fetchWithDispatcher } from '@pnpm/network.fetch'
 import npa from '@pnpm/npm-package-arg'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type { Registries, RegistryConfig } from '@pnpm/types'
@@ -21,7 +22,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
   }
 }
 
-export interface DeprecateOptions {
+export interface DeprecateOptions extends CreateFetchFromRegistryOptions {
   cliOptions: {
     otp?: string
   }
@@ -53,18 +54,18 @@ export async function updateDeprecation (
   opts: DeprecateOptions,
   { deprecated, packageName, versionRange }: UpdateDeprecationOptions
 ): Promise<string> {
-  const registryUrl = opts.registries?.default ?? 'https://registry.npmjs.org/'
+  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
 
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {}, registryUrl)
 
   const authHeader = getAuthHeader(registryUrl)
 
-  const packageUrl = `${registryUrl.replace(/\/$/, '')}/${packageName}`
+  const packageUrl = new URL(encodeURIComponent(packageName), registryUrl).href
 
-  const getResponse = await fetch(packageUrl, {
-    headers: {
-      ...(authHeader ? { authorization: authHeader } : {}),
-    },
+  const fetchFromRegistry = createFetchFromRegistry(opts)
+  const getResponse = await fetchFromRegistry(packageUrl, {
+    authHeaderValue: authHeader,
+    fullMetadata: true,
   })
 
   if (!getResponse.ok) {
@@ -106,7 +107,8 @@ export async function updateDeprecation (
 
   const otp = opts.cliOptions?.otp
 
-  const putResponse = await fetch(packageUrl, {
+  const putResponse = await fetchWithDispatcher(packageUrl, {
+    dispatcherOptions: opts,
     method: 'PUT',
     headers: {
       'content-type': 'application/json',

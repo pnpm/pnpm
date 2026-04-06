@@ -16,6 +16,9 @@
       "path": "../../cli/utils"
     },
     {
+      "path": "../../config/pick-registry-for-package"
+    },
+    {
       "path": "../../config/reader"
     },
     {

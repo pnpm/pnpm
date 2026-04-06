@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@pnpm/cli.utils": "workspace:*",
+    "@pnpm/config.pick-registry-for-package": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",

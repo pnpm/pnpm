@@ -83,6 +83,8 @@ test('deprecate: should deprecate a specific version', async () => {
   expect(deprecated).toBe('This version is deprecated')
 })
 
+// Skipped: verdaccio returns 409 on PUT of full packument for undeprecation.
+// The real npm registry accepts this. Needs a verdaccio-compatible approach or a real registry test.
 test.skip('undeprecate: should undeprecate a package', async () => {
   prepare({
     name: 'test-undeprecate-package',

@@ -7553,6 +7553,9 @@ importers:
       '@pnpm/cli.utils':
         specifier: workspace:*
         version: link:../../cli/utils
+      '@pnpm/config.pick-registry-for-package':
+        specifier: workspace:*
+        version: link:../../config/pick-registry-for-package
       '@pnpm/config.reader':
         specifier: workspace:*
         version: link:../../config/reader
