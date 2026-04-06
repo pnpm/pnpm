@@ -146,6 +146,7 @@ export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
   ignoreUnfixable?: boolean
 } & Pick<Config, 'auditConfig'
 | 'auditLevel'
+| 'minimumReleaseAge'
 | 'ca'
 | 'cert'
 | 'httpProxy'
@@ -237,9 +238,13 @@ export async function handler (opts: AuditOptions): Promise<{ exitCode: number, 
   }
   if (fixMethod === 'update') {
     const result = await fixWithUpdate(auditReport, { ...opts, include })
+    let output = formatFixWithUpdateOutput(result, auditReport)
+    if (result.addedAgeExcludes.length > 0) {
+      output += `\n${result.addedAgeExcludes.length} entries were added to minimumReleaseAgeExclude to allow installing the patched versions:\n${result.addedAgeExcludes.join('\n')}\n`
+    }
     return {
       exitCode: result.remaining.length > 0 ? 1 : 0,
-      output: formatFixWithUpdateOutput(result, auditReport),
+      output,
     }
   }
   if (fixMethod === 'override') {

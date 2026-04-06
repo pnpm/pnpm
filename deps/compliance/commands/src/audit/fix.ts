@@ -14,7 +14,7 @@ export async function fix (auditReport: AuditReport, opts: AuditOptions): Promis
   const fixableAdvisories = getFixableAdvisories(Object.values(auditReport.advisories), opts.auditConfig?.ignoreCves)
   const vulnOverrides = createOverrides(fixableAdvisories)
   if (Object.values(vulnOverrides).length === 0) return { vulnOverrides, addedAgeExcludes: [] }
-  const addedAgeExcludes = createMinimumReleaseAgeExcludes(fixableAdvisories)
+  const addedAgeExcludes = opts.minimumReleaseAge ? createMinimumReleaseAgeExcludes(fixableAdvisories) : []
   await writeSettings({
     updatedOverrides: vulnOverrides,
     addedMinimumReleaseAgeExcludes: addedAgeExcludes.length > 0 ? addedAgeExcludes : undefined,
@@ -42,9 +42,10 @@ function createOverrides (advisories: AuditAdvisory[]): Record<string, string> {
   )
 }
 
-function createMinimumReleaseAgeExcludes (advisories: AuditAdvisory[]): string[] {
+export function createMinimumReleaseAgeExcludes (advisories: AuditAdvisory[]): string[] {
   const excludes: string[] = []
   for (const advisory of advisories) {
+    if (advisory.patched_versions === '<0.0.0') continue
     const minVersion = semver.minVersion(advisory.patched_versions)
     if (minVersion) {
       excludes.push(`${advisory.module_name}@${minVersion.version}`)

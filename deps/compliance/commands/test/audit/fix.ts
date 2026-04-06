@@ -28,6 +28,7 @@ test('overrides are added for vulnerable dependencies', async () => {
   const { exitCode, output } = await audit.handler({
     ...AUDIT_REGISTRY_OPTS,
     auditLevel: 'moderate',
+    minimumReleaseAge: 1440,
     dir: tmp,
     rootProjectManifestDir: tmp,
     fix: true,
@@ -35,6 +36,7 @@ test('overrides are added for vulnerable dependencies', async () => {
 
   expect(exitCode).toBe(0)
   expect(output).toMatch(/Run "pnpm install"/)
+  expect(output).toContain('entries were added to minimumReleaseAgeExclude')
 
   const manifest = readYamlFileSync<{ overrides?: Record<string, string>, minimumReleaseAgeExclude?: string[] }>(path.join(tmp, 'pnpm-workspace.yaml'))
   expect(manifest.overrides?.['axios@<=0.18.0']).toBe('>=0.18.1')
