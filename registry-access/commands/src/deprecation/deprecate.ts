@@ -43,13 +43,13 @@ export async function handler (
   }
 
   const packageSpec = params[0]
-  const message = params.slice(1).join(' ')
+  const deprecated = params.slice(1).join(' ')
 
-  if (message === '') {
+  if (deprecated === '') {
     throw new PnpmError('DEPRECATE_MESSAGE_REQUIRED', 'Deprecation message is required. To un-deprecate, use the undeprecate command.')
   }
 
   const { name, versionRange } = parsePackageSpec(packageSpec)
 
-  return updateDeprecation(opts, { deprecated: message, packageName: name, versionRange })
+  return updateDeprecation(opts, { deprecated, packageName: name, versionRange })
 }
