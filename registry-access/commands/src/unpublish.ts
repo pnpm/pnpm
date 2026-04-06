@@ -5,6 +5,7 @@ import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, fetchWithDispatcher } from '@pnpm/network.fetch'
 import npa from '@pnpm/npm-package-arg'
+import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type { Registries, RegistryConfig } from '@pnpm/types'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -65,24 +66,6 @@ export interface UnpublishOptions extends CreateFetchFromRegistryOptions {
   registries?: Registries
 }
 
-interface PackageManifest {
-  _id?: string
-  _rev?: string
-  name: string
-  description?: string
-  'dist-tags'?: Record<string, string>
-  versions?: Record<string, PackageVersion>
-  time?: Record<string, string>
-  [key: string]: unknown
-}
-
-interface PackageVersion {
-  name: string
-  version: string
-  deprecated?: string | true
-  [key: string]: unknown
-}
-
 export async function handler (
   opts: UnpublishOptions,
   params: string[]
@@ -137,9 +120,9 @@ async function unpublishPackage (
     throw new PnpmError('REGISTRY_ERROR', `Failed to fetch package info: ${getResponse.status} ${getResponse.statusText}`)
   }
 
-  const pkg: PackageManifest = await getResponse.json() as PackageManifest
+  const pkg: PackageMeta = await getResponse.json() as PackageMeta
 
-  if (!pkg.versions || Object.keys(pkg.versions).length === 0) {
+  if (Object.keys(pkg.versions).length === 0) {
     throw new PnpmError('NO_VERSIONS', `Package "${packageName}" has no versions`)
   }
 
@@ -156,13 +139,13 @@ async function unpublishPackage (
 
 async function unpublishVersions (
   packageUrl: string,
-  pkg: PackageManifest,
+  pkg: PackageMeta,
   versionsToUnpublish: string[],
   opts: UnpublishOptions,
   authHeader: string | undefined
 ): Promise<string> {
   for (const ver of versionsToUnpublish) {
-    delete pkg.versions![ver]
+    delete pkg.versions[ver]
   }
 
   delete pkg.time
@@ -196,16 +179,16 @@ async function unpublishVersions (
 
 async function unpublishAll (
   packageUrl: string,
-  pkg: PackageManifest,
+  pkg: PackageMeta,
   opts: UnpublishOptions,
   authHeader: string | undefined
 ): Promise<string> {
   const packageName = pkg.name
-  const versionCount = Object.keys(pkg.versions ?? {}).length
+  const versionCount = Object.keys(pkg.versions).length
   const force = opts.cliOptions?.force ?? false
 
   if (!force) {
-    const versionsList = Object.keys(pkg.versions ?? {}).join(', ')
+    const versionsList = Object.keys(pkg.versions).join(', ')
     throw new PnpmError('UNPUBLISH_CONFIRM', `Run pnpm unpublish --force to remove all published versions of ${packageName} (${versionsList}) from the registry.
 This is a protection mechanism to prevent accidental unpublish of packages with many versions.
 If you want to unpublish a specific version, run pnpm unpublish ${packageName}@<version>`)
@@ -238,7 +221,7 @@ If you want to unpublish a specific version, run pnpm unpublish ${packageName}@<
 }
 
 function getVersionsMatchingRange (
-  versions: Record<string, PackageVersion>,
+  versions: Record<string, PackageInRegistry>,
   range: string
 ): string[] {
   return Object.keys(versions).filter((v) => semver.satisfies(v, range))
