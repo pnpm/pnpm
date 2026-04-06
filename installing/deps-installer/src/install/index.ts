@@ -1816,7 +1816,7 @@ function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
   const injectionTargetsByDepPath = new Map<string, string[]>()
   if (lockfile.packages) {
     for (const [depPath, { resolution }] of Object.entries(lockfile.packages)) {
-      if (resolution && 'type' in resolution && resolution.type === 'directory') {
+      if (resolution?.type === 'directory') {
         const graphNode = dependenciesGraph[depPath as DepPath]
         if (graphNode?.dir) {
           injectionTargetsByDepPath.set(depPath, [graphNode.dir])

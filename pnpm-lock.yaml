@@ -7674,9 +7674,6 @@ importers:
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
-      '@pnpm/network.auth-header':
-        specifier: workspace:*
-        version: link:../../network/auth-header
       '@pnpm/network.fetch':
         specifier: workspace:*
         version: link:../../network/fetch

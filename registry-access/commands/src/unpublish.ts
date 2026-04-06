@@ -1,9 +1,11 @@
-import { FILTERING } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl } from '@pnpm/cli.utils'
+import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
-import { fetch } from '@pnpm/network.fetch'
+import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, fetchWithDispatcher } from '@pnpm/network.fetch'
+import npa from '@pnpm/npm-package-arg'
+import type { Registries, RegistryConfig } from '@pnpm/types'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
@@ -11,7 +13,6 @@ import semver from 'semver'
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'registry',
-    'npm-path',
   ], allTypes)
 }
 
@@ -34,7 +35,7 @@ export function help (): string {
 
         list: [
           {
-            description: 'The base URL of the npm registry. If specified, this registry will be used for all package operations.',
+            description: 'The base URL of the npm registry.',
             name: '--registry <url>',
           },
           {
@@ -42,30 +43,26 @@ export function help (): string {
             name: '--otp',
           },
           {
-            description: 'Removes the package from the registry regardless of what version is currently published. Without this flag, pnpm will prompt to confirm the unpublish if the package has dependents in the registry.',
+            description: 'Removes the package from the registry regardless of what version is currently published. Without this flag, pnpm will refuse to unpublish an entire package.',
             name: '--force',
           },
         ],
       },
-      FILTERING,
     ],
     url: docsUrl('unpublish'),
     usages: [
-      'pnpm unpublish [<package>[@<version>]',
+      'pnpm unpublish [<package>[@<version>]]',
     ],
   })
 }
 
-interface UnpublishOptions {
-  argv: {
-    original: string[]
-  }
+export interface UnpublishOptions extends CreateFetchFromRegistryOptions {
   cliOptions: {
     force?: boolean
     otp?: string
   }
-  registry?: string
-  rawConfig: Record<string, unknown>
+  configByUri?: Record<string, RegistryConfig>
+  registries?: Registries
 }
 
 interface PackageManifest {
@@ -89,62 +86,48 @@ interface PackageVersion {
 export async function handler (
   opts: UnpublishOptions,
   params: string[]
-): Promise<void> {
+): Promise<string> {
   if (params.length === 0) {
     throw new PnpmError('UNPUBLISH_REQUIRED', 'Package name is required')
   }
 
   const packageSpec = params[0]
-  const { name, version } = parsePackageSpec(packageSpec)
+  const { name, versionRange } = parsePackageSpec(packageSpec)
 
-  await unpublishPackage(name, version, opts)
+  return unpublishPackage(name, versionRange, opts)
 }
 
-function parsePackageSpec (spec: string): { name: string, version: string | undefined } {
-  const atIndex = spec.lastIndexOf('@')
-  const scopeEndIndex = spec.indexOf('/')
-
-  let name: string
-  let version: string | undefined
-
-  if (atIndex > 0 && (scopeEndIndex === -1 || atIndex < scopeEndIndex)) {
-    name = spec.substring(0, atIndex)
-    version = spec.substring(atIndex + 1)
-  } else if (spec.startsWith('@')) {
-    const slashIndex = spec.indexOf('/')
-    if (slashIndex === -1) {
-      throw new PnpmError('INVALID_PACKAGE_SPEC', `Invalid package spec: ${spec}`)
-    }
-    name = spec
-    version = undefined
-  } else {
-    name = spec
-    version = undefined
+function parsePackageSpec (spec: string): { name: string, versionRange: string | undefined } {
+  let parsed: ReturnType<typeof npa>
+  try {
+    parsed = npa(spec)
+  } catch {
+    throw new PnpmError('INVALID_PACKAGE_SPEC', `Invalid package spec: ${spec}`)
   }
-
-  return { name, version }
+  if (!parsed.name) {
+    throw new PnpmError('INVALID_PACKAGE_SPEC', `Invalid package spec: ${spec}`)
+  }
+  const versionRange = parsed.rawSpec || undefined
+  return { name: parsed.name, versionRange }
 }
 
 async function unpublishPackage (
   packageName: string,
-  version: string | undefined,
+  versionRange: string | undefined,
   opts: UnpublishOptions
-): Promise<void> {
-  const registryUrl = opts.registry ?? 'https://registry.npmjs.org'
+): Promise<string> {
+  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
 
-  const getAuthHeader = createGetAuthHeaderByURI({
-    allSettings: opts.rawConfig as Record<string, string>,
-    userSettings: {},
-  })
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {}, registryUrl)
 
   const authHeader = getAuthHeader(registryUrl)
 
-  const packageUrl = `${registryUrl.replace(/\/$/, '')}/${packageName}`
+  const packageUrl = new URL(encodeURIComponent(packageName), registryUrl).href
 
-  const getResponse = await fetch(packageUrl, {
-    headers: {
-      ...(authHeader ? { authorization: authHeader } : {}),
-    },
+  const fetchFromRegistry = createFetchFromRegistry(opts)
+  const getResponse = await fetchFromRegistry(packageUrl, {
+    authHeaderValue: authHeader,
+    fullMetadata: true,
   })
 
   if (!getResponse.ok) {
@@ -160,14 +143,14 @@ async function unpublishPackage (
     throw new PnpmError('NO_VERSIONS', `Package "${packageName}" has no versions`)
   }
 
-  if (version) {
-    const versionsToUnpublish = getVersionsMatchingRange(pkg.versions, version)
+  if (versionRange) {
+    const versionsToUnpublish = getVersionsMatchingRange(pkg.versions, versionRange)
     if (versionsToUnpublish.length === 0) {
-      throw new PnpmError('NO_MATCHING_VERSIONS', `No versions match "${version}"`)
+      throw new PnpmError('NO_MATCHING_VERSIONS', `No versions match "${versionRange}"`)
     }
-    await unpublishVersions(packageUrl, pkg, versionsToUnpublish, opts, authHeader)
+    return unpublishVersions(packageUrl, pkg, versionsToUnpublish, opts, authHeader)
   } else {
-    await unpublishAll(packageUrl, pkg, opts, authHeader)
+    return unpublishAll(packageUrl, pkg, opts, authHeader)
   }
 }
 
@@ -177,7 +160,7 @@ async function unpublishVersions (
   versionsToUnpublish: string[],
   opts: UnpublishOptions,
   authHeader: string | undefined
-): Promise<void> {
+): Promise<string> {
   for (const ver of versionsToUnpublish) {
     delete pkg.versions![ver]
   }
@@ -186,7 +169,8 @@ async function unpublishVersions (
 
   const otp = opts.cliOptions?.otp
 
-  const putResponse = await fetch(packageUrl, {
+  const putResponse = await fetchWithDispatcher(packageUrl, {
+    dispatcherOptions: opts,
     method: 'PUT',
     headers: {
       'content-type': 'application/json',
@@ -207,7 +191,7 @@ async function unpublishVersions (
     throw new PnpmError('REGISTRY_ERROR', `Failed to unpublish package: ${putResponse.status} ${putResponse.statusText}. ${errorBody}`)
   }
 
-  console.log(`Successfully unpublished ${versionsToUnpublish.length} version(s) of ${pkg.name}`)
+  return `Successfully unpublished ${versionsToUnpublish.length} version(s) of ${pkg.name}`
 }
 
 async function unpublishAll (
@@ -215,7 +199,7 @@ async function unpublishAll (
   pkg: PackageManifest,
   opts: UnpublishOptions,
   authHeader: string | undefined
-): Promise<void> {
+): Promise<string> {
   const packageName = pkg.name
   const versionCount = Object.keys(pkg.versions ?? {}).length
   const force = opts.cliOptions?.force ?? false
@@ -227,7 +211,8 @@ This is a protection mechanism to prevent accidental unpublish of packages with 
 If you want to unpublish a specific version, run pnpm unpublish ${packageName}@<version>`)
   }
 
-  const deleteResponse = await fetch(packageUrl, {
+  const deleteResponse = await fetchWithDispatcher(packageUrl, {
+    dispatcherOptions: opts,
     method: 'DELETE',
     headers: {
       ...(authHeader ? { authorization: authHeader } : {}),
@@ -249,7 +234,7 @@ If you want to unpublish a specific version, run pnpm unpublish ${packageName}@<
     throw new PnpmError('REGISTRY_ERROR', `Failed to unpublish package: ${deleteResponse.status} ${deleteResponse.statusText}. ${errorBody}`)
   }
 
-  console.log(`Successfully unpublished all ${versionCount} version(s) of ${packageName}`)
+  return `Successfully unpublished all ${versionCount} version(s) of ${packageName}`
 }
 
 function getVersionsMatchingRange (

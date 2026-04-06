@@ -1,5 +1,5 @@
 import type { PlatformAssetTarget } from '@pnpm/resolving.resolver-base'
-import type { DependenciesMeta, ProjectId } from '@pnpm/types'
+import type { DependenciesMeta, DepPath, ProjectId } from '@pnpm/types'
 
 export type { ProjectId }
 
@@ -80,7 +80,7 @@ export interface ProjectSnapshot extends ProjectSnapshotBase {
 export type ResolvedDependenciesOfImporters = Record<string, { version: string, specifier: string }>
 
 export interface PackageSnapshots {
-  [packagePath: string]: PackageSnapshot
+  [packagePath: DepPath]: PackageSnapshot
 }
 
 /**
