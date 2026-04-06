@@ -2,7 +2,7 @@ import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
-import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@pnpm/network.fetch'
+import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, fetchWithDispatcher } from '@pnpm/network.fetch'
 import npa from '@pnpm/npm-package-arg'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type { Registries, RegistryConfig } from '@pnpm/types'
@@ -103,11 +103,12 @@ export async function updateDeprecation (
 
   const otp = opts.cliOptions?.otp
 
-  const putResponse = await fetchFromRegistry(packageUrl, {
-    authHeaderValue: authHeader,
+  const putResponse = await fetchWithDispatcher(packageUrl, {
+    dispatcherOptions: opts,
     method: 'PUT',
     headers: {
       'content-type': 'application/json',
+      ...(authHeader ? { authorization: authHeader } : {}),
       ...(otp ? { 'npm-otp': otp } : {}),
     },
     body: JSON.stringify({
