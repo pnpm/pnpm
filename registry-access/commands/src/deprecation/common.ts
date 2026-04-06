@@ -44,15 +44,14 @@ export function parsePackageSpec (spec: string): { name: string, versionRange: s
 }
 
 interface UpdateDeprecationOptions {
-  deprecate: boolean
-  message: string
+  deprecated: string | undefined
   packageName: string
   versionRange: string | undefined
 }
 
 export async function updateDeprecation (
   opts: DeprecateOptions,
-  { deprecate, message, packageName, versionRange }: UpdateDeprecationOptions
+  { deprecated, packageName, versionRange }: UpdateDeprecationOptions
 ): Promise<string> {
   const registryUrl = opts.registries?.default ?? 'https://registry.npmjs.org/'
 
@@ -89,7 +88,7 @@ export async function updateDeprecation (
     throw new PnpmError('NO_MATCHING_VERSIONS', `No versions match "${versionRange}"`)
   }
 
-  if (!deprecate) {
+  if (deprecated == null) {
     const deprecatedVersions = versionsToUpdate.filter((ver) => pkg.versions[ver].deprecated)
     if (deprecatedVersions.length === 0) {
       throw new PnpmError('NOT_DEPRECATED', `No deprecated versions found in "${packageName}"${versionRange ? ` matching "${versionRange}"` : ''}`)
@@ -98,10 +97,10 @@ export async function updateDeprecation (
 
   for (const ver of versionsToUpdate) {
     const verData = pkg.versions[ver]
-    if (message === '') {
+    if (deprecated == null) {
       delete verData.deprecated
     } else {
-      verData.deprecated = message
+      verData.deprecated = deprecated
     }
   }
 
@@ -118,20 +117,18 @@ export async function updateDeprecation (
   })
 
   if (!putResponse.ok) {
+    const verb = deprecated != null ? 'deprecate' : 'undeprecate'
     if (putResponse.status === 401) {
-      const verb = deprecate ? 'deprecate' : 'undeprecate'
       throw new PnpmError('UNAUTHORIZED', `You must be logged in to ${verb} packages`)
     }
     if (putResponse.status === 403) {
-      const verb = deprecate ? 'deprecate' : 'undeprecate'
       throw new PnpmError('FORBIDDEN', `You do not have permission to ${verb} this package`)
     }
     const errorBody = await putResponse.text()
-    const verb = deprecate ? 'deprecate' : 'undeprecate'
     throw new PnpmError('REGISTRY_ERROR', `Failed to ${verb} package: ${putResponse.status} ${putResponse.statusText}. ${errorBody}`)
   }
 
-  return `Successfully ${deprecate ? 'deprecated' : 'un-deprecated'} ${versionsToUpdate.length} version(s) of ${packageName}`
+  return `Successfully ${deprecated != null ? 'deprecated' : 'un-deprecated'} ${versionsToUpdate.length} version(s) of ${packageName}`
 }
 
 function getVersionsMatchingRange (

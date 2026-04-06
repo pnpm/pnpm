@@ -48,5 +48,5 @@ export async function handler (
 
   const { name, versionRange } = parsePackageSpec(params[0])
 
-  return updateDeprecation(opts, { deprecate: false, message: '', packageName: name, versionRange })
+  return updateDeprecation(opts, { deprecated: undefined, packageName: name, versionRange })
 }
