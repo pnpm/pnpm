@@ -66,12 +66,12 @@ describe('logout', () => {
   })
 
   it('should revoke token on registry and remove from auth.ini', async () => {
-    const mockFetch = jest.fn(async () => createMockResponse({ ok: true, status: 200 }))
+    const fetch = jest.fn(async () => createMockResponse({ ok: true, status: 200 }))
     let savedPath = ''
     let savedSettings: Record<string, unknown> = {}
 
     const context = createMockContext({
-      fetch: mockFetch,
+      fetch,
       readIniFile: async () => ({
         '//registry.npmjs.org/:_authToken': 'my-token-123',
         'other-setting': 'value',
@@ -93,7 +93,7 @@ describe('logout', () => {
     const result = await logout({ context, opts })
 
     expect(result).toBe('Logged out of https://registry.npmjs.org/')
-    expect(mockFetch).toHaveBeenCalledWith(
+    expect(fetch).toHaveBeenCalledWith(
       'https://registry.npmjs.org/-/user/token/my-token-123',
       expect.objectContaining({ method: 'DELETE' })
     )
@@ -103,11 +103,11 @@ describe('logout', () => {
   })
 
   it('should logout from a custom registry', async () => {
-    const mockFetch = jest.fn(async () => createMockResponse({ ok: true, status: 200 }))
+    const fetch = jest.fn(async () => createMockResponse({ ok: true, status: 200 }))
     let savedSettings: Record<string, unknown> = {}
 
     const context = createMockContext({
-      fetch: mockFetch,
+      fetch,
       readIniFile: async () => ({
         '//npm.example.com/:_authToken': 'custom-token',
       }),
@@ -128,7 +128,7 @@ describe('logout', () => {
     const result = await logout({ context, opts })
 
     expect(result).toBe('Logged out of https://npm.example.com/')
-    expect(mockFetch).toHaveBeenCalledWith(
+    expect(fetch).toHaveBeenCalledWith(
       'https://npm.example.com/-/user/token/custom-token',
       expect.objectContaining({ method: 'DELETE' })
     )
@@ -199,6 +199,7 @@ describe('logout', () => {
 
   it('should warn when token is not in auth.ini (e.g. from .npmrc)', async () => {
     const globalWarn = jest.fn()
+    const configDir = process.platform === 'win32' ? 'Z:\\config' : '/config'
 
     const context = createMockContext({
       globalWarn,
@@ -210,7 +211,7 @@ describe('logout', () => {
     })
 
     const opts = {
-      configDir: '/config',
+      configDir,
       dir: '/mock',
       authConfig: {
         '//registry.npmjs.org/:_authToken': 'npmrc-only-token',
@@ -221,7 +222,7 @@ describe('logout', () => {
 
     expect(result).toBe('Logged out of https://registry.npmjs.org/')
     expect(globalWarn).toHaveBeenCalledWith(
-      expect.stringContaining(`was not found in ${path.join('/config', 'auth.ini')}`)
+      expect.stringContaining(`was not found in ${path.join(configDir, 'auth.ini')}`)
     )
     expect(globalWarn).toHaveBeenCalledWith(
       expect.stringContaining('must be removed manually')
@@ -230,6 +231,7 @@ describe('logout', () => {
 
   it('should warn when auth.ini does not exist (ENOENT) and token comes from another source', async () => {
     const globalWarn = jest.fn()
+    const configDir = process.platform === 'win32' ? 'Z:\\nonexistent\\config' : '/nonexistent/config'
 
     const context = createMockContext({
       globalWarn,
@@ -243,7 +245,7 @@ describe('logout', () => {
     })
 
     const opts = {
-      configDir: '/nonexistent/config',
+      configDir,
       dir: '/mock',
       authConfig: {
         '//registry.npmjs.org/:_authToken': 'token-in-npmrc',
@@ -254,7 +256,7 @@ describe('logout', () => {
 
     expect(result).toBe('Logged out of https://registry.npmjs.org/')
     expect(globalWarn).toHaveBeenCalledWith(
-      expect.stringContaining(`was not found in ${path.join('/nonexistent/config', 'auth.ini')}`)
+      expect.stringContaining(`was not found in ${path.join(configDir, 'auth.ini')}`)
     )
   })
 
@@ -280,12 +282,12 @@ describe('logout', () => {
   })
 
   it('should URL-encode the token when revoking', async () => {
-    const mockFetch = jest.fn(async () => createMockResponse({ ok: true, status: 200 }))
+    const fetch = jest.fn(async () => createMockResponse({ ok: true, status: 200 }))
     const globalWarn = jest.fn()
 
     const context = createMockContext({
       globalWarn,
-      fetch: mockFetch,
+      fetch,
       readIniFile: async () => ({}),
       writeIniFile: async () => {},
     })
@@ -300,7 +302,7 @@ describe('logout', () => {
 
     await logout({ context, opts })
 
-    expect(mockFetch).toHaveBeenCalledWith(
+    expect(fetch).toHaveBeenCalledWith(
       'https://registry.npmjs.org/-/user/token/token%2Fwith%2Bspecial%3Dchars',
       expect.anything()
     )
@@ -335,11 +337,11 @@ describe('logout', () => {
   })
 
   it('should handle registry with a path', async () => {
-    const mockFetch = jest.fn(async () => createMockResponse({ ok: true, status: 200 }))
+    const fetch = jest.fn(async () => createMockResponse({ ok: true, status: 200 }))
     let savedSettings: Record<string, unknown> = {}
 
     const context = createMockContext({
-      fetch: mockFetch,
+      fetch,
       readIniFile: async () => ({
         '//example.com/npm/:_authToken': 'path-token',
       }),
@@ -360,7 +362,7 @@ describe('logout', () => {
     const result = await logout({ context, opts })
 
     expect(result).toBe('Logged out of https://example.com/npm/')
-    expect(mockFetch).toHaveBeenCalledWith(
+    expect(fetch).toHaveBeenCalledWith(
       'https://example.com/npm/-/user/token/path-token',
       expect.anything()
     )
