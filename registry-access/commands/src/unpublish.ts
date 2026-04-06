@@ -3,7 +3,7 @@ import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
-import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type FetchFromRegistry, fetchWithDispatcher } from '@pnpm/network.fetch'
+import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type FetchFromRegistry } from '@pnpm/network.fetch'
 import npa from '@pnpm/npm-package-arg'
 import type { Registries, RegistryConfig } from '@pnpm/types'
 import { pick } from 'ramda'
@@ -139,7 +139,7 @@ async function unpublishPackage (
   const otp = opts.cliOptions?.otp
 
   if (!versionRange) {
-    return unpublishAll(packageUrl, pkg, fetchFromRegistry, opts, authHeader, otp)
+    return unpublishAll(packageUrl, pkg, fetchFromRegistry, authHeader, otp, opts.cliOptions)
   }
 
   const versionsToUnpublish = getVersionsMatchingRange(allVersions, versionRange)
@@ -149,10 +149,10 @@ async function unpublishPackage (
 
   // If removing all matched versions leaves none, treat as full unpublish
   if (versionsToUnpublish.length === Object.keys(allVersions).length) {
-    return unpublishAll(packageUrl, pkg, fetchFromRegistry, opts, authHeader, otp)
+    return unpublishAll(packageUrl, pkg, fetchFromRegistry, authHeader, otp, opts.cliOptions)
   }
 
-  return unpublishVersions(packageUrl, registryUrl, pkg, versionsToUnpublish, fetchFromRegistry, opts, authHeader, otp)
+  return unpublishVersions(packageUrl, registryUrl, pkg, versionsToUnpublish, fetchFromRegistry, authHeader, otp)
 }
 
 async function fetchPackument (
@@ -183,7 +183,6 @@ async function unpublishVersions (
   pkg: PackumentResponse,
   versions: string[],
   fetchFromRegistry: FetchFromRegistry,
-  opts: UnpublishOptions,
   authHeader: string | undefined,
   otp: string | undefined
 ): Promise<string> {
@@ -219,12 +218,11 @@ async function unpublishVersions (
   delete pkg._attachments
 
   // PUT updated packument
-  const putResponse = await fetchWithDispatcher(`${packageUrl}/-rev/${pkg._rev}`, {
-    dispatcherOptions: opts,
+  const putResponse = await fetchFromRegistry(`${packageUrl}/-rev/${pkg._rev}`, {
+    authHeaderValue: authHeader,
     method: 'PUT',
     headers: {
       'content-type': 'application/json',
-      ...(authHeader ? { authorization: authHeader } : {}),
       ...(otp ? { 'npm-otp': otp } : {}),
     },
     body: JSON.stringify(pkg),
@@ -240,11 +238,10 @@ async function unpublishVersions (
   for (const tarball of tarballs) {
     const updated = await fetchPackument(packageUrl, fetchFromRegistry, authHeader)
     const tarballPathname = getTarballPathname(tarball, registryUrl)
-    const deleteResponse = await fetchWithDispatcher(`${registryOrigin}/${tarballPathname}/-rev/${updated._rev}`, {
-      dispatcherOptions: opts,
+    const deleteResponse = await fetchFromRegistry(`${registryOrigin}/${tarballPathname}/-rev/${updated._rev}`, {
+      authHeaderValue: authHeader,
       method: 'DELETE',
       headers: {
-        ...(authHeader ? { authorization: authHeader } : {}),
         ...(otp ? { 'npm-otp': otp } : {}),
       },
     })
@@ -264,13 +261,13 @@ async function unpublishAll (
   packageUrl: string,
   pkg: PackumentResponse,
   fetchFromRegistry: FetchFromRegistry,
-  opts: UnpublishOptions,
   authHeader: string | undefined,
-  otp: string | undefined
+  otp: string | undefined,
+  cliOptions: UnpublishOptions['cliOptions']
 ): Promise<string> {
   const packageName = pkg.name
   const versionCount = Object.keys(pkg.versions).length
-  const force = opts.cliOptions?.force ?? false
+  const force = cliOptions?.force ?? false
 
   if (!force) {
     const versionsList = Object.keys(pkg.versions).join(', ')
@@ -279,11 +276,10 @@ This is a protection mechanism to prevent accidental unpublish of packages with 
 If you want to unpublish a specific version, run pnpm unpublish ${packageName}@<version>`)
   }
 
-  const deleteResponse = await fetchWithDispatcher(`${packageUrl}/-rev/${pkg._rev}`, {
-    dispatcherOptions: opts,
+  const deleteResponse = await fetchFromRegistry(`${packageUrl}/-rev/${pkg._rev}`, {
+    authHeaderValue: authHeader,
     method: 'DELETE',
     headers: {
-      ...(authHeader ? { authorization: authHeader } : {}),
       ...(otp ? { 'npm-otp': otp } : {}),
     },
   })
