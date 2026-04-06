@@ -196,6 +196,15 @@ test('dist-tag add: should throw when no arguments provided', async () => {
   }).rejects.toThrow('Package name and version are required')
 })
 
+test('dist-tag add: should reject non-exact semver versions', async () => {
+  await expect(async () => {
+    await distTag.handler({
+      ...DEFAULT_OPTS,
+      cliOptions: {},
+    }, ['add', 'some-package@^1.0.0', 'beta'])
+  }).rejects.toThrow('Version must be an exact semver version')
+})
+
 test('dist-tag add: should throw when package not found', async () => {
   await expect(async () => {
     await distTag.handler({

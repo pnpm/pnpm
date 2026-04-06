@@ -5,6 +5,7 @@ import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type FetchFromRegistry } from '@pnpm/network.fetch'
 import type { Registries, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
+import semver from 'semver'
 
 import { parsePackageSpec, rcOptionsTypes } from './common.js'
 
@@ -129,6 +130,10 @@ async function distTagAdd (
     throw new PnpmError('DIST_TAG_ADD_VERSION_REQUIRED', 'Version is required (e.g., pnpm dist-tag add pkg@1.0.0 latest)')
   }
 
+  if (!semver.valid(version)) {
+    throw new PnpmError('DIST_TAG_ADD_INVALID_VERSION', `Version must be an exact semver version, got "${version}"`)
+  }
+
   const tag = params[1] ?? 'latest'
 
   const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
@@ -208,10 +213,9 @@ async function fetchDistTags (
   fetchFromRegistry: FetchFromRegistry,
   authHeader: string | undefined
 ): Promise<Record<string, string>> {
-  const packageUrl = new URL(encodeURIComponent(packageName), registryUrl).href
-  const response = await fetchFromRegistry(packageUrl, {
+  const distTagsUrl = new URL(`-/package/${encodeURIComponent(packageName)}/dist-tags`, registryUrl).href
+  const response = await fetchFromRegistry(distTagsUrl, {
     authHeaderValue: authHeader,
-    fullMetadata: true,
   })
 
   if (!response.ok) {
@@ -221,8 +225,7 @@ async function fetchDistTags (
     throw new PnpmError('REGISTRY_ERROR', `Failed to fetch package info: ${response.status} ${response.statusText}`)
   }
 
-  const pkg = await response.json() as { 'dist-tags'?: Record<string, string> }
-  return pkg['dist-tags'] ?? {}
+  return await response.json() as Record<string, string>
 }
 
 async function throwRegistryError (response: Response, action: string): Promise<never> {
