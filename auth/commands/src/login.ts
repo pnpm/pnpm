@@ -101,7 +101,7 @@ export interface LoginFetchResponseHeaders {
 }
 
 export interface LoginFetchOptions {
-  method?: string
+  method?: 'GET' | 'POST' | 'PUT'
   headers?: {
     accept: 'application/json'
     'content-type': 'application/json'

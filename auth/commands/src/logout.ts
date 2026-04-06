@@ -68,7 +68,7 @@ export interface LogoutFetchResponse {
 }
 
 export interface LogoutFetchOptions {
-  method?: string
+  method?: 'DELETE'
   retry?: {
     factor?: number
     maxTimeout?: number
