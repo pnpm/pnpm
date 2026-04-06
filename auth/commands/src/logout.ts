@@ -101,6 +101,7 @@ export interface LogoutParams {
 }
 
 export async function logout ({ context = DEFAULT_CONTEXT, opts }: LogoutParams): Promise<string> {
+  const { globalWarn, readIniFile } = context
   const registry = normalizeRegistryUrl(opts.registry ?? 'https://registry.npmjs.org/')
   const registryConfigKey = getRegistryConfigKey(registry)
   const tokenKey = `${registryConfigKey}:_authToken`
@@ -114,12 +115,12 @@ export async function logout ({ context = DEFAULT_CONTEXT, opts }: LogoutParams)
   await tryRevokeToken({ context, opts, registry, token })
 
   const configPath = path.join(opts.configDir, 'auth.ini')
-  const authIniSettings = await safeReadIniFile(context.readIniFile, configPath) as Record<string, unknown>
+  const authIniSettings = await safeReadIniFile(readIniFile, configPath) as Record<string, unknown>
 
   if (tokenKey in authIniSettings) {
     await removeTokenFromAuthIni({ context, configPath, authIniSettings, tokenKey })
   } else {
-    context.globalWarn(
+    globalWarn(
       `The auth token for ${registry} was not found in ${configPath}. ` +
       'It may be configured in .npmrc or another config file. ' +
       'The token was revoked on the registry but must be removed manually from the config file.'
@@ -174,13 +175,13 @@ interface RemoveTokenFromAuthIniParams {
 }
 
 async function removeTokenFromAuthIni ({
-  context,
+  context: { writeIniFile },
   configPath,
   authIniSettings,
   tokenKey,
 }: RemoveTokenFromAuthIniParams): Promise<void> {
   delete authIniSettings[tokenKey]
-  await context.writeIniFile(configPath, authIniSettings)
+  await writeIniFile(configPath, authIniSettings)
 }
 
 function getRegistryConfigKey (registryUrl: string): string {
