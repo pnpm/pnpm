@@ -96,13 +96,9 @@ export async function updateDeprecation (
     }
   }
 
+  const updatedVersions: Record<string, { deprecated: string }> = {}
   for (const ver of versionsToUpdate) {
-    const verData = pkg.versions[ver]
-    if (deprecated == null) {
-      delete verData.deprecated
-    } else {
-      verData.deprecated = deprecated
-    }
+    updatedVersions[ver] = { deprecated: deprecated ?? '' }
   }
 
   const otp = opts.cliOptions?.otp
@@ -115,7 +111,10 @@ export async function updateDeprecation (
       ...(authHeader ? { authorization: authHeader } : {}),
       ...(otp ? { 'npm-otp': otp } : {}),
     },
-    body: JSON.stringify(pkg),
+    body: JSON.stringify({
+      name: packageName,
+      versions: updatedVersions,
+    }),
   })
 
   if (!putResponse.ok) {

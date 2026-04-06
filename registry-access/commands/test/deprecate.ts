@@ -83,11 +83,9 @@ test('deprecate: should deprecate a specific version', async () => {
   expect(deprecated).toBe('This version is deprecated')
 })
 
-// Skipped: verdaccio returns 409 on PUT of full packument when trying to undeprecate.
-// The real npm registry accepts this.
-test.skip('undeprecate: should undeprecate a package', async () => {
+test('undeprecate: should undeprecate a package', async () => {
   prepare({
-    name: 'test-undeprecate-package',
+    name: 'test-undeprecate-pkg',
     version: '0.0.1',
   })
 
@@ -101,15 +99,15 @@ test.skip('undeprecate: should undeprecate a package', async () => {
     ...DEFAULT_OPTS,
     cliOptions: {},
     configByUri: CONFIG_BY_URI,
-  }, ['test-undeprecate-package', 'This package is deprecated'])
+  }, ['test-undeprecate-pkg', 'This package is deprecated'])
 
   await undeprecate.handler({
     ...DEFAULT_OPTS,
     cliOptions: {},
     configByUri: CONFIG_BY_URI,
-  }, ['test-undeprecate-package'])
+  }, ['test-undeprecate-pkg'])
 
-  const deprecated = await getDeprecation('test-undeprecate-package')
+  const deprecated = await getDeprecation('test-undeprecate-pkg')
   expect(deprecated).toBeFalsy()
 })
 
