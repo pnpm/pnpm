@@ -3,6 +3,7 @@ import { PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { fetch } from '@pnpm/network.fetch'
+import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type { Registries, RegistryConfig } from '@pnpm/types'
 import { pick } from 'ramda'
 import semver from 'semver'
@@ -26,24 +27,6 @@ export interface DeprecateOptions {
   }
   configByUri?: Record<string, RegistryConfig>
   registries?: Registries
-}
-
-interface PackageManifest {
-  _id?: string
-  _rev?: string
-  name: string
-  description?: string
-  'dist-tags'?: Record<string, string>
-  versions?: Record<string, PackageVersion>
-  time?: Record<string, string>
-  [key: string]: unknown
-}
-
-interface PackageVersion {
-  name: string
-  version: string
-  deprecated?: string
-  [key: string]: unknown
 }
 
 export function parsePackageSpec (spec: string): { name: string, version: string | undefined } {
@@ -99,7 +82,7 @@ export async function updateDeprecation (
     throw new PnpmError('REGISTRY_ERROR', `Failed to fetch package info: ${getResponse.status} ${getResponse.statusText}`)
   }
 
-  const pkg: PackageManifest = await getResponse.json() as PackageManifest
+  const pkg = await getResponse.json() as PackageMeta
 
   if (!pkg.versions || Object.keys(pkg.versions).length === 0) {
     throw new PnpmError('NO_VERSIONS', `Package "${packageName}" has no versions`)
@@ -114,14 +97,14 @@ export async function updateDeprecation (
   }
 
   if (isUndeprecate) {
-    const deprecatedVersions = versionsToUpdate.filter((ver) => pkg.versions![ver].deprecated)
+    const deprecatedVersions = versionsToUpdate.filter((ver) => pkg.versions[ver].deprecated)
     if (deprecatedVersions.length === 0) {
       throw new PnpmError('NOT_DEPRECATED', `No deprecated versions found in "${packageName}"${versionRange ? ` matching "${versionRange}"` : ''}`)
     }
   }
 
   for (const ver of versionsToUpdate) {
-    const verData = pkg.versions![ver]
+    const verData = pkg.versions[ver]
     if (message === '') {
       delete verData.deprecated
     } else {
@@ -156,7 +139,7 @@ export async function updateDeprecation (
 }
 
 function getVersionsMatchingRange (
-  versions: Record<string, PackageVersion>,
+  versions: Record<string, PackageInRegistry>,
   range: string
 ): string[] {
   return Object.keys(versions).filter((v) => semver.satisfies(v, range))

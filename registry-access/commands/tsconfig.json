@@ -34,6 +34,9 @@
       "path": "../../network/fetch"
     },
     {
+      "path": "../../resolving/registry/types"
+    },
+    {
       "path": "../../releasing/commands"
     },
     {

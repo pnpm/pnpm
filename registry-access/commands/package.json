@@ -36,6 +36,7 @@
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
+    "@pnpm/resolving.registry.types": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
     "@pnpm/types": "workspace:*",
     "ramda": "catalog:",
