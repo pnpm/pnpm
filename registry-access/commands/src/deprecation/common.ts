@@ -1,6 +1,5 @@
 import { types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
-import { globalInfo } from '@pnpm/logger'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { fetch } from '@pnpm/network.fetch'
 import npa from '@pnpm/npm-package-arg'
@@ -54,7 +53,7 @@ interface UpdateDeprecationOptions {
 export async function updateDeprecation (
   opts: DeprecateOptions,
   { deprecate, message, packageName, versionRange }: UpdateDeprecationOptions
-): Promise<void> {
+): Promise<string> {
   const registryUrl = opts.registries?.default ?? 'https://registry.npmjs.org/'
 
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {}, registryUrl)
@@ -132,7 +131,7 @@ export async function updateDeprecation (
     throw new PnpmError('REGISTRY_ERROR', `Failed to ${verb} package: ${putResponse.status} ${putResponse.statusText}. ${errorBody}`)
   }
 
-  globalInfo(`Successfully ${deprecate ? 'deprecated' : 'un-deprecated'} ${versionsToUpdate.length} version(s) of ${packageName}`)
+  return `Successfully ${deprecate ? 'deprecated' : 'un-deprecated'} ${versionsToUpdate.length} version(s) of ${packageName}`
 }
 
 function getVersionsMatchingRange (

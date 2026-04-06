@@ -7587,9 +7587,6 @@ importers:
       '@jest/globals':
         specifier: 'catalog:'
         version: 30.3.0
-      '@pnpm/logger':
-        specifier: workspace:*
-        version: link:../../core/logger
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare

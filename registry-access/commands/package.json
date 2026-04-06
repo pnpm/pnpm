@@ -44,12 +44,8 @@
     "render-help": "catalog:",
     "semver": "catalog:"
   },
-  "peerDependencies": {
-    "@pnpm/logger": "catalog:"
-  },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-access.commands": "workspace:*",
     "@pnpm/registry-mock": "catalog:",

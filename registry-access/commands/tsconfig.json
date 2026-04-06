@@ -22,9 +22,6 @@
       "path": "../../core/error"
     },
     {
-      "path": "../../core/logger"
-    },
-    {
       "path": "../../core/types"
     },
     {

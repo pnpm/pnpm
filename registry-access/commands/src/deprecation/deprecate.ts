@@ -37,7 +37,7 @@ export function help (): string {
 export async function handler (
   opts: DeprecateOptions,
   params: string[]
-): Promise<void> {
+): Promise<string> {
   if (params.length === 0) {
     throw new PnpmError('DEPRECATE_REQUIRED', 'Package name is required')
   }
@@ -51,5 +51,5 @@ export async function handler (
 
   const { name, versionRange } = parsePackageSpec(packageSpec)
 
-  await updateDeprecation(opts, { deprecate: true, message, packageName: name, versionRange })
+  return updateDeprecation(opts, { deprecate: true, message, packageName: name, versionRange })
 }
