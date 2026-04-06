@@ -11,6 +11,9 @@ const TEST_CONTEXT: LogoutContext = {
   globalInfo: message => {
     throw new Error(`Unexpected call to globalInfo: ${message}`)
   },
+  globalWarn: message => {
+    throw new Error(`Unexpected call to globalWarn: ${message}`)
+  },
   readIniFile: async path => {
     throw new Error(`Unexpected call to readIniFile: ${path}`)
   },
@@ -98,7 +101,7 @@ describe('logout', () => {
     ])
     expect(savedPath).toBe(path.join('/custom/config', 'auth.ini'))
     expect(savedSettings).toEqual({ 'other-setting': 'value' })
-    expect(savedSettings).not.toHaveProperty('//registry.npmjs.org/:_authToken')
+    expect(savedSettings).not.toHaveProperty(['//registry.npmjs.org/:_authToken'])
   })
 
   it('should logout from a custom registry', async () => {
@@ -133,7 +136,7 @@ describe('logout', () => {
     expect(fetchedUrls).toEqual([
       { url: 'https://npm.example.com/-/user/token/custom-token', method: 'DELETE' },
     ])
-    expect(savedSettings).not.toHaveProperty('//npm.example.com/:_authToken')
+    expect(savedSettings).not.toHaveProperty(['//npm.example.com/:_authToken'])
   })
 
   it('should still remove token locally when registry returns non-ok response', async () => {
@@ -162,7 +165,7 @@ describe('logout', () => {
     const result = await logout({ context, opts })
 
     expect(result).toBe('Logged out of https://registry.npmjs.org/')
-    expect(savedSettings).not.toHaveProperty('//registry.npmjs.org/:_authToken')
+    expect(savedSettings).not.toHaveProperty(['//registry.npmjs.org/:_authToken'])
     expect(globalInfo).toHaveBeenCalledWith('Registry returned HTTP 404 when revoking token (token removed locally)')
   })
 
@@ -194,20 +197,52 @@ describe('logout', () => {
     const result = await logout({ context, opts })
 
     expect(result).toBe('Logged out of https://registry.npmjs.org/')
-    expect(savedSettings).not.toHaveProperty('//registry.npmjs.org/:_authToken')
+    expect(savedSettings).not.toHaveProperty(['//registry.npmjs.org/:_authToken'])
     expect(globalInfo).toHaveBeenCalledWith('Could not reach the registry to revoke the token (token removed locally)')
   })
 
-  it('should handle auth.ini not existing (ENOENT)', async () => {
-    let savedSettings: Record<string, unknown> = {}
+  it('should warn when token is not in auth.ini (e.g. from .npmrc)', async () => {
+    const globalWarn = jest.fn()
 
     const context = createMockContext({
+      globalWarn,
+      fetch: async () => createMockResponse({ ok: true, status: 200 }),
+      readIniFile: async () => ({}),
+      writeIniFile: async () => {
+        throw new Error('writeIniFile should not be called when token is not in auth.ini')
+      },
+    })
+
+    const opts = {
+      configDir: '/config',
+      dir: '/mock',
+      authConfig: {
+        '//registry.npmjs.org/:_authToken': 'npmrc-only-token',
+      },
+    }
+
+    const result = await logout({ context, opts })
+
+    expect(result).toBe('Logged out of https://registry.npmjs.org/')
+    expect(globalWarn).toHaveBeenCalledWith(
+      expect.stringContaining('was not found in /config/auth.ini')
+    )
+    expect(globalWarn).toHaveBeenCalledWith(
+      expect.stringContaining('must be removed manually')
+    )
+  })
+
+  it('should warn when auth.ini does not exist (ENOENT) and token comes from another source', async () => {
+    const globalWarn = jest.fn()
+
+    const context = createMockContext({
+      globalWarn,
       fetch: async () => createMockResponse({ ok: true, status: 200 }),
       readIniFile: async () => {
         throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' })
       },
-      writeIniFile: async (_configPath, settings) => {
-        savedSettings = settings
+      writeIniFile: async () => {
+        throw new Error('writeIniFile should not be called when auth.ini does not exist')
       },
     })
 
@@ -222,8 +257,9 @@ describe('logout', () => {
     const result = await logout({ context, opts })
 
     expect(result).toBe('Logged out of https://registry.npmjs.org/')
-    // The token key shouldn't be present (it was never in the empty object)
-    expect(savedSettings).not.toHaveProperty('//registry.npmjs.org/:_authToken')
+    expect(globalWarn).toHaveBeenCalledWith(
+      expect.stringContaining('was not found in /nonexistent/config/auth.ini')
+    )
   })
 
   it('should propagate non-ENOENT errors from readIniFile', async () => {
@@ -249,8 +285,10 @@ describe('logout', () => {
 
   it('should URL-encode the token when revoking', async () => {
     const fetchedUrls: string[] = []
+    const globalWarn = jest.fn()
 
     const context = createMockContext({
+      globalWarn,
       fetch: async (url) => {
         fetchedUrls.push(url)
         return createMockResponse({ ok: true, status: 200 })
@@ -287,7 +325,6 @@ describe('logout', () => {
       },
     })
 
-    // Registry without trailing slash — normalizeRegistryUrl should add it
     const opts = {
       configDir: '/config',
       dir: '/mock',
@@ -300,7 +337,7 @@ describe('logout', () => {
     const result = await logout({ context, opts })
 
     expect(result).toBe('Logged out of https://example.org/')
-    expect(savedSettings).not.toHaveProperty('//example.org/:_authToken')
+    expect(savedSettings).not.toHaveProperty(['//example.org/:_authToken'])
   })
 
   it('should handle registry with a path', async () => {
@@ -333,6 +370,6 @@ describe('logout', () => {
 
     expect(result).toBe('Logged out of https://example.com/npm/')
     expect(fetchedUrls[0]).toBe('https://example.com/npm/-/user/token/path-token')
-    expect(savedSettings).not.toHaveProperty('//example.com/npm/:_authToken')
+    expect(savedSettings).not.toHaveProperty(['//example.com/npm/:_authToken'])
   })
 })

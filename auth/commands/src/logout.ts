@@ -4,7 +4,7 @@ import util from 'node:util'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
-import { globalInfo } from '@pnpm/logger'
+import { globalInfo, globalWarn } from '@pnpm/logger'
 import { fetch } from '@pnpm/network.fetch'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import { readIniFile } from 'read-ini-file'
@@ -82,6 +82,7 @@ export interface LogoutFetchOptions {
 export interface LogoutContext {
   fetch: (url: string, options?: LogoutFetchOptions) => Promise<LogoutFetchResponse>
   globalInfo: (message: string) => void
+  globalWarn: (message: string) => void
   readIniFile: (configPath: string) => Promise<object>
   writeIniFile: (configPath: string, settings: Record<string, unknown>) => Promise<void>
 }
@@ -89,6 +90,7 @@ export interface LogoutContext {
 export const DEFAULT_CONTEXT: LogoutContext = {
   fetch,
   globalInfo,
+  globalWarn,
   readIniFile,
   writeIniFile,
 }
@@ -99,47 +101,47 @@ export interface LogoutParams {
 }
 
 export async function logout ({ context = DEFAULT_CONTEXT, opts }: LogoutParams): Promise<string> {
-  const {
-    readIniFile,
-    writeIniFile,
-  } = context
-
   const registry = normalizeRegistryUrl(opts.registry ?? 'https://registry.npmjs.org/')
   const registryConfigKey = getRegistryConfigKey(registry)
   const tokenKey = `${registryConfigKey}:_authToken`
 
-  // Look for the token in authConfig (merged config from all sources)
   const token = opts.authConfig?.[tokenKey] as string | undefined
 
   if (!token) {
     throw new LogoutNotLoggedInError(registry)
   }
 
-  // Attempt to revoke the token on the registry
-  await revokeToken({ context, opts, registry, token })
+  await tryRevokeToken({ context, opts, registry, token })
 
-  // Remove the token from auth.ini
   const configPath = path.join(opts.configDir, 'auth.ini')
-  const settings = await safeReadIniFile(readIniFile, configPath) as Record<string, unknown>
-  delete settings[tokenKey]
-  await writeIniFile(configPath, settings)
+  const authIniSettings = await safeReadIniFile(context.readIniFile, configPath) as Record<string, unknown>
+
+  if (tokenKey in authIniSettings) {
+    await removeTokenFromAuthIni({ context, configPath, authIniSettings, tokenKey })
+  } else {
+    context.globalWarn(
+      `The auth token for ${registry} was not found in ${configPath}. ` +
+      'It may be configured in .npmrc or another config file. ' +
+      'The token was revoked on the registry but must be removed manually from the config file.'
+    )
+  }
 
   return `Logged out of ${registry}`
 }
 
-interface RevokeTokenParams {
+interface TryRevokeTokenParams {
   context: Pick<LogoutContext, 'fetch' | 'globalInfo'>
   opts: Pick<LogoutCommandOptions, 'fetchRetries' | 'fetchRetryFactor' | 'fetchRetryMaxtimeout' | 'fetchRetryMintimeout' | 'fetchTimeout'>
   registry: string
   token: string
 }
 
-async function revokeToken ({
+async function tryRevokeToken ({
   context,
   opts,
   registry,
   token,
-}: RevokeTokenParams): Promise<void> {
+}: TryRevokeTokenParams): Promise<void> {
   const { fetch, globalInfo } = context
 
   const revokeUrl = new URL(`-/user/token/${encodeURIComponent(token)}`, registry).href
@@ -157,15 +159,28 @@ async function revokeToken ({
     })
 
     if (!response.ok) {
-      // Token revocation is best-effort: the token will still be removed
-      // locally even if the registry doesn't support revocation (404/405)
-      // or the token is already invalid (401).
       globalInfo(`Registry returned HTTP ${response.status} when revoking token (token removed locally)`)
     }
   } catch {
-    // Network errors during revocation should not prevent local logout
     globalInfo('Could not reach the registry to revoke the token (token removed locally)')
   }
+}
+
+interface RemoveTokenFromAuthIniParams {
+  context: Pick<LogoutContext, 'writeIniFile'>
+  configPath: string
+  authIniSettings: Record<string, unknown>
+  tokenKey: string
+}
+
+async function removeTokenFromAuthIni ({
+  context,
+  configPath,
+  authIniSettings,
+  tokenKey,
+}: RemoveTokenFromAuthIniParams): Promise<void> {
+  delete authIniSettings[tokenKey]
+  await context.writeIniFile(configPath, authIniSettings)
 }
 
 function getRegistryConfigKey (registryUrl: string): string {
