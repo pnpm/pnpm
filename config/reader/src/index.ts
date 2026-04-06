@@ -66,7 +66,7 @@ export {
 } from './projectConfig.js'
 export type { Config, ConfigContext, ProjectConfig, UniversalOptions, VerifyDepsBeforeRun }
 
-export { isIniConfigKey } from './auth.js'
+export { isIniConfigKey, isNpmrcReadableKey } from './auth.js'
 export { type ConfigFileKey, isConfigFileKey } from './configFileKey.js'
 
 type CamelToKebabCase<S extends string> = S extends `${infer T}${infer U}`

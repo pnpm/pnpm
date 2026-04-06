@@ -28,6 +28,7 @@ export const pnpmConfigFileKeys = [
   'global-dir',
   'global-path',
   'global-pnpmfile',
+  'http-proxy',
   'optimistic-repeat-install',
   'loglevel',
   'maxsockets',
