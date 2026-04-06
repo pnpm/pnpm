@@ -34,6 +34,9 @@
       "path": "../../network/fetch"
     },
     {
+      "path": "../../releasing/commands"
+    },
+    {
       "path": "../../testing/command-defaults"
     }
   ]

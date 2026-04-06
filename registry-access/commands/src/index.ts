@@ -1,3 +1,3 @@
-import * as deprecate from './deprecate.js'
-import * as undeprecate from './undeprecate.js'
+import * as deprecate from './deprecation/deprecate.js'
+import * as undeprecate from './deprecation/undeprecate.js'
 export { deprecate, undeprecate }

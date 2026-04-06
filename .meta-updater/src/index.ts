@@ -277,6 +277,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     case '@pnpm/installing.commands':
     case '@pnpm/deps.inspection.commands':
     case '@pnpm/patching.commands':
+    case '@pnpm/registry-access.commands':
     case '@pnpm/releasing.commands':
     case '@pnpm/exec.commands':
     case '@pnpm/store.commands':
