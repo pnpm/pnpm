@@ -1,5 +1,4 @@
 import path from 'node:path'
-import util from 'node:util'
 
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
@@ -10,6 +9,8 @@ import normalizeRegistryUrl from 'normalize-registry-url'
 import { readIniFile } from 'read-ini-file'
 import { renderHelp } from 'render-help'
 import { writeIniFile } from 'write-ini-file'
+
+import { getRegistryConfigKey, safeReadIniFile } from './shared.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return { registry: allTypes.registry }
@@ -69,6 +70,9 @@ export interface LogoutFetchResponse {
 
 export interface LogoutFetchOptions {
   method?: 'DELETE'
+  headers?: {
+    authorization: `Bearer ${string}`
+  }
   retry?: {
     factor?: number
     maxTimeout?: number
@@ -112,18 +116,24 @@ export async function logout ({ context = DEFAULT_CONTEXT, opts }: LogoutParams)
     throw new LogoutNotLoggedInError(registry)
   }
 
-  await tryRevokeToken({ context, opts, registry, token })
+  const revokedOnRegistry = await tryRevokeToken({ context, opts, registry, token })
 
   const configPath = path.join(opts.configDir, 'auth.ini')
   const authIniSettings = await safeReadIniFile(readIniFile, configPath) as Record<string, unknown>
 
   if (tokenKey in authIniSettings) {
     await removeTokenFromAuthIni({ context, configPath, authIniSettings, tokenKey })
+  } else if (revokedOnRegistry) {
+    globalWarn(
+      `The auth token for ${registry} was not found in ${configPath}. ` +
+      'It may be configured in .npmrc or another config file. ' +
+      'The token was revoked on the registry but must be removed manually from that config file.'
+    )
   } else {
     globalWarn(
       `The auth token for ${registry} was not found in ${configPath}. ` +
       'It may be configured in .npmrc or another config file. ' +
-      'The token was revoked on the registry but must be removed manually from the config file.'
+      'It must be removed manually from that config file and may still need to be revoked on the registry.'
     )
   }
 
@@ -138,18 +148,19 @@ interface TryRevokeTokenParams {
 }
 
 async function tryRevokeToken ({
-  context,
+  context: { fetch, globalInfo },
   opts,
   registry,
   token,
-}: TryRevokeTokenParams): Promise<void> {
-  const { fetch, globalInfo } = context
-
+}: TryRevokeTokenParams): Promise<boolean> {
   const revokeUrl = new URL(`-/user/token/${encodeURIComponent(token)}`, registry).href
 
   try {
     const response = await fetch(revokeUrl, {
       method: 'DELETE',
+      headers: {
+        authorization: `Bearer ${token}`,
+      },
       retry: {
         factor: opts.fetchRetryFactor,
         maxTimeout: opts.fetchRetryMaxtimeout,
@@ -160,10 +171,13 @@ async function tryRevokeToken ({
     })
 
     if (!response.ok) {
-      globalInfo(`Registry returned HTTP ${response.status} when revoking token (token removed locally)`)
+      globalInfo(`Registry returned HTTP ${response.status} when revoking token`)
+      return false
     }
+    return true
   } catch {
-    globalInfo('Could not reach the registry to revoke the token (token removed locally)')
+    globalInfo('Could not reach the registry to revoke the token')
+    return false
   }
 }
 
@@ -182,23 +196,6 @@ async function removeTokenFromAuthIni ({
 }: RemoveTokenFromAuthIniParams): Promise<void> {
   delete authIniSettings[tokenKey]
   await writeIniFile(configPath, authIniSettings)
-}
-
-function getRegistryConfigKey (registryUrl: string): string {
-  const url = new URL(registryUrl)
-  return `//${url.host}${url.pathname}`
-}
-
-async function safeReadIniFile (
-  readIniFile: LogoutContext['readIniFile'],
-  configPath: string
-): Promise<object> {
-  try {
-    return await readIniFile(configPath)
-  } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return {}
-    throw err
-  }
 }
 
 class LogoutNotLoggedInError extends PnpmError {

@@ -1,7 +1,6 @@
 import { execFile } from 'node:child_process'
 import path from 'node:path'
 import readline from 'node:readline'
-import util from 'node:util'
 
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
@@ -23,6 +22,8 @@ import normalizeRegistryUrl from 'normalize-registry-url'
 import { readIniFile } from 'read-ini-file'
 import { renderHelp } from 'render-help'
 import { writeIniFile } from 'write-ini-file'
+
+import { getRegistryConfigKey, safeReadIniFile } from './shared.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return { registry: allTypes.registry }
@@ -358,23 +359,6 @@ async function throwIfOtpRequired (globalWarn: LoginContext['globalWarn'], respo
   } catch {}
 
   throw SyntheticOtpError.fromUnknownBody(globalWarn, body)
-}
-
-function getRegistryConfigKey (registryUrl: string): string {
-  const url = new URL(registryUrl)
-  return `//${url.host}${url.pathname}`
-}
-
-async function safeReadIniFile (
-  readIniFile: LoginContext['readIniFile'],
-  configPath: string
-): Promise<object> {
-  try {
-    return await readIniFile(configPath)
-  } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return {}
-    throw err
-  }
 }
 
 class LoginNonInteractiveError extends PnpmError {

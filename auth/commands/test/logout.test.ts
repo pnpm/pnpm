@@ -93,7 +93,10 @@ describe('logout', () => {
     expect(result).toBe('Logged out of https://registry.npmjs.org/')
     expect(fetch).toHaveBeenCalledWith(
       'https://registry.npmjs.org/-/user/token/my-token-123',
-      expect.objectContaining({ method: 'DELETE' })
+      expect.objectContaining({
+        method: 'DELETE',
+        headers: { authorization: 'Bearer my-token-123' },
+      })
     )
     expect(savedPath).toBe(path.join('/custom/config', 'auth.ini'))
     expect(savedSettings).toEqual({ 'other-setting': 'value' })
@@ -128,7 +131,10 @@ describe('logout', () => {
     expect(result).toBe('Logged out of https://npm.example.com/')
     expect(fetch).toHaveBeenCalledWith(
       'https://npm.example.com/-/user/token/custom-token',
-      expect.objectContaining({ method: 'DELETE' })
+      expect.objectContaining({
+        method: 'DELETE',
+        headers: { authorization: 'Bearer custom-token' },
+      })
     )
     expect(savedSettings).not.toHaveProperty(['//npm.example.com/:_authToken'])
   })
@@ -160,7 +166,7 @@ describe('logout', () => {
 
     expect(result).toBe('Logged out of https://registry.npmjs.org/')
     expect(savedSettings).not.toHaveProperty(['//registry.npmjs.org/:_authToken'])
-    expect(globalInfo).toHaveBeenCalledWith('Registry returned HTTP 404 when revoking token (token removed locally)')
+    expect(globalInfo).toHaveBeenCalledWith('Registry returned HTTP 404 when revoking token')
   })
 
   it('should still remove token locally when fetch throws a network error', async () => {
@@ -192,7 +198,7 @@ describe('logout', () => {
 
     expect(result).toBe('Logged out of https://registry.npmjs.org/')
     expect(savedSettings).not.toHaveProperty(['//registry.npmjs.org/:_authToken'])
-    expect(globalInfo).toHaveBeenCalledWith('Could not reach the registry to revoke the token (token removed locally)')
+    expect(globalInfo).toHaveBeenCalledWith('Could not reach the registry to revoke the token')
   })
 
   it('should warn when token is not in auth.ini (e.g. from .npmrc)', async () => {
@@ -223,7 +229,39 @@ describe('logout', () => {
       expect.stringContaining(`was not found in ${path.join(configDir, 'auth.ini')}`)
     )
     expect(globalWarn).toHaveBeenCalledWith(
-      expect.stringContaining('must be removed manually')
+      expect.stringContaining('The token was revoked on the registry but must be removed manually')
+    )
+  })
+
+  it('should warn that token may not be revoked when registry call fails and token is not in auth.ini', async () => {
+    const globalInfo = jest.fn()
+    const globalWarn = jest.fn()
+    const configDir = process.platform === 'win32' ? 'Z:\\config' : '/config'
+
+    const context = createMockContext({
+      globalInfo,
+      globalWarn,
+      fetch: async () => createMockResponse({ ok: false, status: 401, text: 'Unauthorized' }),
+      readIniFile: async () => ({}),
+      writeIniFile: async () => {
+        throw new Error('writeIniFile should not be called when token is not in auth.ini')
+      },
+    })
+
+    const opts = {
+      configDir,
+      dir: '/mock',
+      authConfig: {
+        '//registry.npmjs.org/:_authToken': 'orphan-token',
+      },
+    }
+
+    const result = await logout({ context, opts })
+
+    expect(result).toBe('Logged out of https://registry.npmjs.org/')
+    expect(globalInfo).toHaveBeenCalledWith('Registry returned HTTP 401 when revoking token')
+    expect(globalWarn).toHaveBeenCalledWith(
+      expect.stringContaining('may still need to be revoked on the registry')
     )
   })
 
