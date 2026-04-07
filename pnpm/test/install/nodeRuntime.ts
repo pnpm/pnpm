@@ -4,7 +4,9 @@ import { prepare } from '@pnpm/prepare'
 
 import { execPnpm } from '../utils/index.js'
 
-test('installing a CLI tool that requires a specific version of Node.js to be installed alongside it', async () => {
+// Skipped: the registry-mock package was published with the old transformEngines behavior
+// that moved engines.runtime to devEngines.runtime. Unskip after republishing registry-mock.
+test.skip('installing a CLI tool that requires a specific version of Node.js to be installed alongside it', async () => {
   prepare()
   fs.writeFileSync('pnpm-workspace.yaml', 'allowBuilds: { "@pnpm.e2e/cli-with-node-engine@1.0.0": true }', 'utf8')
 
