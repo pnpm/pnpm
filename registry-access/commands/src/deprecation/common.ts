@@ -99,13 +99,13 @@ export async function updateDeprecation (
 
   if (!putResponse.ok) {
     const verb = deprecated != null ? 'deprecate' : 'undeprecate'
+    const errorBody = await putResponse.text()
     if (putResponse.status === 401) {
-      throw new PnpmError('UNAUTHORIZED', `You must be logged in to ${verb} packages`)
+      throw new PnpmError('UNAUTHORIZED', `You must be logged in to ${verb} packages. ${errorBody}`)
     }
     if (putResponse.status === 403) {
-      throw new PnpmError('FORBIDDEN', `You do not have permission to ${verb} this package`)
+      throw new PnpmError('FORBIDDEN', `You do not have permission to ${verb} this package. ${errorBody}`)
     }
-    const errorBody = await putResponse.text()
     throw new PnpmError('REGISTRY_ERROR', `Failed to ${verb} package: ${putResponse.status} ${putResponse.statusText}. ${errorBody}`)
   }
 

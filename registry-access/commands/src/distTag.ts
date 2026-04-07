@@ -103,8 +103,7 @@ async function distTagLs (
 
   const packageName = params[0]
   const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
-  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {}, registryUrl)
-  const authHeader = getAuthHeader(registryUrl)
+  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
   const fetchFromRegistry = createFetchFromRegistry(opts)
 
   const distTags = await fetchDistTags(packageName, registryUrl, fetchFromRegistry, authHeader)
@@ -137,8 +136,7 @@ async function distTagAdd (
   const tag = params[1] ?? 'latest'
 
   const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
-  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {}, registryUrl)
-  const authHeader = getAuthHeader(registryUrl)
+  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp
 
@@ -176,8 +174,7 @@ async function distTagRm (
   }
 
   const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
-  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {}, registryUrl)
-  const authHeader = getAuthHeader(registryUrl)
+  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp
 
@@ -201,6 +198,14 @@ async function distTagRm (
   }
 
   return `-${tag}: ${packageName}@${distTags[tag]}`
+}
+
+function getAuthHeaderForRegistry (
+  configByUri: Record<string, RegistryConfig> | undefined,
+  registryUrl: string
+): string | undefined {
+  const getAuthHeader = createGetAuthHeaderByURI(configByUri ?? {}, registryUrl)
+  return getAuthHeader(registryUrl)
 }
 
 function getDistTagUrl (packageName: string, registryUrl: string, tag: string): string {
@@ -229,12 +234,12 @@ async function fetchDistTags (
 }
 
 async function throwRegistryError (response: Response, action: string): Promise<never> {
+  const errorBody = await response.text()
   if (response.status === 401) {
-    throw new PnpmError('UNAUTHORIZED', `You must be logged in to ${action} packages`)
+    throw new PnpmError('UNAUTHORIZED', `You must be logged in to ${action} packages. ${errorBody}`)
   }
   if (response.status === 403) {
-    throw new PnpmError('FORBIDDEN', `You do not have permission to ${action} this package`)
+    throw new PnpmError('FORBIDDEN', `You do not have permission to ${action} this package. ${errorBody}`)
   }
-  const errorBody = await response.text()
   throw new PnpmError('REGISTRY_ERROR', `Failed to ${action} package: ${response.status} ${response.statusText}. ${errorBody}`)
 }
