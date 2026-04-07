@@ -1,2 +1,2 @@
 #!/usr/bin/env node
-console.log(process.env.REGISTRY_MOCK_TOKEN);
+console.log("Bearer " + process.env.REGISTRY_MOCK_TOKEN);
