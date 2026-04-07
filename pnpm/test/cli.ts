@@ -17,7 +17,7 @@ const f = fixtures(import.meta.dirname)
 const hasOutdatedDepsFixture = f.find('has-outdated-deps')
 
 test('commands that were previously passed through to npm now fail', () => {
-  const result = execPnpmSync(['dist-tag', 'ls', 'is-positive'])
+  const result = execPnpmSync(['access', 'public'])
 
   expect(result.status).not.toBe(0)
   const output = result.stdout.toString() + result.stderr.toString()
@@ -56,7 +56,7 @@ test('previously passed through commands fail without package.json', async () =>
   prepare()
   rimrafSync('package.json')
 
-  const result = execPnpmSync(['dist-tag', 'ls', 'pnpm'])
+  const result = execPnpmSync(['access', 'public'])
 
   expect(result.status).not.toBe(0)
 })

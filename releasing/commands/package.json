@@ -54,6 +54,7 @@
     "@pnpm/network.fetch": "workspace:*",
     "@pnpm/network.git-utils": "workspace:*",
     "@pnpm/network.web-auth": "workspace:*",
+    "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/releasing.exportable-manifest": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",

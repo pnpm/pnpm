@@ -2,6 +2,7 @@ import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@pnpm/network.fetch'
+import npa from '@pnpm/npm-package-arg'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type { Registries, RegistryConfig } from '@pnpm/types'
 import semver from 'semver'
@@ -41,7 +42,7 @@ export async function updateDeprecation (
 
   const authHeader = getAuthHeader(registryUrl)
 
-  const packageUrl = new URL(encodeURIComponent(packageName), registryUrl).href
+  const packageUrl = new URL(npa(packageName).escapedName, registryUrl).href
 
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const getResponse = await fetchFromRegistry(packageUrl, {
@@ -77,9 +78,8 @@ export async function updateDeprecation (
     }
   }
 
-  const updatedVersions: Record<string, { deprecated: string }> = {}
   for (const ver of versionsToUpdate) {
-    updatedVersions[ver] = { deprecated: deprecated ?? '' }
+    pkg.versions[ver].deprecated = deprecated ?? ''
   }
 
   const otp = opts.cliOptions?.otp
@@ -91,21 +91,18 @@ export async function updateDeprecation (
       'content-type': 'application/json',
       ...(otp ? { 'npm-otp': otp } : {}),
     },
-    body: JSON.stringify({
-      name: packageName,
-      versions: updatedVersions,
-    }),
+    body: JSON.stringify(pkg),
   })
 
   if (!putResponse.ok) {
     const verb = deprecated != null ? 'deprecate' : 'undeprecate'
+    const errorBody = await putResponse.text()
     if (putResponse.status === 401) {
-      throw new PnpmError('UNAUTHORIZED', `You must be logged in to ${verb} packages`)
+      throw new PnpmError('UNAUTHORIZED', `You must be logged in to ${verb} packages. ${errorBody}`)
     }
     if (putResponse.status === 403) {
-      throw new PnpmError('FORBIDDEN', `You do not have permission to ${verb} this package`)
+      throw new PnpmError('FORBIDDEN', `You do not have permission to ${verb} this package. ${errorBody}`)
     }
-    const errorBody = await putResponse.text()
     throw new PnpmError('REGISTRY_ERROR', `Failed to ${verb} package: ${putResponse.status} ${putResponse.statusText}. ${errorBody}`)
   }
 
