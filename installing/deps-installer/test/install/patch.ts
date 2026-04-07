@@ -31,7 +31,6 @@ test('patch package with exact version', async () => {
     'is-positive@1.0.0': patchPath,
   }
   const opts = testDefaults({
-    neverBuiltDependencies: undefined,
     allowBuilds: {},
     fastUnpack: false,
     sideEffectsCacheRead: true,
@@ -128,7 +127,6 @@ test('patch package with version range', async () => {
     'is-positive@1': patchPath,
   }
   const opts = testDefaults({
-    neverBuiltDependencies: undefined,
     allowBuilds: {},
     fastUnpack: false,
     sideEffectsCacheRead: true,
@@ -398,7 +396,6 @@ test('patch package when the package is not in allowBuilds list', async () => {
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     patchedDependencies,
-    neverBuiltDependencies: undefined,
     allowBuilds: {},
   }, {}, {}, { packageImportMethod: 'hardlink' })
   await install({
@@ -468,7 +465,6 @@ test('patch package when the package is not in allowBuilds list', async () => {
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
-    neverBuiltDependencies: undefined,
     allowBuilds: {},
     offline: true,
   }, {}, {}, { packageImportMethod: 'hardlink' }))
