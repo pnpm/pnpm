@@ -10,7 +10,6 @@ const NOT_IMPLEMENTED_COMMANDS = [
   'find',
   'home',
   'issues',
-  'logout',
   'owner',
   'ping',
   'prefix',
