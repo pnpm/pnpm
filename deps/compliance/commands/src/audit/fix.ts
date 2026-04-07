@@ -43,13 +43,14 @@ function createOverrides (advisories: AuditAdvisory[]): Record<string, string> {
 }
 
 export function createMinimumReleaseAgeExcludes (advisories: AuditAdvisory[]): string[] {
-  const excludes: string[] = []
+  const excludes = new Set<string>()
   for (const advisory of advisories) {
     if (advisory.patched_versions === '<0.0.0') continue
+    if (advisory.vulnerable_versions === '>=0.0.0' || advisory.vulnerable_versions === '*') continue
     const minVersion = semver.minVersion(advisory.patched_versions)
     if (minVersion) {
-      excludes.push(`${advisory.module_name}@${minVersion.version}`)
+      excludes.add(`${advisory.module_name}@${minVersion.version}`)
     }
   }
-  return excludes
+  return Array.from(excludes)
 }

@@ -92,7 +92,7 @@ export async function updateWorkspaceManifest (dir: string, opts: {
   if (opts.addedMinimumReleaseAgeExcludes?.length) {
     const existing: string[] = manifest.minimumReleaseAgeExclude ?? []
     const existingSet = new Set(existing)
-    const newEntries = opts.addedMinimumReleaseAgeExcludes.filter((entry) => !existingSet.has(entry))
+    const newEntries = [...new Set(opts.addedMinimumReleaseAgeExcludes)].filter((entry) => !existingSet.has(entry))
     if (newEntries.length > 0) {
       shouldBeUpdated = true
       manifest.minimumReleaseAgeExclude = [...existing, ...newEntries]

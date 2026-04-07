@@ -255,7 +255,7 @@ export async function handler (opts: AuditOptions): Promise<{ exitCode: number, 
         output: 'No fixes were made',
       }
     }
-    let output = `${Object.values(vulnOverrides).length} overrides were added to package.json to fix vulnerabilities.
+    let output = `${Object.values(vulnOverrides).length} overrides were added to pnpm-workspace.yaml to fix vulnerabilities.
 Run "pnpm install" to apply the fixes.
 
 The added overrides:
