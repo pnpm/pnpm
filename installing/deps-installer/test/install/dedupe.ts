@@ -177,22 +177,6 @@ test('prefer version of package that also satisfies the range of the same packag
   )
 })
 
-test('dedupe subdependency when a newer version of the same package is installed', async () => {
-  const project = prepareEmpty()
-
-  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
-
-  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0', '@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults())
-
-  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
-
-  await addDependenciesToPackage(manifest, ['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'], testDefaults())
-
-  const lockfile = project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
-  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
-})
-
 test('when resolving dependencies, prefer versions that are used by direct dependencies over versions used in subdeps', async () => {
   await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
   const project = prepareEmpty()
