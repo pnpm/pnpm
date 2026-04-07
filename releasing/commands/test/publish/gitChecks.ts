@@ -3,7 +3,6 @@ import fs from 'node:fs'
 import { jest } from '@jest/globals'
 import { PnpmError } from '@pnpm/error'
 import { prepare } from '@pnpm/prepare'
-import { REGISTRY_MOCK_CREDENTIALS, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { safeExeca as execa } from 'execa'
 import { temporaryDirectory } from 'tempy'
 
@@ -14,13 +13,6 @@ const { default: enquirer } = await import('enquirer')
 const { publish } = await import('@pnpm/releasing.commands')
 
 const prompt = jest.mocked(enquirer.prompt)
-
-const CREDENTIALS = [
-  `--registry=http://localhost:${REGISTRY_MOCK_PORT}/`,
-  `--//localhost:${REGISTRY_MOCK_PORT}/:username=${REGISTRY_MOCK_CREDENTIALS.username}`,
-  `--//localhost:${REGISTRY_MOCK_PORT}/:_password=${Buffer.from(REGISTRY_MOCK_CREDENTIALS.password).toString('base64')}`,
-  `--//localhost:${REGISTRY_MOCK_PORT}/:email=foo@bar.net`,
-]
 
 test('publish: fails git check if branch is not on master or main', async () => {
   prepare({
@@ -41,7 +33,7 @@ test('publish: fails git check if branch is not on master or main', async () => 
   await expect(
     publish.handler({
       ...DEFAULT_OPTS,
-      argv: { original: ['publish', ...CREDENTIALS] },
+      argv: { original: ['publish'] },
       dir: process.cwd(),
     }, [])
   ).rejects.toThrow(
@@ -69,7 +61,7 @@ test('publish: fails git check if branch is not on specified branch', async () =
   await expect(
     publish.handler({
       ...DEFAULT_OPTS,
-      argv: { original: ['publish', ...CREDENTIALS] },
+      argv: { original: ['publish'] },
       dir: process.cwd(),
       publishBranch: 'latest',
     }, [])
@@ -95,7 +87,7 @@ test('publish: fails git check if branch is not clean', async () => {
   await expect(
     publish.handler({
       ...DEFAULT_OPTS,
-      argv: { original: ['publish', ...CREDENTIALS] },
+      argv: { original: ['publish'] },
       dir: process.cwd(),
     }, [])
   ).rejects.toThrow(
@@ -125,7 +117,7 @@ test('publish: fails git check if branch is not up to date', async () => {
   await expect(
     publish.handler({
       ...DEFAULT_OPTS,
-      argv: { original: ['publish', ...CREDENTIALS] },
+      argv: { original: ['publish'] },
       dir: process.cwd(),
     }, [])
   ).rejects.toThrow(
@@ -150,7 +142,7 @@ test('publish: fails git check if HEAD is detached', async () => {
   await expect(
     publish.handler({
       ...DEFAULT_OPTS,
-      argv: { original: ['publish', ...CREDENTIALS] },
+      argv: { original: ['publish'] },
       dir: process.cwd(),
     }, [])
   ).rejects.toThrow(
