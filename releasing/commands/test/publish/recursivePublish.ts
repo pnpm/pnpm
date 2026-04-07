@@ -1,10 +1,9 @@
 import fs from 'node:fs'
-import path from 'node:path'
 
 import { jest } from '@jest/globals'
 import { streamParser } from '@pnpm/logger'
 import { preparePackages } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { REGISTRY_MOCK_CREDENTIALS, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { publish } from '@pnpm/releasing.commands'
 import type { ProjectManifest } from '@pnpm/types'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
@@ -14,11 +13,13 @@ import { loadJsonFileSync } from 'load-json-file'
 
 import { checkPkgExists, DEFAULT_OPTS } from './utils/index.js'
 
-const CREDENTIALS = `\
-registry=http://localhost:${REGISTRY_MOCK_PORT}/
-//localhost:${REGISTRY_MOCK_PORT}/:username=username
-//localhost:${REGISTRY_MOCK_PORT}/:_password=${Buffer.from('password').toString('base64')}
-//localhost:${REGISTRY_MOCK_PORT}/:email=foo@bar.net`
+const CONFIG_BY_URI = {
+  [`//localhost:${REGISTRY_MOCK_PORT}/`]: {
+    creds: {
+      basicAuth: REGISTRY_MOCK_CREDENTIALS,
+    },
+  },
+}
 
 test('recursive publish', async () => {
   // This suffix is added to the package name to avoid issue if Jest reruns the test
@@ -73,11 +74,10 @@ test('recursive publish', async () => {
     },
   ])
 
-  fs.writeFileSync('.npmrc', CREDENTIALS, 'utf8')
-
   await publish.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    configByUri: CONFIG_BY_URI,
     dir: process.cwd(),
     dryRun: true,
     recursive: true,
@@ -92,10 +92,10 @@ test('recursive publish', async () => {
     expect(status).toBe(1)
   }
 
-  process.env.pnpm_config_userconfig = path.join('.npmrc')
   await publish.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    configByUri: CONFIG_BY_URI,
     dir: process.cwd(),
     recursive: true,
   }, [])
@@ -108,6 +108,7 @@ test('recursive publish', async () => {
   await publish.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    configByUri: CONFIG_BY_URI,
     dir: process.cwd(),
     recursive: true,
     tag: 'next',
@@ -151,14 +152,13 @@ test('print info when no packages are published', async () => {
     },
   ])
 
-  fs.writeFileSync('.npmrc', CREDENTIALS, 'utf8')
-
   const reporter = jest.fn()
   streamParser.on('data', reporter)
 
   await publish.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    configByUri: CONFIG_BY_URI,
     dir: process.cwd(),
     dryRun: true,
     recursive: true,
@@ -186,11 +186,10 @@ test('packages are released even if their current version is published, when for
     },
   ])
 
-  fs.writeFileSync('.npmrc', CREDENTIALS, 'utf8')
-
   await publish.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    configByUri: CONFIG_BY_URI,
     force: true,
     dir: process.cwd(),
     dryRun: true,
@@ -249,12 +248,10 @@ test('recursive publish writes publish summary', async () => {
     },
   ])
 
-  fs.writeFileSync('.npmrc', CREDENTIALS, 'utf8')
-
-  process.env.pnpm_config_userconfig = path.join('.npmrc')
   await publish.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    configByUri: CONFIG_BY_URI,
     dir: process.cwd(),
     recursive: true,
     reportSummary: true,
@@ -269,6 +266,7 @@ test('recursive publish writes publish summary', async () => {
   await publish.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    configByUri: CONFIG_BY_URI,
     dir: process.cwd(),
     recursive: true,
     reportSummary: true,

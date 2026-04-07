@@ -1,2 +1,2 @@
 #!/usr/bin/env node
-console.log("Basic " + Buffer.from("password").toString("base64"));
+console.log(process.env.REGISTRY_MOCK_TOKEN);

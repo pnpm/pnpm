@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { REGISTRY_MOCK_CREDENTIALS, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { pack, publish } from '@pnpm/releasing.commands'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { isCI } from 'ci-info'
@@ -17,12 +17,13 @@ import { checkPkgExists, DEFAULT_OPTS } from './utils/index.js'
 
 const skipOnWindowsCI = isCI && isWindows() ? test.skip : test
 
-const CREDENTIALS = [
-  `--registry=http://localhost:${REGISTRY_MOCK_PORT}/`,
-  `--//localhost:${REGISTRY_MOCK_PORT}/:username=username`,
-  `--//localhost:${REGISTRY_MOCK_PORT}/:_password=${Buffer.from('password').toString('base64')}`,
-  `--//localhost:${REGISTRY_MOCK_PORT}/:email=foo@bar.net`,
-]
+const CONFIG_BY_URI = {
+  [`//localhost:${REGISTRY_MOCK_PORT}/`]: {
+    creds: {
+      basicAuth: REGISTRY_MOCK_CREDENTIALS,
+    },
+  },
+}
 const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
 
 const SPAWN_ENV = { ...process.env, pnpm_config_minimum_release_age: '0' } as NodeJS.ProcessEnv
@@ -35,7 +36,8 @@ test('publish: package with package.json', async () => {
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    argv: { original: ['publish', ...CREDENTIALS] },
+    argv: { original: ['publish'] },
+    configByUri: CONFIG_BY_URI,
     dir: process.cwd(),
   }, [])
 
@@ -50,7 +52,8 @@ test('publish: package with package.yaml', async () => {
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    argv: { original: ['publish', ...CREDENTIALS] },
+    argv: { original: ['publish'] },
+    configByUri: CONFIG_BY_URI,
     dir: process.cwd(),
   }, [])
 
@@ -66,7 +69,8 @@ test('publish: package with package.json5', async () => {
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    argv: { original: ['publish', ...CREDENTIALS] },
+    argv: { original: ['publish'] },
+    configByUri: CONFIG_BY_URI,
     dir: process.cwd(),
   }, [])
 
@@ -84,7 +88,8 @@ test('publish: package with package.json5 running publish from different folder'
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    argv: { original: ['publish', ...CREDENTIALS, './project'] },
+    argv: { original: ['publish', './project'] },
+    configByUri: CONFIG_BY_URI,
     dir: process.cwd(),
   }, ['./project'])
 
@@ -176,7 +181,8 @@ test('publish packages with workspace LICENSE if no own LICENSE is present', asy
   process.chdir('project-100')
   await publish.handler({
     ...DEFAULT_OPTS,
-    argv: { original: ['publish', ...CREDENTIALS] },
+    argv: { original: ['publish'] },
+    configByUri: CONFIG_BY_URI,
     dir: process.cwd(),
     workspaceDir,
   }, [])
@@ -184,7 +190,8 @@ test('publish packages with workspace LICENSE if no own LICENSE is present', asy
   process.chdir('../project-200')
   await publish.handler({
     ...DEFAULT_OPTS,
-    argv: { original: ['publish', ...CREDENTIALS] },
+    argv: { original: ['publish'] },
+    configByUri: CONFIG_BY_URI,
     dir: process.cwd(),
     workspaceDir,
   }, [])
@@ -240,7 +247,8 @@ test('publish: package with all possible fields in publishConfig', async () => {
   fs.writeFileSync('published-bin.js', '#!/usr/bin/env node', 'utf8')
   await publish.handler({
     ...DEFAULT_OPTS,
-    argv: { original: ['publish', ...CREDENTIALS] },
+    argv: { original: ['publish'] },
+    configByUri: CONFIG_BY_URI,
     dir: process.cwd(),
   }, [])
 
@@ -333,7 +341,8 @@ test('publish: package with publishConfig.directory', async () => {
   await publish.handler(
     {
       ...DEFAULT_OPTS,
-      argv: { original: ['publish', ...CREDENTIALS] },
+      argv: { original: ['publish'] },
+      configByUri: CONFIG_BY_URI,
       dir: process.cwd(),
     },
     []
@@ -389,7 +398,8 @@ test.skip('publish package that calls executable from the workspace .bin folder 
   process.chdir('test-publish-scripts')
   await publish.handler({
     ...DEFAULT_OPTS,
-    argv: { original: ['publish', ...CREDENTIALS] },
+    argv: { original: ['publish'] },
+    configByUri: CONFIG_BY_URI,
     dir: process.cwd(),
     workspaceDir,
   }, [])
@@ -495,7 +505,8 @@ test.skip('convert specs with workspace protocols to regular version ranges', as
   await expect(
     publish.handler({
       ...DEFAULT_OPTS,
-      argv: { original: ['publish', ...CREDENTIALS] },
+      argv: { original: ['publish'] },
+      configByUri: CONFIG_BY_URI,
       dir: process.cwd(),
     }, [])
   )
@@ -512,7 +523,8 @@ test.skip('convert specs with workspace protocols to regular version ranges', as
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    argv: { original: ['publish', ...CREDENTIALS] },
+    argv: { original: ['publish'] },
+    configByUri: CONFIG_BY_URI,
     dir: process.cwd(),
   }, [])
 
@@ -599,7 +611,8 @@ test.skip('convert specs with relative workspace protocols to regular version ra
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    argv: { original: ['publish', ...CREDENTIALS] },
+    argv: { original: ['publish'] },
+    configByUri: CONFIG_BY_URI,
     dir: process.cwd(),
   }, [])
 
@@ -667,7 +680,8 @@ describe('catalog protocol converted when publishing', () => {
 
     await publish.handler({
       ...DEFAULT_OPTS,
-      argv: { original: ['publish', ...CREDENTIALS] },
+      argv: { original: ['publish'] },
+      configByUri: CONFIG_BY_URI,
       catalogs: getCatalogsFromWorkspaceManifest(workspaceManifest),
       dir: process.cwd(),
     }, [])
@@ -729,7 +743,8 @@ describe('catalog protocol converted when publishing', () => {
 
     await publish.handler({
       ...DEFAULT_OPTS,
-      argv: { original: ['publish', ...CREDENTIALS] },
+      argv: { original: ['publish'] },
+      configByUri: CONFIG_BY_URI,
       catalogs: getCatalogsFromWorkspaceManifest(workspaceManifest),
       dir: process.cwd(),
     }, [])
@@ -775,7 +790,8 @@ test('publish: runs all the lifecycle scripts', async () => {
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    argv: { original: ['publish', ...CREDENTIALS] },
+    argv: { original: ['publish'] },
+    configByUri: CONFIG_BY_URI,
     dir: process.cwd(),
   }, [])
 
@@ -812,7 +828,8 @@ test('publish: ignores all the lifecycle scripts when --ignore-scripts is used',
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    argv: { original: ['publish', ...CREDENTIALS] },
+    argv: { original: ['publish'] },
+    configByUri: CONFIG_BY_URI,
     dir: process.cwd(),
     ignoreScripts: true,
   }, [])
@@ -836,7 +853,8 @@ test('publish: with specified publish branch name', async () => {
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    argv: { original: ['publish', '--publish-branch', branch, ...CREDENTIALS] },
+    argv: { original: ['publish', '--publish-branch', branch] },
+    configByUri: CONFIG_BY_URI,
     dir: process.cwd(),
     publishBranch: branch,
   }, [])
@@ -895,12 +913,13 @@ test('publish: use basic token helper for authentication', async () => {
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    argv: {
-      original: [
-        'publish',
-        CREDENTIALS[0],
-        `--//localhost:${REGISTRY_MOCK_PORT}/:tokenHelper=${tokenHelper}`,
-      ],
+    argv: { original: ['publish'] },
+    configByUri: {
+      [`//localhost:${REGISTRY_MOCK_PORT}/`]: {
+        creds: {
+          tokenHelper: [tokenHelper],
+        },
+      },
     },
     dir: process.cwd(),
     gitChecks: false,
@@ -923,12 +942,13 @@ test('publish: use bearer token helper for authentication', async () => {
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    argv: {
-      original: [
-        'publish',
-        CREDENTIALS[0],
-        `--//localhost:${REGISTRY_MOCK_PORT}/:tokenHelper=${tokenHelper}`,
-      ],
+    argv: { original: ['publish'] },
+    configByUri: {
+      [`//localhost:${REGISTRY_MOCK_PORT}/`]: {
+        creds: {
+          tokenHelper: [tokenHelper],
+        },
+      },
     },
     dir: process.cwd(),
     gitChecks: false,
@@ -954,7 +974,8 @@ test('publish from a tarball', async () => {
   const tarballName = `${pkg.name}-${pkg.version}.tgz`
   await publish.handler({
     ...DEFAULT_OPTS,
-    argv: { original: ['publish', tarballName, ...CREDENTIALS] },
+    argv: { original: ['publish', tarballName] },
+    configByUri: CONFIG_BY_URI,
     dir: process.cwd(),
   }, [tarballName])
 
