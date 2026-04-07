@@ -6,7 +6,7 @@ import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.ty
 import type { Registries, RegistryConfig } from '@pnpm/types'
 import semver from 'semver'
 
-import { parsePackageSpec, rcOptionsTypes } from '../common.js'
+import { encodeScopedPackageName, parsePackageSpec, rcOptionsTypes } from '../common.js'
 
 export { parsePackageSpec, rcOptionsTypes }
 
@@ -41,7 +41,7 @@ export async function updateDeprecation (
 
   const authHeader = getAuthHeader(registryUrl)
 
-  const packageUrl = new URL(packageName.replace('/', '%2f'), registryUrl).href
+  const packageUrl = new URL(encodeScopedPackageName(packageName), registryUrl).href
 
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const getResponse = await fetchFromRegistry(packageUrl, {

@@ -7,7 +7,7 @@ import type { Registries, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
 
-import { parsePackageSpec, rcOptionsTypes } from './common.js'
+import { encodeScopedPackageName, parsePackageSpec, rcOptionsTypes } from './common.js'
 
 export { rcOptionsTypes }
 
@@ -209,7 +209,7 @@ function getAuthHeaderForRegistry (
 }
 
 function getDistTagUrl (packageName: string, registryUrl: string, tag: string): string {
-  const encodedName = packageName.replace('/', '%2f')
+  const encodedName = encodeScopedPackageName(packageName)
   return new URL(`-/package/${encodedName}/dist-tags/${encodeURIComponent(tag)}`, registryUrl).href
 }
 
@@ -219,7 +219,7 @@ async function fetchDistTags (
   fetchFromRegistry: FetchFromRegistry,
   authHeader: string | undefined
 ): Promise<Record<string, string>> {
-  const encodedName = packageName.replace('/', '%2f')
+  const encodedName = encodeScopedPackageName(packageName)
   const distTagsUrl = new URL(`-/package/${encodedName}/dist-tags`, registryUrl).href
   const response = await fetchFromRegistry(distTagsUrl, {
     authHeaderValue: authHeader,

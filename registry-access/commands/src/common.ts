@@ -9,6 +9,10 @@ export function rcOptionsTypes (): Record<string, unknown> {
   ], allTypes)
 }
 
+export function encodeScopedPackageName (packageName: string): string {
+  return packageName.replace('/', '%2f')
+}
+
 export function parsePackageSpec (spec: string): { name: string, versionRange: string | undefined } {
   let parsed: ReturnType<typeof npa>
   try {

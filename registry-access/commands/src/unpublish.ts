@@ -7,7 +7,7 @@ import type { Registries, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
 
-import { parsePackageSpec, rcOptionsTypes } from './common.js'
+import { encodeScopedPackageName, parsePackageSpec, rcOptionsTypes } from './common.js'
 
 export { rcOptionsTypes }
 
@@ -107,7 +107,7 @@ async function unpublishPackage (
 
   const authHeader = getAuthHeader(registryUrl)
 
-  const packageUrl = new URL(packageName.replace('/', '%2f'), registryUrl).href
+  const packageUrl = new URL(encodeScopedPackageName(packageName), registryUrl).href
 
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const pkg = await fetchPackument(packageUrl, fetchFromRegistry, authHeader)
