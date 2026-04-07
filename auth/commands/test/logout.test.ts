@@ -233,14 +233,12 @@ describe('logout', () => {
     )
   })
 
-  it('should warn that token may not be revoked when registry call fails and token is not in auth.ini', async () => {
+  it('should throw when registry call fails and token is not in auth.ini', async () => {
     const globalInfo = jest.fn()
-    const globalWarn = jest.fn()
     const configDir = process.platform === 'win32' ? 'Z:\\config' : '/config'
 
     const context = createMockContext({
       globalInfo,
-      globalWarn,
       fetch: async () => createMockResponse({ ok: false, status: 401, text: 'Unauthorized' }),
       readIniFile: async () => ({}),
       writeIniFile: async () => {
@@ -256,13 +254,17 @@ describe('logout', () => {
       },
     }
 
-    const result = await logout({ context, opts })
-
-    expect(result).toBe('Logged out of https://registry.npmjs.org/')
-    expect(globalInfo).toHaveBeenCalledWith('Registry returned HTTP 401 when revoking token')
-    expect(globalWarn).toHaveBeenCalledWith(
+    const promise = logout({ context, opts })
+    await expect(promise).rejects.toHaveProperty(['code'], 'ERR_PNPM_LOGOUT_FAILED')
+    await expect(promise).rejects.toHaveProperty(
+      ['message'],
+      expect.stringContaining('Failed to log out of https://registry.npmjs.org/')
+    )
+    await expect(promise).rejects.toHaveProperty(
+      ['message'],
       expect.stringContaining('may still need to be revoked on the registry')
     )
+    expect(globalInfo).toHaveBeenCalledWith('Registry returned HTTP 401 when revoking token')
   })
 
   it('should warn when auth.ini does not exist (ENOENT) and token comes from another source', async () => {

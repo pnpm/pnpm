@@ -130,11 +130,7 @@ export async function logout ({ context = DEFAULT_CONTEXT, opts }: LogoutParams)
       'The token was revoked on the registry but must be removed manually from that config file.'
     )
   } else {
-    globalWarn(
-      `The auth token for ${registry} was not found in ${configPath}. ` +
-      'It may be configured in .npmrc or another config file. ' +
-      'It must be removed manually from that config file and may still need to be revoked on the registry.'
-    )
+    throw new LogoutFailedError(registry, configPath)
   }
 
   return `Logged out of ${registry}`
@@ -201,5 +197,17 @@ async function removeTokenFromAuthIni ({
 class LogoutNotLoggedInError extends PnpmError {
   constructor (registry: string) {
     super('NOT_LOGGED_IN', `Not logged in to ${registry}, so can't log out`)
+  }
+}
+
+class LogoutFailedError extends PnpmError {
+  constructor (registry: string, configPath: string) {
+    super(
+      'LOGOUT_FAILED',
+      `Failed to log out of ${registry}. The registry rejected the token revocation request, ` +
+      `and the token was not found in ${configPath}. ` +
+      'The token may be configured in .npmrc or another config file ' +
+      'and must be removed manually, and may still need to be revoked on the registry.'
+    )
   }
 }
