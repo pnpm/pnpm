@@ -209,7 +209,8 @@ function getAuthHeaderForRegistry (
 }
 
 function getDistTagUrl (packageName: string, registryUrl: string, tag: string): string {
-  return new URL(`-/package/${encodeURIComponent(packageName)}/dist-tags/${encodeURIComponent(tag)}`, registryUrl).href
+  const encodedName = packageName.replace('/', '%2f')
+  return new URL(`-/package/${encodedName}/dist-tags/${encodeURIComponent(tag)}`, registryUrl).href
 }
 
 async function fetchDistTags (
@@ -218,7 +219,8 @@ async function fetchDistTags (
   fetchFromRegistry: FetchFromRegistry,
   authHeader: string | undefined
 ): Promise<Record<string, string>> {
-  const distTagsUrl = new URL(`-/package/${encodeURIComponent(packageName)}/dist-tags`, registryUrl).href
+  const encodedName = packageName.replace('/', '%2f')
+  const distTagsUrl = new URL(`-/package/${encodedName}/dist-tags`, registryUrl).href
   const response = await fetchFromRegistry(distTagsUrl, {
     authHeaderValue: authHeader,
   })
