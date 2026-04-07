@@ -35,7 +35,7 @@ test('`pnpm recursive rebuild` specific dependencies', async () => {
 
   writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['**', '!store/**'],
-    neverBuiltDependencies: [],
+    allowBuilds: {},
   })
 
   await execPnpm(['recursive', 'install', '--ignore-scripts'])

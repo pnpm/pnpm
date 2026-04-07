@@ -125,7 +125,6 @@ export interface HeadlessOptions {
   preferSymlinkedExecutables?: boolean
   hoistingLimits?: HoistingLimits
   externalDependencies?: Set<string>
-  ignoreDepScripts: boolean
   ignoreScripts: boolean
   ignorePackageManifest?: boolean
   /**
@@ -571,7 +570,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       extraBinPaths,
       extraEnv,
       depsStateCache,
-      ignoreScripts: opts.ignoreScripts || opts.ignoreDepScripts,
+      ignoreScripts: opts.ignoreScripts,
       hoistedLocations,
       lockfileDir,
       optional: opts.include.optionalDependencies,

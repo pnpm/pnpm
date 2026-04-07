@@ -46,7 +46,6 @@ export type StrictBuildOptions = {
   pending: boolean
   shamefullyHoist: boolean
   deployAllFiles: boolean
-  neverBuiltDependencies?: string[]
   allowBuilds?: Record<string, boolean | string>
   virtualStoreDirMaxLength: number
   peersSuffixMaxLength: number

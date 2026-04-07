@@ -1969,7 +1969,7 @@ test('deploy should keep files created by lifecycle scripts', async () => {
   }
 })
 
-test('rebuild in a directory created with "pnpm deploy" and with "pnpm.neverBuiltDependencies" configured should run lifecycle scripts', async () => {
+test('rebuild in a directory created with "pnpm deploy" should run lifecycle scripts', async () => {
   const preparedManifests = {
     root: {
       name: 'root',

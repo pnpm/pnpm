@@ -99,7 +99,6 @@ CreateStoreControllerOptions &
   reporter?: (logObj: LogBase) => void
   pending: boolean
   skipIfHasSideEffectsCache?: boolean
-  neverBuiltDependencies?: string[]
   allowBuilds?: Record<string, boolean | string>
 }
 

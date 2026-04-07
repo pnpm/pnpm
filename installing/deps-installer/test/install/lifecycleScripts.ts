@@ -315,7 +315,6 @@ test('run prepare script for git-hosted dependencies', async () => {
   await addDependenciesToPackage({}, ['pnpm/test-git-fetch#8b333f12d5357f4f25a654c305c826294cb073bf'], testDefaults({
     fastUnpack: false,
     allowBuilds: { 'test-git-fetch': true },
-    neverBuiltDependencies: undefined,
   }))
 
   const scripts = project.requireModule('test-git-fetch/output.json')
@@ -576,39 +575,6 @@ test('lifecycle scripts run after linking root dependencies', async () => {
   }, testDefaults({ fastUnpack: false, frozenLockfile: true, allowBuilds: { '@pnpm.e2e/postinstall-requires-is-positive': true } }))
 
   // if there was no exception, the test passed
-})
-
-test('ignore-dep-scripts', async () => {
-  await using server1 = await createTestIpcServer()
-  await using server2 = await createTestIpcServer()
-  prepareEmpty()
-  const manifest = {
-    scripts: {
-      'pnpm:devPreinstall': server2.sendLineScript('pnpm:devPreinstall'),
-      install: server1.sendLineScript('install'),
-      postinstall: server1.sendLineScript('postinstall'),
-      preinstall: server1.sendLineScript('preinstall'),
-    },
-    dependencies: {
-      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
-    },
-  }
-  await install(manifest, testDefaults({ fastUnpack: false, ignoreDepScripts: true }))
-
-  expect(server1.getLines()).toStrictEqual(['preinstall', 'install', 'postinstall'])
-  expect(server2.getLines()).toStrictEqual(['pnpm:devPreinstall'])
-
-  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
-
-  rimrafSync('node_modules')
-  server1.clear()
-  server2.clear()
-  await install(manifest, testDefaults({ fastUnpack: false, ignoreDepScripts: true }))
-
-  expect(server1.getLines()).toStrictEqual(['preinstall', 'install', 'postinstall'])
-  expect(server2.getLines()).toStrictEqual(['pnpm:devPreinstall'])
-
-  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
 })
 
 test('run pre/postinstall scripts in a workspace that uses node-linker=hoisted', async () => {

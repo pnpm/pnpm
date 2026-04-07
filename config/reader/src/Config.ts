@@ -69,7 +69,6 @@ export interface Config extends OptionsFromRootManifest {
   dir: string
   bin: string
   verifyDepsBeforeRun?: VerifyDepsBeforeRun
-  ignoreDepScripts?: boolean
   ignoreScripts?: boolean
   ignoreCompatibilityDb?: boolean
   includeWorkspaceRoot?: boolean
