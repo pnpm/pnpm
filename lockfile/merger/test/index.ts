@@ -353,3 +353,37 @@ test('prefers our lockfile resolutions when it has newer packages #2', () => {
     },
   })
 })
+
+test('does not crash when merging non-semver versions (link: protocol)', () => {
+  const base: LockfileObject = {
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { a: '1.0.0' },
+        specifiers: {},
+      },
+    },
+    lockfileVersion: '5.2',
+    packages: {
+      ['/a@1.0.0' as DepPath]: {
+        dependencies: { linked: 'link:../pkg1' },
+        resolution: { integrity: '' },
+      },
+    },
+  }
+
+  const mergedLockfile = mergeLockfileChanges(
+    base,
+    {
+      ...base,
+      packages: {
+        ['/a@1.0.0' as DepPath]: {
+          dependencies: { linked: 'link:../pkg2' },
+          resolution: { integrity: '' },
+        },
+      },
+    }
+  )
+
+  // Should not crash and should pick theirs (the incoming change)
+  expect(mergedLockfile.packages?.['/a@1.0.0' as DepPath].dependencies?.linked).toBe('link:../pkg2')
+})

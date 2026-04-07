@@ -41,11 +41,13 @@ async function getApproveBuildsConfig () {
     dir: process.cwd(),
     registry: `http://localhost:${REGISTRY_MOCK_PORT}`,
   }
+  const { config, context } = await getConfig({
+    cliOptions,
+    packageManager: { name: 'pnpm', version: '' },
+  })
   return {
-    ...omit(['reporter'], (await getConfig({
-      cliOptions,
-      packageManager: { name: 'pnpm', version: '' },
-    })).config),
+    ...omit(['reporter'], config),
+    ...context,
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
     pnpmfile: [], // this is only needed because the pnpmfile returned by getConfig is string | string[]

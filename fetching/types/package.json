@@ -25,14 +25,13 @@
     "!*.map"
   ],
   "scripts": {
-    "compile": "tsgo --build && pnpm run lint --fix",
+    "compile": "tsgo --build && pn lint --fix",
     "lint": "eslint \"src/**/*.ts\"",
-    "prepublishOnly": "pnpm run compile",
-    "test": "pnpm run compile"
+    "prepublishOnly": "pn compile",
+    "test": "pn compile"
   },
   "dependencies": {
-    "@zkochan/retry": "catalog:",
-    "node-fetch": "catalog:"
+    "@zkochan/retry": "catalog:"
   },
   "devDependencies": {
     "@pnpm/fetching.types": "workspace:*"

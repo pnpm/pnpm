@@ -1,103 +1,37 @@
 import path from 'node:path'
 
 import { tempDir } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { DEFAULT_OPTS as BASE_OPTS, REGISTRY_URL } from '@pnpm/testing.command-defaults'
 
-export const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
+export { REGISTRY_URL }
+
 const tmp = tempDir()
 
 export const DEFAULT_OPTS = {
-  argv: {
-    original: [],
-  },
+  ...BASE_OPTS,
   bail: false,
-  bin: 'node_modules/.bin',
-  ca: undefined,
-  cacheDir: '../cache',
-  cert: undefined,
-  extraEnv: {},
-  excludeLinksFromLockfile: false,
-  cliOptions: {},
   extraBinPaths: [],
-  fetchRetries: 2,
-  fetchRetryFactor: 90,
-  fetchRetryMaxtimeout: 90,
-  fetchRetryMintimeout: 10,
-  filter: [] as string[],
-  httpsProxy: undefined,
-  include: {
-    dependencies: true,
-    devDependencies: true,
-    optionalDependencies: true,
-  },
-  key: undefined,
-  linkWorkspacePackages: true,
-  localAddress: undefined,
-  lock: false,
-  lockStaleDuration: 90,
-  networkConcurrency: 16,
-  offline: false,
-  pending: false,
-  pnpmfile: ['./.pnpmfile.cjs'],
-  pnpmHomeDir: '',
-  preferWorkspacePackages: true,
-  proxy: undefined,
-  rawConfig: { registry: REGISTRY_URL },
-  rawLocalConfig: {},
-  rootProjectManifestDir: '',
-  registries: { default: REGISTRY_URL },
-  registry: REGISTRY_URL,
-  sort: true,
-  storeDir: '../store',
-  strictSsl: false,
-  userAgent: 'pnpm',
-  useRunningStoreServer: false,
-  useStoreServer: false,
-  workspaceConcurrency: 4,
   supportedArchitectures: {
     os: ['current'],
     cpu: ['current'],
     libc: ['current'],
   },
-  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }
 
 export const DLX_DEFAULT_OPTS = {
-  argv: {
-    original: [],
-  },
+  ...BASE_OPTS,
   bail: false,
-  bin: 'node_modules/.bin',
   cacheDir: path.join(tmp, 'cache'),
-  excludeLinksFromLockfile: false,
-  extraEnv: {},
-  extraBinPaths: [],
-  cliOptions: {},
   dlxCacheMaxAge: Infinity,
-  include: {
-    dependencies: true,
-    devDependencies: true,
-    optionalDependencies: true,
-  },
-  linkWorkspacePackages: true,
+  extraBinPaths: [],
   lock: true,
   pnpmfile: ['.pnpmfile.cjs'],
-  pnpmHomeDir: '',
-  preferWorkspacePackages: true,
-  rawConfig: { registry: REGISTRY_URL },
-  rawLocalConfig: { registry: REGISTRY_URL },
-  registries: {
-    default: REGISTRY_URL,
-  },
-  sort: true,
   storeDir: path.join(tmp, 'store'),
   symlink: true,
-  userConfig: {},
-  workspaceConcurrency: 1,
   supportedArchitectures: {
     os: ['current'],
     cpu: ['current'],
     libc: ['current'],
   },
-  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+  workspaceConcurrency: 1,
 }

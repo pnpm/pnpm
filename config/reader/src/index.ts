@@ -7,8 +7,6 @@ import { createMatcher } from '@pnpm/config.matcher'
 import { GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { getCurrentBranch } from '@pnpm/network.git-utils'
-import loadNpmConf from '@pnpm/npm-conf'
-import type npmTypes from '@pnpm/npm-conf/lib/types.js'
 import { isCamelCase } from '@pnpm/text.naming-cases'
 import type { DevEngines, EngineDependency, ProjectManifest } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -23,13 +21,13 @@ import { pathAbsolute } from 'path-absolute'
 import { omit } from 'ramda'
 import { realpathMissing } from 'realpath-missing'
 import semver from 'semver'
-import which from 'which'
 
-import { inheritAuthConfig, isIniConfigKey, pickIniConfig } from './auth.js'
+import { inheritAuthConfig, pickIniConfig } from './auth.js'
 import { checkGlobalBinDir } from './checkGlobalBinDir.js'
 import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 import type {
   Config,
+  ConfigContext,
   ConfigWithDeprecatedSettings,
   ProjectConfig,
   UniversalOptions,
@@ -39,8 +37,10 @@ import { isConfigFileKey } from './configFileKey.js'
 import { extractAndRemoveDependencyBuildOptions, hasDependencyBuildOptions } from './dependencyBuildOptions.js'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs.js'
 import { parseEnvVars } from './env.js'
-import { getDefaultAuthInfo, getNetworkConfigs } from './getNetworkConfigs.js'
+import { getDefaultCreds, getNetworkConfigs } from './getNetworkConfigs.js'
 import { getOptionsFromPnpmSettings } from './getOptionsFromRootManifest.js'
+import { loadNpmrcConfig } from './loadNpmrcFiles.js'
+import { npmDefaults } from './npmDefaults.js'
 import {
   type CliOptions as SupportedArchitecturesCliOptions,
   overrideSupportedArchitecturesWithCLI,
@@ -51,6 +51,7 @@ export { types }
 
 export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 export { getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
+export type { Creds } from './parseCreds.js'
 export {
   createProjectConfigRecord,
   type CreateProjectConfigRecordOptions,
@@ -63,10 +64,9 @@ export {
   ProjectConfigsMatchItemIsNotAStringError,
   ProjectConfigUnsupportedFieldError,
 } from './projectConfig.js'
+export type { Config, ConfigContext, ProjectConfig, UniversalOptions, VerifyDepsBeforeRun }
 
-export type { Config, ProjectConfig, UniversalOptions, VerifyDepsBeforeRun }
-
-export { isIniConfigKey } from './auth.js'
+export { isIniConfigKey, isNpmrcReadableKey } from './auth.js'
 export { type ConfigFileKey, isConfigFileKey } from './configFileKey.js'
 
 type CamelToKebabCase<S extends string> = S extends `${infer T}${infer U}`
@@ -75,9 +75,7 @@ type CamelToKebabCase<S extends string> = S extends `${infer T}${infer U}`
 
 type KebabCaseConfig = {
   [K in keyof ConfigWithDeprecatedSettings as CamelToKebabCase<K>]: ConfigWithDeprecatedSettings[K];
-} | typeof npmTypes.types
-
-const npmDefaults = loadNpmConf.defaults
+}
 
 export type CliOptions = Record<string, unknown> & SupportedArchitecturesCliOptions & { dir?: string, json?: boolean }
 
@@ -88,13 +86,11 @@ export async function getConfig (opts: {
     name: string
     version: string
   }
-  rcOptionsTypes?: Record<string, unknown>
   workspaceDir?: string | undefined
-  checkUnknownSetting?: boolean
   env?: Record<string, string | undefined>
   ignoreNonAuthSettingsFromLocal?: boolean
   ignoreLocalSettings?: boolean
-}): Promise<{ config: Config, warnings: string[] }> {
+}): Promise<{ config: Config, context: ConfigContext, warnings: string[] }> {
   if (opts.ignoreNonAuthSettingsFromLocal) {
     const { ignoreNonAuthSettingsFromLocal: _, ...authOpts } = opts
     const globalCfgOpts: typeof authOpts = {
@@ -106,7 +102,7 @@ export async function getConfig (opts: {
       },
     }
     const [final, authSrc] = await Promise.all([getConfig(globalCfgOpts), getConfig(authOpts)])
-    inheritAuthConfig(final.config, authSrc.config)
+    inheritAuthConfig(final, authSrc)
     final.warnings.push(...authSrc.warnings)
     return final
   }
@@ -124,24 +120,9 @@ export async function getConfig (opts: {
     }
   }
 
-  // This is what npm does as well, overriding process.execPath with the resolved location of Node.
-  // The value of process.execPath is changed only for the duration of config initialization.
-  // Otherwise, npmConfig.globalPrefix would sometimes have the bad location.
-  //
-  // TODO: use this workaround only during global installation
-  const originalExecPath = process.execPath
-  try {
-    const node = await which(process.argv[0])
-    if (node.toUpperCase() !== process.execPath.toUpperCase()) {
-      process.execPath = node
-    }
-  } catch { } // eslint-disable-line:no-empty
-
   if (cliOptions.dir) {
     cliOptions.dir = await realpathMissing(cliOptions.dir)
-    cliOptions['prefix'] = cliOptions.dir // the npm config system still expects `prefix`
   }
-  const rcOptionsTypes = { ...types, ...opts.rcOptionsTypes }
   const defaultOptions: Partial<KebabCaseConfig> = {
     'auto-install-peers': true,
     bail: true,
@@ -151,6 +132,7 @@ export async function getConfig (opts: {
     'dangerously-allow-all-builds': false,
     'deploy-all-files': false,
     'dedupe-peer-dependents': true,
+    'dedupe-peers': false,
     'dedupe-direct-deps': false,
     'dedupe-injected-deps': true,
     'disallow-workspace-cycles': false,
@@ -189,6 +171,7 @@ export async function getConfig (opts: {
     'link-workspace-packages': false,
     'lockfile-include-tarball-url': false,
     'manage-package-manager-versions': true,
+    'minimum-release-age': 24 * 60, // 1 day
     'modules-cache-max-age': 7 * 24 * 60, // 7 days
     'dlx-cache-max-age': 24 * 60, // 1 day
     'node-linker': 'isolated',
@@ -230,47 +213,54 @@ export async function getConfig (opts: {
     'peers-suffix-max-length': 1000,
   }
 
-  const { config: npmConfig, warnings, failedToLoadBuiltInConfig } = loadNpmConf(cliOptions, rcOptionsTypes, defaultOptions)
-
   const configDir = getConfigDir(process)
-  {
-    const warn = npmConfig.addFile(path.join(configDir as string, 'rc'), 'pnpm-global')
-    if (warn) warnings.push(warn)
-  }
-  npmConfig.add({
-    registry: 'https://registry.npmjs.org/',
-    '@jsr:registry': 'https://npm.jsr.io/',
-  }, 'pnpm-builtin')
-  {
-    const warn = npmConfig.addFile(path.resolve(path.join(import.meta.dirname, 'pnpmrc')), 'pnpm-builtin')
-    if (warn) warnings.push(warn)
-  }
 
-  delete cliOptions.prefix
+  // Read npmrcAuthFile early from global config.yaml (before loading .npmrc files)
+  const globalYamlConfigForNpmrcAuthFile = await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
+  const npmrcAuthFile = cliOptions['npmrc-auth-file'] as string | undefined
+    ?? cliOptions.userconfig as string | undefined
+    ?? globalYamlConfigForNpmrcAuthFile?.npmrcAuthFile
 
-  process.execPath = originalExecPath
-
-  const rcOptions = Object.keys(rcOptionsTypes)
+  const npmrcResult = loadNpmrcConfig({
+    cliOptions,
+    defaultOptions: defaultOptions as Record<string, unknown>,
+    dir: cliOptions.dir as string | undefined,
+    workspaceDir: opts.workspaceDir,
+    npmrcAuthFile,
+    configDir: configDir as string,
+    moduleDirname: import.meta.dirname,
+    env: opts.env,
+  })
+  const warnings = npmrcResult.warnings
 
   const configFromCliOpts = Object.fromEntries(Object.entries(cliOptions)
     .filter(([_, value]) => typeof value !== 'undefined')
     .map(([name, value]) => [camelcase(name, { locale: 'en-US' }), value])
   )
 
-  const pnpmConfig: ConfigWithDeprecatedSettings = Object.fromEntries(
-    rcOptions
-      .map((configKey) => [
-        camelcase(configKey, { locale: 'en-US' }),
-        isIniConfigKey(configKey) ? npmConfig.get(configKey) : (defaultOptions as Record<string, unknown>)[configKey],
-      ])
-  ) as ConfigWithDeprecatedSettings
+  // Build initial config from defaults, then overlay auth/registry values from .npmrc
+  const pnpmConfig = Object.fromEntries(
+    Object.entries(defaultOptions)
+      .map(([key, value]) => [camelcase(key, { locale: 'en-US' }), value])
+  ) as unknown as (ConfigWithDeprecatedSettings & ConfigContext)
+
+  for (const [key, value] of Object.entries(npmrcResult.mergedConfig)) {
+    if (Object.hasOwn(types, key)) {
+      ;(pnpmConfig as unknown as Record<string, unknown>)[camelcase(key, { locale: 'en-US' })] = value
+    }
+  }
 
   const globalDepsBuildConfig = extractAndRemoveDependencyBuildOptions(pnpmConfig)
+
+  // Track which keys are explicitly set (not defaults)
+  const explicitlySetKeys = new Set<string>(Object.keys(configFromCliOpts))
+  pnpmConfig.explicitlySetKeys = explicitlySetKeys
+  pnpmConfig.cliOptions = cliOptions
 
   Object.assign(pnpmConfig, configFromCliOpts)
   // Resolving the current working directory to its actual location is crucial.
   // This prevents potential inconsistencies in the future, especially when processing or mapping subdirectories.
-  const cwd = fs.realpathSync(betterPathResolve(cliOptions.dir ?? npmConfig.localPrefix))
+  const cwd = fs.realpathSync(betterPathResolve(cliOptions.dir ?? npmrcResult.localPrefix))
 
   // Unfortunately, there is no way to escape the PATH delimiter,
   // so directories added to PATH should not contain it.
@@ -278,37 +268,27 @@ export async function getConfig (opts: {
     warnings.push(`Directory "${cwd}" contains the path delimiter character (${path.delimiter}), so binaries from node_modules/.bin will not be accessible via PATH. Consider renaming the directory.`)
   }
 
-  pnpmConfig.maxSockets = npmConfig.maxsockets
+  // @ts-expect-error - maxsockets (lowercase) comes from npmConfigTypes, maxSockets (camelCase) is the Config field
+  pnpmConfig.maxSockets = pnpmConfig.maxSockets ?? pnpmConfig['maxsockets'] ?? npmDefaults.maxsockets
   // @ts-expect-error
   delete pnpmConfig['maxsockets']
 
   pnpmConfig.configDir = configDir
   pnpmConfig.workspaceDir = opts.workspaceDir
   pnpmConfig.workspaceRoot = cliOptions['workspace-root'] as boolean // This is needed to prevent pnpm reading workspaceRoot from env variables
-  pnpmConfig.rawLocalConfig = Object.assign(
-    {},
-    ...npmConfig.list.slice(3, pnpmConfig.workspaceDir && pnpmConfig.workspaceDir !== cwd ? 5 : 4).reverse(),
-    cliOptions
-  )
-  pnpmConfig.userAgent = pnpmConfig.rawLocalConfig['user-agent']
-    ? pnpmConfig.rawLocalConfig['user-agent']
-    : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
-  pnpmConfig.rawConfig = Object.assign(
-    {},
-    ...npmConfig.list.map(pickIniConfig).reverse(),
-    pickIniConfig(cliOptions),
-    { 'user-agent': pnpmConfig.userAgent },
-    { globalconfig: path.join(configDir, 'rc') },
-    { 'npm-globalconfig': npmDefaults.globalconfig }
-  )
 
-  const globalYamlConfig = await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
-  for (const key in globalYamlConfig) {
-    if (!isConfigFileKey(kebabCase(key))) {
-      delete globalYamlConfig[key as keyof typeof globalYamlConfig]
-    }
-  }
+  pnpmConfig.userAgent = (cliOptions['user-agent'] as string | undefined)
+    ?? `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
+  pnpmConfig.authConfig = pickIniConfig(npmrcResult.rawConfig)
+
+  // Reuse the global config.yaml already read for npmrcAuthFile
+  const globalYamlConfig = globalYamlConfigForNpmrcAuthFile
   if (globalYamlConfig) {
+    for (const key in globalYamlConfig) {
+      if (!isConfigFileKey(kebabCase(key))) {
+        delete globalYamlConfig[key as keyof typeof globalYamlConfig]
+      }
+    }
     addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
       configFromCliOpts,
       projectManifest: undefined,
@@ -316,14 +296,28 @@ export async function getConfig (opts: {
       workspaceManifest: globalYamlConfig,
     })
   }
-  const networkConfigs = getNetworkConfigs(pnpmConfig.rawConfig)
-  pnpmConfig.registries = {
-    default: normalizeRegistryUrl(pnpmConfig.rawConfig.registry),
+  const networkConfigs = getNetworkConfigs(pnpmConfig.authConfig)
+  const registriesFromNpmrc = {
+    default: normalizeRegistryUrl(pnpmConfig.authConfig.registry),
     ...networkConfigs.registries,
   }
-  pnpmConfig.authInfos = networkConfigs.authInfos ?? {} // TODO: remove `?? {}` (when possible)
-  pnpmConfig.sslConfigs = networkConfigs.sslConfigs
-  Object.assign(pnpmConfig, getDefaultAuthInfo(pnpmConfig.rawConfig))
+  pnpmConfig.registries = { ...registriesFromNpmrc }
+  const defaultCreds = getDefaultCreds(pnpmConfig.authConfig)
+  pnpmConfig.configByUri = {
+    ...networkConfigs.configByUri,
+    ...defaultCreds ? { '': { creds: defaultCreds } } : {},
+  }
+  // tokenHelper must only come from user-level config (~/.npmrc or global auth.ini),
+  // not project-level, to prevent project .npmrc from executing arbitrary commands.
+  const userConfig = npmrcResult.userConfig as Record<string, string>
+  for (const [key, value] of Object.entries(pnpmConfig.authConfig)) {
+    if (!key.endsWith('tokenHelper') && key !== 'tokenHelper') continue
+    if (!(key in userConfig) || userConfig[key] !== value) {
+      throw new PnpmError('TOKEN_HELPER_IN_PROJECT_CONFIG',
+        'tokenHelper must not be configured in project-level .npmrc',
+        { hint: `The key "${key}" was found in project config. Move it to ~/.npmrc or the global pnpm auth.ini.` })
+    }
+  }
   pnpmConfig.pnpmHomeDir = getDataDir({ env, platform: process.platform })
   let globalDirRoot
   if (pnpmConfig.globalDir) {
@@ -335,7 +329,7 @@ export async function getConfig (opts: {
   pnpmConfig.dir = cwd
   if (cliOptions['global']) {
     delete pnpmConfig.workspaceDir
-    pnpmConfig.bin = npmConfig.get('global-bin-dir') ?? path.join(pnpmConfig.pnpmHomeDir, 'bin')
+    pnpmConfig.bin = pnpmConfig.globalBinDir ?? path.join(pnpmConfig.pnpmHomeDir, 'bin')
     if (pnpmConfig.bin) {
       fs.mkdirSync(pnpmConfig.bin, { recursive: true })
       await checkGlobalBinDir(pnpmConfig.bin, { env, shouldAllowWrite: opts.globalDirShouldAllowWrite })
@@ -392,8 +386,8 @@ export async function getConfig (opts: {
   }
   pnpmConfig.packageManager = packageManager
 
+  pnpmConfig.rootProjectManifestDir = pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
   if (!opts.ignoreLocalSettings) {
-    pnpmConfig.rootProjectManifestDir = pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
     pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.rootProjectManifestDir) ?? undefined
     if (pnpmConfig.rootProjectManifest != null) {
       if (pnpmConfig.rootProjectManifest.workspaces?.length && !pnpmConfig.workspaceDir) {
@@ -435,12 +429,28 @@ export async function getConfig (opts: {
     }
   }
 
+  // Merge registries from pnpm-workspace.yaml onto the .npmrc-based registries.
+  // The workspace manifest may have set pnpmConfig.registries via addSettingsFromWorkspaceManifestToConfig,
+  // but we need to ensure 'default' is always set and all URLs are normalized.
+  const workspaceRegistries = pnpmConfig.registries as Record<string, string> | undefined
+  pnpmConfig.registries = {
+    ...registriesFromNpmrc,
+    ...workspaceRegistries,
+  }
+  if (!pnpmConfig.registries.default) {
+    pnpmConfig.registries.default = registriesFromNpmrc.default
+  }
+  for (const [scope, url] of Object.entries(pnpmConfig.registries)) {
+    if (typeof url === 'string') {
+      pnpmConfig.registries[scope] = normalizeRegistryUrl(url)
+    }
+  }
+
   // omit some schema that the custom parser can't yet handle
   const envPnpmTypes = omit([
     'init-version', // the type is a private function named 'semver'
     'node-version', // the type is a private function named 'semver'
     'umask', // the type is a private function named 'Umask'
-    'logstream', // the custom parser doesn't have logic to handle 'Stream' yet
   ], types)
 
   for (const { key, value } of parseEnvVars(key => envPnpmTypes[key as keyof typeof envPnpmTypes], env)) {
@@ -452,6 +462,7 @@ export async function getConfig (opts: {
 
     // @ts-expect-error
     pnpmConfig[key] = value
+    explicitlySetKeys.add(key)
 
     if (key === 'registry') {
       if (typeof value !== 'string') {
@@ -566,35 +577,16 @@ export async function getConfig (opts: {
       break
   }
   if (!pnpmConfig.userConfig) {
-    pnpmConfig.userConfig = npmConfig.sources.user?.data
+    pnpmConfig.userConfig = npmrcResult.userConfig as Record<string, string>
   }
   pnpmConfig.sideEffectsCacheRead = pnpmConfig.sideEffectsCache ?? pnpmConfig.sideEffectsCacheReadonly
   pnpmConfig.sideEffectsCacheWrite = pnpmConfig.sideEffectsCache
-
-  // TODO: consider removing checkUnknownSetting entirely
-  if (opts.checkUnknownSetting) {
-    const settingKeys = Object.keys({
-      ...npmConfig?.sources?.workspace?.data,
-      ...npmConfig?.sources?.project?.data,
-    }).filter(key => key.trim() !== '')
-    const unknownKeys = []
-    for (const key of settingKeys) {
-      if (!rcOptions.includes(key) && !key.startsWith('//') && !(key[0] === '@' && key.endsWith(':registry'))) {
-        unknownKeys.push(key)
-      }
-    }
-    if (unknownKeys.length > 0) {
-      warnings.push(`Your .npmrc file contains unknown setting: ${unknownKeys.join(', ')}`)
-    }
-  }
 
   if (pnpmConfig.sharedWorkspaceLockfile && !pnpmConfig.lockfileDir && pnpmConfig.workspaceDir) {
     pnpmConfig.lockfileDir = pnpmConfig.workspaceDir
   }
 
   pnpmConfig.workspaceConcurrency = getWorkspaceConcurrency(pnpmConfig.workspaceConcurrency)
-
-  pnpmConfig.failedToLoadBuiltInConfig = failedToLoadBuiltInConfig
 
   if (pnpmConfig.only === 'prod' || pnpmConfig.only === 'production' || !pnpmConfig.only && pnpmConfig.production) {
     pnpmConfig.production = true
@@ -639,7 +631,24 @@ export async function getConfig (opts: {
     }
   }
 
-  return { config: pnpmConfig, warnings }
+  const {
+    hooks, finders,
+    allProjects, selectedProjectsGraph, allProjectsGraph,
+    rootProjectManifest, rootProjectManifestDir,
+    cliOptions: ctxCliOptions,
+    explicitlySetKeys: ctxExplicitlySetKeys,
+    packageManager: ctxPackageManager, wantedPackageManager,
+    ...config
+  } = pnpmConfig as Config & ConfigContext
+  const context: ConfigContext = {
+    hooks, finders,
+    allProjects, selectedProjectsGraph, allProjectsGraph,
+    rootProjectManifest, rootProjectManifestDir,
+    cliOptions: ctxCliOptions,
+    explicitlySetKeys: ctxExplicitlySetKeys,
+    packageManager: ctxPackageManager, wantedPackageManager,
+  }
+  return { config, context, warnings }
 }
 
 function getProcessEnv (env: string): string | undefined {
@@ -736,7 +745,7 @@ function getNodeVersionFromEnginesRuntime (manifest: ProjectManifest): string | 
   return undefined
 }
 
-function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config, {
+function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigContext, {
   configFromCliOpts,
   projectManifest,
   workspaceManifest,
@@ -753,13 +762,7 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config, {
 
     // @ts-expect-error
     pnpmConfig[key] = value
-
-    const kebabKey = kebabCase(key)
-    // Q: Why `types` instead of `rcOptionTypes`?
-    // A: `rcOptionTypes` includes options that would matter to the `npm` cli which wouldn't care about `pnpm-workspace.yaml`.
-    const isRc = kebabKey in types
-    const targetKey = isRc ? kebabKey : key
-    pnpmConfig.rawConfig[targetKey] = value
+    pnpmConfig.explicitlySetKeys.add(key)
   }
   // All the pnpm_config_ env variables should override the settings from pnpm-workspace.yaml,
   // as it happens with .npmrc.
@@ -768,7 +771,7 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config, {
   // Related issue: https://github.com/pnpm/pnpm/issues/10060
   if (process.env.pnpm_config_verify_deps_before_run != null) {
     pnpmConfig.verifyDepsBeforeRun = process.env.pnpm_config_verify_deps_before_run as VerifyDepsBeforeRun
-    pnpmConfig.rawConfig['verify-deps-before-run'] = pnpmConfig.verifyDepsBeforeRun
   }
   pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
 }
+

@@ -1,5 +1,5 @@
 import { docsUrl, TABLE_OPTIONS } from '@pnpm/cli.utils'
-import { type Config, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { audit, type AuditAdvisory, type AuditLevelNumber, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts, type IgnoredAuditVulnerabilityCounts } from '@pnpm/deps.compliance.audit'
 import { PnpmError } from '@pnpm/error'
@@ -79,6 +79,8 @@ export const shorthands: Record<string, string> = {
 }
 
 export const commandNames = ['audit']
+
+export const recursiveByDefault = true
 
 export function help (): string {
   return renderHelp({
@@ -162,12 +164,12 @@ export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
 | 'dev'
 | 'overrides'
 | 'optional'
-| 'userConfig'
-| 'rawConfig'
-| 'rootProjectManifest'
-| 'rootProjectManifestDir'
+| 'configByUri'
 | 'virtualStoreDirMaxLength'
 | 'workspaceDir'
+> & Pick<ConfigContext,
+| 'rootProjectManifest'
+| 'rootProjectManifestDir'
 > & InstallCommandOptions
 
 const DEFAULT_FIX_METHOD = 'override'
@@ -185,10 +187,10 @@ export async function handler (opts: AuditOptions): Promise<{ exitCode: number, 
     optionalDependencies: opts.optional !== false,
   }
   let auditReport!: AuditReport
-  const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.rawConfig, userSettings: opts.userConfig })
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri, opts.registries?.default)
   try {
     auditReport = await audit(lockfile, getAuthHeader, {
-      agentOptions: {
+      dispatcherOptions: {
         ca: opts.ca,
         cert: opts.cert,
         httpProxy: opts.httpProxy,

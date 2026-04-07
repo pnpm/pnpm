@@ -1,4 +1,3 @@
-import assert from 'node:assert'
 import type { IncomingMessage } from 'node:http'
 import util from 'node:util'
 
@@ -88,9 +87,25 @@ export function createDownloader (
             reject(op.mainError())
             return
           }
+          // Extract error properties into a plain object because Error properties
+          // are non-enumerable and don't serialize well through the logging system
+          const errorInfo = {
+            name: error.name,
+            message: error.message,
+            code: error.code,
+            errno: error.errno,
+            // For HTTP errors from our ResponseError class
+            status: error.status,
+            statusCode: error.statusCode,
+            // undici wraps the actual network error in a cause property
+            cause: error.cause ? {
+              code: error.cause.code,
+              errno: error.cause.errno,
+            } : undefined,
+          }
           requestRetryLogger.debug({
             attempt,
-            error,
+            error: errorInfo,
             maxRetries: retryOpts.retries,
             method: 'GET',
             timeout,
@@ -119,9 +134,8 @@ export function createDownloader (
         }
 
         const contentLength = res.headers.has('content-length') && res.headers.get('content-length')
-        const size = typeof contentLength === 'string'
-          ? parseInt(contentLength, 10)
-          : null
+        const parsedLength = typeof contentLength === 'string' ? parseInt(contentLength, 10) : NaN
+        const size = Number.isFinite(parsedLength) && parsedLength >= 0 ? parsedLength : null
         if (opts.onStart != null) {
           opts.onStart(size, currentAttempt)
         }
@@ -131,19 +145,44 @@ export function createDownloader (
           : undefined
         const startTime = Date.now()
         let downloaded = 0
-        const chunks: Buffer[] = []
-        // This will handle the 'data', 'error', and 'end' events.
-        for await (const chunk of res.body!) {
-          chunks.push(chunk as Buffer)
-          downloaded += chunk.length
-          onProgress?.(downloaded)
-        }
-        if (size !== null && size !== downloaded) {
-          throw new BadTarballError({
-            expectedSize: size,
-            receivedSize: downloaded,
-            tarballUrl: url,
-          })
+        if (size !== null) {
+          // Known size: pre-allocate and copy directly (avoids intermediate array + second copy pass)
+          data = Buffer.from(new SharedArrayBuffer(size))
+          for await (const chunk of res.body!) {
+            const c = chunk as Uint8Array
+            const nextDownloaded = downloaded + c.byteLength
+            if (nextDownloaded > size) {
+              throw new BadTarballError({
+                expectedSize: size,
+                receivedSize: nextDownloaded,
+                tarballUrl: url,
+              })
+            }
+            data.set(c, downloaded)
+            downloaded = nextDownloaded
+            onProgress?.(downloaded)
+          }
+          if (size !== downloaded) {
+            throw new BadTarballError({
+              expectedSize: size,
+              receivedSize: downloaded,
+              tarballUrl: url,
+            })
+          }
+        } else {
+          const chunks: Uint8Array[] = []
+          for await (const chunk of res.body!) {
+            const c = chunk as Uint8Array
+            chunks.push(c)
+            downloaded += c.byteLength
+            onProgress?.(downloaded)
+          }
+          data = Buffer.from(new SharedArrayBuffer(downloaded))
+          let offset = 0
+          for (const chunk of chunks) {
+            data.set(chunk, offset)
+            offset += chunk.byteLength
+          }
         }
         const elapsedSec = (Date.now() - startTime) / 1000
         const avgKiBps = Math.floor((downloaded / elapsedSec) / 1024)
@@ -151,20 +190,13 @@ export function createDownloader (
           const sizeKb = Math.floor(downloaded / 1024)
           globalWarn(`Tarball download average speed ${avgKiBps} KiB/s (size ${sizeKb} KiB) is below ${fetchMinSpeedKiBps} KiB/s: ${url} (GET)`)
         }
-
-        data = Buffer.from(new SharedArrayBuffer(downloaded))
-        let offset: number = 0
-        for (const chunk of chunks) {
-          chunk.copy(data, offset)
-          offset += chunk.length
-        }
       } catch (err: unknown) {
-        assert(util.types.isNativeError(err))
-        Object.assign(err, {
+        const error = util.types.isNativeError(err) ? err : new Error(String(err), { cause: err })
+        Object.assign(error, {
           attempts: currentAttempt,
           resource: url,
         })
-        throw err
+        throw error
       }
       return addFilesFromTarball({
         buffer: data,

@@ -89,6 +89,8 @@ Or a specific test case in a specific file:
 pnpm --filter <package_name> test <file_path> -t <test_name_pattern>
 ```
 
+**Never ignore test failures.** Do not dismiss a failing test as a "pre-existing" failure that is unrelated to your changes. Every test failure must be investigated and fixed. If a test was already broken before your changes, fix it as part of your work — do not silently skip it or treat it as acceptable.
+
 ## Linting
 
 To run all linting checks:
@@ -109,7 +111,7 @@ Example:
 
 ```
 ---
-"@pnpm/core": minor
+"@pnpm/installing.deps-installer": minor
 "pnpm": minor
 ---
 
@@ -186,6 +188,16 @@ try {
   throw err
 }
 ```
+
+## Resolving Conflicts in GitHub PRs
+
+Use `shell/resolve-pr-conflicts.sh` to resolve PR conflicts:
+
+```bash
+./shell/resolve-pr-conflicts.sh <PR_NUMBER>
+```
+
+The script force-fetches the base branch (avoiding stale refs), rebases, auto-resolves `pnpm-lock.yaml` conflicts via `pnpm install`, force-pushes, and verifies GitHub sees the PR as mergeable. For non-lockfile conflicts it will pause and list the files that need manual resolution.
 
 ## Key Configuration Files
 

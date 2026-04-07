@@ -7,7 +7,6 @@ import { getNetworkConfigs, type NetworkConfigs } from '../src/getNetworkConfigs
 test('without files', () => {
   expect(getNetworkConfigs({})).toStrictEqual({
     registries: {},
-    sslConfigs: {},
   } as NetworkConfigs)
 
   expect(getNetworkConfigs({
@@ -16,18 +15,15 @@ test('without files', () => {
     registries: {
       '@foo': 'https://example.com/foo',
     },
-    sslConfigs: {},
   } as NetworkConfigs)
 
   expect(getNetworkConfigs({
     '//example.com/foo:ca': 'some-ca',
   })).toStrictEqual({
     registries: {},
-    sslConfigs: {
+    configByUri: {
       '//example.com/foo': {
-        ca: 'some-ca',
-        cert: '',
-        key: '',
+        tls: { ca: 'some-ca' },
       },
     },
   } as NetworkConfigs)
@@ -36,10 +32,9 @@ test('without files', () => {
     '//example.com/foo:cert': 'some-cert',
   })).toStrictEqual({
     registries: {},
-    sslConfigs: {
+    configByUri: {
       '//example.com/foo': {
-        cert: 'some-cert',
-        key: '',
+        tls: { cert: 'some-cert' },
       },
     },
   } as NetworkConfigs)
@@ -52,11 +47,9 @@ test('without files', () => {
     registries: {
       '@foo': 'https://example.com/foo',
     },
-    sslConfigs: {
+    configByUri: {
       '//example.com/foo': {
-        ca: 'some-ca',
-        cert: 'some-cert',
-        key: '',
+        tls: { ca: 'some-ca', cert: 'some-cert' },
       },
     },
   } as NetworkConfigs)
@@ -76,17 +69,15 @@ test('with files', () => {
     registries: {
       '@foo': 'https://example.com/foo',
     },
-    sslConfigs: {
+    configByUri: {
       '//example.com/foo': {
-        ca: 'some-ca',
-        cert: 'some-cert',
-        key: '',
+        tls: { ca: 'some-ca', cert: 'some-cert' },
       },
     },
   } as NetworkConfigs)
 })
 
-test('auth infos', () => {
+test('auth and tls combined', () => {
   expect(getNetworkConfigs({
     '@foo:registry': 'https://example.com/foo',
     '//example.com/foo:_authToken': 'example auth token',
@@ -94,12 +85,11 @@ test('auth infos', () => {
     registries: {
       '@foo': 'https://example.com/foo',
     },
-    authInfos: {
+    configByUri: {
       '//example.com/foo': {
-        authToken: 'example auth token',
+        creds: { authToken: 'example auth token' },
       },
     },
-    sslConfigs: {},
   } as NetworkConfigs)
 
   expect(getNetworkConfigs({
@@ -109,15 +99,16 @@ test('auth infos', () => {
     registries: {
       '@foo': 'https://example.com/foo',
     },
-    authInfos: {
+    configByUri: {
       '//example.com/foo': {
-        authUserPass: {
-          username: 'foo',
-          password: 'bar',
+        creds: {
+          basicAuth: {
+            username: 'foo',
+            password: 'bar',
+          },
         },
       },
     },
-    sslConfigs: {},
   } as NetworkConfigs)
 
   expect(getNetworkConfigs({
@@ -128,15 +119,16 @@ test('auth infos', () => {
     registries: {
       '@foo': 'https://example.com/foo',
     },
-    authInfos: {
+    configByUri: {
       '//example.com/foo': {
-        authUserPass: {
-          username: 'foo',
-          password: 'bar',
+        creds: {
+          basicAuth: {
+            username: 'foo',
+            password: 'bar',
+          },
         },
       },
     },
-    sslConfigs: {},
   } as NetworkConfigs)
 
   expect(getNetworkConfigs({
@@ -146,12 +138,25 @@ test('auth infos', () => {
     registries: {
       '@foo': 'https://example.com/foo',
     },
-    authInfos: {
+    configByUri: {
       '//example.com/foo': {
-        tokenHelper: ['node', './my-token-helper.cjs'],
+        creds: { tokenHelper: ['node', './my-token-helper.cjs'] },
       },
     },
-    sslConfigs: {},
+  } as NetworkConfigs)
+
+  expect(getNetworkConfigs({
+    '//example.com/foo:_authToken': 'token',
+    '//example.com/foo:cert': 'some-cert',
+    '//example.com/foo:key': 'some-key',
+  })).toStrictEqual({
+    registries: {},
+    configByUri: {
+      '//example.com/foo': {
+        creds: { authToken: 'token' },
+        tls: { cert: 'some-cert', key: 'some-key' },
+      },
+    },
   } as NetworkConfigs)
 })
 
@@ -163,6 +168,5 @@ test('unsupported key', () => {
     registries: {
       '@foo': 'https://example.com/foo',
     },
-    sslConfigs: {},
   } as NetworkConfigs)
 })

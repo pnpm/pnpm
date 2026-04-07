@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { docsUrl } from '@pnpm/cli.utils'
-import { type Config, types as allTypes } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { install } from '@pnpm/installing.commands'
 import enquirer from 'enquirer'
@@ -21,6 +21,8 @@ export function cliOptionsTypes (): Record<string, unknown> {
 
 export const commandNames = ['patch-remove']
 
+export const recursiveByDefault = true
+
 export function help (): string {
   return renderHelp({
     description: 'Remove existing patch files',
@@ -29,7 +31,7 @@ export function help (): string {
   })
 }
 
-export type PatchRemoveCommandOptions = install.InstallCommandOptions & Pick<Config, 'dir' | 'lockfileDir' | 'patchesDir' | 'rootProjectManifest' | 'patchedDependencies'>
+export type PatchRemoveCommandOptions = install.InstallCommandOptions & Pick<Config, 'dir' | 'lockfileDir' | 'patchesDir' | 'patchedDependencies'> & Pick<ConfigContext, 'rootProjectManifest'>
 
 export async function handler (opts: PatchRemoveCommandOptions, params: string[]): Promise<void> {
   let patchesToRemove = params

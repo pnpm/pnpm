@@ -34,7 +34,6 @@
 "@pnpm/cli.common-cli-options-help": major
 "@pnpm/config.normalize-registries": major
 "@pnpm/lockfile.preferred-versions": major
-"@pnpm/installing.render-peer-issues": major
 "@pnpm/installing.linking.modules-cleaner": major
 "@pnpm/pkg-manifest.utils": major
 "@pnpm/fetching.directory-fetcher": major
@@ -75,7 +74,7 @@
 "@pnpm/engine.runtime.bun-resolver": major
 "@pnpm/resolving.git-resolver": major
 "@pnpm/resolving.npm-resolver": major
-"@pnpm/config.deps-installer": major
+"@pnpm/installing.env-installer": major
 "@pnpm/fetching.fetcher-base": major
 "@pnpm/fetching.pick-fetcher": major
 "@pnpm/fs.symlink-dependency": major

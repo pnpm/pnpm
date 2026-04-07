@@ -198,12 +198,12 @@ export async function buildProjects (
     extraNodePaths: ctx.extraNodePaths,
     extraEnv: opts.extraEnv,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-    rawConfig: opts.rawConfig,
     scriptsPrependNodePath: opts.scriptsPrependNodePath,
     scriptShell: opts.scriptShell,
     shellEmulator: opts.shellEmulator,
     storeController: store.ctrl,
     unsafePerm: opts.unsafePerm || false,
+    userAgent: opts.userAgent,
   }
   await runLifecycleHooksConcurrently(
     ['preinstall', 'install', 'postinstall', 'prepublish', 'prepare'],
@@ -386,11 +386,11 @@ async function _rebuild (
           extraEnv: opts.extraEnv,
           optional: pkgSnapshot.optional === true,
           pkgRoot,
-          rawConfig: opts.rawConfig,
           rootModulesDir: ctx.rootModulesDir,
           scriptsPrependNodePath: opts.scriptsPrependNodePath,
           shellEmulator: opts.shellEmulator,
           unsafePerm: opts.unsafePerm || false,
+          userAgent: opts.userAgent,
         })
         if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && resolution.integrity) {
           builtDepPaths.add(depPath)

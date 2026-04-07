@@ -1,4 +1,4 @@
-import type { Config } from '@pnpm/config.reader'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
 import type * as logs from '@pnpm/core-loggers'
 import type { LogLevel, StreamParser } from '@pnpm/logger'
 import createDiffer from 'ansi-diff'
@@ -33,7 +33,7 @@ export function initDefaultReporter (
     }
     context: {
       argv: string[]
-      config?: Config
+      config?: Config & ConfigContext
       env?: NodeJS.ProcessEnv
       process?: NodeJS.Process
     }
@@ -111,7 +111,7 @@ export function toOutput$ (
     }
     context: {
       argv: string[]
-      config?: Config
+      config?: Config & ConfigContext
       env?: NodeJS.ProcessEnv
       process?: NodeJS.Process
     }

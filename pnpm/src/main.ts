@@ -10,13 +10,13 @@ import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
-import type { ParsedCliArgs } from '@pnpm/cli.parse-cli-args'
-import type { Config } from '@pnpm/config.reader'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn, logger } from '@pnpm/logger'
 import type { EngineDependency } from '@pnpm/types'
 import { finishWorkers } from '@pnpm/worker'
+import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { filterProjectsFromDir } from '@pnpm/workspace.projects-filter'
 import chalk from 'chalk'
 import loudRejection from 'loud-rejection'
@@ -24,9 +24,10 @@ import { isEmpty } from 'ramda'
 import semver from 'semver'
 
 import { checkForUpdates } from './checkForUpdates.js'
-import { NOT_IMPLEMENTED_COMMAND_SET, pnpmCmds, rcOptionsTypes, skipPackageManagerCheckForCommand } from './cmd/index.js'
+import { NOT_IMPLEMENTED_COMMAND_SET, overridableByScriptCommands, pnpmCmds, recursiveByDefaultCommands, skipPackageManagerCheckForCommand } from './cmd/index.js'
 import { formatUnknownOptionsError } from './formatError.js'
 import { getConfig, installConfigDepsAndLoadHooks } from './getConfig.js'
+import type { ParsedCliArgsWithBuiltIn } from './parseCliArgs.js'
 import { parseCliArgs } from './parseCliArgs.js'
 import { initReporter, type ReporterType } from './reporter/index.js'
 import { switchCliVersion } from './switchCliVersion.js'
@@ -48,14 +49,8 @@ process.stdout.on('error', (err: NodeJS.ErrnoException) => {
   throw err
 })
 
-const DEPRECATED_OPTIONS = new Set([
-  'independent-leaves',
-  'lock',
-  'resolution-strategy',
-])
-
 export async function main (inputArgv: string[]): Promise<void> {
-  let parsedCliArgs!: ParsedCliArgs
+  let parsedCliArgs!: ParsedCliArgsWithBuiltIn
   try {
     parsedCliArgs = await parseCliArgs(inputArgv)
   } catch (err: any) { // eslint-disable-line
@@ -64,12 +59,13 @@ export async function main (inputArgv: string[]): Promise<void> {
     process.exitCode = 1
     return
   }
-  const {
+  let {
     argv,
     params: cliParams,
     options: cliOptions,
     cmd,
     fallbackCommandUsed,
+    builtInCommandForced,
     unknownOptions,
     workspaceDir,
   } = parsedCliArgs
@@ -80,21 +76,9 @@ export async function main (inputArgv: string[]): Promise<void> {
   }
 
   if (unknownOptions.size > 0 && !fallbackCommandUsed && !(cmd && NOT_IMPLEMENTED_COMMAND_SET.has(cmd))) {
-    const unknownOptionsArray = Array.from(unknownOptions.keys())
-    if (unknownOptionsArray.every((option) => DEPRECATED_OPTIONS.has(option))) {
-      let deprecationMsg = `${chalk.bgYellow.black('\u2009WARN\u2009')}`
-      if (unknownOptionsArray.length === 1) {
-        const deprecatedOption = unknownOptionsArray[0] as string
-        deprecationMsg += ` ${chalk.yellow(`Deprecated option: '${deprecatedOption}'`)}`
-      } else {
-        deprecationMsg += ` ${chalk.yellow(`Deprecated options: ${unknownOptionsArray.map((unknownOption: string) => `'${unknownOption}'`).join(', ')}`)}`
-      }
-      console.log(deprecationMsg)
-    } else {
-      printError(formatUnknownOptionsError(unknownOptions), `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
-      process.exitCode = 1
-      return
-    }
+    printError(formatUnknownOptionsError(unknownOptions), `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
+    process.exitCode = 1
+    return
   }
 
   let config: Config & {
@@ -103,6 +87,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     parseable?: boolean
     json?: boolean
   }
+  let context: ConfigContext
   try {
     // When we just want to print the location of the global bin directory,
     // we don't need the write permission to it. Related issue: #2700
@@ -111,18 +96,16 @@ export async function main (inputArgv: string[]): Promise<void> {
     if (cmd === 'link' && cliParams.length === 0) {
       cliOptions.global = true
     }
-    config = await getConfig(cliOptions, {
+    ;({ config, context } = await getConfig(cliOptions, {
       excludeReporter: false,
       globalDirShouldAllowWrite,
-      rcOptionsTypes,
       workspaceDir,
-      checkUnknownSetting: false,
       ignoreNonAuthSettingsFromLocal: isDlxOrCreateCommand,
-    }) as typeof config
-    if (!isExecutedByCorepack() && cmd !== 'setup' && config.wantedPackageManager != null) {
-      const pm = config.wantedPackageManager
+    }) as { config: typeof config, context: ConfigContext })
+    if (!isExecutedByCorepack() && cmd !== 'setup' && context.wantedPackageManager != null) {
+      const pm = context.wantedPackageManager
       if (pm.onFail === 'download' && pm.name === 'pnpm' && cmd !== 'self-update') {
-        await switchCliVersion(config)
+        await switchCliVersion(config, context)
       } else if (pm.onFail !== 'ignore' && (!cmd || !skipPackageManagerCheckForCommand.has(cmd))) {
         if (cliOptions.global) {
           globalWarn('Using --global skips the package manager check for this project')
@@ -131,7 +114,7 @@ export async function main (inputArgv: string[]): Promise<void> {
         }
       }
     }
-    config = await installConfigDepsAndLoadHooks(config) as typeof config
+    ;({ config, context } = await installConfigDepsAndLoadHooks(config, context) as { config: typeof config, context: ConfigContext })
     if (isDlxOrCreateCommand || cmd === 'sbom') {
       config.useStderr = true
     }
@@ -151,6 +134,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     const hint = err['hint'] ? err['hint'] : `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`
     printError(err.message, hint)
     process.exitCode = 1
+    await finishWorkers()
     return
   }
   if (cmd == null && cliOptions.version) {
@@ -184,13 +168,46 @@ export async function main (inputArgv: string[]): Promise<void> {
   if (printLogs) {
     initReporter(reporterType, {
       cmd,
-      config,
+      config: { ...config, ...context },
     })
     global[REPORTER_INITIALIZED] = reporterType
   }
 
+  // Commands with scriptOverride: if the current project's package.json has a
+  // script with the same name, run the script instead of the built-in command.
+  const typedCommandName = argv.remain[0]
+  if (cmd != null && !builtInCommandForced && overridableByScriptCommands.has(typedCommandName) && !cliOptions.global) {
+    const currentDirManifest = config.dir === context.rootProjectManifestDir
+      ? context.rootProjectManifest
+      : await safeReadProjectManifestOnly(config.dir)
+    if (currentDirManifest?.scripts?.[typedCommandName]) {
+      // Redirect to "pnpm run <cmd>"
+      cmd = 'run'
+      cliParams.unshift(typedCommandName)
+      fallbackCommandUsed = true
+      config.fallbackCommandUsed = true
+      config.extraEnv = {
+        ...config.extraEnv,
+        npm_command: 'run-script',
+      }
+    } else if (
+      workspaceDir &&
+      config.dir !== context.rootProjectManifestDir &&
+      context.rootProjectManifest?.scripts?.[typedCommandName]
+    ) {
+      throw new PnpmError(
+        'SCRIPT_OVERRIDE_IN_WORKSPACE_ROOT',
+        `The workspace root has a "${typedCommandName}" script, ` +
+        `so the built-in "pnpm ${typedCommandName}" command cannot run from a subdirectory`,
+        {
+          hint: `Run "pnpm run ${typedCommandName}" from the workspace root to execute the script`,
+        }
+      )
+    }
+  }
+
   if (
-    (cmd === 'install' || cmd === 'import' || cmd === 'dedupe' || cmd === 'patch-commit' || cmd === 'patch' || cmd === 'patch-remove' || cmd === 'approve-builds' || cmd === 'audit') &&
+    cmd != null && recursiveByDefaultCommands.has(cmd) &&
     typeof workspaceDir === 'string'
   ) {
     cliOptions['recursive'] = true
@@ -245,9 +262,9 @@ export async function main (inputArgv: string[]): Promise<void> {
       process.exitCode = config.failIfNoMatch ? 1 : 0
       return
     }
-    config.allProjectsGraph = filterResults.allProjectsGraph
-    config.selectedProjectsGraph = filterResults.selectedProjectsGraph
-    if (isEmpty(config.selectedProjectsGraph)) {
+    context.allProjectsGraph = filterResults.allProjectsGraph
+    context.selectedProjectsGraph = filterResults.selectedProjectsGraph
+    if (isEmpty(context.selectedProjectsGraph)) {
       if (printLogs) {
         console.log(`No projects matched the filters in "${wsDir}"`)
       }
@@ -263,7 +280,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     if (filterResults.unmatchedFilters.length !== 0 && printLogs) {
       console.log(`No projects matched the filters "${filterResults.unmatchedFilters.join(', ')}" in "${wsDir}"`)
     }
-    config.allProjects = filterResults.allProjects
+    context.allProjects = filterResults.allProjects
     config.workspaceDir = wsDir
   }
 
@@ -297,16 +314,18 @@ export async function main (inputArgv: string[]): Promise<void> {
         !cliOptions['recursive']
           ? { selected: 1 }
           : {
-            selected: Object.keys(config.selectedProjectsGraph!).length,
-            total: config.allProjects!.length,
+            selected: Object.keys(context.selectedProjectsGraph!).length,
+            total: context.allProjects!.length,
           }
       ),
       ...(workspaceDir ? { workspacePrefix: workspaceDir } : {}),
     })
     let result = pnpmCmds[cmd ?? 'help'](
-      // TypeScript doesn't currently infer that the type of config
-      // is `Omit<typeof config, 'reporter'>` after the `delete config.reporter` statement
-      config as Omit<typeof config, 'reporter'>,
+      // Spread config (settings) and context (runtime state) into a single
+      // options object for command handlers. The original split objects are
+      // also passed for handlers that need them separated (e.g. config commands).
+      // Named "_config"/"_context" to avoid clashing with the "--config" CLI option.
+      { ...config, ...context, _config: config, _context: context } as Omit<typeof config & ConfigContext, 'reporter'>,
       cliParams,
       pnpmCmds
     )

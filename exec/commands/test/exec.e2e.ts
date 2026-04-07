@@ -515,8 +515,8 @@ testOnPosixOnly('pnpm recursive exec works with PnP', async () => {
     path.resolve(DEFAULT_OPTS.storeDir),
   ], {
     env: {
-      NPM_CONFIG_NODE_LINKER: 'pnp',
-      NPM_CONFIG_SYMLINK: 'false',
+      pnpm_config_node_linker: 'pnp',
+      pnpm_config_symlink: 'false',
     },
   })
   await exec.handler({

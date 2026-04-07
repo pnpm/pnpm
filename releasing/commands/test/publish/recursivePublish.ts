@@ -92,7 +92,7 @@ test('recursive publish', async () => {
     expect(status).toBe(1)
   }
 
-  process.env.npm_config_userconfig = path.join('.npmrc')
+  process.env.pnpm_config_userconfig = path.join('.npmrc')
   await publish.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
@@ -251,7 +251,7 @@ test('recursive publish writes publish summary', async () => {
 
   fs.writeFileSync('.npmrc', CREDENTIALS, 'utf8')
 
-  process.env.npm_config_userconfig = path.join('.npmrc')
+  process.env.pnpm_config_userconfig = path.join('.npmrc')
   await publish.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
@@ -299,10 +299,7 @@ test('errors on fake registry', async () => {
   const promise = publish.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
-    rawConfig: {
-      ...DEFAULT_OPTS.rawConfig,
-      registry: fakeRegistry,
-    },
+    configByUri: {},
     registries: {
       ...DEFAULT_OPTS.registries,
       default: fakeRegistry,

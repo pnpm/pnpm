@@ -1,5 +1,5 @@
 import type { Config } from './Config.js'
-import { type InheritableConfig, inheritPickedConfig } from './inheritPickedConfig.js'
+import { type InheritableConfigPair, inheritPickedConfig } from './inheritPickedConfig.js'
 import type { types } from './types.js'
 
 const RAW_AUTH_CFG_KEYS = [
@@ -7,14 +7,21 @@ const RAW_AUTH_CFG_KEYS = [
   'cafile',
   'cert',
   'key',
-  'local-address',
-  'git-shallow-hosts',
+  'registry',
+] satisfies Array<keyof typeof types>
+
+/**
+ * Network-related keys that should be readable from .npmrc (for migration from npm)
+ * but written to YAML config files (config.yaml / pnpm-workspace.yaml).
+ */
+const NETWORK_INI_KEYS = [
   'https-proxy',
   'proxy',
   'no-proxy',
-  'registry',
+  'http-proxy',
+  'local-address',
   'strict-ssl',
-] satisfies Array<keyof typeof types>
+]
 
 const RAW_AUTH_CFG_KEY_SUFFIXES = [
   ':ca',
@@ -32,15 +39,10 @@ const RAW_AUTH_CFG_KEY_SUFFIXES = [
 const AUTH_CFG_KEYS = [
   'ca',
   'cert',
+  'configByUri',
   'key',
-  'localAddress',
-  'gitShallowHosts',
-  'httpsProxy',
-  'httpProxy',
-  'noProxy',
   'registry',
   'registries',
-  'strictSsl',
 ] satisfies Array<keyof Config>
 
 const NPM_AUTH_SETTINGS = [
@@ -83,8 +85,8 @@ function pickAuthConfig (localCfg: Partial<Config>): Partial<Config> {
   return result as Partial<Config>
 }
 
-export function inheritAuthConfig (targetCfg: InheritableConfig, authSrcCfg: InheritableConfig): void {
-  inheritPickedConfig(targetCfg, authSrcCfg, pickAuthConfig, pickRawAuthConfig)
+export function inheritAuthConfig (target: InheritableConfigPair, src: InheritableConfigPair): void {
+  inheritPickedConfig(target, src, pickAuthConfig, pickRawAuthConfig)
 }
 
 /**
@@ -92,6 +94,14 @@ export function inheritAuthConfig (targetCfg: InheritableConfig, authSrcCfg: Inh
  */
 export const isIniConfigKey = (key: string): boolean =>
   key.startsWith('@') || key.startsWith('//') || NPM_AUTH_SETTINGS.includes(key)
+
+/**
+ * Whether the config key should be read from .npmrc files.
+ * This includes auth keys and proxy keys (proxy keys are readable from .npmrc
+ * for easier migration from npm, but are written to YAML config files).
+ */
+export const isNpmrcReadableKey = (key: string): boolean =>
+  isIniConfigKey(key) || NETWORK_INI_KEYS.includes(key)
 
 /**
  * Filter keys that are allowed to be read from an INI config file.

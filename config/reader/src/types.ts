@@ -1,5 +1,8 @@
-import npmTypes from '@pnpm/npm-conf/lib/types.js'
+import path from 'node:path'
+
 import type { TrustPolicy } from '@pnpm/types'
+
+import { npmConfigTypes } from './npmConfigTypes.js'
 
 export const pnpmTypes = {
   'auto-install-peers': Boolean,
@@ -15,6 +18,7 @@ export const pnpmTypes = {
   'dangerously-allow-all-builds': Boolean,
   'deploy-all-files': Boolean,
   'dedupe-peer-dependents': Boolean,
+  'dedupe-peers': Boolean,
   'dedupe-direct-deps': Boolean,
   'dedupe-injected-deps': Boolean,
   dev: [null, true],
@@ -41,6 +45,7 @@ export const pnpmTypes = {
   'global-pnpmfile': String,
   'git-branch-lockfile': Boolean,
   hoist: Boolean,
+  'http-proxy': [null, String],
   'hoist-pattern': Array,
   'hoist-workspace-packages': Boolean,
   'ignore-compatibility-db': Boolean,
@@ -72,6 +77,7 @@ export const pnpmTypes = {
   'node-linker': ['pnp', 'isolated', 'hoisted'],
   noproxy: String,
   'npm-path': String,
+  'npmrc-auth-file': path,
   offline: Boolean,
   'pack-destination': String,
   'pack-gzip-level': Number,
@@ -148,5 +154,5 @@ export const pnpmTypes = {
 // TODO: After that, move `...pnpmTypes` down, `...npmTypes.types` up.
 export const types = {
   ...pnpmTypes,
-  ...npmTypes.types,
+  ...npmConfigTypes,
 }

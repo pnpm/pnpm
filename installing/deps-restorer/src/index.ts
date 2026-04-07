@@ -77,6 +77,7 @@ import {
   type ProjectManifest,
   type ProjectRootDir,
   type Registries,
+  type RegistryConfig,
   type SupportedArchitectures,
 } from '@pnpm/types'
 import { symlinkAllModules } from '@pnpm/worker'
@@ -160,7 +161,7 @@ export interface HeadlessOptions {
   disableRelinkLocalDirDeps?: boolean
   force: boolean
   storeDir: string
-  rawConfig: object
+  configByUri: Record<string, RegistryConfig>
   unsafePerm: boolean
   userAgent: string
   registries: Registries
@@ -234,7 +235,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     extraNodePaths: opts.extraNodePaths,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
     extraEnv: opts.extraEnv,
-    rawConfig: opts.rawConfig,
+    configByUri: opts.configByUri,
     resolveSymlinksInInjectedDirs: opts.resolveSymlinksInInjectedDirs,
     scriptsPrependNodePath: opts.scriptsPrependNodePath,
     scriptShell: opts.scriptShell,
@@ -387,6 +388,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   const depNodes = Object.values(graph)
 
   const added = depNodes.filter(({ fetching }) => fetching).length
+  const skipGvsInternalLinking = opts.enableGlobalVirtualStore === true && added === 0
   statsLogger.debug({
     added,
     prefix: lockfileDir,
@@ -429,28 +431,30 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       })
     }
   } else if (opts.enableModulesDir !== false || opts.enableGlobalVirtualStore) {
-    if (opts.enableModulesDir !== false) {
-      await Promise.all(depNodes.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
-    }
-    await Promise.all([
-      opts.symlink === false || opts.enableModulesDir === false
-        ? Promise.resolve()
-        : linkAllModules(depNodes, {
-          optional: opts.include.optionalDependencies,
+    if (!skipGvsInternalLinking) {
+      if (opts.enableModulesDir !== false) {
+        await Promise.all(depNodes.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
+      }
+      await Promise.all([
+        opts.symlink === false || opts.enableModulesDir === false
+          ? Promise.resolve()
+          : linkAllModules(depNodes, {
+            optional: opts.include.optionalDependencies,
+          }),
+        linkAllPkgs(opts.storeController, depNodes, {
+          allowBuild,
+          force: opts.force,
+          disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
+          depGraph: graph,
+          depsStateCache,
+          enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
+          ignoreScripts: opts.ignoreScripts,
+          lockfileDir: opts.lockfileDir,
+          sideEffectsCacheRead: opts.sideEffectsCacheRead,
+          storeDir: opts.storeDir,
         }),
-      linkAllPkgs(opts.storeController, depNodes, {
-        allowBuild,
-        force: opts.force,
-        disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
-        depGraph: graph,
-        depsStateCache,
-        enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
-        ignoreScripts: opts.ignoreScripts,
-        lockfileDir: opts.lockfileDir,
-        sideEffectsCacheRead: opts.sideEffectsCacheRead,
-        storeDir: opts.storeDir,
-      }),
-    ])
+      ])
+    }
 
     stageLogger.debug({
       prefix: lockfileDir,
@@ -493,7 +497,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       newHoistedDependencies = {}
     }
 
-    if (!skipPostImportLinking) {
+    if (!skipPostImportLinking && !skipGvsInternalLinking) {
       await linkAllBins(graph, {
         extraNodePaths: opts.extraNodePaths,
         optional: opts.include.optionalDependencies,
@@ -572,7 +576,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       lockfileDir,
       optional: opts.include.optionalDependencies,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-      rawConfig: opts.rawConfig,
       rootModulesDir: virtualStoreDir,
       scriptsPrependNodePath: opts.scriptsPrependNodePath,
       scriptShell: opts.scriptShell,
@@ -618,6 +621,9 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
                 }
               }
             }
+            // Skip packages without bins to avoid unnecessary manifest reads.
+            // Dirs not in graph (e.g. link: deps) are kept since they may expose bins.
+            directPkgDirs = directPkgDirs.filter((dir) => graph[dir] == null || graph[dir].hasBin)
             await linkBinsOfPackages(
               (
                 await Promise.all(

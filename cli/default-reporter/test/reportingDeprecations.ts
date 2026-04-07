@@ -1,5 +1,5 @@
 import { toOutput$ } from '@pnpm/cli.default-reporter'
-import type { Config } from '@pnpm/config.reader'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
 import {
   deprecationLogger,
   stageLogger,
@@ -17,7 +17,7 @@ test('prints summary of deprecated subdependencies', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { dir: prefix } as Config,
+      config: { dir: prefix } as Config & ConfigContext,
     },
     streamParser: createStreamParser(),
   })

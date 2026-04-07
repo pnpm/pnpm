@@ -18,6 +18,7 @@ import { migrateConfigDepsToLockfile } from './migrateConfigDeps.js'
 import type { NormalizedConfigDep } from './parseIntegrity.js'
 
 export interface InstallConfigDepsOpts {
+  frozenLockfile?: boolean
   registries: Registries
   rootDir: string
   store: StoreController
@@ -105,6 +106,9 @@ async function normalizeForInstall (
   }
 
   // No env lockfile yet — migrate from old inline integrity format
+  if (opts.frozenLockfile) {
+    throw new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE', 'Cannot migrate configDependencies with "frozen-lockfile" because the lockfile is not up to date')
+  }
   return migrateConfigDepsToLockfile(configDepsOrLockfile, opts)
 }
 

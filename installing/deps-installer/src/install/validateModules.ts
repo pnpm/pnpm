@@ -44,10 +44,8 @@ export async function validateModules (
     confirmModulesPurge?: boolean
 
     hoistPattern?: string[] | undefined
-    forceHoistPattern?: boolean
 
     publicHoistPattern?: string[] | undefined
-    forcePublicHoistPattern?: boolean
     global?: boolean
   }
 ): Promise<{ purged: boolean }> {
@@ -64,7 +62,6 @@ export async function validateModules (
     )
   }
   if (
-    opts.forcePublicHoistPattern &&
     !equals(modules.publicHoistPattern ?? [], opts.publicHoistPattern ?? [])
   ) {
     if (opts.forceNewModules && (rootProject != null)) {
@@ -80,7 +77,7 @@ export async function validateModules (
 
   const importersToPurge: ImporterToPurge[] = []
 
-  if (opts.forceHoistPattern && (rootProject != null)) {
+  if (rootProject != null) {
     try {
       if (!equals(opts.currentHoistPattern ?? [], opts.hoistPattern ?? [])) {
         throw new PnpmError(

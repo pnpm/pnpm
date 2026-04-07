@@ -5,7 +5,7 @@ import kebabCase from 'lodash.kebabcase'
 import type { ConfigCommandOptions } from './ConfigCommandOptions.js'
 
 export type ConfigFileName =
-  | 'rc'
+  | 'auth.ini'
   | '.npmrc'
   | typeof GLOBAL_CONFIG_YAML_FILENAME
   | typeof WORKSPACE_MANIFEST_FILENAME
@@ -25,7 +25,7 @@ export function getConfigFileInfo (key: string, opts: Pick<ConfigCommandOptions,
     //       but considering the settings are now clearly divided into 2 separate categories, it should no longer be relevant.
     // TODO: Auth, network, and proxy settings should belong only to INI files.
     //       Add more settings to `isIniConfigKey` to make it complete.
-    const configFileName = opts.global ? 'rc' : '.npmrc'
+    const configFileName = opts.global ? 'auth.ini' : '.npmrc'
     return { configDir, configFileName }
   } else {
     const configFileName = opts.global ? GLOBAL_CONFIG_YAML_FILENAME : WORKSPACE_MANIFEST_FILENAME

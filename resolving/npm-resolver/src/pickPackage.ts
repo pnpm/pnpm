@@ -14,7 +14,7 @@ import { pick } from 'ramda'
 import { renameOverwrite } from 'rename-overwrite'
 import semver from 'semver'
 
-import type { FetchMetadataResult } from './fetch.js'
+import type { FetchMetadataNotModifiedResult, FetchMetadataResult } from './fetch.js'
 import type { RegistryPackageSpec } from './parseBareSpecifier.js'
 import {
   pickLowestVersionByVersionRange,
@@ -88,7 +88,7 @@ function pickPackageFromMetaUsingTime (
 
 export async function pickPackage (
   ctx: {
-    fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean }) => Promise<FetchMetadataResult>
+    fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean, etag?: string, modified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
     fullMetadata?: boolean
     metaCache: PackageMetaCache
     cacheDir: string
@@ -146,7 +146,7 @@ export async function pickPackage (
   }
 
   const registryName = getRegistryName(opts.registry)
-  const pkgMirror = path.join(ctx.cacheDir, metaDir, registryName, `${encodePkgName(spec.name)}.json`)
+  const pkgMirror = path.join(ctx.cacheDir, metaDir, registryName, `${encodePkgName(spec.name)}.jsonl`)
 
   return runLimited(pkgMirror, async (limit) => {
     let metaCachedInStore: PackageMeta | null | undefined
@@ -194,50 +194,114 @@ export async function pickPackage (
       }
     }
     if (opts.publishedBy) {
-      metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
-      if (metaCachedInStore?.cachedAt && new Date(metaCachedInStore.cachedAt) >= opts.publishedBy) {
-        try {
-          const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
-          if (pickedPackage) {
-            return {
-              meta: metaCachedInStore,
-              pickedPackage,
+      const mtime = await limit(async () => getFileMtime(pkgMirror))
+      if (mtime != null && mtime >= opts.publishedBy) {
+        metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
+        if (metaCachedInStore != null) {
+          try {
+            const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
+            if (pickedPackage) {
+              return {
+                meta: metaCachedInStore,
+                pickedPackage,
+              }
             }
-          }
-        } catch (err) {
-          if (ctx.strictPublishedByCheck) {
-            throw err
+          } catch (err: unknown) {
+            // Don't rethrow ERR_PNPM_MISSING_TIME from cached abbreviated metadata —
+            // let the code fall through to the network fetch path which will get full metadata.
+            if (
+              ctx.strictPublishedByCheck &&
+              !(isMissingTimeError(err))
+            ) {
+              throw err
+            }
           }
         }
       }
     }
 
     try {
-      const fetchResult = await ctx.fetch(spec.name, {
+      // Load only the cache headers (etag, modified) for conditional request headers.
+      // This avoids reading and parsing the full metadata file (which can be megabytes)
+      // when the registry returns 200 and the old metadata would be discarded anyway.
+      const cacheHeaders = metaCachedInStore != null
+        ? { etag: metaCachedInStore.etag, modified: metaCachedInStore.modified ?? metaCachedInStore.time?.modified }
+        : await limit(async () => loadMetaHeaders(pkgMirror))
+      let fetchResult = await ctx.fetch(spec.name, {
         authHeaderValue: opts.authHeaderValue,
         fullMetadata,
+        etag: cacheHeaders?.etag,
+        modified: cacheHeaders?.modified,
         registry: opts.registry,
       })
-      const cachedAt = Date.now()
+
+      // 304 Not Modified — registry confirmed local cache is still fresh.
+      // Now we need the full metadata, so load it from disk.
+      if (fetchResult.notModified) {
+        metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
+        if (metaCachedInStore != null) {
+          ctx.metaCache.set(cacheKey, metaCachedInStore)
+          return {
+            meta: metaCachedInStore,
+            pickedPackage: _pickPackageFromMeta(metaCachedInStore),
+          }
+        }
+        throw new PnpmError('CACHE_MISSING_AFTER_304',
+          `Metadata cache for ${spec.name} is unreadable after receiving 304 Not Modified`)
+      }
+
       let meta = fetchResult.meta
-      let jsonToSave: string | undefined
-      if (ctx.filterMetadata) {
-        meta = clearMeta(meta)
-      } else if (typeof fetchResult.jsonText === 'string') {
-        // Reuse the raw JSON text from the registry response to avoid re-stringifying.
-        // Inject cachedAt at the start of the JSON object. To be robust against BOMs or
-        // leading whitespace/newlines, locate the first '{' and splice after it.
-        const jsonText = fetchResult.jsonText
-        const firstBraceIndex = jsonText.indexOf('{')
-        if (firstBraceIndex !== -1) {
-          jsonToSave = `{"cachedAt":${cachedAt},${jsonText.slice(firstBraceIndex + 1)}`
+      let resultToSave: FetchMetadataResult = fetchResult
+
+      // When minimumReleaseAge is active and we fetched abbreviated metadata,
+      // check if the package was recently modified and needs full metadata
+      // for per-version time-based filtering.
+      //
+      // This two-step approach is intentional: abbreviated metadata is much smaller,
+      // and most packages won't have been modified recently enough to need the full
+      // document. We only upgrade to full metadata when the package's modification
+      // date is recent enough that some versions might not yet be "mature."
+      if (
+        opts.publishedBy &&
+        !fullMetadata &&
+        meta.time == null &&
+        opts.publishedByExclude?.(spec.name) !== true
+      ) {
+        const modifiedDate = meta.modified ? new Date(meta.modified) : null
+        const isModifiedValid = modifiedDate != null && !Number.isNaN(modifiedDate.getTime())
+        if (!isModifiedValid || modifiedDate >= opts.publishedBy) {
+          // Save the abbreviated metadata to the abbreviated cache before re-fetching full.
+          if (!opts.dryRun) {
+            const abbreviatedJson = prepareJsonForDisk(fetchResult.meta, fetchResult.etag, fetchResult.jsonText)
+            // Fire-and-forget save to the abbreviated cache path (pkgMirror).
+            runLimited(pkgMirror, (limit) => limit(async () => {
+              try {
+                await saveMeta(pkgMirror, abbreviatedJson)
+              } catch (err: any) { // eslint-disable-line
+                // We don't care if this file was not written to the cache
+              }
+            }))
+          }
+          const fullFetchResult = await ctx.fetch(spec.name, {
+            authHeaderValue: opts.authHeaderValue,
+            fullMetadata: true,
+            registry: opts.registry,
+          })
+          if (!fullFetchResult.notModified) {
+            resultToSave = fullFetchResult
+            meta = fullFetchResult.meta
+          }
         }
       }
-      meta.cachedAt = cachedAt
-      // only save meta to cache, when it is fresh
-      ctx.metaCache.set(cacheKey, meta)
+
+      if (ctx.filterMetadata) {
+        meta = clearMeta(meta)
+      }
       if (!opts.dryRun) {
-        const jsonForDisk = jsonToSave ?? JSON.stringify(meta)
+        // Serialize before setting meta.etag so it only lives in the headers line, not the body.
+        const jsonForDisk = ctx.filterMetadata
+          ? prepareJsonForDisk(meta, resultToSave.etag)
+          : prepareJsonForDisk(resultToSave.meta, resultToSave.etag, resultToSave.jsonText)
         runLimited(pkgMirror, (limit) => limit(async () => {
           try {
             await saveMeta(pkgMirror, jsonForDisk)
@@ -246,6 +310,9 @@ export async function pickPackage (
           }
         }))
       }
+      meta.etag = resultToSave.etag
+      // only save meta to cache, when it is fresh
+      ctx.metaCache.set(cacheKey, meta)
       return {
         meta,
         pickedPackage: _pickPackageFromMeta(meta),
@@ -297,7 +364,7 @@ function clearMeta (pkg: PackageMeta): PackageMeta {
     'dist-tags': pkg['dist-tags'],
     versions,
     time: pkg.time,
-    cachedAt: pkg.cachedAt,
+    modified: pkg.modified,
   }
 }
 
@@ -308,10 +375,80 @@ function encodePkgName (pkgName: string): string {
   return pkgName
 }
 
+/**
+ * Formats metadata for disk storage as two-line NDJSON:
+ *   Line 1: cache headers (etag, modified) — small, fast to read
+ *   Line 2: the full registry metadata JSON — unchanged from the registry response
+ */
+function prepareJsonForDisk (meta: PackageMeta, etag: string | undefined, jsonText?: string): string {
+  const modified = meta.modified ?? meta.time?.modified
+  const headers = JSON.stringify({ etag, modified })
+  const body = jsonText ?? JSON.stringify(meta)
+  return `${headers}\n${body}`
+}
+
+function isMissingTimeError (err: unknown): boolean {
+  return (
+    err != null &&
+    typeof err === 'object' &&
+    'code' in err &&
+    (err as { code: string }).code === 'ERR_PNPM_MISSING_TIME'
+  )
+}
+
+async function getFileMtime (filePath: string): Promise<Date | null> {
+  try {
+    const stat = await fs.stat(filePath)
+    return stat.mtime
+  } catch {
+    return null
+  }
+}
+
+interface MetaHeaders {
+  etag?: string
+  modified?: string
+}
+
+/**
+ * Reads only the first line of the cached NDJSON metadata file to extract
+ * the cache headers (etag, modified). This avoids reading and
+ * parsing the full metadata (which can be megabytes for popular packages)
+ * when we only need conditional-request headers.
+ */
+async function loadMetaHeaders (pkgMirror: string): Promise<MetaHeaders | null> {
+  let fh: fs.FileHandle | undefined
+  try {
+    fh = await fs.open(pkgMirror, 'r')
+    // The first line (headers JSON) is typically ~100 bytes; 1 KB is plenty.
+    const buf = Buffer.alloc(1024)
+    const { bytesRead } = await fh.read(buf, 0, 1024, 0)
+    if (bytesRead === 0) return null
+    const chunk = buf.toString('utf8', 0, bytesRead)
+    const newlineIdx = chunk.indexOf('\n')
+    if (newlineIdx === -1) return null
+    return JSON.parse(chunk.slice(0, newlineIdx)) as MetaHeaders
+  } catch {
+    return null
+  } finally {
+    await fh?.close()
+  }
+}
+
+/**
+ * Reads the full metadata from the cached NDJSON file.
+ * Line 1: cache headers (etag, modified)
+ * Line 2: registry metadata JSON
+ */
 async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
   try {
     const data = await gfs.readFile(pkgMirror, 'utf8')
-    return JSON.parse(data) as PackageMeta
+    const newlineIdx = data.indexOf('\n')
+    if (newlineIdx === -1) return null
+    const headers = JSON.parse(data.slice(0, newlineIdx)) as MetaHeaders
+    const meta = JSON.parse(data.slice(newlineIdx + 1)) as PackageMeta
+    meta.etag = headers.etag
+    return meta
   } catch {
     return null
   }

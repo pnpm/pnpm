@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { readProjectManifestOnly } from '@pnpm/cli.utils'
-import type { Config } from '@pnpm/config.reader'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { findDependencyLicenses } from '@pnpm/deps.compliance.license-scanner'
 import { PnpmError } from '@pnpm/error'
@@ -28,11 +28,12 @@ export type LicensesCommandOptions = {
 | 'virtualStoreDir'
 | 'modulesDir'
 | 'pnpmHomeDir'
+| 'supportedArchitectures'
+| 'virtualStoreDirMaxLength'
+> & Pick<ConfigContext,
 | 'selectedProjectsGraph'
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
-| 'supportedArchitectures'
-| 'virtualStoreDirMaxLength'
 > &
 Partial<Pick<Config, 'userConfig'>>
 

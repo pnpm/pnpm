@@ -1,9 +1,6 @@
 import type { ConfigCommandOptions } from './ConfigCommandOptions.js'
-import { processConfig } from './processConfig.js'
+import { configToRecord } from './configToRecord.js'
 
-export type ConfigListOptions = Pick<ConfigCommandOptions, 'rawConfig'>
-
-export async function configList (opts: ConfigListOptions): Promise<string> {
-  const processedConfig = processConfig(opts.rawConfig)
-  return JSON.stringify(processedConfig, undefined, 2)
+export async function configList (opts: ConfigCommandOptions): Promise<string> {
+  return JSON.stringify(configToRecord(opts._config, opts._context.explicitlySetKeys), undefined, 2)
 }

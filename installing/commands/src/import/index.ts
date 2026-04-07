@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { docsUrl } from '@pnpm/cli.utils'
-import type { Config } from '@pnpm/config.reader'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import gfs from '@pnpm/fs.graceful-fs'
@@ -96,15 +96,18 @@ export function help (): string {
 
 export const commandNames = ['import']
 
+export const recursiveByDefault = true
+
 export type ImportCommandOptions = Pick<Config,
-| 'allProjects'
-| 'allProjectsGraph'
-| 'selectedProjectsGraph'
 | 'workspaceDir'
 | 'ignoreWorkspaceCycles'
 | 'disallowWorkspaceCycles'
 | 'sharedWorkspaceLockfile'
 | 'workspacePackagePatterns'
+> & Pick<ConfigContext,
+| 'allProjects'
+| 'allProjectsGraph'
+| 'selectedProjectsGraph'
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
 > & CreateStoreControllerOptions & Omit<InstallOptions, 'storeController' | 'lockfileOnly' | 'preferredVersions'>

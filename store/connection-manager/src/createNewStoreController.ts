@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs'
 
 import { packageManager } from '@pnpm/cli.meta'
-import type { Config } from '@pnpm/config.reader'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { type ClientOptions, createClient } from '@pnpm/installing.client'
 import { type CafsLocker, createPackageStore, type StoreController } from '@pnpm/store.controller'
 import { StoreIndex } from '@pnpm/store.index'
@@ -12,7 +12,7 @@ type CreateResolverOptions = Pick<Config,
 | 'fetchRetryMaxtimeout'
 | 'fetchRetryMintimeout'
 | 'offline'
-| 'rawConfig'
+| 'configByUri'
 | 'verifyStoreIntegrity'
 > & Required<Pick<Config, 'cacheDir' | 'storeDir'>>
 
@@ -21,13 +21,13 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'cert'
 | 'engineStrict'
 | 'force'
+| 'nodeDownloadMirrors'
 | 'nodeVersion'
 | 'fetchTimeout'
 | 'fetchWarnTimeoutMs'
 | 'fetchMinSpeedKiBps'
 | 'gitShallowHosts'
 | 'ignoreScripts'
-| 'hooks'
 | 'httpProxy'
 | 'httpsProxy'
 | 'key'
@@ -50,11 +50,11 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'userAgent'
 | 'verifyStoreIntegrity'
 | 'virtualStoreDirMaxLength'
-> & {
+> & Pick<ConfigContext, 'hooks'> & {
   cafsLocker?: CafsLocker
   ignoreFile?: (filename: string) => boolean
   fetchFullMetadata?: boolean
-} & Partial<Pick<Config, 'userConfig' | 'deployAllFiles' | 'sslConfigs' | 'strictStorePkgContentCheck'>> & Pick<ClientOptions, 'resolveSymlinksInInjectedDirs'>
+} & Partial<Pick<Config, 'deployAllFiles' | 'strictStorePkgContentCheck'>> & Pick<ClientOptions, 'resolveSymlinksInInjectedDirs'>
 
 export async function createNewStoreController (
   opts: CreateNewStoreControllerOptions
@@ -62,7 +62,6 @@ export async function createNewStoreController (
   const fullMetadata = opts.fetchFullMetadata ?? (
     (
       opts.resolutionMode === 'time-based' ||
-      Boolean(opts.minimumReleaseAge) ||
       opts.trustPolicy === 'no-downgrade'
     ) && !opts.registrySupportsTimeField
   )
@@ -71,9 +70,7 @@ export async function createNewStoreController (
   const { resolve, fetchers, clearResolutionCache } = createClient({
     customResolvers: opts.hooks?.customResolvers,
     customFetchers: opts.hooks?.customFetchers,
-    userConfig: opts.userConfig,
     unsafePerm: opts.unsafePerm,
-    authConfig: opts.rawConfig,
     ca: opts.ca,
     cacheDir: opts.cacheDir,
     storeDir: opts.storeDir,
@@ -87,11 +84,11 @@ export async function createNewStoreController (
     ignoreScripts: opts.ignoreScripts,
     key: opts.key,
     localAddress: opts.localAddress,
+    nodeDownloadMirrors: opts.nodeDownloadMirrors,
     noProxy: opts.noProxy,
     offline: opts.offline,
     preferOffline: opts.preferOffline,
-    rawConfig: opts.rawConfig,
-    sslConfigs: opts.sslConfigs,
+    configByUri: opts.configByUri,
     registries: opts.registries,
     retry: {
       factor: opts.fetchRetryFactor,

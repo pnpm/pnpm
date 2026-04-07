@@ -1,4 +1,4 @@
-import type { Config } from '@pnpm/config.reader'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
 import type { IgnoredScriptsLog } from '@pnpm/core-loggers'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import boxen from 'boxen'
@@ -10,7 +10,7 @@ export function reportIgnoredBuilds (
     ignoredScripts: Rx.Observable<IgnoredScriptsLog>
   },
   opts: {
-    pnpmConfig?: Config
+    pnpmConfig?: Config & ConfigContext
     // This is used by Bit CLI
     approveBuildsInstructionText?: string
   }

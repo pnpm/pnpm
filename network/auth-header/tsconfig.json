@@ -11,6 +11,9 @@
   "references": [
     {
       "path": "../../core/error"
+    },
+    {
+      "path": "../../core/types"
     }
   ]
 }

@@ -15,6 +15,19 @@ import { writeJsonFile } from 'write-json-file'
 
 const CLI_PKG_NAME = 'pnpm'
 
+// Packages whose tests spawn the local pnpm CLI binary (pnpm/bin/pnpm.mjs)
+// and therefore need the CLI bundle (pnpm/dist/pnpm.mjs) to be built first.
+const PKGS_NEEDING_CLI_COMPILE = new Set([
+  '@pnpm/building.commands',
+  '@pnpm/cache.commands',
+  '@pnpm/deps.inspection.commands',
+  '@pnpm/exec.commands',
+  '@pnpm/lockfile.make-dedicated-lockfile',
+  '@pnpm/releasing.commands',
+  '@pnpm/releasing.exportable-manifest',
+  '@pnpm/store.commands',
+])
+
 export default async (workspaceDir: string) => { // eslint-disable-line
   const workspaceManifest = await readWorkspaceManifest(workspaceDir)!
   const pnpmManifest = loadJsonFileSync<ProjectManifest>(path.join(workspaceDir, 'pnpm/package.json'))
@@ -35,7 +48,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
         return manifest
       }
       if (manifest.name === 'monorepo-root') {
-        manifest.scripts!['release'] = `pnpm --filter=@pnpm/exe publish --tag=${nextTag} --access=public --provenance && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public --provenance && pnpm publish --filter=pnpm --tag=${nextTag} --access=public --provenance`
+        manifest.scripts!['release'] = `pn --filter=@pnpm/exe publish --tag=${nextTag} --access=public --provenance && pn publish --filter=!pnpm --filter=!@pnpm/exe --access=public --provenance && pn publish --filter=pnpm --tag=${nextTag} --access=public --provenance`
         return sortKeysInManifest(manifest)
       }
       if (manifest.name && manifest.name !== CLI_PKG_NAME) {
@@ -264,6 +277,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     case '@pnpm/installing.commands':
     case '@pnpm/deps.inspection.commands':
     case '@pnpm/patching.commands':
+    case '@pnpm/registry-access.commands':
     case '@pnpm/releasing.commands':
     case '@pnpm/exec.commands':
     case '@pnpm/store.commands':
@@ -274,7 +288,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
       scripts = {
         ...(manifest.scripts as Record<string, string>),
       }
-      scripts.test = 'pnpm run compile && pnpm run .test'
+      scripts.test = 'pn compile && pn .test'
       if (manifest.name === '@pnpm/installing.deps-installer') {
       // @pnpm/installing.deps-installer tests currently works only with port 7769 due to the usage of
       // the next package: pkg-with-tarball-dep-from-registry
@@ -289,15 +303,18 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
         scripts = {
           ...(manifest.scripts as Record<string, string>),
           '.test': 'cross-env NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest',
-          test: 'pnpm run compile && pnpm run .test',
+          test: 'pn compile && pn .test',
         }
       } else {
         scripts = {
           ...(manifest.scripts as Record<string, string>),
-          test: 'pnpm run compile',
+          test: 'pn compile',
         }
       }
       break
+  }
+  if (manifest.name && PKGS_NEEDING_CLI_COMPILE.has(manifest.name)) {
+    scripts.test = 'pn compile && pn --filter=pnpm compile && pn .test'
   }
   // Clean up old underscore-prefixed script names
   delete scripts._test
@@ -307,16 +324,16 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   }
   if (scripts['.test']) {
     if (scripts.pretest) {
-      scripts['.test'] = `pnpm pretest && ${scripts['.test']}`
+      scripts['.test'] = `pn pretest && ${scripts['.test']}`
     }
     if (scripts.posttest) {
-      scripts['.test'] = `${scripts['.test']} && pnpm posttest`
+      scripts['.test'] = `${scripts['.test']} && pn posttest`
     }
     if (manifest.name === '@pnpm/server') {
       scripts['.test'] += ' --detectOpenHandles'
     }
   }
-  scripts.compile = 'tsgo --build && pnpm run lint --fix'
+  scripts.compile = 'tsgo --build && pn lint --fix'
   delete scripts.tsc
   if (scripts.start && scripts.start.includes('tsc --watch')) {
     scripts.start = scripts.start.replace('tsc --watch', 'tsgo --watch')
@@ -333,13 +350,13 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
       url: 'git+https://github.com/pnpm/pnpm.git',
       directory: 'pnpm',
     }
-    scripts.compile += ' && rimraf dist bin/nodes && pnpm run bundle \
+    scripts.compile += ' && rimraf dist bin/nodes && pn bundle \
 && shx cp -r node-gyp-bin dist/node-gyp-bin \
 && shx cp -r node_modules/@pnpm/tabtab/lib/templates dist/templates \
 && shx cp -r node_modules/ps-list/vendor dist/vendor \
 && shx cp pnpmrc dist/pnpmrc'
   } else {
-    scripts.prepublishOnly = 'pnpm run compile'
+    scripts.prepublishOnly = 'pn compile'
     homepage = `https://github.com/pnpm/pnpm/tree/main/${relative}#readme`
     repository = `https://github.com/pnpm/pnpm/tree/main/${relative}`
   }

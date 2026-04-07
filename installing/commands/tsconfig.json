@@ -109,6 +109,12 @@
       "path": "../../store/index"
     },
     {
+      "path": "../../testing/command-defaults"
+    },
+    {
+      "path": "../../testing/mock-agent"
+    },
+    {
       "path": "../../worker"
     },
     {

@@ -10,6 +10,7 @@ export type ChangedField =
   | 'packageExtensionsChecksum'
   | 'ignoredOptionalDependencies'
   | 'settings.autoInstallPeers'
+  | 'settings.dedupePeers'
   | 'settings.excludeLinksFromLockfile'
   | 'settings.peersSuffixMaxLength'
   | 'settings.injectWorkspacePackages'
@@ -24,6 +25,7 @@ export function getOutdatedLockfileSetting (
     ignoredOptionalDependencies,
     patchedDependencies,
     autoInstallPeers,
+    dedupePeers,
     excludeLinksFromLockfile,
     peersSuffixMaxLength,
     pnpmfileChecksum,
@@ -35,6 +37,7 @@ export function getOutdatedLockfileSetting (
     patchedDependencies?: Record<string, string>
     ignoredOptionalDependencies?: string[]
     autoInstallPeers?: boolean
+    dedupePeers?: boolean
     excludeLinksFromLockfile?: boolean
     peersSuffixMaxLength?: number
     pnpmfileChecksum?: string
@@ -58,6 +61,9 @@ export function getOutdatedLockfileSetting (
   }
   if ((lockfile.settings?.autoInstallPeers != null && lockfile.settings.autoInstallPeers !== autoInstallPeers)) {
     return 'settings.autoInstallPeers'
+  }
+  if (Boolean(lockfile.settings?.dedupePeers) !== Boolean(dedupePeers)) {
+    return 'settings.dedupePeers'
   }
   if (lockfile.settings?.excludeLinksFromLockfile != null && lockfile.settings.excludeLinksFromLockfile !== excludeLinksFromLockfile) {
     return 'settings.excludeLinksFromLockfile'

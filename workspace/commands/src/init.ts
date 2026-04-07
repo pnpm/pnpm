@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
-import { type Config, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { sortKeysByPriority } from '@pnpm/object.key-sorting'
 import type { ProjectManifest } from '@pnpm/types'
@@ -11,7 +11,7 @@ import { writeProjectManifest } from '@pnpm/workspace.project-manifest-writer'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
-import { parseRawConfig } from './utils.js'
+import { getInitConfig } from './utils.js'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -55,13 +55,17 @@ export function help (): string {
 }
 
 export type InitOptions =
-  & Pick<UniversalOptions, 'rawConfig'>
-  & Pick<Config, 'cliOptions'>
+  & Pick<ConfigContext, 'cliOptions'>
   & Partial<Pick<Config,
   | 'initPackageManager'
   | 'initType'
   >> & {
     bare?: boolean
+    initAuthorName?: string
+    initAuthorEmail?: string
+    initAuthorUrl?: string
+    initLicense?: string
+    initVersion?: string
   }
 
 export async function handler (opts: InitOptions, params?: string[]): Promise<string> {
@@ -96,8 +100,8 @@ export async function handler (opts: InitOptions, params?: string[]): Promise<st
     manifest.type = opts.initType
   }
 
-  const config = await parseRawConfig(opts.rawConfig)
-  const packageJson = { ...manifest, ...config }
+  const initConfig = getInitConfig(opts)
+  const packageJson = { ...manifest, ...initConfig }
   if (opts.initPackageManager) {
     packageJson.packageManager = `pnpm@${packageManager.version}`
   }

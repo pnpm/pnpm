@@ -22,7 +22,6 @@ export interface BunRuntimeResolveResult extends ResolveResult {
 export async function resolveBunRuntime (
   ctx: {
     fetchFromRegistry: FetchFromRegistry
-    rawConfig: Record<string, string>
     offline?: boolean
     resolveFromNpm: NpmResolver
   },

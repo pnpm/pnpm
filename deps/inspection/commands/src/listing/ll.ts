@@ -4,6 +4,8 @@ import * as list from './list.js'
 
 export const commandNames = ['ll', 'la']
 
+export const recursiveByDefault = true
+
 export const rcOptionsTypes = list.rcOptionsTypes
 
 export function cliOptionsTypes (): Record<string, unknown> {

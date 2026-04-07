@@ -9,7 +9,8 @@ export interface PackageMeta {
   'dist-tags': Record<string, string>
   versions: Record<string, PackageInRegistry>
   time?: PackageMetaTime
-  cachedAt?: number
+  modified?: string
+  etag?: string
 }
 
 export interface PackageMetaWithTime extends PackageMeta {
@@ -33,10 +34,21 @@ export interface PackageInRegistry extends PackageManifest {
       oidcConfigId: string
     }
   }
+  maintainers?: Array<{
+    name: string
+    email?: string
+    url?: string
+  }>
+  contributors?: Array<{
+    name: string
+    email?: string
+    url?: string
+  }>
   dist: {
     integrity?: string
     shasum: string
     tarball: string
+    unpackedSize?: number
     attestations?: {
       provenance?: {
         predicateType: string

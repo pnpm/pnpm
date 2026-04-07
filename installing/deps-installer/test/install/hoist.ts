@@ -211,7 +211,6 @@ test('hoistPattern=* throws exception when executed on node_modules installed w/
 
   await expect(
     addDependenciesToPackage(manifest, ['is-negative'], testDefaults({
-      forceHoistPattern: true,
       hoistPattern: '*',
     }))
   ).rejects.toThrow(/different hoist-pattern value/)
@@ -225,17 +224,9 @@ test('hoistPattern=undefined throws exception when executed on node_modules inst
   await expect(
     addDependenciesToPackage(manifest, ['is-negative'], {
       ...opts,
-      forceHoistPattern: true,
       hoistPattern: undefined,
     })
   ).rejects.toThrow(/different hoist-pattern value/)
-
-  // Install doesn't fail if the value of hoistPattern isn't forced
-  await addDependenciesToPackage(manifest, ['is-negative'], {
-    ...opts,
-    forceHoistPattern: false,
-    hoistPattern: undefined,
-  })
 })
 
 test('hoist by alias', async () => {
@@ -534,7 +525,7 @@ test('should recreate node_modules with hoisting', async () => {
     manifest,
     mutation: 'install',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({ hoistPattern: '*' }))
+  }, testDefaults({ hoistPattern: '*', confirmModulesPurge: false }))
 
   project.has('@pnpm.e2e/pkg-with-1-dep')
   project.has('.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')

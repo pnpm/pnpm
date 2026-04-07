@@ -97,7 +97,13 @@
       "path": "../../network/git-utils"
     },
     {
+      "path": "../../network/web-auth"
+    },
+    {
       "path": "../../resolving/resolver-base"
+    },
+    {
+      "path": "../../testing/command-defaults"
     },
     {
       "path": "../../workspace/projects-filter"

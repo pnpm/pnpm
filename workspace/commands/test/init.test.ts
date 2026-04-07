@@ -8,7 +8,7 @@ import { loadJsonFileSync } from 'load-json-file'
 
 test('init a new package.json', async () => {
   prepareEmpty()
-  await init.handler({ rawConfig: {}, cliOptions: {} })
+  await init.handler({ cliOptions: {} })
   const manifest = loadJsonFileSync(path.resolve('package.json'))
   expect(manifest).toBeTruthy()
 })
@@ -17,32 +17,31 @@ test('throws an error if a package.json exists in the current directory', async 
   prepare({})
 
   await expect(
-    init.handler({ rawConfig: {}, cliOptions: {} })
+    init.handler({ cliOptions: {} })
   ).rejects.toThrow('package.json already exists')
 })
 
-test('init a new package.json with npmrc', async () => {
-  const rawConfig = {
-    'init-author-email': 'xxxxxx@pnpm.com',
-    'init-author-name': 'pnpm',
-    'init-author-url': 'https://www.github.com/pnpm',
-    'init-license': 'MIT',
-    'init-version': '2.0.0',
-  }
+test('init a new package.json with author and license settings', async () => {
   prepareEmpty()
-  await init.handler({ rawConfig, cliOptions: {} })
+  await init.handler({
+    cliOptions: {},
+    initAuthorEmail: 'xxxxxx@pnpm.com',
+    initAuthorName: 'pnpm',
+    initAuthorUrl: 'https://www.github.com/pnpm',
+    initLicense: 'MIT',
+    initVersion: '2.0.0',
+  })
   const manifest: Record<string, string> = loadJsonFileSync(path.resolve('package.json'))
-  const expectAuthor = `${rawConfig['init-author-name']} <${rawConfig['init-author-email']}> (${rawConfig['init-author-url']})`
-  expect(manifest.version).toBe(rawConfig['init-version'])
-  expect(manifest.author).toBe(expectAuthor)
-  expect(manifest.license).toBe(rawConfig['init-license'])
+  expect(manifest.version).toBe('2.0.0')
+  expect(manifest.author).toBe('pnpm <xxxxxx@pnpm.com> (https://www.github.com/pnpm)')
+  expect(manifest.license).toBe('MIT')
 })
 
 test('throw an error if params are passed to the init command', async () => {
   prepare({})
 
   await expect(
-    init.handler({ rawConfig: {}, cliOptions: {} }, ['react-app'])
+    init.handler({ cliOptions: {} }, ['react-app'])
   ).rejects.toThrow('init command does not accept any arguments')
 })
 
@@ -51,7 +50,7 @@ test('init a new package.json if a package.json exists in the parent directory',
   fs.mkdirSync('empty-dir1')
   process.chdir('./empty-dir1')
 
-  await init.handler({ rawConfig: {}, cliOptions: {} })
+  await init.handler({ cliOptions: {} })
   const manifest = loadJsonFileSync(path.resolve('package.json'))
   expect(manifest).toBeTruthy()
 })
@@ -61,7 +60,6 @@ test('init a new package.json if a package.json exists in the current directory 
   fs.mkdirSync('empty-dir2')
 
   await init.handler({
-    rawConfig: {},
     cliOptions: {
       dir: './empty-dir2',
     },
@@ -72,7 +70,7 @@ test('init a new package.json if a package.json exists in the current directory 
 
 test('init a new package.json with init-package-manager=true', async () => {
   prepareEmpty()
-  await init.handler({ rawConfig: { 'init-package-manager': true }, cliOptions: {}, initPackageManager: true })
+  await init.handler({ cliOptions: {}, initPackageManager: true })
   const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('package.json'))
   expect(manifest).toBeTruthy()
   expect(manifest.packageManager).toBeTruthy()
@@ -80,7 +78,7 @@ test('init a new package.json with init-package-manager=true', async () => {
 
 test('init a new package.json with init-package-manager=false', async () => {
   prepareEmpty()
-  await init.handler({ rawConfig: { 'init-package-manager': false }, cliOptions: {}, initPackageManager: false })
+  await init.handler({ cliOptions: {}, initPackageManager: false })
   const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('package.json'))
   expect(manifest).toBeTruthy()
   expect(manifest).not.toHaveProperty('packageManager')
@@ -88,14 +86,14 @@ test('init a new package.json with init-package-manager=false', async () => {
 
 test('init a new package.json with init-type=module', async () => {
   prepareEmpty()
-  await init.handler({ rawConfig: { 'init-type': 'module' }, cliOptions: {}, initType: 'module' })
+  await init.handler({ cliOptions: {}, initType: 'module' })
   const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('package.json'))
   expect(manifest.type).toBe('module')
 })
 
 test('init a new package.json with --bare', async () => {
   prepareEmpty()
-  await init.handler({ rawConfig: {}, cliOptions: {}, bare: true })
+  await init.handler({ cliOptions: {}, bare: true })
   const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('package.json'))
   expect(manifest).not.toHaveProperty(['name'])
   expect(manifest).not.toHaveProperty(['version'])

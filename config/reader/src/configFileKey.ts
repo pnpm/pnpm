@@ -1,8 +1,7 @@
-import npmTypes from '@pnpm/npm-conf/lib/types.js'
-
+import { npmConfigTypes } from './npmConfigTypes.js'
 import type { pnpmTypes } from './types.js'
 
-type NpmKey = keyof typeof npmTypes.types
+type NpmKey = keyof typeof npmConfigTypes
 type PnpmKey = keyof typeof pnpmTypes
 
 /**
@@ -29,6 +28,7 @@ export const pnpmConfigFileKeys = [
   'global-dir',
   'global-path',
   'global-pnpmfile',
+  'http-proxy',
   'optimistic-repeat-install',
   'loglevel',
   'maxsockets',
@@ -39,6 +39,7 @@ export const pnpmConfigFileKeys = [
   'network-concurrency',
   'noproxy',
   'npm-path',
+  'npmrc-auth-file',
   'package-import-method',
   'prefer-frozen-lockfile',
   'prefer-offline',
@@ -63,6 +64,7 @@ export const excludedPnpmKeys = [
   'merge-git-branch-lockfiles-branch-pattern',
   'deploy-all-files',
   'dedupe-peer-dependents',
+  'dedupe-peers',
   'dedupe-direct-deps',
   'dedupe-injected-deps',
   'dev',
@@ -181,4 +183,4 @@ const setOfExcludedPnpmKeys: ReadonlySet<string> = new Set(excludedPnpmKeys)
 
 /** Whether the key (in kebab-case) is a valid key in a global config file. */
 export const isConfigFileKey = (kebabKey: string): kebabKey is ConfigFileKey =>
-  setOfPnpmConfigFilesKeys.has(kebabKey) || (kebabKey in npmTypes.types && !setOfExcludedPnpmKeys.has(kebabKey))
+  setOfPnpmConfigFilesKeys.has(kebabKey) || (kebabKey in npmConfigTypes && !setOfExcludedPnpmKeys.has(kebabKey))

@@ -24,6 +24,9 @@
       "path": "../__utils__/test-ipc-server"
     },
     {
+      "path": "../auth/commands"
+    },
+    {
       "path": "../building/commands"
     },
     {
@@ -96,9 +99,6 @@
       "path": "../exec/commands"
     },
     {
-      "path": "../exec/run-npm"
-    },
-    {
       "path": "../hooks/pnpmfile"
     },
     {
@@ -124,6 +124,9 @@
     },
     {
       "path": "../pkg-manifest/reader"
+    },
+    {
+      "path": "../registry-access/commands"
     },
     {
       "path": "../releasing/commands"

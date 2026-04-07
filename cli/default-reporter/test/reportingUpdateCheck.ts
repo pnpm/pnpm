@@ -2,7 +2,7 @@ import { setTimeout } from 'node:timers/promises'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import { toOutput$ } from '@pnpm/cli.default-reporter'
-import type { Config } from '@pnpm/config.reader'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { updateCheckLogger } from '@pnpm/core-loggers'
 import { createStreamParser } from '@pnpm/logger'
 import { firstValueFrom } from 'rxjs'
@@ -35,7 +35,7 @@ test('print update notification if the latest version is greater than the curren
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { recursive: true } as Config,
+      config: { recursive: true } as Config & ConfigContext,
       env: {},
     },
     streamParser: createStreamParser(),
@@ -56,7 +56,7 @@ test('print update notification for Corepack if the latest version is greater th
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { recursive: true } as Config,
+      config: { recursive: true } as Config & ConfigContext,
       env: {
         COREPACK_ROOT: '/usr/bin/corepack',
       },
@@ -79,7 +79,7 @@ test('print update notification that suggests to use the standalone scripts for 
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { recursive: true } as Config,
+      config: { recursive: true } as Config & ConfigContext,
       env: {
         PNPM_HOME: '/home/user/.local/share/pnpm',
       },

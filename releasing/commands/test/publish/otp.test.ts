@@ -1,10 +1,14 @@
+import { jest } from '@jest/globals'
+import {
+  OtpNonInteractiveError,
+  OtpSecondChallengeError,
+  type WebAuthFetchResponse,
+  WebAuthTimeoutError,
+} from '@pnpm/network.web-auth'
+
 import {
   type OtpContext,
-  OtpNonInteractiveError,
   type OtpPublishResponse,
-  OtpSecondChallengeError,
-  type OtpWebAuthFetchResponse,
-  OtpWebAuthTimeoutError,
   publishWithOtpHandling,
 } from '../../src/publish/otp.js'
 
@@ -12,7 +16,11 @@ function createOkResponse (): OtpPublishResponse {
   return { ok: true, status: 200, statusText: 'OK', text: async () => '' }
 }
 
-function createMockContext (overrides?: Partial<OtpContext>): OtpContext {
+type MockContextOverrides = Omit<Partial<OtpContext>, 'process'> & {
+  process?: Partial<OtpContext['process']>
+}
+
+function createMockContext (overrides?: MockContextOverrides): OtpContext {
   return {
     Date: { now: () => 0 },
     setTimeout: (cb: () => void) => cb(),
@@ -23,10 +31,19 @@ function createMockContext (overrides?: Partial<OtpContext>): OtpContext {
       ok: false,
       status: 404,
     }),
-    globalInfo: () => {},
-    process: { stdin: { isTTY: true }, stdout: { isTTY: true } },
+    globalInfo: msg => {
+      throw new Error(`Unexpected call to globalInfo: ${msg}`)
+    },
+    globalWarn: msg => {
+      throw new Error(`Unexpected call to globalWarn: ${msg}`)
+    },
     publish: async () => createOkResponse(),
     ...overrides,
+    process: {
+      stdin: { isTTY: true },
+      stdout: { isTTY: true },
+      ...overrides?.process,
+    },
   }
 }
 
@@ -57,7 +74,7 @@ describe('publishWithOtpHandling', () => {
 
   it('throws OtpNonInteractiveError when terminal is not interactive', async () => {
     const context = createMockContext({
-      process: { stdin: { isTTY: false }, stdout: { isTTY: true } },
+      process: { stdin: { isTTY: false } },
       publish: async () => {
         throw Object.assign(new Error('otp'), { code: 'EOTP' })
       },
@@ -138,7 +155,9 @@ describe('publishWithOtpHandling', () => {
     it('polls doneUrl and uses returned token', async () => {
       let publishCallCount = 0
       let fetchCallCount = 0
+      const globalInfo = jest.fn()
       const context = createMockContext({
+        globalInfo,
         publish: async (_m, _t, opts) => {
           publishCallCount++
           if (publishCallCount === 1) {
@@ -153,7 +172,7 @@ describe('publishWithOtpHandling', () => {
           expect(opts.otp).toBe('web-token-123')
           return createOkResponse()
         },
-        fetch: async (): Promise<OtpWebAuthFetchResponse> => {
+        fetch: async (): Promise<WebAuthFetchResponse> => {
           fetchCallCount++
           if (fetchCallCount < 3) {
             return {
@@ -175,12 +194,15 @@ describe('publishWithOtpHandling', () => {
       expect(result.ok).toBe(true)
       expect(publishCallCount).toBe(2)
       expect(fetchCallCount).toBe(3)
+      expect(globalInfo).toHaveBeenCalledWith(expect.stringContaining('https://registry.npmjs.org/auth/abc'))
     })
 
     it('respects Retry-After header when polling', async () => {
       const setTimeoutDelays: number[] = []
       let fetchCallCount = 0
+      const globalInfo = jest.fn()
       const context = createMockContext({
+        globalInfo,
         publish: async () => {
           if (fetchCallCount === 0) {
             throw Object.assign(new Error('otp'), {
@@ -197,7 +219,7 @@ describe('publishWithOtpHandling', () => {
           setTimeoutDelays.push(ms)
           cb()
         },
-        fetch: async (): Promise<OtpWebAuthFetchResponse> => {
+        fetch: async (): Promise<WebAuthFetchResponse> => {
           fetchCallCount++
           if (fetchCallCount === 1) {
             return {
@@ -220,12 +242,15 @@ describe('publishWithOtpHandling', () => {
       // second is the additional delay (5s Retry-After minus the 1s already waited),
       // third is the default 1s poll interval for the next iteration.
       expect(setTimeoutDelays).toStrictEqual([1000, 4000, 1000])
+      expect(globalInfo).toHaveBeenCalledWith(expect.stringContaining('https://registry.npmjs.org/auth/abc'))
     })
 
     it('continues polling when fetch throws', async () => {
       let publishCallCount = 0
       let fetchCallCount = 0
+      const globalInfo = jest.fn()
       const context = createMockContext({
+        globalInfo,
         publish: async (_m, _t, opts) => {
           publishCallCount++
           if (publishCallCount === 1) {
@@ -240,7 +265,7 @@ describe('publishWithOtpHandling', () => {
           expect(opts.otp).toBe('tok')
           return createOkResponse()
         },
-        fetch: async (): Promise<OtpWebAuthFetchResponse> => {
+        fetch: async (): Promise<WebAuthFetchResponse> => {
           fetchCallCount++
           if (fetchCallCount === 1) {
             throw new Error('network failure')
@@ -256,12 +281,15 @@ describe('publishWithOtpHandling', () => {
       const result = await publishWithOtpHandling({ context, manifest, publishOptions, tarballData })
       expect(result.ok).toBe(true)
       expect(fetchCallCount).toBe(2)
+      expect(globalInfo).toHaveBeenCalledWith(expect.stringContaining('https://registry.npmjs.org/auth/abc'))
     })
 
     it('continues polling when response is not ok', async () => {
       let publishCallCount = 0
       let fetchCallCount = 0
+      const globalInfo = jest.fn()
       const context = createMockContext({
+        globalInfo,
         publish: async (_m, _t, opts) => {
           publishCallCount++
           if (publishCallCount === 1) {
@@ -276,7 +304,7 @@ describe('publishWithOtpHandling', () => {
           expect(opts.otp).toBe('tok')
           return createOkResponse()
         },
-        fetch: async (): Promise<OtpWebAuthFetchResponse> => {
+        fetch: async (): Promise<WebAuthFetchResponse> => {
           fetchCallCount++
           if (fetchCallCount === 1) {
             return {
@@ -297,12 +325,15 @@ describe('publishWithOtpHandling', () => {
       const result = await publishWithOtpHandling({ context, manifest, publishOptions, tarballData })
       expect(result.ok).toBe(true)
       expect(fetchCallCount).toBe(2)
+      expect(globalInfo).toHaveBeenCalledWith(expect.stringContaining('https://registry.npmjs.org/auth/abc'))
     })
 
     it('continues polling when response.json() throws', async () => {
       let publishCallCount = 0
       let fetchCallCount = 0
+      const globalInfo = jest.fn()
       const context = createMockContext({
+        globalInfo,
         publish: async (_m, _t, opts) => {
           publishCallCount++
           if (publishCallCount === 1) {
@@ -317,7 +348,7 @@ describe('publishWithOtpHandling', () => {
           expect(opts.otp).toBe('tok')
           return createOkResponse()
         },
-        fetch: async (): Promise<OtpWebAuthFetchResponse> => {
+        fetch: async (): Promise<WebAuthFetchResponse> => {
           fetchCallCount++
           if (fetchCallCount === 1) {
             return {
@@ -340,11 +371,14 @@ describe('publishWithOtpHandling', () => {
       const result = await publishWithOtpHandling({ context, manifest, publishOptions, tarballData })
       expect(result.ok).toBe(true)
       expect(fetchCallCount).toBe(2)
+      expect(globalInfo).toHaveBeenCalledWith(expect.stringContaining('https://registry.npmjs.org/auth/abc'))
     })
 
-    it('throws OtpWebAuthTimeoutError after 5 minutes', async () => {
+    it('throws WebAuthTimeoutError after 5 minutes', async () => {
       let time = 0
+      const globalInfo = jest.fn()
       const context = createMockContext({
+        globalInfo,
         Date: { now: () => time },
         publish: async () => {
           throw Object.assign(new Error('otp'), {
@@ -359,7 +393,7 @@ describe('publishWithOtpHandling', () => {
           time += 6 * 60 * 1000 // Jump past timeout
           cb()
         },
-        fetch: async (): Promise<OtpWebAuthFetchResponse> => ({
+        fetch: async (): Promise<WebAuthFetchResponse> => ({
           headers: { get: () => null },
           json: async () => ({}),
           ok: true,
@@ -367,7 +401,8 @@ describe('publishWithOtpHandling', () => {
         }),
       })
       await expect(publishWithOtpHandling({ context, manifest, publishOptions, tarballData }))
-        .rejects.toBeInstanceOf(OtpWebAuthTimeoutError)
+        .rejects.toBeInstanceOf(WebAuthTimeoutError)
+      expect(globalInfo).toHaveBeenCalledWith(expect.stringContaining('https://registry.npmjs.org/auth/abc'))
     })
   })
 })

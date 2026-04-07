@@ -1,11 +1,12 @@
+import { login } from '@pnpm/auth.commands'
 import { approveBuilds, ignoredBuilds, rebuild } from '@pnpm/building.commands'
 import { cache } from '@pnpm/cache.commands'
 import type { CommandHandlerMap, CompletionFunc } from '@pnpm/cli.command'
-import { createCompletionServer, doctor, generateCompletion } from '@pnpm/cli.commands'
+import { createCompletionServer, generateCompletion } from '@pnpm/cli.commands'
 import { config, getCommand, setCommand } from '@pnpm/config.commands'
 import { types as allTypes } from '@pnpm/config.reader'
 import { audit, licenses, sbom } from '@pnpm/deps.compliance.commands'
-import { list, ll, outdated, why } from '@pnpm/deps.inspection.commands'
+import { list, ll, outdated, peers, view, why } from '@pnpm/deps.inspection.commands'
 import { selfUpdate, setup } from '@pnpm/engine.pm.commands'
 import { env, runtime } from '@pnpm/engine.runtime.commands'
 import {
@@ -17,7 +18,8 @@ import {
 } from '@pnpm/exec.commands'
 import { add, dedupe, fetch, importCommand, install, link, prune, remove, unlink, update } from '@pnpm/installing.commands'
 import { patch, patchCommit, patchRemove } from '@pnpm/patching.commands'
-import { deploy, pack, publish } from '@pnpm/releasing.commands'
+import { deprecate, undeprecate, unpublish } from '@pnpm/registry-access.commands'
+import { deploy, pack, publish, version } from '@pnpm/releasing.commands'
 import { catFile, catIndex, findHash, store } from '@pnpm/store.commands'
 import { init } from '@pnpm/workspace.commands'
 import { pick } from 'ramda'
@@ -103,6 +105,16 @@ export interface CommandDefinition {
    * If true, this command should not care about what package manager is specified in the "packageManager" field of "package.json".
    */
   skipPackageManagerCheck?: boolean
+  /**
+   * If true, this command runs on all workspace projects by default when executed inside a workspace.
+   */
+  recursiveByDefault?: boolean
+  /**
+   * If true, a same-named script in package.json takes precedence over this
+   * built-in command. This applies to all command names including aliases
+   * (e.g. both "clean" and "purge").
+   */
+  overridableByScript?: boolean
 }
 
 const helpByCommandName: Record<string, () => string> = {}
@@ -120,9 +132,9 @@ const commands: CommandDefinition[] = [
   getCommand,
   setCommand,
   create,
+  deprecate,
   deploy,
   dlx,
-  doctor,
   env,
   exec,
   runtime,
@@ -136,6 +148,7 @@ const commands: CommandDefinition[] = [
   installTest,
   link,
   list,
+  login,
   ll,
   licenses,
   outdated,
@@ -143,8 +156,10 @@ const commands: CommandDefinition[] = [
   patch,
   patchCommit,
   patchRemove,
+  peers,
   prune,
   publish,
+  unpublish,
   rebuild,
   recursive,
   remove,
@@ -157,8 +172,11 @@ const commands: CommandDefinition[] = [
   catFile,
   catIndex,
   findHash,
+  undeprecate,
   unlink,
   update,
+  version,
+  view,
   why,
   createHelp(helpByCommandName),
   ...notImplementedCommandDefinitions,
@@ -169,8 +187,9 @@ const cliOptionsTypesByCommandName: Record<string, () => Record<string, unknown>
 const aliasToFullName = new Map<string, string>()
 const completionByCommandName: Record<string, CompletionFunc> = {}
 const shorthandsByCommandName: Record<string, Record<string, string | string[]>> = {}
-const rcOptionsTypes: Record<string, unknown> = {}
 const skipPackageManagerCheckForCommandArray = ['completion-server']
+const recursiveByDefaultCommandArray: string[] = []
+const overridableByScriptCommandArray: string[] = []
 
 for (let i = 0; i < commands.length; i++) {
   const {
@@ -179,9 +198,10 @@ for (let i = 0; i < commands.length; i++) {
     completion,
     handler,
     help,
-    rcOptionsTypes,
     shorthands,
     skipPackageManagerCheck,
+    recursiveByDefault,
+    overridableByScript,
   } = commands[i]
   if (!commandNames || commandNames.length === 0) {
     throw new Error(`The command at index ${i} doesn't have command names`)
@@ -194,10 +214,15 @@ for (let i = 0; i < commands.length; i++) {
     if (completion != null) {
       completionByCommandName[commandName] = completion
     }
-    Object.assign(rcOptionsTypes, rcOptionsTypes())
   }
   if (skipPackageManagerCheck) {
     skipPackageManagerCheckForCommandArray.push(...commandNames)
+  }
+  if (recursiveByDefault) {
+    recursiveByDefaultCommandArray.push(...commandNames)
+  }
+  if (overridableByScript) {
+    overridableByScriptCommandArray.push(...commandNames)
   }
   if (commandNames.length > 1) {
     const fullName = commandNames[0]
@@ -234,4 +259,8 @@ export function getCommandFullName (commandName: string): string | null {
     (handlerByCommandName[commandName] ? commandName : null)
 }
 
-export { NOT_IMPLEMENTED_COMMAND_SET, rcOptionsTypes, shorthandsByCommandName }
+export const recursiveByDefaultCommands = new Set(recursiveByDefaultCommandArray)
+
+export const overridableByScriptCommands = new Set(overridableByScriptCommandArray)
+
+export { NOT_IMPLEMENTED_COMMAND_SET, shorthandsByCommandName }

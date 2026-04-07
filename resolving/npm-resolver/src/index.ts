@@ -52,7 +52,7 @@ import {
   pickPackage,
   type PickPackageOptions,
 } from './pickPackage.js'
-import { pickVersionByVersionRange } from './pickPackageFromMeta.js'
+import { pickPackageFromMeta, pickVersionByVersionRange } from './pickPackageFromMeta.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
 import { whichVersionIsPinned } from './whichVersionIsPinned.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
@@ -112,9 +112,13 @@ function formatTimeAgo (date: Date): string {
 }
 
 export {
+  fetchMetadataFromFromRegistry,
+  type FetchMetadataFromFromRegistryOptions,
   type PackageMeta,
   type PackageMetaCache,
   parseBareSpecifier,
+  pickPackageFromMeta,
+  pickVersionByVersionRange,
   type RegistryPackageSpec,
   RegistryResponseError,
   workspacePrefToNpm,

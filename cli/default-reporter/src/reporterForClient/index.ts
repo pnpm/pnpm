@@ -1,4 +1,4 @@
-import type { Config } from '@pnpm/config.reader'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
 import type * as logs from '@pnpm/core-loggers'
 import type { LogLevel } from '@pnpm/logger'
 import type * as Rx from 'rxjs'
@@ -66,7 +66,7 @@ export function reporterForClient (
     process: NodeJS.Process
     isRecursive: boolean
     logLevel?: LogLevel
-    pnpmConfig?: Config
+    pnpmConfig?: Config & ConfigContext
     streamLifecycleOutput?: boolean
     aggregateOutput?: boolean
     throttleProgress?: number

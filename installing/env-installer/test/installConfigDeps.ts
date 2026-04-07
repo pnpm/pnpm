@@ -139,6 +139,25 @@ test('migration: installs from old inline integrity format and creates env lockf
   expect((envLockfile.packages['@pnpm.e2e/foo@100.0.0'].resolution as { integrity: string }).integrity).toBe(integrity)
 })
 
+test('migration fails with frozenLockfile when no env lockfile exists', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  const integrity = getIntegrity('@pnpm.e2e/foo', '100.0.0')
+  const configDeps: Record<string, string> = {
+    '@pnpm.e2e/foo': `100.0.0+${integrity}`,
+  }
+  await expect(installConfigDeps(configDeps, {
+    registries: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    store: storeController,
+    storeDir,
+    frozenLockfile: true,
+  })).rejects.toThrow('Cannot migrate configDependencies with "frozen-lockfile"')
+})
+
 test('installation fails if the config dependency does not have a checksum (old format)', async () => {
   prepareEmpty()
   const { storeController, storeDir } = createTempStore({

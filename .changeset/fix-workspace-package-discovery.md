@@ -1,5 +1,4 @@
 ---
-"@pnpm/fs.find-packages": patch
 "pnpm": patch
 ---
 

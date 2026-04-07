@@ -10,7 +10,6 @@
 "@pnpm/deps.compliance.commands": major
 "@pnpm/deps.inspection.commands": major
 "@pnpm/engine.pm.commands": major
-"@pnpm/workspace.projects-filter": major
 "@pnpm/patching.commands": major
 "@pnpm/installing.read-projects-context": major
 "@pnpm/workspace.range-resolver": major
@@ -35,7 +34,6 @@
 "@pnpm/cli.common-cli-options-help": major
 "@pnpm/config.normalize-registries": major
 "@pnpm/lockfile.preferred-versions": major
-"@pnpm/installing.render-peer-issues": major
 "@pnpm/installing.linking.modules-cleaner": major
 "@pnpm/pkg-manifest.utils": major
 "@pnpm/get-release-text": major
@@ -84,7 +82,7 @@
 "@pnpm/resolving.git-resolver": major
 "@pnpm/resolving.npm-resolver": major
 "@pnpm/jest-config": major
-"@pnpm/config.deps-installer": major
+"@pnpm/installing.env-installer": major
 "@pnpm/fetching.fetcher-base": major
 "@pnpm/fetching.pick-fetcher": major
 "@pnpm/fs.symlink-dependency": major

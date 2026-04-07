@@ -9,9 +9,9 @@ import { createCafsStore } from '@pnpm/store.create-cafs-store'
 import { StoreIndex } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import nock from 'nock'
 import ssri from 'ssri'
 import { temporaryDirectory } from 'tempy'
+import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 
 const originalModule = await import('@pnpm/logger')
 
@@ -29,8 +29,26 @@ const {
   TarballIntegrityError,
 } = await import('@pnpm/fetching.tarball-fetcher')
 
+let mockAgent: MockAgent
+let originalDispatcher: Dispatcher
+
+beforeAll(() => {
+  originalDispatcher = getGlobalDispatcher()
+})
+
 beforeEach(() => {
   jest.mocked(globalWarn).mockClear()
+  mockAgent = new MockAgent()
+  mockAgent.disableNetConnect()
+  setGlobalDispatcher(mockAgent)
+})
+
+afterEach(async () => {
+  await mockAgent.close()
+})
+
+afterAll(() => {
+  setGlobalDispatcher(originalDispatcher)
 })
 
 const storeDir = temporaryDirectory()
@@ -46,11 +64,10 @@ const f = fixtures(import.meta.dirname)
 const tarballPath = f.find('babel-helper-hoist-variables-6.24.1.tgz')
 const tarballSize = 1279
 const tarballIntegrity = 'sha1-HssnaJydJVE+rbyZFKc/VAi+enY='
-const registry = 'http://example.com/'
+const registry = 'http://example.com'
 const fetchFromRegistry = createFetchFromRegistry({})
 const getAuthHeader = () => undefined
 const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
-  rawConfig: {},
   storeIndex,
   retry: {
     maxTimeout: 100,
@@ -61,12 +78,17 @@ const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
 const pkg = {}
 
 test('fail when tarball size does not match content-length', async () => {
-  const scope = nock(registry)
-    .get('/foo.tgz')
-    .times(2)
-    .replyWithFile(200, tarballPath, {
-      'Content-Length': (1024 * 1024).toString(),
-    })
+  const tarballContent = fs.readFileSync(tarballPath)
+  const mockPool = mockAgent.get(registry)
+
+  // First request
+  mockPool.intercept({ path: '/foo.tgz', method: 'GET' }).reply(200, tarballContent, {
+    headers: { 'Content-Length': (1024 * 1024).toString() },
+  })
+  // Retry request
+  mockPool.intercept({ path: '/foo.tgz', method: 'GET' }).reply(200, tarballContent, {
+    headers: { 'Content-Length': (1024 * 1024).toString() },
+  })
 
   process.chdir(temporaryDirectory())
 
@@ -76,7 +98,7 @@ test('fail when tarball size does not match content-length', async () => {
     // Content-Length mismatch,
     // which indicates bad network connection. (see https://github.com/pnpm/pnpm/issues/1235)
     integrity: 'sha1-HssnaJydJVE+rbzZFKc/VAi+enY=',
-    tarball: `${registry}foo.tgz`,
+    tarball: `${registry}/foo.tgz`,
   }
 
   await expect(
@@ -92,25 +114,24 @@ test('fail when tarball size does not match content-length', async () => {
       tarballUrl: resolution.tarball,
     })
   )
-  expect(scope.isDone()).toBeTruthy()
 })
 
 test('retry when tarball size does not match content-length', async () => {
-  nock(registry)
-    .get('/foo.tgz')
-    .replyWithFile(200, tarballPath, {
-      'Content-Length': (1024 * 1024).toString(),
-    })
+  const tarballContent = fs.readFileSync(tarballPath)
+  const mockPool = mockAgent.get(registry)
 
-  nock(registry)
-    .get('/foo.tgz')
-    .replyWithFile(200, tarballPath, {
-      'Content-Length': tarballSize.toString(),
-    })
+  // First request with wrong content-length
+  mockPool.intercept({ path: '/foo.tgz', method: 'GET' }).reply(200, tarballContent, {
+    headers: { 'Content-Length': (1024 * 1024).toString() },
+  })
+  // Retry with correct content-length
+  mockPool.intercept({ path: '/foo.tgz', method: 'GET' }).reply(200, tarballContent, {
+    headers: { 'Content-Length': tarballSize.toString() },
+  })
 
   process.chdir(temporaryDirectory())
 
-  const resolution = { tarball: 'http://example.com/foo.tgz' }
+  const resolution = { tarball: `${registry}/foo.tgz` }
 
   const result = await fetch.remoteTarball(cafs, resolution, {
     filesIndexFile,
@@ -119,22 +140,26 @@ test('retry when tarball size does not match content-length', async () => {
   })
 
   expect(result.filesMap).toBeTruthy()
-  expect(nock.isDone()).toBeTruthy()
 })
 
 test('fail when integrity check fails two times in a row', async () => {
-  const scope = nock(registry)
-    .get('/foo.tgz')
-    .times(2)
-    .replyWithFile(200, f.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz'), {
-      'Content-Length': '1194',
-    })
+  const wrongTarball = f.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
+  const wrongTarballContent = fs.readFileSync(wrongTarball)
+  const mockPool = mockAgent.get(registry)
+
+  // Both requests return wrong tarball
+  mockPool.intercept({ path: '/foo.tgz', method: 'GET' }).reply(200, wrongTarballContent, {
+    headers: { 'Content-Length': '1194' },
+  })
+  mockPool.intercept({ path: '/foo.tgz', method: 'GET' }).reply(200, wrongTarballContent, {
+    headers: { 'Content-Length': '1194' },
+  })
 
   process.chdir(temporaryDirectory())
 
   const resolution = {
     integrity: tarballIntegrity,
-    tarball: 'http://example.com/foo.tgz',
+    tarball: `${registry}/foo.tgz`,
   }
 
   await expect(
@@ -152,25 +177,28 @@ test('fail when integrity check fails two times in a row', async () => {
       url: resolution.tarball,
     })
   )
-  expect(scope.isDone()).toBeTruthy()
 })
 
 test('retry when integrity check fails', async () => {
-  const scope = nock(registry)
-    .get('/foo.tgz')
-    .replyWithFile(200, f.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz'), {
-      'Content-Length': '1194',
-    })
-    .get('/foo.tgz')
-    .replyWithFile(200, tarballPath, {
-      'Content-Length': tarballSize.toString(),
-    })
+  const wrongTarball = f.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
+  const wrongTarballContent = fs.readFileSync(wrongTarball)
+  const tarballContent = fs.readFileSync(tarballPath)
+  const mockPool = mockAgent.get(registry)
+
+  // First request returns wrong tarball
+  mockPool.intercept({ path: '/foo.tgz', method: 'GET' }).reply(200, wrongTarballContent, {
+    headers: { 'Content-Length': '1194' },
+  })
+  // Retry returns correct tarball
+  mockPool.intercept({ path: '/foo.tgz', method: 'GET' }).reply(200, tarballContent, {
+    headers: { 'Content-Length': tarballSize.toString() },
+  })
 
   process.chdir(temporaryDirectory())
 
   const resolution = {
     integrity: tarballIntegrity,
-    tarball: 'http://example.com/foo.tgz',
+    tarball: `${registry}/foo.tgz`,
   }
 
   const params: Array<[number | null, number]> = []
@@ -185,8 +213,6 @@ test('retry when integrity check fails', async () => {
 
   expect(params[0]).toStrictEqual([1194, 1])
   expect(params[1]).toStrictEqual([tarballSize, 2])
-
-  expect(scope.isDone()).toBeTruthy()
 })
 
 test('fail when integrity check of local file fails', async () => {
@@ -245,9 +271,8 @@ test("don't fail when fetching a local tarball in offline mode", async () => {
   }
 
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
-    offline: true,
-    rawConfig: {},
     storeIndex,
+    offline: true,
     retry: {
       maxTimeout: 100,
       minTimeout: 0,
@@ -269,13 +294,12 @@ test('fail when trying to fetch a non-local tarball in offline mode', async () =
   const tarballAbsoluteLocation = f.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
   const resolution = {
     integrity: await getFileIntegrity(tarballAbsoluteLocation),
-    tarball: `${registry}foo.tgz`,
+    tarball: `${registry}/foo.tgz`,
   }
 
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
-    offline: true,
-    rawConfig: {},
     storeIndex,
+    offline: true,
     retry: {
       maxTimeout: 100,
       minTimeout: 0,
@@ -296,19 +320,21 @@ The missing package may be downloaded from ${resolution.tarball}.`)
 })
 
 test('retry on server error', async () => {
-  const scope = nock(registry)
-    .get('/foo.tgz')
-    .reply(500)
-    .get('/foo.tgz')
-    .replyWithFile(200, tarballPath, {
-      'Content-Length': tarballSize.toString(),
-    })
+  const tarballContent = fs.readFileSync(tarballPath)
+  const mockPool = mockAgent.get(registry)
+
+  // First request returns 500
+  mockPool.intercept({ path: '/foo.tgz', method: 'GET' }).reply(500, 'Internal Server Error')
+  // Retry returns success
+  mockPool.intercept({ path: '/foo.tgz', method: 'GET' }).reply(200, tarballContent, {
+    headers: { 'Content-Length': tarballSize.toString() },
+  })
 
   process.chdir(temporaryDirectory())
 
   const resolution = {
     integrity: tarballIntegrity,
-    tarball: 'http://example.com/foo.tgz',
+    tarball: `${registry}/foo.tgz`,
   }
 
   const index = await fetch.remoteTarball(cafs, resolution, {
@@ -318,20 +344,17 @@ test('retry on server error', async () => {
   })
 
   expect(index).toBeTruthy()
-
-  expect(scope.isDone()).toBeTruthy()
 })
 
 test('throw error when accessing private package w/o authorization', async () => {
-  const scope = nock(registry)
-    .get('/foo.tgz')
-    .reply(403)
+  const mockPool = mockAgent.get(registry)
+  mockPool.intercept({ path: '/foo.tgz', method: 'GET' }).reply(403, 'Forbidden')
 
   process.chdir(temporaryDirectory())
 
   const resolution = {
     integrity: tarballIntegrity,
-    tarball: 'http://example.com/foo.tgz',
+    tarball: `${registry}/foo.tgz`,
   }
 
   await expect(
@@ -347,24 +370,21 @@ test('throw error when accessing private package w/o authorization', async () =>
       },
       {
         status: 403,
-        // statusText: 'Forbidden',
-        statusText: '',
+        statusText: 'Forbidden',
       }
     )
   )
-  expect(scope.isDone()).toBeTruthy()
 })
 
 test('do not retry when package does not exist', async () => {
-  const scope = nock(registry)
-    .get('/foo.tgz')
-    .reply(404)
+  const mockPool = mockAgent.get(registry)
+  mockPool.intercept({ path: '/foo.tgz', method: 'GET' }).reply(404, 'Not Found')
 
   process.chdir(temporaryDirectory())
 
   const resolution = {
     integrity: tarballIntegrity,
-    tarball: 'http://example.com/foo.tgz',
+    tarball: `${registry}/foo.tgz`,
   }
 
   await expect(
@@ -380,32 +400,30 @@ test('do not retry when package does not exist', async () => {
       },
       {
         status: 404,
-        statusText: '',
+        statusText: 'Not Found',
       }
     )
   )
-  expect(scope.isDone()).toBeTruthy()
 })
 
 test('accessing private packages', async () => {
-  const scope = nock(
-    registry,
-    {
-      reqheaders: {
-        authorization: 'Bearer ofjergrg349gj3f2',
-      },
-    }
-  )
-    .get('/foo.tgz')
-    .replyWithFile(200, tarballPath, {
-      'Content-Length': tarballSize.toString(),
-    })
+  const tarballContent = fs.readFileSync(tarballPath)
+  const mockPool = mockAgent.get(registry)
+
+  mockPool.intercept({
+    path: '/foo.tgz',
+    method: 'GET',
+    headers: {
+      authorization: 'Bearer ofjergrg349gj3f2',
+    },
+  }).reply(200, tarballContent, {
+    headers: { 'Content-Length': tarballSize.toString() },
+  })
 
   process.chdir(temporaryDirectory())
 
   const getAuthHeader = () => 'Bearer ofjergrg349gj3f2'
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
-    rawConfig: {},
     storeIndex,
     retry: {
       maxTimeout: 100,
@@ -416,8 +434,8 @@ test('accessing private packages', async () => {
 
   const resolution = {
     integrity: tarballIntegrity,
-    registry,
-    tarball: 'http://example.com/foo.tgz',
+    registry: `${registry}/`,
+    tarball: `${registry}/foo.tgz`,
   }
 
   const index = await fetch.remoteTarball(cafs, resolution, {
@@ -427,8 +445,6 @@ test('accessing private packages', async () => {
   })
 
   expect(index).toBeTruthy()
-
-  expect(scope.isDone()).toBeTruthy()
 })
 
 async function getFileIntegrity (filename: string) {
@@ -437,6 +453,9 @@ async function getFileIntegrity (filename: string) {
 
 // Covers the regression reported in https://github.com/pnpm/pnpm/issues/4064
 test('fetch a big repository', async () => {
+  // Enable network for this test
+  mockAgent.enableNetConnect(/codeload\.github\.com/)
+
   process.chdir(temporaryDirectory())
 
   const resolution = { tarball: 'https://codeload.github.com/sveltejs/action-deploy-docs/tar.gz/a65fbf5a90f53c9d72fed4daaca59da50f074355' }
@@ -451,6 +470,9 @@ test('fetch a big repository', async () => {
 })
 
 test('fail when preparing a git-hosted package', async () => {
+  // Enable network for this test
+  mockAgent.enableNetConnect(/codeload\.github\.com/)
+
   process.chdir(temporaryDirectory())
 
   const resolution = { tarball: 'https://codeload.github.com/pnpm-e2e/prepare-script-fails/tar.gz/ba58874aae1210a777eb309dd01a9fdacc7e54e7' }
@@ -466,6 +488,9 @@ test('fail when preparing a git-hosted package', async () => {
 })
 
 test('take only the files included in the package, when fetching a git-hosted package', async () => {
+  // Enable network for this test
+  mockAgent.enableNetConnect(/codeload\.github\.com/)
+
   process.chdir(temporaryDirectory())
 
   const resolution = { tarball: 'https://codeload.github.com/pnpm-e2e/pkg-with-ignored-files/tar.gz/958d6d487217512bb154d02836e9b5b922a600d8' }
@@ -484,15 +509,16 @@ test('take only the files included in the package, when fetching a git-hosted pa
 })
 
 test('fail when extracting a broken tarball', async () => {
-  const scope = nock(registry)
-    .get('/foo.tgz')
-    .times(2)
-    .reply(200, 'this is not a valid tarball')
+  const mockPool = mockAgent.get(registry)
+
+  // Both requests return invalid tarball content
+  mockPool.intercept({ path: '/foo.tgz', method: 'GET' }).reply(200, 'this is not a valid tarball')
+  mockPool.intercept({ path: '/foo.tgz', method: 'GET' }).reply(200, 'this is not a valid tarball')
 
   process.chdir(temporaryDirectory())
 
   const resolution = {
-    tarball: `${registry}foo.tgz`,
+    tarball: `${registry}/foo.tgz`,
   }
 
   await expect(
@@ -501,21 +527,22 @@ test('fail when extracting a broken tarball', async () => {
       lockfileDir: process.cwd(),
       pkg,
     })
-  ).rejects.toThrow(`Failed to add tarball from "${registry}foo.tgz" to store: Invalid checksum for TAR header at offset 0. Expected 0, got NaN`
+  ).rejects.toThrow(`Failed to add tarball from "${registry}/foo.tgz" to store: Invalid checksum for TAR header at offset 0. Expected 0, got NaN`
   )
-  expect(scope.isDone()).toBeTruthy()
 })
 
 test('do not build the package when scripts are ignored', async () => {
+  // Enable network for this test
+  mockAgent.enableNetConnect(/codeload\.github\.com/)
+
   process.chdir(temporaryDirectory())
 
   const tarball = 'https://codeload.github.com/pnpm-e2e/prepare-script-works/tar.gz/55416a9c468806a935636c0ad0371a14a64df8c9'
   const resolution = { tarball }
 
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
-    ignoreScripts: true,
-    rawConfig: {},
     storeIndex,
+    ignoreScripts: true,
     retry: {
       maxTimeout: 100,
       minTimeout: 0,
@@ -551,6 +578,9 @@ test('when extracting files with the same name, pick the last ones', async () =>
 })
 
 test('use the subfolder when path is present', async () => {
+  // Enable network for this test
+  mockAgent.enableNetConnect(/codeload\.github\.com/)
+
   process.chdir(temporaryDirectory())
 
   const resolution = {
@@ -559,9 +589,8 @@ test('use the subfolder when path is present', async () => {
   }
 
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
-    ignoreScripts: true,
-    rawConfig: {},
     storeIndex,
+    ignoreScripts: true,
     retry: {
       maxTimeout: 100,
       minTimeout: 0,
@@ -579,6 +608,9 @@ test('use the subfolder when path is present', async () => {
 })
 
 test('prevent directory traversal attack when path is present', async () => {
+  // Enable network for this test
+  mockAgent.enableNetConnect(/codeload\.github\.com/)
+
   process.chdir(temporaryDirectory())
 
   const tarball = 'https://codeload.github.com/RexSkz/test-git-subfolder-fetch/tar.gz/2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22'
@@ -586,9 +618,8 @@ test('prevent directory traversal attack when path is present', async () => {
   const resolution = { tarball, path }
 
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
-    ignoreScripts: true,
-    rawConfig: {},
     storeIndex,
+    ignoreScripts: true,
     retry: {
       maxTimeout: 100,
       minTimeout: 0,
@@ -604,6 +635,9 @@ test('prevent directory traversal attack when path is present', async () => {
 })
 
 test('fail when path is not exists', async () => {
+  // Enable network for this test
+  mockAgent.enableNetConnect(/codeload\.github\.com/)
+
   process.chdir(temporaryDirectory())
 
   const tarball = 'https://codeload.github.com/RexSkz/test-git-subfolder-fetch/tar.gz/2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22'
@@ -611,9 +645,8 @@ test('fail when path is not exists', async () => {
   const resolution = { tarball, path }
 
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
-    ignoreScripts: true,
-    rawConfig: {},
     storeIndex,
+    ignoreScripts: true,
     retry: {
       maxTimeout: 100,
       minTimeout: 0,

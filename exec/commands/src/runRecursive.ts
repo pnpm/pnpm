@@ -3,7 +3,7 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { throwOnCommandFail } from '@pnpm/cli.utils'
-import { type Config, getWorkspaceConcurrency } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, getWorkspaceConcurrency } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import {
   makeNodeRequireOption,
@@ -26,16 +26,15 @@ export type RecursiveRunOpts = Pick<Config,
 | 'enablePrePostScripts'
 | 'unsafePerm'
 | 'pnpmHomeDir'
-| 'rawConfig'
 | 'requiredScripts'
-| 'rootProjectManifest'
+| 'userAgent'
 | 'scriptsPrependNodePath'
 | 'scriptShell'
 | 'shellEmulator'
 | 'stream'
 | 'syncInjectedDepsAfterScripts'
 | 'workspaceDir'
-> & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir' | 'dir'>> &
+> & Pick<ConfigContext, 'rootProjectManifest'> & Required<Pick<ConfigContext, 'allProjects' | 'selectedProjectsGraph'> & Pick<Config, 'workspaceDir' | 'dir'>> &
 Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reporter' | 'reverse' | 'sort' | 'workspaceConcurrency'>> &
 {
   ifPresent?: boolean
@@ -123,7 +122,7 @@ export async function runRecursive (
             extraBinPaths: opts.extraBinPaths,
             extraEnv: opts.extraEnv,
             pkgRoot: prefix,
-            rawConfig: opts.rawConfig,
+            userAgent: opts.userAgent,
             rootModulesDir: await realpathMissing(path.join(prefix, 'node_modules')),
             scriptsPrependNodePath: opts.scriptsPrependNodePath,
             scriptShell: opts.scriptShell,

@@ -97,14 +97,13 @@ export async function handler (
   const fullMetadata = (
     (
       opts.resolutionMode === 'time-based' ||
-      Boolean(opts.minimumReleaseAge) ||
       opts.trustPolicy === 'no-downgrade'
     ) && !opts.registrySupportsTimeField
   )
   const catalogResolver = resolveFromCatalog.bind(null, opts.catalogs ?? {})
   const { resolve } = createResolver({
     ...opts,
-    authConfig: opts.rawConfig,
+    configByUri: opts.configByUri,
     fullMetadata,
     filterMetadata: fullMetadata,
     retry: {
@@ -136,7 +135,7 @@ export async function handler (
     })
     return resolved.id
   }))
-  const { cacheLink, cacheExists, cachedDir } = findCache({
+  let { cacheLink, cacheExists, cachedDir } = findCache({
     packages: resolvedPkgs,
     dlxCacheMaxAge: opts.dlxCacheMaxAge,
     cacheDir: opts.cacheDir,
@@ -145,33 +144,45 @@ export async function handler (
     supportedArchitectures: opts.supportedArchitectures,
   })
   if (!cacheExists) {
-    fs.mkdirSync(cachedDir, { recursive: true })
-    await add.handler({
-      ...opts,
-      enableGlobalVirtualStore: opts.enableGlobalVirtualStore ?? true,
-      bin: path.join(cachedDir, 'node_modules/.bin'),
-      dir: cachedDir,
-      lockfileDir: cachedDir,
-      allowBuilds: Object.fromEntries([...resolvedPkgAliases, ...(opts.allowBuild ?? [])].map(pkg => [pkg, true])),
-      rootProjectManifestDir: cachedDir,
-      saveProd: true, // dlx will be looking for the package in the "dependencies" field!
-      saveDev: false,
-      saveOptional: false,
-      savePeer: false,
-      symlink: true,
-      workspaceDir: undefined,
-    }, resolvedPkgs)
     try {
-      await symlinkDir(cachedDir, cacheLink, { overwrite: true })
-    } catch (error) {
-      // EBUSY/EEXIST/EPERM means that there is another dlx process running in parallel that has acquired the cache link first.
-      // EPERM can happen on Windows when another process has the symlink open while this process tries to unlink it.
-      // The link created by the other process is just as up-to-date as the link the current process was attempting
-      // to create. Therefore, instead of re-attempting to create the current link again, it is just as good to let
-      // the other link stay. The current process should yield.
-      if (!util.types.isNativeError(error) || !('code' in error) || (error.code !== 'EBUSY' && error.code !== 'EEXIST' && error.code !== 'EPERM')) {
-        throw error
+      fs.mkdirSync(cachedDir, { recursive: true })
+      await add.handler({
+        ...opts,
+        enableGlobalVirtualStore: opts.enableGlobalVirtualStore ?? true,
+        bin: path.join(cachedDir, 'node_modules/.bin'),
+        dir: cachedDir,
+        lockfileDir: cachedDir,
+        allowBuilds: Object.fromEntries([...resolvedPkgAliases, ...(opts.allowBuild ?? [])].map(pkg => [pkg, true])),
+        rootProjectManifestDir: cachedDir,
+        saveProd: true, // dlx will be looking for the package in the "dependencies" field!
+        saveDev: false,
+        saveOptional: false,
+        savePeer: false,
+        symlink: true,
+        workspaceDir: undefined,
+      }, resolvedPkgs)
+      try {
+        await symlinkDir(cachedDir, cacheLink, { overwrite: true })
+      } catch (error) {
+        // EBUSY/EEXIST/EPERM means that there is another dlx process running in parallel that has acquired the cache link first.
+        // EPERM can happen on Windows when another process has the symlink open while this process tries to unlink it.
+        // The link created by the other process is just as up-to-date as the link the current process was attempting
+        // to create. Therefore, instead of re-attempting to create the current link again, it is just as good to let
+        // the other link stay. The current process should yield.
+        if (!util.types.isNativeError(error) || !('code' in error) || (error.code !== 'EBUSY' && error.code !== 'EEXIST' && error.code !== 'EPERM')) {
+          throw error
+        }
       }
+    } catch (err) {
+      // When parallel dlx processes install the same package, the shared global
+      // virtual store can cause spurious failures (e.g. ENOENT from concurrent
+      // directory swaps).  If another process completed the cache in the meantime,
+      // use that instead of failing.
+      const completedDir = getValidCacheDir(cacheLink, opts.dlxCacheMaxAge)
+      if (completedDir == null) {
+        throw err
+      }
+      cachedDir = completedDir
     }
   }
   const binsDir = path.join(cachedDir, 'node_modules/.bin')

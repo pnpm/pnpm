@@ -13,8 +13,14 @@ const RENAMED_OPTIONS = {
   store: 'store-dir',
 }
 
-export async function parseCliArgs (inputArgv: string[]): Promise<ParsedCliArgs> {
-  return parseCliArgsLib({
+export type ParsedCliArgsWithBuiltIn = ParsedCliArgs & { builtInCommandForced: boolean }
+
+export async function parseCliArgs (inputArgv: string[]): Promise<ParsedCliArgsWithBuiltIn> {
+  const builtInCommandForced = inputArgv[0] === 'pm'
+  if (builtInCommandForced) {
+    inputArgv.splice(0, 1)
+  }
+  const result = await parseCliArgsLib({
     fallbackCommand: 'run',
     escapeArgs: ['create', 'exec', 'test'],
     getCommandLongName: getCommandFullName,
@@ -24,4 +30,5 @@ export async function parseCliArgs (inputArgv: string[]): Promise<ParsedCliArgs>
     universalOptionsTypes: GLOBAL_OPTIONS,
     universalShorthands,
   }, inputArgv)
+  return { ...result, builtInCommandForced }
 }

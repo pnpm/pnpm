@@ -19,19 +19,19 @@ jobs:
     - name: Checkout Commit
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - name: Install pnpm
-      uses: pnpm/action-setup@58e6119fe4f3092a76a7771efb55e04d25b6b26f
+      uses: pnpm/action-setup@6e7bdbda5fe05107efc88b23b7ed00aa05f84ca0
       with:
         standalone: true
     - name: Setup Node
-      run: pnpm runtime -g set node 24.6.0
+      run: pn runtime -g set node 24.6.0
       timeout-minutes: 2
     - name: pnpm install
-      run: pnpm install
+      run: pn install
       timeout-minutes: 3
     - name: Compile TypeScript
-      run: pnpm run compile-only
+      run: pn compile-only
     - name: Lint
-      run: pnpm run lint
+      run: pn lint
     - name: Package compiled artifacts
       run: tar -czf compiled.tar.gz --exclude='node_modules' $(find . -type d -name lib -not -path '*/node_modules/*') $(find . -name 'tsconfig.tsbuildinfo' -not -path '*/node_modules/*') pnpm/dist
     - name: Upload compiled artifacts

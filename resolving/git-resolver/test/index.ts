@@ -4,15 +4,15 @@ import path from 'node:path'
 import { jest } from '@jest/globals'
 import isWindows from 'is-windows'
 
-const { fetchWithAgent: fetchWithAgentOriginal } = await import('@pnpm/network.fetch')
+const { fetchWithDispatcher: fetchWithDispatcherOriginal } = await import('@pnpm/network.fetch')
 jest.unstable_mockModule('@pnpm/network.fetch', () => ({
-  fetchWithAgent: jest.fn(),
+  fetchWithDispatcher: jest.fn(),
 }))
 const { gracefulGit: gitOriginal } = await import('graceful-git')
 jest.unstable_mockModule('graceful-git', () => ({
   gracefulGit: jest.fn(),
 }))
-const { fetchWithAgent } = await import('@pnpm/network.fetch')
+const { fetchWithDispatcher } = await import('@pnpm/network.fetch')
 const { gracefulGit: git } = await import('graceful-git')
 const { createGitResolver } = await import('@pnpm/resolving.git-resolver')
 
@@ -20,11 +20,11 @@ const resolveFromGit = createGitResolver({})
 
 beforeEach(() => {
   jest.mocked(git).mockImplementation(gitOriginal)
-  jest.mocked(fetchWithAgent).mockImplementation(fetchWithAgentOriginal)
+  jest.mocked(fetchWithDispatcher).mockImplementation(fetchWithDispatcherOriginal)
 })
 
 function mockFetchAsPrivate (): void {
-  jest.mocked(fetchWithAgent).mockImplementation(async (_url, _opts) => {
+  jest.mocked(fetchWithDispatcher).mockImplementation(async (_url, _opts) => {
     return { ok: false } as any // eslint-disable-line @typescript-eslint/no-explicit-any
   })
 }
@@ -186,12 +186,22 @@ test.skip('resolveFromGit() with range semver (v-prefixed tag)', async () => {
 })
 
 test('resolveFromGit() with sub folder', async () => {
+  const headCommit = '2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22'
+  jest.mocked(fetchWithDispatcher).mockImplementation(async (_url, _opts) => {
+    return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+  })
+  jest.mocked(git).mockImplementation(async (args: string[]) => {
+    if (args.includes('--exit-code')) {
+      return { stdout: `${headCommit}\tHEAD` }
+    }
+    return { stdout: `${headCommit}\tHEAD` }
+  })
   const resolveResult = await resolveFromGit({ bareSpecifier: 'github:RexSkz/test-git-subfolder-fetch.git#path:/packages/simple-react-app' })
   expect(resolveResult).toStrictEqual({
-    id: 'https://codeload.github.com/RexSkz/test-git-subfolder-fetch/tar.gz/2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22#path:/packages/simple-react-app',
+    id: `https://codeload.github.com/RexSkz/test-git-subfolder-fetch/tar.gz/${headCommit}#path:/packages/simple-react-app`,
     normalizedBareSpecifier: 'github:RexSkz/test-git-subfolder-fetch#path:/packages/simple-react-app',
     resolution: {
-      tarball: 'https://codeload.github.com/RexSkz/test-git-subfolder-fetch/tar.gz/2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22',
+      tarball: `https://codeload.github.com/RexSkz/test-git-subfolder-fetch/tar.gz/${headCommit}`,
       path: '/packages/simple-react-app',
     },
     resolvedVia: 'git-repository',
@@ -199,12 +209,22 @@ test('resolveFromGit() with sub folder', async () => {
 })
 
 test('resolveFromGit() with both sub folder and branch', async () => {
+  const betaCommit = '777e8a3e78cc89bbf41fb3fd9f6cf922d5463313'
+  jest.mocked(fetchWithDispatcher).mockImplementation(async (_url, _opts) => {
+    return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+  })
+  jest.mocked(git).mockImplementation(async (args: string[]) => {
+    if (args.includes('--exit-code')) {
+      return { stdout: `${betaCommit}\tHEAD` }
+    }
+    return { stdout: `${betaCommit}\trefs/heads/beta` }
+  })
   const resolveResult = await resolveFromGit({ bareSpecifier: 'github:RexSkz/test-git-subfolder-fetch.git#beta&path:/packages/simple-react-app' })
   expect(resolveResult).toStrictEqual({
-    id: 'https://codeload.github.com/RexSkz/test-git-subfolder-fetch/tar.gz/777e8a3e78cc89bbf41fb3fd9f6cf922d5463313#path:/packages/simple-react-app',
+    id: `https://codeload.github.com/RexSkz/test-git-subfolder-fetch/tar.gz/${betaCommit}#path:/packages/simple-react-app`,
     normalizedBareSpecifier: 'github:RexSkz/test-git-subfolder-fetch#beta&path:/packages/simple-react-app',
     resolution: {
-      tarball: 'https://codeload.github.com/RexSkz/test-git-subfolder-fetch/tar.gz/777e8a3e78cc89bbf41fb3fd9f6cf922d5463313',
+      tarball: `https://codeload.github.com/RexSkz/test-git-subfolder-fetch/tar.gz/${betaCommit}`,
       path: '/packages/simple-react-app',
     },
     resolvedVia: 'git-repository',

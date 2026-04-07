@@ -699,7 +699,7 @@ test('`pnpm recursive run` should always trust the scripts', async () => {
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
 
-  process.env['npm_config_unsafe_perm'] = 'false'
+  process.env['pnpm_config_unsafe_perm'] = 'false'
   await run.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
@@ -707,7 +707,7 @@ test('`pnpm recursive run` should always trust the scripts', async () => {
     workspaceDir: process.cwd(),
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
   }, ['build'])
-  delete process.env.npm_config_unsafe_perm
+  delete process.env.pnpm_config_unsafe_perm
 
   expect(server.getLines()).toStrictEqual(['project'])
 })

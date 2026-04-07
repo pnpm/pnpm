@@ -7,8 +7,10 @@ import { packageImportMethodLogger } from '@pnpm/core-loggers'
 import fs from '@pnpm/fs.graceful-fs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import type { FilesMap, ImportIndexedPackage, ImportOptions } from '@pnpm/store.controller-types'
+import { fastPathTemp as pathTemp } from 'path-temp'
+import { renameOverwriteSync } from 'rename-overwrite'
 
-import { type ImportFile, importIndexedDir } from './importIndexedDir.js'
+import { type Importer, type ImportFile, importIndexedDir } from './importIndexedDir.js'
 
 export { type FilesMap, type ImportIndexedPackage, type ImportOptions }
 
@@ -28,7 +30,7 @@ function createImportPackage (packageImportMethod?: PackageImportMethod): Import
   switch (packageImportMethod ?? 'auto') {
     case 'clone':
       packageImportMethodLogger.debug({ method: 'clone' })
-      return clonePkg.bind(null, createCloneFunction())
+      return createClonePkg()
     case 'hardlink':
       packageImportMethodLogger.debug({ method: 'hardlink' })
       return hardlinkPkg.bind(null, linkOrCopy)
@@ -59,10 +61,15 @@ function createAutoImporter (): ImportIndexedPackage {
     // Hence, we prefer reflinks by default only on Linux and macOS.
     if (process.platform !== 'win32') {
       try {
-        const _clonePkg = clonePkg.bind(null, createCloneFunction())
-        if (!_clonePkg(to, opts)) return undefined
+        // Probe with the raw clone function (no ENOTSUP fallback).
+        // On filesystems that don't support reflinks (e.g. ext4), this
+        // throws and we fall through to hardlinks — which is much faster
+        // than copying.  If the probe succeeds, we switch to the full
+        // clone importer (with ENOTSUP fallback for transient failures
+        // during heavy parallel I/O) for all subsequent packages.
+        if (!tryClonePkg(to, opts)) return undefined
         packageImportMethodLogger.debug({ method: 'clone' })
-        auto = _clonePkg
+        auto = createClonePkg()
         return 'clone'
       } catch {
         // ignore
@@ -100,10 +107,9 @@ function createCloneOrCopyImporter (): ImportIndexedPackage {
     opts: ImportOptions
   ): string | undefined {
     try {
-      const _clonePkg = clonePkg.bind(null, createCloneFunction())
-      if (!_clonePkg(to, opts)) return undefined
+      if (!tryClonePkg(to, opts)) return undefined
       packageImportMethodLogger.debug({ method: 'clone' })
-      auto = _clonePkg
+      auto = createClonePkg()
       return 'clone'
     } catch {
       // ignore
@@ -116,16 +122,56 @@ function createCloneOrCopyImporter (): ImportIndexedPackage {
 
 type CloneFunction = (src: string, dest: string) => void
 
-function clonePkg (
-  clone: CloneFunction,
+/**
+ * Import a single package using a raw clone function (no ENOTSUP fallback).
+ * Used by auto-mode to probe whether the filesystem supports cloning.
+ * If cloning isn't supported, the error propagates so the caller can fall
+ * through to a faster method (e.g. hardlinks).
+ */
+function tryClonePkg (
   to: string,
   opts: ImportOptions
 ): 'clone' | undefined {
   if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
-    importIndexedDir(clone, to, opts.filesMap, opts)
+    const clone = createCloneFunction()
+    importIndexedDir({ importFile: clone, importFileAtomic: clone }, to, opts.filesMap, opts)
     return 'clone'
   }
   return undefined
+}
+
+/**
+ * Creates a clone-based package importer.  Reflinks are atomic, so clone can
+ * serve as both importFile and importFileAtomic.  However, on Linux
+ * copy_file_range can transiently fail with ENOTSUP under heavy parallel I/O,
+ * so we fall back to copy on ENOTSUP.  Regular files use a simple copy;
+ * package.json (the completion marker) uses a temp+rename fallback to stay
+ * atomic.
+ */
+function createClonePkg (): ImportIndexedPackage {
+  const clone = createCloneFunction()
+  const withFallback = (fallback: CloneFunction): ImportFile => (src, dest) => {
+    try {
+      clone(src, dest)
+    } catch (err: unknown) {
+      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOTSUP') {
+        fallback(src, dest)
+        return
+      }
+      throw err
+    }
+  }
+  const importer: Importer = {
+    importFile: withFallback(resilientCopyFileSync),
+    importFileAtomic: withFallback(atomicCopyFileSync),
+  }
+  return (to: string, opts: ImportOptions) => {
+    if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
+      importIndexedDir(importer, to, opts.filesMap, opts)
+      return 'clone'
+    }
+    return undefined
+  }
 }
 
 function pkgExistsAtTargetDir (targetDir: string, filesMap: FilesMap): boolean {
@@ -133,9 +179,9 @@ function pkgExistsAtTargetDir (targetDir: string, filesMap: FilesMap): boolean {
 }
 
 function pickFileFromFilesMap (filesMap: FilesMap): string {
-  // A package might not have a package.json file.
-  // For instance, the Node.js package.
-  // Or injected packages in a Bit workspace.
+  // New packages always have a package.json (the worker synthesizes one if
+  // the tarball/directory lacks it).  The fallback handles old store entries
+  // that were indexed before the synthetic package.json was introduced.
   if (filesMap.has('package.json')) {
     return 'package.json'
   }
@@ -145,13 +191,16 @@ function pickFileFromFilesMap (filesMap: FilesMap): string {
   return filesMap.keys().next().value!
 }
 
+let _cloneFunction: CloneFunction | undefined
+
 function createCloneFunction (): CloneFunction {
+  if (_cloneFunction) return _cloneFunction
   // Node.js currently does not natively support reflinks on Windows and macOS.
   // Hence, we use a third party solution.
   if (process.platform === 'darwin' || process.platform === 'win32') {
     // eslint-disable-next-line
     const { reflinkFileSync } = require('@reflink/reflink') as typeof import('@reflink/reflink')
-    return (fr, to) => {
+    _cloneFunction = (fr, to) => {
       try {
         reflinkFileSync(fr, to)
       } catch (err: unknown) {
@@ -161,14 +210,16 @@ function createCloneFunction (): CloneFunction {
         if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EEXIST') throw err
       }
     }
-  }
-  return (src: string, dest: string) => {
-    try {
-      fs.copyFileSync(src, dest, constants.COPYFILE_FICLONE_FORCE)
-    } catch (err: unknown) {
-      if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
+  } else {
+    _cloneFunction = (src: string, dest: string) => {
+      try {
+        fs.copyFileSync(src, dest, constants.COPYFILE_FICLONE_FORCE)
+      } catch (err: unknown) {
+        if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
+      }
     }
   }
+  return _cloneFunction
 }
 
 function hardlinkPkg (
@@ -177,7 +228,7 @@ function hardlinkPkg (
   opts: ImportOptions
 ): 'hardlink' | undefined {
   if (opts.force || shouldRelinkPkg(to, opts)) {
-    importIndexedDir(importFile, to, opts.filesMap, opts)
+    importIndexedDir({ importFile, importFileAtomic: importFile }, to, opts.filesMap, opts)
     return 'hardlink'
   }
   return undefined
@@ -208,7 +259,23 @@ function linkOrCopy (existingPath: string, newPath: string): void {
     // In some VERY rare cases (1 in a thousand), hard-link creation fails on Windows.
     // In that case, we just fall back to copying.
     // This issue is reproducible with "pnpm add @material-ui/icons@4.9.1"
-    fs.copyFileSync(existingPath, newPath)
+    resilientCopyFileSync(existingPath, newPath)
+  }
+}
+
+// On Linux CI, the kernel's copy_file_range/sendfile can transiently fail
+// with ENOTSUP under heavy parallel I/O on the same store files.
+// Fall back to manual read+write which uses plain read/write syscalls.
+function resilientCopyFileSync (src: string, dest: string): void {
+  try {
+    fs.copyFileSync(src, dest)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOTSUP') {
+      const srcMode = fs.statSync(src).mode
+      fs.writeFileSync(dest, fs.readFileSync(src), { mode: srcMode })
+    } else {
+      throw err
+    }
   }
 }
 
@@ -232,8 +299,24 @@ export function copyPkg (
   opts: ImportOptions
 ): 'copy' | undefined {
   if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
-    importIndexedDir(fs.copyFileSync, to, opts.filesMap, opts)
+    // copyFileSync is not atomic on non-COW filesystems: a crash mid-copy
+    // can leave a partially-written file.  package.json is the completion
+    // marker, so it must be written atomically via temp file + rename.
+    importIndexedDir({ importFile: resilientCopyFileSync, importFileAtomic: atomicCopyFileSync }, to, opts.filesMap, opts)
     return 'copy'
   }
   return undefined
+}
+
+function atomicCopyFileSync (src: string, dest: string): void {
+  const tmp = pathTemp(dest)
+  try {
+    resilientCopyFileSync(src, tmp)
+  } catch (err) {
+    try {
+      fs.unlinkSync(tmp)
+    } catch {} // eslint-disable-line:no-empty
+    throw err
+  }
+  renameOverwriteSync(tmp, dest)
 }

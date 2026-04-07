@@ -75,3 +75,34 @@ test('approve-builds updates GVS symlinks and runs builds at correct hash direct
   const workspaceManifest = readYamlFileSync<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
   expect(workspaceManifest.allowBuilds?.['@pnpm.e2e/pre-and-postinstall-scripts-example']).toBe(true)
 })
+
+test('warm GVS reinstall skips internal linking', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '*',
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  })
+  const storeDir = path.resolve('store')
+  writeYamlFileSync(path.resolve('pnpm-workspace.yaml'), {
+    enableGlobalVirtualStore: true,
+    storeDir,
+    privateHoistPattern: '*',
+  })
+
+  // First install — warms GVS store
+  await execPnpm(['install'])
+
+  // Delete node_modules
+  fs.rmSync(path.resolve('node_modules'), { recursive: true })
+
+  // Reinstall with frozen lockfile — should skip internal GVS linking
+  await execPnpm(['install', '--frozen-lockfile'])
+
+  // Verify structure is correct after warm reinstall
+  expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/hello-world-js-bin/package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.bin/hello-world-js-bin'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/lock.yaml'))).toBeTruthy()
+})
