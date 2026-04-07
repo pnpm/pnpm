@@ -2,11 +2,12 @@ import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@pnpm/network.fetch'
+import npa from '@pnpm/npm-package-arg'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type { Registries, RegistryConfig } from '@pnpm/types'
 import semver from 'semver'
 
-import { encodeScopedPackageName, parsePackageSpec, rcOptionsTypes } from '../common.js'
+import { parsePackageSpec, rcOptionsTypes } from '../common.js'
 
 export { parsePackageSpec, rcOptionsTypes }
 
@@ -41,7 +42,7 @@ export async function updateDeprecation (
 
   const authHeader = getAuthHeader(registryUrl)
 
-  const packageUrl = new URL(encodeScopedPackageName(packageName), registryUrl).href
+  const packageUrl = new URL(npa(packageName).escapedName, registryUrl).href
 
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const getResponse = await fetchFromRegistry(packageUrl, {

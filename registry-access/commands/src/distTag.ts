@@ -3,11 +3,12 @@ import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type FetchFromRegistry } from '@pnpm/network.fetch'
+import npa from '@pnpm/npm-package-arg'
 import type { Registries, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
 
-import { encodeScopedPackageName, parsePackageSpec, rcOptionsTypes } from './common.js'
+import { parsePackageSpec, rcOptionsTypes } from './common.js'
 
 export { rcOptionsTypes }
 
@@ -209,7 +210,7 @@ function getAuthHeaderForRegistry (
 }
 
 function getDistTagUrl (packageName: string, registryUrl: string, tag: string): string {
-  const encodedName = encodeScopedPackageName(packageName)
+  const encodedName = npa(packageName).escapedName
   return new URL(`-/package/${encodedName}/dist-tags/${encodeURIComponent(tag)}`, registryUrl).href
 }
 
@@ -219,7 +220,7 @@ async function fetchDistTags (
   fetchFromRegistry: FetchFromRegistry,
   authHeader: string | undefined
 ): Promise<Record<string, string>> {
-  const encodedName = encodeScopedPackageName(packageName)
+  const encodedName = npa(packageName).escapedName
   const distTagsUrl = new URL(`-/package/${encodedName}/dist-tags`, registryUrl).href
   const response = await fetchFromRegistry(distTagsUrl, {
     authHeaderValue: authHeader,

@@ -7683,6 +7683,9 @@ importers:
       '@pnpm/network.web-auth':
         specifier: workspace:*
         version: link:../../network/web-auth
+      '@pnpm/npm-package-arg':
+        specifier: 'catalog:'
+        version: 2.0.0
       '@pnpm/releasing.exportable-manifest':
         specifier: workspace:*
         version: link:../exportable-manifest
