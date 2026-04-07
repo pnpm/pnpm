@@ -3,19 +3,13 @@ import path from 'node:path'
 import { type MutatedProject, mutateModules, type MutateModulesOptions, type ProjectOptions } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
+import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import type { ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
-import nock from 'nock'
 
 import { testDefaults } from '../utils/index.js'
 
-beforeEach(() => {
-  nock.disableNetConnect()
-})
-
-afterEach(() => {
-  // https://github.com/nock/nock?tab=readme-ov-file#resetting-netconnect
-  nock.cleanAll()
-  nock.enableNetConnect()
+afterEach(async () => {
+  await teardownMockAgent()
 })
 
 // Regression test for https://github.com/pnpm/pnpm/issues/10626
@@ -86,9 +80,13 @@ test('prerelease specifiers do not cause not-yet-used version to be resolved', a
     },
   }
 
-  nock(options.registries.default)
-    // cspell:disable-next-line
-    .get('/@pnpm.e2e%2Fprerelease')
+  await setupMockAgent()
+  const registryUrl = options.registries.default.replace(/\/$/, '')
+  // cspell:disable-next-line
+  const metadataPath = '/@pnpm.e2e%2Fprerelease'
+
+  getMockAgent().get(registryUrl)
+    .intercept({ path: metadataPath, method: 'GET' })
     .reply(200, meta)
 
   await mutateModules(installProjects, options)
@@ -113,12 +111,11 @@ test('prerelease specifiers do not cause not-yet-used version to be resolved', a
   }
   meta['dist-tags'].latest = '1.2.0'
 
-  nock(options.registries.default)
-    // cspell:disable-next-line
-    .get('/@pnpm.e2e%2Fprerelease')
-    .reply(200, meta)
-
   options.storeController.clearResolutionCache()
+
+  getMockAgent().get(registryUrl)
+    .intercept({ path: metadataPath, method: 'GET' })
+    .reply(200, meta)
 
   projects['c' as ProjectId].dependencies = { [name]: '^1.2.0-beta' }
   await mutateModules(installProjects, options)
@@ -128,6 +125,4 @@ test('prerelease specifiers do not cause not-yet-used version to be resolved', a
     specifier: '^1.2.0-beta',
     version: '1.2.0-beta',
   })
-
-  expect(nock.isDone()).toBeTruthy()
 })
