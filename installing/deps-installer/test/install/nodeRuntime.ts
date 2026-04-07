@@ -429,7 +429,6 @@ test('installing Node.js runtime, when it is set via the engines field of a depe
     testDefaults({
       fastUnpack: false,
       allowBuilds: { '@pnpm.e2e/cli-with-node-engine': true },
-      neverBuiltDependencies: undefined,
     })
   )
   expect(fs.readFileSync('node_modules/@pnpm.e2e/cli-with-node-engine/node-version', 'utf8')).toBe('v22.19.0')

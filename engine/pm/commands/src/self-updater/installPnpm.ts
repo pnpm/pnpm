@@ -246,7 +246,6 @@ async function installFromLockfile (
     globalVirtualStoreDir: path.join(opts.storeDir, 'links'),
     allowBuilds: opts.allowBuilds,
     ignoreScripts: true,
-    ignoreDepScripts: true,
     force: false,
     engineStrict: false,
     currentEngine: {

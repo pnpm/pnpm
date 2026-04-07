@@ -80,7 +80,6 @@ export const excludedPnpmKeys = [
   'hoist-pattern',
   'hoist-workspace-packages',
   'ignore-compatibility-db',
-  'ignore-dep-scripts',
   'ignore-pnpmfile',
   'ignore-workspace',
   'ignore-workspace-cycles',

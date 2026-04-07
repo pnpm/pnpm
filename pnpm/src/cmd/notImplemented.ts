@@ -5,13 +5,11 @@ import type { CommandDefinition } from './index.js'
 const NOT_IMPLEMENTED_COMMANDS = [
   'access',
   'bugs',
-  'dist-tag',
   'docs',
   'edit',
   'find',
   'home',
   'issues',
-  'logout',
   'owner',
   'ping',
   'prefix',

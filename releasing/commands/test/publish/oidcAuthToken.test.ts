@@ -32,7 +32,7 @@ describe('fetchAuthToken', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1)
 
     expect(mockFetch).toHaveBeenCalledWith(
-      'https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/%40pnpm%2Ftest-package',
+      'https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/@pnpm%2ftest-package',
       expect.objectContaining({
         headers: {
           Accept: 'application/json',
@@ -60,7 +60,7 @@ describe('fetchAuthToken', () => {
     await fetchAuthToken({ context, idToken, packageName, registry })
 
     expect(mockFetch).toHaveBeenCalledWith(
-      `${registry}/-/npm/v1/oidc/token/exchange/package/${encodeURIComponent(packageName)}`,
+      `${registry}/-/npm/v1/oidc/token/exchange/package/${packageName.replace('/', '%2f')}`,
       expect.anything()
     )
   })

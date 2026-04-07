@@ -49,7 +49,6 @@ export const pnpmTypes = {
   'hoist-pattern': Array,
   'hoist-workspace-packages': Boolean,
   'ignore-compatibility-db': Boolean,
-  'ignore-dep-scripts': Boolean,
   'ignore-pnpmfile': Boolean,
   'ignore-workspace': Boolean,
   'ignore-workspace-cycles': Boolean,
