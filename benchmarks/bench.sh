@@ -115,7 +115,7 @@ for i in "${!VARIANTS[@]}"; do
   bin="${VARIANT_BINS[$i]}"
   echo "Populating store and cache for $label..."
   rm -rf "$dir/node_modules" "$dir/pnpm-lock.yaml"
-  cd "$dir" && node "$bin" install --ignore-scripts --no-frozen-lockfile >/dev/null 2>&1
+  cd "$dir" && node "$bin" install --ignore-scripts --no-frozen-lockfile
   if [ ! -f "$dir/pnpm-lock.yaml" ]; then
     echo "error: pnpm-lock.yaml was not created for $label in $dir" >&2
     exit 1
