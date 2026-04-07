@@ -26,13 +26,11 @@ const createMockResponse = (init: {
   ok: boolean
   status: number
   text?: string
-}): LogoutFetchResponse => {
-  return {
-    ok: init.ok,
-    status: init.status,
-    text: async () => init.text ?? '',
-  }
-}
+}): LogoutFetchResponse => ({
+  ok: init.ok,
+  status: init.status,
+  text: async () => init.text ?? '',
+})
 
 const createMockContext = (overrides?: Partial<LogoutContext>): LogoutContext => ({
   ...TEST_CONTEXT,
