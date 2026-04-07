@@ -41,7 +41,7 @@ export async function updateDeprecation (
 
   const authHeader = getAuthHeader(registryUrl)
 
-  const packageUrl = new URL(encodeURIComponent(packageName), registryUrl).href
+  const packageUrl = new URL(packageName.replace('/', '%2f'), registryUrl).href
 
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const getResponse = await fetchFromRegistry(packageUrl, {
