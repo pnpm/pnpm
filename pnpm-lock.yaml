@@ -257,8 +257,8 @@ catalogs:
       specifier: 0.0.1
       version: 0.0.1
     '@pnpm/registry-mock':
-      specifier: 5.2.4
-      version: 5.2.4
+      specifier: 6.0.0-6
+      version: 6.0.0-6
     '@pnpm/semver-diff':
       specifier: ^1.1.0
       version: 1.1.0
@@ -1145,7 +1145,7 @@ importers:
         version: link:../../lockfile/types
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+        version: 6.0.0-6(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
@@ -1185,7 +1185,7 @@ importers:
     dependencies:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+        version: 6.0.0-6(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -1272,7 +1272,7 @@ importers:
         version: 7.28.6(@babel/core@7.29.0)
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+        version: 6.0.0-6(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/worker':
         specifier: workspace:*
         version: link:../../worker
@@ -1780,7 +1780,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+        version: 6.0.0-6(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -1977,7 +1977,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+        version: 6.0.0-6(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.31.1
@@ -2852,7 +2852,7 @@ importers:
         version: link:../../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+        version: 6.0.0-6(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../../__utils__/test-fixtures
@@ -3199,7 +3199,7 @@ importers:
         version: link:../../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+        version: 6.0.0-6(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../../__utils__/test-fixtures
@@ -3975,7 +3975,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+        version: 6.0.0-6(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
@@ -5021,7 +5021,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+        version: 6.0.0-6(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../../store/index
@@ -5397,7 +5397,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+        version: 6.0.0-6(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/resolving.registry.types':
         specifier: workspace:*
         version: link:../../resolving/registry/types
@@ -5744,7 +5744,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+        version: 6.0.0-6(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -5871,7 +5871,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+        version: 6.0.0-6(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/testing.temp-store':
         specifier: workspace:*
         version: link:../../testing/temp-store
@@ -6147,7 +6147,7 @@ importers:
         version: link:../../core/logger
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+        version: 6.0.0-6(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/store.cafs-types':
         specifier: workspace:*
         version: link:../../store/cafs-types
@@ -7026,7 +7026,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+        version: 6.0.0-6(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -7267,7 +7267,7 @@ importers:
         version: link:../registry-access/commands
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+        version: 6.0.0-6(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/releasing.commands':
         specifier: workspace:*
         version: link:../releasing/commands
@@ -7601,7 +7601,7 @@ importers:
         version: 'link:'
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+        version: 6.0.0-6(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/releasing.commands':
         specifier: workspace:*
         version: link:../../releasing/commands
@@ -7788,7 +7788,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+        version: 6.0.0-6(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/releasing.commands':
         specifier: workspace:*
         version: 'link:'
@@ -8435,7 +8435,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+        version: 6.0.0-6(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/store.commands':
         specifier: workspace:*
         version: 'link:'
@@ -8730,7 +8730,7 @@ importers:
     dependencies:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+        version: 6.0.0-6(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
     devDependencies:
       '@pnpm/testing.command-defaults':
         specifier: workspace:*
@@ -8756,7 +8756,7 @@ importers:
         version: link:../../installing/client
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+        version: 6.0.0-6(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
       '@pnpm/store.controller':
         specifier: workspace:*
         version: link:../../store/controller
@@ -10804,8 +10804,8 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1001.0.1
 
-  '@pnpm/registry-mock@5.2.4':
-    resolution: {integrity: sha512-HOetl+ocfNYM4lX7QkR6H3E4QBkHnDeclum0hUmqb5U3HnVFH/bIRwnd8GCKsgJ+H3mpNgAAMTxPFlSLp6vVmQ==}
+  '@pnpm/registry-mock@6.0.0-6':
+    resolution: {integrity: sha512-iRKCQFgiU7qP9ZuUDJS+9x7e7TeUcnQEpwNnfM+G/9QEJBi9OpePuDX4Veogvx3Ih6M8z80mKvwgdML53p+/+g==}
     engines: {node: '>=18.12'}
     hasBin: true
     peerDependencies:
@@ -11603,6 +11603,10 @@ packages:
   '@verdaccio/core@8.0.0-next-8.33':
     resolution: {integrity: sha512-ndPAfZVyN677y/EZX+USkL0/aOcU5rvnzS99nRCIHarZB44WMno9jl6FdX5Ax3b3exGo9GsxhEdbYHgOYaRlLQ==}
     engines: {node: '>=18'}
+
+  '@verdaccio/file-locking@10.3.0':
+    resolution: {integrity: sha512-FE5D5H4wy/nhgR/d2J5e1Na9kScj2wMjlLPBHz7XF4XZAVSRdm45+kL3ZmrfA6b2HTADP/uH7H05/cnAYW8bhw==}
+    engines: {node: '>=8'}
 
   '@verdaccio/file-locking@10.3.1':
     resolution: {integrity: sha512-oqYLfv3Yg3mAgw9qhASBpjD50osj2AX4IwbkUtyuhhKGyoFU9eZdrbeW6tpnqUnj6yBMtAPm2eGD4BwQuX400g==}
@@ -14739,6 +14743,15 @@ packages:
       encoding:
         optional: true
 
+  node-fetch@2.6.8:
+    resolution: {integrity: sha512-RZ6dBYuj8dRSfxpUSu+NsdF1dpPpluJxwOp+6IoDp/sH2QNDSvurYsAa+F1WxY2RjA1iP93xhcsUoYbF2XBqVg==}
+    engines: {node: 4.x || >=6.0.0}
+    peerDependencies:
+      encoding: ^0.1.0
+    peerDependenciesMeta:
+      encoding:
+        optional: true
+
   node-gyp-build-optional-packages@5.2.2:
     resolution: {integrity: sha512-s+w+rBWnpTMwSFbaE0UXsRlg7hU4FjekKU4eyAih5T8nJuNZT1nNsskXpxmeqSK9UzkBl6UgRlnKc8hz8IEqOw==}
     hasBin: true
@@ -16526,9 +16539,17 @@ packages:
     resolution: {integrity: sha512-BNGbWLfd0eUPabhkXUVm0j8uuvREyTh5ovRa/dyow/BqAbZJyC+5fU+IzQOzmAKzYqYRAISoRhdQr3eIZ/PXqg==}
     engines: {node: '>= 0.8'}
 
+  verdaccio-audit@10.2.4:
+    resolution: {integrity: sha512-/0H6/JFVnhHwucUfMRVjL6gtGnB5gr3dDxq93Ja1Y0ob+2jxAfpqNMHg8c6/d/ZyHFf0y4tXzHESDruXCzTiaQ==}
+    engines: {node: '>=8'}
+
   verdaccio-audit@13.0.0-next-8.33:
     resolution: {integrity: sha512-qBMN0b4cbSbo6RbOke0QtVy/HuSzmxgRXIjnXM3C86ZhjN6DlhdeAoQYcZUfbXM8BklRXtObAnMoTlgeJ7BJLA==}
     engines: {node: '>=18'}
+
+  verdaccio-htpasswd@10.5.2:
+    resolution: {integrity: sha512-bO5Wm8w07pWswNvwFWjNEoznuUU37CcfblcrU0Ci8c038EgTu2V47uwh4AyZ4PTK6ps9oxHqA7a1b+83sY0OkA==}
+    engines: {node: '>=8'}
 
   verdaccio-htpasswd@13.0.0-next-8.33:
     resolution: {integrity: sha512-ZYqvF/EuA4W4idfv2O1ZN8YhSI2xreFbGdrcWgOd+QBedDin7NzMhgypbafutm9mPhkI6Xv/+3syee1u1cEL8g==}
@@ -18815,7 +18836,7 @@ snapshots:
       read-yaml-file: 2.1.0
       strip-bom: 4.0.0
 
-  '@pnpm/registry-mock@5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))':
+  '@pnpm/registry-mock@6.0.0-6(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))':
     dependencies:
       anonymous-npm-registry-client: 0.3.2
       execa: 5.1.1
@@ -18824,7 +18845,12 @@ snapshots:
       rimraf: 3.0.2
       tempy: 1.0.1
       verdaccio: 6.3.2(encoding@0.1.13)(typanion@3.14.0)
+      verdaccio-audit: 10.2.4(encoding@0.1.13)
+      verdaccio-htpasswd: 10.5.2
       write-yaml-file: 4.2.0
+    transitivePeerDependencies:
+      - encoding
+      - supports-color
 
   '@pnpm/registry.pkg-metadata-filter@1000.1.6(@pnpm/logger@1001.0.1)':
     dependencies:
@@ -19777,6 +19803,10 @@ snapshots:
       minimatch: 7.4.9
       process-warning: 1.0.0
       semver: 7.7.4
+
+  '@verdaccio/file-locking@10.3.0':
+    dependencies:
+      lockfile: 1.0.4
 
   '@verdaccio/file-locking@10.3.1':
     dependencies:
@@ -23640,6 +23670,12 @@ snapshots:
     optionalDependencies:
       encoding: 0.1.13
 
+  node-fetch@2.6.8(encoding@0.1.13):
+    dependencies:
+      whatwg-url: 5.0.0
+    optionalDependencies:
+      encoding: 0.1.13
+
   node-gyp-build-optional-packages@5.2.2:
     dependencies:
       detect-libc: 2.1.2
@@ -25568,6 +25604,16 @@ snapshots:
 
   vary@1.1.2: {}
 
+  verdaccio-audit@10.2.4(encoding@0.1.13):
+    dependencies:
+      body-parser: 2.2.2
+      express: 4.22.1
+      https-proxy-agent: 5.0.1
+      node-fetch: 2.6.8(encoding@0.1.13)
+    transitivePeerDependencies:
+      - encoding
+      - supports-color
+
   verdaccio-audit@13.0.0-next-8.33(encoding@0.1.13):
     dependencies:
       '@verdaccio/config': 8.0.0-next-8.33
@@ -25578,6 +25624,14 @@ snapshots:
     transitivePeerDependencies:
       - encoding
       - supports-color
+
+  verdaccio-htpasswd@10.5.2:
+    dependencies:
+      '@verdaccio/file-locking': 10.3.0
+      apache-md5: 1.1.8
+      bcryptjs: 2.4.3
+      http-errors: 2.0.0
+      unix-crypt-td-js: 1.1.4
 
   verdaccio-htpasswd@13.0.0-next-8.33:
     dependencies:

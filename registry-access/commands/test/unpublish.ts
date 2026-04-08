@@ -1,6 +1,6 @@
 import { prepare } from '@pnpm/prepare'
 import { unpublish } from '@pnpm/registry-access.commands'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { REGISTRY_MOCK_CREDENTIALS, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { publish } from '@pnpm/releasing.commands'
 import { DEFAULT_OPTS as BASE_OPTS } from '@pnpm/testing.command-defaults'
 import { safeExeca as execa } from 'execa'
@@ -15,10 +15,7 @@ const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
 const CONFIG_BY_URI = {
   [`//localhost:${REGISTRY_MOCK_PORT}/`]: {
     creds: {
-      basicAuth: {
-        username: 'username',
-        password: 'password',
-      },
+      basicAuth: REGISTRY_MOCK_CREDENTIALS,
     },
   },
 }
@@ -50,6 +47,7 @@ async function publishVersion (name: string, version: string): Promise<void> {
   await publish.handler({
     ...DEFAULT_OPTS,
     argv: { original: ['publish'] },
+    configByUri: CONFIG_BY_URI,
     dir: process.cwd(),
   }, [])
 }
