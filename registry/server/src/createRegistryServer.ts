@@ -141,7 +141,8 @@ async function handleInstall (
       await writeWantedLockfile(tmpDir, request.lockfile)
     }
 
-    // Run pnpm's resolution + fetching (skips scripts, fetches packages to store)
+    // Resolve and fetch packages to the server's store.
+    // ignoreScripts + enableModulesDir=false skips linking/scripts in the temp dir.
     await install(manifest, {
       dir: tmpDir,
       lockfileDir: tmpDir,
@@ -174,7 +175,7 @@ async function handleInstall (
       resolvedLockfile.importers = { '.': snapshot } as typeof resolvedLockfile.importers
     }
 
-    // Rebuild the integrity index (new packages may have been fetched)
+    // Rebuild the integrity index (packages were fetched during install)
     const integrityIndex = buildIntegrityIndex(ctx.storeIndex)
     ctx.integrityIndex = integrityIndex
 
@@ -201,3 +202,4 @@ function readBody (req: http.IncomingMessage): Promise<string> {
     req.on('error', reject)
   })
 }
+
