@@ -121,7 +121,7 @@ export async function handler (
     throw new PnpmError('PACKAGE_NOT_FOUND', `No matching version found for ${packageName}@${spec.fetchSpec}`)
   }
 
-  const versionsCount = metadata.versions ? Object.keys(metadata.versions).length : 0
+  const versions = metadata.versions ? Object.keys(metadata.versions) : []
   const depsCount = data.dependencies ? Object.keys(data.dependencies).length : 0
   const distTags = metadata['dist-tags']
 
@@ -129,9 +129,12 @@ export async function handler (
     ...data,
     author: typeof data.author === 'object' ? (data.author as { name: string }).name : data.author,
     repository: typeof data.repository === 'object' ? data.repository.url : data.repository,
-    versionsCount: versionsCount > 0 ? versionsCount : undefined,
+    versions,
+    versionsCount: versions.length > 0 ? versions.length : undefined,
     depsCount: depsCount > 0 ? depsCount : undefined,
     distTags,
+    'dist-tags': distTags,
+    time: metadata.time,
   }
 
   // If fields are specified, filter and return only those
@@ -142,6 +145,9 @@ export async function handler (
     }
 
     if (opts.json) {
+      if (fields.length === 1) {
+        return JSON.stringify(selectedFields[fields[0]], null, 2)
+      }
       return JSON.stringify(selectedFields, null, 2)
     }
 

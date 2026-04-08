@@ -21,7 +21,7 @@ const CONFIG_BY_URI = {
 }
 
 async function getDeprecation (pkgName: string): Promise<string | undefined> {
-  const { stdout } = await execa('npm', [
+  const { stdout } = await execa('pnpm', [
     'view',
     `${pkgName}`,
     'deprecated',

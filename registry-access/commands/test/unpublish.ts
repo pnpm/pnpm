@@ -22,7 +22,7 @@ const CONFIG_BY_URI = {
 
 async function getVersions (pkgName: string): Promise<string[]> {
   try {
-    const { stdout } = await execa('npm', [
+    const { stdout } = await execa('pnpm', [
       'view',
       pkgName,
       'versions',

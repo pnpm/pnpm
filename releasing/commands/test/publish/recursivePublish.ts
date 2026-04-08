@@ -84,11 +84,11 @@ test('recursive publish', async () => {
   }, [])
 
   {
-    const { status } = crossSpawn.sync('npm', ['view', pkg1.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
+    const { status } = crossSpawn.sync('pnpm', ['view', pkg1.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
     expect(status).toBe(1)
   }
   {
-    const { status } = crossSpawn.sync('npm', ['view', pkg2.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
+    const { status } = crossSpawn.sync('pnpm', ['view', pkg2.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
     expect(status).toBe(1)
   }
 
@@ -115,7 +115,7 @@ test('recursive publish', async () => {
   }, [])
 
   {
-    const { stdout } = await execa('npm', ['dist-tag', 'ls', pkg1.name, '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
+    const { stdout } = await execa('pnpm', ['dist-tag', 'ls', pkg1.name, '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
     expect(stdout?.toString()).toContain('next: 2.0.0')
   }
 })

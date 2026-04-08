@@ -7,7 +7,7 @@ export const DEFAULT_OPTS = {
 }
 
 export async function checkPkgExists (packageName: string, expectedVersion: string): Promise<void> {
-  const { stdout } = await execa('npm', ['view', packageName, 'versions', '--registry', REGISTRY_URL, '--json'])
+  const { stdout } = await execa('pnpm', ['view', packageName, 'versions', '--registry', REGISTRY_URL, '--json'])
   const output = JSON.parse(stdout?.toString() ?? '')
   expect(Array.isArray(output) ? output[0] : output).toStrictEqual(expectedVersion)
 }
