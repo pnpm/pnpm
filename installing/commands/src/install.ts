@@ -47,6 +47,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'node-linker',
     'noproxy',
     'package-import-method',
+    'pnpm-registry',
     'pnpmfile',
     'prefer-frozen-lockfile',
     'prefer-offline',

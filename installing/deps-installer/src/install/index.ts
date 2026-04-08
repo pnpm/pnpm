@@ -1883,6 +1883,8 @@ async function installFromPnpmRegistry (
   // the required HeadlessOptions fields with explicit defaults.
   const headlessOpts = {
     ...opts,
+    dir: rootDir as string,
+    lockfileDir,
     engineStrict: opts.engineStrict ?? false,
     ignoreScripts: opts.ignoreScripts ?? false,
     sideEffectsCacheRead: opts.sideEffectsCacheRead ?? false,

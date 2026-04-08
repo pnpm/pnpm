@@ -165,6 +165,15 @@ async function handleInstall (
       return
     }
 
+    // Remap importer IDs: the server resolved in a temp dir so importers
+    // are keyed by the temp path. Remap them to "." so the client's
+    // headless install can find the project.
+    const importerEntries = Object.entries(resolvedLockfile.importers)
+    if (importerEntries.length === 1) {
+      const [, snapshot] = importerEntries[0]
+      resolvedLockfile.importers = { '.': snapshot } as typeof resolvedLockfile.importers
+    }
+
     // Rebuild the integrity index (new packages may have been fetched)
     const integrityIndex = buildIntegrityIndex(ctx.storeIndex)
     ctx.integrityIndex = integrityIndex
