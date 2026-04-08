@@ -40,7 +40,8 @@ export default async () => {
   await waitForServerOnline()
 
   // Register the test user and store the auth token for bearer-based tests
-  const { addUser, REGISTRY_MOCK_CREDENTIALS } = await import('@pnpm/registry-mock')
+  const { addUser } = await import('@pnpm/registry-mock')
+  const { REGISTRY_MOCK_CREDENTIALS } = await import('@pnpm/registry-mock/dist/lib/credentials.js')
   const { token } = await addUser({
     username: REGISTRY_MOCK_CREDENTIALS.username,
     password: REGISTRY_MOCK_CREDENTIALS.password,
