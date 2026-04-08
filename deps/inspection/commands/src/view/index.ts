@@ -14,7 +14,7 @@ import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
 export function rcOptionsTypes (): Record<string, unknown> {
-  return pick([], allTypes)
+  return pick(['registry'], allTypes)
 }
 
 export function cliOptionsTypes (): Record<string, unknown> {
