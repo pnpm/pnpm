@@ -8,6 +8,7 @@ import { fetchFromPnpmRegistry } from '@pnpm/registry.client'
 import { createRegistryServer } from '@pnpm/registry.server'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { StoreIndex } from '@pnpm/store.index'
+import type { DepPath } from '@pnpm/types'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
@@ -77,7 +78,7 @@ describe('pnpm-registry integration', () => {
 
       // Verify at least one package has a resolution with integrity
       const hasIntegrity = depPaths.some(dp => {
-        const pkg = packages[dp]
+        const pkg = packages[dp as DepPath]
         return pkg?.resolution && typeof pkg.resolution === 'object' && 'integrity' in pkg.resolution
       })
       expect(hasIntegrity).toBe(true)

@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@jest/globals'
 import { decodeResponse, type ResponseMetadata } from '@pnpm/registry.client'
+import type { DepPath } from '@pnpm/types'
 
 describe('protocol decoding', () => {
   it('decodes a response with metadata and files', async () => {
@@ -80,7 +81,7 @@ describe('protocol decoding', () => {
     expect(decoded.stats.filesToDownload).toBe(1)
     expect(decoded.missingDigests).toEqual(['a'.repeat(128)])
     expect(decoded.packageFiles['/is-positive/1.0.0'].integrity).toBe('sha512-test123')
-    expect(decoded.lockfile.packages?.['/is-positive/1.0.0']).toBeTruthy()
+    expect(decoded.lockfile.packages?.['/is-positive/1.0.0' as DepPath]).toBeTruthy()
 
     // Verify file
     expect(files).toHaveLength(1)

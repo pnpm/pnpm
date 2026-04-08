@@ -7639,6 +7639,9 @@ importers:
       '@pnpm/registry.client':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../core/types
       cross-env:
         specifier: 'catalog:'
         version: 10.1.0
