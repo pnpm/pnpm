@@ -141,7 +141,9 @@ async function handleInstall (
       await writeWantedLockfile(tmpDir, request.lockfile)
     }
 
-    // Resolve only — lockfileOnly skips fetching and linking.
+    // Resolve and fetch packages to the server's store.
+    // This uses the full install pipeline (minus scripts) so tarballs
+    // are downloaded and extracted into the server's CAFS.
     await install(manifest, {
       dir: tmpDir,
       lockfileDir: tmpDir,
@@ -150,7 +152,6 @@ async function handleInstall (
       cacheDir: ctx.cacheDir,
       registries: ctx.registries,
       ignoreScripts: true,
-      lockfileOnly: true,
       saveLockfile: true,
       preferFrozenLockfile: false,
     } as InstallOptions)
