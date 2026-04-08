@@ -278,6 +278,23 @@ export async function mutateModules (
   }
 
   const opts = extendOptions(maybeOpts)
+
+  // When a pnpm-registry server is configured, use server-side resolution.
+  if (opts.pnpmRegistry && projects.length === 1 && projects[0].mutation === 'install') {
+    const project = opts.allProjects.find(p => p.rootDir === projects[0].rootDir)
+    if (project?.manifest) {
+      const result = await installFromPnpmRegistry(project.manifest, projects[0].rootDir, opts)
+      return {
+        updatedProjects: [{
+          manifest: result.updatedManifest,
+          rootDir: projects[0].rootDir,
+        }],
+        stats: { added: 0, removed: 0, updated: 0, linkedToRoot: 0 },
+        ignoredBuilds: result.ignoredBuilds,
+      } as MutateModulesResult
+    }
+  }
+
   const allowBuild = createAllowBuildFunction(opts)
 
   if (!opts.include.dependencies && opts.include.optionalDependencies) {

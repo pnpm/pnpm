@@ -325,6 +325,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'updateConfig'
 | 'overrides'
 | 'packageExtensions'
+| 'pnpmRegistry'
 | 'supportedArchitectures'
 | 'packageConfigs'
 > & Pick<ConfigContext,
