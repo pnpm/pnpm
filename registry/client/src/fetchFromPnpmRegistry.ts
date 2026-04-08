@@ -1,14 +1,13 @@
-import { promises as fs } from 'node:fs'
 import http from 'node:http'
 import https from 'node:https'
-import path from 'node:path'
 import { URL } from 'node:url'
 
 import type { LockfileObject } from '@pnpm/lockfile.types'
-import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { packForStorage, StoreIndex, storeIndexKey } from '@pnpm/store.index'
+import { writeCafsFiles } from '@pnpm/worker'
 
-import { type DecodedFile, decodeResponse, type ResponseMetadata } from './protocol.js'
+import { decodeResponse, type ResponseMetadata } from './protocol.js'
 
 export interface FetchFromPnpmRegistryOptions {
   /** URL of the pnpm registry server */
@@ -90,8 +89,9 @@ function readStoreIntegrities (storeIndex: StoreIndex): string[] {
   return [...seen]
 }
 
-const BATCH_SIZE = 2000 // files per parallel request
-const PARALLEL_REQUESTS = 10
+const BATCH_SIZE = 500 // files per worker batch
+const PARALLEL_REQUESTS = 10 // concurrent HTTP requests to /v1/files
+const FILES_PER_HTTP_REQUEST = 2000
 
 async function fetchFilesInParallel (
   registryUrl: string,
@@ -99,49 +99,62 @@ async function fetchFilesInParallel (
   storeDir: string
 ): Promise<void> {
   // Build digest info map from package files
-  const digestInfo = new Map<string, { size: number, executable: boolean }>()
+  const digestInfo = new Map<string, { size: number, executable: boolean, mode: number }>()
   for (const pkgFiles of Object.values(metadata.packageFiles)) {
     for (const fileInfo of Object.values(pkgFiles.files)) {
       if (!digestInfo.has(fileInfo.digest)) {
         digestInfo.set(fileInfo.digest, {
           size: fileInfo.size,
           executable: (fileInfo.mode & 0o111) !== 0,
+          mode: fileInfo.mode,
         })
       }
     }
   }
 
-  // Split missing digests into batches
-  const batches: Array<Array<{ digest: string, size: number, executable: boolean }>> = []
+  // Split missing digests into HTTP request batches
+  const httpBatches: Array<Array<{ digest: string, size: number, executable: boolean }>> = []
   let currentBatch: Array<{ digest: string, size: number, executable: boolean }> = []
   for (const digest of metadata.missingDigests) {
     const info = digestInfo.get(digest)
     if (!info) continue
-    currentBatch.push({ digest, ...info })
-    if (currentBatch.length >= BATCH_SIZE) {
-      batches.push(currentBatch)
+    currentBatch.push({ digest, size: info.size, executable: info.executable })
+    if (currentBatch.length >= FILES_PER_HTTP_REQUEST) {
+      httpBatches.push(currentBatch)
       currentBatch = []
     }
   }
   if (currentBatch.length > 0) {
-    batches.push(currentBatch)
+    httpBatches.push(currentBatch)
   }
 
-  // Fetch batches with limited parallelism
+  // Fetch HTTP batches with limited parallelism, dispatch to workers for CAFS writes
   let batchIdx = 0
   async function fetchNext (): Promise<void> {
-    while (batchIdx < batches.length) {
+    while (batchIdx < httpBatches.length) {
       const idx = batchIdx++
-      const batch = batches[idx]
+      const batch = httpBatches[idx]
       const reqBody = JSON.stringify({ digests: batch })
       const responseBuffer = await sendRequest(registryUrl, '/v1/files', reqBody) // eslint-disable-line no-await-in-loop
       const { files } = await decodeResponse(toAsyncIterable(responseBuffer)) // eslint-disable-line no-await-in-loop
-      await writeFilesToCafs(files, storeDir) // eslint-disable-line no-await-in-loop
+
+      // Dispatch to worker threads for parallel CAFS writes
+      const workerBatches: Array<Promise<number>> = []
+      for (let i = 0; i < files.length; i += BATCH_SIZE) {
+        const workerFiles = files.slice(i, i + BATCH_SIZE).map(f => ({
+          buffer: f.content,
+          digest: f.digest,
+          mode: f.executable ? 0o755 : 0o644,
+          size: f.size,
+        }))
+        workerBatches.push(writeCafsFiles({ storeDir, files: workerFiles }))
+      }
+      await Promise.all(workerBatches) // eslint-disable-line no-await-in-loop
     }
   }
 
-  const workers = Array.from({ length: Math.min(PARALLEL_REQUESTS, batches.length) }, () => fetchNext())
-  await Promise.all(workers)
+  const fetchers = Array.from({ length: Math.min(PARALLEL_REQUESTS, httpBatches.length) }, () => fetchNext())
+  await Promise.all(fetchers)
 }
 
 const REQUEST_TIMEOUT = 120_000 // 2 minutes
@@ -192,39 +205,6 @@ async function sendRequest (registryUrl: string, urlPath: string, body: string):
   })
 }
 
-async function writeFilesToCafs (files: DecodedFile[], storeDir: string): Promise<void> {
-  await Promise.all(files.map((file) => writeFileToCafs(file, storeDir)))
-}
-
-async function writeFileToCafs (file: DecodedFile, storeDir: string): Promise<void> {
-  const mode = file.executable ? 0o755 : 0o644
-  const cafsPath = getFilePathByModeInCafs(storeDir, file.digest, mode)
-
-  // Ensure directory exists
-  const dir = path.dirname(cafsPath)
-  await fs.mkdir(dir, { recursive: true })
-
-  // Write atomically: temp file + rename
-  const tmpPath = `${cafsPath}.${process.pid}`
-  try {
-    await fs.writeFile(tmpPath, file.content, { mode })
-    await fs.rename(tmpPath, cafsPath)
-  } catch (err: unknown) {
-    // If file already exists (race condition), that's fine
-    if (isErrnoException(err) && err.code === 'EEXIST') return
-    // If rename failed because target already exists, that's also fine
-    try {
-      await fs.unlink(tmpPath)
-    } catch {}
-    // Check if the target already exists
-    try {
-      await fs.stat(cafsPath)
-      return // file exists, skip
-    } catch {}
-    throw err
-  }
-}
-
 function writeStoreIndexEntries (
   metadata: ResponseMetadata,
   storeIndex: StoreIndex
@@ -266,10 +246,6 @@ function writeStoreIndexEntries (
   }
 }
 
-
-function isErrnoException (err: unknown): err is NodeJS.ErrnoException {
-  return err instanceof Error && 'code' in err
-}
 
 async function * toAsyncIterable (buffer: Buffer): AsyncIterable<Buffer> {
   yield buffer

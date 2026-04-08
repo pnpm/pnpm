@@ -18,6 +18,7 @@ import type {
   LinkPkgMessage,
   SymlinkAllModulesMessage,
   TarballExtractMessage,
+  WriteCafsFilesMessage,
 } from './types.js'
 
 let workerPool: WorkerPool | undefined
@@ -192,6 +193,31 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
       pkg: opts.pkg,
       appendManifest: opts.appendManifest,
     })
+  })
+}
+
+export async function writeCafsFiles (opts: {
+  storeDir: string
+  files: WriteCafsFilesMessage['files']
+}): Promise<number> {
+  if (!workerPool) {
+    workerPool = createTarballWorkerPool()
+  }
+  const localWorker = await workerPool.checkoutWorkerAsync(true)
+  return new Promise<number>((resolve, reject) => {
+    localWorker.once('message', ({ status, error, filesWritten }) => {
+      workerPool!.checkinWorker(localWorker)
+      if (status === 'error') {
+        reject(new PnpmError('CAFS_WRITE', error.message))
+        return
+      }
+      resolve(filesWritten)
+    })
+    localWorker.postMessage({
+      type: 'write-cafs-files',
+      storeDir: opts.storeDir,
+      files: opts.files,
+    } satisfies WriteCafsFilesMessage)
   })
 }
 

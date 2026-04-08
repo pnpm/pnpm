@@ -33,6 +33,7 @@ import type {
   ReadPkgFromCafsMessage,
   SymlinkAllModulesMessage,
   TarballExtractMessage,
+  WriteCafsFilesMessage,
 } from './types.js'
 
 export function startWorker (): void {
@@ -63,6 +64,7 @@ async function handleMessage (
   | SymlinkAllModulesMessage
   | HardLinkDirMessage
   | InitStoreMessage
+  | WriteCafsFilesMessage
   | false
 ): Promise<void> {
   if (message === false) {
@@ -164,6 +166,10 @@ async function handleMessage (
       case 'hardLinkDir': {
         hardLinkDir(message.src, message.destDirs)
         parentPort!.postMessage({ status: 'success' })
+        break
+      }
+      case 'write-cafs-files': {
+        parentPort!.postMessage(writeCafsFiles(message))
         break
       }
     }
@@ -473,5 +479,18 @@ function symlinkAllModules (opts: SymlinkAllModulesMessage): { status: 'success'
     }
   }
   return { status: 'success' }
+}
+
+function writeCafsFiles (message: WriteCafsFilesMessage): { status: string, filesWritten: number } {
+  if (!cafsCache.has(message.storeDir)) {
+    cafsCache.set(message.storeDir, createCafs(message.storeDir, { cafsLocker }))
+  }
+  const cafs = cafsCache.get(message.storeDir)!
+  let filesWritten = 0
+  for (const file of message.files) {
+    cafs.addFile(Buffer.from(file.buffer), file.mode)
+    filesWritten++
+  }
+  return { status: 'success', filesWritten }
 }
 

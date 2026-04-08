@@ -35,7 +35,8 @@
   "dependencies": {
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
-    "@pnpm/store.index": "workspace:*"
+    "@pnpm/store.index": "workspace:*",
+    "@pnpm/worker": "workspace:*"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
