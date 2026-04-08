@@ -178,9 +178,9 @@ function writeStoreIndexEntries (
   const writes: Array<{ key: string, buffer: Uint8Array }> = []
 
   for (const [depPath, pkgFilesInfo] of Object.entries(metadata.packageFiles)) {
-    const { name, version } = parseDepPath(depPath)
-    const pkgId = `registry.npmjs.org/${name}@${version}`
-    const key = storeIndexKey(pkgFilesInfo.integrity, pkgId)
+    // Use depPath as the pkgId — this matches what headlessInstall uses
+    // to look up packages in the store via packageIdFromSnapshot().
+    const key = storeIndexKey(pkgFilesInfo.integrity, depPath)
 
     // Check if already in index
     if (storeIndex.has(key)) continue
@@ -212,20 +212,6 @@ function writeStoreIndexEntries (
   }
 }
 
-function parseDepPath (depPath: string): { name: string, version: string } {
-  // depPath format: "/name/version" or "/@scope/name/version"
-  const parts = depPath.slice(1).split('/')
-  if (parts[0].startsWith('@')) {
-    return {
-      name: `${parts[0]}/${parts[1]}`,
-      version: parts[2],
-    }
-  }
-  return {
-    name: parts[0],
-    version: parts[1],
-  }
-}
 
 function isErrnoException (err: unknown): err is NodeJS.ErrnoException {
   return err instanceof Error && 'code' in err
