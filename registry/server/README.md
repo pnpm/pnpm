@@ -55,15 +55,26 @@ server.listen(4000, () => {
 })
 ```
 
-## Configuring pnpm to use the server
+## Quick start
 
-Add to `.npmrc`:
+Terminal 1 — start the server:
 
-```ini
-pnpm-registry=http://localhost:4000
+```bash
+cd registry/server
+pnpm run compile
+node lib/bin.js
+# pnpm-registry server listening on http://localhost:4873
 ```
 
-Then `pnpm install` will use the registry server for resolution and fetching instead of the normal flow.
+Terminal 2 — use it from any project:
+
+```bash
+cd my-project
+echo 'pnpm-registry=http://localhost:4873' >> .npmrc
+pnpm install
+```
+
+That's it. pnpm will resolve dependencies on the server, download only the files missing from your local store, and link `node_modules` as usual. Remove the `.npmrc` line to go back to normal behavior.
 
 ## API
 
