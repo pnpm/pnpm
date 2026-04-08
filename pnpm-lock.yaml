@@ -7639,7 +7639,7 @@ importers:
         specifier: workspace:*
         version: link:../../store/index
       '@pnpm/worker':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../worker
     devDependencies:
       '@jest/globals':

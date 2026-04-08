@@ -1,7 +1,6 @@
 {
   "name": "@pnpm/registry.client",
   "version": "1000.0.0",
-  "private": true,
   "description": "Client for pnpm registry server — sends store state, receives resolved lockfile and missing files",
   "keywords": [
     "pnpm",
@@ -35,11 +34,11 @@
   "dependencies": {
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
-    "@pnpm/store.index": "workspace:*",
-    "@pnpm/worker": "workspace:*"
+    "@pnpm/store.index": "workspace:*"
   },
   "peerDependencies": {
-    "@pnpm/logger": "catalog:"
+    "@pnpm/logger": "catalog:",
+    "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
