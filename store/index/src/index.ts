@@ -88,6 +88,7 @@ export class StoreIndex {
   private stmtDel: StatementSync
   private stmtHas: StatementSync
   private stmtAll: StatementSync
+  private stmtKeys: StatementSync
   private readonly exitHandler: () => void
 
   constructor (storeDir: string) {
@@ -120,6 +121,7 @@ export class StoreIndex {
     this.stmtDel = this.db.prepare('DELETE FROM package_index WHERE key = ?')
     this.stmtHas = this.db.prepare('SELECT 1 FROM package_index WHERE key = ?')
     this.stmtAll = this.db.prepare('SELECT key, data FROM package_index')
+    this.stmtKeys = this.db.prepare('SELECT key FROM package_index')
     this.exitHandler = () => this.close()
     // Multiple StoreIndex instances may be created (e.g. in tests), each adding
     // an exit listener. Raise the limit to avoid MaxListenersExceededWarning.
@@ -166,6 +168,16 @@ export class StoreIndex {
   * entries (): IterableIterator<[string, unknown]> {
     for (const row of this.stmtAll.iterate() as IterableIterator<{ key: string, data: Uint8Array }>) {
       yield [row.key, packr.unpack(row.data)]
+    }
+  }
+
+  /**
+   * Iterate over all index keys without decoding values.
+   * Much faster than entries() when only keys are needed.
+   */
+  * keys (): IterableIterator<string> {
+    for (const row of this.stmtKeys.iterate() as IterableIterator<{ key: string }>) {
+      yield row.key
     }
   }
 

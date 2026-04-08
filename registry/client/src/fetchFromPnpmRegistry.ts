@@ -81,16 +81,13 @@ export async function fetchFromPnpmRegistry (
 }
 
 function readStoreIntegrities (storeIndex: StoreIndex): string[] {
-  const integrities: string[] = []
-  for (const [key] of storeIndex.entries()) {
+  const seen = new Set<string>()
+  for (const key of storeIndex.keys()) {
     const tabIdx = key.indexOf('\t')
     if (tabIdx === -1) continue
-    const integrity = key.slice(0, tabIdx)
-    if (!integrities.includes(integrity)) {
-      integrities.push(integrity)
-    }
+    seen.add(key.slice(0, tabIdx))
   }
-  return integrities
+  return [...seen]
 }
 
 const REQUEST_TIMEOUT = 120_000 // 2 minutes
