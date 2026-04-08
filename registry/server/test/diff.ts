@@ -1,10 +1,14 @@
 import { describe, expect, it } from '@jest/globals'
 import type { LockfileObject } from '@pnpm/lockfile.types'
-import { computeDiff } from '@pnpm/registry.server'
+import { computeDiff, type IntegrityEntry } from '@pnpm/registry.server'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
+import { packForStorage } from '@pnpm/store.index'
 
-function createIntegrityIndex (entries: Record<string, PackageFilesIndex>): Map<string, PackageFilesIndex> {
-  return new Map(Object.entries(entries))
+function createIntegrityIndex (entries: Record<string, PackageFilesIndex>): Map<string, IntegrityEntry> {
+  return new Map(Object.entries(entries).map(([k, v]) => [k, {
+    decoded: v,
+    rawBuffer: packForStorage(v) as Uint8Array,
+  }]))
 }
 
 describe('computeDiff', () => {
