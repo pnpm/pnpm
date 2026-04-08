@@ -8,7 +8,7 @@ import { fetchFromPnpmRegistry } from '@pnpm/registry.client'
 import { createRegistryServer } from '@pnpm/registry.server'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { StoreIndex } from '@pnpm/store.index'
-import type { DepPath } from '@pnpm/types'
+import type { DepPath, ProjectId } from '@pnpm/types'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
@@ -48,6 +48,38 @@ describe('pnpm-registry integration', () => {
       })
     })
     await fs.rm(path.dirname(serverStoreDir), { recursive: true, force: true })
+  })
+
+  it('returns a lockfile with importers keyed by "."', async () => {
+    const tmpClient = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-registry-test-importers-'))
+    const clientStoreDir = path.join(tmpClient, 'store')
+    await fs.mkdir(clientStoreDir, { recursive: true })
+    const clientStoreIndex = new StoreIndex(clientStoreDir)
+
+    try {
+      const result = await fetchFromPnpmRegistry({
+        registryUrl: `http://localhost:${serverPort}`,
+        storeDir: clientStoreDir,
+        storeIndex: clientStoreIndex,
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      })
+
+      // The lockfile must have importers keyed by "." (not by the server's temp dir)
+      const importerKeys = Object.keys(result.lockfile.importers)
+      expect(importerKeys).toEqual(['.'])
+
+      // The "." importer must have specifiers and dependencies
+      const rootImporter = result.lockfile.importers['.' as ProjectId]
+      expect(rootImporter).toBeTruthy()
+      expect(rootImporter.specifiers).toBeTruthy()
+      expect(rootImporter.dependencies).toBeTruthy()
+      expect(rootImporter.dependencies?.['is-positive']).toBeTruthy()
+    } finally {
+      clientStoreIndex.close()
+      await fs.rm(tmpClient, { recursive: true, force: true })
+    }
   })
 
   it('resolves a single dependency and returns lockfile + files', async () => {

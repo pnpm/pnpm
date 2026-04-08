@@ -1899,8 +1899,11 @@ async function installFromPnpmRegistry (
     selectedProjectDirs: [rootDir],
     allProjects: {
       [rootDir]: {
+        binsDir: path.join(rootDir, 'node_modules', '.bin'),
         buildIndex: 0,
+        id: '.' as ProjectId,
         manifest,
+        modulesDir: path.join(rootDir, 'node_modules'),
         rootDir,
       },
     },

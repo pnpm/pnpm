@@ -129,6 +129,9 @@
       "path": "../registry-access/commands"
     },
     {
+      "path": "../registry/server"
+    },
+    {
       "path": "../releasing/commands"
     },
     {
