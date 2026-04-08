@@ -247,7 +247,7 @@ async function handleFiles (
     cafsPath: getFilePathByModeInCafs(ctx.storeDir, d.digest, d.executable ? 0o755 : 0o644),
   }))
 
-  await encodeResponse(res, null, missingFiles)
+  encodeResponse(res, null, missingFiles)
 }
 
 function readBody (req: http.IncomingMessage): Promise<string> {
