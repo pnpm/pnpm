@@ -1886,7 +1886,7 @@ async function installFromPnpmRegistry (
     lockfile: existingLockfile ?? undefined,
   })
 
-  // Close the store index so its WAL is checkpointed — other SQLite
+  // Close the store index so its WAL is flushed — other SQLite
   // connections (store controller, workers) will then see the entries.
   storeIndex.close()
 
