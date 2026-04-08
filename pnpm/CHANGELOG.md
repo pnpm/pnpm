@@ -1,6 +1,6 @@
 # pnpm
 
-## 11.0.0-beta.7
+## 11.0.0-beta.8
 
 ### Major Changes
 
@@ -47,6 +47,7 @@
   Exception: Keys that start with `@` or `//` would be preserved (their cases don't change).
 - `pnpm config get` and `pnpm config list` no longer load non camelCase options from the workspace manifest (`pnpm-workspace.yaml`).
 - pnpm no longer reads all settings from `.npmrc`. Only auth and registry settings are read from `.npmrc` files. All other settings (like `hoistPattern`, `nodeLinker`, `shamefullyHoist`, etc.) must be configured in `pnpm-workspace.yaml` or the global `~/.config/pnpm/config.yaml` [#11189](https://github.com/pnpm/pnpm/pull/11189).
+- Network settings (`httpProxy`, `httpsProxy`, `noProxy`, `localAddress`, `strictSsl`, `gitShallowHosts`) are now written to `config.yaml` (global) or `pnpm-workspace.yaml` (local) instead of `.npmrc`/`auth.ini`. They are still readable from `.npmrc` for easier migration from the npm CLI [#11209](https://github.com/pnpm/pnpm/pull/11209).
 
   pnpm no longer reads `npm_config_*` environment variables. Use `pnpm_config_*` environment variables instead (e.g., `pnpm_config_registry` instead of `npm_config_registry`).
 
@@ -104,7 +105,7 @@
 - The standalone exe version of pnpm requires at least glibc 2.27.
 - `strictDepBuilds` is `true` by default.
 - `blockExoticSubdeps` is `true` by default.
-- Remove deprecated build dependency settings: `onlyBuiltDependencies`, `onlyBuiltDependenciesFile`, `neverBuiltDependencies`, and `ignoredBuiltDependencies`.
+- Remove deprecated build dependency settings: `onlyBuiltDependencies`, `onlyBuiltDependenciesFile`, `neverBuiltDependencies`, `ignoredBuiltDependencies`, and `ignoreDepScripts` [#11220](https://github.com/pnpm/pnpm/pull/11220).
 
   Use the `allowBuilds` setting instead. It is a map where keys are package name patterns and values are booleans:
 
@@ -180,6 +181,10 @@
 
 - Added native `pnpm view` (`info`, `show`, `v`) command for viewing package metadata from the registry [#11064](https://github.com/pnpm/pnpm/pull/11064).
 - Added `pnpm login` (and `pnpm adduser` alias) command for authenticating with npm registries. Supports web-based login with QR code as well as classic username/password login [#11094](https://github.com/pnpm/pnpm/pull/11094).
+- Added `pnpm logout` command for logging out of npm registries. Revokes the authentication token on the registry and removes it from the local auth config file [#11213](https://github.com/pnpm/pnpm/pull/11213).
+- Added native `pnpm deprecate` and `pnpm undeprecate` commands for setting and removing deprecation messages on package versions without delegating to the npm CLI [#11120](https://github.com/pnpm/pnpm/pull/11120).
+- Added native `pnpm unpublish` command. Supports unpublishing specific versions, version ranges via semver, and entire packages with `--force` [#11128](https://github.com/pnpm/pnpm/pull/11128).
+- Added native `pnpm dist-tag` command (`ls`, `add`, `rm` subcommands) [#11218](https://github.com/pnpm/pnpm/pull/11218).
 - Added `pnpm sbom` command for generating Software Bill of Materials in CycloneDX 1.7 and SPDX 2.3 JSON formats [#9088](https://github.com/pnpm/pnpm/issues/9088).
 - Added `pnpm clean` command that safely removes `node_modules` directories from all workspace projects [#10707](https://github.com/pnpm/pnpm/issues/10707). Use `--lockfile` to also remove `pnpm-lock.yaml` files.
 - Added a new command `pnpm runtime set <runtime name> <runtime version spec> [-g]` for installing runtimes. Deprecated `pnpm env use` in favor of the new command.
@@ -230,6 +235,7 @@
 - During install, packages with ignored builds that are not yet listed in `allowBuilds` are automatically added to `pnpm-workspace.yaml` with a placeholder value, so users can manually set them to `true` or `false` [#11030](https://github.com/pnpm/pnpm/pull/11030).
 - Added `pn` and `pnx` short aliases for `pnpm` and `pnpx` (`pnpm dlx`) [#11052](https://github.com/pnpm/pnpm/pull/11052).
 - `pnpm store prune` now displays the total size of removed files [#11047](https://github.com/pnpm/pnpm/pull/11047).
+- `pnpm audit --fix` now adds the minimum patched version for each advisory to `minimumReleaseAgeExclude` in `pnpm-workspace.yaml`, so the security fix can be installed without waiting for `minimumReleaseAge` [#11216](https://github.com/pnpm/pnpm/pull/11216).
 - Warn when `optimisticRepeatInstall` skips `shouldRefreshResolution` hooks [#10995](https://github.com/pnpm/pnpm/pull/10995).
 
 #### Performance
@@ -277,6 +283,9 @@
 - Propagate error cause when throwing `PnpmError` in `@pnpm/npm-resolver` [#10990](https://github.com/pnpm/pnpm/pull/10990).
 - Fix SQLite race condition during store initialization on Windows.
 - Remove `rimrafSync` in `importIndexedDir` fast-path error handler [#11168](https://github.com/pnpm/pnpm/pull/11168).
+- Fixed `pnpm dedupe --check` unexpectedly failing due to non-deterministic resolution [#11110](https://github.com/pnpm/pnpm/pull/11110).
+- Fixed empty files not being rejected in `isEmptyDirOrNothing` [#11182](https://github.com/pnpm/pnpm/pull/11182).
+- Fixed `.bat`/`.cmd` token helpers not working on Windows due to missing `shell: true` option.
 
 ## 10.20.0
 
