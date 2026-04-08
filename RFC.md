@@ -40,7 +40,7 @@ pnpm's content-addressable store stores individual files by SHA-512 digest, not 
 - `react` and `react-dom` may share bundled files → same digests
 - Thousands of packages share identical `LICENSE` files → one digest
 
-**The server pre-indexes every package version at the file level.** When the client says "I have these packages in my store", the server computes the union of all file digests the client already has. For the packages the client needs, the server checks each file's digest against that set and only sends files with new digests.
+**The server pre-indexes every package version at the file level.** The client sends the integrity hash of every package in its store. The server maps each integrity hash to its pre-computed file index, unions all their file digests, and diffs against the needed packages. Only files with digests not in that union are sent.
 
 This is not package-level dedup (skipping whole packages). This is **file-level dedup across the entire store** — even for packages the client has never seen, most of their files may already exist from other packages.
 
@@ -48,13 +48,13 @@ This is not package-level dedup (skipping whole packages). This is **file-level 
 
 #### Step 1: Client Reads Its Store State
 
-The client queries its local SQLite store index (`index.db`) to get the list of packages it already has:
+The client queries its local SQLite store index (`index.db`) to get the integrity hashes of all packages it already has:
 
 ```sql
 SELECT key FROM package_index
 ```
 
-Each key is `"integrity\tpkgId"` (e.g., `"sha512-abc...\tregistry.npmjs.org/lodash@4.17.21"`). The client extracts the package IDs.
+Each key is `"integrity\tpkgId"` (e.g., `"sha512-abc...\tregistry.npmjs.org/lodash@4.17.21"`). The client extracts the integrity hashes (the part before the tab). The integrity hash uniquely identifies a package version's contents — the same hash the server gets from npm's registry metadata. That's all the server needs to look up its pre-computed file index for that package.
 
 This is a fast local operation — SQLite with WAL mode, mmap enabled, ~1ms for a few thousand entries.
 
@@ -76,17 +76,17 @@ Accept-Encoding: zstd, gzip
   "os": "linux",
   "arch": "x64",
 
-  // What the client already has (package IDs from store index)
-  "storePackages": [
-    "registry.npmjs.org/react@19.0.0",
-    "registry.npmjs.org/lodash@4.17.21",
-    "registry.npmjs.org/typescript@5.7.2",
-    // ... typically 500-5000 entries, ~50 bytes each = 25-250KB
+  // What the client already has (integrity hashes from store index)
+  "storeIntegrities": [
+    "sha512-a1b2c3...",
+    "sha512-d4e5f6...",
+    "sha512-f7a8b9...",
+    // ... typically 500-5000 entries, ~88 bytes each
   ]
 }
 ```
 
-**Payload size**: For a store with 2000 packages, the `storePackages` list is ~100KB. This is small — fits in a single TCP window after compression.
+**Payload size**: Each SHA-512 integrity hash is ~88 bytes (base64-encoded with `sha512-` prefix). For a store with 5000 packages, that's ~440KB uncompressed. Integrity hashes have high entropy so they don't compress as well as package IDs, but the payload is still small enough for a single HTTP request.
 
 #### Step 3: Server Resolves and Computes the File Diff
 
@@ -103,29 +103,29 @@ The server has all package metadata in memory (synced from npm's `/_changes` fee
 **3b. Compute the client's digest set** (<10ms):
 ```
 clientDigests = Set()
-for pkg in request.storePackages:
-    clientDigests.addAll(server.fileIndex[pkg].digests)  // pre-indexed
+for integrity in request.storeIntegrities:
+    clientDigests.addAll(server.fileIndex[integrity].digests)  // pre-indexed
 ```
 
-The server maintains a pre-computed file index for every package version:
+The server maintains a pre-computed file index for every package version, keyed by integrity hash (the same hash from npm's registry metadata):
 ```
-server.fileIndex["registry.npmjs.org/react@19.0.0"] = {
-  "index.js":     { digest: "a1b2c3...", size: 3421, mode: 0o644 },
+server.fileIndex["sha512-a1b2c3..."] = {
+  "index.js":     { digest: "fe01ab...", size: 3421, mode: 0o644 },
   "cjs/react.js": { digest: "d4e5f6...", size: 8192, mode: 0o644 },
   "LICENSE":      { digest: "f7a8b9...", size: 1089, mode: 0o644 },
   // ... ~200 files
 }
 ```
 
-For 2000 store packages averaging 50 files each, this unions ~100K digests. With a pre-built hash set per package, the union is O(n) set merges — fast.
+For 5000 store packages averaging 50 files each, this unions ~250K digests. With a pre-built digest set per package, the union is O(n) set merges — fast.
 
 **3c. Compute missing files for needed packages** (<5ms):
 ```
 missingFiles = []
 for pkg in resolvedPackages:
-    if pkg in request.storePackages:
+    if pkg.integrity in request.storeIntegrities:
         continue  // client has the whole package
-    for file in server.fileIndex[pkg]:
+    for file in server.fileIndex[pkg.integrity]:
         if file.digest not in clientDigests:
             missingFiles.append(file)
             clientDigests.add(file.digest)  // dedup within the response too
@@ -270,9 +270,9 @@ What remains:
 **Total: ~335ms**, dominated by network
 
 **With pnpm-registry:**
-1. Client already sent `storePackages` including `react@19.0.0` in the initial request
+1. Client sent `storeIntegrities` including the integrity hash of `react@19.0.0`
 2. Server resolves that `react@19.0.1` is needed
-3. Server computes: react@19.0.0 has digests {h1..h200}, react@19.0.1 has digests {h1..h195, h196'..h200'} → 5 new digests
+3. Server computes: the integrity for react@19.0.0 maps to digests {h1..h200}, react@19.0.1 has digests {h1..h195, h196'..h200'} → 5 new digests
 4. Server includes 5 files (total ~25KB) in the stream, plus the file index in JSON
 5. Client writes 5 files to CAFS (~1ms)
 6. Client builds index entry from JSON metadata (~0.5ms)
@@ -305,16 +305,16 @@ What remains:
 └────────┬───────────┘                    └──────────┬──────────┘
          │                                           │
          │  1. Read store index.db                   │
-         │     → storePackages[]                     │
+         │     → storeIntegrities[]                  │
          │                                           │
          │  POST /v1/install                         │
          │  { deps, overrides, peerRules,            │
          │    nodeVersion, os, arch,                  │
-         │    storePackages }                         │
+         │    storeIntegrities }                      │
          │ ─────────────────────────────────────────>│
          │                                           │
          │                                           │ 2. Resolve tree (<50ms)
-         │                                           │ 3. Union storePackages digests
+         │                                           │ 3. Union storeIntegrities digests
          │                                           │ 4. Diff needed vs. have
          │                                           │ 5. Start streaming response
          │                                           │
@@ -459,21 +459,48 @@ Configuration:
 pnpm-registry=https://registry.pnpm.io
 ```
 
-### Why Package IDs (Not Bloom Filters) for Store State
+### Why Integrity Hashes in a Single Request (and Why Not Two-Phase)
 
-The client sends package IDs, not a bloom filter of file digests:
+The client sends the integrity hash of every package in its store. The server maps each integrity hash to its pre-computed file-level index, unions the digests, and diffs against the needed packages — all server-side.
 
-| Approach | Payload size (2000 pkgs) | Server computation | Accuracy |
-|----------|------------------------|-------------------|----------|
-| Package IDs | ~100KB | Union pre-indexed digest sets | Exact |
-| Bloom filter of digests | ~120KB | Test each needed digest | False positives (miss files) |
-| Full digest list | ~1.6MB | Set lookup | Exact but large |
+**Alternative considered: two-phase client-side checking.**
 
-Package IDs win because:
-- Similar payload size to a bloom filter
-- No false positives (bloom filter would sometimes claim the client has a file it doesn't, causing a second request to fetch the missed files)
-- Server has pre-indexed digest sets per package, so the union is a fast set operation
-- Simple to implement on both sides
+Instead of sending store state, the client could:
+1. Send only dependencies (small request)
+2. Receive the resolved graph with per-package file digests
+3. Check its own CAFS locally to find which digests are missing
+4. Send back the missing digest list (small request)
+5. Receive only those files
+
+This avoids sending the store contents entirely. But the response in step 2 is enormous:
+
+| Data | Size |
+|------|------|
+| 1000 packages × 50 files × 128-char hex digest | ~6.4MB of digests alone |
+| Plus file paths, sizes, modes | ~8-10MB total |
+
+Compared to the single-request approach:
+
+| Data | Size |
+|------|------|
+| 5000 integrity hashes × ~88 bytes | ~440KB |
+
+The two-phase approach trades a ~440KB upload for an ~8MB download, plus an extra round-trip (~100ms). The server already has the file indexes — sending them to the client just so the client can check locally and send them back is redundant work.
+
+**Other alternatives considered:**
+
+| Approach | Upload size (5000 pkgs) | Download overhead | Round-trips | Accuracy |
+|----------|------------------------|-------------------|-------------|----------|
+| **Integrity hashes (chosen)** | ~440KB | None | 1 | Exact |
+| Two-phase file digests | ~1KB + ~10KB | ~8MB (file indexes) | 2 | Exact |
+| Bloom filter of file digests | ~120KB | None | 1 | False positives (miss files) |
+| Full file digest list | ~16MB | None | 1 | Exact but huge |
+
+Integrity hashes win because:
+- Compact: ~88 bytes each, ~440KB for a large store
+- Exact: the server can reconstruct the full set of file digests the client has (no false positives like bloom filters)
+- Single round-trip: no extra latency
+- No redundant data: the server already has the file indexes, no need to send them to the client
 
 The one edge case — a partially corrupted store where files were deleted but the index entry remains — is already handled by pnpm's existing integrity verification during linking. If a file is missing from CAFS, the client falls back to fetching it individually.
 
@@ -491,10 +518,10 @@ Changes needed in pnpm CLI:
 
 ### Phase 2: Store-Aware File Streaming
 
-Add the full `/v1/install` endpoint with file-level dedup. The client sends its store package list, the server computes the file diff and streams only missing files in the CAFS-native format described above.
+Add the full `/v1/install` endpoint with file-level dedup. The client sends its store integrity hashes, the server computes the file diff and streams only missing files in the CAFS-native format described above.
 
 Changes needed:
-- Client: read store index, send package list, parse streaming binary response, write to CAFS
+- Client: read store index, send integrity hashes, parse streaming binary response, write to CAFS
 - Server: pre-index all packages at file level, compute digest diffs, stream files from server-side CAFS
 
 ### Phase 3: Pre-Computed Bundles
