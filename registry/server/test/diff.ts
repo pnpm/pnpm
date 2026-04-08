@@ -251,13 +251,12 @@ describe('computeDiff', () => {
       },
     })
 
-    const { metadata } = computeDiff(lockfile, [], integrityIndex, storeDir)
+    const { packageIndexBuffers } = computeDiff(lockfile, [], integrityIndex, storeDir)
 
-    const pkgFiles = metadata.packageFiles['/my-pkg/1.0.0']
-    expect(pkgFiles).toBeTruthy()
-    expect(pkgFiles.integrity).toBe('sha512-test')
-    expect(pkgFiles.algo).toBe('sha512')
-    expect(pkgFiles.files['index.js'].digest).toBe('hash1')
-    expect(pkgFiles.files['README.md'].digest).toBe('hash2')
+    const entry = packageIndexBuffers.get('/my-pkg/1.0.0')
+    expect(entry).toBeTruthy()
+    expect(entry!.integrity).toBe('sha512-test')
+    expect(entry!.rawBuffer).toBeInstanceOf(Uint8Array)
+    expect(entry!.rawBuffer.length).toBeGreaterThan(0)
   })
 })
