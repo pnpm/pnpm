@@ -8,13 +8,13 @@ import type { InstallOptions } from '@pnpm/installing.deps-installer'
 import { install } from '@pnpm/installing.deps-installer'
 import { readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import type { LockfileObject } from '@pnpm/lockfile.types'
-import type { PackageFilesIndex } from '@pnpm/store.cafs'
+import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { createPackageStore, type StoreController } from '@pnpm/store.controller'
 import { StoreIndex } from '@pnpm/store.index'
 import type { Registries } from '@pnpm/types'
 
 import { buildIntegrityIndex, computeDiff } from './diff.js'
-import { encodeResponse } from './protocol.js'
+import { encodeResponse, type MissingFile } from './protocol.js'
 
 export interface RegistryServerOptions {
   /** Directory for the server's content-addressable store */
@@ -85,6 +85,8 @@ export async function createRegistryServer (opts: RegistryServerOptions): Promis
     try {
       if (req.method === 'POST' && req.url === '/v1/install') {
         await handleInstall(req, res, ctx)
+      } else if (req.method === 'POST' && req.url === '/v1/files') {
+        await handleFiles(req, res, ctx)
       } else {
         res.writeHead(404, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ error: 'Not found' }))
@@ -141,9 +143,8 @@ async function handleInstall (
       await writeWantedLockfile(tmpDir, request.lockfile)
     }
 
-    // Resolve and fetch packages to the server's store.
-    // This uses the full install pipeline (minus scripts) so tarballs
-    // are downloaded and extracted into the server's CAFS.
+    // Phase 1: Resolve only (no fetching, no linking — fast).
+    // lockfileIncludeTarballUrl gives us download URLs for phase 2.
     await install(manifest, {
       dir: tmpDir,
       lockfileDir: tmpDir,
@@ -152,6 +153,8 @@ async function handleInstall (
       cacheDir: ctx.cacheDir,
       registries: ctx.registries,
       ignoreScripts: true,
+      lockfileOnly: true,
+      lockfileIncludeTarballUrl: true,
       saveLockfile: true,
       preferFrozenLockfile: false,
     } as InstallOptions)
@@ -176,26 +179,75 @@ async function handleInstall (
       resolvedLockfile.importers = { '.': snapshot } as typeof resolvedLockfile.importers
     }
 
-    // Build the integrity index from what's already in the server store.
-    // We do NOT fetch tarballs here — the client will fetch them directly
-    // from npm via headless install, which is faster (parallel connections).
-    // We only stream files that the server already has cached.
+    // Phase 2: Fetch tarballs into the server's store for packages we
+    // don't have yet. On first request this downloads everything; on
+    // subsequent requests the store is hot and this is a no-op.
+    const integrityIndexBefore = buildIntegrityIndex(ctx.storeIndex)
+    const fetchPromises: Array<Promise<void>> = []
+    for (const [, pkgSnapshot] of Object.entries(resolvedLockfile.packages ?? {})) {
+      const resolution = pkgSnapshot.resolution as { integrity?: string, tarball?: string } | undefined
+      if (!resolution?.integrity || !resolution?.tarball) continue
+      if (integrityIndexBefore.has(resolution.integrity)) continue
+
+      fetchPromises.push((async () => {
+        const result = await ctx.storeController.fetchPackage({
+          force: false,
+          lockfileDir: tmpDir,
+          pkg: {
+            id: resolution.tarball as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+            name: '',
+            version: '',
+            resolution: resolution as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+          },
+        })
+        if (result.fetching) {
+          await result.fetching()
+        }
+      })())
+    }
+    if (fetchPromises.length > 0) {
+      await Promise.all(fetchPromises)
+    }
+
     const integrityIndex = buildIntegrityIndex(ctx.storeIndex)
     ctx.integrityIndex = integrityIndex
 
     // Compute the file diff using only what the server already has
-    const { metadata, missingFiles } = computeDiff(
+    const { metadata } = computeDiff(
       resolvedLockfile,
       request.storeIntegrities ?? [],
       integrityIndex,
       ctx.storeDir
     )
 
-    // Stream the response
-    await encodeResponse(res, metadata, missingFiles)
+    // Return JSON only — file contents are fetched via parallel /v1/files requests
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(metadata))
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true })
   }
+}
+
+/**
+ * Handle POST /v1/files — serve a batch of files by digest.
+ * The client makes multiple parallel requests to this endpoint.
+ */
+async function handleFiles (
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  ctx: ServerContext
+): Promise<void> {
+  const body = await readBody(req)
+  const { digests } = JSON.parse(body) as { digests: Array<{ digest: string, size: number, executable: boolean }> }
+
+  const missingFiles: MissingFile[] = digests.map((d) => ({
+    digest: d.digest,
+    size: d.size,
+    executable: d.executable,
+    cafsPath: getFilePathByModeInCafs(ctx.storeDir, d.digest, d.executable ? 0o755 : 0o644),
+  }))
+
+  await encodeResponse(res, null, missingFiles)
 }
 
 function readBody (req: http.IncomingMessage): Promise<string> {

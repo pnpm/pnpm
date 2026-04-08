@@ -62,16 +62,16 @@ export async function fetchFromPnpmRegistry (
     storeIntegrities,
   })
 
-  // 3. Send request and get response stream
-  const responseBuffer = await sendRequest(opts.registryUrl, requestBody)
+  // 3. Send resolve request (returns JSON — lockfile + file indexes, no file content)
+  const responseBuffer = await sendRequest(opts.registryUrl, '/v1/install', requestBody)
+  const metadata: ResponseMetadata = JSON.parse(responseBuffer.toString('utf-8'))
 
-  // 4. Decode the response
-  const { metadata, files } = await decodeResponse(toAsyncIterable(responseBuffer))
+  // 4. Fetch missing files in parallel batches via /v1/files
+  if (metadata.missingDigests.length > 0) {
+    await fetchFilesInParallel(opts.registryUrl, metadata, opts.storeDir)
+  }
 
-  // 5. Write missing files to CAFS
-  await writeFilesToCafs(files, opts.storeDir)
-
-  // 6. Write store index entries for new packages
+  // 5. Write store index entries for new packages
   writeStoreIndexEntries(metadata, opts.storeIndex)
 
   return {
@@ -90,10 +90,64 @@ function readStoreIntegrities (storeIndex: StoreIndex): string[] {
   return [...seen]
 }
 
+const BATCH_SIZE = 2000 // files per parallel request
+const PARALLEL_REQUESTS = 10
+
+async function fetchFilesInParallel (
+  registryUrl: string,
+  metadata: ResponseMetadata,
+  storeDir: string
+): Promise<void> {
+  // Build digest info map from package files
+  const digestInfo = new Map<string, { size: number, executable: boolean }>()
+  for (const pkgFiles of Object.values(metadata.packageFiles)) {
+    for (const fileInfo of Object.values(pkgFiles.files)) {
+      if (!digestInfo.has(fileInfo.digest)) {
+        digestInfo.set(fileInfo.digest, {
+          size: fileInfo.size,
+          executable: (fileInfo.mode & 0o111) !== 0,
+        })
+      }
+    }
+  }
+
+  // Split missing digests into batches
+  const batches: Array<Array<{ digest: string, size: number, executable: boolean }>> = []
+  let currentBatch: Array<{ digest: string, size: number, executable: boolean }> = []
+  for (const digest of metadata.missingDigests) {
+    const info = digestInfo.get(digest)
+    if (!info) continue
+    currentBatch.push({ digest, ...info })
+    if (currentBatch.length >= BATCH_SIZE) {
+      batches.push(currentBatch)
+      currentBatch = []
+    }
+  }
+  if (currentBatch.length > 0) {
+    batches.push(currentBatch)
+  }
+
+  // Fetch batches with limited parallelism
+  let batchIdx = 0
+  async function fetchNext (): Promise<void> {
+    while (batchIdx < batches.length) {
+      const idx = batchIdx++
+      const batch = batches[idx]
+      const reqBody = JSON.stringify({ digests: batch })
+      const responseBuffer = await sendRequest(registryUrl, '/v1/files', reqBody) // eslint-disable-line no-await-in-loop
+      const { files } = await decodeResponse(toAsyncIterable(responseBuffer)) // eslint-disable-line no-await-in-loop
+      await writeFilesToCafs(files, storeDir) // eslint-disable-line no-await-in-loop
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(PARALLEL_REQUESTS, batches.length) }, () => fetchNext())
+  await Promise.all(workers)
+}
+
 const REQUEST_TIMEOUT = 120_000 // 2 minutes
 
-async function sendRequest (registryUrl: string, body: string): Promise<Buffer> {
-  const url = new URL('/v1/install', registryUrl)
+async function sendRequest (registryUrl: string, urlPath: string, body: string): Promise<Buffer> {
+  const url = new URL(urlPath, registryUrl)
   const isHttps = url.protocol === 'https:'
   const requestFn = isHttps ? https.request : http.request
 

@@ -56,15 +56,15 @@ export interface ResponseMetadata {
  */
 export async function encodeResponse (
   res: ServerResponse,
-  metadata: ResponseMetadata,
+  metadata: ResponseMetadata | null,
   missingFiles: MissingFile[]
 ): Promise<void> {
   res.writeHead(200, {
     'Content-Type': 'application/x-pnpm-install',
   })
 
-  // 1. Write JSON metadata
-  const jsonBuffer = Buffer.from(JSON.stringify(metadata), 'utf-8')
+  // 1. Write JSON metadata (empty object if null — file-only response)
+  const jsonBuffer = Buffer.from(JSON.stringify(metadata ?? {}), 'utf-8')
   const lengthBuf = Buffer.alloc(4)
   lengthBuf.writeUInt32BE(jsonBuffer.length, 0)
   res.write(lengthBuf)
