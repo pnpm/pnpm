@@ -1886,6 +1886,10 @@ async function installFromPnpmRegistry (
     lockfile: existingLockfile ?? undefined,
   })
 
+  // Close the store index so its WAL is checkpointed — other SQLite
+  // connections (store controller, workers) will then see the entries.
+  storeIndex.close()
+
   logger.info({
     message: `Resolved ${stats.totalPackages} packages: ${stats.alreadyInStore} cached, ${stats.filesToDownload} files downloaded`,
     prefix: rootDir,

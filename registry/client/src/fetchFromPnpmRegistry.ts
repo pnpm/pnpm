@@ -212,9 +212,11 @@ function writeStoreIndexEntries (
   const writes: Array<{ key: string, buffer: Uint8Array }> = []
 
   for (const [depPath, pkgFilesInfo] of Object.entries(metadata.packageFiles)) {
-    // Use depPath as the pkgId — this matches what headlessInstall uses
-    // to look up packages in the store via packageIdFromSnapshot().
-    const key = storeIndexKey(pkgFilesInfo.integrity, depPath)
+    // Strip peer suffix from depPath to get pkgId — matches what
+    // headlessInstall uses via packageIdFromSnapshot() → tryGetPackageId().
+    // e.g., "@babel/helper@7.28.6(@babel/core@7.29.0)" → "@babel/helper@7.28.6"
+    const pkgId = stripPeerSuffix(depPath)
+    const key = storeIndexKey(pkgFilesInfo.integrity, pkgId)
 
     // Check if already in index
     if (storeIndex.has(key)) continue
@@ -246,6 +248,12 @@ function writeStoreIndexEntries (
   }
 }
 
+
+function stripPeerSuffix (depPath: string): string {
+  const parenIdx = depPath.indexOf('(')
+  if (parenIdx !== -1) return depPath.substring(0, parenIdx)
+  return depPath
+}
 
 async function * toAsyncIterable (buffer: Buffer): AsyncIterable<Buffer> {
   yield buffer
