@@ -141,8 +141,8 @@ async function handleInstall (
       await writeWantedLockfile(tmpDir, request.lockfile)
     }
 
-    // Resolve and fetch packages to the server's store.
-    // ignoreScripts + enableModulesDir=false skips linking/scripts in the temp dir.
+    // Phase 1: Resolve only (lockfileOnly skips fetching+linking = fast).
+    // Include tarball URLs so we can fetch them in phase 2.
     await install(manifest, {
       dir: tmpDir,
       lockfileDir: tmpDir,
@@ -151,6 +151,8 @@ async function handleInstall (
       cacheDir: ctx.cacheDir,
       registries: ctx.registries,
       ignoreScripts: true,
+      lockfileOnly: true,
+      lockfileIncludeTarballUrl: true,
       saveLockfile: true,
       preferFrozenLockfile: false,
     } as InstallOptions)
@@ -175,7 +177,49 @@ async function handleInstall (
       resolvedLockfile.importers = { '.': snapshot } as typeof resolvedLockfile.importers
     }
 
-    // Rebuild the integrity index (packages were fetched during install)
+    // Phase 2: Fetch tarballs only for packages the client doesn't have.
+    // lockfileOnly=true skipped tarball downloads, but the lockfile now
+    // has tarball URLs (lockfileIncludeTarballUrl=true) so we can fetch.
+    const clientIntegrities = new Set(request.storeIntegrities ?? [])
+    const fetchPromises: Array<Promise<void>> = []
+    for (const [, pkgSnapshot] of Object.entries(resolvedLockfile.packages ?? {})) {
+      const resolution = pkgSnapshot.resolution
+      if (!resolution || typeof resolution === 'string') continue
+      const integrity = 'integrity' in resolution ? resolution.integrity : undefined
+      if (!integrity || clientIntegrities.has(integrity)) continue
+      if (!('tarball' in resolution) || !resolution.tarball) continue
+
+      // Already in server store?
+      const indexKey = `${integrity}\t`
+      let found = false
+      for (const k of ctx.storeIndex.keys()) {
+        if (k.startsWith(indexKey)) {
+          found = true; break
+        }
+      }
+      if (found) continue
+
+      fetchPromises.push((async () => {
+        const result = await ctx.storeController.fetchPackage({
+          force: false,
+          lockfileDir: tmpDir,
+          pkg: {
+            id: resolution.tarball as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+            name: '',
+            version: '',
+            resolution: resolution as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+          },
+        })
+        if (result.fetching) {
+          await result.fetching()
+        }
+      })())
+    }
+    if (fetchPromises.length > 0) {
+      await Promise.all(fetchPromises)
+    }
+
+    // Rebuild the integrity index (packages were fetched)
     const integrityIndex = buildIntegrityIndex(ctx.storeIndex)
     ctx.integrityIndex = integrityIndex
 
