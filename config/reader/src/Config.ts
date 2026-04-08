@@ -210,6 +210,8 @@ export interface Config extends OptionsFromRootManifest {
   packGzipLevel?: number
   blockExoticSubdeps?: boolean
 
+  pnpmRegistry?: string
+
   registries: Registries
   configByUri: Record<string, RegistryConfig>
   ignoreWorkspaceRootCheck: boolean

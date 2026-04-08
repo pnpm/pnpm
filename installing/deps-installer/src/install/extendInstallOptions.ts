@@ -178,6 +178,8 @@ export interface StrictInstallOptions {
   trustPolicyIgnoreAfter?: number
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
   blockExoticSubdeps?: boolean
+  /** URL of a pnpm registry server for server-side resolution */
+  pnpmRegistry?: string
 }
 
 export type InstallOptions =

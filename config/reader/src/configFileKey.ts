@@ -41,6 +41,7 @@ export const pnpmConfigFileKeys = [
   'npm-path',
   'npmrc-auth-file',
   'package-import-method',
+  'pnpm-registry',
   'prefer-frozen-lockfile',
   'prefer-offline',
   'prefer-symlinked-executables',

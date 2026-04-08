@@ -44,6 +44,7 @@ import {
   cleanGitBranchLockfiles,
   type LockfileObject,
   type ProjectSnapshot,
+  readWantedLockfile,
   writeCurrentLockfile,
   writeLockfiles,
   writeWantedLockfile,
@@ -163,6 +164,13 @@ export async function install (
   opts: Opts
 ): Promise<InstallResult> {
   const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
+
+  // When a pnpm-registry server is configured, use server-side resolution
+  // instead of the normal resolution flow.
+  if (opts.pnpmRegistry) {
+    return installFromPnpmRegistry(manifest, rootDir, opts)
+  }
+
   const { updatedCatalogs, updatedProjects: projects, ignoredBuilds } = await mutateModules(
     [
       {
@@ -1825,4 +1833,72 @@ function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
     }
   }
   return extendProjectsWithTargetDirs(projects, injectionTargetsByDepPath)
+}
+
+/**
+ * When a pnpm-registry server is configured, resolve dependencies server-side
+ * and download only the missing files. Then run a headless install to link
+ * packages into node_modules.
+ */
+async function installFromPnpmRegistry (
+  manifest: ProjectManifest,
+  rootDir: ProjectRootDir,
+  opts: Opts
+): Promise<InstallResult> {
+  // Lazy-import to avoid adding the dependency for users who don't use this feature
+  const { fetchFromPnpmRegistry } = await import('@pnpm/registry.client')
+  const { StoreIndex } = await import('@pnpm/store.index')
+
+  // Read existing lockfile if available
+  const existingLockfile = await readWantedLockfile(opts.lockfileDir ?? rootDir, {
+    ignoreIncompatible: true,
+  }).catch(() => null)
+
+  logger.info({ message: 'Resolving dependencies via pnpm-registry server', prefix: rootDir })
+
+  // Open the store index to read integrities and write new entries
+  const storeIndex = new StoreIndex(opts.storeDir)
+
+  const { lockfile, stats } = await fetchFromPnpmRegistry({
+    registryUrl: opts.pnpmRegistry!,
+    storeDir: opts.storeDir,
+    storeIndex,
+    dependencies: manifest.dependencies,
+    devDependencies: manifest.devDependencies,
+    overrides: opts.overrides,
+    lockfile: existingLockfile ?? undefined,
+  })
+
+  logger.info({
+    message: `Resolved ${stats.totalPackages} packages: ${stats.alreadyInStore} cached, ${stats.filesToDownload} files downloaded`,
+    prefix: rootDir,
+  })
+
+  // Write the lockfile received from the server
+  const lockfileDir = opts.lockfileDir ?? rootDir
+  await writeWantedLockfile(lockfileDir, lockfile)
+
+  // Run headless install to link packages
+  await headlessInstall({
+    ...opts,
+    currentEngine: {
+      nodeVersion: opts.nodeVersion,
+      pnpmVersion: opts.packageManager?.version ?? '',
+    },
+    selectedProjectDirs: [rootDir],
+    allProjects: {
+      [rootDir]: {
+        buildIndex: 0,
+        manifest,
+        rootDir,
+      },
+    } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    wantedLockfile: lockfile,
+  })
+
+  return {
+    updatedCatalogs: undefined,
+    updatedManifest: manifest,
+    ignoredBuilds: undefined,
+  }
 }

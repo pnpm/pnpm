@@ -38,6 +38,7 @@ packages:
   - testing/*
   - worker
   - pnpm/artifacts/*
+  - registry/*
   - registry-access/*
   - releasing/*
   - resolving/*
