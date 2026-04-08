@@ -1,7 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import type { ServerResponse } from 'node:http'
-import path from 'node:path'
-import { gzipSync } from 'node:zlib'
 
 import type { LockfileObject } from '@pnpm/lockfile.types'
 
@@ -63,16 +61,14 @@ export function encodeResponse (
   parts.push(lengthBuf)
   parts.push(jsonBuffer)
 
-  // 2. File entries — use compressed cache for faster reads + smaller transfer
+  // 2. File entries
   for (const file of missingFiles) {
-    const content = readCompressed(file.cafsPath)
+    const content = readFileSync(file.cafsPath)
     const digestBuf = Buffer.from(file.digest, 'hex')
-    // Use compressed size in the header so client knows how many bytes to read
     const sizeBuf = Buffer.alloc(4)
     sizeBuf.writeUInt32BE(content.length, 0)
     const modeBuf = Buffer.alloc(1)
-    // Bit 0: executable, Bit 1: compressed
-    modeBuf[0] = (file.executable ? 0x01 : 0x00) | 0x02
+    modeBuf[0] = file.executable ? 0x01 : 0x00
 
     parts.push(digestBuf)
     parts.push(sizeBuf)
@@ -92,23 +88,3 @@ export function encodeResponse (
   res.end(payload)
 }
 
-/**
- * Read a CAFS file, returning its gzip-compressed form.
- * On first read, compresses and caches as a .gz sibling file.
- * Subsequent reads serve the cached .gz directly — smaller disk reads.
- */
-function readCompressed (cafsPath: string): Buffer {
-  const gzPath = `${cafsPath}.gz`
-  if (existsSync(gzPath)) {
-    return readFileSync(gzPath)
-  }
-  const raw = readFileSync(cafsPath)
-  const compressed = gzipSync(raw, { level: 1 }) // level 1 = fast
-  try {
-    mkdirSync(path.dirname(gzPath), { recursive: true })
-    writeFileSync(gzPath, compressed)
-  } catch {
-    // non-critical — if caching fails, just return the compressed data
-  }
-  return compressed
-}

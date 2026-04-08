@@ -1,5 +1,3 @@
-import { gunzipSync } from 'node:zlib'
-
 import type { LockfileObject } from '@pnpm/lockfile.types'
 
 export interface MissingDigestInfo {
@@ -80,18 +78,13 @@ export async function decodeResponse (stream: AsyncIterable<Buffer>): Promise<{
     const size = buffer.readUInt32BE(offset)
     offset += 4
 
-    // Mode: 1 byte (bit 0: executable, bit 1: compressed)
-    const modeByte = buffer[offset]
-    const executable = (modeByte & 0x01) !== 0
-    const compressed = (modeByte & 0x02) !== 0
+    // Mode: 1 byte
+    const executable = (buffer[offset] & 0x01) !== 0
     offset += 1
 
-    // Content: [size] bytes (may be gzip-compressed)
-    let content = Buffer.from(buffer.subarray(offset, offset + size))
+    // Content: [size] bytes
+    const content = Buffer.from(buffer.subarray(offset, offset + size))
     offset += size
-    if (compressed) {
-      content = gunzipSync(content)
-    }
 
     files.push({ digest, size, executable, content })
   }
