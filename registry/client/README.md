@@ -36,8 +36,8 @@ console.log(`${stats.alreadyInStore} cached, ${stats.filesToDownload} files down
 
 ## Configuration
 
-Set in `.npmrc` to enable automatically during `pnpm install`:
+Add to `pnpm-workspace.yaml` to enable automatically during `pnpm install`:
 
-```ini
-pnpm-registry=http://localhost:4000
+```yaml
+pnpmRegistry: http://localhost:4000
 ```

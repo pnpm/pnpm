@@ -70,11 +70,21 @@ Terminal 2 — use it from any project:
 
 ```bash
 cd my-project
-echo 'pnpm-registry=http://localhost:4873' >> .npmrc
+```
+
+Add to `pnpm-workspace.yaml`:
+
+```yaml
+pnpmRegistry: http://localhost:4873
+```
+
+Then run:
+
+```bash
 pnpm install
 ```
 
-That's it. pnpm will resolve dependencies on the server, download only the files missing from your local store, and link `node_modules` as usual. Remove the `.npmrc` line to go back to normal behavior.
+That's it. pnpm will resolve dependencies on the server, download only the files missing from your local store, and link `node_modules` as usual. Remove the `pnpmRegistry` line to go back to normal behavior.
 
 ## API
 
