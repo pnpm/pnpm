@@ -7629,6 +7629,9 @@ importers:
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
+      '@pnpm/logger':
+        specifier: 'catalog:'
+        version: 1001.0.1
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs

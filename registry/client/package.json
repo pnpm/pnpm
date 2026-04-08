@@ -38,6 +38,9 @@
     "@pnpm/store.index": "workspace:*",
     "@pnpm/worker": "workspace:*"
   },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/registry.client": "workspace:*",
