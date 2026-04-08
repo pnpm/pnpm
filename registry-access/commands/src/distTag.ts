@@ -19,7 +19,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
   }
 }
 
-export const commandNames = ['dist-tag']
+export const commandNames = ['dist-tag', 'dist-tags']
 
 export function help (): string {
   return renderHelp({
