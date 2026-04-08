@@ -4,17 +4,28 @@ import type { StoreIndex } from '@pnpm/store.index'
 
 import type { MissingFile, PackageFilesInfo, ResponseMetadata } from './protocol.js'
 
+export interface IntegrityEntry {
+  decoded: PackageFilesIndex
+  rawBuffer: Uint8Array
+}
+
 /**
- * Build an index mapping integrity hashes to their PackageFilesIndex.
- * This is called once at startup and updated as new packages are fetched.
+ * Build an index mapping integrity hashes to their PackageFilesIndex
+ * (decoded for diff computation) and raw msgpack buffer (for sending to client).
  */
-export function buildIntegrityIndex (storeIndex: StoreIndex): Map<string, PackageFilesIndex> {
-  const index = new Map<string, PackageFilesIndex>()
+export function buildIntegrityIndex (storeIndex: StoreIndex): Map<string, IntegrityEntry> {
+  const index = new Map<string, IntegrityEntry>()
   for (const [key, value] of storeIndex.entries()) {
     const tabIdx = key.indexOf('\t')
     if (tabIdx === -1) continue
     const integrity = key.slice(0, tabIdx)
-    index.set(integrity, value as PackageFilesIndex)
+    if (index.has(integrity)) continue
+    const rawBuffer = storeIndex.getRaw(key)
+    if (!rawBuffer) continue
+    index.set(integrity, {
+      decoded: value as PackageFilesIndex,
+      rawBuffer,
+    })
   }
   return index
 }
@@ -22,6 +33,8 @@ export function buildIntegrityIndex (storeIndex: StoreIndex): Map<string, Packag
 export interface DiffResult {
   metadata: ResponseMetadata
   missingFiles: MissingFile[]
+  /** Pre-packed msgpack buffers for each package, keyed by depPath */
+  packageIndexBuffers: Map<string, Uint8Array>
 }
 
 /**
@@ -37,7 +50,7 @@ export interface DiffResult {
 export function computeDiff (
   lockfile: LockfileObject,
   storeIntegrities: string[],
-  integrityIndex: Map<string, PackageFilesIndex>,
+  integrityIndex: Map<string, IntegrityEntry>,
   storeDir: string
 ): DiffResult {
   // 1. Build the set of file digests the client already has
@@ -45,15 +58,16 @@ export function computeDiff (
   const clientIntegrities = new Set(storeIntegrities)
 
   for (const integrity of storeIntegrities) {
-    const pkgIndex = integrityIndex.get(integrity)
-    if (!pkgIndex) continue
-    for (const [, fileInfo] of getFilesEntries(pkgIndex)) {
+    const entry = integrityIndex.get(integrity)
+    if (!entry) continue
+    for (const [, fileInfo] of getFilesEntries(entry.decoded)) {
       clientDigests.add(fileInfo.digest)
     }
   }
 
   // 2. Iterate resolved packages and compute missing files
   const packageFiles: Record<string, PackageFilesInfo> = {}
+  const packageIndexBuffers = new Map<string, Uint8Array>()
   const missingFiles: MissingFile[] = []
   const missingDigests: string[] = []
 
@@ -76,13 +90,13 @@ export function computeDiff (
       continue
     }
 
-    const pkgIndex = integrityIndex.get(integrity)
-    if (!pkgIndex) continue // package not indexed on server yet
+    const entry = integrityIndex.get(integrity)
+    if (!entry) continue // package not indexed on server yet
 
     packagesToFetch++
     const filesRecord: Record<string, { digest: string, size: number, mode: number }> = {}
 
-    for (const [relativePath, fileInfo] of getFilesEntries(pkgIndex)) {
+    for (const [relativePath, fileInfo] of getFilesEntries(entry.decoded)) {
       filesInNewPackages++
       filesRecord[relativePath] = {
         digest: fileInfo.digest,
@@ -108,9 +122,10 @@ export function computeDiff (
 
     packageFiles[depPath] = {
       integrity,
-      algo: pkgIndex.algo,
+      algo: entry.decoded.algo,
       files: filesRecord,
     }
+    packageIndexBuffers.set(depPath, entry.rawBuffer)
   }
 
   return {
@@ -129,6 +144,7 @@ export function computeDiff (
       },
     },
     missingFiles,
+    packageIndexBuffers,
   }
 }
 

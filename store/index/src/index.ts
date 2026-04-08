@@ -142,6 +142,14 @@ export class StoreIndex {
     return undefined
   }
 
+  /**
+   * Get the raw msgpack-encoded buffer for a key without decoding.
+   */
+  getRaw (key: string): Uint8Array | undefined {
+    const row = sqliteRetry(() => this.stmtGet.get(key)) as { data: Uint8Array } | undefined
+    return row?.data
+  }
+
   set (key: string, data: unknown): void {
     const buffer = packr.pack(data)
     sqliteRetry(() => {

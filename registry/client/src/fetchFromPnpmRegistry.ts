@@ -4,8 +4,7 @@ import { URL } from 'node:url'
 import { gunzipSync } from 'node:zlib'
 
 import type { LockfileObject } from '@pnpm/lockfile.types'
-import type { PackageFilesIndex } from '@pnpm/store.cafs'
-import { packForStorage, StoreIndex, storeIndexKey } from '@pnpm/store.index'
+import { StoreIndex } from '@pnpm/store.index'
 import { writeCafsFiles } from '@pnpm/worker'
 
 import { decodeResponse, type ResponseMetadata } from './protocol.js'
@@ -62,17 +61,17 @@ export async function fetchFromPnpmRegistry (
     storeIntegrities,
   })
 
-  // 3. Send resolve request (returns JSON — lockfile + file indexes, no file content)
+  // 3. Send resolve request — returns binary: JSON metadata + pre-packed msgpack index entries
   const responseBuffer = await sendRequest(opts.registryUrl, '/v1/install', requestBody)
-  const metadata: ResponseMetadata = JSON.parse(responseBuffer.toString('utf-8'))
+  const { metadata, indexEntries } = parseInstallResponse(responseBuffer)
 
   // 4. Fetch missing files in parallel batches via /v1/files
   if (metadata.missingDigests.length > 0) {
     await fetchFilesInParallel(opts.registryUrl, metadata, opts.storeDir)
   }
 
-  // 5. Write store index entries for new packages
-  writeStoreIndexEntries(metadata, opts.storeIndex)
+  // 5. Write pre-packed store index entries directly to SQLite (no msgpack re-encoding)
+  writeRawIndexEntries(indexEntries, opts.storeIndex)
 
   return {
     lockfile: metadata.lockfile,
@@ -207,44 +206,45 @@ async function sendRequest (registryUrl: string, urlPath: string, body: string):
   })
 }
 
-function writeStoreIndexEntries (
-  metadata: ResponseMetadata,
-  storeIndex: StoreIndex
-): void {
-  const writes: Array<{ key: string, buffer: Uint8Array }> = []
+function parseInstallResponse (buf: Buffer): {
+  metadata: ResponseMetadata
+  indexEntries: Array<{ key: string, buffer: Uint8Array }>
+} {
+  let offset = 0
 
-  for (const [depPath, pkgFilesInfo] of Object.entries(metadata.packageFiles)) {
-    // Strip peer suffix from depPath to get pkgId — matches what
-    // headlessInstall uses via packageIdFromSnapshot() → tryGetPackageId().
-    // e.g., "@babel/helper@7.28.6(@babel/core@7.29.0)" → "@babel/helper@7.28.6"
-    const pkgId = stripPeerSuffix(depPath)
-    const key = storeIndexKey(pkgFilesInfo.integrity, pkgId)
+  // Read JSON metadata
+  const jsonLen = buf.readUInt32BE(offset)
+  offset += 4
+  const metadata: ResponseMetadata = JSON.parse(buf.subarray(offset, offset + jsonLen).toString('utf-8'))
+  offset += jsonLen
 
-    // Check if already in index
-    if (storeIndex.has(key)) continue
+  // Read pre-packed msgpack index entries
+  const indexEntries: Array<{ key: string, buffer: Uint8Array }> = []
+  while (offset < buf.length) {
+    const keyLen = buf.readUInt16BE(offset)
+    offset += 2
+    if (keyLen === 0) break // end marker
 
-    // Build PackageFilesIndex
-    const files = new Map<string, { checkedAt: number, digest: string, mode: number, size: number }>()
-    for (const [relativePath, fileInfo] of Object.entries(pkgFilesInfo.files)) {
-      files.set(relativePath, {
-        checkedAt: Date.now(),
-        digest: fileInfo.digest,
-        mode: fileInfo.mode,
-        size: fileInfo.size,
-      })
-    }
+    const key = buf.subarray(offset, offset + keyLen).toString('utf-8')
+    offset += keyLen
 
-    const packageFilesIndex: PackageFilesIndex = {
-      algo: pkgFilesInfo.algo,
-      files,
-    }
+    const bufLen = buf.readUInt32BE(offset)
+    offset += 4
 
-    writes.push({
-      key,
-      buffer: packForStorage(packageFilesIndex) as Uint8Array,
-    })
+    const buffer = new Uint8Array(buf.buffer, buf.byteOffset + offset, bufLen)
+    offset += bufLen
+
+    indexEntries.push({ key, buffer })
   }
 
+  return { metadata, indexEntries }
+}
+
+function writeRawIndexEntries (
+  indexEntries: Array<{ key: string, buffer: Uint8Array }>,
+  storeIndex: StoreIndex
+): void {
+  const writes = indexEntries.filter(({ key }) => !storeIndex.has(key))
   if (writes.length > 0) {
     storeIndex.setRawMany(writes)
   }
@@ -257,12 +257,6 @@ function decompressIfNeeded (buf: Buffer): Buffer {
     return gunzipSync(buf)
   }
   return buf
-}
-
-function stripPeerSuffix (depPath: string): string {
-  const parenIdx = depPath.indexOf('(')
-  if (parenIdx !== -1) return depPath.substring(0, parenIdx)
-  return depPath
 }
 
 async function * toAsyncIterable (buffer: Buffer): AsyncIterable<Buffer> {

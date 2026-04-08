@@ -8,12 +8,12 @@ import type { InstallOptions } from '@pnpm/installing.deps-installer'
 import { install } from '@pnpm/installing.deps-installer'
 import { readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import type { LockfileObject } from '@pnpm/lockfile.types'
-import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { getFilePathByModeInCafs } from '@pnpm/store.cafs'
 import { createPackageStore, type StoreController } from '@pnpm/store.controller'
 import { StoreIndex } from '@pnpm/store.index'
 import type { Registries } from '@pnpm/types'
 
-import { buildIntegrityIndex, computeDiff } from './diff.js'
+import { buildIntegrityIndex, computeDiff, type IntegrityEntry } from './diff.js'
 import { encodeResponse, type MissingFile } from './protocol.js'
 
 export interface RegistryServerOptions {
@@ -33,7 +33,7 @@ interface ServerContext {
   storeDir: string
   cacheDir: string
   registries: Registries
-  integrityIndex: Map<string, PackageFilesIndex>
+  integrityIndex: Map<string, IntegrityEntry>
 }
 
 export async function createRegistryServer (opts: RegistryServerOptions): Promise<http.Server> {
@@ -213,16 +213,49 @@ async function handleInstall (
     ctx.integrityIndex = integrityIndex
 
     // Compute the file diff using only what the server already has
-    const { metadata } = computeDiff(
+    const { metadata, packageIndexBuffers } = computeDiff(
       resolvedLockfile,
       request.storeIntegrities ?? [],
       integrityIndex,
       ctx.storeDir
     )
 
-    // Return JSON only — file contents are fetched via parallel /v1/files requests
-    res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify(metadata))
+    // Response format:
+    //   [4 bytes: JSON length][JSON metadata]
+    //   [package index entries: 2B key_len + key + 4B buf_len + msgpack buffer]...
+    //   [2 zero bytes: end marker]
+    const parts: Buffer[] = []
+    const jsonBuf = Buffer.from(JSON.stringify(metadata), 'utf-8')
+    const jsonLenBuf = Buffer.alloc(4)
+    jsonLenBuf.writeUInt32BE(jsonBuf.length, 0)
+    parts.push(jsonLenBuf)
+    parts.push(jsonBuf)
+
+    for (const [depPath, rawBuffer] of packageIndexBuffers) {
+      const integrity = metadata.packageFiles[depPath]?.integrity
+      if (!integrity) continue
+      // Strip peer suffix to match what the client needs for store index keys
+      const pkgId = depPath.includes('(') ? depPath.substring(0, depPath.indexOf('(')) : depPath
+      const key = `${integrity}\t${pkgId}`
+      const keyBuf = Buffer.from(key, 'utf-8')
+      const keyLenBuf = Buffer.alloc(2)
+      keyLenBuf.writeUInt16BE(keyBuf.length, 0)
+      const bufLenBuf = Buffer.alloc(4)
+      bufLenBuf.writeUInt32BE(rawBuffer.length, 0)
+      parts.push(keyLenBuf)
+      parts.push(keyBuf)
+      parts.push(bufLenBuf)
+      parts.push(Buffer.from(rawBuffer))
+    }
+    // End marker
+    parts.push(Buffer.alloc(2, 0))
+
+    const payload = Buffer.concat(parts)
+    res.writeHead(200, {
+      'Content-Type': 'application/x-pnpm-install',
+      'Content-Length': payload.length,
+    })
+    res.end(payload)
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true })
   }
