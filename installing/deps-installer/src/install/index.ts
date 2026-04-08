@@ -1862,9 +1862,9 @@ async function installFromPnpmRegistry (
   rootDir: ProjectRootDir,
   opts: Opts
 ): Promise<InstallResult> {
-  // Lazy-import to avoid adding the dependency for users who don't use this feature
-  const { fetchFromPnpmRegistry } = await import('@pnpm/registry.client')
-  const { StoreIndex } = await import('@pnpm/store.index')
+  // Lazy-import to keep the dependency optional for users who don't use this feature
+  const { fetchFromPnpmRegistry } = await import('@pnpm/registry.client') // eslint-disable-line import-x/no-extraneous-dependencies
+  const { StoreIndex } = await import('@pnpm/store.index') // eslint-disable-line import-x/no-extraneous-dependencies
 
   // Read existing lockfile if available
   const existingLockfile = await readWantedLockfile(opts.lockfileDir ?? rootDir, {
