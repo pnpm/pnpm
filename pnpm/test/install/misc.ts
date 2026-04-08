@@ -182,7 +182,7 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
   if (await dirIsCaseSensitive(storeDir)) {
     expect([...files].sort(lexCompare)).toStrictEqual(['Foo.js', 'LICENSE', 'foo.js', 'package.json'])
   } else {
-    expect([...files].map((f) => f.toLowerCase()).sort(lexCompare)).toStrictEqual(['foo.js', 'package.json'])
+    expect([...files].map((f) => f.toLowerCase()).sort(lexCompare)).toStrictEqual(['foo.js', 'license', 'package.json'])
   }
 })
 
