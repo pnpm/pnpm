@@ -145,6 +145,9 @@
       "path": "../../pkg-manifest/utils"
     },
     {
+      "path": "../../registry/client"
+    },
+    {
       "path": "../../resolving/parse-wanted-dependency"
     },
     {
