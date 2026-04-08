@@ -93,6 +93,8 @@ function readStoreIntegrities (storeIndex: StoreIndex): string[] {
   return integrities
 }
 
+const REQUEST_TIMEOUT = 120_000 // 2 minutes
+
 async function sendRequest (registryUrl: string, body: string): Promise<Buffer> {
   const url = new URL('/v1/install', registryUrl)
   const isHttps = url.protocol === 'https:'
@@ -101,6 +103,7 @@ async function sendRequest (registryUrl: string, body: string): Promise<Buffer> 
   return new Promise<Buffer>((resolve, reject) => {
     const req = requestFn(url, {
       method: 'POST',
+      timeout: REQUEST_TIMEOUT,
       headers: {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(body),
@@ -111,8 +114,8 @@ async function sendRequest (registryUrl: string, body: string): Promise<Buffer> 
         const chunks: Buffer[] = []
         res.on('data', (chunk: Buffer) => chunks.push(chunk))
         res.on('end', () => {
-          const body = Buffer.concat(chunks).toString('utf-8')
-          reject(new Error(`pnpm-registry responded with ${res.statusCode}: ${body}`))
+          const errBody = Buffer.concat(chunks).toString('utf-8')
+          reject(new Error(`pnpm-registry responded with ${res.statusCode}: ${errBody}`))
         })
         return
       }
@@ -123,7 +126,16 @@ async function sendRequest (registryUrl: string, body: string): Promise<Buffer> 
       res.on('error', reject)
     })
 
-    req.on('error', reject)
+    req.on('timeout', () => {
+      req.destroy(new Error(`pnpm-registry request timed out after ${REQUEST_TIMEOUT / 1000}s (${registryUrl})`))
+    })
+    req.on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'ECONNREFUSED') {
+        reject(new Error(`Could not connect to pnpm-registry at ${registryUrl}. Is the server running?`))
+      } else {
+        reject(err)
+      }
+    })
     req.write(body)
     req.end()
   })
