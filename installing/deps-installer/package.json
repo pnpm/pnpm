@@ -138,7 +138,6 @@
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/resolving.registry.types": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
-    "@pnpm/store.index": "workspace:*",
     "@pnpm/store.path": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
