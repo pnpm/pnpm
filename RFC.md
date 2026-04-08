@@ -76,17 +76,22 @@ Accept-Encoding: zstd, gzip
   "os": "linux",
   "arch": "x64",
 
+  // Existing lockfile (if any) — server updates it rather than resolving from scratch
+  "lockfile": { /* current pnpm-lock.yaml content */ },
+
   // What the client already has (integrity hashes from store index)
   "storeIntegrities": [
     "sha512-a1b2c3...",
     "sha512-d4e5f6...",
     "sha512-f7a8b9...",
-    // ... typically 500-5000 entries, ~88 bytes each
+    // ... typically 1000-2000 entries, ~88 bytes each
   ]
 }
 ```
 
-**Payload size**: Each SHA-512 integrity hash is ~88 bytes (base64-encoded with `sha512-` prefix). For a store with 5000 packages, that's ~440KB uncompressed. Integrity hashes have high entropy so they don't compress as well as package IDs, but the payload is still small enough for a single HTTP request.
+**Payload size**: Each SHA-512 integrity hash is ~88 bytes (base64-encoded with `sha512-` prefix). A typical developer's store has 1000-2000 packages (~88-176KB). Even a large store with 5000 packages is only ~440KB. The payload is small enough for a single HTTP request.
+
+**Why send the lockfile?** Most installs are not fresh — the project already has a `pnpm-lock.yaml` from a previous install. Sending it to the server means the server doesn't have to resolve the entire dependency tree from scratch. It can diff the current lockfile against the updated `package.json`, re-resolve only the changed dependencies, and return an updated lockfile. This is much faster than full resolution even on the server side, and it preserves the existing resolution choices (pinned versions, deduplication decisions) that the developer has already committed to.
 
 #### Step 3: Server Resolves and Computes the File Diff
 
@@ -94,11 +99,15 @@ The server performs three operations, all from in-memory data:
 
 **3a. Resolve the dependency tree** (<50ms, often cached):
 ```
-Input:  dependencies + overrides + peerDependencyRules + nodeVersion + os + arch
+Input:  dependencies + overrides + peerDependencyRules + nodeVersion + os + arch + lockfile?
 Output: resolvedPackages = ["/react/19.0.1", "/next/15.1.2", "/typescript/5.7.3", ...]
 ```
 
-The server has all package metadata in memory (synced from npm's `/_changes` feed). Resolution is pure computation with zero I/O. Results are cached by input hash.
+The server has all package metadata in memory (synced from npm's `/_changes` feed). Resolution is pure computation with zero I/O.
+
+When a lockfile is provided, the server diffs it against the current `dependencies`/`devDependencies` and only re-resolves what changed. For example, if the user added one new dependency, the server keeps all existing resolutions from the lockfile and only resolves the new subtree. This is faster than full resolution and preserves the developer's existing pinned versions and deduplication decisions.
+
+When no lockfile is provided (fresh install), the server resolves from scratch. Results are cached by input hash.
 
 **3b. Compute the client's digest set** (<10ms):
 ```
@@ -287,7 +296,7 @@ What remains:
 **Total: ~10-16s**
 
 **With pnpm-registry:**
-1. Single POST with empty `storePackages` list
+1. Single POST with no lockfile and empty `storeIntegrities` list
 2. Server resolves tree (<50ms), computes 40K unique files across 800 packages
 3. But many files are shared across packages! Dedup within the response:
    - 40K total file references across 800 packages
@@ -310,10 +319,10 @@ What remains:
          │  POST /v1/install                         │
          │  { deps, overrides, peerRules,            │
          │    nodeVersion, os, arch,                  │
-         │    storeIntegrities }                      │
+         │    lockfile?, storeIntegrities }           │
          │ ─────────────────────────────────────────>│
          │                                           │
-         │                                           │ 2. Resolve tree (<50ms)
+         │                                           │ 2. Resolve tree (or update lockfile) (<50ms)
          │                                           │ 3. Union storeIntegrities digests
          │                                           │ 4. Diff needed vs. have
          │                                           │ 5. Start streaming response
