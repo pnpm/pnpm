@@ -27,6 +27,7 @@ import type { BundledManifest, DependencyManifest } from '@pnpm/types'
 import { equalOrSemverEqual } from './equalOrSemverEqual.js'
 import type {
   AddDirToStoreMessage,
+  FetchAndWriteCafsMessage,
   HardLinkDirMessage,
   InitStoreMessage,
   LinkPkgMessage,
@@ -65,6 +66,7 @@ async function handleMessage (
   | HardLinkDirMessage
   | InitStoreMessage
   | WriteCafsFilesMessage
+  | FetchAndWriteCafsMessage
   | false
 ): Promise<void> {
   if (message === false) {
@@ -170,6 +172,10 @@ async function handleMessage (
       }
       case 'write-cafs-files': {
         parentPort!.postMessage(writeCafsFiles(message))
+        break
+      }
+      case 'fetch-and-write-cafs': {
+        parentPort!.postMessage(await fetchAndWriteCafs(message))
         break
       }
     }
@@ -491,6 +497,76 @@ function writeCafsFiles (message: WriteCafsFilesMessage): { status: string, file
     cafs.addFile(Buffer.from(file.buffer), file.mode)
     filesWritten++
   }
+  return { status: 'success', filesWritten }
+}
+
+async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ status: string, filesWritten: number }> {
+  const http = await import('node:http')
+  const https = await import('node:https')
+  const { URL } = await import('node:url')
+
+  if (!cafsCache.has(message.storeDir)) {
+    cafsCache.set(message.storeDir, createCafs(message.storeDir, { cafsLocker }))
+  }
+  const cafs = cafsCache.get(message.storeDir)!
+
+  // Send HTTP request to /v1/files
+  const url = new URL('/v1/files', message.registryUrl)
+  const requestFn = url.protocol === 'https:' ? https.request : http.request
+  const body = JSON.stringify({ digests: message.digests })
+
+  const responseBuffer = await new Promise<Buffer>((resolve, reject) => {
+    const req = requestFn(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+      },
+    }, (res: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      const chunks: Buffer[] = []
+      res.on('data', (chunk: Buffer) => chunks.push(chunk))
+      res.on('end', () => resolve(Buffer.concat(chunks)))
+      res.on('error', reject)
+    })
+    req.on('error', reject)
+    req.write(body)
+    req.end()
+  })
+
+  // Decode binary protocol and write files directly
+  let offset = 0
+
+  // Skip JSON header (4-byte length + JSON)
+  const jsonLen = responseBuffer.readUInt32BE(offset)
+  offset += 4 + jsonLen
+
+  // Read file entries
+  const END_MARKER = Buffer.alloc(64, 0)
+  let filesWritten = 0
+
+  while (offset < responseBuffer.length) {
+    const possibleEnd = responseBuffer.subarray(offset, offset + 64)
+    if (possibleEnd.length === 64 && possibleEnd.equals(END_MARKER)) break
+
+    // Digest: 64 bytes → hex
+    offset += 64 // skip digest (we don't need it — addFile computes its own)
+
+    // Size: 4 bytes
+    const size = responseBuffer.readUInt32BE(offset)
+    offset += 4
+
+    // Mode: 1 byte
+    const executable = (responseBuffer[offset] & 0x01) !== 0
+    offset += 1
+
+    // Content
+    const content = responseBuffer.subarray(offset, offset + size)
+    offset += size
+
+    cafs.addFile(Buffer.from(content), executable ? 0o755 : 0o644)
+    filesWritten++
+  }
+
   return { status: 'success', filesWritten }
 }
 

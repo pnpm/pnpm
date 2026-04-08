@@ -4,9 +4,9 @@ import { URL } from 'node:url'
 
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { StoreIndex } from '@pnpm/store.index'
-import { writeCafsFiles } from '@pnpm/worker'
+import { fetchAndWriteCafsFiles } from '@pnpm/worker'
 
-import { decodeResponse, type ResponseMetadata } from './protocol.js'
+import type { ResponseMetadata } from './protocol.js'
 
 export interface FetchFromPnpmRegistryOptions {
   /** URL of the pnpm registry server */
@@ -88,56 +88,31 @@ function readStoreIntegrities (storeIndex: StoreIndex): string[] {
   return [...seen]
 }
 
-const BATCH_SIZE = 500 // files per worker batch
-const PARALLEL_REQUESTS = 10 // concurrent HTTP requests to /v1/files
-const FILES_PER_HTTP_REQUEST = 2000
+const FILES_PER_WORKER = 2000
 
 async function fetchFilesInParallel (
   registryUrl: string,
   metadata: ResponseMetadata,
   storeDir: string
 ): Promise<void> {
-  // Split missing files into HTTP request batches
-  const httpBatches: Array<Array<{ digest: string, size: number, executable: boolean }>> = []
+  // Split missing files into batches, one per worker
+  const batches: Array<Array<{ digest: string, size: number, executable: boolean }>> = []
   let currentBatch: Array<{ digest: string, size: number, executable: boolean }> = []
   for (const file of metadata.missingFiles) {
     currentBatch.push(file)
-    if (currentBatch.length >= FILES_PER_HTTP_REQUEST) {
-      httpBatches.push(currentBatch)
+    if (currentBatch.length >= FILES_PER_WORKER) {
+      batches.push(currentBatch)
       currentBatch = []
     }
   }
   if (currentBatch.length > 0) {
-    httpBatches.push(currentBatch)
+    batches.push(currentBatch)
   }
 
-  // Fetch HTTP batches with limited parallelism, dispatch to workers for CAFS writes
-  let batchIdx = 0
-  async function fetchNext (): Promise<void> {
-    while (batchIdx < httpBatches.length) {
-      const idx = batchIdx++
-      const batch = httpBatches[idx]
-      const reqBody = JSON.stringify({ digests: batch })
-      const responseBuffer = await sendRequest(registryUrl, '/v1/files', reqBody) // eslint-disable-line no-await-in-loop
-      const { files } = await decodeResponse(toAsyncIterable(responseBuffer)) // eslint-disable-line no-await-in-loop
-
-      // Dispatch to worker threads for parallel CAFS writes
-      const workerBatches: Array<Promise<number>> = []
-      for (let i = 0; i < files.length; i += BATCH_SIZE) {
-        const workerFiles = files.slice(i, i + BATCH_SIZE).map(f => ({
-          buffer: f.content,
-          digest: f.digest,
-          mode: f.executable ? 0o755 : 0o644,
-          size: f.size,
-        }))
-        workerBatches.push(writeCafsFiles({ storeDir, files: workerFiles }))
-      }
-      await Promise.all(workerBatches) // eslint-disable-line no-await-in-loop
-    }
-  }
-
-  const fetchers = Array.from({ length: Math.min(PARALLEL_REQUESTS, httpBatches.length) }, () => fetchNext())
-  await Promise.all(fetchers)
+  // Each worker makes its own HTTP request, decodes, and writes to CAFS
+  await Promise.all(batches.map((digests) =>
+    fetchAndWriteCafsFiles({ registryUrl, storeDir, digests })
+  ))
 }
 
 const REQUEST_TIMEOUT = 120_000 // 2 minutes
@@ -233,6 +208,3 @@ function writeRawIndexEntries (
 }
 
 
-async function * toAsyncIterable (buffer: Buffer): AsyncIterable<Buffer> {
-  yield buffer
-}

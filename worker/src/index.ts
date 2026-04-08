@@ -14,6 +14,7 @@ import pLimit from 'p-limit'
 
 import type {
   AddDirToStoreMessage,
+  FetchAndWriteCafsMessage,
   HardLinkDirMessage,
   LinkPkgMessage,
   SymlinkAllModulesMessage,
@@ -218,6 +219,33 @@ export async function writeCafsFiles (opts: {
       storeDir: opts.storeDir,
       files: opts.files,
     } satisfies WriteCafsFilesMessage)
+  })
+}
+
+export async function fetchAndWriteCafsFiles (opts: {
+  registryUrl: string
+  storeDir: string
+  digests: FetchAndWriteCafsMessage['digests']
+}): Promise<number> {
+  if (!workerPool) {
+    workerPool = createTarballWorkerPool()
+  }
+  const localWorker = await workerPool.checkoutWorkerAsync(true)
+  return new Promise<number>((resolve, reject) => {
+    localWorker.once('message', ({ status, error, filesWritten }) => {
+      workerPool!.checkinWorker(localWorker)
+      if (status === 'error') {
+        reject(new PnpmError('CAFS_FETCH_WRITE', error.message))
+        return
+      }
+      resolve(filesWritten)
+    })
+    localWorker.postMessage({
+      type: 'fetch-and-write-cafs',
+      registryUrl: opts.registryUrl,
+      storeDir: opts.storeDir,
+      digests: opts.digests,
+    } satisfies FetchAndWriteCafsMessage)
   })
 }
 
