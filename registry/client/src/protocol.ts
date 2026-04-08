@@ -2,16 +2,15 @@ import { gunzipSync } from 'node:zlib'
 
 import type { LockfileObject } from '@pnpm/lockfile.types'
 
-export interface PackageFilesInfo {
-  integrity: string
-  algo: string
-  files: Record<string, { digest: string, size: number, mode: number }>
+export interface MissingDigestInfo {
+  digest: string
+  size: number
+  executable: boolean
 }
 
 export interface ResponseMetadata {
   lockfile: LockfileObject
-  packageFiles: Record<string, PackageFilesInfo>
-  missingDigests: string[]
+  missingFiles: MissingDigestInfo[]
   stats: {
     totalPackages: number
     alreadyInStore: number

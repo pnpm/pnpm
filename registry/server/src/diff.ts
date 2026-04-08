@@ -2,7 +2,7 @@ import type { LockfileObject } from '@pnpm/lockfile.types'
 import { getFilePathByModeInCafs, type PackageFileInfo, type PackageFilesIndex } from '@pnpm/store.cafs'
 import type { StoreIndex } from '@pnpm/store.index'
 
-import type { MissingFile, PackageFilesInfo, ResponseMetadata } from './protocol.js'
+import type { MissingFile, ResponseMetadata } from './protocol.js'
 
 export interface IntegrityEntry {
   decoded: PackageFilesIndex
@@ -34,7 +34,7 @@ export interface DiffResult {
   metadata: ResponseMetadata
   missingFiles: MissingFile[]
   /** Pre-packed msgpack buffers for each package, keyed by depPath */
-  packageIndexBuffers: Map<string, Uint8Array>
+  packageIndexBuffers: Map<string, { integrity: string, rawBuffer: Uint8Array }>
 }
 
 /**
@@ -66,10 +66,9 @@ export function computeDiff (
   }
 
   // 2. Iterate resolved packages and compute missing files
-  const packageFiles: Record<string, PackageFilesInfo> = {}
-  const packageIndexBuffers = new Map<string, Uint8Array>()
+  const packageIndexBuffers = new Map<string, { integrity: string, rawBuffer: Uint8Array }>()
   const missingFiles: MissingFile[] = []
-  const missingDigests: string[] = []
+  const missingFileInfos: Array<{ digest: string, size: number, executable: boolean }> = []
 
   let totalPackages = 0
   let alreadyInStore = 0
@@ -94,25 +93,20 @@ export function computeDiff (
     if (!entry) continue // package not indexed on server yet
 
     packagesToFetch++
-    const filesRecord: Record<string, { digest: string, size: number, mode: number }> = {}
 
-    for (const [relativePath, fileInfo] of getFilesEntries(entry.decoded)) {
+    for (const [, fileInfo] of getFilesEntries(entry.decoded)) {
       filesInNewPackages++
-      filesRecord[relativePath] = {
-        digest: fileInfo.digest,
-        size: fileInfo.size,
-        mode: fileInfo.mode,
-      }
 
       if (!clientDigests.has(fileInfo.digest)) {
         clientDigests.add(fileInfo.digest) // dedup within response
         filesToDownload++
         downloadBytes += fileInfo.size
-        missingDigests.push(fileInfo.digest)
+        const executable = (fileInfo.mode & 0o111) !== 0
+        missingFileInfos.push({ digest: fileInfo.digest, size: fileInfo.size, executable })
         missingFiles.push({
           digest: fileInfo.digest,
           size: fileInfo.size,
-          executable: (fileInfo.mode & 0o111) !== 0,
+          executable,
           cafsPath: getFilePathByModeInCafs(storeDir, fileInfo.digest, fileInfo.mode),
         })
       } else {
@@ -120,19 +114,13 @@ export function computeDiff (
       }
     }
 
-    packageFiles[depPath] = {
-      integrity,
-      algo: entry.decoded.algo,
-      files: filesRecord,
-    }
-    packageIndexBuffers.set(depPath, entry.rawBuffer)
+    packageIndexBuffers.set(depPath, { integrity, rawBuffer: entry.rawBuffer })
   }
 
   return {
     metadata: {
       lockfile,
-      packageFiles,
-      missingDigests,
+      missingFiles: missingFileInfos,
       stats: {
         totalPackages,
         alreadyInStore,

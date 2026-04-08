@@ -66,7 +66,7 @@ export async function fetchFromPnpmRegistry (
   const { metadata, indexEntries } = parseInstallResponse(responseBuffer)
 
   // 4. Fetch missing files in parallel batches via /v1/files
-  if (metadata.missingDigests.length > 0) {
+  if (metadata.missingFiles.length > 0) {
     await fetchFilesInParallel(opts.registryUrl, metadata, opts.storeDir)
   }
 
@@ -98,27 +98,11 @@ async function fetchFilesInParallel (
   metadata: ResponseMetadata,
   storeDir: string
 ): Promise<void> {
-  // Build digest info map from package files
-  const digestInfo = new Map<string, { size: number, executable: boolean, mode: number }>()
-  for (const pkgFiles of Object.values(metadata.packageFiles)) {
-    for (const fileInfo of Object.values(pkgFiles.files)) {
-      if (!digestInfo.has(fileInfo.digest)) {
-        digestInfo.set(fileInfo.digest, {
-          size: fileInfo.size,
-          executable: (fileInfo.mode & 0o111) !== 0,
-          mode: fileInfo.mode,
-        })
-      }
-    }
-  }
-
-  // Split missing digests into HTTP request batches
+  // Split missing files into HTTP request batches
   const httpBatches: Array<Array<{ digest: string, size: number, executable: boolean }>> = []
   let currentBatch: Array<{ digest: string, size: number, executable: boolean }> = []
-  for (const digest of metadata.missingDigests) {
-    const info = digestInfo.get(digest)
-    if (!info) continue
-    currentBatch.push({ digest, size: info.size, executable: info.executable })
+  for (const file of metadata.missingFiles) {
+    currentBatch.push(file)
     if (currentBatch.length >= FILES_PER_HTTP_REQUEST) {
       httpBatches.push(currentBatch)
       currentBatch = []

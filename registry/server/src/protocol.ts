@@ -5,19 +5,6 @@ import { gzipSync } from 'node:zlib'
 
 import type { LockfileObject } from '@pnpm/lockfile.types'
 
-export interface PackageFileEntry {
-  relativePath: string
-  digest: string
-  size: number
-  mode: number
-}
-
-export interface PackageFilesInfo {
-  integrity: string
-  algo: string
-  files: Record<string, { digest: string, size: number, mode: number }>
-}
-
 export interface MissingFile {
   digest: string
   size: number
@@ -26,10 +13,15 @@ export interface MissingFile {
   cafsPath: string
 }
 
+export interface MissingDigestInfo {
+  digest: string
+  size: number
+  executable: boolean
+}
+
 export interface ResponseMetadata {
   lockfile: LockfileObject
-  packageFiles: Record<string, PackageFilesInfo>
-  missingDigests: string[]
+  missingFiles: MissingDigestInfo[]
   stats: {
     totalPackages: number
     alreadyInStore: number

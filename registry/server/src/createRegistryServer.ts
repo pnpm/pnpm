@@ -231,9 +231,7 @@ async function handleInstall (
     parts.push(jsonLenBuf)
     parts.push(jsonBuf)
 
-    for (const [depPath, rawBuffer] of packageIndexBuffers) {
-      const integrity = metadata.packageFiles[depPath]?.integrity
-      if (!integrity) continue
+    for (const [depPath, { integrity, rawBuffer }] of packageIndexBuffers) {
       // Strip peer suffix to match what the client needs for store index keys
       const pkgId = depPath.includes('(') ? depPath.substring(0, depPath.indexOf('(')) : depPath
       const key = `${integrity}\t${pkgId}`
