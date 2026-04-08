@@ -1,6 +1,5 @@
 import { createReadStream } from 'node:fs'
 import type { ServerResponse } from 'node:http'
-import path from 'node:path'
 
 import type { LockfileObject } from '@pnpm/lockfile.types'
 
@@ -71,7 +70,7 @@ export async function encodeResponse (
   res.write(lengthBuf)
   res.write(jsonBuffer)
 
-  // 2. Write file entries
+  // 2. Write file entries (must be sequential — single HTTP response stream)
   for (const file of missingFiles) {
     // Digest: 64 bytes raw binary (SHA-512 hex → binary)
     const digestBuf = Buffer.from(file.digest, 'hex')
@@ -90,7 +89,7 @@ export async function encodeResponse (
     res.write(modeBuf)
 
     // Write file content by streaming from CAFS
-    await new Promise<void>((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => { // eslint-disable-line no-await-in-loop
       const stream = createReadStream(file.cafsPath)
       stream.on('error', reject)
       stream.on('end', resolve)

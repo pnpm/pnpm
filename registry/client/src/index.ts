@@ -1,2 +1,2 @@
 export { fetchFromPnpmRegistry, type FetchFromPnpmRegistryOptions, type FetchFromPnpmRegistryResult } from './fetchFromPnpmRegistry.js'
-export { decodeResponse, type ResponseMetadata, type DecodedFile } from './protocol.js'
+export { type DecodedFile, decodeResponse, type ResponseMetadata } from './protocol.js'

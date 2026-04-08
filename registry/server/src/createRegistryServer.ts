@@ -4,18 +4,17 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { createClient } from '@pnpm/installing.client'
-import { install } from '@pnpm/installing.deps-installer'
 import type { InstallOptions } from '@pnpm/installing.deps-installer'
+import { install } from '@pnpm/installing.deps-installer'
 import { readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import type { LockfileObject } from '@pnpm/lockfile.types'
-import { createPackageStore } from '@pnpm/store.controller'
-import type { StoreController } from '@pnpm/store.controller-types'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
+import { createPackageStore, type StoreController } from '@pnpm/store.controller'
 import { StoreIndex } from '@pnpm/store.index'
-import type { ProjectRootDir, Registries } from '@pnpm/types'
+import type { Registries } from '@pnpm/types'
 
 import { buildIntegrityIndex, computeDiff } from './diff.js'
 import { encodeResponse } from './protocol.js'
-import type { PackageFilesIndex } from '@pnpm/store.cafs'
 
 export interface RegistryServerOptions {
   /** Directory for the server's content-addressable store */

@@ -4,11 +4,11 @@ import https from 'node:https'
 import path from 'node:path'
 import { URL } from 'node:url'
 
-import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import type { LockfileObject } from '@pnpm/lockfile.types'
-import { packForStorage, storeIndexKey, StoreIndex } from '@pnpm/store.index'
+import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { packForStorage, StoreIndex, storeIndexKey } from '@pnpm/store.index'
 
-import { decodeResponse, type ResponseMetadata, type DecodedFile } from './protocol.js'
+import { type DecodedFile, decodeResponse, type ResponseMetadata } from './protocol.js'
 
 export interface FetchFromPnpmRegistryOptions {
   /** URL of the pnpm registry server */
@@ -130,33 +130,35 @@ async function sendRequest (registryUrl: string, body: string): Promise<Buffer> 
 }
 
 async function writeFilesToCafs (files: DecodedFile[], storeDir: string): Promise<void> {
-  for (const file of files) {
-    const mode = file.executable ? 0o755 : 0o644
-    const cafsPath = getFilePathByModeInCafs(storeDir, file.digest, mode)
+  await Promise.all(files.map((file) => writeFileToCafs(file, storeDir)))
+}
 
-    // Ensure directory exists
-    const dir = path.dirname(cafsPath)
-    await fs.mkdir(dir, { recursive: true })
+async function writeFileToCafs (file: DecodedFile, storeDir: string): Promise<void> {
+  const mode = file.executable ? 0o755 : 0o644
+  const cafsPath = getFilePathByModeInCafs(storeDir, file.digest, mode)
 
-    // Write atomically: temp file + rename
-    const tmpPath = `${cafsPath}.${process.pid}`
+  // Ensure directory exists
+  const dir = path.dirname(cafsPath)
+  await fs.mkdir(dir, { recursive: true })
+
+  // Write atomically: temp file + rename
+  const tmpPath = `${cafsPath}.${process.pid}`
+  try {
+    await fs.writeFile(tmpPath, file.content, { mode })
+    await fs.rename(tmpPath, cafsPath)
+  } catch (err: unknown) {
+    // If file already exists (race condition), that's fine
+    if (isErrnoException(err) && err.code === 'EEXIST') return
+    // If rename failed because target already exists, that's also fine
     try {
-      await fs.writeFile(tmpPath, file.content, { mode })
-      await fs.rename(tmpPath, cafsPath)
-    } catch (err: unknown) {
-      // If file already exists (race condition), that's fine
-      if (isErrnoException(err) && err.code === 'EEXIST') continue
-      // If rename failed because target already exists, that's also fine
-      try {
-        await fs.unlink(tmpPath)
-      } catch {}
-      // Check if the target already exists
-      try {
-        await fs.stat(cafsPath)
-        continue // file exists, skip
-      } catch {}
-      throw err
-    }
+      await fs.unlink(tmpPath)
+    } catch {}
+    // Check if the target already exists
+    try {
+      await fs.stat(cafsPath)
+      return // file exists, skip
+    } catch {}
+    throw err
   }
 }
 

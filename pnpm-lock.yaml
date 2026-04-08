@@ -5398,6 +5398,9 @@ importers:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+      '@pnpm/registry.client':
+        specifier: workspace:*
+        version: link:../../registry/client
       '@pnpm/resolving.registry.types':
         specifier: workspace:*
         version: link:../../resolving/registry/types
@@ -7617,6 +7620,74 @@ importers:
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.3.0
+
+  registry/client:
+    dependencies:
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../../lockfile/types
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
+      '@pnpm/registry.client':
+        specifier: workspace:*
+        version: 'link:'
+      cross-env:
+        specifier: 'catalog:'
+        version: 10.1.0
+
+  registry/server:
+    dependencies:
+      '@pnpm/installing.client':
+        specifier: workspace:*
+        version: link:../../installing/client
+      '@pnpm/installing.deps-installer':
+        specifier: workspace:*
+        version: link:../../installing/deps-installer
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../../lockfile/types
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
+      '@pnpm/store.controller':
+        specifier: workspace:*
+        version: link:../../store/controller
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../core/types
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../core/logger
+      '@pnpm/registry-mock':
+        specifier: 'catalog:'
+        version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+      '@pnpm/registry.client':
+        specifier: workspace:*
+        version: link:../client
+      '@pnpm/registry.server':
+        specifier: workspace:*
+        version: 'link:'
+      cross-env:
+        specifier: 'catalog:'
+        version: 10.1.0
 
   releasing/commands:
     dependencies:

@@ -1,5 +1,5 @@
-import { getFilePathByModeInCafs, modeIsExecutable, type PackageFilesIndex } from '@pnpm/store.cafs'
 import type { LockfileObject } from '@pnpm/lockfile.types'
+import { getFilePathByModeInCafs, type PackageFileInfo, type PackageFilesIndex } from '@pnpm/store.cafs'
 import type { StoreIndex } from '@pnpm/store.index'
 
 import type { MissingFile, PackageFilesInfo, ResponseMetadata } from './protocol.js'
@@ -47,8 +47,7 @@ export function computeDiff (
   for (const integrity of storeIntegrities) {
     const pkgIndex = integrityIndex.get(integrity)
     if (!pkgIndex) continue
-    const files = pkgIndex.files instanceof Map ? pkgIndex.files : new Map(Object.entries(pkgIndex.files))
-    for (const [, fileInfo] of files) {
+    for (const [, fileInfo] of getFilesEntries(pkgIndex)) {
       clientDigests.add(fileInfo.digest)
     }
   }
@@ -81,10 +80,9 @@ export function computeDiff (
     if (!pkgIndex) continue // package not indexed on server yet
 
     packagesToFetch++
-    const files = pkgIndex.files instanceof Map ? pkgIndex.files : new Map(Object.entries(pkgIndex.files))
     const filesRecord: Record<string, { digest: string, size: number, mode: number }> = {}
 
-    for (const [relativePath, fileInfo] of files) {
+    for (const [relativePath, fileInfo] of getFilesEntries(pkgIndex)) {
       filesInNewPackages++
       filesRecord[relativePath] = {
         digest: fileInfo.digest,
@@ -100,7 +98,7 @@ export function computeDiff (
         missingFiles.push({
           digest: fileInfo.digest,
           size: fileInfo.size,
-          executable: modeIsExecutable(fileInfo.mode),
+          executable: (fileInfo.mode & 0o111) !== 0,
           cafsPath: getFilePathByModeInCafs(storeDir, fileInfo.digest, fileInfo.mode),
         })
       } else {
@@ -134,8 +132,14 @@ export function computeDiff (
   }
 }
 
-function getSnapshotIntegrity (pkgSnapshot: any): string | undefined {
+function getFilesEntries (pkgIndex: PackageFilesIndex): Array<[string, PackageFileInfo]> {
+  const { files } = pkgIndex
+  if (files instanceof Map) return [...files.entries()]
+  return Object.entries(files as Record<string, PackageFileInfo>)
+}
+
+function getSnapshotIntegrity (pkgSnapshot: { resolution?: { integrity?: string } | string }): string | undefined {
   if (!pkgSnapshot.resolution) return undefined
   if (typeof pkgSnapshot.resolution === 'string') return undefined
-  return pkgSnapshot.resolution.integrity as string | undefined
+  return pkgSnapshot.resolution.integrity
 }

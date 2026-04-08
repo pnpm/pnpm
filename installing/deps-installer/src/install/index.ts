@@ -1878,9 +1878,18 @@ async function installFromPnpmRegistry (
   const lockfileDir = opts.lockfileDir ?? rootDir
   await writeWantedLockfile(lockfileDir, lockfile)
 
-  // Run headless install to link packages
-  await headlessInstall({
+  // Run headless install to link packages.
+  // We spread opts (which is Partial<StrictInstallOptions>) and provide
+  // the required HeadlessOptions fields with explicit defaults.
+  const headlessOpts = {
     ...opts,
+    engineStrict: opts.engineStrict ?? false,
+    ignoreScripts: opts.ignoreScripts ?? false,
+    sideEffectsCacheRead: opts.sideEffectsCacheRead ?? false,
+    sideEffectsCacheWrite: opts.sideEffectsCacheWrite ?? false,
+    symlink: opts.symlink ?? true,
+    enableModulesDir: opts.enableModulesDir ?? true,
+    include: opts.include ?? { dependencies: true, devDependencies: true, optionalDependencies: true },
     currentEngine: {
       nodeVersion: opts.nodeVersion,
       pnpmVersion: opts.packageManager?.version ?? '',
@@ -1892,9 +1901,14 @@ async function installFromPnpmRegistry (
         manifest,
         rootDir,
       },
-    } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    },
+    hoistedDependencies: {},
+    pendingBuilds: [] as string[],
+    skipped: new Set<DepPath>(),
     wantedLockfile: lockfile,
-  })
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await headlessInstall(headlessOpts as any)
 
   return {
     updatedCatalogs: undefined,
