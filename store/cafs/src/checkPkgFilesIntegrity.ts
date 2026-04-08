@@ -155,6 +155,11 @@ function verifyFile (
   fstat: FileInfo,
   algorithm: string
 ): boolean {
+  // If the file was checked very recently (within 60s), skip the stat call.
+  // The file can't have been modified externally in such a short time.
+  if (fstat.checkedAt != null && (Date.now() - fstat.checkedAt) < 60_000) {
+    return true
+  }
   const currentFile = checkFile(filename, fstat.checkedAt)
   if (currentFile == null) return false
   if (currentFile.isModified) {
