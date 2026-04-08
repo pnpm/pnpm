@@ -232,13 +232,13 @@ describe('computeDiff', () => {
       importers: {},
       packages: {
         '/my-pkg/1.0.0': {
-          resolution: { integrity: 'sha512-testpkg' },
+          resolution: { integrity: 'sha512-test' },
         },
       },
     } as any // eslint-disable-line @typescript-eslint/no-explicit-any
 
     const integrityIndex = createIntegrityIndex({
-      'sha512-testpkg': {
+      'sha512-test': {
         algo: 'sha512',
         files: new Map([
           ['index.js', { digest: 'hash1', size: 100, mode: 0o644, checkedAt: 0 }],
@@ -251,7 +251,7 @@ describe('computeDiff', () => {
 
     const pkgFiles = metadata.packageFiles['/my-pkg/1.0.0']
     expect(pkgFiles).toBeTruthy()
-    expect(pkgFiles.integrity).toBe('sha512-testpkg')
+    expect(pkgFiles.integrity).toBe('sha512-test')
     expect(pkgFiles.algo).toBe('sha512')
     expect(pkgFiles.files['index.js'].digest).toBe('hash1')
     expect(pkgFiles.files['README.md'].digest).toBe('hash2')
