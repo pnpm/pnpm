@@ -5310,6 +5310,9 @@ importers:
       '@pnpm/pkg-manifest.utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/utils
+      '@pnpm/registry.client':
+        specifier: workspace:*
+        version: link:../../registry/client
       '@pnpm/resolving.parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../resolving/parse-wanted-dependency
@@ -5319,6 +5322,9 @@ importers:
       '@pnpm/store.controller-types':
         specifier: workspace:*
         version: link:../../store/controller-types
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
@@ -5398,18 +5404,12 @@ importers:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
-      '@pnpm/registry.client':
-        specifier: workspace:*
-        version: link:../../registry/client
       '@pnpm/resolving.registry.types':
         specifier: workspace:*
         version: link:../../resolving/registry/types
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
-      '@pnpm/store.index':
-        specifier: workspace:*
-        version: link:../../store/index
       '@pnpm/store.path':
         specifier: workspace:*
         version: link:../../store/path
