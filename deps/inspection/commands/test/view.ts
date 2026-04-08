@@ -160,3 +160,51 @@ test('view: object field renders as JSON', async () => {
   expect(parsed.tarball).toBeDefined()
   expect(parsed.shasum).toBeDefined()
 })
+
+test('view: versions field returns array of version strings', async () => {
+  const result = await view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, ['is-negative', 'versions'])
+  expect(typeof result).toBe('string')
+  const parsed = JSON.parse(result as string)
+  expect(Array.isArray(parsed)).toBe(true)
+  expect(parsed.length).toBeGreaterThan(0)
+  expect(parsed).toContain('1.0.0')
+})
+
+test('view: versions field with --json returns raw array', async () => {
+  const result = await view.handler(
+    { ...VIEW_OPTIONS, json: true } as unknown as Config & ConfigContext,
+    ['is-negative', 'versions']
+  )
+  const parsed = JSON.parse(result as string)
+  expect(Array.isArray(parsed)).toBe(true)
+  expect(parsed).toContain('1.0.0')
+})
+
+test('view: single field with --json returns unwrapped value', async () => {
+  const result = await view.handler(
+    { ...VIEW_OPTIONS, json: true } as unknown as Config & ConfigContext,
+    ['is-negative@1.0.0', 'name']
+  )
+  const parsed = JSON.parse(result as string)
+  expect(parsed).toBe('is-negative')
+})
+
+test('view: dist-tags field returns tag-to-version mapping', async () => {
+  const result = await view.handler(
+    { ...VIEW_OPTIONS, json: true } as unknown as Config & ConfigContext,
+    ['is-negative', 'dist-tags']
+  )
+  const parsed = JSON.parse(result as string)
+  expect(typeof parsed).toBe('object')
+  expect(parsed.latest).toBeDefined()
+})
+
+test('view: time field returns publish timestamps', async () => {
+  const result = await view.handler(
+    { ...VIEW_OPTIONS, json: true } as unknown as Config & ConfigContext,
+    ['is-negative', 'time']
+  )
+  const parsed = JSON.parse(result as string)
+  expect(typeof parsed).toBe('object')
+  expect(parsed['1.0.0']).toBeDefined()
+})
