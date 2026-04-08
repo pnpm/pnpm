@@ -141,8 +141,7 @@ async function handleInstall (
       await writeWantedLockfile(tmpDir, request.lockfile)
     }
 
-    // Phase 1: Resolve only (lockfileOnly skips fetching+linking = fast).
-    // Include tarball URLs so we can fetch them in phase 2.
+    // Resolve only — lockfileOnly skips fetching and linking.
     await install(manifest, {
       dir: tmpDir,
       lockfileDir: tmpDir,
@@ -152,7 +151,6 @@ async function handleInstall (
       registries: ctx.registries,
       ignoreScripts: true,
       lockfileOnly: true,
-      lockfileIncludeTarballUrl: true,
       saveLockfile: true,
       preferFrozenLockfile: false,
     } as InstallOptions)
@@ -177,53 +175,14 @@ async function handleInstall (
       resolvedLockfile.importers = { '.': snapshot } as typeof resolvedLockfile.importers
     }
 
-    // Phase 2: Fetch tarballs only for packages the client doesn't have.
-    // lockfileOnly=true skipped tarball downloads, but the lockfile now
-    // has tarball URLs (lockfileIncludeTarballUrl=true) so we can fetch.
-    const clientIntegrities = new Set(request.storeIntegrities ?? [])
-    const fetchPromises: Array<Promise<void>> = []
-    for (const [, pkgSnapshot] of Object.entries(resolvedLockfile.packages ?? {})) {
-      const resolution = pkgSnapshot.resolution
-      if (!resolution || typeof resolution === 'string') continue
-      const integrity = 'integrity' in resolution ? resolution.integrity : undefined
-      if (!integrity || clientIntegrities.has(integrity)) continue
-      if (!('tarball' in resolution) || !resolution.tarball) continue
-
-      // Already in server store?
-      const indexKey = `${integrity}\t`
-      let found = false
-      for (const k of ctx.storeIndex.keys()) {
-        if (k.startsWith(indexKey)) {
-          found = true; break
-        }
-      }
-      if (found) continue
-
-      fetchPromises.push((async () => {
-        const result = await ctx.storeController.fetchPackage({
-          force: false,
-          lockfileDir: tmpDir,
-          pkg: {
-            id: resolution.tarball as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-            name: '',
-            version: '',
-            resolution: resolution as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-          },
-        })
-        if (result.fetching) {
-          await result.fetching()
-        }
-      })())
-    }
-    if (fetchPromises.length > 0) {
-      await Promise.all(fetchPromises)
-    }
-
-    // Rebuild the integrity index (packages were fetched)
+    // Build the integrity index from what's already in the server store.
+    // We do NOT fetch tarballs here — the client will fetch them directly
+    // from npm via headless install, which is faster (parallel connections).
+    // We only stream files that the server already has cached.
     const integrityIndex = buildIntegrityIndex(ctx.storeIndex)
     ctx.integrityIndex = integrityIndex
 
-    // Compute the file diff
+    // Compute the file diff using only what the server already has
     const { metadata, missingFiles } = computeDiff(
       resolvedLockfile,
       request.storeIntegrities ?? [],
