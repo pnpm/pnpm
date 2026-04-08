@@ -1,6 +1,7 @@
 import http from 'node:http'
 import https from 'node:https'
 import { URL } from 'node:url'
+import { gunzipSync } from 'node:zlib'
 
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
@@ -135,8 +136,9 @@ async function fetchFilesInParallel (
       const idx = batchIdx++
       const batch = httpBatches[idx]
       const reqBody = JSON.stringify({ digests: batch })
-      const responseBuffer = await sendRequest(registryUrl, '/v1/files', reqBody) // eslint-disable-line no-await-in-loop
-      const { files } = await decodeResponse(toAsyncIterable(responseBuffer)) // eslint-disable-line no-await-in-loop
+      const rawResponse = await sendRequest(registryUrl, '/v1/files', reqBody) // eslint-disable-line no-await-in-loop
+      const decompressed = decompressIfNeeded(rawResponse)
+      const { files } = await decodeResponse(toAsyncIterable(decompressed)) // eslint-disable-line no-await-in-loop
 
       // Dispatch to worker threads for parallel CAFS writes
       const workerBatches: Array<Promise<number>> = []
@@ -248,6 +250,14 @@ function writeStoreIndexEntries (
   }
 }
 
+
+function decompressIfNeeded (buf: Buffer): Buffer {
+  // gzip magic bytes: 1f 8b
+  if (buf.length >= 2 && buf[0] === 0x1f && buf[1] === 0x8b) {
+    return gunzipSync(buf)
+  }
+  return buf
+}
 
 function stripPeerSuffix (depPath: string): string {
   const parenIdx = depPath.indexOf('(')
