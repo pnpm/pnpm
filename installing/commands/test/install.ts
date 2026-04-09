@@ -8,6 +8,7 @@ import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { rimrafSync } from '@zkochan/rimraf'
 import delay from 'delay'
 import { loadJsonFileSync } from 'load-json-file'
+import { writeJsonFile } from 'write-json-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
@@ -174,4 +175,50 @@ test('do not install Node.js when devEngines runtime is not set to onFail=downlo
 
   const lockfile = project.readLockfile()
   expect(lockfile.importers['.'].devDependencies).toBeUndefined()
+})
+
+test('install respects --minimum-release-age passed as a CLI option', async () => {
+  prepareEmpty()
+
+  await writeJsonFile('package.json', {
+    dependencies: {
+      'is-odd': '0.1.1',
+    },
+  })
+
+  // is-odd@0.1.1 was released at 2016-12-07T07:18:01.205Z
+  // Set minimumReleaseAge high enough that it should prevent installation
+  const isOdd011ReleaseDate = new Date(2016, 11, 7 - 2)
+  const diff = Date.now() - isOdd011ReleaseDate.getTime()
+  const minimumReleaseAge = diff / (60 * 1000)
+
+  await expect(install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    minimumReleaseAge,
+  })).rejects.toThrow(/does not meet the minimumReleaseAge constraint/)
+})
+
+test('install respects --minimum-release-age-exclude passed as a CLI option', async () => {
+  prepareEmpty()
+
+  await writeJsonFile('package.json', {
+    dependencies: {
+      'is-odd': '0.1.1',
+    },
+  })
+
+  const isOdd011ReleaseDate = new Date(2016, 11, 7 - 2)
+  const diff = Date.now() - isOdd011ReleaseDate.getTime()
+  const minimumReleaseAge = diff / (60 * 1000)
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    minimumReleaseAge,
+    minimumReleaseAgeExclude: ['is-odd'],
+  })
+
+  const pkg = loadJsonFileSync<{ dependencies: Record<string, string> }>(path.resolve('package.json'))
+  expect(pkg?.dependencies['is-odd']).toBe('0.1.1')
 })

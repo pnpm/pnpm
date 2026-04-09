@@ -423,3 +423,35 @@ test('dlx stops parsing after "--"', async () => {
     'argument',
   ])
 })
+
+test('--minimum-release-age is parsed as a number for the install command', async () => {
+  const { options, cmd } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: (commandName: string) => {
+      if (commandName === 'install') {
+        return { 'minimum-release-age': Number }
+      }
+      return {}
+    },
+  }, ['install', '--minimum-release-age', '1440'])
+  expect(cmd).toBe('install')
+  expect(options['minimum-release-age']).toBe(1440)
+})
+
+test('--minimum-release-age-exclude is parsed as an array for the install command', async () => {
+  const { options, cmd } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: (commandName: string) => {
+      if (commandName === 'install') {
+        return {
+          'minimum-release-age': Number,
+          'minimum-release-age-exclude': [String, Array],
+        }
+      }
+      return {}
+    },
+  }, ['install', '--minimum-release-age', '1440', '--minimum-release-age-exclude', 'foo', '--minimum-release-age-exclude', 'bar'])
+  expect(cmd).toBe('install')
+  expect(options['minimum-release-age']).toBe(1440)
+  expect(options['minimum-release-age-exclude']).toStrictEqual(['foo', 'bar'])
+})

@@ -39,6 +39,8 @@ export function rcOptionsTypes (): Record<string, unknown> {
     ...pick([
       'cpu',
       'libc',
+      'minimum-release-age',
+      'minimum-release-age-exclude',
       'os',
     ], types),
     'shell-mode': Boolean,
@@ -70,6 +72,14 @@ export function help (): string {
             description: 'Runs the script inside of a shell. Uses /bin/sh on UNIX and \\cmd.exe on Windows.',
             name: '--shell-mode',
             shortAlias: '-c',
+          },
+          {
+            description: 'Reject packages published within the specified number of minutes',
+            name: '--minimum-release-age <minutes>',
+          },
+          {
+            description: 'Exclude specific packages from the minimum release age check',
+            name: '--minimum-release-age-exclude <package-spec>',
           },
         ],
       },

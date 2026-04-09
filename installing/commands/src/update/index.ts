@@ -67,6 +67,8 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'shared-workspace-lockfile',
     'side-effects-cache-readonly',
     'side-effects-cache',
+    'minimum-release-age',
+    'minimum-release-age-exclude',
     'store-dir',
     'unsafe-perm',
   ], allTypes)
@@ -150,6 +152,14 @@ dependencies is not found inside the workspace',
             shortAlias: '-i',
           },
           OPTIONS.globalDir,
+          {
+            description: 'Reject packages published within the specified number of minutes',
+            name: '--minimum-release-age <minutes>',
+          },
+          {
+            description: 'Exclude specific packages from the minimum release age check',
+            name: '--minimum-release-age-exclude <package-spec>',
+          },
           ...UNIVERSAL_OPTIONS,
         ],
       },
