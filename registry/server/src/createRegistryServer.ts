@@ -1,4 +1,4 @@
-import { promises as fs } from 'node:fs'
+import { promises as fs, readFileSync } from 'node:fs'
 import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
@@ -14,7 +14,8 @@ import { StoreIndex } from '@pnpm/store.index'
 import type { Registries } from '@pnpm/types'
 
 import { buildIntegrityIndex, computeDiff, type IntegrityEntry } from './diff.js'
-import { encodeResponse, type MissingFile } from './protocol.js'
+import { FileStore } from './fileStore.js'
+import type {} from './protocol.js'
 
 export interface RegistryServerOptions {
   /** Directory for the server's content-addressable store */
@@ -34,6 +35,7 @@ interface ServerContext {
   cacheDir: string
   registries: Registries
   integrityIndex: Map<string, IntegrityEntry>
+  fileStore: FileStore
 }
 
 export async function createRegistryServer (opts: RegistryServerOptions): Promise<http.Server> {
@@ -71,6 +73,7 @@ export async function createRegistryServer (opts: RegistryServerOptions): Promis
   })
 
   const integrityIndex = buildIntegrityIndex(storeIndex)
+  const fileStore = new FileStore(path.join(storeDir, 'files.db'))
 
   const ctx: ServerContext = {
     storeController,
@@ -79,6 +82,7 @@ export async function createRegistryServer (opts: RegistryServerOptions): Promis
     cacheDir,
     registries,
     integrityIndex,
+    fileStore,
   }
 
   const server = http.createServer(async (req, res) => {
@@ -213,12 +217,24 @@ async function handleInstall (
     ctx.integrityIndex = integrityIndex
 
     // Compute the file diff using only what the server already has
-    const { metadata, packageIndexBuffers } = computeDiff(
+    const { metadata, packageIndexBuffers, missingFiles } = computeDiff(
       resolvedLockfile,
       request.storeIntegrities ?? [],
       integrityIndex,
       ctx.storeDir
     )
+
+    // Lazily sync files to SQLite in the background — don't block the response.
+    // Files are served from CAFS on the first request; SQLite kicks in on subsequent ones.
+    if (missingFiles.length > 0) {
+      setImmediate(() => {
+        ctx.fileStore.importManyFromCafs(missingFiles.map(f => ({
+          digest: f.digest,
+          cafsPath: f.cafsPath,
+          executable: f.executable,
+        })))
+      })
+    }
 
     // Response format:
     //   [4 bytes: JSON length][JSON metadata]
@@ -261,7 +277,8 @@ async function handleInstall (
 
 /**
  * Handle POST /v1/files — serve a batch of files by digest.
- * The client makes multiple parallel requests to this endpoint.
+ * Reads from SQLite file store for fast batch access (one DB
+ * vs 33K individual readFileSync calls).
  */
 async function handleFiles (
   req: http.IncomingMessage,
@@ -271,14 +288,48 @@ async function handleFiles (
   const body = await readBody(req)
   const { digests } = JSON.parse(body) as { digests: Array<{ digest: string, size: number, executable: boolean }> }
 
-  const missingFiles: MissingFile[] = digests.map((d) => ({
-    digest: d.digest,
-    size: d.size,
-    executable: d.executable,
-    cafsPath: getFilePathByModeInCafs(ctx.storeDir, d.digest, d.executable ? 0o755 : 0o644),
-  }))
+  // Build binary response — same format as encodeResponse but reads from SQLite
+  const parts: Buffer[] = []
 
-  encodeResponse(res, null, missingFiles)
+  // JSON metadata (empty for file-only response)
+  const jsonBuffer = Buffer.from('{}', 'utf-8')
+  const lengthBuf = Buffer.alloc(4)
+  lengthBuf.writeUInt32BE(jsonBuffer.length, 0)
+  parts.push(lengthBuf)
+  parts.push(jsonBuffer)
+
+  for (const d of digests) {
+    const file = ctx.fileStore.get(d.digest)
+    let content: Buffer
+    if (file) {
+      content = file.content
+    } else {
+      const cafsPath = getFilePathByModeInCafs(ctx.storeDir, d.digest, d.executable ? 0o755 : 0o644)
+      content = readFileSync(cafsPath)
+      // Cache in SQLite for next time
+      ctx.fileStore.importFromCafs(d.digest, cafsPath, d.executable)
+    }
+
+    const digestBuf = Buffer.from(d.digest, 'hex')
+    const sizeBuf = Buffer.alloc(4)
+    sizeBuf.writeUInt32BE(content.length, 0)
+    const modeBuf = Buffer.alloc(1)
+    modeBuf[0] = d.executable ? 0x01 : 0x00
+
+    parts.push(digestBuf)
+    parts.push(sizeBuf)
+    parts.push(modeBuf)
+    parts.push(content)
+  }
+
+  parts.push(Buffer.alloc(64, 0)) // end marker
+
+  const payload = Buffer.concat(parts)
+  res.writeHead(200, {
+    'Content-Type': 'application/x-pnpm-install',
+    'Content-Length': payload.length,
+  })
+  res.end(payload)
 }
 
 function readBody (req: http.IncomingMessage): Promise<string> {
