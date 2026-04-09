@@ -91,14 +91,14 @@ function readStoreIntegrities (storeIndex: StoreIndex): string[] {
   return [...seen]
 }
 
-const FILES_PER_WORKER = 2000
+const FILES_PER_WORKER = 4000
 
 async function fetchFilesInParallel (
   registryUrl: string,
   metadata: ResponseMetadata,
   storeDir: string
 ): Promise<void> {
-  // Split missing files into batches, one per worker
+  // Split into batches matching worker count — each worker does HTTP + decode + write
   const batches: Array<Array<{ digest: string, size: number, executable: boolean }>> = []
   let currentBatch: Array<{ digest: string, size: number, executable: boolean }> = []
   for (const file of metadata.missingFiles) {
@@ -112,7 +112,6 @@ async function fetchFilesInParallel (
     batches.push(currentBatch)
   }
 
-  // Each worker makes its own HTTP request, decodes, and writes to CAFS
   await Promise.all(batches.map((digests) =>
     fetchAndWriteCafsFiles({ registryUrl, storeDir, digests })
   ))
