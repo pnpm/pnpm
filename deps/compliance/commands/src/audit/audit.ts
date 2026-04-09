@@ -5,7 +5,6 @@ import { audit, type AuditAdvisory, type AuditLevelNumber, type AuditLevelString
 import { PnpmError } from '@pnpm/error'
 import { type InstallCommandOptions, update } from '@pnpm/installing.commands'
 import { readEnvLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
-import { globalInfo } from '@pnpm/logger'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import type { Registries } from '@pnpm/types'
 import { table } from '@zkochan/table'
@@ -239,7 +238,7 @@ export async function handler (opts: AuditOptions): Promise<{ exitCode: number, 
   let fixMethod: 'update' | 'override' | undefined
   if (opts.fix === 'update' || opts.fix === 'override') {
     fixMethod = opts.fix
-  } else if (opts.fix === true) {
+  } else if (opts.fix === true || (opts.interactive && !opts.fix)) {
     fixMethod = DEFAULT_FIX_METHOD
   } else if (!opts.fix) {
     fixMethod = undefined
@@ -252,6 +251,22 @@ export async function handler (opts: AuditOptions): Promise<{ exitCode: number, 
       Object.entries(auditReport.advisories)
         .filter(([, { severity }]) => AUDIT_LEVEL_NUMBER[severity] >= auditLevel)
     )
+    const ignoreCves = opts.auditConfig?.ignoreCves
+    if (ignoreCves) {
+      for (const [id, advisory] of Object.entries(filteredAdvisories)) {
+        if (advisory.cves.length > 0 && difference(advisory.cves, ignoreCves).length === 0) {
+          delete filteredAdvisories[id]
+        }
+      }
+    }
+    const ignoreGhsas = opts.auditConfig?.ignoreGhsas
+    if (ignoreGhsas) {
+      for (const [id, advisory] of Object.entries(filteredAdvisories)) {
+        if (ignoreGhsas.includes(advisory.github_advisory_id)) {
+          delete filteredAdvisories[id]
+        }
+      }
+    }
     let filteredAuditReport: AuditReport = { ...auditReport, advisories: filteredAdvisories }
     if (opts.interactive) {
       filteredAuditReport = await interactiveAuditFix(filteredAuditReport)
@@ -492,7 +507,7 @@ async function interactiveAuditFix (auditReport: AuditReport): Promise<AuditRepo
       return this.up()
     },
     cancel () {
-      globalInfo('Audit fix canceled')
+      process.stdout.write('Audit fix canceled\n')
       process.exit(0)
     },
   } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any

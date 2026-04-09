@@ -48,7 +48,6 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/installing.commands": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
-    "@pnpm/logger": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/lockfile.walker": "workspace:*",
