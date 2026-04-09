@@ -317,6 +317,8 @@ export type InstallCommandOptions = Pick<Config,
 | 'saveCatalogName'
 | 'saveWorkspaceProtocol'
 | 'lockfileIncludeTarballUrl'
+| 'minimumReleaseAge'
+| 'minimumReleaseAgeExclude'
 | 'sideEffectsCache'
 | 'sideEffectsCacheReadonly'
 | 'sort'
