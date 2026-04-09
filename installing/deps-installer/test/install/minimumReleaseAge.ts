@@ -66,11 +66,13 @@ test('minimumReleaseAge applies to versions not in minimumReleaseAgeExclude', as
 test('minimumReleaseAgeLoose falls back to immature version when no mature version satisfies the range', async () => {
   prepareEmpty()
 
-  // With loose mode (default), falls back to installing an immature version
+  // With loose mode (default), falls back to installing an immature version.
+  // The fallback picks the lowest matching version (0.1.0), which differs from
+  // normal resolution without minimumReleaseAge that would pick the highest (0.1.2).
   const opts = testDefaults({ minimumReleaseAge: allImmatureMinimumReleaseAge })
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1'], opts)
 
-  expect(manifest.dependencies!['is-odd']).toBeTruthy()
+  expect(manifest.dependencies!['is-odd']).toBe('~0.1.0')
 })
 
 test('minimumReleaseAge throws when no mature version satisfies the range and loose mode is disabled', async () => {
