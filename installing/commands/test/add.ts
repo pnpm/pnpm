@@ -382,6 +382,25 @@ test('minimumReleaseAge makes install fail if there is no version that was publi
   }, ['is-odd@0.1.1'])).rejects.toThrow(/Version 0\.1\.1 \(released .+\) of is-odd does not meet the minimumReleaseAge constraint/)
 })
 
+test('minimumReleaseAgeExclude allows bypassing minimumReleaseAge for specific packages', async () => {
+  prepareEmpty()
+
+  const isOdd011ReleaseDate = new Date(2016, 11, 7 - 2) // 0.1.1 was released at 2016-12-07T07:18:01.205Z
+  const diff = Date.now() - isOdd011ReleaseDate.getTime()
+  const minimumReleaseAge = diff / (60 * 1000) // converting to minutes
+
+  await add.handler({
+    ...DEFAULT_OPTIONS,
+    dir: path.resolve('project'),
+    minimumReleaseAge,
+    minimumReleaseAgeExclude: ['is-odd'],
+    linkWorkspacePackages: false,
+  }, ['is-odd@0.1.1'])
+
+  const manifest = await loadJsonFile<{ dependencies: Record<string, string> }>(path.resolve('project/package.json'))
+  expect(manifest?.dependencies['is-odd']).toBe('0.1.1')
+})
+
 describeOnLinuxOnly('filters optional dependencies based on pnpm.supportedArchitectures.libc', () => {
   test.each([
     ['glibc', '@pnpm.e2e+only-linux-x64-glibc@1.0.0', '@pnpm.e2e+only-linux-x64-musl@1.0.0'],
