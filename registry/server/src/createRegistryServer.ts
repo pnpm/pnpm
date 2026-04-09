@@ -15,7 +15,7 @@ import type { Registries } from '@pnpm/types'
 
 import { buildIntegrityIndex, computeDiff, type IntegrityEntry } from './diff.js'
 import { FileStore } from './fileStore.js'
-import type {} from './protocol.js'
+import { MetadataStore } from './metadataStore.js'
 
 export interface RegistryServerOptions {
   /** Directory for the server's content-addressable store */
@@ -48,12 +48,22 @@ export async function createRegistryServer (opts: RegistryServerOptions): Promis
 
   const storeIndex = new StoreIndex(storeDir)
 
+  // Pre-populate metadata cache from .jsonl files into SQLite.
+  // This makes resolution fast — indexed DB lookup instead of
+  // reading/parsing hundreds of multi-MB JSON files from disk.
+  const metadataStore = new MetadataStore(path.join(storeDir, 'metadata.db'))
+  const metaImported = metadataStore.importFromCacheDir(cacheDir)
+  if (metaImported > 0) {
+    console.log(`  imported ${metaImported} metadata entries to SQLite`)
+  }
+
   const { resolve, fetchers, clearResolutionCache } = createClient({
     cacheDir,
     storeDir,
     storeIndex,
     registries,
     configByUri: {},
+    metaCache: metadataStore as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     retry: {
       retries: 3,
       factor: 10,
@@ -124,6 +134,11 @@ async function handleInstall (
   res: http.ServerResponse,
   ctx: ServerContext
 ): Promise<void> {
+  const _s: Record<string, number> = {}
+  const _m = (l: string) => {
+    _s[l] = performance.now()
+  }
+  _m('start')
   const body = await readBody(req)
   const request: InstallRequest = JSON.parse(body)
 
@@ -149,6 +164,7 @@ async function handleInstall (
 
     // Phase 1: Resolve only (no fetching, no linking — fast).
     // lockfileIncludeTarballUrl gives us download URLs for phase 2.
+    _m('setup')
     await install(manifest, {
       dir: tmpDir,
       lockfileDir: tmpDir,
@@ -163,6 +179,7 @@ async function handleInstall (
       preferFrozenLockfile: false,
     } as InstallOptions)
 
+    _m('resolve')
     // Read the resolved lockfile
     const resolvedLockfile = await readWantedLockfile(tmpDir, {
       ignoreIncompatible: false,
@@ -183,6 +200,7 @@ async function handleInstall (
       resolvedLockfile.importers = { '.': snapshot } as typeof resolvedLockfile.importers
     }
 
+    _m('readLockfile')
     // Phase 2: Fetch tarballs into the server's store for packages we
     // don't have yet. On first request this downloads everything; on
     // subsequent requests the store is hot and this is a no-op.
@@ -213,6 +231,7 @@ async function handleInstall (
       await Promise.all(fetchPromises)
     }
 
+    _m('fetchTarballs')
     const integrityIndex = buildIntegrityIndex(ctx.storeIndex)
     ctx.integrityIndex = integrityIndex
 
@@ -224,6 +243,7 @@ async function handleInstall (
       ctx.storeDir
     )
 
+    _m('diff')
     // Lazily sync files to SQLite in the background — don't block the response.
     // Files are served from CAFS on the first request; SQLite kicks in on subsequent ones.
     if (missingFiles.length > 0) {
@@ -269,7 +289,15 @@ async function handleInstall (
       'Content-Type': 'application/x-pnpm-install',
       'Content-Length': payload.length,
     })
+    _m('encode')
     res.end(payload)
+
+    const keys = Object.keys(_s)
+    const parts2: string[] = []
+    for (let i = 1; i < keys.length; i++) {
+      parts2.push(`${keys[i]}=${(_s[keys[i]] - _s[keys[i - 1]]).toFixed(0)}ms`)
+    }
+    console.log(`[SERVER /v1/install] ${parts2.join(' ')} TOTAL=${(_s['encode'] - _s['start']).toFixed(0)}ms`)
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true })
   }
