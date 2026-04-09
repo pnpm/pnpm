@@ -30,6 +30,10 @@ export interface FetchFromPnpmRegistryOptions {
 export interface FetchFromPnpmRegistryResult {
   lockfile: LockfileObject
   stats: ResponseMetadata['stats']
+  /** Promise that resolves when all file downloads are written to CAFS */
+  fileDownloads: Promise<void>
+  /** Pre-packed store index entries to write to SQLite */
+  indexEntries: Array<{ key: string, buffer: Uint8Array }>
 }
 
 /**
@@ -64,17 +68,16 @@ export async function fetchFromPnpmRegistry (
   const responseBuffer = await sendRequest(opts.registryUrl, '/v1/install', requestBody)
   const { metadata, indexEntries } = parseInstallResponse(responseBuffer)
 
-  // 4. Fetch missing files in parallel batches via /v1/files
-  if (metadata.missingFiles.length > 0) {
-    await fetchFilesInParallel(opts.registryUrl, metadata, opts.storeDir)
-  }
-
-  // 5. Write pre-packed store index entries directly to SQLite
-  writeRawIndexEntries(indexEntries, opts.storeIndex)
+  // 4. Start file downloads (don't await — caller pipelines with headless install)
+  const fileDownloads = metadata.missingFiles.length > 0
+    ? fetchFilesInParallel(opts.registryUrl, metadata, opts.storeDir)
+    : Promise.resolve()
 
   return {
     lockfile: metadata.lockfile,
     stats: metadata.stats,
+    fileDownloads,
+    indexEntries,
   }
 }
 
@@ -197,7 +200,7 @@ function parseInstallResponse (buf: Buffer): {
   return { metadata, indexEntries }
 }
 
-function writeRawIndexEntries (
+export function writeRawIndexEntries (
   indexEntries: Array<{ key: string, buffer: Uint8Array }>,
   storeIndex: StoreIndex
 ): void {

@@ -1876,7 +1876,7 @@ async function installFromPnpmRegistry (
   // Open the store index to read integrities and write new entries
   const storeIndex = new StoreIndex(opts.storeDir)
 
-  const { lockfile, stats } = await fetchFromPnpmRegistry({
+  const { lockfile, stats, fileDownloads, indexEntries } = await fetchFromPnpmRegistry({
     registryUrl: opts.pnpmRegistry!,
     storeDir: opts.storeDir,
     storeIndex,
@@ -1885,6 +1885,11 @@ async function installFromPnpmRegistry (
     overrides: opts.overrides,
     lockfile: existingLockfile ?? undefined,
   })
+
+  // Write store index entries so headless install finds them.
+  // Do this before closing — headless may start reading immediately.
+  const { writeRawIndexEntries } = await import('@pnpm/registry.client') // eslint-disable-line import-x/no-extraneous-dependencies
+  writeRawIndexEntries(indexEntries, storeIndex)
 
   // Close the store index so its WAL is flushed — other SQLite
   // connections (store controller, workers) will then see the entries.
@@ -1899,9 +1904,20 @@ async function installFromPnpmRegistry (
   const lockfileDir = opts.lockfileDir ?? rootDir
   await writeWantedLockfile(lockfileDir, lockfile)
 
-  // Run headless install to link packages.
+  // Wrap the store controller so fetchPackage waits for registry file
+  // downloads before checking the store. This prevents npm fallback —
+  // headless install blocks until the file is written, then finds it.
+  const wrappedStoreController = {
+    ...opts.storeController,
+    fetchPackage: async (...args: Parameters<typeof opts.storeController.fetchPackage>) => {
+      await fileDownloads
+      return opts.storeController.fetchPackage(...args)
+    },
+  }
+
   const headlessOpts = {
     ...opts,
+    storeController: wrappedStoreController,
     dir: rootDir as string,
     lockfileDir,
     engineStrict: opts.engineStrict ?? false,
