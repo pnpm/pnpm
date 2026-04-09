@@ -504,13 +504,17 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
   const http = await import('node:http')
   const https = await import('node:https')
   const { URL } = await import('node:url')
+  const { contentPathFromHex } = await import('@pnpm/store.cafs')
 
-  // Send HTTP request to /v1/files
   const url = new URL('/v1/files', message.registryUrl)
   const requestFn = url.protocol === 'https:' ? https.request : http.request
   const body = JSON.stringify({ digests: message.digests })
 
-  const responseBuffer = await new Promise<Buffer>((resolve, reject) => {
+  // Stream the response: write each file to CAFS as it arrives,
+  // overlapping network receive with disk write.
+  let filesWritten = 0
+
+  await new Promise<void>((resolve, reject) => {
     const req = requestFn(url, {
       method: 'POST',
       headers: {
@@ -518,66 +522,61 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
         'Content-Length': Buffer.byteLength(body),
       },
     }, (res: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-      const chunks: Buffer[] = []
-      res.on('data', (chunk: Buffer) => chunks.push(chunk))
-      res.on('end', () => resolve(Buffer.concat(chunks)))
+      let buf: Buffer = Buffer.alloc(0) as Buffer
+      let jsonSkipped = false
+
+      res.on('data', (chunk: Buffer) => {
+        buf = buf.length === 0 ? Buffer.from(chunk) : Buffer.concat([buf, chunk]) as Buffer
+
+        // Skip JSON header on first chunk
+        if (!jsonSkipped && buf.length >= 4) {
+          const jsonLen = buf.readUInt32BE(0)
+          if (buf.length >= 4 + jsonLen) {
+            buf = buf.subarray(4 + jsonLen)
+            jsonSkipped = true
+          }
+        }
+        if (!jsonSkipped) return
+
+        // Process complete file entries from the buffer
+        while (buf.length >= 69) { // minimum: 64 digest + 4 size + 1 mode
+          // Check for end marker
+          if (buf.length >= 64 && buf.subarray(0, 64).every(b => b === 0)) {
+            break
+          }
+
+          const digest = buf.subarray(0, 64).toString('hex')
+          const size = buf.readUInt32BE(64)
+          const executable = (buf[68] & 0x01) !== 0
+
+          // Wait for full content
+          if (buf.length < 69 + size) break
+
+          const content = buf.subarray(69, 69 + size)
+          buf = buf.subarray(69 + size)
+
+          // Write to CAFS immediately
+          const relPath = contentPathFromHex(executable ? 'exec' : 'nonexec', digest)
+          const fullPath = path.join(message.storeDir, relPath)
+          try {
+            fs.mkdirSync(path.dirname(fullPath), { recursive: true })
+            fs.writeFileSync(fullPath, content, { flag: 'wx', mode: executable ? 0o755 : 0o644 })
+          } catch (err: unknown) {
+            if (!(err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'EEXIST')) {
+              throw err
+            }
+          }
+          filesWritten++
+        }
+      })
+
+      res.on('end', () => resolve())
       res.on('error', reject)
     })
     req.on('error', reject)
     req.write(body)
     req.end()
   })
-
-  // Decode binary protocol and write files directly
-  let offset = 0
-
-  // Skip JSON header (4-byte length + JSON)
-  const jsonLen = responseBuffer.readUInt32BE(offset)
-  offset += 4 + jsonLen
-
-  // Read file entries and write directly to CAFS using known digests.
-  // Unlike addFile(), this skips SHA-512 hashing (server already computed it)
-  // and uses a simple exclusive-create write (no stat check, no temp+rename).
-  const END_MARKER = Buffer.alloc(64, 0)
-  let filesWritten = 0
-  const { contentPathFromHex } = await import('@pnpm/store.cafs')
-
-  while (offset < responseBuffer.length) {
-    const possibleEnd = responseBuffer.subarray(offset, offset + 64)
-    if (possibleEnd.length === 64 && possibleEnd.equals(END_MARKER)) break
-
-    // Digest: 64 bytes raw binary → hex
-    const digest = responseBuffer.subarray(offset, offset + 64).toString('hex')
-    offset += 64
-
-    // Size: 4 bytes
-    const size = responseBuffer.readUInt32BE(offset)
-    offset += 4
-
-    // Mode: 1 byte
-    const executable = (responseBuffer[offset] & 0x01) !== 0
-    offset += 1
-
-    // Content
-    const content = responseBuffer.subarray(offset, offset + size)
-    offset += size
-
-    // Write directly using pre-computed digest — no rehashing
-    const fileType = executable ? 'exec' : 'nonexec'
-    const relPath = contentPathFromHex(fileType, digest)
-    const fullPath = path.join(message.storeDir, relPath)
-    const dir = path.dirname(fullPath)
-    try {
-      fs.mkdirSync(dir, { recursive: true })
-      fs.writeFileSync(fullPath, content, { flag: 'wx', mode: executable ? 0o755 : 0o644 })
-    } catch (err: unknown) {
-      // EEXIST = file already exists (from dedup or concurrent write) — fine
-      if (!(err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'EEXIST')) {
-        throw err
-      }
-    }
-    filesWritten++
-  }
 
   return { status: 'success', filesWritten }
 }

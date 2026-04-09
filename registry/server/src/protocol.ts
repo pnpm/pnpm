@@ -51,40 +51,31 @@ export function encodeResponse (
   _metadata: ResponseMetadata | null,
   missingFiles: MissingFile[]
 ): void {
-  // Build the binary payload in memory, then gzip and send
-  const parts: Buffer[] = []
+  res.writeHead(200, {
+    'Content-Type': 'application/x-pnpm-install',
+    'Transfer-Encoding': 'chunked',
+  })
 
-  // 1. JSON metadata (empty object if null — file-only response)
+  // 1. JSON metadata
   const jsonBuffer = Buffer.from(JSON.stringify(_metadata ?? {}), 'utf-8')
   const lengthBuf = Buffer.alloc(4)
   lengthBuf.writeUInt32BE(jsonBuffer.length, 0)
-  parts.push(lengthBuf)
-  parts.push(jsonBuffer)
+  res.write(lengthBuf)
+  res.write(jsonBuffer)
 
-  // 2. File entries
+  // 2. Stream file entries — each written immediately after reading
   for (const file of missingFiles) {
     const content = readFileSync(file.cafsPath)
-    const digestBuf = Buffer.from(file.digest, 'hex')
-    const sizeBuf = Buffer.alloc(4)
-    sizeBuf.writeUInt32BE(content.length, 0)
-    const modeBuf = Buffer.alloc(1)
-    modeBuf[0] = file.executable ? 0x01 : 0x00
-
-    parts.push(digestBuf)
-    parts.push(sizeBuf)
-    parts.push(modeBuf)
-    parts.push(content)
+    const headerBuf = Buffer.alloc(69) // 64 digest + 4 size + 1 mode
+    Buffer.from(file.digest, 'hex').copy(headerBuf, 0)
+    headerBuf.writeUInt32BE(content.length, 64)
+    headerBuf[68] = file.executable ? 0x01 : 0x00
+    res.write(headerBuf)
+    res.write(content)
   }
 
-  // 3. End marker (64 zero bytes)
-  parts.push(Buffer.alloc(64, 0))
-
-  const payload = Buffer.concat(parts)
-
-  res.writeHead(200, {
-    'Content-Type': 'application/x-pnpm-install',
-    'Content-Length': payload.length,
-  })
-  res.end(payload)
+  // 3. End marker
+  res.write(Buffer.alloc(64, 0))
+  res.end()
 }
 
