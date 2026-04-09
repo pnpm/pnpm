@@ -1876,7 +1876,7 @@ async function installFromPnpmRegistry (
   // Open the store index to read integrities and write new entries
   const storeIndex = new StoreIndex(opts.storeDir)
 
-  const { lockfile, stats, fileDownloads } = await fetchFromPnpmRegistry({
+  const { lockfile, stats } = await fetchFromPnpmRegistry({
     registryUrl: opts.pnpmRegistry!,
     storeDir: opts.storeDir,
     storeIndex,
@@ -1899,9 +1899,7 @@ async function installFromPnpmRegistry (
   const lockfileDir = opts.lockfileDir ?? rootDir
   await writeWantedLockfile(lockfileDir, lockfile)
 
-  // Run headless install concurrently with remaining file downloads.
-  // Headless checks the store for each package — files already written by
-  // the workers are linked immediately, others fall back to npm fetch.
+  // Run headless install to link packages.
   const headlessOpts = {
     ...opts,
     dir: rootDir as string,
@@ -1933,10 +1931,8 @@ async function installFromPnpmRegistry (
     skipped: new Set<DepPath>(),
     wantedLockfile: lockfile,
   }
-  await Promise.all([
-    headlessInstall(headlessOpts as any), // eslint-disable-line @typescript-eslint/no-explicit-any
-    fileDownloads,
-  ])
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await headlessInstall(headlessOpts as any)
 
   return {
     updatedCatalogs: undefined,
