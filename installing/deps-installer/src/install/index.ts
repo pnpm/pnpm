@@ -1933,9 +1933,8 @@ async function installFromPnpmRegistry (
     skipped: new Set<DepPath>(),
     wantedLockfile: lockfile,
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await Promise.all([
-    headlessInstall(headlessOpts as any),
+    headlessInstall(headlessOpts as any), // eslint-disable-line @typescript-eslint/no-explicit-any
     fileDownloads,
   ])
 
