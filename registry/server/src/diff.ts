@@ -61,7 +61,8 @@ export function computeDiff (
     const entry = integrityIndex.get(integrity)
     if (!entry) continue
     for (const [, fileInfo] of getFilesEntries(entry.decoded)) {
-      clientDigests.add(fileInfo.digest)
+      const executable = (fileInfo.mode & 0o111) !== 0
+      clientDigests.add(`${fileInfo.digest}:${executable ? 'x' : ''}`)
     }
   }
 
@@ -97,11 +98,15 @@ export function computeDiff (
     for (const [, fileInfo] of getFilesEntries(entry.decoded)) {
       filesInNewPackages++
 
-      if (!clientDigests.has(fileInfo.digest)) {
-        clientDigests.add(fileInfo.digest) // dedup within response
+      // Dedup by digest + executable flag — the same content may need to be
+      // stored at both the exec and non-exec CAFS paths if different packages
+      // reference it with different file modes.
+      const executable = (fileInfo.mode & 0o111) !== 0
+      const dedupeKey = `${fileInfo.digest}:${executable ? 'x' : ''}`
+      if (!clientDigests.has(dedupeKey)) {
+        clientDigests.add(dedupeKey)
         filesToDownload++
         downloadBytes += fileInfo.size
-        const executable = (fileInfo.mode & 0o111) !== 0
         missingFileInfos.push({ digest: fileInfo.digest, size: fileInfo.size, executable })
         missingFiles.push({
           digest: fileInfo.digest,
