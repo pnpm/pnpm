@@ -396,6 +396,7 @@ test('dlx should fail when the requested package does not meet the minimum age r
       ...DEFAULT_OPTS,
       dir: path.resolve('project'),
       minimumReleaseAge: 60 * 24 * 10000,
+      minimumReleaseAgeLoose: false,
       registries: {
         // We must use the public registry instead of verdaccio here
         // because verdaccio has the "times" field in the abbreviated metadata too.
