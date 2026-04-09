@@ -378,6 +378,7 @@ test('minimumReleaseAge makes install fail if there is no version that was publi
     ...DEFAULT_OPTIONS,
     dir: path.resolve('project'),
     minimumReleaseAge,
+    minimumReleaseAgeLoose: false,
     linkWorkspacePackages: false,
   }, ['is-odd@0.1.1'])).rejects.toThrow(/Version 0\.1\.1 \(released .+\) of is-odd does not meet the minimumReleaseAge constraint/)
 })
