@@ -30,6 +30,10 @@ export interface FetchFromPnpmRegistryOptions {
 export interface FetchFromPnpmRegistryResult {
   lockfile: LockfileObject
   stats: ResponseMetadata['stats']
+  /** Promise that resolves when all file downloads complete. Caller can
+   *  start headless install concurrently — packages whose files are already
+   *  written will be linked immediately, others fall back to npm fetch. */
+  fileDownloads?: Promise<void>
 }
 
 /**
@@ -64,17 +68,20 @@ export async function fetchFromPnpmRegistry (
   const responseBuffer = await sendRequest(opts.registryUrl, '/v1/install', requestBody)
   const { metadata, indexEntries } = parseInstallResponse(responseBuffer)
 
-  // 4. Fetch missing files in parallel batches via /v1/files
-  if (metadata.missingFiles.length > 0) {
-    await fetchFilesInParallel(opts.registryUrl, metadata, opts.storeDir)
-  }
-
-  // 5. Write pre-packed store index entries directly to SQLite (no msgpack re-encoding)
+  // 4. Write pre-packed store index entries immediately so headless install finds them
   writeRawIndexEntries(indexEntries, opts.storeIndex)
+
+  // 5. Start file downloads in workers (returns a promise — caller can run
+  //    headless install concurrently while files are still being written)
+  let fileDownloads: Promise<void> | undefined
+  if (metadata.missingFiles.length > 0) {
+    fileDownloads = fetchFilesInParallel(opts.registryUrl, metadata, opts.storeDir)
+  }
 
   return {
     lockfile: metadata.lockfile,
     stats: metadata.stats,
+    fileDownloads,
   }
 }
 
