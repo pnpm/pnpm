@@ -2850,6 +2850,9 @@ importers:
         specifier: 'catalog:'
         version: 7.7.4
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/deps.compliance.commands':
         specifier: workspace:*
         version: 'link:'
