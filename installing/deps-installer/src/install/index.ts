@@ -1909,9 +1909,9 @@ async function installFromPnpmRegistry (
   // headless install blocks until the file is written, then finds it.
   const wrappedStoreController = {
     ...opts.storeController,
-    fetchPackage: async (...args: Parameters<typeof opts.storeController.fetchPackage>) => {
+    fetchPackage: async (fetchOpts: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
       await fileDownloads
-      return opts.storeController.fetchPackage(...args)
+      return opts.storeController.fetchPackage(fetchOpts)
     },
   }
 
