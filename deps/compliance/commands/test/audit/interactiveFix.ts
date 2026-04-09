@@ -105,8 +105,8 @@ test('audit --fix -i prompt is called with correct structure', async () => {
   )
 
   // Verify choices are grouped by severity
-  const choices = (prompt.mock.calls[0][0] as any).choices
-  const groupNames = choices.map((g: any) => g.name)
+  const choices = (prompt.mock.calls[0][0] as unknown as Record<string, unknown>).choices as Array<{ name: string }>
+  const groupNames = choices.map((g) => g.name)
   // Should have severity groups (order: critical, high, moderate, low)
   expect(groupNames[0]).toBe('[critical]')
   expect(groupNames[1]).toBe('[high]')
@@ -139,7 +139,7 @@ test('audit --fix -i with auditLevel filters before showing prompt', async () =>
   })
 
   // Verify only critical severity group is shown
-  const choices = (prompt.mock.calls[0][0] as any).choices
-  const groupNames = choices.map((g: any) => g.name)
+  const choices = (prompt.mock.calls[0][0] as unknown as Record<string, unknown>).choices as Array<{ name: string }>
+  const groupNames = choices.map((g) => g.name)
   expect(groupNames).toStrictEqual(['[critical]'])
 })
