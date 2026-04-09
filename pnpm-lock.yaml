@@ -2834,6 +2834,9 @@ importers:
       chalk:
         specifier: 'catalog:'
         version: 5.6.2
+      enquirer:
+        specifier: 'catalog:'
+        version: 2.4.1
       memoize:
         specifier: 'catalog:'
         version: 10.2.0
