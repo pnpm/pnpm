@@ -12,6 +12,7 @@ interface GetManifestOpts {
   configByUri: object
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
+  minimumReleaseAgeLoose?: boolean
 }
 
 export type ManifestGetterOptions = Omit<ClientOptions, 'configByUri' | 'minimumReleaseAgeExclude' | 'storeIndex'>
@@ -29,7 +30,7 @@ export function createManifestGetter (
     ...opts,
     configByUri: opts.configByUri,
     filterMetadata: false, // We need all the data from metadata for "outdated --long" to work.
-    strictPublishedByCheck: Boolean(opts.minimumReleaseAge),
+    strictPublishedByCheck: Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeLoose === false,
   })
 
   const publishedBy = opts.minimumReleaseAge

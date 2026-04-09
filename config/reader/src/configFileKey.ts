@@ -36,6 +36,7 @@ export const pnpmConfigFileKeys = [
   'dlx-cache-max-age',
   'minimum-release-age',
   'minimum-release-age-exclude',
+  'minimum-release-age-loose',
   'network-concurrency',
   'noproxy',
   'npm-path',
