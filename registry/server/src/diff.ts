@@ -141,7 +141,7 @@ export function computeDiff (
   }
 }
 
-function getFilesEntries (pkgIndex: PackageFilesIndex): Array<[string, PackageFileInfo]> {
+export function getFilesEntries (pkgIndex: PackageFilesIndex): Array<[string, PackageFileInfo]> {
   const { files } = pkgIndex
   if (files instanceof Map) return [...files.entries()]
   return Object.entries(files as Record<string, PackageFileInfo>)

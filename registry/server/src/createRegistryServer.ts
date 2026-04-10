@@ -13,7 +13,7 @@ import { createPackageStore, type StoreController } from '@pnpm/store.controller
 import { StoreIndex } from '@pnpm/store.index'
 import type { Registries } from '@pnpm/types'
 
-import { buildIntegrityIndex, computeDiff, type IntegrityEntry } from './diff.js'
+import { buildIntegrityIndex, computeDiff, getFilesEntries, type IntegrityEntry } from './diff.js'
 import { FileStore } from './fileStore.js'
 import { MetadataStore } from './metadataStore.js'
 
@@ -134,18 +134,51 @@ async function handleInstall (
   res: http.ServerResponse,
   ctx: ServerContext
 ): Promise<void> {
-  const _s: Record<string, number> = {}
-  const _m = (l: string) => {
-    _s[l] = performance.now()
-  }
-  _m('start')
+  const t0 = performance.now()
   const body = await readBody(req)
   const request: InstallRequest = JSON.parse(body)
+
+  // Build the set of integrities the client already has, so we can
+  // compute per-package diffs as packages resolve.
+  const clientIntegrities = new Set(request.storeIntegrities ?? [])
+
+  const emittedDigests = new Set<string>()
+
+  // Start streaming NDJSON — digests stream as packages resolve,
+  // lockfile + index entries come at the end.
+  res.writeHead(200, {
+    'Content-Type': 'application/x-ndjson',
+    'Transfer-Encoding': 'chunked',
+  })
+
+  // Wrap the store controller to intercept package resolutions.
+  // As each package resolves, stream digest info directly to the
+  // response stream. Node.js handles internal buffering at the socket.
+  const wrappedStoreController: StoreController = {
+    ...ctx.storeController,
+    requestPackage: async (...args: Parameters<StoreController['requestPackage']>) => {
+      const result = await ctx.storeController.requestPackage(...args)
+      const integrity = (result.body as any)?.resolution?.integrity as string | undefined // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (integrity && !clientIntegrities.has(integrity)) {
+        const entry = ctx.integrityIndex.get(integrity)
+        if (entry) {
+          for (const [, fileInfo] of getFilesEntries(entry.decoded)) {
+            const executable = (fileInfo.mode & 0o111) !== 0
+            const dedupeKey = `${fileInfo.digest}:${executable ? 'x' : ''}`
+            if (!emittedDigests.has(dedupeKey)) {
+              emittedDigests.add(dedupeKey)
+              res.write(`D\t${fileInfo.digest}\t${fileInfo.size}\t${executable ? 1 : 0}\n`)
+            }
+          }
+        }
+      }
+      return result
+    },
+  }
 
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-registry-'))
 
   try {
-    // Write package.json for the temp project
     const manifest = {
       name: 'pnpm-registry-resolve',
       version: '0.0.0',
@@ -157,18 +190,16 @@ async function handleInstall (
       JSON.stringify(manifest, null, 2)
     )
 
-    // Write existing lockfile if provided (for incremental resolution)
     if (request.lockfile) {
       await writeWantedLockfile(tmpDir, request.lockfile)
     }
 
-    // Phase 1: Resolve only (no fetching, no linking — fast).
-    // lockfileIncludeTarballUrl gives us download URLs for phase 2.
-    _m('setup')
+    // Resolution — the wrapped store controller streams digest info
+    // to the client as each package resolves.
     await install(manifest, {
       dir: tmpDir,
       lockfileDir: tmpDir,
-      storeController: ctx.storeController,
+      storeController: wrappedStoreController,
       storeDir: ctx.storeDir,
       cacheDir: ctx.cacheDir,
       registries: ctx.registries,
@@ -179,31 +210,22 @@ async function handleInstall (
       preferFrozenLockfile: false,
     } as InstallOptions)
 
-    _m('resolve')
-    // Read the resolved lockfile
     const resolvedLockfile = await readWantedLockfile(tmpDir, {
       ignoreIncompatible: false,
     })
 
     if (!resolvedLockfile) {
-      res.writeHead(500, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: 'Resolution produced no lockfile' }))
+      res.end('E\t{"error":"Resolution produced no lockfile"}\n')
       return
     }
 
-    // Remap importer IDs: the server resolved in a temp dir so importers
-    // are keyed by the temp path. Remap them to "." so the client's
-    // headless install can find the project.
     const importerEntries = Object.entries(resolvedLockfile.importers)
     if (importerEntries.length === 1) {
       const [, snapshot] = importerEntries[0]
       resolvedLockfile.importers = { '.': snapshot } as typeof resolvedLockfile.importers
     }
 
-    _m('readLockfile')
-    // Phase 2: Fetch tarballs into the server's store for packages we
-    // don't have yet. On first request this downloads everything; on
-    // subsequent requests the store is hot and this is a no-op.
+    // Fetch tarballs for new packages (hot server = no-op)
     const integrityIndexBefore = buildIntegrityIndex(ctx.storeIndex)
     const fetchPromises: Array<Promise<void>> = []
     for (const [, pkgSnapshot] of Object.entries(resolvedLockfile.packages ?? {})) {
@@ -231,11 +253,11 @@ async function handleInstall (
       await Promise.all(fetchPromises)
     }
 
-    _m('fetchTarballs')
     const integrityIndex = buildIntegrityIndex(ctx.storeIndex)
     ctx.integrityIndex = integrityIndex
 
-    // Compute the file diff using only what the server already has
+    // Compute remaining diff for any packages not caught by the wrapper
+    // (e.g. packages resolved from a cached lockfile path)
     const { metadata, packageIndexBuffers, missingFiles } = computeDiff(
       resolvedLockfile,
       request.storeIntegrities ?? [],
@@ -243,9 +265,16 @@ async function handleInstall (
       ctx.storeDir
     )
 
-    _m('diff')
-    // Lazily sync files to SQLite in the background — don't block the response.
-    // Files are served from CAFS on the first request; SQLite kicks in on subsequent ones.
+    // Emit any digests not yet streamed
+    for (const f of metadata.missingFiles) {
+      const dedupeKey = `${f.digest}:${f.executable ? 'x' : ''}`
+      if (!emittedDigests.has(dedupeKey)) {
+        emittedDigests.add(dedupeKey)
+        res.write(`D\t${f.digest}\t${f.size}\t${f.executable ? 1 : 0}\n`)
+      }
+    }
+
+    // Sync to SQLite in background
     if (missingFiles.length > 0) {
       setImmediate(() => {
         ctx.fileStore.importManyFromCafs(missingFiles.map(f => ({
@@ -256,48 +285,23 @@ async function handleInstall (
       })
     }
 
-    // Response format:
-    //   [4 bytes: JSON length][JSON metadata]
-    //   [package index entries: 2B key_len + key + 4B buf_len + msgpack buffer]...
-    //   [2 zero bytes: end marker]
-    const parts: Buffer[] = []
-    const jsonBuf = Buffer.from(JSON.stringify(metadata), 'utf-8')
-    const jsonLenBuf = Buffer.alloc(4)
-    jsonLenBuf.writeUInt32BE(jsonBuf.length, 0)
-    parts.push(jsonLenBuf)
-    parts.push(jsonBuf)
+    // Send lockfile + stats
+    const lockfilePayload = JSON.stringify({
+      lockfile: metadata.lockfile,
+      stats: metadata.stats,
+    })
+    res.write(`L\t${lockfilePayload}\n`)
 
+    // Send pre-packed index entries
     for (const [depPath, { integrity, rawBuffer }] of packageIndexBuffers) {
-      // Strip peer suffix to match what the client needs for store index keys
       const pkgId = depPath.includes('(') ? depPath.substring(0, depPath.indexOf('(')) : depPath
       const key = `${integrity}\t${pkgId}`
-      const keyBuf = Buffer.from(key, 'utf-8')
-      const keyLenBuf = Buffer.alloc(2)
-      keyLenBuf.writeUInt16BE(keyBuf.length, 0)
-      const bufLenBuf = Buffer.alloc(4)
-      bufLenBuf.writeUInt32BE(rawBuffer.length, 0)
-      parts.push(keyLenBuf)
-      parts.push(keyBuf)
-      parts.push(bufLenBuf)
-      parts.push(Buffer.from(rawBuffer))
+      // Base64-encode the msgpack buffer for NDJSON transport
+      res.write(`I\t${key}\t${Buffer.from(rawBuffer).toString('base64')}\n`)
     }
-    // End marker
-    parts.push(Buffer.alloc(2, 0))
 
-    const payload = Buffer.concat(parts)
-    res.writeHead(200, {
-      'Content-Type': 'application/x-pnpm-install',
-      'Content-Length': payload.length,
-    })
-    _m('encode')
-    res.end(payload)
-
-    const keys = Object.keys(_s)
-    const parts2: string[] = []
-    for (let i = 1; i < keys.length; i++) {
-      parts2.push(`${keys[i]}=${(_s[keys[i]] - _s[keys[i - 1]]).toFixed(0)}ms`)
-    }
-    console.log(`[SERVER /v1/install] ${parts2.join(' ')} TOTAL=${(_s['encode'] - _s['start']).toFixed(0)}ms`)
+    res.end()
+    console.log(`[SERVER /v1/install] ${(performance.now() - t0).toFixed(0)}ms digests=${emittedDigests.size}`)
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true })
   }

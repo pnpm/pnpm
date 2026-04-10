@@ -39,20 +39,19 @@ export interface FetchFromPnpmRegistryResult {
 /**
  * Fetch resolved dependencies from a pnpm registry server.
  *
- * 1. Read store integrities from the local store index
- * 2. Send POST /v1/install with dependencies + store integrities
- * 3. Parse the streaming response
- * 4. Write missing files to the local CAFS
- * 5. Write store index entries for new packages
- * 6. Return the lockfile for headless install
+ * The response is a streaming NDJSON where each line is one message:
+ *   - `D\t{digest}\t{size}\t{executable}\n` — file digest (streamed as packages resolve)
+ *   - `L\t{json}\n` — final lockfile + stats (after resolution)
+ *   - `I\t{key}\t{base64}\n` — pre-packed msgpack index entry
+ *
+ * As digest lines arrive, we batch them and dispatch workers to /v1/files.
+ * File downloads happen IN PARALLEL with server-side resolution.
  */
 export async function fetchFromPnpmRegistry (
   opts: FetchFromPnpmRegistryOptions
 ): Promise<FetchFromPnpmRegistryResult> {
-  // 1. Read store integrities
   const storeIntegrities = readStoreIntegrities(opts.storeIndex)
 
-  // 2. Build request body
   const requestBody = JSON.stringify({
     dependencies: opts.dependencies,
     devDependencies: opts.devDependencies,
@@ -64,21 +63,67 @@ export async function fetchFromPnpmRegistry (
     storeIntegrities,
   })
 
-  // 3. Send resolve request — returns binary: JSON metadata + pre-packed msgpack index entries
-  const responseBuffer = await sendRequest(opts.registryUrl, '/v1/install', requestBody)
-  const { metadata, indexEntries } = parseInstallResponse(responseBuffer)
+  const indexEntries: Array<{ key: string, buffer: Uint8Array }> = []
+  const workerPromises: Array<Promise<number>> = []
+  let currentBatch: Array<{ digest: string, size: number, executable: boolean }> = []
+  let lockfile: LockfileObject | undefined
+  let stats: ResponseMetadata['stats'] | undefined
 
-  // 4. Start file downloads (don't await — caller pipelines with headless install)
-  const fileDownloads = metadata.missingFiles.length > 0
-    ? fetchFilesInParallel(opts.registryUrl, metadata, opts.storeDir)
-    : Promise.resolve()
-
-  return {
-    lockfile: metadata.lockfile,
-    stats: metadata.stats,
-    fileDownloads,
-    indexEntries,
+  const dispatchBatch = () => {
+    if (currentBatch.length === 0) return
+    const digests = currentBatch
+    currentBatch = []
+    workerPromises.push(fetchAndWriteCafsFiles({
+      registryUrl: opts.registryUrl,
+      storeDir: opts.storeDir,
+      digests,
+    }))
   }
+
+  const handleLine = (line: string) => {
+    if (line.length === 0) return
+    const tabIdx = line.indexOf('\t')
+    const type = line.charAt(0)
+    if (type === 'D') {
+      // D\tdigest\tsize\texecutable
+      const parts = line.split('\t')
+      currentBatch.push({
+        digest: parts[1],
+        size: parseInt(parts[2], 10),
+        executable: parts[3] === '1',
+      })
+      if (currentBatch.length >= FILES_PER_WORKER) {
+        dispatchBatch()
+      }
+    } else if (type === 'L') {
+      // L\t<json>
+      const payload = JSON.parse(line.substring(tabIdx + 1)) as {
+        lockfile: LockfileObject
+        stats: ResponseMetadata['stats']
+      }
+      lockfile = payload.lockfile
+      stats = payload.stats
+      // Dispatch any remaining digests before the lockfile is returned
+      dispatchBatch()
+    } else if (type === 'I') {
+      // I\tkey\tbase64msgpack
+      const rest = line.substring(tabIdx + 1)
+      const secondTab = rest.indexOf('\t')
+      const key = rest.substring(0, secondTab)
+      const buffer = new Uint8Array(Buffer.from(rest.substring(secondTab + 1), 'base64'))
+      indexEntries.push({ key, buffer })
+    }
+  }
+
+  await streamNdjsonRequest(opts.registryUrl, '/v1/install', requestBody, handleLine)
+
+  if (!lockfile || !stats) {
+    throw new Error('pnpm-registry response missing lockfile')
+  }
+
+  const fileDownloads = Promise.all(workerPromises).then(() => {})
+
+  return { lockfile, stats, fileDownloads, indexEntries }
 }
 
 function readStoreIntegrities (storeIndex: StoreIndex): string[] {
@@ -92,61 +137,55 @@ function readStoreIntegrities (storeIndex: StoreIndex): string[] {
 }
 
 const FILES_PER_WORKER = 4000
+const REQUEST_TIMEOUT = 120_000
 
-async function fetchFilesInParallel (
+/**
+ * Stream an NDJSON response, calling `onLine` for each complete line as
+ * it arrives. Chunks are buffered until a newline is seen.
+ */
+async function streamNdjsonRequest (
   registryUrl: string,
-  metadata: ResponseMetadata,
-  storeDir: string
+  urlPath: string,
+  body: string,
+  onLine: (line: string) => void
 ): Promise<void> {
-  // Split into batches matching worker count — each worker does HTTP + decode + write
-  const batches: Array<Array<{ digest: string, size: number, executable: boolean }>> = []
-  let currentBatch: Array<{ digest: string, size: number, executable: boolean }> = []
-  for (const file of metadata.missingFiles) {
-    currentBatch.push(file)
-    if (currentBatch.length >= FILES_PER_WORKER) {
-      batches.push(currentBatch)
-      currentBatch = []
-    }
-  }
-  if (currentBatch.length > 0) {
-    batches.push(currentBatch)
-  }
-
-  await Promise.all(batches.map((digests) =>
-    fetchAndWriteCafsFiles({ registryUrl, storeDir, digests })
-  ))
-}
-
-const REQUEST_TIMEOUT = 120_000 // 2 minutes
-
-async function sendRequest (registryUrl: string, urlPath: string, body: string): Promise<Buffer> {
   const url = new URL(urlPath, registryUrl)
   const isHttps = url.protocol === 'https:'
   const requestFn = isHttps ? https.request : http.request
 
-  return new Promise<Buffer>((resolve, reject) => {
+  return new Promise<void>((resolve, reject) => {
     const req = requestFn(url, {
       method: 'POST',
       timeout: REQUEST_TIMEOUT,
       headers: {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(body),
-        'Accept': 'application/x-pnpm-install',
+        'Accept': 'application/x-ndjson',
       },
     }, (res) => {
       if (res.statusCode !== 200) {
         const chunks: Buffer[] = []
         res.on('data', (chunk: Buffer) => chunks.push(chunk))
         res.on('end', () => {
-          const errBody = Buffer.concat(chunks).toString('utf-8')
-          reject(new Error(`pnpm-registry responded with ${res.statusCode}: ${errBody}`))
+          reject(new Error(`pnpm-registry responded with ${res.statusCode}: ${Buffer.concat(chunks).toString('utf-8')}`))
         })
         return
       }
 
-      const chunks: Buffer[] = []
-      res.on('data', (chunk: Buffer) => chunks.push(chunk))
-      res.on('end', () => resolve(Buffer.concat(chunks)))
+      let leftover = ''
+      res.setEncoding('utf-8')
+      res.on('data', (chunk: string) => {
+        const data = leftover + chunk
+        const lines = data.split('\n')
+        leftover = lines.pop() ?? ''
+        for (const line of lines) {
+          onLine(line)
+        }
+      })
+      res.on('end', () => {
+        if (leftover) onLine(leftover)
+        resolve()
+      })
       res.on('error', reject)
     })
 
@@ -163,40 +202,6 @@ async function sendRequest (registryUrl: string, urlPath: string, body: string):
     req.write(body)
     req.end()
   })
-}
-
-function parseInstallResponse (buf: Buffer): {
-  metadata: ResponseMetadata
-  indexEntries: Array<{ key: string, buffer: Uint8Array }>
-} {
-  let offset = 0
-
-  // Read JSON metadata
-  const jsonLen = buf.readUInt32BE(offset)
-  offset += 4
-  const metadata: ResponseMetadata = JSON.parse(buf.subarray(offset, offset + jsonLen).toString('utf-8'))
-  offset += jsonLen
-
-  // Read pre-packed msgpack index entries
-  const indexEntries: Array<{ key: string, buffer: Uint8Array }> = []
-  while (offset < buf.length) {
-    const keyLen = buf.readUInt16BE(offset)
-    offset += 2
-    if (keyLen === 0) break // end marker
-
-    const key = buf.subarray(offset, offset + keyLen).toString('utf-8')
-    offset += keyLen
-
-    const bufLen = buf.readUInt32BE(offset)
-    offset += 4
-
-    const buffer = new Uint8Array(buf.buffer, buf.byteOffset + offset, bufLen)
-    offset += bufLen
-
-    indexEntries.push({ key, buffer })
-  }
-
-  return { metadata, indexEntries }
 }
 
 export function writeRawIndexEntries (

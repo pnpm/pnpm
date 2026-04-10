@@ -302,7 +302,7 @@ export async function readPkgFromCafs (
 // so, running them in parallel helps only to a point.
 // With local experimenting it was discovered that running 4 workers gives the best results.
 // Adding more workers actually makes installation slower.
-const limitImportingPackage = pLimit(4)
+const limitImportingPackage = pLimit(6)
 
 export async function importPackage (
   opts: Omit<LinkPkgMessage, 'type'>
