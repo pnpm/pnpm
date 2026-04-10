@@ -106,6 +106,7 @@ export async function handler (
     configByUri: opts.configByUri,
     fullMetadata,
     filterMetadata: fullMetadata,
+    strictPublishedByCheck: Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,

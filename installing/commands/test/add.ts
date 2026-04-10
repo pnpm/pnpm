@@ -367,7 +367,7 @@ test('add: fail trying to install @pnpm/exe', async () => {
   expect(err.code).toBe('ERR_PNPM_GLOBAL_PNPM_INSTALL')
 })
 
-test('minimumReleaseAge makes install fail if there is no version that was published before the cutoff', async () => {
+test('minimumReleaseAge with minimumReleaseAgeStrict enabled makes install fail if there is no version that was published before the cutoff', async () => {
   prepareEmpty()
 
   const isOdd011ReleaseDate = new Date(2016, 11, 7 - 2) // 0.1.1 was released at 2016-12-07T07:18:01.205Z
@@ -378,6 +378,7 @@ test('minimumReleaseAge makes install fail if there is no version that was publi
     ...DEFAULT_OPTIONS,
     dir: path.resolve('project'),
     minimumReleaseAge,
+    minimumReleaseAgeStrict: true,
     linkWorkspacePackages: false,
   }, ['is-odd@0.1.1'])).rejects.toThrow(/Version 0\.1\.1 \(released .+\) of is-odd does not meet the minimumReleaseAge constraint/)
 })
