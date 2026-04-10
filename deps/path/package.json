@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.path",
-  "version": "1001.1.3",
+  "version": "1100.0.0",
   "description": "Utilities for working with symlinked node_modules",
   "keywords": [
     "pnpm",

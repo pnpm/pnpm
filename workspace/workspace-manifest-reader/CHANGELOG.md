@@ -1,5 +1,49 @@
 # @pnpm/workspace.read-manifest
 
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- 075aa99: Add support for a global YAML config file named `config.yaml`.
+
+  Now configurations are divided into 2 categories:
+
+  - Registry and auth settings which can be stored in INI files such as global `rc` and local `.npmrc`.
+  - pnpm-specific settings which can only be loaded from YAML files such as global `config.yaml` and local `pnpm-workspace.yaml`.
+
+- 2b14c74: The `validateWorkspaceManifest` function is now exported and can be used to validate whether a workspace manifest object's schema is correct.
+
+### Patch Changes
+
+- Updated dependencies [c55c614]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [491a84f]
+- Updated dependencies [075aa99]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [831f574]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+  - @pnpm/constants@1002.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/error@1001.0.0
+
 ## 1000.2.5
 
 ### Patch Changes

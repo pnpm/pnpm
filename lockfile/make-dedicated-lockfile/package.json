@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.make-dedicated-lockfile",
-  "version": "1000.0.28",
+  "version": "1100.0.0",
   "description": "Creates a dedicated lockfile for a subset of workspace projects",
   "keywords": [
     "pnpm",

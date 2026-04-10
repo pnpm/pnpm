@@ -1,5 +1,53 @@
 # @pnpm/lockfile.verification
 
+## 1002.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Patch Changes
+
+- 521e4a6: Fix headless install not being used when a project has an injected self-referencing `file:` dependency that resolves to `link:` in the lockfile.
+- 69ebe38: Properly throw a frozen lockfile error when changing catalogs defined in `pnpm-workspace.yaml` and running `pnpm install --frozen-lockfile`. This previously passed silently as reported in [#9369](https://github.com/pnpm/pnpm/issues/9369).
+- Updated dependencies [5f73b0f]
+- Updated dependencies [facdd71]
+- Updated dependencies [9b0a460]
+- Updated dependencies [5d130c3]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [606f53e]
+- Updated dependencies [491a84f]
+- Updated dependencies [9eddabb]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [394d88c]
+- Updated dependencies [1e6de25]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [efb48dc]
+  - @pnpm/deps.path@1002.0.0
+  - @pnpm/resolving.resolver-base@1006.0.0
+  - @pnpm/installing.context@1002.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/lockfile.types@1003.0.0
+  - @pnpm/lockfile.utils@1004.0.0
+  - @pnpm/pkg-manifest.reader@1001.0.0
+  - @pnpm/catalogs.types@1001.0.0
+  - @pnpm/crypto.hash@1001.0.0
+
 ## 1001.2.9
 
 ### Patch Changes

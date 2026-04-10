@@ -1,5 +1,76 @@
 # @pnpm/link-bins
 
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- efb48dc: **Node.js Runtime Installation for Dependencies.** Added support for automatic Node.js runtime installation for dependencies. pnpm will now install the Node.js version required by a dependency if that dependency declares a Node.js runtime in the "engines" field. For example:
+
+  ```json
+  {
+    "engines": {
+      "runtime": {
+        "name": "node",
+        "version": "^24.11.0",
+        "onFail": "download"
+      }
+    }
+  }
+  ```
+
+  If the package with the Node.js runtime dependency is a CLI app, pnpm will bind the CLI app to the required Node.js version. This ensures that, regardless of the globally installed Node.js instance, the CLI will use the compatible version of Node.js.
+
+  If the package has a `postinstall` script, that script will be executed using the specified Node.js version.
+
+  Related PR: [#10141](https://github.com/pnpm/pnpm/pull/10141)
+
+### Patch Changes
+
+- 449dacf: Added `BIN_OWNER_OVERRIDES` and `pkgOwnsBin` to `@pnpm/bins.resolver`. Applied in bins.linker conflict resolution for consistent behavior between global conflict checking and actual bin linking, so packages like `npm` get priority for bins like `npx` even in non-global installs [#10850](https://github.com/pnpm/pnpm/issues/10850).
+
+  Removed the redundant `ownName` field from `CommandInfo` since `pkgOwnsBin` already handles the `binName === pkgName` case.
+
+- 62f760e: Fixed intermittent failures when multiple `pnpm dlx` calls run concurrently for the same package. When the global virtual store is enabled, the importer now verifies file content before skipping a rename, avoiding destructive swap-renames that break concurrent processes. Also tolerates EPERM during bin creation on Windows and properly propagates `enableGlobalVirtualStore` through the install pipeline.
+- 6e9cad3: Fixed `EEXIST` error when globally installing `node` while a dangling symlink exists from a previous installation.
+- cb228c9: Fixed "input line too long" error on Windows when running lifecycle scripts with the global virtual store enabled. The `NODE_PATH` in command shims no longer includes all paths from `Module._nodeModulePaths()`. Instead, it includes only the package's bundled dependencies directory (e.g., `.pnpm/pkg@version/node_modules/pkg/node_modules`), the package's sibling dependencies directory (e.g., `.pnpm/pkg@version/node_modules`), and the hoisted `node_modules` directory. These paths are needed so that tools like `import-local` (used by jest, eslint, etc.) which resolve from CWD can find the correct dependency versions [#10673](https://github.com/pnpm/pnpm/pull/10673).
+- f40177f: Skip linking bins that already reference the correct target. This avoids redundant I/O during repeated installs and prevents permission errors when the store is read-only (e.g. Docker layer caching, CI prewarm, NFS). Bins that reference a stale or incorrect target are still rewritten.
+- Updated dependencies [449dacf]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [efb48dc]
+- Updated dependencies [491a84f]
+- Updated dependencies [13855ac]
+- Updated dependencies [d7b8be4]
+- Updated dependencies [98a5f1c]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [cee1f58]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [831f574]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+- Updated dependencies [efb48dc]
+  - @pnpm/bins.resolver@1001.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/pkg-manifest.utils@1002.0.0
+  - @pnpm/workspace.project-manifest-reader@1002.0.0
+  - @pnpm/pkg-manifest.reader@1001.0.0
+  - @pnpm/fs.read-modules-dir@1001.0.0
+  - @pnpm/error@1001.0.0
+
 ## 1000.2.6
 
 ### Patch Changes

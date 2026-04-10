@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exec.pnpm-cli-runner",
-  "version": "1000.0.1",
+  "version": "1100.0.0",
   "description": "Runs pnpm CLI",
   "keywords": [
     "pnpm",

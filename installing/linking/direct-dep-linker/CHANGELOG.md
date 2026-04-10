@@ -1,5 +1,20 @@
 # @pnpm/pkg-manager.direct-dep-linker
 
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Patch Changes
+
+- Updated dependencies [491a84f]
+- Updated dependencies [7d2fd48]
+  - @pnpm/fs.symlink-dependency@1001.0.0
+  - @pnpm/core-loggers@1002.0.0
+  - @pnpm/fs.read-modules-dir@1001.0.0
+
 ## 1000.0.12
 
 ### Patch Changes

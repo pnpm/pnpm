@@ -1,5 +1,53 @@
 # @pnpm/workspace.pkgs-graph
 
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Patch Changes
+
+- Updated dependencies [facdd71]
+- Updated dependencies [a297ebc]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [831f574]
+- Updated dependencies [0e9c559]
+- Updated dependencies [19f36cf]
+- Updated dependencies [491a84f]
+- Updated dependencies [61cad0c]
+- Updated dependencies [19f36cf]
+- Updated dependencies [143ca78]
+- Updated dependencies [6f361aa]
+- Updated dependencies [0625e20]
+- Updated dependencies [938ea1f]
+- Updated dependencies [2cb0657]
+- Updated dependencies [bb8baa7]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [144ce0e]
+- Updated dependencies [efb48dc]
+- Updated dependencies [56a59df]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [ba70035]
+- Updated dependencies [3585d9a]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [6557dc0]
+- Updated dependencies [efb48dc]
+  - @pnpm/resolving.npm-resolver@1005.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/workspace.range-resolver@1001.0.0
+
 ## 1000.0.25
 
 ### Patch Changes

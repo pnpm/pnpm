@@ -1,5 +1,152 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1002.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+- 71de2b3: Removed support for the `useNodeVersion` and `executionEnv.nodeVersion` fields. `devEngines.runtime` and `engines.runtime` should be used instead [#10373](https://github.com/pnpm/pnpm/pull/10373).
+
+### Minor Changes
+
+- f3cd9f7: Add timeout & retry options to `pnpm dlx` / `pnpx`
+- 8eee416: The `pnpm dlx` / `pnpx` command now supports the `catalog:` protocol. Example: `pnpm dlx shx@catalog:`.
+- fd511e4: Isolated global packages. Each globally installed package (or group of packages installed together) now gets its own isolated installation directory with its own `package.json`, `node_modules/`, and lockfile. This prevents global packages from interfering with each other through peer dependency conflicts, hoisting changes, or version resolution shifts.
+
+  Key changes:
+
+  - `pnpm add -g <pkg>` creates an isolated installation in `{pnpmHomeDir}/global/v11/{hash}/`
+  - `pnpm remove -g <pkg>` removes the entire installation group containing the package
+  - `pnpm update -g [pkg]` re-installs packages in new isolated directories
+  - `pnpm list -g` scans isolated directories to show all installed global packages
+  - `pnpm install -g` (no args) is no longer supported; use `pnpm add -g <pkg>` instead
+
+- 0407e36: Added support for hidden scripts. Scripts starting with `.` are hidden and cannot be run directly via `pnpm run`. They can only be called from other scripts. Hidden scripts are also omitted from the `pnpm run` listing.
+- 10bc391: Added a new setting: `trustPolicy`.
+
+### Patch Changes
+
+- fa5ff08: Fixed `minimumReleaseAgeExclude` not being respected by `pnpm dlx` [#10338](https://github.com/pnpm/pnpm/issues/10338).
+- 62f760e: Fixed intermittent failures when multiple `pnpm dlx` calls run concurrently for the same package. When the global virtual store is enabled, the importer now verifies file content before skipping a rename, avoiding destructive swap-renames that break concurrent processes. Also tolerates EPERM during bin creation on Windows and properly propagates `enableGlobalVirtualStore` through the install pipeline.
+- 61f9490: Handle non-TTY environments correctly when using `verifyDepsBeforeRun: prompt`.
+
+  Previously, in non-interactive environments like CI, using `verifyDepsBeforeRun: prompt` would silently exit with code 0 even when node_modules were out of sync. This could cause tests to pass even when they should fail.
+
+  Now, pnpm will throw an error in non-TTY environments, alerting users that they need to run `pnpm install` first.
+
+  Also handles Ctrl+C gracefully during the prompt - exits cleanly without showing a stack trace.
+
+  Fixes #10889, #10888
+
+- 46de860: `pnpm run -r` and `pnpm run --filter` now fail with a non-zero exit code when no packages have the specified script. Previously, this only failed when all packages were selected. Use `--if-present` to suppress this error [#6844](https://github.com/pnpm/pnpm/issues/6844).
+- e9318ce: Fixed false "Command not found" error on Windows when the command exists but exits with a non-zero exit code [#11000](https://github.com/pnpm/pnpm/issues/11000).
+- e4d08f9: When running "pnpm exec" from a subdirectory of a project, don't change the current working directory to the root of the project [#5759](https://github.com/pnpm/pnpm/issues/5759).
+- 095f659: It should be possible to declare the `requiredScripts` setting in `pnpm-workspace.yaml` [#10261](https://github.com/pnpm/pnpm/issues/10261).
+- f8367e8: Print help message on running pnpm dlx without arguments and exit.
+- Updated dependencies [e1ea779]
+- Updated dependencies [7730a7f]
+- Updated dependencies [449dacf]
+- Updated dependencies [996284f]
+- Updated dependencies [ae8b816]
+- Updated dependencies [facdd71]
+- Updated dependencies [4c6c26a]
+- Updated dependencies [3c72b6b]
+- Updated dependencies [9f5c0e3]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [90bd3c3]
+- Updated dependencies [1cc61e8]
+- Updated dependencies [606f53e]
+- Updated dependencies [c7203b9]
+- Updated dependencies [bb17724]
+- Updated dependencies [da2429d]
+- Updated dependencies [9065f49]
+- Updated dependencies [0b5ccc9]
+- Updated dependencies [1cc61e8]
+- Updated dependencies [491a84f]
+- Updated dependencies [13855ac]
+- Updated dependencies [f0ae1b9]
+- Updated dependencies [9fc552d]
+- Updated dependencies [312226c]
+- Updated dependencies [7fab2a2]
+- Updated dependencies [cb367b9]
+- Updated dependencies [543c7e4]
+- Updated dependencies [075aa99]
+- Updated dependencies [23eb4a6]
+- Updated dependencies [fd511e4]
+- Updated dependencies [ae43ac7]
+- Updated dependencies [d7b8be4]
+- Updated dependencies [ccec8e7]
+- Updated dependencies [98a5f1c]
+- Updated dependencies [fd511e4]
+- Updated dependencies [fa5a5c6]
+- Updated dependencies [4158906]
+- Updated dependencies [ac944ef]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+- Updated dependencies [d5d4eed]
+- Updated dependencies [095f659]
+- Updated dependencies [96704a1]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [51b04c3]
+- Updated dependencies [2efb5d2]
+- Updated dependencies [69ebe38]
+- Updated dependencies [6f806be]
+- Updated dependencies [d01b81f]
+- Updated dependencies [3ed41f4]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [ace7903]
+- Updated dependencies [38b8e35]
+- Updated dependencies [831f574]
+- Updated dependencies [366cabe]
+- Updated dependencies [2df8b71]
+- Updated dependencies [ed1a7fe]
+- Updated dependencies [15549a9]
+- Updated dependencies [b51bb42]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [5bf7768]
+- Updated dependencies [ae43ac7]
+- Updated dependencies [a5fdbf9]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [efb48dc]
+- Updated dependencies [9587dac]
+- Updated dependencies [09a999a]
+- Updated dependencies [559f903]
+- Updated dependencies [3574905]
+- Updated dependencies [f871365]
+  - @pnpm/cli.common-cli-options-help@1001.0.0
+  - @pnpm/config.reader@1005.0.0
+  - @pnpm/bins.resolver@1001.0.0
+  - @pnpm/installing.commands@1005.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/cli.utils@1002.0.0
+  - @pnpm/engine.runtime.commands@1000.0.0
+  - @pnpm/workspace.project-manifest-reader@1002.0.0
+  - @pnpm/resolving.parse-wanted-dependency@1002.0.0
+  - @pnpm/pkg-manifest.reader@1001.0.0
+  - @pnpm/workspace.injected-deps-syncer@1001.0.0
+  - @pnpm/workspace.projects-sorter@1001.0.0
+  - @pnpm/core-loggers@1002.0.0
+  - @pnpm/exec.pnpm-cli-runner@1001.0.0
+  - @pnpm/installing.client@1002.0.0
+  - @pnpm/catalogs.resolver@1001.0.0
+  - @pnpm/store.path@1001.0.0
+  - @pnpm/exec.lifecycle@1002.0.0
+  - @pnpm/error@1001.0.0
+  - @pnpm/cli.command@1001.0.0
+  - @pnpm/crypto.hash@1001.0.0
+  - @pnpm/deps.status@1004.0.0
+  - @pnpm/shell.path@1001.0.0
+  - @pnpm/config.version-policy@1000.0.1
+
 ## 1001.0.15
 
 ### Patch Changes

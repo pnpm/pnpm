@@ -1,5 +1,51 @@
 # @pnpm/fetch
 
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+- bb8baa7: Refactored `fullMetadata` option handling. The `fullMetadata` option is no longer accepted by `createFetchFromRegistry()` at construction time - it should only be passed at call time via the fetch options.
+- 6c480a4: Replace node-fetch with undici as the HTTP client [#10537](https://github.com/pnpm/pnpm/pull/10537).
+
+  - Use undici's native `fetch()` with dispatcher-based connection management
+  - Support HTTP, HTTPS, SOCKS4, and SOCKS5 proxies
+  - Cache dispatchers via LRU cache keyed by connection parameters
+  - Handle per-registry client certificates via nerf-dart URL matching
+  - Convert test HTTP mocking from nock to undici MockAgent
+
+### Minor Changes
+
+- 6b3d87a: Improved HTTP performance with Happy Eyeballs (dual-stack), better keep-alive settings, and an optimized global dispatcher. Tarball downloads with known size now pre-allocate memory to avoid double-copy overhead.
+
+### Patch Changes
+
+- 0dfa8b8: When the node-fetch request redirects an installation link and returns a relative path, URL parsing may fail [#10286](https://github.com/pnpm/pnpm/pull/10286).
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [491a84f]
+- Updated dependencies [bb8baa7]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [6c480a4]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [831f574]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+  - @pnpm/types@1001.0.0
+  - @pnpm/fetching.types@1001.0.0
+  - @pnpm/core-loggers@1002.0.0
+  - @pnpm/error@1001.0.0
+
 ## 1000.2.6
 
 ### Patch Changes

@@ -1,5 +1,27 @@
 # @pnpm/parse-cli-args
 
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+- b51bb42: Support lowercase options in `pnpm add`: `-d`, `-p`, `-o`, `-e` [#9197](https://github.com/pnpm/pnpm/issues/9197).
+
+  When using `pnpm add` command only:
+
+  - `-p` is now an alias for `--save-prod` instead of `--parseable`
+  - `-d` is now an alias for `--save-dev` instead of `--loglevel=info`
+
+### Patch Changes
+
+- Updated dependencies [491a84f]
+- Updated dependencies [e119c4e]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [831f574]
+  - @pnpm/workspace.root-finder@1001.0.0
+  - @pnpm/error@1001.0.0
+
 ## 1000.1.4
 
 ### Patch Changes

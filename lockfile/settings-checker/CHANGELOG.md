@@ -1,5 +1,33 @@
 # @pnpm/lockfile.settings-checker
 
+## 1002.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- 606f53e: Added a new `dedupePeers` setting that reduces peer dependency duplication. When enabled, peer dependency suffixes use version-only identifiers (`name@version`) instead of full dep paths, eliminating nested suffixes like `(foo@1.0.0(bar@2.0.0))`. This dramatically reduces the number of package instances in projects with many recursive peer dependencies [#11070](https://github.com/pnpm/pnpm/issues/11070).
+
+### Patch Changes
+
+- 69ebe38: Properly throw a frozen lockfile error when changing catalogs defined in `pnpm-workspace.yaml` and running `pnpm install --frozen-lockfile`. This previously passed silently as reported in [#9369](https://github.com/pnpm/pnpm/issues/9369).
+- Updated dependencies [a8f016c]
+- Updated dependencies [606f53e]
+- Updated dependencies [491a84f]
+- Updated dependencies [521e4a6]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [50fbeca]
+- Updated dependencies [69ebe38]
+- Updated dependencies [38b8e35]
+  - @pnpm/lockfile.types@1003.0.0
+  - @pnpm/config.parse-overrides@1002.0.0
+  - @pnpm/lockfile.verification@1002.0.0
+  - @pnpm/catalogs.types@1001.0.0
+  - @pnpm/crypto.hash@1001.0.0
+
 ## 1001.0.16
 
 ### Patch Changes

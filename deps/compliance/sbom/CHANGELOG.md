@@ -1,0 +1,41 @@
+# @pnpm/deps.compliance.sbom
+
+## 1000.0.0
+
+### Minor Changes
+
+- f92ac24: Added `pnpm sbom` command for generating Software Bill of Materials in CycloneDX 1.7 and SPDX 2.3 JSON formats [#9088](https://github.com/pnpm/pnpm/issues/9088).
+
+### Patch Changes
+
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [606f53e]
+- Updated dependencies [491a84f]
+- Updated dependencies [f92ac24]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [6f806be]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [394d88c]
+- Updated dependencies [b7f0f21]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+  - @pnpm/types@1001.0.0
+  - @pnpm/lockfile.types@1003.0.0
+  - @pnpm/lockfile.utils@1004.0.0
+  - @pnpm/pkg-manifest.reader@1001.0.0
+  - @pnpm/lockfile.detect-dep-types@1002.0.0
+  - @pnpm/lockfile.walker@1002.0.0
+  - @pnpm/store.pkg-finder@1000.0.0
+  - @pnpm/store.index@1000.0.0

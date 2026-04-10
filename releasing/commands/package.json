@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/releasing.commands",
-  "version": "1000.0.0",
+  "version": "1100.0.0",
   "description": "Commands for deploy, pack, and publish",
   "keywords": [
     "pnpm",

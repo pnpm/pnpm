@@ -1,5 +1,105 @@
 # @pnpm/default-resolver
 
+## 1003.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- ec7c5d7: Support plain `http://` and `https://` URLs ending with `.git` as git repository dependencies.
+
+  Previously, URLs like `https://gitea.example.org/user/repo.git#commit` were not recognized as git repositories because they lacked the `git+` prefix (e.g., `git+https://`). This caused issues when installing dependencies from self-hosted git servers like Gitea or Forgejo that don't provide tarball downloads.
+
+  Changes:
+
+  - The git resolver now runs before the tarball resolver, ensuring git URLs are handled by the correct resolver
+  - The git resolver now recognizes plain `http://` and `https://` URLs ending in `.git` as git repositories
+  - Removed the `isRepository` check from the tarball resolver since it's no longer needed with the new resolver order
+
+  Fixes #10468
+
+- 96704a1: Renamed `rawConfig` to `authConfig` on the `Config` interface. This field now only contains auth/registry data from `.npmrc` files. Non-auth settings are no longer written to it.
+
+  Added `nodeDownloadMirrors` setting to configure custom Node.js download mirrors in `pnpm-workspace.yaml`:
+
+  ```yaml
+  nodeDownloadMirrors:
+    release: https://my-mirror.example.com/download/release/
+    nightly: https://my-mirror.example.com/download/nightly/
+  ```
+
+  Replaced `rawConfig: object` with `userAgent?: string` in lifecycle hook options. Removed unused `rawConfig` from fetcher and prepare-package options.
+
+  Removed support for the npm `init-module` setting. Custom init scripts via `.pnpm-init.js` are no longer executed by `pnpm init`.
+
+- 38b8e35: Support for custom resolvers and fetchers.
+
+### Patch Changes
+
+- Updated dependencies [facdd71]
+- Updated dependencies [9b0a460]
+- Updated dependencies [a297ebc]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [831f574]
+- Updated dependencies [0e9c559]
+- Updated dependencies [19f36cf]
+- Updated dependencies [491a84f]
+- Updated dependencies [01760da]
+- Updated dependencies [ec7c5d7]
+- Updated dependencies [61cad0c]
+- Updated dependencies [19f36cf]
+- Updated dependencies [c5fbdde]
+- Updated dependencies [23eb4a6]
+- Updated dependencies [143ca78]
+- Updated dependencies [6f361aa]
+- Updated dependencies [0625e20]
+- Updated dependencies [938ea1f]
+- Updated dependencies [9065f49]
+- Updated dependencies [2cb0657]
+- Updated dependencies [bb8baa7]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [144ce0e]
+- Updated dependencies [efb48dc]
+- Updated dependencies [56a59df]
+- Updated dependencies [96704a1]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [6c480a4]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [499ef22]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [ba70035]
+- Updated dependencies [3585d9a]
+- Updated dependencies [38b8e35]
+- Updated dependencies [831f574]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [e0f0a7d]
+- Updated dependencies [6557dc0]
+- Updated dependencies [efb48dc]
+  - @pnpm/resolving.resolver-base@1006.0.0
+  - @pnpm/resolving.npm-resolver@1005.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/resolving.tarball-resolver@1003.0.0
+  - @pnpm/resolving.local-resolver@1003.0.0
+  - @pnpm/engine.runtime.deno-resolver@1003.0.0
+  - @pnpm/fetching.types@1001.0.0
+  - @pnpm/engine.runtime.bun-resolver@1003.0.0
+  - @pnpm/resolving.git-resolver@1002.0.0
+  - @pnpm/engine.runtime.node-resolver@1002.0.0
+  - @pnpm/error@1001.0.0
+  - @pnpm/hooks.types@1002.0.0
+
 ## 1002.2.12
 
 ### Patch Changes

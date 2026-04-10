@@ -1,5 +1,20 @@
 # @pnpm/find-workspace-dir
 
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Patch Changes
+
+- e119c4e: Throw an error message if a `.pnpm-workspace.yaml` or `.pnpm-workspace.yml` file is found instead of a `pnpm-workspace.yaml`.
+- Updated dependencies [491a84f]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [831f574]
+  - @pnpm/error@1001.0.0
+
 ## 1000.1.3
 
 ### Patch Changes

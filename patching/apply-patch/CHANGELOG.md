@@ -1,5 +1,22 @@
 # @pnpm/patching.apply-patch
 
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+- 7b1c189: Removed the deprecated `allowNonAppliedPatches` completely in favor of `allowUnusedPatches`.
+  Remove `ignorePatchFailures` so all patch application failures should throw an error.
+
+### Patch Changes
+
+- a0e3a21: Import `@pnpm/patch-package/dist/applyPatches` using `.js` extension for ESM compatibility. This fixes an `ERR_MODULE_NOT_FOUND` error.
+- Updated dependencies [491a84f]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [831f574]
+  - @pnpm/error@1001.0.0
+
 ## 1000.0.7
 
 ### Patch Changes

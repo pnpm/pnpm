@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.commands",
-  "version": "1000.2.19",
+  "version": "1100.0.0",
   "description": "Create a package.json file",
   "keywords": [
     "pnpm",

@@ -1,5 +1,64 @@
 # @pnpm/read-project-manifest
 
+## 1002.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- efb48dc: **Node.js Runtime Installation for Dependencies.** Added support for automatic Node.js runtime installation for dependencies. pnpm will now install the Node.js version required by a dependency if that dependency declares a Node.js runtime in the "engines" field. For example:
+
+  ```json
+  {
+    "engines": {
+      "runtime": {
+        "name": "node",
+        "version": "^24.11.0",
+        "onFail": "download"
+      }
+    }
+  }
+  ```
+
+  If the package with the Node.js runtime dependency is a CLI app, pnpm will bind the CLI app to the required Node.js version. This ensures that, regardless of the globally installed Node.js instance, the CLI will use the compatible version of Node.js.
+
+  If the package has a `postinstall` script, that script will be executed using the specified Node.js version.
+
+  Related PR: [#10141](https://github.com/pnpm/pnpm/pull/10141)
+
+### Patch Changes
+
+- 98a5f1c: Node.js runtime is not added to "dependencies" on `pnpm add`, if there's a `engines.runtime` setting declared in `package.json` [#10209](https://github.com/pnpm/pnpm/issues/10209).
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [efb48dc]
+- Updated dependencies [491a84f]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [cee1f58]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [831f574]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+- Updated dependencies [efb48dc]
+  - @pnpm/types@1001.0.0
+  - @pnpm/pkg-manifest.utils@1002.0.0
+  - @pnpm/workspace.project-manifest-writer@1001.0.0
+  - @pnpm/text.comments-parser@1001.0.0
+  - @pnpm/fs.graceful-fs@1001.0.0
+  - @pnpm/error@1001.0.0
+
 ## 1001.1.4
 
 ### Patch Changes

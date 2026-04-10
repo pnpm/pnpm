@@ -1,5 +1,59 @@
 # @pnpm/audit
 
+## 1003.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- 6d56db2: The `pnpm audit` command now also audits dependencies from `pnpm-lock.yaml`, including `configDependencies` and `packageManagerDependencies` along with their transitive dependencies.
+
+### Patch Changes
+
+- 315cae8: Use the `/-/npm/v1/security/audits/quick` endpoint as the primary audit endpoint, falling back to `/-/npm/v1/security/audits` when it fails [#10649](https://github.com/pnpm/pnpm/issues/10649).
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [606f53e]
+- Updated dependencies [491a84f]
+- Updated dependencies [0dfa8b8]
+- Updated dependencies [98a5f1c]
+- Updated dependencies [bb8baa7]
+- Updated dependencies [d458ab3]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [50fbeca]
+- Updated dependencies [bb8baa7]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [6c480a4]
+- Updated dependencies [6f806be]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [394d88c]
+- Updated dependencies [831f574]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+- Updated dependencies [6b3d87a]
+  - @pnpm/types@1001.0.0
+  - @pnpm/lockfile.fs@1002.0.0
+  - @pnpm/lockfile.types@1003.0.0
+  - @pnpm/lockfile.utils@1004.0.0
+  - @pnpm/workspace.project-manifest-reader@1002.0.0
+  - @pnpm/lockfile.detect-dep-types@1002.0.0
+  - @pnpm/fetching.types@1001.0.0
+  - @pnpm/lockfile.walker@1002.0.0
+  - @pnpm/error@1001.0.0
+  - @pnpm/network.fetch@1001.0.0
+
 ## 1002.0.14
 
 ### Patch Changes

@@ -1,5 +1,64 @@
 # @pnpm/worker
 
+## 1001.0.0
+
+### Major Changes
+
+- e2e0a32: Optimized index file format to store the hash algorithm once per file instead of repeating it for every file entry. Each file entry now stores only the hex digest instead of the full integrity string (`<algo>-<digest>`). Using hex format improves performance since file paths in the content-addressable store use hex representation, eliminating base64-to-hex conversion during path lookups.
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+- 56a59df: Store the bundled manifest (name, version, bin, engines, scripts, etc.) directly in the package index file, eliminating the need to read `package.json` from the content-addressable store during resolution and installation. This reduces I/O and speeds up repeat installs [#10473](https://github.com/pnpm/pnpm/pull/10473).
+
+### Minor Changes
+
+- 3bf5e21: Added a way to append a manifest to a package with no package.json file.
+- 4893853: Increase the network concurrency on machines with many CPU cores. We pick a network concurrency that is not less than 16 and not more than 64 and it is calculated by the number of pnpm workers multiplied by 3 [#10068](https://github.com/pnpm/pnpm/issues/10068).
+- b7f0f21: Use SQLite for storing package index in the content-addressable store. Instead of individual `.mpk` files under `$STORE/index/`, package metadata is now stored in a single SQLite database at `$STORE/index.db`. This reduces filesystem syscall overhead, improves space efficiency for small metadata entries, and enables concurrent access via SQLite's WAL mode. Packages missing from the new index are re-fetched on demand [#10826](https://github.com/pnpm/pnpm/issues/10826).
+- 98a0410: Compute integrity hash for HTTP tarball dependencies when fetching, storing it in the lockfile to prevent servers from serving altered content on subsequent installs [#10287](https://github.com/pnpm/pnpm/pull/10287).
+
+### Patch Changes
+
+- 7cec347: `WMIC` has been deprecated and replaced by PowerShell commands.
+- 50fbeca: fix: preserve bundled `node_modules` from Node.js Windows zip so that npm/npx shims are created correctly on Windows.
+
+  The Windows Node.js distribution places npm inside a root-level `node_modules/` directory of the zip archive. `addFilesFromDir` was skipping root-level `node_modules` (to avoid treating a package's own npm dependencies as part of its content), which caused the bundled npm to be missing after installation. This prevented `pnpm env use` from creating the npm and npx shims on Windows.
+
+  Added an `includeNodeModules` option to `addFilesFromDir` and set it to `true` in the binary fetcher so that the complete Node.js distribution, including its bundled npm, is preserved.
+
+- ee9fe58: Skip the staging directory when importing packages into `node_modules`. This avoids the overhead of creating a temp dir and renaming per package. Falls back to the atomic staging path on error.
+
+  Packages that lack a `package.json` now get a synthetic empty one added to the store so that `package.json` can serve as a universal completion marker for the importer.
+
+- 780af09: Fix inconsistent store structure due to race condition.
+- Updated dependencies [e2e0a32]
+- Updated dependencies [2a50b89]
+- Updated dependencies [2fccb03]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [491a84f]
+- Updated dependencies [6656baa]
+- Updated dependencies [2ea6463]
+- Updated dependencies [50fbeca]
+- Updated dependencies [caabba4]
+- Updated dependencies [0fd53e1]
+- Updated dependencies [878a773]
+- Updated dependencies [f8e6774]
+- Updated dependencies [e2e0a32]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [56a59df]
+- Updated dependencies [b09722f]
+- Updated dependencies [b7f0f21]
+- Updated dependencies [831f574]
+  - @pnpm/store.cafs-types@1001.0.0
+  - @pnpm/store.cafs@1001.0.0
+  - @pnpm/fs.hard-link-dir@1001.0.0
+  - @pnpm/building.pkg-requires-build@1000.0.0
+  - @pnpm/store.create-cafs-store@1001.0.0
+  - @pnpm/fs.symlink-dependency@1001.0.0
+  - @pnpm/fs.graceful-fs@1001.0.0
+  - @pnpm/error@1001.0.0
+  - @pnpm/crypto.integrity@1100.0.0
+  - @pnpm/store.index@1000.0.0
+
 ## 1000.3.0
 
 ### Minor Changes

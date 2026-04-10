@@ -1,5 +1,229 @@
 # @pnpm/core
 
+## 1013.0.0
+
+### Major Changes
+
+- 5f73b0f: Runtime dependencies are always linked from the global virtual store [#10233](https://github.com/pnpm/pnpm/pull/10233).
+- 05fb1ae: `ignoreBuilds` is now a set of DepPath.
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+- cb367b9: Remove deprecated build dependency settings: `onlyBuiltDependencies`, `onlyBuiltDependenciesFile`, `neverBuiltDependencies`, and `ignoredBuiltDependencies`.
+- 7b1c189: Removed the deprecated `allowNonAppliedPatches` completely in favor of `allowUnusedPatches`.
+  Remove `ignorePatchFailures` so all patch application failures should throw an error.
+- 71de2b3: Removed support for the `useNodeVersion` and `executionEnv.nodeVersion` fields. `devEngines.runtime` and `engines.runtime` should be used instead [#10373](https://github.com/pnpm/pnpm/pull/10373).
+
+### Minor Changes
+
+- ae8b816: Added a new setting `blockExoticSubdeps` that prevents the resolution of exotic protocols in transitive dependencies.
+
+  When set to `true`, direct dependencies (those listed in your root `package.json`) may still use exotic sources, but all transitive dependencies must be resolved from a trusted source. Trusted sources include the configured registry, local file paths, workspace links, trusted GitHub repositories (node, bun, deno), and custom resolvers.
+
+  This helps to secure the dependency supply chain. Packages from trusted sources are considered safer, as they are typically subject to more reliable verification and scanning for malware and vulnerabilities.
+
+  **Exotic sources** are dependency locations that bypass the usual trusted resolution process. These protocols are specifically targeted and blocked: Git repositories (`git+ssh://...`) and direct URL links to tarballs (`https://.../package.tgz`).
+
+  Related PR: [#10265](https://github.com/pnpm/pnpm/pull/10265).
+
+- facdd71: Adding `trustPolicyIgnoreAfter` allows you to ignore trust policy checks for packages published more than a specified time ago[#10352](https://github.com/pnpm/pnpm/issues/10352).
+- 606f53e: Added a new `dedupePeers` setting that reduces peer dependency duplication. When enabled, peer dependency suffixes use version-only identifiers (`name@version`) instead of full dep paths, eliminating nested suffixes like `(foo@1.0.0(bar@2.0.0))`. This dramatically reduces the number of package instances in projects with many recursive peer dependencies [#11070](https://github.com/pnpm/pnpm/issues/11070).
+- 10bc391: Added a new setting: `trustPolicy`.
+- 38b8e35: Support for custom resolvers and fetchers.
+- 15549a9: Add the ability to fix vulnerabilities by updating packages in the lockfile instead of adding overrides.
+- 5bf7768: A new `--yes` flag can be passed to pnpm to automatically confirm prompts. This is useful when running pnpm in non-interactive script.
+- 9d3f00b: Added support for `trustPolicyExclude` [#10164](https://github.com/pnpm/pnpm/issues/10164).
+
+  You can now list one or more specific packages or versions that pnpm should allow to install, even if those packages don't satisfy the trust policy requirement. For example:
+
+  ```yaml
+  trustPolicy: no-downgrade
+  trustPolicyExclude:
+    - chokidar@4.0.3
+    - webpack@4.47.0 || 5.102.1
+  ```
+
+- 09a999a: Added a new setting `virtualStoreOnly` that populates the virtual store without creating importer symlinks, hoisting, bin links, or running lifecycle scripts. This is useful for pre-populating a store (e.g., in Nix builds) without creating unnecessary project-level artifacts. `pnpm fetch` now uses this mode internally [#10840](https://github.com/pnpm/pnpm/issues/10840).
+
+### Patch Changes
+
+- 996284f: Allow `pnpm approve-builds` to receive positional arguments for approving or denying packages without the interactive prompt. Prefix a package name with `!` to deny it. Only mentioned packages are affected; the rest are left untouched.
+
+  During install, packages with ignored builds that are not yet listed in `allowBuilds` are automatically added with a placeholder value. This makes them visible in `pnpm-workspace.yaml` so users can manually change them to `true` or `false` without running `pnpm approve-builds`.
+
+- 9b0a460: Fixed a resolution bug that could cause `pnpm dedupe --check` to fail unexpectedly.
+
+  When adding new dependencies to `package.json`, pnpm generally reuses existing versions in the `pnpm-lock.yaml` if they are satisfied by the version range specifier. There was an edge case where pnpm would instead resolve to a newly released version of a dependency. This is particularly problematic for `pnpm dedupe --check`, since a new version of a dependency published to the NPM registry could cause this check to suddenly fail. For details of this bug, see [#10626](https://github.com/pnpm/pnpm/issues/10626). This bug has been fixed.
+
+  The fix necessitated a behavioral change: In some cases, pnpm was previously able to automatically dedupe a newly used dependency deep in the dependency graph without needing to run `pnpm dedupe`. This behavior was supported by the non-determinism that is now corrected. We believe fixing this non-determinism is more important than preserving an automatic dedupe heuristic that didn't handle all cases. The `pnpm dedupe` command can still be used to clean up dependencies that aren't automatically deduped on `pnpm install`.
+
+- 9b801c8: Fixed `strictDepBuilds` and `allowBuilds` checks being bypassed when a package's build side-effects are cached in the store. Packages with cached builds were skipped by `buildModules` (`isBuilt: true`) and never reached the `allowBuild` check. Now checks `allowBuild` for all packages with `requiresBuild` regardless of `isBuilt` state. Also detects packages whose build approval was revoked between installs.
+- 62f760e: Fixed intermittent failures when multiple `pnpm dlx` calls run concurrently for the same package. When the global virtual store is enabled, the importer now verifies file content before skipping a rename, avoiding destructive swap-renames that break concurrent processes. Also tolerates EPERM during bin creation on Windows and properly propagates `enableGlobalVirtualStore` through the install pipeline.
+- 9fc552d: In GVS mode, `pnpm approve-builds` now runs a full install instead of rebuild. This ensures that GVS hash directories and symlinks are updated correctly after changing `allowBuilds`, preventing build artifact contamination of engine-agnostic directories [#11042](https://github.com/pnpm/pnpm/issues/11042).
+- 394d88c: Fixed injected local packages to work correctly with the global virtual store [#10366](https://github.com/pnpm/pnpm/pull/10366).
+
+  When using `nodeLinker: 'isolated'` with `enableGlobalVirtualStore: true`, injected workspace packages now use the correct hash-based paths from the global virtual store instead of project-relative paths.
+
+- 672e58c: Improve the non-interactive modules purge error hint to include the `confirmModulesPurge=false` workaround.
+
+  When pnpm needs to recreate `node_modules` but no TTY is available, the error now suggests either setting `CI=true` or disabling the purge confirmation prompt via `confirmModulesPurge=false`.
+
+  Adds a regression test for the non-TTY flow.
+
+- 312226c: Skip local `file:` protocol dependencies during `pnpm fetch`. This fixes an issue where `pnpm fetch` would fail in Docker builds when local directory dependencies were not available [#10460](https://github.com/pnpm/pnpm/issues/10460).
+- 2fc9139: Fix workspace package protocol consistency when using `injectWorkspacePackages`
+
+  Previously, workspace packages would inconsistently switch between `link:` and `file:` protocols after operations like `pnpm rm` when `injectWorkspacePackages` was enabled. The issue was that deduplication logic couldn't identify workspace packages in single-package operation contexts.
+
+  This fix ensures workspace packages maintain consistent protocols by checking against all workspace packages from the lockfile, not just packages in the current operation context.
+
+  Fixes #9518
+
+- ba065f6: Block git-hosted dependencies from running prepare scripts unless explicitly allowed in onlyBuiltDependencies [#10288](https://github.com/pnpm/pnpm/pull/10288).
+- 69ebe38: Properly throw a frozen lockfile error when changing catalogs defined in `pnpm-workspace.yaml` and running `pnpm install --frozen-lockfile`. This previously passed silently as reported in [#9369](https://github.com/pnpm/pnpm/issues/9369).
+- 05158d2: Fix the comparison of current and previous hoistPattern and publicHoistPattern values.
+- 41dc031: The `resolutionMode` option for `mutateModules` now defaults to `highest` to match the default in `@pnpm/config`. It previously defaulted to `lowest-direct`.
+- 4362c06: `pnpm install` should build any dependencies that were added to `onlyBuiltDependencies` and were not built yet [#10256](https://github.com/pnpm/pnpm/pull/10256).
+- Updated dependencies [ac4c9f4]
+- Updated dependencies [5f73b0f]
+- Updated dependencies [449dacf]
+- Updated dependencies [996284f]
+- Updated dependencies [ae8b816]
+- Updated dependencies [f98a2db]
+- Updated dependencies [facdd71]
+- Updated dependencies [394d88c]
+- Updated dependencies [e2e0a32]
+- Updated dependencies [c55c614]
+- Updated dependencies [9b0a460]
+- Updated dependencies [5d130c3]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [7cec347]
+- Updated dependencies [3cfffaa]
+- Updated dependencies [606f53e]
+- Updated dependencies [e46a652]
+- Updated dependencies [2fccb03]
+- Updated dependencies [82f4610]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [cd743ef]
+- Updated dependencies [efb48dc]
+- Updated dependencies [efb48dc]
+- Updated dependencies [19f36cf]
+- Updated dependencies [491a84f]
+- Updated dependencies [9b801c8]
+- Updated dependencies [94571fb]
+- Updated dependencies [62f760e]
+- Updated dependencies [9fc552d]
+- Updated dependencies [521e4a6]
+- Updated dependencies [54c4fc4]
+- Updated dependencies [394d88c]
+- Updated dependencies [6e9cad3]
+- Updated dependencies [e73da5e]
+- Updated dependencies [312226c]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb228c9]
+- Updated dependencies [2fc9139]
+- Updated dependencies [56a59df]
+- Updated dependencies [9eddabb]
+- Updated dependencies [075aa99]
+- Updated dependencies [c4045fc]
+- Updated dependencies [98a5f1c]
+- Updated dependencies [ba065f6]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [2b81a4f]
+- Updated dependencies [83fe533]
+- Updated dependencies [bb8baa7]
+- Updated dependencies [ee9fe58]
+- Updated dependencies [d458ab3]
+- Updated dependencies [021f70d]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [56a59df]
+- Updated dependencies [780af09]
+- Updated dependencies [96704a1]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [69ebe38]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [cee1f58]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [f40177f]
+- Updated dependencies [615bd24]
+- Updated dependencies [05158d2]
+- Updated dependencies [71de2b3]
+- Updated dependencies [4893853]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [394d88c]
+- Updated dependencies [b7f0f21]
+- Updated dependencies [1e6de25]
+- Updated dependencies [831f574]
+- Updated dependencies [366cabe]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [3cfffaa]
+- Updated dependencies [4f3ad23]
+- Updated dependencies [7354e6b]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [98a0410]
+- Updated dependencies [efb48dc]
+- Updated dependencies [efb48dc]
+- Updated dependencies [09a999a]
+- Updated dependencies [56a59df]
+- Updated dependencies [f871365]
+- Updated dependencies [4362c06]
+  - @pnpm/installing.deps-restorer@1007.0.0
+  - @pnpm/installing.deps-resolver@1009.0.0
+  - @pnpm/deps.path@1002.0.0
+  - @pnpm/deps.graph-hasher@1003.0.0
+  - @pnpm/bins.linker@1001.0.0
+  - @pnpm/building.after-install@1000.0.0
+  - @pnpm/installing.package-requester@1009.0.0
+  - @pnpm/store.controller-types@1005.0.0
+  - @pnpm/resolving.resolver-base@1006.0.0
+  - @pnpm/worker@1001.0.0
+  - @pnpm/constants@1002.0.0
+  - @pnpm/lockfile.preferred-versions@1001.0.0
+  - @pnpm/installing.context@1002.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/lockfile.fs@1002.0.0
+  - @pnpm/lockfile.utils@1004.0.0
+  - @pnpm/installing.modules-yaml@1001.0.0
+  - @pnpm/lockfile.settings-checker@1002.0.0
+  - @pnpm/building.during-install@1000.0.0
+  - @pnpm/building.policy@1000.0.0
+  - @pnpm/pkg-manifest.utils@1002.0.0
+  - @pnpm/workspace.project-manifest-reader@1002.0.0
+  - @pnpm/resolving.parse-wanted-dependency@1002.0.0
+  - @pnpm/installing.linking.direct-dep-linker@1001.0.0
+  - @pnpm/config.normalize-registries@1001.0.0
+  - @pnpm/installing.linking.modules-cleaner@1002.0.0
+  - @pnpm/catalogs.protocol-parser@1002.0.0
+  - @pnpm/lockfile.to-pnp@1002.0.0
+  - @pnpm/hooks.read-package-hook@1001.0.0
+  - @pnpm/bins.remover@1001.0.0
+  - @pnpm/config.parse-overrides@1002.0.0
+  - @pnpm/fs.symlink-dependency@1001.0.0
+  - @pnpm/lockfile.verification@1002.0.0
+  - @pnpm/core-loggers@1002.0.0
+  - @pnpm/crypto.object-hasher@1001.0.0
+  - @pnpm/deps.graph-sequencer@1001.0.0
+  - @pnpm/fs.read-modules-dir@1001.0.0
+  - @pnpm/lockfile.filtering@1002.0.0
+  - @pnpm/catalogs.resolver@1001.0.0
+  - @pnpm/installing.linking.hoist@1003.0.0
+  - @pnpm/lockfile.pruner@1002.0.0
+  - @pnpm/lockfile.walker@1002.0.0
+  - @pnpm/patching.config@1002.0.0
+  - @pnpm/catalogs.types@1001.0.0
+  - @pnpm/config.matcher@1001.0.0
+  - @pnpm/exec.lifecycle@1002.0.0
+  - @pnpm/error@1001.0.0
+  - @pnpm/crypto.hash@1001.0.0
+  - @pnpm/hooks.types@1002.0.0
+
 ## 1012.0.1
 
 ### Patch Changes

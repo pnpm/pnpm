@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fs.symlink-dependency",
-  "version": "1000.0.12",
+  "version": "1100.0.0",
   "description": "Symlink a dependency to node_modules",
   "keywords": [
     "pnpm",

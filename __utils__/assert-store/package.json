@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/assert-store",
   "description": "Utils for testing pnpm store",
-  "version": "1000.0.3",
+  "version": "1100.0.0",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

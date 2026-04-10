@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fs.is-empty-dir-or-nothing",
-  "version": "1000.0.0",
+  "version": "1100.0.0",
   "description": "Checks if a path is empty (Not a file or directory with content)",
   "keywords": [
     "pnpm",

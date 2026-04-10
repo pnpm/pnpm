@@ -1,5 +1,78 @@
 # @pnpm/tarball-fetcher
 
+## 1004.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- 3bf5e21: Added a way to append a manifest to a package with no package.json file.
+- 96704a1: Renamed `rawConfig` to `authConfig` on the `Config` interface. This field now only contains auth/registry data from `.npmrc` files. Non-auth settings are no longer written to it.
+
+  Added `nodeDownloadMirrors` setting to configure custom Node.js download mirrors in `pnpm-workspace.yaml`:
+
+  ```yaml
+  nodeDownloadMirrors:
+    release: https://my-mirror.example.com/download/release/
+    nightly: https://my-mirror.example.com/download/nightly/
+  ```
+
+  Replaced `rawConfig: object` with `userAgent?: string` in lifecycle hook options. Removed unused `rawConfig` from fetcher and prepare-package options.
+
+  Removed support for the npm `init-module` setting. Custom init scripts via `.pnpm-init.js` are no longer executed by `pnpm init`.
+
+- 6b3d87a: Improved HTTP performance with Happy Eyeballs (dual-stack), better keep-alive settings, and an optimized global dispatcher. Tarball downloads with known size now pre-allocate memory to avoid double-copy overhead.
+
+### Patch Changes
+
+- e3b94c0: `@pnpm/fs.packlist` should be linked from the workspace.
+- ba065f6: Block git-hosted dependencies from running prepare scripts unless explicitly allowed in onlyBuiltDependencies [#10288](https://github.com/pnpm/pnpm/pull/10288).
+- 38b8e35: Support for custom resolvers and fetchers.
+- Updated dependencies [e2e0a32]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [7cec347]
+- Updated dependencies [491a84f]
+- Updated dependencies [50fbeca]
+- Updated dependencies [ba065f6]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [bb8baa7]
+- Updated dependencies [ee9fe58]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [56a59df]
+- Updated dependencies [780af09]
+- Updated dependencies [96704a1]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [6c480a4]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [4893853]
+- Updated dependencies [10bc391]
+- Updated dependencies [b7f0f21]
+- Updated dependencies [831f574]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [98a0410]
+- Updated dependencies [efb48dc]
+  - @pnpm/worker@1001.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/fetching.types@1001.0.0
+  - @pnpm/fetching.fetcher-base@1002.0.0
+  - @pnpm/core-loggers@1002.0.0
+  - @pnpm/exec.prepare-package@1001.0.0
+  - @pnpm/fs.graceful-fs@1001.0.0
+  - @pnpm/error@1001.0.0
+  - @pnpm/fs.packlist@1001.0.0
+  - @pnpm/store.index@1000.0.0
+
 ## 1003.0.0
 
 ### Patch Changes

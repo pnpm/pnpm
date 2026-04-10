@@ -1,5 +1,66 @@
 # @pnpm/store.cafs
 
+## 1001.0.0
+
+### Major Changes
+
+- e2e0a32: Optimized index file format to store the hash algorithm once per file instead of repeating it for every file entry. Each file entry now stores only the hex digest instead of the full integrity string (`<algo>-<digest>`). Using hex format improves performance since file paths in the content-addressable store use hex representation, eliminating base64-to-hex conversion during path lookups.
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+- 56a59df: Store the bundled manifest (name, version, bin, engines, scripts, etc.) directly in the package index file, eliminating the need to read `package.json` from the content-addressable store during resolution and installation. This reduces I/O and speeds up repeat installs [#10473](https://github.com/pnpm/pnpm/pull/10473).
+
+### Minor Changes
+
+- 3bf5e21: Export a new function to add a new file to the CAFS.
+- b7f0f21: Use SQLite for storing package index in the content-addressable store. Instead of individual `.mpk` files under `$STORE/index/`, package metadata is now stored in a single SQLite database at `$STORE/index.db`. This reduces filesystem syscall overhead, improves space efficiency for small metadata entries, and enables concurrent access via SQLite's WAL mode. Packages missing from the new index are re-fetched on demand [#10826](https://github.com/pnpm/pnpm/issues/10826).
+
+### Patch Changes
+
+- 6656baa: Fix a bug where the CAS locker cache was not updated when a file already existed with correct integrity, causing repeated integrity re-verification on subsequent lookups within the same process.
+- 2ea6463: When pnpm installs a `file:` or `git:` dependency, it now validates that symlinks point within the package directory. Symlinks to paths outside the package root are skipped to prevent local data from being leaked into `node_modules`.
+
+  This fixes a security issue where a malicious package could create symlinks to sensitive files (e.g., `/etc/passwd`, `~/.ssh/id_rsa`) and have their contents copied when the package is installed.
+
+  Note: This only affects `file:` and `git:` dependencies. Registry packages (npm) have symlinks stripped during publish and are not affected.
+
+- 50fbeca: fix: preserve bundled `node_modules` from Node.js Windows zip so that npm/npx shims are created correctly on Windows.
+
+  The Windows Node.js distribution places npm inside a root-level `node_modules/` directory of the zip archive. `addFilesFromDir` was skipping root-level `node_modules` (to avoid treating a package's own npm dependencies as part of its content), which caused the bundled npm to be missing after installation. This prevented `pnpm env use` from creating the npm and npx shims on Windows.
+
+  Added an `includeNodeModules` option to `addFilesFromDir` and set it to `true` in the binary fetcher so that the complete Node.js distribution, including its bundled npm, is preserved.
+
+- caabba4: Fixed a path traversal vulnerability in tarball extraction on Windows. The path normalization was only checking for `./` but not `.\`. Since backslashes are directory separators on Windows, malicious packages could use paths like `foo\..\..\.npmrc` to write files outside the package directory.
+- 878a773: Write CAS files directly to their final content-addressed path instead of writing to a temp file and renaming. Uses exclusive-create file mode for safe concurrent multi-process writes. Eliminates ~30k rename syscalls per cold install.
+- f8e6774: Optimize hot path string operations in content-addressable store: replace `path.join` with string concatenation in `contentPathFromHex` and `getFilePathByModeInCafs` (~30k calls per install), and increase `gunzipSync` chunk size to 128KB for fewer buffer allocations during tarball decompression.
+- Updated dependencies [facdd71]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [491a84f]
+- Updated dependencies [ba065f6]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [56a59df]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [831f574]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [98a0410]
+- Updated dependencies [efb48dc]
+  - @pnpm/store.controller-types@1005.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/fetching.fetcher-base@1002.0.0
+  - @pnpm/fs.graceful-fs@1001.0.0
+  - @pnpm/error@1001.0.0
+
 ## 1000.0.19
 
 ### Patch Changes

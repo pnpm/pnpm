@@ -1,5 +1,112 @@
 # @pnpm/npm-resolver
 
+## 1005.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 19f36cf: Changed the error code for no matching version that satisfies the maturity configuration.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+- 56a59df: Store the bundled manifest (name, version, bin, engines, scripts, etc.) directly in the package index file, eliminating the need to read `package.json` from the content-addressable store during resolution and installation. This reduces I/O and speeds up repeat installs [#10473](https://github.com/pnpm/pnpm/pull/10473).
+
+### Minor Changes
+
+- facdd71: Adding `trustPolicyIgnoreAfter` allows you to ignore trust policy checks for packages published more than a specified time ago[#10352](https://github.com/pnpm/pnpm/issues/10352).
+- 0625e20: Support bare `workspace:` protocol without version specifier. It is now treated as `workspace:*` and resolves to the concrete version during publish [#10436](https://github.com/pnpm/pnpm/pull/10436).
+- 10bc391: Added a new setting: `trustPolicy`.
+- 15549a9: Add the ability to fix vulnerabilities by updating packages in the lockfile instead of adding overrides.
+- 9d3f00b: Added support for `trustPolicyExclude` [#10164](https://github.com/pnpm/pnpm/issues/10164).
+
+  You can now list one or more specific packages or versions that pnpm should allow to install, even if those packages don't satisfy the trust policy requirement. For example:
+
+  ```yaml
+  trustPolicy: no-downgrade
+  trustPolicyExclude:
+    - chokidar@4.0.3
+    - webpack@4.47.0 || 5.102.1
+  ```
+
+### Patch Changes
+
+- a297ebc: Improve error message when a package version exists but does not meet the `minimumReleaseAge` constraint. The error now clearly states that the version exists and shows a human-readable time since release (e.g., "released 6 hours ago") [#10307](https://github.com/pnpm/pnpm/issues/10307).
+- 831f574: When package metadata is malformed or can't be fetched, the error thrown will now show the originating error.
+- 0e9c559: An internal refactor was performed to remove a misleading usage of `pMemoize`. Previously the `maxAge` argument was passed, but this field is ignored by the `p-memoize` NPM package.
+- 19f36cf: Don't silently skip an optional dependency if it cannot be resolved from a version that satisfies the `minimumReleaseAge` setting [#10270](https://github.com/pnpm/pnpm/issues/10270).
+- 61cad0c: fix: treat HTTP 400 responses as errors in the npm resolver fetch
+
+  The status check used `> 400` instead of `>= 400`, causing 400 Bad Request responses to bypass the error path and fall into JSON parse/retry logic instead.
+
+- 143ca78: Fix `link-workspace-packages=true` incorrectly linking workspace packages when the requested version doesn't match the workspace package's version. Previously, on fresh installs the version constraint is overridden to `*` in the fallback resolution paths, causing any workspace package with a matching name to be linked regardless of version [#10173](https://github.com/pnpm/pnpm/issues/10173).
+- 6f361aa: `trustPolicy` should ignore the trust evidences of prerelease versions, when installing a non-prerelease version.
+- 938ea1f: Revert Try to avoid making network calls with preferOffline [#10334](https://github.com/pnpm/pnpm/pull/10334).
+- 2cb0657: Don't fail with a `ERR_PNPM_MISSING_TIME` error if a package that is excluded from trust policy checks is missing the time field in the metadata.
+- bb8baa7: Fixed optional dependencies to request full metadata from the registry to get the `libc` field, which is required for proper platform compatibility checks [#9950](https://github.com/pnpm/pnpm/issues/9950).
+- 144ce0e: Improve the error messages related to `trustPolicy` mismatch.
+- ba70035: Update parse-npm-tarball-url to fix deprecation warnings on Node.js 24.
+- 3585d9a: Normalize the tarball URLs before saving them to the lockfile. URLs should not contain default ports, like :80 for http and :443 for https [#10273](https://github.com/pnpm/pnpm/pull/10273).
+- 6557dc0: Fixed a bug preventing the `clearCache` function returned by `createNpmResolver` from properly clearing metadata cache.
+- Updated dependencies [facdd71]
+- Updated dependencies [e2e0a32]
+- Updated dependencies [c55c614]
+- Updated dependencies [9b0a460]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [7cec347]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [491a84f]
+- Updated dependencies [6656baa]
+- Updated dependencies [2ea6463]
+- Updated dependencies [50fbeca]
+- Updated dependencies [caabba4]
+- Updated dependencies [075aa99]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [d3d6938]
+- Updated dependencies [0625e20]
+- Updated dependencies [bb8baa7]
+- Updated dependencies [878a773]
+- Updated dependencies [f8e6774]
+- Updated dependencies [ee9fe58]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [56a59df]
+- Updated dependencies [780af09]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [6c480a4]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [4893853]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [b7f0f21]
+- Updated dependencies [831f574]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [98a0410]
+- Updated dependencies [efb48dc]
+  - @pnpm/resolving.resolver-base@1006.0.0
+  - @pnpm/store.cafs@1001.0.0
+  - @pnpm/worker@1001.0.0
+  - @pnpm/constants@1002.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/workspace.range-resolver@1001.0.0
+  - @pnpm/config.pick-registry-for-package@1001.0.0
+  - @pnpm/resolving.jsr-specifier-parser@1001.0.0
+  - @pnpm/fetching.types@1001.0.0
+  - @pnpm/core-loggers@1002.0.0
+  - @pnpm/workspace.spec-parser@1001.0.0
+  - @pnpm/fs.graceful-fs@1001.0.0
+  - @pnpm/error@1001.0.0
+  - @pnpm/crypto.hash@1001.0.0
+  - @pnpm/resolving.registry.types@1000.1.0
+  - @pnpm/store.index@1000.0.0
+  - @pnpm/resolving.registry.pkg-metadata-filter@1000.1.2
+
 ## 1004.4.1
 
 ### Patch Changes

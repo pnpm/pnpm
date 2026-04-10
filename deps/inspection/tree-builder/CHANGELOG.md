@@ -1,5 +1,77 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 1002.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+- 56a59df: Store the bundled manifest (name, version, bin, engines, scripts, etc.) directly in the package index file, eliminating the need to read `package.json` from the content-addressable store during resolution and installation. This reduces I/O and speeds up repeat installs [#10473](https://github.com/pnpm/pnpm/pull/10473).
+
+### Minor Changes
+
+- 7116f35: Added `nameFormatter` option to `buildDependentsTree` and `displayName` field to `DependentsTree`/`DependentNode`, allowing consumers to customize the displayed package name (e.g. showing component names instead of registry names).
+- 2464485: Added `--lockfile-only` option to `pnpm list` [#10020](https://github.com/pnpm/pnpm/issues/10020).
+- 7d5ada0: `pnpm why` now shows a reverse dependency tree. The searched package appears at the root with its dependents as branches, walking back to workspace roots. This replaces the previous forward-tree output which was noisy and hard to read for deeply nested dependencies.
+- b7f0f21: Use SQLite for storing package index in the content-addressable store. Instead of individual `.mpk` files under `$STORE/index/`, package metadata is now stored in a single SQLite database at `$STORE/index.db`. This reduces filesystem syscall overhead, improves space efficiency for small metadata entries, and enables concurrent access via SQLite's WAL mode. Packages missing from the new index are re-fetched on demand [#10826](https://github.com/pnpm/pnpm/issues/10826).
+
+### Patch Changes
+
+- f8b4895: Fixed `pnpm list --json` returning incorrect paths when using global virtual store [#10187](https://github.com/pnpm/pnpm/issues/10187).
+- d3a0765: Handle undefined pkgSnapshot in `pnpm why -r` [#10700](https://github.com/pnpm/pnpm/issues/10700).
+- 353bc16: Fix `pnpm list --only-projects` regression (fixes #10651). When `node_modules` is absent, fall back to the wanted lockfile so workspace projects are still listed. Ensure `--only-projects` is read from CLI options and restrict the dependency graph to workspace importers when the flag is set.
+- a49b243: Fixed an out-of-memory error in `pnpm list` (and `pnpm why`) on large dependency graphs by replacing the recursive tree builder with a two-phase approach: a BFS dependency graph followed by cached tree materialization. Duplicate subtrees are now deduplicated in the output, shown as "deduped (N deps hidden)" [#10586](https://github.com/pnpm/pnpm/pull/10586).
+- 472d3af: Optimize `pnpm why` and `pnpm list` performance in workspaces with many importers by sharing the dependency graph and materialization cache across all importers instead of rebuilding them independently for each one [#10596](https://github.com/pnpm/pnpm/pull/10596/changes).
+- 6f806be: Removed TypeScript specific syntax (such as enums and visibility modifiers in constructors) to enable `erasableSyntaxOnly`.
+- 8ffb1a7: `pnpm list` and `pnpm why` now display npm: protocol for aliased packages (e.g., `foo npm:is-odd@3.0.1`) [#8660](https://github.com/pnpm/pnpm/issues/8660).
+- Updated dependencies [5f73b0f]
+- Updated dependencies [e2e0a32]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [3cfffaa]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [491a84f]
+- Updated dependencies [6656baa]
+- Updated dependencies [2ea6463]
+- Updated dependencies [50fbeca]
+- Updated dependencies [caabba4]
+- Updated dependencies [878a773]
+- Updated dependencies [f8e6774]
+- Updated dependencies [d458ab3]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [56a59df]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [6f806be]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [394d88c]
+- Updated dependencies [b7f0f21]
+- Updated dependencies [1e6de25]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [3cfffaa]
+- Updated dependencies [efb48dc]
+  - @pnpm/deps.path@1002.0.0
+  - @pnpm/store.cafs@1001.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/lockfile.fs@1002.0.0
+  - @pnpm/lockfile.utils@1004.0.0
+  - @pnpm/installing.modules-yaml@1001.0.0
+  - @pnpm/pkg-manifest.reader@1001.0.0
+  - @pnpm/config.normalize-registries@1001.0.0
+  - @pnpm/lockfile.detect-dep-types@1002.0.0
+  - @pnpm/fs.read-modules-dir@1001.0.0
+  - @pnpm/config.matcher@1001.0.0
+  - @pnpm/store.index@1000.0.0
+
 ## 1001.1.3
 
 ### Patch Changes

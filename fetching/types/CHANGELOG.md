@@ -1,5 +1,23 @@
 # @pnpm/fetching-types
 
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+- 6c480a4: Replace node-fetch with undici as the HTTP client [#10537](https://github.com/pnpm/pnpm/pull/10537).
+
+  - Use undici's native `fetch()` with dispatcher-based connection management
+  - Support HTTP, HTTPS, SOCKS4, and SOCKS5 proxies
+  - Cache dispatchers via LRU cache keyed by connection parameters
+  - Handle per-registry client certificates via nerf-dart URL matching
+  - Convert test HTTP mocking from nock to undici MockAgent
+
+### Patch Changes
+
+- bb8baa7: Fixed optional dependencies to request full metadata from the registry to get the `libc` field, which is required for proper platform compatibility checks [#9950](https://github.com/pnpm/pnpm/issues/9950).
+
 ## 1000.2.0
 
 ### Minor Changes

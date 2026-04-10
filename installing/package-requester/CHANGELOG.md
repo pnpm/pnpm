@@ -1,5 +1,98 @@
 # @pnpm/package-requester
 
+## 1009.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+- 56a59df: Store the bundled manifest (name, version, bin, engines, scripts, etc.) directly in the package index file, eliminating the need to read `package.json` from the content-addressable store during resolution and installation. This reduces I/O and speeds up repeat installs [#10473](https://github.com/pnpm/pnpm/pull/10473).
+
+### Minor Changes
+
+- facdd71: Adding `trustPolicyIgnoreAfter` allows you to ignore trust policy checks for packages published more than a specified time ago[#10352](https://github.com/pnpm/pnpm/issues/10352).
+- ba065f6: Block git-hosted dependencies from running prepare scripts unless explicitly allowed in onlyBuiltDependencies [#10288](https://github.com/pnpm/pnpm/pull/10288).
+- 2b81a4f: In some cases, a filtered install (i.e. `pnpm install --filter ...`) was slower than running `pnpm install` without any filter arguments. This performance regression is now fixed. Filtered installs should be as fast or faster than a full install.
+- 4893853: Increase the network concurrency on machines with many CPU cores. We pick a network concurrency that is not less than 16 and not more than 64 and it is calculated by the number of pnpm workers multiplied by 3 [#10068](https://github.com/pnpm/pnpm/issues/10068).
+- 10bc391: Added a new setting: `trustPolicy`.
+- 9d3f00b: Added support for `trustPolicyExclude` [#10164](https://github.com/pnpm/pnpm/issues/10164).
+
+  You can now list one or more specific packages or versions that pnpm should allow to install, even if those packages don't satisfy the trust policy requirement. For example:
+
+  ```yaml
+  trustPolicy: no-downgrade
+  trustPolicyExclude:
+    - chokidar@4.0.3
+    - webpack@4.47.0 || 5.102.1
+  ```
+
+- 98a0410: Compute integrity hash for HTTP tarball dependencies when fetching, storing it in the lockfile to prevent servers from serving altered content on subsequent installs [#10287](https://github.com/pnpm/pnpm/pull/10287).
+
+### Patch Changes
+
+- 56a59df: Check if a package is installable for non npm-hosted packages (e.g., git or tarball dependencies) after the manifest has been fetched.
+- bb8baa7: Fixed optional dependencies to request full metadata from the registry to get the `libc` field, which is required for proper platform compatibility checks [#9950](https://github.com/pnpm/pnpm/issues/9950).
+- ee9fe58: Skip the staging directory when importing packages into `node_modules`. This avoids the overhead of creating a temp dir and renaming per package. Falls back to the atomic staging path on error.
+
+  Packages that lack a `package.json` now get a synthetic empty one added to the store so that `package.json` can serve as a universal completion marker for the importer.
+
+- 38b8e35: Support for custom resolvers and fetchers.
+- Updated dependencies [5f73b0f]
+- Updated dependencies [facdd71]
+- Updated dependencies [e2e0a32]
+- Updated dependencies [9b0a460]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [7cec347]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [491a84f]
+- Updated dependencies [6656baa]
+- Updated dependencies [2ea6463]
+- Updated dependencies [50fbeca]
+- Updated dependencies [caabba4]
+- Updated dependencies [ba065f6]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [878a773]
+- Updated dependencies [f8e6774]
+- Updated dependencies [ee9fe58]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [56a59df]
+- Updated dependencies [780af09]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [4893853]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [b7f0f21]
+- Updated dependencies [1e6de25]
+- Updated dependencies [831f574]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [98a0410]
+- Updated dependencies [efb48dc]
+  - @pnpm/deps.path@1002.0.0
+  - @pnpm/store.controller-types@1005.0.0
+  - @pnpm/resolving.resolver-base@1006.0.0
+  - @pnpm/store.cafs@1001.0.0
+  - @pnpm/worker@1001.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/config.package-is-installable@1001.0.0
+  - @pnpm/fetching.fetcher-base@1002.0.0
+  - @pnpm/fetching.pick-fetcher@1002.0.0
+  - @pnpm/core-loggers@1002.0.0
+  - @pnpm/fs.graceful-fs@1001.0.0
+  - @pnpm/error@1001.0.0
+  - @pnpm/hooks.types@1002.0.0
+  - @pnpm/store.index@1000.0.0
+
 ## 1008.0.0
 
 ### Minor Changes

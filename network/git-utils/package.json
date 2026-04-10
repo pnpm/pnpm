@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/network.git-utils",
-  "version": "1000.0.0",
+  "version": "1100.0.0",
   "description": "Utilities for git",
   "keywords": [
     "pnpm",

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/text.comments-parser",
-  "version": "1000.0.0",
+  "version": "1100.0.0",
   "description": "Extracts and inserts comments from/to text",
   "keywords": [
     "pnpm",
