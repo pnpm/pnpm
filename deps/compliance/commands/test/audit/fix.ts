@@ -101,3 +101,37 @@ test('CVEs found in the allow list are not added as overrides', async () => {
   expect(manifest.overrides?.['minimist@<0.2.1']).toBeFalsy()
   expect(manifest.overrides?.['url-parse@<1.5.6']).toBeTruthy()
 })
+
+test('audit --fix respects auditLevel and only fixes matching severities', async () => {
+  const tmp = f.prepare('has-vulnerabilities')
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
+
+  const { exitCode, output } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'critical',
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+  })
+
+  expect(exitCode).toBe(0)
+  expect(output).toMatch(/Run "pnpm install"/)
+
+  const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
+
+  // Critical advisories should be fixed
+  expect(manifest.overrides?.['xmlhttprequest-ssl@<1.6.1']).toBe('>=1.6.1')
+  expect(manifest.overrides?.['nodemailer@<6.4.16']).toBe('>=6.4.16')
+  expect(manifest.overrides?.['cryptiles@<4.1.2']).toBe('>=4.1.2')
+  expect(manifest.overrides?.['netmask@<1.1.0']).toBe('>=1.1.0')
+
+  // Non-critical advisories (high, moderate, low) should NOT be fixed
+  expect(manifest.overrides?.['axios@<=0.18.0']).toBeFalsy()
+  expect(manifest.overrides?.['axios@<=0.21.1']).toBeFalsy()
+  expect(manifest.overrides?.['tar@<4.4.18']).toBeFalsy()
+  expect(manifest.overrides?.['url-parse@<1.5.6']).toBeFalsy()
+  expect(manifest.overrides?.['redis@>=2.6.0 <3.1.1']).toBeFalsy()
+})
