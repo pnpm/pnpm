@@ -41,6 +41,7 @@
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@yarnpkg/core": "catalog:",
     "p-every": "catalog:",
     "ramda": "catalog:",
     "semver": "catalog:",

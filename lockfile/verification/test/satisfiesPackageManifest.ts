@@ -395,3 +395,56 @@ test('satisfiesPackageManifest()', () => {
     detailedReason: 'The importer resolution is broken at dependency "@apollo/client": version "3.13.8" doesn\'t satisfy range "3.3.7"',
   })
 })
+
+test('satisfiesPackageManifest() with pre-release versions', () => {
+  expect(satisfiesPackageManifest(
+    {},
+    {
+      dependencies: { foo: '1.0.0-alpha' },
+      specifiers: { foo: '*' },
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: { foo: '*' },
+    }
+  )).toStrictEqual({ satisfies: true })
+
+  expect(satisfiesPackageManifest(
+    {},
+    {
+      dependencies: { foo: '1.0.0-alpha' },
+      specifiers: { foo: '^1.0.0' },
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: { foo: '^1.0.0' },
+    }
+  )).toStrictEqual({ satisfies: true })
+
+  expect(satisfiesPackageManifest(
+    {},
+    {
+      dependencies: { foo: '2.0.0-rc.1' },
+      specifiers: { foo: '>=1.0.0' },
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: { foo: '>=1.0.0' },
+    }
+  )).toStrictEqual({ satisfies: true })
+
+  expect(satisfiesPackageManifest(
+    {},
+    {
+      dependencies: { foo: '2.0.0-rc.1' },
+      specifiers: { foo: '^3.0.0' },
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      dependencies: { foo: '^3.0.0' },
+    }
+  )).toStrictEqual({
+    satisfies: false,
+    detailedReason: 'The importer resolution is broken at dependency "foo": version "2.0.0-rc.1" doesn\'t satisfy range "^3.0.0"',
+  })
+})

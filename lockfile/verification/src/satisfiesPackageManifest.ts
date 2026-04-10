@@ -4,6 +4,7 @@ import {
   DEPENDENCIES_FIELDS,
   type ProjectManifest,
 } from '@pnpm/types'
+import * as semverUtils from '@yarnpkg/core/semverUtils'
 import { equals, omit, pickBy } from 'ramda'
 import semver from 'semver'
 
@@ -98,7 +99,7 @@ export function satisfiesPackageManifest (
       }
       if (importer?.specifiers[depName] == null || !semver.validRange(importer?.specifiers[depName])) continue
       const version = dp.removeSuffix(importerDeps[depName])
-      if (semver.valid(version) && !semver.satisfies(version, importer.specifiers[depName])) {
+      if (semver.valid(version) && !semverUtils.satisfiesWithPrereleases(version, importer.specifiers[depName])) {
         return {
           satisfies: false,
           detailedReason: `The importer resolution is broken at dependency "${depName}": version "${version}" doesn't satisfy range "${importer.specifiers[depName]}"`,
