@@ -22,7 +22,7 @@ import { omit } from 'ramda'
 import { realpathMissing } from 'realpath-missing'
 import semver from 'semver'
 
-import { inheritAuthConfig, pickIniConfig } from './auth.js'
+import { inheritDlxConfig, pickIniConfig } from './auth.js'
 import { checkGlobalBinDir } from './checkGlobalBinDir.js'
 import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 import type {
@@ -88,22 +88,22 @@ export async function getConfig (opts: {
   }
   workspaceDir?: string | undefined
   env?: Record<string, string | undefined>
-  ignoreNonAuthSettingsFromLocal?: boolean
+  onlyInheritDlxSettingsFromLocal?: boolean
   ignoreLocalSettings?: boolean
 }): Promise<{ config: Config, context: ConfigContext, warnings: string[] }> {
-  if (opts.ignoreNonAuthSettingsFromLocal) {
-    const { ignoreNonAuthSettingsFromLocal: _, ...authOpts } = opts
-    const globalCfgOpts: typeof authOpts = {
-      ...authOpts,
+  if (opts.onlyInheritDlxSettingsFromLocal) {
+    const { onlyInheritDlxSettingsFromLocal: _, ...localOpts } = opts
+    const globalCfgOpts: typeof localOpts = {
+      ...localOpts,
       ignoreLocalSettings: true,
       cliOptions: {
-        ...authOpts.cliOptions,
+        ...localOpts.cliOptions,
         dir: os.homedir(),
       },
     }
-    const [final, authSrc] = await Promise.all([getConfig(globalCfgOpts), getConfig(authOpts)])
-    inheritAuthConfig(final, authSrc)
-    final.warnings.push(...authSrc.warnings)
+    const [final, localSrc] = await Promise.all([getConfig(globalCfgOpts), getConfig(localOpts)])
+    inheritDlxConfig(final, localSrc)
+    final.warnings.push(...localSrc.warnings)
     return final
   }
 
