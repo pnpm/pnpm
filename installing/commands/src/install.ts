@@ -63,6 +63,8 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'side-effects-cache',
     'store-dir',
     'strict-peer-dependencies',
+    'minimum-release-age',
+    'minimum-release-age-exclude',
     'trust-policy',
     'trust-policy-exclude',
     'trust-policy-ignore-after',
@@ -220,6 +222,14 @@ by any dependencies, so it is an emulation of a flat node_modules',
             name: '--trust-policy-ignore-after <minutes>',
           },
           {
+            description: 'Reject packages published within the specified number of minutes. Overrides the minimumReleaseAge config setting',
+            name: '--minimum-release-age <minutes>',
+          },
+          {
+            description: 'Exclude specific packages from the minimum release age check',
+            name: '--minimum-release-age-exclude <package-spec>',
+          },
+          {
             description: 'Clones/hardlinks or copies packages. The selected method depends from the file system',
             name: '--package-import-method auto',
           },
@@ -306,6 +316,8 @@ export type InstallCommandOptions = Pick<Config,
 | 'saveCatalogName'
 | 'saveWorkspaceProtocol'
 | 'lockfileIncludeTarballUrl'
+| 'minimumReleaseAge'
+| 'minimumReleaseAgeExclude'
 | 'sideEffectsCache'
 | 'sideEffectsCacheReadonly'
 | 'sort'

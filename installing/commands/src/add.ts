@@ -77,6 +77,8 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'side-effects-cache-readonly',
     'side-effects-cache',
     'store-dir',
+    'minimum-release-age',
+    'minimum-release-age-exclude',
     'strict-peer-dependencies',
     'trust-policy',
     'trust-policy-exclude',
@@ -177,6 +179,14 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           {
             description: 'A list of package names that are allowed to run postinstall scripts during installation',
             name: '--allow-build',
+          },
+          {
+            description: 'Reject packages published within the specified number of minutes',
+            name: '--minimum-release-age <minutes>',
+          },
+          {
+            description: 'Exclude specific packages from the minimum release age check',
+            name: '--minimum-release-age-exclude <package-spec>',
           },
         ],
       },
