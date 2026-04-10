@@ -34,6 +34,12 @@ test('readWorkspaceManifest() throws on string packages field', async () => {
   ).rejects.toThrow('packages field is not an array')
 })
 
+test('readWorkspaceManifest() throws on false packages field', async () => {
+  await expect(
+    readWorkspaceManifest(path.join(import.meta.dirname, '__fixtures__/packages-false'))
+  ).rejects.toThrow('packages field is not an array')
+})
+
 test('readWorkspaceManifest() throws on empty package', async () => {
   await expect(
     readWorkspaceManifest(path.join(import.meta.dirname, '__fixtures__/packages-contains-empty'))
