@@ -1,0 +1,11 @@
+name: Helix Validation
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    if: github.event_name == 'workflow_dispatch' || (github.base_ref == github.event.repository.default_branch && github.head_ref == 'docker-golden-solution')
+    uses: handshake-coding/handshake-orchestration/.github/workflows/helix-validation.yml@main
+    secrets: inherit
