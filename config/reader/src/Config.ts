@@ -249,7 +249,7 @@ export interface Config extends OptionsFromRootManifest {
   preserveAbsolutePaths?: boolean
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
-  minimumReleaseAgeLoose?: boolean
+  minimumReleaseAgeStrict?: boolean
   fetchWarnTimeoutMs?: number
   fetchMinSpeedKiBps?: number
   trustPolicy?: TrustPolicy

@@ -71,7 +71,7 @@ export const pnpmTypes = {
   'dlx-cache-max-age': Number,
   'minimum-release-age': Number,
   'minimum-release-age-exclude': [String, Array],
-  'minimum-release-age-loose': Boolean,
+  'minimum-release-age-strict': Boolean,
   'modules-dir': String,
   'network-concurrency': Number,
   'node-linker': ['pnp', 'isolated', 'hoisted'],
