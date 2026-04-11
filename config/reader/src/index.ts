@@ -22,7 +22,6 @@ import { omit } from 'ramda'
 import { realpathMissing } from 'realpath-missing'
 import semver from 'semver'
 
-import { inheritDlxConfig, pickIniConfig } from './localConfig.js'
 import { checkGlobalBinDir } from './checkGlobalBinDir.js'
 import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 import type {
@@ -40,6 +39,7 @@ import { parseEnvVars } from './env.js'
 import { getDefaultCreds, getNetworkConfigs } from './getNetworkConfigs.js'
 import { getOptionsFromPnpmSettings } from './getOptionsFromRootManifest.js'
 import { loadNpmrcConfig } from './loadNpmrcFiles.js'
+import { inheritDlxConfig, pickIniConfig } from './localConfig.js'
 import { npmDefaults } from './npmDefaults.js'
 import {
   type CliOptions as SupportedArchitecturesCliOptions,
@@ -66,8 +66,8 @@ export {
 } from './projectConfig.js'
 export type { Config, ConfigContext, ProjectConfig, UniversalOptions, VerifyDepsBeforeRun }
 
-export { isIniConfigKey, isNpmrcReadableKey } from './localConfig.js'
 export { type ConfigFileKey, isConfigFileKey } from './configFileKey.js'
+export { isIniConfigKey, isNpmrcReadableKey } from './localConfig.js'
 
 type CamelToKebabCase<S extends string> = S extends `${infer T}${infer U}`
   ? `${T extends Capitalize<T> ? '-' : ''}${Lowercase<T>}${CamelToKebabCase<U>}`
