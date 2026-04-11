@@ -1,5 +1,5 @@
-import { inheritAuthConfig, inheritDlxConfig } from './auth.js'
 import type { InheritableConfigPair } from './inheritPickedConfig.js'
+import { inheritAuthConfig, inheritDlxConfig } from './localConfig.js'
 
 test('inheritAuthConfig copies only auth keys from source to target', () => {
   const target: InheritableConfigPair = {
@@ -11,7 +11,7 @@ test('inheritAuthConfig copies only auth keys from source to target', () => {
         'cache-dir': '/path/to/cache/dir',
         registry: 'https://npmjs.com/registry/',
       },
-    } as any, // eslint-disable-line
+    },
   }
 
   inheritAuthConfig(target, {
@@ -24,7 +24,7 @@ test('inheritAuthConfig copies only auth keys from source to target', () => {
         registry: 'https://example.com/global-registry/',
         '//example.com/global-registry/:_auth': 'MY_SECRET_GLOBAL_AUTH',
       },
-    } as any, // eslint-disable-line
+    },
   })
 
   expect(target.config).toMatchObject({
@@ -49,7 +49,7 @@ test('inheritDlxConfig copies auth and security policy keys from source to targe
       authConfig: {
         registry: 'https://npmjs.com/registry/',
       },
-    } as any, // eslint-disable-line
+    },
   }
 
   inheritDlxConfig(target, {
@@ -70,30 +70,28 @@ test('inheritDlxConfig copies auth and security policy keys from source to targe
         '//example.com/local-registry/:_authToken': 'SECRET_TOKEN',
         'minimum-release-age': '1440',
       },
-    } as any, // eslint-disable-line
+    },
   })
 
-  // Auth keys are inherited
-  expect(target.config.registry).toBe('https://example.com/local-registry/')
-
-  // Security/trust policy keys are inherited
-  expect(target.config.minimumReleaseAge).toBe(1440)
-  expect(target.config.minimumReleaseAgeExclude).toEqual(['trusted-pkg'])
-  expect(target.config.minimumReleaseAgeStrict).toBe(true)
-  expect(target.config.trustPolicy).toBe('no-downgrade')
-  expect(target.config.trustPolicyExclude).toEqual(['legacy-pkg'])
-  expect(target.config.trustPolicyIgnoreAfter).toBe(525600)
-
-  // Project-structural keys are NOT inherited
-  expect(target.config.bin).toBe('foo')
-  expect(target.config.cacheDir).toBe('/path/to/cache/dir')
-  expect(target.config.shamefullyHoist).toBe(true)
-  expect(target.config.storeDir).toBeUndefined()
-
-  // Raw auth keys are inherited, raw policy keys are inherited
-  expect(target.config.authConfig).toMatchObject({
+  // Auth keys and security/trust policy keys are inherited;
+  // project-structural keys (bin, cacheDir, shamefullyHoist) keep their target values.
+  expect(target.config).toMatchObject({
+    bin: 'foo',
+    cacheDir: '/path/to/cache/dir',
+    shamefullyHoist: true,
     registry: 'https://example.com/local-registry/',
-    '//example.com/local-registry/:_authToken': 'SECRET_TOKEN',
-    'minimum-release-age': '1440',
+    minimumReleaseAge: 1440,
+    minimumReleaseAgeExclude: ['trusted-pkg'],
+    minimumReleaseAgeStrict: true,
+    trustPolicy: 'no-downgrade',
+    trustPolicyExclude: ['legacy-pkg'],
+    trustPolicyIgnoreAfter: 525600,
+    authConfig: {
+      registry: 'https://example.com/local-registry/',
+      '//example.com/local-registry/:_authToken': 'SECRET_TOKEN',
+      'minimum-release-age': '1440',
+    },
   })
+  // storeDir exists only on the source, must not be inherited.
+  expect(target.config.storeDir).toBeUndefined()
 })

@@ -5,7 +5,7 @@ import path from 'node:path'
 import { envReplace } from '@pnpm/config.env-replace'
 import { readIniFileSync } from 'read-ini-file'
 
-import { isNpmrcReadableKey } from './auth.js'
+import { isNpmrcReadableKey } from './localConfig.js'
 
 export interface NpmrcConfigResult {
   /**

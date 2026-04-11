@@ -22,7 +22,7 @@ import { omit } from 'ramda'
 import { realpathMissing } from 'realpath-missing'
 import semver from 'semver'
 
-import { inheritDlxConfig, pickIniConfig } from './auth.js'
+import { inheritDlxConfig, pickIniConfig } from './localConfig.js'
 import { checkGlobalBinDir } from './checkGlobalBinDir.js'
 import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 import type {
@@ -66,7 +66,7 @@ export {
 } from './projectConfig.js'
 export type { Config, ConfigContext, ProjectConfig, UniversalOptions, VerifyDepsBeforeRun }
 
-export { isIniConfigKey, isNpmrcReadableKey } from './auth.js'
+export { isIniConfigKey, isNpmrcReadableKey } from './localConfig.js'
 export { type ConfigFileKey, isConfigFileKey } from './configFileKey.js'
 
 type CamelToKebabCase<S extends string> = S extends `${infer T}${infer U}`
