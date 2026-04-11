@@ -1,4 +1,5 @@
 export { list, ll, why } from './listing/index.js'
 export { outdated } from './outdated/index.js'
 export * as peers from './peers.js'
+export * as search from './search/index.js'
 export * as view from './view/index.js'
