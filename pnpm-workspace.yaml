@@ -241,6 +241,7 @@ catalog:
   normalize-registry-url: 2.0.1
   npm-packlist: 10.0.4
   object-hash: 3.0.0
+  open: ^7.4.2
   p-defer: ^4.0.1
   p-every: ^2.0.0
   p-filter: ^4.1.0

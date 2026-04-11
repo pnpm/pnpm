@@ -57,9 +57,9 @@
     "@pnpm/types": "workspace:*",
     "@zkochan/table": "catalog:",
     "chalk": "catalog:",
+    "open": "catalog:",
     "ramda": "catalog:",
-    "render-help": "catalog:",
-    "open": "^7.4.2"
+    "render-help": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
