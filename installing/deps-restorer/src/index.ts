@@ -988,7 +988,7 @@ async function linkAllBins (
         const binPath = path.join(depNode.dir, 'node_modules/.bin')
         const pkgSnapshots = props<string, DependenciesGraphNode>(Object.values(childrenToLink), depGraph)
 
-        if (pkgSnapshots.includes(undefined as any)) { // eslint-disable-line
+        if ((pkgSnapshots as Array<DependenciesGraphNode | undefined>).includes(undefined)) {
           await linkBins(depNode.modules, binPath, {
             extraNodePaths: opts.extraNodePaths,
             preferSymlinkedExecutables: opts.preferSymlinkedExecutables,

@@ -424,7 +424,7 @@ test('prints authorization error with auth settings', async () => {
     username: 'nagy.gabor',
   }
   const output$ = toOutput$({
-    context: { argv: ['install'], config: { authConfig } as any }, // eslint-disable-line
+    context: { argv: ['install'], config: { authConfig } as unknown as Parameters<typeof toOutput$>[0]['context']['config'] },
     streamParser: createStreamParser(),
   })
 
@@ -452,7 +452,7 @@ ${ERROR_PAD}username=nagy.gabor`)
 
 test('prints authorization error without auth settings, where there are none', async () => {
   const output$ = toOutput$({
-    context: { argv: ['install'], config: { authConfig: {} } as any }, // eslint-disable-line
+    context: { argv: ['install'], config: { authConfig: {} } as unknown as Parameters<typeof toOutput$>[0]['context']['config'] },
     streamParser: createStreamParser(),
   })
 

@@ -1,5 +1,5 @@
 import { docsUrl } from '@pnpm/cli.utils'
-import { install } from '@pnpm/installing.commands'
+import { install, type InstallCommandOptions } from '@pnpm/installing.commands'
 import { renderHelp } from 'render-help'
 
 import type { PnpmOptions } from '../types.js'
@@ -24,5 +24,5 @@ export function help (): string {
 
 export async function handler (opts: PnpmOptions): Promise<void> {
   await clean.handler(opts)
-  await install.handler({ ...opts, frozenLockfile: true } as any) // eslint-disable-line
+  await install.handler({ ...opts, frozenLockfile: true } as unknown as InstallCommandOptions)
 }

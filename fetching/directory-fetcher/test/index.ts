@@ -19,8 +19,7 @@ test('fetch including only package files', async () => {
   process.chdir(f.find('simple-pkg'))
   const fetcher = createDirectoryFetcher({ includeOnlyPackageFiles: true })
 
-  // eslint-disable-next-line
-  const fetchResult = await fetcher.directory({} as any, {
+  const fetchResult = await fetcher.directory({} as unknown as Parameters<typeof fetcher.directory>[0], {
     directory: '.',
     type: 'directory',
   }, {
@@ -42,8 +41,7 @@ test('fetch including all files', async () => {
   process.chdir(f.find('simple-pkg'))
   const fetcher = createDirectoryFetcher()
 
-  // eslint-disable-next-line
-  const fetchResult = await fetcher.directory({} as any, {
+  const fetchResult = await fetcher.directory({} as unknown as Parameters<typeof fetcher.directory>[0], {
     directory: '.',
     type: 'directory',
   }, {
@@ -66,8 +64,7 @@ test('fetch a directory that has no package.json', async () => {
   process.chdir(f.find('no-manifest'))
   const fetcher = createDirectoryFetcher()
 
-  // eslint-disable-next-line
-  const fetchResult = await fetcher.directory({} as any, {
+  const fetchResult = await fetcher.directory({} as unknown as Parameters<typeof fetcher.directory>[0], {
     directory: '.',
     type: 'directory',
   }, {
@@ -91,8 +88,7 @@ test('fetch does not fail on package with broken symlink', async () => {
   process.chdir(f.find('pkg-with-broken-symlink'))
   const fetcher = createDirectoryFetcher()
 
-  // eslint-disable-next-line
-  const fetchResult = await fetcher.directory({} as any, {
+  const fetchResult = await fetcher.directory({} as unknown as Parameters<typeof fetcher.directory>[0], {
     directory: '.',
     type: 'directory',
   }, {
@@ -123,8 +119,7 @@ describe('fetch resolves symlinked files to their real locations', () => {
   })
   test('fetch resolves symlinked files to their real locations', async () => {
     const fetcher = createDirectoryFetcher({ resolveSymlinks: true })
-    // eslint-disable-next-line
-    const fetchResult = await fetcher.directory({} as any, {
+    const fetchResult = await fetcher.directory({} as unknown as Parameters<typeof fetcher.directory>[0], {
       directory: '.',
       type: 'directory',
     }, {
@@ -140,8 +135,7 @@ describe('fetch resolves symlinked files to their real locations', () => {
   test('fetch does not resolve symlinked files to their real locations by default', async () => {
     const fetcher = createDirectoryFetcher()
 
-    // eslint-disable-next-line
-    const fetchResult = await fetcher.directory({} as any, {
+    const fetchResult = await fetcher.directory({} as unknown as Parameters<typeof fetcher.directory>[0], {
       directory: '.',
       type: 'directory',
     }, {

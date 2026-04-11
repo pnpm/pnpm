@@ -525,7 +525,7 @@ function fetchToStore (
         !opts.force &&
         (
           !isLocalTarballDep ||
-          await tarballIsUpToDate(opts.pkg.resolution as any, target, opts.lockfileDir) // eslint-disable-line
+          await tarballIsUpToDate(opts.pkg.resolution as Parameters<typeof tarballIsUpToDate>[0], target, opts.lockfileDir)
         ) &&
         !isLocalPkg
       ) {

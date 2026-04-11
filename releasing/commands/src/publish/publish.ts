@@ -166,12 +166,12 @@ export async function publish (
       )
     }
     if (!branches.includes(currentBranch)) {
-      const { confirm } = await enquirer.prompt({
+      const { confirm } = await enquirer.prompt<{ confirm: boolean }>({
         message: `You're on branch "${currentBranch}" but your "publish-branch" is set to "${branches.join('|')}". \
 Do you want to continue?`,
         name: 'confirm',
         type: 'confirm',
-      } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
+      })
 
       if (!confirm) {
         throw new PnpmError('GIT_NOT_CORRECT_BRANCH', `Branch is not on '${branches.join('|')}'.`, {

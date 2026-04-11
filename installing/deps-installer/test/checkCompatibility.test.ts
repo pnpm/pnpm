@@ -7,7 +7,7 @@ test('fail if the store directory changed', () => {
     checkCompatibility({
       layoutVersion: LAYOUT_VERSION,
       storeDir: '/store/v1',
-    } as any, // eslint-disable-line
+    } as Parameters<typeof checkCompatibility>[0],
     {
       storeDir: '/store/v11',
       modulesDir: 'node_modules',
@@ -21,7 +21,7 @@ test('do not fail if the store directory is of version 3', () => {
     checkCompatibility({
       layoutVersion: LAYOUT_VERSION,
       storeDir: '/store/v3',
-    } as any, // eslint-disable-line
+    } as Parameters<typeof checkCompatibility>[0],
     {
       storeDir: '/store/v11',
       modulesDir: 'node_modules',

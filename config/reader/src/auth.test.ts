@@ -11,7 +11,7 @@ test('inheritAuthConfig copies only auth keys from source to target', () => {
         'cache-dir': '/path/to/cache/dir',
         registry: 'https://npmjs.com/registry/',
       },
-    } as any, // eslint-disable-line
+    } as unknown as InheritableConfigPair['config'],
   }
 
   inheritAuthConfig(target, {
@@ -24,7 +24,7 @@ test('inheritAuthConfig copies only auth keys from source to target', () => {
         registry: 'https://example.com/global-registry/',
         '//example.com/global-registry/:_auth': 'MY_SECRET_GLOBAL_AUTH',
       },
-    } as any, // eslint-disable-line
+    } as unknown as InheritableConfigPair['config'],
   })
 
   expect(target.config).toMatchObject({
