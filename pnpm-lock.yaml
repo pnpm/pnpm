@@ -3160,6 +3160,9 @@ importers:
       '@pnpm/resolving.npm-resolver':
         specifier: workspace:*
         version: link:../../../resolving/npm-resolver
+      '@pnpm/resolving.registry.types':
+        specifier: workspace:*
+        version: link:../../../resolving/registry/types
       '@pnpm/semver-diff':
         specifier: 'catalog:'
         version: 1.1.0
@@ -3175,6 +3178,9 @@ importers:
       chalk:
         specifier: 'catalog:'
         version: 5.6.2
+      open:
+        specifier: ^7.4.2
+        version: 7.4.2
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'

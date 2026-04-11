@@ -6,7 +6,7 @@ import { createCompletionServer, generateCompletion } from '@pnpm/cli.commands'
 import { config, getCommand, setCommand } from '@pnpm/config.commands'
 import { types as allTypes } from '@pnpm/config.reader'
 import { audit, licenses, sbom } from '@pnpm/deps.compliance.commands'
-import { list, ll, outdated, peers, view, why } from '@pnpm/deps.inspection.commands'
+import { docs, list, ll, outdated, peers, view, why } from '@pnpm/deps.inspection.commands'
 import { selfUpdate, setup } from '@pnpm/engine.pm.commands'
 import { env, runtime } from '@pnpm/engine.runtime.commands'
 import {
@@ -136,6 +136,7 @@ const commands: CommandDefinition[] = [
   deploy,
   distTag,
   dlx,
+  docs,
   env,
   exec,
   runtime,
