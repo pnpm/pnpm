@@ -1269,7 +1269,7 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
     allProjects,
     nodeLinker: 'hoisted',
     hooks: {
-      readPackage: (manifest: any) => { // eslint-disable-line
+      readPackage: (manifest: { name: string, dependenciesMeta?: Record<string, { injected?: boolean }> }) => {
         if (manifest.name === 'project-2') {
           manifest.dependenciesMeta = {
             'project-1': {
@@ -1287,7 +1287,7 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
         return manifest
       },
     },
-  } as any)) // eslint-disable-line
+  }))
 
   const rootModules = assertProject(process.cwd())
   rootModules.has('is-negative')

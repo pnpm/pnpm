@@ -22,5 +22,5 @@ export function help (): string {
 
 export async function handler (opts: PnpmOptions, params: string[]): Promise<void> {
   await install.handler(opts)
-  await run.handler(opts as any, ['test', ...params]) // eslint-disable-line
+  await run.handler(opts as unknown as Parameters<typeof run.handler>[0], ['test', ...params])
 }

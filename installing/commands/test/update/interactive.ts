@@ -104,8 +104,7 @@ test('interactively update', async () => {
     storeDir,
   })
 
-  // eslint-disable-next-line
-  expect((prompt.mock.calls[0][0] as any).choices).toStrictEqual([
+  expect((prompt.mock.calls[0][0] as { choices: unknown[] }).choices).toStrictEqual([
     {
       choices: [
         headerChoice,
@@ -157,8 +156,7 @@ test('interactively update', async () => {
     storeDir,
   })
 
-  // eslint-disable-next-line
-  expect((prompt.mock.calls[0][0] as any).choices).toStrictEqual([
+  expect((prompt.mock.calls[0][0] as { choices: unknown[] }).choices).toStrictEqual([
     {
       choices: [
         headerChoice,
@@ -319,8 +317,7 @@ test('interactively update should ignore dependencies from the ignoreDependencie
     },
   })
 
-  // eslint-disable-next-line
-  expect((prompt.mock.calls[0][0] as any).choices as any).toStrictEqual(
+  expect((prompt.mock.calls[0][0] as { choices: unknown[] }).choices).toStrictEqual(
     [
       {
         choices: [

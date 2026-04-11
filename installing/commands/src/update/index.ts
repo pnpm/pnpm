@@ -225,7 +225,7 @@ async function interactiveUpdate (
   const { updateDependencies } = await enquirer.prompt({
     choices,
     footer: '\nEnter to start updating. Ctrl-c to cancel.',
-    indicator (state: any, choice: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+    indicator (_state: unknown, choice: { enabled: boolean }) {
       return ` ${choice.enabled ? '●' : '○'}`
     },
     message: 'Choose which packages to update ' +
