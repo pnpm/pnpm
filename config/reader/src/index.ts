@@ -22,7 +22,6 @@ import { omit } from 'ramda'
 import { realpathMissing } from 'realpath-missing'
 import semver from 'semver'
 
-import { inheritAuthConfig, pickIniConfig } from './auth.js'
 import { checkGlobalBinDir } from './checkGlobalBinDir.js'
 import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 import type {
@@ -40,6 +39,7 @@ import { parseEnvVars } from './env.js'
 import { getDefaultCreds, getNetworkConfigs } from './getNetworkConfigs.js'
 import { getOptionsFromPnpmSettings } from './getOptionsFromRootManifest.js'
 import { loadNpmrcConfig } from './loadNpmrcFiles.js'
+import { inheritDlxConfig, pickIniConfig } from './localConfig.js'
 import { npmDefaults } from './npmDefaults.js'
 import {
   type CliOptions as SupportedArchitecturesCliOptions,
@@ -66,8 +66,8 @@ export {
 } from './projectConfig.js'
 export type { Config, ConfigContext, ProjectConfig, UniversalOptions, VerifyDepsBeforeRun }
 
-export { isIniConfigKey, isNpmrcReadableKey } from './auth.js'
 export { type ConfigFileKey, isConfigFileKey } from './configFileKey.js'
+export { isIniConfigKey, isNpmrcReadableKey } from './localConfig.js'
 
 type CamelToKebabCase<S extends string> = S extends `${infer T}${infer U}`
   ? `${T extends Capitalize<T> ? '-' : ''}${Lowercase<T>}${CamelToKebabCase<U>}`
@@ -88,22 +88,22 @@ export async function getConfig (opts: {
   }
   workspaceDir?: string | undefined
   env?: Record<string, string | undefined>
-  ignoreNonAuthSettingsFromLocal?: boolean
+  onlyInheritDlxSettingsFromLocal?: boolean
   ignoreLocalSettings?: boolean
 }): Promise<{ config: Config, context: ConfigContext, warnings: string[] }> {
-  if (opts.ignoreNonAuthSettingsFromLocal) {
-    const { ignoreNonAuthSettingsFromLocal: _, ...authOpts } = opts
-    const globalCfgOpts: typeof authOpts = {
-      ...authOpts,
+  if (opts.onlyInheritDlxSettingsFromLocal) {
+    const { onlyInheritDlxSettingsFromLocal: _, ...localOpts } = opts
+    const globalCfgOpts: typeof localOpts = {
+      ...localOpts,
       ignoreLocalSettings: true,
       cliOptions: {
-        ...authOpts.cliOptions,
+        ...localOpts.cliOptions,
         dir: os.homedir(),
       },
     }
-    const [final, authSrc] = await Promise.all([getConfig(globalCfgOpts), getConfig(authOpts)])
-    inheritAuthConfig(final, authSrc)
-    final.warnings.push(...authSrc.warnings)
+    const [final, localSrc] = await Promise.all([getConfig(globalCfgOpts), getConfig(localOpts)])
+    inheritDlxConfig(final, localSrc)
+    final.warnings.push(...localSrc.warnings)
     return final
   }
 
