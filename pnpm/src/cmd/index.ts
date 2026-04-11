@@ -18,7 +18,7 @@ import {
 } from '@pnpm/exec.commands'
 import { add, dedupe, fetch, importCommand, install, link, prune, remove, unlink, update } from '@pnpm/installing.commands'
 import { patch, patchCommit, patchRemove } from '@pnpm/patching.commands'
-import { deprecate, distTag, undeprecate, unpublish } from '@pnpm/registry-access.commands'
+import { deprecate, distTag, star, stars, undeprecate, unpublish, unstar, whoami } from '@pnpm/registry-access.commands'
 import { deploy, pack, publish, version } from '@pnpm/releasing.commands'
 import { catFile, catIndex, findHash, store } from '@pnpm/store.commands'
 import { init } from '@pnpm/workspace.commands'
@@ -168,6 +168,9 @@ const commands: CommandDefinition[] = [
   restart,
   root,
   run,
+  star,
+  stars,
+  unstar,
   sbom,
   setup,
   store,
@@ -179,6 +182,7 @@ const commands: CommandDefinition[] = [
   update,
   version,
   view,
+  whoami,
   why,
   createHelp(helpByCommandName),
   ...notImplementedCommandDefinitions,

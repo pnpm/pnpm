@@ -20,14 +20,11 @@ const NOT_IMPLEMENTED_COMMANDS = [
   'se',
   'search',
   'set-script',
-  'star',
-  'stars',
   'team',
   'token',
-  'unstar',
-  'whoami',
   'xmas',
 ]
+
 
 export const NOT_IMPLEMENTED_COMMAND_SET = new Set(NOT_IMPLEMENTED_COMMANDS)
 
