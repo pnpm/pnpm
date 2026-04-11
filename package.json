@@ -1,6 +1,10 @@
 {
   "name": "monorepo-root",
   "private": true,
+  "dependencies": {
+    "verdaccio-audit": "catalog:",
+    "verdaccio-htpasswd": "catalog:"
+  },
   "scripts": {
     "bump": "changeset version && pn update-manifests",
     "changeset": "changeset",

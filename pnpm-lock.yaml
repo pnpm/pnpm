@@ -895,6 +895,12 @@ catalogs:
     verdaccio:
       specifier: 6.3.2
       version: 6.3.2
+    verdaccio-audit:
+      specifier: ^10.2.4
+      version: 10.2.4
+    verdaccio-htpasswd:
+      specifier: ^10.5.5
+      version: 10.5.5
     version-selector-type:
       specifier: ^3.0.0
       version: 3.0.0
@@ -985,6 +991,13 @@ patchedDependencies:
 importers:
 
   .:
+    dependencies:
+      verdaccio-audit:
+        specifier: 'catalog:'
+        version: 10.2.4(encoding@0.1.13)
+      verdaccio-htpasswd:
+        specifier: 'catalog:'
+        version: 10.5.5
     devDependencies:
       '@changesets/cli':
         specifier: 'catalog:'
@@ -12546,6 +12559,15 @@ packages:
   dayjs@1.11.13:
     resolution: {integrity: sha512-oaMBel6gjolK862uaPQOVTA7q3TZhuSvuMQAAglQDOWYO9A91IrAOUJEyKVlqJlHE0vq5p5UXxzdPfMH/x6xNg==}
 
+  debug@4.3.4:
+    resolution: {integrity: sha512-PRWFHuSU3eDtQJPvnNY7Jcket1j0t5OuOsFzPPzsekD52Zl8qUfFIPEiswXqIvHWGVHOgX+7G/vCNNhehwxfkQ==}
+    engines: {node: '>=6.0'}
+    peerDependencies:
+      supports-color: '*'
+    peerDependenciesMeta:
+      supports-color:
+        optional: true
+
   debug@4.4.1:
     resolution: {integrity: sha512-KcKCqiftBJcZr++7ykoDIEwSa3XWowTfNPo92BYxjXiyYEVrUQh2aLyhxBCwww+heortUFxEJYcRzosstTEBYQ==}
     engines: {node: '>=6.0'}
@@ -14650,6 +14672,9 @@ packages:
     resolution: {integrity: sha512-tzzskb3bG8LvYGFF/mDTpq3jpI6Q9wc3LEmBaghu+DdCssd1FakN7Bc0hVNmEyGq1bq3RgfkCb3cmQLpNPOroA==}
     engines: {node: '>=4'}
 
+  ms@2.1.2:
+    resolution: {integrity: sha512-sGkPx+VjMtmA6MX27oA4FBFELFCZZ4S4XqeGOXCv68tT+jb3vk/RyaKWP0PTKyWtmLSM0b+adUTEvbs1PEaH2w==}
+
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
 
@@ -16522,6 +16547,10 @@ packages:
   verdaccio-htpasswd@10.5.2:
     resolution: {integrity: sha512-bO5Wm8w07pWswNvwFWjNEoznuUU37CcfblcrU0Ci8c038EgTu2V47uwh4AyZ4PTK6ps9oxHqA7a1b+83sY0OkA==}
     engines: {node: '>=8'}
+
+  verdaccio-htpasswd@10.5.5:
+    resolution: {integrity: sha512-rRK2IvybhJGp+EZQwWcDTTEmct/uOaMn+wzaHIYNXxMZdzf01HBSQi21/0Xsxjev9LPPLzICP2RECMVfo0BVMg==}
+    engines: {node: '>=12'}
 
   verdaccio-htpasswd@13.0.0-next-8.33:
     resolution: {integrity: sha512-ZYqvF/EuA4W4idfv2O1ZN8YhSI2xreFbGdrcWgOd+QBedDin7NzMhgypbafutm9mPhkI6Xv/+3syee1u1cEL8g==}
@@ -20886,6 +20915,10 @@ snapshots:
 
   dayjs@1.11.13: {}
 
+  debug@4.3.4:
+    dependencies:
+      ms: 2.1.2
+
   debug@4.4.1:
     dependencies:
       ms: 2.1.3
@@ -23462,6 +23495,8 @@ snapshots:
 
   mri@1.2.0: {}
 
+  ms@2.1.2: {}
+
   ms@2.1.3: {}
 
   msgpackr-extract@3.0.3:
@@ -25491,6 +25526,17 @@ snapshots:
       bcryptjs: 2.4.3
       http-errors: 2.0.0
       unix-crypt-td-js: 1.1.4
+
+  verdaccio-htpasswd@10.5.5:
+    dependencies:
+      '@verdaccio/file-locking': 10.3.1
+      apache-md5: 1.1.8
+      bcryptjs: 2.4.3
+      debug: 4.3.4
+      http-errors: 2.0.0
+      unix-crypt-td-js: 1.1.4
+    transitivePeerDependencies:
+      - supports-color
 
   verdaccio-htpasswd@13.0.0-next-8.33:
     dependencies:
