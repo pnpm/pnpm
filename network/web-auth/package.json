@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
+    "open": "catalog:",
     "qrcode-terminal": "catalog:"
   },
   "devDependencies": {

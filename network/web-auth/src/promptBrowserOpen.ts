@@ -1,23 +1,15 @@
+import open from 'open'
+
 export interface PromptBrowserOpenReadlineInterface {
   once: (event: string, listener: () => void) => void
   close: () => void
 }
 
-export interface PromptBrowserOpenExecFile {
-  (file: string, args: readonly string[], callback: (error: Error | null) => void): unknown
-}
-
-export interface PromptBrowserOpenProcess {
-  platform?: NodeJS.Platform
-  stdin: { isTTY?: boolean }
-}
-
 export interface PromptBrowserOpenContext {
   createReadlineInterface?: () => PromptBrowserOpenReadlineInterface
-  execFile?: PromptBrowserOpenExecFile
   globalInfo: (message: string) => void
   globalWarn: (message: string) => void
-  process: PromptBrowserOpenProcess
+  process: { stdin: { isTTY?: boolean } }
 }
 
 export interface PromptBrowserOpenParams {
@@ -43,67 +35,10 @@ export async function promptBrowserOpen ({
   context,
   pollPromise,
 }: PromptBrowserOpenParams): Promise<string> {
-  const { createReadlineInterface, execFile, globalInfo, globalWarn, process } = context
+  const { createReadlineInterface, globalInfo, globalWarn, process } = context
 
-  if (!createReadlineInterface || !execFile || !process.stdin.isTTY) {
+  if (!createReadlineInterface || !process.stdin.isTTY) {
     return pollPromise
-  }
-
-  // Validate the URL before passing it to a shell command. On Windows,
-  // cmd.exe re-parses execFile arguments and would interpret shell
-  // metacharacters (&, |, etc.) in the URL as operators.
-  let parsedUrl: URL
-  try {
-    parsedUrl = new URL(authUrl)
-  } catch {
-    return pollPromise
-  }
-  if (parsedUrl.protocol !== 'https:' && parsedUrl.protocol !== 'http:') {
-    return pollPromise
-  }
-
-  const canonicalUrl = parsedUrl.href
-
-  let cmd: string
-  let args: string[]
-  switch (process.platform) {
-    case 'darwin':
-      cmd = 'open'
-      args = [canonicalUrl]
-      break
-    case 'win32': {
-      cmd = 'cmd'
-      // Windows edge cases for opening URLs from Node.js:
-      //
-      // The clean approach would be calling the Win32 ShellExecuteW API
-      // directly, which is what native Windows programs use. However,
-      // ShellExecuteW is a native API, not an executable — Node.js cannot
-      // call it from child_process without a native addon.
-      //
-      // All process-spawning alternatives have drawbacks:
-      //   - cmd /c start:    cmd.exe re-parses args; special characters in
-      //                      URLs (&, |, ^, %, etc.) are treated as shell
-      //                      operators
-      //   - explorer.exe:    breaks on URLs with query strings (?key=value),
-      //                      opening File Explorer instead of the browser
-      //                      (https://github.com/dotnet/runtime/issues/108817)
-      //   - url.dll:         undocumented, can strip query params on Win 7+
-      //   - PowerShell:      slow startup, own escaping issues
-      //
-      // Since pnpm already ships native addons, a small Rust/N-API addon
-      // calling ShellExecuteW directly could replace this in the future.
-      //
-      // For now, use cmd /c start with ^ escaping for special characters.
-      const escapedUrl = canonicalUrl.replace(/[&|<>^%()!]/g, '^$&')
-      args = ['/c', 'start', '', escapedUrl]
-      break
-    }
-    case 'linux':
-      cmd = 'xdg-open'
-      args = [canonicalUrl]
-      break
-    default:
-      return pollPromise
   }
 
   let rl: PromptBrowserOpenReadlineInterface
@@ -117,7 +52,7 @@ export async function promptBrowserOpen ({
   globalInfo('Press ENTER to open the URL in your browser.')
 
   rl.once('line', () => {
-    runExecFile(execFile, cmd, args).catch((err) => {
+    open(authUrl).catch((err: unknown) => {
       globalWarn(`Could not open browser automatically: ${String(err)}`)
       globalInfo('Please open the URL shown above manually.')
     })
@@ -137,17 +72,4 @@ export async function promptBrowserOpen ({
   } finally {
     rl.close()
   }
-}
-
-function runExecFile (
-  execFile: PromptBrowserOpenExecFile,
-  cmd: string,
-  args: string[]
-): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    execFile(cmd, args, (err) => {
-      if (err) reject(err)
-      else resolve()
-    })
-  })
 }
