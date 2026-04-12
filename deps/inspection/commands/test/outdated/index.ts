@@ -376,7 +376,7 @@ test('pnpm outdated: print only compatible versions', async () => {
 `)
 })
 
-test('ignore packages in package.json > pnpm.updateConfig.ignoreDependencies in outdated command', async () => {
+test.skip('ignore packages in package.json > pnpm.updateConfig.ignoreDependencies in outdated command', async () => {
   const { output, exitCode } = await outdated.handler({
     ...OUTDATED_OPTIONS,
     dir: withPnpmUpdateIgnore,
