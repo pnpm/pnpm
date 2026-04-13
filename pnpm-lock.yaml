@@ -2816,6 +2816,9 @@ importers:
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../../network/auth-header
+      '@pnpm/pkg-manifest.utils':
+        specifier: workspace:*
+        version: link:../../../pkg-manifest/utils
       '@pnpm/store.path':
         specifier: workspace:*
         version: link:../../../store/path
@@ -2919,6 +2922,9 @@ importers:
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../../../pkg-manifest/reader
+      '@pnpm/pkg-manifest.utils':
+        specifier: workspace:*
+        version: link:../../../pkg-manifest/utils
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../../../store/index
@@ -2980,6 +2986,9 @@ importers:
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../../../pkg-manifest/reader
+      '@pnpm/pkg-manifest.utils':
+        specifier: workspace:*
+        version: link:../../../pkg-manifest/utils
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../../../store/index

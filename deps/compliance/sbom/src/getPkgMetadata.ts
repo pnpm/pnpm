@@ -1,5 +1,6 @@
 import { type PackageSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 import { readPackageJson } from '@pnpm/pkg-manifest.reader'
+import { resolveLicense } from '@pnpm/pkg-manifest.utils'
 import type { StoreIndex } from '@pnpm/store.index'
 import { readPackageFileMap } from '@pnpm/store.pkg-finder'
 import type { PackageManifest, Registries } from '@pnpm/types'
@@ -52,31 +53,20 @@ async function getPkgMetadataUnclamped (
   const manifestPath = files.get('package.json')
   if (!manifestPath) return {}
   const manifest = await readPackageJson(manifestPath)
-  return extractMetadata(manifest)
+  return extractMetadata(manifest, files)
 }
 
-function extractMetadata (manifest: PackageManifest): PkgMetadata {
+async function extractMetadata (manifest: PackageManifest, files: Map<string, string>): Promise<PkgMetadata> {
+  const license = await resolveLicense({ manifest, files })
   return {
-    license: parseLicenseField(manifest.license),
+    // Drop 'Unknown' so SBOM serializers emit SPDX NOASSERTION / CycloneDX absence
+    // rather than a literal "Unknown" component.
+    license: license && license.name !== 'Unknown' ? license.name : undefined,
     description: manifest.description,
     author: parseAuthorField(manifest.author),
     homepage: manifest.homepage,
     repository: parseRepositoryField(manifest.repository),
   }
-}
-
-function parseLicenseField (field: unknown): string | undefined {
-  if (typeof field === 'string') return field
-  if (field && typeof field === 'object' && 'type' in field) {
-    return (field as { type: string }).type
-  }
-  if (Array.isArray(field)) {
-    return field
-      .map((l: { type?: string }) => l.type)
-      .filter(Boolean)
-      .join(' OR ') || undefined
-  }
-  return undefined
 }
 
 function parseAuthorField (field: unknown): string | undefined {
