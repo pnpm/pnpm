@@ -152,7 +152,6 @@ async function handleInstall (
   const clientIntegrities = new Set(request.storeIntegrities ?? [])
 
   const emittedDigests = new Set<string>()
-  const emittedIndexKeys = new Set<string>()
 
   res.writeHead(200, {
     'Content-Type': 'application/x-ndjson',
@@ -160,33 +159,23 @@ async function handleInstall (
   })
 
   // Wrap the store controller to intercept package resolutions.
-  // As each package resolves, stream its digest lines AND index entry
-  // immediately. The client receives both during resolution, so by the
-  // time the lockfile arrives it already has everything it needs.
+  // As each package resolves, stream file digest lines immediately.
+  // Only D lines here — I lines come from the diff computation which
+  // uses depPath-based keys matching what headless install expects.
   const wrappedStoreController: StoreController = {
     ...ctx.storeController,
     requestPackage: async (...args: Parameters<StoreController['requestPackage']>) => {
       const result = await ctx.storeController.requestPackage(...args)
       const integrity = (result.body as any)?.resolution?.integrity as string | undefined // eslint-disable-line @typescript-eslint/no-explicit-any
-      const pkgId = (result.body as any)?.id as string | undefined // eslint-disable-line @typescript-eslint/no-explicit-any
       if (integrity && !clientIntegrities.has(integrity)) {
         const entry = ctx.integrityIndex.get(integrity)
         if (entry) {
-          // Emit file digests
           for (const [, fileInfo] of getFilesEntries(entry.decoded)) {
             const executable = (fileInfo.mode & 0o111) !== 0
             const dedupeKey = `${fileInfo.digest}:${executable ? 'x' : ''}`
             if (!emittedDigests.has(dedupeKey)) {
               emittedDigests.add(dedupeKey)
               res.write(`D\t${fileInfo.digest}\t${fileInfo.size}\t${executable ? 1 : 0}\n`)
-            }
-          }
-          // Emit pre-packed index entry so the client has it before the lockfile
-          if (pkgId) {
-            const key = `${integrity}\t${pkgId}`
-            if (!emittedIndexKeys.has(key)) {
-              emittedIndexKeys.add(key)
-              res.write(`I\t${key}\t${Buffer.from(entry.rawBuffer).toString('base64')}\n`)
             }
           }
         }
@@ -295,9 +284,7 @@ async function handleInstall (
     for (const [depPath, { integrity, rawBuffer }] of packageIndexBuffers) {
       const pkgId = depPath.includes('(') ? depPath.substring(0, depPath.indexOf('(')) : depPath
       const key = `${integrity}\t${pkgId}`
-      if (!emittedIndexKeys.has(key)) {
-        res.write(`I\t${key}\t${Buffer.from(rawBuffer).toString('base64')}\n`)
-      }
+      res.write(`I\t${key}\t${Buffer.from(rawBuffer).toString('base64')}\n`)
     }
 
     // Send lockfile AFTER all I lines so the client has all index
