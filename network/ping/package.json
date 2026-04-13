@@ -28,9 +28,9 @@
   "scripts": {
     "start": "tsgo --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "test": "pnpm compile && pnpm .test",
-    "prepublishOnly": "pnpm compile",
-    "compile": "tsgo --build && pnpm lint --fix",
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
@@ -41,7 +41,8 @@
     "render-help": "catalog:"
   },
   "devDependencies": {
-    "@jest/globals": "catalog:"
+    "@jest/globals": "catalog:",
+    "@pnpm/network.ping.commands": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

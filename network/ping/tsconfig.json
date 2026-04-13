@@ -19,9 +19,6 @@
       "path": "../../core/types"
     },
     {
-      "path": "../../testing/command-defaults"
-    },
-    {
       "path": "../fetch"
     }
   ]
