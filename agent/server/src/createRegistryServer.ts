@@ -334,10 +334,13 @@ async function handleFiles (
   res.write(lengthBuf)
   res.write(jsonBuffer)
 
-  // File entries — streamed one at a time
+  // File entries — read from SQLite when available (consistent
+  // performance regardless of OS file cache), CAFS fallback.
   for (const d of digests) {
-    const cafsPath = getFilePathByModeInCafs(ctx.storeDir, d.digest, d.executable ? 0o755 : 0o644)
-    const content = readFileSync(cafsPath)
+    const cached = ctx.fileStore.get(d.digest)
+    const content = cached
+      ? cached.content
+      : readFileSync(getFilePathByModeInCafs(ctx.storeDir, d.digest, d.executable ? 0o755 : 0o644))
 
     const header = Buffer.alloc(69)
     Buffer.from(d.digest, 'hex').copy(header, 0)
