@@ -6700,6 +6700,9 @@ importers:
       '@pnpm/network.ping.commands':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/testing.mock-agent':
+        specifier: workspace:*
+        version: link:../../testing/mock-agent
 
   network/web-auth:
     dependencies:
