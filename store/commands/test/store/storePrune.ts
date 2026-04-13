@@ -627,6 +627,82 @@ describe('global virtual store prune', () => {
     rimrafSync(project2Dir)
   })
 
+  test('prune preserves packages referenced by global package installs', async () => {
+    // Simulate the scenario where a global package (like globally installed pnpm)
+    // uses the GVS but was not registered as a project.
+    const storeDir = path.resolve('..', 'global-pkg-store')
+    const cacheDir = path.resolve('..', 'global-pkg-cache')
+    const globalPkgDir = path.resolve('..', 'global-pkg-dir')
+
+    // Install a package with GVS enabled - this registers the project
+    prepare({
+      dependencies: { 'is-positive': '1.0.0' },
+    })
+
+    await execa('node', [
+      pnpmBin,
+      'install',
+      `--store-dir=${storeDir}`,
+      `--cache-dir=${cacheDir}`,
+      `--registry=${REGISTRY}`,
+      '--config.enableGlobalVirtualStore=true',
+      '--config.ci=false',
+    ])
+
+    const versionedStoreDir = path.join(storeDir, STORE_VERSION)
+    const linksDir = path.join(versionedStoreDir, 'links')
+    expect(fs.existsSync(linksDir)).toBe(true)
+
+    // Create a fake global package install dir that references the same GVS package.
+    // This simulates a globally installed pnpm or other global package.
+    fs.mkdirSync(globalPkgDir, { recursive: true })
+    const installDir = path.join(globalPkgDir, `${process.pid}-${Date.now().toString(16)}`)
+    fs.mkdirSync(installDir, { recursive: true })
+
+    // Copy the project's node_modules symlinks to the install dir
+    const srcModules = path.join(process.cwd(), 'node_modules')
+    const destModules = path.join(installDir, 'node_modules')
+    fs.cpSync(srcModules, destModules, { recursive: true })
+
+    // Write a package.json with dependencies (needed by scanGlobalPackages)
+    fs.writeFileSync(path.join(installDir, 'package.json'), JSON.stringify({
+      dependencies: { 'is-positive': '1.0.0' },
+    }))
+
+    // Create a hash symlink pointing to the install dir (needed by scanGlobalPackages)
+    fs.symlinkSync(installDir, path.join(globalPkgDir, 'test-hash'))
+
+    // Now remove the project registration to simulate the bug:
+    // the global install was never registered.
+    const projectsDir = path.join(versionedStoreDir, 'projects')
+    if (fs.existsSync(projectsDir)) {
+      rimrafSync(projectsDir)
+    }
+
+    // Also remove the original project's node_modules so the only reference
+    // to the GVS package is through the global install dir
+    rimrafSync(path.join(process.cwd(), 'node_modules'))
+
+    // Run prune WITH globalPkgDir - should protect the global install's packages
+    await store.handler({
+      cacheDir,
+      dir: process.cwd(),
+      pnpmHomeDir: '',
+      configByUri: {},
+      registries: { default: REGISTRY },
+      storeDir: versionedStoreDir,
+      dlxCacheMaxAge: Infinity,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+      globalPkgDir,
+    }, ['prune'])
+
+    // The GVS package should be preserved because globalPkgDir scanning
+    // registered the install dir before pruning
+    const unscopedDir = path.join(linksDir, '@')
+    const entries = fs.existsSync(unscopedDir) ? fs.readdirSync(unscopedDir) : []
+    expect(entries).toContain('is-positive')
+  })
+
   test('prune preserves transitive dependencies and removes isolated ones', async () => {
     // Create project with three packages:
     // - @pnpm.e2e/pkg-with-1-dep has transitive dep @pnpm.e2e/dep-of-pkg-with-1-dep

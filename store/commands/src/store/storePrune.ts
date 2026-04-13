@@ -22,27 +22,29 @@ export async function storePrune (
     streamParser.on('data', reporter)
   }
 
-  // Ensure all global package install dirs are registered before pruning,
-  // so their packages in the global virtual store are not removed.
-  if (opts.globalPkgDir) {
-    await registerGlobalPackageProjects(opts.storeDir, opts.globalPkgDir)
-  }
+  try {
+    // Ensure all global package install dirs are registered before pruning,
+    // so their packages in the global virtual store are not removed.
+    if (opts.globalPkgDir) {
+      await registerGlobalPackageProjects(opts.storeDir, opts.globalPkgDir)
+    }
 
-  await opts.storeController.prune(opts.removeAlienFiles)
-  await opts.storeController.close()
+    await opts.storeController.prune(opts.removeAlienFiles)
 
-  await cleanExpiredDlxCache({
-    cacheDir: opts.cacheDir,
-    dlxCacheMaxAge: opts.dlxCacheMaxAge,
-    now: new Date(),
-  })
+    await cleanExpiredDlxCache({
+      cacheDir: opts.cacheDir,
+      dlxCacheMaxAge: opts.dlxCacheMaxAge,
+      now: new Date(),
+    })
 
-  if (opts.globalPkgDir) {
-    cleanOrphanedInstallDirs(opts.globalPkgDir)
-  }
-
-  if ((reporter != null) && typeof reporter === 'function') {
-    streamParser.removeListener('data', reporter)
+    if (opts.globalPkgDir) {
+      cleanOrphanedInstallDirs(opts.globalPkgDir)
+    }
+  } finally {
+    await opts.storeController.close()
+    if ((reporter != null) && typeof reporter === 'function') {
+      streamParser.removeListener('data', reporter)
+    }
   }
 }
 
