@@ -113,10 +113,12 @@ export async function fetchFromPnpmRegistry (
           indexEntries,
         })
       } else if (type === 'I') {
+        // Format: I\t{integrity}\t{pkgId}\t{base64}
+        // Key is "{integrity}\t{pkgId}" — everything between first and last tab
         const rest = line.substring(tabIdx + 1)
-        const secondTab = rest.indexOf('\t')
-        const key = rest.substring(0, secondTab)
-        const buffer = new Uint8Array(Buffer.from(rest.substring(secondTab + 1), 'base64'))
+        const lastTab = rest.lastIndexOf('\t')
+        const key = rest.substring(0, lastTab)
+        const buffer = new Uint8Array(Buffer.from(rest.substring(lastTab + 1), 'base64'))
         indexEntries.push({ key, buffer })
       }
     }

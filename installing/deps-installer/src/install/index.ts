@@ -1888,12 +1888,10 @@ async function installFromPnpmRegistry (
   })
 
   // Write store index entries so headless install finds them.
-  // Do this before closing — headless may start reading immediately.
   const { writeRawIndexEntries } = await import('@pnpm/agent.client')
   writeRawIndexEntries(indexEntries, storeIndex)
 
-  // Close the store index so its WAL is flushed — other SQLite
-  // connections (store controller, workers) will then see the entries.
+  storeIndex.checkpoint()
   storeIndex.close()
 
   const lockfileDir = opts.lockfileDir ?? rootDir
