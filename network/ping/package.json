@@ -42,7 +42,8 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/network.ping.commands": "workspace:*"
+    "@pnpm/network.ping.commands": "workspace:*",
+    "@pnpm/testing.mock-agent": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

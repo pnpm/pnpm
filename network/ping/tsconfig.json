@@ -19,6 +19,9 @@
       "path": "../../core/types"
     },
     {
+      "path": "../../testing/mock-agent"
+    },
+    {
       "path": "../fetch"
     }
   ]

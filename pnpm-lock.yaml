@@ -6697,6 +6697,9 @@ importers:
       '@jest/globals':
         specifier: 'catalog:'
         version: 30.3.0
+      '@pnpm/network.ping.commands':
+        specifier: workspace:*
+        version: 'link:'
 
   network/web-auth:
     dependencies:
