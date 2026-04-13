@@ -2,6 +2,7 @@ import { promises as fs, readFileSync } from 'node:fs'
 import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
+import { createGzip } from 'node:zlib'
 
 import { createClient } from '@pnpm/installing.client'
 import type { InstallOptions } from '@pnpm/installing.deps-installer'
@@ -324,18 +325,21 @@ async function handleFiles (
   // The worker starts writing to CAFS as soon as the first bytes arrive.
   res.writeHead(200, {
     'Content-Type': 'application/x-pnpm-install',
+    'Content-Encoding': 'gzip',
     'Transfer-Encoding': 'chunked',
   })
+
+  const gzip = createGzip({ level: 1 })
+  gzip.pipe(res)
 
   // JSON header
   const jsonBuffer = Buffer.from('{}', 'utf-8')
   const lengthBuf = Buffer.alloc(4)
   lengthBuf.writeUInt32BE(jsonBuffer.length, 0)
-  res.write(lengthBuf)
-  res.write(jsonBuffer)
+  gzip.write(lengthBuf)
+  gzip.write(jsonBuffer)
 
-  // File entries — read from SQLite when available (consistent
-  // performance regardless of OS file cache), CAFS fallback.
+  // File entries — streamed through gzip
   for (const d of digests) {
     const cached = ctx.fileStore.get(d.digest)
     const content = cached
@@ -347,13 +351,12 @@ async function handleFiles (
     header.writeUInt32BE(content.length, 64)
     header[68] = d.executable ? 0x01 : 0x00
 
-    res.write(header)
-    res.write(content)
+    gzip.write(header)
+    gzip.write(content)
   }
 
-  // End marker
-  res.write(Buffer.alloc(64, 0))
-  res.end()
+  // End marker + close gzip stream (which ends the response)
+  gzip.end(Buffer.alloc(64, 0))
 }
 
 function readBody (req: http.IncomingMessage): Promise<string> {
