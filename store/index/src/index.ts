@@ -275,6 +275,11 @@ export class StoreIndex {
     this.db.exec('VACUUM')
   }
 
+  checkpoint (): void {
+    this.flush()
+    this.db.exec('PRAGMA wal_checkpoint(TRUNCATE)')
+  }
+
   close (): void {
     if (this.closed) return
     this.flush()
