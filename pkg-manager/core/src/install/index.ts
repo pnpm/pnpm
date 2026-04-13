@@ -426,7 +426,7 @@ export async function mutateModules (
       opts.frozenLockfileIfExists && ctx.existsNonEmptyWantedLockfile
     let outdatedLockfileSettings = false
     const overridesMap = createOverridesMapFromParsed(opts.parsedOverrides)
-    if (!opts.ignorePackageManifest) {
+    if (!opts.ignorePackageManifest && !opts.ignoreLockfileSettingsChecks) {
       const outdatedLockfileSettingName = getOutdatedLockfileSetting(ctx.wantedLockfile, {
         autoInstallPeers: opts.autoInstallPeers,
         catalogs: opts.catalogs,
