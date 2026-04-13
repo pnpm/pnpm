@@ -1,0 +1,112 @@
+# @pnpm/agent.server
+
+A pnpm agent server that resolves dependencies server-side and streams only the files missing from the client's content-addressable store.
+
+## How it works
+
+1. Client sends `POST /v1/install` with dependencies, an optional existing lockfile, and the integrity hashes of packages already in its store.
+2. Server resolves the full dependency tree using pnpm's own resolution engine.
+3. Server computes which file digests the client is missing — at the individual file level, not just the package level.
+4. Server streams a binary response: JSON metadata (lockfile + per-package file indexes) followed by the raw content of missing files.
+
+This eliminates sequential metadata round-trips (the server resolves in one shot) and avoids downloading files that already exist in the client's store from other packages.
+
+## Starting the server
+
+### From the command line
+
+```bash
+# Build first
+pnpm --filter @pnpm/agent.server run compile
+
+# Run with defaults (port 4873, upstream https://registry.npmjs.org/)
+node lib/bin.js
+
+# Or configure via environment variables
+PORT=4000 \
+PNPM_AGENT_STORE_DIR=./my-store \
+PNPM_AGENT_CACHE_DIR=./my-cache \
+PNPM_AGENT_UPSTREAM=https://registry.npmjs.org/ \
+node lib/bin.js
+```
+
+### Environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `4873` | Port to listen on |
+| `PNPM_AGENT_STORE_DIR` | `./store` | Directory for the server's content-addressable store |
+| `PNPM_AGENT_CACHE_DIR` | `./cache` | Directory for package metadata cache |
+| `PNPM_AGENT_UPSTREAM` | `https://registry.npmjs.org/` | Upstream npm registry to resolve from |
+
+### Programmatic usage
+
+```typescript
+import { createRegistryServer } from '@pnpm/agent.server'
+
+const server = await createRegistryServer({
+  storeDir: '/var/lib/pnpm-agent/store',
+  cacheDir: '/var/lib/pnpm-agent/cache',
+  registries: { default: 'https://registry.npmjs.org/' },
+})
+
+server.listen(4000, () => {
+  console.log('pnpm agent listening on port 4000')
+})
+```
+
+## Quick start
+
+Terminal 1 — start the server:
+
+```bash
+cd registry/server
+pnpm run compile
+node lib/bin.js
+# pnpm agent server listening on http://localhost:4873
+```
+
+Terminal 2 — use it from any project:
+
+```bash
+cd my-project
+```
+
+Add to `pnpm-workspace.yaml`:
+
+```yaml
+pnpmRegistry: http://localhost:4873
+```
+
+Then run:
+
+```bash
+pnpm install
+```
+
+That's it. pnpm will resolve dependencies on the server, download only the files missing from your local store, and link `node_modules` as usual. Remove the `pnpmRegistry` line to go back to normal behavior.
+
+## API
+
+### `POST /v1/install`
+
+**Request body** (JSON):
+
+```json
+{
+  "dependencies": { "react": "^19.0.0" },
+  "devDependencies": { "typescript": "^5.0.0" },
+  "overrides": {},
+  "lockfile": null,
+  "storeIntegrities": ["sha512-abc...", "sha512-def..."]
+}
+```
+
+**Response** (binary, `Content-Type: application/x-pnpm-install`):
+
+```
+[4 bytes: JSON metadata length]
+[N bytes: JSON metadata — lockfile, package file indexes, stats]
+[file entries: 64B digest + 4B size + 1B mode + content, repeated]
+[64 zero bytes: end marker]
+```

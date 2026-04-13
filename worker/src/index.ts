@@ -14,10 +14,12 @@ import pLimit from 'p-limit'
 
 import type {
   AddDirToStoreMessage,
+  FetchAndWriteCafsMessage,
   HardLinkDirMessage,
   LinkPkgMessage,
   SymlinkAllModulesMessage,
   TarballExtractMessage,
+  WriteCafsFilesMessage,
 } from './types.js'
 
 let workerPool: WorkerPool | undefined
@@ -195,6 +197,58 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
   })
 }
 
+export async function writeCafsFiles (opts: {
+  storeDir: string
+  files: WriteCafsFilesMessage['files']
+}): Promise<number> {
+  if (!workerPool) {
+    workerPool = createTarballWorkerPool()
+  }
+  const localWorker = await workerPool.checkoutWorkerAsync(true)
+  return new Promise<number>((resolve, reject) => {
+    localWorker.once('message', ({ status, error, filesWritten }) => {
+      workerPool!.checkinWorker(localWorker)
+      if (status === 'error') {
+        reject(new PnpmError('CAFS_WRITE', error.message))
+        return
+      }
+      resolve(filesWritten)
+    })
+    localWorker.postMessage({
+      type: 'write-cafs-files',
+      storeDir: opts.storeDir,
+      files: opts.files,
+    } satisfies WriteCafsFilesMessage)
+  })
+}
+
+export async function fetchAndWriteCafsFiles (opts: {
+  registryUrl: string
+  storeDir: string
+  digests: FetchAndWriteCafsMessage['digests']
+}): Promise<number> {
+  if (!workerPool) {
+    workerPool = createTarballWorkerPool()
+  }
+  const localWorker = await workerPool.checkoutWorkerAsync(true)
+  return new Promise<number>((resolve, reject) => {
+    localWorker.once('message', ({ status, error, filesWritten }) => {
+      workerPool!.checkinWorker(localWorker)
+      if (status === 'error') {
+        reject(new PnpmError('CAFS_FETCH_WRITE', error.message))
+        return
+      }
+      resolve(filesWritten)
+    })
+    localWorker.postMessage({
+      type: 'fetch-and-write-cafs',
+      registryUrl: opts.registryUrl,
+      storeDir: opts.storeDir,
+      digests: opts.digests,
+    } satisfies FetchAndWriteCafsMessage)
+  })
+}
+
 export interface ReadPkgFromCafsContext {
   storeDir: string
   verifyStoreIntegrity: boolean
@@ -248,7 +302,15 @@ export async function readPkgFromCafs (
 // so, running them in parallel helps only to a point.
 // With local experimenting it was discovered that running 4 workers gives the best results.
 // Adding more workers actually makes installation slower.
-const limitImportingPackage = pLimit(4)
+let limitImportingPackage = pLimit(4)
+
+/**
+ * Increase import concurrency. Called by the pnpm agent code path where
+ * there's no concurrent fetching competing for workers.
+ */
+export function setImportConcurrency (concurrency: number): void {
+  limitImportingPackage = pLimit(concurrency)
+}
 
 export async function importPackage (
   opts: Omit<LinkPkgMessage, 'type'>
