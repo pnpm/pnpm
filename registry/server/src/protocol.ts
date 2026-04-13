@@ -32,7 +32,7 @@ export interface ResponseMetadata {
 }
 
 /**
- * Encode and stream the response in the pnpm-registry binary protocol.
+ * Encode and stream the response in the pnpm agent binary protocol.
  *
  * Format:
  *   [4 bytes: JSON metadata length (big-endian uint32)]

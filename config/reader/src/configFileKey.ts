@@ -102,7 +102,7 @@ export const excludedPnpmKeys = [
   'pack-gzip-level',
   'patches-dir',
   'pnpmfile',
-  'pnpm-registry',
+  'agent',
   'package-manager-strict',
   'package-manager-strict-version',
   'prefer-workspace-packages',

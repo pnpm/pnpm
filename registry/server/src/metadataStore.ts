@@ -11,7 +11,7 @@ interface PackageMetaCache {
 }
 
 /**
- * SQLite-backed PackageMetaCache for the pnpm registry server.
+ * SQLite-backed PackageMetaCache for the pnpm agent server.
  *
  * Stores package metadata as pre-serialized JSON blobs keyed by cache key.
  * Much faster than reading hundreds of .jsonl files from disk on every

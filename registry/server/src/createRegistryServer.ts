@@ -176,11 +176,11 @@ async function handleInstall (
     },
   }
 
-  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-registry-'))
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-agent-'))
 
   try {
     const manifest = {
-      name: 'pnpm-registry-resolve',
+      name: 'pnpm-agent-resolve',
       version: '0.0.0',
       dependencies: request.dependencies ?? {},
       devDependencies: request.devDependencies ?? {},

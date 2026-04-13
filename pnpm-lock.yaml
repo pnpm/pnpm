@@ -5178,6 +5178,9 @@ importers:
 
   installing/deps-installer:
     dependencies:
+      '@pnpm/agent.client':
+        specifier: workspace:*
+        version: link:../../registry/client
       '@pnpm/bins.linker':
         specifier: workspace:*
         version: link:../../bins/linker
@@ -5310,9 +5313,6 @@ importers:
       '@pnpm/pkg-manifest.utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/utils
-      '@pnpm/registry.client':
-        specifier: workspace:*
-        version: link:../../registry/client
       '@pnpm/resolving.parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../resolving/parse-wanted-dependency
@@ -7154,6 +7154,9 @@ importers:
       '@jest/globals':
         specifier: 'catalog:'
         version: 30.3.0
+      '@pnpm/agent.server':
+        specifier: workspace:*
+        version: link:../registry/server
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../__utils__/assert-project
@@ -7271,9 +7274,6 @@ importers:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
-      '@pnpm/registry.server':
-        specifier: workspace:*
-        version: link:../registry/server
       '@pnpm/releasing.commands':
         specifier: workspace:*
         version: link:../releasing/commands
@@ -7645,7 +7645,7 @@ importers:
       '@jest/globals':
         specifier: 'catalog:'
         version: 30.3.0
-      '@pnpm/registry.client':
+      '@pnpm/agent.client':
         specifier: workspace:*
         version: 'link:'
       '@pnpm/types':
@@ -7685,18 +7685,18 @@ importers:
       '@jest/globals':
         specifier: 'catalog:'
         version: 30.3.0
+      '@pnpm/agent.client':
+        specifier: workspace:*
+        version: link:../client
+      '@pnpm/agent.server':
+        specifier: workspace:*
+        version: 'link:'
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
-      '@pnpm/registry.client':
-        specifier: workspace:*
-        version: link:../client
-      '@pnpm/registry.server':
-        specifier: workspace:*
-        version: 'link:'
       cross-env:
         specifier: 'catalog:'
         version: 10.1.0

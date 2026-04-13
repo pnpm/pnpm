@@ -47,7 +47,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'node-linker',
     'noproxy',
     'package-import-method',
-    'pnpm-registry',
+    'agent',
     'pnpmfile',
     'prefer-frozen-lockfile',
     'prefer-offline',
@@ -325,7 +325,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'updateConfig'
 | 'overrides'
 | 'packageExtensions'
-| 'pnpmRegistry'
+| 'agent'
 | 'supportedArchitectures'
 | 'packageConfigs'
 > & Pick<ConfigContext,

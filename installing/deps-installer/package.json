@@ -100,7 +100,7 @@
     "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/patching.config": "workspace:*",
     "@pnpm/pkg-manifest.utils": "workspace:*",
-    "@pnpm/registry.client": "workspace:*",
+    "@pnpm/agent.client": "workspace:*",
     "@pnpm/resolving.parse-wanted-dependency": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",

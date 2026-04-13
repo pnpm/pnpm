@@ -1,8 +1,8 @@
 {
-  "name": "@pnpm/registry.server",
+  "name": "@pnpm/agent.server",
   "version": "1000.0.0",
   "private": true,
-  "description": "pnpm registry server for server-side resolution and store-aware downloads",
+  "description": "pnpm agent server for server-side resolution and store-aware downloads",
   "keywords": [
     "pnpm",
     "pnpm11"
@@ -18,7 +18,7 @@
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "bin": {
-    "pnpm-registry": "./lib/bin.js"
+    "pnpm-agent": "./lib/bin.js"
   },
   "exports": {
     ".": "./lib/index.js"
@@ -52,8 +52,8 @@
     "@jest/globals": "catalog:",
     "@pnpm/logger": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
-    "@pnpm/registry.client": "workspace:*",
-    "@pnpm/registry.server": "workspace:*",
+    "@pnpm/agent.client": "workspace:*",
+    "@pnpm/agent.server": "workspace:*",
     "cross-env": "catalog:"
   },
   "engines": {

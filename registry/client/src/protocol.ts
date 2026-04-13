@@ -28,7 +28,7 @@ export interface DecodedFile {
 }
 
 /**
- * Decode a pnpm-registry binary response stream.
+ * Decode a pnpm agent binary response stream.
  *
  * Format:
  *   [4 bytes: JSON metadata length (big-endian uint32)]

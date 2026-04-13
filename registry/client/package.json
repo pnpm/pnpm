@@ -1,7 +1,7 @@
 {
-  "name": "@pnpm/registry.client",
+  "name": "@pnpm/agent.client",
   "version": "1000.0.0",
-  "description": "Client for pnpm registry server — sends store state, receives resolved lockfile and missing files",
+  "description": "Client for pnpm agent server — sends store state, receives resolved lockfile and missing files",
   "keywords": [
     "pnpm",
     "pnpm11"
@@ -42,7 +42,7 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/registry.client": "workspace:*",
+    "@pnpm/agent.client": "workspace:*",
     "@pnpm/types": "workspace:*",
     "cross-env": "catalog:"
   },

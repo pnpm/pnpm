@@ -3,9 +3,9 @@ import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
 
+import { createRegistryServer } from '@pnpm/agent.server'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
-import { createRegistryServer } from '@pnpm/registry.server'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 
 import { execPnpm } from '../utils/index.js'
@@ -18,7 +18,7 @@ let serverStoreDir: string
 let requestCount: number
 
 beforeAll(async () => {
-  const tmpBase = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-registry-e2e-server-'))
+  const tmpBase = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-agent-e2e-server-'))
   serverStoreDir = path.join(tmpBase, 'store')
 
   const realServer = await createRegistryServer({
@@ -58,7 +58,7 @@ afterAll(() => {
   server.close()
 })
 
-test('pnpm install uses pnpm-registry server when configured', async () => {
+test('pnpm install uses pnpm agent when configured', async () => {
   prepare({
     dependencies: {
       'is-positive': '1.0.0',
@@ -68,7 +68,7 @@ test('pnpm install uses pnpm-registry server when configured', async () => {
   requestCount = 0
 
   await execPnpm(
-    ['install', `--config.pnpm-registry=http://localhost:${serverPort}`]
+    ['install', `--config.agent=http://localhost:${serverPort}`]
   )
 
   // Verify the registry server received at least one request

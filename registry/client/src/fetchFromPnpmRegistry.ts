@@ -9,7 +9,7 @@ import { fetchAndWriteCafsFiles } from '@pnpm/worker'
 import type { ResponseMetadata } from './protocol.js'
 
 export interface FetchFromPnpmRegistryOptions {
-  /** URL of the pnpm registry server */
+  /** URL of the pnpm agent server */
   registryUrl: string
   /** Client's store directory */
   storeDir: string
@@ -37,7 +37,7 @@ export interface FetchFromPnpmRegistryResult {
 }
 
 /**
- * Fetch resolved dependencies from a pnpm registry server.
+ * Fetch resolved dependencies from a pnpm agent server.
  *
  * The response is a streaming NDJSON where each line is one message:
  *   - `D\t{digest}\t{size}\t{executable}\n` — file digest (streamed as packages resolve)
@@ -118,7 +118,7 @@ export async function fetchFromPnpmRegistry (
   await streamNdjsonRequest(opts.registryUrl, '/v1/install', requestBody, handleLine)
 
   if (!lockfile || !stats) {
-    throw new Error('pnpm-registry response missing lockfile')
+    throw new Error('pnpm agent response missing lockfile')
   }
 
   const fileDownloads = Promise.all(workerPromises).then(() => {})
@@ -167,7 +167,7 @@ async function streamNdjsonRequest (
         const chunks: Buffer[] = []
         res.on('data', (chunk: Buffer) => chunks.push(chunk))
         res.on('end', () => {
-          reject(new Error(`pnpm-registry responded with ${res.statusCode}: ${Buffer.concat(chunks).toString('utf-8')}`))
+          reject(new Error(`pnpm agent responded with ${res.statusCode}: ${Buffer.concat(chunks).toString('utf-8')}`))
         })
         return
       }
@@ -190,11 +190,11 @@ async function streamNdjsonRequest (
     })
 
     req.on('timeout', () => {
-      req.destroy(new Error(`pnpm-registry request timed out after ${REQUEST_TIMEOUT / 1000}s (${registryUrl})`))
+      req.destroy(new Error(`pnpm agent request timed out after ${REQUEST_TIMEOUT / 1000}s (${registryUrl})`))
     })
     req.on('error', (err: NodeJS.ErrnoException) => {
       if (err.code === 'ECONNREFUSED') {
-        reject(new Error(`Could not connect to pnpm-registry at ${registryUrl}. Is the server running?`))
+        reject(new Error(`Could not connect to pnpm agent at ${registryUrl}. Is the server running?`))
       } else {
         reject(err)
       }

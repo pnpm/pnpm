@@ -70,7 +70,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'lockfileDir'
 | 'lockfileOnly'
 | 'modulesDir'
-| 'pnpmRegistry'
+| 'agent'
 | 'allowBuilds'
 | 'registries'
 | 'save'

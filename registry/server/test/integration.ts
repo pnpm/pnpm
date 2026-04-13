@@ -4,15 +4,15 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals'
-import { fetchFromPnpmRegistry } from '@pnpm/registry.client'
-import { createRegistryServer } from '@pnpm/registry.server'
+import { fetchFromPnpmRegistry } from '@pnpm/agent.client'
+import { createRegistryServer } from '@pnpm/agent.server'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { StoreIndex } from '@pnpm/store.index'
 import type { DepPath, ProjectId } from '@pnpm/types'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
-describe('pnpm-registry integration', () => {
+describe('pnpm-agent integration', () => {
   let server: http.Server
   let serverPort: number
   let serverStoreDir: string
@@ -20,7 +20,7 @@ describe('pnpm-registry integration', () => {
 
   beforeAll(async () => {
     // Create server store in a temp directory
-    const tmpBase = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-registry-test-server-'))
+    const tmpBase = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-agent-test-server-'))
     serverStoreDir = path.join(tmpBase, 'store')
     serverCacheDir = path.join(tmpBase, 'cache')
 
@@ -51,7 +51,7 @@ describe('pnpm-registry integration', () => {
   })
 
   it('returns a lockfile with importers keyed by "."', async () => {
-    const tmpClient = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-registry-test-importers-'))
+    const tmpClient = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-agent-test-importers-'))
     const clientStoreDir = path.join(tmpClient, 'store')
     await fs.mkdir(clientStoreDir, { recursive: true })
     const clientStoreIndex = new StoreIndex(clientStoreDir)
@@ -84,7 +84,7 @@ describe('pnpm-registry integration', () => {
 
   it('resolves a single dependency and returns lockfile + files', async () => {
     // Create a client store in a temp directory
-    const tmpClient = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-registry-test-client-'))
+    const tmpClient = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-agent-test-client-'))
     const clientStoreDir = path.join(tmpClient, 'store')
     await fs.mkdir(clientStoreDir, { recursive: true })
     const clientStoreIndex = new StoreIndex(clientStoreDir)
@@ -124,7 +124,7 @@ describe('pnpm-registry integration', () => {
   })
 
   it('returns consistent lockfile on repeated requests', async () => {
-    const tmpClient = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-registry-test-client2-'))
+    const tmpClient = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-agent-test-client2-'))
     const clientStoreDir = path.join(tmpClient, 'store')
     await fs.mkdir(clientStoreDir, { recursive: true })
     const clientStoreIndex = new StoreIndex(clientStoreDir)

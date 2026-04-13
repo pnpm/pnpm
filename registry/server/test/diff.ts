@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals'
+import { computeDiff, type IntegrityEntry } from '@pnpm/agent.server'
 import type { LockfileObject } from '@pnpm/lockfile.types'
-import { computeDiff, type IntegrityEntry } from '@pnpm/registry.server'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { packForStorage } from '@pnpm/store.index'
 

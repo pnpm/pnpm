@@ -1,4 +1,4 @@
-# RFC: pnpm-registry — Server-Side Resolution and Store-Aware Downloads
+# RFC: pnpm agent — Server-Side Resolution and Store-Aware Downloads
 
 ## Summary
 
@@ -18,7 +18,7 @@ A pnpm-specific registry server that resolves dependencies server-side and strea
 
 ## Architecture
 
-### Server (`@pnpm/registry.server`)
+### Server (`@pnpm/agent.server`)
 
 - **Multi-process**: Uses Node.js `cluster` module (default: CPU cores - 1 workers)
 - **Resolution**: Calls pnpm's `install()` with `lockfileOnly: true` in a temp dir
@@ -27,7 +27,7 @@ A pnpm-specific registry server that resolves dependencies server-side and strea
 - **File store (SQLite)**: A `FileStore` class stores CAFS file contents as blobs in SQLite. The `/v1/files` endpoint reads from SQLite instead of thousands of individual `readFileSync` calls. Files are lazily cached: on first request they're read from CAFS and stored in SQLite; subsequent requests serve directly from SQLite. The import runs in the background via `setImmediate` so it doesn't block the `/v1/install` response.
 - **Streaming `/v1/install`**: The response is NDJSON. A wrapped `storeController.requestPackage` intercepts each resolved package, looks up its files in the integrity index, and emits digest lines immediately to the response stream. The final lockfile and pre-packed msgpack index entries are sent after resolution completes.
 
-### Client (`@pnpm/registry.client`)
+### Client (`@pnpm/agent.client`)
 
 - **Store integrities**: Reads package integrity hashes from local store index via `StoreIndex.keys()` (key-only SQL query, no msgpack decode)
 - **Streaming response parser**: Reads the NDJSON response line by line. As digest lines accumulate into batches of 4000, dispatches worker threads to `/v1/files`. File downloads begin while the server is still resolving.
@@ -40,7 +40,7 @@ A pnpm-specific registry server that resolves dependencies server-side and strea
 In `pnpm-workspace.yaml`:
 
 ```yaml
-pnpmRegistry: http://localhost:4873
+agent: http://localhost:4873
 ```
 
 ## Protocol
@@ -106,8 +106,8 @@ Benchmarked with a 1351-package project (cold local store, warm server):
 |----------|------|
 | Standard pnpm install (cold npm CDN edge cache) | ~18s |
 | Standard pnpm install (warm npm CDN edge cache) | ~11-12s |
-| With pnpm-registry (first run, cold SQLite caches) | ~12-14s |
-| With pnpm-registry (warm SQLite caches) | **~10s** |
+| With pnpm agent (first run, cold SQLite caches) | ~12-14s |
+| With pnpm agent (warm SQLite caches) | **~10s** |
 
 ### Where Time Goes (warm server, ~10s)
 
@@ -155,17 +155,17 @@ Environment variables:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `4873` | Port to listen on |
-| `PNPM_REGISTRY_STORE_DIR` | `./store` | Server's content-addressable store |
-| `PNPM_REGISTRY_CACHE_DIR` | `./cache` | Package metadata cache |
-| `PNPM_REGISTRY_UPSTREAM` | `https://registry.npmjs.org/` | Upstream npm registry |
-| `PNPM_REGISTRY_WORKERS` | `CPU cores - 1` | Number of cluster workers |
+| `PNPM_AGENT_STORE_DIR` | `./store` | Server's content-addressable store |
+| `PNPM_AGENT_CACHE_DIR` | `./cache` | Package metadata cache |
+| `PNPM_AGENT_UPSTREAM` | `https://registry.npmjs.org/` | Upstream npm registry |
+| `PNPM_AGENT_WORKERS` | `CPU cores - 1` | Number of cluster workers |
 
 ### Using from a Project
 
 Add to `pnpm-workspace.yaml`:
 
 ```yaml
-pnpmRegistry: http://localhost:4873
+agent: http://localhost:4873
 ```
 
 Then `pnpm install` uses the registry server automatically. Remove the setting to go back to normal behavior.

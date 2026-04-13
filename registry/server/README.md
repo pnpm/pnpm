@@ -1,6 +1,6 @@
-# @pnpm/registry.server
+# @pnpm/agent.server
 
-A pnpm registry server that resolves dependencies server-side and streams only the files missing from the client's content-addressable store.
+A pnpm agent server that resolves dependencies server-side and streams only the files missing from the client's content-addressable store.
 
 ## How it works
 
@@ -17,16 +17,16 @@ This eliminates sequential metadata round-trips (the server resolves in one shot
 
 ```bash
 # Build first
-pnpm --filter @pnpm/registry.server run compile
+pnpm --filter @pnpm/agent.server run compile
 
 # Run with defaults (port 4873, upstream https://registry.npmjs.org/)
 node lib/bin.js
 
 # Or configure via environment variables
 PORT=4000 \
-PNPM_REGISTRY_STORE_DIR=./my-store \
-PNPM_REGISTRY_CACHE_DIR=./my-cache \
-PNPM_REGISTRY_UPSTREAM=https://registry.npmjs.org/ \
+PNPM_AGENT_STORE_DIR=./my-store \
+PNPM_AGENT_CACHE_DIR=./my-cache \
+PNPM_AGENT_UPSTREAM=https://registry.npmjs.org/ \
 node lib/bin.js
 ```
 
@@ -35,23 +35,23 @@ node lib/bin.js
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `4873` | Port to listen on |
-| `PNPM_REGISTRY_STORE_DIR` | `./store` | Directory for the server's content-addressable store |
-| `PNPM_REGISTRY_CACHE_DIR` | `./cache` | Directory for package metadata cache |
-| `PNPM_REGISTRY_UPSTREAM` | `https://registry.npmjs.org/` | Upstream npm registry to resolve from |
+| `PNPM_AGENT_STORE_DIR` | `./store` | Directory for the server's content-addressable store |
+| `PNPM_AGENT_CACHE_DIR` | `./cache` | Directory for package metadata cache |
+| `PNPM_AGENT_UPSTREAM` | `https://registry.npmjs.org/` | Upstream npm registry to resolve from |
 
 ### Programmatic usage
 
 ```typescript
-import { createRegistryServer } from '@pnpm/registry.server'
+import { createRegistryServer } from '@pnpm/agent.server'
 
 const server = await createRegistryServer({
-  storeDir: '/var/lib/pnpm-registry/store',
-  cacheDir: '/var/lib/pnpm-registry/cache',
+  storeDir: '/var/lib/pnpm-agent/store',
+  cacheDir: '/var/lib/pnpm-agent/cache',
   registries: { default: 'https://registry.npmjs.org/' },
 })
 
 server.listen(4000, () => {
-  console.log('pnpm-registry listening on port 4000')
+  console.log('pnpm agent listening on port 4000')
 })
 ```
 
@@ -63,7 +63,7 @@ Terminal 1 — start the server:
 cd registry/server
 pnpm run compile
 node lib/bin.js
-# pnpm-registry server listening on http://localhost:4873
+# pnpm agent server listening on http://localhost:4873
 ```
 
 Terminal 2 — use it from any project:

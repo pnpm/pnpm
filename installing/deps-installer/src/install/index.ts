@@ -165,9 +165,9 @@ export async function install (
 ): Promise<InstallResult> {
   const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
 
-  // When a pnpm-registry server is configured, use server-side resolution
+  // When a pnpm agent is configured, use server-side resolution
   // instead of the normal resolution flow.
-  if (opts.pnpmRegistry) {
+  if (opts.agent) {
     return installFromPnpmRegistry(manifest, rootDir, opts)
   }
 
@@ -279,8 +279,8 @@ export async function mutateModules (
 
   const opts = extendOptions(maybeOpts)
 
-  // When a pnpm-registry server is configured, use server-side resolution.
-  if (opts.pnpmRegistry && projects.length === 1 && projects[0].mutation === 'install') {
+  // When a pnpm agent is configured, use server-side resolution.
+  if (opts.agent && projects.length === 1 && projects[0].mutation === 'install') {
     const project = opts.allProjects.find(p => p.rootDir === projects[0].rootDir)
     if (project?.manifest) {
       const result = await installFromPnpmRegistry(project.manifest, projects[0].rootDir, opts)
@@ -1853,7 +1853,7 @@ function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
 }
 
 /**
- * When a pnpm-registry server is configured, resolve dependencies server-side
+ * When a pnpm agent is configured, resolve dependencies server-side
  * and download only the missing files. Then run a headless install to link
  * packages into node_modules.
  */
@@ -1863,21 +1863,21 @@ async function installFromPnpmRegistry (
   opts: Opts
 ): Promise<InstallResult> {
   // Lazy-import to keep the dependency optional for users who don't use this feature
-  const { fetchFromPnpmRegistry } = await import('@pnpm/registry.client') // eslint-disable-line import-x/no-extraneous-dependencies
-  const { StoreIndex } = await import('@pnpm/store.index') // eslint-disable-line import-x/no-extraneous-dependencies
+  const { fetchFromPnpmRegistry } = await import('@pnpm/agent.client')
+  const { StoreIndex } = await import('@pnpm/store.index')
 
   // Read existing lockfile if available
   const existingLockfile = await readWantedLockfile(opts.lockfileDir ?? rootDir, {
     ignoreIncompatible: true,
   }).catch(() => null)
 
-  logger.info({ message: 'Resolving dependencies via pnpm-registry server', prefix: rootDir })
+  logger.info({ message: 'Resolving dependencies via pnpm agent', prefix: rootDir })
 
   // Open the store index to read integrities and write new entries
   const storeIndex = new StoreIndex(opts.storeDir)
 
   const { lockfile, stats, fileDownloads, indexEntries } = await fetchFromPnpmRegistry({
-    registryUrl: opts.pnpmRegistry!,
+    registryUrl: opts.agent!,
     storeDir: opts.storeDir,
     storeIndex,
     dependencies: manifest.dependencies,
@@ -1888,7 +1888,7 @@ async function installFromPnpmRegistry (
 
   // Write store index entries so headless install finds them.
   // Do this before closing — headless may start reading immediately.
-  const { writeRawIndexEntries } = await import('@pnpm/registry.client') // eslint-disable-line import-x/no-extraneous-dependencies
+  const { writeRawIndexEntries } = await import('@pnpm/agent.client')
   writeRawIndexEntries(indexEntries, storeIndex)
 
   // Close the store index so its WAL is flushed — other SQLite

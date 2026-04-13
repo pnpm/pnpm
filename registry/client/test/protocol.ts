@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals'
-import { decodeResponse, type ResponseMetadata } from '@pnpm/registry.client'
+import { decodeResponse, type ResponseMetadata } from '@pnpm/agent.client'
 import type { DepPath } from '@pnpm/types'
 
 describe('protocol decoding', () => {
