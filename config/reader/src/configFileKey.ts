@@ -104,6 +104,7 @@ export const excludedPnpmKeys = [
   'patches-dir',
   'pnpmfile',
   'pm-on-fail',
+  'agent',
   'package-manager-strict',
   'package-manager-strict-version',
   'prefer-workspace-packages',

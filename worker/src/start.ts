@@ -27,12 +27,14 @@ import type { BundledManifest, DependencyManifest } from '@pnpm/types'
 import { equalOrSemverEqual } from './equalOrSemverEqual.js'
 import type {
   AddDirToStoreMessage,
+  FetchAndWriteCafsMessage,
   HardLinkDirMessage,
   InitStoreMessage,
   LinkPkgMessage,
   ReadPkgFromCafsMessage,
   SymlinkAllModulesMessage,
   TarballExtractMessage,
+  WriteCafsFilesMessage,
 } from './types.js'
 
 export function startWorker (): void {
@@ -63,6 +65,8 @@ async function handleMessage (
   | SymlinkAllModulesMessage
   | HardLinkDirMessage
   | InitStoreMessage
+  | WriteCafsFilesMessage
+  | FetchAndWriteCafsMessage
   | false
 ): Promise<void> {
   if (message === false) {
@@ -164,6 +168,14 @@ async function handleMessage (
       case 'hardLinkDir': {
         hardLinkDir(message.src, message.destDirs)
         parentPort!.postMessage({ status: 'success' })
+        break
+      }
+      case 'write-cafs-files': {
+        parentPort!.postMessage(writeCafsFiles(message))
+        break
+      }
+      case 'fetch-and-write-cafs': {
+        parentPort!.postMessage(await fetchAndWriteCafs(message))
         break
       }
     }
@@ -473,5 +485,117 @@ function symlinkAllModules (opts: SymlinkAllModulesMessage): { status: 'success'
     }
   }
   return { status: 'success' }
+}
+
+function writeCafsFiles (message: WriteCafsFilesMessage): { status: string, filesWritten: number } {
+  if (!cafsCache.has(message.storeDir)) {
+    cafsCache.set(message.storeDir, createCafs(message.storeDir, { cafsLocker }))
+  }
+  const cafs = cafsCache.get(message.storeDir)!
+  let filesWritten = 0
+  for (const file of message.files) {
+    cafs.addFile(Buffer.from(file.buffer), file.mode)
+    filesWritten++
+  }
+  return { status: 'success', filesWritten }
+}
+
+async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ status: string, filesWritten: number }> {
+  const http = await import('node:http')
+  const https = await import('node:https')
+  const { URL } = await import('node:url')
+  const { createGunzip } = await import('node:zlib')
+  const { contentPathFromHex } = await import('@pnpm/store.cafs')
+
+  const url = new URL('/v1/files', message.registryUrl)
+  const requestFn = url.protocol === 'https:' ? https.request : http.request
+  const body = JSON.stringify({ digests: message.digests })
+  const createdDirs = new Set<string>()
+
+  // Stream: HTTP response → gunzip → parse entries → write to CAFS.
+  // No buffering — files are written as data arrives.
+  return new Promise<{ status: string, filesWritten: number }>((resolve, reject) => {
+    let filesWritten = 0
+    let buf = Buffer.alloc(0)
+    let headerSkipped = false
+    const END_MARKER = Buffer.alloc(64, 0)
+
+    const processBuffer = () => {
+      // Skip JSON header on first chunk
+      if (!headerSkipped && buf.length >= 4) {
+        const jsonLen = buf.readUInt32BE(0)
+        if (buf.length >= 4 + jsonLen) {
+          buf = buf.subarray(4 + jsonLen)
+          headerSkipped = true
+        } else {
+          return
+        }
+      }
+
+      // Parse complete file entries from the buffer
+      while (headerSkipped) {
+        if (buf.length < 64) break
+        if (buf.subarray(0, 64).equals(END_MARKER)) {
+          buf = buf.subarray(64)
+          break
+        }
+        if (buf.length < 69) break // 64 digest + 4 size + 1 mode
+
+        const size = buf.readUInt32BE(64)
+        const entryLen = 69 + size
+        if (buf.length < entryLen) break // incomplete entry
+
+        const digest = buf.subarray(0, 64).toString('hex')
+        const executable = (buf[68] & 0x01) !== 0
+        const content = buf.subarray(69, entryLen)
+
+        const relPath = contentPathFromHex(executable ? 'exec' : 'nonexec', digest)
+        const fullPath = path.join(message.storeDir, relPath)
+        const dir = path.dirname(fullPath)
+        if (!createdDirs.has(dir)) {
+          fs.mkdirSync(dir, { recursive: true })
+          createdDirs.add(dir)
+        }
+        try {
+          fs.writeFileSync(fullPath, content, { flag: 'wx', mode: executable ? 0o755 : 0o644 })
+        } catch (err: unknown) {
+          if (!(err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'EEXIST')) {
+            throw err
+          }
+        }
+        filesWritten++
+        buf = buf.subarray(entryLen)
+      }
+    }
+
+    const req = requestFn(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+        'Accept-Encoding': 'gzip',
+      },
+    }, (res: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      let stream: NodeJS.ReadableStream = res
+      if (res.headers['content-encoding'] === 'gzip') {
+        const gunzip = createGunzip()
+        res.pipe(gunzip)
+        stream = gunzip
+      }
+
+      stream.on('data', (chunk: Buffer) => {
+        buf = Buffer.concat([buf, chunk])
+        processBuffer()
+      })
+      stream.on('end', () => {
+        processBuffer()
+        resolve({ status: 'success', filesWritten })
+      })
+      stream.on('error', reject)
+    })
+    req.on('error', reject)
+    req.write(body)
+    req.end()
+  })
 }
 

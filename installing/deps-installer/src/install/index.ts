@@ -44,6 +44,7 @@ import {
   cleanGitBranchLockfiles,
   type LockfileObject,
   type ProjectSnapshot,
+  readWantedLockfile,
   writeCurrentLockfile,
   writeLockfiles,
   writeWantedLockfile,
@@ -163,6 +164,13 @@ export async function install (
   opts: Opts
 ): Promise<InstallResult> {
   const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
+
+  // When a pnpm agent is configured, use server-side resolution
+  // instead of the normal resolution flow.
+  if (opts.agent) {
+    return installFromPnpmRegistry(manifest, rootDir, opts)
+  }
+
   const { updatedCatalogs, updatedProjects: projects, ignoredBuilds } = await mutateModules(
     [
       {
@@ -270,6 +278,23 @@ export async function mutateModules (
   }
 
   const opts = extendOptions(maybeOpts)
+
+  // When a pnpm agent is configured, use server-side resolution.
+  if (opts.agent && projects.length === 1 && projects[0].mutation === 'install') {
+    const project = opts.allProjects.find(p => p.rootDir === projects[0].rootDir)
+    if (project?.manifest) {
+      const result = await installFromPnpmRegistry(project.manifest, projects[0].rootDir, opts)
+      return {
+        updatedProjects: [{
+          manifest: result.updatedManifest,
+          rootDir: projects[0].rootDir,
+        }],
+        stats: { added: 0, removed: 0, updated: 0, linkedToRoot: 0 },
+        ignoredBuilds: result.ignoredBuilds,
+      } as MutateModulesResult
+    }
+  }
+
   const allowBuild = createAllowBuildFunction(opts)
 
   if (!opts.include.dependencies && opts.include.optionalDependencies) {
@@ -1825,4 +1850,112 @@ function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
     }
   }
   return extendProjectsWithTargetDirs(projects, injectionTargetsByDepPath)
+}
+
+/**
+ * When a pnpm agent is configured, resolve dependencies server-side
+ * and download only the missing files. Then run a headless install to link
+ * packages into node_modules.
+ */
+async function installFromPnpmRegistry (
+  manifest: ProjectManifest,
+  rootDir: ProjectRootDir,
+  opts: Opts
+): Promise<InstallResult> {
+  const { fetchFromPnpmRegistry } = await import('@pnpm/agent.client')
+  const { StoreIndex } = await import('@pnpm/store.index')
+  const { setImportConcurrency } = await import('@pnpm/worker')
+  setImportConcurrency(6)
+
+  // Read existing lockfile if available
+  const existingLockfile = await readWantedLockfile(opts.lockfileDir ?? rootDir, {
+    ignoreIncompatible: true,
+  }).catch(() => null)
+
+  logger.info({ message: 'Resolving dependencies via pnpm agent', prefix: rootDir })
+
+  // Open the store index to read integrities and write new entries
+  const storeIndex = new StoreIndex(opts.storeDir)
+
+  const { lockfile, stats, fileDownloads, indexEntries } = await fetchFromPnpmRegistry({
+    registryUrl: opts.agent!,
+    storeDir: opts.storeDir,
+    storeIndex,
+    dependencies: manifest.dependencies,
+    devDependencies: manifest.devDependencies,
+    overrides: opts.overrides,
+    lockfile: existingLockfile ?? undefined,
+  })
+
+  // Write store index entries so headless install finds them.
+  // Do this before closing — headless may start reading immediately.
+  const { writeRawIndexEntries } = await import('@pnpm/agent.client')
+  writeRawIndexEntries(indexEntries, storeIndex)
+
+  // Close the store index so its WAL is flushed — other SQLite
+  // connections (store controller, workers) will then see the entries.
+  storeIndex.close()
+
+  const lockfileDir = opts.lockfileDir ?? rootDir
+  await writeWantedLockfile(lockfileDir, lockfile)
+
+  logger.info({
+    message: `Resolved ${stats.totalPackages} packages: ${stats.alreadyInStore} cached, ${stats.filesToDownload} files to download`,
+    prefix: rootDir,
+  })
+
+  // Wrap the store controller so fetchPackage waits for file downloads
+  // before checking the store. This prevents npm fallback — headless
+  // install blocks until the files are written, then finds them in CAFS.
+  const wrappedStoreController = {
+    ...opts.storeController,
+    fetchPackage: async (fetchOpts: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      await fileDownloads
+      return opts.storeController.fetchPackage(fetchOpts)
+    },
+  }
+
+  const headlessOpts = {
+    ...opts,
+    // Skip re-verifying files just written from the agent — they're
+    // guaranteed correct (server verified, no rehashing needed).
+    verifyStoreIntegrity: false,
+    storeController: wrappedStoreController,
+    dir: rootDir as string,
+    lockfileDir,
+    engineStrict: opts.engineStrict ?? false,
+    ignoreScripts: opts.ignoreScripts ?? false,
+    sideEffectsCacheRead: opts.sideEffectsCacheRead ?? false,
+    sideEffectsCacheWrite: opts.sideEffectsCacheWrite ?? false,
+    symlink: opts.symlink ?? true,
+    enableModulesDir: opts.enableModulesDir ?? true,
+    include: opts.include ?? { dependencies: true, devDependencies: true, optionalDependencies: true },
+    currentEngine: {
+      nodeVersion: opts.nodeVersion,
+      pnpmVersion: opts.packageManager?.version ?? '',
+    },
+    selectedProjectDirs: [rootDir],
+    allProjects: {
+      [rootDir]: {
+        binsDir: path.join(rootDir, 'node_modules', '.bin'),
+        buildIndex: 0,
+        id: '.' as ProjectId,
+        manifest,
+        modulesDir: path.join(rootDir, 'node_modules'),
+        rootDir,
+      },
+    },
+    hoistedDependencies: {},
+    pendingBuilds: [] as string[],
+    skipped: new Set<DepPath>(),
+    wantedLockfile: lockfile,
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await headlessInstall(headlessOpts as any)
+
+  return {
+    updatedCatalogs: undefined,
+    updatedManifest: manifest,
+    ignoredBuilds: undefined,
+  }
 }
