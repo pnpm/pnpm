@@ -1,5 +1,5 @@
-import { describe, expect, it, beforeEach, afterEach } from '@jest/globals'
-import { setupMockAgent, teardownMockAgent, getMockAgent } from '@pnpm/testing.mock-agent'
+import { afterEach, beforeEach, describe, expect, it } from '@jest/globals'
+import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 
 import { ping } from '../src/index.js'
 
