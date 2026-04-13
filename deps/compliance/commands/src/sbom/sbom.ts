@@ -12,6 +12,7 @@ import {
 } from '@pnpm/deps.compliance.sbom'
 import { PnpmError } from '@pnpm/error'
 import { getLockfileImporterId, readWantedLockfile } from '@pnpm/lockfile.fs'
+import { parseLicenseFromManifest } from '@pnpm/pkg-manifest.utils'
 import { getStorePath } from '@pnpm/store.path'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -163,7 +164,9 @@ export async function handler (
   const manifest = await readProjectManifestOnly(opts.dir)
   const rootName = manifest.name ?? 'unknown'
   const rootVersion = manifest.version ?? '0.0.0'
-  const rootLicense = typeof manifest.license === 'string' ? manifest.license : undefined
+  // Root manifest may use any license shape (string, legacy object, deprecated
+  // `licenses` array) — keep in sync with transitive deps via the shared util.
+  const rootLicense = parseLicenseFromManifest(manifest)
   const rootAuthor = typeof manifest.author === 'string'
     ? manifest.author
     : (manifest.author as { name?: string } | undefined)?.name
