@@ -50,10 +50,10 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/logger": "workspace:*",
-    "@pnpm/registry-mock": "catalog:",
     "@pnpm/agent.client": "workspace:*",
     "@pnpm/agent.server": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/registry-mock": "catalog:",
     "cross-env": "catalog:"
   },
   "engines": {
