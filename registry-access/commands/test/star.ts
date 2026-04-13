@@ -1,7 +1,7 @@
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import npa from '@pnpm/npm-package-arg'
 import { prepare } from '@pnpm/prepare'
-import { star, unstar, whoami } from '@pnpm/registry-access.commands'
+import { star, unstar, stars, whoami } from '@pnpm/registry-access.commands'
 import { REGISTRY_MOCK_CREDENTIALS, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { publish } from '@pnpm/releasing.commands'
 import { DEFAULT_OPTS as BASE_OPTS } from '@pnpm/testing.command-defaults'
@@ -80,4 +80,52 @@ test('star/unstar: should star and unstar a package', async () => {
 
   users = await getPackageUsers(pkgName)
   expect(users['username']).toBeFalsy()
+})
+
+test('stars: should list starred packages for current user', async () => {
+  const pkgName1 = 'test-stars-pkg-1'
+  const pkgName2 = 'test-stars-pkg-2'
+  await publishVersion(pkgName1, '0.0.1')
+  await publishVersion(pkgName2, '0.0.1')
+
+  await star.handler({
+    ...DEFAULT_OPTS,
+    configByUri: CONFIG_BY_URI,
+    registries: { default: REGISTRY },
+  }, [pkgName1])
+
+  await star.handler({
+    ...DEFAULT_OPTS,
+    configByUri: CONFIG_BY_URI,
+    registries: { default: REGISTRY },
+  }, [pkgName2])
+
+  const result = await stars.handler({
+    ...DEFAULT_OPTS,
+    configByUri: CONFIG_BY_URI,
+    registries: { default: REGISTRY },
+  }, [])
+
+  expect(result).toContain(pkgName1)
+  expect(result).toContain(pkgName2)
+})
+
+test('star: should throw when package name is not provided', async () => {
+  await expect(async () => {
+    await star.handler({
+      ...DEFAULT_OPTS,
+      configByUri: CONFIG_BY_URI,
+      registries: { default: REGISTRY },
+    }, [])
+  }).rejects.toThrow('Package name is required')
+})
+
+test('unstar: should throw when package name is not provided', async () => {
+  await expect(async () => {
+    await unstar.handler({
+      ...DEFAULT_OPTS,
+      configByUri: CONFIG_BY_URI,
+      registries: { default: REGISTRY },
+    }, [])
+  }).rejects.toThrow('Package name is required')
 })
