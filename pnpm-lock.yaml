@@ -8390,6 +8390,9 @@ importers:
       '@pnpm/store.connection-manager':
         specifier: workspace:*
         version: link:../connection-manager
+      '@pnpm/store.controller':
+        specifier: workspace:*
+        version: link:../controller
       '@pnpm/store.controller-types':
         specifier: workspace:*
         version: link:../controller-types
@@ -8451,9 +8454,6 @@ importers:
       '@pnpm/store.commands':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/store.controller':
-        specifier: workspace:*
-        version: link:../controller
       '@types/archy':
         specifier: 'catalog:'
         version: 0.0.36
