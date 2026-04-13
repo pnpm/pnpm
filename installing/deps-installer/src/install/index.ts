@@ -1902,13 +1902,34 @@ async function installFromPnpmRegistry (
     prefix: rootDir,
   })
 
-  // Wrap the store controller so fetchPackage waits for file downloads
-  // before checking the store. This prevents npm fallback — headless
-  // install blocks until the files are written, then finds them in CAFS.
+  // Wrap fetchPackage to:
+  // 1. Wait for agent file downloads before checking the store
+  // 2. Skip integrity verification — files just written from the agent
+  //    are guaranteed correct (server verified, no rehashing needed)
+  const { readPkgFromCafs } = await import('@pnpm/worker')
+  const { storeIndexKey: _storeIndexKey } = await import('@pnpm/store.index')
   const wrappedStoreController = {
     ...opts.storeController,
     fetchPackage: async (fetchOpts: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
       await fileDownloads
+      const resolution = fetchOpts.pkg.resolution
+      const integrity = resolution?.integrity
+      if (integrity) {
+        const filesIndexFile = _storeIndexKey(integrity, fetchOpts.pkg.id)
+        const result = await readPkgFromCafs(
+          { storeDir: opts.storeDir, verifyStoreIntegrity: false },
+          filesIndexFile,
+          { readManifest: true, expectedPkg: { name: fetchOpts.pkg.name, version: fetchOpts.pkg.version } }
+        )
+        return {
+          fetching: () => Promise.resolve({
+            files: result.files,
+            bundledManifest: result.bundledManifest,
+            integrity,
+          }),
+          filesIndexFile,
+        }
+      }
       return opts.storeController.fetchPackage(fetchOpts)
     },
   }
