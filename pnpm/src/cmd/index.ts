@@ -17,6 +17,7 @@ import {
   run,
 } from '@pnpm/exec.commands'
 import { add, dedupe, fetch, importCommand, install, link, prune, remove, unlink, update } from '@pnpm/installing.commands'
+import { ping } from '@pnpm/network.ping.commands'
 import { patch, patchCommit, patchRemove } from '@pnpm/patching.commands'
 import { deprecate, distTag, star, stars, undeprecate, unpublish, unstar, whoami } from '@pnpm/registry-access.commands'
 import { deploy, pack, publish, version } from '@pnpm/releasing.commands'
@@ -159,6 +160,7 @@ const commands: CommandDefinition[] = [
   patchCommit,
   patchRemove,
   peers,
+  ping,
   prune,
   publish,
   unpublish,

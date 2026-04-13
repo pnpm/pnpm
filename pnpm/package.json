@@ -67,7 +67,7 @@
     "pretest:e2e": "rimraf node_modules/.bin/pnpm",
     "test": "pn compile && pn .test",
     "prepublishOnly": "pn compile && node bundle-deps.ts",
-    "compile": "tsgo --build && pn lint --fix && rimraf dist bin/nodes && pn bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/templates dist/templates && shx cp -r node_modules/ps-list/vendor dist/vendor && shx cp pnpmrc dist/pnpmrc",
+    "compile": "tsgo --build && pnpm lint --fix && rimraf dist bin/nodes && pnpm bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/templates dist/templates && shx cp -r node_modules/ps-list/vendor dist/vendor && shx cp pnpmrc dist/pnpmrc",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
@@ -111,6 +111,7 @@
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/nopt": "catalog:",
+    "@pnpm/network.ping.commands": "workspace:*",
     "@pnpm/patching.commands": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/prepare": "workspace:*",

@@ -114,10 +114,13 @@
       "path": "../installing/modules-yaml"
     },
     {
-      "path": "../lockfile/fs"
+      "path": "../network/auth-header"
     },
     {
-      "path": "../lockfile/types"
+      "path": "../network/fetch"
+    },
+    {
+      "path": "../network/ping"
     },
     {
       "path": "../patching/commands"
