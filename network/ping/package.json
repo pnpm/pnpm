@@ -1,0 +1,52 @@
+{
+  "name": "@pnpm/network.ping.commands",
+  "version": "1100.0.0",
+  "description": "Commands for testing registry connectivity",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "ping",
+    "registry"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/network/ping",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/network/ping#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "start": "tsgo --watch",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pnpm compile && pnpm .test",
+    "prepublishOnly": "pnpm compile",
+    "compile": "tsgo --build && pnpm lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/cli.utils": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/network.fetch": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "render-help": "catalog:"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

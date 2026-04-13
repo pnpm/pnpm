@@ -111,6 +111,7 @@
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/nopt": "catalog:",
+    "@pnpm/network.ping.commands": "workspace:*",
     "@pnpm/patching.commands": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/prepare": "workspace:*",

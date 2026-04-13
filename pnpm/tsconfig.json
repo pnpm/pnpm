@@ -120,6 +120,15 @@
       "path": "../lockfile/types"
     },
     {
+      "path": "../network/auth-header"
+    },
+    {
+      "path": "../network/fetch"
+    },
+    {
+      "path": "../network/ping"
+    },
+    {
       "path": "../patching/commands"
     },
     {
