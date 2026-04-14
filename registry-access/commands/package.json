@@ -41,6 +41,7 @@
     "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/resolving.registry.types": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "chalk": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:",
     "semver": "catalog:"
