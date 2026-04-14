@@ -140,10 +140,12 @@ test('self-update', async () => {
 
   await selfUpdate.handler(opts, [])
 
-  // Verify the package was installed in the global dir
+  // Verify the package was installed in the global dir.
+  // The globalDir contains both the real install dir (a directory) and a
+  // hash symlink pointing to it. Use lstatSync to pick the real dir.
   const globalDir = path.join(opts.pnpmHomeDir, 'global', 'v11')
   const entries = fs.readdirSync(globalDir)
-  const installDirName = entries.find((e) => fs.statSync(path.join(globalDir, e)).isDirectory())
+  const installDirName = entries.find((e) => fs.lstatSync(path.join(globalDir, e)).isDirectory())
   expect(installDirName).toBeDefined()
   const installDir = path.join(globalDir, installDirName!)
   const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(installDir, 'node_modules/pnpm/package.json'), 'utf8'))
