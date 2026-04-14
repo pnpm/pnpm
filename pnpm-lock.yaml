@@ -3646,6 +3646,9 @@ importers:
       '@jest/globals':
         specifier: 'catalog:'
         version: 30.3.0
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../../core/constants
       '@pnpm/engine.pm.commands':
         specifier: workspace:*
         version: 'link:'
