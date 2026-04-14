@@ -133,11 +133,7 @@ interface InstallRequestProject {
 }
 
 interface InstallRequest {
-  /** Single project (legacy) */
-  dependencies?: Record<string, string>
-  devDependencies?: Record<string, string>
-  /** Multiple projects (workspace) */
-  projects?: InstallRequestProject[]
+  projects: InstallRequestProject[]
   overrides?: Record<string, string>
   peerDependencyRules?: Record<string, unknown>
   nodeVersion?: string
@@ -197,12 +193,7 @@ async function handleInstall (
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-agent-'))
 
   try {
-    // Build project list — support both single-project and workspace
-    const projects = request.projects ?? [{
-      dir: '.',
-      dependencies: request.dependencies,
-      devDependencies: request.devDependencies,
-    }]
+    const { projects } = request
 
     // Create package.json for each project
     await Promise.all(projects.map(async (project) => {

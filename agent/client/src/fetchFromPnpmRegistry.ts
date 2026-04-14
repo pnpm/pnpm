@@ -63,14 +63,12 @@ export async function fetchFromPnpmRegistry (
 ): Promise<FetchFromPnpmRegistryResult> {
   const storeIntegrities = readStoreIntegrities(opts.storeIndex)
 
-  const projects = opts.projects ?? [{
-    dir: '.',
-    dependencies: opts.dependencies,
-    devDependencies: opts.devDependencies,
-  }]
-
   const requestBody = JSON.stringify({
-    projects,
+    projects: opts.projects ?? [{
+      dir: '.',
+      dependencies: opts.dependencies,
+      devDependencies: opts.devDependencies,
+    }],
     overrides: opts.overrides,
     nodeVersion: opts.nodeVersion ?? process.version.slice(1),
     os: process.platform,
