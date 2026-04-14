@@ -1883,16 +1883,21 @@ async function installFromPnpmRegistry (
   // Open the store index to read integrities and write new entries
   const storeIndex = new StoreIndex(opts.storeDir)
 
-  const projectsList = (allInstallProjects ?? [{ rootDir, manifest }]).map(p => ({
-    dir: path.relative(lockfileDir, p.rootDir) || '.',
-    dependencies: p.manifest.dependencies,
-    devDependencies: p.manifest.devDependencies,
-  }))
+  // Build projects list for workspace support
+  const projectsList = allInstallProjects && allInstallProjects.length > 1
+    ? allInstallProjects.map(p => ({
+      dir: path.relative(lockfileDir, p.rootDir) || '.',
+      dependencies: p.manifest.dependencies,
+      devDependencies: p.manifest.devDependencies,
+    }))
+    : undefined
 
   const { lockfile, stats, fileDownloads, indexEntries } = await fetchFromPnpmRegistry({
     registryUrl: opts.agent!,
     storeDir: opts.storeDir,
     storeIndex,
+    dependencies: projectsList ? undefined : manifest.dependencies,
+    devDependencies: projectsList ? undefined : manifest.devDependencies,
     projects: projectsList,
     overrides: opts.overrides,
     minimumReleaseAge: opts.minimumReleaseAge,
