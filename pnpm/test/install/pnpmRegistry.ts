@@ -5,8 +5,9 @@ import path from 'node:path'
 
 import { createRegistryServer } from '@pnpm/agent.server'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { prepare } from '@pnpm/prepare'
+import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm } from '../utils/index.js'
 
@@ -79,4 +80,41 @@ test('pnpm install uses pnpm agent when configured', async () => {
 
   // Verify the package was installed
   expect(fs.existsSync('node_modules/is-positive')).toBe(true)
+})
+
+test('pnpm install with agent works in a workspace with multiple projects', async () => {
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-b',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  requestCount = 0
+
+  await execPnpm(
+    ['install', `--config.agent=http://localhost:${serverPort}`]
+  )
+
+  // Verify the agent server was used
+  expect(requestCount).toBeGreaterThanOrEqual(1)
+
+  // Verify the lockfile was created
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(true)
+
+  // Verify packages were installed in both projects
+  expect(fs.existsSync('project-a/node_modules/is-positive')).toBe(true)
+  expect(fs.existsSync('project-b/node_modules/is-negative')).toBe(true)
 })

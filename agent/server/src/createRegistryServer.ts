@@ -65,7 +65,6 @@ export async function createRegistryServer (opts: RegistryServerOptions): Promis
     registries,
     configByUri: {},
     metaCache: metadataStore as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-    fullMetadata: true,
     retry: {
       retries: 3,
       factor: 10,
@@ -127,9 +126,18 @@ export async function createRegistryServer (opts: RegistryServerOptions): Promis
   return server
 }
 
-interface InstallRequest {
+interface InstallRequestProject {
+  dir: string
   dependencies?: Record<string, string>
   devDependencies?: Record<string, string>
+}
+
+interface InstallRequest {
+  /** Single project (legacy) */
+  dependencies?: Record<string, string>
+  devDependencies?: Record<string, string>
+  /** Multiple projects (workspace) */
+  projects?: InstallRequestProject[]
   overrides?: Record<string, string>
   peerDependencyRules?: Record<string, unknown>
   nodeVersion?: string
@@ -189,16 +197,27 @@ async function handleInstall (
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-agent-'))
 
   try {
-    const manifest = {
-      name: 'pnpm-agent-resolve',
-      version: '0.0.0',
-      dependencies: request.dependencies ?? {},
-      devDependencies: request.devDependencies ?? {},
-    }
-    await fs.writeFile(
-      path.join(tmpDir, 'package.json'),
-      JSON.stringify(manifest, null, 2)
-    )
+    // Build project list — support both single-project and workspace
+    const projects = request.projects ?? [{
+      dir: '.',
+      dependencies: request.dependencies,
+      devDependencies: request.devDependencies,
+    }]
+
+    // Create package.json for each project
+    await Promise.all(projects.map(async (project) => {
+      const projectDir = path.join(tmpDir, project.dir)
+      await fs.mkdir(projectDir, { recursive: true })
+      await fs.writeFile(
+        path.join(projectDir, 'package.json'),
+        JSON.stringify({
+          name: `pnpm-agent-resolve-${project.dir.replace(/[/\\]/g, '-')}`,
+          version: '0.0.0',
+          dependencies: project.dependencies ?? {},
+          devDependencies: project.devDependencies ?? {},
+        }, null, 2)
+      )
+    }))
 
     if (request.lockfile) {
       await writeWantedLockfile(tmpDir, request.lockfile)
@@ -206,20 +225,62 @@ async function handleInstall (
 
     // Resolution — the wrapped store controller streams digest info
     // to the client as each package resolves.
-    await install(manifest, {
-      dir: tmpDir,
-      lockfileDir: tmpDir,
-      storeController: wrappedStoreController,
-      storeDir: ctx.storeDir,
-      cacheDir: ctx.cacheDir,
-      registries: ctx.registries,
-      ignoreScripts: true,
-      lockfileOnly: true,
-      lockfileIncludeTarballUrl: true,
-      saveLockfile: true,
-      preferFrozenLockfile: false,
-      minimumReleaseAge: request.minimumReleaseAge,
-    } as InstallOptions)
+    if (projects.length === 1) {
+      const manifest = {
+        name: 'pnpm-agent-resolve',
+        version: '0.0.0',
+        dependencies: projects[0].dependencies ?? {},
+        devDependencies: projects[0].devDependencies ?? {},
+      }
+      await install(manifest, {
+        dir: path.join(tmpDir, projects[0].dir),
+        lockfileDir: tmpDir,
+        storeController: wrappedStoreController,
+        storeDir: ctx.storeDir,
+        cacheDir: ctx.cacheDir,
+        registries: ctx.registries,
+        ignoreScripts: true,
+        lockfileOnly: true,
+        lockfileIncludeTarballUrl: true,
+        saveLockfile: true,
+        preferFrozenLockfile: false,
+        minimumReleaseAge: request.minimumReleaseAge,
+      } as InstallOptions)
+    } else {
+      // Workspace: create pnpm-workspace.yaml and resolve all projects
+      const packagesYaml = `packages:\n${projects.map(p => `  - '${p.dir}'`).join('\n')}\n`
+      await fs.writeFile(path.join(tmpDir, 'pnpm-workspace.yaml'), packagesYaml)
+      const { mutateModules } = await import('@pnpm/installing.deps-installer')
+      await mutateModules(
+        projects.map(p => ({
+          mutation: 'install' as const,
+          rootDir: path.join(tmpDir, p.dir) as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+        })),
+        {
+          allProjects: projects.map((p, i) => ({
+            buildIndex: i,
+            manifest: {
+              name: `pnpm-agent-resolve-${p.dir.replace(/[/\\]/g, '-')}`,
+              version: '0.0.0',
+              dependencies: p.dependencies ?? {},
+              devDependencies: p.devDependencies ?? {},
+            },
+            rootDir: path.join(tmpDir, p.dir) as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+          })),
+          lockfileDir: tmpDir,
+          storeController: wrappedStoreController,
+          storeDir: ctx.storeDir,
+          cacheDir: ctx.cacheDir,
+          registries: ctx.registries,
+          ignoreScripts: true,
+          lockfileOnly: true,
+          lockfileIncludeTarballUrl: true,
+          saveLockfile: true,
+          preferFrozenLockfile: false,
+          minimumReleaseAge: request.minimumReleaseAge,
+        } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+      )
+    }
 
     const resolvedLockfile = await readWantedLockfile(tmpDir, {
       ignoreIncompatible: false,
@@ -230,11 +291,21 @@ async function handleInstall (
       return
     }
 
-    const importerEntries = Object.entries(resolvedLockfile.importers)
-    if (importerEntries.length === 1) {
-      const [, snapshot] = importerEntries[0]
-      resolvedLockfile.importers = { '.': snapshot } as typeof resolvedLockfile.importers
+    // Remap importer IDs from server temp paths to client-relative paths.
+    // The server resolved in a temp dir, so importers are keyed by temp
+    // paths. Remap them to the original project dirs.
+    const remappedImporters: typeof resolvedLockfile.importers = {} as typeof resolvedLockfile.importers
+    for (const [importerId, snapshot] of Object.entries(resolvedLockfile.importers)) {
+      // The importer ID is the relative path from lockfileDir (tmpDir) to the project dir.
+      // Find which project this corresponds to.
+      const matchedProject = projects.find(p => {
+        const expected = p.dir === '.' ? '.' : p.dir
+        return importerId === expected || importerId === '.'
+      })
+      const key = matchedProject ? matchedProject.dir : importerId
+      ;(remappedImporters as any)[key] = snapshot // eslint-disable-line @typescript-eslint/no-explicit-any
     }
+    resolvedLockfile.importers = remappedImporters
 
     // Fetch tarballs for new packages (hot server = no-op)
     const integrityIndexBefore = buildIntegrityIndex(ctx.storeIndex)
