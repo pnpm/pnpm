@@ -1,3 +1,5 @@
+import util from 'node:util'
+
 import { docsUrl } from '@pnpm/cli.utils'
 import { PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@pnpm/network.fetch'
@@ -19,11 +21,10 @@ export interface PingOptions extends CreateFetchFromRegistryOptions {
   registries?: Registries
 }
 
-export const ping = {
-  cliOptionsTypes,
-  commandNames: ['ping'],
-  handler: pingHandler,
-  help: (): string => renderHelp({
+export const commandNames = ['ping']
+
+export function help (): string {
+  return renderHelp({
     description: 'Test connectivity to the configured registry.',
     descriptionLists: [
       {
@@ -38,30 +39,36 @@ export const ping = {
     ],
     url: docsUrl('ping'),
     usages: ['pnpm ping [--registry <url>]'],
-  }),
-  rcOptionsTypes,
+  })
 }
 
-async function pingHandler (opts: PingOptions): Promise<string> {
+export async function handler (opts: PingOptions): Promise<string> {
   const registryUrl = opts.registry ?? opts.registries?.default ?? 'https://registry.npmjs.org/'
+  const pingUrl = new URL('-/ping?write=true', registryUrl).toString()
 
+  const fetchFromRegistry = createFetchFromRegistry(opts)
+  const start = Date.now()
+  let details = ''
   try {
-    const fetchFromRegistry = createFetchFromRegistry(opts)
-    const response = await fetchFromRegistry(registryUrl, {
-      method: 'HEAD',
-    })
-
-    if (!response.ok) {
-      throw new PnpmError(
-        'PING_FAILED',
-        `Registry returned status ${response.status}: ${response.statusText}`
-      )
+    const response = await fetchFromRegistry(pingUrl, { retry: { retries: 0 } })
+    const body = await response.text()
+    if (body) {
+      try {
+        const parsed = JSON.parse(body)
+        if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+          details = JSON.stringify(parsed, null, 2)
+        }
+      } catch {
+        // non-JSON body — ignore
+      }
     }
-
-    return `Registry is reachable: ${registryUrl}`
   } catch (err: unknown) {
-    if (err instanceof PnpmError) throw err
-    const errorMessage = err instanceof Error ? err.message : String(err)
+    const errorMessage = util.types.isNativeError(err) ? err.message : String(err)
     throw new PnpmError('PING_ERROR', `Failed to reach registry: ${errorMessage}`)
   }
+  const time = Date.now() - start
+
+  const lines = [`PING ${registryUrl}`, `PONG ${time}ms`]
+  if (details) lines.push(`PONG ${details}`)
+  return lines.join('\n')
 }

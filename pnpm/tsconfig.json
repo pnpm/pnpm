@@ -120,9 +120,6 @@
       "path": "../lockfile/types"
     },
     {
-      "path": "../network/ping"
-    },
-    {
       "path": "../patching/commands"
     },
     {

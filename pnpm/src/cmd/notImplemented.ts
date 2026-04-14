@@ -9,7 +9,6 @@ const NOT_IMPLEMENTED_COMMANDS = [
   'find',
   'issues',
   'owner',
-  'ping',
   'prefix',
   'profile',
   'pkg',

@@ -33,12 +33,12 @@ describe('ping command', () => {
     expect(typeof options).toBe('object')
   })
 
-  it('should return success message for reachable registry', async () => {
+  it('should return PING/PONG output for reachable registry', async () => {
     const mockPool = getMockAgent().get('https://registry.npmjs.org')
     mockPool.intercept({
-      method: 'HEAD',
-      path: '/',
-    }).reply(200, 'OK')
+      method: 'GET',
+      path: '/-/ping?write=true',
+    }).reply(200, '{}')
 
     const result = await ping.handler({
       registry: 'https://registry.npmjs.org/',
@@ -46,44 +46,54 @@ describe('ping command', () => {
         default: 'https://registry.npmjs.org/',
       },
     })
-    expect(result).toContain('Registry is reachable')
-    expect(result).toContain('https://registry.npmjs.org/')
+    expect(result).toMatch(/^PING https:\/\/registry\.npmjs\.org\/\nPONG \d+ms$/)
+  })
+
+  it('should include details when the registry returns a non-empty JSON body', async () => {
+    const mockPool = getMockAgent().get('https://registry.npmjs.org')
+    mockPool.intercept({
+      method: 'GET',
+      path: '/-/ping?write=true',
+    }).reply(200, JSON.stringify({ host: 'npm', user: 'anonymous' }))
+
+    const result = await ping.handler({
+      registry: 'https://registry.npmjs.org/',
+      registries: {
+        default: 'https://registry.npmjs.org/',
+      },
+    })
+    expect(result).toContain('PING https://registry.npmjs.org/')
+    expect(result).toMatch(/PONG \d+ms/)
+    expect(result).toContain('"host": "npm"')
   })
 
   it('should use default registry when not specified', async () => {
     const mockPool = getMockAgent().get('https://registry.npmjs.org')
     mockPool.intercept({
-      method: 'HEAD',
-      path: '/',
-    }).reply(200, 'OK')
+      method: 'GET',
+      path: '/-/ping?write=true',
+    }).reply(200, '{}')
 
     const result = await ping.handler({
       registries: {
         default: 'https://registry.npmjs.org/',
       },
     })
-    expect(result).toContain('Registry is reachable')
+    expect(result).toContain('PING https://registry.npmjs.org/')
   })
 
   it('should throw error on network failure', async () => {
     const mockPool = getMockAgent().get('https://invalid-registry-that-does-not-exist-12345.com')
     mockPool.intercept({
-      method: 'HEAD',
-      path: '/',
+      method: 'GET',
+      path: '/-/ping?write=true',
     }).replyWithError(new Error('Connection refused'))
 
-    try {
-      await ping.handler({
-        registry: 'https://invalid-registry-that-does-not-exist-12345.com/',
-        registries: {
-          default: 'https://registry.npmjs.org/',
-        },
-        connectTimeout: 2000,
-        requestTimeout: 2000,
-      })
-      fail('Should have thrown an error')
-    } catch (err: unknown) {
-      expect(err).toBeDefined()
-    }
+    await expect(ping.handler({
+      registry: 'https://invalid-registry-that-does-not-exist-12345.com/',
+      registries: {
+        default: 'https://registry.npmjs.org/',
+      },
+    })).rejects.toThrow('Failed to reach registry')
   })
 })
