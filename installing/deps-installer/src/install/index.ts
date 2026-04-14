@@ -1884,6 +1884,7 @@ async function installFromPnpmRegistry (
     dependencies: manifest.dependencies,
     devDependencies: manifest.devDependencies,
     overrides: opts.overrides,
+    minimumReleaseAge: opts.minimumReleaseAge,
     lockfile: existingLockfile ?? undefined,
   })
 
