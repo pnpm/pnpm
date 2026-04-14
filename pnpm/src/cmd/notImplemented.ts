@@ -8,7 +8,6 @@ const NOT_IMPLEMENTED_COMMANDS = [
   'edit',
   'issues',
   'owner',
-  'ping',
   'prefix',
   'profile',
   'pkg',

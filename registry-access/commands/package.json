@@ -53,6 +53,7 @@
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/releasing.commands": "workspace:*",
     "@pnpm/testing.command-defaults": "workspace:*",
+    "@pnpm/testing.mock-agent": "workspace:*",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
     "execa": "catalog:"

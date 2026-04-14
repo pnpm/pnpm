@@ -7626,6 +7626,9 @@ importers:
       '@pnpm/testing.command-defaults':
         specifier: workspace:*
         version: link:../../testing/command-defaults
+      '@pnpm/testing.mock-agent':
+        specifier: workspace:*
+        version: link:../../testing/mock-agent
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.31.1
