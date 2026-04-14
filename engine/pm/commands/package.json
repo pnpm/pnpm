@@ -61,6 +61,7 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
+    "@pnpm/constants": "workspace:*",
     "@pnpm/engine.pm.commands": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/logger": "workspace:*",
