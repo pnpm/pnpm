@@ -303,3 +303,16 @@ test('frozen-lockfile: installation fails if the value of auto-install-peers cha
     install(manifest, testDefaults({ frozenLockfile: true, autoInstallPeers: false }))
   ).rejects.toThrow('Cannot proceed with the frozen installation. The current "settings.autoInstallPeers" configuration doesn\'t match the value found in the lockfile')
 })
+
+test('frozen-lockfile: installation succeeds with mismatched settings when ignoreLockfileSettingsChecks is true', async () => {
+  prepareEmpty()
+  const manifest = {
+    dependencies: {
+      'is-positive': '^3.0.0',
+    },
+  }
+
+  await install(manifest, testDefaults({ autoInstallPeers: true }))
+
+  await install(manifest, testDefaults({ frozenLockfile: true, autoInstallPeers: false, ignoreLockfileSettingsChecks: true }))
+})
