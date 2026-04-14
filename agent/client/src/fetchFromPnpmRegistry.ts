@@ -8,6 +8,13 @@ import { fetchAndWriteCafsFiles } from '@pnpm/worker'
 
 import type { ResponseMetadata } from './protocol.js'
 
+export interface AgentProject {
+  /** Relative dir within the workspace (e.g. "." or "packages/foo") */
+  dir: string
+  dependencies?: Record<string, string>
+  devDependencies?: Record<string, string>
+}
+
 export interface FetchFromPnpmRegistryOptions {
   /** URL of the pnpm agent server */
   registryUrl: string
@@ -15,10 +22,12 @@ export interface FetchFromPnpmRegistryOptions {
   storeDir: string
   /** Client's store index */
   storeIndex: StoreIndex
-  /** Dependencies to resolve */
+  /** Dependencies to resolve (single project) */
   dependencies?: Record<string, string>
-  /** Dev dependencies to resolve */
+  /** Dev dependencies to resolve (single project) */
   devDependencies?: Record<string, string>
+  /** Multiple projects in a workspace */
+  projects?: AgentProject[]
   /** Overrides */
   overrides?: Record<string, string>
   /** Node.js version for resolution */
@@ -54,9 +63,14 @@ export async function fetchFromPnpmRegistry (
 ): Promise<FetchFromPnpmRegistryResult> {
   const storeIntegrities = readStoreIntegrities(opts.storeIndex)
 
-  const requestBody = JSON.stringify({
+  const projects = opts.projects ?? [{
+    dir: '.',
     dependencies: opts.dependencies,
     devDependencies: opts.devDependencies,
+  }]
+
+  const requestBody = JSON.stringify({
+    projects,
     overrides: opts.overrides,
     nodeVersion: opts.nodeVersion ?? process.version.slice(1),
     os: process.platform,

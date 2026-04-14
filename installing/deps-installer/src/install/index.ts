@@ -280,15 +280,18 @@ export async function mutateModules (
   const opts = extendOptions(maybeOpts)
 
   // When a pnpm agent is configured, use server-side resolution.
-  if (opts.agent && projects.length === 1 && projects[0].mutation === 'install') {
-    const project = opts.allProjects.find(p => p.rootDir === projects[0].rootDir)
-    if (project?.manifest) {
-      const result = await installFromPnpmRegistry(project.manifest, projects[0].rootDir, opts)
+  if (opts.agent && projects.every(p => p.mutation === 'install')) {
+    const installProjects = projects.map(p => {
+      const proj = opts.allProjects.find(ap => ap.rootDir === p.rootDir)
+      return proj ? { rootDir: p.rootDir, manifest: proj.manifest } : null
+    }).filter(Boolean) as Array<{ rootDir: ProjectRootDir, manifest: ProjectManifest }>
+    if (installProjects.length === projects.length && installProjects.length > 0) {
+      const result = await installFromPnpmRegistry(installProjects[0].manifest, installProjects[0].rootDir, opts, installProjects)
       return {
-        updatedProjects: [{
-          manifest: result.updatedManifest,
-          rootDir: projects[0].rootDir,
-        }],
+        updatedProjects: installProjects.map(p => ({
+          manifest: p.manifest,
+          rootDir: p.rootDir,
+        })),
         stats: { added: 0, removed: 0, updated: 0, linkedToRoot: 0 },
         ignoredBuilds: result.ignoredBuilds,
       } as MutateModulesResult
@@ -1860,15 +1863,18 @@ function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
 async function installFromPnpmRegistry (
   manifest: ProjectManifest,
   rootDir: ProjectRootDir,
-  opts: Opts
+  opts: Opts,
+  allInstallProjects?: Array<{ rootDir: ProjectRootDir, manifest: ProjectManifest }>
 ): Promise<InstallResult> {
   const { fetchFromPnpmRegistry } = await import('@pnpm/agent.client')
   const { StoreIndex } = await import('@pnpm/store.index')
   const { setImportConcurrency } = await import('@pnpm/worker')
   setImportConcurrency(6)
 
+  const lockfileDir = opts.lockfileDir ?? rootDir
+
   // Read existing lockfile if available
-  const existingLockfile = await readWantedLockfile(opts.lockfileDir ?? rootDir, {
+  const existingLockfile = await readWantedLockfile(lockfileDir, {
     ignoreIncompatible: true,
   }).catch(() => null)
 
@@ -1877,12 +1883,22 @@ async function installFromPnpmRegistry (
   // Open the store index to read integrities and write new entries
   const storeIndex = new StoreIndex(opts.storeDir)
 
+  // Build projects list for workspace support
+  const projectsList = allInstallProjects && allInstallProjects.length > 1
+    ? allInstallProjects.map(p => ({
+      dir: path.relative(lockfileDir, p.rootDir) || '.',
+      dependencies: p.manifest.dependencies,
+      devDependencies: p.manifest.devDependencies,
+    }))
+    : undefined
+
   const { lockfile, stats, fileDownloads, indexEntries } = await fetchFromPnpmRegistry({
     registryUrl: opts.agent!,
     storeDir: opts.storeDir,
     storeIndex,
-    dependencies: manifest.dependencies,
-    devDependencies: manifest.devDependencies,
+    dependencies: projectsList ? undefined : manifest.dependencies,
+    devDependencies: projectsList ? undefined : manifest.devDependencies,
+    projects: projectsList,
     overrides: opts.overrides,
     minimumReleaseAge: opts.minimumReleaseAge,
     lockfile: existingLockfile ?? undefined,
@@ -1895,7 +1911,6 @@ async function installFromPnpmRegistry (
   storeIndex.checkpoint()
   storeIndex.close()
 
-  const lockfileDir = opts.lockfileDir ?? rootDir
   await writeWantedLockfile(lockfileDir, lockfile)
 
   logger.info({
@@ -1954,17 +1969,20 @@ async function installFromPnpmRegistry (
       nodeVersion: opts.nodeVersion,
       pnpmVersion: opts.packageManager?.version ?? '',
     },
-    selectedProjectDirs: [rootDir],
-    allProjects: {
-      [rootDir]: {
-        binsDir: path.join(rootDir, 'node_modules', '.bin'),
-        buildIndex: 0,
-        id: '.' as ProjectId,
-        manifest,
-        modulesDir: path.join(rootDir, 'node_modules'),
-        rootDir,
-      },
-    },
+    selectedProjectDirs: (allInstallProjects ?? [{ rootDir }]).map(p => p.rootDir),
+    allProjects: Object.fromEntries(
+      (allInstallProjects ?? [{ rootDir, manifest }]).map((p, i) => [
+        p.rootDir,
+        {
+          binsDir: path.join(p.rootDir, 'node_modules', '.bin'),
+          buildIndex: i,
+          id: (path.relative(lockfileDir, p.rootDir) || '.') as ProjectId,
+          manifest: p.manifest,
+          modulesDir: path.join(p.rootDir, 'node_modules'),
+          rootDir: p.rootDir,
+        },
+      ])
+    ),
     hoistedDependencies: {},
     pendingBuilds: [] as string[],
     skipped: new Set<DepPath>(),
