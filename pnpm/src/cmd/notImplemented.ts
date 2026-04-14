@@ -6,7 +6,6 @@ const NOT_IMPLEMENTED_COMMANDS = [
   'access',
   'bugs',
   'edit',
-  'home',
   'issues',
   'owner',
   'ping',
