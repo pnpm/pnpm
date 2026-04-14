@@ -107,6 +107,7 @@ export const pnpmTypes = {
   'script-shell': String,
   'shamefully-hoist': Boolean,
   'shared-workspace-lockfile': Boolean,
+  'lockfile-storage': ['shared', 'split'],
   'shell-emulator': Boolean,
   'side-effects-cache': Boolean,
   'side-effects-cache-readonly': Boolean,

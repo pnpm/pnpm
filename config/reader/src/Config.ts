@@ -184,6 +184,7 @@ export interface Config extends OptionsFromRootManifest {
   lockfileDir?: string
   modulesDir?: string
   sharedWorkspaceLockfile?: boolean
+  lockfileStorage?: 'shared' | 'split'
   useLockfile: boolean
   useGitBranchLockfile: boolean
   mergeGitBranchLockfiles?: boolean
