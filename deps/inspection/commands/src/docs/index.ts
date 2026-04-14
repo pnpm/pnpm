@@ -39,7 +39,7 @@ export async function handler (
 
   const info = await fetchPackageInfo(opts, packageSpec)
 
-  const url = isHttpUrl(info.homepage) ? info.homepage : `https://www.npmjs.com/package/${info.name}`
+  const url = isHttpUrl(info.homepage) ? info.homepage : `https://npmx.dev/package/${info.name}`
 
   await open(url)
 }
