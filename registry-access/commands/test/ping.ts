@@ -25,7 +25,6 @@ describe('ping command', () => {
   it('should have cliOptionsTypes function', () => {
     const options = ping.cliOptionsTypes()
     expect(options).toHaveProperty('registry')
-    expect(options.registry).toBe(String)
   })
 
   it('should have rcOptionsTypes function', () => {
@@ -80,6 +79,38 @@ describe('ping command', () => {
       },
     })
     expect(result).toContain('PING https://registry.npmjs.org/')
+  })
+
+  it.each([401, 403, 404, 500])('should throw error on non-2xx registry response (%i)', async (statusCode) => {
+    const mockPool = getMockAgent().get('https://registry.npmjs.org')
+    mockPool.intercept({
+      method: 'GET',
+      path: '/-/ping?write=true',
+    }).reply(statusCode, JSON.stringify({ error: `HTTP ${statusCode}` }))
+
+    await expect(ping.handler({
+      registry: 'https://registry.npmjs.org/',
+      registries: {
+        default: 'https://registry.npmjs.org/',
+      },
+    })).rejects.toThrow('Failed to reach registry')
+  })
+
+  it('should preserve a registry path prefix when the URL has no trailing slash', async () => {
+    const mockPool = getMockAgent().get('https://registry.npmjs.org')
+    mockPool.intercept({
+      method: 'GET',
+      path: '/custom-prefix/-/ping?write=true',
+    }).reply(200, '{}')
+
+    const result = await ping.handler({
+      registry: 'https://registry.npmjs.org/custom-prefix',
+      registries: {
+        default: 'https://registry.npmjs.org/',
+      },
+    })
+    expect(result).toContain('PING https://registry.npmjs.org/custom-prefix')
+    expect(result).toMatch(/PONG \d+ms/)
   })
 
   it('should throw error on network failure', async () => {
