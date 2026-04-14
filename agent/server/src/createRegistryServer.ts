@@ -65,6 +65,7 @@ export async function createRegistryServer (opts: RegistryServerOptions): Promis
     registries,
     configByUri: {},
     metaCache: metadataStore as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    fullMetadata: true,
     retry: {
       retries: 3,
       factor: 10,
