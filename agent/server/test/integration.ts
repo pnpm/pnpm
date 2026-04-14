@@ -81,6 +81,7 @@ describe('pnpm-agent integration', () => {
       expect(rootImporter.specifiers).toBeTruthy()
       expect(rootImporter.dependencies).toBeTruthy()
       expect(rootImporter.dependencies?.['is-positive']).toBeTruthy()
+      await result.fileDownloads
     } finally {
       clientStoreIndex.close()
       await fs.rm(tmpClient, { recursive: true, force: true })
@@ -122,6 +123,7 @@ describe('pnpm-agent integration', () => {
 
       // Verify stats
       expect(result.stats.totalPackages).toBeGreaterThanOrEqual(1)
+      await result.fileDownloads
     } finally {
       clientStoreIndex.close()
       await fs.rm(tmpClient, { recursive: true, force: true })
@@ -157,6 +159,10 @@ describe('pnpm-agent integration', () => {
       expect(Object.keys(result1.lockfile.packages ?? {})).toEqual(
         Object.keys(result2.lockfile.packages ?? {})
       )
+
+      // Wait for file downloads to complete before cleanup
+      await result1.fileDownloads
+      await result2.fileDownloads
     } finally {
       clientStoreIndex.close()
       await fs.rm(tmpClient, { recursive: true, force: true })
