@@ -41,6 +41,19 @@ export async function promptBrowserOpen ({
     return pollPromise
   }
 
+  // The authUrl comes from an untrusted registry response, so only allow
+  // http(s) URLs through to `open()`.
+  let canonicalUrl: string
+  try {
+    const parsed = new URL(authUrl)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return pollPromise
+    }
+    canonicalUrl = parsed.href
+  } catch {
+    return pollPromise
+  }
+
   let rl: PromptBrowserOpenReadlineInterface
   try {
     rl = createReadlineInterface()
@@ -52,10 +65,15 @@ export async function promptBrowserOpen ({
   globalInfo('Press ENTER to open the URL in your browser.')
 
   rl.once('line', () => {
-    open(authUrl).catch((err: unknown) => {
+    const handleOpenError = (err: unknown): void => {
       globalWarn(`Could not open browser automatically: ${String(err)}`)
       globalInfo('Please open the URL shown above manually.')
-    })
+    }
+    try {
+      open(canonicalUrl).catch(handleOpenError)
+    } catch (err) {
+      handleOpenError(err)
+    }
   })
 
   // Only await pollPromise — do NOT await the Enter keypress.

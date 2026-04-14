@@ -197,6 +197,54 @@ describe('promptBrowserOpen', () => {
     expect(globalInfo).toHaveBeenCalledWith('Press ENTER to open the URL in your browser.')
   })
 
+  it.each([
+    ['javascript:alert(1)'],
+    ['file:///etc/passwd'],
+    ['not a url'],
+  ])('does not open browser for non-http(s) authUrl %s', async (authUrl) => {
+    const mockRl = createMockReadlineInterface()
+    const pollDeferred = createDeferred<string>()
+    const context = createMockContext({
+      createReadlineInterface: () => mockRl,
+    })
+
+    const resultPromise = promptBrowserOpen({
+      authUrl,
+      context,
+      pollPromise: pollDeferred.promise,
+    })
+
+    pollDeferred.resolve('tok')
+    expect(await resultPromise).toBe('tok')
+    expect(mockOpen).not.toHaveBeenCalled()
+  })
+
+  it('continues polling when open throws synchronously', async () => {
+    const mockRl = createMockReadlineInterface()
+    const pollDeferred = createDeferred<string>()
+    const globalWarn = jest.fn<(msg: string) => void>()
+    mockOpen.mockImplementation(() => {
+      throw new Error('sync failure')
+    })
+    const context = createMockContext({
+      createReadlineInterface: () => mockRl,
+      globalWarn,
+    })
+
+    const resultPromise = promptBrowserOpen({
+      authUrl: 'https://example.com/auth',
+      context,
+      pollPromise: pollDeferred.promise,
+    })
+
+    mockRl.simulateEnterKeypress()
+
+    expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('sync failure'))
+
+    pollDeferred.resolve('tok')
+    expect(await resultPromise).toBe('tok')
+  })
+
   it('cleans up when poll rejects', async () => {
     const mockRl = createMockReadlineInterface()
     const context = createMockContext({

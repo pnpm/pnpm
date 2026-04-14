@@ -39,7 +39,17 @@ export async function handler (
 
   const info = await fetchPackageInfo(opts, packageSpec)
 
-  const url = info.homepage ?? `https://npmx.dev/package/${info.name}`
+  const url = isHttpUrl(info.homepage) ? info.homepage : `https://www.npmjs.com/package/${info.name}`
 
   await open(url)
+}
+
+function isHttpUrl (value: unknown): value is string {
+  if (typeof value !== 'string' || value === '') return false
+  try {
+    const { protocol } = new URL(value)
+    return protocol === 'http:' || protocol === 'https:'
+  } catch {
+    return false
+  }
 }
