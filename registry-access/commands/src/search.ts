@@ -137,6 +137,6 @@ function formatPackage (pkg: SearchPackage): string {
   if (pkg.keywords?.length) {
     lines.push(`Keywords: ${pkg.keywords.join(', ')}`)
   }
-  lines.push(chalk.blueBright(`https://npmx.dev/${pkg.name}`))
+  lines.push(chalk.blueBright(`https://npmx.dev/package/${pkg.name}`))
   return lines.join('\n')
 }

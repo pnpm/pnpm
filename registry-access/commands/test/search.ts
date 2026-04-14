@@ -20,7 +20,7 @@ test('search: returns formatted output with package name and npmx.dev URL', asyn
   expect(typeof result).toBe('string')
   expect(result).toContain('is-positive')
   expect(result).toContain('Version ')
-  expect(result).toContain('https://npmx.dev/is-positive')
+  expect(result).toContain('https://npmx.dev/package/is-positive')
   expect(result).not.toContain('npm.im')
 })
 
