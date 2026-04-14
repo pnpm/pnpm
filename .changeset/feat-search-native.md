@@ -1,5 +1,5 @@
 ---
-"@pnpm/deps.inspection.commands": minor
+"@pnpm/registry-access.commands": minor
 "pnpm": minor
 ---
 

@@ -1,16 +1,14 @@
-import { docsUrl, TABLE_OPTIONS } from '@pnpm/cli.utils'
-import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
+import { docsUrl } from '@pnpm/cli.utils'
 import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
-import { createFetchFromRegistry } from '@pnpm/network.fetch'
-import { table } from '@zkochan/table'
+import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@pnpm/network.fetch'
+import type { Registries, RegistryConfig } from '@pnpm/types'
 import chalk from 'chalk'
-import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
-export function rcOptionsTypes (): Record<string, unknown> {
-  return pick(['registry'], allTypes)
-}
+import { rcOptionsTypes } from './common.js'
+
+export { rcOptionsTypes }
 
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
@@ -55,17 +53,22 @@ export interface SearchPackage {
   author?: { name: string } | string
   publisher?: { username: string }
   maintainers?: Array<{ username: string }>
+  keywords?: string[]
 }
 
 export interface SearchResult {
   package: SearchPackage
 }
 
+export interface SearchOptions extends CreateFetchFromRegistryOptions {
+  configByUri?: Record<string, RegistryConfig>
+  registries?: Registries
+  json?: boolean
+  searchLimit?: number
+}
+
 export async function handler (
-  opts: Config & ConfigContext & {
-    json?: boolean
-    searchLimit?: number
-  },
+  opts: SearchOptions,
   params: string[]
 ): Promise<string> {
   const query = params.join(' ')
@@ -74,7 +77,7 @@ export async function handler (
     throw new PnpmError('MISSING_SEARCH_QUERY', 'Search query is required. Usage: pnpm search <keyword>')
   }
 
-  const registry = opts.registries?.default || 'https://registry.npmjs.org/'
+  const registry = opts.registries?.default ?? 'https://registry.npmjs.org/'
   const registryUrl = new URL(registry)
   if (!registryUrl.pathname.endsWith('/')) {
     registryUrl.pathname = `${registryUrl.pathname}/`
@@ -110,33 +113,30 @@ export async function handler (
     return 'No packages found'
   }
 
-  const tableData = [
-    [
-      chalk.blueBright('Package'),
-      chalk.blueBright('Description'),
-      chalk.blueBright('Version'),
-      chalk.blueBright('Date'),
-      chalk.blueBright('Author'),
-    ],
-    ...data.objects.map(obj => {
-      const pkg = obj.package
-      return [
-        chalk.bold(pkg.name),
-        pkg.description || '',
-        pkg.version,
-        pkg.date ? pkg.date.split('T')[0] : '',
-        typeof pkg.author === 'object' ? pkg.author.name : (pkg.author || pkg.publisher?.username || ''),
-      ]
-    }),
-  ]
+  return data.objects.map(obj => formatPackage(obj.package)).join('\n\n')
+}
 
-  return table(tableData, {
-    ...TABLE_OPTIONS,
-    columns: {
-      1: {
-        width: 40,
-        wrapWord: true,
-      },
-    },
-  })
+function formatPackage (pkg: SearchPackage): string {
+  const author = typeof pkg.author === 'object'
+    ? pkg.author.name
+    : (pkg.author ?? pkg.publisher?.username ?? '')
+  const date = pkg.date ? pkg.date.split('T')[0] : ''
+  const lines = [
+    chalk.bold(pkg.name),
+  ]
+  if (pkg.description) {
+    lines.push(pkg.description)
+  }
+  const versionLine = [`Version ${pkg.version}`]
+  if (date) versionLine.push(`published ${date}`)
+  if (author) versionLine.push(`by ${author}`)
+  lines.push(versionLine.join(' '))
+  if (pkg.maintainers?.length) {
+    lines.push(`Maintainers: ${pkg.maintainers.map(m => m.username).join(', ')}`)
+  }
+  if (pkg.keywords?.length) {
+    lines.push(`Keywords: ${pkg.keywords.join(', ')}`)
+  }
+  lines.push(chalk.blueBright(`https://npmx.dev/${pkg.name}`))
+  return lines.join('\n')
 }
