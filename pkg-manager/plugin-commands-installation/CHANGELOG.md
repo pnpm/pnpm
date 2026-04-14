@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.9.14
+
+### Patch Changes
+
+- Updated dependencies [396a2a0]
+  - @pnpm/core@1016.3.0
+
 ## 1004.9.13
 
 ### Patch Changes
