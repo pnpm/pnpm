@@ -1,4 +1,3 @@
-import { execFile } from 'node:child_process'
 import path from 'node:path'
 import readline from 'node:readline'
 
@@ -11,7 +10,6 @@ import {
   generateQrCode,
   pollForWebAuthToken,
   promptBrowserOpen,
-  type PromptBrowserOpenExecFile,
   type PromptBrowserOpenReadlineInterface,
   SyntheticOtpError,
   type WebAuthFetchOptions,
@@ -138,7 +136,6 @@ export interface LoginContext {
   setTimeout: (cb: () => void, ms: number) => void
   createReadlineInterface: () => PromptBrowserOpenReadlineInterface
   enquirer: LoginEnquirer
-  execFile: PromptBrowserOpenExecFile
   fetch: (url: string, options?: LoginFetchOptions) => Promise<LoginFetchResponse>
   globalInfo: (message: string) => void
   globalWarn: (message: string) => void
@@ -152,7 +149,6 @@ export const DEFAULT_CONTEXT: LoginContext = {
   setTimeout,
   createReadlineInterface: readline.createInterface.bind(null, { input: process.stdin }),
   enquirer,
-  execFile,
   fetch,
   globalInfo,
   globalWarn,
@@ -212,7 +208,7 @@ export async function login ({ context = DEFAULT_CONTEXT, opts }: LoginParams): 
 }
 
 interface WebLoginParams {
-  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'createReadlineInterface' | 'execFile' | 'fetch' | 'globalInfo' | 'globalWarn' | 'process'>
+  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'createReadlineInterface' | 'fetch' | 'globalInfo' | 'globalWarn' | 'process'>
   fetchOptions: WebAuthFetchOptions
   registry: string
 }
@@ -263,7 +259,7 @@ async function webLogin ({
 }
 
 interface ClassicLoginParams {
-  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'createReadlineInterface' | 'enquirer' | 'execFile' | 'fetch' | 'globalInfo' | 'globalWarn' | 'process'>
+  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'createReadlineInterface' | 'enquirer' | 'fetch' | 'globalInfo' | 'globalWarn' | 'process'>
   fetchOptions: WebAuthFetchOptions
   registry: string
 }
