@@ -23,6 +23,8 @@ export interface FetchFromPnpmRegistryOptions {
   overrides?: Record<string, string>
   /** Node.js version for resolution */
   nodeVersion?: string
+  /** Minimum release age in seconds */
+  minimumReleaseAge?: number
   /** Existing lockfile for incremental resolution */
   lockfile?: LockfileObject
 }
@@ -59,6 +61,7 @@ export async function fetchFromPnpmRegistry (
     nodeVersion: opts.nodeVersion ?? process.version.slice(1),
     os: process.platform,
     arch: process.arch,
+    minimumReleaseAge: opts.minimumReleaseAge,
     lockfile: opts.lockfile,
     storeIntegrities,
   })

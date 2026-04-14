@@ -134,6 +134,7 @@ interface InstallRequest {
   nodeVersion?: string
   os?: string
   arch?: string
+  minimumReleaseAge?: number
   lockfile?: LockfileObject
   storeIntegrities?: string[]
 }
@@ -216,6 +217,7 @@ async function handleInstall (
       lockfileIncludeTarballUrl: true,
       saveLockfile: true,
       preferFrozenLockfile: false,
+      minimumReleaseAge: request.minimumReleaseAge,
     } as InstallOptions)
 
     const resolvedLockfile = await readWantedLockfile(tmpDir, {
