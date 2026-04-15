@@ -1,5 +1,21 @@
 # @pnpm/client
 
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/fetching.directory-fetcher@1100.0.1
+  - @pnpm/fetching.git-fetcher@1100.0.1
+  - @pnpm/fetching.tarball-fetcher@1100.0.1
+  - @pnpm/hooks.types@1100.0.1
+  - @pnpm/network.auth-header@1100.0.1
+  - @pnpm/network.fetch@1100.0.1
+  - @pnpm/resolving.default-resolver@1100.0.1
+  - @pnpm/resolving.resolver-base@1100.0.1
+  - @pnpm/fetching.binary-fetcher@1100.0.1
+
 ## 1002.0.0
 
 ### Major Changes

@@ -1,5 +1,13 @@
 # @pnpm/cache.commands
 
+## 1100.0.1
+
+### Patch Changes
+
+- @pnpm/cli.utils@1100.0.1
+- @pnpm/config.reader@1100.0.1
+- @pnpm/cache.api@1100.0.1
+
 ## 1001.0.0
 
 ### Major Changes

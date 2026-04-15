@@ -1,5 +1,14 @@
 # @pnpm/store-connection-manager
 
+## 1100.0.1
+
+### Patch Changes
+
+- @pnpm/cli.meta@1100.0.1
+- @pnpm/config.reader@1100.0.1
+- @pnpm/installing.client@1100.0.1
+- @pnpm/store.controller@1100.0.1
+
 ## 1003.0.0
 
 ### Major Changes

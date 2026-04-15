@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/testing.mock-agent",
-  "version": "1100.0.0",
+  "version": "1100.0.1",
   "private": true,
   "description": "Shared undici MockAgent helpers for pnpm tests",
   "keywords": [

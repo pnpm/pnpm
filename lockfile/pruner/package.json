@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.pruner",
-  "version": "1100.0.0",
+  "version": "1100.0.1",
   "description": "Prune a pnpm-lock.yaml",
   "keywords": [
     "pnpm",
