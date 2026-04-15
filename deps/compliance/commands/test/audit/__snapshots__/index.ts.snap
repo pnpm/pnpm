@@ -5188,7 +5188,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>sync-exec"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],

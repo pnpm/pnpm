@@ -1,5 +1,6 @@
 import { writeSettings } from '@pnpm/config.writer'
 import type { AuditAdvisory, AuditReport } from '@pnpm/deps.compliance.audit'
+import { PnpmError } from '@pnpm/error'
 import type { AuditConfig, ProjectManifest } from '@pnpm/types'
 import { difference } from 'ramda'
 
@@ -21,7 +22,13 @@ export async function ignore (opts: IgnoreVulnerabilitiesOptions): Promise<strin
 
   if (opts.ignoreUnfixable) {
     for (const advisory of advisoriesWithNoResolutions) {
-      if (advisory.github_advisory_id) currentUniqueGhsas.add(advisory.github_advisory_id)
+      if (!advisory.github_advisory_id) {
+        throw new PnpmError(
+          'AUDIT_MISSING_GHSA',
+          `Cannot ignore advisory ${advisory.id} (${advisory.module_name}): the registry did not provide a GHSA id or a resolvable url.`
+        )
+      }
+      currentUniqueGhsas.add(advisory.github_advisory_id)
     }
   } else {
     opts.ignore?.forEach((ghsa) => currentUniqueGhsas.add(ghsa))

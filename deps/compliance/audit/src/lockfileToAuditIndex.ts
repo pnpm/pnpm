@@ -9,6 +9,7 @@ import type { DependenciesField, DepPath, ProjectId } from '@pnpm/types'
 export interface PathInfo {
   paths: string[]
   dev: boolean
+  optional: boolean
 }
 
 // Versions installed per package name, keyed by version.
@@ -28,6 +29,9 @@ export interface AuditIndexOptions {
   // Pre-computed dep types. Callers that also call buildAuditPathIndex on the
   // same lockfile can share this to avoid walking the lockfile twice.
   depTypes?: DepTypes
+  // Pre-computed optional-only depPaths for the main lockfile. Shared between
+  // lockfileToAuditRequest and buildAuditPathIndex when both are called.
+  optionalOnly?: Set<DepPath>
 }
 
 export function lockfileToAuditRequest (
@@ -37,7 +41,7 @@ export function lockfileToAuditRequest (
   const importerIds = Object.keys(lockfile.importers) as ProjectId[]
   const importerWalkers = lockfileWalkerGroupImporterSteps(lockfile, importerIds, { include: opts.include })
   const depTypes = opts.depTypes ?? detectDepTypes(lockfile)
-  const optionalOnly = collectOptionalOnlyDepPaths(lockfile)
+  const optionalOnly = opts.optionalOnly ?? collectOptionalOnlyDepPaths(lockfile)
 
   const request: Record<string, string[]> = {}
   // Per (name, version) classification. Counted as dev/optional only while
@@ -124,7 +128,7 @@ export function lockfileToAuditRequest (
 // Returns the set of depPaths that are reachable only through optional edges
 // (i.e. they would be absent from the install set if optionalDependencies were
 // not included). Matches the AuditMetadata.optionalDependencies semantic.
-function collectOptionalOnlyDepPaths (lockfile: LockfileObject): Set<DepPath> {
+export function collectOptionalOnlyDepPaths (lockfile: LockfileObject): Set<DepPath> {
   const nonOptional = new Set<DepPath>()
   const optional = new Set<DepPath>()
   for (const importer of Object.values(lockfile.importers)) {
@@ -177,13 +181,15 @@ export function buildAuditPathIndex (
   const importerIds = Object.keys(lockfile.importers) as ProjectId[]
   const importerWalkers = lockfileWalkerGroupImporterSteps(lockfile, importerIds, { include: opts.include })
   const depTypes = opts.depTypes ?? detectDepTypes(lockfile)
+  const optionalOnly = opts.optionalOnly ?? collectOptionalOnlyDepPaths(lockfile)
 
-  const walk = (step: LockfileWalkerStep, currentDepTypes: DepTypes, trail: string[]): void => {
+  const walk = (step: LockfileWalkerStep, currentDepTypes: DepTypes, currentOptionalOnly: Set<DepPath>, trail: string[]): void => {
     for (const { depPath, pkgSnapshot, next } of step.dependencies) {
       const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
       const fullPath = [...trail, name]
       if (version && vulnerableNames.has(name)) {
         const isDev = currentDepTypes[depPath] === DepType.DevOnly
+        const isOptional = currentOptionalOnly.has(depPath)
         let byVersion = paths[name]
         if (!byVersion) {
           byVersion = new Map()
@@ -191,28 +197,28 @@ export function buildAuditPathIndex (
         }
         const info = byVersion.get(version)
         if (!info) {
-          byVersion.set(version, { paths: [fullPath.join('>')], dev: isDev })
+          byVersion.set(version, { paths: [fullPath.join('>')], dev: isDev, optional: isOptional })
         } else {
-          if (!isDev) {
-            info.dev = false
-          }
+          if (!isDev) info.dev = false
+          if (!isOptional) info.optional = false
           info.paths.push(fullPath.join('>'))
         }
       }
-      walk(next(), currentDepTypes, fullPath)
+      walk(next(), currentDepTypes, currentOptionalOnly, fullPath)
     }
   }
 
   for (const importerWalker of importerWalkers) {
     const importerSegment = importerWalker.importerId.replace(/\//g, '__')
-    walk(importerWalker.step, depTypes, [importerSegment])
+    walk(importerWalker.step, depTypes, optionalOnly, [importerSegment])
   }
 
   if (opts.envLockfile) {
     const envLockfileObject = envLockfileToLockfileObject(opts.envLockfile)
     const envDepTypes = detectDepTypes(envLockfileObject)
+    const envOptionalOnly = collectOptionalOnlyDepPaths(envLockfileObject)
     for (const { importerId, step } of lockfileWalkerGroupImporterSteps(envLockfileObject, Object.keys(envLockfileObject.importers) as ProjectId[], { include: opts.include })) {
-      walk(step, envDepTypes, [importerId])
+      walk(step, envDepTypes, envOptionalOnly, [importerId])
     }
   }
 

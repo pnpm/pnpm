@@ -10,6 +10,7 @@ import {
   type AuditIndexRequest,
   type AuditPathIndex,
   buildAuditPathIndex,
+  collectOptionalOnlyDepPaths,
   lockfileToAuditRequest,
   type PathInfo,
 } from './lockfileToAuditIndex.js'
@@ -61,7 +62,8 @@ export async function audit (
   }
 ): Promise<AuditReport> {
   const depTypes = detectDepTypes(lockfile)
-  const auditRequest = lockfileToAuditRequest(lockfile, { envLockfile: opts.envLockfile, include: opts.include, depTypes })
+  const optionalOnly = collectOptionalOnlyDepPaths(lockfile)
+  const auditRequest = lockfileToAuditRequest(lockfile, { envLockfile: opts.envLockfile, include: opts.include, depTypes, optionalOnly })
   const registry = opts.registry.endsWith('/') ? opts.registry : `${opts.registry}/`
   const auditUrl = `${registry}-/npm/v1/security/advisories/bulk`
   const authHeaderValue = getAuthHeader(registry)
@@ -84,7 +86,7 @@ export async function audit (
     const vulnerableNames = new Set(Object.keys(body))
     let auditPathIndex: AuditPathIndex = {}
     if (vulnerableNames.size > 0) {
-      auditPathIndex = buildAuditPathIndex(lockfile, vulnerableNames, { envLockfile: opts.envLockfile, include: opts.include, depTypes })
+      auditPathIndex = buildAuditPathIndex(lockfile, vulnerableNames, { envLockfile: opts.envLockfile, include: opts.include, depTypes, optionalOnly })
     }
     return bulkResponseToAuditReport(body, auditRequest, auditPathIndex)
   }
@@ -138,7 +140,7 @@ function buildFindings (adv: BulkAdvisory, byVersion: Map<string, PathInfo> | un
           version,
           paths: info.paths,
           dev: info.dev,
-          optional: false,
+          optional: info.optional,
           bundled: false,
         })
       }

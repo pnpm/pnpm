@@ -10,7 +10,7 @@
 The new endpoint returns a slim advisory list keyed by package name, without `findings[].paths`, `actions`, `metadata`, `cves`, `patched_versions`, `github_advisory_id`, or `module_name`. The audit client now reconstructs what downstream commands need:
 
 - `findings[].paths` are computed by walking the lockfile and matching `vulnerable_versions` via semver.
-- `metadata.vulnerabilities` counts aggregate severity per affected install path.
+- `metadata.vulnerabilities` counts advisories per severity.
 - `metadata.dependencies`, `devDependencies`, `optionalDependencies`, and `totalDependencies` are computed from the lockfile.
 - `patched_versions` is inferred from `vulnerable_versions` for the common `<X.Y.Z` / `<=X.Y.Z` patterns so `pnpm audit --fix` still produces usable overrides.
 - `github_advisory_id` is parsed from each advisory's `url`.
