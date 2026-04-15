@@ -331,7 +331,7 @@ ${newIgnores.join('\n')}`,
       [AUDIT_COLOR[advisory.severity](advisory.severity), chalk.bold(advisory.title)],
       ['Package', advisory.module_name],
       ['Vulnerable versions', advisory.vulnerable_versions],
-      ['Patched versions', advisory.patched_versions],
+      ['Patched versions', advisory.patched_versions ?? '(unknown)'],
       [
         'Paths',
         (paths.length > MAX_PATHS_COUNT

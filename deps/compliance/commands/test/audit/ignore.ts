@@ -18,8 +18,10 @@ afterEach(async () => {
   await teardownMockAgent()
 })
 
-// An advisory with a vulnerable_versions range that cannot be resolved (the
-// entire version space is vulnerable and no patched range is available).
+// Advisories explicitly marked as unfixable by the registry (patched_versions
+// === '<0.0.0' is npm's sentinel for "no fix exists"). Used to exercise the
+// --ignore-unfixable code path without relying on inference failure, which is
+// now treated as "unknown fix", not "no fix".
 const UNFIXABLE_RESPONSE = {
   axios: [
     {
@@ -27,7 +29,8 @@ const UNFIXABLE_RESPONSE = {
       url: 'https://github.com/advisories/GHSA-unfixable-test-0001',
       title: 'unfixable axios advisory used for tests',
       severity: 'high',
-      vulnerable_versions: '>=0.0.0',
+      vulnerable_versions: '<=0.99.0',
+      patched_versions: '<0.0.0',
       cwe: [] as string[],
     },
     {
@@ -35,7 +38,8 @@ const UNFIXABLE_RESPONSE = {
       url: 'https://github.com/advisories/GHSA-unfixable-test-0002',
       title: 'another unfixable axios advisory used for tests',
       severity: 'moderate',
-      vulnerable_versions: '*',
+      vulnerable_versions: '<=0.99.0',
+      patched_versions: '<0.0.0',
       cwe: [] as string[],
     },
   ],

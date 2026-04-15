@@ -168,7 +168,9 @@ function normalizeAdvisory (adv: BulkAdvisory, moduleName: string, findings: Aud
     vulnerable_versions: adv.vulnerable_versions,
     // The bulk endpoint doesn't return patched_versions. Infer it from the
     // vulnerable range for the most common advisory patterns so audit --fix
-    // can still produce usable overrides.
+    // can still produce usable overrides. Left undefined when inference fails
+    // (which is distinct from "<0.0.0", npm's sentinel for "no fix exists"),
+    // so downstream handlers can tell "unknown" from "unfixable".
     patched_versions: adv.patched_versions ?? inferPatchedVersions(adv.vulnerable_versions),
     cwe: cwe ?? '',
     cves: adv.cves ?? [],
@@ -187,16 +189,20 @@ function normalizeAdvisory (adv: BulkAdvisory, moduleName: string, findings: Aud
   }
 }
 
-function inferPatchedVersions (vulnerableRange: string): string {
+function inferPatchedVersions (vulnerableRange: string): string | undefined {
+  // Matches `<X.Y.Z` or `<= X.Y.Z` (with optional whitespace after the operator)
+  // at the end of the range, optionally preceded by other comparators like
+  // `>=0.8.1 <0.28.0`. Returns undefined if the range doesn't have a
+  // recognisable upper bound — callers must not confuse that with "no fix".
   const trimmed = vulnerableRange.trim()
-  const ltMatch = trimmed.match(/^(?:.*?\s)?<(\d+\.\d+\.\d[\w\-.+]*)$/)
+  const ltMatch = trimmed.match(/(?:^|\s)<\s*(\d+\.\d+\.\d[\w\-.+]*)\s*$/)
   if (ltMatch) return `>=${ltMatch[1]}`
-  const lteMatch = trimmed.match(/^(?:.*?\s)?<=(\d+\.\d+\.\d[\w\-.+]*)$/)
+  const lteMatch = trimmed.match(/(?:^|\s)<=\s*(\d+\.\d+\.\d[\w\-.+]*)\s*$/)
   if (lteMatch) {
     const next = semver.inc(lteMatch[1], 'patch')
     if (next) return `>=${next}`
   }
-  return ''
+  return undefined
 }
 
 function deriveGithubAdvisoryId (url: string | undefined): string {

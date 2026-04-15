@@ -58,7 +58,10 @@ export interface AuditAdvisory {
   module_name: string
   cves: string[]
   vulnerable_versions: string
-  patched_versions: string
+  // Undefined when the registry did not provide a patched range and pnpm
+  // could not infer one from vulnerable_versions. "<0.0.0" is the npm
+  // sentinel for "no fix exists".
+  patched_versions?: string
   overview: string
   recommendation: string
   references: string
