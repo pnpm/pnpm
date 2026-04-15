@@ -44,7 +44,9 @@ interface BulkAdvisory {
   reported_by?: { name: string } | null
   metadata?: AuditAdvisory['metadata'] | null
   npm_advisory_id?: unknown
-  findings?: AuditFinding[]
+  // Findings may arrive from a registry that does not populate every boolean
+  // field, so treat them as partial and normalize before use.
+  findings?: Array<Partial<AuditFinding> & { version: string }>
 }
 
 type BulkAdvisoriesResponse = Record<string, BulkAdvisory[]>
@@ -131,7 +133,18 @@ function bulkResponseToAuditReport (bulk: BulkAdvisoriesResponse, auditRequest: 
 }
 
 function buildFindings (adv: BulkAdvisory, byVersion: Map<string, PathInfo> | undefined): AuditFinding[] {
-  if (adv.findings && adv.findings.length > 0) return adv.findings
+  // If the registry already populated findings (legacy or private-registry
+  // shape), normalize them so every entry has the full AuditFinding shape.
+  // Missing dev/optional/bundled booleans must not leak into AuditReport.
+  if (adv.findings && adv.findings.length > 0) {
+    return adv.findings.map((f) => ({
+      version: f.version,
+      paths: f.paths ?? [],
+      dev: f.dev ?? false,
+      optional: f.optional ?? false,
+      bundled: f.bundled ?? false,
+    }))
+  }
   const findings: AuditFinding[] = []
   if (byVersion) {
     for (const [version, info] of byVersion) {
