@@ -193,7 +193,7 @@ function inferPatchedVersions (vulnerableRange: string): string | undefined {
   // Matches `<X.Y.Z` or `<= X.Y.Z` (with optional whitespace after the operator)
   // at the end of the range, optionally preceded by other comparators like
   // `>=0.8.1 <0.28.0`. Returns undefined if the range doesn't have a
-  // recognisable upper bound — callers must not confuse that with "no fix".
+  // recognizable upper bound — callers must not confuse that with "no fix".
   const trimmed = vulnerableRange.trim()
   const ltMatch = trimmed.match(/(?:^|\s)<\s*(\d+\.\d+\.\d[\w\-.+]*)\s*$/)
   if (ltMatch) return `>=${ltMatch[1]}`
