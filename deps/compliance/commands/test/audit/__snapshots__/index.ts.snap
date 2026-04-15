@@ -1434,8 +1434,8 @@ exports[`plugin-commands-audit audit --audit-level 1`] = `
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-r4q5-vmmm-2653      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
-125 vulnerabilities found
-Severity: 8 low | 51 moderate | 49 high | 17 critical"
+111 vulnerabilities found
+Severity: 8 low | 42 moderate | 46 high | 15 critical"
 `;
 
 exports[`plugin-commands-audit audit --dev 1`] = `
@@ -3180,8 +3180,8 @@ exports[`plugin-commands-audit audit 1`] = `
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-c7w3-x93f-qmm8      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
-125 vulnerabilities found
-Severity: 8 low | 51 moderate | 49 high | 17 critical"
+111 vulnerabilities found
+Severity: 8 low | 42 moderate | 46 high | 15 critical"
 `;
 
 exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up 1`] = `
@@ -4563,8 +4563,8 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up 1
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-r4q5-vmmm-2653      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
-125 vulnerabilities found
-Severity: 8 low | 51 moderate (2 ignored) | 49 high (2 ignored) | 17 critical"
+111 vulnerabilities found
+Severity: 8 low | 42 moderate (2 ignored) | 46 high (2 ignored) | 15 critical"
 `;
 
 exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up when JSON output is used 1`] = `
@@ -8654,9 +8654,9 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
     "vulnerabilities": {
       "info": 0,
       "low": 8,
-      "moderate": 51,
-      "high": 49,
-      "critical": 17
+      "moderate": 42,
+      "high": 46,
+      "critical": 15
     },
     "dependencies": 440,
     "devDependencies": 0,

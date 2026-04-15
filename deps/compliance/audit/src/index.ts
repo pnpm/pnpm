@@ -106,9 +106,9 @@ function bulkResponseToAuditReport (bulk: BulkAdvisoriesResponse, auditRequest: 
       // we don't report false positives for packages the lockfile doesn't use.
       if (findings.length === 0) continue
       advisories[String(adv.id)] = normalizeAdvisory(adv, moduleName, findings)
-      // npm's audit report counts one vulnerability per affected install path.
-      const affectedPaths = findings.reduce((sum, f) => sum + f.paths.length, 0)
-      vulnerabilities[adv.severity] = (vulnerabilities[adv.severity] ?? 0) + affectedPaths
+      // npm's audit report counts one vulnerability per advisory in the metadata summary
+      // when using the bulk endpoint format pnpm expects.
+      vulnerabilities[adv.severity] = (vulnerabilities[adv.severity] ?? 0) + 1
     }
   }
 
