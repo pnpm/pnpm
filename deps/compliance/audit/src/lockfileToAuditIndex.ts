@@ -126,55 +126,117 @@ export function buildAuditPathIndex (
   opts: AuditIndexOptions
 ): AuditPathIndex {
   const paths: AuditPathIndex = {}
-  const importerIds = Object.keys(lockfile.importers) as ProjectId[]
-  const importerWalkers = lockfileWalkerGroupImporterSteps(lockfile, importerIds, { include: opts.include })
   const depTypes = opts.depTypes ?? detectDepTypes(lockfile)
   const optionalOnly = opts.optionalOnly ?? collectOptionalOnlyDepPaths(lockfile)
 
-  const makeWalker = (graphDepTypes: DepTypes, graphOptionalOnly: Set<DepPath>) => {
-    const walk = (step: LockfileWalkerStep, trail: string[]): void => {
-      for (const { depPath, pkgSnapshot, next } of step.dependencies) {
-        const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-        const fullPath = [...trail, name]
-        if (version && vulnerableNames.has(name)) {
-          const isDev = graphDepTypes[depPath] === DepType.DevOnly
-          const isOptional = graphOptionalOnly.has(depPath)
-          let byVersion = paths[name]
-          if (!byVersion) {
-            byVersion = new Map()
-            paths[name] = byVersion
-          }
-          const info = byVersion.get(version)
-          if (!info) {
-            byVersion.set(version, { paths: [fullPath.join('>')], dev: isDev, optional: isOptional })
-          } else {
-            if (!isDev) info.dev = false
-            if (!isOptional) info.optional = false
-            info.paths.push(fullPath.join('>'))
-          }
-        }
-        walk(next(), fullPath)
-      }
-    }
-    return walk
-  }
+  walkForPaths({
+    lockfile,
+    vulnerableNames,
+    paths,
+    depTypes,
+    optionalOnly,
+    include: opts.include,
+    importerSegmentOf: (importerId) => importerId.replace(/\//g, '__'),
+  })
 
-  const walkMain = makeWalker(depTypes, optionalOnly)
-  for (const importerWalker of importerWalkers) {
-    const importerSegment = importerWalker.importerId.replace(/\//g, '__')
-    walkMain(importerWalker.step, [importerSegment])
-  }
   if (opts.envLockfile) {
     const envLockfileObject = envLockfileToLockfileObject(opts.envLockfile)
-    const envDepTypes = detectDepTypes(envLockfileObject)
-    const envOptionalOnly = collectOptionalOnlyDepPaths(envLockfileObject)
-    const walkEnv = makeWalker(envDepTypes, envOptionalOnly)
-    for (const { importerId, step } of lockfileWalkerGroupImporterSteps(envLockfileObject, Object.keys(envLockfileObject.importers) as ProjectId[], { include: opts.include })) {
-      walkEnv(step, [importerId])
-    }
+    walkForPaths({
+      lockfile: envLockfileObject,
+      vulnerableNames,
+      paths,
+      depTypes: detectDepTypes(envLockfileObject),
+      optionalOnly: collectOptionalOnlyDepPaths(envLockfileObject),
+      include: opts.include,
+      importerSegmentOf: (importerId) => importerId,
+    })
   }
 
   return paths
+}
+
+// Traverse the lockfile graph without the global depPath de-duplication that
+// `@pnpm/lockfile.walker` applies. `findings[].paths` is supposed to list every
+// distinct install path to a vulnerable package, so a shared transitive
+// dependency (e.g. lodash reached via many parents) must contribute one path
+// per parent chain, not just the first one the walker encounters. A per-trail
+// visited set prevents cycles without suppressing distinct paths.
+interface WalkForPathsCtx {
+  lockfile: LockfileObject
+  vulnerableNames: Set<string>
+  paths: AuditPathIndex
+  depTypes: DepTypes
+  optionalOnly: Set<DepPath>
+  include?: AuditIndexOptions['include']
+  importerSegmentOf: (importerId: string) => string
+}
+
+function walkForPaths (ctx: WalkForPathsCtx): void {
+  const { lockfile, vulnerableNames, paths, depTypes, optionalOnly, include, importerSegmentOf } = ctx
+  const includeDeps = include?.dependencies !== false
+  const includeDevDeps = include?.devDependencies !== false
+  const includeOptDeps = include?.optionalDependencies !== false
+  const packages = lockfile.packages ?? {}
+
+  const visit = (edge: { name: string, depPath: DepPath }, trail: string[], inTrail: Set<DepPath>): void => {
+    if (inTrail.has(edge.depPath)) return
+    const pkgSnapshot = packages[edge.depPath]
+    if (pkgSnapshot == null) return
+    const { name, version } = nameVerFromPkgSnapshot(edge.depPath, pkgSnapshot)
+    const resolvedName = name ?? edge.name
+    const fullPath = [...trail, resolvedName]
+    if (version && vulnerableNames.has(resolvedName)) {
+      recordPath(paths, resolvedName, version, fullPath.join('>'),
+        depTypes[edge.depPath] === DepType.DevOnly,
+        optionalOnly.has(edge.depPath))
+    }
+    const nextInTrail = new Set(inTrail)
+    nextInTrail.add(edge.depPath)
+    for (const child of resolvedDepsToNamedDepPaths(pkgSnapshot.dependencies ?? {})) {
+      visit(child, fullPath, nextInTrail)
+    }
+    if (includeOptDeps) {
+      for (const child of resolvedDepsToNamedDepPaths(pkgSnapshot.optionalDependencies ?? {})) {
+        visit(child, fullPath, nextInTrail)
+      }
+    }
+  }
+
+  for (const [importerId, importer] of Object.entries(lockfile.importers)) {
+    const trail = [importerSegmentOf(importerId)]
+    const roots: Array<{ name: string, depPath: DepPath }> = []
+    if (includeDeps) roots.push(...resolvedDepsToNamedDepPaths(importer.dependencies ?? {}))
+    if (includeDevDeps) roots.push(...resolvedDepsToNamedDepPaths(importer.devDependencies ?? {}))
+    if (includeOptDeps) roots.push(...resolvedDepsToNamedDepPaths(importer.optionalDependencies ?? {}))
+    for (const root of roots) {
+      visit(root, trail, new Set())
+    }
+  }
+}
+
+function recordPath (paths: AuditPathIndex, name: string, version: string, joined: string, isDev: boolean, isOptional: boolean): void {
+  let byVersion = paths[name]
+  if (!byVersion) {
+    byVersion = new Map()
+    paths[name] = byVersion
+  }
+  const info = byVersion.get(version)
+  if (!info) {
+    byVersion.set(version, { paths: [joined], dev: isDev, optional: isOptional })
+    return
+  }
+  if (!isDev) info.dev = false
+  if (!isOptional) info.optional = false
+  info.paths.push(joined)
+}
+
+function resolvedDepsToNamedDepPaths (deps: ResolvedDependencies): Array<{ name: string, depPath: DepPath }> {
+  const result: Array<{ name: string, depPath: DepPath }> = []
+  for (const [alias, ref] of Object.entries(deps)) {
+    const depPath = dp.refToRelative(ref, alias)
+    if (depPath != null) result.push({ name: alias, depPath })
+  }
+  return result
 }
 
 // Returns the set of depPaths that are reachable only through optional edges

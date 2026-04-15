@@ -47,7 +47,7 @@ describe('audit', () => {
     }
     const result = buildAuditPathIndex(lockfile, new Set(['bar']), {})
 
-    expect(result['bar']!.get('1.0.0')).toEqual({ paths: ['.>foo>bar'], dev: false })
+    expect(result['bar']!.get('1.0.0')).toEqual({ paths: ['.>foo>bar'], dev: false, optional: false })
     expect(result['foo']).toBeUndefined()
   })
 
