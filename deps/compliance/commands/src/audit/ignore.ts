@@ -30,8 +30,10 @@ export async function ignore (opts: IgnoreVulnerabilitiesOptions): Promise<strin
       }
       currentUniqueGhsas.add(advisory.github_advisory_id)
     }
-  } else {
-    opts.ignore?.forEach((ghsa) => currentUniqueGhsas.add(ghsa))
+  } else if (opts.ignore) {
+    for (const ghsa of opts.ignore) {
+      currentUniqueGhsas.add(ghsa)
+    }
   }
 
   const newIgnoreGhsas = currentUniqueGhsas.size > 0 ? Array.from(currentUniqueGhsas) : undefined

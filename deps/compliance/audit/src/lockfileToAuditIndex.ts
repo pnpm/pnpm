@@ -47,82 +47,134 @@ export function lockfileToAuditRequest (
   // Per (name, version) classification. Counted as dev/optional only while
   // every observed occurrence is dev-only / optional-only; once a non-dev or
   // non-optional occurrence is seen, the flag is cleared and the counter
-  // decremented so the metadata stays accurate when the same (name, version)
-  // is reachable via multiple depPaths (peer-suffix variants, or once via the
-  // main graph and once via the env graph).
+  // decremented.
   const versionStatesByName: Record<string, Map<string, { devOnly: boolean, optionalOnly: boolean }>> = {}
   let totalDependencies = 0
   let devDependencies = 0
   let optionalDependencies = 0
 
-  const registerOccurrence = (name: string, version: string, isDevOnly: boolean, isOptionalOnly: boolean): void => {
-    let versionStates = versionStatesByName[name]
+  const registerOccurrence = (o: { name: string, version: string, devOnly: boolean, optionalOnly: boolean }): void => {
+    let versionStates = versionStatesByName[o.name]
     if (!versionStates) {
       versionStates = new Map()
-      versionStatesByName[name] = versionStates
-      request[name] = []
+      versionStatesByName[o.name] = versionStates
+      request[o.name] = []
     }
-    const state = versionStates.get(version)
+    const state = versionStates.get(o.version)
     if (!state) {
-      versionStates.set(version, { devOnly: isDevOnly, optionalOnly: isOptionalOnly })
-      request[name].push(version)
+      versionStates.set(o.version, { devOnly: o.devOnly, optionalOnly: o.optionalOnly })
+      request[o.name].push(o.version)
       totalDependencies++
-      if (isDevOnly) devDependencies++
-      if (isOptionalOnly) optionalDependencies++
+      if (o.devOnly) devDependencies++
+      if (o.optionalOnly) optionalDependencies++
       return
     }
-    if (state.devOnly && !isDevOnly) {
+    if (state.devOnly && !o.devOnly) {
       state.devOnly = false
       devDependencies--
     }
-    if (state.optionalOnly && !isOptionalOnly) {
+    if (state.optionalOnly && !o.optionalOnly) {
       state.optionalOnly = false
       optionalDependencies--
     }
   }
 
-  // Skip subtrees rooted at depPaths we've already traversed within this walk.
-  // The current occurrence is still registered above, so classification for an
-  // existing (name, version) can still be updated on later visits. Maintain
-  // separate seen sets per lockfile so a main-graph dev occurrence doesn't
-  // mask the same depPath's non-dev occurrence in the env lockfile.
-  const visit = (
-    step: LockfileWalkerStep,
-    currentDepTypes: DepTypes,
-    currentOptionalOnly: Set<DepPath>,
-    seenDepPaths: Set<string>
-  ): void => {
-    for (const { depPath, pkgSnapshot, next } of step.dependencies) {
-      const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-      if (version) {
-        registerOccurrence(
-          name,
-          version,
-          currentDepTypes[depPath] === DepType.DevOnly,
-          currentOptionalOnly.has(depPath)
-        )
+  // Build a visitor for one lockfile graph. Closes over depTypes, optionalOnly,
+  // and a per-graph seenDepPaths set so a main-graph dev occurrence doesn't mask
+  // the same depPath's non-dev occurrence in the env lockfile.
+  const makeVisitor = (graphDepTypes: DepTypes, graphOptionalOnly: Set<DepPath>) => {
+    const seenDepPaths = new Set<string>()
+    const visit = (step: LockfileWalkerStep): void => {
+      for (const { depPath, pkgSnapshot, next } of step.dependencies) {
+        const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+        if (version) {
+          registerOccurrence({
+            name,
+            version,
+            devOnly: graphDepTypes[depPath] === DepType.DevOnly,
+            optionalOnly: graphOptionalOnly.has(depPath),
+          })
+        }
+        if (seenDepPaths.has(depPath)) continue
+        seenDepPaths.add(depPath)
+        visit(next())
       }
-      if (seenDepPaths.has(depPath)) continue
-      seenDepPaths.add(depPath)
-      visit(next(), currentDepTypes, currentOptionalOnly, seenDepPaths)
     }
+    return visit
   }
 
-  const seenMainDepPaths = new Set<string>()
+  const visitMain = makeVisitor(depTypes, optionalOnly)
   for (const importerWalker of importerWalkers) {
-    visit(importerWalker.step, depTypes, optionalOnly, seenMainDepPaths)
+    visitMain(importerWalker.step)
   }
   if (opts.envLockfile) {
     const envLockfileObject = envLockfileToLockfileObject(opts.envLockfile)
     const envDepTypes = detectDepTypes(envLockfileObject)
     const envOptionalOnly = collectOptionalOnlyDepPaths(envLockfileObject)
-    const seenEnvDepPaths = new Set<string>()
+    const visitEnv = makeVisitor(envDepTypes, envOptionalOnly)
     for (const { step } of lockfileWalkerGroupImporterSteps(envLockfileObject, Object.keys(envLockfileObject.importers) as ProjectId[], { include: opts.include })) {
-      visit(step, envDepTypes, envOptionalOnly, seenEnvDepPaths)
+      visitEnv(step)
     }
   }
 
   return { request, totalDependencies, devDependencies, optionalDependencies }
+}
+
+export function buildAuditPathIndex (
+  lockfile: LockfileObject,
+  vulnerableNames: Set<string>,
+  opts: AuditIndexOptions
+): AuditPathIndex {
+  const paths: AuditPathIndex = {}
+  const importerIds = Object.keys(lockfile.importers) as ProjectId[]
+  const importerWalkers = lockfileWalkerGroupImporterSteps(lockfile, importerIds, { include: opts.include })
+  const depTypes = opts.depTypes ?? detectDepTypes(lockfile)
+  const optionalOnly = opts.optionalOnly ?? collectOptionalOnlyDepPaths(lockfile)
+
+  const makeWalker = (graphDepTypes: DepTypes, graphOptionalOnly: Set<DepPath>) => {
+    const walk = (step: LockfileWalkerStep, trail: string[]): void => {
+      for (const { depPath, pkgSnapshot, next } of step.dependencies) {
+        const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+        const fullPath = [...trail, name]
+        if (version && vulnerableNames.has(name)) {
+          const isDev = graphDepTypes[depPath] === DepType.DevOnly
+          const isOptional = graphOptionalOnly.has(depPath)
+          let byVersion = paths[name]
+          if (!byVersion) {
+            byVersion = new Map()
+            paths[name] = byVersion
+          }
+          const info = byVersion.get(version)
+          if (!info) {
+            byVersion.set(version, { paths: [fullPath.join('>')], dev: isDev, optional: isOptional })
+          } else {
+            if (!isDev) info.dev = false
+            if (!isOptional) info.optional = false
+            info.paths.push(fullPath.join('>'))
+          }
+        }
+        walk(next(), fullPath)
+      }
+    }
+    return walk
+  }
+
+  const walkMain = makeWalker(depTypes, optionalOnly)
+  for (const importerWalker of importerWalkers) {
+    const importerSegment = importerWalker.importerId.replace(/\//g, '__')
+    walkMain(importerWalker.step, [importerSegment])
+  }
+  if (opts.envLockfile) {
+    const envLockfileObject = envLockfileToLockfileObject(opts.envLockfile)
+    const envDepTypes = detectDepTypes(envLockfileObject)
+    const envOptionalOnly = collectOptionalOnlyDepPaths(envLockfileObject)
+    const walkEnv = makeWalker(envDepTypes, envOptionalOnly)
+    for (const { importerId, step } of lockfileWalkerGroupImporterSteps(envLockfileObject, Object.keys(envLockfileObject.importers) as ProjectId[], { include: opts.include })) {
+      walkEnv(step, [importerId])
+    }
+  }
+
+  return paths
 }
 
 // Returns the set of depPaths that are reachable only through optional edges
@@ -170,59 +222,6 @@ function resolvedDepsToDepPaths (deps: ResolvedDependencies): DepPath[] {
   return Object.entries(deps)
     .map(([alias, ref]) => dp.refToRelative(ref, alias))
     .filter((depPath): depPath is DepPath => depPath !== null)
-}
-
-export function buildAuditPathIndex (
-  lockfile: LockfileObject,
-  vulnerableNames: Set<string>,
-  opts: AuditIndexOptions
-): AuditPathIndex {
-  const paths: AuditPathIndex = {}
-  const importerIds = Object.keys(lockfile.importers) as ProjectId[]
-  const importerWalkers = lockfileWalkerGroupImporterSteps(lockfile, importerIds, { include: opts.include })
-  const depTypes = opts.depTypes ?? detectDepTypes(lockfile)
-  const optionalOnly = opts.optionalOnly ?? collectOptionalOnlyDepPaths(lockfile)
-
-  const walk = (step: LockfileWalkerStep, currentDepTypes: DepTypes, currentOptionalOnly: Set<DepPath>, trail: string[]): void => {
-    for (const { depPath, pkgSnapshot, next } of step.dependencies) {
-      const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-      const fullPath = [...trail, name]
-      if (version && vulnerableNames.has(name)) {
-        const isDev = currentDepTypes[depPath] === DepType.DevOnly
-        const isOptional = currentOptionalOnly.has(depPath)
-        let byVersion = paths[name]
-        if (!byVersion) {
-          byVersion = new Map()
-          paths[name] = byVersion
-        }
-        const info = byVersion.get(version)
-        if (!info) {
-          byVersion.set(version, { paths: [fullPath.join('>')], dev: isDev, optional: isOptional })
-        } else {
-          if (!isDev) info.dev = false
-          if (!isOptional) info.optional = false
-          info.paths.push(fullPath.join('>'))
-        }
-      }
-      walk(next(), currentDepTypes, currentOptionalOnly, fullPath)
-    }
-  }
-
-  for (const importerWalker of importerWalkers) {
-    const importerSegment = importerWalker.importerId.replace(/\//g, '__')
-    walk(importerWalker.step, depTypes, optionalOnly, [importerSegment])
-  }
-
-  if (opts.envLockfile) {
-    const envLockfileObject = envLockfileToLockfileObject(opts.envLockfile)
-    const envDepTypes = detectDepTypes(envLockfileObject)
-    const envOptionalOnly = collectOptionalOnlyDepPaths(envLockfileObject)
-    for (const { importerId, step } of lockfileWalkerGroupImporterSteps(envLockfileObject, Object.keys(envLockfileObject.importers) as ProjectId[], { include: opts.include })) {
-      walk(step, envDepTypes, envOptionalOnly, [importerId])
-    }
-  }
-
-  return paths
 }
 
 function envLockfileToLockfileObject (envLockfile: EnvLockfile): LockfileObject {
