@@ -127,7 +127,7 @@ export function help (): string {
             name: '--ignore <vulnerability>',
           },
           {
-            description: 'Ignore all vulnerabilities with no resolution',
+            description: 'Ignore all vulnerabilities for which no fix exists',
             name: '--ignore-unfixable',
           },
         ],

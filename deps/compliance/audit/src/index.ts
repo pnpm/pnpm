@@ -147,16 +147,20 @@ function buildFindings (adv: BulkAdvisory, byVersion: Map<string, PathInfo> | un
   // and prefer the locally-computed paths/dev/optional over whatever the
   // registry reports so we can't be tricked into false positives.
   if (adv.findings && adv.findings.length > 0) {
+    // No local index means the lockfile doesn't have this package at all —
+    // ignore the registry-supplied findings entirely so we don't report a
+    // vulnerability for something the user hasn't installed.
+    if (byVersion == null) return []
     const findings: AuditFinding[] = []
     for (const f of adv.findings) {
       if (!satisfiesSafe(f.version, adv.vulnerable_versions)) continue
-      const installed = byVersion?.get(f.version)
-      if (byVersion != null && installed == null) continue
+      const installed = byVersion.get(f.version)
+      if (installed == null) continue
       findings.push({
         version: f.version,
-        paths: installed?.paths ?? f.paths ?? [],
-        dev: installed?.dev ?? f.dev ?? false,
-        optional: installed?.optional ?? f.optional ?? false,
+        paths: installed.paths,
+        dev: installed.dev,
+        optional: installed.optional,
         bundled: f.bundled ?? false,
       })
     }
@@ -186,7 +190,15 @@ function isKnownSeverity (severity: unknown): severity is AuditLevelString {
 }
 
 function isBulkResponseShape (body: unknown): body is BulkAdvisoriesResponse {
-  return typeof body === 'object' && body !== null && !Array.isArray(body)
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return false
+  // Every value must be an array of advisory objects; a null or scalar value
+  // would crash `for (const adv of packageAdvisories)` downstream.
+  return Object.values(body).every((packageAdvisories) =>
+    Array.isArray(packageAdvisories) && packageAdvisories.every((advisory) =>
+      typeof advisory === 'object' && advisory !== null && !Array.isArray(advisory) &&
+      typeof (advisory as { vulnerable_versions?: unknown }).vulnerable_versions === 'string'
+    )
+  )
 }
 
 function satisfiesSafe (version: string, range: string): boolean {
