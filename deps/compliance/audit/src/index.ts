@@ -84,7 +84,14 @@ export async function audit (
   })
 
   if (res.status === 200) {
-    const body = (await res.json()) as unknown
+    const rawBody = await res.text()
+    let body: unknown
+    try {
+      body = JSON.parse(rawBody)
+    } catch (err: unknown) {
+      const reason = err instanceof Error ? err.message : String(err)
+      throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${auditUrl}) returned invalid JSON: ${reason}. Response body: ${rawBody.slice(0, 500)}`)
+    }
     if (!isBulkResponseShape(body)) {
       throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${auditUrl}) returned an unexpected body. Expected an object keyed by package name; got: ${JSON.stringify(body)?.slice(0, 500) ?? String(body)}`)
     }
