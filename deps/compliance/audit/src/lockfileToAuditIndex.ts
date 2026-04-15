@@ -233,6 +233,12 @@ function walkForPaths (ctx: WalkForPathsCtx): void {
   }
 }
 
+// Per-(name, version) cap on recorded paths. The CLI only ever displays the
+// first few and follows with a "run pnpm why" hint, so keeping tens of
+// thousands of equivalent chains is wasted memory/CPU for projects with
+// heavy sharing (e.g. diamond dependencies deep in the graph).
+const MAX_PATHS_PER_FINDING = 100
+
 function recordPath (paths: AuditPathIndex, name: string, version: string, joined: string, isDev: boolean, isOptional: boolean): void {
   let byVersion = paths[name]
   if (!byVersion) {
@@ -246,6 +252,11 @@ function recordPath (paths: AuditPathIndex, name: string, version: string, joine
   }
   if (!isDev) info.dev = false
   if (!isOptional) info.optional = false
+  if (info.paths.length >= MAX_PATHS_PER_FINDING) return
+  // Dedupe — the same joined trail can be produced when a package appears in
+  // both `dependencies` and `optionalDependencies` of the same parent, or via
+  // equivalent peer-suffix variants.
+  if (info.paths.includes(joined)) return
   info.paths.push(joined)
 }
 
