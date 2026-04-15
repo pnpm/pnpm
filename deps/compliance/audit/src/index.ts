@@ -5,11 +5,11 @@ import { type DispatcherOptions, fetchWithDispatcher, type RetryTimeoutOptions }
 import type { DependenciesField } from '@pnpm/types'
 import semver from 'semver'
 
-import { type AuditNode, type AuditTree, lockfileToAuditTree } from './lockfileToAuditTree.js'
+import { type AuditIndex, lockfileToAuditIndex, type PathInfo } from './lockfileToAuditIndex.js'
 import type { AuditAdvisory, AuditFinding, AuditLevelString, AuditReport, AuditVulnerabilityCounts } from './types.js'
 
-export type { AuditNode, AuditTree } from './lockfileToAuditTree.js'
-export { lockfileToAuditTree } from './lockfileToAuditTree.js'
+export type { AuditIndex, AuditPathIndex, PathInfo } from './lockfileToAuditIndex.js'
+export { lockfileToAuditIndex } from './lockfileToAuditIndex.js'
 export * from './types.js'
 
 // The shape of a single advisory returned by npm's /advisories/bulk endpoint.
@@ -48,14 +48,12 @@ export async function audit (
     dispatcherOptions?: DispatcherOptions
     envLockfile?: EnvLockfile | null
     include?: { [dependenciesField in DependenciesField]: boolean }
-    lockfileDir: string
     registry: string
     retry?: RetryTimeoutOptions
     timeout?: number
-    virtualStoreDirMaxLength: number
   }
 ): Promise<AuditReport> {
-  const auditTree = await lockfileToAuditTree(lockfile, { envLockfile: opts.envLockfile, include: opts.include, lockfileDir: opts.lockfileDir })
+  const auditIndex = lockfileToAuditIndex(lockfile, { envLockfile: opts.envLockfile, include: opts.include })
   const registry = opts.registry.endsWith('/') ? opts.registry : `${opts.registry}/`
   const auditUrl = `${registry}-/npm/v1/security/advisories/bulk`
   const authHeaderValue = getAuthHeader(registry)
@@ -63,22 +61,19 @@ export async function audit (
     'Content-Type': 'application/json',
     ...getAuthHeaders(authHeaderValue),
   }
-  const baseOptions = {
+
+  const res = await fetchWithDispatcher(auditUrl, {
     dispatcherOptions: opts.dispatcherOptions ?? {},
+    body: JSON.stringify(auditIndex.request),
     headers: requestHeaders,
     method: 'POST',
     retry: opts.retry,
     timeout: opts.timeout,
-  }
-
-  const res = await fetchWithDispatcher(auditUrl, {
-    ...baseOptions,
-    body: JSON.stringify(buildBulkRequestBody(auditTree)),
   })
 
   if (res.status === 200) {
     const body = (await res.json()) as BulkAdvisoriesResponse
-    return bulkResponseToAuditReport(body, auditTree)
+    return bulkResponseToAuditReport(body, auditIndex)
   }
 
   if (res.status === 404) {
@@ -88,76 +83,12 @@ export async function audit (
   throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${auditUrl}) responded with ${res.status}: ${await res.text()}`)
 }
 
-export function buildBulkRequestBody (auditTree: AuditTree): Record<string, string[]> {
-  const versionsByName: Record<string, Set<string>> = {}
-  const visit = (node: AuditNode): void => {
-    if (!node.dependencies) return
-    for (const [name, child] of Object.entries(node.dependencies)) {
-      if (child.version) {
-        if (!versionsByName[name]) versionsByName[name] = new Set()
-        versionsByName[name].add(child.version)
-      }
-      visit(child)
-    }
-  }
-  // Skip the top level: auditTree.dependencies is keyed by importer id
-  // (e.g. `.` or `packages__foo`), which are not real package names.
-  for (const importer of Object.values(auditTree.dependencies ?? {})) {
-    visit(importer)
-  }
-  const result: Record<string, string[]> = {}
-  for (const [name, versions] of Object.entries(versionsByName)) {
-    result[name] = [...versions]
-  }
-  return result
-}
-
-interface PathInfo {
-  paths: string[]
-  dev: boolean
-}
-
-type PathIndex = Record<string, Map<string, PathInfo>>
-
-function buildPathIndex (auditTree: AuditTree): PathIndex {
-  const index: PathIndex = {}
-  const visit = (node: AuditNode, trail: string[]): void => {
-    if (!node.dependencies) return
-    for (const [name, child] of Object.entries(node.dependencies)) {
-      const pathSegments = [...trail, name]
-      if (child.version) {
-        let byVersion = index[name]
-        if (!byVersion) {
-          byVersion = new Map()
-          index[name] = byVersion
-        }
-        let info = byVersion.get(child.version)
-        if (!info) {
-          info = { paths: [], dev: child.dev }
-          byVersion.set(child.version, info)
-        } else if (!child.dev) {
-          info.dev = false
-        }
-        info.paths.push(pathSegments.join('>'))
-      }
-      visit(child, pathSegments)
-    }
-  }
-  if (auditTree.dependencies) {
-    for (const [importerId, child] of Object.entries(auditTree.dependencies)) {
-      visit(child, [importerId])
-    }
-  }
-  return index
-}
-
-function bulkResponseToAuditReport (bulk: BulkAdvisoriesResponse, auditTree: AuditTree): AuditReport {
-  const pathIndex = buildPathIndex(auditTree)
+function bulkResponseToAuditReport (bulk: BulkAdvisoriesResponse, auditIndex: AuditIndex): AuditReport {
   const advisories: Record<string, AuditAdvisory> = {}
   const vulnerabilities: AuditVulnerabilityCounts = { info: 0, low: 0, moderate: 0, high: 0, critical: 0 }
   let totalDependencies = 0
   let devDependencies = 0
-  for (const byVersion of Object.values(pathIndex)) {
+  for (const byVersion of Object.values(auditIndex.paths)) {
     for (const info of byVersion.values()) {
       totalDependencies += info.paths.length
       if (info.dev) devDependencies += info.paths.length
@@ -165,7 +96,7 @@ function bulkResponseToAuditReport (bulk: BulkAdvisoriesResponse, auditTree: Aud
   }
 
   for (const [moduleName, packageAdvisories] of Object.entries(bulk)) {
-    const byVersion = pathIndex[moduleName]
+    const byVersion = auditIndex.paths[moduleName]
     for (const adv of packageAdvisories) {
       const findings = buildFindings(adv, byVersion)
       // If no installed version is vulnerable, skip the advisory entirely so

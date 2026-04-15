@@ -207,7 +207,6 @@ export async function handler (opts: AuditOptions): Promise<{ exitCode: number, 
       },
       envLockfile,
       include,
-      lockfileDir,
       registry: opts.registries.default,
       retry: {
         factor: opts.fetchRetryFactor,
@@ -216,7 +215,6 @@ export async function handler (opts: AuditOptions): Promise<{ exitCode: number, 
         retries: opts.fetchRetries,
       },
       timeout: opts.fetchTimeout,
-      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     })
   } catch (err: any) { // eslint-disable-line
     if (opts.ignoreRegistryErrors) {

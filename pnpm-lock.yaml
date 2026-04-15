@@ -2737,12 +2737,6 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../../core/types
-      '@pnpm/workspace.project-manifest-reader':
-        specifier: workspace:*
-        version: link:../../../workspace/project-manifest-reader
-      ramda:
-        specifier: 'catalog:'
-        version: '@pnpm/ramda@0.28.1'
       semver:
         specifier: 'catalog:'
         version: 7.7.4
@@ -2762,9 +2756,6 @@ importers:
       '@pnpm/testing.mock-agent':
         specifier: workspace:*
         version: link:../../../testing/mock-agent
-      '@types/ramda':
-        specifier: 'catalog:'
-        version: 0.31.1
       '@types/semver':
         specifier: 'catalog:'
         version: 7.7.1

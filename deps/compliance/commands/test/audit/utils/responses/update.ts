@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { buildBulkRequestBody, lockfileToAuditTree } from '@pnpm/deps.compliance.audit'
+import { lockfileToAuditIndex } from '@pnpm/deps.compliance.audit'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { fixtures } from '@pnpm/test-fixtures'
 
@@ -21,12 +21,11 @@ async function writeResponse (lockfileDir: string, filename: string, opts: {
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
-  const auditTree = await lockfileToAuditTree(lockfile, { include, lockfileDir })
-  const body = buildBulkRequestBody(auditTree)
+  const auditIndex = lockfileToAuditIndex(lockfile, { include })
   const res = await fetch(`${REGISTRY}/-/npm/v1/security/advisories/bulk`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify(auditIndex.request),
   })
   if (!res.ok) {
     throw new Error(`bulk audit endpoint responded with ${res.status}: ${await res.text()}`)

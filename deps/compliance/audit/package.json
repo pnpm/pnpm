@@ -41,8 +41,6 @@
     "@pnpm/lockfile.walker": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/workspace.project-manifest-reader": "workspace:*",
-    "ramda": "catalog:",
     "semver": "catalog:"
   },
   "peerDependencies": {
@@ -54,7 +52,6 @@
     "@pnpm/logger": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/testing.mock-agent": "workspace:*",
-    "@types/ramda": "catalog:",
     "@types/semver": "catalog:"
   },
   "engines": {
