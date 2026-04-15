@@ -284,6 +284,33 @@ describe('audit', () => {
     }
   })
 
+  test('throws AUDIT_BAD_RESPONSE if the registry returns a non-object body', async () => {
+    const registry = 'http://registry.registry/'
+    const getAuthHeader = () => undefined
+    await setupMockAgent()
+    getMockAgent().get('http://registry.registry')
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, [])
+
+    try {
+      let err!: PnpmError
+      try {
+        await audit(
+          { importers: {}, lockfileVersion: LOCKFILE_VERSION },
+          getAuthHeader,
+          { registry, retry: { retries: 0 } }
+        )
+      } catch (_err: any) { // eslint-disable-line
+        err = _err
+      }
+      expect(err).toBeDefined()
+      expect(err.code).toBe('ERR_PNPM_AUDIT_BAD_RESPONSE')
+      expect(err.message).toMatch(/unexpected body/)
+    } finally {
+      await teardownMockAgent()
+    }
+  })
+
   test('sends authorization header when getAuthHeader returns a value', async () => {
     const registry = 'http://registry.registry/'
     const getAuthHeader = () => 'Bearer test-token'

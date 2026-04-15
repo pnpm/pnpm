@@ -84,7 +84,10 @@ export async function audit (
   })
 
   if (res.status === 200) {
-    const body = (await res.json()) as BulkAdvisoriesResponse
+    const body = (await res.json()) as unknown
+    if (!isBulkResponseShape(body)) {
+      throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${auditUrl}) returned an unexpected body. Expected an object keyed by package name; got: ${JSON.stringify(body)?.slice(0, 500) ?? String(body)}`)
+    }
     const vulnerableNames = new Set(Object.keys(body))
     let auditPathIndex: AuditPathIndex = {}
     if (vulnerableNames.size > 0) {
@@ -171,6 +174,10 @@ const KNOWN_SEVERITIES: ReadonlySet<AuditLevelString> = new Set(['info', 'low', 
 
 function isKnownSeverity (severity: unknown): severity is AuditLevelString {
   return typeof severity === 'string' && KNOWN_SEVERITIES.has(severity as AuditLevelString)
+}
+
+function isBulkResponseShape (body: unknown): body is BulkAdvisoriesResponse {
+  return typeof body === 'object' && body !== null && !Array.isArray(body)
 }
 
 function satisfiesSafe (version: string, range: string): boolean {
