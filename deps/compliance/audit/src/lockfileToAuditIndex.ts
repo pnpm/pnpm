@@ -40,54 +40,81 @@ export function lockfileToAuditRequest (
   const optionalOnly = collectOptionalOnlyDepPaths(lockfile)
 
   const request: Record<string, string[]> = {}
-  const seenVersionsByName: Record<string, Set<string>> = {}
-  // Skip subtrees rooted at depPaths we've already traversed. Large lockfiles
-  // can reach the same subgraph via many parents; each depPath's transitive
-  // deps are identical, so walking it once is enough.
-  const seenDepPaths = new Set<string>()
+  // Per (name, version) classification. Counted as dev/optional only while
+  // every observed occurrence is dev-only / optional-only; once a non-dev or
+  // non-optional occurrence is seen, the flag is cleared and the counter
+  // decremented so the metadata stays accurate when the same (name, version)
+  // is reachable via multiple depPaths (peer-suffix variants, or once via the
+  // main graph and once via the env graph).
+  const versionStatesByName: Record<string, Map<string, { devOnly: boolean, optionalOnly: boolean }>> = {}
   let totalDependencies = 0
   let devDependencies = 0
   let optionalDependencies = 0
 
-  const visit = (step: LockfileWalkerStep, currentDepTypes: DepTypes, currentOptionalOnly: Set<DepPath>): void => {
-    for (const { depPath, pkgSnapshot, next } of step.dependencies) {
-      if (seenDepPaths.has(depPath)) continue
-      seenDepPaths.add(depPath)
-      const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-      if (version) {
-        // Different depPaths (e.g. peer-suffix variants) can resolve to the
-        // same (name, version). Dedupe so each version appears once in the
-        // bulk request body.
-        let versions = seenVersionsByName[name]
-        if (!versions) {
-          versions = new Set()
-          seenVersionsByName[name] = versions
-          request[name] = []
-        }
-        if (!versions.has(version)) {
-          versions.add(version)
-          request[name].push(version)
-          totalDependencies++
-          if (currentDepTypes[depPath] === DepType.DevOnly) {
-            devDependencies++
-          } else if (currentOptionalOnly.has(depPath)) {
-            optionalDependencies++
-          }
-        }
-      }
-      visit(next(), currentDepTypes, currentOptionalOnly)
+  const registerOccurrence = (name: string, version: string, isDevOnly: boolean, isOptionalOnly: boolean): void => {
+    let versionStates = versionStatesByName[name]
+    if (!versionStates) {
+      versionStates = new Map()
+      versionStatesByName[name] = versionStates
+      request[name] = []
+    }
+    const state = versionStates.get(version)
+    if (!state) {
+      versionStates.set(version, { devOnly: isDevOnly, optionalOnly: isOptionalOnly })
+      request[name].push(version)
+      totalDependencies++
+      if (isDevOnly) devDependencies++
+      if (isOptionalOnly) optionalDependencies++
+      return
+    }
+    if (state.devOnly && !isDevOnly) {
+      state.devOnly = false
+      devDependencies--
+    }
+    if (state.optionalOnly && !isOptionalOnly) {
+      state.optionalOnly = false
+      optionalDependencies--
     }
   }
 
+  // Skip subtrees rooted at depPaths we've already traversed within this walk.
+  // The current occurrence is still registered above, so classification for an
+  // existing (name, version) can still be updated on later visits. Maintain
+  // separate seen sets per lockfile so a main-graph dev occurrence doesn't
+  // mask the same depPath's non-dev occurrence in the env lockfile.
+  const visit = (
+    step: LockfileWalkerStep,
+    currentDepTypes: DepTypes,
+    currentOptionalOnly: Set<DepPath>,
+    seenDepPaths: Set<string>
+  ): void => {
+    for (const { depPath, pkgSnapshot, next } of step.dependencies) {
+      const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+      if (version) {
+        registerOccurrence(
+          name,
+          version,
+          currentDepTypes[depPath] === DepType.DevOnly,
+          currentOptionalOnly.has(depPath)
+        )
+      }
+      if (seenDepPaths.has(depPath)) continue
+      seenDepPaths.add(depPath)
+      visit(next(), currentDepTypes, currentOptionalOnly, seenDepPaths)
+    }
+  }
+
+  const seenMainDepPaths = new Set<string>()
   for (const importerWalker of importerWalkers) {
-    visit(importerWalker.step, depTypes, optionalOnly)
+    visit(importerWalker.step, depTypes, optionalOnly, seenMainDepPaths)
   }
   if (opts.envLockfile) {
     const envLockfileObject = envLockfileToLockfileObject(opts.envLockfile)
     const envDepTypes = detectDepTypes(envLockfileObject)
     const envOptionalOnly = collectOptionalOnlyDepPaths(envLockfileObject)
+    const seenEnvDepPaths = new Set<string>()
     for (const { step } of lockfileWalkerGroupImporterSteps(envLockfileObject, Object.keys(envLockfileObject.importers) as ProjectId[], { include: opts.include })) {
-      visit(step, envDepTypes, envOptionalOnly)
+      visit(step, envDepTypes, envOptionalOnly, seenEnvDepPaths)
     }
   }
 
