@@ -1,12 +1,12 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { audit, lockfileToAuditIndex } from '@pnpm/deps.compliance.audit'
+import { audit, buildAuditPathIndex, lockfileToAuditRequest } from '@pnpm/deps.compliance.audit'
 import type { PnpmError } from '@pnpm/error'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import type { DepPath, ProjectId } from '@pnpm/types'
 
 describe('audit', () => {
-  test('lockfileToAuditIndex() flattens dependencies and records install paths', () => {
-    const result = lockfileToAuditIndex({
+  test('lockfileToAuditRequest() flattens dependencies', () => {
+    const result = lockfileToAuditRequest({
       importers: {
         ['.' as ProjectId]: {
           dependencies: { foo: '1.0.0' },
@@ -24,12 +24,36 @@ describe('audit', () => {
     }, {})
 
     expect(result.request).toEqual({ foo: ['1.0.0'], bar: ['1.0.0'] })
-    expect(result.paths['foo']!.get('1.0.0')).toEqual({ paths: ['.>foo'], dev: false })
-    expect(result.paths['bar']!.get('1.0.0')).toEqual({ paths: ['.>foo>bar'], dev: false })
+    expect(result.totalDependencies).toBe(2)
+    expect(result.devDependencies).toBe(0)
   })
 
-  test('lockfileToAuditIndex() replaces slashes in workspace importer ids', () => {
-    const result = lockfileToAuditIndex({
+  test('buildAuditPathIndex() records install paths for vulnerable packages', () => {
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { foo: '1.0.0' },
+          specifiers: { foo: '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['bar@1.0.0' as DepPath]: { resolution: { integrity: 'bar-integrity' } },
+        ['foo@1.0.0' as DepPath]: {
+          dependencies: { bar: '1.0.0' },
+          resolution: { integrity: 'foo-integrity' },
+        },
+      },
+    }
+    const result = buildAuditPathIndex(lockfile, new Set(['bar']), {})
+
+    expect(result['bar']!.get('1.0.0')).toEqual({ paths: ['.>foo>bar'], dev: false })
+    expect(result['foo']).toBeUndefined()
+  })
+
+  test('lockfileToAuditRequest() replaces slashes in workspace importer ids', () => {
+    // This is tested via buildAuditPathIndex as well since that's where paths are built
+    const lockfile = {
       importers: {
         ['packages/foo' as ProjectId]: {
           dependencies: { foo: '1.0.0' },
@@ -40,13 +64,14 @@ describe('audit', () => {
       packages: {
         ['foo@1.0.0' as DepPath]: { resolution: { integrity: 'foo-integrity' } },
       },
-    }, {})
+    }
+    const result = buildAuditPathIndex(lockfile, new Set(['foo']), {})
 
-    expect(result.paths['foo']!.get('1.0.0')!.paths).toEqual(['packages__foo>foo'])
+    expect(result['foo']!.get('1.0.0')!.paths).toEqual(['packages__foo>foo'])
   })
 
-  test('lockfileToAuditIndex() includes env lockfile configDependencies and packageManagerDependencies', () => {
-    const result = lockfileToAuditIndex({
+  test('lockfileToAuditRequest() includes env lockfile configDependencies and packageManagerDependencies', () => {
+    const result = lockfileToAuditRequest({
       importers: {
         ['.' as ProjectId]: {
           dependencies: { foo: '1.0.0' },
@@ -87,13 +112,10 @@ describe('audit', () => {
     expect(result.request['my-config']).toEqual(['2.0.0'])
     expect(result.request['config-util']).toEqual(['1.0.0'])
     expect(result.request['pnpm']).toEqual(['9.0.0'])
-    expect(result.paths['my-config']!.get('2.0.0')!.paths).toEqual(['configDependencies>my-config'])
-    expect(result.paths['config-util']!.get('1.0.0')!.paths).toEqual(['configDependencies>my-config>config-util'])
-    expect(result.paths['pnpm']!.get('9.0.0')!.paths).toEqual(['packageManagerDependencies>pnpm'])
   })
 
-  test('lockfileToAuditIndex() accepts a null envLockfile', () => {
-    const result = lockfileToAuditIndex({
+  test('lockfileToAuditRequest() accepts a null envLockfile', () => {
+    const result = lockfileToAuditRequest({
       importers: {
         ['.' as ProjectId]: {
           dependencies: { foo: '1.0.0' },
@@ -109,8 +131,8 @@ describe('audit', () => {
     expect(result.request).toEqual({ foo: ['1.0.0'] })
   })
 
-  test('lockfileToAuditIndex() includes optionalDependencies from env snapshots', () => {
-    const result = lockfileToAuditIndex({
+  test('lockfileToAuditRequest() includes optionalDependencies from env snapshots', () => {
+    const result = lockfileToAuditRequest({
       importers: {
         ['.' as ProjectId]: { specifiers: {} },
       },
@@ -145,8 +167,8 @@ describe('audit', () => {
     expect(result.request['optional-dep']).toEqual(['2.0.0'])
   })
 
-  test('lockfileToAuditIndex() does not include env packages unreachable from importers', () => {
-    const result = lockfileToAuditIndex({
+  test('lockfileToAuditRequest() does not include env packages unreachable from importers', () => {
+    const result = lockfileToAuditRequest({
       importers: {
         ['.' as ProjectId]: { specifiers: {} },
       },

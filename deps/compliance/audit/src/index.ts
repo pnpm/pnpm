@@ -5,11 +5,17 @@ import { type DispatcherOptions, fetchWithDispatcher, type RetryTimeoutOptions }
 import type { DependenciesField } from '@pnpm/types'
 import semver from 'semver'
 
-import { type AuditIndex, lockfileToAuditIndex, type PathInfo } from './lockfileToAuditIndex.js'
+import {
+  type AuditIndexRequest,
+  type AuditPathIndex,
+  buildAuditPathIndex,
+  lockfileToAuditRequest,
+  type PathInfo,
+} from './lockfileToAuditIndex.js'
 import type { AuditAdvisory, AuditFinding, AuditLevelString, AuditReport, AuditVulnerabilityCounts } from './types.js'
 
-export type { AuditIndex, AuditPathIndex, PathInfo } from './lockfileToAuditIndex.js'
-export { lockfileToAuditIndex } from './lockfileToAuditIndex.js'
+export type { AuditIndexRequest, AuditPathIndex, PathInfo } from './lockfileToAuditIndex.js'
+export { buildAuditPathIndex, lockfileToAuditRequest } from './lockfileToAuditIndex.js'
 export * from './types.js'
 
 // The shape of a single advisory returned by npm's /advisories/bulk endpoint.
@@ -53,7 +59,7 @@ export async function audit (
     timeout?: number
   }
 ): Promise<AuditReport> {
-  const auditIndex = lockfileToAuditIndex(lockfile, { envLockfile: opts.envLockfile, include: opts.include })
+  const auditRequest = lockfileToAuditRequest(lockfile, { envLockfile: opts.envLockfile, include: opts.include })
   const registry = opts.registry.endsWith('/') ? opts.registry : `${opts.registry}/`
   const auditUrl = `${registry}-/npm/v1/security/advisories/bulk`
   const authHeaderValue = getAuthHeader(registry)
@@ -64,7 +70,7 @@ export async function audit (
 
   const res = await fetchWithDispatcher(auditUrl, {
     dispatcherOptions: opts.dispatcherOptions ?? {},
-    body: JSON.stringify(auditIndex.request),
+    body: JSON.stringify(auditRequest.request),
     headers: requestHeaders,
     method: 'POST',
     retry: opts.retry,
@@ -73,7 +79,12 @@ export async function audit (
 
   if (res.status === 200) {
     const body = (await res.json()) as BulkAdvisoriesResponse
-    return bulkResponseToAuditReport(body, auditIndex)
+    const vulnerableNames = new Set(Object.keys(body))
+    let auditPathIndex: AuditPathIndex = {}
+    if (vulnerableNames.size > 0) {
+      auditPathIndex = buildAuditPathIndex(lockfile, vulnerableNames, { envLockfile: opts.envLockfile, include: opts.include })
+    }
+    return bulkResponseToAuditReport(body, auditRequest, auditPathIndex)
   }
 
   if (res.status === 404) {
@@ -83,20 +94,12 @@ export async function audit (
   throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${auditUrl}) responded with ${res.status}: ${await res.text()}`)
 }
 
-function bulkResponseToAuditReport (bulk: BulkAdvisoriesResponse, auditIndex: AuditIndex): AuditReport {
+function bulkResponseToAuditReport (bulk: BulkAdvisoriesResponse, auditRequest: AuditIndexRequest, auditPathIndex: AuditPathIndex): AuditReport {
   const advisories: Record<string, AuditAdvisory> = {}
   const vulnerabilities: AuditVulnerabilityCounts = { info: 0, low: 0, moderate: 0, high: 0, critical: 0 }
-  let totalDependencies = 0
-  let devDependencies = 0
-  for (const byVersion of Object.values(auditIndex.paths)) {
-    for (const info of byVersion.values()) {
-      totalDependencies += info.paths.length
-      if (info.dev) devDependencies += info.paths.length
-    }
-  }
 
   for (const [moduleName, packageAdvisories] of Object.entries(bulk)) {
-    const byVersion = auditIndex.paths[moduleName]
+    const byVersion = auditPathIndex[moduleName]
     for (const adv of packageAdvisories) {
       const findings = buildFindings(adv, byVersion)
       // If no installed version is vulnerable, skip the advisory entirely so
@@ -115,10 +118,10 @@ function bulkResponseToAuditReport (bulk: BulkAdvisoriesResponse, auditIndex: Au
     muted: [],
     metadata: {
       vulnerabilities,
-      dependencies: totalDependencies - devDependencies,
-      devDependencies,
+      dependencies: auditRequest.totalDependencies - auditRequest.devDependencies,
+      devDependencies: auditRequest.devDependencies,
       optionalDependencies: 0,
-      totalDependencies,
+      totalDependencies: auditRequest.totalDependencies,
     },
   }
 }

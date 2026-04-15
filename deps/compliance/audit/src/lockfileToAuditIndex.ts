@@ -10,73 +10,132 @@ export interface PathInfo {
   dev: boolean
 }
 
-// Versions installed per package name, keyed by version. For each (name, version)
-// we also keep the set of install paths (e.g. `.>karma>http-proxy`) and whether
-// every occurrence was dev-only.
+// Versions installed per package name, keyed by version.
 export type AuditPathIndex = Record<string, Map<string, PathInfo>>
 
-export interface AuditIndex {
+export interface AuditIndexRequest {
   // Flat map suitable as the POST body for `/advisories/bulk`.
   request: Record<string, string[]>
-  // Path information keyed by package name, used to populate
-  // `findings[].paths` and dev/total dependency counts.
-  paths: AuditPathIndex
+  totalDependencies: number
+  devDependencies: number
+  // Reachable (name, version) pairs and their dev status, used for the second walk
+  reachable: Record<string, Map<string, { dev: boolean }>>
 }
 
-export function lockfileToAuditIndex (
+export interface AuditIndexOptions {
+  envLockfile?: EnvLockfile | null
+  include?: { [dependenciesField in DependenciesField]: boolean }
+}
+
+export function lockfileToAuditRequest (
   lockfile: LockfileObject,
-  opts: {
-    envLockfile?: EnvLockfile | null
-    include?: { [dependenciesField in DependenciesField]: boolean }
-  }
-): AuditIndex {
-  const paths: AuditPathIndex = {}
+  opts: AuditIndexOptions
+): AuditIndexRequest {
   const importerIds = Object.keys(lockfile.importers) as ProjectId[]
   const importerWalkers = lockfileWalkerGroupImporterSteps(lockfile, importerIds, { include: opts.include })
   const depTypes = detectDepTypes(lockfile)
+
+  const counts = { total: 0, dev: 0 }
+  const reachable: AuditIndexRequest['reachable'] = {}
+
+  const walkForRequest = (step: LockfileWalkerStep, currentDepTypes: DepTypes) => {
+    for (const { depPath, pkgSnapshot, next } of step.dependencies) {
+      const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+      if (version) {
+        counts.total++
+        const isDev = currentDepTypes[depPath] === DepType.DevOnly
+        if (isDev) {
+          counts.dev++
+        }
+        let byVersion = reachable[name]
+        if (!byVersion) {
+          byVersion = new Map()
+          reachable[name] = byVersion
+        }
+        const info = byVersion.get(version)
+        if (!info) {
+          byVersion.set(version, { dev: isDev })
+        } else if (!isDev) {
+          info.dev = false
+        }
+      }
+      walkForRequest(next(), currentDepTypes)
+    }
+  }
+
   for (const importerWalker of importerWalkers) {
-    // Workspace importer ids may contain slashes (e.g. `packages/foo`). The
-    // paths string uses `>` as the separator, so keep the importer segment
-    // readable by replacing slashes with `__` like the legacy tree did.
-    const importerSegment = importerWalker.importerId.replace(/\//g, '__')
-    collectFromStep(paths, depTypes, importerWalker.step, [importerSegment])
+    walkForRequest(importerWalker.step, depTypes)
   }
   if (opts.envLockfile) {
     const envLockfileObject = envLockfileToLockfileObject(opts.envLockfile)
     const envDepTypes = detectDepTypes(envLockfileObject)
-    for (const { importerId, step } of lockfileWalkerGroupImporterSteps(envLockfileObject, Object.keys(envLockfileObject.importers) as ProjectId[], { include: opts.include })) {
-      collectFromStep(paths, envDepTypes, step, [importerId])
+    for (const { step } of lockfileWalkerGroupImporterSteps(envLockfileObject, Object.keys(envLockfileObject.importers) as ProjectId[], { include: opts.include })) {
+      walkForRequest(step, envDepTypes)
     }
   }
 
   const request: Record<string, string[]> = {}
-  for (const [name, byVersion] of Object.entries(paths)) {
-    request[name] = [...byVersion.keys()]
+  for (const [name, versions] of Object.entries(reachable)) {
+    request[name] = Array.from(versions.keys())
   }
-  return { request, paths }
+
+  return {
+    request,
+    totalDependencies: counts.total,
+    devDependencies: counts.dev,
+    reachable,
+  }
 }
 
-function collectFromStep (paths: AuditPathIndex, depTypes: DepTypes, step: LockfileWalkerStep, trail: string[]): void {
-  for (const { depPath, pkgSnapshot, next } of step.dependencies) {
-    const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-    if (version) {
-      const isDev = depTypes[depPath] === DepType.DevOnly
-      let byVersion = paths[name]
-      if (!byVersion) {
-        byVersion = new Map()
-        paths[name] = byVersion
+export function buildAuditPathIndex (
+  lockfile: LockfileObject,
+  vulnerableNames: Set<string>,
+  opts: AuditIndexOptions
+): AuditPathIndex {
+  const paths: AuditPathIndex = {}
+  const importerIds = Object.keys(lockfile.importers) as ProjectId[]
+  const importerWalkers = lockfileWalkerGroupImporterSteps(lockfile, importerIds, { include: opts.include })
+  const depTypes = detectDepTypes(lockfile)
+
+  const walk = (step: LockfileWalkerStep, currentDepTypes: DepTypes, trail: string[]) => {
+    for (const { depPath, pkgSnapshot, next } of step.dependencies) {
+      const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+      const fullPath = [...trail, name]
+      if (version && vulnerableNames.has(name)) {
+        const isDev = currentDepTypes[depPath] === DepType.DevOnly
+        let byVersion = paths[name]
+        if (!byVersion) {
+          byVersion = new Map()
+          paths[name] = byVersion
+        }
+        const info = byVersion.get(version)
+        if (!info) {
+          byVersion.set(version, { paths: [fullPath.join('>')], dev: isDev })
+        } else {
+          if (!isDev) {
+            info.dev = false
+          }
+          info.paths.push(fullPath.join('>'))
+        }
       }
-      let info = byVersion.get(version)
-      if (!info) {
-        info = { paths: [], dev: isDev }
-        byVersion.set(version, info)
-      } else if (!isDev) {
-        info.dev = false
-      }
-      info.paths.push([...trail, name].join('>'))
+      walk(next(), currentDepTypes, fullPath)
     }
-    collectFromStep(paths, depTypes, next(), [...trail, name])
   }
+
+  for (const importerWalker of importerWalkers) {
+    const importerSegment = importerWalker.importerId.replace(/\//g, '__')
+    walk(importerWalker.step, depTypes, [importerSegment])
+  }
+
+  if (opts.envLockfile) {
+    const envLockfileObject = envLockfileToLockfileObject(opts.envLockfile)
+    const envDepTypes = detectDepTypes(envLockfileObject)
+    for (const { importerId, step } of lockfileWalkerGroupImporterSteps(envLockfileObject, Object.keys(envLockfileObject.importers) as ProjectId[], { include: opts.include })) {
+      walk(step, envDepTypes, [importerId])
+    }
+  }
+
+  return paths
 }
 
 function envLockfileToLockfileObject (envLockfile: EnvLockfile): LockfileObject {
