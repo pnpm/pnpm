@@ -82,6 +82,48 @@ describe('audit', () => {
     expect(info.paths).toEqual(expect.arrayContaining(['.>a>lodash', '.>b>lodash']))
   })
 
+  test('buildAuditPathIndex() classifies as optional when the only non-optional path runs through an excluded devDependency', () => {
+    // shared-pkg is reachable two ways: via a devDependency chain (excluded
+    // when include.devDependencies === false) and via an optionalDependency
+    // root. With dev excluded, the only remaining path runs through the
+    // optional edge, so the finding should be flagged as optional.
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          devDependencies: { 'dev-root': '1.0.0' },
+          optionalDependencies: { 'opt-root': '1.0.0' },
+          specifiers: { 'dev-root': '^1.0.0', 'opt-root': '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['dev-root@1.0.0' as DepPath]: {
+          dependencies: { 'shared-pkg': '1.0.0' },
+          resolution: { integrity: 'dev-root-integrity' },
+        },
+        ['opt-root@1.0.0' as DepPath]: {
+          dependencies: { 'shared-pkg': '1.0.0' },
+          resolution: { integrity: 'opt-root-integrity' },
+        },
+        ['shared-pkg@1.0.0' as DepPath]: { resolution: { integrity: 'shared-pkg-integrity' } },
+      },
+    }
+
+    const withDev = buildAuditPathIndex(lockfile, new Set(['shared-pkg']), {
+      include: { dependencies: true, devDependencies: true, optionalDependencies: true },
+    })
+    // When the dev chain is in scope the dep is reachable via a non-optional
+    // path too, so it is NOT optional-only.
+    expect(withDev['shared-pkg']!.get('1.0.0')!.optional).toBe(false)
+
+    const prodOnly = buildAuditPathIndex(lockfile, new Set(['shared-pkg']), {
+      include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+    })
+    // With devDependencies excluded the only remaining way to reach shared-pkg
+    // is through opt-root, so the dep becomes optional-only.
+    expect(prodOnly['shared-pkg']!.get('1.0.0')!.optional).toBe(true)
+  })
+
   test('buildAuditPathIndex() flags findings reached only through optional edges', () => {
     const lockfile = {
       importers: {

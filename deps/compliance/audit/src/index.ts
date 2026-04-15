@@ -48,7 +48,7 @@ export async function audit (
   }
 ): Promise<AuditReport> {
   const depTypes = detectDepTypes(lockfile)
-  const optionalOnly = collectOptionalOnlyDepPaths(lockfile)
+  const optionalOnly = collectOptionalOnlyDepPaths(lockfile, opts.include)
   const auditRequest = lockfileToAuditRequest(lockfile, { envLockfile: opts.envLockfile, include: opts.include, depTypes, optionalOnly })
   const registry = opts.registry.endsWith('/') ? opts.registry : `${opts.registry}/`
   const auditUrl = `${registry}-/npm/v1/security/advisories/bulk`

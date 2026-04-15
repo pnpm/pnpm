@@ -46,7 +46,7 @@ export function lockfileToAuditRequest (
   const importerIds = Object.keys(lockfile.importers) as ProjectId[]
   const importerWalkers = lockfileWalkerGroupImporterSteps(lockfile, importerIds, { include: opts.include })
   const depTypes = opts.depTypes ?? detectDepTypes(lockfile)
-  const optionalOnly = opts.optionalOnly ?? collectOptionalOnlyDepPaths(lockfile)
+  const optionalOnly = opts.optionalOnly ?? collectOptionalOnlyDepPaths(lockfile, opts.include)
 
   // Use null-prototype objects for records keyed by package names so a
   // hostile or unusual package name (e.g. "__proto__") cannot pollute the
@@ -120,7 +120,7 @@ export function lockfileToAuditRequest (
   if (opts.envLockfile) {
     const envLockfileObject = envLockfileToLockfileObject(opts.envLockfile)
     const envDepTypes = detectDepTypes(envLockfileObject)
-    const envOptionalOnly = collectOptionalOnlyDepPaths(envLockfileObject)
+    const envOptionalOnly = collectOptionalOnlyDepPaths(envLockfileObject, opts.include)
     const visitEnv = makeVisitor(envDepTypes, envOptionalOnly)
     for (const { step } of lockfileWalkerGroupImporterSteps(envLockfileObject, Object.keys(envLockfileObject.importers) as ProjectId[], { include: opts.include })) {
       visitEnv(step)
@@ -139,7 +139,7 @@ export function buildAuditPathIndex (
   // from registry-supplied or lockfile-supplied names.
   const paths: AuditPathIndex = Object.create(null)
   const depTypes = opts.depTypes ?? detectDepTypes(lockfile)
-  const optionalOnly = opts.optionalOnly ?? collectOptionalOnlyDepPaths(lockfile)
+  const optionalOnly = opts.optionalOnly ?? collectOptionalOnlyDepPaths(lockfile, opts.include)
 
   walkForPaths({
     lockfile,
@@ -158,7 +158,7 @@ export function buildAuditPathIndex (
       vulnerableNames,
       paths,
       depTypes: detectDepTypes(envLockfileObject),
-      optionalOnly: collectOptionalOnlyDepPaths(envLockfileObject),
+      optionalOnly: collectOptionalOnlyDepPaths(envLockfileObject, opts.include),
       include: opts.include,
       importerSegmentOf: (importerId) => importerId,
     })
@@ -276,20 +276,30 @@ function resolvedDepsToNamedDepPaths (deps: ResolvedDependencies): Array<{ name:
 // Implemented as (reachableWithOptional − reachableWithoutOptional) so that
 // optionalDependencies nested inside a required chain are also accounted for,
 // not just the ones declared directly on importer.optionalDependencies.
-export function collectOptionalOnlyDepPaths (lockfile: LockfileObject): Set<DepPath> {
+//
+// Root selection honours the caller's `include` flags, so running
+// `pnpm audit --prod` doesn't let dev-only subgraphs flip a package out of
+// "optional-only" classification.
+export function collectOptionalOnlyDepPaths (
+  lockfile: LockfileObject,
+  include?: AuditIndexOptions['include']
+): Set<DepPath> {
+  const includeDeps = include?.dependencies !== false
+  const includeDevDeps = include?.devDependencies !== false
+  const includeOptDeps = include?.optionalDependencies !== false
   const withoutOptional = new Set<DepPath>()
   const withOptional = new Set<DepPath>()
   for (const importer of Object.values(lockfile.importers)) {
     const nonOptionalRoots = [
-      ...resolvedDepsToDepPaths(importer.dependencies ?? {}),
-      ...resolvedDepsToDepPaths(importer.devDependencies ?? {}),
+      ...(includeDeps ? resolvedDepsToDepPaths(importer.dependencies ?? {}) : []),
+      ...(includeDevDeps ? resolvedDepsToDepPaths(importer.devDependencies ?? {}) : []),
     ]
     const allRoots = [
       ...nonOptionalRoots,
-      ...resolvedDepsToDepPaths(importer.optionalDependencies ?? {}),
+      ...(includeOptDeps ? resolvedDepsToDepPaths(importer.optionalDependencies ?? {}) : []),
     ]
     walkReachable(lockfile, nonOptionalRoots, withoutOptional, false)
-    walkReachable(lockfile, allRoots, withOptional, true)
+    walkReachable(lockfile, allRoots, withOptional, includeOptDeps)
   }
   const result = new Set<DepPath>()
   for (const depPath of withOptional) {
