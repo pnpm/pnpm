@@ -5335,7 +5335,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>loggly>request>tunnel-agent"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -5375,7 +5375,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>redis"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -5455,7 +5455,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>nodemailer"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -5536,7 +5536,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>nodemailer"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -5576,7 +5576,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>mailgun-js>proxy-agent>pac-proxy-agent>pac-resolver>netmask"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -5616,7 +5616,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>loggly>request>bl"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -5656,7 +5656,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>mailgun-js>proxy-agent>pac-proxy-agent>pac-resolver"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -5696,7 +5696,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>mailgun-js>proxy-agent>pac-proxy-agent>pac-resolver>degenerator"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -5776,7 +5776,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>slack-node>requestretry"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -5856,7 +5856,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>chokidar>fsevents"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -5986,7 +5986,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>mailgun-js>proxy-agent>pac-proxy-agent>pac-resolver>netmask"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -6066,7 +6066,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>loggly>timespan"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -6156,7 +6156,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>chokidar>fsevents"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -6332,7 +6332,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>loggly>request>hawk"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -6452,7 +6452,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>amqplib>url-parse"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -6492,7 +6492,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>chokidar>fsevents>node-pre-gyp>tar"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -6612,7 +6612,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>chokidar>fsevents>node-pre-gyp>tar"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -6652,7 +6652,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>chokidar>fsevents>node-pre-gyp>tar"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -6747,7 +6747,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>loggly>request"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -6878,7 +6878,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>chokidar>fsevents>node-pre-gyp>tar"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -6969,7 +6969,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>chokidar>fsevents>node-pre-gyp>rc>minimist"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -7061,7 +7061,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>loggly>request>tough-cookie"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -7143,7 +7143,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>mailgun-js>async"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -7440,7 +7440,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>nodemailer>socks>ip"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -7573,7 +7573,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>mailgun-js>proxy-agent>pac-proxy-agent>pac-resolver>degenerator>escodegen>optionator>word-wrap"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -7613,7 +7613,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>loggly>request>har-validator>is-my-json-valid>jsonpointer"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -7653,7 +7653,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>loggly>request>qs"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -7778,7 +7778,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>loggly>request>hawk>sntp>hoek"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -7821,7 +7821,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>loggly>request>hawk>sntp>hoek"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -8070,7 +8070,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>nodemailer"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -8166,7 +8166,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>loggly>request>form-data"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -8258,7 +8258,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>nodemailer>nodemailer-smtp-transport>smtp-connection>httpntlm>underscore"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -8298,7 +8298,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>nodemailer"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -8423,7 +8423,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>chokidar>fsevents>node-pre-gyp>tar"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -8463,7 +8463,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>amqplib>url-parse"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -8503,7 +8503,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>amqplib>url-parse"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -8543,7 +8543,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>amqplib>url-parse"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -8633,7 +8633,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>nodemailer"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -8714,7 +8714,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>chokidar>fsevents>node-pre-gyp>tar"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -8754,7 +8754,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>chokidar>fsevents>node-pre-gyp>tar"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -8794,7 +8794,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>amqplib>url-parse"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -8834,7 +8834,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>amqplib>url-parse"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -9068,7 +9068,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>loggly>request>qs"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -9110,7 +9110,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>nodemailer>nodemailer-smtp-transport>smtp-connection>httpntlm>underscore"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -9150,7 +9150,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>chokidar>fsevents>node-pre-gyp>tar"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -9190,7 +9190,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>chokidar>fsevents>node-pre-gyp>tar"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -9230,7 +9230,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>chokidar>fsevents>node-pre-gyp>tar"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -9443,7 +9443,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
             ".>karma>log4js>nodemailer"
           ],
           "dev": false,
-          "optional": false,
+          "optional": true,
           "bundled": false
         }
       ],
@@ -9617,9 +9617,9 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "high": 46,
       "critical": 15
     },
-    "dependencies": 439,
+    "dependencies": 271,
     "devDependencies": 0,
-    "optionalDependencies": 1,
+    "optionalDependencies": 169,
     "totalDependencies": 440
   }
 }"

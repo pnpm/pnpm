@@ -178,7 +178,11 @@ function walkForPaths (ctx: WalkForPathsCtx): void {
   const includeOptDeps = include?.optionalDependencies !== false
   const packages = lockfile.packages ?? {}
 
-  const visit = (edge: { name: string, depPath: DepPath }, trail: string[], inTrail: Set<DepPath>): void => {
+  // Reused across every root to avoid per-node Set cloning. visit adds the
+  // current depPath before recursing and removes it on the way back, so the
+  // set always reflects the current trail.
+  const inTrail = new Set<DepPath>()
+  const visit = (edge: { name: string, depPath: DepPath }, trail: string[]): void => {
     if (inTrail.has(edge.depPath)) return
     const pkgSnapshot = packages[edge.depPath]
     if (pkgSnapshot == null) return
@@ -190,15 +194,18 @@ function walkForPaths (ctx: WalkForPathsCtx): void {
         depTypes[edge.depPath] === DepType.DevOnly,
         optionalOnly.has(edge.depPath))
     }
-    const nextInTrail = new Set(inTrail)
-    nextInTrail.add(edge.depPath)
-    for (const child of resolvedDepsToNamedDepPaths(pkgSnapshot.dependencies ?? {})) {
-      visit(child, fullPath, nextInTrail)
-    }
-    if (includeOptDeps) {
-      for (const child of resolvedDepsToNamedDepPaths(pkgSnapshot.optionalDependencies ?? {})) {
-        visit(child, fullPath, nextInTrail)
+    inTrail.add(edge.depPath)
+    try {
+      for (const child of resolvedDepsToNamedDepPaths(pkgSnapshot.dependencies ?? {})) {
+        visit(child, fullPath)
       }
+      if (includeOptDeps) {
+        for (const child of resolvedDepsToNamedDepPaths(pkgSnapshot.optionalDependencies ?? {})) {
+          visit(child, fullPath)
+        }
+      }
+    } finally {
+      inTrail.delete(edge.depPath)
     }
   }
 
@@ -209,7 +216,7 @@ function walkForPaths (ctx: WalkForPathsCtx): void {
     if (includeDevDeps) roots.push(...resolvedDepsToNamedDepPaths(importer.devDependencies ?? {}))
     if (includeOptDeps) roots.push(...resolvedDepsToNamedDepPaths(importer.optionalDependencies ?? {}))
     for (const root of roots) {
-      visit(root, trail, new Set())
+      visit(root, trail)
     }
   }
 }
@@ -242,41 +249,43 @@ function resolvedDepsToNamedDepPaths (deps: ResolvedDependencies): Array<{ name:
 // Returns the set of depPaths that are reachable only through optional edges
 // (i.e. they would be absent from the install set if optionalDependencies were
 // not included). Matches the AuditMetadata.optionalDependencies semantic.
+//
+// Implemented as (reachableWithOptional − reachableWithoutOptional) so that
+// optionalDependencies nested inside a required chain are also accounted for,
+// not just the ones declared directly on importer.optionalDependencies.
 export function collectOptionalOnlyDepPaths (lockfile: LockfileObject): Set<DepPath> {
-  const nonOptional = new Set<DepPath>()
-  const optional = new Set<DepPath>()
+  const withoutOptional = new Set<DepPath>()
+  const withOptional = new Set<DepPath>()
   for (const importer of Object.values(lockfile.importers)) {
-    walkNonOptional(lockfile, resolvedDepsToDepPaths(importer.dependencies ?? {}), nonOptional)
-    walkNonOptional(lockfile, resolvedDepsToDepPaths(importer.devDependencies ?? {}), nonOptional)
-    walkOptional(lockfile, resolvedDepsToDepPaths(importer.optionalDependencies ?? {}), optional)
+    const nonOptionalRoots = [
+      ...resolvedDepsToDepPaths(importer.dependencies ?? {}),
+      ...resolvedDepsToDepPaths(importer.devDependencies ?? {}),
+    ]
+    const allRoots = [
+      ...nonOptionalRoots,
+      ...resolvedDepsToDepPaths(importer.optionalDependencies ?? {}),
+    ]
+    walkReachable(lockfile, nonOptionalRoots, withoutOptional, false)
+    walkReachable(lockfile, allRoots, withOptional, true)
   }
   const result = new Set<DepPath>()
-  for (const depPath of optional) {
-    if (!nonOptional.has(depPath)) result.add(depPath)
+  for (const depPath of withOptional) {
+    if (!withoutOptional.has(depPath)) result.add(depPath)
   }
   return result
 }
 
-function walkNonOptional (lockfile: LockfileObject, depPaths: DepPath[], seen: Set<DepPath>): void {
+function walkReachable (lockfile: LockfileObject, depPaths: DepPath[], seen: Set<DepPath>, includeOptionalEdges: boolean): void {
   const packages = lockfile.packages ?? {}
   for (const depPath of depPaths) {
     if (seen.has(depPath)) continue
     seen.add(depPath)
     const snapshot = packages[depPath]
     if (!snapshot) continue
-    walkNonOptional(lockfile, resolvedDepsToDepPaths(snapshot.dependencies ?? {}), seen)
-  }
-}
-
-function walkOptional (lockfile: LockfileObject, depPaths: DepPath[], seen: Set<DepPath>): void {
-  const packages = lockfile.packages ?? {}
-  for (const depPath of depPaths) {
-    if (seen.has(depPath)) continue
-    seen.add(depPath)
-    const snapshot = packages[depPath]
-    if (!snapshot) continue
-    walkOptional(lockfile, resolvedDepsToDepPaths(snapshot.dependencies ?? {}), seen)
-    walkOptional(lockfile, resolvedDepsToDepPaths(snapshot.optionalDependencies ?? {}), seen)
+    walkReachable(lockfile, resolvedDepsToDepPaths(snapshot.dependencies ?? {}), seen, includeOptionalEdges)
+    if (includeOptionalEdges) {
+      walkReachable(lockfile, resolvedDepsToDepPaths(snapshot.optionalDependencies ?? {}), seen, includeOptionalEdges)
+    }
   }
 }
 
