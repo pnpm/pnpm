@@ -46,7 +46,7 @@ const AUTH_CFG_KEYS = [
 ] satisfies Array<keyof Config>
 
 /**
- * Security and trust policy config keys (camelCase, from Config type).
+ * Security and trust policy config keys.
  *
  * ## Principle
  *
@@ -54,14 +54,15 @@ const AUTH_CFG_KEYS = [
  * read project-structural settings (hoisting, linking, workspace layout, etc.)
  * from local config. However, two categories of local settings DO apply:
  *
- * 1. **Registry & auth** — needed to reach the same package sources
+ * 1. **Registry & auth:** needed to reach the same package sources
  *    (registries, tokens, certificates, proxies).
- * 2. **Security & trust policy** — these reflect the user's or organization's
+ * 2. **Security & trust policy:** these reflect the user's or organization's
  *    security posture and must apply regardless of how a package is installed.
  *    A setting that answers "what am I allowed to download?" belongs here.
  *
- * Everything else — settings that answer "how should I arrange what I
- * downloaded?" — is intentionally excluded.
+ * Other settings are intentionally excluded. These are the ones that control
+ * how downloaded packages are arranged in `node_modules` (hoisting, linking,
+ * workspace layout, etc.).
  *
  * ## Rules
  *
