@@ -40,19 +40,28 @@ export function lockfileToAuditRequest (
   const optionalOnly = collectOptionalOnlyDepPaths(lockfile)
 
   const request: Record<string, string[]> = {}
-  const seenVersions: Record<string, Set<string>> = {}
+  const seenVersionsByName: Record<string, Set<string>> = {}
+  // Skip subtrees rooted at depPaths we've already traversed. Large lockfiles
+  // can reach the same subgraph via many parents; each depPath's transitive
+  // deps are identical, so walking it once is enough.
+  const seenDepPaths = new Set<string>()
   let totalDependencies = 0
   let devDependencies = 0
   let optionalDependencies = 0
 
   const visit = (step: LockfileWalkerStep, currentDepTypes: DepTypes, currentOptionalOnly: Set<DepPath>): void => {
     for (const { depPath, pkgSnapshot, next } of step.dependencies) {
+      if (seenDepPaths.has(depPath)) continue
+      seenDepPaths.add(depPath)
       const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
       if (version) {
-        let versions = seenVersions[name]
+        // Different depPaths (e.g. peer-suffix variants) can resolve to the
+        // same (name, version). Dedupe so each version appears once in the
+        // bulk request body.
+        let versions = seenVersionsByName[name]
         if (!versions) {
           versions = new Set()
-          seenVersions[name] = versions
+          seenVersionsByName[name] = versions
           request[name] = []
         }
         if (!versions.has(version)) {
