@@ -82,19 +82,6 @@ const POLICY_CFG_KEYS = [
   'trustPolicyIgnoreAfter',
 ] satisfies Array<keyof Config>
 
-/**
- * Raw (kebab-case) config keys for security and trust policy settings.
- * These are the keys as they appear in .npmrc or pnpm-workspace.yaml.
- */
-const RAW_POLICY_CFG_KEYS = [
-  'minimum-release-age',
-  'minimum-release-age-exclude',
-  'minimum-release-age-strict',
-  'trust-policy',
-  'trust-policy-exclude',
-  'trust-policy-ignore-after',
-]
-
 const NPM_AUTH_SETTINGS = [
   ...RAW_AUTH_CFG_KEYS,
   '_auth',
@@ -119,10 +106,6 @@ function isPolicyCfgKey (cfgKey: keyof Config): cfgKey is typeof POLICY_CFG_KEYS
   return (POLICY_CFG_KEYS as Array<keyof Config>).includes(cfgKey)
 }
 
-function isRawPolicyCfgKey (rawCfgKey: string): boolean {
-  return (RAW_POLICY_CFG_KEYS as string[]).includes(rawCfgKey)
-}
-
 function pickRawAuthConfig<RawLocalCfg extends Record<string, unknown>> (rawLocalCfg: RawLocalCfg): Partial<RawLocalCfg> {
   const result: Partial<RawLocalCfg> = {}
   for (const key in rawLocalCfg) {
@@ -141,16 +124,6 @@ function pickAuthConfig (localCfg: Partial<Config>): Partial<Config> {
     }
   }
   return result as Partial<Config>
-}
-
-function pickRawDlxConfig<RawLocalCfg extends Record<string, unknown>> (rawLocalCfg: RawLocalCfg): Partial<RawLocalCfg> {
-  const result: Partial<RawLocalCfg> = {}
-  for (const key in rawLocalCfg) {
-    if (isRawAuthCfgKey(key) || isRawPolicyCfgKey(key)) {
-      result[key] = rawLocalCfg[key]
-    }
-  }
-  return result
 }
 
 function pickDlxConfig (localCfg: Partial<Config>): Partial<Config> {
@@ -176,7 +149,7 @@ export function inheritAuthConfig (target: InheritableConfigPair, src: Inheritab
  * while ignoring project-structural settings.
  */
 export function inheritDlxConfig (target: InheritableConfigPair, src: InheritableConfigPair): void {
-  inheritPickedConfig(target, src, pickDlxConfig, pickRawDlxConfig)
+  inheritPickedConfig(target, src, pickDlxConfig, pickRawAuthConfig)
 }
 
 /**

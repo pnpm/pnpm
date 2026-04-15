@@ -68,7 +68,6 @@ test('inheritDlxConfig copies auth and security policy keys from source to targe
       authConfig: {
         registry: 'https://example.com/local-registry/',
         '//example.com/local-registry/:_authToken': 'SECRET_TOKEN',
-        'minimum-release-age': '1440',
       },
     },
   })
@@ -89,7 +88,6 @@ test('inheritDlxConfig copies auth and security policy keys from source to targe
     authConfig: {
       registry: 'https://example.com/local-registry/',
       '//example.com/local-registry/:_authToken': 'SECRET_TOKEN',
-      'minimum-release-age': '1440',
     },
   })
   // storeDir exists only on the source, must not be inherited.
