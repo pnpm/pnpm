@@ -518,6 +518,62 @@ describe('audit', () => {
     }
   })
 
+  test('computes findings paths and severity counts locally when the bulk response omits findings', async () => {
+    const registry = 'http://registry.registry/'
+    const getAuthHeader = () => undefined
+    await setupMockAgent()
+    // Bare bulk response — no `findings`, no `patched_versions`, no `cves`,
+    // no `module_name`. Exactly what registry.npmjs.org returns today.
+    getMockAgent().get('http://registry.registry')
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, {
+        bar: [
+          {
+            id: 42,
+            url: 'https://github.com/advisories/GHSA-xxxx-yyyy-zzzz',
+            title: 'bar is bad',
+            severity: 'high',
+            vulnerable_versions: '<2.0.0',
+          },
+        ],
+      })
+
+    try {
+      const result = await audit(
+        {
+          importers: {
+            ['.' as ProjectId]: {
+              dependencies: { foo: '1.0.0' },
+              specifiers: { foo: '^1.0.0' },
+            },
+          },
+          lockfileVersion: LOCKFILE_VERSION,
+          packages: {
+            ['bar@1.0.0' as DepPath]: { resolution: { integrity: 'bar-integrity' } },
+            ['foo@1.0.0' as DepPath]: {
+              dependencies: { bar: '1.0.0' },
+              resolution: { integrity: 'foo-integrity' },
+            },
+          },
+        },
+        getAuthHeader,
+        { lockfileDir: f.find('one-project'), registry, retry: { retries: 0 }, virtualStoreDirMaxLength: 120 }
+      )
+      const advisory = result.advisories['42']
+      expect(advisory).toBeDefined()
+      expect(advisory.module_name).toBe('bar')
+      expect(advisory.github_advisory_id).toBe('GHSA-xxxx-yyyy-zzzz')
+      expect(advisory.patched_versions).toBe('>=2.0.0')
+      expect(advisory.findings).toHaveLength(1)
+      expect(advisory.findings[0].version).toBe('1.0.0')
+      expect(advisory.findings[0].paths).toEqual(['.>foo>bar'])
+      expect(result.metadata.vulnerabilities.high).toBe(1)
+      expect(result.metadata.totalDependencies).toBe(2)
+    } finally {
+      await teardownMockAgent()
+    }
+  })
+
   test('does not send authorization header when getAuthHeader returns undefined', async () => {
     const registry = 'http://registry.registry/'
     const getAuthHeader = () => undefined

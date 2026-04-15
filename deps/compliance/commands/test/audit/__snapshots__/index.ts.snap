@@ -4572,16 +4572,6 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
   "actions": [],
   "advisories": {
     "1085744": {
-      "id": 1085744,
-      "url": "https://github.com/advisories/GHSA-xc7v-wxcw-j472",
-      "title": "Memory Exposure in tunnel-agent",
-      "severity": "moderate",
-      "vulnerable_versions": "<0.6.0",
-      "cwe": "CWE-200",
-      "cvss": {
-        "score": 0,
-        "vectorString": null
-      },
       "findings": [
         {
           "version": "0.4.3",
@@ -4593,22 +4583,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "tunnel-agent",
-      "cves": [],
+      "id": 1085744,
+      "url": "https://github.com/advisories/GHSA-xc7v-wxcw-j472",
+      "title": "Memory Exposure in tunnel-agent",
+      "severity": "moderate",
+      "vulnerable_versions": "<0.6.0",
       "patched_versions": ">=0.6.0",
-      "github_advisory_id": "GHSA-xc7v-wxcw-j472"
+      "cwe": "CWE-200",
+      "cves": [],
+      "github_advisory_id": "GHSA-xc7v-wxcw-j472",
+      "module_name": "tunnel-agent",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1089196": {
-      "id": 1089196,
-      "url": "https://github.com/advisories/GHSA-35q2-47q7-3pc3",
-      "title": "Node-Redis potential exponential regex in monitor mode",
-      "severity": "high",
-      "vulnerable_versions": ">=2.6.0 <3.1.1",
-      "cwe": "CWE-400",
-      "cvss": {
-        "score": 7.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
-      },
       "findings": [
         {
           "version": "2.8.0",
@@ -4620,22 +4623,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "redis",
-      "cves": [],
+      "id": 1089196,
+      "url": "https://github.com/advisories/GHSA-35q2-47q7-3pc3",
+      "title": "Node-Redis potential exponential regex in monitor mode",
+      "severity": "high",
+      "vulnerable_versions": ">=2.6.0 <3.1.1",
       "patched_versions": ">=3.1.1",
-      "github_advisory_id": "GHSA-35q2-47q7-3pc3"
+      "cwe": "CWE-400",
+      "cves": [],
+      "github_advisory_id": "GHSA-35q2-47q7-3pc3",
+      "module_name": "redis",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1089526": {
-      "id": 1089526,
-      "url": "https://github.com/advisories/GHSA-r7qp-cfhv-p84w",
-      "title": "Uncaught exception in engine.io",
-      "severity": "moderate",
-      "vulnerable_versions": "<3.6.1",
-      "cwe": "CWE-248",
-      "cvss": {
-        "score": 6.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:N/A:H"
-      },
       "findings": [
         {
           "version": "3.1.5",
@@ -4647,22 +4663,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "engine.io",
-      "cves": [],
+      "id": 1089526,
+      "url": "https://github.com/advisories/GHSA-r7qp-cfhv-p84w",
+      "title": "Uncaught exception in engine.io",
+      "severity": "moderate",
+      "vulnerable_versions": "<3.6.1",
       "patched_versions": ">=3.6.1",
-      "github_advisory_id": "GHSA-r7qp-cfhv-p84w"
+      "cwe": "CWE-248",
+      "cves": [],
+      "github_advisory_id": "GHSA-r7qp-cfhv-p84w",
+      "module_name": "engine.io",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1089709": {
-      "id": 1089709,
-      "url": "https://github.com/advisories/GHSA-hwqf-gcqm-7353",
-      "title": "Header injection in nodemailer",
-      "severity": "moderate",
-      "vulnerable_versions": "<6.6.1",
-      "cwe": "CWE-74",
-      "cvss": {
-        "score": 6.3,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:L"
-      },
       "findings": [
         {
           "version": "2.7.2",
@@ -4674,22 +4703,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "nodemailer",
-      "cves": [],
+      "id": 1089709,
+      "url": "https://github.com/advisories/GHSA-hwqf-gcqm-7353",
+      "title": "Header injection in nodemailer",
+      "severity": "moderate",
+      "vulnerable_versions": "<6.6.1",
       "patched_versions": ">=6.6.1",
-      "github_advisory_id": "GHSA-hwqf-gcqm-7353"
+      "cwe": "CWE-74",
+      "cves": [],
+      "github_advisory_id": "GHSA-hwqf-gcqm-7353",
+      "module_name": "nodemailer",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1089711": {
-      "id": 1089711,
-      "url": "https://github.com/advisories/GHSA-xfhh-g9f5-x4m4",
-      "title": "Resource exhaustion in socket.io-parser",
-      "severity": "high",
-      "vulnerable_versions": "<3.3.2",
-      "cwe": "CWE-400",
-      "cvss": {
-        "score": 7.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
-      },
       "findings": [
         {
           "version": "3.1.3",
@@ -4701,22 +4743,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "socket.io-parser",
-      "cves": [],
+      "id": 1089711,
+      "url": "https://github.com/advisories/GHSA-xfhh-g9f5-x4m4",
+      "title": "Resource exhaustion in socket.io-parser",
+      "severity": "high",
+      "vulnerable_versions": "<3.3.2",
       "patched_versions": ">=3.3.2",
-      "github_advisory_id": "GHSA-xfhh-g9f5-x4m4"
+      "cwe": "CWE-400",
+      "cves": [],
+      "github_advisory_id": "GHSA-xfhh-g9f5-x4m4",
+      "module_name": "socket.io-parser",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1089880": {
-      "id": 1089880,
-      "url": "https://github.com/advisories/GHSA-48ww-j4fc-435p",
-      "title": "Command injection in nodemailer",
-      "severity": "critical",
-      "vulnerable_versions": "<6.4.16",
-      "cwe": "CWE-88",
-      "cvss": {
-        "score": 9.8,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
-      },
       "findings": [
         {
           "version": "2.7.2",
@@ -4728,22 +4783,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "nodemailer",
-      "cves": [],
+      "id": 1089880,
+      "url": "https://github.com/advisories/GHSA-48ww-j4fc-435p",
+      "title": "Command injection in nodemailer",
+      "severity": "critical",
+      "vulnerable_versions": "<6.4.16",
       "patched_versions": ">=6.4.16",
-      "github_advisory_id": "GHSA-48ww-j4fc-435p"
+      "cwe": "CWE-88",
+      "cves": [],
+      "github_advisory_id": "GHSA-48ww-j4fc-435p",
+      "module_name": "nodemailer",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1089900": {
-      "id": 1089900,
-      "url": "https://github.com/advisories/GHSA-4c7m-wxvm-r7gc",
-      "title": "Improper parsing of octal bytes in netmask",
-      "severity": "critical",
-      "vulnerable_versions": "<1.1.0",
-      "cwe": "CWE-20",
-      "cvss": {
-        "score": 9.1,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
-      },
       "findings": [
         {
           "version": "1.0.6",
@@ -4755,22 +4823,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "netmask",
-      "cves": [],
+      "id": 1089900,
+      "url": "https://github.com/advisories/GHSA-4c7m-wxvm-r7gc",
+      "title": "Improper parsing of octal bytes in netmask",
+      "severity": "critical",
+      "vulnerable_versions": "<1.1.0",
       "patched_versions": ">=1.1.0",
-      "github_advisory_id": "GHSA-4c7m-wxvm-r7gc"
+      "cwe": "CWE-20",
+      "cves": [],
+      "github_advisory_id": "GHSA-4c7m-wxvm-r7gc",
+      "module_name": "netmask",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1090072": {
-      "id": 1090072,
-      "url": "https://github.com/advisories/GHSA-pp7h-53gx-mx7r",
-      "title": "Remote Memory Exposure in bl",
-      "severity": "moderate",
-      "vulnerable_versions": "<1.2.3",
-      "cwe": "CWE-125, CWE-126",
-      "cvss": {
-        "score": 6.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:L"
-      },
       "findings": [
         {
           "version": "1.1.2",
@@ -4782,22 +4863,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "bl",
-      "cves": [],
+      "id": 1090072,
+      "url": "https://github.com/advisories/GHSA-pp7h-53gx-mx7r",
+      "title": "Remote Memory Exposure in bl",
+      "severity": "moderate",
+      "vulnerable_versions": "<1.2.3",
       "patched_versions": ">=1.2.3",
-      "github_advisory_id": "GHSA-pp7h-53gx-mx7r"
+      "cwe": "CWE-125, CWE-126",
+      "cves": [],
+      "github_advisory_id": "GHSA-pp7h-53gx-mx7r",
+      "module_name": "bl",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1090384": {
-      "id": 1090384,
-      "url": "https://github.com/advisories/GHSA-9j49-mfvp-vmhm",
-      "title": "Code Injection in pac-resolver",
-      "severity": "high",
-      "vulnerable_versions": "<5.0.0",
-      "cwe": "CWE-94",
-      "cvss": {
-        "score": 8.1,
-        "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H"
-      },
       "findings": [
         {
           "version": "3.0.0",
@@ -4809,22 +4903,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "pac-resolver",
-      "cves": [],
-      "patched_versions": ">=5.0.0",
-      "github_advisory_id": "GHSA-9j49-mfvp-vmhm"
-    },
-    "1090403": {
-      "id": 1090403,
+      "id": 1090384,
       "url": "https://github.com/advisories/GHSA-9j49-mfvp-vmhm",
       "title": "Code Injection in pac-resolver",
       "severity": "high",
-      "vulnerable_versions": "<3.0.1",
+      "vulnerable_versions": "<5.0.0",
+      "patched_versions": ">=5.0.0",
       "cwe": "CWE-94",
-      "cvss": {
-        "score": 8.1,
-        "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H"
+      "cves": [],
+      "github_advisory_id": "GHSA-9j49-mfvp-vmhm",
+      "module_name": "pac-resolver",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
       },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
+    },
+    "1090403": {
       "findings": [
         {
           "version": "1.0.4",
@@ -4836,22 +4943,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "degenerator",
-      "cves": [],
+      "id": 1090403,
+      "url": "https://github.com/advisories/GHSA-9j49-mfvp-vmhm",
+      "title": "Code Injection in pac-resolver",
+      "severity": "high",
+      "vulnerable_versions": "<3.0.1",
       "patched_versions": ">=3.0.1",
-      "github_advisory_id": "GHSA-9j49-mfvp-vmhm"
+      "cwe": "CWE-94",
+      "cves": [],
+      "github_advisory_id": "GHSA-9j49-mfvp-vmhm",
+      "module_name": "degenerator",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1090418": {
-      "id": 1090418,
-      "url": "https://github.com/advisories/GHSA-rc3x-jf5g-xvc5",
-      "title": "Open redirect in karma",
-      "severity": "moderate",
-      "vulnerable_versions": "<6.3.16",
-      "cwe": "CWE-601",
-      "cvss": {
-        "score": 5.4,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N"
-      },
       "findings": [
         {
           "version": "2.0.5",
@@ -4863,22 +4983,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "karma",
-      "cves": [],
+      "id": 1090418,
+      "url": "https://github.com/advisories/GHSA-rc3x-jf5g-xvc5",
+      "title": "Open redirect in karma",
+      "severity": "moderate",
+      "vulnerable_versions": "<6.3.16",
       "patched_versions": ">=6.3.16",
-      "github_advisory_id": "GHSA-rc3x-jf5g-xvc5"
+      "cwe": "CWE-601",
+      "cves": [],
+      "github_advisory_id": "GHSA-rc3x-jf5g-xvc5",
+      "module_name": "karma",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1090420": {
-      "id": 1090420,
-      "url": "https://github.com/advisories/GHSA-hjp8-2cm3-cc45",
-      "title": "Cookie exposure in requestretry",
-      "severity": "high",
-      "vulnerable_versions": "<7.0.0",
-      "cwe": "CWE-200",
-      "cvss": {
-        "score": 7.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N"
-      },
       "findings": [
         {
           "version": "1.13.0",
@@ -4890,22 +5023,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "requestretry",
-      "cves": [],
+      "id": 1090420,
+      "url": "https://github.com/advisories/GHSA-hjp8-2cm3-cc45",
+      "title": "Cookie exposure in requestretry",
+      "severity": "high",
+      "vulnerable_versions": "<7.0.0",
       "patched_versions": ">=7.0.0",
-      "github_advisory_id": "GHSA-hjp8-2cm3-cc45"
+      "cwe": "CWE-200",
+      "cves": [],
+      "github_advisory_id": "GHSA-hjp8-2cm3-cc45",
+      "module_name": "requestretry",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1090439": {
-      "id": 1090439,
-      "url": "https://github.com/advisories/GHSA-7x7c-qm48-pq9c",
-      "title": "Cross-site Scripting in karma",
-      "severity": "moderate",
-      "vulnerable_versions": "<6.3.14",
-      "cwe": "CWE-79",
-      "cvss": {
-        "score": 6.1,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"
-      },
       "findings": [
         {
           "version": "2.0.5",
@@ -4917,22 +5063,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "karma",
-      "cves": [],
+      "id": 1090439,
+      "url": "https://github.com/advisories/GHSA-7x7c-qm48-pq9c",
+      "title": "Cross-site Scripting in karma",
+      "severity": "moderate",
+      "vulnerable_versions": "<6.3.14",
       "patched_versions": ">=6.3.14",
-      "github_advisory_id": "GHSA-7x7c-qm48-pq9c"
+      "cwe": "CWE-79",
+      "cves": [],
+      "github_advisory_id": "GHSA-7x7c-qm48-pq9c",
+      "module_name": "karma",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1091853": {
-      "id": 1091853,
-      "url": "https://github.com/advisories/GHSA-xv2f-5jw4-v95m",
-      "title": "Malware in fsevents",
-      "severity": "critical",
-      "vulnerable_versions": ">=1.0.0 <1.2.11",
-      "cwe": "CWE-506",
-      "cvss": {
-        "score": 0,
-        "vectorString": null
-      },
       "findings": [
         {
           "version": "1.2.9",
@@ -4944,22 +5103,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "fsevents",
-      "cves": [],
+      "id": 1091853,
+      "url": "https://github.com/advisories/GHSA-xv2f-5jw4-v95m",
+      "title": "Malware in fsevents",
+      "severity": "critical",
+      "vulnerable_versions": ">=1.0.0 <1.2.11",
       "patched_versions": ">=1.2.11",
-      "github_advisory_id": "GHSA-xv2f-5jw4-v95m"
+      "cwe": "CWE-506",
+      "cves": [],
+      "github_advisory_id": "GHSA-xv2f-5jw4-v95m",
+      "module_name": "fsevents",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1092623": {
-      "id": 1092623,
-      "url": "https://github.com/advisories/GHSA-pw2r-vq6v-hr8c",
-      "title": "Exposure of Sensitive Information to an Unauthorized Actor in follow-redirects",
-      "severity": "moderate",
-      "vulnerable_versions": "<1.14.8",
-      "cwe": "CWE-200, CWE-212",
-      "cvss": {
-        "score": 5.9,
-        "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:N/A:N"
-      },
       "findings": [
         {
           "version": "1.0.0",
@@ -4980,22 +5152,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "follow-redirects",
-      "cves": [],
+      "id": 1092623,
+      "url": "https://github.com/advisories/GHSA-pw2r-vq6v-hr8c",
+      "title": "Exposure of Sensitive Information to an Unauthorized Actor in follow-redirects",
+      "severity": "moderate",
+      "vulnerable_versions": "<1.14.8",
       "patched_versions": ">=1.14.8",
-      "github_advisory_id": "GHSA-pw2r-vq6v-hr8c"
+      "cwe": "CWE-200, CWE-212",
+      "cves": [],
+      "github_advisory_id": "GHSA-pw2r-vq6v-hr8c",
+      "module_name": "follow-redirects",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1093475": {
-      "id": 1093475,
-      "url": "https://github.com/advisories/GHSA-38h8-x697-gh8q",
-      "title": "Tmp files readable by other users in sync-exec",
-      "severity": "moderate",
-      "vulnerable_versions": "<=0.6.2",
-      "cwe": "CWE-377",
-      "cvss": {
-        "score": 6.5,
-        "vectorString": "CVSS:3.0/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N"
-      },
       "findings": [
         {
           "version": "0.6.2",
@@ -5007,22 +5192,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "sync-exec",
-      "cves": [],
+      "id": 1093475,
+      "url": "https://github.com/advisories/GHSA-38h8-x697-gh8q",
+      "title": "Tmp files readable by other users in sync-exec",
+      "severity": "moderate",
+      "vulnerable_versions": "<=0.6.2",
       "patched_versions": ">=0.6.3",
-      "github_advisory_id": "GHSA-38h8-x697-gh8q"
+      "cwe": "CWE-377",
+      "cves": [],
+      "github_advisory_id": "GHSA-38h8-x697-gh8q",
+      "module_name": "sync-exec",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1093560": {
-      "id": 1093560,
-      "url": "https://github.com/advisories/GHSA-pch5-whg9-qr2r",
-      "title": "netmask npm package mishandles octal input data",
-      "severity": "moderate",
-      "vulnerable_versions": "<2.0.1",
-      "cwe": "CWE-20",
-      "cvss": {
-        "score": 5.3,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:N"
-      },
       "findings": [
         {
           "version": "1.0.6",
@@ -5034,22 +5232,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "netmask",
-      "cves": [],
+      "id": 1093560,
+      "url": "https://github.com/advisories/GHSA-pch5-whg9-qr2r",
+      "title": "netmask npm package mishandles octal input data",
+      "severity": "moderate",
+      "vulnerable_versions": "<2.0.1",
       "patched_versions": ">=2.0.1",
-      "github_advisory_id": "GHSA-pch5-whg9-qr2r"
+      "cwe": "CWE-20",
+      "cves": [],
+      "github_advisory_id": "GHSA-pch5-whg9-qr2r",
+      "module_name": "netmask",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1093718": {
-      "id": 1093718,
-      "url": "https://github.com/advisories/GHSA-fxwf-4rqh-v8g3",
-      "title": "CORS misconfiguration in socket.io",
-      "severity": "moderate",
-      "vulnerable_versions": "<2.4.0",
-      "cwe": "CWE-346, CWE-453",
-      "cvss": {
-        "score": 4.3,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:N/A:N"
-      },
       "findings": [
         {
           "version": "2.0.4",
@@ -5061,22 +5272,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "socket.io",
-      "cves": [],
+      "id": 1093718,
+      "url": "https://github.com/advisories/GHSA-fxwf-4rqh-v8g3",
+      "title": "CORS misconfiguration in socket.io",
+      "severity": "moderate",
+      "vulnerable_versions": "<2.4.0",
       "patched_versions": ">=2.4.0",
-      "github_advisory_id": "GHSA-fxwf-4rqh-v8g3"
+      "cwe": "CWE-346, CWE-453",
+      "cves": [],
+      "github_advisory_id": "GHSA-fxwf-4rqh-v8g3",
+      "module_name": "socket.io",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1093858": {
-      "id": 1093858,
-      "url": "https://github.com/advisories/GHSA-f523-2f5j-gfcg",
-      "title": "Regular Expression Denial of Service in timespan",
-      "severity": "high",
-      "vulnerable_versions": "<=2.3.0",
-      "cwe": "CWE-400",
-      "cvss": {
-        "score": 7.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
-      },
       "findings": [
         {
           "version": "2.3.0",
@@ -5088,22 +5312,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "timespan",
-      "cves": [],
+      "id": 1093858,
+      "url": "https://github.com/advisories/GHSA-f523-2f5j-gfcg",
+      "title": "Regular Expression Denial of Service in timespan",
+      "severity": "high",
+      "vulnerable_versions": "<=2.3.0",
       "patched_versions": ">=2.3.1",
-      "github_advisory_id": "GHSA-f523-2f5j-gfcg"
+      "cwe": "CWE-400",
+      "cves": [],
+      "github_advisory_id": "GHSA-f523-2f5j-gfcg",
+      "module_name": "timespan",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1094087": {
-      "id": 1094087,
-      "url": "https://github.com/advisories/GHSA-w573-4hg7-7wgq",
-      "title": "decode-uri-component vulnerable to Denial of Service (DoS)",
-      "severity": "high",
-      "vulnerable_versions": "<0.2.1",
-      "cwe": "CWE-20",
-      "cvss": {
-        "score": 7.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
-      },
       "findings": [
         {
           "version": "0.2.0",
@@ -5115,22 +5352,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "decode-uri-component",
-      "cves": [],
+      "id": 1094087,
+      "url": "https://github.com/advisories/GHSA-w573-4hg7-7wgq",
+      "title": "decode-uri-component vulnerable to Denial of Service (DoS)",
+      "severity": "high",
+      "vulnerable_versions": "<0.2.1",
       "patched_versions": ">=0.2.1",
-      "github_advisory_id": "GHSA-w573-4hg7-7wgq"
+      "cwe": "CWE-20",
+      "cves": [],
+      "github_advisory_id": "GHSA-w573-4hg7-7wgq",
+      "module_name": "decode-uri-component",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1094997": {
-      "id": 1094997,
-      "url": "https://github.com/advisories/GHSA-8r6j-v8pm-fqw3",
-      "title": "Code injection in fsevents",
-      "severity": "critical",
-      "vulnerable_versions": "<=1.2.10",
-      "cwe": "CWE-94",
-      "cvss": {
-        "score": 9.8,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
-      },
       "findings": [
         {
           "version": "1.2.9",
@@ -5142,22 +5392,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "fsevents",
-      "cves": [],
+      "id": 1094997,
+      "url": "https://github.com/advisories/GHSA-8r6j-v8pm-fqw3",
+      "title": "Code injection in fsevents",
+      "severity": "critical",
+      "vulnerable_versions": "<=1.2.10",
       "patched_versions": ">=1.2.11",
-      "github_advisory_id": "GHSA-8r6j-v8pm-fqw3"
+      "cwe": "CWE-94",
+      "cves": [],
+      "github_advisory_id": "GHSA-8r6j-v8pm-fqw3",
+      "module_name": "fsevents",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1095056": {
-      "id": 1095056,
-      "url": "https://github.com/advisories/GHSA-6c8f-qphg-qjgp",
-      "title": "Validation Bypass in kind-of",
-      "severity": "high",
-      "vulnerable_versions": ">=6.0.0 <6.0.3",
-      "cwe": "CWE-668",
-      "cvss": {
-        "score": 7.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N"
-      },
       "findings": [
         {
           "version": "6.0.2",
@@ -5169,22 +5432,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "kind-of",
-      "cves": [],
+      "id": 1095056,
+      "url": "https://github.com/advisories/GHSA-6c8f-qphg-qjgp",
+      "title": "Validation Bypass in kind-of",
+      "severity": "high",
+      "vulnerable_versions": ">=6.0.0 <6.0.3",
       "patched_versions": ">=6.0.3",
-      "github_advisory_id": "GHSA-6c8f-qphg-qjgp"
+      "cwe": "CWE-668",
+      "cves": [],
+      "github_advisory_id": "GHSA-6c8f-qphg-qjgp",
+      "module_name": "kind-of",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1095062": {
-      "id": 1095062,
-      "url": "https://github.com/advisories/GHSA-44pw-h2cw-w3vq",
-      "title": "Uncontrolled Resource Consumption in Hawk",
-      "severity": "high",
-      "vulnerable_versions": "<9.0.1",
-      "cwe": "CWE-400, CWE-1333",
-      "cvss": {
-        "score": 7.4,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:N/I:N/A:H"
-      },
       "findings": [
         {
           "version": "3.1.3",
@@ -5196,22 +5472,75 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "hawk",
-      "cves": [],
+      "id": 1095062,
+      "url": "https://github.com/advisories/GHSA-44pw-h2cw-w3vq",
+      "title": "Uncontrolled Resource Consumption in Hawk",
+      "severity": "high",
+      "vulnerable_versions": "<9.0.1",
       "patched_versions": ">=9.0.1",
-      "github_advisory_id": "GHSA-44pw-h2cw-w3vq"
+      "cwe": "CWE-400, CWE-1333",
+      "cves": [],
+      "github_advisory_id": "GHSA-44pw-h2cw-w3vq",
+      "module_name": "hawk",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1095088": {
+      "findings": [
+        {
+          "version": "1.5.5",
+          "paths": [
+            ".>karma>socket.io>socket.io-client>engine.io-client>xmlhttprequest-ssl"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
       "id": 1095088,
       "url": "https://github.com/advisories/GHSA-h4j5-c7cj-74xg",
       "title": "xmlhttprequest and xmlhttprequest-ssl vulnerable to Arbitrary Code Injection",
       "severity": "critical",
       "vulnerable_versions": "<1.6.2",
+      "patched_versions": ">=1.6.2",
       "cwe": "CWE-94",
-      "cvss": {
-        "score": 9.8,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+      "cves": [],
+      "github_advisory_id": "GHSA-h4j5-c7cj-74xg",
+      "module_name": "xmlhttprequest-ssl",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
       },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
+    },
+    "1095090": {
       "findings": [
         {
           "version": "1.5.5",
@@ -5223,49 +5552,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "xmlhttprequest-ssl",
-      "cves": [],
-      "patched_versions": ">=1.6.2",
-      "github_advisory_id": "GHSA-h4j5-c7cj-74xg"
-    },
-    "1095090": {
       "id": 1095090,
       "url": "https://github.com/advisories/GHSA-72mh-269x-7mh5",
       "title": "Improper Certificate Validation in xmlhttprequest-ssl",
       "severity": "critical",
       "vulnerable_versions": "<1.6.1",
-      "cwe": "CWE-295",
-      "cvss": {
-        "score": 9.4,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:L"
-      },
-      "findings": [
-        {
-          "version": "1.5.5",
-          "paths": [
-            ".>karma>socket.io>socket.io-client>engine.io-client>xmlhttprequest-ssl"
-          ],
-          "dev": false,
-          "optional": false,
-          "bundled": false
-        }
-      ],
-      "module_name": "xmlhttprequest-ssl",
-      "cves": [],
       "patched_versions": ">=1.6.1",
-      "github_advisory_id": "GHSA-72mh-269x-7mh5"
+      "cwe": "CWE-295",
+      "cves": [],
+      "github_advisory_id": "GHSA-72mh-269x-7mh5",
+      "module_name": "xmlhttprequest-ssl",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1095095": {
-      "id": 1095095,
-      "url": "https://github.com/advisories/GHSA-hgjh-723h-mx2j",
-      "title": "Authorization Bypass Through User-Controlled Key in url-parse",
-      "severity": "critical",
-      "vulnerable_versions": "<1.5.8",
-      "cwe": "CWE-639",
-      "cvss": {
-        "score": 9.1,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
-      },
       "findings": [
         {
           "version": "1.4.7",
@@ -5277,22 +5592,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "url-parse",
-      "cves": [],
+      "id": 1095095,
+      "url": "https://github.com/advisories/GHSA-hgjh-723h-mx2j",
+      "title": "Authorization Bypass Through User-Controlled Key in url-parse",
+      "severity": "critical",
+      "vulnerable_versions": "<1.5.8",
       "patched_versions": ">=1.5.8",
-      "github_advisory_id": "GHSA-hgjh-723h-mx2j"
+      "cwe": "CWE-639",
+      "cves": [],
+      "github_advisory_id": "GHSA-hgjh-723h-mx2j",
+      "module_name": "url-parse",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1095117": {
-      "id": 1095117,
-      "url": "https://github.com/advisories/GHSA-5955-9wpr-37jh",
-      "title": "Arbitrary File Creation/Overwrite on Windows via insufficient relative path sanitization",
-      "severity": "high",
-      "vulnerable_versions": "<4.4.18",
-      "cwe": "CWE-22",
-      "cvss": {
-        "score": 8.2,
-        "vectorString": "CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:C/C:H/I:H/A:N"
-      },
       "findings": [
         {
           "version": "4.4.15",
@@ -5304,22 +5632,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "tar",
-      "cves": [],
+      "id": 1095117,
+      "url": "https://github.com/advisories/GHSA-5955-9wpr-37jh",
+      "title": "Arbitrary File Creation/Overwrite on Windows via insufficient relative path sanitization",
+      "severity": "high",
+      "vulnerable_versions": "<4.4.18",
       "patched_versions": ">=4.4.18",
-      "github_advisory_id": "GHSA-5955-9wpr-37jh"
+      "cwe": "CWE-22",
+      "cves": [],
+      "github_advisory_id": "GHSA-5955-9wpr-37jh",
+      "module_name": "tar",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1095531": {
-      "id": 1095531,
-      "url": "https://github.com/advisories/GHSA-82v2-mx6x-wq7q",
-      "title": "Incorrect Default Permissions in log4js",
-      "severity": "moderate",
-      "vulnerable_versions": "<6.4.0",
-      "cwe": "CWE-276",
-      "cvss": {
-        "score": 5.5,
-        "vectorString": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N"
-      },
       "findings": [
         {
           "version": "2.11.0",
@@ -5331,22 +5672,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "log4js",
-      "cves": [],
+      "id": 1095531,
+      "url": "https://github.com/advisories/GHSA-82v2-mx6x-wq7q",
+      "title": "Incorrect Default Permissions in log4js",
+      "severity": "moderate",
+      "vulnerable_versions": "<6.4.0",
       "patched_versions": ">=6.4.0",
-      "github_advisory_id": "GHSA-82v2-mx6x-wq7q"
+      "cwe": "CWE-276",
+      "cves": [],
+      "github_advisory_id": "GHSA-82v2-mx6x-wq7q",
+      "module_name": "log4js",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1096334": {
-      "id": 1096334,
-      "url": "https://github.com/advisories/GHSA-6x33-pw7p-hmpq",
-      "title": "Denial of Service in http-proxy",
-      "severity": "high",
-      "vulnerable_versions": "<1.18.1",
-      "cwe": "CWE-184, CWE-693",
-      "cvss": {
-        "score": 7.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
-      },
       "findings": [
         {
           "version": "1.18.0",
@@ -5358,22 +5712,75 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "http-proxy",
-      "cves": [],
+      "id": 1096334,
+      "url": "https://github.com/advisories/GHSA-6x33-pw7p-hmpq",
+      "title": "Denial of Service in http-proxy",
+      "severity": "high",
+      "vulnerable_versions": "<1.18.1",
       "patched_versions": ">=1.18.1",
-      "github_advisory_id": "GHSA-6x33-pw7p-hmpq"
+      "cwe": "CWE-184, CWE-693",
+      "cves": [],
+      "github_advisory_id": "GHSA-6x33-pw7p-hmpq",
+      "module_name": "http-proxy",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1096376": {
+      "findings": [
+        {
+          "version": "4.4.15",
+          "paths": [
+            ".>karma>chokidar>fsevents>node-pre-gyp>tar"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
       "id": 1096376,
       "url": "https://github.com/advisories/GHSA-9r2w-394v-53qc",
       "title": "Arbitrary File Creation/Overwrite via insufficient symlink protection due to directory cache poisoning using symbolic links",
       "severity": "high",
       "vulnerable_versions": ">=3.0.0 <4.4.16",
+      "patched_versions": ">=4.4.16",
       "cwe": "CWE-22, CWE-59",
-      "cvss": {
-        "score": 8.2,
-        "vectorString": "CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:C/C:H/I:H/A:N"
+      "cves": [],
+      "github_advisory_id": "GHSA-9r2w-394v-53qc",
+      "module_name": "tar",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
       },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
+    },
+    "1096411": {
       "findings": [
         {
           "version": "4.4.15",
@@ -5385,49 +5792,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "tar",
-      "cves": [],
-      "patched_versions": ">=4.4.16",
-      "github_advisory_id": "GHSA-9r2w-394v-53qc"
-    },
-    "1096411": {
       "id": 1096411,
       "url": "https://github.com/advisories/GHSA-qq89-hq3f-393p",
       "title": "Arbitrary File Creation/Overwrite via insufficient symlink protection due to directory cache poisoning using symbolic links",
       "severity": "high",
       "vulnerable_versions": ">=3.0.0 <4.4.18",
-      "cwe": "CWE-22, CWE-59",
-      "cvss": {
-        "score": 8.2,
-        "vectorString": "CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:C/C:H/I:H/A:N"
-      },
-      "findings": [
-        {
-          "version": "4.4.15",
-          "paths": [
-            ".>karma>chokidar>fsevents>node-pre-gyp>tar"
-          ],
-          "dev": false,
-          "optional": false,
-          "bundled": false
-        }
-      ],
-      "module_name": "tar",
-      "cves": [],
       "patched_versions": ">=4.4.18",
-      "github_advisory_id": "GHSA-qq89-hq3f-393p"
+      "cwe": "CWE-22, CWE-59",
+      "cves": [],
+      "github_advisory_id": "GHSA-qq89-hq3f-393p",
+      "module_name": "tar",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1096485": {
-      "id": 1096485,
-      "url": "https://github.com/advisories/GHSA-f8q6-p94x-37v3",
-      "title": "minimatch ReDoS vulnerability",
-      "severity": "high",
-      "vulnerable_versions": "<3.0.5",
-      "cwe": "CWE-400, CWE-1333",
-      "cvss": {
-        "score": 7.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
-      },
       "findings": [
         {
           "version": "3.0.4",
@@ -5439,22 +5832,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "minimatch",
-      "cves": [],
+      "id": 1096485,
+      "url": "https://github.com/advisories/GHSA-f8q6-p94x-37v3",
+      "title": "minimatch ReDoS vulnerability",
+      "severity": "high",
+      "vulnerable_versions": "<3.0.5",
       "patched_versions": ">=3.0.5",
-      "github_advisory_id": "GHSA-f8q6-p94x-37v3"
+      "cwe": "CWE-400, CWE-1333",
+      "cves": [],
+      "github_advisory_id": "GHSA-f8q6-p94x-37v3",
+      "module_name": "minimatch",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1096727": {
-      "id": 1096727,
-      "url": "https://github.com/advisories/GHSA-p8p7-x288-28g6",
-      "title": "Server-Side Request Forgery in Request",
-      "severity": "moderate",
-      "vulnerable_versions": "<=2.88.2",
-      "cwe": "CWE-918",
-      "cvss": {
-        "score": 6.1,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"
-      },
       "findings": [
         {
           "version": "2.88.0",
@@ -5475,22 +5881,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "request",
-      "cves": [],
+      "id": 1096727,
+      "url": "https://github.com/advisories/GHSA-p8p7-x288-28g6",
+      "title": "Server-Side Request Forgery in Request",
+      "severity": "moderate",
+      "vulnerable_versions": "<=2.88.2",
       "patched_versions": ">=2.88.3",
-      "github_advisory_id": "GHSA-p8p7-x288-28g6"
+      "cwe": "CWE-918",
+      "cves": [],
+      "github_advisory_id": "GHSA-p8p7-x288-28g6",
+      "module_name": "request",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1096856": {
-      "id": 1096856,
-      "url": "https://github.com/advisories/GHSA-cxjh-pqwp-8mfp",
-      "title": "follow-redirects' Proxy-Authorization header kept across hosts",
-      "severity": "moderate",
-      "vulnerable_versions": "<=1.15.5",
-      "cwe": "CWE-200",
-      "cvss": {
-        "score": 6.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N"
-      },
       "findings": [
         {
           "version": "1.0.0",
@@ -5511,22 +5930,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "follow-redirects",
-      "cves": [],
+      "id": 1096856,
+      "url": "https://github.com/advisories/GHSA-cxjh-pqwp-8mfp",
+      "title": "follow-redirects' Proxy-Authorization header kept across hosts",
+      "severity": "moderate",
+      "vulnerable_versions": "<=1.15.5",
       "patched_versions": ">=1.15.6",
-      "github_advisory_id": "GHSA-cxjh-pqwp-8mfp"
+      "cwe": "CWE-200",
+      "cves": [],
+      "github_advisory_id": "GHSA-cxjh-pqwp-8mfp",
+      "module_name": "follow-redirects",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1097134": {
-      "id": 1097134,
-      "url": "https://github.com/advisories/GHSA-qm95-pgcg-qqfq",
-      "title": "Insufficient validation when decoding a Socket.IO packet",
-      "severity": "critical",
-      "vulnerable_versions": "<3.3.3",
-      "cwe": "CWE-20, CWE-89, CWE-1287",
-      "cvss": {
-        "score": 9.8,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
-      },
       "findings": [
         {
           "version": "3.1.3",
@@ -5538,22 +5970,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "socket.io-parser",
-      "cves": [],
+      "id": 1097134,
+      "url": "https://github.com/advisories/GHSA-qm95-pgcg-qqfq",
+      "title": "Insufficient validation when decoding a Socket.IO packet",
+      "severity": "critical",
+      "vulnerable_versions": "<3.3.3",
       "patched_versions": ">=3.3.3",
-      "github_advisory_id": "GHSA-qm95-pgcg-qqfq"
+      "cwe": "CWE-20, CWE-89, CWE-1287",
+      "cves": [],
+      "github_advisory_id": "GHSA-qm95-pgcg-qqfq",
+      "module_name": "socket.io-parser",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1097493": {
-      "id": 1097493,
-      "url": "https://github.com/advisories/GHSA-f5x3-32g6-xq36",
-      "title": "Denial of service while parsing a tar file due to lack of folders count validation",
-      "severity": "moderate",
-      "vulnerable_versions": "<6.2.1",
-      "cwe": "CWE-400",
-      "cvss": {
-        "score": 6.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:N/A:H"
-      },
       "findings": [
         {
           "version": "4.4.15",
@@ -5565,22 +6010,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "tar",
-      "cves": [],
+      "id": 1097493,
+      "url": "https://github.com/advisories/GHSA-f5x3-32g6-xq36",
+      "title": "Denial of service while parsing a tar file due to lack of folders count validation",
+      "severity": "moderate",
+      "vulnerable_versions": "<6.2.1",
       "patched_versions": ">=6.2.1",
-      "github_advisory_id": "GHSA-f5x3-32g6-xq36"
+      "cwe": "CWE-400",
+      "cves": [],
+      "github_advisory_id": "GHSA-f5x3-32g6-xq36",
+      "module_name": "tar",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1097677": {
-      "id": 1097677,
-      "url": "https://github.com/advisories/GHSA-xvch-5gv4-984h",
-      "title": "Prototype Pollution in minimist",
-      "severity": "critical",
-      "vulnerable_versions": "<0.2.4",
-      "cwe": "CWE-1321",
-      "cvss": {
-        "score": 9.8,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
-      },
       "findings": [
         {
           "version": "0.0.8",
@@ -5601,22 +6059,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "minimist",
-      "cves": [],
-      "patched_versions": ">=0.2.4",
-      "github_advisory_id": "GHSA-xvch-5gv4-984h"
-    },
-    "1097678": {
-      "id": 1097678,
+      "id": 1097677,
       "url": "https://github.com/advisories/GHSA-xvch-5gv4-984h",
       "title": "Prototype Pollution in minimist",
       "severity": "critical",
-      "vulnerable_versions": ">=1.0.0 <1.2.6",
+      "vulnerable_versions": "<0.2.4",
+      "patched_versions": ">=0.2.4",
       "cwe": "CWE-1321",
-      "cvss": {
-        "score": 9.8,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+      "cves": [],
+      "github_advisory_id": "GHSA-xvch-5gv4-984h",
+      "module_name": "minimist",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
       },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
+    },
+    "1097678": {
       "findings": [
         {
           "version": "1.2.5",
@@ -5628,22 +6099,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "minimist",
-      "cves": [],
+      "id": 1097678,
+      "url": "https://github.com/advisories/GHSA-xvch-5gv4-984h",
+      "title": "Prototype Pollution in minimist",
+      "severity": "critical",
+      "vulnerable_versions": ">=1.0.0 <1.2.6",
       "patched_versions": ">=1.2.6",
-      "github_advisory_id": "GHSA-xvch-5gv4-984h"
+      "cwe": "CWE-1321",
+      "cves": [],
+      "github_advisory_id": "GHSA-xvch-5gv4-984h",
+      "module_name": "minimist",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1097679": {
-      "id": 1097679,
-      "url": "https://github.com/advisories/GHSA-wf5p-g6vw-rhxx",
-      "title": "Axios Cross-Site Request Forgery Vulnerability",
-      "severity": "moderate",
-      "vulnerable_versions": ">=0.8.1 <0.28.0",
-      "cwe": "CWE-352",
-      "cvss": {
-        "score": 6.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:N/A:N"
-      },
       "findings": [
         {
           "version": "0.15.3",
@@ -5655,22 +6139,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "axios",
-      "cves": [],
+      "id": 1097679,
+      "url": "https://github.com/advisories/GHSA-wf5p-g6vw-rhxx",
+      "title": "Axios Cross-Site Request Forgery Vulnerability",
+      "severity": "moderate",
+      "vulnerable_versions": ">=0.8.1 <0.28.0",
       "patched_versions": ">=0.28.0",
-      "github_advisory_id": "GHSA-wf5p-g6vw-rhxx"
+      "cwe": "CWE-352",
+      "cves": [],
+      "github_advisory_id": "GHSA-wf5p-g6vw-rhxx",
+      "module_name": "axios",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1097682": {
-      "id": 1097682,
-      "url": "https://github.com/advisories/GHSA-72xf-g2v4-qvf3",
-      "title": "tough-cookie Prototype Pollution vulnerability",
-      "severity": "moderate",
-      "vulnerable_versions": "<4.1.3",
-      "cwe": "CWE-1321",
-      "cvss": {
-        "score": 6.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N"
-      },
       "findings": [
         {
           "version": "2.4.3",
@@ -5691,22 +6188,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "tough-cookie",
-      "cves": [],
+      "id": 1097682,
+      "url": "https://github.com/advisories/GHSA-72xf-g2v4-qvf3",
+      "title": "tough-cookie Prototype Pollution vulnerability",
+      "severity": "moderate",
+      "vulnerable_versions": "<4.1.3",
       "patched_versions": ">=4.1.3",
-      "github_advisory_id": "GHSA-72xf-g2v4-qvf3"
+      "cwe": "CWE-1321",
+      "cves": [],
+      "github_advisory_id": "GHSA-72xf-g2v4-qvf3",
+      "module_name": "tough-cookie",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1097685": {
-      "id": 1097685,
-      "url": "https://github.com/advisories/GHSA-v88g-cgmw-v5xw",
-      "title": "Prototype Pollution in Ajv",
-      "severity": "moderate",
-      "vulnerable_versions": "<6.12.3",
-      "cwe": "CWE-915, CWE-1321",
-      "cvss": {
-        "score": 5.6,
-        "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:L"
-      },
       "findings": [
         {
           "version": "6.10.2",
@@ -5718,22 +6228,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "ajv",
-      "cves": [],
+      "id": 1097685,
+      "url": "https://github.com/advisories/GHSA-v88g-cgmw-v5xw",
+      "title": "Prototype Pollution in Ajv",
+      "severity": "moderate",
+      "vulnerable_versions": "<6.12.3",
       "patched_versions": ">=6.12.3",
-      "github_advisory_id": "GHSA-v88g-cgmw-v5xw"
+      "cwe": "CWE-915, CWE-1321",
+      "cves": [],
+      "github_advisory_id": "GHSA-v88g-cgmw-v5xw",
+      "module_name": "ajv",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1097691": {
-      "id": 1097691,
-      "url": "https://github.com/advisories/GHSA-fwr7-v2mv-hh25",
-      "title": "Prototype Pollution in async",
-      "severity": "high",
-      "vulnerable_versions": ">=2.0.0 <2.6.4",
-      "cwe": "CWE-1321",
-      "cvss": {
-        "score": 7.8,
-        "vectorString": "CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H"
-      },
       "findings": [
         {
           "version": "2.6.3",
@@ -5745,22 +6268,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "async",
-      "cves": [],
+      "id": 1097691,
+      "url": "https://github.com/advisories/GHSA-fwr7-v2mv-hh25",
+      "title": "Prototype Pollution in async",
+      "severity": "high",
+      "vulnerable_versions": ">=2.0.0 <2.6.4",
       "patched_versions": ">=2.6.4",
-      "github_advisory_id": "GHSA-fwr7-v2mv-hh25"
+      "cwe": "CWE-1321",
+      "cves": [],
+      "github_advisory_id": "GHSA-fwr7-v2mv-hh25",
+      "module_name": "async",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1098094": {
-      "id": 1098094,
-      "url": "https://github.com/advisories/GHSA-grv7-fg5c-xmjg",
-      "title": "Uncontrolled resource consumption in braces",
-      "severity": "high",
-      "vulnerable_versions": "<3.0.3",
-      "cwe": "CWE-400, CWE-1050",
-      "cvss": {
-        "score": 7.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
-      },
       "findings": [
         {
           "version": "2.3.2",
@@ -5781,22 +6317,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "braces",
-      "cves": [],
+      "id": 1098094,
+      "url": "https://github.com/advisories/GHSA-grv7-fg5c-xmjg",
+      "title": "Uncontrolled resource consumption in braces",
+      "severity": "high",
+      "vulnerable_versions": "<3.0.3",
       "patched_versions": ">=3.0.3",
-      "github_advisory_id": "GHSA-grv7-fg5c-xmjg"
+      "cwe": "CWE-400, CWE-1050",
+      "cves": [],
+      "github_advisory_id": "GHSA-grv7-fg5c-xmjg",
+      "module_name": "braces",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1098395": {
-      "id": 1098395,
-      "url": "https://github.com/advisories/GHSA-3h5v-q93c-6h6q",
-      "title": "ws affected by a DoS when handling a request with many HTTP headers",
-      "severity": "high",
-      "vulnerable_versions": ">=2.1.0 <5.2.4",
-      "cwe": "CWE-476",
-      "cvss": {
-        "score": 7.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
-      },
       "findings": [
         {
           "version": "3.3.3",
@@ -5808,22 +6357,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "ws",
-      "cves": [],
+      "id": 1098395,
+      "url": "https://github.com/advisories/GHSA-3h5v-q93c-6h6q",
+      "title": "ws affected by a DoS when handling a request with many HTTP headers",
+      "severity": "high",
+      "vulnerable_versions": ">=2.1.0 <5.2.4",
       "patched_versions": ">=5.2.4",
-      "github_advisory_id": "GHSA-3h5v-q93c-6h6q"
+      "cwe": "CWE-476",
+      "cves": [],
+      "github_advisory_id": "GHSA-3h5v-q93c-6h6q",
+      "module_name": "ws",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1098681": {
-      "id": 1098681,
-      "url": "https://github.com/advisories/GHSA-952p-6rrq-rcjv",
-      "title": "Regular Expression Denial of Service (ReDoS) in micromatch",
-      "severity": "moderate",
-      "vulnerable_versions": "<4.0.8",
-      "cwe": "CWE-1333",
-      "cvss": {
-        "score": 5.3,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
-      },
       "findings": [
         {
           "version": "3.1.10",
@@ -5835,22 +6397,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "micromatch",
-      "cves": [],
+      "id": 1098681,
+      "url": "https://github.com/advisories/GHSA-952p-6rrq-rcjv",
+      "title": "Regular Expression Denial of Service (ReDoS) in micromatch",
+      "severity": "moderate",
+      "vulnerable_versions": "<4.0.8",
       "patched_versions": ">=4.0.8",
-      "github_advisory_id": "GHSA-952p-6rrq-rcjv"
+      "cwe": "CWE-1333",
+      "cves": [],
+      "github_advisory_id": "GHSA-952p-6rrq-rcjv",
+      "module_name": "micromatch",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1099520": {
-      "id": 1099520,
-      "url": "https://github.com/advisories/GHSA-qwcr-r2fm-qrc7",
-      "title": "body-parser vulnerable to denial of service when url encoding is enabled",
-      "severity": "high",
-      "vulnerable_versions": "<1.20.3",
-      "cwe": "CWE-405",
-      "cvss": {
-        "score": 7.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
-      },
       "findings": [
         {
           "version": "1.19.0",
@@ -5862,22 +6437,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "body-parser",
-      "cves": [],
+      "id": 1099520,
+      "url": "https://github.com/advisories/GHSA-qwcr-r2fm-qrc7",
+      "title": "body-parser vulnerable to denial of service when url encoding is enabled",
+      "severity": "high",
+      "vulnerable_versions": "<1.20.3",
       "patched_versions": ">=1.20.3",
-      "github_advisory_id": "GHSA-qwcr-r2fm-qrc7"
+      "cwe": "CWE-405",
+      "cves": [],
+      "github_advisory_id": "GHSA-qwcr-r2fm-qrc7",
+      "module_name": "body-parser",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1100540": {
-      "id": 1100540,
-      "url": "https://github.com/advisories/GHSA-cqmj-92xf-r6r9",
-      "title": "Insufficient validation when decoding a Socket.IO packet",
-      "severity": "moderate",
-      "vulnerable_versions": "<3.3.4",
-      "cwe": "CWE-20, CWE-754",
-      "cvss": {
-        "score": 7.3,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:L"
-      },
       "findings": [
         {
           "version": "3.1.3",
@@ -5889,22 +6477,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "socket.io-parser",
-      "cves": [],
+      "id": 1100540,
+      "url": "https://github.com/advisories/GHSA-cqmj-92xf-r6r9",
+      "title": "Insufficient validation when decoding a Socket.IO packet",
+      "severity": "moderate",
+      "vulnerable_versions": "<3.3.4",
       "patched_versions": ">=3.3.4",
-      "github_advisory_id": "GHSA-cqmj-92xf-r6r9"
+      "cwe": "CWE-20, CWE-754",
+      "cves": [],
+      "github_advisory_id": "GHSA-cqmj-92xf-r6r9",
+      "module_name": "socket.io-parser",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1100551": {
-      "id": 1100551,
-      "url": "https://github.com/advisories/GHSA-25hc-qcg6-38wj",
-      "title": "socket.io has an unhandled 'error' event",
-      "severity": "moderate",
-      "vulnerable_versions": "<2.5.0",
-      "cwe": "CWE-20, CWE-754",
-      "cvss": {
-        "score": 7.3,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:L"
-      },
       "findings": [
         {
           "version": "2.0.4",
@@ -5916,22 +6517,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "socket.io",
-      "cves": [],
+      "id": 1100551,
+      "url": "https://github.com/advisories/GHSA-25hc-qcg6-38wj",
+      "title": "socket.io has an unhandled 'error' event",
+      "severity": "moderate",
+      "vulnerable_versions": "<2.5.0",
       "patched_versions": ">=2.5.0",
-      "github_advisory_id": "GHSA-25hc-qcg6-38wj"
+      "cwe": "CWE-20, CWE-754",
+      "cves": [],
+      "github_advisory_id": "GHSA-25hc-qcg6-38wj",
+      "module_name": "socket.io",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1101851": {
-      "id": 1101851,
-      "url": "https://github.com/advisories/GHSA-2p57-rm9w-gvfp",
-      "title": "ip SSRF improper categorization in isPublic",
-      "severity": "high",
-      "vulnerable_versions": "<=2.0.1",
-      "cwe": "CWE-918",
-      "cvss": {
-        "score": 8.1,
-        "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H"
-      },
       "findings": [
         {
           "version": "1.1.5",
@@ -5943,22 +6557,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "ip",
-      "cves": [],
+      "id": 1101851,
+      "url": "https://github.com/advisories/GHSA-2p57-rm9w-gvfp",
+      "title": "ip SSRF improper categorization in isPublic",
+      "severity": "high",
+      "vulnerable_versions": "<=2.0.1",
       "patched_versions": ">=2.0.2",
-      "github_advisory_id": "GHSA-2p57-rm9w-gvfp"
+      "cwe": "CWE-918",
+      "cves": [],
+      "github_advisory_id": "GHSA-2p57-rm9w-gvfp",
+      "module_name": "ip",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1101855": {
-      "id": 1101855,
-      "url": "https://github.com/advisories/GHSA-896r-f27r-55mw",
-      "title": "json-schema is vulnerable to Prototype Pollution",
-      "severity": "critical",
-      "vulnerable_versions": "<0.4.0",
-      "cwe": "CWE-915, CWE-1321",
-      "cvss": {
-        "score": 9.8,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
-      },
       "findings": [
         {
           "version": "0.2.3",
@@ -5970,22 +6597,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "json-schema",
-      "cves": [],
+      "id": 1101855,
+      "url": "https://github.com/advisories/GHSA-896r-f27r-55mw",
+      "title": "json-schema is vulnerable to Prototype Pollution",
+      "severity": "critical",
+      "vulnerable_versions": "<0.4.0",
       "patched_versions": ">=0.4.0",
-      "github_advisory_id": "GHSA-896r-f27r-55mw"
+      "cwe": "CWE-915, CWE-1321",
+      "cves": [],
+      "github_advisory_id": "GHSA-896r-f27r-55mw",
+      "module_name": "json-schema",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1102323": {
-      "id": 1102323,
-      "url": "https://github.com/advisories/GHSA-74fj-2j2h-c42q",
-      "title": "Exposure of sensitive information in follow-redirects",
-      "severity": "high",
-      "vulnerable_versions": "<1.14.7",
-      "cwe": "CWE-359",
-      "cvss": {
-        "score": 8,
-        "vectorString": "CVSS:3.0/AV:N/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:H"
-      },
       "findings": [
         {
           "version": "1.0.0",
@@ -6006,22 +6646,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "follow-redirects",
-      "cves": [],
+      "id": 1102323,
+      "url": "https://github.com/advisories/GHSA-74fj-2j2h-c42q",
+      "title": "Exposure of sensitive information in follow-redirects",
+      "severity": "high",
+      "vulnerable_versions": "<1.14.7",
       "patched_versions": ">=1.14.7",
-      "github_advisory_id": "GHSA-74fj-2j2h-c42q"
+      "cwe": "CWE-359",
+      "cves": [],
+      "github_advisory_id": "GHSA-74fj-2j2h-c42q",
+      "module_name": "follow-redirects",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1102444": {
-      "id": 1102444,
-      "url": "https://github.com/advisories/GHSA-j8xg-fqg3-53r7",
-      "title": "word-wrap vulnerable to Regular Expression Denial of Service",
-      "severity": "moderate",
-      "vulnerable_versions": "<1.2.4",
-      "cwe": "CWE-1333",
-      "cvss": {
-        "score": 5.3,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
-      },
       "findings": [
         {
           "version": "1.2.3",
@@ -6033,22 +6686,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "word-wrap",
-      "cves": [],
+      "id": 1102444,
+      "url": "https://github.com/advisories/GHSA-j8xg-fqg3-53r7",
+      "title": "word-wrap vulnerable to Regular Expression Denial of Service",
+      "severity": "moderate",
+      "vulnerable_versions": "<1.2.4",
       "patched_versions": ">=1.2.4",
-      "github_advisory_id": "GHSA-j8xg-fqg3-53r7"
+      "cwe": "CWE-1333",
+      "cves": [],
+      "github_advisory_id": "GHSA-j8xg-fqg3-53r7",
+      "module_name": "word-wrap",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1102906": {
-      "id": 1102906,
-      "url": "https://github.com/advisories/GHSA-282f-qqgm-c34q",
-      "title": "Prototype Pollution in node-jsonpointer",
-      "severity": "moderate",
-      "vulnerable_versions": "<5.0.0",
-      "cwe": "CWE-843, CWE-1321",
-      "cvss": {
-        "score": 5.6,
-        "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:L"
-      },
       "findings": [
         {
           "version": "4.0.1",
@@ -6060,22 +6726,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "jsonpointer",
-      "cves": [],
+      "id": 1102906,
+      "url": "https://github.com/advisories/GHSA-282f-qqgm-c34q",
+      "title": "Prototype Pollution in node-jsonpointer",
+      "severity": "moderate",
+      "vulnerable_versions": "<5.0.0",
       "patched_versions": ">=5.0.0",
-      "github_advisory_id": "GHSA-282f-qqgm-c34q"
+      "cwe": "CWE-843, CWE-1321",
+      "cves": [],
+      "github_advisory_id": "GHSA-282f-qqgm-c34q",
+      "module_name": "jsonpointer",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1104115": {
-      "id": 1104115,
-      "url": "https://github.com/advisories/GHSA-hrpp-h998-j3pp",
-      "title": "qs vulnerable to Prototype Pollution",
-      "severity": "high",
-      "vulnerable_versions": "<6.2.4",
-      "cwe": "CWE-1321",
-      "cvss": {
-        "score": 7.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
-      },
       "findings": [
         {
           "version": "6.2.3",
@@ -6087,22 +6766,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "qs",
-      "cves": [],
-      "patched_versions": ">=6.2.4",
-      "github_advisory_id": "GHSA-hrpp-h998-j3pp"
-    },
-    "1104118": {
-      "id": 1104118,
+      "id": 1104115,
       "url": "https://github.com/advisories/GHSA-hrpp-h998-j3pp",
       "title": "qs vulnerable to Prototype Pollution",
       "severity": "high",
-      "vulnerable_versions": ">=6.5.0 <6.5.3",
+      "vulnerable_versions": "<6.2.4",
+      "patched_versions": ">=6.2.4",
       "cwe": "CWE-1321",
-      "cvss": {
-        "score": 7.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      "cves": [],
+      "github_advisory_id": "GHSA-hrpp-h998-j3pp",
+      "module_name": "qs",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
       },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
+    },
+    "1104118": {
       "findings": [
         {
           "version": "6.5.2",
@@ -6114,22 +6806,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "qs",
-      "cves": [],
-      "patched_versions": ">=6.5.3",
-      "github_advisory_id": "GHSA-hrpp-h998-j3pp"
-    },
-    "1104120": {
-      "id": 1104120,
+      "id": 1104118,
       "url": "https://github.com/advisories/GHSA-hrpp-h998-j3pp",
       "title": "qs vulnerable to Prototype Pollution",
       "severity": "high",
-      "vulnerable_versions": ">=6.7.0 <6.7.3",
+      "vulnerable_versions": ">=6.5.0 <6.5.3",
+      "patched_versions": ">=6.5.3",
       "cwe": "CWE-1321",
-      "cvss": {
-        "score": 7.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      "cves": [],
+      "github_advisory_id": "GHSA-hrpp-h998-j3pp",
+      "module_name": "qs",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
       },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
+    },
+    "1104120": {
       "findings": [
         {
           "version": "6.7.0",
@@ -6141,22 +6846,75 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "qs",
-      "cves": [],
+      "id": 1104120,
+      "url": "https://github.com/advisories/GHSA-hrpp-h998-j3pp",
+      "title": "qs vulnerable to Prototype Pollution",
+      "severity": "high",
+      "vulnerable_versions": ">=6.7.0 <6.7.3",
       "patched_versions": ">=6.7.3",
-      "github_advisory_id": "GHSA-hrpp-h998-j3pp"
+      "cwe": "CWE-1321",
+      "cves": [],
+      "github_advisory_id": "GHSA-hrpp-h998-j3pp",
+      "module_name": "qs",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1105092": {
+      "findings": [
+        {
+          "version": "2.16.3",
+          "paths": [
+            ".>karma>log4js>loggly>request>hawk>hoek"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
       "id": 1105092,
       "url": "https://github.com/advisories/GHSA-c429-5p7v-vgjp",
       "title": "hoek subject to prototype pollution via the clone function.",
       "severity": "high",
       "vulnerable_versions": "<=6.1.3",
+      "patched_versions": ">=6.1.4",
       "cwe": "CWE-1321",
-      "cvss": {
-        "score": 8.1,
-        "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H"
+      "cves": [],
+      "github_advisory_id": "GHSA-c429-5p7v-vgjp",
+      "module_name": "hoek",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
       },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
+    },
+    "1105121": {
       "findings": [
         {
           "version": "2.16.3",
@@ -6168,49 +6926,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "hoek",
-      "cves": [],
-      "patched_versions": ">=6.1.4",
-      "github_advisory_id": "GHSA-c429-5p7v-vgjp"
-    },
-    "1105121": {
       "id": 1105121,
       "url": "https://github.com/advisories/GHSA-jp4x-w63m-7wgm",
       "title": "Prototype Pollution in hoek",
       "severity": "high",
       "vulnerable_versions": "<4.2.1",
-      "cwe": "CWE-1321",
-      "cvss": {
-        "score": 8.8,
-        "vectorString": "CVSS:3.0/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H"
-      },
-      "findings": [
-        {
-          "version": "2.16.3",
-          "paths": [
-            ".>karma>log4js>loggly>request>hawk>hoek"
-          ],
-          "dev": false,
-          "optional": false,
-          "bundled": false
-        }
-      ],
-      "module_name": "hoek",
-      "cves": [],
       "patched_versions": ">=4.2.1",
-      "github_advisory_id": "GHSA-jp4x-w63m-7wgm"
+      "cwe": "CWE-1321",
+      "cves": [],
+      "github_advisory_id": "GHSA-jp4x-w63m-7wgm",
+      "module_name": "hoek",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1105123": {
-      "id": 1105123,
-      "url": "https://github.com/advisories/GHSA-j4f2-536g-r55m",
-      "title": "Resource exhaustion in engine.io",
-      "severity": "high",
-      "vulnerable_versions": "<3.6.0",
-      "cwe": "CWE-400",
-      "cvss": {
-        "score": 7.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
-      },
       "findings": [
         {
           "version": "3.1.5",
@@ -6222,22 +6966,75 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "engine.io",
-      "cves": [],
+      "id": 1105123,
+      "url": "https://github.com/advisories/GHSA-j4f2-536g-r55m",
+      "title": "Resource exhaustion in engine.io",
+      "severity": "high",
+      "vulnerable_versions": "<3.6.0",
       "patched_versions": ">=3.6.0",
-      "github_advisory_id": "GHSA-j4f2-536g-r55m"
+      "cwe": "CWE-400",
+      "cves": [],
+      "github_advisory_id": "GHSA-j4f2-536g-r55m",
+      "module_name": "engine.io",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1106913": {
+      "findings": [
+        {
+          "version": "4.17.15",
+          "paths": [
+            ".>karma>lodash"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
       "id": 1106913,
       "url": "https://github.com/advisories/GHSA-35jh-r3h4-6jhm",
       "title": "Command Injection in lodash",
       "severity": "high",
       "vulnerable_versions": "<4.17.21",
+      "patched_versions": ">=4.17.21",
       "cwe": "CWE-77, CWE-94",
-      "cvss": {
-        "score": 7.2,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:H/I:H/A:H"
+      "cves": [],
+      "github_advisory_id": "GHSA-35jh-r3h4-6jhm",
+      "module_name": "lodash",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
       },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
+    },
+    "1106920": {
       "findings": [
         {
           "version": "4.17.15",
@@ -6249,49 +7046,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "lodash",
-      "cves": [],
-      "patched_versions": ">=4.17.21",
-      "github_advisory_id": "GHSA-35jh-r3h4-6jhm"
-    },
-    "1106920": {
       "id": 1106920,
       "url": "https://github.com/advisories/GHSA-p6mc-m468-83gw",
       "title": "Prototype Pollution in lodash",
       "severity": "high",
       "vulnerable_versions": ">=3.7.0 <4.17.19",
-      "cwe": "CWE-770, CWE-1321",
-      "cvss": {
-        "score": 7.4,
-        "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:H/A:H"
-      },
-      "findings": [
-        {
-          "version": "4.17.15",
-          "paths": [
-            ".>karma>lodash"
-          ],
-          "dev": false,
-          "optional": false,
-          "bundled": false
-        }
-      ],
-      "module_name": "lodash",
-      "cves": [],
       "patched_versions": ">=4.17.19",
-      "github_advisory_id": "GHSA-p6mc-m468-83gw"
+      "cwe": "CWE-770, CWE-1321",
+      "cves": [],
+      "github_advisory_id": "GHSA-p6mc-m468-83gw",
+      "module_name": "lodash",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1107224": {
-      "id": 1107224,
-      "url": "https://github.com/advisories/GHSA-6fx8-h7jm-663j",
-      "title": "parse-uri Regular expression Denial of Service (ReDoS)",
-      "severity": "moderate",
-      "vulnerable_versions": "<2.0.0",
-      "cwe": "CWE-185, CWE-1333",
-      "cvss": {
-        "score": 0,
-        "vectorString": null
-      },
       "findings": [
         {
           "version": "0.0.5",
@@ -6303,22 +7086,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "parseuri",
-      "cves": [],
+      "id": 1107224,
+      "url": "https://github.com/advisories/GHSA-6fx8-h7jm-663j",
+      "title": "parse-uri Regular expression Denial of Service (ReDoS)",
+      "severity": "moderate",
+      "vulnerable_versions": "<2.0.0",
       "patched_versions": ">=2.0.0",
-      "github_advisory_id": "GHSA-6fx8-h7jm-663j"
+      "cwe": "CWE-185, CWE-1333",
+      "cves": [],
+      "github_advisory_id": "GHSA-6fx8-h7jm-663j",
+      "module_name": "parseuri",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1107230": {
-      "id": 1107230,
-      "url": "https://github.com/advisories/GHSA-mgfv-m47x-4wqp",
-      "title": "useragent Regular Expression Denial of Service vulnerability",
-      "severity": "moderate",
-      "vulnerable_versions": "<=2.3.0",
-      "cwe": "CWE-1333",
-      "cvss": {
-        "score": 7.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
-      },
       "findings": [
         {
           "version": "2.2.1",
@@ -6330,22 +7126,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "useragent",
-      "cves": [],
+      "id": 1107230,
+      "url": "https://github.com/advisories/GHSA-mgfv-m47x-4wqp",
+      "title": "useragent Regular Expression Denial of Service vulnerability",
+      "severity": "moderate",
+      "vulnerable_versions": "<=2.3.0",
       "patched_versions": ">=2.3.1",
-      "github_advisory_id": "GHSA-mgfv-m47x-4wqp"
+      "cwe": "CWE-1333",
+      "cves": [],
+      "github_advisory_id": "GHSA-mgfv-m47x-4wqp",
+      "module_name": "useragent",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1107232": {
-      "id": 1107232,
-      "url": "https://github.com/advisories/GHSA-9h6g-pr28-7cqp",
-      "title": "nodemailer ReDoS when trying to send a specially crafted email",
-      "severity": "moderate",
-      "vulnerable_versions": "<=6.9.8",
-      "cwe": "CWE-1333",
-      "cvss": {
-        "score": 5.3,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
-      },
       "findings": [
         {
           "version": "2.7.2",
@@ -6357,22 +7166,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "nodemailer",
-      "cves": [],
+      "id": 1107232,
+      "url": "https://github.com/advisories/GHSA-9h6g-pr28-7cqp",
+      "title": "nodemailer ReDoS when trying to send a specially crafted email",
+      "severity": "moderate",
+      "vulnerable_versions": "<=6.9.8",
       "patched_versions": ">=6.9.9",
-      "github_advisory_id": "GHSA-9h6g-pr28-7cqp"
+      "cwe": "CWE-1333",
+      "cves": [],
+      "github_advisory_id": "GHSA-9h6g-pr28-7cqp",
+      "module_name": "nodemailer",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1108258": {
-      "id": 1108258,
-      "url": "https://github.com/advisories/GHSA-29mw-wpgm-hmr9",
-      "title": "Regular Expression Denial of Service (ReDoS) in lodash",
-      "severity": "moderate",
-      "vulnerable_versions": ">=4.0.0 <4.17.21",
-      "cwe": "CWE-400, CWE-1333",
-      "cvss": {
-        "score": 5.3,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
-      },
       "findings": [
         {
           "version": "4.17.15",
@@ -6384,22 +7206,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "lodash",
-      "cves": [],
+      "id": 1108258,
+      "url": "https://github.com/advisories/GHSA-29mw-wpgm-hmr9",
+      "title": "Regular Expression Denial of Service (ReDoS) in lodash",
+      "severity": "moderate",
+      "vulnerable_versions": ">=4.0.0 <4.17.21",
       "patched_versions": ">=4.17.21",
-      "github_advisory_id": "GHSA-29mw-wpgm-hmr9"
+      "cwe": "CWE-400, CWE-1333",
+      "cves": [],
+      "github_advisory_id": "GHSA-29mw-wpgm-hmr9",
+      "module_name": "lodash",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1109540": {
-      "id": 1109540,
-      "url": "https://github.com/advisories/GHSA-fjxv-7rqg-78g4",
-      "title": "form-data uses unsafe random function in form-data for choosing boundary",
-      "severity": "critical",
-      "vulnerable_versions": "<2.5.4",
-      "cwe": "CWE-330",
-      "cvss": {
-        "score": 0,
-        "vectorString": null
-      },
       "findings": [
         {
           "version": "2.3.3",
@@ -6420,22 +7255,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "form-data",
-      "cves": [],
+      "id": 1109540,
+      "url": "https://github.com/advisories/GHSA-fjxv-7rqg-78g4",
+      "title": "form-data uses unsafe random function in form-data for choosing boundary",
+      "severity": "critical",
+      "vulnerable_versions": "<2.5.4",
       "patched_versions": ">=2.5.4",
-      "github_advisory_id": "GHSA-fjxv-7rqg-78g4"
+      "cwe": "CWE-330",
+      "cves": [],
+      "github_advisory_id": "GHSA-fjxv-7rqg-78g4",
+      "module_name": "form-data",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1109569": {
-      "id": 1109569,
-      "url": "https://github.com/advisories/GHSA-jchw-25xp-jwwc",
-      "title": "Follow Redirects improperly handles URLs in the url.parse() function",
-      "severity": "moderate",
-      "vulnerable_versions": "<1.15.4",
-      "cwe": "CWE-20, CWE-601",
-      "cvss": {
-        "score": 6.1,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"
-      },
       "findings": [
         {
           "version": "1.0.0",
@@ -6456,22 +7304,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "follow-redirects",
-      "cves": [],
+      "id": 1109569,
+      "url": "https://github.com/advisories/GHSA-jchw-25xp-jwwc",
+      "title": "Follow Redirects improperly handles URLs in the url.parse() function",
+      "severity": "moderate",
+      "vulnerable_versions": "<1.15.4",
       "patched_versions": ">=1.15.4",
-      "github_advisory_id": "GHSA-jchw-25xp-jwwc"
+      "cwe": "CWE-20, CWE-601",
+      "cves": [],
+      "github_advisory_id": "GHSA-jchw-25xp-jwwc",
+      "module_name": "follow-redirects",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1109570": {
-      "id": 1109570,
-      "url": "https://github.com/advisories/GHSA-cf4h-3jhx-xvhq",
-      "title": "Arbitrary Code Execution in underscore",
-      "severity": "critical",
-      "vulnerable_versions": ">=1.3.2 <1.12.1",
-      "cwe": "CWE-94",
-      "cvss": {
-        "score": 9.8,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
-      },
       "findings": [
         {
           "version": "1.7.0",
@@ -6483,22 +7344,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "underscore",
-      "cves": [],
+      "id": 1109570,
+      "url": "https://github.com/advisories/GHSA-cf4h-3jhx-xvhq",
+      "title": "Arbitrary Code Execution in underscore",
+      "severity": "critical",
+      "vulnerable_versions": ">=1.3.2 <1.12.1",
       "patched_versions": ">=1.12.1",
-      "github_advisory_id": "GHSA-cf4h-3jhx-xvhq"
+      "cwe": "CWE-94",
+      "cves": [],
+      "github_advisory_id": "GHSA-cf4h-3jhx-xvhq",
+      "module_name": "underscore",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1109804": {
-      "id": 1109804,
-      "url": "https://github.com/advisories/GHSA-mm7p-fcc7-pg87",
-      "title": "Nodemailer: Email to an unintended domain can occur due to Interpretation Conflict",
-      "severity": "moderate",
-      "vulnerable_versions": "<7.0.7",
-      "cwe": "CWE-20, CWE-436",
-      "cvss": {
-        "score": 0,
-        "vectorString": null
-      },
       "findings": [
         {
           "version": "2.7.2",
@@ -6510,22 +7384,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "nodemailer",
-      "cves": [],
+      "id": 1109804,
+      "url": "https://github.com/advisories/GHSA-mm7p-fcc7-pg87",
+      "title": "Nodemailer: Email to an unintended domain can occur due to Interpretation Conflict",
+      "severity": "moderate",
+      "vulnerable_versions": "<7.0.7",
       "patched_versions": ">=7.0.7",
-      "github_advisory_id": "GHSA-mm7p-fcc7-pg87"
+      "cwe": "CWE-20, CWE-436",
+      "cves": [],
+      "github_advisory_id": "GHSA-mm7p-fcc7-pg87",
+      "module_name": "nodemailer",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1111034": {
-      "id": 1111034,
-      "url": "https://github.com/advisories/GHSA-jr5f-v2jv-69x6",
-      "title": "axios Requests Vulnerable To Possible SSRF and Credential Leakage via Absolute URL",
-      "severity": "high",
-      "vulnerable_versions": "<0.30.0",
-      "cwe": "CWE-918",
-      "cvss": {
-        "score": 0,
-        "vectorString": null
-      },
       "findings": [
         {
           "version": "0.15.3",
@@ -6537,22 +7424,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "axios",
-      "cves": [],
+      "id": 1111034,
+      "url": "https://github.com/advisories/GHSA-jr5f-v2jv-69x6",
+      "title": "axios Requests Vulnerable To Possible SSRF and Credential Leakage via Absolute URL",
+      "severity": "high",
+      "vulnerable_versions": "<0.30.0",
       "patched_versions": ">=0.30.0",
-      "github_advisory_id": "GHSA-jr5f-v2jv-69x6"
+      "cwe": "CWE-918",
+      "cves": [],
+      "github_advisory_id": "GHSA-jr5f-v2jv-69x6",
+      "module_name": "axios",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1112455": {
-      "id": 1112455,
-      "url": "https://github.com/advisories/GHSA-xxjr-mmjv-4gpg",
-      "title": "Lodash has Prototype Pollution Vulnerability in \`_.unset\` and \`_.omit\` functions",
-      "severity": "moderate",
-      "vulnerable_versions": ">=4.0.0 <=4.17.22",
-      "cwe": "CWE-1321",
-      "cvss": {
-        "score": 6.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:L"
-      },
       "findings": [
         {
           "version": "4.17.15",
@@ -6564,22 +7464,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "lodash",
-      "cves": [],
+      "id": 1112455,
+      "url": "https://github.com/advisories/GHSA-xxjr-mmjv-4gpg",
+      "title": "Lodash has Prototype Pollution Vulnerability in \`_.unset\` and \`_.omit\` functions",
+      "severity": "moderate",
+      "vulnerable_versions": ">=4.0.0 <=4.17.22",
       "patched_versions": ">=4.17.23",
-      "github_advisory_id": "GHSA-xxjr-mmjv-4gpg"
+      "cwe": "CWE-1321",
+      "cves": [],
+      "github_advisory_id": "GHSA-xxjr-mmjv-4gpg",
+      "module_name": "lodash",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1112659": {
-      "id": 1112659,
-      "url": "https://github.com/advisories/GHSA-34x7-hfp2-rc4v",
-      "title": "node-tar Vulnerable to Arbitrary File Creation/Overwrite via Hardlink Path Traversal",
-      "severity": "high",
-      "vulnerable_versions": "<7.5.7",
-      "cwe": "CWE-22, CWE-59",
-      "cvss": {
-        "score": 8.2,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:L/A:N"
-      },
       "findings": [
         {
           "version": "4.4.15",
@@ -6591,22 +7504,75 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "tar",
-      "cves": [],
+      "id": 1112659,
+      "url": "https://github.com/advisories/GHSA-34x7-hfp2-rc4v",
+      "title": "node-tar Vulnerable to Arbitrary File Creation/Overwrite via Hardlink Path Traversal",
+      "severity": "high",
+      "vulnerable_versions": "<7.5.7",
       "patched_versions": ">=7.5.7",
-      "github_advisory_id": "GHSA-34x7-hfp2-rc4v"
+      "cwe": "CWE-22, CWE-59",
+      "cves": [],
+      "github_advisory_id": "GHSA-34x7-hfp2-rc4v",
+      "module_name": "tar",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1112827": {
+      "findings": [
+        {
+          "version": "1.4.7",
+          "paths": [
+            ".>karma>log4js>amqplib>url-parse"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
       "id": 1112827,
       "url": "https://github.com/advisories/GHSA-hh27-ffr2-f2jc",
       "title": "Open redirect in url-parse",
       "severity": "moderate",
       "vulnerable_versions": ">=0.1.0 <1.5.2",
+      "patched_versions": ">=1.5.2",
       "cwe": "CWE-601",
-      "cvss": {
-        "score": 6.1,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"
+      "cves": [],
+      "github_advisory_id": "GHSA-hh27-ffr2-f2jc",
+      "module_name": "url-parse",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
       },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
+    },
+    "1112828": {
       "findings": [
         {
           "version": "1.4.7",
@@ -6618,22 +7584,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "url-parse",
-      "cves": [],
-      "patched_versions": ">=1.5.2",
-      "github_advisory_id": "GHSA-hh27-ffr2-f2jc"
-    },
-    "1112828": {
       "id": 1112828,
       "url": "https://github.com/advisories/GHSA-9m6j-fcg5-2442",
       "title": "Path traversal in url-parse",
       "severity": "moderate",
       "vulnerable_versions": ">=0.1.0 <1.5.0",
+      "patched_versions": ">=1.5.0",
       "cwe": "CWE-23",
-      "cvss": {
-        "score": 5.3,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:N"
+      "cves": [],
+      "github_advisory_id": "GHSA-9m6j-fcg5-2442",
+      "module_name": "url-parse",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
       },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
+    },
+    "1112829": {
       "findings": [
         {
           "version": "1.4.7",
@@ -6645,49 +7624,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "url-parse",
-      "cves": [],
-      "patched_versions": ">=1.5.0",
-      "github_advisory_id": "GHSA-9m6j-fcg5-2442"
-    },
-    "1112829": {
       "id": 1112829,
       "url": "https://github.com/advisories/GHSA-jf5r-8hm2-f872",
       "title": "url-parse incorrectly parses hostname / protocol due to unstripped leading control characters.",
       "severity": "moderate",
       "vulnerable_versions": ">=0.1.0 <1.5.9",
-      "cwe": "CWE-639",
-      "cvss": {
-        "score": 6.5,
-        "vectorString": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N"
-      },
-      "findings": [
-        {
-          "version": "1.4.7",
-          "paths": [
-            ".>karma>log4js>amqplib>url-parse"
-          ],
-          "dev": false,
-          "optional": false,
-          "bundled": false
-        }
-      ],
-      "module_name": "url-parse",
-      "cves": [],
       "patched_versions": ">=1.5.9",
-      "github_advisory_id": "GHSA-jf5r-8hm2-f872"
+      "cwe": "CWE-639",
+      "cves": [],
+      "github_advisory_id": "GHSA-jf5r-8hm2-f872",
+      "module_name": "url-parse",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1112918": {
-      "id": 1112918,
-      "url": "https://github.com/advisories/GHSA-c2qf-rxjj-qqgw",
-      "title": "semver vulnerable to Regular Expression Denial of Service",
-      "severity": "high",
-      "vulnerable_versions": ">=2.0.0-alpha <5.7.2",
-      "cwe": "CWE-1333",
-      "cvss": {
-        "score": 7.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
-      },
       "findings": [
         {
           "version": "5.7.1",
@@ -6708,22 +7673,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "semver",
-      "cves": [],
+      "id": 1112918,
+      "url": "https://github.com/advisories/GHSA-c2qf-rxjj-qqgw",
+      "title": "semver vulnerable to Regular Expression Denial of Service",
+      "severity": "high",
+      "vulnerable_versions": ">=2.0.0-alpha <5.7.2",
       "patched_versions": ">=5.7.2",
-      "github_advisory_id": "GHSA-c2qf-rxjj-qqgw"
+      "cwe": "CWE-1333",
+      "cves": [],
+      "github_advisory_id": "GHSA-c2qf-rxjj-qqgw",
+      "module_name": "semver",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1113165": {
-      "id": 1113165,
-      "url": "https://github.com/advisories/GHSA-rcmh-qjqh-p98v",
-      "title": "Nodemailer’s addressparser is vulnerable to DoS caused by recursive calls",
-      "severity": "high",
-      "vulnerable_versions": "<=7.0.10",
-      "cwe": "CWE-703",
-      "cvss": {
-        "score": 7.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
-      },
       "findings": [
         {
           "version": "2.7.2",
@@ -6735,22 +7713,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "nodemailer",
-      "cves": [],
+      "id": 1113165,
+      "url": "https://github.com/advisories/GHSA-rcmh-qjqh-p98v",
+      "title": "Nodemailer’s addressparser is vulnerable to DoS caused by recursive calls",
+      "severity": "high",
+      "vulnerable_versions": "<=7.0.10",
       "patched_versions": ">=7.0.11",
-      "github_advisory_id": "GHSA-rcmh-qjqh-p98v"
+      "cwe": "CWE-703",
+      "cves": [],
+      "github_advisory_id": "GHSA-rcmh-qjqh-p98v",
+      "module_name": "nodemailer",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1113274": {
-      "id": 1113274,
-      "url": "https://github.com/advisories/GHSA-43fc-jf86-j433",
-      "title": "Axios is Vulnerable to Denial of Service via __proto__ Key in mergeConfig",
-      "severity": "high",
-      "vulnerable_versions": "<=0.30.2",
-      "cwe": "CWE-754",
-      "cvss": {
-        "score": 7.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
-      },
       "findings": [
         {
           "version": "0.15.3",
@@ -6762,22 +7753,75 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "axios",
-      "cves": [],
+      "id": 1113274,
+      "url": "https://github.com/advisories/GHSA-43fc-jf86-j433",
+      "title": "Axios is Vulnerable to Denial of Service via __proto__ Key in mergeConfig",
+      "severity": "high",
+      "vulnerable_versions": "<=0.30.2",
       "patched_versions": ">=0.30.3",
-      "github_advisory_id": "GHSA-43fc-jf86-j433"
+      "cwe": "CWE-754",
+      "cves": [],
+      "github_advisory_id": "GHSA-43fc-jf86-j433",
+      "module_name": "axios",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1113300": {
+      "findings": [
+        {
+          "version": "4.4.15",
+          "paths": [
+            ".>karma>chokidar>fsevents>node-pre-gyp>tar"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
       "id": 1113300,
       "url": "https://github.com/advisories/GHSA-8qq5-rm4j-mr97",
       "title": "node-tar is Vulnerable to Arbitrary File Overwrite and Symlink Poisoning via Insufficient Path Sanitization",
       "severity": "high",
       "vulnerable_versions": "<=7.5.2",
+      "patched_versions": ">=7.5.3",
       "cwe": "CWE-22",
-      "cvss": {
-        "score": 0,
-        "vectorString": null
+      "cves": [],
+      "github_advisory_id": "GHSA-8qq5-rm4j-mr97",
+      "module_name": "tar",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
       },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
+    },
+    "1113375": {
       "findings": [
         {
           "version": "4.4.15",
@@ -6789,49 +7833,75 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "tar",
-      "cves": [],
-      "patched_versions": ">=7.5.3",
-      "github_advisory_id": "GHSA-8qq5-rm4j-mr97"
-    },
-    "1113375": {
       "id": 1113375,
       "url": "https://github.com/advisories/GHSA-83g3-92jg-28cx",
       "title": "Arbitrary File Read/Write via Hardlink Target Escape Through Symlink Chain in node-tar Extraction",
       "severity": "high",
       "vulnerable_versions": "<7.5.8",
+      "patched_versions": ">=7.5.8",
       "cwe": "CWE-22",
-      "cvss": {
-        "score": 7.1,
-        "vectorString": "CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
+      "cves": [],
+      "github_advisory_id": "GHSA-83g3-92jg-28cx",
+      "module_name": "tar",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
       },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
+    },
+    "1113394": {
       "findings": [
         {
-          "version": "4.4.15",
+          "version": "1.4.7",
           "paths": [
-            ".>karma>chokidar>fsevents>node-pre-gyp>tar"
+            ".>karma>log4js>amqplib>url-parse"
           ],
           "dev": false,
           "optional": false,
           "bundled": false
         }
       ],
-      "module_name": "tar",
-      "cves": [],
-      "patched_versions": ">=7.5.8",
-      "github_advisory_id": "GHSA-83g3-92jg-28cx"
-    },
-    "1113394": {
       "id": 1113394,
       "url": "https://github.com/advisories/GHSA-8v38-pw62-9cw2",
       "title": "url-parse Incorrectly parses URLs that include an '@'",
       "severity": "moderate",
       "vulnerable_versions": ">=1.0.0 <1.5.7",
+      "patched_versions": ">=1.5.7",
       "cwe": "CWE-639",
-      "cvss": {
-        "score": 6.5,
-        "vectorString": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N"
+      "cves": [],
+      "github_advisory_id": "GHSA-8v38-pw62-9cw2",
+      "module_name": "url-parse",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
       },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
+    },
+    "1113395": {
       "findings": [
         {
           "version": "1.4.7",
@@ -6843,49 +7913,75 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "url-parse",
-      "cves": [],
-      "patched_versions": ">=1.5.7",
-      "github_advisory_id": "GHSA-8v38-pw62-9cw2"
-    },
-    "1113395": {
       "id": 1113395,
       "url": "https://github.com/advisories/GHSA-rqff-837h-mm52",
       "title": "Authorization bypass in url-parse",
       "severity": "moderate",
       "vulnerable_versions": ">=0.1.0 <1.5.6",
+      "patched_versions": ">=1.5.6",
       "cwe": "CWE-639",
-      "cvss": {
-        "score": 5.3,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:N"
+      "cves": [],
+      "github_advisory_id": "GHSA-rqff-837h-mm52",
+      "module_name": "url-parse",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
       },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
+    },
+    "1113459": {
       "findings": [
         {
-          "version": "1.4.7",
+          "version": "3.0.4",
           "paths": [
-            ".>karma>log4js>amqplib>url-parse"
+            ".>karma>minimatch"
           ],
           "dev": false,
           "optional": false,
           "bundled": false
         }
       ],
-      "module_name": "url-parse",
-      "cves": [],
-      "patched_versions": ">=1.5.6",
-      "github_advisory_id": "GHSA-rqff-837h-mm52"
-    },
-    "1113459": {
       "id": 1113459,
       "url": "https://github.com/advisories/GHSA-3ppc-4f35-3m26",
       "title": "minimatch has a ReDoS via repeated wildcards with non-matching literal in pattern",
       "severity": "high",
       "vulnerable_versions": "<3.1.3",
+      "patched_versions": ">=3.1.3",
       "cwe": "CWE-1333",
-      "cvss": {
-        "score": 0,
-        "vectorString": null
+      "cves": [],
+      "github_advisory_id": "GHSA-3ppc-4f35-3m26",
+      "module_name": "minimatch",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
       },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
+    },
+    "1113538": {
       "findings": [
         {
           "version": "3.0.4",
@@ -6897,22 +7993,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "minimatch",
-      "cves": [],
-      "patched_versions": ">=3.1.3",
-      "github_advisory_id": "GHSA-3ppc-4f35-3m26"
-    },
-    "1113538": {
       "id": 1113538,
       "url": "https://github.com/advisories/GHSA-7r86-cg39-jmmj",
       "title": "minimatch has ReDoS: matchOne() combinatorial backtracking via multiple non-adjacent GLOBSTAR segments",
       "severity": "high",
       "vulnerable_versions": "<3.1.3",
+      "patched_versions": ">=3.1.3",
       "cwe": "CWE-407",
-      "cvss": {
-        "score": 7.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      "cves": [],
+      "github_advisory_id": "GHSA-7r86-cg39-jmmj",
+      "module_name": "minimatch",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
       },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
+    },
+    "1113546": {
       "findings": [
         {
           "version": "3.0.4",
@@ -6924,49 +8033,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "minimatch",
-      "cves": [],
-      "patched_versions": ">=3.1.3",
-      "github_advisory_id": "GHSA-7r86-cg39-jmmj"
-    },
-    "1113546": {
       "id": 1113546,
       "url": "https://github.com/advisories/GHSA-23c5-xmqv-rm74",
       "title": "minimatch ReDoS: nested *() extglobs generate catastrophically backtracking regular expressions",
       "severity": "high",
       "vulnerable_versions": "<3.1.4",
-      "cwe": "CWE-1333",
-      "cvss": {
-        "score": 7.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
-      },
-      "findings": [
-        {
-          "version": "3.0.4",
-          "paths": [
-            ".>karma>minimatch"
-          ],
-          "dev": false,
-          "optional": false,
-          "bundled": false
-        }
-      ],
-      "module_name": "minimatch",
-      "cves": [],
       "patched_versions": ">=3.1.4",
-      "github_advisory_id": "GHSA-23c5-xmqv-rm74"
+      "cwe": "CWE-1333",
+      "cves": [],
+      "github_advisory_id": "GHSA-23c5-xmqv-rm74",
+      "module_name": "minimatch",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1113714": {
-      "id": 1113714,
-      "url": "https://github.com/advisories/GHSA-2g4f-4pwh-qvx6",
-      "title": "ajv has ReDoS when using \`$data\` option",
-      "severity": "moderate",
-      "vulnerable_versions": "<6.14.0",
-      "cwe": "CWE-400, CWE-1333",
-      "cvss": {
-        "score": 0,
-        "vectorString": null
-      },
       "findings": [
         {
           "version": "6.10.2",
@@ -6978,22 +8073,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "ajv",
-      "cves": [],
+      "id": 1113714,
+      "url": "https://github.com/advisories/GHSA-2g4f-4pwh-qvx6",
+      "title": "ajv has ReDoS when using \`$data\` option",
+      "severity": "moderate",
+      "vulnerable_versions": "<6.14.0",
       "patched_versions": ">=6.14.0",
-      "github_advisory_id": "GHSA-2g4f-4pwh-qvx6"
+      "cwe": "CWE-400, CWE-1333",
+      "cves": [],
+      "github_advisory_id": "GHSA-2g4f-4pwh-qvx6",
+      "module_name": "ajv",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1113719": {
-      "id": 1113719,
-      "url": "https://github.com/advisories/GHSA-6rw7-vpxm-498p",
-      "title": "qs's arrayLimit bypass in its bracket notation allows DoS via memory exhaustion",
-      "severity": "moderate",
-      "vulnerable_versions": "<6.14.1",
-      "cwe": "CWE-20",
-      "cvss": {
-        "score": 3.7,
-        "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:L"
-      },
       "findings": [
         {
           "version": "6.7.0",
@@ -7023,22 +8131,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "qs",
-      "cves": [],
+      "id": 1113719,
+      "url": "https://github.com/advisories/GHSA-6rw7-vpxm-498p",
+      "title": "qs's arrayLimit bypass in its bracket notation allows DoS via memory exhaustion",
+      "severity": "moderate",
+      "vulnerable_versions": "<6.14.1",
       "patched_versions": ">=6.14.1",
-      "github_advisory_id": "GHSA-6rw7-vpxm-498p"
+      "cwe": "CWE-20",
+      "cves": [],
+      "github_advisory_id": "GHSA-6rw7-vpxm-498p",
+      "module_name": "qs",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1113950": {
-      "id": 1113950,
-      "url": "https://github.com/advisories/GHSA-qpx9-hpmf-5gmw",
-      "title": "Underscore has unlimited recursion in _.flatten and _.isEqual, potential for DoS attack",
-      "severity": "high",
-      "vulnerable_versions": "<=1.13.7",
-      "cwe": "CWE-674, CWE-770",
-      "cvss": {
-        "score": 0,
-        "vectorString": null
-      },
       "findings": [
         {
           "version": "1.7.0",
@@ -7050,22 +8171,75 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "underscore",
-      "cves": [],
+      "id": 1113950,
+      "url": "https://github.com/advisories/GHSA-qpx9-hpmf-5gmw",
+      "title": "Underscore has unlimited recursion in _.flatten and _.isEqual, potential for DoS attack",
+      "severity": "high",
+      "vulnerable_versions": "<=1.13.7",
       "patched_versions": ">=1.13.8",
-      "github_advisory_id": "GHSA-qpx9-hpmf-5gmw"
+      "cwe": "CWE-674, CWE-770",
+      "cves": [],
+      "github_advisory_id": "GHSA-qpx9-hpmf-5gmw",
+      "module_name": "underscore",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1114200": {
+      "findings": [
+        {
+          "version": "4.4.15",
+          "paths": [
+            ".>karma>chokidar>fsevents>node-pre-gyp>tar"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
       "id": 1114200,
       "url": "https://github.com/advisories/GHSA-qffp-2rhf-9h96",
       "title": "tar has Hardlink Path Traversal via Drive-Relative Linkpath",
       "severity": "high",
       "vulnerable_versions": "<=7.5.9",
+      "patched_versions": ">=7.5.10",
       "cwe": "CWE-22, CWE-59",
-      "cvss": {
-        "score": 0,
-        "vectorString": null
+      "cves": [],
+      "github_advisory_id": "GHSA-qffp-2rhf-9h96",
+      "module_name": "tar",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
       },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
+    },
+    "1114302": {
       "findings": [
         {
           "version": "4.4.15",
@@ -7077,22 +8251,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "tar",
-      "cves": [],
-      "patched_versions": ">=7.5.10",
-      "github_advisory_id": "GHSA-qffp-2rhf-9h96"
-    },
-    "1114302": {
       "id": 1114302,
       "url": "https://github.com/advisories/GHSA-9ppj-qmqm-q256",
       "title": "node-tar Symlink Path Traversal via Drive-Relative Linkpath",
       "severity": "high",
       "vulnerable_versions": "<=7.5.10",
+      "patched_versions": ">=7.5.11",
       "cwe": "CWE-22",
-      "cvss": {
-        "score": 0,
-        "vectorString": null
+      "cves": [],
+      "github_advisory_id": "GHSA-9ppj-qmqm-q256",
+      "module_name": "tar",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
       },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
+    },
+    "1114680": {
       "findings": [
         {
           "version": "4.4.15",
@@ -7104,49 +8291,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "tar",
-      "cves": [],
-      "patched_versions": ">=7.5.11",
-      "github_advisory_id": "GHSA-9ppj-qmqm-q256"
-    },
-    "1114680": {
       "id": 1114680,
       "url": "https://github.com/advisories/GHSA-r6q2-hw4h-h46w",
       "title": "Race Condition in node-tar Path Reservations via Unicode Ligature Collisions on macOS APFS",
       "severity": "high",
       "vulnerable_versions": "<=7.5.3",
-      "cwe": "CWE-176, CWE-367",
-      "cvss": {
-        "score": 8.8,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:H/A:L"
-      },
-      "findings": [
-        {
-          "version": "4.4.15",
-          "paths": [
-            ".>karma>chokidar>fsevents>node-pre-gyp>tar"
-          ],
-          "dev": false,
-          "optional": false,
-          "bundled": false
-        }
-      ],
-      "module_name": "tar",
-      "cves": [],
       "patched_versions": ">=7.5.4",
-      "github_advisory_id": "GHSA-r6q2-hw4h-h46w"
+      "cwe": "CWE-176, CWE-367",
+      "cves": [],
+      "github_advisory_id": "GHSA-r6q2-hw4h-h46w",
+      "module_name": "tar",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1115156": {
-      "id": 1115156,
-      "url": "https://github.com/advisories/GHSA-677m-j7p3-52f9",
-      "title": "socket.io allows an unbounded number of binary attachments",
-      "severity": "high",
-      "vulnerable_versions": "<3.3.5",
-      "cwe": "CWE-754",
-      "cvss": {
-        "score": 0,
-        "vectorString": null
-      },
       "findings": [
         {
           "version": "3.1.3",
@@ -7158,22 +8331,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "socket.io-parser",
-      "cves": [],
+      "id": 1115156,
+      "url": "https://github.com/advisories/GHSA-677m-j7p3-52f9",
+      "title": "socket.io allows an unbounded number of binary attachments",
+      "severity": "high",
+      "vulnerable_versions": "<3.3.5",
       "patched_versions": ">=3.3.5",
-      "github_advisory_id": "GHSA-677m-j7p3-52f9"
+      "cwe": "CWE-754",
+      "cves": [],
+      "github_advisory_id": "GHSA-677m-j7p3-52f9",
+      "module_name": "socket.io-parser",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1115540": {
-      "id": 1115540,
-      "url": "https://github.com/advisories/GHSA-f886-m6hf-6m8v",
-      "title": "brace-expansion: Zero-step sequence causes process hang and memory exhaustion",
-      "severity": "moderate",
-      "vulnerable_versions": "<1.1.13",
-      "cwe": "CWE-400",
-      "cvss": {
-        "score": 6.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:N/A:H"
-      },
       "findings": [
         {
           "version": "1.1.11",
@@ -7185,22 +8371,75 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "brace-expansion",
-      "cves": [],
+      "id": 1115540,
+      "url": "https://github.com/advisories/GHSA-f886-m6hf-6m8v",
+      "title": "brace-expansion: Zero-step sequence causes process hang and memory exhaustion",
+      "severity": "moderate",
+      "vulnerable_versions": "<1.1.13",
       "patched_versions": ">=1.1.13",
-      "github_advisory_id": "GHSA-f886-m6hf-6m8v"
+      "cwe": "CWE-400",
+      "cves": [],
+      "github_advisory_id": "GHSA-f886-m6hf-6m8v",
+      "module_name": "brace-expansion",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1115806": {
+      "findings": [
+        {
+          "version": "4.17.15",
+          "paths": [
+            ".>karma>lodash"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
       "id": 1115806,
       "url": "https://github.com/advisories/GHSA-r5fr-rjxr-66jc",
       "title": "lodash vulnerable to Code Injection via \`_.template\` imports key names",
       "severity": "high",
       "vulnerable_versions": ">=4.0.0 <=4.17.23",
+      "patched_versions": ">=4.17.24",
       "cwe": "CWE-94",
-      "cvss": {
-        "score": 8.1,
-        "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H"
+      "cves": [],
+      "github_advisory_id": "GHSA-r5fr-rjxr-66jc",
+      "module_name": "lodash",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
       },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
+    },
+    "1115810": {
       "findings": [
         {
           "version": "4.17.15",
@@ -7212,49 +8451,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "lodash",
-      "cves": [],
-      "patched_versions": ">=4.17.24",
-      "github_advisory_id": "GHSA-r5fr-rjxr-66jc"
-    },
-    "1115810": {
       "id": 1115810,
       "url": "https://github.com/advisories/GHSA-f23m-r3pf-42rh",
       "title": "lodash vulnerable to Prototype Pollution via array path bypass in \`_.unset\` and \`_.omit\`",
       "severity": "moderate",
       "vulnerable_versions": "<=4.17.23",
-      "cwe": "CWE-1321",
-      "cvss": {
-        "score": 6.5,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:L"
-      },
-      "findings": [
-        {
-          "version": "4.17.15",
-          "paths": [
-            ".>karma>lodash"
-          ],
-          "dev": false,
-          "optional": false,
-          "bundled": false
-        }
-      ],
-      "module_name": "lodash",
-      "cves": [],
       "patched_versions": ">=4.17.24",
-      "github_advisory_id": "GHSA-f23m-r3pf-42rh"
+      "cwe": "CWE-1321",
+      "cves": [],
+      "github_advisory_id": "GHSA-f23m-r3pf-42rh",
+      "module_name": "lodash",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1116270": {
-      "id": 1116270,
-      "url": "https://github.com/advisories/GHSA-vvjj-xcjg-gr5g",
-      "title": "Nodemailer Vulnerable to SMTP Command Injection via CRLF in Transport name Option (EHLO/HELO) ",
-      "severity": "moderate",
-      "vulnerable_versions": "<=8.0.4",
-      "cwe": "CWE-93",
-      "cvss": {
-        "score": 4.9,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:N/I:H/A:N"
-      },
       "findings": [
         {
           "version": "2.7.2",
@@ -7266,22 +8491,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "nodemailer",
-      "cves": [],
+      "id": 1116270,
+      "url": "https://github.com/advisories/GHSA-vvjj-xcjg-gr5g",
+      "title": "Nodemailer Vulnerable to SMTP Command Injection via CRLF in Transport name Option (EHLO/HELO) ",
+      "severity": "moderate",
+      "vulnerable_versions": "<=8.0.4",
       "patched_versions": ">=8.0.5",
-      "github_advisory_id": "GHSA-vvjj-xcjg-gr5g"
+      "cwe": "CWE-93",
+      "cves": [],
+      "github_advisory_id": "GHSA-vvjj-xcjg-gr5g",
+      "module_name": "nodemailer",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1116365": {
-      "id": 1116365,
-      "url": "https://github.com/advisories/GHSA-3p68-rc4w-qgx5",
-      "title": "Axios has a NO_PROXY Hostname Normalization Bypass Leads to SSRF",
-      "severity": "critical",
-      "vulnerable_versions": "<1.15.0",
-      "cwe": "CWE-441, CWE-918",
-      "cvss": {
-        "score": 0,
-        "vectorString": null
-      },
       "findings": [
         {
           "version": "0.15.3",
@@ -7293,22 +8531,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "axios",
-      "cves": [],
+      "id": 1116365,
+      "url": "https://github.com/advisories/GHSA-3p68-rc4w-qgx5",
+      "title": "Axios has a NO_PROXY Hostname Normalization Bypass Leads to SSRF",
+      "severity": "critical",
+      "vulnerable_versions": "<1.15.0",
       "patched_versions": ">=1.15.0",
-      "github_advisory_id": "GHSA-3p68-rc4w-qgx5"
+      "cwe": "CWE-441, CWE-918",
+      "cves": [],
+      "github_advisory_id": "GHSA-3p68-rc4w-qgx5",
+      "module_name": "axios",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1116560": {
-      "id": 1116560,
-      "url": "https://github.com/advisories/GHSA-r4q5-vmmm-2653",
-      "title": "follow-redirects leaks Custom Authentication Headers to Cross-Domain Redirect Targets",
-      "severity": "moderate",
-      "vulnerable_versions": "<=1.15.11",
-      "cwe": "CWE-200",
-      "cvss": {
-        "score": 0,
-        "vectorString": null
-      },
       "findings": [
         {
           "version": "1.0.0",
@@ -7329,22 +8580,35 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "follow-redirects",
-      "cves": [],
+      "id": 1116560,
+      "url": "https://github.com/advisories/GHSA-r4q5-vmmm-2653",
+      "title": "follow-redirects leaks Custom Authentication Headers to Cross-Domain Redirect Targets",
+      "severity": "moderate",
+      "vulnerable_versions": "<=1.15.11",
       "patched_versions": ">=1.15.12",
-      "github_advisory_id": "GHSA-r4q5-vmmm-2653"
+      "cwe": "CWE-200",
+      "cves": [],
+      "github_advisory_id": "GHSA-r4q5-vmmm-2653",
+      "module_name": "follow-redirects",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     },
     "1116605": {
-      "id": 1116605,
-      "url": "https://github.com/advisories/GHSA-fvcv-3m26-pcqx",
-      "title": "Axios has Unrestricted Cloud Metadata Exfiltration via Header Injection Chain",
-      "severity": "critical",
-      "vulnerable_versions": "<0.31.0",
-      "cwe": "CWE-113, CWE-444, CWE-918",
-      "cvss": {
-        "score": 10,
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H"
-      },
       "findings": [
         {
           "version": "0.15.3",
@@ -7356,10 +8620,33 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
           "bundled": false
         }
       ],
-      "module_name": "axios",
-      "cves": [],
+      "id": 1116605,
+      "url": "https://github.com/advisories/GHSA-fvcv-3m26-pcqx",
+      "title": "Axios has Unrestricted Cloud Metadata Exfiltration via Header Injection Chain",
+      "severity": "critical",
+      "vulnerable_versions": "<0.31.0",
       "patched_versions": ">=0.31.0",
-      "github_advisory_id": "GHSA-fvcv-3m26-pcqx"
+      "cwe": "CWE-113, CWE-444, CWE-918",
+      "cves": [],
+      "github_advisory_id": "GHSA-fvcv-3m26-pcqx",
+      "module_name": "axios",
+      "created": "",
+      "updated": "",
+      "access": "",
+      "overview": "",
+      "recommendation": "",
+      "references": "",
+      "found_by": {
+        "name": ""
+      },
+      "reported_by": {
+        "name": ""
+      },
+      "metadata": {
+        "module_type": "",
+        "exploitability": 0,
+        "affected_components": ""
+      }
     }
   },
   "muted": [],

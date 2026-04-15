@@ -100,7 +100,11 @@ export function buildBulkRequestBody (auditTree: AuditTree): Record<string, stri
       visit(child)
     }
   }
-  visit(auditTree)
+  // Skip the top level: auditTree.dependencies is keyed by importer id
+  // (e.g. `.` or `packages__foo`), which are not real package names.
+  for (const importer of Object.values(auditTree.dependencies ?? {})) {
+    visit(importer)
+  }
   const result: Record<string, string[]> = {}
   for (const [name, versions] of Object.entries(versionsByName)) {
     result[name] = [...versions]
@@ -177,7 +181,7 @@ function bulkResponseToAuditReport (bulk: BulkAdvisoriesResponse, auditTree: Aud
     muted: [],
     metadata: {
       vulnerabilities,
-      dependencies: totalDependencies,
+      dependencies: totalDependencies - devDependencies,
       devDependencies,
       optionalDependencies: 0,
       totalDependencies,
@@ -218,16 +222,30 @@ function satisfiesSafe (version: string, range: string): boolean {
 function normalizeAdvisory (adv: BulkAdvisory, moduleName: string, findings: AuditFinding[]): AuditAdvisory {
   const cwe = Array.isArray(adv.cwe) ? adv.cwe.join(', ') : adv.cwe
   return {
-    ...(adv as unknown as AuditAdvisory),
     findings,
-    module_name: adv.module_name ?? moduleName,
-    cves: adv.cves ?? [],
-    cwe: cwe ?? '',
+    id: adv.id,
+    url: adv.url ?? '',
+    title: adv.title ?? '',
+    severity: adv.severity,
+    vulnerable_versions: adv.vulnerable_versions,
     // The bulk endpoint doesn't return patched_versions. Infer it from the
     // vulnerable range for the most common advisory patterns so audit --fix
     // can still produce usable overrides.
     patched_versions: adv.patched_versions ?? inferPatchedVersions(adv.vulnerable_versions),
+    cwe: cwe ?? '',
+    cves: adv.cves ?? [],
     github_advisory_id: adv.github_advisory_id ?? deriveGithubAdvisoryId(adv.url),
+    module_name: adv.module_name ?? moduleName,
+    created: adv.created ?? '',
+    updated: adv.updated ?? '',
+    deleted: adv.deleted ?? undefined,
+    access: adv.access ?? '',
+    overview: adv.overview ?? '',
+    recommendation: adv.recommendation ?? '',
+    references: adv.references ?? '',
+    found_by: adv.found_by ?? { name: '' },
+    reported_by: adv.reported_by ?? { name: '' },
+    metadata: adv.metadata ?? { module_type: '', exploitability: 0, affected_components: '' },
   }
 }
 
