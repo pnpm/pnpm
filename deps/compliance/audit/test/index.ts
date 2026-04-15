@@ -504,7 +504,7 @@ describe('audit', () => {
         method: 'POST',
         headers: { authorization: 'Bearer test-token' },
       })
-      .reply(200, { actions: [], advisories: {}, metadata: { dependencies: 0, devDependencies: 0, optionalDependencies: 0, totalDependencies: 0, vulnerabilities: { critical: 0, high: 0, info: 0, low: 0, moderate: 0 } }, muted: [] })
+      .reply(200, {})
 
     try {
       const result = await audit(
@@ -527,7 +527,7 @@ describe('audit', () => {
       .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(200, (opts) => {
         capturedHeaders = opts.headers as Record<string, string>
-        return { actions: [], advisories: {}, metadata: { dependencies: 0, devDependencies: 0, optionalDependencies: 0, totalDependencies: 0, vulnerabilities: { critical: 0, high: 0, info: 0, low: 0, moderate: 0 } }, muted: [] }
+        return {}
       })
 
     try {

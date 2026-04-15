@@ -2743,6 +2743,9 @@ importers:
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.4
     devDependencies:
       '@pnpm/constants':
         specifier: workspace:*
@@ -2762,6 +2765,9 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.31.1
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.7.1
 
   deps/compliance/commands:
     dependencies:

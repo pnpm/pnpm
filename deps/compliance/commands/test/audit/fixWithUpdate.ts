@@ -16,6 +16,21 @@ import { MOCK_REGISTRY, MOCK_REGISTRY_OPTS } from './utils/options.js'
 
 const f = fixtures(import.meta.dirname)
 
+// The mock fixtures on disk are stored in the legacy /audits response shape
+// because they were originally captured against that endpoint. Convert to the
+// /advisories/bulk shape (keyed by module name) for use with the current client.
+async function loadBulkFixture (filePath: string): Promise<Record<string, unknown[]>> {
+  const raw = await readFile(filePath, 'utf-8')
+  const report = JSON.parse(raw) as { advisories?: Record<string, { module_name: string } & Record<string, unknown>> }
+  const bulk: Record<string, unknown[]> = {}
+  for (const advisory of Object.values(report.advisories ?? {})) {
+    const moduleName = advisory.module_name
+    if (!bulk[moduleName]) bulk[moduleName] = []
+    bulk[moduleName].push(advisory)
+  }
+  return bulk
+}
+
 describe('audit fix with update', () => {
   beforeEach(async () => {
     await setupMockAgent()
@@ -42,7 +57,7 @@ describe('audit fix with update', () => {
     expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
 
-    const mockResponse = await readFile(join(tmp, 'responses', 'top-level-vulnerability.json'), 'utf-8')
+    const mockResponse = await loadBulkFixture(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
@@ -108,7 +123,7 @@ The fixed vulnerabilities are:
     expect(originalLockfile!.packages![originalDepPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedDepPkgId]).toBeUndefined()
 
-    const mockResponse = await readFile(join(tmp, 'responses', 'top-level-vulnerability.json'), 'utf-8')
+    const mockResponse = await loadBulkFixture(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
@@ -169,7 +184,7 @@ The fixed vulnerabilities are:
     expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
 
-    const mockResponse = await readFile(join(tmp, 'responses', 'depth-2-vulnerability.json'), 'utf-8')
+    const mockResponse = await loadBulkFixture(join(tmp, 'responses', 'depth-2-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
@@ -220,7 +235,7 @@ The fixed vulnerabilities are:
     expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
 
-    const mockResponse = await readFile(join(tmp, 'responses', 'depth-3-vulnerability.json'), 'utf-8')
+    const mockResponse = await loadBulkFixture(join(tmp, 'responses', 'depth-3-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
@@ -274,7 +289,7 @@ The fixed vulnerabilities are:
     expect(originalLockfile!.packages).toBeDefined()
     expect(originalLockfile!.packages![pkgId]).toBeDefined()
 
-    const mockResponse = await readFile(join(tmp, 'responses', 'unfixable-vulnerability.json'), 'utf-8')
+    const mockResponse = await loadBulkFixture(join(tmp, 'responses', 'unfixable-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
@@ -338,7 +353,7 @@ The remaining vulnerabilities are:
     expect(originalLockfile!.packages![expectedPkgId1]).toBeUndefined()
     expect(originalLockfile!.packages![expectedPkgId2]).toBeUndefined()
 
-    const mockResponse = await readFile(join(tmp, 'responses', 'form-data-vulnerability.json'), 'utf-8')
+    const mockResponse = await loadBulkFixture(join(tmp, 'responses', 'form-data-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
@@ -404,7 +419,7 @@ The fixed vulnerabilities are:
     expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
 
-    const mockResponse = await readFile(join(tmp, 'responses', 'top-level-vulnerability.json'), 'utf-8')
+    const mockResponse = await loadBulkFixture(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
@@ -478,7 +493,7 @@ The fixed vulnerabilities are:
     expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
 
-    const mockResponse = await readFile(join(tmp, 'responses', 'depth-2-vulnerability.json'), 'utf-8')
+    const mockResponse = await loadBulkFixture(join(tmp, 'responses', 'depth-2-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
@@ -559,7 +574,7 @@ The fixed vulnerabilities are:
     expect(originalLockfile!.packages![originalDepPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedDepPkgId]).toBeUndefined()
 
-    const mockResponse = await readFile(join(tmp, 'responses', 'top-level-vulnerability.json'), 'utf-8')
+    const mockResponse = await loadBulkFixture(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
@@ -650,7 +665,7 @@ The fixed vulnerabilities are:
     expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
 
-    const mockResponse = await readFile(join(tmp, 'responses', 'top-level-vulnerability.json'), 'utf-8')
+    const mockResponse = await loadBulkFixture(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
@@ -738,7 +753,7 @@ The fixed vulnerabilities are:
     expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
 
-    const mockResponse = await readFile(join(tmp, 'responses', 'top-level-vulnerability.json'), 'utf-8')
+    const mockResponse = await loadBulkFixture(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)

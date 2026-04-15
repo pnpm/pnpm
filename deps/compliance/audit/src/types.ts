@@ -33,16 +33,16 @@ export type AuditLevelString = 'low' | 'moderate' | 'high' | 'critical'
 
 export type AuditLevelNumber = 0 | 1 | 2 | 3
 
+export interface AuditFinding {
+  version: string
+  paths: string[]
+  dev: boolean
+  optional: boolean
+  bundled: boolean
+}
+
 export interface AuditAdvisory {
-  findings: [
-    {
-      version: string
-      paths: string[]
-      dev: boolean
-      optional: boolean
-      bundled: boolean
-    }
-  ]
+  findings: AuditFinding[]
   id: number
   created: string
   updated: string
