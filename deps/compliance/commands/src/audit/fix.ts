@@ -30,11 +30,9 @@ function getFixableAdvisories (advisories: AuditAdvisory[], ignoreGhsas?: string
     advisories = advisories.filter(({ github_advisory_id: ghsaId }) => !ghsaId || !ignored.has(ghsaId))
   }
   // Only advisories with a known patched range can produce an override.
-  // patched_versions is undefined when pnpm couldn't infer a range from
-  // vulnerable_versions; "<0.0.0" is npm's sentinel for "no fix exists".
-  return advisories.filter(({ vulnerable_versions: vulnerableVersions, patched_versions: patchedVersions }) =>
-    vulnerableVersions !== '>=0.0.0' && patchedVersions != null && patchedVersions !== '<0.0.0'
-  )
+  // patched_versions is undefined when the range couldn't be inferred from
+  // vulnerable_versions — no override is possible in that case.
+  return advisories.filter(({ patched_versions: patchedVersions }) => patchedVersions != null)
 }
 
 function createOverrides (advisories: AuditAdvisory[]): Record<string, string> {
@@ -50,8 +48,7 @@ export function createMinimumReleaseAgeExcludes (advisories: AuditAdvisory[]): s
   const excludes = new Set<string>()
   for (const advisory of advisories) {
     const patchedVersions = advisory.patched_versions
-    if (!patchedVersions || patchedVersions === '<0.0.0') continue
-    if (advisory.vulnerable_versions === '>=0.0.0' || advisory.vulnerable_versions === '*') continue
+    if (!patchedVersions) continue
     const minVersion = semver.minVersion(patchedVersions)
     if (minVersion) {
       excludes.add(`${advisory.module_name}@${minVersion.version}`)

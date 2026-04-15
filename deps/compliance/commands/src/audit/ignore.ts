@@ -50,10 +50,9 @@ export async function ignore (opts: IgnoreVulnerabilitiesOptions): Promise<strin
   return [...diffGhsas]
 }
 
-// Advisories where npm explicitly says "no fix exists". patched_versions
-// being undefined only means pnpm couldn't infer a patched range from
-// vulnerable_versions — that's an unknown-fix case, not an unfixable one,
-// so --ignore-unfixable must not silently hide it.
+// Advisories for which no override can be produced — patched_versions is
+// undefined when pnpm couldn't infer a patched range from vulnerable_versions.
+// That is the only "no fix available" signal the bulk endpoint provides.
 function filterAdvisoriesWithNoResolutions (advisories: AuditAdvisory[]): AuditAdvisory[] {
-  return advisories.filter(({ patched_versions: patchedVersions }) => patchedVersions === '<0.0.0')
+  return advisories.filter(({ patched_versions: patchedVersions }) => patchedVersions == null)
 }

@@ -21,32 +21,16 @@ export { buildAuditPathIndex, lockfileToAuditRequest } from './lockfileToAuditIn
 export * from './types.js'
 
 // The shape of a single advisory returned by npm's /advisories/bulk endpoint.
-// Fields are optional because different registry implementations return different subsets.
+// Only the fields npm actually returns are declared here; every other field
+// on AuditAdvisory is filled locally (inferred from this data or defaulted)
+// so downstream consumers see a complete report.
 interface BulkAdvisory {
   id: number
   url?: string
   title?: string
   severity: AuditLevelString
   vulnerable_versions: string
-  patched_versions?: string
   cwe?: string | string[]
-  cves?: string[]
-  github_advisory_id?: string
-  module_name?: string
-  created?: string
-  updated?: string
-  deleted?: boolean | null
-  access?: string
-  overview?: string
-  recommendation?: string
-  references?: string
-  found_by?: { name: string } | null
-  reported_by?: { name: string } | null
-  metadata?: AuditAdvisory['metadata'] | null
-  npm_advisory_id?: unknown
-  // Findings may arrive from a registry that does not populate every boolean
-  // field, so treat them as partial and normalize before use.
-  findings?: Array<Partial<AuditFinding> & { version: string }>
 }
 
 type BulkAdvisoriesResponse = Record<string, BulkAdvisory[]>
@@ -148,43 +132,17 @@ function bulkResponseToAuditReport (bulk: BulkAdvisoriesResponse, auditRequest: 
 }
 
 function buildFindings (adv: BulkAdvisory, byVersion: Map<string, PathInfo> | undefined): AuditFinding[] {
-  // If the registry already populated findings (legacy or private-registry
-  // shape), validate them against the installed versions: drop entries
-  // whose version isn't in the lockfile or doesn't match vulnerable_versions,
-  // and prefer the locally-computed paths/dev/optional over whatever the
-  // registry reports so we can't be tricked into false positives.
-  if (adv.findings && adv.findings.length > 0) {
-    // No local index means the lockfile doesn't have this package at all —
-    // ignore the registry-supplied findings entirely so we don't report a
-    // vulnerability for something the user hasn't installed.
-    if (byVersion == null) return []
-    const findings: AuditFinding[] = []
-    for (const f of adv.findings) {
-      if (!satisfiesSafe(f.version, adv.vulnerable_versions)) continue
-      const installed = byVersion.get(f.version)
-      if (installed == null) continue
-      findings.push({
-        version: f.version,
-        paths: installed.paths,
-        dev: installed.dev,
-        optional: installed.optional,
-        bundled: f.bundled ?? false,
-      })
-    }
-    return findings
-  }
+  if (byVersion == null) return []
   const findings: AuditFinding[] = []
-  if (byVersion) {
-    for (const [version, info] of byVersion) {
-      if (satisfiesSafe(version, adv.vulnerable_versions)) {
-        findings.push({
-          version,
-          paths: info.paths,
-          dev: info.dev,
-          optional: info.optional,
-          bundled: false,
-        })
-      }
+  for (const [version, info] of byVersion) {
+    if (satisfiesSafe(version, adv.vulnerable_versions)) {
+      findings.push({
+        version,
+        paths: info.paths,
+        dev: info.dev,
+        optional: info.optional,
+        bundled: false,
+      })
     }
   }
   return findings
@@ -218,6 +176,8 @@ function satisfiesSafe (version: string, range: string): boolean {
 
 function normalizeAdvisory (adv: BulkAdvisory, moduleName: string, findings: AuditFinding[]): AuditAdvisory {
   const cwe = Array.isArray(adv.cwe) ? adv.cwe.join(', ') : adv.cwe
+  // Every field that npm's bulk endpoint doesn't return gets a static default
+  // so AuditAdvisory stays fully populated for downstream consumers.
   return {
     findings,
     id: adv.id,
@@ -225,27 +185,23 @@ function normalizeAdvisory (adv: BulkAdvisory, moduleName: string, findings: Aud
     title: adv.title ?? '',
     severity: adv.severity,
     vulnerable_versions: adv.vulnerable_versions,
-    // The bulk endpoint doesn't return patched_versions. Infer it from the
-    // vulnerable range for the most common advisory patterns so audit --fix
-    // can still produce usable overrides. Left undefined when inference fails
-    // (which is distinct from "<0.0.0", npm's sentinel for "no fix exists"),
-    // so downstream handlers can tell "unknown" from "unfixable". `||` (not
-    // `??`) so an empty string from the registry is treated as missing.
-    patched_versions: adv.patched_versions || inferPatchedVersions(adv.vulnerable_versions),
+    // Inferred from vulnerable_versions; undefined when inference fails, which
+    // `audit --fix` and `--ignore-unfixable` treat as "no fix available".
+    patched_versions: inferPatchedVersions(adv.vulnerable_versions),
     cwe: cwe ?? '',
-    cves: adv.cves ?? [],
-    github_advisory_id: adv.github_advisory_id || deriveGithubAdvisoryId(adv.url),
-    module_name: adv.module_name || moduleName,
-    created: adv.created ?? '',
-    updated: adv.updated ?? '',
-    deleted: adv.deleted ?? undefined,
-    access: adv.access ?? '',
-    overview: adv.overview ?? '',
-    recommendation: adv.recommendation ?? '',
-    references: adv.references ?? '',
-    found_by: adv.found_by ?? { name: '' },
-    reported_by: adv.reported_by ?? { name: '' },
-    metadata: adv.metadata ?? { module_type: '', exploitability: 0, affected_components: '' },
+    cves: [],
+    github_advisory_id: deriveGithubAdvisoryId(adv.url),
+    module_name: moduleName,
+    created: '',
+    updated: '',
+    deleted: undefined,
+    access: '',
+    overview: '',
+    recommendation: '',
+    references: '',
+    found_by: { name: '' },
+    reported_by: { name: '' },
+    metadata: { module_type: '', exploitability: 0, affected_components: '' },
   }
 }
 
