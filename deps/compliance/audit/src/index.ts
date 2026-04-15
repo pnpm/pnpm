@@ -207,7 +207,9 @@ function inferPatchedVersions (vulnerableRange: string): string | undefined {
 function deriveGithubAdvisoryId (url: string | undefined): string {
   if (!url) return ''
   const match = url.match(/\/(GHSA-[\w-]+)/i)
-  return match ? match[1] : ''
+  // GHSA IDs are canonically uppercase; normalize so downstream set lookups
+  // (ignore lists, fix filtering) are consistent regardless of url casing.
+  return match ? match[1].toUpperCase() : ''
 }
 
 interface AuthHeaders {

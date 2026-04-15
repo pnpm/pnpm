@@ -303,9 +303,11 @@ ${newIgnores.join('\n')}`,
     .reduce((sum: number, vulnerabilitiesCount: number) => sum + vulnerabilitiesCount, 0)
   const ignoreGhsas = opts.auditConfig?.ignoreGhsas
   if (ignoreGhsas?.length) {
-    const ignoreSet = new Set(ignoreGhsas)
+    // Compare GHSA ids case-insensitively so stored entries with varying
+    // casing still match the canonical uppercase form on the advisory.
+    const ignoreSet = new Set(ignoreGhsas.map((ghsaId) => ghsaId.trim().toUpperCase()))
     auditReport.advisories = pickBy(({ github_advisory_id: githubAdvisoryId, severity }) => {
-      if (!ignoreSet.has(githubAdvisoryId)) {
+      if (!ignoreSet.has(githubAdvisoryId.toUpperCase())) {
         return true
       }
       ignoredVulnerabilities[severity as AuditLevelString] += 1

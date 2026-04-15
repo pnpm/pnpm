@@ -16,7 +16,10 @@ export interface IgnoreVulnerabilitiesOptions {
 }
 
 export async function ignore (opts: IgnoreVulnerabilitiesOptions): Promise<string[]> {
-  const currentGhsas = opts?.auditConfig?.ignoreGhsas ?? []
+  // GHSA IDs are canonically uppercase; normalize on read/write so a stored
+  // "ghsa-..." or uppercase user input both match the derived id at filter
+  // time.
+  const currentGhsas = (opts?.auditConfig?.ignoreGhsas ?? []).map(normalizeGhsaId)
   const currentUniqueGhsas = new Set(currentGhsas)
   const advisoriesWithNoResolutions = filterAdvisoriesWithNoResolutions(Object.values(opts.auditReport.advisories))
 
@@ -28,11 +31,11 @@ export async function ignore (opts: IgnoreVulnerabilitiesOptions): Promise<strin
           `Cannot ignore advisory ${advisory.id} (${advisory.module_name}): the registry did not provide a GHSA id or a resolvable url.`
         )
       }
-      currentUniqueGhsas.add(advisory.github_advisory_id)
+      currentUniqueGhsas.add(normalizeGhsaId(advisory.github_advisory_id))
     }
   } else if (opts.ignore) {
     for (const ghsa of opts.ignore) {
-      currentUniqueGhsas.add(ghsa)
+      currentUniqueGhsas.add(normalizeGhsaId(ghsa))
     }
   }
 
@@ -55,4 +58,8 @@ export async function ignore (opts: IgnoreVulnerabilitiesOptions): Promise<strin
 // That is the only "no fix available" signal the bulk endpoint provides.
 function filterAdvisoriesWithNoResolutions (advisories: AuditAdvisory[]): AuditAdvisory[] {
   return advisories.filter(({ patched_versions: patchedVersions }) => patchedVersions == null)
+}
+
+function normalizeGhsaId (ghsaId: string): string {
+  return ghsaId.trim().toUpperCase()
 }

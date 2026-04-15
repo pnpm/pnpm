@@ -25,7 +25,7 @@ const UNFIXABLE_RESPONSE = {
   axios: [
     {
       id: 90000001,
-      url: 'https://github.com/advisories/GHSA-unfixable-test-0001',
+      url: 'https://github.com/advisories/GHSA-UNFIXABLE-TEST-0001',
       title: 'unfixable axios advisory used for tests',
       severity: 'high',
       vulnerable_versions: '>=0.0.0',
@@ -33,7 +33,7 @@ const UNFIXABLE_RESPONSE = {
     },
     {
       id: 90000002,
-      url: 'https://github.com/advisories/GHSA-unfixable-test-0002',
+      url: 'https://github.com/advisories/GHSA-UNFIXABLE-TEST-0002',
       title: 'another unfixable axios advisory used for tests',
       severity: 'moderate',
       vulnerable_versions: '*',
@@ -64,7 +64,7 @@ test('ignores are added for vulnerable dependencies with no resolutions', async 
   const manifest = readYamlFileSync<any>(path.join(tmp, 'pnpm-workspace.yaml')) // eslint-disable-line
   const ghsaList = manifest.auditConfig?.ignoreGhsas
   expect(ghsaList?.length).toBe(2)
-  expect(ghsaList).toStrictEqual(expect.arrayContaining(['GHSA-unfixable-test-0001', 'GHSA-unfixable-test-0002']))
+  expect(ghsaList).toStrictEqual(expect.arrayContaining(['GHSA-UNFIXABLE-TEST-0001', 'GHSA-UNFIXABLE-TEST-0002']))
 })
 
 test('the specified vulnerabilities are ignored', async () => {
@@ -87,7 +87,8 @@ test('the specified vulnerabilities are ignored', async () => {
   expect(output).toContain('1 new vulnerabilities were ignored')
 
   const manifest = readYamlFileSync<any>(path.join(tmp, 'pnpm-workspace.yaml')) // eslint-disable-line
-  expect(manifest.auditConfig?.ignoreGhsas).toStrictEqual(['GHSA-cph5-m8f7-6c5x'])
+  // Stored canonicalized to uppercase regardless of the user-supplied casing.
+  expect(manifest.auditConfig?.ignoreGhsas).toStrictEqual(['GHSA-CPH5-M8F7-6C5X'])
 })
 
 test('no ignores are added if no vulnerabilities are found', async () => {
@@ -113,8 +114,8 @@ test('no ignores are added if no vulnerabilities are found', async () => {
 test('ignored GHSAs are not duplicated', async () => {
   const tmp = f.prepare('has-vulnerabilities')
   const existingGhsas = [
-    'GHSA-unfixable-test-0001',
-    'GHSA-unfixable-test-0002',
+    'GHSA-UNFIXABLE-TEST-0001',
+    'GHSA-UNFIXABLE-TEST-0002',
   ]
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))

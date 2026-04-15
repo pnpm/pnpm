@@ -26,8 +26,9 @@ export async function fix (auditReport: AuditReport, opts: AuditOptions): Promis
 
 function getFixableAdvisories (advisories: AuditAdvisory[], ignoreGhsas?: string[]): AuditAdvisory[] {
   if (ignoreGhsas) {
-    const ignored = new Set(ignoreGhsas)
-    advisories = advisories.filter(({ github_advisory_id: ghsaId }) => !ghsaId || !ignored.has(ghsaId))
+    // Normalize on both sides so ignore entries match regardless of casing.
+    const ignored = new Set(ignoreGhsas.map((ghsaId) => ghsaId.trim().toUpperCase()))
+    advisories = advisories.filter(({ github_advisory_id: ghsaId }) => !ghsaId || !ignored.has(ghsaId.toUpperCase()))
   }
   // Only advisories with a known patched range can produce an override.
   // patched_versions is undefined when the range couldn't be inferred from
