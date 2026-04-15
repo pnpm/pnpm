@@ -82,7 +82,7 @@ test('GHSAs in the ignore list are not added as overrides', async () => {
     auditLevel: 'moderate',
     auditConfig: {
       ignoreGhsas: [
-        // Incorrect Comparison in axios (<=0.18.0)
+        // Denial of Service in axios (<=0.18.0)
         'GHSA-42xw-2xvc-qx8m',
       ],
     },

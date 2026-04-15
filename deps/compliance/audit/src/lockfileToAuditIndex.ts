@@ -48,12 +48,15 @@ export function lockfileToAuditRequest (
   const depTypes = opts.depTypes ?? detectDepTypes(lockfile)
   const optionalOnly = opts.optionalOnly ?? collectOptionalOnlyDepPaths(lockfile)
 
-  const request: Record<string, string[]> = {}
+  // Use null-prototype objects for records keyed by package names so a
+  // hostile or unusual package name (e.g. "__proto__") cannot pollute the
+  // prototype or overwrite inherited properties.
+  const request: Record<string, string[]> = Object.create(null)
   // Per (name, version) classification. Counted as dev/optional only while
   // every observed occurrence is dev-only / optional-only; once a non-dev or
   // non-optional occurrence is seen, the flag is cleared and the counter
   // decremented.
-  const versionStatesByName: Record<string, Map<string, { devOnly: boolean, optionalOnly: boolean }>> = {}
+  const versionStatesByName: Record<string, Map<string, { devOnly: boolean, optionalOnly: boolean }>> = Object.create(null)
   let totalDependencies = 0
   let dependencies = 0
   let devDependencies = 0
@@ -132,7 +135,9 @@ export function buildAuditPathIndex (
   vulnerableNames: Set<string>,
   opts: AuditIndexOptions
 ): AuditPathIndex {
-  const paths: AuditPathIndex = {}
+  // Null-prototype record keyed by package name to avoid prototype pollution
+  // from registry-supplied or lockfile-supplied names.
+  const paths: AuditPathIndex = Object.create(null)
   const depTypes = opts.depTypes ?? detectDepTypes(lockfile)
   const optionalOnly = opts.optionalOnly ?? collectOptionalOnlyDepPaths(lockfile)
 
