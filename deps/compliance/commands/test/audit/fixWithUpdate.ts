@@ -42,7 +42,7 @@ describe('audit fix with update', () => {
     expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
 
-    const mockResponse = await loadJsonFile(join(tmp, 'responses', 'top-level-vulnerability.json'))
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
@@ -108,7 +108,7 @@ The fixed vulnerabilities are:
     expect(originalLockfile!.packages![originalDepPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedDepPkgId]).toBeUndefined()
 
-    const mockResponse = await loadJsonFile(join(tmp, 'responses', 'top-level-vulnerability.json'))
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
@@ -169,7 +169,7 @@ The fixed vulnerabilities are:
     expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
 
-    const mockResponse = await loadJsonFile(join(tmp, 'responses', 'depth-2-vulnerability.json'))
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'depth-2-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
@@ -220,7 +220,7 @@ The fixed vulnerabilities are:
     expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
 
-    const mockResponse = await loadJsonFile(join(tmp, 'responses', 'depth-3-vulnerability.json'))
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'depth-3-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
@@ -274,7 +274,7 @@ The fixed vulnerabilities are:
     expect(originalLockfile!.packages).toBeDefined()
     expect(originalLockfile!.packages![pkgId]).toBeDefined()
 
-    const mockResponse = await loadJsonFile(join(tmp, 'responses', 'unfixable-vulnerability.json'))
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'unfixable-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
@@ -338,7 +338,7 @@ The remaining vulnerabilities are:
     expect(originalLockfile!.packages![expectedPkgId1]).toBeUndefined()
     expect(originalLockfile!.packages![expectedPkgId2]).toBeUndefined()
 
-    const mockResponse = await loadJsonFile(join(tmp, 'responses', 'form-data-vulnerability.json'))
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'form-data-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
@@ -404,7 +404,7 @@ The fixed vulnerabilities are:
     expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
 
-    const mockResponse = await loadJsonFile(join(tmp, 'responses', 'top-level-vulnerability.json'))
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
@@ -478,7 +478,7 @@ The fixed vulnerabilities are:
     expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
 
-    const mockResponse = await loadJsonFile(join(tmp, 'responses', 'depth-2-vulnerability.json'))
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'depth-2-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
@@ -559,7 +559,7 @@ The fixed vulnerabilities are:
     expect(originalLockfile!.packages![originalDepPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedDepPkgId]).toBeUndefined()
 
-    const mockResponse = await loadJsonFile(join(tmp, 'responses', 'top-level-vulnerability.json'))
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
@@ -650,7 +650,7 @@ The fixed vulnerabilities are:
     expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
 
-    const mockResponse = await loadJsonFile(join(tmp, 'responses', 'top-level-vulnerability.json'))
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
@@ -738,7 +738,7 @@ The fixed vulnerabilities are:
     expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
 
-    const mockResponse = await loadJsonFile(join(tmp, 'responses', 'top-level-vulnerability.json'))
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)

@@ -9,7 +9,7 @@
 
 The bulk endpoint does not return CVE identifiers at all. As a consequence, CVE-based filtering has been replaced with GitHub advisory ID (GHSA) filtering:
 
-- `auditConfig.ignoreCves` → `auditConfig.ignoreGhsas` (the previous key is no longer recognised)
+- `auditConfig.ignoreCves` → `auditConfig.ignoreGhsas` (the previous key is no longer recognized)
 - `pnpm audit --ignore <id>` / `pnpm audit --ignore-unfixable` now read and write GHSAs instead of CVEs
 - GHSAs are derived from each advisory's `url` (`https://github.com/advisories/GHSA-xxxx-xxxx-xxxx`)
 
