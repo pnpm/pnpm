@@ -118,9 +118,7 @@ function bulkResponseToAuditReport (bulk: BulkAdvisoriesResponse, auditRequest: 
   }
 
   return {
-    actions: [],
     advisories,
-    muted: [],
     metadata: {
       vulnerabilities,
       dependencies: auditRequest.dependencies,
@@ -176,32 +174,17 @@ function satisfiesSafe (version: string, range: string): boolean {
 
 function normalizeAdvisory (adv: BulkAdvisory, moduleName: string, findings: AuditFinding[]): AuditAdvisory {
   const cwe = Array.isArray(adv.cwe) ? adv.cwe.join(', ') : adv.cwe
-  // Every field that npm's bulk endpoint doesn't return gets a static default
-  // so AuditAdvisory stays fully populated for downstream consumers.
   return {
     findings,
     id: adv.id,
-    url: adv.url ?? '',
     title: adv.title ?? '',
-    severity: adv.severity,
-    vulnerable_versions: adv.vulnerable_versions,
-    // Inferred from vulnerable_versions; undefined when inference fails, which
-    // `audit --fix` and `--ignore-unfixable` treat as "no fix available".
-    patched_versions: inferPatchedVersions(adv.vulnerable_versions),
-    cwe: cwe ?? '',
-    cves: [],
-    github_advisory_id: deriveGithubAdvisoryId(adv.url),
     module_name: moduleName,
-    created: '',
-    updated: '',
-    deleted: undefined,
-    access: '',
-    overview: '',
-    recommendation: '',
-    references: '',
-    found_by: { name: '' },
-    reported_by: { name: '' },
-    metadata: { module_type: '', exploitability: 0, affected_components: '' },
+    vulnerable_versions: adv.vulnerable_versions,
+    patched_versions: inferPatchedVersions(adv.vulnerable_versions),
+    severity: adv.severity,
+    cwe: cwe ?? '',
+    github_advisory_id: deriveGithubAdvisoryId(adv.url),
+    url: adv.url ?? '',
   }
 }
 
