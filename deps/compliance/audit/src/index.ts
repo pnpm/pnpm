@@ -8,6 +8,8 @@ import semver from 'semver'
 import { type AuditNode, type AuditTree, lockfileToAuditTree } from './lockfileToAuditTree.js'
 import type { AuditAdvisory, AuditFinding, AuditLevelString, AuditReport, AuditVulnerabilityCounts } from './types.js'
 
+export type { AuditNode, AuditTree } from './lockfileToAuditTree.js'
+export { lockfileToAuditTree } from './lockfileToAuditTree.js'
 export * from './types.js'
 
 // The shape of a single advisory returned by npm's /advisories/bulk endpoint.
@@ -86,7 +88,7 @@ export async function audit (
   throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${auditUrl}) responded with ${res.status}: ${await res.text()}`)
 }
 
-function buildBulkRequestBody (auditTree: AuditTree): Record<string, string[]> {
+export function buildBulkRequestBody (auditTree: AuditTree): Record<string, string[]> {
   const versionsByName: Record<string, Set<string>> = {}
   const visit = (node: AuditNode): void => {
     if (!node.dependencies) return
@@ -221,9 +223,30 @@ function normalizeAdvisory (adv: BulkAdvisory, moduleName: string, findings: Aud
     module_name: adv.module_name ?? moduleName,
     cves: adv.cves ?? [],
     cwe: cwe ?? '',
-    patched_versions: adv.patched_versions ?? '',
-    github_advisory_id: adv.github_advisory_id ?? '',
+    // The bulk endpoint doesn't return patched_versions. Infer it from the
+    // vulnerable range for the most common advisory patterns so audit --fix
+    // can still produce usable overrides.
+    patched_versions: adv.patched_versions ?? inferPatchedVersions(adv.vulnerable_versions),
+    github_advisory_id: adv.github_advisory_id ?? deriveGithubAdvisoryId(adv.url),
   }
+}
+
+function inferPatchedVersions (vulnerableRange: string): string {
+  const trimmed = vulnerableRange.trim()
+  const ltMatch = trimmed.match(/(?:^|\s)<(\d+\.\d+\.\d[\w\-.+]*)\s*$/)
+  if (ltMatch) return `>=${ltMatch[1]}`
+  const lteMatch = trimmed.match(/(?:^|\s)<=(\d+\.\d+\.\d[\w\-.+]*)\s*$/)
+  if (lteMatch) {
+    const next = semver.inc(lteMatch[1], 'patch')
+    if (next) return `>=${next}`
+  }
+  return ''
+}
+
+function deriveGithubAdvisoryId (url: string | undefined): string {
+  if (!url) return ''
+  const match = url.match(/\/(GHSA-[\w-]+)/i)
+  return match ? match[1] : ''
 }
 
 interface AuthHeaders {

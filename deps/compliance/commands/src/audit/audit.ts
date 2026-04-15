@@ -9,7 +9,7 @@ import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import type { Registries } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk, { type ChalkInstance } from 'chalk'
-import { difference, pick, pickBy } from 'ramda'
+import { pick, pickBy } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { fix } from './fix.js'
@@ -121,11 +121,11 @@ export function help (): string {
             name: '--ignore-registry-errors',
           },
           {
-            description: 'Ignore a vulnerability by CVE',
+            description: 'Ignore a vulnerability by its GitHub advisory ID (e.g. GHSA-xxxx-xxxx-xxxx)',
             name: '--ignore <vulnerability>',
           },
           {
-            description: 'Ignore all CVEs with no resolution',
+            description: 'Ignore all vulnerabilities with no resolution',
             name: '--ignore-unfixable',
           },
         ],
@@ -304,16 +304,6 @@ ${newIgnores.join('\n')}`,
   if (ignoreGhsas) {
     auditReport.advisories = pickBy(({ github_advisory_id: githubAdvisoryId, severity }) => {
       if (!ignoreGhsas.includes(githubAdvisoryId)) {
-        return true
-      }
-      ignoredVulnerabilities[severity as AuditLevelString] += 1
-      return false
-    }, auditReport.advisories)
-  }
-  const ignoreCves = opts.auditConfig?.ignoreCves
-  if (ignoreCves) {
-    auditReport.advisories = pickBy(({ cves, severity }) => {
-      if (cves.length === 0 || difference(cves, ignoreCves).length > 0) {
         return true
       }
       ignoredVulnerabilities[severity as AuditLevelString] += 1

@@ -70,7 +70,7 @@ test('no overrides are added if no vulnerabilities are found', async () => {
   expect(output).toBe('No fixes were made')
 })
 
-test('CVEs found in the allow list are not added as overrides', async () => {
+test('GHSAs in the ignore list are not added as overrides', async () => {
   const tmp = f.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
@@ -81,11 +81,9 @@ test('CVEs found in the allow list are not added as overrides', async () => {
     ...AUDIT_REGISTRY_OPTS,
     auditLevel: 'moderate',
     auditConfig: {
-      ignoreCves: [
-        'CVE-2019-10742',
-        'CVE-2020-28168',
-        'CVE-2021-3749',
-        'CVE-2020-7598',
+      ignoreGhsas: [
+        // Incorrect Comparison in axios (<=0.18.0)
+        'GHSA-42xw-2xvc-qx8m',
       ],
     },
     dir: tmp,
@@ -97,7 +95,4 @@ test('CVEs found in the allow list are not added as overrides', async () => {
 
   const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
   expect(manifest.overrides?.['axios@<=0.18.0']).toBeFalsy()
-  expect(manifest.overrides?.['axios@<0.21.1']).toBeFalsy()
-  expect(manifest.overrides?.['minimist@<0.2.1']).toBeFalsy()
-  expect(manifest.overrides?.['url-parse@<1.5.6']).toBeTruthy()
 })

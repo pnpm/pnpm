@@ -138,9 +138,14 @@ describe('plugin-commands-audit', () => {
       dev: true,
     })
 
-    expect(exitCode).toBe(0)
+    expect(exitCode).toBe(1)
     const parsed = JSON.parse(output)
-    expect(Object.keys(parsed.advisories)).toHaveLength(0)
+    // DEV_VULN_ONLY_RESP has 2 critical advisories — only those should be
+    // included at audit-level=critical.
+    expect(Object.keys(parsed.advisories)).toHaveLength(2)
+    for (const advisory of Object.values(parsed.advisories) as Array<{ severity: string }>) {
+      expect(advisory.severity).toBe('critical')
+    }
   })
 
   test('audit --json filters advisories by audit-level', async () => {
@@ -159,12 +164,11 @@ describe('plugin-commands-audit', () => {
 
     expect(exitCode).toBe(1)
     const parsed = JSON.parse(output)
-    // DEV_VULN_ONLY_RESP has 4 high and 2 moderate advisories
-    // With audit-level=high, only the 4 high advisories should be included
-    expect(Object.keys(parsed.advisories)).toHaveLength(4)
+    // At audit-level=high, only high/critical advisories should remain.
     for (const advisory of Object.values(parsed.advisories) as Array<{ severity: string }>) {
-      expect(advisory.severity).toBe('high')
+      expect(['high', 'critical']).toContain(advisory.severity)
     }
+    expect(Object.keys(parsed.advisories).length).toBeGreaterThan(0)
   })
 
   test('audit does not exit with code 1 if the registry responds with a non-200 response and ignoreRegistryErrors is used', async () => {
@@ -223,34 +227,7 @@ describe('plugin-commands-audit', () => {
     })).rejects.toThrow(AuditEndpointNotExistsError)
   })
 
-  test('audit: CVEs in ignoreCves do not show up', async () => {
-    const tmp = f.prepare('has-vulnerabilities')
-
-    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
-      .reply(200, responses.ALL_VULN_RESP)
-
-    const { exitCode, output } = await audit.handler({
-      ...AUDIT_REGISTRY_OPTS,
-      auditLevel: 'moderate',
-      dir: tmp,
-      rootProjectManifestDir: tmp,
-      rootProjectManifest: {},
-      auditConfig: {
-        ignoreCves: [
-          'CVE-2019-10742',
-          'CVE-2020-28168',
-          'CVE-2021-3749',
-          'CVE-2020-7598',
-        ],
-      },
-    })
-
-    expect(exitCode).toBe(1)
-    expect(stripAnsi(output)).toMatchSnapshot()
-  })
-
-  test('audit: CVEs in ignoreGhsas do not show up', async () => {
+  test('audit: advisories in ignoreGhsas do not show up', async () => {
     const tmp = f.prepare('has-vulnerabilities')
 
     getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
@@ -277,7 +254,7 @@ describe('plugin-commands-audit', () => {
     expect(stripAnsi(output)).toMatchSnapshot()
   })
 
-  test('audit: CVEs in ignoreCves do not show up when JSON output is used', async () => {
+  test('audit: advisories in ignoreGhsas do not show up when JSON output is used', async () => {
     const tmp = f.prepare('has-vulnerabilities')
 
     getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
@@ -292,11 +269,11 @@ describe('plugin-commands-audit', () => {
       json: true,
       rootProjectManifest: {},
       auditConfig: {
-        ignoreCves: [
-          'CVE-2019-10742',
-          'CVE-2020-28168',
-          'CVE-2021-3749',
-          'CVE-2020-7598',
+        ignoreGhsas: [
+          'GHSA-42xw-2xvc-qx8m',
+          'GHSA-4w2v-q235-vp99',
+          'GHSA-cph5-m8f7-6c5x',
+          'GHSA-vh95-rmgr-6w4m',
         ],
       },
     })

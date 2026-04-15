@@ -1,6 +1,5 @@
 import { writeSettings } from '@pnpm/config.writer'
 import type { AuditAdvisory, AuditReport } from '@pnpm/deps.compliance.audit'
-import { difference } from 'ramda'
 import semver from 'semver'
 
 import type { AuditOptions } from './audit.js'
@@ -11,7 +10,7 @@ export interface FixResult {
 }
 
 export async function fix (auditReport: AuditReport, opts: AuditOptions): Promise<FixResult> {
-  const fixableAdvisories = getFixableAdvisories(Object.values(auditReport.advisories), opts.auditConfig?.ignoreCves)
+  const fixableAdvisories = getFixableAdvisories(Object.values(auditReport.advisories), opts.auditConfig?.ignoreGhsas)
   const vulnOverrides = createOverrides(fixableAdvisories)
   if (Object.values(vulnOverrides).length === 0) return { vulnOverrides, addedAgeExcludes: [] }
   const addedAgeExcludes = opts.minimumReleaseAge ? createMinimumReleaseAgeExcludes(fixableAdvisories) : []
@@ -25,12 +24,13 @@ export async function fix (auditReport: AuditReport, opts: AuditOptions): Promis
   return { vulnOverrides, addedAgeExcludes }
 }
 
-function getFixableAdvisories (advisories: AuditAdvisory[], ignoreCves?: string[]): AuditAdvisory[] {
-  if (ignoreCves) {
-    advisories = advisories.filter(({ cves }) => difference(cves, ignoreCves).length > 0)
+function getFixableAdvisories (advisories: AuditAdvisory[], ignoreGhsas?: string[]): AuditAdvisory[] {
+  if (ignoreGhsas) {
+    const ignored = new Set(ignoreGhsas)
+    advisories = advisories.filter(({ github_advisory_id: ghsaId }) => !ghsaId || !ignored.has(ghsaId))
   }
   return advisories
-    .filter(({ vulnerable_versions: vulnerableVersions, patched_versions: patchedVersions }) => vulnerableVersions !== '>=0.0.0' && patchedVersions !== '<0.0.0')
+    .filter(({ vulnerable_versions: vulnerableVersions, patched_versions: patchedVersions }) => vulnerableVersions !== '>=0.0.0' && patchedVersions !== '<0.0.0' && patchedVersions !== '')
 }
 
 function createOverrides (advisories: AuditAdvisory[]): Record<string, string> {

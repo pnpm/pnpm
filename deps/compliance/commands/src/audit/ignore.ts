@@ -15,32 +15,32 @@ export interface IgnoreVulnerabilitiesOptions {
 }
 
 export async function ignore (opts: IgnoreVulnerabilitiesOptions): Promise<string[]> {
-  const currentCves = opts?.auditConfig?.ignoreCves ?? []
-  const currentUniqueCves = new Set(currentCves)
+  const currentGhsas = opts?.auditConfig?.ignoreGhsas ?? []
+  const currentUniqueGhsas = new Set(currentGhsas)
   const advisoryWthNoResolutions = filterAdvisoriesWithNoResolutions(Object.values(opts.auditReport.advisories))
 
   if (opts.ignoreUnfixable) {
     Object.values(advisoryWthNoResolutions).forEach((advisory: AuditAdvisory) => {
-      advisory.cves.forEach((cve) => currentUniqueCves.add(cve))
+      if (advisory.github_advisory_id) currentUniqueGhsas.add(advisory.github_advisory_id)
     })
   } else {
-    opts.ignore?.forEach((cve) => currentUniqueCves.add(cve))
+    opts.ignore?.forEach((ghsa) => currentUniqueGhsas.add(ghsa))
   }
 
-  const newIgnoreCves = currentUniqueCves.size > 0 ? Array.from(currentUniqueCves) : undefined
-  const diffCve = difference(newIgnoreCves ?? [], currentCves)
+  const newIgnoreGhsas = currentUniqueGhsas.size > 0 ? Array.from(currentUniqueGhsas) : undefined
+  const diffGhsas = difference(newIgnoreGhsas ?? [], currentGhsas)
   await writeSettings({
     ...opts,
     updatedSettings: {
       auditConfig: {
         ...opts.auditConfig,
-        ignoreCves: newIgnoreCves,
+        ignoreGhsas: newIgnoreGhsas,
       },
     },
   })
-  return [...diffCve]
+  return [...diffGhsas]
 }
 
 function filterAdvisoriesWithNoResolutions (advisories: AuditAdvisory[]) {
-  return advisories.filter(({ patched_versions: patchedVersions }) => patchedVersions === '<0.0.0')
+  return advisories.filter(({ patched_versions: patchedVersions }) => patchedVersions === '<0.0.0' || patchedVersions === '')
 }
