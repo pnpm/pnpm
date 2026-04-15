@@ -78,7 +78,7 @@ import { lexCompare } from '@pnpm/util.lex-comparator'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { isSubdir } from 'is-subdir'
 import pLimit from 'p-limit'
-import { clone, isEmpty, map as mapValues, pipeWith, props } from 'ramda'
+import { clone, isEmpty, map as mapValues, props } from 'ramda'
 import semver from 'semver'
 
 import { parseWantedDependencies } from '../parseWantedDependencies.js'
@@ -1355,9 +1355,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     stage: 'resolution_done',
   })
 
-  newLockfile = ((opts.hooks?.afterAllResolved) != null)
-    ? await pipeWith(async (f, res) => f(await res), opts.hooks.afterAllResolved as any)(newLockfile) as LockfileObject // eslint-disable-line
-    : newLockfile
+  if (opts.hooks?.afterAllResolved != null) {
+    for (const hook of opts.hooks.afterAllResolved) {
+      // Hooks must run sequentially: each hook sees the lockfile produced by the previous one.
+      // eslint-disable-next-line no-await-in-loop
+      newLockfile = await hook(newLockfile)
+    }
+  }
 
   if (opts.updateLockfileMinorVersion) {
     newLockfile.lockfileVersion = LOCKFILE_VERSION

@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { jest } from '@jest/globals'
-import type { Fetchers, FetchFunction, FetchOptions } from '@pnpm/fetching.fetcher-base'
+import type { BinaryFetcher, DirectoryFetcher, Fetchers, FetchFunction, FetchOptions, GitFetcher } from '@pnpm/fetching.fetcher-base'
 import { pickFetcher } from '@pnpm/fetching.pick-fetcher'
 import { createTarballFetcher } from '@pnpm/fetching.tarball-fetcher'
 import type { CustomFetcher } from '@pnpm/hooks.types'
@@ -37,9 +37,9 @@ function createMockFetchers (partial: Partial<Fetchers> = {}): Fetchers {
     localTarball: noop,
     remoteTarball: noop,
     gitHostedTarball: noop,
-    directory: noop as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-    git: noop as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-    binary: noop as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    directory: noop as unknown as DirectoryFetcher,
+    git: noop as unknown as GitFetcher,
+    binary: noop as unknown as BinaryFetcher,
     ...partial,
   }
 }
@@ -47,17 +47,17 @@ function createMockFetchers (partial: Partial<Fetchers> = {}): Fetchers {
 function createMockCafs (partial: Partial<Cafs> = {}): Cafs {
   return {
     addFilesFromDir: jest.fn(),
-    addFilesFromTarball: jest.fn() as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    addFilesFromTarball: jest.fn() as unknown as Cafs['addFilesFromTarball'],
     ...partial,
   } as Cafs
 }
 
-function createMockResolution (resolution: Partial<AtomicResolution> & Record<string, any>): any { // eslint-disable-line @typescript-eslint/no-explicit-any
-  return resolution
+function createMockResolution (resolution: Partial<AtomicResolution> & Record<string, unknown>): AtomicResolution {
+  return resolution as unknown as AtomicResolution
 }
 
-function createMockFetchOptions (opts: Partial<FetchOptions> = {}): any { // eslint-disable-line @typescript-eslint/no-explicit-any
-  return opts
+function createMockFetchOptions (opts: Partial<FetchOptions> = {}): FetchOptions {
+  return opts as FetchOptions
 }
 
 function createMockCustomFetcher (
@@ -93,7 +93,7 @@ describe('custom fetcher implementation examples', () => {
         { customFetchers: [customFetcher], packageId: 'test-package@1.0.0' }
       )
 
-      const result = await fetcher(
+      const result = await (fetcher as FetchFunction)(
         createMockCafs(),
         createMockResolution({ tarball: 'http://example.com/package.tgz' }),
         createMockFetchOptions()
@@ -120,7 +120,7 @@ describe('custom fetcher implementation examples', () => {
         { customFetchers: [customFetcher], packageId: 'pkg@1.0.0' }
       )
 
-      const result = await fetcher(
+      const result = await (fetcher as FetchFunction)(
         createMockCafs(),
         createMockResolution({ tarball: 'http://example.com/package.tgz' }),
         createMockFetchOptions()
@@ -144,7 +144,7 @@ describe('custom fetcher implementation examples', () => {
       )
 
       await expect(
-        fetcher(
+        (fetcher as FetchFunction)(
           createMockCafs(),
           createMockResolution({ tarball: 'http://example.com/package.tgz' }),
           createMockFetchOptions()
@@ -173,8 +173,8 @@ describe('custom fetcher implementation examples', () => {
         { customFetchers: [customFetcher], packageId: 'pkg@1.0.0' }
       )
 
-      const mockCafs = createMockCafs({ addFilesFromTarball: jest.fn() as any }) // eslint-disable-line @typescript-eslint/no-explicit-any
-      await fetcher(
+      const mockCafs = createMockCafs({ addFilesFromTarball: jest.fn() as unknown as Cafs['addFilesFromTarball'] })
+      await (fetcher as FetchFunction)(
         mockCafs,
         createMockResolution({ tarball: 'http://example.com/package.tgz' }),
         createMockFetchOptions()
@@ -192,7 +192,7 @@ describe('custom fetcher implementation examples', () => {
         async (_cafs, _resolution, opts) => {
           // Custom fetcher can call progress callbacks
           opts.onStart?.(100, 1)
-          ;(opts.onProgress as any)?.({ done: 50, total: 100 }) // eslint-disable-line @typescript-eslint/no-explicit-any
+          ;(opts.onProgress as unknown as ((p: { done: number, total: number }) => void) | undefined)?.({ done: 50, total: 100 })
 
           return {
             filesMap: new Map(),
@@ -208,7 +208,7 @@ describe('custom fetcher implementation examples', () => {
         { customFetchers: [customFetcher], packageId: 'pkg@1.0.0' }
       )
 
-      await fetcher(
+      await (fetcher as FetchFunction)(
         createMockCafs(),
         createMockResolution({ tarball: 'http://example.com/package.tgz' }),
         createMockFetchOptions({ onStart: onStartFn, onProgress: onProgressFn })
@@ -229,7 +229,7 @@ describe('custom fetcher implementation examples', () => {
         async (_cafs, resolution) => {
           // Custom fetcher can access custom resolution fields
           expect(resolution.type).toBe('custom:cdn')
-          expect((resolution as any).cdnUrl).toBe('https://cdn.example.com/pkg.tgz') // eslint-disable-line @typescript-eslint/no-explicit-any
+          expect((resolution as unknown as Record<string, string>).cdnUrl).toBe('https://cdn.example.com/pkg.tgz') // eslint-disable-line @typescript-eslint/no-explicit-any
 
           return {
             filesMap: new Map(),
@@ -245,7 +245,7 @@ describe('custom fetcher implementation examples', () => {
         { customFetchers: [customFetcher], packageId: 'pkg@1.0.0' }
       )
 
-      await fetcher(createMockCafs(), customResolution, createMockFetchOptions())
+      await (fetcher as FetchFunction)(createMockCafs(), customResolution, createMockFetchOptions())
     })
 
     test('should allow custom fetcher.fetch to return partial manifest', async () => {
@@ -264,7 +264,7 @@ describe('custom fetcher implementation examples', () => {
         { customFetchers: [customFetcher], packageId: 'pkg@1.0.0' }
       )
 
-      const result = await fetcher(
+      const result = await (fetcher as FetchFunction)(
         createMockCafs(),
         createMockResolution({ tarball: 'http://example.com/package.tgz' }),
         createMockFetchOptions()
@@ -307,11 +307,11 @@ describe('custom fetcher implementation examples', () => {
 
         // Custom fetcher that maps custom URLs to tarballs
         const customFetcher = createMockCustomFetcher(
-          (_pkgId, resolution) => resolution.type === 'custom:url' && Boolean((resolution as any).customUrl), // eslint-disable-line @typescript-eslint/no-explicit-any
+          (_pkgId, resolution) => resolution.type === 'custom:url' && Boolean((resolution as unknown as Record<string, string>).customUrl), // eslint-disable-line @typescript-eslint/no-explicit-any
           async (cafs, resolution, opts, fetchers) => {
             // Map custom resolution to tarball resolution
             const tarballResolution = {
-              tarball: (resolution as any).customUrl, // eslint-disable-line @typescript-eslint/no-explicit-any
+              tarball: (resolution as unknown as Record<string, string>).customUrl, // eslint-disable-line @typescript-eslint/no-explicit-any
               integrity: tarballIntegrity,
             }
 
@@ -331,7 +331,7 @@ describe('custom fetcher implementation examples', () => {
           { customFetchers: [customFetcher], packageId: 'custom-pkg@1.0.0' }
         )
 
-        const result = await fetcher(
+        const result = await (fetcher as FetchFunction)(
           cafs,
           customResolution,
           createMockFetchOptions({ filesIndexFile, lockfileDir: process.cwd() })
@@ -358,10 +358,10 @@ describe('custom fetcher implementation examples', () => {
 
       // Custom fetcher that maps custom local paths to tarballs
       const customFetcher = createMockCustomFetcher(
-        (_pkgId, resolution) => resolution.type === 'custom:local' && Boolean((resolution as any).localPath), // eslint-disable-line @typescript-eslint/no-explicit-any
+        (_pkgId, resolution) => resolution.type === 'custom:local' && Boolean((resolution as unknown as Record<string, string>).localPath), // eslint-disable-line @typescript-eslint/no-explicit-any
         async (cafs, resolution, opts, fetchers) => {
           const tarballResolution = {
-            tarball: `file:${(resolution as any).localPath}`, // eslint-disable-line @typescript-eslint/no-explicit-any
+            tarball: `file:${(resolution as unknown as Record<string, string>).localPath}`, // eslint-disable-line @typescript-eslint/no-explicit-any
             integrity: tarballIntegrity,
           }
 
@@ -380,7 +380,7 @@ describe('custom fetcher implementation examples', () => {
         { customFetchers: [customFetcher], packageId: 'local-pkg@1.0.0' }
       )
 
-      const result = await fetcher(
+      const result = await (fetcher as FetchFunction)(
         cafs,
         customResolution,
         createMockFetchOptions({ filesIndexFile, lockfileDir: process.cwd() })
@@ -418,7 +418,7 @@ describe('custom fetcher implementation examples', () => {
           (_pkgId, resolution) => resolution.type === 'custom:registry',
           async (cafs, resolution, opts, fetchers) => {
             // Transform custom registry format to standard tarball URL
-            const tarballUrl = `${registry}${(resolution as any).packageName}.tgz` // eslint-disable-line @typescript-eslint/no-explicit-any
+            const tarballUrl = `${registry}${(resolution as unknown as Record<string, string>).packageName}.tgz` // eslint-disable-line @typescript-eslint/no-explicit-any
 
             const tarballResolution = {
               tarball: tarballUrl,
@@ -440,7 +440,7 @@ describe('custom fetcher implementation examples', () => {
           { customFetchers: [customFetcher], packageId: 'transformed-pkg@1.0.0' }
         )
 
-        const result = await fetcher(
+        const result = await (fetcher as FetchFunction)(
           cafs,
           customResolution,
           createMockFetchOptions({ filesIndexFile, lockfileDir: process.cwd() })
@@ -471,7 +471,7 @@ describe('custom fetcher implementation examples', () => {
         async (cafs, resolution, opts, fetchers) => {
           // Map custom git resolution to GitHub codeload URL
           const tarballResolution = {
-            tarball: `https://codeload.github.com/${(resolution as any).repo}/tar.gz/${(resolution as any).commit}`, // eslint-disable-line @typescript-eslint/no-explicit-any
+            tarball: `https://codeload.github.com/${(resolution as unknown as Record<string, string>).repo}/tar.gz/${(resolution as unknown as Record<string, string>).commit}`, // eslint-disable-line @typescript-eslint/no-explicit-any
           }
 
           return fetchers.gitHostedTarball(cafs, tarballResolution, opts)
@@ -490,7 +490,7 @@ describe('custom fetcher implementation examples', () => {
         { customFetchers: [customFetcher], packageId: 'git-pkg@1.0.0' }
       )
 
-      const result = await fetcher(
+      const result = await (fetcher as FetchFunction)(
         cafs,
         customResolution,
         createMockFetchOptions({ filesIndexFile, lockfileDir: process.cwd() })
@@ -511,7 +511,7 @@ describe('custom fetcher implementation examples', () => {
           fetchCalls.push(Date.now())
 
           // Check cache first
-          const cacheKey = `${(resolution as any).url}@${(resolution as any).version}` // eslint-disable-line @typescript-eslint/no-explicit-any
+          const cacheKey = `${(resolution as unknown as Record<string, string>).url}@${(resolution as unknown as Record<string, string>).version}` // eslint-disable-line @typescript-eslint/no-explicit-any
           if (cache.has(cacheKey)) {
             return cache.get(cacheKey)
           }
@@ -519,7 +519,7 @@ describe('custom fetcher implementation examples', () => {
           // Simulate fetch
           const result = {
             filesMap: new Map([['package.json', '/store/pkg.json']]),
-            manifest: { name: 'cached-pkg', version: (resolution as any).version }, // eslint-disable-line @typescript-eslint/no-explicit-any
+            manifest: { name: 'cached-pkg', version: (resolution as unknown as Record<string, string>).version }, // eslint-disable-line @typescript-eslint/no-explicit-any
           }
 
           cache.set(cacheKey, result)
@@ -540,10 +540,10 @@ describe('custom fetcher implementation examples', () => {
       )
 
       // First fetch - should hit the fetch logic
-      const result1 = await fetcher(createMockCafs(), customResolution, createMockFetchOptions())
+      const result1 = await (fetcher as FetchFunction)(createMockCafs(), customResolution, createMockFetchOptions())
 
       // Second fetch - should use cache
-      const result2 = await fetcher(createMockCafs(), customResolution, createMockFetchOptions())
+      const result2 = await (fetcher as FetchFunction)(createMockCafs(), customResolution, createMockFetchOptions())
 
       expect(result1).toBe(result2)
       expect(fetchCalls).toHaveLength(2) // Fetcher called twice, but cache hit on second call
@@ -583,10 +583,10 @@ describe('custom fetcher implementation examples', () => {
         { customFetchers: [customFetcher], packageId: 'auth-pkg@1.0.0' }
       )
 
-      const result = await fetcher(createMockCafs(), customResolution, createMockFetchOptions())
+      const result = await (fetcher as FetchFunction)(createMockCafs(), customResolution, createMockFetchOptions())
 
       expect(authCalls).toEqual(['initial-token'])
-      expect((result as any).authToken).toBe('refreshed-token') // eslint-disable-line @typescript-eslint/no-explicit-any
+      expect((result as unknown as { authToken: string }).authToken).toBe('refreshed-token')
     })
   })
 })

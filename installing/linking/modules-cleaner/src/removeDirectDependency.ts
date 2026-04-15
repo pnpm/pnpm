@@ -22,7 +22,7 @@ export async function removeDirectDependency (
   const dependencyDir = path.join(opts.modulesDir, dependency.name)
   const results = await Promise.all([
     removeBinsOfDependency(dependencyDir, opts),
-    !opts.dryRun && removeBin(dependencyDir) as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    opts.dryRun ? undefined : removeBin(dependencyDir),
   ])
   await removeIfEmpty(opts.binsDir)
 

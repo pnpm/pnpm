@@ -46,7 +46,7 @@ describe('version command', () => {
         dir: tempDir,
         workspaceDir: tempDir,
         noGitChecks: true,
-      } as any, ['invalid']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as unknown as Parameters<typeof handler>[0], ['invalid'])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_VERSION_BUMP' })
   })
 
@@ -58,7 +58,7 @@ describe('version command', () => {
         dir: tempDir,
         workspaceDir: tempDir,
         noGitChecks: true,
-      } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as unknown as Parameters<typeof handler>[0], [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_VERSION_BUMP' })
   })
 
@@ -69,7 +69,7 @@ describe('version command', () => {
       dir: tempDir,
       workspaceDir: tempDir,
       noGitChecks: true,
-    } as any, ['major']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as unknown as Parameters<typeof handler>[0], ['major'])
 
     expect(result).toContain('1.2.3 → 2.0.0')
     const updated = JSON.parse(fs.readFileSync(path.join(tempDir, 'package.json'), 'utf-8'))
@@ -83,7 +83,7 @@ describe('version command', () => {
       dir: tempDir,
       workspaceDir: tempDir,
       noGitChecks: true,
-    } as any, ['minor']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as unknown as Parameters<typeof handler>[0], ['minor'])
 
     expect(result).toContain('1.0.0 → 1.1.0')
     const updated = JSON.parse(fs.readFileSync(path.join(tempDir, 'package.json'), 'utf-8'))
@@ -97,7 +97,7 @@ describe('version command', () => {
       dir: tempDir,
       workspaceDir: tempDir,
       noGitChecks: true,
-    } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as unknown as Parameters<typeof handler>[0], ['patch'])
 
     expect(result).toContain('1.0.0 → 1.0.1')
     const updated = JSON.parse(fs.readFileSync(path.join(tempDir, 'package.json'), 'utf-8'))
@@ -112,7 +112,7 @@ describe('version command', () => {
       workspaceDir: tempDir,
       noGitChecks: true,
       preid: 'alpha',
-    } as any, ['prerelease']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as unknown as Parameters<typeof handler>[0], ['prerelease'])
 
     expect(result).toContain('1.0.0 → 1.0.1-alpha.0')
   })
@@ -125,7 +125,7 @@ describe('version command', () => {
       workspaceDir: tempDir,
       noGitChecks: true,
       json: true,
-    } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as unknown as Parameters<typeof handler>[0], ['patch'])
 
     const parsed = JSON.parse(result as string)
     expect(parsed).toEqual([
@@ -145,7 +145,7 @@ describe('version command', () => {
       workspaceDir: tempDir,
       noGitChecks: true,
       allowSameVersion: true,
-    } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as unknown as Parameters<typeof handler>[0], ['patch'])
 
     expect(result).toContain('1.0.0 → 1.0.1')
   })
@@ -158,7 +158,7 @@ describe('version command', () => {
         dir: tempDir,
         workspaceDir: tempDir,
         noGitChecks: true,
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as unknown as Parameters<typeof handler>[0], ['patch'])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_NO_PACKAGES_TO_VERSION' })
   })
 
@@ -170,7 +170,7 @@ describe('version command', () => {
         dir: tempDir,
         workspaceDir: tempDir,
         noGitChecks: true,
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as unknown as Parameters<typeof handler>[0], ['patch'])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_VERSION' })
   })
 
@@ -192,7 +192,7 @@ describe('version command', () => {
         workspaceDir: tempDir,
         noGitChecks: true,
         recursive: true,
-      } as any, ['minor']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as unknown as Parameters<typeof handler>[0], ['minor'])
 
       const resultStr = result as string
       expect(resultStr).toContain('pkg-a')
@@ -218,7 +218,7 @@ describe('version command', () => {
         noGitChecks: true,
         recursive: true,
         json: true,
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as unknown as Parameters<typeof handler>[0], ['patch'])
 
       const parsed = JSON.parse(result as string)
       expect(parsed).toEqual(
@@ -248,7 +248,7 @@ describe('version command', () => {
         workspaceDir: tempDir,
         noGitChecks: true,
         recursive: true,
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as unknown as Parameters<typeof handler>[0], ['patch'])
 
       const resultStr = result as string
       expect(resultStr).toContain('pkg-a')
@@ -269,7 +269,7 @@ describe('version command', () => {
         dir: tempDir,
         workspaceDir: tempDir,
         noGitChecks: true,
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as unknown as Parameters<typeof handler>[0], ['patch'])
 
       const resultStr = result as string
       expect(resultStr).toContain('my-workspace')

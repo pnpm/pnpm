@@ -967,7 +967,7 @@ test('do not fail if the debug log has no output', async () => {
   })
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/foo/1.0.0',
-    line: undefined as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    line: undefined as unknown as string,
     stage: 'install',
     stdio: 'stdout',
     wd,
