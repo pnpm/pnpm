@@ -1,7 +1,7 @@
 import { docsUrl, TABLE_OPTIONS } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { audit, type AuditAdvisory, type AuditLevelNumber, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts, type IgnoredAuditVulnerabilityCounts } from '@pnpm/deps.compliance.audit'
+import { audit, type AuditAdvisory, type AuditLevelNumber, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts, type IgnoredAuditVulnerabilityCounts, normalizeGhsaId } from '@pnpm/deps.compliance.audit'
 import { PnpmError } from '@pnpm/error'
 import { type InstallCommandOptions, update } from '@pnpm/installing.commands'
 import { readEnvLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
@@ -303,11 +303,11 @@ ${newIgnores.join('\n')}`,
     .reduce((sum: number, vulnerabilitiesCount: number) => sum + vulnerabilitiesCount, 0)
   const ignoreGhsas = opts.auditConfig?.ignoreGhsas
   if (ignoreGhsas?.length) {
-    // Compare GHSA ids case-insensitively so stored entries with varying
-    // casing still match the canonical uppercase form on the advisory.
-    const ignoreSet = new Set(ignoreGhsas.map((ghsaId) => ghsaId.trim().toUpperCase()))
+    // Compare GHSA ids after normalizing so stored entries with varying
+    // casing still match the canonical form on the advisory.
+    const ignoreSet = new Set(ignoreGhsas.map(normalizeGhsaId))
     auditReport.advisories = pickBy(({ github_advisory_id: githubAdvisoryId, severity }) => {
-      if (!ignoreSet.has(githubAdvisoryId.toUpperCase())) {
+      if (!ignoreSet.has(normalizeGhsaId(githubAdvisoryId))) {
         return true
       }
       ignoredVulnerabilities[severity as AuditLevelString] += 1

@@ -5345,7 +5345,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=0.6.0",
       "severity": "moderate",
       "cwe": "CWE-200",
-      "github_advisory_id": "GHSA-XC7V-WXCW-J472",
+      "github_advisory_id": "GHSA-xc7v-wxcw-j472",
       "url": "https://github.com/advisories/GHSA-xc7v-wxcw-j472"
     },
     "1089196": {
@@ -5367,7 +5367,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=3.1.1",
       "severity": "high",
       "cwe": "CWE-400",
-      "github_advisory_id": "GHSA-35Q2-47Q7-3PC3",
+      "github_advisory_id": "GHSA-35q2-47q7-3pc3",
       "url": "https://github.com/advisories/GHSA-35q2-47q7-3pc3"
     },
     "1089526": {
@@ -5389,7 +5389,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=3.6.1",
       "severity": "moderate",
       "cwe": "CWE-248",
-      "github_advisory_id": "GHSA-R7QP-CFHV-P84W",
+      "github_advisory_id": "GHSA-r7qp-cfhv-p84w",
       "url": "https://github.com/advisories/GHSA-r7qp-cfhv-p84w"
     },
     "1089709": {
@@ -5411,7 +5411,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=6.6.1",
       "severity": "moderate",
       "cwe": "CWE-74",
-      "github_advisory_id": "GHSA-HWQF-GCQM-7353",
+      "github_advisory_id": "GHSA-hwqf-gcqm-7353",
       "url": "https://github.com/advisories/GHSA-hwqf-gcqm-7353"
     },
     "1089711": {
@@ -5434,7 +5434,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=3.3.2",
       "severity": "high",
       "cwe": "CWE-400",
-      "github_advisory_id": "GHSA-XFHH-G9F5-X4M4",
+      "github_advisory_id": "GHSA-xfhh-g9f5-x4m4",
       "url": "https://github.com/advisories/GHSA-xfhh-g9f5-x4m4"
     },
     "1089880": {
@@ -5456,7 +5456,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=6.4.16",
       "severity": "critical",
       "cwe": "CWE-88",
-      "github_advisory_id": "GHSA-48WW-J4FC-435P",
+      "github_advisory_id": "GHSA-48ww-j4fc-435p",
       "url": "https://github.com/advisories/GHSA-48ww-j4fc-435p"
     },
     "1089900": {
@@ -5478,7 +5478,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=1.1.0",
       "severity": "critical",
       "cwe": "CWE-20",
-      "github_advisory_id": "GHSA-4C7M-WXVM-R7GC",
+      "github_advisory_id": "GHSA-4c7m-wxvm-r7gc",
       "url": "https://github.com/advisories/GHSA-4c7m-wxvm-r7gc"
     },
     "1090072": {
@@ -5500,7 +5500,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=1.2.3",
       "severity": "moderate",
       "cwe": "CWE-125, CWE-126",
-      "github_advisory_id": "GHSA-PP7H-53GX-MX7R",
+      "github_advisory_id": "GHSA-pp7h-53gx-mx7r",
       "url": "https://github.com/advisories/GHSA-pp7h-53gx-mx7r"
     },
     "1090384": {
@@ -5522,7 +5522,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=5.0.0",
       "severity": "high",
       "cwe": "CWE-94",
-      "github_advisory_id": "GHSA-9J49-MFVP-VMHM",
+      "github_advisory_id": "GHSA-9j49-mfvp-vmhm",
       "url": "https://github.com/advisories/GHSA-9j49-mfvp-vmhm"
     },
     "1090403": {
@@ -5544,7 +5544,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=3.0.1",
       "severity": "high",
       "cwe": "CWE-94",
-      "github_advisory_id": "GHSA-9J49-MFVP-VMHM",
+      "github_advisory_id": "GHSA-9j49-mfvp-vmhm",
       "url": "https://github.com/advisories/GHSA-9j49-mfvp-vmhm"
     },
     "1090418": {
@@ -5566,7 +5566,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=6.3.16",
       "severity": "moderate",
       "cwe": "CWE-601",
-      "github_advisory_id": "GHSA-RC3X-JF5G-XVC5",
+      "github_advisory_id": "GHSA-rc3x-jf5g-xvc5",
       "url": "https://github.com/advisories/GHSA-rc3x-jf5g-xvc5"
     },
     "1090420": {
@@ -5588,7 +5588,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=7.0.0",
       "severity": "high",
       "cwe": "CWE-200",
-      "github_advisory_id": "GHSA-HJP8-2CM3-CC45",
+      "github_advisory_id": "GHSA-hjp8-2cm3-cc45",
       "url": "https://github.com/advisories/GHSA-hjp8-2cm3-cc45"
     },
     "1090439": {
@@ -5610,7 +5610,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=6.3.14",
       "severity": "moderate",
       "cwe": "CWE-79",
-      "github_advisory_id": "GHSA-7X7C-QM48-PQ9C",
+      "github_advisory_id": "GHSA-7x7c-qm48-pq9c",
       "url": "https://github.com/advisories/GHSA-7x7c-qm48-pq9c"
     },
     "1091853": {
@@ -5632,7 +5632,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=1.2.11",
       "severity": "critical",
       "cwe": "CWE-506",
-      "github_advisory_id": "GHSA-XV2F-5JW4-V95M",
+      "github_advisory_id": "GHSA-xv2f-5jw4-v95m",
       "url": "https://github.com/advisories/GHSA-xv2f-5jw4-v95m"
     },
     "1092623": {
@@ -5664,7 +5664,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=1.14.8",
       "severity": "moderate",
       "cwe": "CWE-200, CWE-212",
-      "github_advisory_id": "GHSA-PW2R-VQ6V-HR8C",
+      "github_advisory_id": "GHSA-pw2r-vq6v-hr8c",
       "url": "https://github.com/advisories/GHSA-pw2r-vq6v-hr8c"
     },
     "1093475": {
@@ -5686,7 +5686,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=0.6.3",
       "severity": "moderate",
       "cwe": "CWE-377",
-      "github_advisory_id": "GHSA-38H8-X697-GH8Q",
+      "github_advisory_id": "GHSA-38h8-x697-gh8q",
       "url": "https://github.com/advisories/GHSA-38h8-x697-gh8q"
     },
     "1093560": {
@@ -5708,7 +5708,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=2.0.1",
       "severity": "moderate",
       "cwe": "CWE-20",
-      "github_advisory_id": "GHSA-PCH5-WHG9-QR2R",
+      "github_advisory_id": "GHSA-pch5-whg9-qr2r",
       "url": "https://github.com/advisories/GHSA-pch5-whg9-qr2r"
     },
     "1093718": {
@@ -5730,7 +5730,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=2.4.0",
       "severity": "moderate",
       "cwe": "CWE-346, CWE-453",
-      "github_advisory_id": "GHSA-FXWF-4RQH-V8G3",
+      "github_advisory_id": "GHSA-fxwf-4rqh-v8g3",
       "url": "https://github.com/advisories/GHSA-fxwf-4rqh-v8g3"
     },
     "1093858": {
@@ -5752,7 +5752,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=2.3.1",
       "severity": "high",
       "cwe": "CWE-400",
-      "github_advisory_id": "GHSA-F523-2F5J-GFCG",
+      "github_advisory_id": "GHSA-f523-2f5j-gfcg",
       "url": "https://github.com/advisories/GHSA-f523-2f5j-gfcg"
     },
     "1094087": {
@@ -5784,7 +5784,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=0.2.1",
       "severity": "high",
       "cwe": "CWE-20",
-      "github_advisory_id": "GHSA-W573-4HG7-7WGQ",
+      "github_advisory_id": "GHSA-w573-4hg7-7wgq",
       "url": "https://github.com/advisories/GHSA-w573-4hg7-7wgq"
     },
     "1094997": {
@@ -5806,7 +5806,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=1.2.11",
       "severity": "critical",
       "cwe": "CWE-94",
-      "github_advisory_id": "GHSA-8R6J-V8PM-FQW3",
+      "github_advisory_id": "GHSA-8r6j-v8pm-fqw3",
       "url": "https://github.com/advisories/GHSA-8r6j-v8pm-fqw3"
     },
     "1095056": {
@@ -5924,7 +5924,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=6.0.3",
       "severity": "high",
       "cwe": "CWE-668",
-      "github_advisory_id": "GHSA-6C8F-QPHG-QJGP",
+      "github_advisory_id": "GHSA-6c8f-qphg-qjgp",
       "url": "https://github.com/advisories/GHSA-6c8f-qphg-qjgp"
     },
     "1095062": {
@@ -5946,7 +5946,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=9.0.1",
       "severity": "high",
       "cwe": "CWE-400, CWE-1333",
-      "github_advisory_id": "GHSA-44PW-H2CW-W3VQ",
+      "github_advisory_id": "GHSA-44pw-h2cw-w3vq",
       "url": "https://github.com/advisories/GHSA-44pw-h2cw-w3vq"
     },
     "1095088": {
@@ -5968,7 +5968,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=1.6.2",
       "severity": "critical",
       "cwe": "CWE-94",
-      "github_advisory_id": "GHSA-H4J5-C7CJ-74XG",
+      "github_advisory_id": "GHSA-h4j5-c7cj-74xg",
       "url": "https://github.com/advisories/GHSA-h4j5-c7cj-74xg"
     },
     "1095090": {
@@ -5990,7 +5990,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=1.6.1",
       "severity": "critical",
       "cwe": "CWE-295",
-      "github_advisory_id": "GHSA-72MH-269X-7MH5",
+      "github_advisory_id": "GHSA-72mh-269x-7mh5",
       "url": "https://github.com/advisories/GHSA-72mh-269x-7mh5"
     },
     "1095095": {
@@ -6012,7 +6012,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=1.5.8",
       "severity": "critical",
       "cwe": "CWE-639",
-      "github_advisory_id": "GHSA-HGJH-723H-MX2J",
+      "github_advisory_id": "GHSA-hgjh-723h-mx2j",
       "url": "https://github.com/advisories/GHSA-hgjh-723h-mx2j"
     },
     "1095117": {
@@ -6034,7 +6034,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=4.4.18",
       "severity": "high",
       "cwe": "CWE-22",
-      "github_advisory_id": "GHSA-5955-9WPR-37JH",
+      "github_advisory_id": "GHSA-5955-9wpr-37jh",
       "url": "https://github.com/advisories/GHSA-5955-9wpr-37jh"
     },
     "1095531": {
@@ -6056,7 +6056,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=6.4.0",
       "severity": "moderate",
       "cwe": "CWE-276",
-      "github_advisory_id": "GHSA-82V2-MX6X-WQ7Q",
+      "github_advisory_id": "GHSA-82v2-mx6x-wq7q",
       "url": "https://github.com/advisories/GHSA-82v2-mx6x-wq7q"
     },
     "1096334": {
@@ -6078,7 +6078,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=1.18.1",
       "severity": "high",
       "cwe": "CWE-184, CWE-693",
-      "github_advisory_id": "GHSA-6X33-PW7P-HMPQ",
+      "github_advisory_id": "GHSA-6x33-pw7p-hmpq",
       "url": "https://github.com/advisories/GHSA-6x33-pw7p-hmpq"
     },
     "1096376": {
@@ -6100,7 +6100,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=4.4.16",
       "severity": "high",
       "cwe": "CWE-22, CWE-59",
-      "github_advisory_id": "GHSA-9R2W-394V-53QC",
+      "github_advisory_id": "GHSA-9r2w-394v-53qc",
       "url": "https://github.com/advisories/GHSA-9r2w-394v-53qc"
     },
     "1096411": {
@@ -6122,7 +6122,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=4.4.18",
       "severity": "high",
       "cwe": "CWE-22, CWE-59",
-      "github_advisory_id": "GHSA-QQ89-HQ3F-393P",
+      "github_advisory_id": "GHSA-qq89-hq3f-393p",
       "url": "https://github.com/advisories/GHSA-qq89-hq3f-393p"
     },
     "1096485": {
@@ -6148,7 +6148,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=3.0.5",
       "severity": "high",
       "cwe": "CWE-400, CWE-1333",
-      "github_advisory_id": "GHSA-F8Q6-P94X-37V3",
+      "github_advisory_id": "GHSA-f8q6-p94x-37v3",
       "url": "https://github.com/advisories/GHSA-f8q6-p94x-37v3"
     },
     "1096727": {
@@ -6181,7 +6181,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=2.88.3",
       "severity": "moderate",
       "cwe": "CWE-918",
-      "github_advisory_id": "GHSA-P8P7-X288-28G6",
+      "github_advisory_id": "GHSA-p8p7-x288-28g6",
       "url": "https://github.com/advisories/GHSA-p8p7-x288-28g6"
     },
     "1096856": {
@@ -6213,7 +6213,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=1.15.6",
       "severity": "moderate",
       "cwe": "CWE-200",
-      "github_advisory_id": "GHSA-CXJH-PQWP-8MFP",
+      "github_advisory_id": "GHSA-cxjh-pqwp-8mfp",
       "url": "https://github.com/advisories/GHSA-cxjh-pqwp-8mfp"
     },
     "1097134": {
@@ -6236,7 +6236,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=3.3.3",
       "severity": "critical",
       "cwe": "CWE-20, CWE-89, CWE-1287",
-      "github_advisory_id": "GHSA-QM95-PGCG-QQFQ",
+      "github_advisory_id": "GHSA-qm95-pgcg-qqfq",
       "url": "https://github.com/advisories/GHSA-qm95-pgcg-qqfq"
     },
     "1097493": {
@@ -6258,7 +6258,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=6.2.1",
       "severity": "moderate",
       "cwe": "CWE-400",
-      "github_advisory_id": "GHSA-F5X3-32G6-XQ36",
+      "github_advisory_id": "GHSA-f5x3-32g6-xq36",
       "url": "https://github.com/advisories/GHSA-f5x3-32g6-xq36"
     },
     "1097677": {
@@ -6291,7 +6291,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=0.2.4",
       "severity": "critical",
       "cwe": "CWE-1321",
-      "github_advisory_id": "GHSA-XVCH-5GV4-984H",
+      "github_advisory_id": "GHSA-xvch-5gv4-984h",
       "url": "https://github.com/advisories/GHSA-xvch-5gv4-984h"
     },
     "1097678": {
@@ -6313,7 +6313,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=1.2.6",
       "severity": "critical",
       "cwe": "CWE-1321",
-      "github_advisory_id": "GHSA-XVCH-5GV4-984H",
+      "github_advisory_id": "GHSA-xvch-5gv4-984h",
       "url": "https://github.com/advisories/GHSA-xvch-5gv4-984h"
     },
     "1097679": {
@@ -6336,7 +6336,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=0.28.0",
       "severity": "moderate",
       "cwe": "CWE-352",
-      "github_advisory_id": "GHSA-WF5P-G6VW-RHXX",
+      "github_advisory_id": "GHSA-wf5p-g6vw-rhxx",
       "url": "https://github.com/advisories/GHSA-wf5p-g6vw-rhxx"
     },
     "1097682": {
@@ -6369,7 +6369,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=4.1.3",
       "severity": "moderate",
       "cwe": "CWE-1321",
-      "github_advisory_id": "GHSA-72XF-G2V4-QVF3",
+      "github_advisory_id": "GHSA-72xf-g2v4-qvf3",
       "url": "https://github.com/advisories/GHSA-72xf-g2v4-qvf3"
     },
     "1097685": {
@@ -6393,7 +6393,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=6.12.3",
       "severity": "moderate",
       "cwe": "CWE-915, CWE-1321",
-      "github_advisory_id": "GHSA-V88G-CGMW-V5XW",
+      "github_advisory_id": "GHSA-v88g-cgmw-v5xw",
       "url": "https://github.com/advisories/GHSA-v88g-cgmw-v5xw"
     },
     "1097691": {
@@ -6415,7 +6415,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=2.6.4",
       "severity": "high",
       "cwe": "CWE-1321",
-      "github_advisory_id": "GHSA-FWR7-V2MV-HH25",
+      "github_advisory_id": "GHSA-fwr7-v2mv-hh25",
       "url": "https://github.com/advisories/GHSA-fwr7-v2mv-hh25"
     },
     "1098094": {
@@ -6448,7 +6448,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=3.0.3",
       "severity": "high",
       "cwe": "CWE-400, CWE-1050",
-      "github_advisory_id": "GHSA-GRV7-FG5C-XMJG",
+      "github_advisory_id": "GHSA-grv7-fg5c-xmjg",
       "url": "https://github.com/advisories/GHSA-grv7-fg5c-xmjg"
     },
     "1098395": {
@@ -6471,7 +6471,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=5.2.4",
       "severity": "high",
       "cwe": "CWE-476",
-      "github_advisory_id": "GHSA-3H5V-Q93C-6H6Q",
+      "github_advisory_id": "GHSA-3h5v-q93c-6h6q",
       "url": "https://github.com/advisories/GHSA-3h5v-q93c-6h6q"
     },
     "1098681": {
@@ -6494,7 +6494,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=4.0.8",
       "severity": "moderate",
       "cwe": "CWE-1333",
-      "github_advisory_id": "GHSA-952P-6RRQ-RCJV",
+      "github_advisory_id": "GHSA-952p-6rrq-rcjv",
       "url": "https://github.com/advisories/GHSA-952p-6rrq-rcjv"
     },
     "1099520": {
@@ -6516,7 +6516,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=1.20.3",
       "severity": "high",
       "cwe": "CWE-405",
-      "github_advisory_id": "GHSA-QWCR-R2FM-QRC7",
+      "github_advisory_id": "GHSA-qwcr-r2fm-qrc7",
       "url": "https://github.com/advisories/GHSA-qwcr-r2fm-qrc7"
     },
     "1100540": {
@@ -6539,7 +6539,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=3.3.4",
       "severity": "moderate",
       "cwe": "CWE-20, CWE-754",
-      "github_advisory_id": "GHSA-CQMJ-92XF-R6R9",
+      "github_advisory_id": "GHSA-cqmj-92xf-r6r9",
       "url": "https://github.com/advisories/GHSA-cqmj-92xf-r6r9"
     },
     "1100551": {
@@ -6561,7 +6561,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=2.5.0",
       "severity": "moderate",
       "cwe": "CWE-20, CWE-754",
-      "github_advisory_id": "GHSA-25HC-QCG6-38WJ",
+      "github_advisory_id": "GHSA-25hc-qcg6-38wj",
       "url": "https://github.com/advisories/GHSA-25hc-qcg6-38wj"
     },
     "1101851": {
@@ -6586,7 +6586,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=2.0.2",
       "severity": "high",
       "cwe": "CWE-918",
-      "github_advisory_id": "GHSA-2P57-RM9W-GVFP",
+      "github_advisory_id": "GHSA-2p57-rm9w-gvfp",
       "url": "https://github.com/advisories/GHSA-2p57-rm9w-gvfp"
     },
     "1101855": {
@@ -6611,7 +6611,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=0.4.0",
       "severity": "critical",
       "cwe": "CWE-915, CWE-1321",
-      "github_advisory_id": "GHSA-896R-F27R-55MW",
+      "github_advisory_id": "GHSA-896r-f27r-55mw",
       "url": "https://github.com/advisories/GHSA-896r-f27r-55mw"
     },
     "1102323": {
@@ -6643,7 +6643,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=1.14.7",
       "severity": "high",
       "cwe": "CWE-359",
-      "github_advisory_id": "GHSA-74FJ-2J2H-C42Q",
+      "github_advisory_id": "GHSA-74fj-2j2h-c42q",
       "url": "https://github.com/advisories/GHSA-74fj-2j2h-c42q"
     },
     "1102444": {
@@ -6665,7 +6665,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=1.2.4",
       "severity": "moderate",
       "cwe": "CWE-1333",
-      "github_advisory_id": "GHSA-J8XG-FQG3-53R7",
+      "github_advisory_id": "GHSA-j8xg-fqg3-53r7",
       "url": "https://github.com/advisories/GHSA-j8xg-fqg3-53r7"
     },
     "1102906": {
@@ -6687,7 +6687,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=5.0.0",
       "severity": "moderate",
       "cwe": "CWE-843, CWE-1321",
-      "github_advisory_id": "GHSA-282F-QQGM-C34Q",
+      "github_advisory_id": "GHSA-282f-qqgm-c34q",
       "url": "https://github.com/advisories/GHSA-282f-qqgm-c34q"
     },
     "1104115": {
@@ -6709,7 +6709,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=6.2.4",
       "severity": "high",
       "cwe": "CWE-1321",
-      "github_advisory_id": "GHSA-HRPP-H998-J3PP",
+      "github_advisory_id": "GHSA-hrpp-h998-j3pp",
       "url": "https://github.com/advisories/GHSA-hrpp-h998-j3pp"
     },
     "1104118": {
@@ -6733,7 +6733,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=6.5.3",
       "severity": "high",
       "cwe": "CWE-1321",
-      "github_advisory_id": "GHSA-HRPP-H998-J3PP",
+      "github_advisory_id": "GHSA-hrpp-h998-j3pp",
       "url": "https://github.com/advisories/GHSA-hrpp-h998-j3pp"
     },
     "1104120": {
@@ -6755,7 +6755,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=6.7.3",
       "severity": "high",
       "cwe": "CWE-1321",
-      "github_advisory_id": "GHSA-HRPP-H998-J3PP",
+      "github_advisory_id": "GHSA-hrpp-h998-j3pp",
       "url": "https://github.com/advisories/GHSA-hrpp-h998-j3pp"
     },
     "1105092": {
@@ -6780,7 +6780,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=6.1.4",
       "severity": "high",
       "cwe": "CWE-1321",
-      "github_advisory_id": "GHSA-C429-5P7V-VGJP",
+      "github_advisory_id": "GHSA-c429-5p7v-vgjp",
       "url": "https://github.com/advisories/GHSA-c429-5p7v-vgjp"
     },
     "1105121": {
@@ -6805,7 +6805,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=4.2.1",
       "severity": "high",
       "cwe": "CWE-1321",
-      "github_advisory_id": "GHSA-JP4X-W63M-7WGM",
+      "github_advisory_id": "GHSA-jp4x-w63m-7wgm",
       "url": "https://github.com/advisories/GHSA-jp4x-w63m-7wgm"
     },
     "1105123": {
@@ -6827,7 +6827,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=3.6.0",
       "severity": "high",
       "cwe": "CWE-400",
-      "github_advisory_id": "GHSA-J4F2-536G-R55M",
+      "github_advisory_id": "GHSA-j4f2-536g-r55m",
       "url": "https://github.com/advisories/GHSA-j4f2-536g-r55m"
     },
     "1106913": {
@@ -6853,7 +6853,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=4.17.21",
       "severity": "high",
       "cwe": "CWE-77, CWE-94",
-      "github_advisory_id": "GHSA-35JH-R3H4-6JHM",
+      "github_advisory_id": "GHSA-35jh-r3h4-6jhm",
       "url": "https://github.com/advisories/GHSA-35jh-r3h4-6jhm"
     },
     "1106920": {
@@ -6879,7 +6879,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=4.17.19",
       "severity": "high",
       "cwe": "CWE-770, CWE-1321",
-      "github_advisory_id": "GHSA-P6MC-M468-83GW",
+      "github_advisory_id": "GHSA-p6mc-m468-83gw",
       "url": "https://github.com/advisories/GHSA-p6mc-m468-83gw"
     },
     "1107224": {
@@ -6902,7 +6902,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=2.0.0",
       "severity": "moderate",
       "cwe": "CWE-185, CWE-1333",
-      "github_advisory_id": "GHSA-6FX8-H7JM-663J",
+      "github_advisory_id": "GHSA-6fx8-h7jm-663j",
       "url": "https://github.com/advisories/GHSA-6fx8-h7jm-663j"
     },
     "1107230": {
@@ -6924,7 +6924,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=2.3.1",
       "severity": "moderate",
       "cwe": "CWE-1333",
-      "github_advisory_id": "GHSA-MGFV-M47X-4WQP",
+      "github_advisory_id": "GHSA-mgfv-m47x-4wqp",
       "url": "https://github.com/advisories/GHSA-mgfv-m47x-4wqp"
     },
     "1107232": {
@@ -6946,7 +6946,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=6.9.9",
       "severity": "moderate",
       "cwe": "CWE-1333",
-      "github_advisory_id": "GHSA-9H6G-PR28-7CQP",
+      "github_advisory_id": "GHSA-9h6g-pr28-7cqp",
       "url": "https://github.com/advisories/GHSA-9h6g-pr28-7cqp"
     },
     "1108258": {
@@ -6972,7 +6972,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=4.17.21",
       "severity": "moderate",
       "cwe": "CWE-400, CWE-1333",
-      "github_advisory_id": "GHSA-29MW-WPGM-HMR9",
+      "github_advisory_id": "GHSA-29mw-wpgm-hmr9",
       "url": "https://github.com/advisories/GHSA-29mw-wpgm-hmr9"
     },
     "1109540": {
@@ -7006,7 +7006,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=2.5.4",
       "severity": "critical",
       "cwe": "CWE-330",
-      "github_advisory_id": "GHSA-FJXV-7RQG-78G4",
+      "github_advisory_id": "GHSA-fjxv-7rqg-78g4",
       "url": "https://github.com/advisories/GHSA-fjxv-7rqg-78g4"
     },
     "1109569": {
@@ -7038,7 +7038,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=1.15.4",
       "severity": "moderate",
       "cwe": "CWE-20, CWE-601",
-      "github_advisory_id": "GHSA-JCHW-25XP-JWWC",
+      "github_advisory_id": "GHSA-jchw-25xp-jwwc",
       "url": "https://github.com/advisories/GHSA-jchw-25xp-jwwc"
     },
     "1109570": {
@@ -7062,7 +7062,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=1.12.1",
       "severity": "critical",
       "cwe": "CWE-94",
-      "github_advisory_id": "GHSA-CF4H-3JHX-XVHQ",
+      "github_advisory_id": "GHSA-cf4h-3jhx-xvhq",
       "url": "https://github.com/advisories/GHSA-cf4h-3jhx-xvhq"
     },
     "1109804": {
@@ -7084,7 +7084,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=7.0.7",
       "severity": "moderate",
       "cwe": "CWE-20, CWE-436",
-      "github_advisory_id": "GHSA-MM7P-FCC7-PG87",
+      "github_advisory_id": "GHSA-mm7p-fcc7-pg87",
       "url": "https://github.com/advisories/GHSA-mm7p-fcc7-pg87"
     },
     "1111034": {
@@ -7107,7 +7107,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=0.30.0",
       "severity": "high",
       "cwe": "CWE-918",
-      "github_advisory_id": "GHSA-JR5F-V2JV-69X6",
+      "github_advisory_id": "GHSA-jr5f-v2jv-69x6",
       "url": "https://github.com/advisories/GHSA-jr5f-v2jv-69x6"
     },
     "1112455": {
@@ -7133,7 +7133,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=4.17.23",
       "severity": "moderate",
       "cwe": "CWE-1321",
-      "github_advisory_id": "GHSA-XXJR-MMJV-4GPG",
+      "github_advisory_id": "GHSA-xxjr-mmjv-4gpg",
       "url": "https://github.com/advisories/GHSA-xxjr-mmjv-4gpg"
     },
     "1112659": {
@@ -7155,7 +7155,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=7.5.7",
       "severity": "high",
       "cwe": "CWE-22, CWE-59",
-      "github_advisory_id": "GHSA-34X7-HFP2-RC4V",
+      "github_advisory_id": "GHSA-34x7-hfp2-rc4v",
       "url": "https://github.com/advisories/GHSA-34x7-hfp2-rc4v"
     },
     "1112827": {
@@ -7177,7 +7177,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=1.5.2",
       "severity": "moderate",
       "cwe": "CWE-601",
-      "github_advisory_id": "GHSA-HH27-FFR2-F2JC",
+      "github_advisory_id": "GHSA-hh27-ffr2-f2jc",
       "url": "https://github.com/advisories/GHSA-hh27-ffr2-f2jc"
     },
     "1112828": {
@@ -7199,7 +7199,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=1.5.0",
       "severity": "moderate",
       "cwe": "CWE-23",
-      "github_advisory_id": "GHSA-9M6J-FCG5-2442",
+      "github_advisory_id": "GHSA-9m6j-fcg5-2442",
       "url": "https://github.com/advisories/GHSA-9m6j-fcg5-2442"
     },
     "1112829": {
@@ -7221,7 +7221,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=1.5.9",
       "severity": "moderate",
       "cwe": "CWE-639",
-      "github_advisory_id": "GHSA-JF5R-8HM2-F872",
+      "github_advisory_id": "GHSA-jf5r-8hm2-f872",
       "url": "https://github.com/advisories/GHSA-jf5r-8hm2-f872"
     },
     "1112918": {
@@ -7253,7 +7253,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=5.7.2",
       "severity": "high",
       "cwe": "CWE-1333",
-      "github_advisory_id": "GHSA-C2QF-RXJJ-QQGW",
+      "github_advisory_id": "GHSA-c2qf-rxjj-qqgw",
       "url": "https://github.com/advisories/GHSA-c2qf-rxjj-qqgw"
     },
     "1113165": {
@@ -7275,7 +7275,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=7.0.11",
       "severity": "high",
       "cwe": "CWE-703",
-      "github_advisory_id": "GHSA-RCMH-QJQH-P98V",
+      "github_advisory_id": "GHSA-rcmh-qjqh-p98v",
       "url": "https://github.com/advisories/GHSA-rcmh-qjqh-p98v"
     },
     "1113274": {
@@ -7298,7 +7298,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=0.30.3",
       "severity": "high",
       "cwe": "CWE-754",
-      "github_advisory_id": "GHSA-43FC-JF86-J433",
+      "github_advisory_id": "GHSA-43fc-jf86-j433",
       "url": "https://github.com/advisories/GHSA-43fc-jf86-j433"
     },
     "1113300": {
@@ -7320,7 +7320,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=7.5.3",
       "severity": "high",
       "cwe": "CWE-22",
-      "github_advisory_id": "GHSA-8QQ5-RM4J-MR97",
+      "github_advisory_id": "GHSA-8qq5-rm4j-mr97",
       "url": "https://github.com/advisories/GHSA-8qq5-rm4j-mr97"
     },
     "1113375": {
@@ -7342,7 +7342,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=7.5.8",
       "severity": "high",
       "cwe": "CWE-22",
-      "github_advisory_id": "GHSA-83G3-92JG-28CX",
+      "github_advisory_id": "GHSA-83g3-92jg-28cx",
       "url": "https://github.com/advisories/GHSA-83g3-92jg-28cx"
     },
     "1113394": {
@@ -7364,7 +7364,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=1.5.7",
       "severity": "moderate",
       "cwe": "CWE-639",
-      "github_advisory_id": "GHSA-8V38-PW62-9CW2",
+      "github_advisory_id": "GHSA-8v38-pw62-9cw2",
       "url": "https://github.com/advisories/GHSA-8v38-pw62-9cw2"
     },
     "1113395": {
@@ -7386,7 +7386,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=1.5.6",
       "severity": "moderate",
       "cwe": "CWE-639",
-      "github_advisory_id": "GHSA-RQFF-837H-MM52",
+      "github_advisory_id": "GHSA-rqff-837h-mm52",
       "url": "https://github.com/advisories/GHSA-rqff-837h-mm52"
     },
     "1113459": {
@@ -7412,7 +7412,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=3.1.3",
       "severity": "high",
       "cwe": "CWE-1333",
-      "github_advisory_id": "GHSA-3PPC-4F35-3M26",
+      "github_advisory_id": "GHSA-3ppc-4f35-3m26",
       "url": "https://github.com/advisories/GHSA-3ppc-4f35-3m26"
     },
     "1113538": {
@@ -7438,7 +7438,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=3.1.3",
       "severity": "high",
       "cwe": "CWE-407",
-      "github_advisory_id": "GHSA-7R86-CG39-JMMJ",
+      "github_advisory_id": "GHSA-7r86-cg39-jmmj",
       "url": "https://github.com/advisories/GHSA-7r86-cg39-jmmj"
     },
     "1113546": {
@@ -7464,7 +7464,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=3.1.4",
       "severity": "high",
       "cwe": "CWE-1333",
-      "github_advisory_id": "GHSA-23C5-XMQV-RM74",
+      "github_advisory_id": "GHSA-23c5-xmqv-rm74",
       "url": "https://github.com/advisories/GHSA-23c5-xmqv-rm74"
     },
     "1113714": {
@@ -7488,7 +7488,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=6.14.0",
       "severity": "moderate",
       "cwe": "CWE-400, CWE-1333",
-      "github_advisory_id": "GHSA-2G4F-4PWH-QVX6",
+      "github_advisory_id": "GHSA-2g4f-4pwh-qvx6",
       "url": "https://github.com/advisories/GHSA-2g4f-4pwh-qvx6"
     },
     "1113719": {
@@ -7530,7 +7530,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=6.14.1",
       "severity": "moderate",
       "cwe": "CWE-20",
-      "github_advisory_id": "GHSA-6RW7-VPXM-498P",
+      "github_advisory_id": "GHSA-6rw7-vpxm-498p",
       "url": "https://github.com/advisories/GHSA-6rw7-vpxm-498p"
     },
     "1113950": {
@@ -7554,7 +7554,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=1.13.8",
       "severity": "high",
       "cwe": "CWE-674, CWE-770",
-      "github_advisory_id": "GHSA-QPX9-HPMF-5GMW",
+      "github_advisory_id": "GHSA-qpx9-hpmf-5gmw",
       "url": "https://github.com/advisories/GHSA-qpx9-hpmf-5gmw"
     },
     "1114200": {
@@ -7576,7 +7576,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=7.5.10",
       "severity": "high",
       "cwe": "CWE-22, CWE-59",
-      "github_advisory_id": "GHSA-QFFP-2RHF-9H96",
+      "github_advisory_id": "GHSA-qffp-2rhf-9h96",
       "url": "https://github.com/advisories/GHSA-qffp-2rhf-9h96"
     },
     "1114302": {
@@ -7598,7 +7598,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=7.5.11",
       "severity": "high",
       "cwe": "CWE-22",
-      "github_advisory_id": "GHSA-9PPJ-QMQM-Q256",
+      "github_advisory_id": "GHSA-9ppj-qmqm-q256",
       "url": "https://github.com/advisories/GHSA-9ppj-qmqm-q256"
     },
     "1114680": {
@@ -7620,7 +7620,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=7.5.4",
       "severity": "high",
       "cwe": "CWE-176, CWE-367",
-      "github_advisory_id": "GHSA-R6Q2-HW4H-H46W",
+      "github_advisory_id": "GHSA-r6q2-hw4h-h46w",
       "url": "https://github.com/advisories/GHSA-r6q2-hw4h-h46w"
     },
     "1115156": {
@@ -7643,7 +7643,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=3.3.5",
       "severity": "high",
       "cwe": "CWE-754",
-      "github_advisory_id": "GHSA-677M-J7P3-52F9",
+      "github_advisory_id": "GHSA-677m-j7p3-52f9",
       "url": "https://github.com/advisories/GHSA-677m-j7p3-52f9"
     },
     "1115540": {
@@ -7669,7 +7669,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=1.1.13",
       "severity": "moderate",
       "cwe": "CWE-400",
-      "github_advisory_id": "GHSA-F886-M6HF-6M8V",
+      "github_advisory_id": "GHSA-f886-m6hf-6m8v",
       "url": "https://github.com/advisories/GHSA-f886-m6hf-6m8v"
     },
     "1115806": {
@@ -7695,7 +7695,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=4.17.24",
       "severity": "high",
       "cwe": "CWE-94",
-      "github_advisory_id": "GHSA-R5FR-RJXR-66JC",
+      "github_advisory_id": "GHSA-r5fr-rjxr-66jc",
       "url": "https://github.com/advisories/GHSA-r5fr-rjxr-66jc"
     },
     "1115810": {
@@ -7721,7 +7721,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=4.17.24",
       "severity": "moderate",
       "cwe": "CWE-1321",
-      "github_advisory_id": "GHSA-F23M-R3PF-42RH",
+      "github_advisory_id": "GHSA-f23m-r3pf-42rh",
       "url": "https://github.com/advisories/GHSA-f23m-r3pf-42rh"
     },
     "1116270": {
@@ -7743,7 +7743,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=8.0.5",
       "severity": "moderate",
       "cwe": "CWE-93",
-      "github_advisory_id": "GHSA-VVJJ-XCJG-GR5G",
+      "github_advisory_id": "GHSA-vvjj-xcjg-gr5g",
       "url": "https://github.com/advisories/GHSA-vvjj-xcjg-gr5g"
     },
     "1116365": {
@@ -7766,7 +7766,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=1.15.0",
       "severity": "critical",
       "cwe": "CWE-441, CWE-918",
-      "github_advisory_id": "GHSA-3P68-RC4W-QGX5",
+      "github_advisory_id": "GHSA-3p68-rc4w-qgx5",
       "url": "https://github.com/advisories/GHSA-3p68-rc4w-qgx5"
     },
     "1116560": {
@@ -7798,7 +7798,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=1.15.12",
       "severity": "moderate",
       "cwe": "CWE-200",
-      "github_advisory_id": "GHSA-R4Q5-VMMM-2653",
+      "github_advisory_id": "GHSA-r4q5-vmmm-2653",
       "url": "https://github.com/advisories/GHSA-r4q5-vmmm-2653"
     },
     "1116605": {
@@ -7821,7 +7821,7 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "patched_versions": ">=0.31.0",
       "severity": "critical",
       "cwe": "CWE-113, CWE-444, CWE-918",
-      "github_advisory_id": "GHSA-FVCV-3M26-PCQX",
+      "github_advisory_id": "GHSA-fvcv-3m26-pcqx",
       "url": "https://github.com/advisories/GHSA-fvcv-3m26-pcqx"
     }
   },

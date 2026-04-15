@@ -1,5 +1,5 @@
 import { writeSettings } from '@pnpm/config.writer'
-import type { AuditAdvisory, AuditReport } from '@pnpm/deps.compliance.audit'
+import { type AuditAdvisory, type AuditReport, normalizeGhsaId } from '@pnpm/deps.compliance.audit'
 import semver from 'semver'
 
 import type { AuditOptions } from './audit.js'
@@ -27,8 +27,8 @@ export async function fix (auditReport: AuditReport, opts: AuditOptions): Promis
 function getFixableAdvisories (advisories: AuditAdvisory[], ignoreGhsas?: string[]): AuditAdvisory[] {
   if (ignoreGhsas) {
     // Normalize on both sides so ignore entries match regardless of casing.
-    const ignored = new Set(ignoreGhsas.map((ghsaId) => ghsaId.trim().toUpperCase()))
-    advisories = advisories.filter(({ github_advisory_id: ghsaId }) => !ghsaId || !ignored.has(ghsaId.toUpperCase()))
+    const ignored = new Set(ignoreGhsas.map(normalizeGhsaId))
+    advisories = advisories.filter(({ github_advisory_id: ghsaId }) => !ghsaId || !ignored.has(normalizeGhsaId(ghsaId)))
   }
   // Only advisories with a known patched range can produce an override.
   // patched_versions is undefined when the range couldn't be inferred from

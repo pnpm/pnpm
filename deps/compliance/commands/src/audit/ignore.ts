@@ -1,5 +1,5 @@
 import { writeSettings } from '@pnpm/config.writer'
-import type { AuditAdvisory, AuditReport } from '@pnpm/deps.compliance.audit'
+import { type AuditAdvisory, type AuditReport, normalizeGhsaId } from '@pnpm/deps.compliance.audit'
 import { PnpmError } from '@pnpm/error'
 import type { AuditConfig, ProjectManifest } from '@pnpm/types'
 import { difference } from 'ramda'
@@ -58,8 +58,4 @@ export async function ignore (opts: IgnoreVulnerabilitiesOptions): Promise<strin
 // That is the only "no fix available" signal the bulk endpoint provides.
 function filterAdvisoriesWithNoResolutions (advisories: AuditAdvisory[]): AuditAdvisory[] {
   return advisories.filter(({ patched_versions: patchedVersions }) => patchedVersions == null)
-}
-
-function normalizeGhsaId (ghsaId: string): string {
-  return ghsaId.trim().toUpperCase()
 }
