@@ -2710,6 +2710,9 @@ importers:
 
   deps/compliance/audit:
     dependencies:
+      '@pnpm/deps.path':
+        specifier: workspace:*
+        version: link:../../path
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../../core/error
@@ -2737,12 +2740,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../../core/types
-      '@pnpm/workspace.project-manifest-reader':
-        specifier: workspace:*
-        version: link:../../../workspace/project-manifest-reader
-      ramda:
+      semver:
         specifier: 'catalog:'
-        version: '@pnpm/ramda@0.28.1'
+        version: 7.7.4
     devDependencies:
       '@pnpm/constants':
         specifier: workspace:*
@@ -2759,9 +2759,9 @@ importers:
       '@pnpm/testing.mock-agent':
         specifier: workspace:*
         version: link:../../../testing/mock-agent
-      '@types/ramda':
+      '@types/semver':
         specifier: 'catalog:'
-        version: 0.31.1
+        version: 7.7.1
 
   deps/compliance/commands:
     dependencies:

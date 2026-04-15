@@ -22,3 +22,9 @@ packages:
 
   axios@0.18.0:
     resolution: {integrity: sha512-1qjL8847bdp87/g7G5nCW12s5J0D1Xv45Z6M4Z5Tsp8sTuXj5w8e0HIiln4Wj12v2H2tX4f6j62/j/k7u0/g==}
+
+snapshots:
+
+  is-positive@1.0.0: {}
+
+  axios@0.18.0: {}

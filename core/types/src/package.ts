@@ -165,7 +165,6 @@ export type ConfigDependencies = Record<string, VersionWithIntegrity | {
 export type ConfigDependencySpecifiers = Record<string, string>
 
 export interface AuditConfig {
-  ignoreCves?: string[]
   ignoreGhsas?: string[]
 }
 

@@ -32,6 +32,7 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching.types": "workspace:*",
     "@pnpm/lockfile.detect-dep-types": "workspace:*",
@@ -41,8 +42,7 @@
     "@pnpm/lockfile.walker": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/workspace.project-manifest-reader": "workspace:*",
-    "ramda": "catalog:"
+    "semver": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -53,7 +53,7 @@
     "@pnpm/logger": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/testing.mock-agent": "workspace:*",
-    "@types/ramda": "catalog:"
+    "@types/semver": "catalog:"
   },
   "engines": {
     "node": ">=22.13"
