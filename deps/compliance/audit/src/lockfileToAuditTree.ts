@@ -38,10 +38,8 @@ export async function lockfileToAuditTree (
   await Promise.all(
     importerWalkers.map(async (importerWalker) => {
       const importerDeps = lockfileToAuditNode(depTypes, importerWalker.step)
-      // For some reason the registry responds with 500 if the keys in dependencies have slashes
-      // see issue: https://github.com/pnpm/pnpm/issues/2848
-      const depName = importerWalker.importerId.replace(/\//g, '__')
       const manifest = await safeReadProjectManifestOnly(path.join(opts.lockfileDir, importerWalker.importerId))
+      const depName = getAuditImporterName(importerWalker.importerId, manifest?.name)
       dependencies[depName] = {
         dependencies: importerDeps,
         dev: false,
@@ -73,6 +71,13 @@ export async function lockfileToAuditTree (
     requires: toRequires(dependencies),
   }
   return auditTree
+}
+
+function getAuditImporterName (importerId: string, manifestName?: string): string {
+  if (importerId === '.') return '.'
+  // For some reason the registry responds with 500 if the keys in dependencies have slashes.
+  // See: https://github.com/pnpm/pnpm/issues/2848
+  return (manifestName ?? importerId).replace(/\//g, '__')
 }
 
 function lockfileToAuditNode (depTypes: DepTypes, step: LockfileWalkerStep): Record<string, AuditNode> {
