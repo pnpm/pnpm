@@ -1313,6 +1313,50 @@ test('dependencies of workspace projects are built during headless installation'
   }
 })
 
+test('strictDepBuilds detects unapproved build scripts with sharedWorkspaceLockfile=false', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {},
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+    strictDepBuilds: true,
+  })
+
+  {
+    const result = execPnpmSync(['install'])
+    expect(result.status).toBe(1)
+    expect(result.stdout.toString()).toContain('Ignored build scripts:')
+  }
+
+  // After approving the package, install should succeed
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+    strictDepBuilds: true,
+    allowBuilds: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+    },
+  })
+
+  {
+    const result = execPnpmSync(['install'])
+    expect(result.status).toBe(0)
+  }
+})
+
 test("linking the package's bin to another workspace package in a monorepo", async () => {
   const projects = preparePackages([
     {
