@@ -35,18 +35,13 @@ export function lockfileToAuditRequest (
   const importerWalkers = lockfileWalkerGroupImporterSteps(lockfile, importerIds, { include: opts.include })
   const depTypes = detectDepTypes(lockfile)
 
-  const counts = { total: 0, dev: 0 }
   const reachable: AuditIndexRequest['reachable'] = {}
 
   const walkForRequest = (step: LockfileWalkerStep, currentDepTypes: DepTypes) => {
     for (const { depPath, pkgSnapshot, next } of step.dependencies) {
       const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
       if (version) {
-        counts.total++
         const isDev = currentDepTypes[depPath] === DepType.DevOnly
-        if (isDev) {
-          counts.dev++
-        }
         let byVersion = reachable[name]
         if (!byVersion) {
           byVersion = new Map()
@@ -75,14 +70,22 @@ export function lockfileToAuditRequest (
   }
 
   const request: Record<string, string[]> = {}
+  let totalDependencies = 0
+  let devDependencies = 0
   for (const [name, versions] of Object.entries(reachable)) {
     request[name] = Array.from(versions.keys())
+    for (const { dev } of versions.values()) {
+      totalDependencies++
+      if (dev) {
+        devDependencies++
+      }
+    }
   }
 
   return {
     request,
-    totalDependencies: counts.total,
-    devDependencies: counts.dev,
+    totalDependencies,
+    devDependencies,
     reachable,
   }
 }

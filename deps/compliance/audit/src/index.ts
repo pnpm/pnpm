@@ -185,9 +185,9 @@ function normalizeAdvisory (adv: BulkAdvisory, moduleName: string, findings: Aud
 
 function inferPatchedVersions (vulnerableRange: string): string {
   const trimmed = vulnerableRange.trim()
-  const ltMatch = trimmed.match(/(?:^|\s)<(\d+\.\d+\.\d[\w\-.+]*)\s*$/)
+  const ltMatch = trimmed.match(/^(?:.*?\s)?<(\d+\.\d+\.\d[\w\-.+]*)$/)
   if (ltMatch) return `>=${ltMatch[1]}`
-  const lteMatch = trimmed.match(/(?:^|\s)<=(\d+\.\d+\.\d[\w\-.+]*)\s*$/)
+  const lteMatch = trimmed.match(/^(?:.*?\s)?<=(\d+\.\d+\.\d[\w\-.+]*)$/)
   if (lteMatch) {
     const next = semver.inc(lteMatch[1], 'patch')
     if (next) return `>=${next}`
