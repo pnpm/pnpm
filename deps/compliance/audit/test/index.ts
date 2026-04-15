@@ -462,11 +462,8 @@ describe('audit', () => {
     const getAuthHeader = () => undefined
     await setupMockAgent()
     getMockAgent().get('http://registry.registry')
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(500, { message: 'Something bad happened' })
-    getMockAgent().get('http://registry.registry')
-      .intercept({ path: '/-/npm/v1/security/audits', method: 'POST' })
-      .reply(500, { message: 'Fallback failed too' })
 
     try {
       let err!: PnpmError
@@ -490,71 +487,7 @@ describe('audit', () => {
 
       expect(err).toBeDefined()
       expect(err.code).toBe('ERR_PNPM_AUDIT_BAD_RESPONSE')
-      expect(err.message).toBe('The audit endpoint (at http://registry.registry/-/npm/v1/security/audits/quick) responded with 500: {"message":"Something bad happened"}. Fallback endpoint (at http://registry.registry/-/npm/v1/security/audits) responded with 500: {"message":"Fallback failed too"}')
-    } finally {
-      await teardownMockAgent()
-    }
-  })
-
-  test('falls back to /audits if /audits/quick fails', async () => {
-    const registry = 'http://registry.registry/'
-    const getAuthHeader = () => undefined
-    await setupMockAgent()
-    getMockAgent().get('http://registry.registry')
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
-      .reply(500, { message: 'Something bad happened' })
-    getMockAgent().get('http://registry.registry')
-      .intercept({ path: '/-/npm/v1/security/audits', method: 'POST' })
-      .reply(200, {
-        actions: [],
-        advisories: {},
-        metadata: {
-          dependencies: 0,
-          devDependencies: 0,
-          optionalDependencies: 0,
-          totalDependencies: 0,
-          vulnerabilities: {
-            critical: 0,
-            high: 0,
-            info: 0,
-            low: 0,
-            moderate: 0,
-          },
-        },
-        muted: [],
-      })
-
-    try {
-      expect(await audit({
-        importers: {},
-        lockfileVersion: LOCKFILE_VERSION,
-      },
-      getAuthHeader,
-      {
-        lockfileDir: f.find('one-project'),
-        registry,
-        retry: {
-          retries: 0,
-        },
-        virtualStoreDirMaxLength: 120,
-      })).toEqual({
-        actions: [],
-        advisories: {},
-        metadata: {
-          dependencies: 0,
-          devDependencies: 0,
-          optionalDependencies: 0,
-          totalDependencies: 0,
-          vulnerabilities: {
-            critical: 0,
-            high: 0,
-            info: 0,
-            low: 0,
-            moderate: 0,
-          },
-        },
-        muted: [],
-      })
+      expect(err.message).toBe('The audit endpoint (at http://registry.registry/-/npm/v1/security/advisories/bulk) responded with 500: {"message":"Something bad happened"}')
     } finally {
       await teardownMockAgent()
     }
@@ -567,7 +500,7 @@ describe('audit', () => {
     // intercept will only match if the authorization header is present and correct
     getMockAgent().get('http://registry.registry')
       .intercept({
-        path: '/-/npm/v1/security/audits/quick',
+        path: '/-/npm/v1/security/advisories/bulk',
         method: 'POST',
         headers: { authorization: 'Bearer test-token' },
       })
@@ -591,7 +524,7 @@ describe('audit', () => {
     await setupMockAgent()
     let capturedHeaders: Record<string, string> = {}
     getMockAgent().get('http://registry.registry')
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(200, (opts) => {
         capturedHeaders = opts.headers as Record<string, string>
         return { actions: [], advisories: {}, metadata: { dependencies: 0, devDependencies: 0, optionalDependencies: 0, totalDependencies: 0, vulnerabilities: { critical: 0, high: 0, info: 0, low: 0, moderate: 0 } }, muted: [] }

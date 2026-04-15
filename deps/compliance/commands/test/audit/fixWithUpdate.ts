@@ -46,7 +46,7 @@ describe('audit fix with update', () => {
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -112,7 +112,7 @@ The fixed vulnerabilities are:
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -173,7 +173,7 @@ The fixed vulnerabilities are:
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -224,7 +224,7 @@ The fixed vulnerabilities are:
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -278,7 +278,7 @@ The fixed vulnerabilities are:
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -342,7 +342,7 @@ The remaining vulnerabilities are:
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -408,7 +408,7 @@ The fixed vulnerabilities are:
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(200, mockResponse)
 
     const {
@@ -482,7 +482,7 @@ The fixed vulnerabilities are:
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(200, mockResponse)
 
     const {
@@ -563,7 +563,7 @@ The fixed vulnerabilities are:
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(200, mockResponse)
 
     const {
@@ -654,7 +654,7 @@ The fixed vulnerabilities are:
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(200, mockResponse)
 
     const {
@@ -742,7 +742,7 @@ The fixed vulnerabilities are:
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(200, mockResponse)
 
     const {
