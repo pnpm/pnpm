@@ -1,5 +1,6 @@
 import { PnpmError } from '@pnpm/error'
 import type { GetAuthHeader } from '@pnpm/fetching.types'
+import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type { EnvLockfile, LockfileObject } from '@pnpm/lockfile.types'
 import { type DispatcherOptions, fetchWithDispatcher, type RetryTimeoutOptions } from '@pnpm/network.fetch'
 import type { DependenciesField } from '@pnpm/types'
@@ -59,7 +60,8 @@ export async function audit (
     timeout?: number
   }
 ): Promise<AuditReport> {
-  const auditRequest = lockfileToAuditRequest(lockfile, { envLockfile: opts.envLockfile, include: opts.include })
+  const depTypes = detectDepTypes(lockfile)
+  const auditRequest = lockfileToAuditRequest(lockfile, { envLockfile: opts.envLockfile, include: opts.include, depTypes })
   const registry = opts.registry.endsWith('/') ? opts.registry : `${opts.registry}/`
   const auditUrl = `${registry}-/npm/v1/security/advisories/bulk`
   const authHeaderValue = getAuthHeader(registry)
@@ -82,7 +84,7 @@ export async function audit (
     const vulnerableNames = new Set(Object.keys(body))
     let auditPathIndex: AuditPathIndex = {}
     if (vulnerableNames.size > 0) {
-      auditPathIndex = buildAuditPathIndex(lockfile, vulnerableNames, { envLockfile: opts.envLockfile, include: opts.include })
+      auditPathIndex = buildAuditPathIndex(lockfile, vulnerableNames, { envLockfile: opts.envLockfile, include: opts.include, depTypes })
     }
     return bulkResponseToAuditReport(body, auditRequest, auditPathIndex)
   }

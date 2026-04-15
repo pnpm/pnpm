@@ -18,13 +18,14 @@ export interface AuditIndexRequest {
   request: Record<string, string[]>
   totalDependencies: number
   devDependencies: number
-  // Reachable (name, version) pairs and their dev status, used for the second walk
-  reachable: Record<string, Map<string, { dev: boolean }>>
 }
 
 export interface AuditIndexOptions {
   envLockfile?: EnvLockfile | null
   include?: { [dependenciesField in DependenciesField]: boolean }
+  // Pre-computed dep types. Callers that also call buildAuditPathIndex on the
+  // same lockfile can share this to avoid walking the lockfile twice.
+  depTypes?: DepTypes
 }
 
 export function lockfileToAuditRequest (
@@ -33,61 +34,48 @@ export function lockfileToAuditRequest (
 ): AuditIndexRequest {
   const importerIds = Object.keys(lockfile.importers) as ProjectId[]
   const importerWalkers = lockfileWalkerGroupImporterSteps(lockfile, importerIds, { include: opts.include })
-  const depTypes = detectDepTypes(lockfile)
+  const depTypes = opts.depTypes ?? detectDepTypes(lockfile)
 
-  const reachable: AuditIndexRequest['reachable'] = {}
+  const request: Record<string, string[]> = {}
+  const seenVersions: Record<string, Set<string>> = {}
+  let totalDependencies = 0
+  let devDependencies = 0
 
-  const walkForRequest = (step: LockfileWalkerStep, currentDepTypes: DepTypes) => {
+  const visit = (step: LockfileWalkerStep, currentDepTypes: DepTypes): void => {
     for (const { depPath, pkgSnapshot, next } of step.dependencies) {
       const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
       if (version) {
-        const isDev = currentDepTypes[depPath] === DepType.DevOnly
-        let byVersion = reachable[name]
-        if (!byVersion) {
-          byVersion = new Map()
-          reachable[name] = byVersion
+        let versions = seenVersions[name]
+        if (!versions) {
+          versions = new Set()
+          seenVersions[name] = versions
+          request[name] = []
         }
-        const info = byVersion.get(version)
-        if (!info) {
-          byVersion.set(version, { dev: isDev })
-        } else if (!isDev) {
-          info.dev = false
+        if (!versions.has(version)) {
+          versions.add(version)
+          request[name].push(version)
+          totalDependencies++
+          if (currentDepTypes[depPath] === DepType.DevOnly) {
+            devDependencies++
+          }
         }
       }
-      walkForRequest(next(), currentDepTypes)
+      visit(next(), currentDepTypes)
     }
   }
 
   for (const importerWalker of importerWalkers) {
-    walkForRequest(importerWalker.step, depTypes)
+    visit(importerWalker.step, depTypes)
   }
   if (opts.envLockfile) {
     const envLockfileObject = envLockfileToLockfileObject(opts.envLockfile)
     const envDepTypes = detectDepTypes(envLockfileObject)
     for (const { step } of lockfileWalkerGroupImporterSteps(envLockfileObject, Object.keys(envLockfileObject.importers) as ProjectId[], { include: opts.include })) {
-      walkForRequest(step, envDepTypes)
+      visit(step, envDepTypes)
     }
   }
 
-  const request: Record<string, string[]> = {}
-  let totalDependencies = 0
-  let devDependencies = 0
-  for (const [name, versions] of Object.entries(reachable)) {
-    request[name] = Array.from(versions.keys())
-    for (const { dev } of versions.values()) {
-      totalDependencies++
-      if (dev) {
-        devDependencies++
-      }
-    }
-  }
-
-  return {
-    request,
-    totalDependencies,
-    devDependencies,
-    reachable,
-  }
+  return { request, totalDependencies, devDependencies }
 }
 
 export function buildAuditPathIndex (
@@ -98,9 +86,9 @@ export function buildAuditPathIndex (
   const paths: AuditPathIndex = {}
   const importerIds = Object.keys(lockfile.importers) as ProjectId[]
   const importerWalkers = lockfileWalkerGroupImporterSteps(lockfile, importerIds, { include: opts.include })
-  const depTypes = detectDepTypes(lockfile)
+  const depTypes = opts.depTypes ?? detectDepTypes(lockfile)
 
-  const walk = (step: LockfileWalkerStep, currentDepTypes: DepTypes, trail: string[]) => {
+  const walk = (step: LockfileWalkerStep, currentDepTypes: DepTypes, trail: string[]): void => {
     for (const { depPath, pkgSnapshot, next } of step.dependencies) {
       const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
       const fullPath = [...trail, name]
