@@ -1,9 +1,10 @@
+import * as dp from '@pnpm/deps.path'
 import { DepType, type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { convertToLockfileObject } from '@pnpm/lockfile.fs'
-import type { EnvLockfile, LockfileObject } from '@pnpm/lockfile.types'
+import type { EnvLockfile, LockfileObject, ResolvedDependencies } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { lockfileWalkerGroupImporterSteps, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
-import type { DependenciesField, ProjectId } from '@pnpm/types'
+import type { DependenciesField, DepPath, ProjectId } from '@pnpm/types'
 
 export interface PathInfo {
   paths: string[]
@@ -18,6 +19,7 @@ export interface AuditIndexRequest {
   request: Record<string, string[]>
   totalDependencies: number
   devDependencies: number
+  optionalDependencies: number
 }
 
 export interface AuditIndexOptions {
@@ -35,13 +37,15 @@ export function lockfileToAuditRequest (
   const importerIds = Object.keys(lockfile.importers) as ProjectId[]
   const importerWalkers = lockfileWalkerGroupImporterSteps(lockfile, importerIds, { include: opts.include })
   const depTypes = opts.depTypes ?? detectDepTypes(lockfile)
+  const optionalOnly = collectOptionalOnlyDepPaths(lockfile)
 
   const request: Record<string, string[]> = {}
   const seenVersions: Record<string, Set<string>> = {}
   let totalDependencies = 0
   let devDependencies = 0
+  let optionalDependencies = 0
 
-  const visit = (step: LockfileWalkerStep, currentDepTypes: DepTypes): void => {
+  const visit = (step: LockfileWalkerStep, currentDepTypes: DepTypes, currentOptionalOnly: Set<DepPath>): void => {
     for (const { depPath, pkgSnapshot, next } of step.dependencies) {
       const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
       if (version) {
@@ -57,25 +61,75 @@ export function lockfileToAuditRequest (
           totalDependencies++
           if (currentDepTypes[depPath] === DepType.DevOnly) {
             devDependencies++
+          } else if (currentOptionalOnly.has(depPath)) {
+            optionalDependencies++
           }
         }
       }
-      visit(next(), currentDepTypes)
+      visit(next(), currentDepTypes, currentOptionalOnly)
     }
   }
 
   for (const importerWalker of importerWalkers) {
-    visit(importerWalker.step, depTypes)
+    visit(importerWalker.step, depTypes, optionalOnly)
   }
   if (opts.envLockfile) {
     const envLockfileObject = envLockfileToLockfileObject(opts.envLockfile)
     const envDepTypes = detectDepTypes(envLockfileObject)
+    const envOptionalOnly = collectOptionalOnlyDepPaths(envLockfileObject)
     for (const { step } of lockfileWalkerGroupImporterSteps(envLockfileObject, Object.keys(envLockfileObject.importers) as ProjectId[], { include: opts.include })) {
-      visit(step, envDepTypes)
+      visit(step, envDepTypes, envOptionalOnly)
     }
   }
 
-  return { request, totalDependencies, devDependencies }
+  return { request, totalDependencies, devDependencies, optionalDependencies }
+}
+
+// Returns the set of depPaths that are reachable only through optional edges
+// (i.e. they would be absent from the install set if optionalDependencies were
+// not included). Matches the AuditMetadata.optionalDependencies semantic.
+function collectOptionalOnlyDepPaths (lockfile: LockfileObject): Set<DepPath> {
+  const nonOptional = new Set<DepPath>()
+  const optional = new Set<DepPath>()
+  for (const importer of Object.values(lockfile.importers)) {
+    walkNonOptional(lockfile, resolvedDepsToDepPaths(importer.dependencies ?? {}), nonOptional)
+    walkNonOptional(lockfile, resolvedDepsToDepPaths(importer.devDependencies ?? {}), nonOptional)
+    walkOptional(lockfile, resolvedDepsToDepPaths(importer.optionalDependencies ?? {}), optional)
+  }
+  const result = new Set<DepPath>()
+  for (const depPath of optional) {
+    if (!nonOptional.has(depPath)) result.add(depPath)
+  }
+  return result
+}
+
+function walkNonOptional (lockfile: LockfileObject, depPaths: DepPath[], seen: Set<DepPath>): void {
+  const packages = lockfile.packages ?? {}
+  for (const depPath of depPaths) {
+    if (seen.has(depPath)) continue
+    seen.add(depPath)
+    const snapshot = packages[depPath]
+    if (!snapshot) continue
+    walkNonOptional(lockfile, resolvedDepsToDepPaths(snapshot.dependencies ?? {}), seen)
+  }
+}
+
+function walkOptional (lockfile: LockfileObject, depPaths: DepPath[], seen: Set<DepPath>): void {
+  const packages = lockfile.packages ?? {}
+  for (const depPath of depPaths) {
+    if (seen.has(depPath)) continue
+    seen.add(depPath)
+    const snapshot = packages[depPath]
+    if (!snapshot) continue
+    walkOptional(lockfile, resolvedDepsToDepPaths(snapshot.dependencies ?? {}), seen)
+    walkOptional(lockfile, resolvedDepsToDepPaths(snapshot.optionalDependencies ?? {}), seen)
+  }
+}
+
+function resolvedDepsToDepPaths (deps: ResolvedDependencies): DepPath[] {
+  return Object.entries(deps)
+    .map(([alias, ref]) => dp.refToRelative(ref, alias))
+    .filter((depPath): depPath is DepPath => depPath !== null)
 }
 
 export function buildAuditPathIndex (

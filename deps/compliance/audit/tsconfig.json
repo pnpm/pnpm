@@ -25,6 +25,9 @@
       "path": "../../../core/types"
     },
     {
+      "path": "../../path"
+    },
+    {
       "path": "../../../fetching/types"
     },
     {

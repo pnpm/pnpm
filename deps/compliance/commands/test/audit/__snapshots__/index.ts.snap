@@ -8658,9 +8658,9 @@ exports[`plugin-commands-audit audit: advisories in ignoreGhsas do not show up w
       "high": 46,
       "critical": 15
     },
-    "dependencies": 440,
+    "dependencies": 439,
     "devDependencies": 0,
-    "optionalDependencies": 0,
+    "optionalDependencies": 1,
     "totalDependencies": 440
   }
 }"
