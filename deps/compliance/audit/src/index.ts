@@ -101,12 +101,17 @@ export async function audit (
 }
 
 function bulkResponseToAuditReport (bulk: BulkAdvisoriesResponse, auditRequest: AuditIndexRequest, auditPathIndex: AuditPathIndex): AuditReport {
-  const advisories: Record<string, AuditAdvisory> = {}
+  // Null-prototype map — the id comes from the registry and could be anything.
+  const advisories: Record<string, AuditAdvisory> = Object.create(null)
   const vulnerabilities: AuditVulnerabilityCounts = { info: 0, low: 0, moderate: 0, high: 0, critical: 0 }
 
   for (const [moduleName, packageAdvisories] of Object.entries(bulk)) {
     const byVersion = auditPathIndex[moduleName]
     for (const adv of packageAdvisories) {
+      // Guard against registry-supplied values that could corrupt the report:
+      // only accept finite numeric ids and severities from the known set.
+      if (typeof adv.id !== 'number' || !Number.isFinite(adv.id)) continue
+      if (!isKnownSeverity(adv.severity)) continue
       const findings = buildFindings(adv, byVersion)
       // If no installed version is vulnerable, skip the advisory entirely so
       // we don't report false positives for packages the lockfile doesn't use.
@@ -114,7 +119,7 @@ function bulkResponseToAuditReport (bulk: BulkAdvisoriesResponse, auditRequest: 
       advisories[String(adv.id)] = normalizeAdvisory(adv, moduleName, findings)
       // npm's audit report counts one vulnerability per advisory in the metadata summary
       // when using the bulk endpoint format pnpm expects.
-      vulnerabilities[adv.severity] = (vulnerabilities[adv.severity] ?? 0) + 1
+      vulnerabilities[adv.severity] += 1
     }
   }
 
@@ -160,6 +165,12 @@ function buildFindings (adv: BulkAdvisory, byVersion: Map<string, PathInfo> | un
     }
   }
   return findings
+}
+
+const KNOWN_SEVERITIES: ReadonlySet<AuditLevelString> = new Set(['info', 'low', 'moderate', 'high', 'critical'])
+
+function isKnownSeverity (severity: unknown): severity is AuditLevelString {
+  return typeof severity === 'string' && KNOWN_SEVERITIES.has(severity as AuditLevelString)
 }
 
 function satisfiesSafe (version: string, range: string): boolean {
