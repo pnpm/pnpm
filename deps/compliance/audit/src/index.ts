@@ -142,16 +142,25 @@ function bulkResponseToAuditReport (bulk: BulkAdvisoriesResponse, auditRequest: 
 
 function buildFindings (adv: BulkAdvisory, byVersion: Map<string, PathInfo> | undefined): AuditFinding[] {
   // If the registry already populated findings (legacy or private-registry
-  // shape), normalize them so every entry has the full AuditFinding shape.
-  // Missing dev/optional/bundled booleans must not leak into AuditReport.
+  // shape), validate them against the installed versions: drop entries
+  // whose version isn't in the lockfile or doesn't match vulnerable_versions,
+  // and prefer the locally-computed paths/dev/optional over whatever the
+  // registry reports so we can't be tricked into false positives.
   if (adv.findings && adv.findings.length > 0) {
-    return adv.findings.map((f) => ({
-      version: f.version,
-      paths: f.paths ?? [],
-      dev: f.dev ?? false,
-      optional: f.optional ?? false,
-      bundled: f.bundled ?? false,
-    }))
+    const findings: AuditFinding[] = []
+    for (const f of adv.findings) {
+      if (!satisfiesSafe(f.version, adv.vulnerable_versions)) continue
+      const installed = byVersion?.get(f.version)
+      if (byVersion != null && installed == null) continue
+      findings.push({
+        version: f.version,
+        paths: installed?.paths ?? f.paths ?? [],
+        dev: installed?.dev ?? f.dev ?? false,
+        optional: installed?.optional ?? f.optional ?? false,
+        bundled: f.bundled ?? false,
+      })
+    }
+    return findings
   }
   const findings: AuditFinding[] = []
   if (byVersion) {
