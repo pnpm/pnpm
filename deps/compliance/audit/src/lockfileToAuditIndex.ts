@@ -90,11 +90,9 @@ export function lockfileToAuditRequest (
     }
   }
 
-  // Build a visitor for one lockfile graph. Closes over depTypes, optionalOnly,
-  // and a per-graph seenDepPaths set so a main-graph dev occurrence doesn't mask
-  // the same depPath's non-dev occurrence in the env lockfile.
+  // Build a visitor for one lockfile graph. The walker already de-duplicates
+  // by depPath internally, so we don't need a second visited set here.
   const makeVisitor = (graphDepTypes: DepTypes, graphOptionalOnly: Set<DepPath>) => {
-    const seenDepPaths = new Set<string>()
     const visit = (step: LockfileWalkerStep): void => {
       for (const { depPath, pkgSnapshot, next } of step.dependencies) {
         const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
@@ -106,8 +104,6 @@ export function lockfileToAuditRequest (
             optionalOnly: graphOptionalOnly.has(depPath),
           })
         }
-        if (seenDepPaths.has(depPath)) continue
-        seenDepPaths.add(depPath)
         visit(next())
       }
     }

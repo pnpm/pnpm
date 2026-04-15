@@ -51,6 +51,59 @@ describe('audit', () => {
     expect(result['foo']).toBeUndefined()
   })
 
+  test('buildAuditPathIndex() records every distinct install path for shared deps', () => {
+    // lodash is reachable via two different parent chains. The lockfile walker
+    // globally dedupes by depPath, so using it directly would record only the
+    // first-seen chain. buildAuditPathIndex must produce one path per chain.
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { a: '1.0.0', b: '1.0.0' },
+          specifiers: { a: '^1.0.0', b: '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['a@1.0.0' as DepPath]: {
+          dependencies: { lodash: '4.0.0' },
+          resolution: { integrity: 'a-integrity' },
+        },
+        ['b@1.0.0' as DepPath]: {
+          dependencies: { lodash: '4.0.0' },
+          resolution: { integrity: 'b-integrity' },
+        },
+        ['lodash@4.0.0' as DepPath]: { resolution: { integrity: 'lodash-integrity' } },
+      },
+    }
+    const result = buildAuditPathIndex(lockfile, new Set(['lodash']), {})
+
+    const info = result['lodash']!.get('4.0.0')!
+    expect(info.paths).toHaveLength(2)
+    expect(info.paths).toEqual(expect.arrayContaining(['.>a>lodash', '.>b>lodash']))
+  })
+
+  test('buildAuditPathIndex() flags findings reached only through optional edges', () => {
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          optionalDependencies: { native: '1.0.0' },
+          specifiers: { native: '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['native@1.0.0' as DepPath]: { resolution: { integrity: 'native-integrity' } },
+      },
+    }
+    const result = buildAuditPathIndex(lockfile, new Set(['native']), {})
+
+    expect(result['native']!.get('1.0.0')).toEqual({
+      paths: ['.>native'],
+      dev: false,
+      optional: true,
+    })
+  })
+
   test('lockfileToAuditRequest() replaces slashes in workspace importer ids', () => {
     // This is tested via buildAuditPathIndex as well since that's where paths are built
     const lockfile = {
