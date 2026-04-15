@@ -20,10 +20,10 @@ export type { AuditIndexRequest, AuditPathIndex, PathInfo } from './lockfileToAu
 export { buildAuditPathIndex, lockfileToAuditRequest } from './lockfileToAuditIndex.js'
 export * from './types.js'
 
-// The shape of a single advisory returned by npm's /advisories/bulk endpoint.
-// Only the fields npm actually returns are declared here; every other field
-// on AuditAdvisory is filled locally (inferred from this data or defaulted)
-// so downstream consumers see a complete report.
+// The shape of a single advisory as returned by npm's /advisories/bulk
+// endpoint. The two AuditAdvisory fields not populated directly from this
+// are derived from it: github_advisory_id from `url` and patched_versions
+// from `vulnerable_versions`. findings are built from the lockfile walk.
 interface BulkAdvisory {
   id: number
   url?: string
