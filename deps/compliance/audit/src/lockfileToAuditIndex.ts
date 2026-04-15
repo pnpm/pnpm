@@ -19,6 +19,11 @@ export interface AuditIndexRequest {
   // Flat map suitable as the POST body for `/advisories/bulk`.
   request: Record<string, string[]>
   totalDependencies: number
+  // Production dependencies: neither dev-only nor optional-only. Kept as a
+  // distinct counter because devOnly and optionalOnly aren't mutually
+  // exclusive — a (name, version) can be both — so `total - dev - optional`
+  // would double-subtract those entries.
+  dependencies: number
   devDependencies: number
   optionalDependencies: number
 }
@@ -50,6 +55,7 @@ export function lockfileToAuditRequest (
   // decremented.
   const versionStatesByName: Record<string, Map<string, { devOnly: boolean, optionalOnly: boolean }>> = {}
   let totalDependencies = 0
+  let dependencies = 0
   let devDependencies = 0
   let optionalDependencies = 0
 
@@ -67,8 +73,10 @@ export function lockfileToAuditRequest (
       totalDependencies++
       if (o.devOnly) devDependencies++
       if (o.optionalOnly) optionalDependencies++
+      if (!o.devOnly && !o.optionalOnly) dependencies++
       return
     }
+    const wasProduction = !state.devOnly && !state.optionalOnly
     if (state.devOnly && !o.devOnly) {
       state.devOnly = false
       devDependencies--
@@ -76,6 +84,9 @@ export function lockfileToAuditRequest (
     if (state.optionalOnly && !o.optionalOnly) {
       state.optionalOnly = false
       optionalDependencies--
+    }
+    if (!wasProduction && !state.devOnly && !state.optionalOnly) {
+      dependencies++
     }
   }
 
@@ -117,7 +128,7 @@ export function lockfileToAuditRequest (
     }
   }
 
-  return { request, totalDependencies, devDependencies, optionalDependencies }
+  return { request, totalDependencies, dependencies, devDependencies, optionalDependencies }
 }
 
 export function buildAuditPathIndex (

@@ -122,7 +122,7 @@ function bulkResponseToAuditReport (bulk: BulkAdvisoriesResponse, auditRequest: 
     muted: [],
     metadata: {
       vulnerabilities,
-      dependencies: auditRequest.totalDependencies - auditRequest.devDependencies - auditRequest.optionalDependencies,
+      dependencies: auditRequest.dependencies,
       devDependencies: auditRequest.devDependencies,
       optionalDependencies: auditRequest.optionalDependencies,
       totalDependencies: auditRequest.totalDependencies,

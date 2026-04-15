@@ -106,7 +106,7 @@ describe('plugin-commands-audit', () => {
     expect(exitCode).toBe(1)
   })
 
-  test.skip('audit does not exit with code 1 if the found vulnerabilities are having lower severity then what we asked for', async () => {
+  test.skip('audit does not exit with code 1 if the found vulnerabilities are having lower severity than what we asked for', async () => {
     getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
       .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(200, responses.DEV_VULN_ONLY_RESP)
