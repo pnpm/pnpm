@@ -7,6 +7,7 @@ export interface AuditVulnerabilityCounts {
 }
 
 export interface IgnoredAuditVulnerabilityCounts {
+  info: number
   low: number
   moderate: number
   high: number
@@ -29,9 +30,9 @@ export interface AuditAction {
   resolves: AuditResolution[]
 }
 
-export type AuditLevelString = 'low' | 'moderate' | 'high' | 'critical'
+export type AuditLevelString = 'info' | 'low' | 'moderate' | 'high' | 'critical'
 
-export type AuditLevelNumber = 0 | 1 | 2 | 3
+export type AuditLevelNumber = 0 | 1 | 2 | 3 | 4
 
 export interface AuditFinding {
   version: string

@@ -281,7 +281,7 @@ function getAuthHeaders (authHeaderValue: string | undefined): AuthHeaders {
 
 export class AuditEndpointNotExistsError extends PnpmError {
   constructor (endpoint: string) {
-    const message = `The audit endpoint (at ${endpoint}) is doesn't exist.`
+    const message = `The audit endpoint (at ${endpoint}) doesn't exist.`
     super(
       'AUDIT_ENDPOINT_NOT_EXISTS',
       message,

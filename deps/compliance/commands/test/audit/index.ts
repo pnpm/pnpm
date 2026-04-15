@@ -281,4 +281,37 @@ describe('plugin-commands-audit', () => {
     expect(exitCode).toBe(1)
     expect(stripAnsi(output)).toMatchSnapshot()
   })
+
+  test('audit --audit-level info', async () => {
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, responses.INFO_VULN_RESP)
+
+    const { output, exitCode } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      auditLevel: 'info',
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+    })
+
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output)).toContain('just some info')
+    expect(stripAnsi(output)).toContain('info')
+  })
+
+  test('audit defaults to low level and ignores info', async () => {
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, responses.INFO_VULN_RESP)
+
+    const { output, exitCode } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+    })
+
+    expect(exitCode).toBe(0)
+    expect(stripAnsi(output)).toBe(`1 vulnerabilities found
+Severity: 1 info`)
+  })
 })

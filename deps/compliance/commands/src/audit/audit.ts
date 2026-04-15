@@ -17,13 +17,15 @@ import { fixWithUpdate, type FixWithUpdateResult } from './fixWithUpdate.js'
 import { ignore } from './ignore.js'
 
 const AUDIT_LEVEL_NUMBER = {
-  low: 0,
-  moderate: 1,
-  high: 2,
-  critical: 3,
+  info: 0,
+  low: 1,
+  moderate: 2,
+  high: 3,
+  critical: 4,
 } satisfies Record<AuditLevelString, AuditLevelNumber>
 
 const AUDIT_COLOR = {
+  info: chalk.dim,
   low: chalk.bold,
   moderate: chalk.bold.yellow,
   high: chalk.bold.red,
@@ -53,7 +55,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
       'production',
       'registry',
     ], allTypes),
-    'audit-level': ['low', 'moderate', 'high', 'critical'],
+    'audit-level': ['info', 'low', 'moderate', 'high', 'critical'],
     // For fix, use String instead of a list of allowed string values.
     // Otherwise, an unexpected value will get coerced to true because of the Boolean type.
     fix: [String, Boolean],
@@ -99,7 +101,7 @@ export function help (): string {
             name: '--json',
           },
           {
-            description: 'Only print advisories with severity greater than or equal to one of the following: low|moderate|high|critical. Default: low',
+            description: 'Only print advisories with severity greater than or equal to one of the following: info|low|moderate|high|critical. Default: low',
             name: '--audit-level <severity>',
           },
           {
@@ -293,6 +295,7 @@ ${newIgnores.join('\n')}`,
   }
   const vulnerabilities = auditReport.metadata.vulnerabilities
   const ignoredVulnerabilities: IgnoredAuditVulnerabilityCounts = {
+    info: 0,
     low: 0,
     moderate: 0,
     high: 0,

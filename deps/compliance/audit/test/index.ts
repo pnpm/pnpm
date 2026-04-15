@@ -597,4 +597,46 @@ describe('audit', () => {
       await teardownMockAgent()
     }
   })
+
+  test('handles info severity in bulk response', async () => {
+    const registry = 'http://registry.registry/'
+    const getAuthHeader = () => undefined
+    await setupMockAgent()
+    getMockAgent().get('http://registry.registry')
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, {
+        info_pkg: [
+          {
+            id: 100,
+            url: 'https://github.com/advisories/GHSA-info-info-info',
+            title: 'just some info',
+            severity: 'info',
+            vulnerable_versions: '*',
+          },
+        ],
+      })
+
+    try {
+      const result = await audit(
+        {
+          importers: {
+            ['.' as ProjectId]: {
+              dependencies: { info_pkg: '1.0.0' },
+              specifiers: { info_pkg: '1.0.0' },
+            },
+          },
+          lockfileVersion: LOCKFILE_VERSION,
+          packages: {
+            ['info_pkg@1.0.0' as DepPath]: { resolution: { integrity: 'info-integrity' } },
+          },
+        },
+        getAuthHeader,
+        { lockfileDir: f.find('one-project'), registry, retry: { retries: 0 }, virtualStoreDirMaxLength: 120 }
+      )
+      expect(result.metadata.vulnerabilities.info).toBe(1)
+      expect(result.advisories['100'].severity).toBe('info')
+    } finally {
+      await teardownMockAgent()
+    }
+  })
 })
