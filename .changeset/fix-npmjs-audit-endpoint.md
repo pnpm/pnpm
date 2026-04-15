@@ -5,7 +5,17 @@
 "pnpm": major
 ---
 
-`pnpm audit` now calls npm's `/-/npm/v1/security/advisories/bulk` endpoint. The legacy `/-/npm/v1/security/audits{,/quick}` endpoints have been retired by the registry, so the legacy request/response contract is no longer supported. The audit tree is flattened to the bulk request shape, and the per-package advisory arrays returned by the new endpoint are mapped back to the `AuditReport` shape consumed by downstream commands. Advisory `findings[].paths` and `metadata.vulnerabilities` counts are now computed locally from the lockfile, since the new endpoint does not return them. `patched_versions` is inferred from `vulnerable_versions` when the range has the common `<X.Y.Z` or `<=X.Y.Z` shape. The `actions` field on the audit report is no longer populated — `pnpm audit --fix` still works, it derives fixes directly from the advisories.
+`pnpm audit` now calls npm's `/-/npm/v1/security/advisories/bulk` endpoint. The legacy `/-/npm/v1/security/audits{,/quick}` endpoints have been retired by the registry, so the legacy request/response contract is no longer supported.
+
+The new endpoint returns a slim advisory list keyed by package name, without `findings[].paths`, `actions`, `metadata`, `cves`, `patched_versions`, `github_advisory_id`, or `module_name`. The audit client now reconstructs what downstream commands need:
+
+- `findings[].paths` are computed by walking the lockfile and matching `vulnerable_versions` via semver.
+- `metadata.vulnerabilities` counts aggregate severity per affected install path.
+- `metadata.dependencies`, `devDependencies`, `optionalDependencies`, and `totalDependencies` are computed from the lockfile.
+- `patched_versions` is inferred from `vulnerable_versions` for the common `<X.Y.Z` / `<=X.Y.Z` patterns so `pnpm audit --fix` still produces usable overrides.
+- `github_advisory_id` is parsed from each advisory's `url`.
+- `actions` is no longer populated — `pnpm audit --fix` derives fixes directly from advisories.
+- `info` severity advisories are now supported across `--audit-level`, filters, and output.
 
 The bulk endpoint does not return CVE identifiers at all. As a consequence, CVE-based filtering has been replaced with GitHub advisory ID (GHSA) filtering:
 
