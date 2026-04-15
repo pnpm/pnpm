@@ -17,10 +17,10 @@ export interface IgnoreVulnerabilitiesOptions {
 export async function ignore (opts: IgnoreVulnerabilitiesOptions): Promise<string[]> {
   const currentGhsas = opts?.auditConfig?.ignoreGhsas ?? []
   const currentUniqueGhsas = new Set(currentGhsas)
-  const advisoryWthNoResolutions = filterAdvisoriesWithNoResolutions(Object.values(opts.auditReport.advisories))
+  const advisoryWithNoResolutions = filterAdvisoriesWithNoResolutions(Object.values(opts.auditReport.advisories))
 
   if (opts.ignoreUnfixable) {
-    Object.values(advisoryWthNoResolutions).forEach((advisory: AuditAdvisory) => {
+    Object.values(advisoryWithNoResolutions).forEach((advisory: AuditAdvisory) => {
       if (advisory.github_advisory_id) currentUniqueGhsas.add(advisory.github_advisory_id)
     })
   } else {

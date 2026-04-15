@@ -168,9 +168,12 @@ function bulkResponseToAuditReport (bulk: BulkAdvisoriesResponse, auditTree: Aud
     const byVersion = pathIndex[moduleName]
     for (const adv of packageAdvisories) {
       const findings = buildFindings(adv, byVersion)
+      // If no installed version is vulnerable, skip the advisory entirely so
+      // we don't report false positives for packages the lockfile doesn't use.
+      if (findings.length === 0) continue
       advisories[String(adv.id)] = normalizeAdvisory(adv, moduleName, findings)
       // npm's audit report counts one vulnerability per affected install path.
-      const affectedPaths = findings.reduce((sum, f) => sum + f.paths.length, 0) || 1
+      const affectedPaths = findings.reduce((sum, f) => sum + f.paths.length, 0)
       vulnerabilities[adv.severity] = (vulnerabilities[adv.severity] ?? 0) + affectedPaths
     }
   }
@@ -204,9 +207,6 @@ function buildFindings (adv: BulkAdvisory, byVersion: Map<string, PathInfo> | un
         })
       }
     }
-  }
-  if (findings.length === 0) {
-    findings.push({ version: '', paths: [], dev: false, optional: false, bundled: false })
   }
   return findings
 }
