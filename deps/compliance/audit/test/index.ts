@@ -104,8 +104,7 @@ describe('audit', () => {
     })
   })
 
-  test('lockfileToAuditRequest() replaces slashes in workspace importer ids', () => {
-    // This is tested via buildAuditPathIndex as well since that's where paths are built
+  test('buildAuditPathIndex() replaces slashes in workspace importer ids', () => {
     const lockfile = {
       importers: {
         ['packages/foo' as ProjectId]: {
