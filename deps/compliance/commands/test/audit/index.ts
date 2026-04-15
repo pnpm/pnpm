@@ -106,22 +106,34 @@ describe('plugin-commands-audit', () => {
     expect(exitCode).toBe(1)
   })
 
-  test.skip('audit does not exit with code 1 if the found vulnerabilities are having lower severity than what we asked for', async () => {
+  test('audit exits 0 when every found vulnerability is below --audit-level', async () => {
+    // Only a single moderate advisory against axios. With --audit-level=high
+    // the table is empty (so exitCode is 0), but the summary still reports
+    // the moderate vulnerability so the user knows it exists.
     getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
       .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
-      .reply(200, responses.DEV_VULN_ONLY_RESP)
+      .reply(200, {
+        axios: [
+          {
+            id: 99000001,
+            url: 'https://github.com/advisories/GHSA-below-level-test-0001',
+            title: 'moderate axios advisory for audit-level test',
+            severity: 'moderate',
+            vulnerable_versions: '<=0.99.0',
+            cwe: [] as string[],
+          },
+        ],
+      })
 
     const { output, exitCode } = await audit.handler({
       ...AUDIT_REGISTRY_OPTS,
       auditLevel: 'high',
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
-      dev: true,
     })
 
     expect(exitCode).toBe(0)
-    expect(stripAnsi(output)).toBe(`1 vulnerabilities found
-  Severity: 1 moderate`)
+    expect(stripAnsi(output)).toBe('1 vulnerabilities found\nSeverity: 1 moderate')
   })
 
   test('audit --json respects audit-level', async () => {
