@@ -25,9 +25,6 @@
       "path": "../../../core/types"
     },
     {
-      "path": "../../path"
-    },
-    {
       "path": "../../../fetching/types"
     },
     {
@@ -50,6 +47,9 @@
     },
     {
       "path": "../../../testing/mock-agent"
+    },
+    {
+      "path": "../../path"
     }
   ]
 }
