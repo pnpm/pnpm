@@ -170,12 +170,13 @@ function normalizeAdvisory (adv: BulkAdvisory, moduleName: string, findings: Aud
     // vulnerable range for the most common advisory patterns so audit --fix
     // can still produce usable overrides. Left undefined when inference fails
     // (which is distinct from "<0.0.0", npm's sentinel for "no fix exists"),
-    // so downstream handlers can tell "unknown" from "unfixable".
-    patched_versions: adv.patched_versions ?? inferPatchedVersions(adv.vulnerable_versions),
+    // so downstream handlers can tell "unknown" from "unfixable". `||` (not
+    // `??`) so an empty string from the registry is treated as missing.
+    patched_versions: adv.patched_versions || inferPatchedVersions(adv.vulnerable_versions),
     cwe: cwe ?? '',
     cves: adv.cves ?? [],
-    github_advisory_id: adv.github_advisory_id ?? deriveGithubAdvisoryId(adv.url),
-    module_name: adv.module_name ?? moduleName,
+    github_advisory_id: adv.github_advisory_id || deriveGithubAdvisoryId(adv.url),
+    module_name: adv.module_name || moduleName,
     created: adv.created ?? '',
     updated: adv.updated ?? '',
     deleted: adv.deleted ?? undefined,
