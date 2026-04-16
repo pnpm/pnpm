@@ -118,11 +118,20 @@ export interface ChildProcess {
   stderr: { toString: () => string }
 }
 
+type PnpmEnvDefault =
+  | 'pnpm_config_fetch_retries'
+  | 'pnpm_config_hoist'
+  | 'pnpm_config_minimum_release_age'
+  | 'pnpm_config_registry'
+  | 'pnpm_config_silent'
+  | 'pnpm_config_store_dir'
+  | 'pnpm_config_verify_store_integrity'
+
 export interface ExecPnpmSyncOpts {
   cwd?: string
   env?: Record<string, string>
   expectSuccess?: boolean // similar to expect(status).toBe(0), but also prints error messages, which makes it easier to debug failed tests
-  omitEnvDefaults?: string[]
+  omitEnvDefaults?: PnpmEnvDefault[]
   stdio?: StdioOptions
   storeDir?: string
   timeout?: number
@@ -173,7 +182,7 @@ export function execPnpxSync (
   return execResult as ChildProcess
 }
 
-function createEnv (opts?: { storeDir?: string, omitEnvDefaults?: string[] }): NodeJS.ProcessEnv {
+function createEnv (opts?: { storeDir?: string, omitEnvDefaults?: PnpmEnvDefault[] }): NodeJS.ProcessEnv {
   let workspaceManifest: Record<string, unknown> | undefined
   try {
     workspaceManifest = readYamlFileSync('pnpm-workspace.yaml')
