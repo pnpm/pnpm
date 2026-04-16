@@ -122,7 +122,7 @@ export interface ExecPnpmSyncOpts {
   cwd?: string
   env?: Record<string, string>
   expectSuccess?: boolean // similar to expect(status).toBe(0), but also prints error messages, which makes it easier to debug failed tests
-  noDefaultMinimumReleaseAge?: boolean
+  omitEnvDefaults?: string[]
   stdio?: StdioOptions
   storeDir?: string
   timeout?: number
@@ -135,7 +135,7 @@ export function execPnpmSync (
   const execResult = crossSpawn.sync(process.execPath, [pnpmBinLocation, ...args], {
     cwd: opts?.cwd,
     env: {
-      ...createEnv({ noDefaultMinimumReleaseAge: opts?.noDefaultMinimumReleaseAge }),
+      ...createEnv({ omitEnvDefaults: opts?.omitEnvDefaults }),
       ...opts?.env,
     } as NodeJS.ProcessEnv,
     stdio: opts?.stdio ?? 'pipe',
@@ -173,7 +173,7 @@ export function execPnpxSync (
   return execResult as ChildProcess
 }
 
-function createEnv (opts?: { storeDir?: string, noDefaultMinimumReleaseAge?: boolean }): NodeJS.ProcessEnv {
+function createEnv (opts?: { storeDir?: string, omitEnvDefaults?: string[] }): NodeJS.ProcessEnv {
   let workspaceManifest: Record<string, unknown> | undefined
   try {
     workspaceManifest = readYamlFileSync('pnpm-workspace.yaml')
@@ -202,10 +202,7 @@ function createEnv (opts?: { storeDir?: string, noDefaultMinimumReleaseAge?: boo
     // on CI servers we set it to `false`. That is why we set it back to true for the tests
     pnpm_config_verify_store_integrity: 'true',
   }
-  // Tests that verify dlx/create inherits minimumReleaseAge from
-  // pnpm-workspace.yaml must opt out of this default; otherwise the
-  // env var (higher priority) masks the workspace value.
-  if (!opts?.noDefaultMinimumReleaseAge) {
+  if (!opts?.omitEnvDefaults?.includes('pnpm_config_minimum_release_age')) {
     env.pnpm_config_minimum_release_age = '0'
   }
 
