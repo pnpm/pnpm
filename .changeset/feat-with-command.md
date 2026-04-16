@@ -18,6 +18,5 @@ Also adds a new `pmOnFail` setting that overrides the `onFail` behavior of `pack
 
 ```
 pnpm install --pm-on-fail=ignore          # direct CLI flag
-pnpm install --config.pm-on-fail=ignore   # equivalent via --config.* sugar
 pnpm_config_pm_on_fail=ignore pnpm install  # env var
 ```
