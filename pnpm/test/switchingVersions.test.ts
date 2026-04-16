@@ -21,12 +21,12 @@ test('switch to the pnpm version specified in the packageManager field of packag
   expect(stdout.toString()).toContain('Version 9.3.0')
 })
 
-test('do not switch to the pnpm version specified in the packageManager field of package.json, if managePackageManagerVersions is set to false', async () => {
+test('do not switch to the pnpm version specified in the packageManager field of package.json, if pmOnFail is set to ignore', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
   writeYamlFileSync('pnpm-workspace.yaml', {
-    managePackageManagerVersions: false,
+    pmOnFail: 'ignore',
   })
   writeJsonFileSync('package.json', {
     packageManager: 'pnpm@9.3.0',
@@ -180,9 +180,6 @@ test('devEngines.packageManager without onFail=download does not switch version'
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
-  writeYamlFileSync('pnpm-workspace.yaml', {
-    managePackageManagerVersions: false,
-  })
   writeJsonFileSync('package.json', {
     devEngines: {
       packageManager: {
@@ -201,7 +198,6 @@ test('devEngines.packageManager without onFail=download does not switch version'
 
 test('throws error if pnpm binary in store is corrupt', () => {
   prepare()
-  const config = ['--config.manage-package-manager-versions=true'] as const
   const pnpmHome = path.resolve('pnpm')
   const storeDir = path.resolve('store')
   const env = { PNPM_HOME: pnpmHome, pnpm_config_store_dir: storeDir }
@@ -212,7 +208,7 @@ test('throws error if pnpm binary in store is corrupt', () => {
   })
 
   // Run pnpm once to ensure pnpm is installed to the store.
-  execPnpmSync([...config, 'help'], { env })
+  execPnpmSync(['help'], { env })
 
   // Find the pnpm binary in the global virtual store and corrupt it.
   const entries = fs.readdirSync(storeDir, { recursive: true }) as string[]
@@ -226,6 +222,6 @@ test('throws error if pnpm binary in store is corrupt', () => {
     fs.rmSync(path.join(storeDir, pnpmBinEntry + '.cmd'))
   }
 
-  const { stderr } = execPnpmSync([...config, 'help'], { env })
+  const { stderr } = execPnpmSync(['help'], { env })
   expect(stderr.toString()).toContain('Failed to switch pnpm to v9.3.0. Looks like pnpm CLI is missing')
 })

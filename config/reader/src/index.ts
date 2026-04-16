@@ -170,15 +170,12 @@ export async function getConfig (opts: {
     'inject-workspace-packages': false,
     'link-workspace-packages': false,
     'lockfile-include-tarball-url': false,
-    'manage-package-manager-versions': true,
     'minimum-release-age': 24 * 60, // 1 day
     'modules-cache-max-age': 7 * 24 * 60, // 7 days
     'dlx-cache-max-age': 24 * 60, // 1 day
     'node-linker': 'isolated',
     'package-lock': npmDefaults['package-lock'],
     pending: false,
-    'package-manager-strict': process.env.COREPACK_ENABLE_STRICT !== '0',
-    'package-manager-strict-version': false,
     'prefer-workspace-packages': false,
     'public-hoist-pattern': [],
     'recursive-install': true,
@@ -619,22 +616,14 @@ export async function getConfig (opts: {
 
   // The `pmOnFail` config setting overrides whatever onFail the
   // wantedPackageManager carried, so users (and internal callers) can force
-  // a specific behavior without editing the manifest.
-  // Otherwise, for the legacy packageManager field, derive onFail from config
-  // settings. devEngines.packageManager already has onFail set during parsing.
+  // a specific behavior without editing the manifest. Otherwise, the legacy
+  // `packageManager` field defaults to `download` — `devEngines.packageManager`
+  // already has onFail set during parsing.
   if (pnpmConfig.wantedPackageManager) {
     if (pnpmConfig.pmOnFail) {
       pnpmConfig.wantedPackageManager.onFail = pnpmConfig.pmOnFail
     } else if (pnpmConfig.wantedPackageManager.onFail == null) {
-      if (pnpmConfig.packageManagerStrict === false) {
-        pnpmConfig.wantedPackageManager.onFail = 'warn'
-      } else if (pnpmConfig.managePackageManagerVersions) {
-        pnpmConfig.wantedPackageManager.onFail = 'download'
-      } else if (pnpmConfig.packageManagerStrictVersion) {
-        pnpmConfig.wantedPackageManager.onFail = 'error'
-      } else {
-        pnpmConfig.wantedPackageManager.onFail = 'ignore'
-      }
+      pnpmConfig.wantedPackageManager.onFail = 'download'
     }
   }
 
