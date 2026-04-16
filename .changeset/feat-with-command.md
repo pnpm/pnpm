@@ -1,5 +1,6 @@
 ---
 "@pnpm/cli.parse-cli-args": minor
+"@pnpm/config.reader": minor
 "pnpm": minor
 ---
 
@@ -11,4 +12,11 @@ Examples:
 pnpm with current install           # ignore the pinned version, use the running pnpm
 pnpm with 11.0.0-rc.1 install       # install using pnpm 11.0.0-rc.1
 pnpm with next install              # install using the "next" dist-tag
+```
+
+Also adds a new `packageManagerOnFail` setting that overrides the `onFail` behavior of `packageManager` and `devEngines.packageManager` for a single invocation. Accepted values: `download`, `error`, `warn`, `ignore`. Intentionally only read from env var or CLI flag (not `pnpm-workspace.yaml` or `.npmrc`), since persisting it would silently bypass the pin for every contributor.
+
+```
+pnpm_config_package_manager_on_fail=ignore pnpm install
+pnpm install --config.package-manager-on-fail=ignore
 ```

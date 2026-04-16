@@ -1,4 +1,5 @@
 import { prepare } from '@pnpm/prepare'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpmSync } from './utils/index.js'
 
@@ -244,4 +245,59 @@ test('devEngines.packageManager takes precedence over packageManager field', asy
   expect(status).toBe(1)
   expect(stderr.toString()).toContain('This project is configured to use 0.0.1 of pnpm')
   expect(stderr.toString()).toContain('"packageManager" will be ignored')
+})
+
+test('packageManagerOnFail=ignore via env var bypasses the devEngines.packageManager check', async () => {
+  prepare({
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '0.0.1',
+        onFail: 'error',
+      },
+    },
+  })
+
+  const { status, stderr } = execPnpmSync(['install'], {
+    env: { pnpm_config_package_manager_on_fail: 'ignore' },
+  })
+
+  expect(status).toBe(0)
+  expect(stderr.toString()).not.toContain('0.0.1')
+})
+
+test('packageManagerOnFail via --config CLI flag bypasses the devEngines.packageManager check', async () => {
+  prepare({
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '0.0.1',
+        onFail: 'error',
+      },
+    },
+  })
+
+  const { status } = execPnpmSync(['install', '--config.package-manager-on-fail=ignore'])
+
+  expect(status).toBe(0)
+})
+
+test('packageManagerOnFail set in pnpm-workspace.yaml is ignored (env/CLI only)', async () => {
+  prepare({
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '0.0.1',
+        onFail: 'error',
+      },
+    },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packageManagerOnFail: 'ignore',
+  })
+
+  const { status, stderr } = execPnpmSync(['install'])
+
+  expect(status).toBe(1)
+  expect(stderr.toString()).toContain('0.0.1')
 })

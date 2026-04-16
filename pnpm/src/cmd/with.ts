@@ -103,7 +103,7 @@ export async function handler (
   const spawnEnv: NodeJS.ProcessEnv = {
     ...process.env,
     [pnpmEnv.name]: pnpmEnv.value,
-    PNPM_INTERNAL_BYPASS_PM_CHECK: '1',
+    ...childBypassEnv(),
   }
 
   const pnpmBinPath = path.join(binDir, 'pnpm')
@@ -113,7 +113,7 @@ export async function handler (
 function spawnCurrentPnpm (args: string[]): { exitCode: number } {
   const env: NodeJS.ProcessEnv = {
     ...process.env,
-    PNPM_INTERNAL_BYPASS_PM_CHECK: '1',
+    ...childBypassEnv(),
   }
   if (detectIfCurrentPkgIsExecutable()) {
     return runChild(process.execPath, args, env)
@@ -123,6 +123,19 @@ function spawnCurrentPnpm (args: string[]): { exitCode: number } {
     throw new PnpmError('CANNOT_LOCATE_PNPM_ENTRY', 'Unable to determine the current pnpm entry script')
   }
   return runChild(process.execPath, [entry, ...args], env)
+}
+
+// The child pnpm must skip the packageManager/devEngines check so the requested
+// version stays active. Two keys are set for backward compatibility:
+//   - `COREPACK_ROOT` is honored by every pnpm release that supports corepack
+//     (older versions skip the pm check whenever this is set).
+//   - `pnpm_config_package_manager_on_fail=ignore` is the principled override
+//     recognized by pnpm releases that ship the `packageManagerOnFail` setting.
+function childBypassEnv (): NodeJS.ProcessEnv {
+  return {
+    COREPACK_ROOT: process.env.COREPACK_ROOT ?? 'pnpm-with',
+    pnpm_config_package_manager_on_fail: 'ignore',
+  }
 }
 
 function runChild (cmd: string, args: string[], env: NodeJS.ProcessEnv): { exitCode: number } {

@@ -102,7 +102,7 @@ export async function main (inputArgv: string[]): Promise<void> {
       workspaceDir,
       ignoreNonAuthSettingsFromLocal: isDlxOrCreateCommand,
     }) as { config: typeof config, context: ConfigContext })
-    if (!isExecutedByCorepack() && cmd !== 'setup' && context.wantedPackageManager != null && process.env.PNPM_INTERNAL_BYPASS_PM_CHECK !== '1') {
+    if (!isExecutedByCorepack() && cmd !== 'setup' && context.wantedPackageManager != null) {
       const pm = context.wantedPackageManager
       if (pm.onFail === 'download' && pm.name === 'pnpm' && cmd !== 'self-update' && cmd !== 'with') {
         await switchCliVersion(config, context)

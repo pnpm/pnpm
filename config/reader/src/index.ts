@@ -79,6 +79,12 @@ type KebabCaseConfig = {
 
 export type CliOptions = Record<string, unknown> & SupportedArchitecturesCliOptions & { dir?: string, json?: boolean }
 
+// Settings that must not be read from .npmrc or pnpm-workspace.yaml. They are
+// session-level overrides only meaningful via env var (pnpm_config_*) or CLI
+// flag (--config.*). Persisting them in committed config would silently affect
+// every contributor and CI run — typically the opposite of intent.
+const ENV_AND_CLI_ONLY_KEYS = new Set<string>(['package-manager-on-fail'])
+
 export async function getConfig (opts: {
   globalDirShouldAllowWrite?: boolean
   cliOptions: CliOptions
@@ -245,7 +251,7 @@ export async function getConfig (opts: {
   ) as unknown as (ConfigWithDeprecatedSettings & ConfigContext)
 
   for (const [key, value] of Object.entries(npmrcResult.mergedConfig)) {
-    if (Object.hasOwn(types, key)) {
+    if (Object.hasOwn(types, key) && !ENV_AND_CLI_ONLY_KEYS.has(key)) {
       ;(pnpmConfig as unknown as Record<string, unknown>)[camelcase(key, { locale: 'en-US' })] = value
     }
   }
@@ -617,17 +623,24 @@ export async function getConfig (opts: {
 
   transformPathKeys(pnpmConfig, os.homedir())
 
-  // For the legacy packageManager field, derive onFail from config settings.
-  // devEngines.packageManager already has onFail set during parsing.
-  if (pnpmConfig.wantedPackageManager && pnpmConfig.wantedPackageManager.onFail == null) {
-    if (pnpmConfig.packageManagerStrict === false) {
-      pnpmConfig.wantedPackageManager.onFail = 'warn'
-    } else if (pnpmConfig.managePackageManagerVersions) {
-      pnpmConfig.wantedPackageManager.onFail = 'download'
-    } else if (pnpmConfig.packageManagerStrictVersion) {
-      pnpmConfig.wantedPackageManager.onFail = 'error'
-    } else {
-      pnpmConfig.wantedPackageManager.onFail = 'ignore'
+  // The `packageManagerOnFail` config setting overrides whatever onFail the
+  // wantedPackageManager carried, so users (and internal callers) can force
+  // a specific behavior without editing the manifest.
+  // Otherwise, for the legacy packageManager field, derive onFail from config
+  // settings. devEngines.packageManager already has onFail set during parsing.
+  if (pnpmConfig.wantedPackageManager) {
+    if (pnpmConfig.packageManagerOnFail) {
+      pnpmConfig.wantedPackageManager.onFail = pnpmConfig.packageManagerOnFail
+    } else if (pnpmConfig.wantedPackageManager.onFail == null) {
+      if (pnpmConfig.packageManagerStrict === false) {
+        pnpmConfig.wantedPackageManager.onFail = 'warn'
+      } else if (pnpmConfig.managePackageManagerVersions) {
+        pnpmConfig.wantedPackageManager.onFail = 'download'
+      } else if (pnpmConfig.packageManagerStrictVersion) {
+        pnpmConfig.wantedPackageManager.onFail = 'error'
+      } else {
+        pnpmConfig.wantedPackageManager.onFail = 'ignore'
+      }
     }
   }
 
@@ -756,7 +769,13 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   workspaceDir: string | undefined
   workspaceManifest: WorkspaceManifest
 }): void {
-  const newSettings = Object.assign(getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, projectManifest), configFromCliOpts)
+  const fromWorkspace = getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, projectManifest) as Record<string, unknown>
+  for (const key of Object.keys(fromWorkspace)) {
+    if (ENV_AND_CLI_ONLY_KEYS.has(kebabCase(key))) {
+      delete fromWorkspace[key]
+    }
+  }
+  const newSettings = Object.assign(fromWorkspace, configFromCliOpts)
   for (const [key, value] of Object.entries(newSettings)) {
     if (!isCamelCase(key)) continue
 
