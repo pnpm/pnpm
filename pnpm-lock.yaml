@@ -2466,6 +2466,9 @@ importers:
       '@pnpm/network.git-utils':
         specifier: workspace:*
         version: link:../../network/git-utils
+      '@pnpm/pkg-manifest.utils':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/utils
       '@pnpm/text.naming-cases':
         specifier: workspace:*
         version: link:../../text/naming-cases

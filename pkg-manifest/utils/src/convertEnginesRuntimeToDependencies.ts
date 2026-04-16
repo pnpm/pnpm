@@ -5,12 +5,14 @@ import type {
   ProjectManifest,
 } from '@pnpm/types'
 
+const RUNTIME_NAMES = ['node', 'deno', 'bun'] as const
+
 export function convertEnginesRuntimeToDependencies (
   manifest: ProjectManifest,
   enginesFieldName: 'devEngines' | 'engines',
   dependenciesFieldName: DependenciesField
 ): void {
-  for (const runtimeName of ['node', 'deno', 'bun']) {
+  for (const runtimeName of RUNTIME_NAMES) {
     const enginesFieldRuntime = manifest[enginesFieldName]?.runtime
     if (enginesFieldRuntime == null || manifest[dependenciesFieldName]?.[runtimeName]) {
       continue
@@ -25,6 +27,35 @@ export function convertEnginesRuntimeToDependencies (
     } else {
       manifest[dependenciesFieldName] ??= {}
       manifest[dependenciesFieldName]![runtimeName] = `runtime:${runtime.version}`
+    }
+  }
+}
+
+export function applyRuntimeOnFailOverride (
+  manifest: ProjectManifest,
+  onFailOverride: 'ignore' | 'warn' | 'error' | 'download'
+): void {
+  for (const [enginesFieldName, dependenciesFieldName] of [
+    ['devEngines', 'devDependencies'],
+    ['engines', 'dependencies'],
+  ] as const) {
+    const enginesFieldRuntime = manifest[enginesFieldName]?.runtime
+    if (enginesFieldRuntime == null) continue
+    const runtimes: EngineDependency[] = Array.isArray(enginesFieldRuntime) ? enginesFieldRuntime : [enginesFieldRuntime]
+    for (const runtime of runtimes) {
+      runtime.onFail = onFailOverride
+    }
+    if (onFailOverride !== 'download') {
+      const deps = manifest[dependenciesFieldName]
+      if (deps) {
+        for (const runtimeName of RUNTIME_NAMES) {
+          if (typeof deps[runtimeName] === 'string' && deps[runtimeName].startsWith('runtime:')) {
+            delete deps[runtimeName]
+          }
+        }
+      }
+    } else {
+      convertEnginesRuntimeToDependencies(manifest, enginesFieldName, dependenciesFieldName)
     }
   }
 }

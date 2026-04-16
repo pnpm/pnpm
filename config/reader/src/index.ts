@@ -7,6 +7,7 @@ import { createMatcher } from '@pnpm/config.matcher'
 import { GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { getCurrentBranch } from '@pnpm/network.git-utils'
+import { applyRuntimeOnFailOverride } from '@pnpm/pkg-manifest.utils'
 import { isCamelCase } from '@pnpm/text.naming-cases'
 import type { DevEngines, EngineDependency, ProjectManifest } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -625,6 +626,10 @@ export async function getConfig (opts: {
     } else if (pnpmConfig.wantedPackageManager.onFail == null) {
       pnpmConfig.wantedPackageManager.onFail = 'download'
     }
+  }
+
+  if (pnpmConfig.runtimeOnFail && pnpmConfig.rootProjectManifest) {
+    applyRuntimeOnFailOverride(pnpmConfig.rootProjectManifest, pnpmConfig.runtimeOnFail)
   }
 
   const {
