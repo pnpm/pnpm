@@ -29,10 +29,6 @@
     "dev-setup": "pn -C=./pnpm/dev link -g",
     "worktree:new": "node __utils__/scripts/src/worktree-new.ts"
   },
-  "dependencies": {
-    "verdaccio-audit": "catalog:",
-    "verdaccio-htpasswd": "catalog:"
-  },
   "devDependencies": {
     "@changesets/cli": "catalog:",
     "@commitlint/cli": "catalog:",
