@@ -28,6 +28,7 @@ import { parseCliArgs } from '../parseCliArgs.js'
 import { shorthands as universalShorthands } from '../shorthands.js'
 import type { PnpmOptions } from '../types.js'
 import * as bin from './bin.js'
+import * as bugs from './bugs.js'
 import * as clean from './clean.js'
 import * as ci from './cleanInstall.js'
 import { createHelp } from './help.js'
@@ -125,6 +126,7 @@ const commands: CommandDefinition[] = [
   approveBuilds,
   audit,
   bin,
+  bugs,
   cache,
   ci,
   clean,
