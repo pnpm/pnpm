@@ -83,7 +83,7 @@ export type CliOptions = Record<string, unknown> & SupportedArchitecturesCliOpti
 // session-level overrides only meaningful via env var (pnpm_config_*) or CLI
 // flag (--config.*). Persisting them in committed config would silently affect
 // every contributor and CI run — typically the opposite of intent.
-const ENV_AND_CLI_ONLY_KEYS = ['package-manager-on-fail'] as const
+const ENV_AND_CLI_ONLY_KEYS = ['pm-on-fail'] as const
 const ENV_AND_CLI_ONLY_CAMEL_KEYS = ENV_AND_CLI_ONLY_KEYS.map(key => camelcase(key, { locale: 'en-US' }))
 
 export async function getConfig (opts: {
@@ -627,14 +627,14 @@ export async function getConfig (opts: {
 
   transformPathKeys(pnpmConfig, os.homedir())
 
-  // The `packageManagerOnFail` config setting overrides whatever onFail the
+  // The `pmOnFail` config setting overrides whatever onFail the
   // wantedPackageManager carried, so users (and internal callers) can force
   // a specific behavior without editing the manifest.
   // Otherwise, for the legacy packageManager field, derive onFail from config
   // settings. devEngines.packageManager already has onFail set during parsing.
   if (pnpmConfig.wantedPackageManager) {
-    if (pnpmConfig.packageManagerOnFail) {
-      pnpmConfig.wantedPackageManager.onFail = pnpmConfig.packageManagerOnFail
+    if (pnpmConfig.pmOnFail) {
+      pnpmConfig.wantedPackageManager.onFail = pnpmConfig.pmOnFail
     } else if (pnpmConfig.wantedPackageManager.onFail == null) {
       if (pnpmConfig.packageManagerStrict === false) {
         pnpmConfig.wantedPackageManager.onFail = 'warn'

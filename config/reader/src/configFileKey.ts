@@ -103,7 +103,7 @@ export const excludedPnpmKeys = [
   'pack-gzip-level',
   'patches-dir',
   'pnpmfile',
-  'package-manager-on-fail',
+  'pm-on-fail',
   'package-manager-strict',
   'package-manager-strict-version',
   'prefer-workspace-packages',

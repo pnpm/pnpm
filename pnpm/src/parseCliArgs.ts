@@ -32,8 +32,8 @@ export async function parseCliArgs (inputArgv: string[]): Promise<ParsedCliArgsW
     universalShorthands,
   }, inputArgv)
   // `pnpm with current <cmd> [args]` is sugar for
-  // `pnpm --config.package-manager-on-fail=ignore <cmd> [args]` —
-  // re-parse so the inner command is dispatched directly, in-process.
+  // `pnpm --pm-on-fail=ignore <cmd> [args]` — re-parse so the inner command
+  // is dispatched directly, in-process.
   if (result.cmd === 'with' && result.params[0] === 'current') {
     const rest = result.params.slice(1)
     if (rest.length === 0) {
@@ -49,7 +49,7 @@ export async function parseCliArgs (inputArgv: string[]): Promise<ParsedCliArgsW
       shorthandsByCommandName,
       universalOptionsTypes: GLOBAL_OPTIONS,
       universalShorthands,
-    }, ['--config.package-manager-on-fail=ignore', ...rest])
+    }, ['--pm-on-fail=ignore', ...rest])
   }
   return { ...result, builtInCommandForced }
 }

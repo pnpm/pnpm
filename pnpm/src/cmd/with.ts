@@ -96,14 +96,14 @@ export async function handler (
   // version stays active. Two keys are set for backward compatibility:
   //   - `COREPACK_ROOT` is honored by every pnpm release that supports corepack
   //     (older versions skip the pm check whenever this is set).
-  //   - `pnpm_config_package_manager_on_fail=ignore` is the principled override
-  //     recognized by pnpm releases that ship the `packageManagerOnFail` setting.
+  //   - `pnpm_config_pm_on_fail=ignore` is the principled override recognized
+  //     by pnpm releases that ship the `pmOnFail` setting.
   const pnpmEnv = prependDirsToPath([binDir])
   const spawnEnv: NodeJS.ProcessEnv = {
     ...process.env,
     [pnpmEnv.name]: pnpmEnv.value,
     COREPACK_ROOT: process.env.COREPACK_ROOT ?? 'pnpm-with',
-    pnpm_config_package_manager_on_fail: 'ignore',
+    pnpm_config_pm_on_fail: 'ignore',
   }
 
   const pnpmBinPath = path.join(binDir, 'pnpm')

@@ -247,7 +247,7 @@ test('devEngines.packageManager takes precedence over packageManager field', asy
   expect(stderr.toString()).toContain('"packageManager" will be ignored')
 })
 
-test('packageManagerOnFail=ignore via env var bypasses the devEngines.packageManager check', async () => {
+test('pmOnFail=ignore via env var bypasses the devEngines.packageManager check', async () => {
   prepare({
     devEngines: {
       packageManager: {
@@ -259,14 +259,14 @@ test('packageManagerOnFail=ignore via env var bypasses the devEngines.packageMan
   })
 
   const { status, stderr } = execPnpmSync(['install'], {
-    env: { pnpm_config_package_manager_on_fail: 'ignore' },
+    env: { pnpm_config_pm_on_fail: 'ignore' },
   })
 
   expect(status).toBe(0)
   expect(stderr.toString()).not.toContain('0.0.1')
 })
 
-test('packageManagerOnFail via --config CLI flag bypasses the devEngines.packageManager check', async () => {
+test('pmOnFail via --pm-on-fail CLI flag bypasses the devEngines.packageManager check', async () => {
   prepare({
     devEngines: {
       packageManager: {
@@ -277,12 +277,11 @@ test('packageManagerOnFail via --config CLI flag bypasses the devEngines.package
     },
   })
 
-  const { status } = execPnpmSync(['install', '--config.package-manager-on-fail=ignore'])
-
-  expect(status).toBe(0)
+  expect(execPnpmSync(['install', '--pm-on-fail=ignore']).status).toBe(0)
+  expect(execPnpmSync(['install', '--config.pm-on-fail=ignore']).status).toBe(0)
 })
 
-test('packageManagerOnFail set in pnpm-workspace.yaml is ignored (env/CLI only)', async () => {
+test('pmOnFail set in pnpm-workspace.yaml is ignored (env/CLI only)', async () => {
   prepare({
     devEngines: {
       packageManager: {
@@ -293,7 +292,7 @@ test('packageManagerOnFail set in pnpm-workspace.yaml is ignored (env/CLI only)'
     },
   })
   writeYamlFileSync('pnpm-workspace.yaml', {
-    packageManagerOnFail: 'ignore',
+    pmOnFail: 'ignore',
   })
 
   const { status, stderr } = execPnpmSync(['install'])
