@@ -83,7 +83,8 @@ export type CliOptions = Record<string, unknown> & SupportedArchitecturesCliOpti
 // session-level overrides only meaningful via env var (pnpm_config_*) or CLI
 // flag (--config.*). Persisting them in committed config would silently affect
 // every contributor and CI run — typically the opposite of intent.
-const ENV_AND_CLI_ONLY_KEYS = new Set<string>(['package-manager-on-fail'])
+const ENV_AND_CLI_ONLY_KEYS = ['package-manager-on-fail'] as const
+const ENV_AND_CLI_ONLY_CAMEL_KEYS = ENV_AND_CLI_ONLY_KEYS.map(key => camelcase(key, { locale: 'en-US' }))
 
 export async function getConfig (opts: {
   globalDirShouldAllowWrite?: boolean
@@ -250,8 +251,11 @@ export async function getConfig (opts: {
       .map(([key, value]) => [camelcase(key, { locale: 'en-US' }), value])
   ) as unknown as (ConfigWithDeprecatedSettings & ConfigContext)
 
+  for (const key of ENV_AND_CLI_ONLY_KEYS) {
+    delete (npmrcResult.mergedConfig as Record<string, unknown>)[key]
+  }
   for (const [key, value] of Object.entries(npmrcResult.mergedConfig)) {
-    if (Object.hasOwn(types, key) && !ENV_AND_CLI_ONLY_KEYS.has(key)) {
+    if (Object.hasOwn(types, key)) {
       ;(pnpmConfig as unknown as Record<string, unknown>)[camelcase(key, { locale: 'en-US' })] = value
     }
   }
@@ -770,10 +774,8 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   workspaceManifest: WorkspaceManifest
 }): void {
   const fromWorkspace = getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, projectManifest) as Record<string, unknown>
-  for (const key of Object.keys(fromWorkspace)) {
-    if (ENV_AND_CLI_ONLY_KEYS.has(kebabCase(key))) {
-      delete fromWorkspace[key]
-    }
+  for (const key of ENV_AND_CLI_ONLY_CAMEL_KEYS) {
+    delete fromWorkspace[key]
   }
   const newSettings = Object.assign(fromWorkspace, configFromCliOpts)
   for (const [key, value] of Object.entries(newSettings)) {
