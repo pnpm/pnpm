@@ -1,131 +1,176 @@
-import { createFetchFromRegistry } from '@pnpm/network.fetch'
-import npa from '@pnpm/npm-package-arg'
-import { prepare } from '@pnpm/prepare'
-import { star, stars, unstar, whoami } from '@pnpm/registry-access.commands'
-import { REGISTRY_MOCK_CREDENTIALS, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { publish } from '@pnpm/releasing.commands'
-import { DEFAULT_OPTS as BASE_OPTS } from '@pnpm/testing.command-defaults'
+import { afterEach, beforeEach, describe, expect, it } from '@jest/globals'
+import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 
-const DEFAULT_OPTS = {
-  ...BASE_OPTS,
-  bail: false,
-}
+import { star, stars, unstar } from '../src/index.js'
 
-const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
-
+const REGISTRY = 'https://registry.npmjs.org'
+const REGISTRY_URL = `${REGISTRY}/`
 const CONFIG_BY_URI = {
-  [`//localhost:${REGISTRY_MOCK_PORT}/`]: {
+  '//registry.npmjs.org/': {
     creds: {
-      basicAuth: REGISTRY_MOCK_CREDENTIALS,
+      authToken: 'test-token',
     },
   },
 }
 
-async function publishVersion (name: string, version: string): Promise<void> {
-  prepare({
-    name,
-    version,
+describe('star', () => {
+  beforeEach(async () => {
+    await setupMockAgent()
   })
 
-  await publish.handler({
-    ...DEFAULT_OPTS,
-    argv: { original: ['publish'] },
-    configByUri: CONFIG_BY_URI,
-    dir: process.cwd(),
-    registries: { default: REGISTRY },
-  }, [])
-}
-
-async function getPackageUsers (pkgName: string): Promise<Record<string, boolean>> {
-  const fetchFromRegistry = createFetchFromRegistry({
-    configByUri: CONFIG_BY_URI,
-  })
-  const encodedName = npa(pkgName).escapedName
-  const response = await fetchFromRegistry(`${REGISTRY}/${encodedName}`, {
-    authHeaderValue: `Basic ${REGISTRY_MOCK_CREDENTIALS}`,
-  })
-  const pkgData = await response.json() as { users?: Record<string, boolean> }
-  return pkgData.users || {}
-}
-
-test('whoami: should return the current user', async () => {
-  const result = await whoami.handler({
-    ...DEFAULT_OPTS,
-    configByUri: CONFIG_BY_URI,
-    registries: { default: REGISTRY },
+  afterEach(async () => {
+    await teardownMockAgent()
   })
 
-  expect(result).toBe('username')
-})
+  it('stars a package via the v1 endpoint', async () => {
+    const mockPool = getMockAgent().get(REGISTRY)
+    mockPool.intercept({
+      method: 'PUT',
+      path: '/-/user/v1/star',
+    }).reply(200, '{}')
 
-test('star/unstar: should star and unstar a package', async () => {
-  const pkgName = 'test-star-package'
-  await publishVersion(pkgName, '0.0.1')
-
-  await star.handler({
-    ...DEFAULT_OPTS,
-    configByUri: CONFIG_BY_URI,
-    registries: { default: REGISTRY },
-  }, [pkgName])
-
-  let users = await getPackageUsers(pkgName)
-  // We use .toBeTruthy() as some registries might return different values for 'starred'
-  expect(users['username']).toBeTruthy()
-
-  await unstar.handler({
-    ...DEFAULT_OPTS,
-    configByUri: CONFIG_BY_URI,
-    registries: { default: REGISTRY },
-  }, [pkgName])
-
-  users = await getPackageUsers(pkgName)
-  expect(users['username']).toBeFalsy()
-})
-
-test('stars: should list starred packages for current user', async () => {
-  const pkgName1 = 'test-stars-pkg-1'
-  const pkgName2 = 'test-stars-pkg-2'
-  await publishVersion(pkgName1, '0.0.1')
-  await publishVersion(pkgName2, '0.0.1')
-
-  await star.handler({
-    ...DEFAULT_OPTS,
-    configByUri: CONFIG_BY_URI,
-    registries: { default: REGISTRY },
-  }, [pkgName1])
-
-  await star.handler({
-    ...DEFAULT_OPTS,
-    configByUri: CONFIG_BY_URI,
-    registries: { default: REGISTRY },
-  }, [pkgName2])
-
-  const result = await stars.handler({
-    ...DEFAULT_OPTS,
-    configByUri: CONFIG_BY_URI,
-    registries: { default: REGISTRY },
-  }, [])
-
-  expect(result).toContain(pkgName1)
-  expect(result).toContain(pkgName2)
-})
-
-test('star: should throw when package name is not provided', async () => {
-  await expect(async () => {
-    await star.handler({
-      ...DEFAULT_OPTS,
+    await expect(star.handler({
       configByUri: CONFIG_BY_URI,
-      registries: { default: REGISTRY },
-    }, [])
-  }).rejects.toThrow('Package name is required')
+      registries: { default: REGISTRY_URL },
+    }, ['foo'])).resolves.toBeUndefined()
+  })
+
+  it('falls back to the legacy endpoint when the modern endpoints fail', async () => {
+    const mockPool = getMockAgent().get(REGISTRY)
+    mockPool.intercept({
+      method: 'PUT',
+      path: '/-/user/v1/star',
+    }).reply(404, '{}')
+    mockPool.intercept({
+      method: 'PUT',
+      path: '/-/user/package/foo/star',
+    }).reply(404, '{}')
+    mockPool.intercept({
+      method: 'GET',
+      path: '/-/whoami',
+    }).reply(200, JSON.stringify({ username: 'alice' }))
+    mockPool.intercept({
+      method: 'GET',
+      path: '/foo',
+    }).reply(200, JSON.stringify({ name: 'foo', _rev: 'rev-1' }))
+    mockPool.intercept({
+      method: 'PUT',
+      path: '/foo/-rev/rev-1',
+    }).reply(200, '{}')
+
+    await expect(star.handler({
+      configByUri: CONFIG_BY_URI,
+      registries: { default: REGISTRY_URL },
+    }, ['foo'])).resolves.toBeUndefined()
+  })
+
+  it('throws when no package name is given', async () => {
+    await expect(star.handler({
+      configByUri: CONFIG_BY_URI,
+      registries: { default: REGISTRY_URL },
+    }, [])).rejects.toThrow('Package name is required')
+  })
+
+  it('throws when not logged in', async () => {
+    await expect(star.handler({
+      registries: { default: REGISTRY_URL },
+    }, ['foo'])).rejects.toThrow('You must be logged in to star')
+  })
 })
 
-test('unstar: should throw when package name is not provided', async () => {
-  await expect(async () => {
-    await unstar.handler({
-      ...DEFAULT_OPTS,
+describe('unstar', () => {
+  beforeEach(async () => {
+    await setupMockAgent()
+  })
+
+  afterEach(async () => {
+    await teardownMockAgent()
+  })
+
+  it('unstars a package via the v1 endpoint', async () => {
+    const mockPool = getMockAgent().get(REGISTRY)
+    mockPool.intercept({
+      method: 'DELETE',
+      path: '/-/user/v1/star',
+    }).reply(200, '{}')
+
+    await expect(unstar.handler({
       configByUri: CONFIG_BY_URI,
-      registries: { default: REGISTRY },
+      registries: { default: REGISTRY_URL },
+    }, ['foo'])).resolves.toBeUndefined()
+  })
+
+  it('throws when no package name is given', async () => {
+    await expect(unstar.handler({
+      configByUri: CONFIG_BY_URI,
+      registries: { default: REGISTRY_URL },
+    }, [])).rejects.toThrow('Package name is required')
+  })
+})
+
+describe('stars', () => {
+  beforeEach(async () => {
+    await setupMockAgent()
+  })
+
+  afterEach(async () => {
+    await teardownMockAgent()
+  })
+
+  it('lists the current user stars via the v1 endpoint (array response)', async () => {
+    const mockPool = getMockAgent().get(REGISTRY)
+    mockPool.intercept({
+      method: 'GET',
+      path: '/-/whoami',
+    }).reply(200, JSON.stringify({ username: 'alice' }))
+    mockPool.intercept({
+      method: 'GET',
+      path: '/-/user/v1/star',
+    }).reply(200, JSON.stringify(['foo', 'bar']))
+
+    const result = await stars.handler({
+      configByUri: CONFIG_BY_URI,
+      registries: { default: REGISTRY_URL },
     }, [])
-  }).rejects.toThrow('Package name is required')
+
+    expect(result).toBe('foo\nbar')
+  })
+
+  it('lists a specific user\'s stars', async () => {
+    const mockPool = getMockAgent().get(REGISTRY)
+    mockPool.intercept({
+      method: 'GET',
+      path: '/-/user/bob/stars',
+    }).reply(200, JSON.stringify({ foo: true, bar: true }))
+
+    const result = await stars.handler({
+      configByUri: CONFIG_BY_URI,
+      registries: { default: REGISTRY_URL },
+    }, ['bob'])
+
+    expect(result.split('\n').sort()).toEqual(['bar', 'foo'])
+  })
+
+  it('throws when no user is given and the user is not logged in', async () => {
+    await expect(stars.handler({
+      registries: { default: REGISTRY_URL },
+    }, [])).rejects.toThrow('You must be logged in')
+  })
+
+  it('throws a helpful error when the user is not found', async () => {
+    const mockPool = getMockAgent().get(REGISTRY)
+    mockPool.intercept({
+      method: 'GET',
+      path: '/-/user/bob/stars',
+    }).reply(404, '{}')
+    mockPool.intercept({
+      method: 'GET',
+      path: '/-/util/user/bob/stars',
+    }).reply(404, '{}')
+
+    await expect(stars.handler({
+      configByUri: CONFIG_BY_URI,
+      registries: { default: REGISTRY_URL },
+    }, ['bob'])).rejects.toThrow('User "bob" not found')
+  })
 })

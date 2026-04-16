@@ -2,12 +2,13 @@ import { docsUrl } from '@pnpm/cli.utils'
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
-import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type FetchFromRegistry } from '@pnpm/network.fetch'
+import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@pnpm/network.fetch'
 import npa from '@pnpm/npm-package-arg'
 import type { Registries, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 
 import { rcOptionsTypes } from './common.js'
+import { fetchWhoami } from './whoami.js'
 
 export { rcOptionsTypes }
 
@@ -54,26 +55,6 @@ export const stars = {
     description: 'Lists all packages starred by a specific user.',
     url: docsUrl('stars'),
     usages: ['pnpm stars [<user>]'],
-  }),
-  rcOptionsTypes,
-}
-
-export const whoami = {
-  cliOptionsTypes,
-  commandNames: ['whoami'],
-  handler: async (opts: StarOptions): Promise<string> => {
-    const registryUrl = opts.registries?.default ?? 'https://registry.npmjs.org/'
-    const fetchFromRegistry = createFetchFromRegistry(opts)
-    const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
-    if (!authHeader) {
-      throw new PnpmError('WHOAMI_UNAUTHORIZED', 'You must be logged in to use whoami')
-    }
-    return whoamiHelper(registryUrl, fetchFromRegistry, authHeader)
-  },
-  help: (): string => renderHelp({
-    description: 'Displays your pnpm username.',
-    url: docsUrl('whoami'),
-    usages: ['pnpm whoami'],
   }),
   rcOptionsTypes,
 }
@@ -143,7 +124,7 @@ async function performLegacyStarAction (opts: StarOptions, packageName: string, 
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
   const fetchFromRegistry = createFetchFromRegistry(opts)
 
-  const username = await whoamiHelper(registryUrl, fetchFromRegistry, authHeader!)
+  const username = await fetchWhoami(registryUrl, fetchFromRegistry, authHeader!)
   const encodedName = npa(packageName).escapedName
   const pkgUrl = new URL(encodedName!, registryUrl).href
 
@@ -193,7 +174,7 @@ async function starsHandler (opts: StarOptions, params: string[]): Promise<strin
     if (!authHeader) {
       throw new PnpmError('STARS_UNAUTHORIZED', 'You must be logged in to list your starred packages')
     }
-    username = await whoamiHelper(registryUrl, fetchFromRegistry, authHeader)
+    username = await fetchWhoami(registryUrl, fetchFromRegistry, authHeader)
   }
 
   if (!params[0]) {
@@ -231,20 +212,6 @@ async function starsHandler (opts: StarOptions, params: string[]): Promise<strin
 
   const starsData = await response.json() as Record<string, unknown>
   return Object.keys(starsData).join('\n')
-}
-
-async function whoamiHelper (registryUrl: string, fetchFromRegistry: FetchFromRegistry, authHeader: string): Promise<string> {
-  const whoamiUrl = new URL('-/whoami', registryUrl).href
-  const response = await fetchFromRegistry(whoamiUrl, {
-    authHeaderValue: authHeader,
-  })
-
-  if (!response.ok) {
-    throw new PnpmError('WHOAMI_FAILED', `Failed to find the current user: ${response.status} ${response.statusText}`)
-  }
-
-  const { username } = await response.json() as { username: string }
-  return username
 }
 
 function getAuthHeaderForRegistry (

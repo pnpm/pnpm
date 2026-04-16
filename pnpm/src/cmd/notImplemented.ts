@@ -18,7 +18,6 @@ const NOT_IMPLEMENTED_COMMANDS = [
   'xmas',
 ]
 
-
 export const NOT_IMPLEMENTED_COMMAND_SET = new Set(NOT_IMPLEMENTED_COMMANDS)
 
 export const notImplementedCommandDefinitions: CommandDefinition[] = NOT_IMPLEMENTED_COMMANDS.map(
