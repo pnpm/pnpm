@@ -55,7 +55,7 @@ const AUTH_CFG_KEYS = [
  * from local config. However, two categories of local settings DO apply:
  *
  * 1. **Registry & auth:** needed to reach the same package sources
- *    (registries, tokens, certificates, proxies).
+ *    (registries, tokens, certificates).
  * 2. **Security & trust policy:** these reflect the user's or organization's
  *    security posture and must apply regardless of how a package is installed.
  *    A setting that answers "what am I allowed to download?" belongs here.
@@ -68,7 +68,7 @@ const AUTH_CFG_KEYS = [
  *
  * | Category                       | Inherited by dlx? | Examples                                         |
  * |--------------------------------|--------------------|--------------------------------------------------|
- * | Registry & auth                | Yes                | registry, _authToken, ca, proxy                  |
+ * | Registry & auth                | Yes                | registry, _authToken, ca                         |
  * | Security & trust policy        | Yes                | minimumReleaseAge, trustPolicy                   |
  * | Installation structure         | No                 | shamefully-hoist, node-linker, hoist-pattern      |
  * | Workspace settings             | No                 | link-workspace-packages, shared-workspace-lockfile|
