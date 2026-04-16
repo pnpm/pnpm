@@ -291,22 +291,6 @@ async function handleInstall (
       return
     }
 
-    // Remap importer IDs from server temp paths to client-relative paths.
-    // The server resolved in a temp dir, so importers are keyed by temp
-    // paths. Remap them to the original project dirs.
-    const remappedImporters: typeof resolvedLockfile.importers = {} as typeof resolvedLockfile.importers
-    for (const [importerId, snapshot] of Object.entries(resolvedLockfile.importers)) {
-      // The importer ID is the relative path from lockfileDir (tmpDir) to the project dir.
-      // Find which project this corresponds to.
-      const matchedProject = projects.find(p => {
-        const expected = p.dir === '.' ? '.' : p.dir
-        return importerId === expected || importerId === '.'
-      })
-      const key = matchedProject ? matchedProject.dir : importerId
-      ;(remappedImporters as any)[key] = snapshot // eslint-disable-line @typescript-eslint/no-explicit-any
-    }
-    resolvedLockfile.importers = remappedImporters
-
     // Fetch tarballs for new packages (hot server = no-op)
     const integrityIndexBefore = buildIntegrityIndex(ctx.storeIndex)
     const fetchPromises: Array<Promise<void>> = []
