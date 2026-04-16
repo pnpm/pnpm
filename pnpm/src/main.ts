@@ -102,18 +102,11 @@ export async function main (inputArgv: string[]): Promise<void> {
       workspaceDir,
       ignoreNonAuthSettingsFromLocal: isDlxOrCreateCommand,
     }) as { config: typeof config, context: ConfigContext })
-    if (!isExecutedByCorepack() && cmd !== 'setup' && context.wantedPackageManager != null) {
+    if (!isExecutedByCorepack() && cmd !== 'setup' && context.wantedPackageManager != null && !shouldSkipPmHandling(cmd, cliParams)) {
       const pm = context.wantedPackageManager
-      // `pnpm help <cmd>` and `pnpm <cmd> --help` (which parse-cli-args
-      // rewrites to the same cmd='help' form) should not trigger a version
-      // switch when the help target is a command that already opts out of
-      // the packageManager check — e.g. `with` is new in v11, so switching
-      // to an older pinned pnpm to ask about it can't succeed.
-      const helpOnSkippableCmd = cmd === 'help' && cliParams[0] != null && skipPackageManagerCheckForCommand.has(cliParams[0])
-      const skipPmHandling = (cmd != null && skipPackageManagerCheckForCommand.has(cmd)) || helpOnSkippableCmd
-      if (pm.onFail === 'download' && pm.name === 'pnpm' && !skipPmHandling) {
+      if (pm.onFail === 'download' && pm.name === 'pnpm') {
         await switchCliVersion(config, context)
-      } else if (pm.onFail !== 'ignore' && !skipPmHandling) {
+      } else if (pm.onFail !== 'ignore') {
         if (cliOptions.global) {
           globalWarn('Using --global skips the package manager check for this project')
         } else {
@@ -375,6 +368,22 @@ function printError (message: string, hint?: string): void {
   if (hint) {
     console.error(hint)
   }
+}
+
+/**
+ * Whether to skip the packageManager/devEngines handling block (both auto
+ * download and warn/error check). Returns true when the command itself
+ * opts out via `skipPackageManagerCheck: true`, or when the user is asking
+ * for help on such a command — `pnpm help <skippable>` and
+ * `pnpm <skippable> --help` (which parse-cli-args rewrites to the same
+ * cmd='help' form) shouldn't download an older pinned pnpm just to render
+ * help for a command that older pnpm may not even have.
+ */
+function shouldSkipPmHandling (cmd: string | null, cliParams: string[]): boolean {
+  if (cmd == null) return false
+  if (skipPackageManagerCheckForCommand.has(cmd)) return true
+  if (cmd === 'help' && cliParams[0] != null && skipPackageManagerCheckForCommand.has(cliParams[0])) return true
+  return false
 }
 
 function checkPackageManager (pm: EngineDependency): void {
