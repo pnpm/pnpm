@@ -235,12 +235,9 @@ export interface Config extends OptionsFromRootManifest {
   dedupeInjectedDeps?: boolean
   nodeOptions?: string
   pmOnFail?: 'download' | 'error' | 'warn' | 'ignore'
-  packageManagerStrict?: boolean
-  packageManagerStrictVersion?: boolean
   virtualStoreDirMaxLength: number
   peersSuffixMaxLength?: number
   strictStorePkgContentCheck: boolean
-  managePackageManagerVersions: boolean
   strictDepBuilds: boolean
   syncInjectedDepsAfterScripts?: string[]
   initPackageManager: boolean
