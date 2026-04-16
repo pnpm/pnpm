@@ -103,7 +103,7 @@ describe('minimumReleaseAge from pnpm-workspace.yaml', () => {
     const result = execPnpmSync([
       '--config.registry=https://registry.npmjs.org/',
       'dlx', 'shx@0.3.4', 'echo', 'hi',
-    ])
+    ], { noDefaultMinimumReleaseAge: true })
 
     expect(result.status).toBe(1)
     expect(result.stderr.toString()).toMatch(/does not meet the minimumReleaseAge constraint/)
@@ -123,7 +123,7 @@ describe('minimumReleaseAge from pnpm-workspace.yaml', () => {
     execPnpmSync([
       '--config.registry=https://registry.npmjs.org/',
       'dlx', 'shx@0.3.2', 'echo', 'hi',
-    ], { expectSuccess: true })
+    ], { expectSuccess: true, noDefaultMinimumReleaseAge: true })
   })
 
   test('dlx picks the newest version within a range that satisfies minimumReleaseAge', () => {
@@ -143,7 +143,7 @@ describe('minimumReleaseAge from pnpm-workspace.yaml', () => {
       `--config.store-dir=${path.resolve('store')}`,
       '--config.registry=https://registry.npmjs.org/',
       'dlx', 'shx@0.3.x', 'echo', 'hi',
-    ], { expectSuccess: true })
+    ], { expectSuccess: true, noDefaultMinimumReleaseAge: true })
 
     // Verify the resolved version by reading the package.json installed in the dlx cache.
     const dlxDirs = fs.readdirSync(path.resolve(cacheDir, 'dlx'))
@@ -167,7 +167,7 @@ test('pnpm create respects minimumReleaseAge from pnpm-workspace.yaml', () => {
   const result = execPnpmSync([
     '--config.registry=https://registry.npmjs.org/',
     'create', 'esm@1.0.18',
-  ])
+  ], { noDefaultMinimumReleaseAge: true })
 
   expect(result.status).toBe(1)
   expect(result.stderr.toString()).toMatch(/does not meet the minimumReleaseAge constraint/)
