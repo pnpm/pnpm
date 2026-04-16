@@ -104,9 +104,16 @@ export async function main (inputArgv: string[]): Promise<void> {
     }) as { config: typeof config, context: ConfigContext })
     if (!isExecutedByCorepack() && cmd !== 'setup' && context.wantedPackageManager != null) {
       const pm = context.wantedPackageManager
-      if (pm.onFail === 'download' && pm.name === 'pnpm' && cmd !== 'self-update' && cmd !== 'with') {
+      // `pnpm help <cmd>` and `pnpm <cmd> --help` (which parse-cli-args
+      // rewrites to the same cmd='help' form) should not trigger a version
+      // switch when the help target is a command that already opts out of
+      // the packageManager check — e.g. `with` is new in v11, so switching
+      // to an older pinned pnpm to ask about it can't succeed.
+      const helpOnSkippableCmd = cmd === 'help' && cliParams[0] != null && skipPackageManagerCheckForCommand.has(cliParams[0])
+      const skipPmHandling = (cmd != null && skipPackageManagerCheckForCommand.has(cmd)) || helpOnSkippableCmd
+      if (pm.onFail === 'download' && pm.name === 'pnpm' && !skipPmHandling) {
         await switchCliVersion(config, context)
-      } else if (pm.onFail !== 'ignore' && (!cmd || !skipPackageManagerCheckForCommand.has(cmd))) {
+      } else if (pm.onFail !== 'ignore' && !skipPmHandling) {
         if (cliOptions.global) {
           globalWarn('Using --global skips the package manager check for this project')
         } else {
