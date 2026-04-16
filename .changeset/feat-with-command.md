@@ -1,6 +1,7 @@
 ---
 "@pnpm/cli.parse-cli-args": minor
 "@pnpm/config.reader": minor
+"@pnpm/engine.pm.commands": minor
 "pnpm": minor
 ---
 

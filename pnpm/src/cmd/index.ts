@@ -7,7 +7,7 @@ import { config, getCommand, setCommand } from '@pnpm/config.commands'
 import { types as allTypes } from '@pnpm/config.reader'
 import { audit, licenses, sbom } from '@pnpm/deps.compliance.commands'
 import { docs, list, ll, outdated, peers, view, why } from '@pnpm/deps.inspection.commands'
-import { selfUpdate, setup } from '@pnpm/engine.pm.commands'
+import { selfUpdate, setup, withCmd } from '@pnpm/engine.pm.commands'
 import { env, runtime } from '@pnpm/engine.runtime.commands'
 import {
   create,
@@ -35,7 +35,6 @@ import * as installTest from './installTest.js'
 import { NOT_IMPLEMENTED_COMMAND_SET, notImplementedCommandDefinitions } from './notImplemented.js'
 import * as recursive from './recursive.js'
 import * as root from './root.js'
-import * as withCmd from './with.js'
 
 export const GLOBAL_OPTIONS = pick([
   'color',

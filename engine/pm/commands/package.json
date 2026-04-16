@@ -46,10 +46,12 @@
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/os.env.path-extender": "catalog:",
     "@pnpm/resolving.npm-resolver": "workspace:*",
+    "@pnpm/shell.path": "workspace:*",
     "@pnpm/store.connection-manager": "workspace:*",
     "@pnpm/store.controller": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
+    "cross-spawn": "catalog:",
     "path-name": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:",
@@ -66,12 +68,10 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/shell.path": "workspace:*",
     "@pnpm/testing.mock-agent": "workspace:*",
     "@types/cross-spawn": "catalog:",
     "@types/ramda": "catalog:",
-    "@types/semver": "catalog:",
-    "cross-spawn": "catalog:"
+    "@types/semver": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

@@ -19,6 +19,7 @@ import {
   getHashLink,
 } from '@pnpm/global.packages'
 import { headlessInstall } from '@pnpm/installing.deps-restorer'
+import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import type { EnvLockfile, LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
 import { registerProject, type StoreController } from '@pnpm/store.controller'
 import type { DepPath, ProjectId, ProjectRootDir, Registries } from '@pnpm/types'
@@ -125,6 +126,57 @@ export async function installPnpmToStore (
       fs.rmSync(tmpInstallDir, { recursive: true, force: true })
     } catch {}
   }
+}
+
+/**
+ * Resolves envLockfile integrities for the given pnpm version (which may be
+ * an exact version or a range/dist-tag) and installs the resulting exact
+ * version to the global virtual store. Returns the bin directory holding the
+ * pnpm binary, the envLockfile that was resolved, and the resolved exact
+ * version.
+ *
+ * Used by the `pnpm with <version>` command and by the automatic version
+ * switcher in the pnpm CLI — both paths need the same "install this pnpm
+ * version so we can spawn it" sequence.
+ */
+export async function resolveAndInstallPnpmVersion (
+  pnpmVersionSpec: string,
+  opts: {
+    envLockfile?: EnvLockfile
+    rootDir: string
+    registries: Registries
+    storeController: StoreController
+    storeDir: string
+    virtualStoreDirMaxLength: number
+    packageManager: { name: string, version: string }
+  }
+): Promise<
+| { binDir: string, envLockfile: EnvLockfile, resolvedVersion: string }
+| { binDir: undefined, envLockfile: EnvLockfile, resolvedVersion: undefined }
+> {
+  const envLockfile = await resolvePackageManagerIntegrities(pnpmVersionSpec, {
+    envLockfile: opts.envLockfile,
+    registries: opts.registries,
+    rootDir: opts.rootDir,
+    storeController: opts.storeController,
+    storeDir: opts.storeDir,
+  })
+  // The spec may be a range or dist-tag; resolvePackageManagerIntegrities
+  // writes the resolved exact version into the lockfile. installPnpmToStore
+  // expects an exact version.
+  const resolvedVersion = envLockfile.importers['.'].packageManagerDependencies?.['pnpm']?.version
+  if (!resolvedVersion) {
+    return { binDir: undefined, envLockfile, resolvedVersion: undefined }
+  }
+  const { binDir } = await installPnpmToStore(resolvedVersion, {
+    envLockfile,
+    storeController: opts.storeController,
+    storeDir: opts.storeDir,
+    registries: opts.registries,
+    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+    packageManager: opts.packageManager,
+  })
+  return { binDir, envLockfile, resolvedVersion }
 }
 
 function noop (_message: string) {}

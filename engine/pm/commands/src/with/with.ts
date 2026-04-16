@@ -4,15 +4,15 @@ import path from 'node:path'
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
-import { installPnpmToStore } from '@pnpm/engine.pm.commands'
 import { PnpmError } from '@pnpm/error'
 import { createResolver } from '@pnpm/installing.client'
-import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { prependDirsToPath } from '@pnpm/shell.path'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import crossSpawn from 'cross-spawn'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
+
+import { resolveAndInstallPnpmVersion } from '../self-updater/installPnpm.js'
 
 export const commandNames = ['with']
 
@@ -74,26 +74,23 @@ export async function handler (
 
   fs.mkdirSync(opts.pnpmHomeDir, { recursive: true })
   const store = await createStoreController(opts)
-  let binDir: string
+  let result!: Awaited<ReturnType<typeof resolveAndInstallPnpmVersion>>
   try {
-    const envLockfile = await resolvePackageManagerIntegrities(version, {
-      registries: opts.registries,
+    result = await resolveAndInstallPnpmVersion(version, {
       rootDir: opts.pnpmHomeDir,
-      storeController: store.ctrl,
-      storeDir: store.dir,
-    })
-
-    ;({ binDir } = await installPnpmToStore(version, {
-      envLockfile,
-      storeController: store.ctrl,
-      storeDir: store.dir,
       registries: opts.registries,
+      storeController: store.ctrl,
+      storeDir: store.dir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       packageManager: { name: packageManager.name, version: packageManager.version },
-    }))
+    })
   } finally {
     await store.ctrl.close()
   }
+  if (!result.resolvedVersion) {
+    throw new PnpmError('CANNOT_RESOLVE_PNPM', `Cannot resolve pnpm version for "${spec}"`)
+  }
+  const { binDir } = result
 
   // The child pnpm must skip the packageManager/devEngines check so the requested
   // version stays active. Two keys are set for backward compatibility:
