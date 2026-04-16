@@ -247,3 +247,200 @@ fn hex_encode(bytes: &[u8]) -> String {
   }
   out
 }
+
+// =======================================================================
+// Streaming writer
+// =======================================================================
+//
+// Incremental variant of `write_files`: the caller pushes bytes as they
+// arrive off the wire, and the Rust side parses and writes each file
+// the moment its full content is in the buffer. This overlaps the HTTP
+// download with disk writes — the buffered `write_files` call has to
+// wait for the full response to gunzip before any file can be written.
+//
+// The Linux io_uring backend remains batch-only for now; on Linux this
+// class falls back to std::fs::write on a rayon-backed task pool, same
+// as non-Linux platforms.
+
+/// A streaming CAFS writer. Push chunks as they arrive; call `finish`
+/// once to wait for all in-flight writes and get the total file count.
+///
+/// Not thread-safe; a single writer serves one /v1/files response.
+#[napi]
+pub struct CafsStreamWriter {
+  state: std::sync::Mutex<StreamState>,
+}
+
+struct StreamState {
+  files_dir: PathBuf,
+  buffer: Vec<u8>,
+  header_skipped: bool,
+  parent_dirs_created: std::collections::HashSet<String>,
+  // tx is dropped during finish() so the collector can observe EOF.
+  // Each dispatched write task clones tx; when all tasks complete and
+  // the owning tx is dropped, rx.iter() terminates.
+  tx: Option<crossbeam_channel::Sender<std::result::Result<u32, String>>>,
+  rx: crossbeam_channel::Receiver<std::result::Result<u32, String>>,
+}
+
+#[napi]
+impl CafsStreamWriter {
+  #[napi(constructor)]
+  pub fn new(store_dir: String) -> Result<Self> {
+    let files_dir = PathBuf::from(store_dir).join("files");
+    let (tx, rx) = crossbeam_channel::unbounded();
+    Ok(CafsStreamWriter {
+      state: std::sync::Mutex::new(StreamState {
+        files_dir,
+        buffer: Vec::with_capacity(64 * 1024),
+        header_skipped: false,
+        parent_dirs_created: std::collections::HashSet::new(),
+        tx: Some(tx),
+        rx,
+      }),
+    })
+  }
+
+  /// Append a chunk of the gunzipped payload and dispatch any now-complete
+  /// file entries to the write pool.
+  #[napi]
+  pub fn push(&self, chunk: Buffer) -> Result<()> {
+    let mut s = self.state.lock().map_err(poisoned)?;
+    s.buffer.extend_from_slice(&chunk);
+    drain_buffer(&mut s).map_err(|e| Error::from_reason(format!("cafs-writer parse error: {e}")))
+  }
+
+  /// Signal end-of-stream; blocks until all dispatched writes have
+  /// completed and returns the total number of files newly written.
+  #[napi]
+  pub fn finish(&self) -> Result<u32> {
+    // Drop our Sender clone so rx.iter() terminates once all task clones
+    // also go out of scope.
+    let rx = {
+      let mut s = self.state.lock().map_err(poisoned)?;
+      // Buffer should be empty or just contain the end marker at this point.
+      drain_buffer(&mut s)
+        .map_err(|e| Error::from_reason(format!("cafs-writer parse error: {e}")))?;
+      s.tx.take();
+      s.rx.clone()
+    };
+
+    let mut total = 0u32;
+    for result in rx.iter() {
+      total += result.map_err(|e| Error::from_reason(format!("cafs-writer write error: {e}")))?;
+    }
+    Ok(total)
+  }
+}
+
+fn poisoned<T>(_: std::sync::PoisonError<T>) -> Error {
+  Error::from_reason("cafs-writer: state mutex poisoned (worker panic?)")
+}
+
+// Parse as many complete entries as fit in the buffer, dispatching
+// each to the write pool. Leaves any trailing incomplete bytes in the
+// buffer for the next push.
+fn drain_buffer(s: &mut StreamState) -> std::result::Result<(), String> {
+  let mut pos = 0usize;
+
+  // Skip the one-time JSON header on the very first bytes we see.
+  if !s.header_skipped {
+    if s.buffer.len() < 4 {
+      return Ok(());
+    }
+    let json_len = u32::from_be_bytes([s.buffer[0], s.buffer[1], s.buffer[2], s.buffer[3]])
+      as usize;
+    if s.buffer.len() < 4 + json_len {
+      return Ok(());
+    }
+    pos = 4 + json_len;
+    s.header_skipped = true;
+  }
+
+  loop {
+    if s.buffer.len() - pos < 64 {
+      break;
+    }
+    // End marker: 64 zero bytes. Everything beyond is ignored.
+    if s.buffer[pos..pos + 64].iter().all(|&b| b == 0) {
+      pos += 64;
+      break;
+    }
+    if s.buffer.len() - pos < 69 {
+      break; // need digest + 4-byte size + 1-byte mode
+    }
+    let size = u32::from_be_bytes([
+      s.buffer[pos + 64],
+      s.buffer[pos + 65],
+      s.buffer[pos + 66],
+      s.buffer[pos + 67],
+    ]) as usize;
+    let entry_len = 69 + size;
+    if s.buffer.len() - pos < entry_len {
+      break; // content not yet fully arrived
+    }
+    let digest_hex = hex_encode(&s.buffer[pos..pos + 64]);
+    let executable = (s.buffer[pos + 68] & 0x01) != 0;
+    let content = s.buffer[pos + 69..pos + entry_len].to_vec();
+    pos += entry_len;
+
+    // Create the files/XX/ prefix once per unique prefix.
+    let prefix = digest_hex[..2].to_string();
+    if s.parent_dirs_created.insert(prefix.clone()) {
+      std::fs::create_dir_all(s.files_dir.join(&prefix))
+        .map_err(|e| format!("mkdir {prefix}: {e}"))?;
+    }
+
+    let files_dir = s.files_dir.clone();
+    let tx = s.tx.as_ref().ok_or("push() after finish()")?.clone();
+    // Use rayon's global thread pool — a fresh per-writer pool oversubscribes
+    // the machine when multiple worker threads run batches in parallel.
+    rayon::spawn(move || {
+      let res = write_entry_owned(&files_dir, &digest_hex, executable, &content);
+      let _ = tx.send(res);
+    });
+  }
+
+  // Drop the consumed prefix of the buffer in one shot.
+  if pos > 0 {
+    s.buffer.drain(..pos);
+  }
+  Ok(())
+}
+
+fn write_entry_owned(
+  files_dir: &std::path::Path,
+  digest_hex: &str,
+  executable: bool,
+  content: &[u8],
+) -> std::result::Result<u32, String> {
+  let (prefix, suffix) = digest_hex.split_at(2);
+  let filename = if executable {
+    format!("{suffix}-exec")
+  } else {
+    suffix.to_string()
+  };
+  let path = files_dir.join(prefix).join(filename);
+  let mode = if executable { 0o755 } else { 0o644 };
+
+  let mut opts = std::fs::OpenOptions::new();
+  opts.write(true).create_new(true);
+  #[cfg(unix)]
+  {
+    use std::os::unix::fs::OpenOptionsExt;
+    opts.mode(mode);
+  }
+  #[cfg(not(unix))]
+  let _ = mode;
+
+  match opts.open(&path) {
+    Ok(mut f) => {
+      use std::io::Write;
+      f.write_all(content)
+        .map_err(|e| format!("write {}: {e}", path.display()))?;
+      Ok(1)
+    }
+    Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Ok(0),
+    Err(e) => Err(format!("open {}: {e}", path.display())),
+  }
+}

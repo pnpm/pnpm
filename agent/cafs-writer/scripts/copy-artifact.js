@@ -33,4 +33,13 @@ if (!existsSync(source)) {
 const triple = `${process.platform}-${process.arch}`
 const dest = join(root, `pnpm-cafs-writer.${triple}.node`)
 copyFileSync(source, dest)
+
+// macOS silently SIGKILLs dylibs loaded by node if they aren't signed;
+// rebuild produces an unsigned artifact, so ad-hoc sign it after copy.
+if (process.platform === 'darwin') {
+  const { spawnSync } = require('node:child_process')
+  const r = spawnSync('codesign', ['--sign', '-', dest], { stdio: 'inherit' })
+  if (r.status !== 0) process.exit(r.status ?? 1)
+}
+
 console.log(`Wrote ${dest}`)

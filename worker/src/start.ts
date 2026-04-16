@@ -503,6 +503,10 @@ function writeCafsFiles (message: WriteCafsFilesMessage): { status: string, file
 
 // Try to load the native CAFS writer. Falls back to the pure-JS streaming
 // parser below when the addon hasn't been built for this platform.
+//
+// The native module also exports a CafsStreamWriter class that parses
+// chunk-by-chunk; empirically on real-install workloads it performs the
+// same as the buffered path, so we stay on the simpler writeFiles call.
 let nativeWriteFiles: ((storeDir: string, payload: Buffer) => number) | undefined
 if (!process.env.PNPM_CAFS_WRITER_DISABLE_NATIVE) {
   try {

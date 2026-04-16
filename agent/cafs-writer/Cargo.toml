@@ -10,6 +10,7 @@ crate-type = ["cdylib"]
 napi = { version = "2", default-features = false, features = ["napi4"] }
 napi-derive = "2"
 rayon = "1"
+crossbeam-channel = "0.5"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 tokio-uring = "0.5"
