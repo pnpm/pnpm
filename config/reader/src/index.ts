@@ -79,13 +79,6 @@ type KebabCaseConfig = {
 
 export type CliOptions = Record<string, unknown> & SupportedArchitecturesCliOptions & { dir?: string, json?: boolean }
 
-// Settings that must not be read from .npmrc or pnpm-workspace.yaml. They are
-// session-level overrides only meaningful via env var (pnpm_config_*) or CLI
-// flag (--config.*). Persisting them in committed config would silently affect
-// every contributor and CI run — typically the opposite of intent.
-const ENV_AND_CLI_ONLY_KEYS = ['pm-on-fail'] as const
-const ENV_AND_CLI_ONLY_CAMEL_KEYS = ENV_AND_CLI_ONLY_KEYS.map(key => camelcase(key, { locale: 'en-US' }))
-
 export async function getConfig (opts: {
   globalDirShouldAllowWrite?: boolean
   cliOptions: CliOptions
@@ -251,9 +244,6 @@ export async function getConfig (opts: {
       .map(([key, value]) => [camelcase(key, { locale: 'en-US' }), value])
   ) as unknown as (ConfigWithDeprecatedSettings & ConfigContext)
 
-  for (const key of ENV_AND_CLI_ONLY_KEYS) {
-    delete (npmrcResult.mergedConfig as Record<string, unknown>)[key]
-  }
   for (const [key, value] of Object.entries(npmrcResult.mergedConfig)) {
     if (Object.hasOwn(types, key)) {
       ;(pnpmConfig as unknown as Record<string, unknown>)[camelcase(key, { locale: 'en-US' })] = value
@@ -773,11 +763,7 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   workspaceDir: string | undefined
   workspaceManifest: WorkspaceManifest
 }): void {
-  const fromWorkspace = getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, projectManifest) as Record<string, unknown>
-  for (const key of ENV_AND_CLI_ONLY_CAMEL_KEYS) {
-    delete fromWorkspace[key]
-  }
-  const newSettings = Object.assign(fromWorkspace, configFromCliOpts)
+  const newSettings = Object.assign(getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, projectManifest), configFromCliOpts)
   for (const [key, value] of Object.entries(newSettings)) {
     if (!isCamelCase(key)) continue
 

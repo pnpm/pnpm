@@ -281,7 +281,7 @@ test('pmOnFail via --pm-on-fail CLI flag bypasses the devEngines.packageManager 
   expect(execPnpmSync(['install', '--config.pm-on-fail=ignore']).status).toBe(0)
 })
 
-test('pmOnFail set in pnpm-workspace.yaml is ignored (env/CLI only)', async () => {
+test('pmOnFail=ignore set in pnpm-workspace.yaml bypasses the devEngines.packageManager check', async () => {
   prepare({
     devEngines: {
       packageManager: {
@@ -297,6 +297,6 @@ test('pmOnFail set in pnpm-workspace.yaml is ignored (env/CLI only)', async () =
 
   const { status, stderr } = execPnpmSync(['install'])
 
-  expect(status).toBe(1)
-  expect(stderr.toString()).toContain('0.0.1')
+  expect(status).toBe(0)
+  expect(stderr.toString()).not.toContain('0.0.1')
 })
