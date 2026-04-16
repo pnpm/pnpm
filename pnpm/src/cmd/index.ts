@@ -35,6 +35,7 @@ import * as installTest from './installTest.js'
 import { NOT_IMPLEMENTED_COMMAND_SET, notImplementedCommandDefinitions } from './notImplemented.js'
 import * as recursive from './recursive.js'
 import * as root from './root.js'
+import * as withCmd from './with.js'
 
 export const GLOBAL_OPTIONS = pick([
   'color',
@@ -183,6 +184,7 @@ const commands: CommandDefinition[] = [
   version,
   view,
   why,
+  withCmd,
   createHelp(helpByCommandName),
   ...notImplementedCommandDefinitions,
 ]

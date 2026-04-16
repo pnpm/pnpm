@@ -102,9 +102,9 @@ export async function main (inputArgv: string[]): Promise<void> {
       workspaceDir,
       ignoreNonAuthSettingsFromLocal: isDlxOrCreateCommand,
     }) as { config: typeof config, context: ConfigContext })
-    if (!isExecutedByCorepack() && cmd !== 'setup' && context.wantedPackageManager != null) {
+    if (!isExecutedByCorepack() && cmd !== 'setup' && context.wantedPackageManager != null && process.env.PNPM_INTERNAL_BYPASS_PM_CHECK !== '1') {
       const pm = context.wantedPackageManager
-      if (pm.onFail === 'download' && pm.name === 'pnpm' && cmd !== 'self-update') {
+      if (pm.onFail === 'download' && pm.name === 'pnpm' && cmd !== 'self-update' && cmd !== 'with') {
         await switchCliVersion(config, context)
       } else if (pm.onFail !== 'ignore' && (!cmd || !skipPackageManagerCheckForCommand.has(cmd))) {
         if (cliOptions.global) {
@@ -115,7 +115,7 @@ export async function main (inputArgv: string[]): Promise<void> {
       }
     }
     ;({ config, context } = await installConfigDepsAndLoadHooks(config, context) as { config: typeof config, context: ConfigContext })
-    if (isDlxOrCreateCommand || cmd === 'sbom') {
+    if (isDlxOrCreateCommand || cmd === 'sbom' || cmd === 'with') {
       config.useStderr = true
     }
     config.argv = argv
