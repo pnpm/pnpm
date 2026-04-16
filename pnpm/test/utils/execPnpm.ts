@@ -194,13 +194,19 @@ function createEnv (opts?: { storeDir?: string }): NodeJS.ProcessEnv {
   const env: Record<string, string> = {
     pnpm_config_fetch_retries: fallback('fetchRetries', '4'),
     pnpm_config_hoist: fallback('hoist', 'true'),
-    pnpm_config_minimum_release_age: fallback('minimumReleaseAge', '0'),
     pnpm_config_registry: fallback('registry', `http://localhost:${REGISTRY_MOCK_PORT}/`),
     pnpm_config_silent: 'true',
     pnpm_config_store_dir: opts?.storeDir ?? fallback('storeDir', '../store'),
     // Although this is the default value of verify-store-integrity (as of pnpm 1.38.0)
     // on CI servers we set it to `false`. That is why we set it back to true for the tests
     pnpm_config_verify_store_integrity: 'true',
+  }
+  // Only inject the env var default when the workspace manifest does not
+  // specify minimumReleaseAge. Otherwise the env var (higher priority)
+  // would mask the workspace yaml value and tests that verify dlx's
+  // local-config inheritance would pass for the wrong reason.
+  if (!workspaceManifest || workspaceManifest.minimumReleaseAge === undefined) {
+    env.pnpm_config_minimum_release_age = '0'
   }
 
   for (const [key, value] of Object.entries(process.env)) {

@@ -96,7 +96,7 @@ describe('minimumReleaseAge from pnpm-workspace.yaml', () => {
   test('dlx fails when the requested version is younger than minimumReleaseAge', () => {
     prepare()
     writeYamlFileSync('pnpm-workspace.yaml', {
-      minimumReleaseAge: 60 * 24 * 10000, // ~19 years: rejects everything published recently
+      minimumReleaseAge: 60 * 24 * 10000, // ~27.4 years: rejects everything published recently
       minimumReleaseAgeStrict: true,
     })
 
@@ -154,6 +154,23 @@ describe('minimumReleaseAge from pnpm-workspace.yaml', () => {
     ) as string)
     expect(pkgJson.version).toBe('0.3.2')
   })
+})
+
+// pnpm create delegates to dlx, so the same inheritance applies.
+test('pnpm create respects minimumReleaseAge from pnpm-workspace.yaml', () => {
+  prepare()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    minimumReleaseAge: 60 * 24 * 10000, // ~27.4 years: rejects everything published recently
+    minimumReleaseAgeStrict: true,
+  })
+
+  const result = execPnpmSync([
+    '--config.registry=https://registry.npmjs.org/',
+    'create', 'esm@1.0.18',
+  ])
+
+  expect(result.status).toBe(1)
+  expect(result.stderr.toString()).toMatch(/does not meet the minimumReleaseAge constraint/)
 })
 
 test('dlx should work with pnpm_config_save_dev env variable', async () => {
