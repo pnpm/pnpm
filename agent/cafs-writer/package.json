@@ -18,5 +18,13 @@
   },
   "engines": {
     "node": ">=22.13"
-  }
+  },
+  "devDependencies": {
+    "@pnpm/agent.cafs-writer": "workspace:*"
+  },
+  "keywords": [
+    "pnpm",
+    "pnpm11"
+  ],
+  "repository": "https://github.com/pnpm/pnpm/tree/main/agent/cafs-writer"
 }

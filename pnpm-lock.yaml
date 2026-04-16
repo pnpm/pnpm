@@ -1410,7 +1410,11 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  agent/cafs-writer: {}
+  agent/cafs-writer:
+    devDependencies:
+      '@pnpm/agent.cafs-writer':
+        specifier: workspace:*
+        version: 'link:'
 
   agent/client:
     dependencies:
@@ -7554,10 +7558,6 @@ importers:
       write-yaml-file:
         specifier: 'catalog:'
         version: 6.0.0
-    optionalDependencies:
-      '@pnpm/agent.cafs-writer':
-        specifier: workspace:*
-        version: link:../agent/cafs-writer
 
   pnpm/artifacts/exe:
     dependencies:
