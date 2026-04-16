@@ -100,7 +100,7 @@ export async function main (inputArgv: string[]): Promise<void> {
       excludeReporter: false,
       globalDirShouldAllowWrite,
       workspaceDir,
-      ignoreNonAuthSettingsFromLocal: isDlxOrCreateCommand,
+      onlyInheritDlxSettingsFromLocal: isDlxOrCreateCommand,
     }) as { config: typeof config, context: ConfigContext })
     if (!isExecutedByCorepack() && cmd !== 'setup' && context.wantedPackageManager != null && !shouldSkipPmHandling(cmd, cliParams)) {
       const pm = context.wantedPackageManager
