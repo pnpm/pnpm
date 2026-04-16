@@ -5,14 +5,14 @@ import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
-import { createResolver } from '@pnpm/installing.client'
+import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { prependDirsToPath } from '@pnpm/shell.path'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import crossSpawn from 'cross-spawn'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
-import { resolveAndInstallPnpmVersion } from '../self-updater/installPnpm.js'
+import { installPnpmToStore } from '../self-updater/installPnpm.js'
 
 export const commandNames = ['with']
 
@@ -61,36 +61,33 @@ export async function handler (
   // for in-process execution, so this handler only ever sees version/dist-tag specs.
   const [spec, ...args] = params
 
-  const { resolve } = createResolver({ ...opts, configByUri: opts.configByUri })
-  const resolution = await resolve({ alias: 'pnpm', bareSpecifier: spec }, {
-    lockfileDir: opts.lockfileDir ?? opts.dir,
-    preferredVersions: {},
-    projectDir: opts.dir,
-  })
-  if (!resolution?.manifest?.version) {
-    throw new PnpmError('CANNOT_RESOLVE_PNPM', `Cannot resolve pnpm version for "${spec}"`)
-  }
-  const version = resolution.manifest.version
-
   fs.mkdirSync(opts.pnpmHomeDir, { recursive: true })
   const store = await createStoreController(opts)
-  let result!: Awaited<ReturnType<typeof resolveAndInstallPnpmVersion>>
+  let binDir: string
   try {
-    result = await resolveAndInstallPnpmVersion(version, {
+    // resolvePackageManagerIntegrities resolves ranges/dist-tags via the
+    // registry and writes the resolved exact version to the envLockfile.
+    const envLockfile = await resolvePackageManagerIntegrities(spec, {
       rootDir: opts.pnpmHomeDir,
       registries: opts.registries,
       storeController: store.ctrl,
       storeDir: store.dir,
+    })
+    const resolvedVersion = envLockfile.importers['.'].packageManagerDependencies?.['pnpm']?.version
+    if (!resolvedVersion) {
+      throw new PnpmError('CANNOT_RESOLVE_PNPM', `Cannot resolve pnpm version for "${spec}"`)
+    }
+    ;({ binDir } = await installPnpmToStore(resolvedVersion, {
+      envLockfile,
+      storeController: store.ctrl,
+      storeDir: store.dir,
+      registries: opts.registries,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       packageManager: { name: packageManager.name, version: packageManager.version },
-    })
+    }))
   } finally {
     await store.ctrl.close()
   }
-  if (!result.resolvedVersion) {
-    throw new PnpmError('CANNOT_RESOLVE_PNPM', `Cannot resolve pnpm version for "${spec}"`)
-  }
-  const { binDir } = result
 
   // The child pnpm must skip the packageManager/devEngines check so the requested
   // version stays active. Two keys are set for backward compatibility:
@@ -113,7 +110,11 @@ export async function handler (
   })
   if (error) throw error
   if (signal) {
+    // Best-effort: try to terminate with the same signal the child received.
+    // If the signal is handled or ignored, fall back to a non-zero exit code
+    // so the caller doesn't mistake an interrupted run for a successful one.
     process.kill(process.pid, signal)
+    return { exitCode: 1 }
   }
   return { exitCode: status ?? 0 }
 }

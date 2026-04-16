@@ -2,8 +2,9 @@ import path from 'node:path'
 
 import { packageManager } from '@pnpm/cli.meta'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
-import { resolveAndInstallPnpmVersion } from '@pnpm/engine.pm.commands'
+import { installPnpmToStore } from '@pnpm/engine.pm.commands'
 import { PnpmError } from '@pnpm/error'
+import { isPackageManagerResolved, resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { globalWarn } from '@pnpm/logger'
 import { prependDirsToPath } from '@pnpm/shell.path'
@@ -15,41 +16,70 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
   const pm = context.wantedPackageManager
   if (pm == null || pm.name !== 'pnpm' || pm.version == null) return
 
-  const existingEnvLockfile = await readEnvLockfile(context.rootProjectManifestDir) ?? undefined
-  const cachedVersion = existingEnvLockfile?.importers['.'].packageManagerDependencies?.['pnpm']?.version
-  // If a previously resolved version still satisfies the wanted range, reuse
-  // it so we don't re-hit the registry for range-based pins. Otherwise, let
-  // the resolve step in the helper look the range up again.
-  const versionToInstall = (cachedVersion && semver.satisfies(cachedVersion, pm.version, { includePrerelease: true }))
-    ? cachedVersion
-    : pm.version
+  let envLockfile = await readEnvLockfile(context.rootProjectManifestDir) ?? undefined
+  let storeToUse: Awaited<ReturnType<typeof createStoreController>> | undefined
 
-  const storeToUse = await createStoreController({ ...config, ...context })
-  let result!: Awaited<ReturnType<typeof resolveAndInstallPnpmVersion>>
-  try {
-    result = await resolveAndInstallPnpmVersion(versionToInstall, {
-      envLockfile: existingEnvLockfile,
-      rootDir: context.rootProjectManifestDir,
+  // Check if the env lockfile already has a resolved version that satisfies the wanted version/range.
+  let pmVersion = envLockfile?.importers['.'].packageManagerDependencies?.['pnpm']?.version
+  if (!pmVersion || !semver.satisfies(pmVersion, pm.version, { includePrerelease: true })) {
+    // Resolve to an exact version from the registry.
+    storeToUse = await createStoreController({ ...config, ...context })
+    envLockfile = await resolvePackageManagerIntegrities(pm.version, {
+      envLockfile,
       registries: config.registries,
+      rootDir: context.rootProjectManifestDir,
       storeController: storeToUse.ctrl,
       storeDir: storeToUse.dir,
+    })
+    pmVersion = envLockfile.importers['.'].packageManagerDependencies?.['pnpm']?.version
+    if (!pmVersion) {
+      globalWarn(`Cannot resolve pnpm version for "${pm.version}"`)
+      await storeToUse.ctrl.close()
+      return
+    }
+  } else if (!isPackageManagerResolved(envLockfile, pmVersion)) {
+    storeToUse = await createStoreController({ ...config, ...context })
+    envLockfile = await resolvePackageManagerIntegrities(pmVersion, {
+      envLockfile,
+      registries: config.registries,
+      rootDir: context.rootProjectManifestDir,
+      storeController: storeToUse.ctrl,
+      storeDir: storeToUse.dir,
+    })
+  }
+
+  // If the wanted version matches the current version, no switch needed.
+  // Skip install-to-store entirely — we're already running this version.
+  if (pmVersion === packageManager.version) {
+    await storeToUse?.ctrl.close()
+    return
+  }
+
+  // We need a store controller to install pnpm. If it wasn't created during
+  // integrity resolution (because integrities were already cached), create it now.
+  if (!storeToUse) {
+    storeToUse = await createStoreController({ ...config, ...context })
+  }
+
+  if (!envLockfile) {
+    await storeToUse.ctrl.close()
+    throw new PnpmError('NO_PKG_MANAGER_INTEGRITY', `The packageManager dependency ${pmVersion} was not found in pnpm-lock.yaml`)
+  }
+
+  let wantedPnpmBinDir: string
+  try {
+    ;({ binDir: wantedPnpmBinDir } = await installPnpmToStore(pmVersion, {
+      envLockfile,
+      storeController: storeToUse.ctrl,
+      storeDir: storeToUse.dir,
+      registries: config.registries,
       virtualStoreDirMaxLength: config.virtualStoreDirMaxLength,
       packageManager: { name: packageManager.name, version: packageManager.version },
-    })
+    }))
   } finally {
     await storeToUse.ctrl.close()
   }
 
-  if (!result.resolvedVersion) {
-    globalWarn(`Cannot resolve pnpm version for "${pm.version}"`)
-    return
-  }
-  const pmVersion = result.resolvedVersion
-
-  // If the wanted version matches the current version, no switch needed.
-  if (pmVersion === packageManager.version) return
-
-  const wantedPnpmBinDir = result.binDir
   const pnpmEnv = prependDirsToPath([wantedPnpmBinDir])
   if (!pnpmEnv.updated) {
     // We throw this error to prevent an infinite recursive call of the same pnpm version.
