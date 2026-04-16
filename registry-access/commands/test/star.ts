@@ -87,7 +87,7 @@ describe('unstar', () => {
     await teardownMockAgent()
   })
 
-  it('unstars a package via the v1 endpoint', async () => {
+  it('removes a star via the v1 endpoint', async () => {
     const mockPool = getMockAgent().get(REGISTRY)
     mockPool.intercept({
       method: 'DELETE',
