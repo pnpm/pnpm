@@ -24,7 +24,7 @@ export const whoami = {
   cliOptionsTypes,
   commandNames: ['whoami'],
   handler: async (opts: WhoamiOptions): Promise<string> => {
-    const registryUrl = opts.registries?.default ?? 'https://registry.npmjs.org/'
+    const registryUrl = normalizeRegistryUrl(opts.registries?.default ?? 'https://registry.npmjs.org/')
     const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {}, registryUrl)
     const authHeader = getAuthHeader(registryUrl)
     if (!authHeader) {
@@ -41,7 +41,7 @@ export const whoami = {
 }
 
 export async function fetchWhoami (registryUrl: string, fetchFromRegistry: FetchFromRegistry, authHeader: string): Promise<string> {
-  const whoamiUrl = new URL('-/whoami', registryUrl).href
+  const whoamiUrl = new URL('./-/whoami', normalizeRegistryUrl(registryUrl)).href
   const response = await fetchFromRegistry(whoamiUrl, {
     authHeaderValue: authHeader,
   })
@@ -52,4 +52,8 @@ export async function fetchWhoami (registryUrl: string, fetchFromRegistry: Fetch
 
   const { username } = await response.json() as { username: string }
   return username
+}
+
+function normalizeRegistryUrl (registryUrl: string): string {
+  return registryUrl.endsWith('/') ? registryUrl : `${registryUrl}/`
 }

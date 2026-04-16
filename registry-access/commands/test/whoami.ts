@@ -57,4 +57,19 @@ describe('whoami', () => {
       registries: { default: REGISTRY_URL },
     })).rejects.toThrow('Failed to find the current user')
   })
+
+  it('preserves a registry path prefix when the URL has no trailing slash', async () => {
+    const mockPool = getMockAgent().get(REGISTRY)
+    mockPool.intercept({
+      method: 'GET',
+      path: '/custom-prefix/-/whoami',
+    }).reply(200, JSON.stringify({ username: 'alice' }))
+
+    const result = await whoami.handler({
+      configByUri: CONFIG_BY_URI,
+      registries: { default: `${REGISTRY}/custom-prefix` },
+    })
+
+    expect(result).toBe('alice')
+  })
 })

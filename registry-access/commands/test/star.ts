@@ -76,6 +76,40 @@ describe('star', () => {
       registries: { default: REGISTRY_URL },
     }, ['foo'])).rejects.toThrow('You must be logged in to star')
   })
+
+  it('preserves a registry path prefix when the URL has no trailing slash', async () => {
+    const mockPool = getMockAgent().get(REGISTRY)
+    mockPool.intercept({
+      method: 'PUT',
+      path: '/custom-prefix/-/user/v1/star',
+    }).reply(200, '{}')
+
+    await expect(star.handler({
+      configByUri: CONFIG_BY_URI,
+      registries: { default: `${REGISTRY}/custom-prefix` },
+    }, ['foo'])).resolves.toBeUndefined()
+  })
+
+  it('sends the unescaped package name in the request body for scoped packages', async () => {
+    const mockPool = getMockAgent().get(REGISTRY)
+    mockPool.intercept({
+      method: 'PUT',
+      path: '/-/user/v1/star',
+      body: JSON.stringify({ name: '@scope/pkg', package: '@scope/pkg' }),
+    }).reply(200, '{}')
+
+    await expect(star.handler({
+      configByUri: CONFIG_BY_URI,
+      registries: { default: REGISTRY_URL },
+    }, ['@scope/pkg'])).resolves.toBeUndefined()
+  })
+
+  it('throws a helpful error for invalid package specs', async () => {
+    await expect(star.handler({
+      configByUri: CONFIG_BY_URI,
+      registries: { default: REGISTRY_URL },
+    }, ['@@invalid'])).rejects.toThrow('Invalid package spec')
+  })
 })
 
 describe('unstar', () => {
@@ -172,5 +206,20 @@ describe('stars', () => {
       configByUri: CONFIG_BY_URI,
       registries: { default: REGISTRY_URL },
     }, ['bob'])).rejects.toThrow('User "bob" not found')
+  })
+
+  it('preserves a registry path prefix when the URL has no trailing slash', async () => {
+    const mockPool = getMockAgent().get(REGISTRY)
+    mockPool.intercept({
+      method: 'GET',
+      path: '/custom-prefix/-/user/bob/stars',
+    }).reply(200, JSON.stringify({ foo: true }))
+
+    const result = await stars.handler({
+      configByUri: CONFIG_BY_URI,
+      registries: { default: `${REGISTRY}/custom-prefix` },
+    }, ['bob'])
+
+    expect(result).toBe('foo')
   })
 })

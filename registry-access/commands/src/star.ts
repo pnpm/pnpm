@@ -74,15 +74,17 @@ async function unstarHandler (opts: StarOptions, params: string[]): Promise<void
 }
 
 async function performStarAction (opts: StarOptions, packageName: string, star: boolean): Promise<void> {
-  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
+  const encodedName = parsePackageSpecName(packageName)
+  const registryUrl = normalizeRegistryUrl(
+    pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
+  )
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
   if (!authHeader) {
     throw new PnpmError('STAR_UNAUTHORIZED', `You must be logged in to ${star ? 'star' : 'unstar'} packages`)
   }
   const fetchFromRegistry = createFetchFromRegistry(opts)
 
-  const encodedName = npa(packageName).escapedName
-  const starUrl = new URL('-/user/v1/star', registryUrl).href
+  const starUrl = new URL('./-/user/v1/star', registryUrl).href
 
   let response = await fetchFromRegistry(starUrl, {
     authHeaderValue: authHeader,
@@ -90,11 +92,11 @@ async function performStarAction (opts: StarOptions, packageName: string, star: 
     headers: {
       'content-type': 'application/json',
     },
-    body: JSON.stringify({ name: encodedName, package: encodedName }),
+    body: JSON.stringify({ name: packageName, package: packageName }),
   })
 
   if (!response.ok) {
-    const altStarUrl = new URL(`-/user/package/${encodedName}/star`, registryUrl).href
+    const altStarUrl = new URL(`./-/user/package/${encodedName}/star`, registryUrl).href
     response = await fetchFromRegistry(altStarUrl, {
       authHeaderValue: authHeader,
       method: star ? 'PUT' : 'DELETE',
@@ -106,7 +108,7 @@ async function performStarAction (opts: StarOptions, packageName: string, star: 
 
   if (!response.ok) {
     if (response.status === 404 || response.status === 405 || response.status === 400 || response.status === 500) {
-      return performLegacyStarAction(opts, packageName, star)
+      return performLegacyStarAction({ opts, packageName, encodedName, star, registryUrl, authHeader, fetchFromRegistry })
     }
     const errorBody = await response.text()
     throw new PnpmError('REGISTRY_ERROR', `Failed to ${star ? 'star' : 'unstar'} package: ${response.status} ${response.statusText}. ${errorBody}`)
@@ -119,14 +121,21 @@ interface PackumentWithStars {
   [key: string]: unknown
 }
 
-async function performLegacyStarAction (opts: StarOptions, packageName: string, star: boolean): Promise<void> {
-  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
-  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
-  const fetchFromRegistry = createFetchFromRegistry(opts)
+interface LegacyStarActionArgs {
+  opts: StarOptions
+  packageName: string
+  encodedName: string
+  star: boolean
+  registryUrl: string
+  authHeader: string
+  fetchFromRegistry: ReturnType<typeof createFetchFromRegistry>
+}
 
-  const username = await fetchWhoami(registryUrl, fetchFromRegistry, authHeader!)
-  const encodedName = npa(packageName).escapedName
-  const pkgUrl = new URL(encodedName!, registryUrl).href
+async function performLegacyStarAction (args: LegacyStarActionArgs): Promise<void> {
+  const { packageName, encodedName, star, registryUrl, authHeader, fetchFromRegistry } = args
+
+  const username = await fetchWhoami(registryUrl, fetchFromRegistry, authHeader)
+  const pkgUrl = new URL(`./${encodedName}`, registryUrl).href
 
   const response = await fetchFromRegistry(pkgUrl, {
     authHeaderValue: authHeader,
@@ -165,7 +174,7 @@ async function performLegacyStarAction (opts: StarOptions, packageName: string, 
 }
 
 async function starsHandler (opts: StarOptions, params: string[]): Promise<string> {
-  const registryUrl = opts.registries?.default ?? 'https://registry.npmjs.org/'
+  const registryUrl = normalizeRegistryUrl(opts.registries?.default ?? 'https://registry.npmjs.org/')
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
 
@@ -178,7 +187,7 @@ async function starsHandler (opts: StarOptions, params: string[]): Promise<strin
   }
 
   if (!params[0]) {
-    const starUrl = new URL('-/user/v1/star', registryUrl).href
+    const starUrl = new URL('./-/user/v1/star', registryUrl).href
     const response = await fetchFromRegistry(starUrl, {
       authHeaderValue: authHeader,
     })
@@ -191,13 +200,13 @@ async function starsHandler (opts: StarOptions, params: string[]): Promise<strin
     }
   }
 
-  const starsUrl = new URL(`-/user/${encodeURIComponent(username)}/stars`, registryUrl).href
+  const starsUrl = new URL(`./-/user/${encodeURIComponent(username)}/stars`, registryUrl).href
   let response = await fetchFromRegistry(starsUrl, {
     authHeaderValue: authHeader,
   })
 
   if (!response.ok) {
-    const utilStarsUrl = new URL(`-/util/user/${encodeURIComponent(username)}/stars`, registryUrl).href
+    const utilStarsUrl = new URL(`./-/util/user/${encodeURIComponent(username)}/stars`, registryUrl).href
     response = await fetchFromRegistry(utilStarsUrl, {
       authHeaderValue: authHeader,
     })
@@ -214,10 +223,27 @@ async function starsHandler (opts: StarOptions, params: string[]): Promise<strin
   return Object.keys(starsData).join('\n')
 }
 
+function parsePackageSpecName (packageName: string): string {
+  let parsed
+  try {
+    parsed = npa(packageName)
+  } catch {
+    throw new PnpmError('INVALID_PACKAGE_SPEC', `Invalid package spec: ${packageName}`)
+  }
+  if (!parsed.escapedName) {
+    throw new PnpmError('INVALID_PACKAGE_SPEC', `Invalid package spec: ${packageName}`)
+  }
+  return parsed.escapedName
+}
+
 function getAuthHeaderForRegistry (
   configByUri: Record<string, RegistryConfig> | undefined,
   registryUrl: string
 ): string | undefined {
   const getAuthHeader = createGetAuthHeaderByURI(configByUri ?? {}, registryUrl)
   return getAuthHeader(registryUrl)
+}
+
+function normalizeRegistryUrl (registryUrl: string): string {
+  return registryUrl.endsWith('/') ? registryUrl : `${registryUrl}/`
 }
