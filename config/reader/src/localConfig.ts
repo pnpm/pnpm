@@ -46,7 +46,7 @@ const AUTH_CFG_KEYS = [
 ] satisfies Array<keyof Config>
 
 /**
- * Security and trust policy config keys.
+ * Security policy config keys.
  *
  * ## Principle
  *
@@ -74,7 +74,7 @@ const AUTH_CFG_KEYS = [
  * | Workspace settings             | No                 | link-workspace-packages, shared-workspace-lockfile|
  * | Resolution strategy            | No                 | resolution-mode, dedupe-peers                     |
  */
-const POLICY_CFG_KEYS = [
+const SECURITY_POLICY_CFG_KEYS = [
   'minimumReleaseAge',
   'minimumReleaseAgeExclude',
   'minimumReleaseAgeStrict',
@@ -103,8 +103,8 @@ function isAuthCfgKey (cfgKey: keyof Config): cfgKey is typeof AUTH_CFG_KEYS[num
   return (AUTH_CFG_KEYS as Array<keyof Config>).includes(cfgKey)
 }
 
-function isPolicyCfgKey (cfgKey: keyof Config): cfgKey is typeof POLICY_CFG_KEYS[number] {
-  return (POLICY_CFG_KEYS as Array<keyof Config>).includes(cfgKey)
+function isSecurityPolicyCfgKey (cfgKey: keyof Config): cfgKey is typeof SECURITY_POLICY_CFG_KEYS[number] {
+  return (SECURITY_POLICY_CFG_KEYS as Array<keyof Config>).includes(cfgKey)
 }
 
 function pickRawAuthConfig<RawLocalCfg extends Record<string, unknown>> (rawLocalCfg: RawLocalCfg): Partial<RawLocalCfg> {
@@ -130,7 +130,7 @@ function pickAuthConfig (localCfg: Partial<Config>): Partial<Config> {
 function pickDlxConfig (localCfg: Partial<Config>): Partial<Config> {
   const result: Record<string, unknown> = {}
   for (const key in localCfg) {
-    if (isAuthCfgKey(key as keyof Config) || isPolicyCfgKey(key as keyof Config)) {
+    if (isAuthCfgKey(key as keyof Config) || isSecurityPolicyCfgKey(key as keyof Config)) {
       result[key] = localCfg[key as keyof Config]
     }
   }
