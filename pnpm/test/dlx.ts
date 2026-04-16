@@ -82,7 +82,7 @@ patchedDependencies:
   })
 })
 
-// These tests use the public npm registry instead of verdaccio: verdaccio
+// The public npm registry is used here instead of verdaccio because verdaccio
 // includes the 'time' field in abbreviated metadata, which short-circuits
 // the publish-date check.
 describe('minimumReleaseAge from pnpm-workspace.yaml', () => {
