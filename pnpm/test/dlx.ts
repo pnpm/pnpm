@@ -8,6 +8,7 @@ import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { addUser, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import type { BaseManifest } from '@pnpm/types'
 import PATH_NAME from 'path-name'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from './utils/index.js'
 
@@ -79,6 +80,97 @@ patchedDependencies:
     env,
     expectSuccess: true, // It didn't try to use the patch that doesn't exist, so it did not fail
   })
+})
+
+// The public npm registry is used here instead of verdaccio because verdaccio
+// includes the 'time' field in abbreviated metadata, which short-circuits
+// the publish-date check.
+describe('minimumReleaseAge from pnpm-workspace.yaml', () => {
+  // Hard-coded publish timestamps from the public npm registry.
+  // The gap of ~2.3 years between 0.3.2 and 0.3.3 provides ample buffer
+  // for any CI timing variance.
+  const SHX_0_3_2_PUBLISHED = new Date('2018-07-11T04:13:54.318Z').getTime()
+  const SHX_0_3_3_PUBLISHED = new Date('2020-10-26T05:35:14.984Z').getTime()
+  const MINUTES_MS = 60 * 1000
+
+  test('dlx fails when the requested version is younger than minimumReleaseAge', () => {
+    prepare()
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: 60 * 24 * 10000, // ~27.4 years: rejects everything published recently
+      minimumReleaseAgeStrict: true,
+    })
+
+    const result = execPnpmSync([
+      '--config.registry=https://registry.npmjs.org/',
+      'dlx', 'shx@0.3.4', 'echo', 'hi',
+    ], { omitEnvDefaults: ['pnpm_config_minimum_release_age'] })
+
+    expect(result.status).toBe(1)
+    expect(result.stderr.toString()).toMatch(/does not meet the minimumReleaseAge constraint/)
+  })
+
+  test('dlx succeeds when the requested version is older than minimumReleaseAge', () => {
+    prepare()
+    // Cutoff 30 days after 0.3.2 was published: 0.3.2 is "mature". Anything
+    // newer (like 0.3.3 or 0.3.4) would not be, but the spec pins 0.3.2.
+    const bufferMinutes = 30 * 24 * 60
+    const minimumReleaseAge = Math.floor((Date.now() - SHX_0_3_2_PUBLISHED) / MINUTES_MS) - bufferMinutes
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge,
+      minimumReleaseAgeStrict: true,
+    })
+
+    execPnpmSync([
+      '--config.registry=https://registry.npmjs.org/',
+      'dlx', 'shx@0.3.2', 'echo', 'hi',
+    ], { expectSuccess: true, omitEnvDefaults: ['pnpm_config_minimum_release_age'] })
+  })
+
+  test('dlx picks the newest version within a range that satisfies minimumReleaseAge', () => {
+    prepare()
+    // Cutoff positioned between 0.3.2 (2018-07-11) and 0.3.3 (2020-10-26):
+    // 0.3.2 is mature, 0.3.3 and 0.3.4 are not. Range `0.3.x` should resolve to 0.3.2.
+    const cutoff = (SHX_0_3_2_PUBLISHED + SHX_0_3_3_PUBLISHED) / 2
+    const minimumReleaseAge = Math.floor((Date.now() - cutoff) / MINUTES_MS)
+    const cacheDir = path.resolve('cache')
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge,
+      minimumReleaseAgeStrict: true,
+    })
+
+    execPnpmSync([
+      `--config.cache-dir=${cacheDir}`,
+      `--config.store-dir=${path.resolve('store')}`,
+      '--config.registry=https://registry.npmjs.org/',
+      'dlx', 'shx@0.3.x', 'echo', 'hi',
+    ], { expectSuccess: true, omitEnvDefaults: ['pnpm_config_minimum_release_age'] })
+
+    // Verify the resolved version by reading the package.json installed in the dlx cache.
+    const dlxDirs = fs.readdirSync(path.resolve(cacheDir, 'dlx'))
+    expect(dlxDirs).toHaveLength(1)
+    const pkgJson = JSON.parse(fs.readFileSync(
+      path.resolve(cacheDir, 'dlx', dlxDirs[0], 'pkg/node_modules/shx/package.json'),
+      'utf8'
+    ) as string)
+    expect(pkgJson.version).toBe('0.3.2')
+  })
+})
+
+// pnpm create delegates to dlx, so the same inheritance applies.
+test('pnpm create respects minimumReleaseAge from pnpm-workspace.yaml', () => {
+  prepare()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    minimumReleaseAge: 60 * 24 * 10000, // ~27.4 years: rejects everything published recently
+    minimumReleaseAgeStrict: true,
+  })
+
+  const result = execPnpmSync([
+    '--config.registry=https://registry.npmjs.org/',
+    'create', 'esm@1.0.18',
+  ], { omitEnvDefaults: ['pnpm_config_minimum_release_age'] })
+
+  expect(result.status).toBe(1)
+  expect(result.stderr.toString()).toMatch(/does not meet the minimumReleaseAge constraint/)
 })
 
 test('dlx should work with pnpm_config_save_dev env variable', async () => {

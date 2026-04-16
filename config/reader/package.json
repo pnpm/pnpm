@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config.reader",
-  "version": "1100.0.0",
+  "version": "1100.0.1",
   "description": "Gets configuration options for pnpm",
   "keywords": [
     "pnpm",

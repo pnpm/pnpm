@@ -1,5 +1,19 @@
 # @pnpm/lockfile.verification
 
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/deps.path@1100.0.1
+  - @pnpm/installing.context@1100.0.1
+  - @pnpm/lockfile.types@1100.0.1
+  - @pnpm/lockfile.utils@1100.0.1
+  - @pnpm/pkg-manifest.reader@1100.0.1
+  - @pnpm/resolving.resolver-base@1100.0.1
+  - @pnpm/crypto.hash@1100.0.0
+
 ## 1002.0.0
 
 ### Major Changes

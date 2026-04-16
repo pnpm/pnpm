@@ -1,7 +1,7 @@
 import { docsUrl, TABLE_OPTIONS } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { audit, type AuditAdvisory, type AuditLevelNumber, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts, type IgnoredAuditVulnerabilityCounts } from '@pnpm/deps.compliance.audit'
+import { audit, type AuditAdvisory, type AuditLevelNumber, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts, type IgnoredAuditVulnerabilityCounts, normalizeGhsaId } from '@pnpm/deps.compliance.audit'
 import { PnpmError } from '@pnpm/error'
 import { type InstallCommandOptions, update } from '@pnpm/installing.commands'
 import { readEnvLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
@@ -9,7 +9,7 @@ import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import type { Registries } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk, { type ChalkInstance } from 'chalk'
-import { difference, pick, pickBy } from 'ramda'
+import { pick, pickBy } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { fix } from './fix.js'
@@ -17,13 +17,15 @@ import { fixWithUpdate, type FixWithUpdateResult } from './fixWithUpdate.js'
 import { ignore } from './ignore.js'
 
 const AUDIT_LEVEL_NUMBER = {
-  low: 0,
-  moderate: 1,
-  high: 2,
-  critical: 3,
+  info: 0,
+  low: 1,
+  moderate: 2,
+  high: 3,
+  critical: 4,
 } satisfies Record<AuditLevelString, AuditLevelNumber>
 
 const AUDIT_COLOR = {
+  info: chalk.dim,
   low: chalk.bold,
   moderate: chalk.bold.yellow,
   high: chalk.bold.red,
@@ -53,7 +55,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
       'production',
       'registry',
     ], allTypes),
-    'audit-level': ['low', 'moderate', 'high', 'critical'],
+    'audit-level': ['info', 'low', 'moderate', 'high', 'critical'],
     // For fix, use String instead of a list of allowed string values.
     // Otherwise, an unexpected value will get coerced to true because of the Boolean type.
     fix: [String, Boolean],
@@ -99,7 +101,7 @@ export function help (): string {
             name: '--json',
           },
           {
-            description: 'Only print advisories with severity greater than or equal to one of the following: low|moderate|high|critical. Default: low',
+            description: 'Only print advisories with severity greater than or equal to one of the following: info|low|moderate|high|critical. Default: low',
             name: '--audit-level <severity>',
           },
           {
@@ -121,11 +123,11 @@ export function help (): string {
             name: '--ignore-registry-errors',
           },
           {
-            description: 'Ignore a vulnerability by CVE',
+            description: 'Ignore a vulnerability by its GitHub advisory ID (e.g. GHSA-xxxx-xxxx-xxxx)',
             name: '--ignore <vulnerability>',
           },
           {
-            description: 'Ignore all CVEs with no resolution',
+            description: 'Ignore all vulnerabilities for which no fix exists',
             name: '--ignore-unfixable',
           },
         ],
@@ -205,7 +207,6 @@ export async function handler (opts: AuditOptions): Promise<{ exitCode: number, 
       },
       envLockfile,
       include,
-      lockfileDir,
       registry: opts.registries.default,
       retry: {
         factor: opts.fetchRetryFactor,
@@ -214,7 +215,6 @@ export async function handler (opts: AuditOptions): Promise<{ exitCode: number, 
         retries: opts.fetchRetries,
       },
       timeout: opts.fetchTimeout,
-      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     })
   } catch (err: any) { // eslint-disable-line
     if (opts.ignoreRegistryErrors) {
@@ -293,6 +293,7 @@ ${newIgnores.join('\n')}`,
   }
   const vulnerabilities = auditReport.metadata.vulnerabilities
   const ignoredVulnerabilities: IgnoredAuditVulnerabilityCounts = {
+    info: 0,
     low: 0,
     moderate: 0,
     high: 0,
@@ -301,19 +302,12 @@ ${newIgnores.join('\n')}`,
   const totalVulnerabilityCount = Object.values(vulnerabilities)
     .reduce((sum: number, vulnerabilitiesCount: number) => sum + vulnerabilitiesCount, 0)
   const ignoreGhsas = opts.auditConfig?.ignoreGhsas
-  if (ignoreGhsas) {
+  if (ignoreGhsas?.length) {
+    // Compare GHSA ids after normalizing so stored entries with varying
+    // casing still match the canonical form on the advisory.
+    const ignoreSet = new Set(ignoreGhsas.map(normalizeGhsaId))
     auditReport.advisories = pickBy(({ github_advisory_id: githubAdvisoryId, severity }) => {
-      if (!ignoreGhsas.includes(githubAdvisoryId)) {
-        return true
-      }
-      ignoredVulnerabilities[severity as AuditLevelString] += 1
-      return false
-    }, auditReport.advisories)
-  }
-  const ignoreCves = opts.auditConfig?.ignoreCves
-  if (ignoreCves) {
-    auditReport.advisories = pickBy(({ cves, severity }) => {
-      if (cves.length === 0 || difference(cves, ignoreCves).length > 0) {
+      if (!ignoreSet.has(normalizeGhsaId(githubAdvisoryId))) {
         return true
       }
       ignoredVulnerabilities[severity as AuditLevelString] += 1
@@ -339,7 +333,7 @@ ${newIgnores.join('\n')}`,
       [AUDIT_COLOR[advisory.severity](advisory.severity), chalk.bold(advisory.title)],
       ['Package', advisory.module_name],
       ['Vulnerable versions', advisory.vulnerable_versions],
-      ['Patched versions', advisory.patched_versions],
+      ['Patched versions', advisory.patched_versions ?? '(unknown)'],
       [
         'Paths',
         (paths.length > MAX_PATHS_COUNT

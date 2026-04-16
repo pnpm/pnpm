@@ -1,5 +1,13 @@
 # @pnpm/cache.api
 
+## 1100.0.1
+
+### Patch Changes
+
+- @pnpm/config.reader@1100.0.1
+- @pnpm/resolving.npm-resolver@1100.0.1
+- @pnpm/store.cafs@1100.0.1
+
 ## 1001.0.0
 
 ### Major Changes

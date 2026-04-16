@@ -1,5 +1,16 @@
 # @pnpm/auth.commands
 
+## 1100.0.1
+
+### Patch Changes
+
+- Internally, `@pnpm/network.web-auth`'s `promptBrowserOpen` now uses the [`open`](https://www.npmjs.com/package/open) package instead of spawning platform-specific commands. The `execFile` field and `PromptBrowserOpenExecFile` / `PromptBrowserOpenProcess` type exports have been removed from `PromptBrowserOpenContext`.
+- Updated dependencies
+  - @pnpm/network.web-auth@1101.0.0
+  - @pnpm/cli.utils@1100.0.1
+  - @pnpm/config.reader@1100.0.1
+  - @pnpm/network.fetch@1100.0.1
+
 ## 1000.1.0
 
 ### Minor Changes

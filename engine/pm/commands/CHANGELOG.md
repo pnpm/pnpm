@@ -1,5 +1,29 @@
 # @pnpm/engine.pm.commands
 
+## 1100.0.1
+
+### Patch Changes
+
+- b989a4a: Fixed `pnpm store prune` removing packages used by the globally installed pnpm, breaking it.
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/bins.linker@1100.0.1
+  - @pnpm/building.policy@1100.0.1
+  - @pnpm/cli.meta@1100.0.1
+  - @pnpm/cli.utils@1100.0.1
+  - @pnpm/config.reader@1100.0.1
+  - @pnpm/deps.graph-hasher@1100.0.1
+  - @pnpm/global.commands@1100.0.1
+  - @pnpm/global.packages@1100.0.1
+  - @pnpm/installing.client@1100.0.1
+  - @pnpm/installing.deps-restorer@1100.0.1
+  - @pnpm/installing.env-installer@1100.0.1
+  - @pnpm/lockfile.types@1100.0.1
+  - @pnpm/resolving.npm-resolver@1100.0.1
+  - @pnpm/store.controller@1100.0.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.1
+  - @pnpm/store.connection-manager@1100.0.1
+
 ## 1001.0.0
 
 ### Major Changes

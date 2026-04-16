@@ -1,5 +1,16 @@
 # @pnpm/config
 
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/hooks.pnpmfile@1100.0.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.1
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.1
+  - @pnpm/catalogs.config@1100.0.0
+
 ## 1005.0.0
 
 ### Major Changes

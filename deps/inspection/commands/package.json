@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.inspection.commands",
-  "version": "1100.0.0",
+  "version": "1100.1.0",
   "description": "The list, ll, why, and outdated commands of pnpm",
   "keywords": [
     "pnpm",
@@ -51,11 +51,13 @@
     "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/resolving.default-resolver": "workspace:*",
     "@pnpm/resolving.npm-resolver": "workspace:*",
+    "@pnpm/resolving.registry.types": "workspace:*",
     "@pnpm/semver-diff": "catalog:",
     "@pnpm/store.path": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/table": "catalog:",
     "chalk": "catalog:",
+    "open": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:"
   },

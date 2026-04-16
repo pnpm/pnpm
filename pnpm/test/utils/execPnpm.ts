@@ -118,10 +118,20 @@ export interface ChildProcess {
   stderr: { toString: () => string }
 }
 
+type PnpmEnvDefault =
+  | 'pnpm_config_fetch_retries'
+  | 'pnpm_config_hoist'
+  | 'pnpm_config_minimum_release_age'
+  | 'pnpm_config_registry'
+  | 'pnpm_config_silent'
+  | 'pnpm_config_store_dir'
+  | 'pnpm_config_verify_store_integrity'
+
 export interface ExecPnpmSyncOpts {
   cwd?: string
   env?: Record<string, string>
   expectSuccess?: boolean // similar to expect(status).toBe(0), but also prints error messages, which makes it easier to debug failed tests
+  omitEnvDefaults?: PnpmEnvDefault[]
   stdio?: StdioOptions
   storeDir?: string
   timeout?: number
@@ -134,7 +144,7 @@ export function execPnpmSync (
   const execResult = crossSpawn.sync(process.execPath, [pnpmBinLocation, ...args], {
     cwd: opts?.cwd,
     env: {
-      ...createEnv(),
+      ...createEnv({ omitEnvDefaults: opts?.omitEnvDefaults }),
       ...opts?.env,
     } as NodeJS.ProcessEnv,
     stdio: opts?.stdio ?? 'pipe',
@@ -172,7 +182,7 @@ export function execPnpxSync (
   return execResult as ChildProcess
 }
 
-function createEnv (opts?: { storeDir?: string }): NodeJS.ProcessEnv {
+function createEnv (opts?: { storeDir?: string, omitEnvDefaults?: PnpmEnvDefault[] }): NodeJS.ProcessEnv {
   let workspaceManifest: Record<string, unknown> | undefined
   try {
     workspaceManifest = readYamlFileSync('pnpm-workspace.yaml')
@@ -201,6 +211,9 @@ function createEnv (opts?: { storeDir?: string }): NodeJS.ProcessEnv {
     // Although this is the default value of verify-store-integrity (as of pnpm 1.38.0)
     // on CI servers we set it to `false`. That is why we set it back to true for the tests
     pnpm_config_verify_store_integrity: 'true',
+  }
+  for (const key of opts?.omitEnvDefaults ?? []) {
+    delete env[key]
   }
 
   for (const [key, value] of Object.entries(process.env)) {

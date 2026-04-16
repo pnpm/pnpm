@@ -1,5 +1,24 @@
 # @pnpm/registry-access.commands
 
+## 1100.1.0
+
+### Minor Changes
+
+- b738043: Add native `pnpm ping` command to test registry connectivity.
+  Provides a simple way to verify connectivity to the configured registry without requiring external tools.
+- f2083f4: Implemented native `search` command and its aliases (`s`, `se`, `find`).
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/cli.utils@1100.0.1
+  - @pnpm/config.pick-registry-for-package@1100.0.1
+  - @pnpm/config.reader@1100.0.1
+  - @pnpm/network.auth-header@1100.0.1
+  - @pnpm/network.fetch@1100.0.1
+  - @pnpm/resolving.registry.types@1100.0.1
+
 ## 1000.1.0
 
 ### Minor Changes

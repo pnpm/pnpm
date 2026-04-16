@@ -1,5 +1,38 @@
 # @pnpm/deps.compliance.commands
 
+## 1101.0.0
+
+### Major Changes
+
+- ff28085: `pnpm audit` now calls npm's `/-/npm/v1/security/advisories/bulk` endpoint. The legacy `/-/npm/v1/security/audits{,/quick}` endpoints have been retired by the registry, so the legacy request/response contract is no longer supported.
+
+  The bulk endpoint does not return CVE identifiers. CVE-based filtering has been replaced with GitHub advisory ID (GHSA) filtering:
+
+  - `auditConfig.ignoreCves` → `auditConfig.ignoreGhsas` (the previous key is no longer recognized)
+  - `pnpm audit --ignore <id>` / `pnpm audit --ignore-unfixable` now read and write GHSAs instead of CVEs
+  - GHSAs are derived from each advisory's `url` (`https://github.com/advisories/GHSA-xxxx-xxxx-xxxx`)
+
+  To migrate: replace each `CVE-YYYY-NNNNN` entry in your `auditConfig.ignoreCves` with the corresponding `GHSA-xxxx-xxxx-xxxx` value (visible in the `More info` column of `pnpm audit` output) and move it under `auditConfig.ignoreGhsas`.
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/deps.compliance.audit@1101.0.0
+  - @pnpm/types@1101.0.0
+  - @pnpm/cli.meta@1100.0.1
+  - @pnpm/cli.utils@1100.0.1
+  - @pnpm/config.reader@1100.0.1
+  - @pnpm/config.writer@1100.0.1
+  - @pnpm/deps.compliance.license-scanner@1100.0.1
+  - @pnpm/deps.compliance.sbom@1100.0.1
+  - @pnpm/installing.commands@1100.0.1
+  - @pnpm/lockfile.fs@1100.0.1
+  - @pnpm/lockfile.types@1100.0.1
+  - @pnpm/lockfile.utils@1100.0.1
+  - @pnpm/lockfile.walker@1100.0.1
+  - @pnpm/network.auth-header@1100.0.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.1
+
 ## 1001.0.0
 
 ### Major Changes

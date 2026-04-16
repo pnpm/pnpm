@@ -1,5 +1,31 @@
 # @pnpm/deps.inspection.commands
 
+## 1100.1.0
+
+### Minor Changes
+
+- 2410cf4: Added the `pnpm docs` command and its alias `pnpm home`. This command opens the package documentation or homepage in the browser. When the package has no valid homepage, it falls back to `https://npmx.dev/package/<name>`.
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/cli.utils@1100.0.1
+  - @pnpm/config.pick-registry-for-package@1100.0.1
+  - @pnpm/config.reader@1100.0.1
+  - @pnpm/deps.inspection.list@1100.0.1
+  - @pnpm/deps.inspection.outdated@1100.0.1
+  - @pnpm/deps.inspection.peers-checker@1100.0.1
+  - @pnpm/global.commands@1100.0.1
+  - @pnpm/global.packages@1100.0.1
+  - @pnpm/installing.modules-yaml@1100.0.1
+  - @pnpm/lockfile.fs@1100.0.1
+  - @pnpm/network.auth-header@1100.0.1
+  - @pnpm/network.fetch@1100.0.1
+  - @pnpm/resolving.default-resolver@1100.0.1
+  - @pnpm/resolving.npm-resolver@1100.0.1
+  - @pnpm/resolving.registry.types@1100.0.1
+
 ## 1001.0.0
 
 ### Major Changes

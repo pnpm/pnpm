@@ -234,6 +234,7 @@ export interface Config extends OptionsFromRootManifest {
   lockfile?: boolean
   dedupeInjectedDeps?: boolean
   nodeOptions?: string
+  pmOnFail?: 'download' | 'error' | 'warn' | 'ignore'
   packageManagerStrict?: boolean
   packageManagerStrictVersion?: boolean
   virtualStoreDirMaxLength: number
@@ -255,7 +256,7 @@ export interface Config extends OptionsFromRootManifest {
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number
-  auditLevel?: 'low' | 'moderate' | 'high' | 'critical'
+  auditLevel?: 'info' | 'low' | 'moderate' | 'high' | 'critical'
 
   packageConfigs?: ProjectConfigSet
 }

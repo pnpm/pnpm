@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/engine.runtime.commands",
-  "version": "1100.0.0",
+  "version": "1100.0.1",
   "description": "pnpm commands for managing runtimes",
   "keywords": [
     "pnpm",

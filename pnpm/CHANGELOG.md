@@ -1,5 +1,30 @@
 # pnpm
 
+## 11.0.0-rc.1
+
+### Major Changes
+
+- `pnpm audit` now calls npm's `/-/npm/v1/security/advisories/bulk` endpoint. The legacy `/-/npm/v1/security/audits{,/quick}` endpoints have been retired by the registry, so the legacy request/response contract is no longer supported.
+
+  The bulk endpoint does not return CVE identifiers. CVE-based filtering has been replaced with GitHub advisory ID (GHSA) filtering:
+
+  - `auditConfig.ignoreCves` → `auditConfig.ignoreGhsas` (the previous key is no longer recognized)
+  - `pnpm audit --ignore <id>` / `pnpm audit --ignore-unfixable` now read and write GHSAs instead of CVEs
+  - GHSAs are derived from each advisory's `url` (`https://github.com/advisories/GHSA-xxxx-xxxx-xxxx`)
+
+  To migrate: replace each `CVE-YYYY-NNNNN` entry in your `auditConfig.ignoreCves` with the corresponding `GHSA-xxxx-xxxx-xxxx` value (visible in the `More info` column of `pnpm audit` output) and move it under `auditConfig.ignoreGhsas`.
+
+### Minor Changes
+
+- Added the `pnpm docs` command and its alias `pnpm home`. This command opens the package documentation or homepage in the browser. When the package has no valid homepage, it falls back to `https://npmx.dev/package/<name>`.
+- Added native `pnpm ping` command to test registry connectivity.
+  Provides a simple way to verify connectivity to the configured registry without requiring external tools.
+- Implemented native `search` command and its aliases (`s`, `se`, `find`).
+
+### Patch Changes
+
+- Fixed `pnpm store prune` removing packages used by the globally installed pnpm, breaking it.
+
 ## 11.0.0-rc.0
 
 ### Highlights
@@ -310,4 +335,3 @@
 - Fixed `pnpm dedupe --check` unexpectedly failing due to non-deterministic resolution [#11110](https://github.com/pnpm/pnpm/pull/11110).
 - Fixed empty files not being rejected in `isEmptyDirOrNothing` [#11182](https://github.com/pnpm/pnpm/pull/11182).
 - Fixed `.bat`/`.cmd` token helpers not working on Windows due to missing `shell: true` option.
-
