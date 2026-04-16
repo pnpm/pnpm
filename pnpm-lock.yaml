@@ -3615,6 +3615,9 @@ importers:
       '@pnpm/resolving.npm-resolver':
         specifier: workspace:*
         version: link:../../../resolving/npm-resolver
+      '@pnpm/shell.path':
+        specifier: workspace:*
+        version: link:../../../shell/path
       '@pnpm/store.connection-manager':
         specifier: workspace:*
         version: link:../../../store/connection-manager
@@ -3627,6 +3630,9 @@ importers:
       '@pnpm/workspace.project-manifest-reader':
         specifier: workspace:*
         version: link:../../../workspace/project-manifest-reader
+      cross-spawn:
+        specifier: 'catalog:'
+        version: 7.0.6
       path-name:
         specifier: 'catalog:'
         version: 1.0.0
@@ -3658,9 +3664,6 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../../__utils__/prepare
-      '@pnpm/shell.path':
-        specifier: workspace:*
-        version: link:../../../shell/path
       '@pnpm/testing.mock-agent':
         specifier: workspace:*
         version: link:../../../testing/mock-agent
@@ -3673,9 +3676,6 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.7.1
-      cross-spawn:
-        specifier: 'catalog:'
-        version: 7.0.6
 
   engine/runtime/bun-resolver:
     dependencies:

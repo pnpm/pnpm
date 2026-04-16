@@ -617,17 +617,24 @@ export async function getConfig (opts: {
 
   transformPathKeys(pnpmConfig, os.homedir())
 
-  // For the legacy packageManager field, derive onFail from config settings.
-  // devEngines.packageManager already has onFail set during parsing.
-  if (pnpmConfig.wantedPackageManager && pnpmConfig.wantedPackageManager.onFail == null) {
-    if (pnpmConfig.packageManagerStrict === false) {
-      pnpmConfig.wantedPackageManager.onFail = 'warn'
-    } else if (pnpmConfig.managePackageManagerVersions) {
-      pnpmConfig.wantedPackageManager.onFail = 'download'
-    } else if (pnpmConfig.packageManagerStrictVersion) {
-      pnpmConfig.wantedPackageManager.onFail = 'error'
-    } else {
-      pnpmConfig.wantedPackageManager.onFail = 'ignore'
+  // The `pmOnFail` config setting overrides whatever onFail the
+  // wantedPackageManager carried, so users (and internal callers) can force
+  // a specific behavior without editing the manifest.
+  // Otherwise, for the legacy packageManager field, derive onFail from config
+  // settings. devEngines.packageManager already has onFail set during parsing.
+  if (pnpmConfig.wantedPackageManager) {
+    if (pnpmConfig.pmOnFail) {
+      pnpmConfig.wantedPackageManager.onFail = pnpmConfig.pmOnFail
+    } else if (pnpmConfig.wantedPackageManager.onFail == null) {
+      if (pnpmConfig.packageManagerStrict === false) {
+        pnpmConfig.wantedPackageManager.onFail = 'warn'
+      } else if (pnpmConfig.managePackageManagerVersions) {
+        pnpmConfig.wantedPackageManager.onFail = 'download'
+      } else if (pnpmConfig.packageManagerStrictVersion) {
+        pnpmConfig.wantedPackageManager.onFail = 'error'
+      } else {
+        pnpmConfig.wantedPackageManager.onFail = 'ignore'
+      }
     }
   }
 

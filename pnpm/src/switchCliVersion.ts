@@ -34,7 +34,7 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
     pmVersion = envLockfile.importers['.'].packageManagerDependencies?.['pnpm']?.version
     if (!pmVersion) {
       globalWarn(`Cannot resolve pnpm version for "${pm.version}"`)
-      await storeToUse?.ctrl.close()
+      await storeToUse.ctrl.close()
       return
     }
   } else if (!isPackageManagerResolved(envLockfile, pmVersion)) {
@@ -48,7 +48,8 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
     })
   }
 
-  // If the wanted version matches the current version, no switch needed
+  // If the wanted version matches the current version, no switch needed.
+  // Skip install-to-store entirely — we're already running this version.
   if (pmVersion === packageManager.version) {
     await storeToUse?.ctrl.close()
     return
@@ -61,19 +62,23 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
   }
 
   if (!envLockfile) {
+    await storeToUse.ctrl.close()
     throw new PnpmError('NO_PKG_MANAGER_INTEGRITY', `The packageManager dependency ${pmVersion} was not found in pnpm-lock.yaml`)
   }
 
-  const { binDir: wantedPnpmBinDir } = await installPnpmToStore(pmVersion, {
-    envLockfile,
-    storeController: storeToUse.ctrl,
-    storeDir: storeToUse.dir,
-    registries: config.registries,
-    virtualStoreDirMaxLength: config.virtualStoreDirMaxLength,
-    packageManager: { name: packageManager.name, version: packageManager.version },
-  })
-
-  await storeToUse.ctrl.close()
+  let wantedPnpmBinDir: string
+  try {
+    ;({ binDir: wantedPnpmBinDir } = await installPnpmToStore(pmVersion, {
+      envLockfile,
+      storeController: storeToUse.ctrl,
+      storeDir: storeToUse.dir,
+      registries: config.registries,
+      virtualStoreDirMaxLength: config.virtualStoreDirMaxLength,
+      packageManager: { name: packageManager.name, version: packageManager.version },
+    }))
+  } finally {
+    await storeToUse.ctrl.close()
+  }
 
   const pnpmEnv = prependDirsToPath([wantedPnpmBinDir])
   if (!pnpmEnv.updated) {

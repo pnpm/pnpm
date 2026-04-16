@@ -84,6 +84,7 @@ export const pnpmTypes = {
   'package-import-method': ['auto', 'hardlink', 'clone', 'copy'],
   'patches-dir': String,
   pnpmfile: String,
+  'pm-on-fail': ['download', 'error', 'warn', 'ignore'],
   'package-manager-strict': Boolean,
   'package-manager-strict-version': Boolean,
   'prefer-frozen-lockfile': Boolean,

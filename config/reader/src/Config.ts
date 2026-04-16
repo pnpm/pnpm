@@ -234,6 +234,7 @@ export interface Config extends OptionsFromRootManifest {
   lockfile?: boolean
   dedupeInjectedDeps?: boolean
   nodeOptions?: string
+  pmOnFail?: 'download' | 'error' | 'warn' | 'ignore'
   packageManagerStrict?: boolean
   packageManagerStrictVersion?: boolean
   virtualStoreDirMaxLength: number
