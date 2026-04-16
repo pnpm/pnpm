@@ -22,6 +22,10 @@ export function convertEnginesRuntimeToDependencies (
     if (runtime?.onFail !== 'download') {
       continue
     }
+    if (!runtime.version) {
+      globalWarn(`Cannot download ${runtimeName} because no version is specified in ${enginesFieldName}.runtime`)
+      continue
+    }
     if ('webcontainer' in process.versions) {
       globalWarn(`Installation of ${runtimeName} versions is not supported in WebContainer`)
     } else {
