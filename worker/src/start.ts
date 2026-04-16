@@ -1,5 +1,6 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
+import { createRequire } from 'node:module'
 import path from 'node:path'
 import { parentPort } from 'node:worker_threads'
 
@@ -500,20 +501,70 @@ function writeCafsFiles (message: WriteCafsFilesMessage): { status: string, file
   return { status: 'success', filesWritten }
 }
 
+// Try to load the native CAFS writer. Falls back to the pure-JS streaming
+// parser below when the addon hasn't been built for this platform.
+let nativeWriteFiles: ((storeDir: string, payload: Buffer) => number) | undefined
+if (!process.env.PNPM_CAFS_WRITER_DISABLE_NATIVE) {
+  try {
+    const require = createRequire(import.meta.url)
+    const native = require('@pnpm/agent.cafs-writer') as { writeFiles: typeof nativeWriteFiles }
+    nativeWriteFiles = native.writeFiles
+  } catch {
+    nativeWriteFiles = undefined
+  }
+}
+
 async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ status: string, filesWritten: number }> {
   const http = await import('node:http')
   const https = await import('node:https')
   const { URL } = await import('node:url')
   const { createGunzip } = await import('node:zlib')
-  const { contentPathFromHex } = await import('@pnpm/store.cafs')
 
   const url = new URL('/v1/files', message.registryUrl)
   const requestFn = url.protocol === 'https:' ? https.request : http.request
   const body = JSON.stringify({ digests: message.digests })
+
+  if (nativeWriteFiles) {
+    // Native path: gunzip into a single buffer, hand the whole payload to
+    // Rust which parses and writes all files in parallel (rayon).
+    return new Promise<{ status: string, filesWritten: number }>((resolve, reject) => {
+      const req = requestFn(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+          'Accept-Encoding': 'gzip',
+        },
+      }, (res: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+        let stream: NodeJS.ReadableStream = res
+        if (res.headers['content-encoding'] === 'gzip') {
+          const gunzip = createGunzip()
+          res.pipe(gunzip)
+          stream = gunzip
+        }
+        const chunks: Buffer[] = []
+        stream.on('data', (chunk: Buffer) => chunks.push(chunk))
+        stream.on('end', () => {
+          try {
+            const filesWritten = nativeWriteFiles!(message.storeDir, Buffer.concat(chunks))
+            resolve({ status: 'success', filesWritten })
+          } catch (err) {
+            reject(err as Error)
+          }
+        })
+        stream.on('error', reject)
+      })
+      req.on('error', reject)
+      req.write(body)
+      req.end()
+    })
+  }
+
+  // Pure-JS fallback: parse the binary stream incrementally and write each
+  // file with fs.writeFileSync as soon as its bytes arrive.
+  const { contentPathFromHex } = await import('@pnpm/store.cafs')
   const createdDirs = new Set<string>()
 
-  // Stream: HTTP response → gunzip → parse entries → write to CAFS.
-  // No buffering — files are written as data arrives.
   return new Promise<{ status: string, filesWritten: number }>((resolve, reject) => {
     let filesWritten = 0
     let buf = Buffer.alloc(0)
@@ -521,7 +572,6 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
     const END_MARKER = Buffer.alloc(64, 0)
 
     const processBuffer = () => {
-      // Skip JSON header on first chunk
       if (!headerSkipped && buf.length >= 4) {
         const jsonLen = buf.readUInt32BE(0)
         if (buf.length >= 4 + jsonLen) {
@@ -532,7 +582,6 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
         }
       }
 
-      // Parse complete file entries from the buffer
       while (headerSkipped) {
         if (buf.length < 64) break
         if (buf.subarray(0, 64).equals(END_MARKER)) {

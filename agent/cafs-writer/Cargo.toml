@@ -1,0 +1,23 @@
+[package]
+name = "pnpm-cafs-writer"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "2", default-features = false, features = ["napi4"] }
+napi-derive = "2"
+rayon = "1"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+tokio-uring = "0.5"
+
+[build-dependencies]
+napi-build = "2"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = "symbols"

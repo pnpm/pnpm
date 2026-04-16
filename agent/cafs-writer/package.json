@@ -1,0 +1,22 @@
+{
+  "name": "@pnpm/agent.cafs-writer",
+  "version": "0.1.0",
+  "description": "Native (Rust + napi-rs) batch writer for files in the pnpm CAFS. Used by the agent client path to cut syscall overhead on large installs.",
+  "private": true,
+  "license": "MIT",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "pnpm-cafs-writer.*.node"
+  ],
+  "scripts": {
+    "build": "cargo build --release && node scripts/copy-artifact.js",
+    "build:debug": "cargo build && node scripts/copy-artifact.js --debug",
+    "test": "echo 'prototype — no tests'"
+  },
+  "engines": {
+    "node": ">=22.13"
+  }
+}

@@ -1410,6 +1410,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  agent/cafs-writer: {}
+
   agent/client:
     dependencies:
       '@pnpm/lockfile.types':
@@ -1482,7 +1484,7 @@ importers:
         version: link:../../core/logger
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 5.2.4(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+        version: 6.0.0(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
       cross-env:
         specifier: 'catalog:'
         version: 10.1.0
@@ -7552,6 +7554,10 @@ importers:
       write-yaml-file:
         specifier: 'catalog:'
         version: 6.0.0
+    optionalDependencies:
+      '@pnpm/agent.cafs-writer':
+        specifier: workspace:*
+        version: link:../agent/cafs-writer
 
   pnpm/artifacts/exe:
     dependencies:
@@ -8957,6 +8963,10 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.7.1
+    optionalDependencies:
+      '@pnpm/agent.cafs-writer':
+        specifier: workspace:*
+        version: link:../agent/cafs-writer
 
   workspace/commands:
     dependencies:
