@@ -103,7 +103,6 @@ export const excludedPnpmKeys = [
   'pack-gzip-level',
   'patches-dir',
   'pnpmfile',
-  'pm-on-fail',
   'package-manager-strict',
   'package-manager-strict-version',
   'prefer-workspace-packages',
@@ -157,6 +156,7 @@ export const excludedPnpmKeys = [
   'os',
   'audit-level',
   'yes',
+  'pm-on-fail',
 ] as const satisfies ReadonlyArray<Exclude<PnpmKey, PnpmConfigFileKey>>
 export type ExcludedPnpmKey = typeof excludedPnpmKeys[number]
 

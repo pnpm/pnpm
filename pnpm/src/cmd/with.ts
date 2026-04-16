@@ -57,8 +57,8 @@ export async function handler (
   if (isExecutedByCorepack()) {
     throw new PnpmError('CANT_USE_WITH_IN_COREPACK', 'The "pnpm with" command does not work under corepack')
   }
-  // `spec === 'current'` is intercepted by main.ts and re-dispatched in-process,
-  // so this handler only ever sees version/dist-tag specs.
+  // `with current` is handled earlier in parseCliArgs.ts, which reparses it
+  // for in-process execution, so this handler only ever sees version/dist-tag specs.
   const [spec, ...args] = params
 
   const { resolve } = createResolver({ ...opts, configByUri: opts.configByUri })
@@ -74,23 +74,26 @@ export async function handler (
 
   fs.mkdirSync(opts.pnpmHomeDir, { recursive: true })
   const store = await createStoreController(opts)
-  const envLockfile = await resolvePackageManagerIntegrities(version, {
-    registries: opts.registries,
-    rootDir: opts.pnpmHomeDir,
-    storeController: store.ctrl,
-    storeDir: store.dir,
-  })
+  let binDir: string
+  try {
+    const envLockfile = await resolvePackageManagerIntegrities(version, {
+      registries: opts.registries,
+      rootDir: opts.pnpmHomeDir,
+      storeController: store.ctrl,
+      storeDir: store.dir,
+    })
 
-  const { binDir } = await installPnpmToStore(version, {
-    envLockfile,
-    storeController: store.ctrl,
-    storeDir: store.dir,
-    registries: opts.registries,
-    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-    packageManager: { name: packageManager.name, version: packageManager.version },
-  })
-
-  await store.ctrl.close()
+    ;({ binDir } = await installPnpmToStore(version, {
+      envLockfile,
+      storeController: store.ctrl,
+      storeDir: store.dir,
+      registries: opts.registries,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+      packageManager: { name: packageManager.name, version: packageManager.version },
+    }))
+  } finally {
+    await store.ctrl.close()
+  }
 
   // The child pnpm must skip the packageManager/devEngines check so the requested
   // version stays active. Two keys are set for backward compatibility:
