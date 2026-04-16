@@ -57,7 +57,7 @@ export async function handler (
   if (isExecutedByCorepack()) {
     throw new PnpmError('CANT_USE_WITH_IN_COREPACK', 'The "pnpm with" command does not work under corepack')
   }
-  // `with current` is handled earlier in parseCliArgs.ts, which reparses it
+  // `with current` is handled earlier in parseCliArgs.ts, which re-parses it
   // for in-process execution, so this handler only ever sees version/dist-tag specs.
   const [spec, ...args] = params
 
