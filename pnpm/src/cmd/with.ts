@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { detectIfCurrentPkgIsExecutable, isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
+import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { installPnpmToStore } from '@pnpm/engine.pm.commands'
@@ -57,11 +57,9 @@ export async function handler (
   if (isExecutedByCorepack()) {
     throw new PnpmError('CANT_USE_WITH_IN_COREPACK', 'The "pnpm with" command does not work under corepack')
   }
+  // `spec === 'current'` is intercepted by main.ts and re-dispatched in-process,
+  // so this handler only ever sees version/dist-tag specs.
   const [spec, ...args] = params
-
-  if (spec === 'current') {
-    return spawnCurrentPnpm(args)
-  }
 
   const { resolve } = createResolver({ ...opts, configByUri: opts.configByUri })
   const resolution = await resolve({ alias: 'pnpm', bareSpecifier: spec }, {
@@ -73,11 +71,6 @@ export async function handler (
     throw new PnpmError('CANNOT_RESOLVE_PNPM', `Cannot resolve pnpm version for "${spec}"`)
   }
   const version = resolution.manifest.version
-
-  // If the resolved version matches the running pnpm, skip the store install and re-exec self.
-  if (version === packageManager.version) {
-    return spawnCurrentPnpm(args)
-  }
 
   fs.mkdirSync(opts.pnpmHomeDir, { recursive: true })
   const store = await createStoreController(opts)
@@ -99,49 +92,24 @@ export async function handler (
 
   await store.ctrl.close()
 
+  // The child pnpm must skip the packageManager/devEngines check so the requested
+  // version stays active. Two keys are set for backward compatibility:
+  //   - `COREPACK_ROOT` is honored by every pnpm release that supports corepack
+  //     (older versions skip the pm check whenever this is set).
+  //   - `pnpm_config_package_manager_on_fail=ignore` is the principled override
+  //     recognized by pnpm releases that ship the `packageManagerOnFail` setting.
   const pnpmEnv = prependDirsToPath([binDir])
   const spawnEnv: NodeJS.ProcessEnv = {
     ...process.env,
     [pnpmEnv.name]: pnpmEnv.value,
-    ...childBypassEnv(),
-  }
-
-  const pnpmBinPath = path.join(binDir, 'pnpm')
-  return runChild(pnpmBinPath, args, spawnEnv)
-}
-
-function spawnCurrentPnpm (args: string[]): { exitCode: number } {
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    ...childBypassEnv(),
-  }
-  if (detectIfCurrentPkgIsExecutable()) {
-    return runChild(process.execPath, args, env)
-  }
-  const entry = process.argv[1]
-  if (!entry) {
-    throw new PnpmError('CANNOT_LOCATE_PNPM_ENTRY', 'Unable to determine the current pnpm entry script')
-  }
-  return runChild(process.execPath, [entry, ...args], env)
-}
-
-// The child pnpm must skip the packageManager/devEngines check so the requested
-// version stays active. Two keys are set for backward compatibility:
-//   - `COREPACK_ROOT` is honored by every pnpm release that supports corepack
-//     (older versions skip the pm check whenever this is set).
-//   - `pnpm_config_package_manager_on_fail=ignore` is the principled override
-//     recognized by pnpm releases that ship the `packageManagerOnFail` setting.
-function childBypassEnv (): NodeJS.ProcessEnv {
-  return {
     COREPACK_ROOT: process.env.COREPACK_ROOT ?? 'pnpm-with',
     pnpm_config_package_manager_on_fail: 'ignore',
   }
-}
 
-function runChild (cmd: string, args: string[], env: NodeJS.ProcessEnv): { exitCode: number } {
-  const { status, signal, error } = crossSpawn.sync(cmd, args, {
+  const pnpmBinPath = path.join(binDir, 'pnpm')
+  const { status, signal, error } = crossSpawn.sync(pnpmBinPath, args, {
     stdio: 'inherit',
-    env,
+    env: spawnEnv,
   })
   if (error) throw error
   if (signal) {
