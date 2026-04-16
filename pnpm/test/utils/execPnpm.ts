@@ -204,6 +204,7 @@ function createEnv (opts?: { storeDir?: string, omitEnvDefaults?: PnpmEnvDefault
   const env: Record<string, string> = {
     pnpm_config_fetch_retries: fallback('fetchRetries', '4'),
     pnpm_config_hoist: fallback('hoist', 'true'),
+    pnpm_config_minimum_release_age: '0',
     pnpm_config_registry: fallback('registry', `http://localhost:${REGISTRY_MOCK_PORT}/`),
     pnpm_config_silent: 'true',
     pnpm_config_store_dir: opts?.storeDir ?? fallback('storeDir', '../store'),
@@ -211,8 +212,8 @@ function createEnv (opts?: { storeDir?: string, omitEnvDefaults?: PnpmEnvDefault
     // on CI servers we set it to `false`. That is why we set it back to true for the tests
     pnpm_config_verify_store_integrity: 'true',
   }
-  if (!opts?.omitEnvDefaults?.includes('pnpm_config_minimum_release_age')) {
-    env.pnpm_config_minimum_release_age = '0'
+  for (const key of opts?.omitEnvDefaults ?? []) {
+    delete env[key]
   }
 
   for (const [key, value] of Object.entries(process.env)) {
