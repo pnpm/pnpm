@@ -95,6 +95,7 @@ export const excludedPnpmKeys = [
   'lockfile-dir',
   'lockfile-include-tarball-url',
   'lockfile-only',
+  'lockfile-storage',
   'manage-package-manager-versions',
   'modules-dir',
   'node-linker',
