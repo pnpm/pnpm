@@ -97,7 +97,8 @@ export async function handler (
   const fullMetadata = (
     (
       opts.resolutionMode === 'time-based' ||
-      opts.trustPolicy === 'no-downgrade'
+      opts.trustPolicy === 'no-downgrade' ||
+      Boolean(opts.minimumReleaseAge)
     ) && !opts.registrySupportsTimeField
   )
   const catalogResolver = resolveFromCatalog.bind(null, opts.catalogs ?? {})
