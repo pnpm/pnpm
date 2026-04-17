@@ -39,8 +39,10 @@ export function isPackageManagerResolved (
 
 /**
  * Resolves integrity checksums for `pnpm`, `@pnpm/exe`, and their dependencies
- * by calling resolveManifestDependencies.
- * Writes the results to the `packageManagerDependencies` section of pnpm-lock.yaml.
+ * by calling resolveManifestDependencies. When `opts.save` is true (the
+ * default) the results are written to the `packageManagerDependencies`
+ * section of `pnpm-lock.yaml`; when false, resolution happens purely in
+ * memory and the returned `EnvLockfile` is never persisted to disk.
  */
 export async function resolvePackageManagerIntegrities (
   pnpmVersion: string,

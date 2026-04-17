@@ -24,6 +24,12 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
   const persistLockfile = pm.fromDevEngines === true ||
     (semver.valid(pm.version) != null && semver.major(pm.version) >= 12)
 
+  // In non-persist mode the env lockfile is intentionally not read, so there
+  // is no cached resolution to compare against. Since the legacy
+  // `packageManager` field always carries an exact version, we can skip both
+  // resolution and store access when the running CLI already matches.
+  if (!persistLockfile && pm.version === packageManager.version) return
+
   let envLockfile = persistLockfile
     ? (await readEnvLockfile(context.rootProjectManifestDir) ?? undefined)
     : undefined
