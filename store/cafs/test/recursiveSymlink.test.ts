@@ -5,7 +5,7 @@ import { temporaryDirectory } from 'tempy'
 
 import { createCafs } from '../src/index.js'
 
-test('addFilesFromDir does not loop infinitely on recursive symlinks', () => {
+test('addFilesFromDir does not loop infinitely on recursive symlinks', async () => {
   const storeDir = temporaryDirectory()
   const srcDir = temporaryDirectory()
 
@@ -14,7 +14,7 @@ test('addFilesFromDir does not loop infinitely on recursive symlinks', () => {
   fs.symlinkSync('.', path.join(srcDir, 'self'))
 
   const cafs = createCafs(storeDir)
-  const { filesIndex } = cafs.addFilesFromDir(srcDir)
+  const { filesIndex } = await cafs.addFilesFromDir(srcDir)
 
   expect(filesIndex.has('file.txt')).toBe(true)
   expect(filesIndex.has('self/file.txt')).toBe(false)

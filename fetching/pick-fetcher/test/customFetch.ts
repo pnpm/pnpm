@@ -46,8 +46,13 @@ function createMockFetchers (partial: Partial<Fetchers> = {}): Fetchers {
 
 function createMockCafs (partial: Partial<Cafs> = {}): Cafs {
   return {
+    storeDir: '',
     addFilesFromDir: jest.fn(),
     addFilesFromTarball: jest.fn() as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    addFile: jest.fn() as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    getFilePathByModeInCafs: jest.fn() as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    importPackage: jest.fn() as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    tempDir: jest.fn() as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     ...partial,
   } as Cafs
 }

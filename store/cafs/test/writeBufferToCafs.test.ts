@@ -16,8 +16,7 @@ describe('writeBufferToCafs', () => {
     const fileDest = 'abc'
     const buffer = Buffer.from('abc')
     const fullFileDest = path.join(storeDir, fileDest)
-    const digest = crypto.hash('sha512', buffer, 'hex')
-    writeBufferToCafs(new Map(), storeDir, buffer, fileDest, 420, { digest, algorithm: 'sha512' })
+    writeBufferToCafs(new Map(), storeDir, buffer, fileDest, 420)
     expect(fs.readFileSync(fullFileDest, 'utf8')).toBe('abc')
   })
 
@@ -26,16 +25,14 @@ describe('writeBufferToCafs', () => {
     const fileDest = 'abc'
     const buffer = Buffer.from('abc')
     const fullFileDest = path.join(storeDir, fileDest)
-    const digest = crypto.hash('sha512', buffer, 'hex')
-    const integrity = { digest, algorithm: 'sha512' }
     const locker = new Map<string, number>()
 
     // Simulate another process creating the file before our exclusive write
     fs.mkdirSync(path.dirname(fullFileDest), { recursive: true })
     fs.writeFileSync(fullFileDest, buffer)
 
-    // Our call should find the file via stat, verify integrity, and cache it
-    const result = writeBufferToCafs(locker, storeDir, buffer, fileDest, 420, integrity)
+    // Our call should find the file via stat, verify size, and cache it
+    const result = writeBufferToCafs(locker, storeDir, buffer, fileDest, 420)
     expect(result.filePath).toBe(fullFileDest)
     expect(locker.has(fullFileDest)).toBe(true)
     expect(fs.readFileSync(fullFileDest, 'utf8')).toBe('abc')
@@ -46,8 +43,6 @@ describe('writeBufferToCafs', () => {
     const fileDest = 'abc'
     const buffer = Buffer.from('abc')
     const fullFileDest = path.join(storeDir, fileDest)
-    const digest = crypto.hash('sha512', buffer, 'hex')
-    const integrity = { digest, algorithm: 'sha512' }
     const locker = new Map<string, number>()
 
     // Create a file with wrong content (simulating corruption or partial write)
@@ -55,7 +50,7 @@ describe('writeBufferToCafs', () => {
     fs.writeFileSync(fullFileDest, 'wrong content')
 
     // Should detect mismatch and overwrite (not delete + recreate)
-    const result = writeBufferToCafs(locker, storeDir, buffer, fileDest, 420, integrity)
+    const result = writeBufferToCafs(locker, storeDir, buffer, fileDest, 420)
     expect(result.filePath).toBe(fullFileDest)
     expect(locker.has(fullFileDest)).toBe(true)
     expect(fs.readFileSync(fullFileDest, 'utf8')).toBe('abc')
@@ -135,22 +130,20 @@ describe('writeBufferToCafs', () => {
     const storeDir = temporaryDirectory()
     const fileDest = 'abc'
     const buffer = Buffer.from('abc')
-    const digest = crypto.hash('sha512', buffer, 'hex')
-    const integrity = { digest, algorithm: 'sha512' }
     const locker = new Map<string, number>()
 
     // First write creates the file
-    writeBufferToCafs(locker, storeDir, buffer, fileDest, 420, integrity)
+    writeBufferToCafs(locker, storeDir, buffer, fileDest, 420)
     // Clear the locker to simulate a fresh lookup
     locker.clear()
 
     // Second call should find the file on disk and cache it
-    const result = writeBufferToCafs(locker, storeDir, buffer, fileDest, 420, integrity)
+    const result = writeBufferToCafs(locker, storeDir, buffer, fileDest, 420)
     const fullFileDest = path.join(storeDir, fileDest)
     expect(locker.get(fullFileDest)).toBe(result.checkedAt)
 
     // Third call should return from locker cache without hitting disk
-    const cached = writeBufferToCafs(locker, storeDir, buffer, fileDest, 420, integrity)
+    const cached = writeBufferToCafs(locker, storeDir, buffer, fileDest, 420)
     expect(cached.checkedAt).toBe(result.checkedAt)
   })
 })
@@ -173,7 +166,7 @@ function runConcurrentWorkers (
     import { writeBufferToCafs } from ${JSON.stringify(libUrl)};
     const content = Buffer.from(${JSON.stringify(content.toString('base64'))}, 'base64');
     const locker = new Map();
-    const result = writeBufferToCafs(locker, ${JSON.stringify(storeDir)}, content, ${JSON.stringify(fileDest)}, 420, { digest: ${JSON.stringify(digest)}, algorithm: 'sha512' });
+    const result = writeBufferToCafs(locker, ${JSON.stringify(storeDir)}, content, ${JSON.stringify(fileDest)}, 420);
     fs.writeFileSync(path.join(${JSON.stringify(resultsDir)}, process.pid + '.json'), JSON.stringify(result));
   `)
 

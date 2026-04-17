@@ -170,6 +170,4 @@ export interface ImportOptions {
   safeToSkip?: boolean
 }
 
-export type ImportIndexedPackage = (to: string, opts: ImportOptions) => string | undefined
-
-export type ImportIndexedPackageAsync = (to: string, opts: ImportOptions) => Promise<string | undefined>
+export type ImportIndexedPackage = (to: string, opts: ImportOptions) => Promise<string | undefined>

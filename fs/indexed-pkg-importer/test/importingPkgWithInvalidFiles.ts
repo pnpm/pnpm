@@ -4,11 +4,11 @@ import path from 'node:path'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import { prepareEmpty } from '@pnpm/prepare'
 
-test('importing a package with invalid files', () => {
+test('importing a package with invalid files', async () => {
   prepareEmpty()
   const importPackage = createIndexedPkgImporter('copy')
   const target = path.resolve('target')
-  importPackage(target, {
+  await importPackage(target, {
     filesMap: new Map([
       ['foo?bar/qar>zoo.txt', import.meta.filename],
       ['1*2.txt', import.meta.filename],

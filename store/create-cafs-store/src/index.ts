@@ -9,8 +9,6 @@ import {
 import type { Cafs, FilesMap, PackageFilesResponse } from '@pnpm/store.cafs-types'
 import type {
   ImportIndexedPackage,
-  ImportIndexedPackageAsync,
-  ImportPackageFunction,
   ImportPackageFunctionAsync,
 } from '@pnpm/store.controller-types'
 import memoize from 'memoize'
@@ -20,7 +18,7 @@ export { type CafsLocker }
 
 export function createPackageImporterAsync (
   opts: {
-    importIndexedPackage?: ImportIndexedPackageAsync
+    importIndexedPackage?: ImportIndexedPackage
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-dir' | 'clone-or-copy'
     storeDir: string
   }
@@ -38,37 +36,6 @@ export function createPackageImporterAsync (
       : (opts.filesResponse.packageImportMethod ?? packageImportMethod)
     const impPkg = cachedImporterCreator(pkgImportMethod)
     const importMethod = await impPkg(to, {
-      disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
-      filesMap,
-      resolvedFrom: opts.filesResponse.resolvedFrom,
-      force: opts.force,
-      keepModulesDir: Boolean(opts.keepModulesDir),
-      safeToSkip: opts.safeToSkip,
-    })
-    return { importMethod, isBuilt }
-  }
-}
-
-function createPackageImporter (
-  opts: {
-    importIndexedPackage?: ImportIndexedPackage
-    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-dir' | 'clone-or-copy'
-    storeDir: string
-  }
-): ImportPackageFunction {
-  const cachedImporterCreator = opts.importIndexedPackage
-    ? () => opts.importIndexedPackage!
-    : memoize(createIndexedPkgImporter)
-  const packageImportMethod = opts.packageImportMethod
-  const gfm = getFlatMap.bind(null, opts.storeDir)
-  return (to, opts) => {
-    const { filesMap, isBuilt } = gfm(opts.filesResponse, opts.sideEffectsCacheKey)
-    const willBeBuilt = !isBuilt && opts.requiresBuild
-    const pkgImportMethod = willBeBuilt
-      ? 'clone-or-copy'
-      : (opts.filesResponse.packageImportMethod ?? packageImportMethod)
-    const impPkg = cachedImporterCreator(pkgImportMethod)
-    const importMethod = impPkg(to, {
       disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
       filesMap,
       resolvedFrom: opts.filesResponse.resolvedFrom,
@@ -120,6 +87,8 @@ function applySideEffectsDiffWithMaps (
   return filesWithSideEffects
 }
 
+export type CafsStore = Cafs
+
 export function createCafsStore (
   storeDir: string,
   opts?: {
@@ -128,9 +97,9 @@ export function createCafsStore (
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-dir' | 'clone-or-copy'
     cafsLocker?: CafsLocker
   }
-): Cafs {
+): CafsStore {
   const baseTempDir = path.join(storeDir, 'tmp')
-  const importPackage = createPackageImporter({
+  const importPackage = createPackageImporterAsync({
     importIndexedPackage: opts?.importPackage,
     packageImportMethod: opts?.packageImportMethod,
     storeDir,

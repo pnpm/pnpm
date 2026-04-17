@@ -21,7 +21,8 @@ import {
   type PackageFilesIndex,
   type VerifyResult,
 } from '@pnpm/store.cafs'
-import type { Cafs, FilesMap, PackageFiles, SideEffectsDiff } from '@pnpm/store.cafs-types'
+import type { FilesMap, PackageFiles, SideEffectsDiff } from '@pnpm/store.cafs-types'
+import type { CafsStore } from '@pnpm/store.create-cafs-store'
 import { createCafsStore } from '@pnpm/store.create-cafs-store'
 import { packForStorage, StoreIndex } from '@pnpm/store.index'
 import type { BundledManifest, DependencyManifest } from '@pnpm/types'
@@ -46,7 +47,7 @@ export function startWorker (): void {
 }
 
 const cafsCache = new Map<string, CafsFunctions>()
-const cafsStoreCache = new Map<string, Cafs>()
+const cafsStoreCache = new Map<string, CafsStore>()
 const cafsLocker = new Map<string, number>()
 const storeIndexCache = new Map<string, StoreIndex>()
 const jsonParseCacheMap = new Map<string, JsonParseCache>()
@@ -104,11 +105,11 @@ async function handleMessage (
         break
       }
       case 'link': {
-        parentPort!.postMessage(importPackage(message))
+        parentPort!.postMessage(await importPackage(message))
         break
       }
       case 'add-dir': {
-        parentPort!.postMessage(addFilesFromDir(message))
+        parentPort!.postMessage(await addFilesFromDir(message))
         break
       }
       case 'init-store': {
@@ -195,7 +196,7 @@ async function handleMessage (
         }
         let verifyResult: VerifyResult
         if (verifyStoreIntegrity) {
-          verifyResult = checkPkgFilesIntegrity(storeDir, pkgFilesIndex)
+          verifyResult = await checkPkgFilesIntegrity(storeDir, pkgFilesIndex)
         } else {
           verifyResult = buildFileMapsFromIndex(storeDir, pkgFilesIndex)
         }
@@ -347,7 +348,7 @@ function initStore ({ storeDir }: InitStoreMessage): { status: string } {
   return { status: 'success' }
 }
 
-function addFilesFromDir (
+async function addFilesFromDir (
   {
     appendManifest,
     dir,
@@ -357,12 +358,12 @@ function addFilesFromDir (
     sideEffectsCacheKey,
     storeDir,
   }: AddDirToStoreMessage
-): AddFilesFromDirResult {
+): Promise<AddFilesFromDirResult> {
   if (!cafsCache.has(storeDir)) {
     cafsCache.set(storeDir, createCafs(storeDir, { cafsLocker, jsonCache: getJsonParseCache(storeDir) }))
   }
   const cafs = cafsCache.get(storeDir)!
-  let { filesIndex, manifest } = cafs.addFilesFromDir(dir, {
+  let { filesIndex, manifest } = await cafs.addFilesFromDir(dir, {
     files,
     includeNodeModules,
     readManifest: true,
@@ -499,7 +500,7 @@ interface ImportPackageResult {
   }
 }
 
-function importPackage ({
+async function importPackage ({
   storeDir,
   packageImportMethod,
   filesResponse,
@@ -510,13 +511,13 @@ function importPackage ({
   keepModulesDir,
   disableRelinkLocalDirDeps,
   safeToSkip,
-}: LinkPkgMessage): ImportPackageResult {
+}: LinkPkgMessage): Promise<ImportPackageResult> {
   const cacheKey = JSON.stringify({ storeDir, packageImportMethod })
   if (!cafsStoreCache.has(cacheKey)) {
     cafsStoreCache.set(cacheKey, createCafsStore(storeDir, { packageImportMethod, cafsLocker }))
   }
   const cafsStore = cafsStoreCache.get(cacheKey)!
-  const { importMethod, isBuilt } = cafsStore.importPackage(targetDir, {
+  const { importMethod, isBuilt } = await cafsStore.importPackage(targetDir, {
     filesResponse,
     force,
     disableRelinkLocalDirDeps,

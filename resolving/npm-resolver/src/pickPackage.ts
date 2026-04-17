@@ -4,14 +4,14 @@ import path from 'node:path'
 import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR } from '@pnpm/constants'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
+import gfs from '@pnpm/fs.graceful-fs'
 import { logger } from '@pnpm/logger'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
-import {
-  RegistryMetadataCache,
-} from '@pnpm/resolving.registry-metadata-cache'
 import getRegistryName from 'encode-registry'
 import pLimit, { type LimitFunction } from 'p-limit'
+import { fastPathTemp as pathTemp } from 'path-temp'
 import { pick } from 'ramda'
+import { renameOverwrite } from 'rename-overwrite'
 import semver from 'semver'
 
 import type { FetchMetadataNotModifiedResult, FetchMetadataResult } from './fetch.js'
@@ -33,22 +33,6 @@ export interface PackageMetaCache {
 interface RefCountedLimiter {
   count: number
   limit: LimitFunction
-}
-
-/**
- * Lazily creates or returns the binary registry metadata cache.
- * The cache instance is stored on the context object.
- */
-function getBinaryCache (
-  ctx: {
-    cacheDir: string
-    binaryCache?: RegistryMetadataCache
-  }
-): RegistryMetadataCache {
-  if (!ctx.binaryCache) {
-    ctx.binaryCache = new RegistryMetadataCache(ctx.cacheDir)
-  }
-  return ctx.binaryCache
 }
 
 /**
@@ -112,7 +96,6 @@ export async function pickPackage (
     preferOffline?: boolean
     filterMetadata?: boolean
     strictPublishedByCheck?: boolean
-    binaryCache?: RegistryMetadataCache
   },
   spec: RegistryPackageSpec,
   opts: PickPackageOptions
@@ -156,44 +139,65 @@ export async function pickPackage (
   const cacheKey = fullMetadata ? `${spec.name}:full` : spec.name
   const cachedMeta = ctx.metaCache.get(cacheKey)
   if (cachedMeta != null) {
-    return {
-      meta: cachedMeta,
-      pickedPackage: _pickPackageFromMeta(cachedMeta),
+    // When publishedBy is set and cached metadata lacks time, fall through
+    // to the network fetch path to get full metadata.
+    if (!(opts.publishedBy && cachedMeta.time == null && !fullMetadata)) {
+      return {
+        meta: cachedMeta,
+        pickedPackage: _pickPackageFromMeta(cachedMeta),
+      }
     }
   }
 
   const registryName = getRegistryName(opts.registry)
   const pkgMirror = path.join(ctx.cacheDir, metaDir, registryName, `${encodePkgName(spec.name)}.jsonl`)
-  // Binary cache key includes fullMetadata flag
-  const binaryCacheKey = fullMetadata ? `${spec.name}:full` : spec.name
 
   return runLimited(pkgMirror, async (limit) => {
     let metaCachedInStore: PackageMeta | null | undefined
     if (ctx.offline === true || ctx.preferOffline === true || opts.pickLowestVersion) {
-      metaCachedInStore = await limit(async () => loadMeta(binaryCacheKey, registryName, ctx))
+      metaCachedInStore = await limit(async () => loadMeta(pkgMirror))
 
       if (ctx.offline) {
-        if (metaCachedInStore != null) return {
-          meta: metaCachedInStore,
-          pickedPackage: _pickPackageFromMeta(metaCachedInStore),
+        if (metaCachedInStore != null) {
+          try {
+            return {
+              meta: metaCachedInStore,
+              pickedPackage: _pickPackageFromMeta(metaCachedInStore),
+            }
+          } catch (err: unknown) {
+            if (isMissingTimeError(err)) {
+              throw new PnpmError('MISSING_TIME_OFFLINE',
+                `Cannot check minimumReleaseAge for ${spec.name} in offline mode because cached metadata lacks the "time" field. ` +
+                'Disable minimumReleaseAge or use resolution-mode "highest" to resolve this package offline.')
+            }
+            throw err
+          }
         }
 
         throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
       }
 
       if (metaCachedInStore != null) {
-        const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
-        if (pickedPackage) {
-          return {
-            meta: metaCachedInStore,
-            pickedPackage,
+        try {
+          const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
+          if (pickedPackage) {
+            return {
+              meta: metaCachedInStore,
+              pickedPackage,
+            }
+          }
+        } catch (err: unknown) {
+          // Don't rethrow ERR_PNPM_MISSING_TIME from cached abbreviated metadata —
+          // let the code fall through to the network fetch path which will get full metadata.
+          if (!isMissingTimeError(err)) {
+            throw err
           }
         }
       }
     }
 
     if (!opts.updateToLatest && spec.type === 'version') {
-      metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(binaryCacheKey, registryName, ctx))
+      metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
       // use the cached meta only if it has the required package version
       // otherwise it is probably out of date
       if ((metaCachedInStore?.versions?.[spec.fetchSpec]) != null) {
@@ -215,7 +219,7 @@ export async function pickPackage (
     if (opts.publishedBy) {
       const mtime = await limit(async () => getFileMtime(pkgMirror))
       if (mtime != null && mtime >= opts.publishedBy) {
-        metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(binaryCacheKey, registryName, ctx))
+        metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
         if (metaCachedInStore != null) {
           try {
             const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
@@ -245,7 +249,7 @@ export async function pickPackage (
       // when the registry returns 200 and the old metadata would be discarded anyway.
       const cacheHeaders = metaCachedInStore != null
         ? { etag: metaCachedInStore.etag, modified: metaCachedInStore.modified ?? metaCachedInStore.time?.modified }
-        : await limit(async () => loadMetaHeaders(binaryCacheKey, registryName, ctx))
+        : await limit(async () => loadMetaHeaders(pkgMirror))
       let fetchResult = await ctx.fetch(spec.name, {
         authHeaderValue: opts.authHeaderValue,
         fullMetadata,
@@ -257,20 +261,64 @@ export async function pickPackage (
       // 304 Not Modified — registry confirmed local cache is still fresh.
       // Now we need the full metadata, so load it from disk.
       if (fetchResult.notModified) {
-        metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(binaryCacheKey, registryName, ctx))
+        metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
         if (metaCachedInStore != null) {
-          ctx.metaCache.set(cacheKey, metaCachedInStore)
-          return {
-            meta: metaCachedInStore,
-            pickedPackage: _pickPackageFromMeta(metaCachedInStore),
+          // When minimumReleaseAge is active and we fetched abbreviated metadata,
+          // the cached metadata won't have the `time` field needed for version
+          // filtering. Try loading full metadata from the full metadata cache first.
+          if (opts.publishedBy && metaCachedInStore.time == null && !fullMetadata) {
+            const fullPkgMirror = path.join(ctx.cacheDir, FULL_META_DIR, registryName, `${encodePkgName(spec.name)}.jsonl`)
+            const fullMetaFromDisk = await limit(async () => loadMeta(fullPkgMirror))
+            if (fullMetaFromDisk?.time != null) {
+              metaCachedInStore = fullMetaFromDisk
+            }
           }
+          ctx.metaCache.set(cacheKey, metaCachedInStore)
+          // If we still don't have time data, we need a full metadata fetch.
+          if (opts.publishedBy && metaCachedInStore.time == null && !fullMetadata) {
+            // Fall through to fetch full metadata from the network.
+          } else {
+            return {
+              meta: metaCachedInStore,
+              pickedPackage: _pickPackageFromMeta(metaCachedInStore),
+            }
+          }
+        } else if (!opts.publishedBy || fullMetadata) {
+          throw new PnpmError('CACHE_MISSING_AFTER_304',
+            `Metadata cache for ${spec.name} is unreadable after receiving 304 Not Modified`)
         }
-        throw new PnpmError('CACHE_MISSING_AFTER_304',
-          `Metadata cache for ${spec.name} is unreadable after receiving 304 Not Modified`)
+        // Fall through: do a full metadata fetch since abbreviated cache lacks time.
       }
 
-      let meta = fetchResult.meta
-      let resultToSave: FetchMetadataResult = fetchResult
+      let meta: PackageMeta
+      let resultToSave: FetchMetadataResult
+      if (fetchResult.notModified) {
+        // Abbreviated cache was confirmed fresh (304), but lacks the time field.
+        // Fetch full metadata from the network.
+        const fullFetchResult = await ctx.fetch(spec.name, {
+          authHeaderValue: opts.authHeaderValue,
+          fullMetadata: true,
+          registry: opts.registry,
+        })
+        if (fullFetchResult.notModified) {
+          // Full metadata also returned 304 — load from full metadata cache.
+          const fullPkgMirror = path.join(ctx.cacheDir, FULL_META_DIR, registryName, `${encodePkgName(spec.name)}.jsonl`)
+          const fullMetaFromDisk = await limit(async () => loadMeta(fullPkgMirror))
+          if (fullMetaFromDisk == null) {
+            throw new PnpmError('CACHE_MISSING_AFTER_304',
+              `Full metadata cache for ${spec.name} is missing after receiving 304 Not Modified`)
+          }
+          return {
+            meta: fullMetaFromDisk,
+            pickedPackage: _pickPackageFromMeta(fullMetaFromDisk),
+          }
+        }
+        meta = fullFetchResult.meta
+        resultToSave = fullFetchResult
+      } else {
+        meta = fetchResult.meta
+        resultToSave = fetchResult
+      }
 
       // When minimumReleaseAge is active and we fetched abbreviated metadata,
       // check if the package was recently modified and needs full metadata
@@ -290,14 +338,14 @@ export async function pickPackage (
         const isModifiedValid = modifiedDate != null && !Number.isNaN(modifiedDate.getTime())
         if (!isModifiedValid || modifiedDate >= opts.publishedBy) {
           // Save the abbreviated metadata to the abbreviated cache before re-fetching full.
-          if (!opts.dryRun) {
-            // Fire-and-forget save to the binary cache.
+          if (!opts.dryRun && !fetchResult.notModified) {
+            const abbreviatedJson = prepareJsonForDisk(fetchResult.meta, fetchResult.etag, fetchResult.jsonText)
+            // Fire-and-forget save to the abbreviated cache path (pkgMirror).
             runLimited(pkgMirror, (limit) => limit(async () => {
               try {
-                const binaryCache = getBinaryCache(ctx)
-                binaryCache.set(spec.name, registryName, fetchResult.meta)
+                await saveMeta(pkgMirror, abbreviatedJson)
               } catch (err: any) { // eslint-disable-line
-                // We don't care if this was not written to the cache
+                // We don't care if this file was not written to the cache
               }
             }))
           }
@@ -317,17 +365,15 @@ export async function pickPackage (
         meta = clearMeta(meta)
       }
       if (!opts.dryRun) {
-        // Save metadata to binary cache
+        // Serialize before setting meta.etag so it only lives in the headers line, not the body.
+        const jsonForDisk = ctx.filterMetadata
+          ? prepareJsonForDisk(meta, resultToSave.etag)
+          : prepareJsonForDisk(resultToSave.meta, resultToSave.etag, resultToSave.jsonText)
         runLimited(pkgMirror, (limit) => limit(async () => {
           try {
-            const binaryCache = getBinaryCache(ctx)
-            // Ensure the cache key matches what was fetched (with :full suffix if needed)
-            const finalCacheKey = resultToSave.meta === fetchResult.meta && fullMetadata
-              ? `${spec.name}:full`
-              : spec.name
-            binaryCache.set(finalCacheKey, registryName, meta)
+            await saveMeta(pkgMirror, jsonForDisk)
           } catch (err: any) { // eslint-disable-line
-            // We don't care if this was not written to the cache
+            // We don't care if this file was not written to the cache
           }
         }))
       }
@@ -340,13 +386,20 @@ export async function pickPackage (
       }
     } catch (err: any) { // eslint-disable-line
       err.spec = spec
-      const meta = await loadMeta(binaryCacheKey, registryName, ctx) // TODO: add test for this usecase
+      const meta = await loadMeta(pkgMirror) // TODO: add test for this usecase
       if (meta == null) throw err
       logger.error(err, err)
       logger.debug({ message: `Using cached meta from ${pkgMirror}` })
-      return {
-        meta,
-        pickedPackage: _pickPackageFromMeta(meta),
+      try {
+        return {
+          meta,
+          pickedPackage: _pickPackageFromMeta(meta),
+        }
+      } catch (fallbackErr: unknown) {
+        // In the fallback path, if we can't check publishedBy due to missing time,
+        // just re-throw the original error.
+        if (isMissingTimeError(fallbackErr)) throw err
+        throw fallbackErr
       }
     }
   })
@@ -432,42 +485,60 @@ interface MetaHeaders {
 }
 
 /**
- * Reads only the cache headers (etag, modified) from the binary cache.
- * This is much more efficient than reading and parsing the full metadata.
+ * Reads only the first line of the cached NDJSON metadata file to extract
+ * the cache headers (etag, modified). This avoids reading and
+ * parsing the full metadata (which can be megabytes for popular packages)
+ * when we only need conditional-request headers.
  */
-async function loadMetaHeaders (
-  pkgName: string,
-  registry: string,
-  ctx: {
-    cacheDir: string
-    binaryCache?: RegistryMetadataCache
-  }
-): Promise<MetaHeaders | null> {
+async function loadMetaHeaders (pkgMirror: string): Promise<MetaHeaders | null> {
+  let fh: fs.FileHandle | undefined
   try {
-    const binaryCache = getBinaryCache(ctx)
-    return binaryCache.getHeaders(pkgName, registry) ?? null
+    fh = await fs.open(pkgMirror, 'r')
+    // The first line (headers JSON) is typically ~100 bytes; 1 KB is plenty.
+    const buf = Buffer.alloc(1024)
+    const { bytesRead } = await fh.read(buf, 0, 1024, 0)
+    if (bytesRead === 0) return null
+    const chunk = buf.toString('utf8', 0, bytesRead)
+    const newlineIdx = chunk.indexOf('\n')
+    if (newlineIdx === -1) return null
+    return JSON.parse(chunk.slice(0, newlineIdx)) as MetaHeaders
+  } catch {
+    return null
+  } finally {
+    await fh?.close()
+  }
+}
+
+/**
+ * Reads the full metadata from the cached NDJSON file.
+ * Line 1: cache headers (etag, modified)
+ * Line 2: registry metadata JSON
+ */
+async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
+  try {
+    const data = await gfs.readFile(pkgMirror, 'utf8')
+    const newlineIdx = data.indexOf('\n')
+    if (newlineIdx === -1) return null
+    const headers = JSON.parse(data.slice(0, newlineIdx)) as MetaHeaders
+    const meta = JSON.parse(data.slice(newlineIdx + 1)) as PackageMeta
+    meta.etag = headers.etag
+    return meta
   } catch {
     return null
   }
 }
 
-/**
- * Reads the full metadata from the binary cache.
- */
-async function loadMeta (
-  pkgName: string,
-  registry: string,
-  ctx: {
-    cacheDir: string
-    binaryCache?: RegistryMetadataCache
+const createdDirs = new Set<string>()
+
+async function saveMeta (pkgMirror: string, json: string): Promise<void> {
+  const dir = path.dirname(pkgMirror)
+  if (!createdDirs.has(dir)) {
+    await fs.mkdir(dir, { recursive: true })
+    createdDirs.add(dir)
   }
-): Promise<PackageMeta | null> {
-  try {
-    const binaryCache = getBinaryCache(ctx)
-    return binaryCache.get(pkgName, registry) ?? null
-  } catch {
-    return null
-  }
+  const temp = pathTemp(pkgMirror)
+  await gfs.writeFile(temp, json, 'utf8')
+  await renameOverwrite(temp, pkgMirror)
 }
 
 function validatePackageName (pkgName: string) {

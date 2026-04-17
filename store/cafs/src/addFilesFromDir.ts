@@ -1,4 +1,5 @@
-import fs, { type Stats } from 'node:fs'
+import type { Stats } from 'node:fs'
+import fsp from 'node:fs/promises'
 import path from 'node:path'
 import util from 'node:util'
 
@@ -14,7 +15,7 @@ import { isSubdir } from 'is-subdir'
 import type { JsonParseCache } from './jsonCache.js'
 import { parseJsonBufferSync } from './parseJson.js'
 
-export function addFilesFromDir (
+export async function addFilesFromDir (
   addBuffer: (buffer: Buffer, mode: number) => FileWriteResult,
   jsonCache: JsonParseCache | undefined,
   dirname: string,
@@ -23,17 +24,17 @@ export function addFilesFromDir (
     includeNodeModules?: boolean
     readManifest?: boolean
   } = {}
-): AddToStoreResult {
+): Promise<AddToStoreResult> {
   const filesIndex = new Map() as FilesIndex
   let manifest: DependencyManifest | undefined
   let files: File[]
-  // Resolve the package root to a canonical path for security validation
-  const resolvedRoot = fs.realpathSync(dirname)
+  const resolvedRoot = await fsp.realpath(dirname)
   if (opts.files) {
     files = []
     for (const file of opts.files) {
       const absolutePath = path.join(dirname, file)
-      const stat = getStatIfContained(absolutePath, resolvedRoot)
+      // eslint-disable-next-line no-await-in-loop
+      const stat = await getStatIfContained(absolutePath, resolvedRoot)
       if (!stat) {
         continue
       }
@@ -44,11 +45,11 @@ export function addFilesFromDir (
       })
     }
   } else {
-    files = findFilesInDir(dirname, resolvedRoot, opts)
+    files = await findFilesInDir(dirname, resolvedRoot, opts)
   }
   for (const { absolutePath, relativePath, stat } of files) {
-    const buffer = gfs.readFileSync(absolutePath)
-    // Remove the file type information (regular file, directory, etc.) and leave just the permission bits (rwx for owner, group, and others)
+    // eslint-disable-next-line no-await-in-loop
+    const buffer = await gfs.readFile(absolutePath)
     const mode = stat.mode & 0o777
     const addBufferResult = addBuffer(buffer, mode)
     if (opts.readManifest && relativePath === 'package.json') {
@@ -69,18 +70,13 @@ interface File {
   stat: Stats
 }
 
-/**
- * Resolves a path and validates it stays within the allowed root directory.
- * If the path is a symlink, resolves it and validates the target.
- * Returns null if the path is a symlink pointing outside the root, or if target is inaccessible.
- */
-function getStatIfContained (
+async function getStatIfContained (
   absolutePath: string,
   rootDir: string
-): Stats | null {
+): Promise<Stats | null> {
   let lstat: Stats
   try {
-    lstat = fs.lstatSync(absolutePath)
+    lstat = await fsp.lstat(absolutePath)
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       return null
@@ -88,37 +84,31 @@ function getStatIfContained (
     throw err
   }
   if (lstat.isSymbolicLink()) {
-    return getSymlinkStatIfContained(absolutePath, rootDir)?.stat ?? null
+    return (await getSymlinkStatIfContained(absolutePath, rootDir))?.stat ?? null
   }
   return lstat
 }
 
-/**
- * Validates a known symlink points within the allowed root directory.
- * Returns null if the symlink points outside the root or if target is inaccessible.
- */
-function getSymlinkStatIfContained (
+async function getSymlinkStatIfContained (
   absolutePath: string,
   rootDir: string
-): { stat: Stats, realPath: string } | null {
+): Promise<{ stat: Stats, realPath: string } | null> {
   let realPath: string
   try {
-    realPath = fs.realpathSync(absolutePath)
+    realPath = await fsp.realpath(absolutePath)
   } catch (err: unknown) {
-    // Broken symlink or inaccessible target
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       return null
     }
     throw err
   }
-  // isSubdir returns true if realPath is within rootDir OR if they are equal
   if (!isSubdir(rootDir, realPath)) {
-    return null // Symlink points outside package - skip
+    return null
   }
-  return { stat: fs.statSync(realPath), realPath }
+  return { stat: await fsp.stat(realPath), realPath }
 }
 
-function findFilesInDir (dir: string, rootDir: string, opts: { includeNodeModules?: boolean }): File[] {
+async function findFilesInDir (dir: string, rootDir: string, opts: { includeNodeModules?: boolean }): Promise<File[]> {
   const files: File[] = []
   const ctx: FindFilesContext = {
     filesList: files,
@@ -126,7 +116,7 @@ function findFilesInDir (dir: string, rootDir: string, opts: { includeNodeModule
     rootDir,
     visited: new Set([rootDir]),
   }
-  findFiles(ctx, dir, '', rootDir)
+  await findFiles(ctx, dir, '', rootDir)
   return files
 }
 
@@ -137,20 +127,21 @@ interface FindFilesContext {
   visited: Set<string>
 }
 
-function findFiles (
+async function findFiles (
   ctx: FindFilesContext,
   dir: string,
   relativeDir: string,
   currentRealPath: string
-): void {
-  const files = fs.readdirSync(dir, { withFileTypes: true })
+): Promise<void> {
+  const files = await fsp.readdir(dir, { withFileTypes: true })
   for (const file of files) {
     const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file.name}`
     const absolutePath = path.join(dir, file.name)
     let nextRealDir: string | undefined
 
     if (file.isSymbolicLink()) {
-      const res = getSymlinkStatIfContained(absolutePath, ctx.rootDir)
+      // eslint-disable-next-line no-await-in-loop
+      const res = await getSymlinkStatIfContained(absolutePath, ctx.rootDir)
       if (!res) {
         continue
       }
@@ -172,7 +163,8 @@ function findFiles (
       if (ctx.visited.has(nextRealDir)) continue
       if (relativeDir !== '' || file.name !== 'node_modules' || ctx.includeNodeModules) {
         ctx.visited.add(nextRealDir)
-        findFiles(ctx, absolutePath, relativeSubdir, nextRealDir)
+        // eslint-disable-next-line no-await-in-loop
+        await findFiles(ctx, absolutePath, relativeSubdir, nextRealDir)
         ctx.visited.delete(nextRealDir)
       }
       continue
@@ -180,7 +172,8 @@ function findFiles (
 
     let stat: Stats
     try {
-      stat = fs.statSync(absolutePath)
+      // eslint-disable-next-line no-await-in-loop
+      stat = await fsp.stat(absolutePath)
     } catch (err: unknown) {
       if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
         continue

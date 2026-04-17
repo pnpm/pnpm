@@ -69,10 +69,10 @@ export interface AddToStoreResult {
 
 export interface Cafs {
   storeDir: string
-  addFilesFromDir: (dir: string) => AddToStoreResult
+  addFilesFromDir: (dir: string) => Promise<AddToStoreResult>
   addFilesFromTarball: (buffer: Buffer) => AddToStoreResult
   addFile: (buffer: Buffer, mode: number) => FileWriteResult
   getFilePathByModeInCafs: (digest: string, mode: number) => string
-  importPackage: ImportPackageFunction
+  importPackage: ImportPackageFunctionAsync
   tempDir: () => Promise<string>
 }

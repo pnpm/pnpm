@@ -1,7 +1,7 @@
 import type { Log } from '@pnpm/core-loggers'
 import type { PreResolutionHook } from '@pnpm/hooks.types'
 import type { LockfileObject } from '@pnpm/lockfile.types'
-import type { ImportIndexedPackageAsync } from '@pnpm/store.controller-types'
+import type { ImportIndexedPackage } from '@pnpm/store.controller-types'
 
 export interface HookContext {
   log: (message: string) => void
@@ -15,7 +15,7 @@ export interface Hooks {
   preResolution?: PreResolutionHook
   afterAllResolved?: (lockfile: LockfileObject, context: HookContext) => LockfileObject | Promise<LockfileObject>
   filterLog?: (log: Log) => boolean
-  importPackage?: ImportIndexedPackageAsync
+  importPackage?: ImportIndexedPackage
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Flexible hook signature for any config object
   updateConfig?: (config: any) => any
 }

@@ -1,5 +1,4 @@
 import crypto from 'node:crypto'
-import fs from 'node:fs'
 import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
@@ -49,6 +48,7 @@ export async function checkPkgFilesIntegrity (
   if (pkgIndex.sideEffects) {
     for (const [sideEffectName, { added, deleted }] of pkgIndex.sideEffects) {
       if (added) {
+        // eslint-disable-next-line no-await-in-loop
         const result = await _checkFilesIntegrity(added)
         if (!result.passed) {
           continue
@@ -187,7 +187,7 @@ export async function verifyFileIntegrityAsync (
     return false
   }
   return new Promise<boolean>((resolve, reject) => {
-    const stream = fs.createReadStream(filename)
+    const stream = gfs.createReadStream(filename)
     stream.on('data', (chunk: string | Buffer) => hash.update(chunk))
     stream.on('end', () => {
       try {
@@ -208,7 +208,7 @@ export async function verifyFileIntegrityAsync (
 
 async function checkFile (filename: string, checkedAt?: number): Promise<{ isModified: boolean, size: number } | null> {
   try {
-    const { mtimeMs, size } = await fs.promises.stat(filename)
+    const { mtimeMs, size } = await gfs.stat(filename)
     return {
       isModified: (mtimeMs - (checkedAt ?? 0)) > 100,
       size,

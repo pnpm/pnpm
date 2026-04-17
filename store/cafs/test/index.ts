@@ -29,29 +29,29 @@ describe('cafs', () => {
     expect(pkgFile!.digest).toBe('f310afae50bb5b74e5c17c5eb6fe426538b9deccd88664fbb66a5717fb6d36d86d4d1f530bb63b58914f9894e81da490e2e39bb99c8e01174e258358b9349b5c')
   })
 
-  it('replaces an already existing file, if the integrity of it was broken', () => {
+  it('replaces an already existing file, if the integrity of it was broken', async () => {
     const storeDir = temporaryDirectory()
     const srcDir = path.join(import.meta.dirname, 'fixtures/one-file')
-    const addFiles = () => createCafs(storeDir).addFilesFromDir(srcDir)
+    const addFiles = async () => createCafs(storeDir).addFilesFromDir(srcDir)
 
-    let addFilesResult = addFiles()
+    let addFilesResult = await addFiles()
 
     // Modifying the file in the store
     const { digest } = addFilesResult.filesIndex.get('foo.txt')!
     const filePath = getFilePathByModeInCafs(storeDir, digest, 420)
     fs.appendFileSync(filePath, 'bar')
 
-    addFilesResult = addFiles()
+    addFilesResult = await addFiles()
     expect(fs.readFileSync(filePath, 'utf8')).toBe('foo\n')
     expect(addFilesResult.manifest).toBeUndefined()
   })
 
-  it('ignores broken symlinks when traversing subdirectories', () => {
+  it('ignores broken symlinks when traversing subdirectories', async () => {
     const storeDir = temporaryDirectory()
     const srcDir = path.join(import.meta.dirname, 'fixtures/broken-symlink')
-    const addFiles = () => createCafs(storeDir).addFilesFromDir(srcDir)
+    const addFiles = async () => createCafs(storeDir).addFilesFromDir(srcDir)
 
-    const { filesIndex } = addFiles()
+    const { filesIndex } = await addFiles()
     expect(filesIndex.get('subdir/should-exist.txt')).toBeDefined()
   })
 
@@ -66,8 +66,7 @@ describe('cafs', () => {
     fs.writeFileSync(path.join(srcDir, 'lib/index.js'), '// comment 2', 'utf8')
     await symlinkDir(path.join(srcDir, 'lib'), path.join(srcDir, 'lib-symlink'))
 
-    const { filesIndex } = createCafs(storeDir).addFilesFromDir(srcDir)
-    expect(filesIndex.get('symlink.js')).toBeDefined()
+    const { filesIndex } = await createCafs(storeDir).addFilesFromDir(srcDir)
     expect(filesIndex.get('symlink.js')).toStrictEqual(filesIndex.get('index.js'))
     expect(filesIndex.get('lib/index.js')).toBeDefined()
     expect(filesIndex.get('lib/index.js')).toStrictEqual(filesIndex.get('lib-symlink/index.js'))
@@ -75,7 +74,7 @@ describe('cafs', () => {
 
   // Security test: symlinks pointing outside the package root should be rejected
   // This prevents file: and git: dependencies from leaking local data via malicious symlinks
-  it('rejects symlinks pointing outside the package directory', () => {
+  it('rejects symlinks pointing outside the package directory', async () => {
     const storeDir = temporaryDirectory()
     const srcDir = temporaryDirectory()
 
@@ -90,7 +89,7 @@ describe('cafs', () => {
     // Create a symlink pointing to the file outside the package
     fs.symlinkSync(secretFile, path.join(srcDir, 'leak.txt'))
 
-    const { filesIndex } = createCafs(storeDir).addFilesFromDir(srcDir)
+    const { filesIndex } = await createCafs(storeDir).addFilesFromDir(srcDir)
 
     // The legitimate file should be included
     expect(filesIndex.get('legit.txt')).toBeDefined()
@@ -100,7 +99,7 @@ describe('cafs', () => {
   })
 
   // Security test: symlinked directories pointing outside the package should be rejected
-  it('rejects symlinked directories pointing outside the package', () => {
+  it('rejects symlinked directories pointing outside the package', async () => {
     const storeDir = temporaryDirectory()
     const srcDir = temporaryDirectory()
 
@@ -114,7 +113,7 @@ describe('cafs', () => {
     // Create a symlink to the outside directory
     fs.symlinkSync(outsideDir, path.join(srcDir, 'leak-dir'))
 
-    const { filesIndex } = createCafs(storeDir).addFilesFromDir(srcDir)
+    const { filesIndex } = await createCafs(storeDir).addFilesFromDir(srcDir)
 
     // The legitimate file should be included
     expect(filesIndex.get('legit.txt')).toBeDefined()
@@ -124,7 +123,7 @@ describe('cafs', () => {
   })
 
   // Symlinked node_modules at the root should be skipped just like regular node_modules
-  it('skips symlinked node_modules directory at root', () => {
+  it('skips symlinked node_modules directory at root', async () => {
     const storeDir = temporaryDirectory()
     const srcDir = temporaryDirectory()
 
@@ -139,7 +138,7 @@ describe('cafs', () => {
     // Create a symlinked node_modules directory at the root
     fs.symlinkSync(targetDir, path.join(srcDir, 'node_modules'))
 
-    const { filesIndex } = createCafs(storeDir).addFilesFromDir(srcDir)
+    const { filesIndex } = await createCafs(storeDir).addFilesFromDir(srcDir)
 
     // The legitimate file should be included
     expect(filesIndex.get('index.js')).toBeDefined()
