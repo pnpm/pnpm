@@ -39,7 +39,7 @@ export function help (): string {
             name: '--init-type <commonjs|module>',
           },
           {
-            description: 'Pin the project to the current pnpm version by adding a "packageManager" field to package.json',
+            description: 'Pin the project to the current pnpm version by adding a "devEngines.packageManager" field to package.json',
             name: '--init-package-manager',
           },
           {
@@ -103,7 +103,14 @@ export async function handler (opts: InitOptions, params?: string[]): Promise<st
   const initConfig = getInitConfig(opts)
   const packageJson = { ...manifest, ...initConfig }
   if (opts.initPackageManager) {
-    packageJson.packageManager = `pnpm@${packageManager.version}`
+    packageJson.devEngines = {
+      ...packageJson.devEngines,
+      packageManager: {
+        name: 'pnpm',
+        version: `^${packageManager.version}`,
+        onFail: 'download',
+      },
+    }
   }
   const priority = Object.fromEntries([
     'name',
@@ -115,7 +122,7 @@ export async function handler (opts: InitOptions, params?: string[]): Promise<st
     'keywords',
     'author',
     'license',
-    'packageManager',
+    'devEngines',
   ].map((key, index) => [key, index]))
   const sortedPackageJson = sortKeysByPriority({ priority }, packageJson)
   await writeProjectManifest(manifestPath, sortedPackageJson, {
