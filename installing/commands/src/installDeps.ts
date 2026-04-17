@@ -19,7 +19,7 @@ import {
 } from '@pnpm/installing.deps-installer'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalInfo, logger } from '@pnpm/logger'
-import { filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
+import { applyRuntimeOnFailOverride, filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
 import type { PreferredVersions, VersionSelectors } from '@pnpm/resolving.resolver-base'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type {
@@ -83,6 +83,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'production'
 | 'preferWorkspacePackages'
 | 'registries'
+| 'runtimeOnFail'
 | 'save'
 | 'saveDev'
 | 'saveExact'
@@ -200,6 +201,11 @@ export async function installDeps (
       ? await findWorkspaceProjects(opts.workspaceDir, { ...opts, patterns: opts.workspacePackagePatterns })
       : []
   )
+  if (opts.runtimeOnFail) {
+    for (const project of allProjects) {
+      applyRuntimeOnFailOverride(project.manifest, opts.runtimeOnFail)
+    }
+  }
   if (opts.workspaceDir) {
     const selectedProjectsGraph = opts.selectedProjectsGraph ?? selectProjectByDir(allProjects, opts.dir)
     if (selectedProjectsGraph != null) {
@@ -255,6 +261,8 @@ export async function installDeps (
       throw new PnpmError('NO_PKG_MANIFEST', `No package.json found in ${opts.dir}`)
     }
     manifest = {}
+  } else if (opts.runtimeOnFail) {
+    applyRuntimeOnFailOverride(manifest, opts.runtimeOnFail)
   }
 
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {

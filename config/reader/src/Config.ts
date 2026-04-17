@@ -235,6 +235,7 @@ export interface Config extends OptionsFromRootManifest {
   dedupeInjectedDeps?: boolean
   nodeOptions?: string
   pmOnFail?: 'download' | 'error' | 'warn' | 'ignore'
+  runtimeOnFail?: 'download' | 'error' | 'warn' | 'ignore'
   virtualStoreDirMaxLength: number
   peersSuffixMaxLength?: number
   strictStorePkgContentCheck: boolean

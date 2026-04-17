@@ -106,6 +106,65 @@ test('nodeVersion from config takes priority over devEngines.runtime', async () 
   expect(config.nodeVersion).toBe('20.0.0')
 })
 
+test('runtimeOnFail=download overrides devEngines.runtime.onFail and adds node to devDependencies', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '22.20.0',
+      },
+    },
+  })
+
+  const { config, context } = await getConfig({
+    cliOptions: {
+      'runtime-on-fail': 'download',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.runtimeOnFail).toBe('download')
+  const runtime = context.rootProjectManifest?.devEngines?.runtime
+  expect(Array.isArray(runtime) ? runtime[0] : runtime).toMatchObject({
+    name: 'node',
+    onFail: 'download',
+  })
+  expect(context.rootProjectManifest?.devDependencies?.node).toBe('runtime:22.20.0')
+})
+
+test('runtimeOnFail=ignore overrides an existing onFail=download and removes node from devDependencies', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '22.20.0',
+        onFail: 'download',
+      },
+    },
+  })
+
+  const { config, context } = await getConfig({
+    cliOptions: {
+      'runtime-on-fail': 'ignore',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.runtimeOnFail).toBe('ignore')
+  const runtime = context.rootProjectManifest?.devEngines?.runtime
+  expect(Array.isArray(runtime) ? runtime[0] : runtime).toMatchObject({
+    name: 'node',
+    onFail: 'ignore',
+  })
+  expect(context.rootProjectManifest?.devDependencies?.node).toBeUndefined()
+})
+
 test('throw error if --link-workspace-packages is used with --global', async () => {
   await expect(getConfig({
     cliOptions: {
