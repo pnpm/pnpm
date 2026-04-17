@@ -509,7 +509,7 @@ function writeCafsFiles (message: WriteCafsFilesMessage): { status: string, file
 // measured slower than letting Node handle HTTP and gunzip and only
 // handing the uncompressed payload to Rust for parse + write — Node's
 // event loop overlaps socket reads with gunzip concurrently, which the
-// sync `ureq` path can't match.
+// sync HTTP client in the Rust crate can't match.
 let nativeWriteFiles: ((storeDir: string, payload: Buffer) => number) | undefined
 if (!process.env.PNPM_CAFS_WRITER_DISABLE_NATIVE) {
   try {
