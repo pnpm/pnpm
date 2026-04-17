@@ -545,7 +545,7 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
 
         const requestKey = `${digest}:${executable ? 'x' : ''}`
         if (!requestedDigests.has(requestKey)) {
-          throw new Error(`pnpm agent /v1/files returned unrequested entry: digest=${digest} executable=${String(executable)}`)
+          throw new Error(`pnpm agent /v1/files returned an entry that was not requested: digest=${digest} executable=${String(executable)}`)
         }
         // Consume the request so duplicates past the requested count also fail.
         requestedDigests.delete(requestKey)
