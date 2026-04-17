@@ -1313,6 +1313,212 @@ test('dependencies of workspace projects are built during headless installation'
   }
 })
 
+test('strictDepBuilds detects unapproved build scripts with sharedWorkspaceLockfile=false', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {},
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+    strictDepBuilds: true,
+  })
+
+  {
+    const result = execPnpmSync(['install'])
+    expect(result.status).toBe(1)
+    expect(result.stdout.toString()).toContain('Ignored build scripts:')
+  }
+
+  // After approving the package, install should succeed
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+    strictDepBuilds: true,
+    allowBuilds: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+    },
+  })
+
+  {
+    const result = execPnpmSync(['install'])
+    expect(result.status).toBe(0)
+  }
+})
+
+test('strictDepBuilds detects unapproved build scripts with sharedWorkspaceLockfile=false and frozen lockfile', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {},
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+      },
+    },
+  ])
+
+  // First install with an allowBuilds entry to produce a valid lockfile
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+    allowBuilds: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+    },
+  })
+  expect(execPnpmSync(['install']).status).toBe(0)
+
+  // Now remove allowBuilds and enable strictDepBuilds; the frozen lockfile
+  // path (headlessInstall) should detect the unapproved build script.
+  rimrafSync('node_modules')
+  rimrafSync('project-1/node_modules')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+    strictDepBuilds: true,
+  })
+  const result = execPnpmSync(['install', '--frozen-lockfile'])
+  expect(result.status).toBe(1)
+  expect(result.stdout.toString()).toContain('Ignored build scripts:')
+})
+
+test('allowBuilds=false silently skips scripts with sharedWorkspaceLockfile=false', async () => {
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: {},
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+    strictDepBuilds: true,
+    allowBuilds: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': false,
+    },
+  })
+
+  const result = execPnpmSync(['install'])
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString()).not.toContain('Ignored build scripts:')
+  // The package is installed but the postinstall script was not executed.
+  projects['project-1'].has('@pnpm.e2e/pre-and-postinstall-scripts-example')
+  expect(fs.existsSync(
+    path.join(projects['project-1'].dir(), 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+  )).toBeFalsy()
+})
+
+test('allowBuilds version pins are respected with sharedWorkspaceLockfile=false', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {},
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+      },
+    },
+  ])
+
+  // Pin approval to a different version than what's installed.
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+    strictDepBuilds: true,
+    allowBuilds: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example@2.0.0': true,
+    },
+  })
+
+  {
+    const result = execPnpmSync(['install'])
+    expect(result.status).toBe(1)
+    expect(result.stdout.toString()).toContain('Ignored build scripts:')
+  }
+
+  // Pin approval to the installed version.
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+    strictDepBuilds: true,
+    allowBuilds: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0': true,
+    },
+  })
+
+  {
+    const result = execPnpmSync(['install'])
+    expect(result.status).toBe(0)
+  }
+})
+
+test('strictDepBuilds ignores approved workspace packages but reports unapproved ones', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {},
+    },
+    {
+      name: 'project-approved',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/install-script-example': '1.0.0',
+      },
+    },
+    {
+      name: 'project-unapproved',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+    strictDepBuilds: true,
+    allowBuilds: {
+      '@pnpm.e2e/install-script-example': true,
+    },
+  })
+
+  const result = execPnpmSync(['install'])
+  expect(result.status).toBe(1)
+  expect(result.stdout.toString()).toContain('Ignored build scripts:')
+  expect(result.stdout.toString()).toContain('@pnpm.e2e/pre-and-postinstall-scripts-example')
+})
+
 test("linking the package's bin to another workspace package in a monorepo", async () => {
   const projects = preparePackages([
     {
