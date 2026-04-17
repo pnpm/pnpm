@@ -178,7 +178,7 @@ export interface StrictInstallOptions {
   trustPolicyIgnoreAfter?: number
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
   blockExoticSubdeps?: boolean
-  /** URL of a pnpm registry server for server-side resolution */
+  /** URL of a pnpm agent server. See the @pnpm/agent.server README. */
   agent?: string
 }
 
