@@ -2011,7 +2011,7 @@ async function installFromPnpmRegistry (
   } finally {
     // Close the storeController to flush queued StoreIndex writes — the
     // normal install path does the same; skipping it here would leave
-    // pending writes unflushed and diverge from lifecycle expectations.
+    // pending writes on disk and diverge from lifecycle expectations.
     await opts.storeController.close()
     restoreImportConcurrency()
   }
