@@ -496,6 +496,15 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
   const body = JSON.stringify({ digests: message.digests })
   const createdDirs = new Set<string>()
 
+  // Build a set of digests we actually requested, so we can reject a
+  // misbehaving agent that streams unrelated entries and tries to write
+  // unbounded files into our CAFS. The set is keyed by `${digest}:${exec}`
+  // because the same digest may appear with different modes.
+  const requestedDigests = new Set<string>()
+  for (const d of message.digests) {
+    requestedDigests.add(`${d.digest}:${d.executable ? 'x' : ''}`)
+  }
+
   // Stream: HTTP response → gunzip → parse entries → write to CAFS.
   // No buffering — files are written as data arrives.
   return new Promise<{ status: string, filesWritten: number }>((resolve, reject) => {
@@ -533,6 +542,14 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
 
         const digest = buf.subarray(0, 64).toString('hex')
         const executable = (buf[68] & 0x01) !== 0
+
+        const requestKey = `${digest}:${executable ? 'x' : ''}`
+        if (!requestedDigests.has(requestKey)) {
+          throw new Error(`pnpm agent /v1/files returned unrequested entry: digest=${digest} executable=${String(executable)}`)
+        }
+        // Consume the request so duplicates past the requested count also fail.
+        requestedDigests.delete(requestKey)
+
         const content = buf.subarray(69, entryLen)
 
         const relPath = contentPathFromHex(executable ? 'exec' : 'nonexec', digest)
@@ -551,6 +568,20 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
         }
         filesWritten++
         buf = buf.subarray(entryLen)
+      }
+    }
+
+    // processBuffer is called from stream event handlers where a thrown
+    // exception would become `uncaughtException` and crash the worker.
+    // Surface errors via the Promise rejection instead.
+    const safeProcessBuffer = (): boolean => {
+      try {
+        processBuffer()
+        return true
+      } catch (err) {
+        reject(err)
+        req.destroy()
+        return false
       }
     }
 
@@ -588,10 +619,10 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
 
       stream.on('data', (chunk: Buffer) => {
         buf = Buffer.concat([buf, chunk])
-        processBuffer()
+        safeProcessBuffer()
       })
       stream.on('end', () => {
-        processBuffer()
+        if (!safeProcessBuffer()) return
         // Guard against a truncated response: the server must terminate the
         // stream with the 64-byte end marker. If it didn't, or if there's a
         // partial entry still in `buf`, fail — otherwise we'd silently leave

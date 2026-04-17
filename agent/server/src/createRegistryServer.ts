@@ -507,8 +507,14 @@ function isValidSha512Hex (digest: string): boolean {
   return typeof digest === 'string' && SHA512_HEX_RE.test(digest) && digest !== ALL_ZERO_SHA512_HEX
 }
 
+// Characters that would let a crafted `dir` break out of the YAML single-quoted
+// scalar we emit into `pnpm-workspace.yaml`, or inject shell metacharacters.
+// A legitimate project directory never contains any of these.
+const UNSAFE_DIR_CHAR_RE = /[\x00-\x1f'"`\\]/ // eslint-disable-line no-control-regex
+
 function isSafeRelativeDir (dir: string): boolean {
   if (typeof dir !== 'string' || dir.length === 0) return false
+  if (UNSAFE_DIR_CHAR_RE.test(dir)) return false
   if (dir === '.') return true
   if (path.isAbsolute(dir)) return false
   // Reject Windows drive letters (e.g. "C:foo", "C:\\foo") even on POSIX.

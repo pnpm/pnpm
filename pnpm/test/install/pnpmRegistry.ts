@@ -38,6 +38,10 @@ beforeAll(async () => {
   // Counting proxy — wraps the real server and counts /v1/install requests
   requestCount = 0
   server = http.createServer((req, res) => {
+    if (!req.url) {
+      res.writeHead(400).end()
+      return
+    }
     if (req.url === '/v1/install') {
       requestCount++
     }
@@ -47,6 +51,10 @@ beforeAll(async () => {
     }, (proxyRes) => {
       res.writeHead(proxyRes.statusCode!, proxyRes.headers)
       proxyRes.pipe(res)
+    })
+    proxyReq.on('error', (err) => {
+      if (!res.headersSent) res.writeHead(502, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: err.message }))
     })
     req.pipe(proxyReq)
   })

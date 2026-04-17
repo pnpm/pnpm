@@ -1884,36 +1884,41 @@ async function installFromPnpmRegistry (
 
     logger.info({ message: 'Resolving dependencies via pnpm agent', prefix: rootDir })
 
-    // Open the store index to read integrities and write new entries
+    // Open the store index to read integrities and write new entries.
+    // Close it in a finally so a failure in fetchFromPnpmRegistry doesn't
+    // leak an open SQLite handle (on Windows that also blocks store cleanup).
     const storeIndex = new StoreIndex(opts.storeDir)
+    let lockfile, stats, fileDownloads, indexEntries
+    try {
+      // Build projects list for workspace support
+      const projectsList = allInstallProjects && allInstallProjects.length > 1
+        ? allInstallProjects.map(p => ({
+          dir: path.relative(lockfileDir, p.rootDir) || '.',
+          dependencies: p.manifest.dependencies,
+          devDependencies: p.manifest.devDependencies,
+        }))
+        : undefined
 
-    // Build projects list for workspace support
-    const projectsList = allInstallProjects && allInstallProjects.length > 1
-      ? allInstallProjects.map(p => ({
-        dir: path.relative(lockfileDir, p.rootDir) || '.',
-        dependencies: p.manifest.dependencies,
-        devDependencies: p.manifest.devDependencies,
+      ;({ lockfile, stats, fileDownloads, indexEntries } = await fetchFromPnpmRegistry({
+        registryUrl: opts.agent!,
+        storeDir: opts.storeDir,
+        storeIndex,
+        dependencies: projectsList ? undefined : manifest.dependencies,
+        devDependencies: projectsList ? undefined : manifest.devDependencies,
+        projects: projectsList,
+        overrides: opts.overrides,
+        minimumReleaseAge: opts.minimumReleaseAge,
+        lockfile: existingLockfile ?? undefined,
       }))
-      : undefined
 
-    const { lockfile, stats, fileDownloads, indexEntries } = await fetchFromPnpmRegistry({
-      registryUrl: opts.agent!,
-      storeDir: opts.storeDir,
-      storeIndex,
-      dependencies: projectsList ? undefined : manifest.dependencies,
-      devDependencies: projectsList ? undefined : manifest.devDependencies,
-      projects: projectsList,
-      overrides: opts.overrides,
-      minimumReleaseAge: opts.minimumReleaseAge,
-      lockfile: existingLockfile ?? undefined,
-    })
+      // Write store index entries so headless install finds them.
+      const { writeRawIndexEntries } = await import('@pnpm/agent.client')
+      writeRawIndexEntries(indexEntries, storeIndex)
 
-    // Write store index entries so headless install finds them.
-    const { writeRawIndexEntries } = await import('@pnpm/agent.client')
-    writeRawIndexEntries(indexEntries, storeIndex)
-
-    storeIndex.checkpoint()
-    storeIndex.close()
+      storeIndex.checkpoint()
+    } finally {
+      storeIndex.close()
+    }
 
     await writeWantedLockfile(lockfileDir, lockfile)
 

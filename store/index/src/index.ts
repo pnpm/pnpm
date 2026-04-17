@@ -277,7 +277,11 @@ export class StoreIndex {
 
   checkpoint (): void {
     this.flush()
-    this.db.exec('PRAGMA wal_checkpoint(TRUNCATE)')
+    // wal_checkpoint can hit SQLITE_BUSY if another process is reading the
+    // same index.db concurrently. Retry for consistency with other ops here.
+    sqliteRetry(() => {
+      this.db.exec('PRAGMA wal_checkpoint(TRUNCATE)')
+    })
   }
 
   close (): void {
