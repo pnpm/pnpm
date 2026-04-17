@@ -1,5 +1,11 @@
 # @pnpm/local-resolver
 
+## 1100.0.2
+
+### Patch Changes
+
+- @pnpm/workspace.project-manifest-reader@1100.0.2
+
 ## 1100.0.1
 
 ### Patch Changes

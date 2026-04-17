@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exec.lifecycle",
-  "version": "1100.0.1",
+  "version": "1100.0.2",
   "description": "Package lifecycle hook runner",
   "keywords": [
     "pnpm",

@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-init
 
+## 1100.1.0
+
+### Minor Changes
+
+- 1c95cb6: `pnpm init` now writes a `devEngines.packageManager` field instead of the `packageManager` field when `init-package-manager` is enabled.
+
+### Patch Changes
+
+- 2dd8712: `pnpm init` no longer adds the `devEngines.packageManager` field when run inside a workspace subpackage. The field is only added to the workspace root's `package.json`.
+- Updated dependencies [cee550a]
+- Updated dependencies [4ab3d9b]
+- Updated dependencies [9af708a]
+- Updated dependencies [ea2a7fb]
+- Updated dependencies [ff7733c]
+  - @pnpm/cli.utils@1101.0.0
+  - @pnpm/config.reader@1101.0.0
+
 ## 1100.0.1
 
 ### Patch Changes
