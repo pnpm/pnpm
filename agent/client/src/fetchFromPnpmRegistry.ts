@@ -174,9 +174,20 @@ function readStoreIntegrities (storeIndex: StoreIndex): string[] {
   for (const key of storeIndex.keys()) {
     const tabIdx = key.indexOf('\t')
     if (tabIdx === -1) continue
-    seen.add(key.slice(0, tabIdx))
+    const integrity = key.slice(0, tabIdx)
+    // StoreIndex also stores non-integrity keys (e.g. git-hosted entries
+    // keyed by URL). Filter to actual SRI hashes — sending those over to
+    // the agent server would just bloat the request without ever matching.
+    if (!isIntegrityLike(integrity)) continue
+    seen.add(integrity)
   }
   return [...seen]
+}
+
+function isIntegrityLike (value: string): boolean {
+  return value.startsWith('sha512-') ||
+    value.startsWith('sha256-') ||
+    value.startsWith('sha1-')
 }
 
 const FILES_PER_WORKER = 4000

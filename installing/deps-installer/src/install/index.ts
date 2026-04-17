@@ -292,7 +292,7 @@ export async function mutateModules (
           manifest: p.manifest,
           rootDir: p.rootDir,
         })),
-        stats: { added: 0, removed: 0, updated: 0, linkedToRoot: 0 },
+        stats: result.stats,
         ignoredBuilds: result.ignoredBuilds,
       } as MutateModulesResult
     }
@@ -1865,7 +1865,7 @@ async function installFromPnpmRegistry (
   rootDir: ProjectRootDir,
   opts: Opts,
   allInstallProjects?: Array<{ rootDir: ProjectRootDir, manifest: ProjectManifest }>
-): Promise<InstallResult> {
+): Promise<InstallResult & { stats: InstallationResultStats }> {
   const { fetchFromPnpmRegistry } = await import('@pnpm/agent.client')
   const { StoreIndex } = await import('@pnpm/store.index')
   const { setImportConcurrency } = await import('@pnpm/worker')
@@ -1888,7 +1888,7 @@ async function installFromPnpmRegistry (
     // Close it in a finally so a failure in fetchFromPnpmRegistry doesn't
     // leak an open SQLite handle (on Windows that also blocks store cleanup).
     const storeIndex = new StoreIndex(opts.storeDir)
-    let lockfile, stats, fileDownloads, indexEntries
+    let lockfile, agentStats, fileDownloads, indexEntries
     try {
       // Build projects list for workspace support.
       // Normalize separators to POSIX — on Windows `path.relative` returns
@@ -1902,7 +1902,7 @@ async function installFromPnpmRegistry (
         }))
         : undefined
 
-      ;({ lockfile, stats, fileDownloads, indexEntries } = await fetchFromPnpmRegistry({
+      ;({ lockfile, stats: agentStats, fileDownloads, indexEntries } = await fetchFromPnpmRegistry({
         registryUrl: opts.agent!,
         storeDir: opts.storeDir,
         storeIndex,
@@ -1926,7 +1926,7 @@ async function installFromPnpmRegistry (
     await writeWantedLockfile(lockfileDir, lockfile)
 
     logger.info({
-      message: `Resolved ${stats.totalPackages} packages: ${stats.alreadyInStore} cached, ${stats.filesToDownload} files to download`,
+      message: `Resolved ${agentStats.totalPackages} packages: ${agentStats.alreadyInStore} cached, ${agentStats.filesToDownload} files to download`,
       prefix: rootDir,
     })
 
@@ -2001,12 +2001,13 @@ async function installFromPnpmRegistry (
       wantedLockfile: lockfile,
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { ignoredBuilds } = await headlessInstall(headlessOpts as any)
+    const { ignoredBuilds, stats } = await headlessInstall(headlessOpts as any)
 
     return {
       updatedCatalogs: undefined,
       updatedManifest: manifest,
       ignoredBuilds,
+      stats,
     }
   } finally {
     // Close the storeController to flush queued StoreIndex writes — the

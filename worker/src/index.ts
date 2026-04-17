@@ -285,15 +285,23 @@ let limitImportingPackage = pLimit(4)
  * disposer that restores the previous limiter — callers must invoke it (in a
  * finally block) to avoid leaking the mutation to other installs in the same
  * process (e.g. test suites).
+ *
+ * If two installs overlap, the disposer for the outer install would otherwise
+ * clobber the inner one's still-active limiter. Each disposer captures the
+ * limiter it installed and only restores when it's still the active one,
+ * leaving any newer override in place.
  */
 export function setImportConcurrency (concurrency: number): () => void {
   if (!Number.isInteger(concurrency) || concurrency < 1) {
     throw new Error(`setImportConcurrency: expected a positive integer, got ${concurrency}`)
   }
   const previous = limitImportingPackage
-  limitImportingPackage = pLimit(concurrency)
+  const installed = pLimit(concurrency)
+  limitImportingPackage = installed
   return () => {
-    limitImportingPackage = previous
+    if (limitImportingPackage === installed) {
+      limitImportingPackage = previous
+    }
   }
 }
 

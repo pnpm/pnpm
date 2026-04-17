@@ -565,6 +565,18 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
           if (!(err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'EEXIST')) {
             throw err
           }
+          // EEXIST means the same digest is already at this CAFS path. CAFS
+          // is content-addressed, so a complete file is by definition correct.
+          // But a previous process could have crashed mid-write and left a
+          // truncated file — the agent path skips integrity verification, so
+          // we'd silently install garbage. Detect truncation by size and
+          // overwrite atomically if the on-disk file is the wrong length.
+          const onDiskSize = fs.statSync(fullPath).size
+          if (onDiskSize !== content.length) {
+            const tmpPath = `${fullPath}.tmp-${process.pid}-${Date.now()}`
+            fs.writeFileSync(tmpPath, content, { mode: executable ? 0o755 : 0o644 })
+            fs.renameSync(tmpPath, fullPath)
+          }
         }
         filesWritten++
         buf = buf.subarray(entryLen)
