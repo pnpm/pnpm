@@ -59,6 +59,7 @@ export type InitOptions =
   & Partial<Pick<Config,
   | 'initPackageManager'
   | 'initType'
+  | 'workspaceDir'
   >> & {
     bare?: boolean
     initAuthorName?: string
@@ -77,10 +78,13 @@ export async function handler (opts: InitOptions, params?: string[]): Promise<st
   // Using cwd instead of the dir option because the dir option
   // is set to the first parent directory that has a package.json file
   // But --dir option from cliOptions should be respected.
-  const manifestPath = path.join(opts.cliOptions.dir ?? process.cwd(), 'package.json')
+  const initDir = opts.cliOptions.dir ?? process.cwd()
+  const manifestPath = path.join(initDir, 'package.json')
   if (fs.existsSync(manifestPath)) {
     throw new PnpmError('PACKAGE_JSON_EXISTS', 'package.json already exists')
   }
+  const isWorkspaceSubpackage = opts.workspaceDir != null &&
+    path.resolve(opts.workspaceDir) !== path.resolve(initDir)
   const manifest: ProjectManifest = opts.bare
     ? {}
     : {
@@ -102,7 +106,7 @@ export async function handler (opts: InitOptions, params?: string[]): Promise<st
 
   const initConfig = getInitConfig(opts)
   const packageJson = { ...manifest, ...initConfig }
-  if (opts.initPackageManager) {
+  if (opts.initPackageManager && !isWorkspaceSubpackage) {
     packageJson.devEngines = {
       ...packageJson.devEngines,
       packageManager: {

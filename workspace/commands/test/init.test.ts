@@ -90,6 +90,38 @@ test('init a new package.json with init-package-manager=false', async () => {
   expect(manifest).not.toHaveProperty('devEngines')
 })
 
+test('init a new package.json in a workspace subpackage does not add devEngines', async () => {
+  prepareEmpty()
+  const workspaceDir = process.cwd()
+  const subpackageDir = path.join(workspaceDir, 'packages/foo')
+  fs.mkdirSync(subpackageDir, { recursive: true })
+  await init.handler({
+    cliOptions: { dir: subpackageDir },
+    initPackageManager: true,
+    workspaceDir,
+  })
+  const manifest = loadJsonFileSync<ProjectManifest>(path.join(subpackageDir, 'package.json'))
+  expect(manifest).toBeTruthy()
+  expect(manifest).not.toHaveProperty('devEngines')
+  expect(manifest).not.toHaveProperty('packageManager')
+})
+
+test('init a new package.json at the workspace root adds devEngines', async () => {
+  prepareEmpty()
+  const workspaceDir = process.cwd()
+  await init.handler({
+    cliOptions: {},
+    initPackageManager: true,
+    workspaceDir,
+  })
+  const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('package.json'))
+  expect(manifest.devEngines?.packageManager).toEqual({
+    name: 'pnpm',
+    version: expect.stringMatching(/^\^\d+\.\d+\.\d+/),
+    onFail: 'download',
+  })
+})
+
 test('init a new package.json with init-type=module', async () => {
   prepareEmpty()
   await init.handler({ cliOptions: {}, initType: 'module' })
