@@ -441,17 +441,32 @@ async function handleFiles (
     res.end(JSON.stringify({ error: '`digests` must be an array' }))
     return
   }
-  const digests = parsed.digests as Array<{ digest: string, size: number, executable: boolean }>
 
-  // A valid sha512 digest is 128 lowercase hex characters (64 bytes).
-  // Reject anything else so we never write garbage into the binary headers
-  // (an invalid 64-byte digest could also collide with the end marker).
-  for (const d of digests) {
-    if (!isValidSha512Hex(d.digest)) {
+  // Validate each entry's shape up front. Reading `d.digest` on a `null` or
+  // `{ digest: 123 }` entry would otherwise throw and surface as a 500 after
+  // headers may have been written. A valid sha512 digest is 128 lowercase hex
+  // characters (64 bytes); also reject the all-zero digest since it collides
+  // with the 64-byte end-of-stream marker.
+  const digests: Array<{ digest: string, executable: boolean }> = []
+  for (let i = 0; i < parsed.digests.length; i++) {
+    const entry = parsed.digests[i]
+    if (entry === null || typeof entry !== 'object') {
       res.writeHead(400, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: `Invalid digest: ${d.digest}` }))
+      res.end(JSON.stringify({ error: `digests[${i}] must be an object` }))
       return
     }
+    const { digest, executable } = entry as { digest?: unknown, executable?: unknown }
+    if (typeof digest !== 'string' || !isValidSha512Hex(digest)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: `digests[${i}].digest must be a valid sha512 hex string` }))
+      return
+    }
+    if (typeof executable !== 'boolean') {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: `digests[${i}].executable must be a boolean` }))
+      return
+    }
+    digests.push({ digest, executable })
   }
 
   // Stream file entries through gzip — no buffering. The server reads
