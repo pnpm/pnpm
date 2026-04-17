@@ -5,7 +5,7 @@ import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type Fetc
 import type { Registries, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 
-import { rcOptionsTypes as commonRcOptionsTypes } from './common.js'
+import { normalizeRegistryUrl, rcOptionsTypes as commonRcOptionsTypes } from './common.js'
 
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
@@ -54,8 +54,4 @@ export async function fetchWhoami (registryUrl: string, fetchFromRegistry: Fetch
 
   const { username } = await response.json() as { username: string }
   return username
-}
-
-function normalizeRegistryUrl (registryUrl: string): string {
-  return registryUrl.endsWith('/') ? registryUrl : `${registryUrl}/`
 }

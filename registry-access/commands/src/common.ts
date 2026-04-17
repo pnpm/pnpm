@@ -9,16 +9,20 @@ export function rcOptionsTypes (): Record<string, unknown> {
   ], allTypes)
 }
 
-export function parsePackageSpec (spec: string): { name: string, versionRange: string | undefined } {
+export function parsePackageSpec (spec: string): { name: string, escapedName: string, versionRange: string | undefined } {
   let parsed: ReturnType<typeof npa>
   try {
     parsed = npa(spec)
   } catch {
     throw new PnpmError('INVALID_PACKAGE_SPEC', `Invalid package spec: ${spec}`)
   }
-  if (!parsed.name) {
+  if (!parsed.name || !parsed.escapedName) {
     throw new PnpmError('INVALID_PACKAGE_SPEC', `Invalid package spec: ${spec}`)
   }
   const versionRange = parsed.rawSpec || undefined
-  return { name: parsed.name, versionRange }
+  return { name: parsed.name, escapedName: parsed.escapedName, versionRange }
+}
+
+export function normalizeRegistryUrl (registryUrl: string): string {
+  return registryUrl.endsWith('/') ? registryUrl : `${registryUrl}/`
 }

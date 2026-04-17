@@ -3,8 +3,9 @@ import { PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { renderHelp } from 'render-help'
 
+import { normalizeRegistryUrl } from '../common.js'
 import { fetchWhoami } from '../whoami.js'
-import { cliOptionsTypes, getAuthHeaderForRegistry, normalizeRegistryUrl, rcOptionsTypes, type StarOptions } from './common.js'
+import { cliOptionsTypes, getAuthHeaderForRegistry, rcOptionsTypes, type StarOptions } from './common.js'
 
 export { cliOptionsTypes, rcOptionsTypes }
 
