@@ -12,17 +12,13 @@ import { createStoreController } from '@pnpm/store.connection-manager'
 import spawn from 'cross-spawn'
 import semver from 'semver'
 
+import { shouldPersistLockfile } from './shouldPersistLockfile.js'
+
 export async function switchCliVersion (config: Config, context: ConfigContext): Promise<void> {
   const pm = context.wantedPackageManager
   if (pm == null || pm.name !== 'pnpm' || pm.version == null) return
 
-  // `devEngines.packageManager` always persists resolved pnpm integrity info
-  // to `pnpm-lock.yaml`. The legacy `packageManager` field only does so when
-  // the pinned version is pnpm v12 or newer — v10 and v11 users transitioning
-  // from v10 should not see unrelated lockfile churn just because a newer
-  // pnpm was invoked in their v10 project.
-  const persistLockfile = pm.fromDevEngines === true ||
-    (semver.valid(pm.version) != null && semver.major(pm.version) >= 12)
+  const persistLockfile = shouldPersistLockfile(pm)
 
   // In non-persist mode the env lockfile is intentionally not read, so there
   // is no cached resolution to compare against. Since the legacy
