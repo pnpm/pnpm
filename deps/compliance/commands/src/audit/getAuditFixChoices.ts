@@ -6,13 +6,14 @@ import chalk from 'chalk'
 import { groupBy } from 'ramda'
 
 const AUDIT_COLOR: Record<AuditLevelString, (s: string) => string> = {
+  info: chalk.dim,
   low: chalk.bold,
   moderate: chalk.bold.yellow,
   high: chalk.bold.red,
   critical: chalk.bold.red,
 }
 
-const SEVERITY_ORDER: AuditLevelString[] = ['critical', 'high', 'moderate', 'low']
+const SEVERITY_ORDER: AuditLevelString[] = ['critical', 'high', 'moderate', 'low', 'info']
 
 export interface AuditChoiceRow {
   name: string
@@ -32,9 +33,7 @@ export function getAuditFixChoices (advisories: AuditAdvisory[]): AuditChoiceGro
     return []
   }
 
-  const fixable = advisories.filter(
-    ({ vulnerable_versions: v, patched_versions: p }) => v !== '>=0.0.0' && p !== '<0.0.0'
-  )
+  const fixable = advisories.filter(({ patched_versions: p }) => p != null)
   if (fixable.length === 0) {
     return []
   }
@@ -65,7 +64,7 @@ export function getAuditFixChoices (advisories: AuditAdvisory[]): AuditChoiceGro
           advisory.module_name,
           AUDIT_COLOR[advisory.severity](advisory.severity),
           advisory.vulnerable_versions,
-          advisory.patched_versions,
+          advisory.patched_versions ?? '',
           advisory.title,
         ],
         key,

@@ -257,22 +257,6 @@ export async function handler (opts: AuditOptions): Promise<{ exitCode: number, 
           return true
         })
     )
-    const ignoreCves = opts.auditConfig?.ignoreCves
-    if (ignoreCves) {
-      for (const [id, advisory] of Object.entries(filteredAdvisories)) {
-        if (advisory.cves.length > 0 && difference(advisory.cves, ignoreCves).length === 0) {
-          delete filteredAdvisories[id]
-        }
-      }
-    }
-    const ignoreGhsas = opts.auditConfig?.ignoreGhsas
-    if (ignoreGhsas) {
-      for (const [id, advisory] of Object.entries(filteredAdvisories)) {
-        if (ignoreGhsas.includes(advisory.github_advisory_id)) {
-          delete filteredAdvisories[id]
-        }
-      }
-    }
     let filteredAuditReport: AuditReport = { ...auditReport, advisories: filteredAdvisories }
     if (opts.interactive) {
       filteredAuditReport = await interactiveAuditFix(filteredAuditReport)

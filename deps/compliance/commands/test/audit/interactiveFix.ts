@@ -30,7 +30,7 @@ test('audit --fix -i shows interactive prompt and only fixes selected vulnerabil
   const tmp = f.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
-    .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
     .reply(200, responses.ALL_VULN_RESP)
 
   // Mock the user selecting only the xmlhttprequest-ssl critical advisory
@@ -70,7 +70,7 @@ test('audit --fix -i prompt is called with correct structure', async () => {
   const tmp = f.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
-    .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
     .reply(200, responses.ALL_VULN_RESP)
 
   // Mock selecting one advisory so the fix proceeds
@@ -117,7 +117,7 @@ test('audit --fix -i with auditLevel filters before showing prompt', async () =>
   const tmp = f.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
-    .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
     .reply(200, responses.ALL_VULN_RESP)
 
   prompt.mockResolvedValue({
