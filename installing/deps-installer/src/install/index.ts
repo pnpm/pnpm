@@ -1989,11 +1989,11 @@ async function installFromPnpmRegistry (
     wantedLockfile: lockfile,
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await headlessInstall(headlessOpts as any)
+  const { ignoredBuilds } = await headlessInstall(headlessOpts as any)
 
   return {
     updatedCatalogs: undefined,
     updatedManifest: manifest,
-    ignoredBuilds: undefined,
+    ignoredBuilds,
   }
 }

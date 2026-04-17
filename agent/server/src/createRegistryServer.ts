@@ -106,8 +106,11 @@ export async function createRegistryServer (opts: RegistryServerOptions): Promis
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Internal server error'
+      const statusCode = typeof (err as { statusCode?: unknown })?.statusCode === 'number'
+        ? (err as { statusCode: number }).statusCode
+        : 500
       if (!res.headersSent) {
-        res.writeHead(500, { 'Content-Type': 'application/json' })
+        res.writeHead(statusCode, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ error: message }))
         return
       }
@@ -162,7 +165,7 @@ async function handleInstall (
   ctx: ServerContext
 ): Promise<void> {
   const t0 = performance.now()
-  const body = await readBody(req)
+  const body = await readBody(req, INSTALL_BODY_MAX_BYTES)
   let request: InstallRequest
   try {
     request = JSON.parse(body)
@@ -219,6 +222,16 @@ async function handleInstall (
       dependencies: request.dependencies,
       devDependencies: request.devDependencies,
     }]
+
+    // Validate every `dir` is a safe relative path. A malicious client
+    // could pass "../../etc" or an absolute path, which would escape
+    // tmpDir and let the server write files outside its workspace.
+    for (const project of projects) {
+      if (!isSafeRelativeDir(project.dir)) {
+        res.end(`E\t${JSON.stringify({ error: `Invalid project dir: ${project.dir}` })}\n`)
+        return
+      }
+    }
 
     // Create package.json for each project
     await Promise.all(projects.map(async (project) => {
@@ -382,7 +395,7 @@ async function handleFiles (
   res: http.ServerResponse,
   ctx: ServerContext
 ): Promise<void> {
-  const body = await readBody(req)
+  const body = await readBody(req, FILES_BODY_MAX_BYTES)
   let digests: Array<{ digest: string, size: number, executable: boolean }>
   try {
     ;({ digests } = JSON.parse(body) as { digests: Array<{ digest: string, size: number, executable: boolean }> })
@@ -422,12 +435,20 @@ async function handleFiles (
   gzip.write(lengthBuf)
   gzip.write(jsonBuffer)
 
-  // File entries — streamed through gzip
+  // File entries — streamed through gzip. On a SQLite cache miss we read
+  // from CAFS and also insert into the file store so subsequent batches
+  // can serve the same digest from SQLite (one `.get()` vs `readFileSync`).
+  const missing: Array<{ digest: string, cafsPath: string, executable: boolean }> = []
   for (const d of digests) {
     const cached = ctx.fileStore.get(d.digest)
-    const content = cached
-      ? cached.content
-      : readFileSync(getFilePathByModeInCafs(ctx.storeDir, d.digest, d.executable ? 0o755 : 0o644))
+    let content: Buffer
+    if (cached) {
+      content = cached.content
+    } else {
+      const cafsPath = getFilePathByModeInCafs(ctx.storeDir, d.digest, d.executable ? 0o755 : 0o644)
+      content = readFileSync(cafsPath)
+      missing.push({ digest: d.digest, cafsPath, executable: d.executable })
+    }
 
     const header = Buffer.alloc(69)
     Buffer.from(d.digest, 'hex').copy(header, 0)
@@ -437,21 +458,56 @@ async function handleFiles (
     gzip.write(header)
     gzip.write(content)
   }
+  if (missing.length > 0) {
+    ctx.fileStore.importManyFromCafs(missing)
+  }
 
   // End marker + close gzip stream (which ends the response)
   gzip.end(Buffer.alloc(64, 0))
 }
 
 const SHA512_HEX_RE = /^[0-9a-f]{128}$/
+// The wire protocol uses a 64-byte all-zero buffer as the end-of-stream marker.
+// A sha512 whose hex representation is all zeros would serialize to the same
+// 64 bytes and collide with the framing marker, so treat it as invalid input.
+const ALL_ZERO_SHA512_HEX = '0'.repeat(128)
 
 function isValidSha512Hex (digest: string): boolean {
-  return typeof digest === 'string' && SHA512_HEX_RE.test(digest)
+  return typeof digest === 'string' && SHA512_HEX_RE.test(digest) && digest !== ALL_ZERO_SHA512_HEX
 }
 
-function readBody (req: http.IncomingMessage): Promise<string> {
+function isSafeRelativeDir (dir: string): boolean {
+  if (typeof dir !== 'string' || dir.length === 0) return false
+  if (dir === '.') return true
+  if (path.isAbsolute(dir)) return false
+  // Reject Windows drive letters (e.g. "C:foo", "C:\\foo") even on POSIX.
+  if (/^[a-z]:/i.test(dir)) return false
+  const normalized = path.posix.normalize(dir.replace(/\\/g, '/'))
+  if (normalized.startsWith('../') || normalized === '..') return false
+  // Normalize must not produce an absolute-style path either.
+  if (normalized.startsWith('/')) return false
+  return true
+}
+
+// /v1/install bodies carry an optional lockfile + projects list; allow a
+// generous ceiling but bound memory. /v1/files bodies only carry a list of
+// digests, so the limit is smaller.
+const INSTALL_BODY_MAX_BYTES = 64 * 1024 * 1024
+const FILES_BODY_MAX_BYTES = 8 * 1024 * 1024
+
+function readBody (req: http.IncomingMessage, maxBytes: number): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     const chunks: Buffer[] = []
-    req.on('data', (chunk: Buffer) => chunks.push(chunk))
+    let total = 0
+    req.on('data', (chunk: Buffer) => {
+      total += chunk.length
+      if (total > maxBytes) {
+        reject(Object.assign(new Error(`request body exceeds ${maxBytes} bytes`), { statusCode: 413 }))
+        req.destroy()
+        return
+      }
+      chunks.push(chunk)
+    })
     req.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')))
     req.on('error', reject)
   })

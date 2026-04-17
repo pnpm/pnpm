@@ -74,17 +74,6 @@ export interface HardLinkDirMessage {
   destDirs: string[]
 }
 
-export interface WriteCafsFilesMessage {
-  type: 'write-cafs-files'
-  storeDir: string
-  files: Array<{
-    buffer: Buffer
-    digest: string
-    mode: number
-    size: number
-  }>
-}
-
 export interface FetchAndWriteCafsMessage {
   type: 'fetch-and-write-cafs'
   registryUrl: string

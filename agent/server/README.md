@@ -61,7 +61,7 @@ server.listen(4000, () => {
 Terminal 1 — start the server:
 
 ```bash
-cd registry/server
+cd agent/server
 pnpm run compile
 node lib/bin.js
 # pnpm agent server listening on http://localhost:4873
