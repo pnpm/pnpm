@@ -21,7 +21,7 @@ export { type CafsLocker }
 export function createPackageImporterAsync (
   opts: {
     importIndexedPackage?: ImportIndexedPackageAsync
-    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
+    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-dir' | 'clone-or-copy'
     storeDir: string
   }
 ): ImportPackageFunctionAsync {
@@ -52,7 +52,7 @@ export function createPackageImporterAsync (
 function createPackageImporter (
   opts: {
     importIndexedPackage?: ImportIndexedPackage
-    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
+    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-dir' | 'clone-or-copy'
     storeDir: string
   }
 ): ImportPackageFunction {
@@ -125,7 +125,7 @@ export function createCafsStore (
   opts?: {
     ignoreFile?: (filename: string) => boolean
     importPackage?: ImportIndexedPackage
-    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
+    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-dir' | 'clone-or-copy'
     cafsLocker?: CafsLocker
   }
 ): Cafs {

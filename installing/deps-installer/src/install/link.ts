@@ -1,4 +1,5 @@
 import { promises as fs } from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 import {
@@ -448,7 +449,7 @@ async function selectNewFromWantedDeps (
   return newDeps
 }
 
-const limitLinking = pLimit(16)
+const limitLinking = pLimit(Math.min(Math.max(16, os.availableParallelism?.() ?? os.cpus().length), 32))
 
 async function linkAllPkgs (
   storeController: StoreController,

@@ -8,6 +8,10 @@ import type {
   RetryTimeoutOptions,
 } from '@pnpm/fetching.types'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
+import {
+  RegistryMetadataCache,
+  closeAllRegistryMetadataCaches,
+} from '@pnpm/resolving.registry-metadata-cache'
 import type {
   DirectoryResolution,
   PkgResolutionId,
@@ -185,13 +189,26 @@ export function createNpmResolver (
     max: 10000,
     ttl: 120 * 1000, // 2 minutes
   })
+  // Create the binary registry metadata cache
+  const binaryCache = new RegistryMetadataCache(opts.cacheDir)
   // Create peek function if storeDir is provided
   const storeDir = opts.storeDir
   const peekLockerForPeek = new Map<string, Promise<DependencyManifest | undefined>>()
+  interface CacheEntry<T> { value: T }
+  const peekManifestCache = new LRUCache<string, CacheEntry<DependencyManifest | undefined>>({
+    max: 5000,
+    ttl: 120 * 1000, // 2 minutes — same as metaCache
+  })
   let peekManifestFromStore: ResolveFromNpmContext['peekManifestFromStore'] | undefined
   if (storeDir) {
     peekManifestFromStore = async (peekOpts) => {
       const filesIndexFile = storeIndexKey(peekOpts.integrity, peekOpts.id)
+
+      // Check local cache first to avoid worker thread message overhead.
+      if (peekManifestCache.has(filesIndexFile)) {
+        return peekManifestCache.get(filesIndexFile)!.value
+      }
+
       const existingRequest = peekLockerForPeek.get(filesIndexFile)
       if (existingRequest != null) {
         return existingRequest
@@ -206,8 +223,9 @@ export function createNpmResolver (
           expectedPkg: { name: peekOpts.name, version: peekOpts.version },
         }
       ).then(({ bundledManifest }) => {
-        if (!bundledManifest) return undefined
-        return bundledManifest as DependencyManifest
+        const manifest = bundledManifest ? bundledManifest as DependencyManifest : undefined
+        peekManifestCache.set(filesIndexFile, { value: manifest })
+        return manifest
       }).catch(() => undefined)
       peekLockerForPeek.set(filesIndexFile, request)
       return request
@@ -224,6 +242,7 @@ export function createNpmResolver (
       preferOffline: opts.preferOffline,
       cacheDir: opts.cacheDir,
       strictPublishedByCheck: opts.strictPublishedByCheck,
+      binaryCache,
     }),
     registries: opts.registries,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
@@ -234,7 +253,9 @@ export function createNpmResolver (
     resolveFromJsr: resolveJsr.bind(null, ctx),
     clearCache: () => {
       metaCache.clear()
+      peekManifestCache.clear()
       pMemoizeClear(fetch)
+      closeAllRegistryMetadataCaches()
     },
   }
 }

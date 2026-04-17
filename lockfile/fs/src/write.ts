@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
@@ -20,6 +21,22 @@ const LOCKFILE_YAML_FORMAT = {
   noCompatMode: true,
   noRefs: true,
   sortKeys: false,
+}
+
+async function writeIfChanged (filePath: string, newContent: string): Promise<void> {
+  let existingContent: string | null
+  try {
+    existingContent = await fs.readFile(filePath, 'utf8')
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      await writeFileAtomic(filePath, newContent)
+      return
+    }
+    throw err
+  }
+  if (existingContent !== newContent) {
+    await writeFileAtomic(filePath, newContent)
+  }
 }
 
 export function lockfileYamlDump (obj: object): string {
@@ -69,9 +86,9 @@ async function writeLockfile (
     // in the OS page cache and streaming stops at the first separator.
     const envDoc = await streamReadFirstYamlDocument(lockfilePath)
     const envPrefix = envDoc != null ? `${YAML_DOCUMENT_START}${envDoc}${YAML_DOCUMENT_SEPARATOR}` : ''
-    return writeFileAtomic(lockfilePath, `${envPrefix}${yamlDoc}`)
+    return writeIfChanged(lockfilePath, `${envPrefix}${yamlDoc}`)
   }
-  return writeFileAtomic(lockfilePath, yamlDoc)
+  return writeIfChanged(lockfilePath, yamlDoc)
 }
 
 export function writeLockfileFile (
@@ -123,14 +140,14 @@ export async function writeLockfiles (
   // which is more efficient
   if (opts.wantedLockfile === opts.currentLockfile) {
     await Promise.all([
-      writeFileAtomic(wantedLockfilePath, wantedYamlDoc),
+      writeIfChanged(wantedLockfilePath, wantedYamlDoc),
       (async () => {
         if (isEmptyLockfile(opts.wantedLockfile)) {
           await rimraf(currentLockfilePath)
         } else {
           await fs.mkdir(path.dirname(currentLockfilePath), { recursive: true })
           // Current lockfile (node_modules/.pnpm/lock.yaml) does not include the env document
-          await writeFileAtomic(currentLockfilePath, yamlDoc)
+          await writeIfChanged(currentLockfilePath, yamlDoc)
         }
       })(),
     ])
@@ -146,13 +163,13 @@ export async function writeLockfiles (
   const currentYamlDoc = yamlStringify(currentLockfileToStringify)
 
   await Promise.all([
-    writeFileAtomic(wantedLockfilePath, wantedYamlDoc),
+    writeIfChanged(wantedLockfilePath, wantedYamlDoc),
     (async () => {
       if (isEmptyLockfile(opts.wantedLockfile)) {
         await rimraf(currentLockfilePath)
       } else {
         await fs.mkdir(path.dirname(currentLockfilePath), { recursive: true })
-        await writeFileAtomic(currentLockfilePath, currentYamlDoc)
+        await writeIfChanged(currentLockfilePath, currentYamlDoc)
       }
     })(),
   ])

@@ -10,9 +10,6 @@
     "**/*.ts",
     "../../../__typings__/**/*.d.ts"
   ],
-  "exclude": [
-    "**/*.benchmark.ts"
-  ],
   "references": [
     {
       "path": ".."

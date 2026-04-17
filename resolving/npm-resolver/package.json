@@ -44,6 +44,7 @@
     "@pnpm/resolving.registry.pkg-metadata-filter": "workspace:*",
     "@pnpm/resolving.registry.types": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
+    "@pnpm/resolving.registry-metadata-cache": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/types": "workspace:*",
@@ -80,12 +81,16 @@
     "@types/semver": "catalog:",
     "@types/ssri": "catalog:",
     "load-json-file": "catalog:",
+    "msgpackr": "catalog:",
     "tempy": "catalog:"
   },
   "engines": {
     "node": ">=22.13"
   },
   "jest": {
-    "preset": "@pnpm/jest-config"
+    "preset": "@pnpm/jest-config",
+    "testPathIgnorePatterns": [
+      ".*\\.benchmark\\..*"
+    ]
   }
 }

@@ -244,11 +244,12 @@ export async function readPkgFromCafs (
   })
 }
 
-// The workers are doing lots of file system operations
-// so, running them in parallel helps only to a point.
-// With local experimenting it was discovered that running 4 workers gives the best results.
-// Adding more workers actually makes installation slower.
-const limitImportingPackage = pLimit(4)
+// The workers are doing lots of file system operations.
+// The optimal concurrency depends on the number of CPU cores available.
+// We use an adaptive limit: at least 4 (maintaining backward compatibility),
+// scales with 2x CPU cores for I/O-bound operations, capped at 32.
+const limitImportingPackage = pLimit(Math.min(Math.max(4, availableParallelism() * 2), 32))
+const limitSymlinking = pLimit(Math.min(Math.max(4, availableParallelism() * 2), 32))
 
 export async function importPackage (
   opts: Omit<LinkPkgMessage, 'type'>
@@ -275,28 +276,52 @@ export async function importPackage (
   })
 }
 
-export async function symlinkAllModules (
+async function symlinkAllModulesSingle (
   opts: Omit<SymlinkAllModulesMessage, 'type'>
-): Promise<{ isBuilt: boolean, importMethod: string | undefined }> {
+): Promise<void> {
   if (!workerPool) {
     workerPool = createTarballWorkerPool()
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
-  return new Promise<{ isBuilt: boolean, importMethod: string | undefined }>((resolve, reject) => {
-    localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+  return new Promise<void>((resolve, reject) => {
+    localWorker.once('message', ({ status, error }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
         const hint = opts.deps?.[0]?.modules != null ? createErrorHint(error, opts.deps[0].modules) : undefined
         reject(new PnpmError(error.code ?? 'SYMLINK_FAILED', `[symlinkAllModules] ${error.message as string}`, { hint }))
         return
       }
-      resolve(value)
+      resolve()
     })
     localWorker.postMessage({
       type: 'symlinkAllModules',
       ...opts,
     } as SymlinkAllModulesMessage)
   })
+}
+
+export async function symlinkAllModules (
+  opts: Omit<SymlinkAllModulesMessage, 'type'>
+): Promise<void> {
+  const deps = opts.deps
+  const maxWorkers = calcMaxWorkers()
+  const chunks = splitChunks(deps, Math.min(deps.length, maxWorkers))
+  if (chunks.length <= 1) {
+    return symlinkAllModulesSingle(opts)
+  }
+  await Promise.all(chunks.map((chunk) =>
+    limitSymlinking(() => symlinkAllModulesSingle({ deps: chunk }))
+  ))
+}
+
+function splitChunks<T> (arr: T[], chunks: number): T[][] {
+  if (chunks <= 1) return [arr]
+  const result: T[][] = []
+  const chunkSize = Math.ceil(arr.length / chunks)
+  for (let i = 0; i < arr.length; i += chunkSize) {
+    result.push(arr.slice(i, i + chunkSize))
+  }
+  return result
 }
 
 function createErrorHint (err: Error, checkedDir: string): string | undefined {

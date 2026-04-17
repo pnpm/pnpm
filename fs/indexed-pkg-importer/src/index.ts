@@ -10,11 +10,13 @@ import type { FilesMap, ImportIndexedPackage, ImportOptions } from '@pnpm/store.
 import { fastPathTemp as pathTemp } from 'path-temp'
 import { renameOverwriteSync } from 'rename-overwrite'
 
+import { cloneDir } from './cloneDir.js'
 import { type Importer, type ImportFile, importIndexedDir } from './importIndexedDir.js'
 
+export { cloneDir } from './cloneDir.js'
 export { type FilesMap, type ImportIndexedPackage, type ImportOptions }
 
-export type PackageImportMethod = 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
+export type PackageImportMethod = 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-dir' | 'clone-or-copy'
 
 export function createIndexedPkgImporter (packageImportMethod?: PackageImportMethod): ImportIndexedPackage {
   const importPackage = createImportPackage(packageImportMethod)
@@ -31,6 +33,9 @@ function createImportPackage (packageImportMethod?: PackageImportMethod): Import
     case 'clone':
       packageImportMethodLogger.debug({ method: 'clone' })
       return createClonePkg()
+    case 'clone-dir':
+      packageImportMethodLogger.debug({ method: 'clone-dir' })
+      return cloneDirPkg
     case 'hardlink':
       packageImportMethodLogger.debug({ method: 'hardlink' })
       return hardlinkPkg.bind(null, linkOrCopy)
@@ -60,6 +65,17 @@ function createAutoImporter (): ImportIndexedPackage {
     // they are 10x slower than hard links.
     // Hence, we prefer reflinks by default only on Linux and macOS.
     if (process.platform !== 'win32') {
+      try {
+        // Try directory-level cloning first - this is most efficient on CoW filesystems
+        const result = cloneDirPkg(to, opts)
+        if (result) {
+          packageImportMethodLogger.debug({ method: 'clone-dir' })
+          auto = cloneDirPkg
+          return 'clone-dir'
+        }
+      } catch {
+        // ignore - fall through to file-level clone
+      }
       try {
         // Probe with the raw clone function (no ENOTSUP fallback).
         // On filesystems that don't support reflinks (e.g. ext4), this
@@ -136,6 +152,28 @@ function tryClonePkg (
     const clone = createCloneFunction()
     importIndexedDir({ importFile: clone, importFileAtomic: clone }, to, opts.filesMap, opts)
     return 'clone'
+  }
+  return undefined
+}
+
+/**
+ * Import a single package using directory-level cloning.
+ * This is more efficient than file-by-file cloning on CoW filesystems
+ * but may fail if the filesystem doesn't support cloning.
+ */
+function cloneDirPkg (
+  to: string,
+  opts: ImportOptions
+): 'clone-dir' | undefined {
+  if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
+    // Get the source directory from the first file in the filesMap
+    // filesMap has entries like ['index.js', '/store/files/xx/xxxxx']
+    // so we need to extract the directory from the value (store path)
+    const firstSrcPath = opts.filesMap.values().next().value!
+    const srcDirPath = path.dirname(firstSrcPath)
+    if (cloneDir(srcDirPath, to)) {
+      return 'clone-dir'
+    }
   }
   return undefined
 }

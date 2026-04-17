@@ -28,7 +28,7 @@ export interface CreatePackageStoreOptions {
   cacheDir: string
   storeDir: string
   networkConcurrency?: number
-  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
+  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-dir' | 'clone-or-copy'
   verifyStoreIntegrity: boolean
   virtualStoreDirMaxLength: number
   strictStorePkgContentCheck?: boolean

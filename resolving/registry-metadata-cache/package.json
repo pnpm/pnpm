@@ -1,0 +1,51 @@
+{
+  "name": "@pnpm/resolving.registry-metadata-cache",
+  "version": "1100.0.0",
+  "description": "SQLite-backed binary cache for npm registry metadata",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "registry",
+    "metadata",
+    "cache"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/resolving/registry-metadata-cache",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/resolving/registry-metadata-cache#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pn compile && pn .test",
+    "compile": "tsgo --build && pn lint --fix",
+    "prepublishOnly": "pn compile",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/resolving.registry.types": "workspace:*",
+    "msgpackr": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm/resolving.registry-metadata-cache": "workspace:*",
+    "@types/node": "catalog:",
+    "tempy": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

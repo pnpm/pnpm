@@ -1,0 +1,26 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "lib/test",
+    "rootDir": "test",
+    "isolatedModules": true
+  },
+  "include": [
+    "test/**/*.benchmark.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "exclude": [
+    "test/*.ts"
+  ],
+  "references": [
+    {
+      "path": "./tsconfig.json"
+    },
+    {
+      "path": "../registry-metadata-cache"
+    },
+    {
+      "path": "../registry/types"
+    }
+  ]
+}

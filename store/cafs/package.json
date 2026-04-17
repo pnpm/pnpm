@@ -39,6 +39,7 @@
     "@zkochan/rimraf": "catalog:",
     "is-gzip": "catalog:",
     "is-subdir": "catalog:",
+    "lru-cache": "catalog:",
     "p-limit": "catalog:",
     "rename-overwrite": "catalog:",
     "semver": "catalog:",

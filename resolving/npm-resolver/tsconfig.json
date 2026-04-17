@@ -73,6 +73,9 @@
       "path": "../registry/types"
     },
     {
+      "path": "../registry-metadata-cache"
+    },
+    {
       "path": "../resolver-base"
     }
   ]

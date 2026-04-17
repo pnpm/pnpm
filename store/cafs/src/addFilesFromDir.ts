@@ -11,10 +11,12 @@ import type {
 import type { DependencyManifest } from '@pnpm/types'
 import { isSubdir } from 'is-subdir'
 
+import type { JsonParseCache } from './jsonCache.js'
 import { parseJsonBufferSync } from './parseJson.js'
 
 export function addFilesFromDir (
   addBuffer: (buffer: Buffer, mode: number) => FileWriteResult,
+  jsonCache: JsonParseCache | undefined,
   dirname: string,
   opts: {
     files?: string[]
@@ -46,15 +48,16 @@ export function addFilesFromDir (
   }
   for (const { absolutePath, relativePath, stat } of files) {
     const buffer = gfs.readFileSync(absolutePath)
-    if (opts.readManifest && relativePath === 'package.json') {
-      manifest = parseJsonBufferSync(buffer) as DependencyManifest
-    }
     // Remove the file type information (regular file, directory, etc.) and leave just the permission bits (rwx for owner, group, and others)
     const mode = stat.mode & 0o777
+    const addBufferResult = addBuffer(buffer, mode)
+    if (opts.readManifest && relativePath === 'package.json') {
+      manifest = parseJsonBufferSync(buffer, jsonCache, addBufferResult.digest) as DependencyManifest
+    }
     filesIndex.set(relativePath, {
       mode,
       size: stat.size,
-      ...addBuffer(buffer, mode),
+      ...addBufferResult,
     })
   }
   return { manifest, filesIndex }
