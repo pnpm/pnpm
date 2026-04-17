@@ -86,7 +86,7 @@ async function openUrl (url: string): Promise<void> {
   }
 
   const { execFile } = await import('node:child_process')
-  await new Promise<void>((resolve, reject) => {
+  await new Promise<void>((resolve) => {
     execFile(cmd, args, (err) => {
       if (err) resolve()
       else resolve()
