@@ -5,14 +5,16 @@ import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type Fetc
 import type { Registries, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 
-import { rcOptionsTypes } from './common.js'
-
-export { rcOptionsTypes }
+import { rcOptionsTypes as commonRcOptionsTypes } from './common.js'
 
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
-    ...rcOptionsTypes(),
+    ...commonRcOptionsTypes(),
   }
+}
+
+export function rcOptionsTypes (): Record<string, unknown> {
+  return commonRcOptionsTypes()
 }
 
 export interface WhoamiOptions extends CreateFetchFromRegistryOptions {
@@ -20,24 +22,24 @@ export interface WhoamiOptions extends CreateFetchFromRegistryOptions {
   registries?: Registries
 }
 
-export const whoami = {
-  cliOptionsTypes,
-  commandNames: ['whoami'],
-  handler: async (opts: WhoamiOptions): Promise<string> => {
-    const registryUrl = normalizeRegistryUrl(opts.registries?.default ?? 'https://registry.npmjs.org/')
-    const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {}, registryUrl)
-    const authHeader = getAuthHeader(registryUrl)
-    if (!authHeader) {
-      throw new PnpmError('WHOAMI_UNAUTHORIZED', 'You must be logged in to use whoami')
-    }
-    return fetchWhoami(registryUrl, createFetchFromRegistry(opts), authHeader)
-  },
-  help: (): string => renderHelp({
+export const commandNames = ['whoami']
+
+export function help (): string {
+  return renderHelp({
     description: 'Displays your pnpm username.',
     url: docsUrl('whoami'),
     usages: ['pnpm whoami'],
-  }),
-  rcOptionsTypes,
+  })
+}
+
+export async function handler (opts: WhoamiOptions): Promise<string> {
+  const registryUrl = normalizeRegistryUrl(opts.registries?.default ?? 'https://registry.npmjs.org/')
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {}, registryUrl)
+  const authHeader = getAuthHeader(registryUrl)
+  if (!authHeader) {
+    throw new PnpmError('WHOAMI_UNAUTHORIZED', 'You must be logged in to use whoami')
+  }
+  return fetchWhoami(registryUrl, createFetchFromRegistry(opts), authHeader)
 }
 
 export async function fetchWhoami (registryUrl: string, fetchFromRegistry: FetchFromRegistry, authHeader: string): Promise<string> {
