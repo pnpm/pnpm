@@ -73,7 +73,12 @@ test('init a new package.json with init-package-manager=true', async () => {
   await init.handler({ cliOptions: {}, initPackageManager: true })
   const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('package.json'))
   expect(manifest).toBeTruthy()
-  expect(manifest.packageManager).toBeTruthy()
+  expect(manifest).not.toHaveProperty('packageManager')
+  expect(manifest.devEngines?.packageManager).toEqual({
+    name: 'pnpm',
+    version: expect.stringMatching(/^\^\d+\.\d+\.\d+/),
+    onFail: 'download',
+  })
 })
 
 test('init a new package.json with init-package-manager=false', async () => {
@@ -82,6 +87,7 @@ test('init a new package.json with init-package-manager=false', async () => {
   const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('package.json'))
   expect(manifest).toBeTruthy()
   expect(manifest).not.toHaveProperty('packageManager')
+  expect(manifest).not.toHaveProperty('devEngines')
 })
 
 test('init a new package.json with init-type=module', async () => {
