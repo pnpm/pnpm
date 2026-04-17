@@ -1,5 +1,6 @@
 ---
 "@pnpm/config.reader": minor
+"@pnpm/installing.commands": minor
 "@pnpm/pkg-manifest.utils": minor
 "pnpm": minor
 ---
