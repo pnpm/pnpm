@@ -45,6 +45,7 @@ import {
   type LockfileObject,
   type ProjectSnapshot,
   readWantedLockfile,
+  type ResolvedDependenciesOfImporters,
   writeCurrentLockfile,
   writeLockfiles,
   writeWantedLockfile,
@@ -60,6 +61,7 @@ import { allProjectsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile
 import { globalInfo, logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
 import { getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/pkg-manifest.utils'
+import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import type {
   PreferredVersions,
 } from '@pnpm/resolving.resolver-base'
@@ -279,23 +281,13 @@ export async function mutateModules (
 
   const opts = extendOptions(maybeOpts)
 
-  // When a pnpm agent is configured, use server-side resolution.
-  if (opts.agent && projects.every(p => p.mutation === 'install')) {
-    const installProjects = projects.map(p => {
-      const proj = opts.allProjects.find(ap => ap.rootDir === p.rootDir)
-      return proj ? { rootDir: p.rootDir, manifest: proj.manifest } : null
-    }).filter(Boolean) as Array<{ rootDir: ProjectRootDir, manifest: ProjectManifest }>
-    if (installProjects.length === projects.length && installProjects.length > 0) {
-      const result = await installFromPnpmRegistry(installProjects[0].manifest, installProjects[0].rootDir, opts, installProjects)
-      return {
-        updatedProjects: installProjects.map(p => ({
-          manifest: p.manifest,
-          rootDir: p.rootDir,
-        })),
-        stats: result.stats,
-        ignoredBuilds: result.ignoredBuilds,
-      } as MutateModulesResult
-    }
+  // When a pnpm agent is configured, use server-side resolution. The agent
+  // path supports `install`, `installSome` (pnpm add), and `uninstallSome`
+  // (pnpm remove). Mutations that need full client-side resolution (update
+  // flags) still fall through to the normal flow.
+  if (opts.agent && canUseAgentForMutations(projects)) {
+    const agentResult = await mutateModulesViaAgent(projects, opts)
+    if (agentResult) return agentResult
   }
 
   const allowBuild = createAllowBuildFunction(opts)
@@ -1856,6 +1848,225 @@ function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
 }
 
 /**
+ * Whether the agent path can handle this batch of mutations. The agent flow
+ * supports installing the manifest as-is (`install`), adding new deps
+ * (`installSome`), and removing deps (`uninstallSome`). It cannot model the
+ * client-side update-flag behavior (`update`/`updateMatching`/`updateToLatest`)
+ * yet, so those still go through the normal client-side resolver.
+ */
+function canUseAgentForMutations (projects: MutatedProject[]): boolean {
+  if (projects.length === 0) return false
+  return projects.every((p) => {
+    if (p.mutation === 'uninstallSome') return true
+    if (p.mutation !== 'install' && p.mutation !== 'installSome') return false
+    const m = p as InstallDepsMutation | InstallSomeDepsMutation
+    return !m.update && !m.updateToLatest && m.updateMatching == null
+  })
+}
+
+interface AgentInstallProject {
+  rootDir: ProjectRootDir
+  /** The (possibly pre-processed) manifest we send to the agent. */
+  manifest: ProjectManifest
+  mutation: MutatedProject['mutation']
+  /** Aliases newly added in this `installSome`; used to copy resolved specs from the lockfile back into the manifest. */
+  newAliases: string[]
+}
+
+/**
+ * Pre-process projects for the agent flow:
+ * - `install`: send the manifest as-is.
+ * - `uninstallSome`: drop the named deps from the manifest before sending,
+ *   so the agent's resolution naturally produces a lockfile without them.
+ * - `installSome`: parse selectors and merge them into the manifest. The
+ *   agent server then resolves the merged manifest, and we read the resolved
+ *   specifiers (with the right save-prefix applied server-side) back from
+ *   the lockfile importer entries to update the client-side manifest.
+ *
+ * Returns null if the projects don't map cleanly to allProjects (caller
+ * should fall through to the normal flow).
+ */
+async function prepareAgentProjects (
+  projects: MutatedProject[],
+  opts: MutateModulesOptions
+): Promise<AgentInstallProject[] | null> {
+  const allProjects = opts.allProjects ?? []
+  const mutationByRootDir = new Map<ProjectRootDir, MutatedProject>()
+  for (const p of projects) {
+    mutationByRootDir.set(p.rootDir, p)
+  }
+  // Include every workspace project, not just the mutated ones — otherwise
+  // the agent's resulting lockfile would only contain the targeted importer
+  // and `headlessInstall` (or a later install) would crash on the missing
+  // entries for the other workspace projects. Projects without a mutation
+  // are sent with their current manifest (no-op for resolution).
+  const targetSet: Array<{ rootDir: ProjectRootDir, manifest: ProjectManifest, mutation?: MutatedProject }> =
+    allProjects.length > 0
+      ? allProjects.map((ap) => ({
+        rootDir: ap.rootDir,
+        manifest: ap.manifest,
+        mutation: mutationByRootDir.get(ap.rootDir),
+      }))
+      : projects.map((p) => {
+        const proj = allProjects.find((ap) => ap.rootDir === p.rootDir)
+        return {
+          rootDir: p.rootDir,
+          manifest: proj?.manifest ?? ({} as ProjectManifest),
+          mutation: p,
+        }
+      })
+  // Bail to the normal flow if any mutated project isn't in allProjects —
+  // we can't pre-process its manifest correctly.
+  for (const p of projects) {
+    if (!targetSet.some((t) => t.rootDir === p.rootDir)) return null
+  }
+  return Promise.all(targetSet.map(async (t) => {
+    let manifest: ProjectManifest = clone(t.manifest)
+    const newAliases: string[] = []
+    const mutation = t.mutation
+    if (mutation?.mutation === 'uninstallSome') {
+      manifest = await removeDeps(manifest, mutation.dependencyNames, {
+        prefix: mutation.rootDir,
+        saveType: mutation.targetDependenciesField,
+      })
+    } else if (mutation?.mutation === 'installSome') {
+      manifest = mergeInstallSelectors(manifest, mutation)
+      for (const sel of mutation.dependencySelectors) {
+        const parsed = parseWantedDependency(sel)
+        if (parsed.alias) newAliases.push(parsed.alias)
+      }
+    }
+    return {
+      rootDir: t.rootDir,
+      manifest,
+      mutation: mutation?.mutation ?? 'install',
+      newAliases,
+    }
+  }))
+}
+
+/**
+ * Merge `installSome` selectors into the manifest, choosing the target
+ * dependency field per the mutation's `targetDependenciesField` (or the
+ * existing field if the dep is already in the manifest, defaulting to
+ * `dependencies`). Selectors without a version use `'latest'` so the
+ * agent's resolver picks the newest matching release.
+ */
+function mergeInstallSelectors (manifest: ProjectManifest, mutation: InstallSomeDepsMutation): ProjectManifest {
+  const target = mutation.targetDependenciesField
+  const fieldsToClear: DependenciesField[] = ['dependencies', 'devDependencies', 'optionalDependencies']
+  for (const sel of mutation.dependencySelectors) {
+    const parsed = parseWantedDependency(sel)
+    if (!parsed.alias) continue
+    const alias = parsed.alias
+    const field: DependenciesField = target ?? guessDepField(alias, manifest) ?? 'dependencies'
+    const spec = parsed.bareSpecifier ?? findExistingSpec(alias, manifest) ?? 'latest'
+    manifest[field] = manifest[field] ?? {}
+    manifest[field]![alias] = spec
+    // If `targetDependenciesField` is set, also remove the alias from the
+    // other fields — matches the normal flow's behavior.
+    if (target) {
+      for (const other of fieldsToClear) {
+        if (other !== target) delete manifest[other]?.[alias]
+      }
+    }
+    if (mutation.peer) {
+      manifest.peerDependencies = manifest.peerDependencies ?? {}
+      manifest.peerDependencies[alias] = manifest.peerDependencies[alias] ?? spec
+    }
+  }
+  return manifest
+}
+
+function guessDepField (alias: string, manifest: ProjectManifest): DependenciesField | undefined {
+  if (manifest.dependencies?.[alias] != null) return 'dependencies'
+  if (manifest.devDependencies?.[alias] != null) return 'devDependencies'
+  if (manifest.optionalDependencies?.[alias] != null) return 'optionalDependencies'
+  return undefined
+}
+
+function findExistingSpec (alias: string, manifest: ProjectManifest): string | undefined {
+  return manifest.dependencies?.[alias] ??
+    manifest.devDependencies?.[alias] ??
+    manifest.optionalDependencies?.[alias]
+}
+
+/**
+ * After the agent resolves, copy the lockfile importer's per-dep specifier
+ * (which the server's resolver computed with the right save-prefix) back
+ * into the client manifest for any newly added aliases. We rely on the
+ * lockfile because the agent server applies catalog substitution,
+ * normalizedBareSpecifier, and save-prefix logic during resolution.
+ */
+function applyResolvedSpecsFromLockfile (
+  manifest: ProjectManifest,
+  importerSnapshot: ProjectSnapshot | undefined,
+  newAliases: string[]
+): ProjectManifest {
+  if (!importerSnapshot || newAliases.length === 0) return manifest
+  // The static `ProjectSnapshot.dependencies` type is `Record<string, string>`
+  // (legacy), but in lockfile v9 the runtime shape is
+  // `Record<string, { specifier, version }>`. Cast accordingly.
+  for (const alias of newAliases) {
+    for (const field of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
+      const fieldSnapshot = importerSnapshot[field] as ResolvedDependenciesOfImporters | undefined
+      const entry = fieldSnapshot?.[alias]
+      if (entry?.specifier && manifest[field]?.[alias] != null) {
+        manifest[field]![alias] = entry.specifier
+      }
+    }
+  }
+  return manifest
+}
+
+/**
+ * Drives the agent path for a `mutateModules` call across one or more
+ * projects. Returns null if the call can't be served by the agent (e.g. one
+ * of the projects isn't in `allProjects`).
+ */
+async function mutateModulesViaAgent (
+  projects: MutatedProject[],
+  opts: MutateModulesOptions
+): Promise<MutateModulesResult | null> {
+  const agentProjects = await prepareAgentProjects(projects, opts)
+  if (!agentProjects) return null
+
+  // installFromPnpmRegistry runs the headless install for the first
+  // project's root and the workspace path for the rest. Pass the
+  // pre-processed manifests so resolution sees the post-mutation state.
+  const result = await installFromPnpmRegistry(
+    agentProjects[0].manifest,
+    agentProjects[0].rootDir,
+    opts,
+    agentProjects.map((p) => ({ rootDir: p.rootDir, manifest: p.manifest }))
+  )
+
+  // For installSome projects, copy resolved specs from the lockfile importer
+  // entries back into the client manifest so save-prefix/catalog/etc. take
+  // effect (the server applies these during its resolution step).
+  const lockfileDir = opts.lockfileDir ?? projects[0].rootDir
+  const mutatedRootDirs = new Set(projects.map((p) => p.rootDir))
+  const updatedProjects = agentProjects
+    .filter((p) => mutatedRootDirs.has(p.rootDir))
+    .map((p) => {
+      if (p.mutation === 'installSome' && p.newAliases.length > 0) {
+        // Lockfile importer keys are POSIX-normalized paths.
+        const relative = path.relative(lockfileDir, p.rootDir).split(path.sep).join('/')
+        const importerId = (relative || '.') as ProjectId
+        const snapshot = result.lockfile?.importers?.[importerId]
+        p.manifest = applyResolvedSpecsFromLockfile(p.manifest, snapshot, p.newAliases)
+      }
+      return { rootDir: p.rootDir, manifest: p.manifest }
+    })
+
+  return {
+    updatedProjects,
+    stats: result.stats,
+    ignoredBuilds: result.ignoredBuilds,
+  } as MutateModulesResult
+}
+
+/**
  * When a pnpm agent is configured, resolve dependencies server-side
  * and download only the missing files. Then run a headless install to link
  * packages into node_modules.
@@ -1865,7 +2076,7 @@ async function installFromPnpmRegistry (
   rootDir: ProjectRootDir,
   opts: Opts,
   allInstallProjects?: Array<{ rootDir: ProjectRootDir, manifest: ProjectManifest }>
-): Promise<InstallResult & { stats: InstallationResultStats }> {
+): Promise<InstallResult & { stats: InstallationResultStats, lockfile: LockfileObject }> {
   const { fetchFromPnpmRegistry } = await import('@pnpm/agent.client')
   const { StoreIndex } = await import('@pnpm/store.index')
   const { setImportConcurrency } = await import('@pnpm/worker')
@@ -2008,6 +2219,7 @@ async function installFromPnpmRegistry (
       updatedManifest: manifest,
       ignoredBuilds,
       stats,
+      lockfile,
     }
   } finally {
     // Close the storeController to flush queued StoreIndex writes — the

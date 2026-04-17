@@ -7,6 +7,7 @@ import { createRegistryServer } from '@pnpm/agent.server'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { loadJsonFileSync } from 'load-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm } from '../utils/index.js'
@@ -92,6 +93,92 @@ test('pnpm install uses pnpm agent when configured', async () => {
 
   // Verify the package was installed
   expect(fs.existsSync('node_modules/is-positive')).toBe(true)
+})
+
+test('pnpm add uses pnpm agent when configured', async () => {
+  prepare({
+    dependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  requestCount = 0
+
+  await execPnpm(
+    ['add', 'is-positive@1.0.0', `--config.agent=http://localhost:${serverPort}`]
+  )
+
+  expect(requestCount).toBeGreaterThanOrEqual(1)
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(true)
+
+  // Both the new dep and the original dep should be installed
+  expect(fs.existsSync('node_modules/is-positive')).toBe(true)
+  expect(fs.existsSync('node_modules/is-negative')).toBe(true)
+
+  // Manifest should record the new dep
+  const manifest = loadJsonFileSync<{ dependencies?: Record<string, string> }>('package.json')
+  expect(manifest.dependencies?.['is-positive']).toBe('1.0.0')
+  expect(manifest.dependencies?.['is-negative']).toBe('1.0.0')
+})
+
+test('pnpm remove uses pnpm agent when configured', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+      'is-negative': '1.0.0',
+    },
+  })
+
+  requestCount = 0
+
+  await execPnpm(
+    ['remove', 'is-negative', `--config.agent=http://localhost:${serverPort}`]
+  )
+
+  expect(requestCount).toBeGreaterThanOrEqual(1)
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(true)
+
+  expect(fs.existsSync('node_modules/is-positive')).toBe(true)
+  expect(fs.existsSync('node_modules/is-negative')).toBe(false)
+
+  const manifest = loadJsonFileSync<{ dependencies?: Record<string, string> }>('package.json')
+  expect(manifest.dependencies?.['is-positive']).toBe('1.0.0')
+  expect(manifest.dependencies?.['is-negative']).toBeUndefined()
+})
+
+test('pnpm add inside a workspace project uses pnpm agent', async () => {
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-b',
+      version: '1.0.0',
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  requestCount = 0
+
+  await execPnpm(
+    ['--filter=project-b', 'add', 'is-negative@1.0.0', `--config.agent=http://localhost:${serverPort}`]
+  )
+
+  expect(requestCount).toBeGreaterThanOrEqual(1)
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(true)
+
+  // The newly added dep should be installed in project-b
+  expect(fs.existsSync('project-b/node_modules/is-negative')).toBe(true)
+  // The original dep in project-a should still be installed
+  expect(fs.existsSync('project-a/node_modules/is-positive')).toBe(true)
+
+  const projectBManifest = loadJsonFileSync<{ dependencies?: Record<string, string> }>('project-b/package.json')
+  expect(projectBManifest.dependencies?.['is-negative']).toBe('1.0.0')
 })
 
 test('pnpm install with agent works in a workspace with multiple projects', async () => {
