@@ -22,28 +22,31 @@ export interface StarOptions extends CreateFetchFromRegistryOptions {
   registries?: Registries
 }
 
+export type StarAction = 'star' | 'unstar'
+
 interface PackumentWithStars {
   _rev?: string
   users?: Record<string, boolean>
   [key: string]: unknown
 }
 
-export async function performStarAction (opts: StarOptions, packageName: string, star: boolean): Promise<void> {
+export async function performStarAction (opts: StarOptions, packageName: string, action: StarAction): Promise<void> {
   const { escapedName } = parsePackageSpec(packageName)
   const registryUrl = normalizeRegistryUrl(
     pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
   )
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
   if (!authHeader) {
-    throw new PnpmError('STAR_UNAUTHORIZED', `You must be logged in to ${star ? 'star' : 'unstar'} packages`)
+    throw new PnpmError('STAR_UNAUTHORIZED', `You must be logged in to ${action} packages`)
   }
   const fetchFromRegistry = createFetchFromRegistry(opts)
+  const method = action === 'star' ? 'PUT' : 'DELETE'
 
   const starUrl = new URL('./-/user/v1/star', registryUrl).href
 
   let response = await fetchFromRegistry(starUrl, {
     authHeaderValue: authHeader,
-    method: star ? 'PUT' : 'DELETE',
+    method,
     headers: {
       'content-type': 'application/json',
     },
@@ -54,7 +57,7 @@ export async function performStarAction (opts: StarOptions, packageName: string,
     const altStarUrl = new URL(`./-/user/package/${escapedName}/star`, registryUrl).href
     response = await fetchFromRegistry(altStarUrl, {
       authHeaderValue: authHeader,
-      method: star ? 'PUT' : 'DELETE',
+      method,
       headers: {
         'content-type': 'application/json',
       },
@@ -63,24 +66,24 @@ export async function performStarAction (opts: StarOptions, packageName: string,
 
   if (!response.ok) {
     if (response.status === 404 || response.status === 405 || response.status === 400 || response.status === 500) {
-      return performLegacyStarAction({ packageName, escapedName, star, registryUrl, authHeader, fetchFromRegistry })
+      return performLegacyStarAction({ packageName, escapedName, action, registryUrl, authHeader, fetchFromRegistry })
     }
     const errorBody = await response.text()
-    throw new PnpmError('REGISTRY_ERROR', `Failed to ${star ? 'star' : 'unstar'} package: ${response.status} ${response.statusText}. ${errorBody}`)
+    throw new PnpmError('REGISTRY_ERROR', `Failed to ${action} package: ${response.status} ${response.statusText}. ${errorBody}`)
   }
 }
 
 interface LegacyStarActionArgs {
   packageName: string
   escapedName: string
-  star: boolean
+  action: StarAction
   registryUrl: string
   authHeader: string
   fetchFromRegistry: ReturnType<typeof createFetchFromRegistry>
 }
 
 async function performLegacyStarAction (args: LegacyStarActionArgs): Promise<void> {
-  const { packageName, escapedName, star, registryUrl, authHeader, fetchFromRegistry } = args
+  const { packageName, escapedName, action, registryUrl, authHeader, fetchFromRegistry } = args
 
   const username = await fetchWhoami(registryUrl, fetchFromRegistry, authHeader)
   const pkgUrl = new URL(`./${escapedName}`, registryUrl).href
@@ -99,7 +102,7 @@ async function performLegacyStarAction (args: LegacyStarActionArgs): Promise<voi
 
   const pkgData = await response.json() as PackumentWithStars
   pkgData.users = pkgData.users || {}
-  if (star) {
+  if (action === 'star') {
     pkgData.users[username] = true
   } else {
     delete pkgData.users[username]
@@ -117,7 +120,7 @@ async function performLegacyStarAction (args: LegacyStarActionArgs): Promise<voi
 
   if (!updateResponse.ok) {
     const errorBody = await updateResponse.text()
-    throw new PnpmError('REGISTRY_ERROR', `Failed to ${star ? 'star' : 'unstar'} package (legacy): ${updateResponse.status} ${updateResponse.statusText}. ${errorBody}`)
+    throw new PnpmError('REGISTRY_ERROR', `Failed to ${action} package (legacy): ${updateResponse.status} ${updateResponse.statusText}. ${errorBody}`)
   }
 }
 

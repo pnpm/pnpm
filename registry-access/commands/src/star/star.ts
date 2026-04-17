@@ -20,5 +20,5 @@ export async function handler (opts: StarOptions, params: string[]): Promise<voi
   if (params.length === 0) {
     throw new PnpmError('STAR_PACKAGE_REQUIRED', 'Package name is required')
   }
-  await performStarAction(opts, params[0], true)
+  await performStarAction(opts, params[0], 'star')
 }
