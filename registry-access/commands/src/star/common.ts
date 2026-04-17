@@ -22,7 +22,10 @@ export interface StarOptions extends CreateFetchFromRegistryOptions {
   registries?: Registries
 }
 
-export type StarAction = 'star' | 'unstar'
+interface StarActionArgs {
+  packageName: string
+  star: boolean
+}
 
 interface PackumentWithStars {
   _rev?: string
@@ -30,17 +33,18 @@ interface PackumentWithStars {
   [key: string]: unknown
 }
 
-export async function performStarAction (opts: StarOptions, packageName: string, action: StarAction): Promise<void> {
+export async function performStarAction (opts: StarOptions, { packageName, star }: StarActionArgs): Promise<void> {
   const { escapedName } = parsePackageSpec(packageName)
   const registryUrl = normalizeRegistryUrl(
     pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
   )
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
+  const action = star ? 'star' : 'unstar'
   if (!authHeader) {
     throw new PnpmError('STAR_UNAUTHORIZED', `You must be logged in to ${action} packages`)
   }
   const fetchFromRegistry = createFetchFromRegistry(opts)
-  const method = action === 'star' ? 'PUT' : 'DELETE'
+  const method = star ? 'PUT' : 'DELETE'
 
   const starUrl = new URL('./-/user/v1/star', registryUrl).href
 
@@ -66,7 +70,7 @@ export async function performStarAction (opts: StarOptions, packageName: string,
 
   if (!response.ok) {
     if (response.status === 404 || response.status === 405 || response.status === 400 || response.status === 500) {
-      return performLegacyStarAction({ packageName, escapedName, action, registryUrl, authHeader, fetchFromRegistry })
+      return performLegacyStarAction({ packageName, escapedName, star, registryUrl, authHeader, fetchFromRegistry })
     }
     const errorBody = await response.text()
     throw new PnpmError('REGISTRY_ERROR', `Failed to ${action} package: ${response.status} ${response.statusText}. ${errorBody}`)
@@ -76,14 +80,15 @@ export async function performStarAction (opts: StarOptions, packageName: string,
 interface LegacyStarActionArgs {
   packageName: string
   escapedName: string
-  action: StarAction
+  star: boolean
   registryUrl: string
   authHeader: string
   fetchFromRegistry: ReturnType<typeof createFetchFromRegistry>
 }
 
 async function performLegacyStarAction (args: LegacyStarActionArgs): Promise<void> {
-  const { packageName, escapedName, action, registryUrl, authHeader, fetchFromRegistry } = args
+  const { packageName, escapedName, star, registryUrl, authHeader, fetchFromRegistry } = args
+  const action = star ? 'star' : 'unstar'
 
   const username = await fetchWhoami(registryUrl, fetchFromRegistry, authHeader)
   const pkgUrl = new URL(`./${escapedName}`, registryUrl).href
@@ -102,7 +107,7 @@ async function performLegacyStarAction (args: LegacyStarActionArgs): Promise<voi
 
   const pkgData = await response.json() as PackumentWithStars
   pkgData.users = pkgData.users || {}
-  if (action === 'star') {
+  if (star) {
     pkgData.users[username] = true
   } else {
     delete pkgData.users[username]
