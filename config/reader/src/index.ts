@@ -32,6 +32,7 @@ import type {
   ProjectConfig,
   UniversalOptions,
   VerifyDepsBeforeRun,
+  WantedPackageManager,
 } from './Config.js'
 import { isConfigFileKey } from './configFileKey.js'
 import { extractAndRemoveDependencyBuildOptions, hasDependencyBuildOptions } from './dependencyBuildOptions.js'
@@ -65,7 +66,7 @@ export {
   ProjectConfigsMatchItemIsNotAStringError,
   ProjectConfigUnsupportedFieldError,
 } from './projectConfig.js'
-export type { Config, ConfigContext, ProjectConfig, UniversalOptions, VerifyDepsBeforeRun }
+export type { Config, ConfigContext, ProjectConfig, UniversalOptions, VerifyDepsBeforeRun, WantedPackageManager }
 
 export { type ConfigFileKey, isConfigFileKey } from './configFileKey.js'
 export { isIniConfigKey, isNpmrcReadableKey } from './localConfig.js'
@@ -658,7 +659,7 @@ function getProcessEnv (env: string): string | undefined {
     process.env[env.toLowerCase()]
 }
 
-function getWantedPackageManager (manifest: ProjectManifest): { pm?: EngineDependency, warnings: string[] } {
+function getWantedPackageManager (manifest: ProjectManifest): { pm?: WantedPackageManager, warnings: string[] } {
   const warnings: string[] = []
   const pmFromDevEngines = parseDevEnginesPackageManager(manifest.devEngines)
   if (pmFromDevEngines) {
@@ -669,7 +670,7 @@ function getWantedPackageManager (manifest: ProjectManifest): { pm?: EngineDepen
     if (manifest.packageManager) {
       warnings.push('Cannot use both "packageManager" and "devEngines.packageManager" in package.json. "packageManager" will be ignored')
     }
-    return { pm: pmFromDevEngines, warnings }
+    return { pm: { ...pmFromDevEngines, fromDevEngines: true }, warnings }
   }
   if (manifest.packageManager) {
     const pm = parsePackageManager(manifest.packageManager)

@@ -21,6 +21,23 @@ test('switch to the pnpm version specified in the packageManager field of packag
   expect(stdout.toString()).toContain('Version 9.3.0')
 })
 
+test('packageManager field does not write pnpm resolution info to pnpm-lock.yaml', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  writeJsonFileSync('package.json', {
+    packageManager: 'pnpm@9.3.0',
+  })
+
+  const { stdout } = execPnpmSync(['help'], { env })
+  expect(stdout.toString()).toContain('Version 9.3.0')
+
+  // The legacy packageManager field already pins an exact version in the
+  // manifest itself, so pnpm resolution info must not leak into the lockfile.
+  // This keeps the v10 -> v11 transition quiet.
+  expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
+})
+
 test('do not switch to the pnpm version specified in the packageManager field of package.json, if pmOnFail is set to ignore', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')

@@ -13,6 +13,13 @@ export interface ResolvePackageManagerIntegritiesOpts {
   rootDir: string
   storeController: StoreController
   storeDir: string
+  /**
+   * Whether to read from and write to the env lockfile file on disk.
+   * When false, resolution happens purely in memory; callers can still use
+   * the returned `EnvLockfile` to perform installs without persisting the
+   * resolved pnpm integrity info. Defaults to true.
+   */
+  save?: boolean
 }
 
 /**
@@ -39,7 +46,8 @@ export async function resolvePackageManagerIntegrities (
   pnpmVersion: string,
   opts: ResolvePackageManagerIntegritiesOpts
 ): Promise<EnvLockfile> {
-  const envLockfile = opts.envLockfile ?? (await readEnvLockfile(opts.rootDir)) ?? createEnvLockfile()
+  const save = opts.save ?? true
+  const envLockfile = opts.envLockfile ?? (save ? await readEnvLockfile(opts.rootDir) : undefined) ?? createEnvLockfile()
 
   if (isPackageManagerResolved(envLockfile, pnpmVersion)) {
     return envLockfile
@@ -82,7 +90,9 @@ export async function resolvePackageManagerIntegrities (
     envLockfile.packages = prunedFile.packages ?? {}
     envLockfile.snapshots = prunedFile.snapshots ?? {}
 
-    await writeEnvLockfile(opts.rootDir, envLockfile)
+    if (save) {
+      await writeEnvLockfile(opts.rootDir, envLockfile)
+    }
   }
   return envLockfile
 }

@@ -43,7 +43,18 @@ export interface ConfigContext {
     name: string
     version: string
   }
-  wantedPackageManager?: EngineDependency
+  wantedPackageManager?: WantedPackageManager
+}
+
+/**
+ * The package manager requested by the root project's manifest.
+ * Extends {@link EngineDependency} with the source of the declaration so that
+ * callers can treat the legacy `packageManager` field and
+ * `devEngines.packageManager` differently (e.g. only the latter persists
+ * resolved pnpm integrity info to `pnpm-lock.yaml`).
+ */
+export interface WantedPackageManager extends EngineDependency {
+  fromDevEngines?: boolean
 }
 
 /**

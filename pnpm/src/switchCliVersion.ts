@@ -16,7 +16,17 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
   const pm = context.wantedPackageManager
   if (pm == null || pm.name !== 'pnpm' || pm.version == null) return
 
-  let envLockfile = await readEnvLockfile(context.rootProjectManifestDir) ?? undefined
+  // `devEngines.packageManager` always persists resolved pnpm integrity info
+  // to `pnpm-lock.yaml`. The legacy `packageManager` field only does so when
+  // the pinned version is pnpm v12 or newer — v10 and v11 users transitioning
+  // from v10 should not see unrelated lockfile churn just because a newer
+  // pnpm was invoked in their v10 project.
+  const persistLockfile = pm.fromDevEngines === true ||
+    (semver.valid(pm.version) != null && semver.major(pm.version) >= 12)
+
+  let envLockfile = persistLockfile
+    ? (await readEnvLockfile(context.rootProjectManifestDir) ?? undefined)
+    : undefined
   let storeToUse: Awaited<ReturnType<typeof createStoreController>> | undefined
 
   // Check if the env lockfile already has a resolved version that satisfies the wanted version/range.
@@ -30,6 +40,7 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
       rootDir: context.rootProjectManifestDir,
       storeController: storeToUse.ctrl,
       storeDir: storeToUse.dir,
+      save: persistLockfile,
     })
     pmVersion = envLockfile.importers['.'].packageManagerDependencies?.['pnpm']?.version
     if (!pmVersion) {
@@ -45,6 +56,7 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
       rootDir: context.rootProjectManifestDir,
       storeController: storeToUse.ctrl,
       storeDir: storeToUse.dir,
+      save: persistLockfile,
     })
   }
 
