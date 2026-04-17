@@ -280,14 +280,21 @@ export async function readPkgFromCafs (
 let limitImportingPackage = pLimit(4)
 
 /**
- * Increase import concurrency. Called by the pnpm agent code path where
- * there's no concurrent fetching competing for workers.
+ * Temporarily change import concurrency. Called by the pnpm agent code path
+ * where there's no concurrent fetching competing for workers. Returns a
+ * disposer that restores the previous limiter — callers must invoke it (in a
+ * finally block) to avoid leaking the mutation to other installs in the same
+ * process (e.g. test suites).
  */
-export function setImportConcurrency (concurrency: number): void {
+export function setImportConcurrency (concurrency: number): () => void {
   if (!Number.isInteger(concurrency) || concurrency < 1) {
     throw new Error(`setImportConcurrency: expected a positive integer, got ${concurrency}`)
   }
+  const previous = limitImportingPackage
   limitImportingPackage = pLimit(concurrency)
+  return () => {
+    limitImportingPackage = previous
+  }
 }
 
 export async function importPackage (

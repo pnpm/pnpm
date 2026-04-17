@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import type { DatabaseSync as _DatabaseSync } from 'node:sqlite'
 
@@ -13,6 +12,9 @@ const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof
  */
 export class FileStore {
   private db: _DatabaseSync
+  private getStmt!: ReturnType<_DatabaseSync['prepare']>
+  private hasStmt!: ReturnType<_DatabaseSync['prepare']>
+  private insertStmt!: ReturnType<_DatabaseSync['prepare']>
 
   constructor (dbPath: string) {
     this.db = new DatabaseSync(dbPath)
@@ -27,42 +29,30 @@ export class FileStore {
         executable INTEGER NOT NULL DEFAULT 0
       )
     `)
+    // /v1/files is a hot path (thousands of .get() calls per request), so
+    // prepare statements once in the constructor and reuse them.
+    this.getStmt = this.db.prepare('SELECT content, size FROM files WHERE digest = ?')
+    this.hasStmt = this.db.prepare('SELECT 1 FROM files WHERE digest = ?')
+    this.insertStmt = this.db.prepare(
+      'INSERT OR IGNORE INTO files (digest, content, size, executable) VALUES (?, ?, ?, ?)'
+    )
   }
 
   has (digest: string): boolean {
-    const row = this.db.prepare('SELECT 1 FROM files WHERE digest = ?').get(digest) as { '1': number } | undefined
-    return row !== undefined
+    return this.hasStmt.get(digest) !== undefined
   }
 
   /**
-   * Import a file from the CAFS into the SQLite store.
+   * Bulk insert pre-read file contents. Runs in a transaction for speed.
+   * Callers pass the already-read buffer so we don't re-read from disk.
    */
-  importFromCafs (digest: string, cafsPath: string, executable: boolean): void {
-    if (this.has(digest)) return
-    const content = readFileSync(cafsPath)
-    this.db.prepare(
-      'INSERT OR IGNORE INTO files (digest, content, size, executable) VALUES (?, ?, ?, ?)'
-    ).run(digest, content, content.length, executable ? 1 : 0)
-  }
-
-  /**
-   * Bulk import files from CAFS. Runs in a transaction for speed.
-   */
-  importManyFromCafs (files: Array<{ digest: string, cafsPath: string, executable: boolean }>): number {
-    const insert = this.db.prepare(
-      'INSERT OR IGNORE INTO files (digest, content, size, executable) VALUES (?, ?, ?, ?)'
-    )
+  importMany (files: Array<{ digest: string, content: Buffer, executable: boolean }>): number {
     let imported = 0
-    const existing = this.db.prepare('SELECT digest FROM files WHERE digest = ?')
-
     this.db.exec('BEGIN')
     try {
       for (const file of files) {
-        const row = existing.get(file.digest) as { digest: string } | undefined
-        if (row) continue
-        const content = readFileSync(file.cafsPath)
-        insert.run(file.digest, content, content.length, file.executable ? 1 : 0)
-        imported++
+        const result = this.insertStmt.run(file.digest, file.content, file.content.length, file.executable ? 1 : 0)
+        if (result.changes > 0) imported++
       }
       this.db.exec('COMMIT')
     } catch (err) {
@@ -76,10 +66,7 @@ export class FileStore {
    * Get file content and size for building the archive response.
    */
   get (digest: string): { content: Buffer, size: number } | undefined {
-    const row = this.db.prepare(
-      'SELECT content, size FROM files WHERE digest = ?'
-    ).get(digest) as { content: Buffer, size: number } | undefined
-    return row
+    return this.getStmt.get(digest) as { content: Buffer, size: number } | undefined
   }
 
   close (): void {

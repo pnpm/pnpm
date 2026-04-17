@@ -1869,131 +1869,138 @@ async function installFromPnpmRegistry (
   const { fetchFromPnpmRegistry } = await import('@pnpm/agent.client')
   const { StoreIndex } = await import('@pnpm/store.index')
   const { setImportConcurrency } = await import('@pnpm/worker')
-  setImportConcurrency(6)
+  // Raise import concurrency for this install only — the agent path has no
+  // concurrent fetching competing for workers. Restore afterwards so we
+  // don't leak a process-wide mutation to other installs (e.g. tests).
+  const restoreImportConcurrency = setImportConcurrency(6)
 
-  const lockfileDir = opts.lockfileDir ?? rootDir
+  try {
+    const lockfileDir = opts.lockfileDir ?? rootDir
 
-  // Read existing lockfile if available
-  const existingLockfile = await readWantedLockfile(lockfileDir, {
-    ignoreIncompatible: true,
-  }).catch(() => null)
+    // Read existing lockfile if available
+    const existingLockfile = await readWantedLockfile(lockfileDir, {
+      ignoreIncompatible: true,
+    }).catch(() => null)
 
-  logger.info({ message: 'Resolving dependencies via pnpm agent', prefix: rootDir })
+    logger.info({ message: 'Resolving dependencies via pnpm agent', prefix: rootDir })
 
-  // Open the store index to read integrities and write new entries
-  const storeIndex = new StoreIndex(opts.storeDir)
+    // Open the store index to read integrities and write new entries
+    const storeIndex = new StoreIndex(opts.storeDir)
 
-  // Build projects list for workspace support
-  const projectsList = allInstallProjects && allInstallProjects.length > 1
-    ? allInstallProjects.map(p => ({
-      dir: path.relative(lockfileDir, p.rootDir) || '.',
-      dependencies: p.manifest.dependencies,
-      devDependencies: p.manifest.devDependencies,
-    }))
-    : undefined
+    // Build projects list for workspace support
+    const projectsList = allInstallProjects && allInstallProjects.length > 1
+      ? allInstallProjects.map(p => ({
+        dir: path.relative(lockfileDir, p.rootDir) || '.',
+        dependencies: p.manifest.dependencies,
+        devDependencies: p.manifest.devDependencies,
+      }))
+      : undefined
 
-  const { lockfile, stats, fileDownloads, indexEntries } = await fetchFromPnpmRegistry({
-    registryUrl: opts.agent!,
-    storeDir: opts.storeDir,
-    storeIndex,
-    dependencies: projectsList ? undefined : manifest.dependencies,
-    devDependencies: projectsList ? undefined : manifest.devDependencies,
-    projects: projectsList,
-    overrides: opts.overrides,
-    minimumReleaseAge: opts.minimumReleaseAge,
-    lockfile: existingLockfile ?? undefined,
-  })
+    const { lockfile, stats, fileDownloads, indexEntries } = await fetchFromPnpmRegistry({
+      registryUrl: opts.agent!,
+      storeDir: opts.storeDir,
+      storeIndex,
+      dependencies: projectsList ? undefined : manifest.dependencies,
+      devDependencies: projectsList ? undefined : manifest.devDependencies,
+      projects: projectsList,
+      overrides: opts.overrides,
+      minimumReleaseAge: opts.minimumReleaseAge,
+      lockfile: existingLockfile ?? undefined,
+    })
 
-  // Write store index entries so headless install finds them.
-  const { writeRawIndexEntries } = await import('@pnpm/agent.client')
-  writeRawIndexEntries(indexEntries, storeIndex)
+    // Write store index entries so headless install finds them.
+    const { writeRawIndexEntries } = await import('@pnpm/agent.client')
+    writeRawIndexEntries(indexEntries, storeIndex)
 
-  storeIndex.checkpoint()
-  storeIndex.close()
+    storeIndex.checkpoint()
+    storeIndex.close()
 
-  await writeWantedLockfile(lockfileDir, lockfile)
+    await writeWantedLockfile(lockfileDir, lockfile)
 
-  logger.info({
-    message: `Resolved ${stats.totalPackages} packages: ${stats.alreadyInStore} cached, ${stats.filesToDownload} files to download`,
-    prefix: rootDir,
-  })
+    logger.info({
+      message: `Resolved ${stats.totalPackages} packages: ${stats.alreadyInStore} cached, ${stats.filesToDownload} files to download`,
+      prefix: rootDir,
+    })
 
-  // Wrap fetchPackage to:
-  // 1. Wait for agent file downloads before checking the store
-  // 2. Skip integrity verification — files just written from the agent
-  //    are guaranteed correct (server verified, no rehashing needed)
-  const { readPkgFromCafs } = await import('@pnpm/worker')
-  const { storeIndexKey: _storeIndexKey } = await import('@pnpm/store.index')
-  const wrappedStoreController = {
-    ...opts.storeController,
-    fetchPackage: async (fetchOpts: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-      await fileDownloads
-      const resolution = fetchOpts.pkg.resolution
-      const integrity = resolution?.integrity
-      if (integrity) {
-        const filesIndexFile = _storeIndexKey(integrity, fetchOpts.pkg.id)
-        const result = await readPkgFromCafs(
-          { storeDir: opts.storeDir, verifyStoreIntegrity: false },
-          filesIndexFile,
-          { readManifest: true, expectedPkg: { name: fetchOpts.pkg.name, version: fetchOpts.pkg.version } }
-        )
-        return {
-          fetching: () => Promise.resolve({
-            files: result.files,
-            bundledManifest: result.bundledManifest,
-            integrity,
-          }),
-          filesIndexFile,
+    // Wrap fetchPackage to:
+    // 1. Wait for agent file downloads before checking the store
+    // 2. Skip integrity verification — files just written from the agent
+    //    are guaranteed correct (server verified, no rehashing needed)
+    const { readPkgFromCafs } = await import('@pnpm/worker')
+    const { storeIndexKey: _storeIndexKey } = await import('@pnpm/store.index')
+    const wrappedStoreController = {
+      ...opts.storeController,
+      fetchPackage: async (fetchOpts: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+        await fileDownloads
+        const resolution = fetchOpts.pkg.resolution
+        const integrity = resolution?.integrity
+        if (integrity) {
+          const filesIndexFile = _storeIndexKey(integrity, fetchOpts.pkg.id)
+          const result = await readPkgFromCafs(
+            { storeDir: opts.storeDir, verifyStoreIntegrity: false },
+            filesIndexFile,
+            { readManifest: true, expectedPkg: { name: fetchOpts.pkg.name, version: fetchOpts.pkg.version } }
+          )
+          return {
+            fetching: () => Promise.resolve({
+              files: result.files,
+              bundledManifest: result.bundledManifest,
+              integrity,
+            }),
+            filesIndexFile,
+          }
         }
-      }
-      return opts.storeController.fetchPackage(fetchOpts)
-    },
-  }
+        return opts.storeController.fetchPackage(fetchOpts)
+      },
+    }
 
-  const headlessOpts = {
-    ...opts,
-    // Skip re-verifying files just written from the agent — they're
-    // guaranteed correct (server verified, no rehashing needed).
-    verifyStoreIntegrity: false,
-    storeController: wrappedStoreController,
-    dir: rootDir as string,
-    lockfileDir,
-    engineStrict: opts.engineStrict ?? false,
-    ignoreScripts: opts.ignoreScripts ?? false,
-    sideEffectsCacheRead: opts.sideEffectsCacheRead ?? false,
-    sideEffectsCacheWrite: opts.sideEffectsCacheWrite ?? false,
-    symlink: opts.symlink ?? true,
-    enableModulesDir: opts.enableModulesDir ?? true,
-    include: opts.include ?? { dependencies: true, devDependencies: true, optionalDependencies: true },
-    currentEngine: {
-      nodeVersion: opts.nodeVersion,
-      pnpmVersion: opts.packageManager?.version ?? '',
-    },
-    selectedProjectDirs: (allInstallProjects ?? [{ rootDir }]).map(p => p.rootDir),
-    allProjects: Object.fromEntries(
-      (allInstallProjects ?? [{ rootDir, manifest }]).map((p, i) => [
-        p.rootDir,
-        {
-          binsDir: path.join(p.rootDir, 'node_modules', '.bin'),
-          buildIndex: i,
-          id: (path.relative(lockfileDir, p.rootDir) || '.') as ProjectId,
-          manifest: p.manifest,
-          modulesDir: path.join(p.rootDir, 'node_modules'),
-          rootDir: p.rootDir,
-        },
-      ])
-    ),
-    hoistedDependencies: {},
-    pendingBuilds: [] as string[],
-    skipped: new Set<DepPath>(),
-    wantedLockfile: lockfile,
-  }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { ignoredBuilds } = await headlessInstall(headlessOpts as any)
+    const headlessOpts = {
+      ...opts,
+      // Skip re-verifying files just written from the agent — they're
+      // guaranteed correct (server verified, no rehashing needed).
+      verifyStoreIntegrity: false,
+      storeController: wrappedStoreController,
+      dir: rootDir as string,
+      lockfileDir,
+      engineStrict: opts.engineStrict ?? false,
+      ignoreScripts: opts.ignoreScripts ?? false,
+      sideEffectsCacheRead: opts.sideEffectsCacheRead ?? false,
+      sideEffectsCacheWrite: opts.sideEffectsCacheWrite ?? false,
+      symlink: opts.symlink ?? true,
+      enableModulesDir: opts.enableModulesDir ?? true,
+      include: opts.include ?? { dependencies: true, devDependencies: true, optionalDependencies: true },
+      currentEngine: {
+        nodeVersion: opts.nodeVersion,
+        pnpmVersion: opts.packageManager?.version ?? '',
+      },
+      selectedProjectDirs: (allInstallProjects ?? [{ rootDir }]).map(p => p.rootDir),
+      allProjects: Object.fromEntries(
+        (allInstallProjects ?? [{ rootDir, manifest }]).map((p, i) => [
+          p.rootDir,
+          {
+            binsDir: path.join(p.rootDir, 'node_modules', '.bin'),
+            buildIndex: i,
+            id: (path.relative(lockfileDir, p.rootDir) || '.') as ProjectId,
+            manifest: p.manifest,
+            modulesDir: path.join(p.rootDir, 'node_modules'),
+            rootDir: p.rootDir,
+          },
+        ])
+      ),
+      hoistedDependencies: {},
+      pendingBuilds: [] as string[],
+      skipped: new Set<DepPath>(),
+      wantedLockfile: lockfile,
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { ignoredBuilds } = await headlessInstall(headlessOpts as any)
 
-  return {
-    updatedCatalogs: undefined,
-    updatedManifest: manifest,
-    ignoredBuilds,
+    return {
+      updatedCatalogs: undefined,
+      updatedManifest: manifest,
+      ignoredBuilds,
+    }
+  } finally {
+    restoreImportConcurrency()
   }
 }

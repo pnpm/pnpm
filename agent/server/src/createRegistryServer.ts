@@ -25,6 +25,33 @@ export interface RegistryServerOptions {
   cacheDir: string
   /** Upstream registries to resolve from */
   registries?: Registries
+  /**
+   * Skip importing .jsonl metadata files into SQLite on startup. Set this
+   * to true in forked cluster workers when the primary has already run
+   * {@link warmupMetadataCache} so workers don't re-scan the cache dir.
+   */
+  skipCacheImport?: boolean
+}
+
+/**
+ * Import .jsonl metadata files from the cache directory into SQLite.
+ *
+ * This is idempotent and safe to run multiple times, but it's expensive on
+ * large stores. When running with `cluster`, invoke this once in the primary
+ * before forking workers so every worker doesn't independently re-scan.
+ */
+export async function warmupMetadataCache (opts: {
+  storeDir: string
+  cacheDir: string
+}): Promise<number> {
+  await fs.mkdir(opts.storeDir, { recursive: true })
+  await fs.mkdir(opts.cacheDir, { recursive: true })
+  const metadataStore = new MetadataStore(path.join(opts.storeDir, 'metadata.db'))
+  try {
+    return metadataStore.importFromCacheDir(opts.cacheDir)
+  } finally {
+    metadataStore.close()
+  }
 }
 
 interface ServerContext {
@@ -50,10 +77,14 @@ export async function createRegistryServer (opts: RegistryServerOptions): Promis
   // Pre-populate metadata cache from .jsonl files into SQLite.
   // This makes resolution fast — indexed DB lookup instead of
   // reading/parsing hundreds of multi-MB JSON files from disk.
+  // Skipped when `skipCacheImport` is set (e.g. cluster workers where the
+  // primary already ran this step).
   const metadataStore = new MetadataStore(path.join(storeDir, 'metadata.db'))
-  const metaImported = metadataStore.importFromCacheDir(cacheDir)
-  if (metaImported > 0) {
-    console.log(`  imported ${metaImported} metadata entries to SQLite`)
+  if (!opts.skipCacheImport) {
+    const metaImported = metadataStore.importFromCacheDir(cacheDir)
+    if (metaImported > 0) {
+      console.log(`  imported ${metaImported} metadata entries to SQLite`)
+    }
   }
 
   const { resolve, fetchers, clearResolutionCache } = createClient({
@@ -436,18 +467,18 @@ async function handleFiles (
   gzip.write(jsonBuffer)
 
   // File entries — streamed through gzip. On a SQLite cache miss we read
-  // from CAFS and also insert into the file store so subsequent batches
-  // can serve the same digest from SQLite (one `.get()` vs `readFileSync`).
-  const missing: Array<{ digest: string, cafsPath: string, executable: boolean }> = []
+  // from CAFS and also insert the already-read buffer into the file store
+  // so subsequent batches can serve the same digest from SQLite (one
+  // `.get()` vs `readFileSync`) without re-reading from disk.
+  const missing: Array<{ digest: string, content: Buffer, executable: boolean }> = []
   for (const d of digests) {
     const cached = ctx.fileStore.get(d.digest)
     let content: Buffer
     if (cached) {
       content = cached.content
     } else {
-      const cafsPath = getFilePathByModeInCafs(ctx.storeDir, d.digest, d.executable ? 0o755 : 0o644)
-      content = readFileSync(cafsPath)
-      missing.push({ digest: d.digest, cafsPath, executable: d.executable })
+      content = readFileSync(getFilePathByModeInCafs(ctx.storeDir, d.digest, d.executable ? 0o755 : 0o644))
+      missing.push({ digest: d.digest, content, executable: d.executable })
     }
 
     const header = Buffer.alloc(69)
@@ -459,7 +490,7 @@ async function handleFiles (
     gzip.write(content)
   }
   if (missing.length > 0) {
-    ctx.fileStore.importManyFromCafs(missing)
+    ctx.fileStore.importMany(missing)
   }
 
   // End marker + close gzip stream (which ends the response)

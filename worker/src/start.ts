@@ -554,8 +554,13 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
       }
     }
 
+    // Match the NDJSON client timeout — a stalled connection would otherwise
+    // hang the install indefinitely waiting on `fileDownloads`.
+    const FILES_REQUEST_TIMEOUT_MS = 600_000
+
     const req = requestFn(url, {
       method: 'POST',
+      timeout: FILES_REQUEST_TIMEOUT_MS,
       headers: {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(body),
@@ -602,6 +607,9 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
         resolve({ status: 'success', filesWritten })
       })
       stream.on('error', reject)
+    })
+    req.on('timeout', () => {
+      req.destroy(new Error(`pnpm agent /v1/files request timed out after ${FILES_REQUEST_TIMEOUT_MS / 1000}s`))
     })
     req.on('error', reject)
     req.write(body)
