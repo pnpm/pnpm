@@ -13,12 +13,8 @@ const NOT_IMPLEMENTED_COMMANDS = [
   'pkg',
   'repo',
   'set-script',
-  'star',
-  'stars',
   'team',
   'token',
-  'unstar',
-  'whoami',
   'xmas',
 ]
 
