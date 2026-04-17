@@ -2,6 +2,8 @@
 
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
+use serde::Serialize;
+use std::io::Read;
 use std::path::PathBuf;
 
 #[cfg(not(target_os = "linux"))]
@@ -31,7 +33,77 @@ use std::os::unix::fs::OpenOptionsExt;
 /// worker won the race) are silently skipped via O_EXCL and not counted.
 #[napi]
 pub fn write_files(store_dir: String, payload: Buffer) -> Result<u32> {
-  let bytes: &[u8] = &payload;
+  write_payload_to_cafs(&store_dir, &payload)
+}
+
+/// One digest to request from the agent's `/v1/files` endpoint.
+#[napi(object)]
+pub struct DigestSpec {
+  pub digest: String,
+  pub size: u32,
+  pub executable: bool,
+}
+
+/// POST the given digest list to `{agent_url}/v1/files`, gunzip the response,
+/// parse it, and write each file into the CAFS in parallel.
+///
+/// This collapses the HTTP request, gzip decode, parse, and write steps into
+/// a single NAPI call — the JS side only splits into batches and invokes
+/// this once per batch. Same wire protocol as the Node-side fetch in
+/// worker/src/start.ts, same on-disk output.
+#[napi]
+pub fn fetch_batch(
+  agent_url: String,
+  digests: Vec<DigestSpec>,
+  store_dir: String,
+) -> Result<u32> {
+  #[derive(Serialize)]
+  struct RequestDigest<'a> {
+    digest: &'a str,
+    size: u32,
+    executable: bool,
+  }
+  #[derive(Serialize)]
+  struct RequestBody<'a> {
+    digests: Vec<RequestDigest<'a>>,
+  }
+
+  let body = RequestBody {
+    digests: digests
+      .iter()
+      .map(|d| RequestDigest {
+        digest: &d.digest,
+        size: d.size,
+        executable: d.executable,
+      })
+      .collect(),
+  };
+  let body_json = serde_json::to_vec(&body)
+    .map_err(|e| Error::from_reason(format!("cafs-writer serialize: {e}")))?;
+
+  let url = format!("{}/v1/files", agent_url.trim_end_matches('/'));
+  let agent = ureq::AgentBuilder::new()
+    .timeout(std::time::Duration::from_secs(600))
+    .build();
+  let response = agent
+    .post(&url)
+    .set("Content-Type", "application/json")
+    .set("Accept-Encoding", "gzip")
+    .send_bytes(&body_json)
+    .map_err(|e| Error::from_reason(format!("cafs-writer POST {url}: {e}")))?;
+
+  // The agent always responds with Content-Encoding: gzip. Stream through
+  // a gunzip decoder to avoid materializing the compressed response.
+  let mut gunzipped = Vec::with_capacity(1024 * 1024);
+  let mut reader = flate2::read::GzDecoder::new(response.into_reader());
+  reader
+    .read_to_end(&mut gunzipped)
+    .map_err(|e| Error::from_reason(format!("cafs-writer gunzip: {e}")))?;
+
+  write_payload_to_cafs(&store_dir, &gunzipped)
+}
+
+fn write_payload_to_cafs(store_dir: &str, bytes: &[u8]) -> Result<u32> {
   let entries = parse_payload(bytes)
     .map_err(|e| Error::from_reason(format!("cafs-writer parse error: {e}")))?;
 

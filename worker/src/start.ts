@@ -504,9 +504,12 @@ function writeCafsFiles (message: WriteCafsFilesMessage): { status: string, file
 // Try to load the native CAFS writer. Falls back to the pure-JS streaming
 // parser below when the addon hasn't been built for this platform.
 //
-// The native module also exports a CafsStreamWriter class that parses
-// chunk-by-chunk; empirically on real-install workloads it performs the
-// same as the buffered path, so we stay on the simpler writeFiles call.
+// The native module also exports `fetchBatch` (Rust-side HTTP + gunzip +
+// parse + write) and a `CafsStreamWriter` class, but on darwin both were
+// measured slower than letting Node handle HTTP and gunzip and only
+// handing the uncompressed payload to Rust for parse + write — Node's
+// event loop overlaps socket reads with gunzip concurrently, which the
+// sync `ureq` path can't match.
 let nativeWriteFiles: ((storeDir: string, payload: Buffer) => number) | undefined
 if (!process.env.PNPM_CAFS_WRITER_DISABLE_NATIVE) {
   try {
