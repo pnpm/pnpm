@@ -25,8 +25,6 @@ export interface RegistryServerOptions {
   cacheDir: string
   /** Upstream registries to resolve from */
   registries?: Registries
-  /** Port to listen on */
-  port?: number
 }
 
 interface ServerContext {
@@ -107,11 +105,21 @@ export async function createRegistryServer (opts: RegistryServerOptions): Promis
         res.end(JSON.stringify({ error: 'Not found' }))
       }
     } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Internal server error'
       if (!res.headersSent) {
         res.writeHead(500, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: message }))
+        return
       }
-      const message = err instanceof Error ? err.message : 'Internal server error'
-      res.end(JSON.stringify({ error: message }))
+      // Headers already sent — emit an NDJSON error line for /v1/install so the
+      // client can reject with a structured error. For the binary /v1/files
+      // stream there's no recoverable framing, so just destroy the response.
+      const contentType = res.getHeader('Content-Type')
+      if (typeof contentType === 'string' && contentType.includes('ndjson')) {
+        res.end(`E\t${JSON.stringify({ error: message })}\n`)
+      } else {
+        res.destroy()
+      }
     }
   })
 
@@ -155,7 +163,15 @@ async function handleInstall (
 ): Promise<void> {
   const t0 = performance.now()
   const body = await readBody(req)
-  const request: InstallRequest = JSON.parse(body)
+  let request: InstallRequest
+  try {
+    request = JSON.parse(body)
+  } catch (err: unknown) {
+    res.writeHead(400, { 'Content-Type': 'application/json' })
+    const message = err instanceof Error ? err.message : 'Invalid JSON body'
+    res.end(JSON.stringify({ error: message }))
+    return
+  }
 
   // Build the set of integrities the client already has, so we can
   // compute per-package diffs as packages resolve.
@@ -324,14 +340,14 @@ async function handleInstall (
 
     // Emit remaining digests + index entries for packages not caught
     // by the wrapper (e.g. resolved from a cached lockfile path).
-    const { missingFiles, packageIndexBuffers } = computeDiff(
+    const diff = computeDiff(
       resolvedLockfile,
       request.storeIntegrities ?? [],
       integrityIndex,
       ctx.storeDir
     )
 
-    for (const f of missingFiles) {
+    for (const f of diff.missingFiles) {
       const dedupeKey = `${f.digest}:${f.executable ? 'x' : ''}`
       if (!emittedDigests.has(dedupeKey)) {
         emittedDigests.add(dedupeKey)
@@ -339,7 +355,7 @@ async function handleInstall (
       }
     }
 
-    for (const [depPath, { integrity, rawBuffer }] of packageIndexBuffers) {
+    for (const [depPath, { integrity, rawBuffer }] of diff.packageIndexBuffers) {
       const pkgId = depPath.includes('(') ? depPath.substring(0, depPath.indexOf('(')) : depPath
       const key = `${integrity}\t${pkgId}`
       res.write(`I\t${key}\t${Buffer.from(rawBuffer).toString('base64')}\n`)
@@ -347,16 +363,7 @@ async function handleInstall (
 
     // Send lockfile AFTER all I lines so the client has all index
     // entries before it resolves and starts headless install.
-    const stats = {
-      totalPackages: Object.keys(resolvedLockfile.packages ?? {}).length,
-      alreadyInStore: 0,
-      packagesToFetch: 0,
-      filesInNewPackages: 0,
-      filesAlreadyInCafs: 0,
-      filesToDownload: emittedDigests.size,
-      downloadBytes: 0,
-    }
-    res.write(`L\t${JSON.stringify({ lockfile: resolvedLockfile, stats })}\n`)
+    res.write(`L\t${JSON.stringify({ lockfile: resolvedLockfile, stats: diff.metadata.stats })}\n`)
 
     res.end()
     console.log(`[SERVER /v1/install] ${(performance.now() - t0).toFixed(0)}ms digests=${emittedDigests.size}`)
@@ -376,7 +383,25 @@ async function handleFiles (
   ctx: ServerContext
 ): Promise<void> {
   const body = await readBody(req)
-  const { digests } = JSON.parse(body) as { digests: Array<{ digest: string, size: number, executable: boolean }> }
+  let digests: Array<{ digest: string, size: number, executable: boolean }>
+  try {
+    ;({ digests } = JSON.parse(body) as { digests: Array<{ digest: string, size: number, executable: boolean }> })
+  } catch (err: unknown) {
+    res.writeHead(400, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ error: err instanceof Error ? err.message : 'Invalid JSON body' }))
+    return
+  }
+
+  // A valid sha512 digest is 128 lowercase hex characters (64 bytes).
+  // Reject anything else so we never write garbage into the binary headers
+  // (an invalid 64-byte digest could also collide with the end marker).
+  for (const d of digests ?? []) {
+    if (!isValidSha512Hex(d.digest)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: `Invalid digest: ${d.digest}` }))
+      return
+    }
+  }
 
   // Stream file entries through gzip — no buffering. The server reads
   // one file at a time and pipes it through gzip to the response.
@@ -415,6 +440,12 @@ async function handleFiles (
 
   // End marker + close gzip stream (which ends the response)
   gzip.end(Buffer.alloc(64, 0))
+}
+
+const SHA512_HEX_RE = /^[0-9a-f]{128}$/
+
+function isValidSha512Hex (digest: string): boolean {
+  return typeof digest === 'string' && SHA512_HEX_RE.test(digest)
 }
 
 function readBody (req: http.IncomingMessage): Promise<string> {

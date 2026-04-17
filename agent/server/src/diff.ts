@@ -69,7 +69,6 @@ export function computeDiff (
   // 2. Iterate resolved packages and compute missing files
   const packageIndexBuffers = new Map<string, { integrity: string, rawBuffer: Uint8Array }>()
   const missingFiles: MissingFile[] = []
-  const missingFileInfos: Array<{ digest: string, size: number, executable: boolean }> = []
 
   let totalPackages = 0
   let alreadyInStore = 0
@@ -107,7 +106,6 @@ export function computeDiff (
         clientDigests.add(dedupeKey)
         filesToDownload++
         downloadBytes += fileInfo.size
-        missingFileInfos.push({ digest: fileInfo.digest, size: fileInfo.size, executable })
         missingFiles.push({
           digest: fileInfo.digest,
           size: fileInfo.size,
@@ -125,7 +123,6 @@ export function computeDiff (
   return {
     metadata: {
       lockfile,
-      missingFiles: missingFileInfos,
       stats: {
         totalPackages,
         alreadyInStore,

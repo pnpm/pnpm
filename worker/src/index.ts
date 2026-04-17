@@ -309,6 +309,9 @@ let limitImportingPackage = pLimit(4)
  * there's no concurrent fetching competing for workers.
  */
 export function setImportConcurrency (concurrency: number): void {
+  if (!Number.isInteger(concurrency) || concurrency < 1) {
+    throw new Error(`setImportConcurrency: expected a positive integer, got ${concurrency}`)
+  }
   limitImportingPackage = pLimit(concurrency)
 }
 

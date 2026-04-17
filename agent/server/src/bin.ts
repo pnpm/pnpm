@@ -35,7 +35,6 @@ async function startWorker (): Promise<void> {
     storeDir,
     cacheDir,
     registries: { default: upstream },
-    port,
   })
 
   server.listen(port, () => {

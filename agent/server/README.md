@@ -7,7 +7,8 @@ A pnpm agent server that resolves dependencies server-side and streams only the 
 1. Client sends `POST /v1/install` with dependencies, an optional existing lockfile, and the integrity hashes of packages already in its store.
 2. Server resolves the full dependency tree using pnpm's own resolution engine.
 3. Server computes which file digests the client is missing — at the individual file level, not just the package level.
-4. Server streams a binary response: JSON metadata (lockfile + per-package file indexes) followed by the raw content of missing files.
+4. Server streams an NDJSON response on `/v1/install` (`D`-lines for missing file digests, `I`-lines for pre-packed package index entries, a final `L`-line with the lockfile + stats, or an `E`-line on error).
+5. The client then requests the missing file contents from `POST /v1/files`, which streams a gzip-compressed binary of packed file entries.
 
 This eliminates sequential metadata round-trips (the server resolves in one shot) and avoids downloading files that already exist in the client's store from other packages.
 
@@ -75,8 +76,10 @@ cd my-project
 Add to `pnpm-workspace.yaml`:
 
 ```yaml
-pnpmRegistry: http://localhost:4873
+agent: http://localhost:4873
 ```
+
+Or pass `--config.agent=http://localhost:4873` on the command line.
 
 Then run:
 
@@ -84,7 +87,7 @@ Then run:
 pnpm install
 ```
 
-That's it. pnpm will resolve dependencies on the server, download only the files missing from your local store, and link `node_modules` as usual. Remove the `pnpmRegistry` line to go back to normal behavior.
+That's it. pnpm will resolve dependencies on the server, download only the files missing from your local store, and link `node_modules` as usual. Remove the `agent` setting to go back to normal behavior.
 
 ## API
 
@@ -94,19 +97,39 @@ That's it. pnpm will resolve dependencies on the server, download only the files
 
 ```json
 {
-  "dependencies": { "react": "^19.0.0" },
-  "devDependencies": { "typescript": "^5.0.0" },
+  "projects": [
+    {
+      "dir": ".",
+      "dependencies": { "react": "^19.0.0" },
+      "devDependencies": { "typescript": "^5.0.0" }
+    }
+  ],
   "overrides": {},
   "lockfile": null,
   "storeIntegrities": ["sha512-abc...", "sha512-def..."]
 }
 ```
 
-**Response** (binary, `Content-Type: application/x-pnpm-install`):
+**Response** (NDJSON, `Content-Type: application/x-ndjson`). Each line is one message:
+
+- `D\t{digest}\t{size}\t{executable}` — file digest missing from the client's store.
+- `I\t{integrity}\t{pkgId}\t{base64-msgpack}` — pre-packed package index entry.
+- `L\t{json}` — final lockfile and stats. Emitted last on success.
+- `E\t{json}` — error. Emitted if resolution fails.
+
+### `POST /v1/files`
+
+**Request body** (JSON):
+
+```json
+{ "digests": [{ "digest": "<hex>", "size": 123, "executable": false }] }
+```
+
+**Response** (gzip-compressed binary, `Content-Type: application/x-pnpm-install`):
 
 ```
 [4 bytes: JSON metadata length]
-[N bytes: JSON metadata — lockfile, package file indexes, stats]
+[N bytes: JSON metadata]
 [file entries: 64B digest + 4B size + 1B mode + content, repeated]
 [64 zero bytes: end marker]
 ```

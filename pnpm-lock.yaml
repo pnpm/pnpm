@@ -1428,18 +1428,12 @@ importers:
         specifier: workspace:^
         version: link:../../worker
     devDependencies:
-      '@jest/globals':
-        specifier: 'catalog:'
-        version: 30.3.0
       '@pnpm/agent.client':
         specifier: workspace:*
         version: 'link:'
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
-      cross-env:
-        specifier: 'catalog:'
-        version: 10.1.0
 
   agent/server:
     dependencies:

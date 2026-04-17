@@ -99,6 +99,8 @@ export async function fetchFromPnpmRegistry (
   // in the background, dispatching more file download workers.
   // fileDownloads covers ALL workers (past and future).
   return new Promise<FetchFromPnpmRegistryResult>((resolve, reject) => {
+    let resolved = false
+    let serverError: Error | undefined
     const handleLine = (line: string) => {
       if (line.length === 0) return
       const tabIdx = line.indexOf('\t')
@@ -119,6 +121,7 @@ export async function fetchFromPnpmRegistry (
           stats: ResponseMetadata['stats']
         }
         dispatchBatch()
+        resolved = true
         // Resolve immediately — the caller can start headless install
         // while the stream continues dispatching remaining D/I lines.
         resolve({
@@ -137,14 +140,32 @@ export async function fetchFromPnpmRegistry (
         const key = rest.substring(0, lastTab)
         const buffer = new Uint8Array(Buffer.from(rest.substring(lastTab + 1), 'base64'))
         indexEntries.push({ key, buffer })
+      } else if (type === 'E') {
+        // Server emitted a structured error after headers were sent.
+        // Record it so stream `end` / `catch` can reject with the payload.
+        let message = 'pnpm agent server error'
+        try {
+          const payload = JSON.parse(line.substring(tabIdx + 1)) as { error?: string }
+          if (payload?.error) message = payload.error
+        } catch {
+          // Fall back to the raw payload if it isn't JSON.
+          message = line.substring(tabIdx + 1) || message
+        }
+        serverError = new Error(message)
       }
     }
 
     const streamComplete = streamNdjsonRequest(
-      opts.registryUrl, '/v1/install', requestBody, handleLine
+      opts.registryUrl, 'v1/install', requestBody, handleLine
     )
 
-    streamComplete.catch(reject)
+    streamComplete.then(() => {
+      if (serverError) {
+        reject(serverError)
+      } else if (!resolved) {
+        reject(new Error('pnpm agent server closed the stream without emitting a lockfile'))
+      }
+    }, reject)
   })
 }
 
@@ -171,7 +192,11 @@ async function streamNdjsonRequest (
   body: string,
   onLine: (line: string) => void
 ): Promise<void> {
-  const url = new URL(urlPath, registryUrl)
+  // `urlPath` is expected to be relative (e.g. "v1/install"). We normalize
+  // the base to end with "/" so `new URL(rel, base)` preserves any path
+  // prefix configured on the agent URL (e.g. https://host/pnpm-agent/).
+  const base = registryUrl.endsWith('/') ? registryUrl : `${registryUrl}/`
+  const url = new URL(urlPath, base)
   const isHttps = url.protocol === 'https:'
   const requestFn = isHttps ? https.request : http.request
 

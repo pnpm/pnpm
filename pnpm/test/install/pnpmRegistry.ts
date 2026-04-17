@@ -14,17 +14,19 @@ import { execPnpm } from '../utils/index.js'
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
 let server: http.Server
+let realServer: http.Server
+let tmpBaseDir: string
 let serverPort: number
 let serverStoreDir: string
 let requestCount: number
 
 beforeAll(async () => {
-  const tmpBase = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-agent-e2e-server-'))
-  serverStoreDir = path.join(tmpBase, 'store')
+  tmpBaseDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-agent-e2e-server-'))
+  serverStoreDir = path.join(tmpBaseDir, 'store')
 
-  const realServer = await createRegistryServer({
+  realServer = await createRegistryServer({
     storeDir: serverStoreDir,
-    cacheDir: path.join(tmpBase, 'cache'),
+    cacheDir: path.join(tmpBaseDir, 'cache'),
     registries: { default: REGISTRY },
   })
 
@@ -55,8 +57,10 @@ beforeAll(async () => {
   serverPort = (server.address() as { port: number }).port
 })
 
-afterAll(() => {
-  server.close()
+afterAll(async () => {
+  await new Promise<void>((resolve) => server.close(() => resolve()))
+  await new Promise<void>((resolve) => realServer.close(() => resolve()))
+  await fs.promises.rm(tmpBaseDir, { recursive: true, force: true })
 })
 
 test('pnpm install uses pnpm agent when configured', async () => {

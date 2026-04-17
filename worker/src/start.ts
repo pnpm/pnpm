@@ -507,7 +507,10 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
   const { createGunzip } = await import('node:zlib')
   const { contentPathFromHex } = await import('@pnpm/store.cafs')
 
-  const url = new URL('/v1/files', message.registryUrl)
+  // Preserve any path prefix on the agent URL (e.g. https://host/pnpm-agent/)
+  // by normalizing the base and using a relative URL.
+  const base = message.registryUrl.endsWith('/') ? message.registryUrl : `${message.registryUrl}/`
+  const url = new URL('v1/files', base)
   const requestFn = url.protocol === 'https:' ? https.request : http.request
   const body = JSON.stringify({ digests: message.digests })
   const createdDirs = new Set<string>()
@@ -518,6 +521,7 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
     let filesWritten = 0
     let buf = Buffer.alloc(0)
     let headerSkipped = false
+    let endMarkerSeen = false
     const END_MARKER = Buffer.alloc(64, 0)
 
     const processBuffer = () => {
@@ -533,10 +537,11 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
       }
 
       // Parse complete file entries from the buffer
-      while (headerSkipped) {
+      while (headerSkipped && !endMarkerSeen) {
         if (buf.length < 64) break
         if (buf.subarray(0, 64).equals(END_MARKER)) {
           buf = buf.subarray(64)
+          endMarkerSeen = true
           break
         }
         if (buf.length < 69) break // 64 digest + 4 size + 1 mode
@@ -576,6 +581,18 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
         'Accept-Encoding': 'gzip',
       },
     }, (res: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      // Non-2xx responses are JSON error bodies from the agent server; read
+      // and reject so we never try to gunzip an error payload as a file stream.
+      if (typeof res.statusCode === 'number' && (res.statusCode < 200 || res.statusCode >= 300)) {
+        const chunks: Buffer[] = []
+        res.on('data', (chunk: Buffer) => chunks.push(chunk))
+        res.on('end', () => {
+          reject(new Error(`pnpm agent /v1/files responded with ${res.statusCode}: ${Buffer.concat(chunks).toString('utf-8')}`))
+        })
+        res.on('error', reject)
+        return
+      }
+
       let stream: NodeJS.ReadableStream = res
       if (res.headers['content-encoding'] === 'gzip') {
         const gunzip = createGunzip()
@@ -589,6 +606,18 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
       })
       stream.on('end', () => {
         processBuffer()
+        // Guard against a truncated response: the server must terminate the
+        // stream with the 64-byte end marker. If it didn't, or if there's a
+        // partial entry still in `buf`, fail — otherwise we'd silently leave
+        // the CAFS missing files.
+        if (!endMarkerSeen) {
+          reject(new Error('pnpm agent /v1/files stream ended without the end marker'))
+          return
+        }
+        if (buf.length > 0) {
+          reject(new Error(`pnpm agent /v1/files stream left ${buf.length} unparsed bytes after end marker`))
+          return
+        }
         resolve({ status: 'success', filesWritten })
       })
       stream.on('error', reject)
