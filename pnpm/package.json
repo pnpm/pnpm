@@ -77,6 +77,7 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
+    "@pnpm/agent.server": "workspace:*",
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/auth.commands": "workspace:*",
     "@pnpm/building.commands": "workspace:*",
@@ -114,9 +115,8 @@
     "@pnpm/patching.commands": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "catalog:",
     "@pnpm/registry-access.commands": "workspace:*",
-    "@pnpm/agent.server": "workspace:*",
+    "@pnpm/registry-mock": "catalog:",
     "@pnpm/releasing.commands": "workspace:*",
     "@pnpm/shell.path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",

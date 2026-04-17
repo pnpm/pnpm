@@ -51,6 +51,9 @@
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
   },
+  "optionalDependencies": {
+    "@pnpm/agent.cafs-writer": "workspace:*"
+  },
   "devDependencies": {
     "@pnpm/logger": "workspace:*",
     "@pnpm/types": "workspace:*",
