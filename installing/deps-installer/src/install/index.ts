@@ -1890,10 +1890,13 @@ async function installFromPnpmRegistry (
     const storeIndex = new StoreIndex(opts.storeDir)
     let lockfile, stats, fileDownloads, indexEntries
     try {
-      // Build projects list for workspace support
+      // Build projects list for workspace support.
+      // Normalize separators to POSIX — on Windows `path.relative` returns
+      // backslashes, which the agent server rejects (it treats `\` as an
+      // unsafe/YAML-injection character and normalizes paths as POSIX).
       const projectsList = allInstallProjects && allInstallProjects.length > 1
         ? allInstallProjects.map(p => ({
-          dir: path.relative(lockfileDir, p.rootDir) || '.',
+          dir: (path.relative(lockfileDir, p.rootDir) || '.').split(path.sep).join('/'),
           dependencies: p.manifest.dependencies,
           devDependencies: p.manifest.devDependencies,
         }))
@@ -2006,6 +2009,10 @@ async function installFromPnpmRegistry (
       ignoredBuilds,
     }
   } finally {
+    // Close the storeController to flush queued StoreIndex writes — the
+    // normal install path does the same; skipping it here would leave
+    // pending writes unflushed and diverge from lifecycle expectations.
+    await opts.storeController.close()
     restoreImportConcurrency()
   }
 }

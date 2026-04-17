@@ -427,19 +427,26 @@ async function handleFiles (
   ctx: ServerContext
 ): Promise<void> {
   const body = await readBody(req, FILES_BODY_MAX_BYTES)
-  let digests: Array<{ digest: string, size: number, executable: boolean }>
+  let parsed: { digests?: unknown }
   try {
-    ;({ digests } = JSON.parse(body) as { digests: Array<{ digest: string, size: number, executable: boolean }> })
+    parsed = JSON.parse(body) as { digests?: unknown }
   } catch (err: unknown) {
     res.writeHead(400, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ error: err instanceof Error ? err.message : 'Invalid JSON body' }))
     return
   }
 
+  if (!Array.isArray(parsed.digests)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ error: '`digests` must be an array' }))
+    return
+  }
+  const digests = parsed.digests as Array<{ digest: string, size: number, executable: boolean }>
+
   // A valid sha512 digest is 128 lowercase hex characters (64 bytes).
   // Reject anything else so we never write garbage into the binary headers
   // (an invalid 64-byte digest could also collide with the end marker).
-  for (const d of digests ?? []) {
+  for (const d of digests) {
     if (!isValidSha512Hex(d.digest)) {
       res.writeHead(400, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ error: `Invalid digest: ${d.digest}` }))

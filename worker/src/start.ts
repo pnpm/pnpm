@@ -635,6 +635,14 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
           reject(new Error(`pnpm agent /v1/files stream left ${buf.length} unparsed bytes after end marker`))
           return
         }
+        // Every received entry was drained from `requestedDigests` as it was
+        // parsed; anything still in the set means the server ended cleanly
+        // but omitted files, which would silently leave the CAFS incomplete.
+        if (requestedDigests.size > 0) {
+          const sample = [...requestedDigests].slice(0, 3).join(', ')
+          reject(new Error(`pnpm agent /v1/files omitted ${requestedDigests.size} requested entries (e.g. ${sample})`))
+          return
+        }
         resolve({ status: 'success', filesWritten })
       })
       stream.on('error', reject)
