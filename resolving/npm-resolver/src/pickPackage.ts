@@ -106,19 +106,17 @@ export async function pickPackage (
     return pickPackageFromMeta(pickVersion, filterOpts, targetSpec, meta)
   }
 
-  // Pick a version from the metadata. When `applyMaturityCheck` is false the
-  // publishedBy filter is bypassed — used only by the missing-time fallback.
-  const pickFromMeta = (meta: PackageMeta, { applyMaturityCheck = true }: { applyMaturityCheck?: boolean } = {}): PackageInRegistry | null => {
-    const filterOpts: PickPackageFromMetaOptions = {
-      preferredVersionSelectors: opts.preferredVersionSelectors,
-      publishedBy: applyMaturityCheck ? opts.publishedBy : undefined,
-      publishedByExclude: applyMaturityCheck ? opts.publishedByExclude : undefined,
-    }
-    if (!opts.updateToLatest) {
-      return pickForSpec(spec, meta, filterOpts)
-    }
-    // updateToLatest: compare the "latest" dist-tag against the requested
-    // spec and return whichever resolves to the higher version.
+  const filterOpts: PickPackageFromMetaOptions = {
+    preferredVersionSelectors: opts.preferredVersionSelectors,
+    publishedBy: opts.publishedBy,
+    publishedByExclude: opts.publishedByExclude,
+  }
+
+  // Pick a version from the metadata using the given filter options. When
+  // updateToLatest is set, compares the "latest" dist-tag against the
+  // requested spec and returns whichever resolves to the higher version.
+  const pickBest = (meta: PackageMeta, filterOpts: PickPackageFromMetaOptions): PackageInRegistry | null => {
+    if (!opts.updateToLatest) return pickForSpec(spec, meta, filterOpts)
     const latestSpec: RegistryPackageSpec = { ...spec, type: 'tag', fetchSpec: 'latest' }
     const latest = pickForSpec(latestSpec, meta, filterOpts)
     const current = pickForSpec(spec, meta, filterOpts)
@@ -127,18 +125,20 @@ export async function pickPackage (
     return semver.lt(latest.version, current.version) ? current : latest
   }
 
-  // Wraps pickFromMeta so that, when we've already fetched full metadata
-  // (either directly or via an abbreviated→full upgrade) but it still lacks
-  // the per-version `time` field, we skip the minimumReleaseAge filter with a
-  // warning instead of failing hard. Before a full-metadata attempt has been
-  // made, we let ERR_PNPM_MISSING_TIME propagate so the upgrade path still runs.
+  const pickFromMeta = (meta: PackageMeta): PackageInRegistry | null => pickBest(meta, filterOpts)
+
+  // When we've already fetched full metadata (either directly or via an
+  // abbreviated→full upgrade) but it still lacks the per-version `time` field,
+  // skip the minimumReleaseAge filter with a warning instead of failing hard.
+  // Before a full-metadata attempt has been made, we let ERR_PNPM_MISSING_TIME
+  // propagate so the upgrade path still runs.
   const pickOrSkipMissingTime = (meta: PackageMeta, fullMetadataFetched: boolean): PackageInRegistry | null => {
     try {
-      return pickFromMeta(meta)
+      return pickBest(meta, filterOpts)
     } catch (err: unknown) {
       if (ctx.ignoreMissingTimeField && fullMetadataFetched && isMissingTimeError(err)) {
         warnMissingTimeFieldOnce(meta.name)
-        return pickFromMeta(meta, { applyMaturityCheck: false })
+        return pickBest(meta, { preferredVersionSelectors: opts.preferredVersionSelectors })
       }
       throw err
     }
