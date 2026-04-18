@@ -92,7 +92,7 @@ export async function handleGlobalAdd (
   const ignoredBuilds = await installGlobalPackages(makeInstallOpts(installDir, allowBuilds), params)
 
   await promptApproveGlobalBuilds({
-    globalPkgDir: opts.globalPkgDir,
+    globalPkgDir: globalDir,
     installDir,
     ignoredBuilds,
     allowBuilds,

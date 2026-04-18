@@ -4,7 +4,7 @@ import type { CommandHandlerMap } from '@pnpm/cli.command'
 import type { IgnoredBuilds } from '@pnpm/types'
 
 export interface PromptApproveGlobalBuildsOptions {
-  globalPkgDir?: string
+  globalPkgDir: string
   installDir: string
   ignoredBuilds: IgnoredBuilds | undefined
   allowBuilds: Record<string, string | boolean>
@@ -17,10 +17,13 @@ export interface PromptApproveGlobalBuildsOptions {
  * interactive `approve-builds` flow against the install directory.
  *
  * `settingsDir` points at the global packages directory so the resulting
- * allowBuilds update lands in its pnpm-workspace.yaml. `workspaceDir` is
- * intentionally not set — otherwise the install that approve-builds runs in
- * GVS mode would treat the global packages dir as a workspace and discover
- * sibling install directories as workspace projects.
+ * allowBuilds update lands in its pnpm-workspace.yaml. The
+ * workspace-context fields (`workspaceDir`, `allProjects`,
+ * `selectedProjectsGraph`, `workspacePackagePatterns`) are explicitly
+ * cleared so that the install run by approve-builds in GVS mode operates
+ * only on the install directory — otherwise it would treat the global
+ * packages dir as a workspace and discover sibling install directories as
+ * workspace projects.
  */
 export async function promptApproveGlobalBuilds (
   opts: PromptApproveGlobalBuildsOptions,
@@ -29,6 +32,10 @@ export async function promptApproveGlobalBuilds (
   if (!opts.ignoredBuilds?.size || !process.stdin.isTTY) return
   await commands['approve-builds']({
     ...opts.inheritedOpts,
+    workspaceDir: undefined,
+    allProjects: undefined,
+    selectedProjectsGraph: undefined,
+    workspacePackagePatterns: undefined,
     modulesDir: path.join(opts.installDir, 'node_modules'),
     dir: opts.installDir,
     lockfileDir: opts.installDir,

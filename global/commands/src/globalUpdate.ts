@@ -112,7 +112,7 @@ async function updateGlobalPackageGroup (
   }, depSpecs)
 
   await promptApproveGlobalBuilds({
-    globalPkgDir: opts.globalPkgDir,
+    globalPkgDir: globalDir,
     installDir,
     ignoredBuilds,
     allowBuilds,
