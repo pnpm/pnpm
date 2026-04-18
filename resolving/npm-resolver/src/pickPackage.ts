@@ -68,26 +68,25 @@ export interface PickPackageOptions extends PickPackageFromMetaOptions {
   pickLowestVersion?: boolean
   registry: string
   dryRun: boolean
-  updateToLatest?: boolean
+  includeLatestTag?: boolean
   optional?: boolean
 }
 
 interface PickerContext {
   spec: RegistryPackageSpec
   pickLowestVersion?: boolean
-  updateToLatest?: boolean
+  includeLatestTag?: boolean
   strictPublishedByCheck?: boolean
   ignoreMissingTimeField?: boolean
 }
 
-// Runs `pickOne` for the requested spec, or — when updateToLatest is set —
-// for both the requested spec and the "latest" dist-tag, returning whichever
-// resolves to the higher version.
+// When includeLatestTag is set, the "latest" dist-tag is added as a candidate
+// alongside the requested spec, and the higher-versioned pick wins.
 function runPicker (
   pickCtx: PickerContext,
   pickOne: (targetSpec: RegistryPackageSpec) => PackageInRegistry | null
 ): PackageInRegistry | null {
-  if (!pickCtx.updateToLatest) return pickOne(pickCtx.spec)
+  if (!pickCtx.includeLatestTag) return pickOne(pickCtx.spec)
   const latestStableSpec: RegistryPackageSpec = { ...pickCtx.spec, type: 'tag', fetchSpec: 'latest' }
   return pickMax(pickOne(latestStableSpec), pickOne(pickCtx.spec))
 }
@@ -110,12 +109,14 @@ function pickRespectingMinReleaseAge (
   meta: PackageMeta,
   filterOpts: PickPackageFromMetaOptions
 ): PackageInRegistry | null {
+  const pickHighest = pickPackageFromMeta.bind(null, pickVersionByVersionRange, filterOpts, meta)
+  const pickLowest = pickPackageFromMeta.bind(null, pickLowestVersionByVersionRange, {
+    preferredVersionSelectors: filterOpts.preferredVersionSelectors,
+  }, meta)
   return runPicker(pickCtx, (targetSpec) => {
-    const highest = pickPackageFromMeta(pickVersionByVersionRange, filterOpts, targetSpec, meta)
+    const highest = pickHighest(targetSpec)
     if (highest || pickCtx.strictPublishedByCheck) return highest
-    return pickPackageFromMeta(pickLowestVersionByVersionRange, {
-      preferredVersionSelectors: filterOpts.preferredVersionSelectors,
-    }, targetSpec, meta)
+    return pickLowest(targetSpec)
   })
 }
 
@@ -126,7 +127,7 @@ function pickIgnoringReleaseAge (
   filterOpts: PickPackageFromMetaOptions
 ): PackageInRegistry | null {
   const pickVersion = pickCtx.pickLowestVersion ? pickLowestVersionByVersionRange : pickVersionByVersionRange
-  return runPicker(pickCtx, (targetSpec) => pickPackageFromMeta(pickVersion, filterOpts, targetSpec, meta))
+  return runPicker(pickCtx, (targetSpec) => pickPackageFromMeta(pickVersion, filterOpts, meta, targetSpec))
 }
 
 function pickMatchingVersion (
@@ -180,7 +181,7 @@ export async function pickPackage (
   const pickCtx: PickerContext = {
     spec,
     pickLowestVersion: opts.pickLowestVersion,
-    updateToLatest: opts.updateToLatest,
+    includeLatestTag: opts.includeLatestTag,
     strictPublishedByCheck: ctx.strictPublishedByCheck,
     ignoreMissingTimeField: ctx.ignoreMissingTimeField,
   }
@@ -236,7 +237,7 @@ export async function pickPackage (
       }
     }
 
-    if (!opts.updateToLatest && spec.type === 'version') {
+    if (!opts.includeLatestTag && spec.type === 'version') {
       metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
       // use the cached meta only if it has the required package version
       // otherwise it is probably out of date

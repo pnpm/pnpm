@@ -360,7 +360,7 @@ async function resolveNpm (
       dryRun: opts.dryRun === true,
       preferredVersionSelectors: opts.preferredVersions?.[spec.name],
       registry,
-      updateToLatest: opts.update === 'latest',
+      includeLatestTag: opts.update === 'latest',
       optional: wantedDependency.optional,
     })
   } catch (err: any) { // eslint-disable-line
@@ -502,7 +502,7 @@ async function resolveJsr (
     dryRun: opts.dryRun === true,
     preferredVersionSelectors: opts.preferredVersions?.[spec.name],
     registry,
-    updateToLatest: opts.update === 'latest',
+    includeLatestTag: opts.update === 'latest',
   })
 
   if (pickedPackage == null) {
