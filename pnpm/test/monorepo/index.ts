@@ -108,6 +108,288 @@ invalidWorkspaceManifests.forEach((filename) => {
   })
 })
 
+function readDirOrUndefined (dir: string): string[] | undefined {
+  try {
+    return fs.readdirSync(dir).sort()
+  } catch (err: any) { // eslint-disable-line
+    if (err?.code === 'ENOENT') return undefined
+    throw err
+  }
+}
+
+function readLockfileOrUndefined (lockfilePath: string): LockfileFile | undefined {
+  try {
+    return readYamlFileSync<LockfileFile>(lockfilePath)
+  } catch (err: any) { // eslint-disable-line
+    if (err?.code === 'ENOENT') return undefined
+    throw err
+  }
+}
+
+test('install from a nested directory installs the nested package and does not install the root package when there is no parent workspace file', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+    },
+    {
+      location: 'nested',
+      package: {
+        name: 'nested',
+        version: '1.0.0',
+        private: true,
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
+    },
+  ])
+
+  const cwd = process.cwd()
+  process.chdir('nested')
+
+  try {
+    await execPnpm(['install'])
+  } finally {
+    process.chdir(cwd)
+  }
+
+  expect({
+    rootNodeModules: readDirOrUndefined('node_modules'),
+    rootLockfile: readLockfileOrUndefined(WANTED_LOCKFILE),
+    nestedNodeModules: readDirOrUndefined('nested/node_modules'),
+    nestedLockfile: readLockfileOrUndefined(path.resolve('nested', WANTED_LOCKFILE)),
+  }).toStrictEqual({
+    rootNodeModules: undefined,
+    rootLockfile: undefined,
+    nestedNodeModules: expect.arrayContaining([
+      '.pnpm',
+      'is-negative',
+    ]),
+    nestedLockfile: expect.objectContaining({
+      importers: {
+        '.': {
+          dependencies: {
+            'is-negative': {
+              specifier: '1.0.0',
+              version: '1.0.0',
+            },
+          },
+        },
+      },
+    }),
+  })
+})
+
+test('install from a nested directory installs both projects when the parent workspace explicitly sets packages to "*"', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+    },
+    {
+      location: 'nested',
+      package: {
+        name: 'nested',
+        version: '1.0.0',
+        private: true,
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
+
+  const cwd = process.cwd()
+  process.chdir('nested')
+
+  try {
+    await execPnpm(['install'])
+  } finally {
+    process.chdir(cwd)
+  }
+
+  expect({
+    rootNodeModules: readDirOrUndefined('node_modules'),
+    rootLockfile: readLockfileOrUndefined(WANTED_LOCKFILE),
+    nestedNodeModules: readDirOrUndefined('nested/node_modules'),
+    nestedLockfile: readLockfileOrUndefined(path.resolve('nested', WANTED_LOCKFILE)),
+  }).toStrictEqual({
+    rootNodeModules: expect.arrayContaining([
+      '.pnpm',
+      'is-positive',
+    ]),
+    rootLockfile: expect.objectContaining({
+      importers: {
+        '.': {
+          dependencies: {
+            'is-positive': {
+              specifier: '1.0.0',
+              version: '1.0.0',
+            },
+          },
+        },
+        nested: {
+          dependencies: {
+            'is-negative': {
+              specifier: '1.0.0',
+              version: '1.0.0',
+            },
+          },
+        },
+      },
+    }),
+    nestedNodeModules: expect.arrayContaining([
+      'is-negative',
+    ]),
+    nestedLockfile: undefined,
+  })
+})
+
+test('install from a nested directory installs the nested package and does not install the root package when the parent workspace uses the default package selection', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+    },
+    {
+      location: 'nested',
+      package: {
+        name: 'nested',
+        version: '1.0.0',
+        private: true,
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { })
+
+  const cwd = process.cwd()
+  process.chdir('nested')
+
+  try {
+    await execPnpm(['install'])
+  } finally {
+    process.chdir(cwd)
+  }
+
+  expect({
+    rootNodeModules: readDirOrUndefined('node_modules'),
+    rootLockfile: readLockfileOrUndefined(WANTED_LOCKFILE),
+    nestedNodeModules: readDirOrUndefined('nested/node_modules'),
+    nestedLockfile: readLockfileOrUndefined(path.resolve('nested', WANTED_LOCKFILE)),
+  }).toStrictEqual({
+    rootNodeModules: undefined,
+    rootLockfile: undefined,
+    nestedNodeModules: expect.arrayContaining([
+      '.pnpm',
+      'is-negative',
+    ]),
+    nestedLockfile: expect.objectContaining({
+      importers: {
+        '.': {
+          dependencies: {
+            'is-negative': {
+              specifier: '1.0.0',
+              version: '1.0.0',
+            },
+          },
+        },
+      },
+    }),
+  })
+})
+
+test('install from a nested directory installs the nested package and does not install the root package when the parent workspace explicitly sets packages to "."', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+    },
+    {
+      location: 'nested',
+      package: {
+        name: 'nested',
+        version: '1.0.0',
+        private: true,
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['.'] })
+
+  const cwd = process.cwd()
+  process.chdir('nested')
+
+  try {
+    await execPnpm(['install'])
+  } finally {
+    process.chdir(cwd)
+  }
+
+  expect({
+    rootNodeModules: readDirOrUndefined('node_modules'),
+    rootLockfile: readLockfileOrUndefined(WANTED_LOCKFILE),
+    nestedNodeModules: readDirOrUndefined('nested/node_modules'),
+    nestedLockfile: readLockfileOrUndefined(path.resolve('nested', WANTED_LOCKFILE)),
+  }).toStrictEqual({
+    rootNodeModules: undefined,
+    rootLockfile: undefined,
+    nestedNodeModules: expect.arrayContaining([
+      '.pnpm',
+      'is-negative',
+    ]),
+    nestedLockfile: expect.objectContaining({
+      importers: {
+        '.': {
+          dependencies: {
+            'is-negative': {
+              specifier: '1.0.0',
+              version: '1.0.0',
+            },
+          },
+        },
+      },
+    }),
+  })
+})
+
 test('linking a package inside a monorepo with --link-workspace-packages when installing new dependencies', async () => {
   const projects = preparePackages([
     {
@@ -589,7 +871,7 @@ test('installation with --link-workspace-packages links packages even if they we
     },
   ])
 
-  await execPnpm(['-r', 'install', '--no-link-workspace-packages'])
+  await execPnpm(['-r', 'install', '--verbose', '--no-link-workspace-packages'])
 
   {
     const lockfile = projects.project.readLockfile()
@@ -597,7 +879,7 @@ test('installation with --link-workspace-packages links packages even if they we
     expect(lockfile.importers['.'].dependencies?.negative.version).toBe('is-negative@1.0.0')
   }
 
-  await execPnpm(['-r', 'install', '--link-workspace-packages'])
+  await execPnpm(['-r', 'install', '--verbose', '--link-workspace-packages'])
 
   {
     const lockfile = projects.project.readLockfile()
