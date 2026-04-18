@@ -88,12 +88,12 @@ function runPicker (
   pickOne: (targetSpec: RegistryPackageSpec) => PackageInRegistry | null
 ): PackageInRegistry | null {
   if (!pickCtx.updateToLatest) return pickOne(pickCtx.spec)
-  const latestSpec: RegistryPackageSpec = { ...pickCtx.spec, type: 'tag', fetchSpec: 'latest' }
-  const latest = pickOne(latestSpec)
+  const latestStableSpec: RegistryPackageSpec = { ...pickCtx.spec, type: 'tag', fetchSpec: 'latest' }
+  const latestStable = pickOne(latestStableSpec)
   const current = pickOne(pickCtx.spec)
-  if (!latest) return current
-  if (!current) return latest
-  return semver.lt(latest.version, current.version) ? current : latest
+  if (!latestStable) return current
+  if (!current) return latestStable
+  return semver.lt(latestStable.version, current.version) ? current : latestStable
 }
 
 // When minimumReleaseAge is active: try the highest mature version; if none
