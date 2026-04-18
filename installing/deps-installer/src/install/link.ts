@@ -391,7 +391,7 @@ async function linkNewPackages (
 
   const newPkgs = props<DepPath, DependenciesGraphNode>(newDepPaths, depGraph)
 
-  await Promise.all(newPkgs.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
+  await Promise.all(newPkgs.map(async (depNode) => limitLinking(() => fs.mkdir(depNode.modules, { recursive: true }))))
   await Promise.all([
     !opts.symlink
       ? Promise.resolve()
@@ -467,7 +467,7 @@ async function linkAllPkgs (
   }
 ): Promise<void> {
   await Promise.all(
-    depNodes.map(async (depNode): Promise<undefined> => {
+    depNodes.map(async (depNode): Promise<void> => limitLinking(async () => {
       const { files } = await depNode.fetching()
 
       depNode.requiresBuild = files.requiresBuild
@@ -503,9 +503,9 @@ async function linkAllPkgs (
         const pkg = opts.depGraph[selfDep]
         if (!pkg || !pkg.installable && pkg.optional) return
         const targetModulesDir = path.join(depNode.modules, depNode.name, 'node_modules')
-        await limitLinking(async () => symlinkDependency(pkg.dir, targetModulesDir, depNode.name))
+        await symlinkDependency(pkg.dir, targetModulesDir, depNode.name)
       }
-    })
+    }))
   )
 }
 

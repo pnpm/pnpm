@@ -1,15 +1,14 @@
 import assert from 'node:assert'
-import { constants, existsSync, promises as fsPromises, type Stats } from 'node:fs'
+import { constants, existsSync, type Stats } from 'node:fs'
 import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
 import { packageImportMethodLogger } from '@pnpm/core-loggers'
-import gfs from '@pnpm/fs.graceful-fs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import type { FilesMap, ImportIndexedPackage, ImportOptions } from '@pnpm/store.controller-types'
 import { fastPathTemp as pathTemp } from 'path-temp'
-import { renameOverwrite, renameOverwriteSync } from 'rename-overwrite'
+import { renameOverwrite } from 'rename-overwrite'
 
 import { cloneDir } from './cloneDir.js'
 import { type Importer, type ImportFile, importIndexedDir } from './importIndexedDir.js'
@@ -93,7 +92,7 @@ function createAutoImporter (): ImportIndexedPackage {
       }
     }
     try {
-      if (!(await hardlinkPkg(fs.linkSync, to, opts))) return undefined
+      if (!(await hardlinkPkg(fs.promises.link, to, opts))) return undefined
       packageImportMethodLogger.debug({ method: 'hardlink' })
       auto = hardlinkPkg.bind(null, linkOrCopy)
       return 'hardlink'
@@ -251,7 +250,7 @@ function createCloneFunction (): CloneFunction {
   } else {
     _cloneFunction = (src: string, dest: string) => {
       try {
-        fs.copyFileSync(src, dest, constants.COPYFILE_FICLONE_FORCE)
+        fs.promises.copyFile(src, dest, constants.COPYFILE_FICLONE_FORCE)
       } catch (err: unknown) {
         if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
       }
@@ -305,10 +304,10 @@ async function linkOrCopy (existingPath: string, newPath: string): Promise<void>
 // Fall back to manual read+write which uses plain read/write syscalls.
 async function resilientCopyFileSync (src: string, dest: string): Promise<void> {
   try {
-    await fs.promises.copyFile(src, dest)
+    fs.promises.copyFile(src, dest)
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOTSUP') {
-      const srcMode = (await fs.promises.stat(src)).mode
+      const srcMode = (fs.statSync(src)).mode
       await fs.promises.writeFile(dest, await fs.promises.readFile(src), { mode: srcMode })
     } else {
       throw err

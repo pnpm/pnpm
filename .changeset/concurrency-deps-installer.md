@@ -1,0 +1,1 @@
+---\n"@pnpm/installing.deps-installer": patch\n"pnpm": patch\n---\n\nFix unbounded concurrency when linking packages\n
