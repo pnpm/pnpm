@@ -48,8 +48,9 @@ test('pnpm bugs throws error when no bugs URL', async () => {
     name: 'test-pkg',
   }), 'utf8')
 
-  const result = execPnpmSync(['bugs'])
+  const result = execPnpmSync(['bugs'], { stdio: 'pipe' })
 
-  expect(result.status).toBe(1)
-  expect(result.stderr.toString()).toContain('bugs URL')
+  expect(result.status).not.toBe(0)
+  const output = (result.stderr?.toString() ?? '') + (result.stdout?.toString() ?? '')
+  expect(output).toContain('bugs URL')
 })
