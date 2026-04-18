@@ -80,6 +80,16 @@ interface PickerContext {
   ignoreMissingTimeField?: boolean
 }
 
+// Returns whichever pick has the higher version, treating null as "no match".
+function pickMax (
+  a: PackageInRegistry | null,
+  b: PackageInRegistry | null
+): PackageInRegistry | null {
+  if (!a) return b
+  if (!b) return a
+  return semver.lt(a.version, b.version) ? b : a
+}
+
 // Runs `pickOne` for the requested spec, or — when updateToLatest is set —
 // for both the requested spec and the "latest" dist-tag, returning whichever
 // resolves to the higher version.
@@ -89,11 +99,7 @@ function runPicker (
 ): PackageInRegistry | null {
   if (!pickCtx.updateToLatest) return pickOne(pickCtx.spec)
   const latestStableSpec: RegistryPackageSpec = { ...pickCtx.spec, type: 'tag', fetchSpec: 'latest' }
-  const latestStable = pickOne(latestStableSpec)
-  const current = pickOne(pickCtx.spec)
-  if (!latestStable) return current
-  if (!current) return latestStable
-  return semver.lt(latestStable.version, current.version) ? current : latestStable
+  return pickMax(pickOne(latestStableSpec), pickOne(pickCtx.spec))
 }
 
 // When minimumReleaseAge is active: try the highest mature version; if none
