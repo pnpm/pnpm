@@ -498,15 +498,14 @@ test('GVS approve-builds ignores sibling install dirs under workspace dir', asyn
   prompt.mockResolvedValueOnce({ build: true })
 
   await approveBuilds.handler({
-    ...config,
-    enableGlobalVirtualStore: true,
     // Match the global-install call site: workspaceDir is set but
     // workspacePackagePatterns is undefined (cleared because --global
     // skips workspace detection in the config reader).
+    ...omit(['workspacePackagePatterns'], config),
+    enableGlobalVirtualStore: true,
     workspaceDir: temp,
-    workspacePackagePatterns: undefined as unknown as string[],
     rootProjectManifestDir: process.cwd(),
-  }, [], {})
+  } as ApproveBuildsCommandOpts & RebuildCommandOpts, [], {})
 
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
 })
