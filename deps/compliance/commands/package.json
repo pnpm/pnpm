@@ -57,12 +57,14 @@
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@zkochan/table": "catalog:",
     "chalk": "catalog:",
+    "enquirer": "catalog:",
     "memoize": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:",
     "semver": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/deps.compliance.commands": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/prepare": "workspace:*",
