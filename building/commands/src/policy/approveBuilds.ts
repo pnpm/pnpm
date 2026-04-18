@@ -206,18 +206,21 @@ Do you approve?`,
   }
   if (buildPackages.length) {
     if (opts.enableGlobalVirtualStore) {
+      // Detect the global-install case: globalAdd/globalUpdate forward
+      // workspaceDir (the global packages dir) purely so writeSettings can
+      // update its pnpm-workspace.yaml, but the install itself must operate
+      // on the single install dir. Config loading in --global mode leaves
+      // workspacePackagePatterns undefined, so we use that as the signal;
+      // in a real GVS-enabled workspace it's always set by the config reader.
+      const isGlobalInstall = opts.workspaceDir != null && (opts as { workspacePackagePatterns?: string[] }).workspacePackagePatterns == null
       await install.handler({
         ...opts,
         allowBuilds,
         frozenLockfile: true,
         optimisticRepeatInstall: false,
-        // In global-install flows, workspaceDir is set to the global package
-        // directory so writeSettings above can update its pnpm-workspace.yaml.
-        // Clear it before running install so sibling install dirs inside the
-        // global package directory aren't discovered as workspace projects.
-        workspaceDir: undefined,
-        allProjects: undefined,
-        selectedProjectsGraph: undefined,
+        ...(isGlobalInstall
+          ? { workspaceDir: undefined, allProjects: undefined, selectedProjectsGraph: undefined }
+          : {}),
       } as any, [], commands) // eslint-disable-line @typescript-eslint/no-explicit-any
       return
     }
