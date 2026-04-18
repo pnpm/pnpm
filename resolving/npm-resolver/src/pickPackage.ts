@@ -5,7 +5,7 @@ import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR } from '@pn
 import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import gfs from '@pnpm/fs.graceful-fs'
-import { logger } from '@pnpm/logger'
+import { globalWarn, logger } from '@pnpm/logger'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import getRegistryName from 'encode-registry'
 import pLimit, { type LimitFunction } from 'p-limit'
@@ -110,23 +110,52 @@ export async function pickPackage (
     preferredVersionSelectors: opts.preferredVersionSelectors,
     publishedBy: opts.publishedBy,
     publishedByExclude: opts.publishedByExclude,
-    ignoreMissingTimeField: ctx.ignoreMissingTimeField,
+  })
+
+  const pickVersionFn = opts.pickLowestVersion ? pickLowestVersionByVersionRange : pickVersionByVersionRange
+  const pickPackageFromMetaBySpecNoPublishedBy = pickPackageFromMeta.bind(null, pickVersionFn).bind(null, {
+    preferredVersionSelectors: opts.preferredVersionSelectors,
   })
 
   let _pickPackageFromMeta!: (meta: PackageMeta) => PackageInRegistry | null
+  let _pickPackageFromMetaNoPublishedBy!: (meta: PackageMeta) => PackageInRegistry | null
   if (opts.updateToLatest) {
-    _pickPackageFromMeta = (meta) => {
+    const makePicker = (pick: (spec: RegistryPackageSpec, meta: PackageMeta) => PackageInRegistry | null) => (meta: PackageMeta) => {
       const latestStableSpec: RegistryPackageSpec = { ...spec, type: 'tag', fetchSpec: 'latest' }
-      const latestStable = pickPackageFromMetaBySpec(latestStableSpec, meta)
-      const current = pickPackageFromMetaBySpec(spec, meta)
+      const latestStable = pick(latestStableSpec, meta)
+      const current = pick(spec, meta)
 
       if (!latestStable) return current
       if (!current) return latestStable
       if (semver.lt(latestStable.version, current.version)) return current
       return latestStable
     }
+    _pickPackageFromMeta = makePicker(pickPackageFromMetaBySpec)
+    _pickPackageFromMetaNoPublishedBy = makePicker(pickPackageFromMetaBySpecNoPublishedBy)
   } else {
     _pickPackageFromMeta = pickPackageFromMetaBySpec.bind(null, spec)
+    _pickPackageFromMetaNoPublishedBy = pickPackageFromMetaBySpecNoPublishedBy.bind(null, spec)
+  }
+
+  // Wraps the final pick call so that, when we've already fetched full metadata
+  // (either directly or via an abbreviated→full upgrade) but it still lacks the
+  // per-version `time` field, we skip the minimumReleaseAge filter with a warning
+  // instead of failing hard. Before a full-metadata attempt has been made, we
+  // let ERR_PNPM_MISSING_TIME propagate so the upgrade-to-full path still runs.
+  const pickWithMissingTimeFallback = (meta: PackageMeta, fullMetadataFetched: boolean): PackageInRegistry | null => {
+    try {
+      return _pickPackageFromMeta(meta)
+    } catch (err: unknown) {
+      if (
+        ctx.ignoreMissingTimeField &&
+        fullMetadataFetched &&
+        isMissingTimeError(err)
+      ) {
+        warnMissingTimeFieldOnce(meta.name)
+        return _pickPackageFromMetaNoPublishedBy(meta)
+      }
+      throw err
+    }
   }
 
   validatePackageName(spec.name)
@@ -254,6 +283,7 @@ export async function pickPackage (
 
       let meta = fetchResult.meta
       let resultToSave: FetchMetadataResult = fetchResult
+      let fullMetadataFetched = fullMetadata
 
       // When minimumReleaseAge is active and we fetched abbreviated metadata,
       // check if the package was recently modified and needs full metadata
@@ -292,6 +322,7 @@ export async function pickPackage (
           if (!fullFetchResult.notModified) {
             resultToSave = fullFetchResult
             meta = fullFetchResult.meta
+            fullMetadataFetched = true
           }
         }
       }
@@ -317,7 +348,7 @@ export async function pickPackage (
       ctx.metaCache.set(cacheKey, meta)
       return {
         meta,
-        pickedPackage: _pickPackageFromMeta(meta),
+        pickedPackage: pickWithMissingTimeFallback(meta, fullMetadataFetched),
       }
     } catch (err: any) { // eslint-disable-line
       err.spec = spec
@@ -396,6 +427,14 @@ function isMissingTimeError (err: unknown): boolean {
     'code' in err &&
     (err as { code: string }).code === 'ERR_PNPM_MISSING_TIME'
   )
+}
+
+const warnedMissingTimeFor = new Set<string>()
+
+function warnMissingTimeFieldOnce (pkgName: string): void {
+  if (warnedMissingTimeFor.has(pkgName)) return
+  warnedMissingTimeFor.add(pkgName)
+  globalWarn(`The metadata of ${pkgName} is missing the "time" field; skipping the minimumReleaseAge check for this package.`)
 }
 
 async function getFileMtime (filePath: string): Promise<Date | null> {

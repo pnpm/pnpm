@@ -236,6 +236,37 @@ test('ignoreMissingTimeField=true skips maturity check when full metadata has no
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
 })
 
+test('ignoreMissingTimeField=true still upgrades abbreviated→full when time is missing', async () => {
+  // With ignoreMissingTimeField=true, pnpm should still re-fetch full metadata
+  // when abbreviated metadata lacks time — only falling back to skip+warn if
+  // even the full metadata has no time field. Here the full response DOES have
+  // time, so the maturity check must run (and pick the old 1.0.0, not latest).
+  const recentAbbreviated = {
+    ...isPositiveAbbreviatedMeta,
+    modified: '2015-06-10T00:00:00.000Z',
+  }
+
+  const agent = getMockAgent().get(registries.default.replace(/\/$/, ''))
+  agent.intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, recentAbbreviated)
+  agent.intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registries,
+    ignoreMissingTimeField: true,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^1.0.0' }, {
+    publishedBy: new Date('2015-06-05T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@1.0.0')
+})
+
 test('ignoreMissingTimeField=false throws when full metadata has no time field', async () => {
   const { time: _time, ...metaWithoutTime } = isPositiveMeta
 
