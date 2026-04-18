@@ -44,7 +44,6 @@ describe('owner command', () => {
     ])
 
     const result = await owner.handler({
-      registry: 'https://registry.npmjs.org/',
       registries: {
         default: 'https://registry.npmjs.org/',
       },
@@ -57,7 +56,6 @@ describe('owner command', () => {
   it('owner ls: should throw when no package name provided', async () => {
     await expect(async () => {
       await owner.handler({
-        registry: 'https://registry.npmjs.org/',
         registries: {
           default: 'https://registry.npmjs.org/',
         },
@@ -74,7 +72,6 @@ describe('owner command', () => {
 
     await expect(async () => {
       await owner.handler({
-        registry: 'https://registry.npmjs.org/',
         registries: {
           default: 'https://registry.npmjs.org/',
         },
@@ -103,7 +100,6 @@ describe('owner command', () => {
   it('owner add: should throw when package name and owner not provided', async () => {
     await expect(async () => {
       await owner.handler({
-        registry: 'https://registry.npmjs.org/',
         registries: {
           default: 'https://registry.npmjs.org/',
         },
@@ -114,7 +110,6 @@ describe('owner command', () => {
   it('owner add: should throw when owner not provided', async () => {
     await expect(async () => {
       await owner.handler({
-        registry: 'https://registry.npmjs.org/',
         registries: {
           default: 'https://registry.npmjs.org/',
         },
@@ -142,7 +137,6 @@ describe('owner command', () => {
   it('owner rm: should throw when package name and owner not provided', async () => {
     await expect(async () => {
       await owner.handler({
-        registry: 'https://registry.npmjs.org/',
         registries: {
           default: 'https://registry.npmjs.org/',
         },
@@ -153,7 +147,6 @@ describe('owner command', () => {
   it('owner rm: should throw when owner not provided', async () => {
     await expect(async () => {
       await owner.handler({
-        registry: 'https://registry.npmjs.org/',
         registries: {
           default: 'https://registry.npmjs.org/',
         },
@@ -170,7 +163,6 @@ describe('owner command', () => {
 
     await expect(async () => {
       await owner.handler({
-        registry: 'https://registry.npmjs.org/',
         registries: {
           default: 'https://registry.npmjs.org/',
         },
@@ -187,7 +179,6 @@ describe('owner command', () => {
 
     await expect(async () => {
       await owner.handler({
-        registry: 'https://registry.npmjs.org/',
         registries: {
           default: 'https://registry.npmjs.org/',
         },
@@ -204,7 +195,6 @@ describe('owner command', () => {
 
     await expect(async () => {
       await owner.handler({
-        registry: 'https://registry.npmjs.org/',
         registries: {
           default: 'https://registry.npmjs.org/',
         },
