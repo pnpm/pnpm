@@ -130,7 +130,10 @@ function pickIgnoringReleaseAge (
   return runPicker(pickCtx, (targetSpec) => pickPackageFromMeta(pickVersion, filterOpts, meta, targetSpec))
 }
 
-function pickMatchingVersion (
+// Used in shortcut/fall-through paths: if it fails (including with
+// ERR_PNPM_MISSING_TIME), the caller falls through to the next path — e.g.
+// the network fetch that can upgrade abbreviated metadata to full.
+function pickMatchingVersionFast (
   pickCtx: PickerContext,
   meta: PackageMeta,
   filterOpts: PickPackageFromMetaOptions
@@ -140,22 +143,21 @@ function pickMatchingVersion (
     : pickIgnoringReleaseAge(pickCtx, meta, filterOpts)
 }
 
-// When metadata lacks the per-version `time` field and ignoreMissingTimeField
-// is enabled, skip the minimumReleaseAge filter with a warning instead of
-// failing hard. Used only at terminal return sites; the cache/fallback paths
-// that deliberately rely on ERR_PNPM_MISSING_TIME to trigger an upgrade-to-full
-// fetch keep calling pickMatchingVersion directly inside their try/catch.
-function pickTolerantOfMissingTime (
+// Used at terminal return sites where no further fallback path exists. When
+// metadata lacks the per-version `time` field and ignoreMissingTimeField is
+// enabled, skip the minimumReleaseAge filter with a warning instead of
+// failing hard.
+function pickMatchingVersionFinal (
   pickCtx: PickerContext,
   meta: PackageMeta,
   filterOpts: PickPackageFromMetaOptions
 ): PackageInRegistry | null {
   try {
-    return pickMatchingVersion(pickCtx, meta, filterOpts)
+    return pickMatchingVersionFast(pickCtx, meta, filterOpts)
   } catch (err: unknown) {
     if (pickCtx.ignoreMissingTimeField && isMissingTimeError(err)) {
       warnMissingTimeFieldOnce(meta.name)
-      return pickMatchingVersion(pickCtx, meta, { preferredVersionSelectors: filterOpts.preferredVersionSelectors })
+      return pickMatchingVersionFast(pickCtx, meta, { preferredVersionSelectors: filterOpts.preferredVersionSelectors })
     }
     throw err
   }
@@ -205,7 +207,7 @@ export async function pickPackage (
   if (cachedMeta != null) {
     return {
       meta: cachedMeta,
-      pickedPackage: pickTolerantOfMissingTime(pickCtx, cachedMeta, filterOpts),
+      pickedPackage: pickMatchingVersionFinal(pickCtx, cachedMeta, filterOpts),
     }
   }
 
@@ -220,14 +222,14 @@ export async function pickPackage (
       if (ctx.offline) {
         if (metaCachedInStore != null) return {
           meta: metaCachedInStore,
-          pickedPackage: pickTolerantOfMissingTime(pickCtx, metaCachedInStore, filterOpts),
+          pickedPackage: pickMatchingVersionFinal(pickCtx, metaCachedInStore, filterOpts),
         }
 
         throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
       }
 
       if (metaCachedInStore != null) {
-        const pickedPackage = pickTolerantOfMissingTime(pickCtx, metaCachedInStore, filterOpts)
+        const pickedPackage = pickMatchingVersionFinal(pickCtx, metaCachedInStore, filterOpts)
         if (pickedPackage) {
           return {
             meta: metaCachedInStore,
@@ -243,7 +245,7 @@ export async function pickPackage (
       // otherwise it is probably out of date
       if ((metaCachedInStore?.versions?.[spec.fetchSpec]) != null) {
         try {
-          const pickedPackage = pickMatchingVersion(pickCtx, metaCachedInStore, filterOpts)
+          const pickedPackage = pickMatchingVersionFast(pickCtx, metaCachedInStore, filterOpts)
           if (pickedPackage) {
             return {
               meta: metaCachedInStore,
@@ -263,7 +265,7 @@ export async function pickPackage (
         metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
         if (metaCachedInStore != null) {
           try {
-            const pickedPackage = pickMatchingVersion(pickCtx, metaCachedInStore, filterOpts)
+            const pickedPackage = pickMatchingVersionFast(pickCtx, metaCachedInStore, filterOpts)
             if (pickedPackage) {
               return {
                 meta: metaCachedInStore,
@@ -307,7 +309,7 @@ export async function pickPackage (
           ctx.metaCache.set(cacheKey, metaCachedInStore)
           return {
             meta: metaCachedInStore,
-            pickedPackage: pickTolerantOfMissingTime(pickCtx, metaCachedInStore, filterOpts),
+            pickedPackage: pickMatchingVersionFinal(pickCtx, metaCachedInStore, filterOpts),
           }
         }
         throw new PnpmError('CACHE_MISSING_AFTER_304',
@@ -379,7 +381,7 @@ export async function pickPackage (
       ctx.metaCache.set(cacheKey, meta)
       return {
         meta,
-        pickedPackage: pickTolerantOfMissingTime(pickCtx, meta, filterOpts),
+        pickedPackage: pickMatchingVersionFinal(pickCtx, meta, filterOpts),
       }
     } catch (err: any) { // eslint-disable-line
       err.spec = spec
@@ -389,7 +391,7 @@ export async function pickPackage (
       logger.debug({ message: `Using cached meta from ${pkgMirror}` })
       return {
         meta,
-        pickedPackage: pickTolerantOfMissingTime(pickCtx, meta, filterOpts),
+        pickedPackage: pickMatchingVersionFinal(pickCtx, meta, filterOpts),
       }
     }
   })
