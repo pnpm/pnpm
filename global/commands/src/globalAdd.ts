@@ -19,6 +19,7 @@ import { symlinkDir } from 'symlink-dir'
 
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
 import { installGlobalPackages } from './installGlobalPackages.js'
+import { promptApproveGlobalBuilds } from './promptApproveGlobalBuilds.js'
 import { readInstalledPackages } from './readInstalledPackages.js'
 
 export type GlobalAddOptions = CreateStoreControllerOptions & {
@@ -90,27 +91,13 @@ export async function handleGlobalAdd (
 
   const ignoredBuilds = await installGlobalPackages(makeInstallOpts(installDir, allowBuilds), params)
 
-  // If any packages had their builds skipped, prompt the user to approve them
-  // (reuses the same interactive flow as `pnpm approve-builds`)
-  if (ignoredBuilds?.size && process.stdin.isTTY) {
-    // Pass the global packages directory as settingsDir so approve-builds
-    // writes the allowBuilds update into its pnpm-workspace.yaml. We don't
-    // set workspaceDir here — otherwise the install it runs would treat the
-    // global packages dir as a workspace and scan sibling install dirs as
-    // workspace projects.
-    await commands['approve-builds']({
-      ...opts,
-      modulesDir: path.join(installDir, 'node_modules'),
-      dir: installDir,
-      lockfileDir: installDir,
-      rootProjectManifest: undefined,
-      rootProjectManifestDir: installDir,
-      settingsDir: opts.globalPkgDir!,
-      global: false,
-      pending: false,
-      allowBuilds,
-    }, [], commands)
-  }
+  await promptApproveGlobalBuilds({
+    globalPkgDir: opts.globalPkgDir,
+    installDir,
+    ignoredBuilds,
+    allowBuilds,
+    inheritedOpts: opts,
+  }, commands)
 
   // Read resolved aliases from the installed package.json
   const pkgJson = readPackageJsonFromDirRawSync(installDir)
