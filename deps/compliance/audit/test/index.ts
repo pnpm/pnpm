@@ -320,7 +320,43 @@ describe('audit', () => {
 
       expect(err).toBeDefined()
       expect(err.code).toBe('ERR_PNPM_AUDIT_BAD_RESPONSE')
-      expect(err.message).toBe('The audit endpoint (at http://registry.registry/-/npm/v1/security/advisories/bulk) responded with 500: {"message":"Something bad happened"}')
+      expect(err.message).toContain('responded with 500:')
+      expect(err.hint).toBeUndefined()
+    } finally {
+      await teardownMockAgent()
+    }
+  })
+
+  test('an error with retirement hint is thrown if the audit endpoint responds with 410', async () => {
+    const registry = 'http://registry.registry/'
+    const getAuthHeader = () => undefined
+    await setupMockAgent()
+    getMockAgent().get('http://registry.registry')
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(410, { error: 'This endpoint is being retired.' })
+
+    try {
+      let err!: PnpmError
+      try {
+        await audit({
+          importers: {},
+          lockfileVersion: LOCKFILE_VERSION,
+        },
+        getAuthHeader,
+        {
+          registry,
+          retry: {
+            retries: 0,
+          },
+        })
+      } catch (_err: any) { // eslint-disable-line
+        err = _err
+      }
+
+      expect(err).toBeDefined()
+      expect(err.code).toBe('ERR_PNPM_AUDIT_BAD_RESPONSE')
+      expect(err.message).toContain('responded with 410:')
+      expect(err.hint).toContain('pnpm dlx pnpm@11.0.0-rc.1 audit')
     } finally {
       await teardownMockAgent()
     }
