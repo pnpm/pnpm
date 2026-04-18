@@ -97,6 +97,16 @@ export type WorkspacePackages = Map<string, WorkspacePackagesByVersion>
 // It is important to give a bigger weight to direct dependencies.
 export const DIRECT_DEP_SELECTOR_WEIGHT = 1000
 
+// This weight is set for concrete versions of dependencies preexisting in the
+// wanted lockfile. When adding a dependency, prefer existing versions first.
+//
+// This needs to be a higher weight than DIRECT_DEP_SELECTOR_WEIGHT since direct
+// dependency specifiers can match a range of versions. Versions on the registry
+// not present in the lockfile should be considered at a lower weight than
+// matching pre-existing versions. If this is not the case, pnpm could suddenly
+// introduce a new version in the lockfile when an existing version works.
+export const EXISTING_VERSION_SELECTOR_WEIGHT = 1_000_000
+
 export type VersionSelectorType = 'version' | 'range' | 'tag'
 
 export interface VersionSelectors {

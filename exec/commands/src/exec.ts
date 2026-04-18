@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl, readProjectManifestOnly, type RecursiveSummary, throwOnCommandFail } from '@pnpm/cli.utils'
-import { type Config, getWorkspaceConcurrency, types } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, getWorkspaceConcurrency, types } from '@pnpm/config.reader'
 import { lifecycleLogger, type LifecycleMessage } from '@pnpm/core-loggers'
 import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
@@ -136,7 +136,7 @@ export function getExecutionDuration (start: [number, number]): number {
   return (end[0] * 1e9 + end[1]) / 1e6
 }
 
-export type ExecOpts = Required<Pick<Config, 'selectedProjectsGraph'>> & {
+export type ExecOpts = Required<Pick<ConfigContext, 'selectedProjectsGraph'>> & {
   bail?: boolean
   unsafePerm?: boolean
   reverse?: boolean
@@ -148,7 +148,6 @@ export type ExecOpts = Required<Pick<Config, 'selectedProjectsGraph'>> & {
   implicitlyFellbackFromRun?: boolean
 } & Pick<Config,
 | 'bin'
-| 'cliOptions'
 | 'dir'
 | 'extraBinPaths'
 | 'extraEnv'
@@ -156,13 +155,12 @@ export type ExecOpts = Required<Pick<Config, 'selectedProjectsGraph'>> & {
 | 'modulesDir'
 | 'nodeOptions'
 | 'pnpmHomeDir'
-| 'rawConfig'
 | 'recursive'
 | 'reporterHidePrefix'
 | 'userAgent'
 | 'verifyDepsBeforeRun'
 | 'workspaceDir'
-> & CheckDepsStatusOptions
+> & Pick<ConfigContext, 'cliOptions'> & CheckDepsStatusOptions
 
 export async function handler (
   opts: ExecOpts,

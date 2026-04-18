@@ -1,5 +1,47 @@
 # @pnpm/filter-workspace-packages
 
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [cee550a]
+  - @pnpm/workspace.projects-reader@1101.0.0
+
+## 1100.0.1
+
+### Patch Changes
+
+- @pnpm/workspace.projects-graph@1100.0.1
+- @pnpm/workspace.projects-reader@1100.0.1
+- @pnpm/workspace.workspace-manifest-reader@1100.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- 1fd7370: Drop `directory` as required filetype for `findUp` to allow git-based filtering to work inside git worktrees, which store `.git` as a file rather than directory.
+- 4a36b9a: Refactor workspace domains: rename `project-finder` to `projects-reader`, merge `filter-packages-from-dir` into `filter-workspace-packages`, and rename it to `projects-filter`. Also, move and rename `config/deps-installer` to `installing/env-installer`.
+
+### Patch Changes
+
+- Updated dependencies [491a84f]
+- Updated dependencies [075aa99]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [4a36b9a]
+- Updated dependencies [2b14c74]
+- Updated dependencies [71de2b3]
+- Updated dependencies [831f574]
+  - @pnpm/workspace.projects-reader@1001.0.0
+  - @pnpm/workspace.workspace-manifest-reader@1001.0.0
+  - @pnpm/workspace.projects-graph@1001.0.0
+  - @pnpm/config.matcher@1001.0.0
+  - @pnpm/error@1001.0.0
+
 ## 1000.0.43
 
 ### Patch Changes

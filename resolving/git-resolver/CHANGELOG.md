@@ -1,5 +1,57 @@
 # @pnpm/git-resolver
 
+## 1100.0.1
+
+### Patch Changes
+
+- @pnpm/network.fetch@1100.0.1
+- @pnpm/resolving.resolver-base@1100.0.1
+
+## 1002.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- ec7c5d7: Support plain `http://` and `https://` URLs ending with `.git` as git repository dependencies.
+
+  Previously, URLs like `https://gitea.example.org/user/repo.git#commit` were not recognized as git repositories because they lacked the `git+` prefix (e.g., `git+https://`). This caused issues when installing dependencies from self-hosted git servers like Gitea or Forgejo that don't provide tarball downloads.
+
+  Changes:
+
+  - The git resolver now runs before the tarball resolver, ensuring git URLs are handled by the correct resolver
+  - The git resolver now recognizes plain `http://` and `https://` URLs ending in `.git` as git repositories
+  - Removed the `isRepository` check from the tarball resolver since it's no longer needed with the new resolver order
+
+  Fixes #10468
+
+### Patch Changes
+
+- 01760da: Fix installation of Git dependencies using annotated tags [#10335](https://github.com/pnpm/pnpm/issues/10335).
+
+  Previously, pnpm would store the annotated tag object's SHA in the lockfile instead of the actual commit SHA. This caused `ERR_PNPM_GIT_CHECKOUT_FAILED` errors because the checked-out commit hash didn't match the stored tag object hash.
+
+- c5fbdde: Always resolve git references to full commits and ensure `HEAD` points to the commit after checkout [#10310](https://github.com/pnpm/pnpm/pull/10310).
+- Updated dependencies [facdd71]
+- Updated dependencies [9b0a460]
+- Updated dependencies [491a84f]
+- Updated dependencies [0dfa8b8]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [50fbeca]
+- Updated dependencies [bb8baa7]
+- Updated dependencies [6c480a4]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [831f574]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [6b3d87a]
+  - @pnpm/resolving.resolver-base@1006.0.0
+  - @pnpm/error@1001.0.0
+  - @pnpm/network.fetch@1001.0.0
+
 ## 1001.1.5
 
 ### Patch Changes

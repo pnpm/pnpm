@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config.reader",
-  "version": "1004.4.2",
+  "version": "1101.0.0",
   "description": "Gets configuration options for pnpm",
   "keywords": [
     "pnpm",
@@ -25,11 +25,11 @@
     "!*.map"
   ],
   "scripts": {
-    "prepublishOnly": "pnpm run compile",
+    "prepublishOnly": "pn compile",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "test": "pnpm run compile && pnpm run .test",
+    "test": "pn compile && pn .test",
     "start": "tsgo --watch",
-    "compile": "tsgo --build && pnpm run lint --fix",
+    "compile": "tsgo --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
@@ -41,7 +41,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/hooks.pnpmfile": "workspace:*",
     "@pnpm/network.git-utils": "workspace:*",
-    "@pnpm/npm-conf": "catalog:",
+    "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/text.naming-cases": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
@@ -60,8 +60,7 @@
     "ramda": "catalog:",
     "read-ini-file": "catalog:",
     "realpath-missing": "catalog:",
-    "semver": "catalog:",
-    "which": "catalog:"
+    "semver": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -75,7 +74,6 @@
     "@types/lodash.kebabcase": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
-    "@types/which": "catalog:",
     "symlink-dir": "catalog:",
     "write-yaml-file": "catalog:"
   },

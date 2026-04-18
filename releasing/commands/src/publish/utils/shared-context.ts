@@ -1,4 +1,6 @@
-import { globalInfo } from '@pnpm/logger'
+import readline from 'node:readline'
+
+import { globalInfo, globalWarn } from '@pnpm/logger'
 import { fetch } from '@pnpm/network.fetch'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import ciInfo from 'ci-info'
@@ -28,10 +30,12 @@ type SharedContext =
 
 export const SHARED_CONTEXT: SharedContext = {
   Date,
+  createReadlineInterface: readline.createInterface.bind(null, { input: process.stdin }),
   ciInfo,
   enquirer,
   fetch,
   globalInfo,
+  globalWarn,
   process,
   publish,
   setTimeout,

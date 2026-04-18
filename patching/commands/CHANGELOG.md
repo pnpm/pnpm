@@ -1,5 +1,160 @@
 # @pnpm/plugin-commands-patching
 
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [cee550a]
+- Updated dependencies [4ab3d9b]
+- Updated dependencies [9af708a]
+- Updated dependencies [ea2a7fb]
+- Updated dependencies [ff7733c]
+  - @pnpm/cli.utils@1101.0.0
+  - @pnpm/config.reader@1101.0.0
+  - @pnpm/installing.commands@1100.1.0
+  - @pnpm/store.connection-manager@1100.0.2
+  - @pnpm/workspace.project-manifest-reader@1100.0.2
+  - @pnpm/fetching.pick-fetcher@1100.0.1
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/cli.utils@1100.0.1
+  - @pnpm/config.reader@1100.0.1
+  - @pnpm/config.writer@1100.0.1
+  - @pnpm/installing.commands@1100.0.1
+  - @pnpm/installing.modules-yaml@1100.0.1
+  - @pnpm/lockfile.fs@1100.0.1
+  - @pnpm/lockfile.utils@1100.0.1
+  - @pnpm/pkg-manifest.reader@1100.0.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.1
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.1
+  - @pnpm/crypto.hash@1100.0.0
+  - @pnpm/patching.apply-patch@1100.0.0
+  - @pnpm/store.connection-manager@1100.0.1
+  - @pnpm/fetching.pick-fetcher@1100.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+- 7b1c189: Removed the deprecated `allowNonAppliedPatches` completely in favor of `allowUnusedPatches`.
+  Remove `ignorePatchFailures` so all patch application failures should throw an error.
+
+### Patch Changes
+
+- cb49a64: Fixed `pnpm patch-commit` failing with "unable to access '/.config/git/attributes': Permission denied" error in environments where HOME is unset or non-standard (Docker containers, CI systems).
+
+  The issue occurred because pnpm was setting `HOME: ''` and `USERPROFILE: ''` to suppress user git configuration when running `git diff`. This caused git to resolve the home directory (`~`) as root (`/`), leading to permission errors when attempting to access `/.config/git/attributes`.
+
+  Now uses `GIT_CONFIG_GLOBAL: os.devNull` instead, which is git's proper mechanism for bypassing user-level configuration without corrupting the home directory path resolution.
+
+  Fixes #6537
+
+- Updated dependencies [7730a7f]
+- Updated dependencies [996284f]
+- Updated dependencies [7721d2e]
+- Updated dependencies [ae8b816]
+- Updated dependencies [facdd71]
+- Updated dependencies [4c6c26a]
+- Updated dependencies [c55c614]
+- Updated dependencies [3c72b6b]
+- Updated dependencies [9f5c0e3]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [90bd3c3]
+- Updated dependencies [3cfffaa]
+- Updated dependencies [1cc61e8]
+- Updated dependencies [606f53e]
+- Updated dependencies [c7203b9]
+- Updated dependencies [bb17724]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [da2429d]
+- Updated dependencies [0b5ccc9]
+- Updated dependencies [1cc61e8]
+- Updated dependencies [491a84f]
+- Updated dependencies [f0ae1b9]
+- Updated dependencies [9fc552d]
+- Updated dependencies [312226c]
+- Updated dependencies [121f64a]
+- Updated dependencies [7fab2a2]
+- Updated dependencies [cb367b9]
+- Updated dependencies [543c7e4]
+- Updated dependencies [075aa99]
+- Updated dependencies [fd511e4]
+- Updated dependencies [ae43ac7]
+- Updated dependencies [ccec8e7]
+- Updated dependencies [98a5f1c]
+- Updated dependencies [fd511e4]
+- Updated dependencies [fa5a5c6]
+- Updated dependencies [4158906]
+- Updated dependencies [ac944ef]
+- Updated dependencies [a0e3a21]
+- Updated dependencies [d458ab3]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+- Updated dependencies [d5d4eed]
+- Updated dependencies [095f659]
+- Updated dependencies [96704a1]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [51b04c3]
+- Updated dependencies [6f806be]
+- Updated dependencies [d01b81f]
+- Updated dependencies [3ed41f4]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [2b14c74]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [ace7903]
+- Updated dependencies [38b8e35]
+- Updated dependencies [394d88c]
+- Updated dependencies [831f574]
+- Updated dependencies [2df8b71]
+- Updated dependencies [ed1a7fe]
+- Updated dependencies [15549a9]
+- Updated dependencies [b51bb42]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [5bf7768]
+- Updated dependencies [3cfffaa]
+- Updated dependencies [ae43ac7]
+- Updated dependencies [a5fdbf9]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [efb48dc]
+- Updated dependencies [9587dac]
+- Updated dependencies [09a999a]
+- Updated dependencies [559f903]
+- Updated dependencies [3574905]
+  - @pnpm/config.reader@1005.0.0
+  - @pnpm/installing.commands@1005.0.0
+  - @pnpm/config.writer@1001.0.0
+  - @pnpm/constants@1002.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/lockfile.fs@1002.0.0
+  - @pnpm/lockfile.utils@1004.0.0
+  - @pnpm/cli.utils@1002.0.0
+  - @pnpm/installing.modules-yaml@1001.0.0
+  - @pnpm/workspace.project-manifest-reader@1002.0.0
+  - @pnpm/resolving.parse-wanted-dependency@1002.0.0
+  - @pnpm/pkg-manifest.reader@1001.0.0
+  - @pnpm/store.connection-manager@1003.0.0
+  - @pnpm/workspace.workspace-manifest-reader@1001.0.0
+  - @pnpm/fetching.pick-fetcher@1002.0.0
+  - @pnpm/patching.apply-patch@1001.0.0
+  - @pnpm/store.path@1001.0.0
+  - @pnpm/error@1001.0.0
+  - @pnpm/crypto.hash@1001.0.0
+  - @pnpm/fs.packlist@1001.0.0
+
 ## 1000.3.21
 
 ### Patch Changes

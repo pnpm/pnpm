@@ -46,6 +46,8 @@ export function cliOptionsTypes (): Record<string, unknown> {
 
 export const commandNames = ['deploy']
 
+export const overridableByScript = true
+
 export function help (): string {
   return renderHelp({
     description: 'Experimental! Deploy a package from a workspace',
@@ -191,11 +193,6 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
     saveLockfile: false,
     virtualStoreDir: path.join(deployDir, 'node_modules/.pnpm'),
     modulesDir: path.relative(opts.workspaceDir, path.join(deployDir, 'node_modules')),
-    rawLocalConfig: {
-      ...opts.rawLocalConfig,
-      // This is a workaround to prevent frozen install in CI envs.
-      'frozen-lockfile': false,
-    },
     includeOnlyPackageFiles,
   })
 }
@@ -291,10 +288,6 @@ async function deployFromSharedLockfile (
           deployHook,
         ],
         calculatePnpmfileChecksum: undefined, // the effects of the pnpmfile should already be part of the package snapshots
-      },
-      rawLocalConfig: {
-        ...opts.rawLocalConfig,
-        'frozen-lockfile': true,
       },
     })
   } catch (error) {

@@ -20,7 +20,7 @@ import {
 } from '@pnpm/global.packages'
 import { headlessInstall } from '@pnpm/installing.deps-restorer'
 import type { EnvLockfile, LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
-import type { StoreController } from '@pnpm/store.controller'
+import { registerProject, type StoreController } from '@pnpm/store.controller'
 import type { DepPath, ProjectId, ProjectRootDir, Registries } from '@pnpm/types'
 import { symlinkDir } from 'symlink-dir'
 
@@ -196,6 +196,11 @@ async function installPnpmToGlobalDir (
         virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
         packageManager: opts.packageManager,
       })
+      // headlessInstall does not register the project, so we must do it
+      // explicitly. Without this, `pnpm store prune` would not know about
+      // this install directory and would remove its packages from the
+      // global virtual store.
+      await registerProject(opts.storeDir, installDir)
     } else {
       await installFromResolution(installDir, opts, [`${pkgName}@${version}`])
     }
@@ -246,7 +251,6 @@ async function installFromLockfile (
     globalVirtualStoreDir: path.join(opts.storeDir, 'links'),
     allowBuilds: opts.allowBuilds,
     ignoreScripts: true,
-    ignoreDepScripts: true,
     force: false,
     engineStrict: false,
     currentEngine: {
@@ -272,7 +276,7 @@ async function installFromLockfile (
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     sideEffectsCacheRead: false,
     sideEffectsCacheWrite: false,
-    rawConfig: {},
+    configByUri: {},
     unsafePerm: false,
     userAgent: '',
     packageManager: opts.packageManager ?? { name: 'pnpm', version: '' },
@@ -337,6 +341,20 @@ export function linkExePlatformBinary (installDir: string): void {
   const src = path.join(platformPkgDir, executable)
   if (!fs.existsSync(src)) return
   const dest = path.join(exePkgDir, executable)
+  forceLink(src, dest)
+
+  if (platform === 'win') {
+    const exePkgJsonPath = path.join(exePkgDir, 'package.json')
+    const exePkg = JSON.parse(fs.readFileSync(exePkgJsonPath, 'utf8'))
+    exePkg.bin.pnpm = 'pnpm.exe'
+    exePkg.bin.pn = 'pn.cmd'
+    exePkg.bin.pnpx = 'pnpx.cmd'
+    exePkg.bin.pnx = 'pnx.cmd'
+    fs.writeFileSync(exePkgJsonPath, JSON.stringify(exePkg, null, 2))
+  }
+}
+
+function forceLink (src: string, dest: string): void {
   try {
     fs.unlinkSync(dest)
   } catch (err: unknown) {
@@ -346,13 +364,6 @@ export function linkExePlatformBinary (installDir: string): void {
   }
   fs.linkSync(src, dest)
   fs.chmodSync(dest, 0o755)
-  if (platform === 'win') {
-    const exePkgJsonPath = path.join(exePkgDir, 'package.json')
-    const exePkg = JSON.parse(fs.readFileSync(exePkgJsonPath, 'utf8'))
-    fs.writeFileSync(path.join(exePkgDir, 'pnpm'), 'This file intentionally left blank')
-    exePkg.bin.pnpm = 'pnpm.exe'
-    fs.writeFileSync(exePkgJsonPath, JSON.stringify(exePkg, null, 2))
-  }
 }
 
 function buildLockfileFromEnvLockfile (

@@ -3,7 +3,7 @@ import path from 'node:path'
 import { linkBins } from '@pnpm/bins.linker'
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
-import { type Config, types as allTypes } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { createResolver } from '@pnpm/installing.client'
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
@@ -49,9 +49,9 @@ export function help (): string {
 export type SelfUpdateCommandOptions = CreateStoreControllerOptions & Pick<Config,
 | 'globalPkgDir'
 | 'lockfileDir'
-| 'managePackageManagerVersions'
 | 'modulesDir'
 | 'pnpmHomeDir'
+> & Pick<ConfigContext,
 | 'rootProjectManifestDir'
 | 'wantedPackageManager'
 >
@@ -63,7 +63,7 @@ export async function handler (
   if (isExecutedByCorepack()) {
     throw new PnpmError('CANT_SELF_UPDATE_IN_COREPACK', 'You should update pnpm with corepack')
   }
-  const { resolve } = createResolver({ ...opts, authConfig: opts.rawConfig })
+  const { resolve } = createResolver({ ...opts, configByUri: opts.configByUri })
   const pkgName = 'pnpm'
   const bareSpecifier = params[0] ?? 'latest'
   const resolution = await resolve({ alias: pkgName, bareSpecifier }, {

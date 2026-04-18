@@ -1,5 +1,54 @@
 # @pnpm/create-cafs-store
 
+## 1100.0.1
+
+### Patch Changes
+
+- @pnpm/building.pkg-requires-build@1100.0.1
+- @pnpm/fetching.fetcher-base@1100.0.1
+- @pnpm/store.cafs@1100.0.1
+- @pnpm/store.controller-types@1100.0.1
+- @pnpm/fs.indexed-pkg-importer@1100.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Patch Changes
+
+- Updated dependencies [facdd71]
+- Updated dependencies [e2e0a32]
+- Updated dependencies [2fccb03]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [491a84f]
+- Updated dependencies [9b1e5da]
+- Updated dependencies [6656baa]
+- Updated dependencies [62f760e]
+- Updated dependencies [cbb366a]
+- Updated dependencies [2ea6463]
+- Updated dependencies [50fbeca]
+- Updated dependencies [caabba4]
+- Updated dependencies [ba065f6]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [878a773]
+- Updated dependencies [f8e6774]
+- Updated dependencies [ee9fe58]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [56a59df]
+- Updated dependencies [10bc391]
+- Updated dependencies [b7f0f21]
+- Updated dependencies [60b5fd1]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [98a0410]
+  - @pnpm/store.controller-types@1005.0.0
+  - @pnpm/store.cafs@1001.0.0
+  - @pnpm/building.pkg-requires-build@1000.0.0
+  - @pnpm/fs.indexed-pkg-importer@1001.0.0
+  - @pnpm/fetching.fetcher-base@1002.0.0
+
 ## 1000.0.20
 
 ### Patch Changes

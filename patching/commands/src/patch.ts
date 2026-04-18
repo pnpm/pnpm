@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { docsUrl } from '@pnpm/cli.utils'
-import { type Config, types as allTypes } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import type { LogBase } from '@pnpm/logger'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
@@ -63,11 +63,12 @@ export type PatchCommandOptions = Pick<Config,
 | 'registries'
 | 'tag'
 | 'storeDir'
-| 'rootProjectManifest'
 | 'lockfileDir'
 | 'modulesDir'
 | 'virtualStoreDir'
 | 'sharedWorkspaceLockfile'
+> & Pick<ConfigContext,
+| 'rootProjectManifest'
 > & CreateStoreControllerOptions & {
   editDir?: string
   reporter?: (logObj: LogBase) => void

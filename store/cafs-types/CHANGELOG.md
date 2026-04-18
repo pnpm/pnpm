@@ -1,5 +1,17 @@
 # @pnpm/cafs-types
 
+## 1001.0.0
+
+### Major Changes
+
+- e2e0a32: Optimized index file format to store the hash algorithm once per file instead of repeating it for every file entry. Each file entry now stores only the hex digest instead of the full integrity string (`<algo>-<digest>`). Using hex format improves performance since file paths in the content-addressable store use hex representation, eliminating base64-to-hex conversion during path lookups.
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- 3bf5e21: Export a new function to add a new file to the CAFS.
+
 ## 6.0.0
 
 ### Major Changes

@@ -20,13 +20,12 @@ export function createTempStore (opts?: {
   clientOptions?: Partial<ClientOptions>
   storeOptions?: CreatePackageStoreOptions
 }): CreateTempStoreResult {
-  const authConfig = { registry }
+  const configByUri: ClientOptions['configByUri'] = {}
   const cacheDir = path.resolve('cache')
   const storeDir = opts?.storeDir ?? path.resolve('.store')
   const storeIndex = new StoreIndex(storeDir)
   const { resolve, fetchers, clearResolutionCache } = createClient({
-    authConfig,
-    rawConfig: {},
+    configByUri,
     retry: {
       retries: 4,
       factor: 10,

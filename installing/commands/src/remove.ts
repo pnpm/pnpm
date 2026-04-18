@@ -5,7 +5,7 @@ import {
   readDepNameCompletions,
   readProjectManifest,
 } from '@pnpm/cli.utils'
-import { type Config, types as allTypes } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { handleGlobalRemove } from '@pnpm/global.commands'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
@@ -126,32 +126,32 @@ export const completion: CompletionFunc = async (cliOpts) => {
 
 export async function handler (
   opts: CreateStoreControllerOptions & Pick<Config,
-  | 'allProjects'
-  | 'allProjectsGraph'
   | 'bail'
   | 'bin'
   | 'configDependencies'
   | 'dev'
   | 'engineStrict'
   | 'globalPnpmfile'
-  | 'hooks'
   | 'ignorePnpmfile'
   | 'linkWorkspacePackages'
   | 'lockfileDir'
   | 'optional'
   | 'production'
-  | 'rawLocalConfig'
   | 'registries'
-  | 'rootProjectManifest'
-  | 'rootProjectManifestDir'
   | 'saveDev'
   | 'saveOptional'
   | 'saveProd'
-  | 'selectedProjectsGraph'
   | 'workspaceDir'
   | 'workspacePackagePatterns'
   | 'sharedWorkspaceLockfile'
   | 'cleanupUnusedCatalogs'
+  > & Pick<ConfigContext,
+  | 'allProjects'
+  | 'allProjectsGraph'
+  | 'hooks'
+  | 'rootProjectManifest'
+  | 'rootProjectManifestDir'
+  | 'selectedProjectsGraph'
   > & {
     recursive?: boolean
     pnpmfile: string[]

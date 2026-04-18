@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolving.npm-resolver",
-  "version": "1004.4.1",
+  "version": "1100.0.1",
   "description": "Resolver for npm-hosted packages",
   "keywords": [
     "pnpm",
@@ -27,9 +27,9 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "test": "pnpm run compile && pnpm run .test",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix",
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
@@ -74,12 +74,12 @@
     "@pnpm/network.fetch": "workspace:*",
     "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/testing.mock-agent": "workspace:*",
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
     "@types/ssri": "catalog:",
     "load-json-file": "catalog:",
-    "nock": "catalog:",
     "tempy": "catalog:"
   },
   "engines": {

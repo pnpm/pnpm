@@ -1,3 +1,4 @@
+import { writeSettings } from '@pnpm/config.writer'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import type { AuditReport } from '@pnpm/deps.compliance.audit'
 import { PnpmError } from '@pnpm/error'
@@ -12,6 +13,7 @@ import type {
 import semver from 'semver'
 
 import type { AuditOptions } from './audit.js'
+import { createMinimumReleaseAgeExcludes } from './fix.js'
 import { lockfileToPackages } from './lockfileToPackages.js'
 
 interface ExtendedPackageVulnerability {
@@ -25,6 +27,8 @@ export interface FixWithUpdateResult {
   fixed: number[]
   // IDs of packages that could not be fixed
   remaining: number[]
+  // Entries added to minimumReleaseAgeExclude
+  addedAgeExcludes: string[]
 }
 
 export type FixWithUpdateOptions = AuditOptions & {
@@ -86,8 +90,23 @@ export async function fixWithUpdate (auditReport: AuditReport, opts: FixWithUpda
     },
   }
 
+  // Add minimum patched versions to minimumReleaseAgeExclude so the resolver
+  // can install them even when minimumReleaseAge would otherwise block them.
+  const addedAgeExcludes = opts.minimumReleaseAge ? createMinimumReleaseAgeExcludes(Object.values(auditReport.advisories)) : []
+  const updateOpts = { ...opts } as Record<string, unknown>
+  if (addedAgeExcludes.length > 0) {
+    const existing = (updateOpts.minimumReleaseAgeExclude as string[] | undefined) ?? []
+    updateOpts.minimumReleaseAgeExclude = [...existing, ...addedAgeExcludes]
+    await writeSettings({
+      addedMinimumReleaseAgeExcludes: addedAgeExcludes,
+      rootProjectManifest: opts.rootProjectManifest,
+      rootProjectManifestDir: opts.rootProjectManifestDir,
+      workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+    })
+  }
+
   await update.handler({
-    ...opts,
+    ...updateOpts as FixWithUpdateOptions,
     packageVulnerabilityAudit,
   }, [])
 
@@ -136,5 +155,5 @@ export async function fixWithUpdate (auditReport: AuditReport, opts: FixWithUpda
     }
   }
 
-  return { fixed, remaining }
+  return { fixed, remaining, addedAgeExcludes }
 }

@@ -1,10 +1,10 @@
 import { URL } from 'node:url'
 
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
-import { type AgentOptions, getAgent } from '@pnpm/network.agent'
-import type { SslConfig } from '@pnpm/types'
+import type { RegistryConfig } from '@pnpm/types'
 
-import { fetch, isRedirect, type RequestInfo, type RequestInit, type Response } from './fetch.js'
+import { type ClientCertificates, type DispatcherOptions, getDispatcher } from './dispatcher.js'
+import { fetch, isRedirect, type RequestInit } from './fetch.js'
 
 const USER_AGENT = 'pnpm' // or maybe make it `${pkg.name}/${pkg.version} (+https://npm.im/${pkg.name})`
 
@@ -16,34 +16,31 @@ const ACCEPT_ABBREVIATED_DOC = `${ABBREVIATED_DOC}; q=1.0, ${FULL_DOC}; q=0.8, *
 
 const MAX_FOLLOWED_REDIRECTS = 20
 
-export interface FetchWithAgentOptions extends RequestInit {
-  agentOptions: AgentOptions
+export interface FetchWithDispatcherOptions extends RequestInit {
+  dispatcherOptions: DispatcherOptions
 }
 
-export function fetchWithAgent (url: RequestInfo, opts: FetchWithAgentOptions): Promise<Response> {
-  const agent = getAgent(url.toString(), {
-    ...opts.agentOptions,
-    strictSsl: opts.agentOptions.strictSsl ?? true,
-  } as any) as any // eslint-disable-line
-  const headers = opts.headers ?? {}
-  // @ts-expect-error
-  headers['connection'] = agent ? 'keep-alive' : 'close'
+export function fetchWithDispatcher (url: string | URL, opts: FetchWithDispatcherOptions): Promise<Response> {
+  const dispatcher = getDispatcher(url.toString(), {
+    ...opts.dispatcherOptions,
+    strictSsl: opts.dispatcherOptions.strictSsl ?? true,
+  })
   return fetch(url, {
     ...opts,
-    agent,
+    dispatcher,
   })
 }
 
-export type { AgentOptions }
+export type { DispatcherOptions }
 
-export interface CreateFetchFromRegistryOptions extends AgentOptions {
+export interface CreateFetchFromRegistryOptions extends DispatcherOptions {
   userAgent?: string
-  sslConfigs?: Record<string, SslConfig>
+  configByUri?: Record<string, RegistryConfig>
 }
 
 export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOptions): FetchFromRegistry {
   return async (url, opts): Promise<Response> => {
-    const headers = {
+    const headers: Record<string, string> = {
       'user-agent': USER_AGENT,
       ...getHeaders({
         auth: opts?.authHeaderValue,
@@ -51,29 +48,40 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
         userAgent: defaultOpts.userAgent,
       }),
     }
+    if (opts?.ifNoneMatch) {
+      headers['if-none-match'] = opts.ifNoneMatch
+    }
+    if (opts?.ifModifiedSince) {
+      headers['if-modified-since'] = opts.ifModifiedSince
+    }
+    // Merge caller-provided headers (e.g. content-type, npm-otp) on top
+    if (opts?.headers) {
+      const optsHeaders = opts.headers instanceof Headers
+        ? Object.fromEntries(opts.headers.entries())
+        : Array.isArray(opts.headers)
+          ? Object.fromEntries(opts.headers)
+          : opts.headers
+      Object.assign(headers, optsHeaders)
+    }
 
     let redirects = 0
     let urlObject = new URL(url)
     const originalHost = urlObject.host
     /* eslint-disable no-await-in-loop */
     while (true) {
-      const agentOptions = {
+      const dispatcherOptions: DispatcherOptions = {
         ...defaultOpts,
         ...opts,
         strictSsl: defaultOpts.strictSsl ?? true,
-      } as any // eslint-disable-line
+        clientCertificates: extractTlsConfigs(defaultOpts.configByUri),
+      }
 
-      // We should pass a URL object to node-fetch till this is not resolved:
-      // https://github.com/bitinn/node-fetch/issues/245
-      const response = await fetchWithAgent(urlObject, {
-        agentOptions: {
-          ...agentOptions,
-          clientCertificates: defaultOpts.sslConfigs,
-        },
-        // if verifying integrity, node-fetch must not decompress
-        compress: opts?.compress ?? false,
-        method: opts?.method,
+      const response = await fetchWithDispatcher(urlObject, {
+        dispatcherOptions,
+        body: opts?.body,
+        // if verifying integrity, native fetch must not decompress
         headers,
+        method: opts?.method,
         redirect: 'manual',
         retry: opts?.retry,
         timeout: opts?.timeout ?? 60000,
@@ -116,6 +124,18 @@ function getHeaders (
     headers['user-agent'] = opts.userAgent
   }
   return headers
+}
+
+function extractTlsConfigs (configByUri?: Record<string, RegistryConfig>): ClientCertificates | undefined {
+  if (!configByUri) return undefined
+  let result: ClientCertificates | undefined
+  for (const [uri, config] of Object.entries(configByUri)) {
+    if (config.tls) {
+      result ??= {}
+      result[uri] = config.tls
+    }
+  }
+  return result
 }
 
 function resolveRedirectUrl (response: Response, currentUrl: URL): URL {

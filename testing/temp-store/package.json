@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/testing.temp-store",
-  "version": "1000.0.23",
+  "version": "1100.0.2",
   "description": "A temporary store for testing purposes",
   "keywords": [
     "pnpm",
@@ -25,11 +25,11 @@
     "!*.map"
   ],
   "scripts": {
-    "prepublishOnly": "pnpm run compile",
+    "prepublishOnly": "pn compile",
     "lint": "eslint \"src/**/*.ts\"",
-    "test": "pnpm run compile",
+    "test": "pn compile",
     "start": "tsgo --watch",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {
     "@pnpm/installing.client": "workspace:*",

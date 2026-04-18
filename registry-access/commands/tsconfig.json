@@ -1,0 +1,49 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../__utils__/prepare"
+    },
+    {
+      "path": "../../cli/utils"
+    },
+    {
+      "path": "../../config/pick-registry-for-package"
+    },
+    {
+      "path": "../../config/reader"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../network/auth-header"
+    },
+    {
+      "path": "../../network/fetch"
+    },
+    {
+      "path": "../../releasing/commands"
+    },
+    {
+      "path": "../../resolving/registry/types"
+    },
+    {
+      "path": "../../testing/command-defaults"
+    },
+    {
+      "path": "../../testing/mock-agent"
+    }
+  ]
+}

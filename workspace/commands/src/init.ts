@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
-import { type Config, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { sortKeysByPriority } from '@pnpm/object.key-sorting'
 import type { ProjectManifest } from '@pnpm/types'
@@ -11,7 +11,7 @@ import { writeProjectManifest } from '@pnpm/workspace.project-manifest-writer'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
-import { parseRawConfig } from './utils.js'
+import { getInitConfig } from './utils.js'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -39,7 +39,7 @@ export function help (): string {
             name: '--init-type <commonjs|module>',
           },
           {
-            description: 'Pin the project to the current pnpm version by adding a "packageManager" field to package.json',
+            description: 'Declare a pnpm version range via "devEngines.packageManager" in package.json and auto-download pnpm when it is missing',
             name: '--init-package-manager',
           },
           {
@@ -55,13 +55,18 @@ export function help (): string {
 }
 
 export type InitOptions =
-  & Pick<UniversalOptions, 'rawConfig'>
-  & Pick<Config, 'cliOptions'>
+  & Pick<ConfigContext, 'cliOptions'>
   & Partial<Pick<Config,
   | 'initPackageManager'
   | 'initType'
+  | 'workspaceDir'
   >> & {
     bare?: boolean
+    initAuthorName?: string
+    initAuthorEmail?: string
+    initAuthorUrl?: string
+    initLicense?: string
+    initVersion?: string
   }
 
 export async function handler (opts: InitOptions, params?: string[]): Promise<string> {
@@ -73,10 +78,13 @@ export async function handler (opts: InitOptions, params?: string[]): Promise<st
   // Using cwd instead of the dir option because the dir option
   // is set to the first parent directory that has a package.json file
   // But --dir option from cliOptions should be respected.
-  const manifestPath = path.join(opts.cliOptions.dir ?? process.cwd(), 'package.json')
+  const initDir = opts.cliOptions.dir ?? process.cwd()
+  const manifestPath = path.join(initDir, 'package.json')
   if (fs.existsSync(manifestPath)) {
     throw new PnpmError('PACKAGE_JSON_EXISTS', 'package.json already exists')
   }
+  const isWorkspaceSubpackage = opts.workspaceDir != null &&
+    path.resolve(opts.workspaceDir) !== path.resolve(initDir)
   const manifest: ProjectManifest = opts.bare
     ? {}
     : {
@@ -96,10 +104,17 @@ export async function handler (opts: InitOptions, params?: string[]): Promise<st
     manifest.type = opts.initType
   }
 
-  const config = await parseRawConfig(opts.rawConfig)
-  const packageJson = { ...manifest, ...config }
-  if (opts.initPackageManager) {
-    packageJson.packageManager = `pnpm@${packageManager.version}`
+  const initConfig = getInitConfig(opts)
+  const packageJson = { ...manifest, ...initConfig }
+  if (opts.initPackageManager && !isWorkspaceSubpackage) {
+    packageJson.devEngines = {
+      ...packageJson.devEngines,
+      packageManager: {
+        name: 'pnpm',
+        version: `^${packageManager.version}`,
+        onFail: 'download',
+      },
+    }
   }
   const priority = Object.fromEntries([
     'name',
@@ -111,7 +126,7 @@ export async function handler (opts: InitOptions, params?: string[]): Promise<st
     'keywords',
     'author',
     'license',
-    'packageManager',
+    'devEngines',
   ].map((key, index) => [key, index]))
   const sortedPackageJson = sortKeysByPriority({ priority }, packageJson)
   await writeProjectManifest(manifestPath, sortedPackageJson, {

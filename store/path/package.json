@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store.path",
-  "version": "1000.0.5",
+  "version": "1100.0.0",
   "description": "Resolves the pnpm store path",
   "keywords": [
     "pnpm",
@@ -24,10 +24,10 @@
     "!*.map"
   ],
   "scripts": {
-    "prepublishOnly": "pnpm run compile",
+    "prepublishOnly": "pn compile",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "test": "pnpm run compile && pnpm run .test",
-    "compile": "tsgo --build && pnpm run lint --fix",
+    "test": "pn compile && pn .test",
+    "compile": "tsgo --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {

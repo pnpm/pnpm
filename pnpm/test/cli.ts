@@ -17,7 +17,7 @@ const f = fixtures(import.meta.dirname)
 const hasOutdatedDepsFixture = f.find('has-outdated-deps')
 
 test('commands that were previously passed through to npm now fail', () => {
-  const result = execPnpmSync(['dist-tag', 'ls', 'is-positive'])
+  const result = execPnpmSync(['access', 'public'])
 
   expect(result.status).not.toBe(0)
   const output = result.stdout.toString() + result.stderr.toString()
@@ -56,7 +56,7 @@ test('previously passed through commands fail without package.json', async () =>
   prepare()
   rimrafSync('package.json')
 
-  const result = execPnpmSync(['dist-tag', 'ls', 'pnpm'])
+  const result = execPnpmSync(['access', 'public'])
 
   expect(result.status).not.toBe(0)
 })
@@ -87,22 +87,22 @@ test('command fails when an unsupported flag is used', async () => {
   expect(stderr.toString()).toMatch(/Unknown option: 'save-dev'/)
 })
 
-test('command does not fail when a deprecated option is used', async () => {
+test('command fails when a deprecated option is used', async () => {
   prepare()
 
-  const { status, stdout } = execPnpmSync(['install', '--no-lock'])
+  const { status, stderr } = execPnpmSync(['install', '--no-lock'])
 
-  expect(status).toBe(0)
-  expect(stdout.toString()).toMatch(/Deprecated option: 'lock'/)
+  expect(status).toBe(1)
+  expect(stderr.toString()).toMatch(/Unknown option: 'lock'/)
 })
 
-test('command does not fail when deprecated options are used', async () => {
+test('command fails when deprecated options are used', async () => {
   prepare()
 
-  const { status, stdout } = execPnpmSync(['install', '--no-lock', '--independent-leaves'])
+  const { status, stderr } = execPnpmSync(['install', '--no-lock', '--independent-leaves'])
 
-  expect(status).toBe(0)
-  expect(stdout.toString()).toMatch(/Deprecated options: 'lock', 'independent-leaves'/)
+  expect(status).toBe(1)
+  expect(stderr.toString()).toMatch(/Unknown options: 'lock', 'independent-leaves'/)
 })
 
 test('adding new dep does not fail if node_modules was created with --public-hoist-pattern=eslint-*', async () => {
@@ -112,7 +112,7 @@ test('adding new dep does not fail if node_modules was created with --public-hoi
 
   expect(execPnpmSync(['add', 'is-negative', '--no-hoist']).status).toBe(1)
   expect(execPnpmSync(['add', 'is-negative', '--no-shamefully-hoist']).status).toBe(1)
-  expect(execPnpmSync(['add', 'is-negative']).status).toBe(0)
+  expect(execPnpmSync(['add', 'is-negative', '--public-hoist-pattern=eslint-*']).status).toBe(0)
 
   project.has('is-negative')
 })

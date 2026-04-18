@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/bins.remover",
-  "version": "1000.0.15",
+  "version": "1100.0.1",
   "description": "Remove bins from .bin",
   "keywords": [
     "pnpm",
@@ -25,10 +25,10 @@
   ],
   "scripts": {
     "start": "tsgo --watch",
-    "test": "pnpm run compile",
+    "test": "pn compile",
     "lint": "eslint \"src/**/*.ts\"",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {
     "@pnpm/bins.resolver": "workspace:*",

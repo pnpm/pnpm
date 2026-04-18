@@ -1,5 +1,126 @@
 # @pnpm/deps.status
 
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [cee550a]
+- Updated dependencies [4ab3d9b]
+- Updated dependencies [9af708a]
+- Updated dependencies [ea2a7fb]
+- Updated dependencies [ff7733c]
+  - @pnpm/config.reader@1101.0.0
+  - @pnpm/workspace.projects-reader@1101.0.0
+  - @pnpm/workspace.state@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/config.reader@1100.0.1
+  - @pnpm/installing.context@1100.0.1
+  - @pnpm/lockfile.fs@1100.0.1
+  - @pnpm/lockfile.verification@1100.0.1
+  - @pnpm/resolving.resolver-base@1100.0.1
+  - @pnpm/workspace.projects-reader@1100.0.1
+  - @pnpm/workspace.state@1100.0.1
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.1
+  - @pnpm/lockfile.settings-checker@1100.0.1
+
+## 1004.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Patch Changes
+
+- 69ebe38: Properly throw a frozen lockfile error when changing catalogs defined in `pnpm-workspace.yaml` and running `pnpm install --frozen-lockfile`. This previously passed silently as reported in [#9369](https://github.com/pnpm/pnpm/issues/9369).
+- Updated dependencies [7730a7f]
+- Updated dependencies [ae8b816]
+- Updated dependencies [facdd71]
+- Updated dependencies [c55c614]
+- Updated dependencies [9b0a460]
+- Updated dependencies [3c72b6b]
+- Updated dependencies [5d130c3]
+- Updated dependencies [9f5c0e3]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [90bd3c3]
+- Updated dependencies [1cc61e8]
+- Updated dependencies [606f53e]
+- Updated dependencies [c7203b9]
+- Updated dependencies [bb17724]
+- Updated dependencies [da2429d]
+- Updated dependencies [1cc61e8]
+- Updated dependencies [491a84f]
+- Updated dependencies [f0ae1b9]
+- Updated dependencies [521e4a6]
+- Updated dependencies [03c502c]
+- Updated dependencies [7fab2a2]
+- Updated dependencies [cb367b9]
+- Updated dependencies [543c7e4]
+- Updated dependencies [9eddabb]
+- Updated dependencies [075aa99]
+- Updated dependencies [ae43ac7]
+- Updated dependencies [ccec8e7]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [4158906]
+- Updated dependencies [ac944ef]
+- Updated dependencies [d458ab3]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+- Updated dependencies [d5d4eed]
+- Updated dependencies [095f659]
+- Updated dependencies [96704a1]
+- Updated dependencies [50fbeca]
+- Updated dependencies [4a36b9a]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [51b04c3]
+- Updated dependencies [69ebe38]
+- Updated dependencies [d01b81f]
+- Updated dependencies [3ed41f4]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [2b14c74]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [831f574]
+- Updated dependencies [2df8b71]
+- Updated dependencies [ed1a7fe]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [5bf7768]
+- Updated dependencies [ae43ac7]
+- Updated dependencies [a5fdbf9]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [efb48dc]
+- Updated dependencies [9587dac]
+- Updated dependencies [09a999a]
+- Updated dependencies [559f903]
+- Updated dependencies [3574905]
+  - @pnpm/config.reader@1005.0.0
+  - @pnpm/resolving.resolver-base@1006.0.0
+  - @pnpm/constants@1002.0.0
+  - @pnpm/installing.context@1002.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/lockfile.fs@1002.0.0
+  - @pnpm/workspace.state@1003.0.0
+  - @pnpm/lockfile.settings-checker@1002.0.0
+  - @pnpm/workspace.projects-reader@1001.0.0
+  - @pnpm/workspace.workspace-manifest-reader@1001.0.0
+  - @pnpm/config.parse-overrides@1002.0.0
+  - @pnpm/lockfile.verification@1002.0.0
+  - @pnpm/crypto.object-hasher@1001.0.0
+  - @pnpm/error@1001.0.0
+
 ## 1003.0.15
 
 ### Patch Changes

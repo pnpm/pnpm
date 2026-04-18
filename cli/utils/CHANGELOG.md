@@ -1,5 +1,82 @@
 # @pnpm/cli-utils
 
+## 1101.0.0
+
+### Major Changes
+
+- cee550a: **Breaking:** removed the `managePackageManagerVersions`, `packageManagerStrict`, and `packageManagerStrictVersion` settings. They existed only to derive the `onFail` behavior for the legacy `packageManager` field, and the `pmOnFail` setting introduced alongside `pnpm with` subsumes all three — it directly sets the `onFail` behavior of both `packageManager` and `devEngines.packageManager`. The `COREPACK_ENABLE_STRICT` environment variable is no longer honored (it only gated `packageManagerStrict`); use `pmOnFail` instead.
+
+  Migration:
+
+  | Removed setting                       | Replace with                   |
+  | ------------------------------------- | ------------------------------ |
+  | `managePackageManagerVersions: true`  | `pmOnFail: download` (default) |
+  | `managePackageManagerVersions: false` | `pmOnFail: ignore`             |
+  | `packageManagerStrict: false`         | `pmOnFail: warn`               |
+  | `packageManagerStrictVersion: true`   | `pmOnFail: error`              |
+  | `COREPACK_ENABLE_STRICT=0`            | `pmOnFail: warn`               |
+
+### Patch Changes
+
+- Updated dependencies [ff7733c]
+  - @pnpm/pkg-manifest.utils@1100.1.0
+  - @pnpm/workspace.project-manifest-reader@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/cli.meta@1100.0.1
+  - @pnpm/config.package-is-installable@1100.0.1
+  - @pnpm/pkg-manifest.utils@1100.0.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.1
+
+## 1002.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- cc1b8e3: Fixed installation of config dependencies from private registries.
+
+  Added support for object type in `configDependencies` when the tarball URL returned from package metadata differs from the computed URL [#10431](https://github.com/pnpm/pnpm/pull/10431).
+
+### Patch Changes
+
+- 3ed41f4: Fix `shamefullyHoist` set via `updateConfig` in `.pnpmfile.cjs` not being converted to `publicHoistPattern` [#10271](https://github.com/pnpm/pnpm/issues/10271).
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [efb48dc]
+- Updated dependencies [491a84f]
+- Updated dependencies [98a5f1c]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [cee1f58]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [831f574]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+- Updated dependencies [efb48dc]
+  - @pnpm/types@1001.0.0
+  - @pnpm/pkg-manifest.utils@1002.0.0
+  - @pnpm/workspace.project-manifest-reader@1002.0.0
+  - @pnpm/config.package-is-installable@1001.0.0
+  - @pnpm/error@1001.0.0
+  - @pnpm/cli.meta@1001.0.0
+
 ## 1001.2.8
 
 ### Patch Changes

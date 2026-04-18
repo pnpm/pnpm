@@ -26,7 +26,7 @@ import {
   modeIsExecutable,
 } from './getFilePathInCafs.js'
 import { normalizeBundledManifest } from './normalizeBundledManifest.js'
-import { optimisticRenameOverwrite, writeBufferToCafs } from './writeBufferToCafs.js'
+import { writeBufferToCafs } from './writeBufferToCafs.js'
 
 export const HASH_ALGORITHM = 'sha512'
 
@@ -40,7 +40,6 @@ export {
   type FileType,
   getFilePathByModeInCafs,
   type Integrity,
-  optimisticRenameOverwrite,
   type PackageFileInfo,
   type PackageFiles,
   type PackageFilesIndex,

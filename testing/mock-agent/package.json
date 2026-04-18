@@ -1,0 +1,46 @@
+{
+  "name": "@pnpm/testing.mock-agent",
+  "version": "1100.0.1",
+  "private": true,
+  "description": "Shared undici MockAgent helpers for pnpm tests",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "testing"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/testing/mock-agent",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/testing/mock-agent#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "prepublishOnly": "pn compile",
+    "lint": "eslint \"src/**/*.ts\"",
+    "test": "pn compile",
+    "compile": "tsgo --build && pn lint --fix"
+  },
+  "dependencies": {
+    "undici": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/network.fetch": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "devDependencies": {
+    "@pnpm/testing.mock-agent": "workspace:*"
+  }
+}

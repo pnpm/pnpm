@@ -1,5 +1,27 @@
 # @pnpm/error
 
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- 831f574: The `PnpmError` class now accepts an optional `cause` argument.
+
+### Patch Changes
+
+- Updated dependencies [c55c614]
+- Updated dependencies [a8f016c]
+- Updated dependencies [491a84f]
+- Updated dependencies [075aa99]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [50fbeca]
+- Updated dependencies [71de2b3]
+  - @pnpm/constants@1002.0.0
+
 ## 1000.0.5
 
 ### Patch Changes

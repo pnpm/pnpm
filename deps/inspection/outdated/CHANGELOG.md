@@ -1,5 +1,109 @@
 # @pnpm/outdated
 
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [ff7733c]
+  - @pnpm/pkg-manifest.utils@1100.1.0
+  - @pnpm/installing.client@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/config.pick-registry-for-package@1100.0.1
+  - @pnpm/config.version-policy@1100.0.1
+  - @pnpm/deps.path@1100.0.1
+  - @pnpm/hooks.read-package-hook@1100.0.1
+  - @pnpm/installing.client@1100.0.1
+  - @pnpm/lockfile.fs@1100.0.1
+  - @pnpm/lockfile.utils@1100.0.1
+  - @pnpm/pkg-manifest.utils@1100.0.1
+  - @pnpm/resolving.npm-resolver@1100.0.1
+
+## 1002.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- ac944ef: Added a new setting `minimumReleaseAgeStrict` that is `false` by default. When disabled (the default), pnpm falls back to versions that don't meet the `minimumReleaseAge` constraint if no mature versions satisfy the range being resolved. Set to `true` to fail installation instead.
+
+### Patch Changes
+
+- 19f36cf: Don't silently skip an optional dependency if it cannot be resolved from a version that satisfies the `minimumReleaseAge` setting [#10270](https://github.com/pnpm/pnpm/issues/10270).
+- 3417386: Fixed `pnpm outdated` crashing with `ERR_PNPM_NO_MATCHING_VERSION` when `minimumReleaseAge` is set and all versions of a package are newer than the threshold [#10605](https://github.com/pnpm/pnpm/issues/10605).
+- Updated dependencies [5f73b0f]
+- Updated dependencies [facdd71]
+- Updated dependencies [c55c614]
+- Updated dependencies [a297ebc]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [831f574]
+- Updated dependencies [0e9c559]
+- Updated dependencies [efb48dc]
+- Updated dependencies [19f36cf]
+- Updated dependencies [491a84f]
+- Updated dependencies [61cad0c]
+- Updated dependencies [19f36cf]
+- Updated dependencies [075aa99]
+- Updated dependencies [143ca78]
+- Updated dependencies [6f361aa]
+- Updated dependencies [0625e20]
+- Updated dependencies [938ea1f]
+- Updated dependencies [2cb0657]
+- Updated dependencies [bb8baa7]
+- Updated dependencies [d458ab3]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [144ce0e]
+- Updated dependencies [efb48dc]
+- Updated dependencies [56a59df]
+- Updated dependencies [96704a1]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [cee1f58]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [ba70035]
+- Updated dependencies [3585d9a]
+- Updated dependencies [38b8e35]
+- Updated dependencies [394d88c]
+- Updated dependencies [1e6de25]
+- Updated dependencies [831f574]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [6557dc0]
+- Updated dependencies [efb48dc]
+- Updated dependencies [efb48dc]
+  - @pnpm/deps.path@1002.0.0
+  - @pnpm/resolving.npm-resolver@1005.0.0
+  - @pnpm/constants@1002.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/lockfile.fs@1002.0.0
+  - @pnpm/lockfile.utils@1004.0.0
+  - @pnpm/pkg-manifest.utils@1002.0.0
+  - @pnpm/config.pick-registry-for-package@1001.0.0
+  - @pnpm/hooks.read-package-hook@1001.0.0
+  - @pnpm/config.parse-overrides@1002.0.0
+  - @pnpm/installing.client@1002.0.0
+  - @pnpm/catalogs.resolver@1001.0.0
+  - @pnpm/catalogs.types@1001.0.0
+  - @pnpm/config.matcher@1001.0.0
+  - @pnpm/error@1001.0.0
+  - @pnpm/config.version-policy@1000.0.1
+
 ## 1001.1.1
 
 ### Patch Changes

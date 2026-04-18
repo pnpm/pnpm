@@ -1,5 +1,20 @@
 # @pnpm/common-cli-options-help
 
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- 5bf7768: A new `--yes` flag can be passed to pnpm to automatically confirm prompts. This is useful when running pnpm in non-interactive script.
+
+### Patch Changes
+
+- e1ea779: Added `-F` as a short alias for the `--filter` option in the help output.
+
 ## 1000.0.1
 
 ### Patch Changes

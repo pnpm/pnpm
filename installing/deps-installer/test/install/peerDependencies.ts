@@ -2059,6 +2059,107 @@ test('detection of circular peer dependencies should not crash with aliased depe
   expect(fs.existsSync(path.resolve(WANTED_LOCKFILE))).toBeTruthy()
 })
 
+// Covers https://github.com/pnpm/pnpm/issues/11070
+test('dedupePeers: version-only peer suffixes without nested dep paths', async () => {
+  prepareEmpty()
+  await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
+
+  const project = prepareEmpty()
+
+  await install({
+    dependencies: {
+      '@pnpm.e2e/abc-grand-parent': '1.0.0',
+      '@pnpm.e2e/peer-c': '1.0.0',
+    },
+  }, testDefaults({ dedupePeers: true, strictPeerDependencies: false }))
+
+  const lockfile = project.readLockfile()
+
+  // Transitive peers are included but with version-only IDs (no nesting).
+  // abc-grand-parent and abc-parent-with-ab get (peer-c@1.0.0) — not the full nested dep path.
+  expect(Object.keys(lockfile.snapshots).sort()).toStrictEqual([
+    '@pnpm.e2e/abc-grand-parent@1.0.0(@pnpm.e2e/peer-c@1.0.0)',
+    '@pnpm.e2e/abc-parent-with-ab@1.0.0(@pnpm.e2e/peer-c@1.0.0)',
+    '@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)',
+    '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
+    '@pnpm.e2e/peer-a@1.0.0',
+    '@pnpm.e2e/peer-b@1.0.0',
+    '@pnpm.e2e/peer-c@1.0.0',
+    'is-positive@1.0.0',
+  ])
+  expect(lockfile.settings.dedupePeers).toBe(true)
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/11070
+test('dedupePeers: workspace projects with different peer versions get different instances', async () => {
+  await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
+
+  const manifest1 = {
+    name: 'project-1',
+    dependencies: {
+      '@pnpm.e2e/abc-grand-parent': '1.0.0',
+      '@pnpm.e2e/peer-c': '1.0.0',
+    },
+  }
+  const manifest2 = {
+    name: 'project-2',
+    dependencies: {
+      '@pnpm.e2e/abc-grand-parent': '1.0.0',
+      '@pnpm.e2e/peer-c': '2.0.0',
+    },
+  }
+  preparePackages([
+    { location: 'project-1', package: manifest1 },
+    { location: 'project-2', package: manifest2 },
+  ])
+
+  const importers: MutatedProject[] = [
+    { mutation: 'install', rootDir: path.resolve('project-1') as ProjectRootDir },
+    { mutation: 'install', rootDir: path.resolve('project-2') as ProjectRootDir },
+  ]
+  const allProjects = [
+    { buildIndex: 0, manifest: manifest1, rootDir: path.resolve('project-1') as ProjectRootDir },
+    { buildIndex: 0, manifest: manifest2, rootDir: path.resolve('project-2') as ProjectRootDir },
+  ]
+  await mutateModules(importers, testDefaults({
+    allProjects,
+    dedupePeers: true,
+    lockfileOnly: true,
+    strictPeerDependencies: false,
+  }))
+
+  const lockfile = readYamlFileSync<LockfileFile>(path.resolve(WANTED_LOCKFILE))
+
+  // Each project gets its own instances differentiated by peer-c version.
+  // Version-only suffixes — no nesting like (@pnpm.e2e/peer-c@1.0.0(@pnpm.e2e/peer-a@...)).
+  expect(Object.keys(lockfile.snapshots!).sort()).toStrictEqual([
+    '@pnpm.e2e/abc-grand-parent@1.0.0(@pnpm.e2e/peer-c@1.0.0)',
+    '@pnpm.e2e/abc-grand-parent@1.0.0(@pnpm.e2e/peer-c@2.0.0)',
+    '@pnpm.e2e/abc-parent-with-ab@1.0.0(@pnpm.e2e/peer-c@1.0.0)',
+    '@pnpm.e2e/abc-parent-with-ab@1.0.0(@pnpm.e2e/peer-c@2.0.0)',
+    '@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)',
+    '@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@2.0.0)',
+    '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
+    '@pnpm.e2e/peer-a@1.0.0',
+    '@pnpm.e2e/peer-b@1.0.0',
+    '@pnpm.e2e/peer-c@1.0.0',
+    '@pnpm.e2e/peer-c@2.0.0',
+    'is-positive@1.0.0',
+  ])
+
+  // Each project gets the correct abc-grand-parent instance for its peer-c version
+  expect(lockfile.importers?.['project-1']?.dependencies?.['@pnpm.e2e/abc-grand-parent']).toStrictEqual({
+    specifier: '1.0.0',
+    version: '1.0.0(@pnpm.e2e/peer-c@1.0.0)',
+  })
+  expect(lockfile.importers?.['project-2']?.dependencies?.['@pnpm.e2e/abc-grand-parent']).toStrictEqual({
+    specifier: '1.0.0',
+    version: '1.0.0(@pnpm.e2e/peer-c@2.0.0)',
+  })
+})
+
 // Covers https://github.com/pnpm/pnpm/pull/9673
 test('no deadlock on circular aliased peers', async () => {
   prepareEmpty()

@@ -1,5 +1,69 @@
 # @pnpm/git-fetcher
 
+## 1100.0.2
+
+### Patch Changes
+
+- @pnpm/exec.prepare-package@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- @pnpm/exec.prepare-package@1100.0.1
+- @pnpm/fetching.fetcher-base@1100.0.1
+- @pnpm/worker@1100.0.1
+
+## 1004.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- 96704a1: Renamed `rawConfig` to `authConfig` on the `Config` interface. This field now only contains auth/registry data from `.npmrc` files. Non-auth settings are no longer written to it.
+
+  Added `nodeDownloadMirrors` setting to configure custom Node.js download mirrors in `pnpm-workspace.yaml`:
+
+  ```yaml
+  nodeDownloadMirrors:
+    release: https://my-mirror.example.com/download/release/
+    nightly: https://my-mirror.example.com/download/nightly/
+  ```
+
+  Replaced `rawConfig: object` with `userAgent?: string` in lifecycle hook options. Removed unused `rawConfig` from fetcher and prepare-package options.
+
+  Removed support for the npm `init-module` setting. Custom init scripts via `.pnpm-init.js` are no longer executed by `pnpm init`.
+
+### Patch Changes
+
+- e3b94c0: `@pnpm/fs.packlist` should be linked from the workspace.
+- c5fbdde: Always resolve git references to full commits and ensure `HEAD` points to the commit after checkout [#10310](https://github.com/pnpm/pnpm/pull/10310).
+- ba065f6: Block git-hosted dependencies from running prepare scripts unless explicitly allowed in onlyBuiltDependencies [#10288](https://github.com/pnpm/pnpm/pull/10288).
+- Updated dependencies [e2e0a32]
+- Updated dependencies [7cec347]
+- Updated dependencies [491a84f]
+- Updated dependencies [50fbeca]
+- Updated dependencies [ba065f6]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [ee9fe58]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [56a59df]
+- Updated dependencies [780af09]
+- Updated dependencies [96704a1]
+- Updated dependencies [4893853]
+- Updated dependencies [b7f0f21]
+- Updated dependencies [831f574]
+- Updated dependencies [98a0410]
+  - @pnpm/worker@1001.0.0
+  - @pnpm/fetching.fetcher-base@1002.0.0
+  - @pnpm/exec.prepare-package@1001.0.0
+  - @pnpm/error@1001.0.0
+  - @pnpm/fs.packlist@1001.0.0
+  - @pnpm/store.index@1000.0.0
+
 ## 1003.0.0
 
 ### Patch Changes

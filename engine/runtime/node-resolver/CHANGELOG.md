@@ -1,5 +1,120 @@
 # @pnpm/node.resolver
 
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [cee550a]
+- Updated dependencies [4ab3d9b]
+- Updated dependencies [9af708a]
+- Updated dependencies [ea2a7fb]
+- Updated dependencies [ff7733c]
+  - @pnpm/config.reader@1101.0.0
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/config.reader@1100.0.1
+  - @pnpm/resolving.resolver-base@1100.0.1
+
+## 1002.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- 96704a1: Renamed `rawConfig` to `authConfig` on the `Config` interface. This field now only contains auth/registry data from `.npmrc` files. Non-auth settings are no longer written to it.
+
+  Added `nodeDownloadMirrors` setting to configure custom Node.js download mirrors in `pnpm-workspace.yaml`:
+
+  ```yaml
+  nodeDownloadMirrors:
+    release: https://my-mirror.example.com/download/release/
+    nightly: https://my-mirror.example.com/download/nightly/
+  ```
+
+  Replaced `rawConfig: object` with `userAgent?: string` in lifecycle hook options. Removed unused `rawConfig` from fetcher and prepare-package options.
+
+  Removed support for the npm `init-module` setting. Custom init scripts via `.pnpm-init.js` are no longer executed by `pnpm init`.
+
+### Patch Changes
+
+- 23eb4a6: `parseNodeSpecifier` is moved from `@pnpm/plugin-commands-env` to `@pnpm/engine.runtime.node-resolver` and enhanced to support all Node.js version specifier formats. Previously `parseEnvSpecifier` (in `@pnpm/engine.runtime.node-resolver`) handled the resolver's parsing, while `parseNodeSpecifier` (in `@pnpm/plugin-commands-env`) was a stricter but now-unused validator. They are now unified into a single `parseNodeSpecifier` in `@pnpm/engine.runtime.node-resolver` that supports: exact versions (`22.0.0`), prerelease versions (`22.0.0-rc.4`), semver ranges (`18`, `^18`), LTS codenames (`argon`, `iron`), well-known aliases (`lts`, `latest`), standalone release channels (`nightly`, `rc`, `test`, `v8-canary`, `release`), and channel/version combos (`rc/18`, `nightly/latest`).
+- 9065f49: Include musl Linux variants when resolving `node@runtime:` dependencies. The lockfile now includes musl builds (from `unofficial-builds.nodejs.org`) alongside the standard glibc variants, so that `node@runtime:` works out of the box on Alpine Linux and other musl-based distributions.
+- 50fbeca: Added `getNodeBinsForCurrentOS` to `@pnpm/constants` which returns a `Record<string, string>` with paths for `node`, `npm`, and `npx` within the Node.js package. This record is now used as `BinaryResolution.bin` (type widened from `string` to `string | Record<string, string>`) and as `manifest.bin` in the node resolver, so pnpm's bin-linker creates all three shims automatically when installing a Node.js runtime.
+- 499ef22: Don't add an extra slash to the Node.js mirror URL [#10204](https://github.com/pnpm/pnpm/pull/10204).
+- Updated dependencies [7730a7f]
+- Updated dependencies [ae8b816]
+- Updated dependencies [facdd71]
+- Updated dependencies [9b0a460]
+- Updated dependencies [3c72b6b]
+- Updated dependencies [9f5c0e3]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [90bd3c3]
+- Updated dependencies [1cc61e8]
+- Updated dependencies [606f53e]
+- Updated dependencies [c7203b9]
+- Updated dependencies [bb17724]
+- Updated dependencies [da2429d]
+- Updated dependencies [1cc61e8]
+- Updated dependencies [491a84f]
+- Updated dependencies [f0ae1b9]
+- Updated dependencies [7fab2a2]
+- Updated dependencies [cb367b9]
+- Updated dependencies [543c7e4]
+- Updated dependencies [075aa99]
+- Updated dependencies [ae43ac7]
+- Updated dependencies [ccec8e7]
+- Updated dependencies [4158906]
+- Updated dependencies [ac944ef]
+- Updated dependencies [bb8baa7]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+- Updated dependencies [d5d4eed]
+- Updated dependencies [095f659]
+- Updated dependencies [96704a1]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [51b04c3]
+- Updated dependencies [6c480a4]
+- Updated dependencies [d01b81f]
+- Updated dependencies [3ed41f4]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [831f574]
+- Updated dependencies [2df8b71]
+- Updated dependencies [ed1a7fe]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [5bf7768]
+- Updated dependencies [ae43ac7]
+- Updated dependencies [a5fdbf9]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [efb48dc]
+- Updated dependencies [9587dac]
+- Updated dependencies [09a999a]
+- Updated dependencies [559f903]
+- Updated dependencies [3574905]
+  - @pnpm/config.reader@1005.0.0
+  - @pnpm/resolving.resolver-base@1006.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/fetching.types@1001.0.0
+  - @pnpm/crypto.shasums-file@1002.0.0
+  - @pnpm/error@1001.0.0
+
 ## 1001.0.5
 
 ### Patch Changes

@@ -1,5 +1,33 @@
 # @pnpm/jest-config
 
+## 1100.0.1
+
+### Patch Changes
+
+- @pnpm/worker@1100.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+
+### Patch Changes
+
+- Updated dependencies [e2e0a32]
+- Updated dependencies [7cec347]
+- Updated dependencies [491a84f]
+- Updated dependencies [50fbeca]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [ee9fe58]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [56a59df]
+- Updated dependencies [780af09]
+- Updated dependencies [4893853]
+- Updated dependencies [b7f0f21]
+- Updated dependencies [98a0410]
+  - @pnpm/worker@1001.0.0
+
 ## 1000.0.5
 
 ### Patch Changes

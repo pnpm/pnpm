@@ -1,72 +1,61 @@
 import { spawnSync } from 'node:child_process'
-import fs from 'node:fs'
-import path from 'node:path'
 
-import { nerfDart } from '@pnpm/config.nerf-dart'
 import { PnpmError } from '@pnpm/error'
+import type { Creds, RegistryConfig, TokenHelper } from '@pnpm/types'
 
-export function getAuthHeadersFromConfig (
-  { allSettings, userSettings }: {
-    allSettings: Record<string, string>
-    userSettings: Record<string, string>
-  }
+export function getAuthHeadersFromCreds (
+  configByUri: Record<string, RegistryConfig>,
+  defaultRegistry: string
 ): Record<string, string> {
   const authHeaderValueByURI: Record<string, string> = {}
-  for (const [key, value] of Object.entries(allSettings)) {
-    const [uri, authType] = splitKey(key)
-    switch (authType) {
-      case '_authToken': {
-        authHeaderValueByURI[uri] = `Bearer ${value}`
-        continue
-      }
-      case '_auth': {
-        authHeaderValueByURI[uri] = `Basic ${value}`
-        continue
-      }
-      case 'username': {
-        if (`${uri}:_password` in allSettings) {
-          const password = Buffer.from(allSettings[`${uri}:_password`], 'base64').toString('utf8')
-          authHeaderValueByURI[uri] = `Basic ${Buffer.from(`${value}:${password}`).toString('base64')}`
-        }
-      }
+  for (const [uri, registryConfig] of Object.entries(configByUri)) {
+    if (uri === '') continue // default auth handled below
+    const header = credsToHeader(registryConfig.creds)
+    if (header) {
+      authHeaderValueByURI[uri] = header
     }
   }
-  for (const [key, value] of Object.entries(userSettings)) {
-    const [uri, authType] = splitKey(key)
-    if (authType === 'tokenHelper') {
-      authHeaderValueByURI[uri] = loadToken(value, key)
+  const defaultConfig = configByUri['']
+  if (defaultConfig?.creds) {
+    const header = credsToHeader(defaultConfig.creds)
+    if (header) {
+      authHeaderValueByURI[defaultRegistry] = header
     }
-  }
-  const registry = allSettings['registry'] ? nerfDart(allSettings['registry']) : '//registry.npmjs.org/'
-  if (userSettings['tokenHelper']) {
-    authHeaderValueByURI[registry] = loadToken(userSettings['tokenHelper'], 'tokenHelper')
-  } else if (allSettings['_authToken']) {
-    authHeaderValueByURI[registry] = `Bearer ${allSettings['_authToken']}`
-  } else if (allSettings['_auth']) {
-    authHeaderValueByURI[registry] = `Basic ${allSettings['_auth']}`
-  } else if (allSettings['_password'] && allSettings['username']) {
-    authHeaderValueByURI[registry] = `Basic ${Buffer.from(`${allSettings['username']}:${allSettings['_password']}`).toString('base64')}`
   }
   return authHeaderValueByURI
 }
 
-function splitKey (key: string): string[] {
-  const index = key.lastIndexOf(':')
-  if (index === -1) {
-    return [key, '']
+function credsToHeader (creds?: Creds): string | undefined {
+  if (!creds) return undefined
+  if (creds.tokenHelper) {
+    return executeTokenHelper(creds.tokenHelper)
   }
-  return [key.slice(0, index), key.slice(index + 1)]
+  if (creds.authToken) {
+    return `Bearer ${creds.authToken}`
+  }
+  if (creds.basicAuth) {
+    return `Basic ${Buffer.from(`${creds.basicAuth.username}:${creds.basicAuth.password}`, 'utf8').toString('base64')}`
+  }
+  return undefined
 }
 
-export function loadToken (helperPath: string, settingName: string): string {
-  if (!path.isAbsolute(helperPath) || !fs.existsSync(helperPath)) {
-    throw new PnpmError('BAD_TOKEN_HELPER_PATH', `${settingName} must be an absolute path, without arguments`)
-  }
-
-  const spawnResult = spawnSync(helperPath, { shell: true })
+function executeTokenHelper (tokenHelper: TokenHelper): string {
+  const [cmd, ...args] = tokenHelper
+  // On Windows, .bat/.cmd files require a shell to execute.
+  const shell = process.platform === 'win32' && /\.(?:bat|cmd)$/i.test(cmd)
+  const spawnResult = spawnSync(cmd, args, { stdio: 'pipe', shell })
 
   if (spawnResult.status !== 0) {
-    throw new PnpmError('TOKEN_HELPER_ERROR_STATUS', `Error running "${helperPath}" as a token helper, configured as ${settingName}. Exit code ${spawnResult.status?.toString() ?? ''}`)
+    throw new PnpmError('TOKEN_HELPER_ERROR_STATUS', `Error running "${cmd}" as a token helper. Exit code ${spawnResult.status?.toString() ?? ''}`)
   }
-  return spawnResult.stdout.toString('utf8').trimEnd()
+  const token = spawnResult.stdout.toString('utf8').trimEnd()
+  if (!token) {
+    throw new PnpmError('TOKEN_HELPER_EMPTY_TOKEN', `Token helper "${cmd}" returned an empty token`)
+  }
+  // If the token already contains an auth scheme (e.g. "Bearer ...", "Basic ..."),
+  // return it as-is.
+  if (/^[A-Z]+ /i.test(token)) {
+    return token
+  }
+  return `Bearer ${token}`
 }

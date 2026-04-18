@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config.writer",
-  "version": "1000.0.14",
+  "version": "1100.0.1",
   "description": "Functions for updating the configuration settings",
   "keywords": [
     "pnpm",
@@ -25,11 +25,11 @@
     "!*.map"
   ],
   "scripts": {
-    "prepublishOnly": "pnpm run compile",
+    "prepublishOnly": "pn compile",
     "lint": "eslint \"src/**/*.ts\"",
-    "test": "pnpm run compile",
+    "test": "pn compile",
     "start": "tsgo --watch",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {
     "@pnpm/types": "workspace:*",

@@ -415,3 +415,97 @@ test('when allProjects is undefined should not cleanup unused catalogs', async (
     },
   })
 })
+
+test('keep catalogs referenced only in workspace overrides', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFileSync(filePath, {
+    catalog: {
+      foo: '1.0.0',
+    },
+    catalogs: {
+      bar: {
+        '@scope/def': '2.0.0',
+      },
+    },
+    overrides: {
+      foo: 'catalog:',
+      '@scope/parent@1>@scope/def': 'catalog:bar',
+    },
+  })
+
+  prepare({
+    dependencies: {
+      zoo: '^1.0.0',
+    },
+  }, { tempDir: dir })
+  const allProjects = await findPackages(dir)
+
+  await updateWorkspaceManifest(dir, {
+    cleanupUnusedCatalogs: true,
+    allProjects,
+  })
+
+  expect(readYamlFileSync(filePath)).toStrictEqual({
+    catalog: {
+      foo: '1.0.0',
+    },
+    catalogs: {
+      bar: {
+        '@scope/def': '2.0.0',
+      },
+    },
+    overrides: {
+      foo: 'catalog:',
+      '@scope/parent@1>@scope/def': 'catalog:bar',
+    },
+  })
+})
+
+test('remove catalogs unused by dependencies and workspace overrides', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFileSync(filePath, {
+    catalog: {
+      foo: '1.0.0',
+      unusedDefault: '2.0.0',
+    },
+    catalogs: {
+      bar: {
+        def: '2.0.0',
+        unusedNamed: '3.0.0',
+      },
+    },
+    overrides: {
+      foo: 'catalog:',
+      def: 'catalog:bar',
+    },
+  })
+
+  prepare({
+    dependencies: {
+      zoo: '^1.0.0',
+    },
+  }, { tempDir: dir })
+  const allProjects = await findPackages(dir)
+
+  await updateWorkspaceManifest(dir, {
+    cleanupUnusedCatalogs: true,
+    allProjects,
+  })
+
+  expect(readYamlFileSync(filePath)).toStrictEqual({
+    catalog: {
+      foo: '1.0.0',
+    },
+    catalogs: {
+      bar: {
+        def: '2.0.0',
+      },
+    },
+    overrides: {
+      foo: 'catalog:',
+      def: 'catalog:bar',
+    },
+  })
+})

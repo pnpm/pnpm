@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.state",
-  "version": "1002.0.7",
+  "version": "1100.0.2",
   "description": "Track the list of actual paths of workspace packages in a cache",
   "keywords": [
     "pnpm",
@@ -25,10 +25,10 @@
     "!*.map"
   ],
   "scripts": {
-    "test": "pnpm run compile && pnpm run .test",
+    "test": "pn compile && pn .test",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {

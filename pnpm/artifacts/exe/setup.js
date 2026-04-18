@@ -21,21 +21,18 @@ if (!fs.existsSync(bin)) process.exit(0)
 
 linkSync(bin, path.resolve(ownDir, executable))
 
-// Create pn alias (hardlink to the same binary)
-const pnExecutable = platform === 'win' ? 'pn.exe' : 'pn'
-linkSync(bin, path.resolve(ownDir, pnExecutable))
-
-// Create pnpx and pnx scripts
-createShellScript(ownDir, 'pnpx', 'pnpm dlx')
-createShellScript(ownDir, 'pnx', 'pnpm dlx')
-
 if (platform === 'win') {
+  // On Windows, also hardlink the binary as 'pnpm' (no .exe extension).
+  // npm's bin shims point to the name from publishConfig.bin, and npm
+  // does NOT re-read package.json after preinstall, so rewriting the bin
+  // entry has no effect on the shims. The file at the original name must
+  // be the real binary so the shim can execute it.
+  linkSync(bin, path.resolve(ownDir, 'pnpm'))
+
   const pkgJsonPath = path.resolve(ownDir, 'package.json')
   const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
-  fs.writeFileSync(path.resolve(ownDir, 'pnpm'), 'This file intentionally left blank')
-  fs.writeFileSync(path.resolve(ownDir, 'pn'), 'This file intentionally left blank')
   pkg.bin.pnpm = 'pnpm.exe'
-  pkg.bin.pn = 'pn.exe'
+  pkg.bin.pn = 'pn.cmd'
   pkg.bin.pnpx = 'pnpx.cmd'
   pkg.bin.pnx = 'pnx.cmd'
   fs.writeFileSync(pkgJsonPath, JSON.stringify(pkg, null, 2))
@@ -50,13 +47,4 @@ function linkSync(src, dest) {
     }
   }
   return fs.linkSync(src, dest)
-}
-
-function createShellScript(dir, name, command) {
-  fs.writeFileSync(path.resolve(dir, name), `#!/bin/sh\nexec ${command} "$@"\n`, { mode: 0o755 })
-
-  if (platform === 'win') {
-    fs.writeFileSync(path.resolve(dir, name + '.cmd'), `@echo off\n${command} %*\n`)
-    fs.writeFileSync(path.resolve(dir, name + '.ps1'), `${command} @args\n`)
-  }
 }

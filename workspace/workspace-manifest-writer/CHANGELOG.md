@@ -1,5 +1,98 @@
 # @pnpm/workspace.manifest-writer
 
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/lockfile.types@1100.0.1
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.1
+
+## 1002.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+- cb367b9: Remove deprecated build dependency settings: `onlyBuiltDependencies`, `onlyBuiltDependenciesFile`, `neverBuiltDependencies`, and `ignoredBuiltDependencies`.
+
+### Minor Changes
+
+- 7721d2e: `pnpm audit --fix` now adds the minimum patched versions to `minimumReleaseAgeExclude` in `pnpm-workspace.yaml` [#10263](https://github.com/pnpm/pnpm/issues/10263).
+
+  When `minimumReleaseAge` is configured, security patches suggested by `pnpm audit` may be blocked because the patched versions are too new. Now, `pnpm audit --fix` automatically adds the minimum patched version for each vulnerability (e.g., `axios@0.21.2`) to `minimumReleaseAgeExclude`, so that `pnpm install` can install the security fix without waiting for it to mature.
+
+- 76718b3: Added support for `allowBuilds`, which is a new field that can be used instead of `onlyBuiltDependencies` and `ignoredBuiltDependencies`. The new `allowBuilds` field in your `pnpm-workspace.yaml` uses a map of package matchers to explicitly allow (`true`) or disallow (`false`) script execution. This allows for a single, easy-to-manage source of truth for your build permissions.
+
+  **Example Usage.** To explicitly allow all versions of `esbuild` to run scripts and prevent `core-js` from running them:
+
+  ```yaml
+  allowBuilds:
+    esbuild: true
+    core-js: false
+  ```
+
+  The example above achieves the same result as the previous configuration:
+
+  ```yaml
+  onlyBuiltDependencies:
+    - esbuild
+  ignoredBuiltDependencies:
+    - core-js
+  ```
+
+  Related PR: [#10311](https://github.com/pnpm/pnpm/pull/10311)
+
+- 121f64a: New option added: updatedOverrides.
+- 075aa99: Add support for a global YAML config file named `config.yaml`.
+
+  Now configurations are divided into 2 categories:
+
+  - Registry and auth settings which can be stored in INI files such as global `rc` and local `.npmrc`.
+  - pnpm-specific settings which can only be loaded from YAML files such as global `config.yaml` and local `pnpm-workspace.yaml`.
+
+- 2b14c74: When pnpm updates the `pnpm-workspace.yaml`, comments, string formatting, and whitespace will be preserved.
+
+### Patch Changes
+
+- a1807b1: Prevent catalog entries from being removed by `cleanupUnusedCatalogs` when they are referenced only from workspace `overrides` in `pnpm-workspace.yaml`.
+- 4f66fbe: Fix YAML formatting preservation in `pnpm-workspace.yaml` when running commands like `pnpm update`. Previously, quotes and other formatting were lost even when catalog values didn't change.
+
+  Closes #10425
+
+- Updated dependencies [c55c614]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [606f53e]
+- Updated dependencies [491a84f]
+- Updated dependencies [075aa99]
+- Updated dependencies [8ed2c7d]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [2b14c74]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+  - @pnpm/constants@1002.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/lockfile.types@1003.0.0
+  - @pnpm/workspace.workspace-manifest-reader@1001.0.0
+  - @pnpm/config.parse-overrides@1002.0.0
+  - @pnpm/object.key-sorting@1001.0.0
+  - @pnpm/catalogs.types@1001.0.0
+  - @pnpm/yaml.document-sync@1000.0.0
+
 ## 1001.0.3
 
 ### Patch Changes

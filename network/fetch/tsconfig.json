@@ -13,6 +13,9 @@
       "path": "../../core/core-loggers"
     },
     {
+      "path": "../../core/error"
+    },
+    {
       "path": "../../core/logger"
     },
     {

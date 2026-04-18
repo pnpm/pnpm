@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/assert-project",
   "description": "Utils for testing projects that use pnpm",
-  "version": "1000.0.4",
+  "version": "1100.0.1",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -40,9 +40,9 @@
     "lint": "eslint src/**/*.ts test/**/*.ts",
     "lint-test": "tslint -c tslint.json --project test",
     "compile": "rimraf tsconfig.tsbuildinfo lib && tsc --build",
-    "prepublishOnly": "pnpm run compile",
-    "pretest": "pnpm install -C test/fixture/project --force --no-shared-workspace-lockfile",
-    "test": "pnpm pretest && pnpm run compile && jest"
+    "prepublishOnly": "pn compile",
+    "pretest": "pn install -C test/fixture/project --force --no-shared-workspace-lockfile",
+    "test": "pn pretest && pn compile && jest"
   },
   "dependencies": {
     "@pnpm/assert-store": "workspace:*",

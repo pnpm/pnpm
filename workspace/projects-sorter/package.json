@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.projects-sorter",
-  "version": "1000.0.11",
+  "version": "1100.0.1",
   "description": "Sort packages",
   "keywords": [
     "pnpm",
@@ -25,9 +25,9 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
-    "test": "pnpm run compile",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "test": "pn compile",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {
     "@pnpm/deps.graph-sequencer": "workspace:*",

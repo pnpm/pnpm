@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.commands",
-  "version": "1004.6.10",
+  "version": "1100.1.0",
   "description": "Commands for installation",
   "keywords": [
     "pnpm",
@@ -26,9 +26,9 @@
   "scripts": {
     "start": "tsgo --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "test": "pnpm run compile && pnpm run .test",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix",
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
@@ -106,6 +106,8 @@
     "@pnpm/store.index": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
+    "@pnpm/testing.command-defaults": "workspace:*",
+    "@pnpm/testing.mock-agent": "workspace:*",
     "@pnpm/worker": "workspace:*",
     "@pnpm/workspace.projects-filter": "workspace:*",
     "@types/normalize-path": "catalog:",
@@ -117,7 +119,6 @@
     "ci-info": "catalog:",
     "delay": "catalog:",
     "jest-diff": "catalog:",
-    "nock": "catalog:",
     "path-name": "catalog:",
     "proxyquire": "catalog:",
     "read-yaml-file": "catalog:",

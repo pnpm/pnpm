@@ -20,6 +20,7 @@ import type {
   PeerDependencyRules,
   ReadPackageHook,
   Registries,
+  RegistryConfig,
   SupportedArchitectures,
   TrustPolicy,
 } from '@pnpm/types'
@@ -52,7 +53,6 @@ export interface StrictInstallOptions {
   fixLockfile: boolean
   dedupe: boolean
   ignoreCompatibilityDb: boolean
-  ignoreDepScripts: boolean
   ignorePackageManifest: boolean
   /**
    * When true, skip fetching local dependencies (file: protocol pointing to directories).
@@ -74,11 +74,10 @@ export interface StrictInstallOptions {
   storeDir: string
   reporter: ReporterFunction
   force: boolean
-  forcePublicHoistPattern: boolean
   depth: number
   lockfileDir: string
   modulesDir: string
-  rawConfig: Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+  configByUri: Record<string, RegistryConfig>
   verifyStoreIntegrity: boolean
   engineStrict: boolean
   allowBuilds?: Record<string, boolean | string>
@@ -138,10 +137,8 @@ export interface StrictInstallOptions {
 
   publicHoistPattern: string[] | undefined
   hoistPattern: string[] | undefined
-  forceHoistPattern: boolean
 
   shamefullyHoist: boolean
-  forceShamefullyHoist: boolean
 
   global: boolean
   globalBin?: string
@@ -152,6 +149,7 @@ export interface StrictInstallOptions {
   dedupeDirectDeps: boolean
   dedupeInjectedDeps: boolean
   dedupePeerDependents: boolean
+  dedupePeers: boolean
   extendNodePath: boolean
   excludeLinksFromLockfile: boolean
   confirmModulesPurge: boolean
@@ -212,7 +210,6 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     publicHoistPattern: undefined,
     hooks: {},
     ignoreCurrentSpecifiers: false,
-    ignoreDepScripts: false,
     ignoreScripts: false,
     include: {
       dependencies: true,
@@ -241,7 +238,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     preserveWorkspaceProtocol: true,
     pruneLockfileImporters: false,
     pruneStore: false,
-    rawConfig: {},
+    configByUri: {},
     registries: DEFAULT_REGISTRIES,
     resolutionMode: 'highest',
     saveWorkspaceProtocol: 'rolling',
@@ -273,6 +270,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     resolveSymlinksInInjectedDirs: false,
     dedupeDirectDeps: true,
     dedupePeerDependents: true,
+    dedupePeers: false,
     resolvePeersFromWorkspaceRoot: true,
     extendNodePath: true,
     ignoreWorkspaceCycles: false,
@@ -336,7 +334,6 @@ export function extendOptions (
     extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`
   }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
-  extendedOpts.rawConfig['registry'] = extendedOpts.registries.default
   if (extendedOpts.enableGlobalVirtualStore) {
     if (extendedOpts.virtualStoreDir == null) {
       extendedOpts.virtualStoreDir = path.join(extendedOpts.storeDir, 'links')

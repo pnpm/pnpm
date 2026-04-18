@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/test-ipc-server",
-  "version": "1000.0.0",
+  "version": "1100.0.0",
   "private": true,
   "main": "lib/index.js",
   "type": "module",
@@ -17,7 +17,7 @@
   "scripts": {
     "lint": "eslint src/**/*.ts test/**/*.ts",
     "compile": "rimraf tsconfig.tsbuildinfo lib && tsc --build",
-    "test": "pnpm run compile && pnpm --filter pnpm run compile && cross-env NODE_OPTIONS=--experimental-vm-modules jest"
+    "test": "pn compile && pn --filter=pnpm compile && cross-env NODE_OPTIONS=--experimental-vm-modules jest"
   },
   "keywords": [
     "pnpm",

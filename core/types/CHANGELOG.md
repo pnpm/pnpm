@@ -1,5 +1,201 @@
 # @pnpm/types
 
+## 1101.0.0
+
+### Major Changes
+
+- ff28085: `pnpm audit` now calls npm's `/-/npm/v1/security/advisories/bulk` endpoint. The legacy `/-/npm/v1/security/audits{,/quick}` endpoints have been retired by the registry, so the legacy request/response contract is no longer supported.
+
+  The bulk endpoint does not return CVE identifiers. CVE-based filtering has been replaced with GitHub advisory ID (GHSA) filtering:
+
+  - `auditConfig.ignoreCves` → `auditConfig.ignoreGhsas` (the previous key is no longer recognized)
+  - `pnpm audit --ignore <id>` / `pnpm audit --ignore-unfixable` now read and write GHSAs instead of CVEs
+  - GHSAs are derived from each advisory's `url` (`https://github.com/advisories/GHSA-xxxx-xxxx-xxxx`)
+
+  To migrate: replace each `CVE-YYYY-NNNNN` entry in your `auditConfig.ignoreCves` with the corresponding `GHSA-xxxx-xxxx-xxxx` value (visible in the `More info` column of `pnpm audit` output) and move it under `auditConfig.ignoreGhsas`.
+
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+- efb48dc: DevEngineDependency renamed to EngineDependency.
+- cb367b9: Remove deprecated build dependency settings: `onlyBuiltDependencies`, `onlyBuiltDependenciesFile`, `neverBuiltDependencies`, and `ignoredBuiltDependencies`.
+- 7b1c189: Removed the deprecated `allowNonAppliedPatches` completely in favor of `allowUnusedPatches`.
+  Remove `ignorePatchFailures` so all patch application failures should throw an error.
+- 71de2b3: Removed support for the `useNodeVersion` and `executionEnv.nodeVersion` fields. `devEngines.runtime` and `engines.runtime` should be used instead [#10373](https://github.com/pnpm/pnpm/pull/10373).
+
+### Minor Changes
+
+- 76718b3: Added support for `allowBuilds`, which is a new field that can be used instead of `onlyBuiltDependencies` and `ignoredBuiltDependencies`. The new `allowBuilds` field in your `pnpm-workspace.yaml` uses a map of package matchers to explicitly allow (`true`) or disallow (`false`) script execution. This allows for a single, easy-to-manage source of truth for your build permissions.
+
+  **Example Usage.** To explicitly allow all versions of `esbuild` to run scripts and prevent `core-js` from running them:
+
+  ```yaml
+  allowBuilds:
+    esbuild: true
+    core-js: false
+  ```
+
+  The example above achieves the same result as the previous configuration:
+
+  ```yaml
+  onlyBuiltDependencies:
+    - esbuild
+  ignoredBuiltDependencies:
+    - core-js
+  ```
+
+  Related PR: [#10311](https://github.com/pnpm/pnpm/pull/10311)
+
+- cc1b8e3: Fixed installation of config dependencies from private registries.
+
+  Added support for object type in `configDependencies` when the tarball URL returned from package metadata differs from the computed URL [#10431](https://github.com/pnpm/pnpm/pull/10431).
+
+- 05fb1ae: Add type for IgnoredBuilds.
+- 10bc391: Added a new setting: `trustPolicy`.
+- 2df8b71: pnpm no longer reads all settings from `.npmrc`. Only auth and registry settings are read from `.npmrc` files. All other settings (like `hoist-pattern`, `node-linker`, `shamefully-hoist`, etc.) must be configured in `pnpm-workspace.yaml` or the global `~/.config/pnpm/config.yaml`.
+
+  ### What changed
+
+  **`.npmrc` is now only for auth and registry settings.** pnpm-specific settings in `.npmrc` are ignored. Move them to `pnpm-workspace.yaml`.
+
+  **pnpm no longer reads `npm_config_*` environment variables.** Use `pnpm_config_*` environment variables instead (e.g., `pnpm_config_registry` instead of `npm_config_registry`).
+
+  **pnpm no longer reads the npm global config** at `$PREFIX/etc/npmrc`.
+
+  **`pnpm login` writes auth tokens** to `~/.config/pnpm/auth.ini`.
+
+  ### Settings still read from `.npmrc`
+
+  The following settings continue to be read from `.npmrc` files (project-level and `~/.npmrc`):
+
+  - `registry` and `@scope:registry` — registry URLs
+  - `//registry.example.com/:_authToken` — auth tokens per registry
+  - `_auth`, `_authToken`, `_password`, `username`, `email` — global auth credentials
+  - `//registry.example.com/:tokenHelper` — token helper commands
+  - `ca`, `cafile`, `cert`, `key`, `certfile`, `keyfile` — SSL certificates
+  - `strict-ssl` — SSL verification
+  - `proxy`, `https-proxy`, `no-proxy` — proxy settings
+  - `local-address` — local network address binding
+  - `git-shallow-hosts` — git shallow clone hosts
+
+  ### New `npmrcAuthFile` setting
+
+  A new `npmrcAuthFile` setting can be added to `pnpm-workspace.yaml` or `~/.config/pnpm/config.yaml` to specify a custom path to the user `.npmrc` file (defaults to `~/.npmrc`):
+
+  ```yaml
+  npmrcAuthFile: /custom/path/.npmrc
+  ```
+
+  ### New `registries` setting in `pnpm-workspace.yaml`
+
+  Registry URLs can now be configured in `pnpm-workspace.yaml`, so there's no need to commit `.npmrc` files with registry mappings:
+
+  ```yaml
+  registries:
+    default: https://registry.npmjs.org/
+    "@my-org": https://private.example.com/
+    "@internal": https://nexus.corp.com/
+  ```
+
+  This replaces the `.npmrc` settings `registry=...` and `@scope:registry=...`.
+
+  ### Auth file read order (highest priority first)
+
+  1. `~/.config/pnpm/auth.ini` — pnpm's own auth file (written by `pnpm login`)
+  2. `<workspace>/.npmrc` — workspace root (or project root)
+  3. `~/.npmrc` (or custom `npmrcAuthFile`) — user-level fallback
+
+  Note: `.npmrc` is only read from the workspace root, not from individual package directories.
+
+  ### Migration guide
+
+  1. **Move pnpm settings from `.npmrc` to `pnpm-workspace.yaml`:**
+
+     Before (`.npmrc`):
+
+     ```ini
+     shamefully-hoist=true
+     node-linker=hoisted
+     ```
+
+     After (`pnpm-workspace.yaml`):
+
+     ```yaml
+     shamefullyHoist: true
+     nodeLinker: hoisted
+     ```
+
+  2. **Move scoped registry mappings from `.npmrc` to `pnpm-workspace.yaml`:**
+
+     Before (`.npmrc`):
+
+     ```ini
+     @my-org:registry=https://private.example.com
+     ```
+
+     After (`pnpm-workspace.yaml`):
+
+     ```yaml
+     registries:
+       "@my-org": https://private.example.com/
+     ```
+
+  3. **If you use `npm_config_*` env vars**, switch to `pnpm_config_*`:
+
+     ```sh
+     # Before
+     npm_config_registry=https://registry.example.com
+
+     # After
+     pnpm_config_registry=https://registry.example.com
+     ```
+
+  4. **Auth tokens in `~/.npmrc` still work.** No migration needed for registry authentication — pnpm continues to read `~/.npmrc` as a fallback.
+
+- 15549a9: Add the ability to fix vulnerabilities by updating packages in the lockfile instead of adding overrides.
+- cc7c0d2: `pnpm publish` now works without the `npm` CLI.
+
+  The One-time Password feature now reads from `PNPM_CONFIG_OTP` instead of `NPM_CONFIG_OTP`:
+
+  ```sh
+  export PNPM_CONFIG_OTP='<your OTP here>'
+  pnpm publish --no-git-checks
+  ```
+
+  If the registry requests OTP and the user has not provided it via the `PNPM_CONFIG_OTP` environment variable or the `--otp` flag, pnpm will prompt the user directly for an OTP code.
+
+  If the registry requests web-based authentication, pnpm will print a scannable QR code along with the URL.
+
+  Since the new `pnpm publish` no longer calls `npm publish`, some undocumented features may have been unknowingly dropped. If you rely on a feature that is now gone, please open an issue at <https://github.com/pnpm/pnpm/issues>. In the meantime, you can use `pnpm pack && npm publish *.tgz` as a workaround.
+
+- efb48dc: **Node.js Runtime Installation for Dependencies.** Added support for automatic Node.js runtime installation for dependencies. pnpm will now install the Node.js version required by a dependency if that dependency declares a Node.js runtime in the "engines" field. For example:
+
+  ```json
+  {
+    "engines": {
+      "runtime": {
+        "name": "node",
+        "version": "^24.11.0",
+        "onFail": "download"
+      }
+    }
+  }
+  ```
+
+  If the package with the Node.js runtime dependency is a CLI app, pnpm will bind the CLI app to the required Node.js version. This ensures that, regardless of the globally installed Node.js instance, the CLI will use the compatible version of Node.js.
+
+  If the package has a `postinstall` script, that script will be executed using the specified Node.js version.
+
+  Related PR: [#10141](https://github.com/pnpm/pnpm/pull/10141)
+
+### Patch Changes
+
+- a8f016c: Store config dependency and package manager integrity info in `pnpm-lock.yaml` instead of inlining it in `pnpm-workspace.yaml`. The workspace manifest now contains only clean version specifiers for `configDependencies`, while the resolved versions, integrity hashes, and tarball URLs are recorded in the lockfile as a separate YAML document. The env lockfile section also stores `packageManagerDependencies` resolved during version switching and self-update. Projects using the old inline-hash format are automatically migrated on install.
+- 8ffb1a7: `pnpm list` and `pnpm why` now display npm: protocol for aliased packages (e.g., `foo npm:is-odd@3.0.1`) [#8660](https://github.com/pnpm/pnpm/issues/8660).
+
 ## 1000.9.0
 
 ### Minor Changes

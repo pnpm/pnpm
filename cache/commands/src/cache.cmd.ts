@@ -7,7 +7,7 @@ import {
   cacheView,
 } from '@pnpm/cache.api'
 import { docsUrl } from '@pnpm/cli.utils'
-import { type Config, types as allTypes } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { getStorePath } from '@pnpm/store.path'
@@ -59,7 +59,7 @@ export function help (): string {
   })
 }
 
-export type CacheCommandOptions = Pick<Config, 'cacheDir' | 'storeDir' | 'pnpmHomeDir' | 'cliOptions' | 'resolutionMode' | 'registrySupportsTimeField'>
+export type CacheCommandOptions = Pick<Config, 'cacheDir' | 'storeDir' | 'pnpmHomeDir' | 'resolutionMode' | 'registrySupportsTimeField'> & Pick<ConfigContext, 'cliOptions'>
 
 export async function handler (opts: CacheCommandOptions, params: string[]): Promise<string | undefined> {
   const cacheType = (opts.resolutionMode === 'time-based' && !opts.registrySupportsTimeField)

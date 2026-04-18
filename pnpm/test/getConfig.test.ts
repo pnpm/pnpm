@@ -25,7 +25,6 @@ test('console a warning when the .npmrc has an env variable that does not exist'
   }, {
     workspaceDir: '.',
     excludeReporter: false,
-    rcOptionsTypes: {},
   })
 
   expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('Failed to replace env in config: ${ENV_VAR_123}'))
@@ -65,12 +64,11 @@ describe('calcPnpmfilePathsOfPluginDeps', () => {
 test('hoist: false removes hoistPattern', async () => {
   prepare()
 
-  const config = await getConfig({
+  const { config } = await getConfig({
     hoist: false,
   }, {
     workspaceDir: '.',
     excludeReporter: false,
-    rcOptionsTypes: {},
   })
 
   expect(config.hoist).toBe(false)

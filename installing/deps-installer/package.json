@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.deps-installer",
-  "version": "1012.0.1",
+  "version": "1100.0.2",
   "description": "Fast, disk space efficient installation engine",
   "keywords": [
     "pnpm",
@@ -50,9 +50,9 @@
     "start": "tsgo --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test-with-preview": "preview && pnpm run test:e2e",
-    "test": "pnpm run compile && pnpm run .test",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix",
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
     ".test": "cross-env PNPM_REGISTRY_MOCK_PORT=7769 NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
@@ -134,11 +134,13 @@
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
+    "@pnpm/resolving.registry.types": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/store.path": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
+    "@pnpm/testing.mock-agent": "workspace:*",
     "@pnpm/testing.temp-store": "workspace:*",
     "@types/fs-extra": "catalog:",
     "@types/is-windows": "catalog:",

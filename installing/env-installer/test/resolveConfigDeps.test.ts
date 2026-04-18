@@ -19,7 +19,6 @@ test('configuration dependency is resolved', async () => {
     },
     rootDir: process.cwd(),
     cacheDir: path.resolve('cache'),
-    userConfig: {},
     store: storeController,
     storeDir,
   })
@@ -43,4 +42,20 @@ test('configuration dependency is resolved', async () => {
     },
   })
   expect(envLockfile!.snapshots['@pnpm.e2e/foo@100.0.0']).toStrictEqual({})
+})
+
+test('fails with frozenLockfile', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  await expect(resolveConfigDeps(['@pnpm.e2e/foo@100.0.0'], {
+    registries: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    cacheDir: path.resolve('cache'),
+    store: storeController,
+    storeDir,
+    frozenLockfile: true,
+  })).rejects.toThrow('Cannot resolve configDependencies with "frozen-lockfile"')
 })

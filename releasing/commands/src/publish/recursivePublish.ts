@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
-import type { Config } from '@pnpm/config.reader'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { createResolver } from '@pnpm/installing.client'
 import { logger } from '@pnpm/logger'
 import type { ResolveFunction } from '@pnpm/resolving.resolver-base'
@@ -17,12 +17,14 @@ import type { PublishPackedPkgOptions } from './publishPackedPkg.js'
 export type PublishRecursiveOpts = Required<Pick<Config,
 | 'bin'
 | 'cacheDir'
-| 'cliOptions'
 | 'dir'
 | 'pnpmHomeDir'
-| 'rawConfig'
+| 'configByUri'
 | 'registries'
 | 'workspaceDir'
+>> &
+Required<Pick<ConfigContext,
+| 'cliOptions'
 >> &
 Partial<Pick<Config,
 | 'tag'
@@ -46,12 +48,13 @@ Partial<Pick<Config,
 | 'noProxy'
 | 'npmPath'
 | 'offline'
-| 'selectedProjectsGraph'
 | 'strictSsl'
 | 'unsafePerm'
 | 'userAgent'
-| 'userConfig'
 | 'verifyStoreIntegrity'
+>> &
+Partial<Pick<ConfigContext,
+| 'selectedProjectsGraph'
 >> & {
   access?: 'public' | 'restricted'
   argv: {
@@ -61,13 +64,12 @@ Partial<Pick<Config,
 } & PublishPackedPkgOptions
 
 export async function recursivePublish (
-  opts: PublishRecursiveOpts & Required<Pick<Config, 'selectedProjectsGraph'>>
+  opts: PublishRecursiveOpts & Required<Pick<ConfigContext, 'selectedProjectsGraph'>>
 ): Promise<{ exitCode: number }> {
   const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
   const { resolve } = createResolver({
     ...opts,
-    authConfig: opts.rawConfig,
-    userConfig: opts.userConfig,
+    configByUri: opts.configByUri,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,

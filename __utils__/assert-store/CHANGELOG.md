@@ -1,5 +1,34 @@
 # @pnpm/assert-store
 
+## 1100.0.1
+
+### Patch Changes
+
+- @pnpm/store.cafs@1100.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+
+### Patch Changes
+
+- Updated dependencies [e2e0a32]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [491a84f]
+- Updated dependencies [6656baa]
+- Updated dependencies [2ea6463]
+- Updated dependencies [50fbeca]
+- Updated dependencies [caabba4]
+- Updated dependencies [878a773]
+- Updated dependencies [f8e6774]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [56a59df]
+- Updated dependencies [b7f0f21]
+  - @pnpm/store.cafs@1001.0.0
+  - @pnpm/store.index@1000.0.0
+
 ## 1000.0.3
 
 ### Patch Changes

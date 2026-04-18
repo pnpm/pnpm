@@ -6,36 +6,34 @@ import { createTarballFetcher, type TarballFetchers } from '@pnpm/fetching.tarba
 import type { FetchFromRegistry, GetAuthHeader, RetryTimeoutOptions } from '@pnpm/fetching.types'
 import type { CustomFetcher, CustomResolver } from '@pnpm/hooks.types'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
-import { type AgentOptions, createFetchFromRegistry } from '@pnpm/network.fetch'
+import { createFetchFromRegistry, type DispatcherOptions } from '@pnpm/network.fetch'
 import {
   createResolver as _createResolver,
   type ResolveFunction,
   type ResolverFactoryOptions,
 } from '@pnpm/resolving.default-resolver'
 import type { StoreIndex } from '@pnpm/store.index'
-import type { SslConfig } from '@pnpm/types'
+import type { RegistryConfig } from '@pnpm/types'
 
 export type { ResolveFunction }
 
 export type ClientOptions = {
-  authConfig: Record<string, string>
+  configByUri: Record<string, RegistryConfig>
   customResolvers?: CustomResolver[]
   customFetchers?: CustomFetcher[]
   ignoreScripts?: boolean
-  rawConfig: Record<string, string>
-  sslConfigs?: Record<string, SslConfig>
   retry?: RetryTimeoutOptions
   storeIndex: StoreIndex
   timeout?: number
+  nodeDownloadMirrors?: Record<string, string>
   unsafePerm?: boolean
   userAgent?: string
-  userConfig?: Record<string, string>
   gitShallowHosts?: string[]
   resolveSymlinksInInjectedDirs?: boolean
   includeOnlyPackageFiles?: boolean
   preserveAbsolutePaths?: boolean
   fetchMinSpeedKiBps?: number
-} & ResolverFactoryOptions & AgentOptions
+} & ResolverFactoryOptions & DispatcherOptions
 
 export interface Client {
   fetchers: Fetchers
@@ -45,7 +43,7 @@ export interface Client {
 
 export function createClient (opts: ClientOptions): Client {
   const fetchFromRegistry = createFetchFromRegistry(opts)
-  const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.authConfig, userSettings: opts.userConfig })
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri, opts.registries?.default)
 
   const { resolve, clearCache: clearResolutionCache } = _createResolver(fetchFromRegistry, getAuthHeader, { ...opts, customResolvers: opts.customResolvers })
   return {
@@ -57,7 +55,7 @@ export function createClient (opts: ClientOptions): Client {
 
 export function createResolver (opts: Omit<ClientOptions, 'storeIndex'>): { resolve: ResolveFunction, clearCache: () => void } {
   const fetchFromRegistry = createFetchFromRegistry(opts)
-  const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.authConfig, userSettings: opts.userConfig })
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri, opts.registries?.default)
 
   return _createResolver(fetchFromRegistry, getAuthHeader, { ...opts, customResolvers: opts.customResolvers })
 }
@@ -71,7 +69,7 @@ type Fetchers = {
 function createFetchers (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
-  opts: Pick<ClientOptions, 'rawConfig' | 'retry' | 'gitShallowHosts' | 'resolveSymlinksInInjectedDirs' | 'unsafePerm' | 'includeOnlyPackageFiles' | 'offline' | 'fetchMinSpeedKiBps' | 'storeIndex'>
+  opts: Pick<ClientOptions, 'retry' | 'gitShallowHosts' | 'resolveSymlinksInInjectedDirs' | 'unsafePerm' | 'userAgent' | 'includeOnlyPackageFiles' | 'offline' | 'fetchMinSpeedKiBps' | 'storeIndex'>
 ): Fetchers {
   const tarballFetchers = createTarballFetcher(fetchFromRegistry, getAuthHeader, opts)
   return {
@@ -82,7 +80,6 @@ function createFetchers (
       fetch: fetchFromRegistry,
       fetchFromRemoteTarball: tarballFetchers.remoteTarball,
       offline: opts.offline,
-      rawConfig: opts.rawConfig,
       storeIndex: opts.storeIndex,
     }),
   }

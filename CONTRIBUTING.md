@@ -20,7 +20,7 @@
 ## Setting Up the Environment
 
 1. Run `pnpm install` in the root of the repository to install all dependencies.
-1. Run `pnpm link --dir ./pnpm/dev -g` to make pnpm from the repository available in the command line via the `pd` command.
+1. Run `pnpm add ./pnpm/dev -g` to make pnpm from the repository available in the command line via the `pd` command.
 1. Run `pnpm run compile` to create an initial build of pnpm from the source in the repository.
 1. Now you can change any source code file and run `pd [command] [flags]` to run `pnpm` directly from the source code by compiling all the files without typechecking in memory.
 1. Alternatively, for recompiling all the projects with typechecking after your changes, again run `pnpm run compile` in the root of the repository.

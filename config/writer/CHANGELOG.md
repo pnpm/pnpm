@@ -1,5 +1,55 @@
 # @pnpm/config.config-writer
 
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- 7721d2e: `pnpm audit --fix` now adds the minimum patched versions to `minimumReleaseAgeExclude` in `pnpm-workspace.yaml` [#10263](https://github.com/pnpm/pnpm/issues/10263).
+
+  When `minimumReleaseAge` is configured, security patches suggested by `pnpm audit` may be blocked because the patched versions are too new. Now, `pnpm audit --fix` automatically adds the minimum patched version for each vulnerability (e.g., `axios@0.21.2`) to `minimumReleaseAgeExclude`, so that `pnpm install` can install the security fix without waiting for it to mature.
+
+- 121f64a: New option added: updatedOverrides.
+
+### Patch Changes
+
+- Updated dependencies [7721d2e]
+- Updated dependencies [a1807b1]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [491a84f]
+- Updated dependencies [121f64a]
+- Updated dependencies [075aa99]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [4f66fbe]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+- Updated dependencies [2b14c74]
+  - @pnpm/workspace.workspace-manifest-writer@1002.0.0
+  - @pnpm/types@1001.0.0
+
 ## 1000.0.14
 
 ### Patch Changes

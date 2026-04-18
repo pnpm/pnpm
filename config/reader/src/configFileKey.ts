@@ -1,8 +1,7 @@
-import npmTypes from '@pnpm/npm-conf/lib/types.js'
-
+import { npmConfigTypes } from './npmConfigTypes.js'
 import type { pnpmTypes } from './types.js'
 
-type NpmKey = keyof typeof npmTypes.types
+type NpmKey = keyof typeof npmConfigTypes
 type PnpmKey = keyof typeof pnpmTypes
 
 /**
@@ -29,6 +28,7 @@ export const pnpmConfigFileKeys = [
   'global-dir',
   'global-path',
   'global-pnpmfile',
+  'http-proxy',
   'optimistic-repeat-install',
   'loglevel',
   'maxsockets',
@@ -36,9 +36,11 @@ export const pnpmConfigFileKeys = [
   'dlx-cache-max-age',
   'minimum-release-age',
   'minimum-release-age-exclude',
+  'minimum-release-age-strict',
   'network-concurrency',
   'noproxy',
   'npm-path',
+  'npmrc-auth-file',
   'package-import-method',
   'prefer-frozen-lockfile',
   'prefer-offline',
@@ -63,6 +65,7 @@ export const excludedPnpmKeys = [
   'merge-git-branch-lockfiles-branch-pattern',
   'deploy-all-files',
   'dedupe-peer-dependents',
+  'dedupe-peers',
   'dedupe-direct-deps',
   'dedupe-injected-deps',
   'dev',
@@ -78,7 +81,6 @@ export const excludedPnpmKeys = [
   'hoist-pattern',
   'hoist-workspace-packages',
   'ignore-compatibility-db',
-  'ignore-dep-scripts',
   'ignore-pnpmfile',
   'ignore-workspace',
   'ignore-workspace-cycles',
@@ -93,7 +95,6 @@ export const excludedPnpmKeys = [
   'lockfile-dir',
   'lockfile-include-tarball-url',
   'lockfile-only',
-  'manage-package-manager-versions',
   'modules-dir',
   'node-linker',
   'offline',
@@ -101,8 +102,7 @@ export const excludedPnpmKeys = [
   'pack-gzip-level',
   'patches-dir',
   'pnpmfile',
-  'package-manager-strict',
-  'package-manager-strict-version',
+  'pm-on-fail',
   'prefer-workspace-packages',
   'preserve-absolute-paths',
   'production',
@@ -110,6 +110,7 @@ export const excludedPnpmKeys = [
   'publish-branch',
   'recursive-install',
   'resolve-peers-from-workspace-root',
+  'runtime-on-fail',
   'aggregate-output',
   'reporter-hide-prefix',
   'save-catalog-name',
@@ -181,4 +182,4 @@ const setOfExcludedPnpmKeys: ReadonlySet<string> = new Set(excludedPnpmKeys)
 
 /** Whether the key (in kebab-case) is a valid key in a global config file. */
 export const isConfigFileKey = (kebabKey: string): kebabKey is ConfigFileKey =>
-  setOfPnpmConfigFilesKeys.has(kebabKey) || (kebabKey in npmTypes.types && !setOfExcludedPnpmKeys.has(kebabKey))
+  setOfPnpmConfigFilesKeys.has(kebabKey) || (kebabKey in npmConfigTypes && !setOfExcludedPnpmKeys.has(kebabKey))

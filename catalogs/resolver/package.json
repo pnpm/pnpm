@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/catalogs.resolver",
-  "version": "1000.0.5",
+  "version": "1100.0.0",
   "description": "Dereferences catalog protocol specifiers into usable specifiers.",
   "keywords": [
     "pnpm",
@@ -26,9 +26,9 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "compile": "tsgo --build && pnpm run lint --fix",
-    "prepublishOnly": "pnpm run compile",
-    "test": "pnpm run compile && pnpm run .test",
+    "compile": "tsgo --build && pn lint --fix",
+    "prepublishOnly": "pn compile",
+    "test": "pn compile && pn .test",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {

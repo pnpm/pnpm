@@ -15,8 +15,10 @@ export interface Command {
 // `pnpm` package and the `@pnpm/exe` package.
 export const BIN_OWNER_OVERRIDES: Record<string, string[]> = {
   npx: ['npm'],
+  pn: ['pnpm', '@pnpm/exe'],
   pnpm: ['@pnpm/exe'],
   pnpx: ['pnpm', '@pnpm/exe'],
+  pnx: ['pnpm', '@pnpm/exe'],
 }
 
 export function pkgOwnsBin (binName: string, pkgName: string): boolean {

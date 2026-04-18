@@ -1,5 +1,5 @@
 import { initDefaultReporter } from '@pnpm/cli.default-reporter'
-import type { Config } from '@pnpm/config.reader'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
 import type { Log } from '@pnpm/core-loggers'
 import { type LogLevel, type StreamParser, streamParser, writeToConsole } from '@pnpm/logger'
 
@@ -11,7 +11,7 @@ export function initReporter (
   reporterType: ReporterType,
   opts: {
     cmd: string | null
-    config: Config
+    config: Config & ConfigContext
   }
 ): void {
   switch (reporterType) {

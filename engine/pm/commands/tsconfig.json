@@ -29,6 +29,9 @@
       "path": "../../../config/reader"
     },
     {
+      "path": "../../../core/constants"
+    },
+    {
       "path": "../../../core/error"
     },
     {
@@ -69,6 +72,9 @@
     },
     {
       "path": "../../../store/controller"
+    },
+    {
+      "path": "../../../testing/mock-agent"
     },
     {
       "path": "../../../workspace/project-manifest-reader"

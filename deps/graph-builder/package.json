@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.graph-builder",
-  "version": "1002.3.0",
+  "version": "1100.0.1",
   "description": "A package for building a dependency graph from a lockfile",
   "keywords": [
     "pnpm",
@@ -25,9 +25,9 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
-    "test": "pnpm run compile",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "test": "pn compile",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {
     "@pnpm/config.package-is-installable": "workspace:*",

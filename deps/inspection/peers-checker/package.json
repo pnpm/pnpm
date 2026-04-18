@@ -1,0 +1,56 @@
+{
+  "name": "@pnpm/deps.inspection.peers-checker",
+  "version": "1100.0.1",
+  "description": "Check for unmet and missing peer dependency issues from the lockfile",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "peers"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/deps/inspection/peers-checker",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/deps/inspection/peers-checker#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "prepublishOnly": "pn compile",
+    "test": "pn compile && pn .test",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/config.matcher": "workspace:*",
+    "@pnpm/config.parse-overrides": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.walker": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "semver": "catalog:",
+    "semver-range-intersect": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm/deps.inspection.peers-checker": "workspace:*",
+    "@pnpm/test-fixtures": "workspace:*",
+    "@types/semver": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

@@ -1,5 +1,56 @@
 # @pnpm/manifest-utils
 
+## 1100.1.0
+
+### Minor Changes
+
+- ff7733c: Added a new setting `runtimeOnFail` that overrides the `onFail` field of `devEngines.runtime` (and `engines.runtime`) in the root project's `package.json`. Accepted values: `ignore`, `warn`, `error`, `download`. For example, setting `runtimeOnFail=download` makes pnpm download the declared runtime version even when the manifest does not set `onFail: "download"`.
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/core-loggers@1100.0.1
+
+## 1002.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+- efb48dc: Added `@pnpm/logger` to peer dependencies.
+
+### Minor Changes
+
+- efb48dc: Added convertEnginesRuntimeToDependencies.
+
+### Patch Changes
+
+- cee1f58: Fix `--save-peer` to write valid semver ranges to `peerDependencies` for protocol-based installs (e.g. `jsr:`) by deriving from resolved versions when available and falling back to `*` if none is available [#10417](https://github.com/pnpm/pnpm/issues/10417).
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [491a84f]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [831f574]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+  - @pnpm/types@1001.0.0
+  - @pnpm/core-loggers@1002.0.0
+  - @pnpm/deps.peer-range@1001.0.0
+  - @pnpm/error@1001.0.0
+
 ## 1001.0.6
 
 ### Patch Changes

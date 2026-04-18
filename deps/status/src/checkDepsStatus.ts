@@ -3,7 +3,7 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { parseOverrides } from '@pnpm/config.parse-overrides'
-import type { Config } from '@pnpm/config.reader'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { MANIFEST_BASE_NAMES, WANTED_LOCKFILE } from '@pnpm/constants'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
@@ -42,18 +42,14 @@ import { safeStat, safeStatSync } from './safeStat.js'
 import { statManifestFile } from './statManifestFile.js'
 
 export type CheckDepsStatusOptions = Pick<Config,
-| 'allProjects'
 | 'autoInstallPeers'
 | 'catalogs'
 | 'excludeLinksFromLockfile'
 | 'injectWorkspacePackages'
 | 'linkWorkspacePackages'
 | 'nodeLinker'
-| 'hooks'
 | 'patchedDependencies'
 | 'peersSuffixMaxLength'
-| 'rootProjectManifest'
-| 'rootProjectManifestDir'
 | 'sharedWorkspaceLockfile'
 | 'workspaceDir'
 | 'patchesDir'
@@ -61,6 +57,11 @@ export type CheckDepsStatusOptions = Pick<Config,
 | 'overrides'
 | 'packageExtensions'
 | 'ignoredOptionalDependencies'
+> & Pick<ConfigContext,
+| 'allProjects'
+| 'hooks'
+| 'rootProjectManifest'
+| 'rootProjectManifestDir'
 > & {
   ignoreFilteredInstallCache?: boolean
   ignoredWorkspaceStateSettings?: Array<keyof WorkspaceStateSettings>

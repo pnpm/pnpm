@@ -1,4 +1,4 @@
-import type { Config } from '@pnpm/config.reader'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
 
 export type NvmNodeCommandOptions = Pick<Config,
 | 'bin'
@@ -16,18 +16,16 @@ export type NvmNodeCommandOptions = Pick<Config,
 | 'key'
 | 'localAddress'
 | 'noProxy'
-| 'rawConfig'
+| 'nodeDownloadMirrors'
+| 'configByUri'
 | 'strictSsl'
 | 'storeDir'
 | 'pnpmHomeDir'
 > & Partial<Pick<Config,
 | 'cacheDir'
 | 'configDir'
-| 'cliOptions'
-| 'sslConfigs'
 // Fields needed to forward opts to add.handler for env use
 | 'registries'
-| 'rawLocalConfig'
 | 'lockfileDir'
 | 'nodeLinker'
 | 'modulesDir'
@@ -37,6 +35,8 @@ export type NvmNodeCommandOptions = Pick<Config,
 | 'sideEffectsCache'
 | 'sideEffectsCacheReadonly'
 | 'supportedArchitectures'
+>> & Partial<Pick<ConfigContext,
+| 'cliOptions'
 >> & {
   remote?: boolean
 }

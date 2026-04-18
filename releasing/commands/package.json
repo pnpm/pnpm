@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/releasing.commands",
-  "version": "1000.0.0",
+  "version": "1100.0.2",
   "description": "Commands for deploy, pack, and publish",
   "keywords": [
     "pnpm",
@@ -26,9 +26,9 @@
   "scripts": {
     "start": "tsgo --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "test": "pnpm run compile && pnpm --filter pnpm run compile && pnpm run .test",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix",
+    "test": "pn compile && pn --filter=pnpm compile && pn .test",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
@@ -53,6 +53,8 @@
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
     "@pnpm/network.git-utils": "workspace:*",
+    "@pnpm/network.web-auth": "workspace:*",
+    "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/releasing.exportable-manifest": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
@@ -69,7 +71,6 @@
     "normalize-registry-url": "catalog:",
     "p-filter": "catalog:",
     "p-limit": "catalog:",
-    "qrcode-terminal": "catalog:",
     "ramda": "catalog:",
     "realpath-missing": "catalog:",
     "render-help": "catalog:",
@@ -95,11 +96,11 @@
     "@pnpm/releasing.commands": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
+    "@pnpm/testing.command-defaults": "workspace:*",
     "@types/cross-spawn": "catalog:",
     "@types/is-windows": "catalog:",
     "@types/libnpmpublish": "catalog:",
     "@types/proxyquire": "catalog:",
-    "@types/qrcode-terminal": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
     "@types/tar": "catalog:",

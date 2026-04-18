@@ -15,6 +15,9 @@ import * as retry from '@zkochan/retry'
 interface RegistryResponse {
   status: number
   statusText: string
+  headers: {
+    get: (name: string) => string | null
+  }
   json: () => Promise<PackageMeta>
   text: () => Promise<string>
 }
@@ -22,6 +25,12 @@ interface RegistryResponse {
 export interface FetchMetadataResult {
   meta: PackageMeta
   jsonText: string
+  etag?: string
+  notModified?: false
+}
+
+export interface FetchMetadataNotModifiedResult {
+  notModified: true
 }
 
 // https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
@@ -60,6 +69,8 @@ export interface FetchMetadataOptions {
   registry: string
   authHeaderValue?: string
   fullMetadata?: boolean
+  etag?: string
+  modified?: string
 }
 
 export async function fetchMetadataFromFromRegistry (
@@ -67,10 +78,12 @@ export async function fetchMetadataFromFromRegistry (
   pkgName: string,
   {
     authHeaderValue,
+    etag: cachedEtag,
     fullMetadata,
+    modified: cachedModified,
     registry,
   }: FetchMetadataOptions
-): Promise<FetchMetadataResult> {
+): Promise<FetchMetadataResult | FetchMetadataNotModifiedResult> {
   const uri = toUri(pkgName, registry)
   const op = retry.operation(fetchOpts.retry)
   return new Promise((resolve, reject) => {
@@ -82,11 +95,17 @@ export async function fetchMetadataFromFromRegistry (
           authHeaderValue,
           compress: true,
           fullMetadata,
+          ifNoneMatch: cachedEtag,
+          ifModifiedSince: cachedModified ? new Date(cachedModified).toUTCString() : undefined,
           retry: fetchOpts.retry,
           timeout: fetchOpts.timeout,
         }) as RegistryResponse
       } catch (error: any) { // eslint-disable-line
         reject(new PnpmError('META_FETCH_FAIL', `GET ${uri}: ${error.message as string}`, { attempts: attempt, cause: error }))
+        return
+      }
+      if (response.status === 304) {
+        resolve({ notModified: true })
         return
       }
       if (response.status >= 400) {
@@ -108,7 +127,11 @@ export async function fetchMetadataFromFromRegistry (
         if (elapsedMs > fetchOpts.fetchWarnTimeoutMs) {
           globalWarn(`Request took ${elapsedMs}ms: ${uri}`)
         }
-        resolve({ meta, jsonText })
+        resolve({
+          meta,
+          jsonText,
+          etag: response.headers.get('etag') ?? undefined,
+        })
       } catch (error: any) { // eslint-disable-line
         const timeout = op.retry(
           new PnpmError('BROKEN_METADATA_JSON', error.message)
@@ -117,9 +140,17 @@ export async function fetchMetadataFromFromRegistry (
           reject(op.mainError())
           return
         }
+        // Extract error properties into a plain object because Error properties
+        // are non-enumerable and don't serialize well through the logging system
+        const errorInfo = {
+          name: error.name,
+          message: error.message,
+          code: error.code,
+          errno: error.errno,
+        }
         requestRetryLogger.debug({
           attempt,
-          error,
+          error: errorInfo,
           maxRetries: fetchOpts.retry.retries!,
           method: 'GET',
           timeout,

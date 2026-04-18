@@ -7,7 +7,7 @@ import {
   readProjectManifestOnly,
   tryReadProjectManifest,
 } from '@pnpm/cli.utils'
-import { type Config, getWorkspaceConcurrency, types as allTypes } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, getWorkspaceConcurrency, types as allTypes } from '@pnpm/config.reader'
 import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import {
@@ -161,7 +161,6 @@ export type RunOpts =
   & { recursive?: boolean }
   & Pick<Config,
   | 'bin'
-  | 'cliOptions'
   | 'verifyDepsBeforeRun'
   | 'dir'
   | 'enablePrePostScripts'
@@ -177,9 +176,10 @@ export type RunOpts =
   | 'syncInjectedDepsAfterScripts'
   | 'userAgent'
   >
+  & Pick<ConfigContext, 'cliOptions'>
   & (
-    | { recursive?: false } & Partial<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
-    | { recursive: true } & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
+    | { recursive?: false } & Partial<Pick<ConfigContext, 'allProjects' | 'selectedProjectsGraph'> & Pick<Config, 'workspaceDir'>>
+    | { recursive: true } & Required<Pick<ConfigContext, 'allProjects' | 'selectedProjectsGraph'> & Pick<Config, 'workspaceDir'>>
   )
   & {
     argv?: {
@@ -275,7 +275,6 @@ so you may run "pnpm -w run ${scriptName}"`,
     extraBinPaths: opts.extraBinPaths,
     extraEnv: opts.extraEnv,
     pkgRoot: dir,
-    rawConfig: opts.rawConfig,
     rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
     scriptsPrependNodePath: opts.scriptsPrependNodePath,
     scriptShell: opts.scriptShell,
@@ -283,6 +282,7 @@ so you may run "pnpm -w run ${scriptName}"`,
     shellEmulator: opts.shellEmulator,
     stdio: (specifiedScripts.length > 1 && concurrency > 1) ? 'pipe' : 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
+    userAgent: opts.userAgent,
   }
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const pnpPath = (opts.workspaceDir && existsPnp(opts.workspaceDir)) ?? existsPnp(dir)

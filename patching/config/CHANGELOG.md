@@ -1,5 +1,32 @@
 # @pnpm/patching.config
 
+## 1100.0.1
+
+### Patch Changes
+
+- @pnpm/deps.path@1100.0.1
+
+## 1002.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+- 7b1c189: Removed the deprecated `allowNonAppliedPatches` completely in favor of `allowUnusedPatches`.
+  Remove `ignorePatchFailures` so all patch application failures should throw an error.
+
+### Patch Changes
+
+- Updated dependencies [5f73b0f]
+- Updated dependencies [491a84f]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [7b1c189]
+- Updated dependencies [1e6de25]
+- Updated dependencies [831f574]
+  - @pnpm/deps.path@1002.0.0
+  - @pnpm/error@1001.0.0
+  - @pnpm/patching.types@1001.0.0
+
 ## 1001.0.11
 
 ### Patch Changes

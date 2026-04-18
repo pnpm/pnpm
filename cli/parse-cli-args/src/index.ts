@@ -4,7 +4,7 @@ import { findWorkspaceDir } from '@pnpm/workspace.root-finder'
 import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
 
 const RECURSIVE_CMDS = new Set(['recursive', 'multi', 'm'])
-const SPECIALLY_ESCAPED_CMDS = new Set(['run', 'dlx'])
+const SPECIALLY_ESCAPED_CMDS = new Set(['run', 'dlx', 'with'])
 
 export interface ParsedCliArgs {
   argv: {
@@ -129,6 +129,22 @@ export async function parseCliArgs (
     return [noptExploratoryResults.argv.remain[indexOfRunScriptName]]
   }
 
+  // When "config" is a registered CLI option (e.g. `pnpm add --config`),
+  // nopt captures --config.xxx=yyy as the "config" flag value instead of
+  // treating it as the nconf-style config override syntax. Work around this
+  // by rewriting --config.xxx=yyy to a placeholder before nopt, then restoring.
+  const hasConfigOption = 'config' in types
+  const configDotArgs: string[] = []
+  const filteredArgv = hasConfigOption
+    ? inputArgv.map(arg => {
+      if (arg.startsWith('--config.')) {
+        configDotArgs.push(arg)
+        return undefined
+      }
+      return arg
+    }).filter((arg): arg is string => arg !== undefined)
+    : inputArgv
+
   const { argv, ...options } = nopt(
     {
       recursive: Boolean,
@@ -138,10 +154,17 @@ export async function parseCliArgs (
       ...opts.universalShorthands,
       ...opts.shorthandsByCommandName[commandName],
     },
-    inputArgv,
+    filteredArgv,
     0,
     { escapeArgs: getEscapeArgsWithSpecialCases() }
   )
+
+  // Re-parse extracted --config.xxx args through nopt so they get proper
+  // type coercion (e.g. "false" → false for Boolean settings).
+  if (configDotArgs.length > 0) {
+    const { argv: _, ...configOptions } = nopt({}, {}, configDotArgs, 0)
+    Object.assign(options, configOptions)
+  }
   const workspaceDir = await getWorkspaceDir(options)
 
   // For the run command, it's not clear whether --help should be passed to the

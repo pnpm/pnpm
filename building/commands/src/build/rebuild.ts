@@ -4,7 +4,7 @@ import {
 } from '@pnpm/building.after-install'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli.utils'
-import { type Config, types as allTypes } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import type { LogBase } from '@pnpm/logger'
 import {
   createStoreController,
@@ -37,6 +37,8 @@ export function cliOptionsTypes (): Record<string, unknown> {
 }
 
 export const commandNames = ['rebuild', 'rb']
+
+export const overridableByScript = true
 
 export function help (): string {
   return renderHelp({
@@ -73,23 +75,23 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 }
 
 export type RebuildCommandOpts = Pick<Config,
-  | 'allProjects'
-  | 'dir'
-  | 'engineStrict'
-  | 'hooks'
-  | 'lockfileDir'
-  | 'nodeLinker'
-  | 'rawLocalConfig'
-  | 'rootProjectManifest'
-  | 'rootProjectManifestDir'
-  | 'registries'
-  | 'scriptShell'
-  | 'selectedProjectsGraph'
-  | 'sideEffectsCache'
-  | 'sideEffectsCacheReadonly'
-  | 'scriptsPrependNodePath'
-  | 'shellEmulator'
-  | 'workspaceDir'
+| 'dir'
+| 'engineStrict'
+| 'lockfileDir'
+| 'nodeLinker'
+| 'registries'
+| 'scriptShell'
+| 'sideEffectsCache'
+| 'sideEffectsCacheReadonly'
+| 'scriptsPrependNodePath'
+| 'shellEmulator'
+| 'workspaceDir'
+> & Pick<ConfigContext,
+| 'allProjects'
+| 'hooks'
+| 'rootProjectManifest'
+| 'rootProjectManifestDir'
+| 'selectedProjectsGraph'
 > &
   CreateStoreControllerOptions &
 {
@@ -97,7 +99,6 @@ export type RebuildCommandOpts = Pick<Config,
   reporter?: (logObj: LogBase) => void
   pending: boolean
   skipIfHasSideEffectsCache?: boolean
-  neverBuiltDependencies?: string[]
   allowBuilds?: Record<string, boolean | string>
 }
 

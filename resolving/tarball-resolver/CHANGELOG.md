@@ -1,5 +1,48 @@
 # @pnpm/tarball-resolver
 
+## 1100.0.1
+
+### Patch Changes
+
+- @pnpm/resolving.resolver-base@1100.0.1
+
+## 1003.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- ec7c5d7: Support plain `http://` and `https://` URLs ending with `.git` as git repository dependencies.
+
+  Previously, URLs like `https://gitea.example.org/user/repo.git#commit` were not recognized as git repositories because they lacked the `git+` prefix (e.g., `git+https://`). This caused issues when installing dependencies from self-hosted git servers like Gitea or Forgejo that don't provide tarball downloads.
+
+  Changes:
+
+  - The git resolver now runs before the tarball resolver, ensuring git URLs are handled by the correct resolver
+  - The git resolver now recognizes plain `http://` and `https://` URLs ending in `.git` as git repositories
+  - Removed the `isRepository` check from the tarball resolver since it's no longer needed with the new resolver order
+
+  Fixes #10468
+
+### Patch Changes
+
+- e0f0a7d: When a dependency is installed via a direct URL that redirects to another URL and is immutable, the original URL is normalized and saved to `package.json` [#10197](https://github.com/pnpm/pnpm/pull/10197).
+- Updated dependencies [facdd71]
+- Updated dependencies [9b0a460]
+- Updated dependencies [491a84f]
+- Updated dependencies [bb8baa7]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [50fbeca]
+- Updated dependencies [6c480a4]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [9d3f00b]
+  - @pnpm/resolving.resolver-base@1006.0.0
+  - @pnpm/fetching.types@1001.0.0
+
 ## 1002.1.4
 
 ### Patch Changes

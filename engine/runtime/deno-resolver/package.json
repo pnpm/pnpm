@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/engine.runtime.deno-resolver",
-  "version": "1002.0.1",
+  "version": "1100.0.1",
   "description": "Resolves the Deno runtime",
   "keywords": [
     "pnpm",
@@ -27,9 +27,9 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
-    "test": "pnpm run compile",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "test": "pn compile",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {
     "@pnpm/crypto.shasums-file": "workspace:*",

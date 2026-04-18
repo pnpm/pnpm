@@ -7,7 +7,7 @@
     "pkg-rpm": "^1.0.3"
   },
   "scripts": {
-    "build": "shx rm -rf dist && pnpm -w compile && node main.mjs"
+    "build": "shx rm -rf dist && pn -w compile && node main.mjs"
   },
   "devDependencies": {
     "@pnpm/build-artifacts": "workspace:*"

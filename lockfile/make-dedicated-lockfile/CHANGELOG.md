@@ -1,5 +1,81 @@
 # @pnpm/make-dedicated-lockfile
 
+## 1100.0.2
+
+### Patch Changes
+
+- @pnpm/workspace.project-manifest-reader@1100.0.2
+- @pnpm/releasing.exportable-manifest@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/lockfile.fs@1100.0.1
+  - @pnpm/lockfile.pruner@1100.0.1
+  - @pnpm/releasing.exportable-manifest@1100.0.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- cc7c0d2: `pnpm publish` now works without the `npm` CLI.
+
+  The One-time Password feature now reads from `PNPM_CONFIG_OTP` instead of `NPM_CONFIG_OTP`:
+
+  ```sh
+  export PNPM_CONFIG_OTP='<your OTP here>'
+  pnpm publish --no-git-checks
+  ```
+
+  If the registry requests OTP and the user has not provided it via the `PNPM_CONFIG_OTP` environment variable or the `--otp` flag, pnpm will prompt the user directly for an OTP code.
+
+  If the registry requests web-based authentication, pnpm will print a scannable QR code along with the URL.
+
+  Since the new `pnpm publish` no longer calls `npm publish`, some undocumented features may have been unknowingly dropped. If you rely on a feature that is now gone, please open an issue at <https://github.com/pnpm/pnpm/issues>. In the meantime, you can use `pnpm pack && npm publish *.tgz` as a workaround.
+
+### Patch Changes
+
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [29764fb]
+- Updated dependencies [491a84f]
+- Updated dependencies [e119c4e]
+- Updated dependencies [98a5f1c]
+- Updated dependencies [0625e20]
+- Updated dependencies [d458ab3]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [831f574]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+- Updated dependencies [f03b9ec]
+  - @pnpm/types@1001.0.0
+  - @pnpm/lockfile.fs@1002.0.0
+  - @pnpm/releasing.exportable-manifest@1001.0.0
+  - @pnpm/workspace.project-manifest-reader@1002.0.0
+  - @pnpm/workspace.root-finder@1001.0.0
+  - @pnpm/lockfile.pruner@1002.0.0
+  - @pnpm/logger@1002.0.0
+  - @pnpm/error@1001.0.0
+
 ## 1000.0.28
 
 ### Patch Changes

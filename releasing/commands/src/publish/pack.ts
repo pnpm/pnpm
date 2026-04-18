@@ -6,7 +6,7 @@ import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { FILTERING } from '@pnpm/cli.common-cli-options-help'
 import { readProjectManifest } from '@pnpm/cli.utils'
-import { type Config, getDefaultWorkspaceConcurrency, getWorkspaceConcurrency, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, getDefaultWorkspaceConcurrency, getWorkspaceConcurrency, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { packlist } from '@pnpm/fs.packlist'
 import type { Hooks } from '@pnpm/hooks.pnpmfile'
@@ -95,17 +95,18 @@ export function help (): string {
 
 export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs'
 | 'ignoreScripts'
-| 'rawConfig'
 | 'embedReadme'
 | 'packGzipLevel'
 | 'nodeLinker'
+| 'userAgent'
 > & Partial<Pick<Config, 'extraBinPaths'
 | 'extraEnv'
-| 'hooks'
 | 'recursive'
-| 'selectedProjectsGraph'
 | 'workspaceConcurrency'
 | 'workspaceDir'
+>> & Partial<Pick<ConfigContext,
+| 'hooks'
+| 'selectedProjectsGraph'
 >> & {
   argv: {
     original: string[]
@@ -196,10 +197,10 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     extraBinPaths: opts.extraBinPaths,
     extraEnv: opts.extraEnv,
     pkgRoot: opts.dir,
-    rawConfig: opts.rawConfig,
     rootModulesDir: await realpathMissing(path.join(opts.dir, 'node_modules')),
     stdio: 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
+    userAgent: opts.userAgent,
   })
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent([

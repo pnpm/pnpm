@@ -15,7 +15,7 @@ interface CachedVersions {
 
 export async function cacheView (opts: { cacheDir: string, storeDir: string, registry?: string }, packageName: string): Promise<string> {
   const prefix = opts.registry ? `${getRegistryName(opts.registry)}` : '*'
-  const metaFilePaths = (await glob(`${prefix}/${packageName}.json`, {
+  const metaFilePaths = (await glob(`${prefix}/${packageName}.jsonl`, {
     cwd: opts.cacheDir,
     expandDirectories: false,
   })).sort()
@@ -24,8 +24,18 @@ export async function cacheView (opts: { cacheDir: string, storeDir: string, reg
   try {
     for (const filePath of metaFilePaths) {
       let metaObject: PackageMeta | null
+      const fullPath = path.join(opts.cacheDir, filePath)
+      let mtime: Date | undefined
       try {
-        metaObject = JSON.parse(fs.readFileSync(path.join(opts.cacheDir, filePath), 'utf8')) as PackageMeta
+        const raw = fs.readFileSync(fullPath, 'utf8')
+        mtime = fs.statSync(fullPath).mtime
+        const newlineIdx = raw.indexOf('\n')
+        if (newlineIdx !== -1) {
+          // NDJSON format: line 1 = headers, line 2 = metadata
+          metaObject = JSON.parse(raw.slice(newlineIdx + 1)) as PackageMeta
+        } else {
+          metaObject = JSON.parse(raw) as PackageMeta
+        }
       } catch {
         continue
       }
@@ -48,7 +58,7 @@ export async function cacheView (opts: { cacheDir: string, storeDir: string, reg
       metaFilesByPath[registryName.replaceAll('+', ':')] = {
         cachedVersions,
         nonCachedVersions,
-        cachedAt: metaObject.cachedAt ? new Date(metaObject.cachedAt).toString() : undefined,
+        cachedAt: mtime?.toString(),
         distTags: metaObject['dist-tags'],
       }
     }

@@ -11,9 +11,8 @@ test('createClient()', () => {
   const storeIndex = new StoreIndex('.store')
   storeIndexes.push(storeIndex)
   const client = createClient({
-    authConfig: { registry: 'https://registry.npmjs.org/' },
+    configByUri: {},
     cacheDir: '',
-    rawConfig: {},
     registries: {
       default: 'https://reigstry.npmjs.org/',
     },
@@ -25,9 +24,8 @@ test('createClient()', () => {
 
 test('createResolver()', () => {
   const { resolve } = createResolver({
-    authConfig: { registry: 'https://registry.npmjs.org/' },
+    configByUri: {},
     cacheDir: '',
-    rawConfig: {},
     registries: {
       default: 'https://reigstry.npmjs.org/',
     },

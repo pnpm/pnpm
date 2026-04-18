@@ -28,8 +28,7 @@ const DEFAULT_OPTIONS = {
   pnpmfile: ['.pnpmfile.cjs'],
   pnpmHomeDir: '',
   preferWorkspacePackages: true,
-  rawConfig: { registry: REGISTRY_URL },
-  rawLocalConfig: { registry: REGISTRY_URL },
+  configByUri: {},
   registries: {
     default: REGISTRY_URL,
   },
@@ -66,9 +65,6 @@ test('root dependency that has a peer is correctly updated after its version cha
     ...DEFAULT_OPTIONS,
     dir: process.cwd(),
     linkWorkspacePackages: true,
-    rawLocalConfig: {
-      'frozen-lockfile': false,
-    },
   })
 
   {

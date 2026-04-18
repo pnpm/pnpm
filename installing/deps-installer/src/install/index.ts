@@ -297,11 +297,9 @@ export async function mutateModules (
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       confirmModulesPurge: opts.confirmModulesPurge && !opts.ci,
 
-      forceHoistPattern: opts.forceHoistPattern,
       hoistPattern: opts.hoistPattern,
       currentHoistPattern: ctx.currentHoistPattern,
 
-      forcePublicHoistPattern: opts.forcePublicHoistPattern,
       publicHoistPattern: opts.publicHoistPattern,
       currentPublicHoistPattern: ctx.currentPublicHoistPattern,
       global: opts.global,
@@ -424,7 +422,7 @@ export async function mutateModules (
       extraNodePaths: ctx.extraNodePaths,
       extraEnv: opts.extraEnv,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-      rawConfig: opts.rawConfig,
+      userAgent: opts.userAgent,
       resolveSymlinksInInjectedDirs: opts.resolveSymlinksInInjectedDirs,
       scriptsPrependNodePath: opts.scriptsPrependNodePath,
       scriptShell: opts.scriptShell,
@@ -454,9 +452,16 @@ export async function mutateModules (
     const patchGroupInput = opts.patchedDependencies
       ? Object.fromEntries(
         Object.entries(patchedDependencies ?? {}).map(([key, hash]) => {
-          const patchFilePath = opts.patchedDependencies![key]
+          let patchFilePath = opts.patchedDependencies![key]
             ? path.resolve(opts.lockfileDir, opts.patchedDependencies![key])
             : undefined
+          if (!patchFilePath) {
+            const lastAt = key.lastIndexOf('@')
+            const pkgName = lastAt > 0 ? key.slice(0, lastAt) : key
+            if (opts.patchedDependencies![pkgName]) {
+              patchFilePath = path.resolve(opts.lockfileDir, opts.patchedDependencies![pkgName])
+            }
+          }
           return [key, { hash, patchFilePath }]
         })
       )
@@ -470,6 +475,7 @@ export async function mutateModules (
       const outdatedLockfileSettingName = getOutdatedLockfileSetting(ctx.wantedLockfile, {
         autoInstallPeers: opts.autoInstallPeers,
         catalogs: opts.catalogs,
+        dedupePeers: opts.dedupePeers || undefined,
         injectWorkspacePackages: opts.injectWorkspacePackages,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         peersSuffixMaxLength: opts.peersSuffixMaxLength,
@@ -494,6 +500,7 @@ export async function mutateModules (
     if (needsFullResolution) {
       ctx.wantedLockfile.settings = {
         autoInstallPeers: opts.autoInstallPeers,
+        dedupePeers: opts.dedupePeers || undefined,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         peersSuffixMaxLength: opts.peersSuffixMaxLength,
         injectWorkspacePackages: opts.injectWorkspacePackages,
@@ -506,6 +513,7 @@ export async function mutateModules (
     } else if (!frozenLockfile) {
       ctx.wantedLockfile.settings = {
         autoInstallPeers: opts.autoInstallPeers,
+        dedupePeers: opts.dedupePeers || undefined,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         peersSuffixMaxLength: opts.peersSuffixMaxLength,
         injectWorkspacePackages: opts.injectWorkspacePackages,
@@ -1267,6 +1275,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       dedupeDirectDeps: opts.dedupeDirectDeps,
       dedupeInjectedDeps: opts.dedupeInjectedDeps,
       dedupePeerDependents: opts.dedupePeerDependents,
+      dedupePeers: opts.dedupePeers,
       dryRun: opts.lockfileOnly,
       enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
       engineStrict: opts.engineStrict,
@@ -1446,11 +1455,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           extraBinPaths: ctx.extraBinPaths,
           extraNodePaths: ctx.extraNodePaths,
           extraEnv,
-          ignoreScripts: opts.ignoreScripts || opts.ignoreDepScripts,
+          ignoreScripts: opts.ignoreScripts,
           lockfileDir: ctx.lockfileDir,
           optional: opts.include.optionalDependencies,
           preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-          rawConfig: opts.rawConfig,
           rootModulesDir: ctx.virtualStoreDir,
           scriptsPrependNodePath: opts.scriptsPrependNodePath,
           scriptShell: opts.scriptShell,

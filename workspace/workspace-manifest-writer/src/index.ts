@@ -3,6 +3,7 @@ import path from 'node:path'
 import util from 'node:util'
 
 import type { Catalogs } from '@pnpm/catalogs.types'
+import { parsePkgAndParentSelector } from '@pnpm/config.parse-overrides'
 import { type GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import type { ResolvedCatalogEntry } from '@pnpm/lockfile.types'
 import { sortKeysByPriority } from '@pnpm/object.key-sorting'
@@ -45,6 +46,7 @@ export async function updateWorkspaceManifest (dir: string, opts: {
   updatedFields?: Partial<WorkspaceManifest>
   updatedCatalogs?: Catalogs
   updatedOverrides?: Record<string, string>
+  addedMinimumReleaseAgeExcludes?: string[]
   fileName?: FileName
   cleanupUnusedCatalogs?: boolean
   allProjects?: Project[]
@@ -85,6 +87,15 @@ export async function updateWorkspaceManifest (dir: string, opts: {
         shouldBeUpdated = true
         manifest.overrides[key] = value
       }
+    }
+  }
+  if (opts.addedMinimumReleaseAgeExcludes?.length) {
+    const existing: string[] = manifest.minimumReleaseAgeExclude ?? []
+    const existingSet = new Set(existing)
+    const newEntries = [...new Set(opts.addedMinimumReleaseAgeExcludes)].filter((entry) => !existingSet.has(entry))
+    if (newEntries.length > 0) {
+      shouldBeUpdated = true
+      manifest.minimumReleaseAgeExclude = [...existing, ...newEntries]
     }
   }
   if (!shouldBeUpdated) {
@@ -168,12 +179,22 @@ function removePackagesFromWorkspaceCatalog (manifest: Partial<WorkspaceManifest
       if (!deps) continue
 
       for (const [pkgName, version] of Object.entries(deps)) {
-        if (!packageReferences[pkgName]) {
-          packageReferences[pkgName] = new Set()
-        }
-        packageReferences[pkgName].add(version)
+        addPackageReference(packageReferences, pkgName, version)
       }
     }
+  }
+
+  for (const [selector, version] of Object.entries(manifest.overrides ?? {})) {
+    if (!version.startsWith('catalog:')) {
+      continue
+    }
+    let pkgName: string
+    try {
+      pkgName = parsePkgAndParentSelector(selector).targetPkg.name
+    } catch {
+      continue
+    }
+    addPackageReference(packageReferences, pkgName, version)
   }
 
   if (manifest.catalog) {
@@ -225,4 +246,11 @@ function removePackagesFromWorkspaceCatalog (manifest: Partial<WorkspaceManifest
   }
 
   return shouldBeUpdated
+}
+
+function addPackageReference (packageReferences: Record<string, Set<string>>, pkgName: string, version: string): void {
+  if (!packageReferences[pkgName]) {
+    packageReferences[pkgName] = new Set()
+  }
+  packageReferences[pkgName].add(version)
 }

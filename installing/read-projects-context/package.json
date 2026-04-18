@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.read-projects-context",
-  "version": "1000.0.24",
+  "version": "1100.0.1",
   "description": "Reads the current state of projects from modules manifest",
   "keywords": [
     "pnpm",
@@ -25,10 +25,10 @@
   ],
   "scripts": {
     "start": "tsgo --watch",
-    "test": "pnpm run compile",
+    "test": "pn compile",
     "lint": "eslint \"src/**/*.ts\"",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {
     "@pnpm/config.normalize-registries": "workspace:*",

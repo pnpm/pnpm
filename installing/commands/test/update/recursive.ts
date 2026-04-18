@@ -82,7 +82,6 @@ test('recursive update prod dependencies only', async () => {
     allProjects,
     dir: process.cwd(),
     lockfileDir: process.cwd(),
-    optional: false,
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
@@ -95,16 +94,11 @@ test('recursive update prod dependencies only', async () => {
     ...DEFAULT_OPTS,
     allProjects,
     cliOptions: {
-      dev: false,
       optional: false,
       production: true,
     },
     dir: process.cwd(),
     lockfileDir: process.cwd(),
-    rawConfig: {
-      ...DEFAULT_OPTS.rawConfig,
-      optional: false,
-    },
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
@@ -120,7 +114,7 @@ test('recursive update prod dependencies only', async () => {
   expect(modules?.included).toStrictEqual({
     dependencies: true,
     devDependencies: true,
-    optionalDependencies: false,
+    optionalDependencies: true,
   })
 })
 

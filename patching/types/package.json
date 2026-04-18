@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/patching.types",
-  "version": "1000.1.0",
+  "version": "1100.0.0",
   "description": "Types related to patching",
   "keywords": [
     "pnpm",
@@ -25,9 +25,9 @@
     "!*.map"
   ],
   "scripts": {
-    "test": "pnpm run compile",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix",
+    "test": "pn compile",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
     "lint": "eslint \"src/**/*.ts\""
   },
   "devDependencies": {

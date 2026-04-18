@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/engine.pm.commands",
-  "version": "1000.0.0",
+  "version": "1101.0.0",
   "description": "pnpm commands for self-updating and setting up pnpm",
   "keywords": [
     "pnpm",
@@ -25,9 +25,9 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "prepublishOnly": "pnpm run compile",
-    "test": "pnpm run compile && pnpm run .test",
-    "compile": "tsgo --build && pnpm run lint --fix",
+    "prepublishOnly": "pn compile",
+    "test": "pn compile && pn .test",
+    "compile": "tsgo --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
@@ -46,10 +46,12 @@
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/os.env.path-extender": "catalog:",
     "@pnpm/resolving.npm-resolver": "workspace:*",
+    "@pnpm/shell.path": "workspace:*",
     "@pnpm/store.connection-manager": "workspace:*",
     "@pnpm/store.controller": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
+    "cross-spawn": "catalog:",
     "path-name": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:",
@@ -61,16 +63,15 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
+    "@pnpm/constants": "workspace:*",
     "@pnpm/engine.pm.commands": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/shell.path": "workspace:*",
+    "@pnpm/testing.mock-agent": "workspace:*",
     "@types/cross-spawn": "catalog:",
     "@types/ramda": "catalog:",
-    "@types/semver": "catalog:",
-    "cross-spawn": "catalog:",
-    "nock": "catalog:"
+    "@types/semver": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

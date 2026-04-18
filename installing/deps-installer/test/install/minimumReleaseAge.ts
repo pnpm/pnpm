@@ -7,6 +7,9 @@ const isOdd011ReleaseDate = new Date(2016, 11, 7 - 2) // 0.1.1 was released at 2
 const diff = Date.now() - isOdd011ReleaseDate.getTime()
 const minimumReleaseAge = diff / (60 * 1000) // converting to minutes
 
+// A very high value that makes ALL versions immature (cutoff date would be before any version was published)
+const allImmatureMinimumReleaseAge = Date.now() / (60 * 1000)
+
 test('minimumReleaseAge prevents installation of versions that do not meet the required publish date cutoff', async () => {
   prepareEmpty()
 
@@ -58,6 +61,30 @@ test('minimumReleaseAge applies to versions not in minimumReleaseAgeExclude', as
   // 0.1.2 is NOT excluded (only 0.1.0 is), so minimumReleaseAge applies
   // This should install 0.1.0 which is old enough
   expect(manifest.dependencies!['is-odd']).toBe('~0.1.0')
+})
+
+test('minimumReleaseAge falls back to immature version when no mature version satisfies the range (non-strict mode)', async () => {
+  prepareEmpty()
+
+  // With non-strict mode (default), falls back to installing an immature version.
+  // The fallback picks the lowest matching version (0.1.0), which differs from
+  // normal resolution without minimumReleaseAge that would pick the highest (0.1.2).
+  const opts = testDefaults({ minimumReleaseAge: allImmatureMinimumReleaseAge })
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1'], opts)
+
+  expect(manifest.dependencies!['is-odd']).toBe('~0.1.0')
+})
+
+test('minimumReleaseAge throws when no mature version satisfies the range and strict mode is enabled', async () => {
+  prepareEmpty()
+
+  await expect(async () => {
+    const opts = testDefaults(
+      { minimumReleaseAge: allImmatureMinimumReleaseAge },
+      { strictPublishedByCheck: true }
+    )
+    await addDependenciesToPackage({}, ['is-odd@0.1'], opts)
+  }).rejects.toThrow(/does not meet the minimumReleaseAge constraint/)
 })
 
 test('throws error when semver range is used in minimumReleaseAgeExclude', async () => {

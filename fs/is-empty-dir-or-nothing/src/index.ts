@@ -5,7 +5,7 @@ export function isEmptyDirOrNothing (path: string): boolean {
     const pathStat = fs.statSync(path)
 
     if (pathStat.isFile()) {
-      return pathStat.size === 0
+      return false
     }
 
     return isDirEmpty(path)

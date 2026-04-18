@@ -4,8 +4,9 @@ import path from 'node:path'
 import { lifecycleLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
-import lifecycle from '@pnpm/npm-lifecycle'
+import { lifecycle } from '@pnpm/npm-lifecycle'
 import type { DependencyManifest, PackageScripts, ProjectManifest } from '@pnpm/types'
+import chalk from 'chalk'
 import isWindows from 'is-windows'
 import { join as shellQuote } from 'shlex'
 
@@ -19,7 +20,6 @@ export interface RunLifecycleHookOptions {
   initCwd?: string
   optional?: boolean
   pkgRoot: string
-  rawConfig: object
   rootModulesDir: string
   scriptShell?: string
   silent?: boolean
@@ -27,6 +27,7 @@ export interface RunLifecycleHookOptions {
   shellEmulator?: boolean
   stdio?: string
   unsafePerm: boolean
+  userAgent?: string
 }
 
 export async function runLifecycleHook (
@@ -105,21 +106,21 @@ Please unset the scriptShell option, or configure it to a .exe instead.
       stage,
       wd: opts.pkgRoot,
     })
+  } else if (!opts.silent) {
+    process.stderr.write(chalk.dim(`$ ${m.scripts[stage]}`) + '\n')
   }
   const logLevel = (opts.stdio !== 'inherit' || opts.silent)
     ? 'silent'
     : undefined
   await lifecycle(m, stage, opts.pkgRoot, {
-    config: {
-      ...opts.rawConfig,
-      'frozen-lockfile': false,
-    },
+    config: {},
     dir: opts.rootModulesDir,
     extraBinPaths: opts.extraBinPaths,
     extraEnv: {
       ...opts.extraEnv,
       INIT_CWD: opts.initCwd ?? process.cwd(),
       PNPM_SCRIPT_SRC_DIR: opts.pkgRoot,
+      ...(opts.userAgent ? { npm_config_user_agent: opts.userAgent } : {}),
     },
     log: {
       clearProgress: noop,

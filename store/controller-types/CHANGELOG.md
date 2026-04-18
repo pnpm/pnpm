@@ -1,5 +1,70 @@
 # @pnpm/store-controller-types
 
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/fetching.fetcher-base@1100.0.1
+  - @pnpm/resolving.resolver-base@1100.0.1
+
+## 1005.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+- 56a59df: Store the bundled manifest (name, version, bin, engines, scripts, etc.) directly in the package index file, eliminating the need to read `package.json` from the content-addressable store during resolution and installation. This reduces I/O and speeds up repeat installs [#10473](https://github.com/pnpm/pnpm/pull/10473).
+
+### Minor Changes
+
+- facdd71: Adding `trustPolicyIgnoreAfter` allows you to ignore trust policy checks for packages published more than a specified time ago[#10352](https://github.com/pnpm/pnpm/issues/10352).
+- ba065f6: Block git-hosted dependencies from running prepare scripts unless explicitly allowed in onlyBuiltDependencies [#10288](https://github.com/pnpm/pnpm/pull/10288).
+- 10bc391: Added a new setting: `trustPolicy`.
+- 9d3f00b: Added support for `trustPolicyExclude` [#10164](https://github.com/pnpm/pnpm/issues/10164).
+
+  You can now list one or more specific packages or versions that pnpm should allow to install, even if those packages don't satisfy the trust policy requirement. For example:
+
+  ```yaml
+  trustPolicy: no-downgrade
+  trustPolicyExclude:
+    - chokidar@4.0.3
+    - webpack@4.47.0 || 5.102.1
+  ```
+
+- 98a0410: Compute integrity hash for HTTP tarball dependencies when fetching, storing it in the lockfile to prevent servers from serving altered content on subsequent installs [#10287](https://github.com/pnpm/pnpm/pull/10287).
+
+### Patch Changes
+
+- Updated dependencies [facdd71]
+- Updated dependencies [9b0a460]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [491a84f]
+- Updated dependencies [ba065f6]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [98a0410]
+- Updated dependencies [efb48dc]
+  - @pnpm/resolving.resolver-base@1006.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/fetching.fetcher-base@1002.0.0
+
 ## 1004.1.0
 
 ### Minor Changes

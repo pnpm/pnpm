@@ -1,7 +1,7 @@
 import { FILTERING } from '@pnpm/cli.common-cli-options-help'
 import { packageManager } from '@pnpm/cli.meta'
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli.utils'
-import { type Config, types as allTypes } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   collectSbomComponents,
@@ -34,10 +34,11 @@ export type SbomCommandOptions = {
   | 'virtualStoreDir'
   | 'modulesDir'
   | 'pnpmHomeDir'
-  | 'selectedProjectsGraph'
-  | 'rootProjectManifest'
-  | 'rootProjectManifestDir'
   | 'virtualStoreDirMaxLength'
+> & Pick<ConfigContext,
+| 'selectedProjectsGraph'
+| 'rootProjectManifest'
+| 'rootProjectManifestDir'
 > &
 Partial<Pick<Config, 'userConfig'>>
 

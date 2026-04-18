@@ -1,3 +1,5 @@
+import type { Registries } from './misc.js'
+
 export type Dependencies = Record<string, string>
 
 export type PackageBin = string | { [commandName: string]: string }
@@ -163,11 +165,12 @@ export type ConfigDependencies = Record<string, VersionWithIntegrity | {
 export type ConfigDependencySpecifiers = Record<string, string>
 
 export interface AuditConfig {
-  ignoreCves?: string[]
   ignoreGhsas?: string[]
 }
 
 export interface PnpmSettings {
+  npmrcAuthFile?: string
+  registries?: Registries
   configDependencies?: ConfigDependencies
   allowBuilds?: Record<string, boolean | string>
   overrides?: Record<string, string>
@@ -183,6 +186,10 @@ export interface PnpmSettings {
   auditConfig?: AuditConfig
   requiredScripts?: string[]
   supportedArchitectures?: SupportedArchitectures
+  nodeDownloadMirrors?: Record<string, string>
+  httpProxy?: string
+  httpsProxy?: string
+  noProxy?: string | boolean
 }
 
 export interface ProjectManifest extends BaseManifest {

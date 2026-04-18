@@ -12,6 +12,7 @@ export type ListMissingPeersOptions = Partial<GetContextOptions>
 & Pick<InstallOptions, 'hooks'
 | 'catalogs'
 | 'dedupePeerDependents'
+| 'dedupePeers'
 | 'ignoreCompatibilityDb'
 | 'linkWorkspacePackagesDepth'
 | 'nodeVersion'

@@ -38,6 +38,15 @@ export default async () => {
   // before Verdaccio starts. Wait for Verdaccio to become online before running
   // any tests.
   await waitForServerOnline()
+
+  // Register the test user and store the auth token for bearer-based tests
+  const { addUser, REGISTRY_MOCK_CREDENTIALS } = await import('@pnpm/registry-mock')
+  const { token } = await addUser({
+    username: REGISTRY_MOCK_CREDENTIALS.username,
+    password: REGISTRY_MOCK_CREDENTIALS.password,
+    email: 'foo@bar.net',
+  })
+  process.env.REGISTRY_MOCK_TOKEN = token
 }
 
 const UNUSUAL_VERDACCIO_STARTUP_THRESHOLD = 15 // seconds

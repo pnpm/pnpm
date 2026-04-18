@@ -1,11 +1,11 @@
 {
   "name": "pd",
-  "version": "1000.0.11",
+  "version": "1100.0.2",
   "bin": "pd.js",
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "pnpm run .test",
+    "test": "pn .test",
     ".test": "node pd.js --version"
   },
   "dependencies": {

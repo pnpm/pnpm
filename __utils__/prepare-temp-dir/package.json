@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/prepare-temp-dir",
-  "version": "1000.0.0",
+  "version": "1100.0.0",
   "main": "lib/index.js",
   "type": "module",
   "types": "lib/index.d.ts",
@@ -10,8 +10,8 @@
   },
   "scripts": {
     "lint": "eslint src/**/*.ts",
-    "prepublishOnly": "pnpm run compile",
-    "test": "pnpm run compile",
+    "prepublishOnly": "pn compile",
+    "test": "pn compile",
     "compile": "rimraf tsconfig.tsbuildinfo lib && tsc --build"
   },
   "keywords": [

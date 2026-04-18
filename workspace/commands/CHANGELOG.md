@@ -1,5 +1,121 @@
 # @pnpm/plugin-commands-init
 
+## 1100.1.0
+
+### Minor Changes
+
+- 1c95cb6: `pnpm init` now writes a `devEngines.packageManager` field instead of the `packageManager` field when `init-package-manager` is enabled.
+
+### Patch Changes
+
+- 2dd8712: `pnpm init` no longer adds the `devEngines.packageManager` field when run inside a workspace subpackage. The field is only added to the workspace root's `package.json`.
+- Updated dependencies [cee550a]
+- Updated dependencies [4ab3d9b]
+- Updated dependencies [9af708a]
+- Updated dependencies [ea2a7fb]
+- Updated dependencies [ff7733c]
+  - @pnpm/cli.utils@1101.0.0
+  - @pnpm/config.reader@1101.0.0
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/cli.meta@1100.0.1
+  - @pnpm/cli.utils@1100.0.1
+  - @pnpm/config.reader@1100.0.1
+  - @pnpm/workspace.project-manifest-writer@1100.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+- 96704a1: Renamed `rawConfig` to `authConfig` on the `Config` interface. This field now only contains auth/registry data from `.npmrc` files. Non-auth settings are no longer written to it.
+
+  Added `nodeDownloadMirrors` setting to configure custom Node.js download mirrors in `pnpm-workspace.yaml`:
+
+  ```yaml
+  nodeDownloadMirrors:
+    release: https://my-mirror.example.com/download/release/
+    nightly: https://my-mirror.example.com/download/nightly/
+  ```
+
+  Replaced `rawConfig: object` with `userAgent?: string` in lifecycle hook options. Removed unused `rawConfig` from fetcher and prepare-package options.
+
+  Removed support for the npm `init-module` setting. Custom init scripts via `.pnpm-init.js` are no longer executed by `pnpm init`.
+
+### Minor Changes
+
+- 3aa50c8: Added a new flag called `--bare` to `pnpm init` for creating a package.json with the bare minimum of required fields [#10226](https://github.com/pnpm/pnpm/issues/10226).
+
+### Patch Changes
+
+- Updated dependencies [7730a7f]
+- Updated dependencies [ae8b816]
+- Updated dependencies [facdd71]
+- Updated dependencies [3c72b6b]
+- Updated dependencies [9f5c0e3]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [90bd3c3]
+- Updated dependencies [1cc61e8]
+- Updated dependencies [606f53e]
+- Updated dependencies [c7203b9]
+- Updated dependencies [bb17724]
+- Updated dependencies [da2429d]
+- Updated dependencies [1cc61e8]
+- Updated dependencies [491a84f]
+- Updated dependencies [f0ae1b9]
+- Updated dependencies [7fab2a2]
+- Updated dependencies [cb367b9]
+- Updated dependencies [543c7e4]
+- Updated dependencies [075aa99]
+- Updated dependencies [ae43ac7]
+- Updated dependencies [ccec8e7]
+- Updated dependencies [4158906]
+- Updated dependencies [ac944ef]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+- Updated dependencies [d5d4eed]
+- Updated dependencies [095f659]
+- Updated dependencies [96704a1]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [51b04c3]
+- Updated dependencies [d01b81f]
+- Updated dependencies [3ed41f4]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [831f574]
+- Updated dependencies [2df8b71]
+- Updated dependencies [ed1a7fe]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [5bf7768]
+- Updated dependencies [ae43ac7]
+- Updated dependencies [a5fdbf9]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [efb48dc]
+- Updated dependencies [9587dac]
+- Updated dependencies [09a999a]
+- Updated dependencies [559f903]
+- Updated dependencies [3574905]
+  - @pnpm/config.reader@1005.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/cli.utils@1002.0.0
+  - @pnpm/workspace.project-manifest-writer@1001.0.0
+  - @pnpm/object.key-sorting@1001.0.0
+  - @pnpm/error@1001.0.0
+  - @pnpm/cli.meta@1001.0.0
+
 ## 1000.2.19
 
 ### Patch Changes

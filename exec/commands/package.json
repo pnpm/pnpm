@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exec.commands",
-  "version": "1001.0.15",
+  "version": "1100.0.2",
   "description": "Commands for running scripts",
   "keywords": [
     "pnpm",
@@ -26,10 +26,10 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "test": "pnpm run compile && pnpm --filter pnpm run compile && pnpm run .test",
-    "prepublishOnly": "pnpm run compile",
+    "test": "pn compile && pn --filter=pnpm compile && pn .test",
+    "prepublishOnly": "pn compile",
     "start": "tsgo --watch",
-    "compile": "tsgo --build && pnpm run lint --fix",
+    "compile": "tsgo --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
@@ -82,6 +82,7 @@
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/test-ipc-server": "workspace:*",
+    "@pnpm/testing.command-defaults": "workspace:*",
     "@pnpm/workspace.projects-filter": "workspace:*",
     "@types/is-windows": "catalog:",
     "@types/ramda": "catalog:",

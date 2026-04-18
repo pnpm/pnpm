@@ -1,11 +1,10 @@
-import { jest } from '@jest/globals'
+import path from 'node:path'
 
-jest.unstable_mockModule('@pnpm/exec.run-npm', () => ({
-  runNpm: jest.fn(),
-}))
+import { config } from '@pnpm/config.commands'
+import { tempDir } from '@pnpm/prepare'
 
-const { config } = await import('@pnpm/config.commands')
-const { runNpm } = await import('@pnpm/exec.run-npm')
+import { createConfigCommandOpts } from './utils/index.js'
+import { type ConfigFilesData, readConfigFiles, writeConfigFiles } from './utils/index.js'
 
 describe.each(
   [
@@ -14,54 +13,165 @@ describe.each(
     '_password',
     'username',
     'registry',
-    '@foo:registry',
     '//registry.npmjs.org/:_authToken',
   ]
-)('settings related to auth are handled by npm CLI', (key) => {
-  describe('without --json', () => {
-    const configOpts = {
-      dir: process.cwd(),
-      cliOptions: {},
-      configDir: import.meta.dirname, // this doesn't matter, it won't be used
-      rawConfig: {},
-    }
+)('auth settings are written to the rc file directly', (key) => {
+  describe('global (without --json)', () => {
     it(`should set ${key}`, async () => {
-      await config.handler(configOpts, ['set', `${key}=123`])
-      expect(runNpm).toHaveBeenCalledWith(undefined, ['config', 'set', `${key}=123`], expect.objectContaining({
-        location: 'user',
-        userConfigPath: expect.any(String),
-      }))
+      const tmp = tempDir()
+      const configDir = path.join(tmp, 'global-config')
+      const initConfig = {
+        globalRc: {},
+        globalYaml: undefined,
+        localRc: undefined,
+        localYaml: undefined,
+      } satisfies ConfigFilesData
+      writeConfigFiles(configDir, tmp, initConfig)
+
+      await config.handler(createConfigCommandOpts({
+        dir: tmp,
+        cliOptions: {},
+        configDir,
+        global: true,
+        authConfig: {},
+      }), ['set', `${key}=123`])
+
+      expect(readConfigFiles(configDir, tmp)).toEqual({
+        ...initConfig,
+        globalRc: { [key]: '123' },
+      })
     })
     it(`should delete ${key}`, async () => {
-      await config.handler(configOpts, ['delete', key])
-      expect(runNpm).toHaveBeenCalledWith(undefined, ['config', 'delete', key], expect.objectContaining({
-        location: 'user',
-        userConfigPath: expect.any(String),
-      }))
+      const tmp = tempDir()
+      const configDir = path.join(tmp, 'global-config')
+      const initConfig = {
+        globalRc: { [key]: 'some-value' },
+        globalYaml: undefined,
+        localRc: undefined,
+        localYaml: undefined,
+      } satisfies ConfigFilesData
+      writeConfigFiles(configDir, tmp, initConfig)
+
+      await config.handler(createConfigCommandOpts({
+        dir: tmp,
+        cliOptions: {},
+        configDir,
+        global: true,
+        authConfig: {},
+      }), ['delete', key])
+
+      expect(readConfigFiles(configDir, tmp)).toEqual({
+        ...initConfig,
+        globalRc: {},
+      })
     })
   })
 
-  describe('with --json', () => {
-    const configOpts = {
-      json: true,
-      dir: process.cwd(),
-      cliOptions: {},
-      configDir: import.meta.dirname, // this doesn't matter, it won't be used
-      rawConfig: {},
-    }
+  describe('global (with --json)', () => {
     it(`should set ${key}`, async () => {
-      await config.handler(configOpts, ['set', key, '"123"'])
-      expect(runNpm).toHaveBeenCalledWith(undefined, ['config', 'set', `${key}=123`], expect.objectContaining({
-        location: 'user',
-        userConfigPath: expect.any(String),
-      }))
+      const tmp = tempDir()
+      const configDir = path.join(tmp, 'global-config')
+      const initConfig = {
+        globalRc: {},
+        globalYaml: undefined,
+        localRc: undefined,
+        localYaml: undefined,
+      } satisfies ConfigFilesData
+      writeConfigFiles(configDir, tmp, initConfig)
+
+      await config.handler(createConfigCommandOpts({
+        json: true,
+        dir: tmp,
+        cliOptions: {},
+        configDir,
+        global: true,
+        authConfig: {},
+      }), ['set', key, '"123"'])
+
+      expect(readConfigFiles(configDir, tmp)).toEqual({
+        ...initConfig,
+        globalRc: { [key]: '123' },
+      })
     })
     it(`should delete ${key}`, async () => {
-      await config.handler(configOpts, ['delete', key])
-      expect(runNpm).toHaveBeenCalledWith(undefined, ['config', 'delete', key], expect.objectContaining({
-        location: 'user',
-        userConfigPath: expect.any(String),
-      }))
+      const tmp = tempDir()
+      const configDir = path.join(tmp, 'global-config')
+      const initConfig = {
+        globalRc: { [key]: 'some-value' },
+        globalYaml: undefined,
+        localRc: undefined,
+        localYaml: undefined,
+      } satisfies ConfigFilesData
+      writeConfigFiles(configDir, tmp, initConfig)
+
+      await config.handler(createConfigCommandOpts({
+        json: true,
+        dir: tmp,
+        cliOptions: {},
+        configDir,
+        global: true,
+        authConfig: {},
+      }), ['delete', key])
+
+      expect(readConfigFiles(configDir, tmp)).toEqual({
+        ...initConfig,
+        globalRc: {},
+      })
+    })
+  })
+})
+
+describe.each(
+  [
+    '@foo:registry',
+  ]
+)('scoped auth settings are written to the rc file directly', (key) => {
+  it(`should set ${key} globally`, async () => {
+    const tmp = tempDir()
+    const configDir = path.join(tmp, 'global-config')
+    const initConfig = {
+      globalRc: {},
+      globalYaml: undefined,
+      localRc: undefined,
+      localYaml: undefined,
+    } satisfies ConfigFilesData
+    writeConfigFiles(configDir, tmp, initConfig)
+
+    await config.handler(createConfigCommandOpts({
+      dir: tmp,
+      cliOptions: {},
+      configDir,
+      global: true,
+      authConfig: {},
+    }), ['set', `${key}=https://registry.example.com/`])
+
+    expect(readConfigFiles(configDir, tmp)).toEqual({
+      ...initConfig,
+      globalRc: { [key]: 'https://registry.example.com/' },
+    })
+  })
+  it(`should delete ${key} globally`, async () => {
+    const tmp = tempDir()
+    const configDir = path.join(tmp, 'global-config')
+    const initConfig = {
+      globalRc: { [key]: 'https://registry.example.com/' },
+      globalYaml: undefined,
+      localRc: undefined,
+      localYaml: undefined,
+    } satisfies ConfigFilesData
+    writeConfigFiles(configDir, tmp, initConfig)
+
+    await config.handler(createConfigCommandOpts({
+      dir: tmp,
+      cliOptions: {},
+      configDir,
+      global: true,
+      authConfig: {},
+    }), ['delete', key])
+
+    expect(readConfigFiles(configDir, tmp)).toEqual({
+      ...initConfig,
+      globalRc: {},
     })
   })
 })
@@ -77,15 +187,17 @@ describe.each(
     '//registry.npmjs.org/:_authToken',
   ]
 )('non-string values should be rejected', (key) => {
-  const configOpts = {
-    json: true,
-    dir: process.cwd(),
-    cliOptions: {},
-    configDir: import.meta.dirname, // this doesn't matter, it won't be used
-    rawConfig: {},
-  }
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
   it(`${key} should reject a non-string value`, async () => {
-    await expect(config.handler(configOpts, ['set', key, '{}'])).rejects.toMatchObject({
+    await expect(config.handler(createConfigCommandOpts({
+      json: true,
+      dir: tmp,
+      cliOptions: {},
+      configDir,
+      global: true,
+      authConfig: {},
+    }), ['set', key, '{}'])).rejects.toMatchObject({
       code: 'ERR_PNPM_CONFIG_SET_AUTH_NON_STRING',
     })
   })
@@ -96,25 +208,53 @@ describe.each(
     '._auth',
     "['_auth']",
   ]
-)('%p is handled by npm CLI', (propertyPath) => {
-  const configOpts = {
-    dir: process.cwd(),
-    cliOptions: {},
-    configDir: import.meta.dirname, // this doesn't matter, it won't be used
-    rawConfig: {},
-  }
+)('%p is handled as an auth setting', (propertyPath) => {
   it('should set _auth', async () => {
-    await config.handler(configOpts, ['set', propertyPath, '123'])
-    expect(runNpm).toHaveBeenCalledWith(undefined, ['config', 'set', '_auth=123'], expect.objectContaining({
-      location: 'user',
-      userConfigPath: expect.any(String),
-    }))
+    const tmp = tempDir()
+    const configDir = path.join(tmp, 'global-config')
+    const initConfig = {
+      globalRc: {},
+      globalYaml: undefined,
+      localRc: undefined,
+      localYaml: undefined,
+    } satisfies ConfigFilesData
+    writeConfigFiles(configDir, tmp, initConfig)
+
+    await config.handler(createConfigCommandOpts({
+      dir: tmp,
+      cliOptions: {},
+      configDir,
+      global: true,
+      authConfig: {},
+    }), ['set', propertyPath, '123'])
+
+    expect(readConfigFiles(configDir, tmp)).toEqual({
+      ...initConfig,
+      globalRc: { _auth: '123' },
+    })
   })
   it('should delete _auth', async () => {
-    await config.handler(configOpts, ['delete', propertyPath])
-    expect(runNpm).toHaveBeenCalledWith(undefined, ['config', 'delete', '_auth'], expect.objectContaining({
-      location: 'user',
-      userConfigPath: expect.any(String),
-    }))
+    const tmp = tempDir()
+    const configDir = path.join(tmp, 'global-config')
+    const initConfig = {
+      globalRc: { _auth: 'some-value' },
+      globalYaml: undefined,
+      localRc: undefined,
+      localYaml: undefined,
+    } satisfies ConfigFilesData
+    writeConfigFiles(configDir, tmp, initConfig)
+
+    await config.handler(createConfigCommandOpts({
+      dir: tmp,
+      cliOptions: {},
+      configDir,
+      global: true,
+      authConfig: {},
+    }), ['delete', propertyPath])
+
+    expect(readConfigFiles(configDir, tmp)).toEqual({
+      ...initConfig,
+      globalRc: {},
+    })
   })
 })

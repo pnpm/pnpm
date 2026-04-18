@@ -1,5 +1,5 @@
 import type { CommandHandlerMap } from '@pnpm/cli.command'
-import type { Config } from '@pnpm/config.reader'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
 import { parse } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
@@ -14,7 +14,7 @@ import { renderHelp } from 'render-help'
 import { rebuild, type RebuildCommandOpts } from '../build/index.js'
 import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds.js'
 
-export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'allowBuilds' | 'enableGlobalVirtualStore'> & { all?: boolean, global?: boolean }
+export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'allowBuilds' | 'enableGlobalVirtualStore'> & Pick<ConfigContext, 'rootProjectManifest' | 'rootProjectManifestDir'> & { all?: boolean, global?: boolean }
 
 export const commandNames = ['approve-builds']
 

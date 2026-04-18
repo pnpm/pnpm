@@ -2,15 +2,19 @@ import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
+import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import { rimrafSync } from '@zkochan/rimraf'
-import nock from 'nock'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
 
-afterEach(() => {
-  nock.abortPendingRequests()
-  nock.cleanAll()
+beforeEach(async () => {
+  await setupMockAgent()
+  getMockAgent().enableNetConnect()
+})
+
+afterEach(async () => {
+  await teardownMockAgent()
 })
 
 const RESOLUTIONS = [
@@ -95,8 +99,7 @@ const RESOLUTIONS = [
   },
 ]
 
-// Derive SHA256 hex values from RESOLUTIONS integrity fields
-const PLATFORM_HEX_DIGESTS: Record<string, string> = Object.fromEntries(
+const PLATFORM_HEX_DIGESTS = Object.fromEntries(
   RESOLUTIONS.map(({ resolution }) => {
     const platform = resolution.url.match(/deno-(.+)\.zip$/)![1]
     const hex = Buffer.from(resolution.integrity.replace('sha256-', ''), 'base64').toString('hex')
@@ -107,19 +110,20 @@ const PLATFORM_HEX_DIGESTS: Record<string, string> = Object.fromEntries(
 test('installing Deno runtime', async () => {
   // Mock GitHub API to avoid network flakiness
   const assetNames = Object.keys(PLATFORM_HEX_DIGESTS).map((platform) => `deno-${platform}`)
-  const githubApiNock = nock('https://api.github.com', { allowUnmocked: true })
-    .get('/repos/denoland/deno/releases/tags/v2.4.2')
+  const githubApiPool = getMockAgent().get('https://api.github.com')
+  githubApiPool
+    .intercept({ path: '/repos/denoland/deno/releases/tags/v2.4.2', method: 'GET' })
     .reply(200, {
       assets: assetNames.map((name) => ({
         name: `${name}.zip.sha256sum`,
         browser_download_url: `https://github.com/denoland/deno/releases/download/v2.4.2/${name}.zip.sha256sum`,
       })),
     })
-  const githubDownloadNock = nock('https://github.com', { allowUnmocked: true })
+  const githubPool = getMockAgent().get('https://github.com')
   for (const [platform, hex] of Object.entries(PLATFORM_HEX_DIGESTS)) {
     const name = `deno-${platform}`
-    githubDownloadNock
-      .get(`/denoland/deno/releases/download/v2.4.2/${name}.zip.sha256sum`)
+    githubPool
+      .intercept({ path: `/denoland/deno/releases/download/v2.4.2/${name}.zip.sha256sum`, method: 'GET' })
       .reply(200, `${hex}  ${name}.zip`)
   }
 
@@ -207,9 +211,6 @@ test('installing Deno runtime', async () => {
       '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0': {},
     },
   })
-
-  githubApiNock.done()
-  githubDownloadNock.done()
 })
 
 test('installing Deno runtime fails if offline mode is used and Deno not found locally', async () => {

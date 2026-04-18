@@ -1,5 +1,196 @@
 # @pnpm/resolve-dependencies
 
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [ff7733c]
+  - @pnpm/pkg-manifest.utils@1100.1.0
+  - @pnpm/lockfile.preferred-versions@1100.0.2
+  - @pnpm/fetching.pick-fetcher@1100.0.1
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/config.version-policy@1100.0.1
+  - @pnpm/core-loggers@1100.0.1
+  - @pnpm/deps.graph-hasher@1100.0.1
+  - @pnpm/deps.path@1100.0.1
+  - @pnpm/hooks.types@1100.0.1
+  - @pnpm/lockfile.preferred-versions@1100.0.1
+  - @pnpm/lockfile.pruner@1100.0.1
+  - @pnpm/lockfile.types@1100.0.1
+  - @pnpm/lockfile.utils@1100.0.1
+  - @pnpm/pkg-manifest.reader@1100.0.1
+  - @pnpm/pkg-manifest.utils@1100.0.1
+  - @pnpm/resolving.npm-resolver@1100.0.1
+  - @pnpm/resolving.resolver-base@1100.0.1
+  - @pnpm/store.controller-types@1100.0.1
+  - @pnpm/patching.config@1100.0.1
+  - @pnpm/fetching.pick-fetcher@1100.0.1
+
+## 1009.0.0
+
+### Major Changes
+
+- 5f73b0f: Runtime dependencies are always linked from the global virtual store [#10233](https://github.com/pnpm/pnpm/pull/10233).
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- ae8b816: Added a new setting `blockExoticSubdeps` that prevents the resolution of exotic protocols in transitive dependencies.
+
+  When set to `true`, direct dependencies (those listed in your root `package.json`) may still use exotic sources, but all transitive dependencies must be resolved from a trusted source. Trusted sources include the configured registry, local file paths, workspace links, trusted GitHub repositories (node, bun, deno), and custom resolvers.
+
+  This helps to secure the dependency supply chain. Packages from trusted sources are considered safer, as they are typically subject to more reliable verification and scanning for malware and vulnerabilities.
+
+  **Exotic sources** are dependency locations that bypass the usual trusted resolution process. These protocols are specifically targeted and blocked: Git repositories (`git+ssh://...`) and direct URL links to tarballs (`https://.../package.tgz`).
+
+  Related PR: [#10265](https://github.com/pnpm/pnpm/pull/10265).
+
+- facdd71: Adding `trustPolicyIgnoreAfter` allows you to ignore trust policy checks for packages published more than a specified time ago[#10352](https://github.com/pnpm/pnpm/issues/10352).
+- 606f53e: Added a new `dedupePeers` setting that reduces peer dependency duplication. When enabled, peer dependency suffixes use version-only identifiers (`name@version`) instead of full dep paths, eliminating nested suffixes like `(foo@1.0.0(bar@2.0.0))`. This dramatically reduces the number of package instances in projects with many recursive peer dependencies [#11070](https://github.com/pnpm/pnpm/issues/11070).
+- cd743ef: Use `allowBuilds` config to compute engine-agnostic GVS hashes for pure-JS packages [#10837](https://github.com/pnpm/pnpm/issues/10837).
+
+  When the global virtual store is enabled, packages that are not allowed to build (and don't transitively depend on packages that are) now get hashes that don't include the engine name (platform, architecture, Node.js major version). This means ~95% of packages in the GVS survive Node.js upgrades and architecture changes without re-import.
+
+- ba065f6: Block git-hosted dependencies from running prepare scripts unless explicitly allowed in onlyBuiltDependencies [#10288](https://github.com/pnpm/pnpm/pull/10288).
+- 10bc391: Added a new setting: `trustPolicy`.
+- 38b8e35: Support for custom resolvers and fetchers.
+- 15549a9: Add the ability to fix vulnerabilities by updating packages in the lockfile instead of adding overrides.
+- 9d3f00b: Added support for `trustPolicyExclude` [#10164](https://github.com/pnpm/pnpm/issues/10164).
+
+  You can now list one or more specific packages or versions that pnpm should allow to install, even if those packages don't satisfy the trust policy requirement. For example:
+
+  ```yaml
+  trustPolicy: no-downgrade
+  trustPolicyExclude:
+    - chokidar@4.0.3
+    - webpack@4.47.0 || 5.102.1
+  ```
+
+- efb48dc: **Node.js Runtime Installation for Dependencies.** Added support for automatic Node.js runtime installation for dependencies. pnpm will now install the Node.js version required by a dependency if that dependency declares a Node.js runtime in the "engines" field. For example:
+
+  ```json
+  {
+    "engines": {
+      "runtime": {
+        "name": "node",
+        "version": "^24.11.0",
+        "onFail": "download"
+      }
+    }
+  }
+  ```
+
+  If the package with the Node.js runtime dependency is a CLI app, pnpm will bind the CLI app to the required Node.js version. This ensures that, regardless of the globally installed Node.js instance, the CLI will use the compatible version of Node.js.
+
+  If the package has a `postinstall` script, that script will be executed using the specified Node.js version.
+
+  Related PR: [#10141](https://github.com/pnpm/pnpm/pull/10141)
+
+### Patch Changes
+
+- f98a2db: Fixed a bug in an internal `hoistPeers` function that could cause peer dependencies to be re-resolved instead of locked to existing versions when upgrading packages in rare cases.
+- a8f016c: Store config dependency and package manager integrity info in `pnpm-lock.yaml` instead of inlining it in `pnpm-workspace.yaml`. The workspace manifest now contains only clean version specifiers for `configDependencies`, while the resolved versions, integrity hashes, and tarball URLs are recorded in the lockfile as a separate YAML document. The env lockfile section also stores `packageManagerDependencies` resolved during version switching and self-update. Projects using the old inline-hash format are automatically migrated on install.
+- e46a652: Don't fail on `pnpm add`, when `blockExoticSubdeps` is set to `true` [#10324](https://github.com/pnpm/pnpm/issues/10324).
+- 19f36cf: Don't silently skip an optional dependency if it cannot be resolved from a version that satisfies the `minimumReleaseAge` setting [#10270](https://github.com/pnpm/pnpm/issues/10270).
+- 94571fb: Fixed a bug where `catalogMode: strict` would write the literal string `"catalog:"` to `pnpm-workspace.yaml` instead of the resolved version specifier when re-adding an existing catalog dependency [#10176](https://github.com/pnpm/pnpm/issues/10176).
+- 54c4fc4: Fix auto-installed peer dependencies ignoring overrides when a stale version exists in the lockfile. Previously, `hoistPeers` used `semver.maxSatisfying(versions, '*')` which picked the highest preferred version regardless of the peer dep range. Now it first tries `semver.maxSatisfying(versions, range)` to respect the actual range, falling back to exact-version ranges (e.g. from overrides) when no preferred version satisfies. Also handles `workspace:` protocol ranges safely.
+- e73da5e: When `lockfile-include-tarball-url` is set to `false`, tarball URLs are now always excluded from the lockfile. Previously, tarball URLs could still appear for packages hosted under non-standard URLs, making the behavior flaky and inconsistent [#6667](https://github.com/pnpm/pnpm/issues/6667).
+- 2fc9139: Fix workspace package protocol consistency when using `injectWorkspacePackages`
+
+  Previously, workspace packages would inconsistently switch between `link:` and `file:` protocols after operations like `pnpm rm` when `injectWorkspacePackages` was enabled. The issue was that deduplication logic couldn't identify workspace packages in single-package operation contexts.
+
+  This fix ensures workspace packages maintain consistent protocols by checking against all workspace packages from the lockfile, not just packages in the current operation context.
+
+  Fixes #9518
+
+- 83fe533: The installation should fail if an optional dependency cannot be installed due to a trust policy check failure [#10208](https://github.com/pnpm/pnpm/issues/10208).
+- 021f70d: Improved handling of non-string version selectors in an internal function (e.g. `hoistPeers`).
+- cee1f58: Fix `--save-peer` to write valid semver ranges to `peerDependencies` for protocol-based installs (e.g. `jsr:`) by deriving from resolved versions when available and falling back to `*` if none is available [#10417](https://github.com/pnpm/pnpm/issues/10417).
+- 4f3ad23: Fixed a bug ([#9759](https://github.com/pnpm/pnpm/issues/9759)) where `pnpm add` would incorrectly modify a catalog entry in `pnpm-workspace.yaml` to its exact version.
+- Updated dependencies [5f73b0f]
+- Updated dependencies [facdd71]
+- Updated dependencies [c55c614]
+- Updated dependencies [9b0a460]
+- Updated dependencies [a297ebc]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [606f53e]
+- Updated dependencies [831f574]
+- Updated dependencies [0e9c559]
+- Updated dependencies [cd743ef]
+- Updated dependencies [efb48dc]
+- Updated dependencies [19f36cf]
+- Updated dependencies [491a84f]
+- Updated dependencies [61cad0c]
+- Updated dependencies [19f36cf]
+- Updated dependencies [075aa99]
+- Updated dependencies [c4045fc]
+- Updated dependencies [143ca78]
+- Updated dependencies [ba065f6]
+- Updated dependencies [6f361aa]
+- Updated dependencies [0625e20]
+- Updated dependencies [938ea1f]
+- Updated dependencies [2cb0657]
+- Updated dependencies [bb8baa7]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [144ce0e]
+- Updated dependencies [efb48dc]
+- Updated dependencies [56a59df]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [cee1f58]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [ba70035]
+- Updated dependencies [3585d9a]
+- Updated dependencies [38b8e35]
+- Updated dependencies [394d88c]
+- Updated dependencies [1e6de25]
+- Updated dependencies [831f574]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [6557dc0]
+- Updated dependencies [98a0410]
+- Updated dependencies [efb48dc]
+- Updated dependencies [efb48dc]
+  - @pnpm/deps.path@1002.0.0
+  - @pnpm/deps.graph-hasher@1003.0.0
+  - @pnpm/store.controller-types@1005.0.0
+  - @pnpm/resolving.resolver-base@1006.0.0
+  - @pnpm/resolving.npm-resolver@1005.0.0
+  - @pnpm/constants@1002.0.0
+  - @pnpm/lockfile.preferred-versions@1001.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/lockfile.types@1003.0.0
+  - @pnpm/lockfile.utils@1004.0.0
+  - @pnpm/pkg-manifest.utils@1002.0.0
+  - @pnpm/pkg-manifest.reader@1001.0.0
+  - @pnpm/fetching.pick-fetcher@1002.0.0
+  - @pnpm/core-loggers@1002.0.0
+  - @pnpm/workspace.spec-parser@1001.0.0
+  - @pnpm/catalogs.resolver@1001.0.0
+  - @pnpm/deps.peer-range@1001.0.0
+  - @pnpm/lockfile.pruner@1002.0.0
+  - @pnpm/patching.config@1002.0.0
+  - @pnpm/catalogs.types@1001.0.0
+  - @pnpm/error@1001.0.0
+  - @pnpm/patching.types@1001.0.0
+  - @pnpm/hooks.types@1002.0.0
+  - @pnpm/config.version-policy@1000.0.1
+
 ## 1008.3.1
 
 ### Patch Changes

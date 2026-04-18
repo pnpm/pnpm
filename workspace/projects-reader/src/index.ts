@@ -18,8 +18,6 @@ export interface FindWorkspaceProjectsOpts {
   patterns?: string[]
 
   engineStrict?: boolean
-  packageManagerStrict?: boolean
-  packageManagerStrictVersion?: boolean
   nodeVersion?: string
   sharedWorkspaceLockfile?: boolean
   supportedArchitectures?: SupportedArchitectures

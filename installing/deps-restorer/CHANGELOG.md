@@ -1,5 +1,172 @@
 # @pnpm/headless
 
+## 1100.0.2
+
+### Patch Changes
+
+- @pnpm/building.during-install@1100.0.2
+- @pnpm/bins.linker@1100.0.2
+- @pnpm/workspace.project-manifest-reader@1100.0.2
+- @pnpm/exec.lifecycle@1100.0.2
+- @pnpm/installing.linking.hoist@1100.0.2
+- @pnpm/installing.package-requester@1100.0.1
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/bins.linker@1100.0.1
+  - @pnpm/building.during-install@1100.0.1
+  - @pnpm/building.policy@1100.0.1
+  - @pnpm/config.package-is-installable@1100.0.1
+  - @pnpm/core-loggers@1100.0.1
+  - @pnpm/deps.graph-builder@1100.0.1
+  - @pnpm/deps.graph-hasher@1100.0.1
+  - @pnpm/deps.path@1100.0.1
+  - @pnpm/exec.lifecycle@1100.0.1
+  - @pnpm/fs.symlink-dependency@1100.0.1
+  - @pnpm/installing.linking.hoist@1100.0.1
+  - @pnpm/installing.linking.modules-cleaner@1100.0.1
+  - @pnpm/installing.linking.real-hoist@1100.0.1
+  - @pnpm/installing.modules-yaml@1100.0.1
+  - @pnpm/installing.package-requester@1100.0.1
+  - @pnpm/lockfile.filtering@1100.0.1
+  - @pnpm/lockfile.fs@1100.0.1
+  - @pnpm/lockfile.to-pnp@1100.0.1
+  - @pnpm/lockfile.utils@1100.0.1
+  - @pnpm/pkg-manifest.reader@1100.0.1
+  - @pnpm/store.controller-types@1100.0.1
+  - @pnpm/worker@1100.0.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.1
+  - @pnpm/installing.linking.direct-dep-linker@1100.0.1
+  - @pnpm/patching.config@1100.0.1
+
+## 1007.0.0
+
+### Major Changes
+
+- 5f73b0f: Runtime dependencies are always linked from the global virtual store [#10233](https://github.com/pnpm/pnpm/pull/10233).
+- 05fb1ae: `ignoreBuilds` is now a set of DepPath.
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+- cb367b9: Remove deprecated build dependency settings: `onlyBuiltDependencies`, `onlyBuiltDependenciesFile`, `neverBuiltDependencies`, and `ignoredBuiltDependencies`.
+- 7b1c189: Removed the deprecated `allowNonAppliedPatches` completely in favor of `allowUnusedPatches`.
+  Remove `ignorePatchFailures` so all patch application failures should throw an error.
+
+### Minor Changes
+
+- 394d88c: Export extendProjectsWithTargetDirs.
+- 09a999a: Added a new setting `virtualStoreOnly` that populates the virtual store without creating importer symlinks, hoisting, bin links, or running lifecycle scripts. This is useful for pre-populating a store (e.g., in Nix builds) without creating unnecessary project-level artifacts. `pnpm fetch` now uses this mode internally [#10840](https://github.com/pnpm/pnpm/issues/10840).
+
+### Patch Changes
+
+- ac4c9f4: Failed to install dependency packages under absolute paths on different disk paths.
+- 9fc552d: In GVS mode, `pnpm approve-builds` now runs a full install instead of rebuild. This ensures that GVS hash directories and symlinks are updated correctly after changing `allowBuilds`, preventing build artifact contamination of engine-agnostic directories [#11042](https://github.com/pnpm/pnpm/issues/11042).
+- 394d88c: Fixed injected local packages to work correctly with the global virtual store [#10366](https://github.com/pnpm/pnpm/pull/10366).
+
+  When using `nodeLinker: 'isolated'` with `enableGlobalVirtualStore: true`, injected workspace packages now use the correct hash-based paths from the global virtual store instead of project-relative paths.
+
+- 312226c: Skip local `file:` protocol dependencies during `pnpm fetch`. This fixes an issue where `pnpm fetch` would fail in Docker builds when local directory dependencies were not available [#10460](https://github.com/pnpm/pnpm/issues/10460).
+- ba065f6: Block git-hosted dependencies from running prepare scripts unless explicitly allowed in onlyBuiltDependencies [#10288](https://github.com/pnpm/pnpm/pull/10288).
+- 615bd24: Skip redundant internal linking during GVS warm reinstall when no packages were added. Also filter direct dependency directories by `hasBin` before reading manifests to avoid unnecessary package.json reads.
+- 05158d2: Fix the comparison of current and previous hoistPattern and publicHoistPattern values.
+- 4362c06: `pnpm install` should build any dependencies that were added to `onlyBuiltDependencies` and were not built yet [#10256](https://github.com/pnpm/pnpm/pull/10256).
+- Updated dependencies [5f73b0f]
+- Updated dependencies [449dacf]
+- Updated dependencies [facdd71]
+- Updated dependencies [e2e0a32]
+- Updated dependencies [c55c614]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [7cec347]
+- Updated dependencies [3cfffaa]
+- Updated dependencies [2fccb03]
+- Updated dependencies [82f4610]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [cd743ef]
+- Updated dependencies [efb48dc]
+- Updated dependencies [491a84f]
+- Updated dependencies [9b801c8]
+- Updated dependencies [62f760e]
+- Updated dependencies [394d88c]
+- Updated dependencies [6e9cad3]
+- Updated dependencies [312226c]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb228c9]
+- Updated dependencies [56a59df]
+- Updated dependencies [97f049f]
+- Updated dependencies [075aa99]
+- Updated dependencies [c4045fc]
+- Updated dependencies [98a5f1c]
+- Updated dependencies [ba065f6]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [2b81a4f]
+- Updated dependencies [bb8baa7]
+- Updated dependencies [ee9fe58]
+- Updated dependencies [d458ab3]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [56a59df]
+- Updated dependencies [780af09]
+- Updated dependencies [96704a1]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [f40177f]
+- Updated dependencies [71de2b3]
+- Updated dependencies [4893853]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [394d88c]
+- Updated dependencies [b7f0f21]
+- Updated dependencies [1e6de25]
+- Updated dependencies [831f574]
+- Updated dependencies [366cabe]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [3cfffaa]
+- Updated dependencies [7354e6b]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [98a0410]
+- Updated dependencies [efb48dc]
+- Updated dependencies [56a59df]
+- Updated dependencies [f871365]
+- Updated dependencies [4362c06]
+  - @pnpm/deps.path@1002.0.0
+  - @pnpm/deps.graph-hasher@1003.0.0
+  - @pnpm/deps.graph-builder@1003.0.0
+  - @pnpm/bins.linker@1001.0.0
+  - @pnpm/installing.package-requester@1009.0.0
+  - @pnpm/store.controller-types@1005.0.0
+  - @pnpm/worker@1001.0.0
+  - @pnpm/constants@1002.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/lockfile.fs@1002.0.0
+  - @pnpm/lockfile.utils@1004.0.0
+  - @pnpm/installing.modules-yaml@1001.0.0
+  - @pnpm/building.during-install@1000.0.0
+  - @pnpm/building.policy@1000.0.0
+  - @pnpm/workspace.project-manifest-reader@1002.0.0
+  - @pnpm/pkg-manifest.reader@1001.0.0
+  - @pnpm/config.package-is-installable@1001.0.0
+  - @pnpm/installing.linking.direct-dep-linker@1001.0.0
+  - @pnpm/installing.linking.modules-cleaner@1002.0.0
+  - @pnpm/lockfile.to-pnp@1002.0.0
+  - @pnpm/installing.linking.real-hoist@1002.0.0
+  - @pnpm/fs.symlink-dependency@1001.0.0
+  - @pnpm/core-loggers@1002.0.0
+  - @pnpm/lockfile.filtering@1002.0.0
+  - @pnpm/installing.linking.hoist@1003.0.0
+  - @pnpm/patching.config@1002.0.0
+  - @pnpm/exec.lifecycle@1002.0.0
+  - @pnpm/error@1001.0.0
+
 ## 1006.0.0
 
 ### Minor Changes

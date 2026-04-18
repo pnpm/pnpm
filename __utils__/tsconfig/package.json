@@ -2,7 +2,7 @@
   "name": "@pnpm/tsconfig",
   "description": "pnpm's TypeScript configuration",
   "private": true,
-  "version": "1000.0.0",
+  "version": "1100.0.0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -31,9 +31,9 @@
   ],
   "funding": "https://opencollective.com/pnpm",
   "scripts": {
-    "test": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix",
-    "prepublishOnly": "pnpm run compile"
+    "test": "pn compile",
+    "compile": "tsc --build && pn lint --fix",
+    "prepublishOnly": "pn compile"
   },
   "exports": {
     ".": "./tsconfig.json"

@@ -1,9 +1,5 @@
-import type { Config } from '@pnpm/config.reader'
-
-export function getNodeMirror (rawConfig: Config['rawConfig'], releaseChannel: string): string {
-  // This is a dynamic lookup since the 'use-node-version' option is allowed to be '<releaseChannel>/<version>'
-  const configKey = `node-mirror:${releaseChannel}`
-  const nodeMirror = rawConfig[configKey] ?? `https://nodejs.org/download/${releaseChannel}/`
+export function getNodeMirror (nodeDownloadMirrors: Record<string, string> | undefined, releaseChannel: string): string {
+  const nodeMirror = nodeDownloadMirrors?.[releaseChannel] ?? `https://nodejs.org/download/${releaseChannel}/`
   return normalizeNodeMirror(nodeMirror)
 }
 

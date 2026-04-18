@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.linking.modules-cleaner",
-  "version": "1001.0.23",
+  "version": "1100.0.1",
   "description": "Exports util functions to clean up node_modules",
   "keywords": [
     "pnpm",
@@ -25,10 +25,10 @@
   ],
   "scripts": {
     "start": "tsgo --watch",
-    "test": "pnpm run compile",
+    "test": "pn compile",
     "lint": "eslint \"src/**/*.ts\"",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix"
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {
     "@pnpm/bins.remover": "workspace:*",

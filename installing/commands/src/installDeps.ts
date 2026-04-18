@@ -6,7 +6,7 @@ import {
   readProjectManifestOnly,
   tryReadProjectManifest,
 } from '@pnpm/cli.utils'
-import type { Config } from '@pnpm/config.reader'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { checkDepsStatus } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
@@ -19,7 +19,7 @@ import {
 } from '@pnpm/installing.deps-installer'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalInfo, logger } from '@pnpm/logger'
-import { filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
+import { applyRuntimeOnFailOverride, filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
 import type { PreferredVersions, VersionSelectors } from '@pnpm/resolving.resolver-base'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type {
@@ -57,16 +57,14 @@ const OVERWRITE_UPDATE_OPTIONS = {
 }
 
 export type InstallDepsOptions = Pick<Config,
-| 'allProjects'
-| 'allProjectsGraph'
 | 'autoInstallPeers'
 | 'bail'
 | 'bin'
 | 'catalogs'
 | 'catalogMode'
 | 'cleanupUnusedCatalogs'
-| 'cliOptions'
 | 'dedupePeerDependents'
+| 'dedupePeers'
 | 'depth'
 | 'dev'
 | 'enableGlobalVirtualStore'
@@ -75,7 +73,6 @@ export type InstallDepsOptions = Pick<Config,
 | 'excludeLinksFromLockfile'
 | 'global'
 | 'globalPnpmfile'
-| 'hooks'
 | 'ignoreCurrentSpecifiers'
 | 'ignorePnpmfile'
 | 'ignoreScripts'
@@ -85,10 +82,8 @@ export type InstallDepsOptions = Pick<Config,
 | 'lockfileOnly'
 | 'production'
 | 'preferWorkspacePackages'
-| 'rawLocalConfig'
 | 'registries'
-| 'rootProjectManifestDir'
-| 'rootProjectManifest'
+| 'runtimeOnFail'
 | 'save'
 | 'saveDev'
 | 'saveExact'
@@ -100,7 +95,6 @@ export type InstallDepsOptions = Pick<Config,
 | 'lockfileIncludeTarballUrl'
 | 'scriptsPrependNodePath'
 | 'scriptShell'
-| 'selectedProjectsGraph'
 | 'sideEffectsCache'
 | 'sideEffectsCacheReadonly'
 | 'sort'
@@ -118,6 +112,14 @@ export type InstallDepsOptions = Pick<Config,
 | 'configDependencies'
 | 'packageExtensions'
 | 'updateConfig'
+> & Pick<ConfigContext,
+| 'allProjects'
+| 'allProjectsGraph'
+| 'cliOptions'
+| 'hooks'
+| 'rootProjectManifestDir'
+| 'rootProjectManifest'
+| 'selectedProjectsGraph'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[]
@@ -183,14 +185,7 @@ export async function installDeps (
       throw new PnpmError('WORKSPACE_OPTION_OUTSIDE_WORKSPACE', '--workspace can only be used inside a workspace')
     }
     if (!opts.linkWorkspacePackages && !opts.saveWorkspaceProtocol) {
-      if (opts.rawLocalConfig['save-workspace-protocol'] === false) {
-        throw new PnpmError('BAD_OPTIONS', 'This workspace has link-workspace-packages turned off, \
-so dependencies are linked from the workspace only when the workspace protocol is used. \
-Either set link-workspace-packages to true or don\'t use the --no-save-workspace-protocol option \
-when running add/update with the --workspace option')
-      } else {
-        opts.saveWorkspaceProtocol = true
-      }
+      opts.saveWorkspaceProtocol = true
     }
     // @ts-expect-error
     opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
@@ -201,15 +196,16 @@ when running add/update with the --workspace option')
     devDependencies: true,
     optionalDependencies: true,
   }
-  const forceHoistPattern = typeof opts.rawLocalConfig['hoist-pattern'] !== 'undefined' ||
-    typeof opts.rawLocalConfig['hoist'] !== 'undefined'
-  const forcePublicHoistPattern = typeof opts.rawLocalConfig['shamefully-hoist'] !== 'undefined' ||
-    typeof opts.rawLocalConfig['public-hoist-pattern'] !== 'undefined'
   const allProjects = opts.allProjects ?? (
     opts.workspaceDir
       ? await findWorkspaceProjects(opts.workspaceDir, { ...opts, patterns: opts.workspacePackagePatterns })
       : []
   )
+  if (opts.runtimeOnFail) {
+    for (const project of allProjects) {
+      applyRuntimeOnFailOverride(project.manifest, opts.runtimeOnFail)
+    }
+  }
   if (opts.workspaceDir) {
     const selectedProjectsGraph = opts.selectedProjectsGraph ?? selectProjectByDir(allProjects, opts.dir)
     if (selectedProjectsGraph != null) {
@@ -238,8 +234,6 @@ when running add/update with the --workspace option')
         params,
         {
           ...opts,
-          forceHoistPattern,
-          forcePublicHoistPattern,
           preferredVersions: opts.packageVulnerabilityAudit ? preferNonvulnerablePackageVersions(opts.packageVulnerabilityAudit) : undefined,
           allProjectsGraph,
           selectedProjectsGraph,
@@ -267,12 +261,12 @@ when running add/update with the --workspace option')
       throw new PnpmError('NO_PKG_MANIFEST', `No package.json found in ${opts.dir}`)
     }
     manifest = {}
+  } else if (opts.runtimeOnFail) {
+    applyRuntimeOnFailOverride(manifest, opts.runtimeOnFail)
   }
 
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
     ...opts,
-    forceHoistPattern,
-    forcePublicHoistPattern,
     // In case installation is done in a multi-package repository
     // The dependencies should be built first,
     // so ignoring scripts for now

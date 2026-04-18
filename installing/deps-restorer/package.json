@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.deps-restorer",
-  "version": "1006.0.0",
+  "version": "1100.0.2",
   "description": "Fast installation using only pnpm-lock.yaml",
   "keywords": [
     "pnpm",
@@ -31,11 +31,11 @@
   "scripts": {
     "start": "tsgo --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "test": "pnpm run compile && pnpm run .test",
-    "prepublishOnly": "pnpm run compile",
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "pn compile",
     "runPrepareFixtures": "node ../../pnpm/bin/pnpm.mjs i -r -C test/fixtures --no-shared-workspace-lockfile --no-link-workspace-packages --lockfile-only --registry http://localhost:4873/ --ignore-scripts --force --no-strict-peer-dependencies",
     "prepareFixtures": "git clean -fdx test/fixtures && rm -rf \"test/fixtures/*/pnpm-lock.yaml\" && registry-mock prepare && concurrently --success=first --kill-others registry-mock \"pnpm run runPrepareFixtures\"",
-    "compile": "tsgo --build && pnpm run lint --fix",
+    "compile": "tsgo --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {

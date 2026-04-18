@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/engine.runtime.commands",
-  "version": "1000.0.0-0",
+  "version": "1100.0.2",
   "description": "pnpm commands for managing runtimes",
   "keywords": [
     "pnpm",
@@ -26,9 +26,9 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix",
-    "test": "pnpm run compile && pnpm run .test",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
+    "test": "pn compile && pn .test",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {

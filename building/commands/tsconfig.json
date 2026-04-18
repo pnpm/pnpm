@@ -73,6 +73,9 @@
       "path": "../../store/index"
     },
     {
+      "path": "../../testing/command-defaults"
+    },
+    {
       "path": "../../workspace/projects-filter"
     },
     {

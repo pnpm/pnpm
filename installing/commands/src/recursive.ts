@@ -10,6 +10,7 @@ import {
 import { createMatcherWithIndex } from '@pnpm/config.matcher'
 import {
   type Config,
+  type ConfigContext,
   createProjectConfigRecord,
   getWorkspaceConcurrency,
   type OptionsFromRootManifest,
@@ -59,10 +60,10 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'bail'
 | 'configDependencies'
 | 'dedupePeerDependents'
+| 'dedupePeers'
 | 'depth'
 | 'globalPnpmfile'
 | 'hoistPattern'
-| 'hooks'
 | 'ignorePnpmfile'
 | 'ignoreScripts'
 | 'linkWorkspacePackages'
@@ -70,10 +71,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'lockfileOnly'
 | 'modulesDir'
 | 'allowBuilds'
-| 'rawLocalConfig'
 | 'registries'
-| 'rootProjectManifest'
-| 'rootProjectManifestDir'
 | 'save'
 | 'saveCatalogName'
 | 'saveDev'
@@ -89,6 +87,10 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'cleanupUnusedCatalogs'
 | 'packageConfigs'
 | 'updateConfig'
+> & Pick<ConfigContext,
+| 'hooks'
+| 'rootProjectManifest'
+| 'rootProjectManifestDir'
 > & {
   rebuildHandler?: CommandHandler
   include?: IncludedDependencies
@@ -97,8 +99,6 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   pending?: boolean
   workspace?: boolean
   allowNew?: boolean
-  forceHoistPattern?: boolean
-  forcePublicHoistPattern?: boolean
   ignoredPackages?: Set<string>
   update?: boolean
   updatePackageManifest?: boolean
@@ -163,9 +163,6 @@ export async function recursive (
     storeDir: store.dir,
     targetDependenciesField,
     workspacePackages,
-
-    forceHoistPattern: typeof opts.rawLocalConfig?.['hoist-pattern'] !== 'undefined' || typeof opts.rawLocalConfig?.['hoist'] !== 'undefined',
-    forceShamefullyHoist: typeof opts.rawLocalConfig?.['shamefully-hoist'] !== 'undefined',
   }) as InstallOptions
 
   const result: RecursiveSummary = {}
@@ -412,10 +409,7 @@ export async function recursive (
               saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
               savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
             }),
-            rawConfig: {
-              ...installOpts.rawConfig,
-              ...localConfig,
-            },
+            configByUri: installOpts.configByUri,
             storeController: store.ctrl,
           }
         )

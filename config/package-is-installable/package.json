@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config.package-is-installable",
-  "version": "1000.0.15",
+  "version": "1100.0.1",
   "description": "Checks if a package is installable on the current system",
   "keywords": [
     "pnpm",
@@ -25,10 +25,10 @@
   ],
   "scripts": {
     "start": "tsgo --watch",
-    "test": "pnpm run compile && pnpm run .test",
+    "test": "pn compile && pn .test",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsgo --build && pnpm run lint --fix",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
