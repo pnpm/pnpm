@@ -1,24 +1,26 @@
-/* eslint-disable no-await-in-loop */
+const fs = require('fs');
+
+// 1. Rewrite cloneDir.ts
+const cloneDirContent = \`/* eslint-disable no-await-in-loop */
 import { execFile } from 'node:child_process'
 import { constants } from 'node:fs'
 import {
   access,
   chmod,
   mkdir,
+  open,
   readdir,
   readlink,
-  stat,
   statfs,
+  stat,
   symlink,
   utimes,
+  copyFile,
 } from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
-import gracefulFs from '@pnpm/fs.graceful-fs'
-
 const execFileAsync = promisify(execFile)
-const copyFileAsync = gracefulFs.copyFile
 
 // Linux filesystem magic numbers from statfs
 const BTRFS_SUPER_MAGIC = 0x9123683e
@@ -121,9 +123,9 @@ async function cloneDirLinux (src: string, dest: string): Promise<boolean> {
         if (!(await reflinkCloneFile(srcPath, destPath))) {
           // Fall back to regular copyFile with FICLONE_FORCE
           try {
-            await copyFileAsync(srcPath, destPath, constants.COPYFILE_FICLONE)
+            await copyFile(srcPath, destPath, constants.COPYFILE_FICLONE)
           } catch {
-            await copyFileAsync(srcPath, destPath, 0)
+            await copyFile(srcPath, destPath)
           }
         }
       } else if (entry.isSymbolicLink()) {
@@ -167,10 +169,87 @@ async function isReflinkSupported (path: string): Promise<boolean> {
  * This is more efficient than copy_file_range for CoW filesystems.
  */
 async function reflinkCloneFile (src: string, dest: string): Promise<boolean> {
+  let srcHandle
+  let destHandle
+
   try {
-    await copyFileAsync(src, dest, constants.COPYFILE_FICLONE_FORCE)
+    // Open source file read-only
+    srcHandle = await open(src, 'r')
+
+    // Get source file stats for permissions
+    const srcStat = await srcHandle.stat()
+
+    // Open/create destination file with same permissions
+    destHandle = await open(dest, 'w', srcStat.mode)
+
+    // Perform the reflink clone using ioctl
+    // We need to use a native addon or process.binding for ioctl
+    // Since we can't easily do that, fall back to copy_file_range
+    // which uses the same underlying mechanism
+    await copyFile(src, dest, constants.COPYFILE_FICLONE_FORCE)
+
     return true
   } catch {
     return false
+  } finally {
+    if (srcHandle !== undefined) {
+      try {
+        await srcHandle.close()
+      } catch {} // eslint-disable-line:no-empty
+    }
+    if (destHandle !== undefined) {
+      try {
+        await destHandle.close()
+      } catch {} // eslint-disable-line:no-empty
+    }
   }
 }
+\`;
+fs.writeFileSync('fs/indexed-pkg-importer/src/cloneDir.ts', cloneDirContent);
+
+// 2. Patch index.ts
+let indexContent = fs.readFileSync('fs/indexed-pkg-importer/src/index.ts', 'utf8');
+const oldCloneDirPkg = \`function cloneDirPkg (
+  to: string,
+  opts: ImportOptions
+): Promise<'clone-dir' | undefined> {
+  if (opts.resolvedFrom === 'local-dir' && (!pkgExistsAtTargetDir(to, opts.filesMap) || opts.force)) {
+    // Get the source directory from the first file in the filesMap
+    // For local-dir, this will be a real package directory, not a CAFS shard
+    const firstSrcPath = opts.filesMap.values().next().value!
+    const srcDirPath = path.dirname(firstSrcPath)
+    if (cloneDir(srcDirPath, to)) {
+      return Promise.resolve('clone-dir')
+    }
+  }
+  return Promise.resolve(undefined)
+}\`;
+
+const newCloneDirPkg = \`async function cloneDirPkg (
+  to: string,
+  opts: ImportOptions
+): Promise<'clone-dir' | undefined> {
+  if (opts.resolvedFrom === 'local-dir' && (!pkgExistsAtTargetDir(to, opts.filesMap) || opts.force)) {
+    // Get the source directory from the first file in the filesMap
+    // For local-dir, this will be a real package directory, not a CAFS shard
+    const firstSrcPath = opts.filesMap.values().next().value!
+    const srcDirPath = path.dirname(firstSrcPath)
+    if (await cloneDir(srcDirPath, to)) {
+      return 'clone-dir'
+    }
+  }
+  return undefined
+}\`;
+
+if (indexContent.includes(oldCloneDirPkg)) {
+  indexContent = indexContent.replace(oldCloneDirPkg, newCloneDirPkg);
+  fs.writeFileSync('fs/indexed-pkg-importer/src/index.ts', indexContent);
+}
+
+// 3. Patch test
+let testContent = fs.readFileSync('fs/indexed-pkg-importer/test/cloneDir.test.ts', 'utf8');
+testContent = testContent.replaceAll(
+  "const result = cloneDir(src, dest)",
+  "const result = await cloneDir(src, dest)"
+);
+fs.writeFileSync('fs/indexed-pkg-importer/test/cloneDir.test.ts', testContent);

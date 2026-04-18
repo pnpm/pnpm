@@ -5,12 +5,12 @@ import util from 'node:util'
 
 import gfs from '@pnpm/fs.graceful-fs'
 import { globalInfo, globalWarn, logger } from '@pnpm/logger'
-import { rimraf } from '@zkochan/rimraf'
+import { rimraf, rimrafSync } from '@zkochan/rimraf'
 import fsx from 'fs-extra'
-import { makeEmptyDir } from 'make-empty-dir'
+import { makeEmptyDir, makeEmptyDirSync } from 'make-empty-dir'
 import pLimit from 'p-limit'
 import { fastPathTemp as pathTemp } from 'path-temp'
-import { renameOverwrite } from 'rename-overwrite'
+import { renameOverwrite, renameOverwriteSync } from 'rename-overwrite'
 import sanitizeFilename from 'sanitize-filename'
 
 const filenameConflictsLogger = logger('_filename-conflicts')
@@ -205,11 +205,10 @@ async function tryImportIndexedDir (
     if (dir === '.') continue
     allDirs.add(dir)
   }
-  const mkdirLimit = pLimit(16)
   await Promise.all(
     Array.from(allDirs)
       .sort((d1, d2) => d1.length - d2.length) // from shortest to longest
-      .map(async (dir) => mkdirLimit(() => fsPromises.mkdir(path.join(newDir, dir), { recursive: true })))
+      .map(async (dir) => fsPromises.mkdir(path.join(newDir, dir), { recursive: true }))
   )
   // Write package.json last so it acts as a completion marker.
   // pkgExistsAtTargetDir() checks for package.json to decide if a package

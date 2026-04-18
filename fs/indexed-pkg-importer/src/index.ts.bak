@@ -136,7 +136,7 @@ function createCloneOrCopyImporter (): ImportIndexedPackage {
   }
 }
 
-type CloneFunction = (src: string, dest: string) => Promise<void>
+type CloneFunction = (src: string, dest: string) => void
 
 /**
  * Import a single package using a raw clone function (no ENOTSUP fallback).
@@ -161,7 +161,7 @@ async function tryClonePkg (
  * This is more efficient than file-by-file cloning on CoW filesystems
  * but may fail if the filesystem doesn't support cloning.
  */
-async function cloneDirPkg (
+function cloneDirPkg (
   to: string,
   opts: ImportOptions
 ): Promise<'clone-dir' | undefined> {
@@ -170,11 +170,11 @@ async function cloneDirPkg (
     // For local-dir, this will be a real package directory, not a CAFS shard
     const firstSrcPath = opts.filesMap.values().next().value!
     const srcDirPath = path.dirname(firstSrcPath)
-    if (await cloneDir(srcDirPath, to)) {
-      return 'clone-dir'
+    if (cloneDir(srcDirPath, to)) {
+      return Promise.resolve('clone-dir')
     }
   }
-  return undefined
+  return Promise.resolve(undefined)
 }
 
 /**
@@ -189,10 +189,10 @@ function createClonePkg (): ImportIndexedPackage {
   const clone = createCloneFunction()
   const withFallback = (fallback: CloneFunction): ImportFile => async (src, dest) => {
     try {
-      await clone(src, dest)
+      clone(src, dest)
     } catch (err: unknown) {
       if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOTSUP') {
-        await fallback(src, dest)
+        fallback(src, dest)
         return
       }
       throw err
@@ -236,10 +236,10 @@ function createCloneFunction (): CloneFunction {
   // Hence, we use a third party solution.
   if (process.platform === 'darwin' || process.platform === 'win32') {
     // eslint-disable-next-line
-    const { reflinkFile } = require('@reflink/reflink') as typeof import('@reflink/reflink')
-    _cloneFunction = async (fr, to) => {
+    const { reflinkFileSync } = require('@reflink/reflink') as typeof import('@reflink/reflink')
+    _cloneFunction = (fr, to) => {
       try {
-        await reflinkFile(fr, to)
+        reflinkFileSync(fr, to)
       } catch (err: unknown) {
         // If the file already exists, then we just proceed.
         // This will probably only happen if the package's index file contains the same file twice.
@@ -248,9 +248,9 @@ function createCloneFunction (): CloneFunction {
       }
     }
   } else {
-    _cloneFunction = async (src: string, dest: string) => {
+    _cloneFunction = (src: string, dest: string) => {
       try {
-        await fs.promises.copyFile(src, dest, constants.COPYFILE_FICLONE_FORCE)
+        fs.promises.copyFile(src, dest, constants.COPYFILE_FICLONE_FORCE)
       } catch (err: unknown) {
         if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
       }
@@ -304,7 +304,7 @@ async function linkOrCopy (existingPath: string, newPath: string): Promise<void>
 // Fall back to manual read+write which uses plain read/write syscalls.
 async function resilientCopyFileSync (src: string, dest: string): Promise<void> {
   try {
-    await fs.promises.copyFile(src, dest)
+    fs.promises.copyFile(src, dest)
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOTSUP') {
       const srcMode = (fs.statSync(src)).mode

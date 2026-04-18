@@ -1,4 +1,3 @@
-import fs from 'node:fs'
 import util, { promisify } from 'node:util'
 
 import gfs from 'graceful-fs'
@@ -6,13 +5,10 @@ import gfs from 'graceful-fs'
 export default { // eslint-disable-line
   access: promisify(gfs.access),
   chmod: promisify(gfs.chmod),
-  close: promisify(gfs.close),
-  fstat: promisify(gfs.fstat),
   open: promisify(gfs.open),
   readdir: promisify(gfs.readdir),
   readlink: promisify(gfs.readlink),
   rename: promisify(gfs.rename),
-  statfs: promisify(fs.statfs),
   symlink: promisify(gfs.symlink),
   unlink: promisify(gfs.unlink),
   utimes: promisify(gfs.utimes),
