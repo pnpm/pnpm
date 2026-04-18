@@ -8,12 +8,14 @@ import type {
 import type { DependencyManifest } from '@pnpm/types'
 import isGzip from 'is-gzip'
 
+import type { JsonParseCache } from './jsonCache.js'
 import { parseJsonBufferSync } from './parseJson.js'
 import { parseTarball } from './parseTarball.js'
 
 export function addFilesFromTarball (
   addBufferToCafs: (buffer: Buffer, mode: number) => FileWriteResult,
   _ignore: null | ((filename: string) => boolean),
+  jsonCache: JsonParseCache | undefined,
   tarballBuffer: Buffer,
   readManifest?: boolean
 ): AddToStoreResult {
@@ -34,22 +36,25 @@ export function addFilesFromTarball (
   const { files } = parseTarball(tarContent)
   const filesIndex = new Map() as FilesIndex
   let manifestBuffer: Buffer | undefined
+  let manifestDigest: string | undefined
 
   for (const [relativePath, { mode, offset, size }] of files) {
     if (ignore(relativePath)) continue
 
     const fileBuffer = tarContent.subarray(offset, offset + size)
+    const addBufferResult = addBufferToCafs(fileBuffer, mode)
     if (readManifest && relativePath === 'package.json') {
       manifestBuffer = fileBuffer
+      manifestDigest = addBufferResult.digest
     }
     filesIndex.set(relativePath, {
       mode,
       size,
-      ...addBufferToCafs(fileBuffer, mode),
+      ...addBufferResult,
     })
   }
   return {
     filesIndex,
-    manifest: manifestBuffer ? parseJsonBufferSync(manifestBuffer) as DependencyManifest : undefined,
+    manifest: manifestBuffer ? parseJsonBufferSync(manifestBuffer, jsonCache, manifestDigest) as DependencyManifest : undefined,
   }
 }

@@ -1,7 +1,5 @@
 import os from 'node:os'
 
-const MaxDefaultWorkspaceConcurrency: number = 4
-
 let cacheAvailableParallelism: number | undefined
 
 export function getAvailableParallelism (cache: boolean = true): number {
@@ -17,7 +15,7 @@ export function resetAvailableParallelismCache (): void {
 }
 
 export function getDefaultWorkspaceConcurrency (cache?: boolean): number {
-  return Math.min(MaxDefaultWorkspaceConcurrency, getAvailableParallelism(cache))
+  return Math.min(16, getAvailableParallelism(cache))
 }
 
 export function getWorkspaceConcurrency (option: number | undefined): number {

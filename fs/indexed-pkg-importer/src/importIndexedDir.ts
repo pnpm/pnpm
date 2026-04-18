@@ -1,19 +1,21 @@
 import fs from 'node:fs'
+import { promises as fsPromises } from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
 import gfs from '@pnpm/fs.graceful-fs'
 import { globalInfo, globalWarn, logger } from '@pnpm/logger'
-import { rimrafSync } from '@zkochan/rimraf'
+import { rimraf } from '@zkochan/rimraf'
 import fsx from 'fs-extra'
-import { makeEmptyDirSync } from 'make-empty-dir'
+import { makeEmptyDir } from 'make-empty-dir'
+import pLimit from 'p-limit'
 import { fastPathTemp as pathTemp } from 'path-temp'
-import { renameOverwriteSync } from 'rename-overwrite'
+import { renameOverwrite } from 'rename-overwrite'
 import sanitizeFilename from 'sanitize-filename'
 
 const filenameConflictsLogger = logger('_filename-conflicts')
 
-export type ImportFile = (src: string, dest: string) => void
+export type ImportFile = (src: string, dest: string) => Promise<void> | void
 
 export interface Importer {
   importFile: ImportFile
@@ -24,7 +26,7 @@ export interface Importer {
   importFileAtomic: ImportFile
 }
 
-export function importIndexedDir (
+export async function importIndexedDir (
   importer: Importer,
   newDir: string,
   filenames: Map<string, string>,
@@ -32,7 +34,7 @@ export function importIndexedDir (
     keepModulesDir?: boolean
     safeToSkip?: boolean
   }
-): void {
+): Promise<void> {
   // Fast path: import directly without staging.  Callers already verified
   // the target package is missing (pkgExistsAtTargetDir / pkgLinkedToStore),
   // so we can write straight into newDir and skip the temp dir + rename.
@@ -43,17 +45,17 @@ export function importIndexedDir (
     // For safeToSkip (content-addressed GVS), use non-destructive mkdirSync
     // so concurrent importers don't wipe each other's files.
     if (opts.safeToSkip) {
-      fs.mkdirSync(newDir, { recursive: true })
+      await fsPromises.mkdir(newDir, { recursive: true })
     } else {
-      makeEmptyDirSync(newDir, { recursive: true })
+      await makeEmptyDir(newDir, { recursive: true })
     }
-    tryImportIndexedDir(importer, newDir, filenames)
+    await tryImportIndexedDir(importer, newDir, filenames)
     return
   } catch (err) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') {
       // A concurrent importer may have completed the directory.
       // If all files match, there's nothing left to do.
-      if (allFilesMatch(newDir, filenames)) return
+      if (await allFilesMatch(newDir, filenames)) return
     }
   }
   // Staging path: create in temp dir, then atomically rename.
@@ -61,15 +63,15 @@ export function importIndexedDir (
   // needed here — use importFile for everything.
   const stage = pathTemp(newDir)
   try {
-    makeEmptyDirSync(stage, { recursive: true })
-    tryImportIndexedDir({ importFile: importer.importFile, importFileAtomic: importer.importFile }, stage, filenames)
+    await makeEmptyDir(stage, { recursive: true })
+    await tryImportIndexedDir({ importFile: importer.importFile, importFileAtomic: importer.importFile }, stage, filenames)
     if (opts.keepModulesDir) {
       // Keeping node_modules is needed only when the hoisted node linker is used.
       moveOrMergeModulesDirs(path.join(newDir, 'node_modules'), path.join(stage, 'node_modules'))
     }
   } catch (err: unknown) {
     try {
-      rimrafSync(stage)
+      await rimraf(stage)
     } catch {} // eslint-disable-line:no-empty
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') {
       const { uniqueFileMap, conflictingFileNames } = getUniqueFileMap(filenames)
@@ -84,11 +86,11 @@ export function importIndexedDir (
         'which is an issue on case-insensitive filesystems. ' +
         `The conflicting file names are: ${JSON.stringify(Object.fromEntries(conflictingFileNames))}`
       )
-      importIndexedDir(importer, newDir, uniqueFileMap, opts)
+      await importIndexedDir(importer, newDir, uniqueFileMap, opts)
       return
     }
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      if (retryWithSanitizedFilenames(importer, newDir, filenames, opts)) return
+      if (await retryWithSanitizedFilenames(importer, newDir, filenames, opts)) return
       throw err
     }
     throw err
@@ -99,68 +101,78 @@ export function importIndexedDir (
     // Skip instead of doing a swap-rename that temporarily removes the target
     // directory — which breaks junctions read by other processes.
     try {
-      fs.renameSync(stage, newDir)
+      await fsPromises.rename(stage, newDir)
       return
     } catch (err: unknown) {
       if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOTEMPTY' || err.code === 'EEXIST' || err.code === 'EPERM')) {
-        if (allFilesMatch(newDir, filenames)) {
+        if (await allFilesMatch(newDir, filenames)) {
           try {
-            rimrafSync(stage)
+            await rimraf(stage)
           } catch {} // eslint-disable-line:no-empty
           return
         }
       }
-      // Files missing or other error — fall through to renameOverwriteSync
+      // Files missing or other error — fall through to renameOverwrite
     }
   }
   try {
-    renameOverwriteSync(stage, newDir)
+    await renameOverwrite(stage, newDir)
   } catch (renameErr: unknown) {
     try {
-      rimrafSync(stage)
+      await rimraf(stage)
     } catch {} // eslint-disable-line:no-empty
     throw renameErr
   }
 }
 
-function allFilesMatch (dir: string, filenames: Map<string, string>): boolean {
-  for (const [f, src] of filenames) {
-    const target = path.join(dir, f)
-    try {
-      const targetStat = gfs.statSync(target)
-      const srcStat = gfs.statSync(src)
-      // Fast path: hardlinks share the same inode
-      if (targetStat.ino === srcStat.ino && targetStat.dev === srcStat.dev) continue
-      // Copy path: compare size first, then content
-      if (targetStat.size !== srcStat.size) {
-        globalInfo(`Re-importing "${dir}" because file "${f}" has a different size`)
+async function allFilesMatch (dir: string, filenames: Map<string, string>): Promise<boolean> {
+  const limit = pLimit(100)
+  const results = await Promise.all(
+    Array.from(filenames.entries()).map(([f, src]) => limit(async () => {
+      const target = path.join(dir, f)
+      try {
+        const [targetStat, srcStat] = await Promise.all([
+          fsPromises.stat(target),
+          fsPromises.stat(src),
+        ])
+        // Fast path: hardlinks share the same inode
+        if (targetStat.ino === srcStat.ino && targetStat.dev === srcStat.dev) return true
+        // Copy path: compare size first, then content
+        if (targetStat.size !== srcStat.size) {
+          globalInfo(`Re-importing "${dir}" because file "${f}" has a different size`)
+          return false
+        }
+        const [targetContent, srcContent] = await Promise.all([
+          fsPromises.readFile(target),
+          fsPromises.readFile(src),
+        ])
+        if (!targetContent.equals(srcContent)) {
+          globalInfo(`Re-importing "${dir}" because file "${f}" has different content`)
+          return false
+        }
+        return true
+      } catch {
+        globalInfo(`Re-importing "${dir}" because file "${f}" is missing or unreadable`)
         return false
       }
-      if (!gfs.readFileSync(target).equals(gfs.readFileSync(src))) {
-        globalInfo(`Re-importing "${dir}" because file "${f}" has different content`)
-        return false
-      }
-    } catch {
-      globalInfo(`Re-importing "${dir}" because file "${f}" is missing or unreadable`)
-      return false
-    }
-  }
-  return true
+    }))
+  )
+  return results.every(Boolean)
 }
 
-function retryWithSanitizedFilenames (
+async function retryWithSanitizedFilenames (
   importer: Importer,
   newDir: string,
   filenames: Map<string, string>,
   opts: { keepModulesDir?: boolean, safeToSkip?: boolean }
-): boolean {
+): Promise<boolean> {
   const { sanitizedFilenames, invalidFilenames } = sanitizeFilenames(filenames)
   if (invalidFilenames.length === 0) return false
   globalWarn(`\
 The package linked to "${path.relative(process.cwd(), newDir)}" had \
 files with invalid names: ${invalidFilenames.join(', ')}. \
 They were renamed.`)
-  importIndexedDir(importer, newDir, sanitizedFilenames, opts)
+  await importIndexedDir(importer, newDir, sanitizedFilenames, opts)
   return true
 }
 
@@ -182,34 +194,39 @@ function sanitizeFilenames (filenames: Map<string, string>): SanitizeFilenamesRe
   return { sanitizedFilenames, invalidFilenames }
 }
 
-function tryImportIndexedDir (
+async function tryImportIndexedDir (
   { importFile, importFileAtomic }: Importer,
   newDir: string,
   filenames: Map<string, string>
-): void {
+): Promise<void> {
   const allDirs = new Set<string>()
   for (const f of filenames.keys()) {
     const dir = path.dirname(f)
     if (dir === '.') continue
     allDirs.add(dir)
   }
-  Array.from(allDirs)
-    .sort((d1, d2) => d1.length - d2.length) // from shortest to longest
-    .forEach((dir) => fs.mkdirSync(path.join(newDir, dir), { recursive: true }))
+  await Promise.all(
+    Array.from(allDirs)
+      .sort((d1, d2) => d1.length - d2.length) // from shortest to longest
+      .map(async (dir) => fsPromises.mkdir(path.join(newDir, dir), { recursive: true }))
+  )
   // Write package.json last so it acts as a completion marker.
   // pkgExistsAtTargetDir() checks for package.json to decide if a package
   // is already imported — writing it last ensures a crash mid-import won't
   // leave a partially-populated directory that appears fully imported.
   let packageJsonSrc: string | undefined
-  for (const [f, src] of filenames) {
-    if (f === 'package.json') {
-      packageJsonSrc = src
-      continue
-    }
-    importFile(src, path.join(newDir, f))
-  }
+  const limit = pLimit(100)
+  await Promise.all(
+    Array.from(filenames.entries()).map(([f, src]) => limit(async () => {
+      if (f === 'package.json') {
+        packageJsonSrc = src
+        return
+      }
+      await importFile(src, path.join(newDir, f))
+    }))
+  )
   if (packageJsonSrc !== undefined) {
-    importFileAtomic(packageJsonSrc, path.join(newDir, 'package.json'))
+    await importFileAtomic(packageJsonSrc, path.join(newDir, 'package.json'))
   }
 }
 

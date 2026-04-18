@@ -49,6 +49,7 @@
     "@pnpm/types": "workspace:*",
     "detect-libc": "catalog:",
     "load-json-file": "catalog:",
+    "lru-cache": "catalog:",
     "p-defer": "catalog:",
     "p-limit": "catalog:",
     "p-queue": "catalog:",

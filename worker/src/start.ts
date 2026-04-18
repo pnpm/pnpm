@@ -13,16 +13,20 @@ import {
   type CafsFunctions,
   checkPkgFilesIntegrity,
   createCafs,
+  createJsonParseCache,
   type FilesIndex,
   HASH_ALGORITHM,
+  type JsonParseCache,
   normalizeBundledManifest,
   type PackageFilesIndex,
   type VerifyResult,
 } from '@pnpm/store.cafs'
-import type { Cafs, FilesMap, PackageFiles, SideEffectsDiff } from '@pnpm/store.cafs-types'
+import type { FilesMap, PackageFiles, SideEffectsDiff } from '@pnpm/store.cafs-types'
+import type { CafsStore } from '@pnpm/store.create-cafs-store'
 import { createCafsStore } from '@pnpm/store.create-cafs-store'
 import { packForStorage, StoreIndex } from '@pnpm/store.index'
 import type { BundledManifest, DependencyManifest } from '@pnpm/types'
+import { LRUCache } from 'lru-cache'
 
 import { equalOrSemverEqual } from './equalOrSemverEqual.js'
 import type {
@@ -43,9 +47,27 @@ export function startWorker (): void {
 }
 
 const cafsCache = new Map<string, CafsFunctions>()
-const cafsStoreCache = new Map<string, Cafs>()
+const cafsStoreCache = new Map<string, CafsStore>()
 const cafsLocker = new Map<string, number>()
 const storeIndexCache = new Map<string, StoreIndex>()
+const jsonParseCacheMap = new Map<string, JsonParseCache>()
+const readPkgCache = new LRUCache<string, {
+  verified: boolean
+  bundledManifest: BundledManifest | undefined
+  files: {
+    filesMap: FilesMap
+    sideEffectsMaps: VerifyResult['sideEffectsMaps']
+    resolvedFrom: string
+    requiresBuild: boolean
+  }
+}>({ max: 5000 })
+
+function getJsonParseCache (storeDir: string): JsonParseCache {
+  if (!jsonParseCacheMap.has(storeDir)) {
+    jsonParseCacheMap.set(storeDir, createJsonParseCache())
+  }
+  return jsonParseCacheMap.get(storeDir)!
+}
 
 function getStoreIndex (storeDir: string): StoreIndex {
   if (!storeIndexCache.has(storeDir)) {
@@ -83,11 +105,11 @@ async function handleMessage (
         break
       }
       case 'link': {
-        parentPort!.postMessage(importPackage(message))
+        parentPort!.postMessage(await importPackage(message))
         break
       }
       case 'add-dir': {
-        parentPort!.postMessage(addFilesFromDir(message))
+        parentPort!.postMessage(await addFilesFromDir(message))
         break
       }
       case 'init-store': {
@@ -96,6 +118,46 @@ async function handleMessage (
       }
       case 'readPkgFromCafs': {
         const { storeDir, filesIndexFile, verifyStoreIntegrity, expectedPkg, strictStorePkgContentCheck } = message
+
+        // Try the readPkg cache first — integrity checks are the expensive part.
+        const cached = readPkgCache.get(filesIndexFile)
+
+        if (cached) {
+          // Still need to do expectedPkg validation even on cache hit.
+          const warnings: string[] = []
+          if (expectedPkg && cached.bundledManifest) {
+            if (
+              (
+                cached.bundledManifest.name != null &&
+                expectedPkg.name != null &&
+                cached.bundledManifest.name.toLowerCase() !== expectedPkg.name.toLowerCase()
+              ) ||
+              (
+                cached.bundledManifest.version != null &&
+                expectedPkg.version != null &&
+                !equalOrSemverEqual(cached.bundledManifest.version, expectedPkg.version)
+              )
+            ) {
+              const msg = 'Package name or version mismatch found while reading from the store.'
+              const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. Expected package: ${expectedPkg.name}@${expectedPkg.version}. Actual package in the store: ${cached.bundledManifest?.name}@${cached.bundledManifest?.version}.`
+              if (strictStorePkgContentCheck ?? true) {
+                throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', msg, {
+                  hint: `${hint}\n\nIf you want to ignore this issue, set strictStorePkgContentCheck to false in your configuration`,
+                })
+              } else {
+                warnings.push(`${msg} ${hint}`)
+              }
+            }
+          }
+          parentPort!.postMessage({
+            status: 'success',
+            warnings,
+            value: cached,
+          })
+          return
+        }
+
+        // Cache miss — do the full lookup.
         const pkgFilesIndex = getStoreIndex(storeDir).get(filesIndexFile) as PackageFilesIndex | undefined
         if (!pkgFilesIndex) {
           parentPort!.postMessage({
@@ -134,26 +196,29 @@ async function handleMessage (
         }
         let verifyResult: VerifyResult
         if (verifyStoreIntegrity) {
-          verifyResult = checkPkgFilesIntegrity(storeDir, pkgFilesIndex)
+          verifyResult = await checkPkgFilesIntegrity(storeDir, pkgFilesIndex)
         } else {
           verifyResult = buildFileMapsFromIndex(storeDir, pkgFilesIndex)
         }
         const bundledManifest = pkgFilesIndex.manifest
         const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(bundledManifest, verifyResult.filesMap)
 
+        const result = {
+          verified: verifyResult.passed,
+          bundledManifest,
+          files: {
+            filesMap: verifyResult.filesMap,
+            sideEffectsMaps: verifyResult.sideEffectsMaps,
+            resolvedFrom: 'store',
+            requiresBuild,
+          },
+        }
+        readPkgCache.set(filesIndexFile, result)
+
         parentPort!.postMessage({
           status: 'success',
           warnings,
-          value: {
-            verified: verifyResult.passed,
-            bundledManifest,
-            files: {
-              filesMap: verifyResult.filesMap,
-              sideEffectsMaps: verifyResult.sideEffectsMaps,
-              resolvedFrom: 'store',
-              requiresBuild,
-            },
-          },
+          value: result,
         })
         break
       }
@@ -196,7 +261,7 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
     }
   }
   if (!cafsCache.has(storeDir)) {
-    cafsCache.set(storeDir, createCafs(storeDir))
+    cafsCache.set(storeDir, createCafs(storeDir, { cafsLocker, jsonCache: getJsonParseCache(storeDir) }))
   }
   const cafs = cafsCache.get(storeDir)!
   let { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, true)
@@ -283,7 +348,7 @@ function initStore ({ storeDir }: InitStoreMessage): { status: string } {
   return { status: 'success' }
 }
 
-function addFilesFromDir (
+async function addFilesFromDir (
   {
     appendManifest,
     dir,
@@ -293,12 +358,12 @@ function addFilesFromDir (
     sideEffectsCacheKey,
     storeDir,
   }: AddDirToStoreMessage
-): AddFilesFromDirResult {
+): Promise<AddFilesFromDirResult> {
   if (!cafsCache.has(storeDir)) {
-    cafsCache.set(storeDir, createCafs(storeDir))
+    cafsCache.set(storeDir, createCafs(storeDir, { cafsLocker, jsonCache: getJsonParseCache(storeDir) }))
   }
   const cafs = cafsCache.get(storeDir)!
-  let { filesIndex, manifest } = cafs.addFilesFromDir(dir, {
+  let { filesIndex, manifest } = await cafs.addFilesFromDir(dir, {
     files,
     includeNodeModules,
     readManifest: true,
@@ -435,7 +500,7 @@ interface ImportPackageResult {
   }
 }
 
-function importPackage ({
+async function importPackage ({
   storeDir,
   packageImportMethod,
   filesResponse,
@@ -446,13 +511,13 @@ function importPackage ({
   keepModulesDir,
   disableRelinkLocalDirDeps,
   safeToSkip,
-}: LinkPkgMessage): ImportPackageResult {
+}: LinkPkgMessage): Promise<ImportPackageResult> {
   const cacheKey = JSON.stringify({ storeDir, packageImportMethod })
   if (!cafsStoreCache.has(cacheKey)) {
     cafsStoreCache.set(cacheKey, createCafsStore(storeDir, { packageImportMethod, cafsLocker }))
   }
   const cafsStore = cafsStoreCache.get(cacheKey)!
-  const { importMethod, isBuilt } = cafsStore.importPackage(targetDir, {
+  const { importMethod, isBuilt } = await cafsStore.importPackage(targetDir, {
     filesResponse,
     force,
     disableRelinkLocalDirDeps,

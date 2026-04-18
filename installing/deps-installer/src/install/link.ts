@@ -1,4 +1,5 @@
 import { promises as fs } from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 import {
@@ -390,7 +391,7 @@ async function linkNewPackages (
 
   const newPkgs = props<DepPath, DependenciesGraphNode>(newDepPaths, depGraph)
 
-  await Promise.all(newPkgs.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
+  await Promise.all(newPkgs.map(async (depNode) => limitLinking(() => fs.mkdir(depNode.modules, { recursive: true }))))
   await Promise.all([
     !opts.symlink
       ? Promise.resolve()
@@ -448,7 +449,7 @@ async function selectNewFromWantedDeps (
   return newDeps
 }
 
-const limitLinking = pLimit(16)
+const limitLinking = pLimit(Math.min(Math.max(16, os.availableParallelism?.() ?? os.cpus().length), 32))
 
 async function linkAllPkgs (
   storeController: StoreController,
@@ -466,7 +467,7 @@ async function linkAllPkgs (
   }
 ): Promise<void> {
   await Promise.all(
-    depNodes.map(async (depNode): Promise<undefined> => {
+    depNodes.map(async (depNode): Promise<void> => limitLinking(async () => {
       const { files } = await depNode.fetching()
 
       depNode.requiresBuild = files.requiresBuild
@@ -502,9 +503,9 @@ async function linkAllPkgs (
         const pkg = opts.depGraph[selfDep]
         if (!pkg || !pkg.installable && pkg.optional) return
         const targetModulesDir = path.join(depNode.modules, depNode.name, 'node_modules')
-        await limitLinking(async () => symlinkDependency(pkg.dir, targetModulesDir, depNode.name))
+        await symlinkDependency(pkg.dir, targetModulesDir, depNode.name)
       }
-    })
+    }))
   )
 }
 

@@ -3,7 +3,7 @@ import { createHashFromMultipleFiles } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import type { CustomFetcher, CustomResolver, PreResolutionHookContext, PreResolutionHookLogger } from '@pnpm/hooks.types'
 import type { LockfileObject } from '@pnpm/lockfile.types'
-import type { ImportIndexedPackageAsync } from '@pnpm/store.controller-types'
+import type { ImportIndexedPackage } from '@pnpm/store.controller-types'
 import type { BaseManifest, BeforePackingHook, ReadPackageHook } from '@pnpm/types'
 import { pathAbsolute } from 'path-absolute'
 
@@ -39,7 +39,7 @@ export interface CookedHooks {
   afterAllResolved?: Array<(lockfile: LockfileObject) => LockfileObject | Promise<LockfileObject>>
   filterLog?: Array<Cook<Required<Hooks>['filterLog']>>
   updateConfig?: Array<Cook<Required<Hooks>['updateConfig']>>
-  importPackage?: ImportIndexedPackageAsync
+  importPackage?: ImportIndexedPackage
   customResolvers?: CustomResolver[]
   customFetchers?: CustomFetcher[]
   calculatePnpmfileChecksum?: () => Promise<string>

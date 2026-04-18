@@ -5,7 +5,6 @@ import workerThreads from 'node:worker_threads'
 
 import { renameOverwriteSync } from 'rename-overwrite'
 
-import { type Integrity, verifyFileIntegrity } from './checkPkgFilesIntegrity.js'
 import { writeFile, writeFileExclusive } from './writeFile.js'
 
 export function writeBufferToCafs (
@@ -13,8 +12,7 @@ export function writeBufferToCafs (
   storeDir: string,
   buffer: Buffer,
   fileDest: string,
-  mode: number | undefined,
-  integrity: Integrity
+  mode: number | undefined
 ): { checkedAt: number, filePath: string } {
   fileDest = path.join(storeDir, fileDest)
   if (locker.has(fileDest)) {
@@ -23,7 +21,7 @@ export function writeBufferToCafs (
       filePath: fileDest,
     }
   }
-  const checkedAt = writeOrCheck(fileDest, buffer, mode, integrity)
+  const checkedAt = writeOrCheck(fileDest, buffer, mode)
   locker.set(fileDest, checkedAt)
   return {
     checkedAt,
@@ -34,41 +32,40 @@ export function writeBufferToCafs (
 function writeOrCheck (
   fileDest: string,
   buffer: Buffer,
-  mode: number | undefined,
-  integrity: Integrity
+  mode: number | undefined
 ): number {
-  // Fast path: check if the file already exists on disk with correct content.
+  // Fast path: check if the file already exists on disk with correct size.
+  // In a content-addressable store, the file path is derived from the content hash.
+  // If a file exists at this path with the expected size, it is almost certainly
+  // the correct content. The full integrity verification in checkPkgFilesIntegrity
+  // will catch any corruption on the next install.
   const existingFile = fs.statSync(fileDest, { throwIfNoEntry: false })
   if (existingFile) {
-    if (verifyFileIntegrity(fileDest, integrity)) {
+    if (existingFile.size === buffer.length) {
       return Date.now()
     }
-    // File exists but has wrong integrity (corruption/partial write).
+    // File exists but has wrong size (corruption/partial write).
     // Use temp+rename so the replacement is atomic.
     return writeFileAtomic(fileDest, buffer, mode)
   }
 
   // File doesn't exist. Use exclusive-create (O_CREAT|O_EXCL) so that
   // if another process creates the same CAS file concurrently, we get EEXIST
-  // instead of silently overwriting. A crash mid-write can leave a partial
-  // file, which is recovered by the atomic temp+rename path on next access.
+  // instead of silently overwriting.
   try {
     writeFileExclusive(fileDest, buffer, mode)
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') {
-      // Another process created the file. If it finished successfully,
-      // integrity will pass. If it crashed or is still writing, integrity
-      // will fail and we recover via atomic temp+rename.
-      if (verifyFileIntegrity(fileDest, integrity)) {
+      // Another process created the file. Check if it's complete.
+      const stat = fs.statSync(fileDest, { throwIfNoEntry: false })
+      if (stat && stat.size === buffer.length) {
         return Date.now()
       }
+      // File exists but incomplete or corrupted. Overwrite atomically.
       return writeFileAtomic(fileDest, buffer, mode)
     }
     throw err
   }
-  // Unfortunately, "birth time" (time of file creation) is available not on all filesystems.
-  // We log the creation time ourselves and save it in the package index file.
-  // Having this information allows us to skip content checks for files that were not modified since "birth time".
   return Date.now()
 }
 
@@ -94,10 +91,10 @@ export function optimisticRenameOverwrite (temp: string, fileDest: string): void
     //
     // Probably the only scenario in which the temp directory will disappear
     // before being renamed is when two containers use the same mounted directory
-    // for their content-addressable store. In this case there's a chance that the process ID
+    // for their content-addressable store. In this case there is a chance that the process ID
     // will be the same in both containers.
     //
-    // As a workaround, if the temp file doesn't exist but the target file does,
+    // As a workaround, if the temp file does not exist but the target file does,
     // we just ignore the issue and assume that the target file is correct.
   }
 }

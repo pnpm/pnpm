@@ -223,7 +223,7 @@ catalog:
   lodash.kebabcase: ^4.1.1
   lodash.throttle: 4.1.1
   loud-rejection: ^2.2.0
-  lru-cache: ^11.2.7
+  lru-cache: ^11.3.5
   make-empty-dir: ^4.0.0
   mdast-util-to-string: ^4.0.0
   memoize: ^10.2.0

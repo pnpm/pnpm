@@ -650,7 +650,7 @@ catalogs:
       specifier: ^2.2.0
       version: 2.2.0
     lru-cache:
-      specifier: ^11.2.7
+      specifier: ^11.3.5
       version: 11.3.5
     make-empty-dir:
       specifier: ^4.0.0
@@ -6126,6 +6126,9 @@ importers:
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
+      lru-cache:
+        specifier: 'catalog:'
+        version: 11.3.5
       p-defer:
         specifier: 'catalog:'
         version: 4.0.1
@@ -8302,6 +8305,9 @@ importers:
       is-subdir:
         specifier: 'catalog:'
         version: 2.0.0
+      lru-cache:
+        specifier: 'catalog:'
+        version: 11.3.5
       p-limit:
         specifier: 'catalog:'
         version: 7.3.0
@@ -8855,6 +8861,9 @@ importers:
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
+      lru-cache:
+        specifier: 'catalog:'
+        version: 11.3.5
       p-limit:
         specifier: 'catalog:'
         version: 7.3.0

@@ -1,5 +1,4 @@
 import crypto from 'node:crypto'
-import fs from 'node:fs'
 import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
@@ -36,28 +35,22 @@ export interface PackageFilesIndex {
   sideEffects?: SideEffects
 }
 
-export function checkPkgFilesIntegrity (
+export async function checkPkgFilesIntegrity (
   storeDir: string,
   pkgIndex: PackageFilesIndex
-): VerifyResult {
-  // It might make sense to use this cache for all files in the store
-  // but there's a smaller chance that the same file will be checked twice
-  // so it's probably not worth the memory (this assumption should be verified)
+): Promise<VerifyResult> {
   const verifiedFilesCache = new Set<string>()
   const _checkFilesIntegrity = checkFilesIntegrity.bind(null, verifiedFilesCache, storeDir, pkgIndex.algo)
-  const verified = _checkFilesIntegrity(pkgIndex.files)
+  const verified = await _checkFilesIntegrity(pkgIndex.files)
   if (!verified.passed) return verified
 
   const sideEffectsMaps = new Map<string, { added?: FilesMap, deleted?: string[] }>()
   if (pkgIndex.sideEffects) {
-    // We verify all side effects cache. We could optimize it to verify only the side effects cache
-    // that satisfies the current os/arch/platform.
-    // However, it likely won't make a big difference.
     for (const [sideEffectName, { added, deleted }] of pkgIndex.sideEffects) {
       if (added) {
-        const result = _checkFilesIntegrity(added)
+        // eslint-disable-next-line no-await-in-loop
+        const result = await _checkFilesIntegrity(added)
         if (!result.passed) {
-          // Skip invalid side effects
           continue
         } else {
           sideEffectsMaps.set(sideEffectName, { added: result.filesMap, deleted })
@@ -118,14 +111,16 @@ export function buildFileMapsFromIndex (
   }
 }
 
-function checkFilesIntegrity (
+async function checkFilesIntegrity (
   verifiedFilesCache: Set<string>,
   storeDir: string,
   algo: string,
   files: PackageFiles
-): VerifyResult {
+): Promise<VerifyResult> {
   let allVerified = true
   const filesMap: FilesMap = new Map()
+
+  const verifyPromises: Promise<void>[] = []
 
   for (const [f, fstat] of files) {
     if (!fstat.digest) {
@@ -135,13 +130,20 @@ function checkFilesIntegrity (
     filesMap.set(f, filename)
 
     if (verifiedFilesCache.has(filename)) continue
-    const passed = verifyFile(filename, fstat, algo)
-    if (passed) {
-      verifiedFilesCache.add(filename)
-    } else {
-      allVerified = false
-    }
+
+    verifyPromises.push(
+      verifyFile(filename, fstat, algo).then((passed) => {
+        if (passed) {
+          verifiedFilesCache.add(filename)
+        } else {
+          allVerified = false
+        }
+      })
+    )
   }
+
+  await Promise.all(verifyPromises)
+
   return {
     passed: allVerified,
     filesMap,
@@ -150,55 +152,63 @@ function checkFilesIntegrity (
 
 type FileInfo = Pick<PackageFileInfo, 'size' | 'checkedAt' | 'digest'>
 
-function verifyFile (
+async function verifyFile (
   filename: string,
   fstat: FileInfo,
   algorithm: string
-): boolean {
-  const currentFile = checkFile(filename, fstat.checkedAt)
+): Promise<boolean> {
+  const currentFile = await checkFile(filename, fstat.checkedAt)
   if (currentFile == null) return false
   if (currentFile.isModified) {
     if (currentFile.size !== fstat.size) {
       rimrafSync(filename)
       return false
     }
-    const passed = verifyFileIntegrity(filename, { digest: fstat.digest, algorithm })
+    const passed = await verifyFileIntegrityAsync(filename, { digest: fstat.digest, algorithm })
     if (!passed) {
       gfs.unlinkSync(filename)
     }
     return passed
   }
-  // If a file was not edited, we are skipping integrity check.
-  // We assume that nobody will manually remove a file in the store and create a new one.
   return true
 }
 
-export function verifyFileIntegrity (
+export async function verifyFileIntegrityAsync (
   filename: string,
   integrity: Integrity
-): boolean {
+): Promise<boolean> {
   // @ts-expect-error
   global['verifiedFileIntegrity']++
-  let data: Buffer
+  let hash: crypto.Hash
   try {
-    data = gfs.readFileSync(filename)
-  } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      return false
-    }
-    throw err
-  }
-  try {
-    return crypto.hash(integrity.algorithm, data, 'hex') === integrity.digest
+    hash = crypto.createHash(integrity.algorithm)
   } catch {
     // Invalid algorithm (e.g., corrupted index file) - treat as verification failure
     return false
   }
+  return new Promise<boolean>((resolve, reject) => {
+    const stream = gfs.createReadStream(filename)
+    stream.on('data', (chunk: string | Buffer) => hash.update(chunk))
+    stream.on('end', () => {
+      try {
+        resolve(hash.digest('hex') === integrity.digest)
+      } catch {
+        resolve(false)
+      }
+    })
+    stream.on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'ENOENT') {
+        resolve(false)
+      } else {
+        reject(err)
+      }
+    })
+  })
 }
 
-function checkFile (filename: string, checkedAt?: number): { isModified: boolean, size: number } | null {
+async function checkFile (filename: string, checkedAt?: number): Promise<{ isModified: boolean, size: number } | null> {
   try {
-    const { mtimeMs, size } = fs.statSync(filename)
+    const { mtimeMs, size } = await gfs.stat(filename)
     return {
       isModified: (mtimeMs - (checkedAt ?? 0)) > 100,
       size,

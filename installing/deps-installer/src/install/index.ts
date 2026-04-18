@@ -1,3 +1,4 @@
+import os from 'node:os'
 import path from 'node:path'
 
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
@@ -534,44 +535,76 @@ export async function mutateModules (
       }
     }
 
-    const projectsToInstall = [] as ImporterToUpdate[]
+    // Pre-compute preferredSpecs to avoid race conditions in concurrent execution
+    const preferredSpecs: Record<string, string> | undefined = projects.some(project => project.mutation === 'installSome')
+      ? (() => {
+        const manifests = []
+        for (const versions of ctx.workspacePackages.values()) {
+          for (const { manifest } of versions.values()) {
+            manifests.push(manifest)
+          }
+        }
+        return getAllUniqueSpecs(manifests)
+      })()
+      : undefined
 
-    let preferredSpecs: Record<string, string> | null = null
+    interface ProjectResult {
+      projectToInstall: ImporterToUpdate
+      catalogsUpdate?: Record<string, Record<string, string>>
+      pendingBuild?: string
+    }
 
-    // TODO: make it concurrent
-    /* eslint-disable no-await-in-loop */
-    for (const project of projects) {
+    const projectResults = await Promise.all(projects.map((project): Promise<ProjectResult> => {
       const projectOpts = {
         ...project,
         ...ctx.projects[project.rootDir],
       }
       switch (project.mutation) {
         case 'uninstallSome':
-          projectsToInstall.push({
-            pruneDirectDependencies: false,
-            ...projectOpts,
-            removePackages: project.dependencyNames,
-            updatePackageManifest: true,
-            wantedDependencies: [],
-          })
-          break
-        case 'install': {
-          await installCase({
-            ...projectOpts,
-            updatePackageManifest: (projectOpts as InstallDepsMutation).updatePackageManifest ?? (projectOpts as InstallDepsMutation).update!,
-          })
-          break
-        }
-        case 'installSome': {
-          await installSome({
-            ...projectOpts as InstallSomeProject,
-            updatePackageManifest: (projectOpts as InstallSomeDepsMutation).updatePackageManifest !== false,
-          })
-          break
+          return limitProjects(async () => ({
+            projectToInstall: {
+              pruneDirectDependencies: false,
+              ...projectOpts,
+              removePackages: project.dependencyNames,
+              updatePackageManifest: true,
+              wantedDependencies: [],
+            } as ImporterToUpdate,
+          }))
+        case 'install':
+          return limitProjects(async () =>
+            installCase({
+              ...projectOpts,
+              updatePackageManifest: (projectOpts as InstallDepsMutation).updatePackageManifest ?? (projectOpts as InstallDepsMutation).update!,
+            })
+          )
+        case 'installSome':
+          return limitProjects(async () =>
+            installSome({
+              ...projectOpts as InstallSomeProject,
+              updatePackageManifest: (projectOpts as InstallSomeDepsMutation).updatePackageManifest !== false,
+            })
+          )
+      }
+    }))
+
+    const projectsToInstall = [] as ImporterToUpdate[]
+    for (const result of projectResults) {
+      if (result.catalogsUpdate) {
+        for (const [catalogName, entries] of Object.entries(result.catalogsUpdate)) {
+          opts.catalogs = {
+            ...opts.catalogs,
+            [catalogName]: {
+              ...opts.catalogs[catalogName],
+              ...entries,
+            },
+          }
         }
       }
+      if (result.pendingBuild) {
+        ctx.pendingBuilds.push(result.pendingBuild)
+      }
+      projectsToInstall.push(result.projectToInstall)
     }
-    /* eslint-enable no-await-in-loop */
 
     type InstallCaseProject = Pick<ImporterToUpdate,
     | 'binsDir'
@@ -584,12 +617,15 @@ export async function mutateModules (
     | 'updatePackageManifest'
     >
 
-    async function installCase (project: InstallCaseProject) {
+    async function installCase (project: InstallCaseProject): Promise<ProjectResult> {
       const wantedDependencies = getWantedDependencies(project.manifest, {
         autoInstallPeers: opts.autoInstallPeers,
         includeDirect: opts.includeDirect,
       })
         .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true }))
+
+      const catalogsUpdate: Record<string, Record<string, string>> = {}
+
       if (opts.packageVulnerabilityAudit) {
         for (const dep of wantedDependencies) {
           let specifier: string | undefined = dep.bareSpecifier
@@ -605,16 +641,11 @@ export async function mutateModules (
             // If the current version is pinned and vulnerable, expand the specifier to a range
             // that will allow updating to a non-vulnerable, semver-compatible version, if available.
             if (catalogName != null && opts.catalogs?.[catalogName]) {
-              // If a catalog is used, update the catalog entry so the resolver can find a
+              // If a catalog is used, collect the catalog entry update so the resolver can find a
               // non-vulnerable version. The package.json keeps "catalog:" and the workspace manifest
-              // gets updated.
-              opts.catalogs = {
-                ...opts.catalogs,
-                [catalogName]: {
-                  ...opts.catalogs[catalogName],
-                  [dep.alias]: '^' + validVersion,
-                },
-              }
+              // gets updated. Updates are applied after all projects are processed concurrently.
+              catalogsUpdate[catalogName] = catalogsUpdate[catalogName] ?? {}
+              catalogsUpdate[catalogName][dep.alias] = '^' + validVersion
               // Set prevSpecifier to the original catalog specifier so the resolver
               // preserves the original pinning style (i.e. pinned stays pinned).
               dep.prevSpecifier = specifier
@@ -629,20 +660,23 @@ export async function mutateModules (
       if (ctx.wantedLockfile?.importers) {
         forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, _isWantedDepBareSpecifierSame)
       }
-      if (opts.ignoreScripts && project.manifest?.scripts &&
+      const pendingBuild = opts.ignoreScripts && project.manifest?.scripts &&
         (project.manifest.scripts.preinstall != null ||
           project.manifest.scripts.install != null ||
           project.manifest.scripts.postinstall != null ||
           project.manifest.scripts.prepare)
-      ) {
-        ctx.pendingBuilds.push(project.id)
-      }
+        ? project.id
+        : undefined
 
-      projectsToInstall.push({
-        pruneDirectDependencies: false,
-        ...project,
-        wantedDependencies,
-      } as ImporterToUpdate)
+      return {
+        projectToInstall: {
+          pruneDirectDependencies: false,
+          ...project,
+          wantedDependencies,
+        } as ImporterToUpdate,
+        ...(Object.keys(catalogsUpdate).length > 0 ? { catalogsUpdate } : {}),
+        ...(pendingBuild != null ? { pendingBuild } : {}),
+      }
     }
 
     type InstallSomeProject = Pick<ImporterToUpdate,
@@ -661,19 +695,11 @@ export async function mutateModules (
     | 'update'
     >
 
-    async function installSome (project: InstallSomeProject) {
+    async function installSome (project: InstallSomeProject): Promise<ProjectResult> {
       const currentBareSpecifiers = opts.ignoreCurrentSpecifiers ? {} : getAllDependenciesFromManifest(project.manifest)
       const optionalDependencies = project.targetDependenciesField ? {} : project.manifest.optionalDependencies ?? {}
       const devDependencies = project.targetDependenciesField ? {} : project.manifest.devDependencies ?? {}
-      if (preferredSpecs == null) {
-        const manifests = []
-        for (const versions of ctx.workspacePackages.values()) {
-          for (const { manifest } of versions.values()) {
-            manifests.push(manifest)
-          }
-        }
-        preferredSpecs = getAllUniqueSpecs(manifests)
-      }
+      // preferredSpecs is pre-computed before the concurrent loop
       const wantedDeps = parseWantedDependencies(project.dependencySelectors, {
         allowNew: project.allowNew !== false,
         currentBareSpecifiers,
@@ -719,11 +745,13 @@ export async function mutateModules (
         }
       }
 
-      projectsToInstall.push({
-        pruneDirectDependencies: false,
-        ...project,
-        wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: !currentBareSpecifiers[wantedDep.alias], updateSpec: true })),
-      } as ImporterToUpdate)
+      return {
+        projectToInstall: {
+          pruneDirectDependencies: false,
+          ...project,
+          wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: !currentBareSpecifiers[wantedDep.alias], updateSpec: true })),
+        } as ImporterToUpdate,
+      }
     }
 
     // Unfortunately, the private lockfile may differ from the public one.
@@ -1772,6 +1800,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
   }
 }
 
+const limitProjects = pLimit(Math.min(os.availableParallelism?.() ?? os.cpus().length, 16))
 const limitLinking = pLimit(16)
 
 async function linkAllBins (

@@ -25,7 +25,7 @@ export interface TarballExtractMessage {
 export interface LinkPkgMessage {
   type: 'link'
   storeDir: string
-  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
+  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-dir' | 'clone-or-copy'
   filesResponse: PackageFilesResponse
   sideEffectsCacheKey?: string | undefined
   targetDir: string

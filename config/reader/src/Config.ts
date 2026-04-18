@@ -172,7 +172,7 @@ export interface Config extends OptionsFromRootManifest {
   ignorePnpmfile?: boolean
   pnpmfile: string[] | string
   tryLoadDefaultPnpmfile?: boolean
-  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
+  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-dir' | 'clone-or-copy'
   hoistPattern?: string[]
   publicHoistPattern?: string[] | string
   hoistWorkspacePackages?: boolean

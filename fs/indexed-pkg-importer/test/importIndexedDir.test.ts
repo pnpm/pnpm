@@ -5,7 +5,7 @@ import { tempDir } from '@pnpm/prepare'
 
 import { importIndexedDir } from '../src/importIndexedDir.js'
 
-test('importIndexedDir() keepModulesDir merges node_modules', async () => {
+test('await importIndexedDir() keepModulesDir merges node_modules', async () => {
   const tmp = tempDir()
   fs.mkdirSync(path.join(tmp, 'src/node_modules/a'), { recursive: true })
   fs.writeFileSync(path.join(tmp, 'src/node_modules/a/index.js'), 'module.exports = 1')
@@ -17,7 +17,7 @@ test('importIndexedDir() keepModulesDir merges node_modules', async () => {
   const filenames = new Map([
     ['node_modules/a/index.js', path.join(tmp, 'src/node_modules/a/index.js')],
   ])
-  importIndexedDir({ importFile: fs.linkSync, importFileAtomic: fs.linkSync }, newDir, filenames, { keepModulesDir: true })
+  await importIndexedDir({ importFile: fs.linkSync, importFileAtomic: fs.linkSync }, newDir, filenames, { keepModulesDir: true })
 
   expect(fs.readdirSync(path.join(newDir, 'node_modules')).sort()).toEqual(['a', 'b'])
 })

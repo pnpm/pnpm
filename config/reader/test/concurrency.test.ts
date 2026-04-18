@@ -29,7 +29,7 @@ test('getDefaultWorkspaceConcurrency: cpu num < 4', () => {
 
 test('getDefaultWorkspaceConcurrency: cpu num > 4', () => {
   mockAvailableParallelism(5)
-  expect(getDefaultWorkspaceConcurrency(false)).toBe(4)
+  expect(getDefaultWorkspaceConcurrency(false)).toBe(5)
 })
 
 test('getDefaultWorkspaceConcurrency: cpu num = 4', () => {
@@ -48,7 +48,7 @@ test('getDefaultWorkspaceConcurrency: using cache', () => {
 test('default workspace concurrency', () => {
   const n = getWorkspaceConcurrency(undefined)
 
-  expect(n).toBe(4)
+  expect(n).toBe(Math.min(16, hostCores))
 })
 
 test('get back positive amount', () => {

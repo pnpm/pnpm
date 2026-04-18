@@ -1,20 +1,22 @@
 import assert from 'node:assert'
 import { constants, existsSync, type Stats } from 'node:fs'
+import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
 import { packageImportMethodLogger } from '@pnpm/core-loggers'
-import fs from '@pnpm/fs.graceful-fs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import type { FilesMap, ImportIndexedPackage, ImportOptions } from '@pnpm/store.controller-types'
 import { fastPathTemp as pathTemp } from 'path-temp'
-import { renameOverwriteSync } from 'rename-overwrite'
+import { renameOverwrite } from 'rename-overwrite'
 
+import { cloneDir } from './cloneDir.js'
 import { type Importer, type ImportFile, importIndexedDir } from './importIndexedDir.js'
 
+export { cloneDir } from './cloneDir.js'
 export { type FilesMap, type ImportIndexedPackage, type ImportOptions }
 
-export type PackageImportMethod = 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
+export type PackageImportMethod = 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-dir' | 'clone-or-copy'
 
 export function createIndexedPkgImporter (packageImportMethod?: PackageImportMethod): ImportIndexedPackage {
   const importPackage = createImportPackage(packageImportMethod)
@@ -31,9 +33,12 @@ function createImportPackage (packageImportMethod?: PackageImportMethod): Import
     case 'clone':
       packageImportMethodLogger.debug({ method: 'clone' })
       return createClonePkg()
+    case 'clone-dir':
+      packageImportMethodLogger.debug({ method: 'clone-dir' })
+      return cloneDirPkg
     case 'hardlink':
       packageImportMethodLogger.debug({ method: 'hardlink' })
-      return hardlinkPkg.bind(null, linkOrCopy)
+      return async (to, opts) => hardlinkPkg(linkOrCopy, to, opts)
     case 'auto': {
       return createAutoImporter()
     }
@@ -41,7 +46,7 @@ function createImportPackage (packageImportMethod?: PackageImportMethod): Import
       return createCloneOrCopyImporter()
     case 'copy':
       packageImportMethodLogger.debug({ method: 'copy' })
-      return copyPkg
+      return async (to, opts) => copyPkg(to, opts)
     default:
       throw new Error(`Unknown package import method ${packageImportMethod as string}`)
   }
@@ -52,14 +57,25 @@ function createAutoImporter (): ImportIndexedPackage {
 
   return (to, opts) => auto(to, opts)
 
-  function initialAuto (
+  async function initialAuto (
     to: string,
     opts: ImportOptions
-  ): string | undefined {
+  ): Promise<string | undefined> {
     // Although reflinks are supported on Windows Dev Drives,
     // they are 10x slower than hard links.
     // Hence, we prefer reflinks by default only on Linux and macOS.
     if (process.platform !== 'win32') {
+      try {
+        // Try directory-level cloning first - this is most efficient on CoW filesystems
+        const result = await cloneDirPkg(to, opts)
+        if (result) {
+          packageImportMethodLogger.debug({ method: 'clone-dir' })
+          auto = cloneDirPkg
+          return 'clone-dir'
+        }
+      } catch {
+        // ignore - fall through to file-level clone
+      }
       try {
         // Probe with the raw clone function (no ENOTSUP fallback).
         // On filesystems that don't support reflinks (e.g. ext4), this
@@ -67,7 +83,7 @@ function createAutoImporter (): ImportIndexedPackage {
         // than copying.  If the probe succeeds, we switch to the full
         // clone importer (with ENOTSUP fallback for transient failures
         // during heavy parallel I/O) for all subsequent packages.
-        if (!tryClonePkg(to, opts)) return undefined
+        if (!(await tryClonePkg(to, opts))) return undefined
         packageImportMethodLogger.debug({ method: 'clone' })
         auto = createClonePkg()
         return 'clone'
@@ -76,9 +92,9 @@ function createAutoImporter (): ImportIndexedPackage {
       }
     }
     try {
-      if (!hardlinkPkg(fs.linkSync, to, opts)) return undefined
+      if (!(await hardlinkPkg(fs.promises.link, to, opts))) return undefined
       packageImportMethodLogger.debug({ method: 'hardlink' })
-      auto = hardlinkPkg.bind(null, linkOrCopy)
+      auto = async (to, opts) => hardlinkPkg(linkOrCopy, to, opts)
       return 'hardlink'
     } catch (err: unknown) {
       assert(util.types.isNativeError(err))
@@ -86,7 +102,7 @@ function createAutoImporter (): ImportIndexedPackage {
         globalWarn(err.message)
         globalInfo('Falling back to copying packages from store')
         packageImportMethodLogger.debug({ method: 'copy' })
-        auto = copyPkg
+        auto = async (to, opts) => copyPkg(to, opts)
         return auto(to, opts)
       }
       // We still choose hard linking that will fall back to copying in edge cases.
@@ -102,12 +118,12 @@ function createCloneOrCopyImporter (): ImportIndexedPackage {
 
   return (to, opts) => auto(to, opts)
 
-  function initialAuto (
+  async function initialAuto (
     to: string,
     opts: ImportOptions
-  ): string | undefined {
+  ): Promise<string | undefined> {
     try {
-      if (!tryClonePkg(to, opts)) return undefined
+      if (!(await tryClonePkg(to, opts))) return undefined
       packageImportMethodLogger.debug({ method: 'clone' })
       auto = createClonePkg()
       return 'clone'
@@ -120,7 +136,7 @@ function createCloneOrCopyImporter (): ImportIndexedPackage {
   }
 }
 
-type CloneFunction = (src: string, dest: string) => void
+type CloneFunction = (src: string, dest: string) => Promise<void> | void
 
 /**
  * Import a single package using a raw clone function (no ENOTSUP fallback).
@@ -128,14 +144,35 @@ type CloneFunction = (src: string, dest: string) => void
  * If cloning isn't supported, the error propagates so the caller can fall
  * through to a faster method (e.g. hardlinks).
  */
-function tryClonePkg (
+async function tryClonePkg (
   to: string,
   opts: ImportOptions
-): 'clone' | undefined {
+): Promise<'clone' | undefined> {
   if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
     const clone = createCloneFunction()
-    importIndexedDir({ importFile: clone, importFileAtomic: clone }, to, opts.filesMap, opts)
+    await importIndexedDir({ importFile: clone, importFileAtomic: clone }, to, opts.filesMap, opts)
     return 'clone'
+  }
+  return undefined
+}
+
+/**
+ * Import a single package using directory-level cloning.
+ * This is more efficient than file-by-file cloning on CoW filesystems
+ * but may fail if the filesystem doesn't support cloning.
+ */
+async function cloneDirPkg (
+  to: string,
+  opts: ImportOptions
+): Promise<'clone-dir' | undefined> {
+  if (opts.resolvedFrom === 'local-dir' && (!pkgExistsAtTargetDir(to, opts.filesMap) || opts.force)) {
+    // Get the source directory from the first file in the filesMap
+    // For local-dir, this will be a real package directory, not a CAFS shard
+    const firstSrcPath = opts.filesMap.values().next().value!
+    const srcDirPath = path.dirname(firstSrcPath)
+    if (await cloneDir(srcDirPath, to)) {
+      return 'clone-dir'
+    }
   }
   return undefined
 }
@@ -150,12 +187,12 @@ function tryClonePkg (
  */
 function createClonePkg (): ImportIndexedPackage {
   const clone = createCloneFunction()
-  const withFallback = (fallback: CloneFunction): ImportFile => (src, dest) => {
+  const withFallback = (fallback: CloneFunction): ImportFile => async (src, dest) => {
     try {
-      clone(src, dest)
+      await clone(src, dest)
     } catch (err: unknown) {
       if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOTSUP') {
-        fallback(src, dest)
+        await fallback(src, dest)
         return
       }
       throw err
@@ -165,9 +202,9 @@ function createClonePkg (): ImportIndexedPackage {
     importFile: withFallback(resilientCopyFileSync),
     importFileAtomic: withFallback(atomicCopyFileSync),
   }
-  return (to: string, opts: ImportOptions) => {
+  return async (to: string, opts: ImportOptions) => {
     if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
-      importIndexedDir(importer, to, opts.filesMap, opts)
+      await importIndexedDir(importer, to, opts.filesMap, opts)
       return 'clone'
     }
     return undefined
@@ -211,9 +248,9 @@ function createCloneFunction (): CloneFunction {
       }
     }
   } else {
-    _cloneFunction = (src: string, dest: string) => {
+    _cloneFunction = async (src: string, dest: string) => {
       try {
-        fs.copyFileSync(src, dest, constants.COPYFILE_FICLONE_FORCE)
+        await fs.promises.copyFile(src, dest, constants.COPYFILE_FICLONE_FORCE)
       } catch (err: unknown) {
         if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
       }
@@ -222,13 +259,13 @@ function createCloneFunction (): CloneFunction {
   return _cloneFunction
 }
 
-function hardlinkPkg (
+async function hardlinkPkg (
   importFile: ImportFile,
   to: string,
   opts: ImportOptions
-): 'hardlink' | undefined {
+): Promise<'hardlink' | undefined> {
   if (opts.force || shouldRelinkPkg(to, opts)) {
-    importIndexedDir({ importFile, importFileAtomic: importFile }, to, opts.filesMap, opts)
+    await importIndexedDir({ importFile, importFileAtomic: importFile }, to, opts.filesMap, opts)
     return 'hardlink'
   }
   return undefined
@@ -249,9 +286,9 @@ function shouldRelinkPkg (
   return opts.resolvedFrom !== 'store' || !pkgLinkedToStore(opts.filesMap, to)
 }
 
-function linkOrCopy (existingPath: string, newPath: string): void {
+async function linkOrCopy (existingPath: string, newPath: string): Promise<void> {
   try {
-    fs.linkSync(existingPath, newPath)
+    await fs.promises.link(existingPath, newPath)
   } catch (err: unknown) {
     // If a hard link to the same file already exists
     // then trying to copy it will make an empty file from it.
@@ -259,20 +296,20 @@ function linkOrCopy (existingPath: string, newPath: string): void {
     // In some VERY rare cases (1 in a thousand), hard-link creation fails on Windows.
     // In that case, we just fall back to copying.
     // This issue is reproducible with "pnpm add @material-ui/icons@4.9.1"
-    resilientCopyFileSync(existingPath, newPath)
+    await resilientCopyFileSync(existingPath, newPath)
   }
 }
 
 // On Linux CI, the kernel's copy_file_range/sendfile can transiently fail
 // with ENOTSUP under heavy parallel I/O on the same store files.
 // Fall back to manual read+write which uses plain read/write syscalls.
-function resilientCopyFileSync (src: string, dest: string): void {
+async function resilientCopyFileSync (src: string, dest: string): Promise<void> {
   try {
-    fs.copyFileSync(src, dest)
+    await fs.promises.copyFile(src, dest)
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOTSUP') {
-      const srcMode = fs.statSync(src).mode
-      fs.writeFileSync(dest, fs.readFileSync(src), { mode: srcMode })
+      const srcMode = (await fs.promises.stat(src)).mode
+      await fs.promises.writeFile(dest, await fs.promises.readFile(src), { mode: srcMode })
     } else {
       throw err
     }
@@ -294,29 +331,29 @@ function pkgLinkedToStore (filesMap: FilesMap, linkedPkgDir: string): boolean {
   return false
 }
 
-export function copyPkg (
+export async function copyPkg (
   to: string,
   opts: ImportOptions
-): 'copy' | undefined {
+): Promise<'copy' | undefined> {
   if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
     // copyFileSync is not atomic on non-COW filesystems: a crash mid-copy
     // can leave a partially-written file.  package.json is the completion
     // marker, so it must be written atomically via temp file + rename.
-    importIndexedDir({ importFile: resilientCopyFileSync, importFileAtomic: atomicCopyFileSync }, to, opts.filesMap, opts)
+    await importIndexedDir({ importFile: resilientCopyFileSync, importFileAtomic: atomicCopyFileSync }, to, opts.filesMap, opts)
     return 'copy'
   }
   return undefined
 }
 
-function atomicCopyFileSync (src: string, dest: string): void {
+async function atomicCopyFileSync (src: string, dest: string): Promise<void> {
   const tmp = pathTemp(dest)
   try {
-    resilientCopyFileSync(src, tmp)
+    await resilientCopyFileSync(src, tmp)
   } catch (err) {
     try {
-      fs.unlinkSync(tmp)
+      await fs.promises.unlink(tmp)
     } catch {} // eslint-disable-line:no-empty
     throw err
   }
-  renameOverwriteSync(tmp, dest)
+  await renameOverwrite(tmp, dest)
 }

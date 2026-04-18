@@ -25,12 +25,14 @@ import {
   getFilePathByModeInCafs,
   modeIsExecutable,
 } from './getFilePathInCafs.js'
+import { createJsonParseCache, type JsonParseCache } from './jsonCache.js'
 import { normalizeBundledManifest } from './normalizeBundledManifest.js'
 import { writeBufferToCafs } from './writeBufferToCafs.js'
 
 export const HASH_ALGORITHM = 'sha512'
 
 export { type BundledManifest } from '@pnpm/types'
+export { createJsonParseCache, type JsonParseCache }
 export { normalizeBundledManifest }
 
 export {
@@ -53,27 +55,28 @@ export type CafsLocker = Map<string, number>
 export interface CreateCafsOpts {
   ignoreFile?: (filename: string) => boolean
   cafsLocker?: CafsLocker
+  jsonCache?: JsonParseCache
 }
 
 export interface CafsFunctions {
-  addFilesFromDir: (dirname: string, opts?: { files?: string[], readManifest?: boolean, includeNodeModules?: boolean }) => AddToStoreResult
+  addFilesFromDir: (dirname: string, opts?: { files?: string[], readManifest?: boolean, includeNodeModules?: boolean }) => Promise<AddToStoreResult>
   addFilesFromTarball: (tarballBuffer: Buffer, readManifest?: boolean) => AddToStoreResult
   addFile: (buffer: Buffer, mode: number) => FileWriteResult
   getFilePathByModeInCafs: (digest: string, mode: number) => string
 }
 
-export function createCafs (storeDir: string, { ignoreFile, cafsLocker }: CreateCafsOpts = {}): CafsFunctions {
+export function createCafs (storeDir: string, { ignoreFile, cafsLocker, jsonCache }: CreateCafsOpts = {}): CafsFunctions {
   const _writeBufferToCafs = writeBufferToCafs.bind(null, cafsLocker ?? new Map(), storeDir)
   const addBuffer = addBufferToCafs.bind(null, _writeBufferToCafs)
   return {
-    addFilesFromDir: addFilesFromDir.bind(null, addBuffer),
-    addFilesFromTarball: addFilesFromTarball.bind(null, addBuffer, ignoreFile ?? null),
+    addFilesFromDir: addFilesFromDir.bind(null, addBuffer, jsonCache),
+    addFilesFromTarball: addFilesFromTarball.bind(null, addBuffer, ignoreFile ?? null, jsonCache),
     addFile: addBuffer,
     getFilePathByModeInCafs: getFilePathByModeInCafs.bind(null, storeDir),
   }
 }
 
-type WriteBufferToCafs = (buffer: Buffer, fileDest: string, mode: number | undefined, integrity: Integrity) => { checkedAt: number, filePath: string }
+type WriteBufferToCafs = (buffer: Buffer, fileDest: string, mode: number | undefined) => { checkedAt: number, filePath: string }
 
 function addBufferToCafs (
   writeBufferToCafs: WriteBufferToCafs,
@@ -89,8 +92,7 @@ function addBufferToCafs (
   const { checkedAt, filePath } = writeBufferToCafs(
     buffer,
     fileDest,
-    isExecutable ? 0o755 : undefined,
-    { digest, algorithm: HASH_ALGORITHM }
+    isExecutable ? 0o755 : undefined
   )
   return { checkedAt, filePath, digest }
 }

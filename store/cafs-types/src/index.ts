@@ -23,7 +23,7 @@ export type FilesMap = Map<string, string>
 export interface PackageFilesResponse {
   resolvedFrom: ResolvedFrom
   filesMap: FilesMap
-  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
+  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-dir' | 'clone-or-copy'
   // Pre-calculated file location maps for side effects, avoiding recalculation during import
   sideEffectsMaps?: Map<string, { added?: FilesMap, deleted?: string[] }>
   requiresBuild: boolean
@@ -69,10 +69,10 @@ export interface AddToStoreResult {
 
 export interface Cafs {
   storeDir: string
-  addFilesFromDir: (dir: string) => AddToStoreResult
+  addFilesFromDir: (dir: string) => Promise<AddToStoreResult>
   addFilesFromTarball: (buffer: Buffer) => AddToStoreResult
   addFile: (buffer: Buffer, mode: number) => FileWriteResult
   getFilePathByModeInCafs: (digest: string, mode: number) => string
-  importPackage: ImportPackageFunction
+  importPackage: ImportPackageFunctionAsync
   tempDir: () => Promise<string>
 }

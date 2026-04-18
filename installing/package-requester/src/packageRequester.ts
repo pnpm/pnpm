@@ -51,6 +51,7 @@ import {
 } from '@pnpm/worker'
 import { familySync } from 'detect-libc'
 import { loadJsonFile } from 'load-json-file'
+import { LRUCache } from 'lru-cache'
 import pDefer, { type DeferredPromise } from 'p-defer'
 import PQueue from 'p-queue'
 import { pShare } from 'promise-share'
@@ -609,8 +610,22 @@ function fetchToStore (
   }
 }
 
+interface CacheEntry<T> {
+  value: T
+}
+
+const bundledManifestCache = new LRUCache<string, CacheEntry<BundledManifest | undefined>>({
+  max: 5000,
+})
+
 async function readBundledManifest (pkgJsonPath: string): Promise<BundledManifest | undefined> {
-  return normalizeBundledManifest(await loadJsonFile<DependencyManifest>(pkgJsonPath))
+  const cached = bundledManifestCache.get(pkgJsonPath)
+  if (cached) {
+    return cached.value
+  }
+  const value = normalizeBundledManifest(await loadJsonFile<DependencyManifest>(pkgJsonPath))
+  bundledManifestCache.set(pkgJsonPath, { value })
+  return value
 }
 
 async function tarballIsUpToDate (

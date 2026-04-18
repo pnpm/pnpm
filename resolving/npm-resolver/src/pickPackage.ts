@@ -139,9 +139,13 @@ export async function pickPackage (
   const cacheKey = fullMetadata ? `${spec.name}:full` : spec.name
   const cachedMeta = ctx.metaCache.get(cacheKey)
   if (cachedMeta != null) {
-    return {
-      meta: cachedMeta,
-      pickedPackage: _pickPackageFromMeta(cachedMeta),
+    // When publishedBy is set and cached metadata lacks time, fall through
+    // to the network fetch path to get full metadata.
+    if (!(opts.publishedBy && cachedMeta.time == null && !fullMetadata)) {
+      return {
+        meta: cachedMeta,
+        pickedPackage: _pickPackageFromMeta(cachedMeta),
+      }
     }
   }
 
@@ -154,20 +158,39 @@ export async function pickPackage (
       metaCachedInStore = await limit(async () => loadMeta(pkgMirror))
 
       if (ctx.offline) {
-        if (metaCachedInStore != null) return {
-          meta: metaCachedInStore,
-          pickedPackage: _pickPackageFromMeta(metaCachedInStore),
+        if (metaCachedInStore != null) {
+          try {
+            return {
+              meta: metaCachedInStore,
+              pickedPackage: _pickPackageFromMeta(metaCachedInStore),
+            }
+          } catch (err: unknown) {
+            if (isMissingTimeError(err)) {
+              throw new PnpmError('MISSING_TIME_OFFLINE',
+                `Cannot check minimumReleaseAge for ${spec.name} in offline mode because cached metadata lacks the "time" field. ` +
+                'Disable minimumReleaseAge or use resolution-mode "highest" to resolve this package offline.')
+            }
+            throw err
+          }
         }
 
         throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
       }
 
       if (metaCachedInStore != null) {
-        const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
-        if (pickedPackage) {
-          return {
-            meta: metaCachedInStore,
-            pickedPackage,
+        try {
+          const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
+          if (pickedPackage) {
+            return {
+              meta: metaCachedInStore,
+              pickedPackage,
+            }
+          }
+        } catch (err: unknown) {
+          // Don't rethrow ERR_PNPM_MISSING_TIME from cached abbreviated metadata —
+          // let the code fall through to the network fetch path which will get full metadata.
+          if (!isMissingTimeError(err)) {
+            throw err
           }
         }
       }
@@ -240,18 +263,62 @@ export async function pickPackage (
       if (fetchResult.notModified) {
         metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
         if (metaCachedInStore != null) {
-          ctx.metaCache.set(cacheKey, metaCachedInStore)
-          return {
-            meta: metaCachedInStore,
-            pickedPackage: _pickPackageFromMeta(metaCachedInStore),
+          // When minimumReleaseAge is active and we fetched abbreviated metadata,
+          // the cached metadata won't have the `time` field needed for version
+          // filtering. Try loading full metadata from the full metadata cache first.
+          if (opts.publishedBy && metaCachedInStore.time == null && !fullMetadata) {
+            const fullPkgMirror = path.join(ctx.cacheDir, FULL_META_DIR, registryName, `${encodePkgName(spec.name)}.jsonl`)
+            const fullMetaFromDisk = await limit(async () => loadMeta(fullPkgMirror))
+            if (fullMetaFromDisk?.time != null) {
+              metaCachedInStore = fullMetaFromDisk
+            }
           }
+          ctx.metaCache.set(cacheKey, metaCachedInStore)
+          // If we still don't have time data, we need a full metadata fetch.
+          if (opts.publishedBy && metaCachedInStore.time == null && !fullMetadata) {
+            // Fall through to fetch full metadata from the network.
+          } else {
+            return {
+              meta: metaCachedInStore,
+              pickedPackage: _pickPackageFromMeta(metaCachedInStore),
+            }
+          }
+        } else if (!opts.publishedBy || fullMetadata) {
+          throw new PnpmError('CACHE_MISSING_AFTER_304',
+            `Metadata cache for ${spec.name} is unreadable after receiving 304 Not Modified`)
         }
-        throw new PnpmError('CACHE_MISSING_AFTER_304',
-          `Metadata cache for ${spec.name} is unreadable after receiving 304 Not Modified`)
+        // Fall through: do a full metadata fetch since abbreviated cache lacks time.
       }
 
-      let meta = fetchResult.meta
-      let resultToSave: FetchMetadataResult = fetchResult
+      let meta: PackageMeta
+      let resultToSave: FetchMetadataResult
+      if (fetchResult.notModified) {
+        // Abbreviated cache was confirmed fresh (304), but lacks the time field.
+        // Fetch full metadata from the network.
+        const fullFetchResult = await ctx.fetch(spec.name, {
+          authHeaderValue: opts.authHeaderValue,
+          fullMetadata: true,
+          registry: opts.registry,
+        })
+        if (fullFetchResult.notModified) {
+          // Full metadata also returned 304 — load from full metadata cache.
+          const fullPkgMirror = path.join(ctx.cacheDir, FULL_META_DIR, registryName, `${encodePkgName(spec.name)}.jsonl`)
+          const fullMetaFromDisk = await limit(async () => loadMeta(fullPkgMirror))
+          if (fullMetaFromDisk == null) {
+            throw new PnpmError('CACHE_MISSING_AFTER_304',
+              `Full metadata cache for ${spec.name} is missing after receiving 304 Not Modified`)
+          }
+          return {
+            meta: fullMetaFromDisk,
+            pickedPackage: _pickPackageFromMeta(fullMetaFromDisk),
+          }
+        }
+        meta = fullFetchResult.meta
+        resultToSave = fullFetchResult
+      } else {
+        meta = fetchResult.meta
+        resultToSave = fetchResult
+      }
 
       // When minimumReleaseAge is active and we fetched abbreviated metadata,
       // check if the package was recently modified and needs full metadata
@@ -271,7 +338,7 @@ export async function pickPackage (
         const isModifiedValid = modifiedDate != null && !Number.isNaN(modifiedDate.getTime())
         if (!isModifiedValid || modifiedDate >= opts.publishedBy) {
           // Save the abbreviated metadata to the abbreviated cache before re-fetching full.
-          if (!opts.dryRun) {
+          if (!opts.dryRun && !fetchResult.notModified) {
             const abbreviatedJson = prepareJsonForDisk(fetchResult.meta, fetchResult.etag, fetchResult.jsonText)
             // Fire-and-forget save to the abbreviated cache path (pkgMirror).
             runLimited(pkgMirror, (limit) => limit(async () => {
@@ -323,9 +390,16 @@ export async function pickPackage (
       if (meta == null) throw err
       logger.error(err, err)
       logger.debug({ message: `Using cached meta from ${pkgMirror}` })
-      return {
-        meta,
-        pickedPackage: _pickPackageFromMeta(meta),
+      try {
+        return {
+          meta,
+          pickedPackage: _pickPackageFromMeta(meta),
+        }
+      } catch (fallbackErr: unknown) {
+        // In the fallback path, if we can't check publishedBy due to missing time,
+        // just re-throw the original error.
+        if (isMissingTimeError(fallbackErr)) throw err
+        throw fallbackErr
       }
     }
   })

@@ -45,6 +45,7 @@
     "@pnpm/store.index": "workspace:*",
     "@rushstack/worker-pool": "catalog:",
     "is-windows": "catalog:",
+    "lru-cache": "catalog:",
     "p-limit": "catalog:",
     "semver": "catalog:"
   },

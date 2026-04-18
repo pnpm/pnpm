@@ -6,7 +6,7 @@ import type { CustomFetcher } from '@pnpm/hooks.types'
 import { createPackageRequester } from '@pnpm/installing.package-requester'
 import type { ResolveFunction } from '@pnpm/resolving.resolver-base'
 import type {
-  ImportIndexedPackageAsync,
+  ImportIndexedPackage,
   StoreController,
 } from '@pnpm/store.controller-types'
 import { type CafsLocker, createCafsStore, createPackageImporterAsync } from '@pnpm/store.create-cafs-store'
@@ -22,13 +22,13 @@ export interface CreatePackageStoreOptions {
   engineStrict?: boolean
   force?: boolean
   nodeVersion?: string
-  importPackage?: ImportIndexedPackageAsync
+  importPackage?: ImportIndexedPackage
   pnpmVersion?: string
   ignoreFile?: (filename: string) => boolean
   cacheDir: string
   storeDir: string
   networkConcurrency?: number
-  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
+  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-dir' | 'clone-or-copy'
   verifyStoreIntegrity: boolean
   virtualStoreDirMaxLength: number
   strictStorePkgContentCheck?: boolean

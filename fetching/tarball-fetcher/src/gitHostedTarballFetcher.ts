@@ -69,7 +69,7 @@ async function prepareGitHostedPkg (
   resolution: Resolution
 ): Promise<PrepareGitHostedPkgResult> {
   const tempLocation = await cafs.tempDir()
-  cafs.importPackage(tempLocation, {
+  await cafs.importPackage(tempLocation, {
     filesResponse: {
       filesMap,
       resolvedFrom: 'remote',
