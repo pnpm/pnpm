@@ -14,7 +14,17 @@ import { renderHelp } from 'render-help'
 import { rebuild, type RebuildCommandOpts } from '../build/index.js'
 import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds.js'
 
-export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'allowBuilds' | 'enableGlobalVirtualStore'> & Pick<ConfigContext, 'rootProjectManifest' | 'rootProjectManifestDir'> & { all?: boolean, global?: boolean }
+export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'allowBuilds' | 'enableGlobalVirtualStore'> & Pick<ConfigContext, 'rootProjectManifest' | 'rootProjectManifestDir'> & {
+  all?: boolean
+  global?: boolean
+  /**
+   * When set, overrides the target directory for writeSettings.
+   * Used by the global-install flow to point allowBuilds updates at the
+   * global pnpm-workspace.yaml while keeping workspaceDir unset so the
+   * install itself targets only the single install directory.
+   */
+  settingsDir?: string
+}
 
 export const commandNames = ['approve-builds']
 
@@ -184,7 +194,7 @@ Do you approve?`,
   }
   await writeSettings({
     ...opts,
-    workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+    workspaceDir: opts.settingsDir ?? opts.workspaceDir ?? opts.rootProjectManifestDir,
     updatedSettings: { allowBuilds },
   })
   if (modulesManifest?.ignoredBuilds) {
@@ -206,21 +216,11 @@ Do you approve?`,
   }
   if (buildPackages.length) {
     if (opts.enableGlobalVirtualStore) {
-      // Detect the global-install case: globalAdd/globalUpdate forward
-      // workspaceDir (the global packages dir) purely so writeSettings can
-      // update its pnpm-workspace.yaml, but the install itself must operate
-      // on the single install dir. Config loading in --global mode leaves
-      // workspacePackagePatterns undefined, so we use that as the signal;
-      // in a real GVS-enabled workspace it's always set by the config reader.
-      const isGlobalInstall = opts.workspaceDir != null && (opts as { workspacePackagePatterns?: string[] }).workspacePackagePatterns == null
       await install.handler({
         ...opts,
         allowBuilds,
         frozenLockfile: true,
         optimisticRepeatInstall: false,
-        ...(isGlobalInstall
-          ? { workspaceDir: undefined, allProjects: undefined, selectedProjectsGraph: undefined }
-          : {}),
       } as any, [], commands) // eslint-disable-line @typescript-eslint/no-explicit-any
       return
     }

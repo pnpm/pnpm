@@ -93,6 +93,11 @@ export async function handleGlobalAdd (
   // If any packages had their builds skipped, prompt the user to approve them
   // (reuses the same interactive flow as `pnpm approve-builds`)
   if (ignoredBuilds?.size && process.stdin.isTTY) {
+    // Pass the global packages directory as settingsDir so approve-builds
+    // writes the allowBuilds update into its pnpm-workspace.yaml. We don't
+    // set workspaceDir here — otherwise the install it runs would treat the
+    // global packages dir as a workspace and scan sibling install dirs as
+    // workspace projects.
     await commands['approve-builds']({
       ...opts,
       modulesDir: path.join(installDir, 'node_modules'),
@@ -100,7 +105,7 @@ export async function handleGlobalAdd (
       lockfileDir: installDir,
       rootProjectManifest: undefined,
       rootProjectManifestDir: installDir,
-      workspaceDir: opts.globalPkgDir!,
+      settingsDir: opts.globalPkgDir!,
       global: false,
       pending: false,
       allowBuilds,

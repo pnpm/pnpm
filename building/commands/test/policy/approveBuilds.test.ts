@@ -463,13 +463,13 @@ test('should retain existing allowBuilds entries when approving builds', async (
   })
 })
 
-// Regression test for the global-install path: approve-builds is invoked with
-// workspaceDir set to the global packages directory (so writeSettings can
-// update its pnpm-workspace.yaml). When workspacePackagePatterns is undefined
-// — as happens in --global mode — the recursive install would otherwise
-// discover sibling install directories as workspace projects and fail the
+// Regression test for the global-install path: globalAdd invokes
+// approve-builds with globalPkgDir set (so writeSettings updates the global
+// pnpm-workspace.yaml) but without workspaceDir. If approve-builds were to
+// treat globalPkgDir as a workspace, install.handler would recursively
+// discover sibling install dirs as workspace projects and fail the
 // frozen-lockfile check on those that don't have a matching pnpm-lock.yaml.
-test('GVS approve-builds ignores sibling install dirs under workspace dir', async () => {
+test('GVS approve-builds writes settings to globalPkgDir without scanning siblings', async () => {
   const temp = tempDir()
 
   prepare({
@@ -497,15 +497,19 @@ test('GVS approve-builds ignores sibling install dirs under workspace dir', asyn
   })
   prompt.mockResolvedValueOnce({ build: true })
 
+  // Match the global-install call site: settingsDir points at the global
+  // packages dir (for writeSettings) but workspaceDir is not set, so install
+  // doesn't scan globalPkgDir as a workspace.
   await approveBuilds.handler({
-    // Match the global-install call site: workspaceDir is set but
-    // workspacePackagePatterns is undefined (cleared because --global
-    // skips workspace detection in the config reader).
-    ...omit(['workspacePackagePatterns'], config),
+    ...omit(['workspaceDir', 'workspacePackagePatterns'], config),
     enableGlobalVirtualStore: true,
-    workspaceDir: temp,
+    settingsDir: temp,
     rootProjectManifestDir: process.cwd(),
   } as ApproveBuildsCommandOpts & RebuildCommandOpts, [], {})
 
+  // writeSettings should have written allowBuilds to globalPkgDir's
+  // pnpm-workspace.yaml, not to the project dir.
+  const globalManifest = readYamlFileSync<any>(path.join(temp, 'pnpm-workspace.yaml')) // eslint-disable-line
+  expect(globalManifest.allowBuilds?.['@pnpm.e2e/pre-and-postinstall-scripts-example']).toBe(true)
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
 })
