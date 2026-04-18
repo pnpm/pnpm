@@ -97,7 +97,8 @@ function pickForAllSpecs (
 }
 
 // When minimumReleaseAge is active: try the highest mature version; if none
-// and strictPublishedByCheck is off, fall back to the lowest mature version.
+// and strictPublishedByCheck is off, fall back to the lowest version in range
+// without applying the maturity filter.
 function pickWithMaturity (
   pickCtx: PickerContext,
   meta: PackageMeta,
