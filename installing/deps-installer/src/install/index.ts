@@ -45,7 +45,6 @@ import {
   type LockfileObject,
   type ProjectSnapshot,
   readWantedLockfile,
-  type ResolvedDependenciesOfImporters,
   writeCurrentLockfile,
   writeLockfiles,
   writeWantedLockfile,
@@ -60,7 +59,7 @@ import { writePnpFile } from '@pnpm/lockfile.to-pnp'
 import { allProjectsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
 import { globalInfo, logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
-import { getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/pkg-manifest.utils'
+import { createVersionSpecFromResolvedVersion, getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/pkg-manifest.utils'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import type {
   PreferredVersions,
@@ -1864,13 +1863,26 @@ function canUseAgentForMutations (projects: MutatedProject[]): boolean {
   })
 }
 
+interface AgentNewDep {
+  alias: string
+  /**
+   * Whether the user specified a spec (e.g. `pnpm add foo@^2`). If true, the
+   * manifest already has the right value and we must preserve it. If false
+   * we merged in `'latest'` and need to compute a save-prefix spec from the
+   * resolved version in the lockfile after the agent runs.
+   */
+  userSpecified: boolean
+}
+
 interface AgentInstallProject {
   rootDir: ProjectRootDir
   /** The (possibly pre-processed) manifest we send to the agent. */
   manifest: ProjectManifest
   mutation: MutatedProject['mutation']
-  /** Aliases newly added in this `installSome`; used to copy resolved specs from the lockfile back into the manifest. */
-  newAliases: string[]
+  /** Newly added deps from an `installSome` mutation. Empty otherwise. */
+  newDeps: AgentNewDep[]
+  /** Save-prefix config for `installSome`; applied to deps whose spec defaulted to `'latest'`. */
+  pinnedVersion?: PinnedVersion
 }
 
 /**
@@ -1922,8 +1934,9 @@ async function prepareAgentProjects (
   }
   return Promise.all(targetSet.map(async (t) => {
     let manifest: ProjectManifest = clone(t.manifest)
-    const newAliases: string[] = []
+    const newDeps: AgentNewDep[] = []
     const mutation = t.mutation
+    let pinnedVersion: PinnedVersion | undefined
     if (mutation?.mutation === 'uninstallSome') {
       manifest = await removeDeps(manifest, mutation.dependencyNames, {
         prefix: mutation.rootDir,
@@ -1931,16 +1944,20 @@ async function prepareAgentProjects (
       })
     } else if (mutation?.mutation === 'installSome') {
       manifest = mergeInstallSelectors(manifest, mutation)
+      pinnedVersion = mutation.pinnedVersion
       for (const sel of mutation.dependencySelectors) {
         const parsed = parseWantedDependency(sel)
-        if (parsed.alias) newAliases.push(parsed.alias)
+        if (parsed.alias) {
+          newDeps.push({ alias: parsed.alias, userSpecified: parsed.bareSpecifier != null })
+        }
       }
     }
     return {
       rootDir: t.rootDir,
       manifest,
       mutation: mutation?.mutation ?? 'install',
-      newAliases,
+      newDeps,
+      pinnedVersion,
     }
   }))
 }
@@ -2001,19 +2018,27 @@ function findExistingSpec (alias: string, manifest: ProjectManifest): string | u
 function applyResolvedSpecsFromLockfile (
   manifest: ProjectManifest,
   importerSnapshot: ProjectSnapshot | undefined,
-  newAliases: string[]
+  newDeps: AgentNewDep[],
+  pinnedVersion?: PinnedVersion
 ): ProjectManifest {
-  if (!importerSnapshot || newAliases.length === 0) return manifest
-  // The static `ProjectSnapshot.dependencies` type is `Record<string, string>`
-  // (legacy), but in lockfile v9 the runtime shape is
-  // `Record<string, { specifier, version }>`. Cast accordingly.
-  for (const alias of newAliases) {
+  if (!importerSnapshot || newDeps.length === 0) return manifest
+  // In-memory ProjectSnapshot stores resolved versions in `dependencies`
+  // (alias → resolved version) and original specs in `specifiers` (alias →
+  // user spec). The on-disk YAML shape pairs them per entry — the reader
+  // splits them. Read both and compute the save-prefix spec client-side.
+  for (const dep of newDeps) {
+    // User explicitly specified a spec (e.g. `foo@^2`) — the merged manifest
+    // already has the right value, don't touch it.
+    if (dep.userSpecified) continue
     for (const field of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
-      const fieldSnapshot = importerSnapshot[field] as ResolvedDependenciesOfImporters | undefined
-      const entry = fieldSnapshot?.[alias]
-      if (entry?.specifier && manifest[field]?.[alias] != null) {
-        manifest[field]![alias] = entry.specifier
-      }
+      const resolvedVersion = importerSnapshot[field]?.[dep.alias]
+      if (!resolvedVersion || manifest[field]?.[dep.alias] == null) continue
+      // The agent server resolved the tree but, on the plain-install path, it
+      // writes the user's raw spec (`'latest'`) into the lockfile specifier
+      // rather than normalizing to a save-prefix range. Compute the
+      // save-prefix spec client-side from the resolved version.
+      const savePrefixSpec = createVersionSpecFromResolvedVersion(resolvedVersion, pinnedVersion)
+      manifest[field]![dep.alias] = savePrefixSpec ?? resolvedVersion
     }
   }
   return manifest
@@ -2049,12 +2074,12 @@ async function mutateModulesViaAgent (
   const updatedProjects = agentProjects
     .filter((p) => mutatedRootDirs.has(p.rootDir))
     .map((p) => {
-      if (p.mutation === 'installSome' && p.newAliases.length > 0) {
+      if (p.mutation === 'installSome' && p.newDeps.length > 0) {
         // Lockfile importer keys are POSIX-normalized paths.
         const relative = path.relative(lockfileDir, p.rootDir).split(path.sep).join('/')
         const importerId = (relative || '.') as ProjectId
         const snapshot = result.lockfile?.importers?.[importerId]
-        p.manifest = applyResolvedSpecsFromLockfile(p.manifest, snapshot, p.newAliases)
+        p.manifest = applyResolvedSpecsFromLockfile(p.manifest, snapshot, p.newDeps, p.pinnedVersion)
       }
       return { rootDir: p.rootDir, manifest: p.manifest }
     })

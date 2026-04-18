@@ -146,6 +146,103 @@ test('pnpm remove uses pnpm agent when configured', async () => {
   expect(manifest.dependencies?.['is-negative']).toBeUndefined()
 })
 
+test('pnpm add without a version uses the pnpm agent and writes the save-prefix spec from the lockfile', async () => {
+  prepare({})
+
+  requestCount = 0
+
+  await execPnpm(
+    ['add', 'is-positive', `--config.agent=http://localhost:${serverPort}`]
+  )
+
+  expect(requestCount).toBeGreaterThanOrEqual(1)
+  expect(fs.existsSync('node_modules/is-positive')).toBe(true)
+
+  const manifest = loadJsonFileSync<{ dependencies?: Record<string, string> }>('package.json')
+  // The agent resolves "latest" to a concrete version and writes the
+  // resolved version into the lockfile importer's `dependencies` map; the
+  // client computes the save-prefix spec from that version.
+  expect(manifest.dependencies?.['is-positive']).toMatch(/^\^\d+\.\d+\.\d+$/)
+})
+
+test('pnpm add -D uses pnpm agent and targets devDependencies', async () => {
+  prepare({})
+
+  requestCount = 0
+
+  await execPnpm(
+    ['add', '-D', 'is-positive@1.0.0', `--config.agent=http://localhost:${serverPort}`]
+  )
+
+  expect(requestCount).toBeGreaterThanOrEqual(1)
+  expect(fs.existsSync('node_modules/is-positive')).toBe(true)
+
+  const manifest = loadJsonFileSync<{
+    dependencies?: Record<string, string>
+    devDependencies?: Record<string, string>
+  }>('package.json')
+  expect(manifest.devDependencies?.['is-positive']).toBe('1.0.0')
+  expect(manifest.dependencies?.['is-positive']).toBeUndefined()
+})
+
+test('pnpm add with multiple selectors uses pnpm agent', async () => {
+  prepare({})
+
+  requestCount = 0
+
+  await execPnpm(
+    ['add', 'is-positive@1.0.0', 'is-negative@1.0.0', `--config.agent=http://localhost:${serverPort}`]
+  )
+
+  expect(requestCount).toBeGreaterThanOrEqual(1)
+  expect(fs.existsSync('node_modules/is-positive')).toBe(true)
+  expect(fs.existsSync('node_modules/is-negative')).toBe(true)
+
+  const manifest = loadJsonFileSync<{ dependencies?: Record<string, string> }>('package.json')
+  expect(manifest.dependencies?.['is-positive']).toBe('1.0.0')
+  expect(manifest.dependencies?.['is-negative']).toBe('1.0.0')
+})
+
+test('pnpm --filter remove inside a workspace uses pnpm agent', async () => {
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-b',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  requestCount = 0
+
+  await execPnpm(
+    ['--filter=project-b', 'remove', 'is-negative', `--config.agent=http://localhost:${serverPort}`]
+  )
+
+  expect(requestCount).toBeGreaterThanOrEqual(1)
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(true)
+
+  // project-b no longer has is-negative; project-a is unaffected
+  expect(fs.existsSync('project-b/node_modules/is-negative')).toBe(false)
+  expect(fs.existsSync('project-b/node_modules/is-positive')).toBe(true)
+  expect(fs.existsSync('project-a/node_modules/is-positive')).toBe(true)
+
+  const projectBManifest = loadJsonFileSync<{ dependencies?: Record<string, string> }>('project-b/package.json')
+  expect(projectBManifest.dependencies?.['is-negative']).toBeUndefined()
+  expect(projectBManifest.dependencies?.['is-positive']).toBe('1.0.0')
+})
+
 test('pnpm add inside a workspace project uses pnpm agent', async () => {
   preparePackages([
     {
