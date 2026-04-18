@@ -462,3 +462,51 @@ test('should retain existing allowBuilds entries when approving builds', async (
     },
   })
 })
+
+// Regression test for the global-install path: approve-builds is invoked with
+// workspaceDir set to the global packages directory (so writeSettings can
+// update its pnpm-workspace.yaml). When workspacePackagePatterns is undefined
+// — as happens in --global mode — the recursive install would otherwise
+// discover sibling install directories as workspace projects and fail the
+// frozen-lockfile check on those that don't have a matching pnpm-lock.yaml.
+test('GVS approve-builds ignores sibling install dirs under workspace dir', async () => {
+  const temp = tempDir()
+
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+    },
+  }, {
+    tempDir: path.join(temp, 'project'),
+  })
+
+  // Sibling install dir with a package.json that has no matching
+  // pnpm-lock.yaml — mimics a stale `@pnpm/exe` install dir left behind in
+  // the global packages directory.
+  fs.mkdirSync(path.join(temp, 'stale-install'))
+  fs.writeFileSync(
+    path.join(temp, 'stale-install/package.json'),
+    JSON.stringify({ dependencies: { '@pnpm/exe': '11.0.0-rc.2' } })
+  )
+
+  await execPnpmInstall({ enableGlobalVirtualStore: true })
+
+  const config = await getApproveBuildsConfig()
+  prompt.mockResolvedValueOnce({
+    result: [{ value: '@pnpm.e2e/pre-and-postinstall-scripts-example' }],
+  })
+  prompt.mockResolvedValueOnce({ build: true })
+
+  await approveBuilds.handler({
+    ...config,
+    enableGlobalVirtualStore: true,
+    // Match the global-install call site: workspaceDir is set but
+    // workspacePackagePatterns is undefined (cleared because --global
+    // skips workspace detection in the config reader).
+    workspaceDir: temp,
+    workspacePackagePatterns: undefined as unknown as string[],
+    rootProjectManifestDir: process.cwd(),
+  }, [], {})
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
+})

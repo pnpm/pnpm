@@ -211,6 +211,13 @@ Do you approve?`,
         allowBuilds,
         frozenLockfile: true,
         optimisticRepeatInstall: false,
+        // In global-install flows, workspaceDir is set to the global package
+        // directory so writeSettings above can update its pnpm-workspace.yaml.
+        // Clear it before running install so sibling install dirs inside the
+        // global package directory aren't discovered as workspace projects.
+        workspaceDir: undefined,
+        allProjects: undefined,
+        selectedProjectsGraph: undefined,
       } as any, [], commands) // eslint-disable-line @typescript-eslint/no-explicit-any
       return
     }
