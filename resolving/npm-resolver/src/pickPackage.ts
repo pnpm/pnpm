@@ -72,8 +72,7 @@ export interface PickPackageOptions extends PickPackageFromMetaOptions {
   optional?: boolean
 }
 
-interface PickerContext {
-  spec: RegistryPackageSpec
+interface PickerOptions extends PickPackageFromMetaOptions {
   pickLowestVersion?: boolean
   includeLatestTag?: boolean
   strictPublishedByCheck?: boolean
@@ -83,16 +82,13 @@ interface PickerContext {
 // When includeLatestTag is set, the "latest" dist-tag is added as a candidate
 // alongside the requested spec, and the higher-versioned pick wins.
 function runPicker (
-  pickCtx: PickerContext,
+  pickerOpts: PickerOptions,
+  spec: RegistryPackageSpec,
   pickOne: (targetSpec: RegistryPackageSpec) => PackageInRegistry | null
 ): PackageInRegistry | null {
-  const currentPkg = pickOne(pickCtx.spec)
-  if (!pickCtx.includeLatestTag) return currentPkg
-  const latestPkg = pickOne({
-    ...pickCtx.spec,
-    type: 'tag',
-    fetchSpec: 'latest',
-  })
+  const currentPkg = pickOne(spec)
+  if (!pickerOpts.includeLatestTag) return currentPkg
+  const latestPkg = pickOne({ ...spec, type: 'tag', fetchSpec: 'latest' })
   return pickMax(latestPkg, currentPkg)
 }
 
@@ -113,42 +109,40 @@ const pickLowest = pickPackageFromMeta.bind(null, pickLowestVersionByVersionRang
 // and strictPublishedByCheck is off, fall back to the lowest version in range
 // without applying the maturity filter.
 function pickRespectingMinReleaseAge (
-  pickCtx: PickerContext,
-  meta: PackageMeta,
-  filterOpts: PickPackageFromMetaOptions
+  pickerOpts: PickerOptions,
+  spec: RegistryPackageSpec,
+  meta: PackageMeta
 ): PackageInRegistry | null {
-  return runPicker(pickCtx, (targetSpec) => {
-    const highest = pickHighest(filterOpts, meta, targetSpec)
-    if (highest || pickCtx.strictPublishedByCheck) return highest
+  return runPicker(pickerOpts, spec, (targetSpec) => {
+    const highest = pickHighest(pickerOpts, meta, targetSpec)
+    if (highest || pickerOpts.strictPublishedByCheck) return highest
     return pickLowest({
-      preferredVersionSelectors: filterOpts.preferredVersionSelectors,
+      preferredVersionSelectors: pickerOpts.preferredVersionSelectors,
     }, meta, targetSpec)
   })
 }
 
 // When minimumReleaseAge is not active: pick by pickLowestVersion preference.
 function pickIgnoringReleaseAge (
-  pickCtx: PickerContext,
-  meta: PackageMeta,
-  filterOpts: PickPackageFromMetaOptions
+  pickerOpts: PickerOptions,
+  spec: RegistryPackageSpec,
+  meta: PackageMeta
 ): PackageInRegistry | null {
-  const pickVersion = pickCtx.pickLowestVersion ? pickLowest : pickHighest
-  return runPicker(pickCtx, (targetSpec) => pickVersion(filterOpts, meta, targetSpec))
+  const pickVersion = pickerOpts.pickLowestVersion ? pickLowest : pickHighest
+  return runPicker(pickerOpts, spec, (targetSpec) => pickVersion(pickerOpts, meta, targetSpec))
 }
 
 // Used in shortcut/fall-through paths: if it fails (including with
 // ERR_PNPM_MISSING_TIME), the caller falls through to the next path — e.g.
 // the network fetch that can upgrade abbreviated metadata to full.
 function pickMatchingVersionFast (
-  pickCtx: PickerContext,
-  meta: PackageMeta,
-  filterOpts: PickPackageFromMetaOptions
+  pickerOpts: PickerOptions,
+  spec: RegistryPackageSpec,
+  meta: PackageMeta
 ): PackageInRegistry | null {
-  return (
-    filterOpts.publishedBy
-      ? pickRespectingMinReleaseAge
-      : pickIgnoringReleaseAge
-  )(pickCtx, meta, filterOpts)
+  return pickerOpts.publishedBy
+    ? pickRespectingMinReleaseAge(pickerOpts, spec, meta)
+    : pickIgnoringReleaseAge(pickerOpts, spec, meta)
 }
 
 // Used at terminal return sites where no further fallback path exists. When
@@ -156,16 +150,20 @@ function pickMatchingVersionFast (
 // enabled, skip the minimumReleaseAge filter with a warning instead of
 // failing hard.
 function pickMatchingVersionFinal (
-  pickCtx: PickerContext,
-  meta: PackageMeta,
-  filterOpts: PickPackageFromMetaOptions
+  pickerOpts: PickerOptions,
+  spec: RegistryPackageSpec,
+  meta: PackageMeta
 ): PackageInRegistry | null {
   try {
-    return pickMatchingVersionFast(pickCtx, meta, filterOpts)
+    return pickMatchingVersionFast(pickerOpts, spec, meta)
   } catch (err: unknown) {
-    if (pickCtx.ignoreMissingTimeField && isMissingTimeError(err)) {
+    if (pickerOpts.ignoreMissingTimeField && isMissingTimeError(err)) {
       warnMissingTimeFieldOnce(meta.name)
-      return pickMatchingVersionFast(pickCtx, meta, { preferredVersionSelectors: filterOpts.preferredVersionSelectors })
+      return pickMatchingVersionFast({
+        ...pickerOpts,
+        publishedBy: undefined,
+        publishedByExclude: undefined,
+      }, spec, meta)
     }
     throw err
   }
@@ -188,17 +186,14 @@ export async function pickPackage (
 ): Promise<{ meta: PackageMeta, pickedPackage: PackageInRegistry | null }> {
   opts = opts || {}
 
-  const pickCtx: PickerContext = {
-    spec,
+  const pickerOpts: PickerOptions = {
+    preferredVersionSelectors: opts.preferredVersionSelectors,
+    publishedBy: opts.publishedBy,
+    publishedByExclude: opts.publishedByExclude,
     pickLowestVersion: opts.pickLowestVersion,
     includeLatestTag: opts.includeLatestTag,
     strictPublishedByCheck: ctx.strictPublishedByCheck,
     ignoreMissingTimeField: ctx.ignoreMissingTimeField,
-  }
-  const filterOpts: PickPackageFromMetaOptions = {
-    preferredVersionSelectors: opts.preferredVersionSelectors,
-    publishedBy: opts.publishedBy,
-    publishedByExclude: opts.publishedByExclude,
   }
 
   validatePackageName(spec.name)
@@ -215,7 +210,7 @@ export async function pickPackage (
   if (cachedMeta != null) {
     return {
       meta: cachedMeta,
-      pickedPackage: pickMatchingVersionFinal(pickCtx, cachedMeta, filterOpts),
+      pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, cachedMeta),
     }
   }
 
@@ -230,14 +225,14 @@ export async function pickPackage (
       if (ctx.offline) {
         if (metaCachedInStore != null) return {
           meta: metaCachedInStore,
-          pickedPackage: pickMatchingVersionFinal(pickCtx, metaCachedInStore, filterOpts),
+          pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, metaCachedInStore),
         }
 
         throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
       }
 
       if (metaCachedInStore != null) {
-        const pickedPackage = pickMatchingVersionFinal(pickCtx, metaCachedInStore, filterOpts)
+        const pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, metaCachedInStore)
         if (pickedPackage) {
           return {
             meta: metaCachedInStore,
@@ -253,7 +248,7 @@ export async function pickPackage (
       // otherwise it is probably out of date
       if ((metaCachedInStore?.versions?.[spec.fetchSpec]) != null) {
         try {
-          const pickedPackage = pickMatchingVersionFast(pickCtx, metaCachedInStore, filterOpts)
+          const pickedPackage = pickMatchingVersionFast(pickerOpts, spec, metaCachedInStore)
           if (pickedPackage) {
             return {
               meta: metaCachedInStore,
@@ -273,7 +268,7 @@ export async function pickPackage (
         metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
         if (metaCachedInStore != null) {
           try {
-            const pickedPackage = pickMatchingVersionFast(pickCtx, metaCachedInStore, filterOpts)
+            const pickedPackage = pickMatchingVersionFast(pickerOpts, spec, metaCachedInStore)
             if (pickedPackage) {
               return {
                 meta: metaCachedInStore,
@@ -317,7 +312,7 @@ export async function pickPackage (
           ctx.metaCache.set(cacheKey, metaCachedInStore)
           return {
             meta: metaCachedInStore,
-            pickedPackage: pickMatchingVersionFinal(pickCtx, metaCachedInStore, filterOpts),
+            pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, metaCachedInStore),
           }
         }
         throw new PnpmError('CACHE_MISSING_AFTER_304',
@@ -389,7 +384,7 @@ export async function pickPackage (
       ctx.metaCache.set(cacheKey, meta)
       return {
         meta,
-        pickedPackage: pickMatchingVersionFinal(pickCtx, meta, filterOpts),
+        pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, meta),
       }
     } catch (err: any) { // eslint-disable-line
       err.spec = spec
@@ -399,7 +394,7 @@ export async function pickPackage (
       logger.debug({ message: `Using cached meta from ${pkgMirror}` })
       return {
         meta,
-        pickedPackage: pickMatchingVersionFinal(pickCtx, meta, filterOpts),
+        pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, meta),
       }
     }
   })
