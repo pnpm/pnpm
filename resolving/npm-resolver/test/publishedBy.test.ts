@@ -288,6 +288,37 @@ test('ignoreMissingTimeField=false throws when full metadata has no time field',
   })).rejects.toThrow(/missing the "time" field/)
 })
 
+test('ignoreMissingTimeField=true skips maturity check from disk-cached metadata lacking time', async () => {
+  // Exercise the cached-metadata return path: write full metadata to disk
+  // with the `time` field stripped, and verify that resolution succeeds
+  // (no ERR_PNPM_MISSING_TIME) when the setting is on.
+  const { time: _time, ...metaWithoutTime } = isPositiveMeta
+
+  const cacheDir = temporaryDirectory()
+  const cacheDir2 = path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org`)
+  fs.mkdirSync(cacheDir2, { recursive: true })
+  const cachePath = path.join(cacheDir2, 'is-positive.jsonl')
+  fs.writeFileSync(cachePath, `${JSON.stringify({})}\n${JSON.stringify(metaWithoutTime)}`, 'utf8')
+
+  // No mock agent intercepts — test would fail if a network request fired.
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    filterMetadata: true,
+    fullMetadata: true,
+    registries,
+    ignoreMissingTimeField: true,
+    offline: true,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
+    publishedBy: new Date('2015-08-17T19:26:00.508Z'),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+})
+
 test('use cached metadata based on file mtime when publishedBy is set', async () => {
   const cacheDir = temporaryDirectory()
   // Write abbreviated metadata to the abbreviated cache dir

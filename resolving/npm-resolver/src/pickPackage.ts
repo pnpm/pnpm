@@ -132,21 +132,20 @@ function pickBest (
     : pickWithoutMaturity(pickCtx, meta, filterOpts)
 }
 
-// When we've already fetched full metadata (either directly or via an
-// abbreviated→full upgrade) but it still lacks the per-version `time` field,
-// skip the minimumReleaseAge filter with a warning instead of failing hard.
-// Before a full-metadata attempt has been made, we let ERR_PNPM_MISSING_TIME
-// propagate so the upgrade path still runs.
+// When metadata lacks the per-version `time` field and ignoreMissingTimeField
+// is enabled, skip the minimumReleaseAge filter with a warning instead of
+// failing hard. Used only at terminal return sites; the cache/fallback paths
+// that deliberately rely on ERR_PNPM_MISSING_TIME to trigger an upgrade-to-full
+// fetch keep calling pickBest directly inside their try/catch.
 function pickOrSkipMissingTime (
   pickCtx: PickerContext,
   meta: PackageMeta,
-  filterOpts: PickPackageFromMetaOptions,
-  fullMetadataFetched: boolean
+  filterOpts: PickPackageFromMetaOptions
 ): PackageInRegistry | null {
   try {
     return pickBest(pickCtx, meta, filterOpts)
   } catch (err: unknown) {
-    if (pickCtx.ignoreMissingTimeField && fullMetadataFetched && isMissingTimeError(err)) {
+    if (pickCtx.ignoreMissingTimeField && isMissingTimeError(err)) {
       warnMissingTimeFieldOnce(meta.name)
       return pickBest(pickCtx, meta, { preferredVersionSelectors: filterOpts.preferredVersionSelectors })
     }
@@ -198,7 +197,7 @@ export async function pickPackage (
   if (cachedMeta != null) {
     return {
       meta: cachedMeta,
-      pickedPackage: pickBest(pickCtx, cachedMeta, filterOpts),
+      pickedPackage: pickOrSkipMissingTime(pickCtx, cachedMeta, filterOpts),
     }
   }
 
@@ -213,14 +212,14 @@ export async function pickPackage (
       if (ctx.offline) {
         if (metaCachedInStore != null) return {
           meta: metaCachedInStore,
-          pickedPackage: pickBest(pickCtx, metaCachedInStore, filterOpts),
+          pickedPackage: pickOrSkipMissingTime(pickCtx, metaCachedInStore, filterOpts),
         }
 
         throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
       }
 
       if (metaCachedInStore != null) {
-        const pickedPackage = pickBest(pickCtx, metaCachedInStore, filterOpts)
+        const pickedPackage = pickOrSkipMissingTime(pickCtx, metaCachedInStore, filterOpts)
         if (pickedPackage) {
           return {
             meta: metaCachedInStore,
@@ -300,7 +299,7 @@ export async function pickPackage (
           ctx.metaCache.set(cacheKey, metaCachedInStore)
           return {
             meta: metaCachedInStore,
-            pickedPackage: pickBest(pickCtx, metaCachedInStore, filterOpts),
+            pickedPackage: pickOrSkipMissingTime(pickCtx, metaCachedInStore, filterOpts),
           }
         }
         throw new PnpmError('CACHE_MISSING_AFTER_304',
@@ -309,7 +308,6 @@ export async function pickPackage (
 
       let meta = fetchResult.meta
       let resultToSave: FetchMetadataResult = fetchResult
-      let fullMetadataFetched = fullMetadata
 
       // When minimumReleaseAge is active and we fetched abbreviated metadata,
       // check if the package was recently modified and needs full metadata
@@ -348,7 +346,6 @@ export async function pickPackage (
           if (!fullFetchResult.notModified) {
             resultToSave = fullFetchResult
             meta = fullFetchResult.meta
-            fullMetadataFetched = true
           }
         }
       }
@@ -374,7 +371,7 @@ export async function pickPackage (
       ctx.metaCache.set(cacheKey, meta)
       return {
         meta,
-        pickedPackage: pickOrSkipMissingTime(pickCtx, meta, filterOpts, fullMetadataFetched),
+        pickedPackage: pickOrSkipMissingTime(pickCtx, meta, filterOpts),
       }
     } catch (err: any) { // eslint-disable-line
       err.spec = spec
@@ -384,7 +381,7 @@ export async function pickPackage (
       logger.debug({ message: `Using cached meta from ${pkgMirror}` })
       return {
         meta,
-        pickedPackage: pickBest(pickCtx, meta, filterOpts),
+        pickedPackage: pickOrSkipMissingTime(pickCtx, meta, filterOpts),
       }
     }
   })
@@ -455,10 +452,18 @@ function isMissingTimeError (err: unknown): boolean {
   )
 }
 
+// Cap the size so long-lived processes (daemons, store servers) can't leak
+// memory via this Set as they resolve ever more distinct packages.
+const MAX_WARNED_MISSING_TIME = 1024
 const warnedMissingTimeFor = new Set<string>()
 
 function warnMissingTimeFieldOnce (pkgName: string): void {
   if (warnedMissingTimeFor.has(pkgName)) return
+  if (warnedMissingTimeFor.size >= MAX_WARNED_MISSING_TIME) {
+    // Set preserves insertion order, so the first entry is the oldest.
+    const oldest = warnedMissingTimeFor.values().next().value
+    if (oldest != null) warnedMissingTimeFor.delete(oldest)
+  }
   warnedMissingTimeFor.add(pkgName)
   globalWarn(`The metadata of ${pkgName} is missing the "time" field; skipping the minimumReleaseAge check for this package.`)
 }
