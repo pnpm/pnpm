@@ -286,16 +286,17 @@ async function _rebuild (
   const pkgSnapshots: PackageSnapshots = ctx.currentLockfile.packages ?? {}
 
   const nodesToBuildAndTransitive = new Set<DepPath>()
+  const include = opts.include ?? {
+    dependencies: opts.production,
+    devDependencies: opts.development,
+    optionalDependencies: opts.optional,
+  }
   getSubgraphToBuild(
     lockfileWalker(
       ctx.currentLockfile,
       Object.values(ctx.projects).map(({ id }) => id),
       {
-        include: {
-          dependencies: opts.production,
-          devDependencies: opts.development,
-          optionalDependencies: opts.optional,
-        },
+        include,
       }
     ).step,
     nodesToBuildAndTransitive,
