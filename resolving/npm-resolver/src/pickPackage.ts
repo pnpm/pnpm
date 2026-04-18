@@ -86,9 +86,14 @@ function runPicker (
   pickCtx: PickerContext,
   pickOne: (targetSpec: RegistryPackageSpec) => PackageInRegistry | null
 ): PackageInRegistry | null {
-  if (!pickCtx.includeLatestTag) return pickOne(pickCtx.spec)
-  const latestStableSpec: RegistryPackageSpec = { ...pickCtx.spec, type: 'tag', fetchSpec: 'latest' }
-  return pickMax(pickOne(latestStableSpec), pickOne(pickCtx.spec))
+  const currentPkg = pickOne(pickCtx.spec)
+  if (!pickCtx.includeLatestTag) return currentPkg
+  const latestPkg = pickOne({
+    ...pickCtx.spec,
+    type: 'tag',
+    fetchSpec: 'latest',
+  })
+  return pickMax(latestPkg, currentPkg)
 }
 
 // Returns whichever pick has the higher version, treating null as "no match".
@@ -101,6 +106,9 @@ function pickMax (
   return semver.lt(a.version, b.version) ? b : a
 }
 
+const pickHighest = pickPackageFromMeta.bind(null, pickVersionByVersionRange)
+const pickLowest = pickPackageFromMeta.bind(null, pickLowestVersionByVersionRange)
+
 // When minimumReleaseAge is active: try the highest mature version; if none
 // and strictPublishedByCheck is off, fall back to the lowest version in range
 // without applying the maturity filter.
@@ -109,14 +117,12 @@ function pickRespectingMinReleaseAge (
   meta: PackageMeta,
   filterOpts: PickPackageFromMetaOptions
 ): PackageInRegistry | null {
-  const pickHighest = pickPackageFromMeta.bind(null, pickVersionByVersionRange, filterOpts, meta)
-  const pickLowest = pickPackageFromMeta.bind(null, pickLowestVersionByVersionRange, {
-    preferredVersionSelectors: filterOpts.preferredVersionSelectors,
-  }, meta)
   return runPicker(pickCtx, (targetSpec) => {
-    const highest = pickHighest(targetSpec)
+    const highest = pickHighest(filterOpts, meta, targetSpec)
     if (highest || pickCtx.strictPublishedByCheck) return highest
-    return pickLowest(targetSpec)
+    return pickLowest({
+      preferredVersionSelectors: filterOpts.preferredVersionSelectors,
+    }, meta, targetSpec)
   })
 }
 
@@ -126,8 +132,8 @@ function pickIgnoringReleaseAge (
   meta: PackageMeta,
   filterOpts: PickPackageFromMetaOptions
 ): PackageInRegistry | null {
-  const pickVersion = pickCtx.pickLowestVersion ? pickLowestVersionByVersionRange : pickVersionByVersionRange
-  return runPicker(pickCtx, (targetSpec) => pickPackageFromMeta(pickVersion, filterOpts, meta, targetSpec))
+  const pickVersion = pickCtx.pickLowestVersion ? pickLowest : pickHighest
+  return runPicker(pickCtx, (targetSpec) => pickVersion(filterOpts, meta, targetSpec))
 }
 
 // Used in shortcut/fall-through paths: if it fails (including with
@@ -138,9 +144,11 @@ function pickMatchingVersionFast (
   meta: PackageMeta,
   filterOpts: PickPackageFromMetaOptions
 ): PackageInRegistry | null {
-  return filterOpts.publishedBy
-    ? pickRespectingMinReleaseAge(pickCtx, meta, filterOpts)
-    : pickIgnoringReleaseAge(pickCtx, meta, filterOpts)
+  return (
+    filterOpts.publishedBy
+      ? pickRespectingMinReleaseAge
+      : pickIgnoringReleaseAge
+  )(pickCtx, meta, filterOpts)
 }
 
 // Used at terminal return sites where no further fallback path exists. When
