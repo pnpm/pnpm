@@ -80,43 +80,56 @@ interface PickerContext {
   ignoreMissingTimeField?: boolean
 }
 
-// Pick a version from the metadata for the given `targetSpec`, honoring
-// publishedBy (minimumReleaseAge) when set:
-// - with publishedBy, try the highest mature version; if none and
-//   strictPublishedByCheck is off, fall back to the lowest mature version.
-// - without publishedBy, use pickLowestVersion to choose the direction.
-function pickForSpec (
+// Calls `pickOne` for the requested spec, or — when updateToLatest is set —
+// for both the requested spec and the "latest" dist-tag, returning whichever
+// resolves to the higher version.
+function pickForAllSpecs (
   pickCtx: PickerContext,
-  targetSpec: RegistryPackageSpec,
+  pickOne: (targetSpec: RegistryPackageSpec) => PackageInRegistry | null
+): PackageInRegistry | null {
+  if (!pickCtx.updateToLatest) return pickOne(pickCtx.spec)
+  const latestSpec: RegistryPackageSpec = { ...pickCtx.spec, type: 'tag', fetchSpec: 'latest' }
+  const latest = pickOne(latestSpec)
+  const current = pickOne(pickCtx.spec)
+  if (!latest) return current
+  if (!current) return latest
+  return semver.lt(latest.version, current.version) ? current : latest
+}
+
+// When minimumReleaseAge is active: try the highest mature version; if none
+// and strictPublishedByCheck is off, fall back to the lowest mature version.
+function pickWithMaturity (
+  pickCtx: PickerContext,
   meta: PackageMeta,
   filterOpts: PickPackageFromMetaOptions
 ): PackageInRegistry | null {
-  if (filterOpts.publishedBy) {
+  return pickForAllSpecs(pickCtx, (targetSpec) => {
     const highest = pickPackageFromMeta(pickVersionByVersionRange, filterOpts, targetSpec, meta)
     if (highest || pickCtx.strictPublishedByCheck) return highest
     return pickPackageFromMeta(pickLowestVersionByVersionRange, {
       preferredVersionSelectors: filterOpts.preferredVersionSelectors,
     }, targetSpec, meta)
-  }
-  const pickVersion = pickCtx.pickLowestVersion ? pickLowestVersionByVersionRange : pickVersionByVersionRange
-  return pickPackageFromMeta(pickVersion, filterOpts, targetSpec, meta)
+  })
 }
 
-// Pick a version from the metadata using the given filter options. When
-// updateToLatest is set, compares the "latest" dist-tag against the
-// requested spec and returns whichever resolves to the higher version.
+// When minimumReleaseAge is not active: pick by pickLowestVersion preference.
+function pickWithoutMaturity (
+  pickCtx: PickerContext,
+  meta: PackageMeta,
+  filterOpts: PickPackageFromMetaOptions
+): PackageInRegistry | null {
+  const pickVersion = pickCtx.pickLowestVersion ? pickLowestVersionByVersionRange : pickVersionByVersionRange
+  return pickForAllSpecs(pickCtx, (targetSpec) => pickPackageFromMeta(pickVersion, filterOpts, targetSpec, meta))
+}
+
 function pickBest (
   pickCtx: PickerContext,
   meta: PackageMeta,
   filterOpts: PickPackageFromMetaOptions
 ): PackageInRegistry | null {
-  if (!pickCtx.updateToLatest) return pickForSpec(pickCtx, pickCtx.spec, meta, filterOpts)
-  const latestSpec: RegistryPackageSpec = { ...pickCtx.spec, type: 'tag', fetchSpec: 'latest' }
-  const latest = pickForSpec(pickCtx, latestSpec, meta, filterOpts)
-  const current = pickForSpec(pickCtx, pickCtx.spec, meta, filterOpts)
-  if (!latest) return current
-  if (!current) return latest
-  return semver.lt(latest.version, current.version) ? current : latest
+  return filterOpts.publishedBy
+    ? pickWithMaturity(pickCtx, meta, filterOpts)
+    : pickWithoutMaturity(pickCtx, meta, filterOpts)
 }
 
 // When we've already fetched full metadata (either directly or via an
