@@ -46,6 +46,10 @@ export function assertValidWorkspaceManifestCatalogs (manifest: { packages?: rea
       throw new InvalidWorkspaceManifestError(`Expected named catalog ${catalogName} to be an object, but found - array`)
     }
 
+    if (catalog === null) {
+      throw new InvalidWorkspaceManifestError(`Expected named catalog ${catalogName} to be an object, but found - null`)
+    }
+
     if (typeof catalog !== 'object') {
       throw new InvalidWorkspaceManifestError(`Expected named catalog ${catalogName} to be an object, but found - ${typeof catalog}`)
     }
