@@ -151,9 +151,9 @@ describe('cafs', () => {
 })
 
 describe('checkPkgFilesIntegrity()', () => {
-  it("doesn't fail if file was removed from the store", () => {
+  it("doesn't fail if file was removed from the store", async () => {
     const storeDir = temporaryDirectory()
-    expect(checkPkgFilesIntegrity(storeDir, {
+    expect((await checkPkgFilesIntegrity(storeDir, {
       algo: 'sha512',
       files: new Map([
         ['foo', {
@@ -162,7 +162,7 @@ describe('checkPkgFilesIntegrity()', () => {
           size: 10,
         }],
       ]),
-    }).passed).toBeFalsy()
+    })).passed).toBeFalsy()
   })
 })
 

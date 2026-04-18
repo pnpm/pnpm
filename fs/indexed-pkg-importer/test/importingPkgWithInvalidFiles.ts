@@ -16,5 +16,9 @@ test('importing a package with invalid files', async () => {
     force: false,
     resolvedFrom: 'remote',
   })
+  console.log('target contents:', fs.readdirSync(target));
+  try {
+    console.log('foo?bar:', fs.readdirSync(path.join(target, 'foo?bar')));
+  } catch (_e) {}
   expect((fs.readdirSync(target))).toHaveLength(2)
 })
