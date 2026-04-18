@@ -72,6 +72,75 @@ export interface PickPackageOptions extends PickPackageFromMetaOptions {
   optional?: boolean
 }
 
+interface PickerContext {
+  spec: RegistryPackageSpec
+  pickLowestVersion?: boolean
+  updateToLatest?: boolean
+  strictPublishedByCheck?: boolean
+  ignoreMissingTimeField?: boolean
+}
+
+// Pick a version from the metadata for the given `targetSpec`, honoring
+// publishedBy (minimumReleaseAge) when set:
+// - with publishedBy, try the highest mature version; if none and
+//   strictPublishedByCheck is off, fall back to the lowest mature version.
+// - without publishedBy, use pickLowestVersion to choose the direction.
+function pickForSpec (
+  pickCtx: PickerContext,
+  targetSpec: RegistryPackageSpec,
+  meta: PackageMeta,
+  filterOpts: PickPackageFromMetaOptions
+): PackageInRegistry | null {
+  if (filterOpts.publishedBy) {
+    const highest = pickPackageFromMeta(pickVersionByVersionRange, filterOpts, targetSpec, meta)
+    if (highest || pickCtx.strictPublishedByCheck) return highest
+    return pickPackageFromMeta(pickLowestVersionByVersionRange, {
+      preferredVersionSelectors: filterOpts.preferredVersionSelectors,
+    }, targetSpec, meta)
+  }
+  const pickVersion = pickCtx.pickLowestVersion ? pickLowestVersionByVersionRange : pickVersionByVersionRange
+  return pickPackageFromMeta(pickVersion, filterOpts, targetSpec, meta)
+}
+
+// Pick a version from the metadata using the given filter options. When
+// updateToLatest is set, compares the "latest" dist-tag against the
+// requested spec and returns whichever resolves to the higher version.
+function pickBest (
+  pickCtx: PickerContext,
+  meta: PackageMeta,
+  filterOpts: PickPackageFromMetaOptions
+): PackageInRegistry | null {
+  if (!pickCtx.updateToLatest) return pickForSpec(pickCtx, pickCtx.spec, meta, filterOpts)
+  const latestSpec: RegistryPackageSpec = { ...pickCtx.spec, type: 'tag', fetchSpec: 'latest' }
+  const latest = pickForSpec(pickCtx, latestSpec, meta, filterOpts)
+  const current = pickForSpec(pickCtx, pickCtx.spec, meta, filterOpts)
+  if (!latest) return current
+  if (!current) return latest
+  return semver.lt(latest.version, current.version) ? current : latest
+}
+
+// When we've already fetched full metadata (either directly or via an
+// abbreviated→full upgrade) but it still lacks the per-version `time` field,
+// skip the minimumReleaseAge filter with a warning instead of failing hard.
+// Before a full-metadata attempt has been made, we let ERR_PNPM_MISSING_TIME
+// propagate so the upgrade path still runs.
+function pickOrSkipMissingTime (
+  pickCtx: PickerContext,
+  meta: PackageMeta,
+  filterOpts: PickPackageFromMetaOptions,
+  fullMetadataFetched: boolean
+): PackageInRegistry | null {
+  try {
+    return pickBest(pickCtx, meta, filterOpts)
+  } catch (err: unknown) {
+    if (pickCtx.ignoreMissingTimeField && fullMetadataFetched && isMissingTimeError(err)) {
+      warnMissingTimeFieldOnce(meta.name)
+      return pickBest(pickCtx, meta, { preferredVersionSelectors: filterOpts.preferredVersionSelectors })
+    }
+    throw err
+  }
+}
+
 export async function pickPackage (
   ctx: {
     fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean, etag?: string, modified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
@@ -89,59 +158,17 @@ export async function pickPackage (
 ): Promise<{ meta: PackageMeta, pickedPackage: PackageInRegistry | null }> {
   opts = opts || {}
 
-  // Select a specific version from the given meta for `targetSpec`, honoring
-  // publishedBy (minimumReleaseAge) when set:
-  // - with publishedBy, try the highest mature version; if none and
-  //   strictPublishedByCheck is off, fall back to the lowest mature version.
-  // - without publishedBy, use opts.pickLowestVersion to choose the direction.
-  const pickForSpec = (targetSpec: RegistryPackageSpec, meta: PackageMeta, filterOpts: PickPackageFromMetaOptions): PackageInRegistry | null => {
-    if (filterOpts.publishedBy) {
-      const highest = pickPackageFromMeta(pickVersionByVersionRange, filterOpts, targetSpec, meta)
-      if (highest || ctx.strictPublishedByCheck) return highest
-      return pickPackageFromMeta(pickLowestVersionByVersionRange, {
-        preferredVersionSelectors: filterOpts.preferredVersionSelectors,
-      }, targetSpec, meta)
-    }
-    const pickVersion = opts.pickLowestVersion ? pickLowestVersionByVersionRange : pickVersionByVersionRange
-    return pickPackageFromMeta(pickVersion, filterOpts, targetSpec, meta)
+  const pickCtx: PickerContext = {
+    spec,
+    pickLowestVersion: opts.pickLowestVersion,
+    updateToLatest: opts.updateToLatest,
+    strictPublishedByCheck: ctx.strictPublishedByCheck,
+    ignoreMissingTimeField: ctx.ignoreMissingTimeField,
   }
-
   const filterOpts: PickPackageFromMetaOptions = {
     preferredVersionSelectors: opts.preferredVersionSelectors,
     publishedBy: opts.publishedBy,
     publishedByExclude: opts.publishedByExclude,
-  }
-
-  // Pick a version from the metadata using the given filter options. When
-  // updateToLatest is set, compares the "latest" dist-tag against the
-  // requested spec and returns whichever resolves to the higher version.
-  const pickBest = (meta: PackageMeta, filterOpts: PickPackageFromMetaOptions): PackageInRegistry | null => {
-    if (!opts.updateToLatest) return pickForSpec(spec, meta, filterOpts)
-    const latestSpec: RegistryPackageSpec = { ...spec, type: 'tag', fetchSpec: 'latest' }
-    const latest = pickForSpec(latestSpec, meta, filterOpts)
-    const current = pickForSpec(spec, meta, filterOpts)
-    if (!latest) return current
-    if (!current) return latest
-    return semver.lt(latest.version, current.version) ? current : latest
-  }
-
-  const pickFromMeta = (meta: PackageMeta): PackageInRegistry | null => pickBest(meta, filterOpts)
-
-  // When we've already fetched full metadata (either directly or via an
-  // abbreviated→full upgrade) but it still lacks the per-version `time` field,
-  // skip the minimumReleaseAge filter with a warning instead of failing hard.
-  // Before a full-metadata attempt has been made, we let ERR_PNPM_MISSING_TIME
-  // propagate so the upgrade path still runs.
-  const pickOrSkipMissingTime = (meta: PackageMeta, fullMetadataFetched: boolean): PackageInRegistry | null => {
-    try {
-      return pickBest(meta, filterOpts)
-    } catch (err: unknown) {
-      if (ctx.ignoreMissingTimeField && fullMetadataFetched && isMissingTimeError(err)) {
-        warnMissingTimeFieldOnce(meta.name)
-        return pickBest(meta, { preferredVersionSelectors: opts.preferredVersionSelectors })
-      }
-      throw err
-    }
   }
 
   validatePackageName(spec.name)
@@ -158,7 +185,7 @@ export async function pickPackage (
   if (cachedMeta != null) {
     return {
       meta: cachedMeta,
-      pickedPackage: pickFromMeta(cachedMeta),
+      pickedPackage: pickBest(pickCtx, cachedMeta, filterOpts),
     }
   }
 
@@ -173,14 +200,14 @@ export async function pickPackage (
       if (ctx.offline) {
         if (metaCachedInStore != null) return {
           meta: metaCachedInStore,
-          pickedPackage: pickFromMeta(metaCachedInStore),
+          pickedPackage: pickBest(pickCtx, metaCachedInStore, filterOpts),
         }
 
         throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
       }
 
       if (metaCachedInStore != null) {
-        const pickedPackage = pickFromMeta(metaCachedInStore)
+        const pickedPackage = pickBest(pickCtx, metaCachedInStore, filterOpts)
         if (pickedPackage) {
           return {
             meta: metaCachedInStore,
@@ -196,7 +223,7 @@ export async function pickPackage (
       // otherwise it is probably out of date
       if ((metaCachedInStore?.versions?.[spec.fetchSpec]) != null) {
         try {
-          const pickedPackage = pickFromMeta(metaCachedInStore)
+          const pickedPackage = pickBest(pickCtx, metaCachedInStore, filterOpts)
           if (pickedPackage) {
             return {
               meta: metaCachedInStore,
@@ -216,7 +243,7 @@ export async function pickPackage (
         metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
         if (metaCachedInStore != null) {
           try {
-            const pickedPackage = pickFromMeta(metaCachedInStore)
+            const pickedPackage = pickBest(pickCtx, metaCachedInStore, filterOpts)
             if (pickedPackage) {
               return {
                 meta: metaCachedInStore,
@@ -260,7 +287,7 @@ export async function pickPackage (
           ctx.metaCache.set(cacheKey, metaCachedInStore)
           return {
             meta: metaCachedInStore,
-            pickedPackage: pickFromMeta(metaCachedInStore),
+            pickedPackage: pickBest(pickCtx, metaCachedInStore, filterOpts),
           }
         }
         throw new PnpmError('CACHE_MISSING_AFTER_304',
@@ -334,7 +361,7 @@ export async function pickPackage (
       ctx.metaCache.set(cacheKey, meta)
       return {
         meta,
-        pickedPackage: pickOrSkipMissingTime(meta, fullMetadataFetched),
+        pickedPackage: pickOrSkipMissingTime(pickCtx, meta, filterOpts, fullMetadataFetched),
       }
     } catch (err: any) { // eslint-disable-line
       err.spec = spec
@@ -344,7 +371,7 @@ export async function pickPackage (
       logger.debug({ message: `Using cached meta from ${pkgMirror}` })
       return {
         meta,
-        pickedPackage: pickFromMeta(meta),
+        pickedPackage: pickBest(pickCtx, meta, filterOpts),
       }
     }
   })
