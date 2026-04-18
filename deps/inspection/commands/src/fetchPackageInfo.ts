@@ -79,8 +79,8 @@ export async function fetchPackageInfo (
   const data = pickPackageFromMeta(
     pickVersionByVersionRange,
     { preferredVersionSelectors: undefined },
-    spec,
-    metadata
+    metadata,
+    spec
   )
   if (!data) {
     throw new PnpmError('PACKAGE_NOT_FOUND', `No matching version found for ${packageName}@${spec.fetchSpec}`)

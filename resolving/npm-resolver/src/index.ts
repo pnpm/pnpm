@@ -136,6 +136,7 @@ export interface ResolverFactoryOptions {
   saveWorkspaceProtocol?: boolean | 'rolling'
   preserveAbsolutePaths?: boolean
   strictPublishedByCheck?: boolean
+  ignoreMissingTimeField?: boolean
   fetchWarnTimeoutMs?: number
 }
 
@@ -224,6 +225,7 @@ export function createNpmResolver (
       preferOffline: opts.preferOffline,
       cacheDir: opts.cacheDir,
       strictPublishedByCheck: opts.strictPublishedByCheck,
+      ignoreMissingTimeField: opts.ignoreMissingTimeField,
     }),
     registries: opts.registries,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
@@ -358,7 +360,7 @@ async function resolveNpm (
       dryRun: opts.dryRun === true,
       preferredVersionSelectors: opts.preferredVersions?.[spec.name],
       registry,
-      updateToLatest: opts.update === 'latest',
+      includeLatestTag: opts.update === 'latest',
       optional: wantedDependency.optional,
     })
   } catch (err: any) { // eslint-disable-line
@@ -500,7 +502,7 @@ async function resolveJsr (
     dryRun: opts.dryRun === true,
     preferredVersionSelectors: opts.preferredVersions?.[spec.name],
     registry,
-    updateToLatest: opts.update === 'latest',
+    includeLatestTag: opts.update === 'latest',
   })
 
   if (pickedPackage == null) {
