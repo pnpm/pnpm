@@ -1,4 +1,5 @@
 import type { ChildProcess as NodeChildProcess, StdioOptions } from 'node:child_process'
+import fs from 'node:fs'
 import path from 'node:path'
 
 import type { Config } from '@pnpm/config.reader'
@@ -7,9 +8,45 @@ import crossSpawn from 'cross-spawn'
 import isWindows from 'is-windows'
 import { readYamlFileSync } from 'read-yaml-file'
 
-export const binDir = path.join(import.meta.dirname, '../..', isWindows() ? 'dist' : 'bin')
+function getBinDir (): string {
+  const isWin = isWindows()
+  const cwd = process.cwd()
+  const pnpmDir = path.join(cwd, isWin ? 'dist' : 'bin')
+  if (fs.existsSync(path.join(pnpmDir, 'pnpm.mjs'))) {
+    return pnpmDir
+  }
+  const fromPackage = path.join(cwd, '..', 'bin')
+  if (fs.existsSync(path.join(fromPackage, 'pnpm.mjs'))) {
+    return fromPackage
+  }
+  const altDir = path.join(cwd, isWin ? 'dist' : 'dist')
+  if (fs.existsSync(path.join(altDir, 'pnpm.mjs'))) {
+    return altDir
+  }
+  const parentBin = path.join(cwd, '..', isWin ? 'dist' : 'bin')
+  if (fs.existsSync(path.join(parentBin, 'pnpm.mjs'))) {
+    return parentBin
+  }
+  return fromPackage
+}
+export const binDir = getBinDir()
 export const pnpmBinLocation = path.join(binDir, 'pnpm.mjs')
-export const pnpxBinLocation = path.join(import.meta.dirname, '../../bin/pnpx.mjs')
+
+function getPnpxBinLocation (): string {
+  const base = import.meta.dirname
+  const candidates = [
+    path.join(base, '../../bin/pnpx.mjs'),
+    path.join(base, '../bin/pnpx.mjs'),
+    path.join(base, 'bin/pnpx.mjs'),
+  ]
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate
+    }
+  }
+  return candidates[0]
+}
+export const pnpxBinLocation = getPnpxBinLocation()
 
 // The default timeout for tests is 4 minutes. Set a timeout for execPnpm calls
 // for 3 minutes to make it more clear what specific part of a test is timing
