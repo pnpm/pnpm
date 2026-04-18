@@ -212,6 +212,51 @@ test('re-fetch full metadata when abbreviated modified date is recent', async ()
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
 })
 
+test('ignoreMissingTimeField=true skips maturity check when full metadata has no time field', async () => {
+  const { time: _time, ...metaWithoutTime } = isPositiveMeta
+
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, metaWithoutTime)
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    filterMetadata: true,
+    fullMetadata: true,
+    registries,
+    ignoreMissingTimeField: true,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
+    publishedBy: new Date('2015-08-17T19:26:00.508Z'),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+})
+
+test('ignoreMissingTimeField=false throws when full metadata has no time field', async () => {
+  const { time: _time, ...metaWithoutTime } = isPositiveMeta
+
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, metaWithoutTime)
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    filterMetadata: true,
+    fullMetadata: true,
+    registries,
+    ignoreMissingTimeField: false,
+  })
+  await expect(resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
+    publishedBy: new Date('2015-08-17T19:26:00.508Z'),
+  })).rejects.toThrow(/missing the "time" field/)
+})
+
 test('use cached metadata based on file mtime when publishedBy is set', async () => {
   const cacheDir = temporaryDirectory()
   // Write abbreviated metadata to the abbreviated cache dir

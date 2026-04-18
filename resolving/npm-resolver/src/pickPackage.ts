@@ -96,6 +96,7 @@ export async function pickPackage (
     preferOffline?: boolean
     filterMetadata?: boolean
     strictPublishedByCheck?: boolean
+    ignoreMissingTimeField?: boolean
   },
   spec: RegistryPackageSpec,
   opts: PickPackageOptions
@@ -109,6 +110,7 @@ export async function pickPackage (
     preferredVersionSelectors: opts.preferredVersionSelectors,
     publishedBy: opts.publishedBy,
     publishedByExclude: opts.publishedByExclude,
+    ignoreMissingTimeField: ctx.ignoreMissingTimeField,
   })
 
   let _pickPackageFromMeta!: (meta: PackageMeta) => PackageInRegistry | null

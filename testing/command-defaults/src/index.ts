@@ -36,6 +36,7 @@ export const DEFAULT_OPTS = {
   lock: false,
   lockStaleDuration: 90,
   minimumReleaseAge: 0,
+  minimumReleaseAgeIgnoreMissingTime: true,
   networkConcurrency: 16,
   offline: false,
   pending: false,

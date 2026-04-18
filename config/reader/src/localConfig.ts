@@ -77,6 +77,7 @@ const AUTH_CFG_KEYS = [
 const SECURITY_POLICY_CFG_KEYS = [
   'minimumReleaseAge',
   'minimumReleaseAgeExclude',
+  'minimumReleaseAgeIgnoreMissingTime',
   'minimumReleaseAgeStrict',
   'trustPolicy',
   'trustPolicyExclude',

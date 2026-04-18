@@ -173,6 +173,7 @@ export async function getConfig (opts: {
     'link-workspace-packages': false,
     'lockfile-include-tarball-url': false,
     'minimum-release-age': 24 * 60, // 1 day
+    'minimum-release-age-ignore-missing-time': true,
     'modules-cache-max-age': 7 * 24 * 60, // 7 days
     'dlx-cache-max-age': 24 * 60, // 1 day
     'node-linker': 'isolated',

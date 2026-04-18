@@ -1,6 +1,7 @@
 import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
+import { globalWarn } from '@pnpm/logger'
 import { filterPkgMetadataByPublishDate } from '@pnpm/resolving.registry.pkg-metadata-filter'
 import type { PackageInRegistry, PackageMeta, PackageMetaWithTime } from '@pnpm/resolving.registry.types'
 import type { VersionSelectors } from '@pnpm/resolving.resolver-base'
@@ -22,6 +23,7 @@ export interface PickPackageFromMetaOptions {
   preferredVersionSelectors: VersionSelectors | undefined
   publishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
+  ignoreMissingTimeField?: boolean
 }
 
 export function pickPackageFromMeta (
@@ -30,6 +32,7 @@ export function pickPackageFromMeta (
     preferredVersionSelectors,
     publishedBy,
     publishedByExclude,
+    ignoreMissingTimeField,
   }: PickPackageFromMetaOptions,
   spec: RegistryPackageSpec,
   meta: PackageMeta
@@ -48,7 +51,11 @@ export function pickPackageFromMeta (
           // Abbreviated metadata without per-version timestamps, and the package
           // was recently modified (or has no/invalid modified field). We cannot determine
           // which individual versions are mature enough — need full metadata.
-          assertMetaHasTime(meta)
+          if (ignoreMissingTimeField) {
+            warnMissingTimeFieldOnce(meta.name)
+          } else {
+            assertMetaHasTime(meta)
+          }
         }
         // else: meta.modified < publishedBy — all versions are old enough, no filtering needed
       }
@@ -111,6 +118,14 @@ export function assertMetaHasTime (meta: PackageMeta): asserts meta is PackageMe
   if (meta.time == null) {
     throw new PnpmError('MISSING_TIME', `The metadata of ${meta.name} is missing the "time" field`)
   }
+}
+
+const warnedMissingTimeFor = new Set<string>()
+
+function warnMissingTimeFieldOnce (pkgName: string): void {
+  if (warnedMissingTimeFor.has(pkgName)) return
+  warnedMissingTimeFor.add(pkgName)
+  globalWarn(`The metadata of ${pkgName} is missing the "time" field; skipping the minimumReleaseAge check for this package.`)
 }
 
 function parseModifiedDate (modified: string | undefined): Date | null {

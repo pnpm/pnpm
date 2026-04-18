@@ -136,6 +136,7 @@ export interface ResolverFactoryOptions {
   saveWorkspaceProtocol?: boolean | 'rolling'
   preserveAbsolutePaths?: boolean
   strictPublishedByCheck?: boolean
+  ignoreMissingTimeField?: boolean
   fetchWarnTimeoutMs?: number
 }
 
@@ -224,6 +225,7 @@ export function createNpmResolver (
       preferOffline: opts.preferOffline,
       cacheDir: opts.cacheDir,
       strictPublishedByCheck: opts.strictPublishedByCheck,
+      ignoreMissingTimeField: opts.ignoreMissingTimeField,
     }),
     registries: opts.registries,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
