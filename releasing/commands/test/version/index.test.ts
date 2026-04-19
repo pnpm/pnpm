@@ -238,11 +238,11 @@ describe('version command', () => {
       await execa('git', ['init', '-q'], { cwd: tempDir })
       await execa('git', ['config', 'user.email', 'x@y.z'], { cwd: tempDir })
       await execa('git', ['config', 'user.name', 'xyz'], { cwd: tempDir })
-      await execa('git', ['config', 'commit.gpgsign', 'false'], { cwd: tempDir })
-      await execa('git', ['config', 'tag.gpgsign', 'false'], { cwd: tempDir })
+      await execa('git', ['config', 'commit.gpgSign', 'false'], { cwd: tempDir })
+      await execa('git', ['config', 'tag.gpgSign', 'false'], { cwd: tempDir })
       fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({ name: 'test-pkg', version: '1.0.0' }))
       await execa('git', ['add', '.'], { cwd: tempDir })
-      await execa('git', ['commit', '-q', '-m', 'init'], { cwd: tempDir })
+      await execa('git', ['commit', '-q', '-m', 'init', '--no-gpg-sign'], { cwd: tempDir })
     })
 
     afterEach(() => {
