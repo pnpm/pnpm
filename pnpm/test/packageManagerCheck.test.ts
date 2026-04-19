@@ -315,6 +315,23 @@ test('warns when packageManager version does not satisfy the devEngines.packageM
   expect(stderr.toString()).toContain('Cannot use both "packageManager" and "devEngines.packageManager"')
 })
 
+test('warns when packageManager uses a non-canonical exact version even if it would match devEngines.packageManager after normalization', async () => {
+  prepare({
+    packageManager: 'pnpm@v1.2.3',
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '1.2.3',
+        onFail: 'ignore',
+      },
+    },
+  })
+
+  const { stderr } = execPnpmSync(['install'])
+
+  expect(stderr.toString()).toContain('Cannot use both "packageManager" and "devEngines.packageManager"')
+})
+
 test('pmOnFail=ignore via env var bypasses the devEngines.packageManager check', async () => {
   prepare({
     devEngines: {

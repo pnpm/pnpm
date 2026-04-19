@@ -709,7 +709,10 @@ function packageManagerFieldsConflict (packageManager: string, pmFromDevEngines:
   // If either side lacks a version, there's nothing concrete to conflict on.
   if (pmFromDevEngines.version == null || legacyPm.version == null) return false
   const legacyVersion = semver.valid(legacyPm.version)
-  if (legacyVersion == null) return true
+  // The legacy `packageManager` field is only respected for canonical exact versions.
+  // A non-canonical value (e.g. "pnpm@v1.2.3") would be rejected on its own, so treat
+  // it as a conflict here so the warning still surfaces the underlying problem.
+  if (legacyVersion == null || legacyVersion !== legacyPm.version) return true
   return !semver.satisfies(legacyVersion, pmFromDevEngines.version)
 }
 
