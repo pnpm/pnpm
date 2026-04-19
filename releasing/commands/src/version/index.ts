@@ -137,8 +137,10 @@ export async function handler (
     throw new PnpmError('INVALID_VERSION_BUMP', `Invalid version argument: ${rawBump}. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease`)
   }
 
-  if (opts.gitChecks !== false && await isGitRepo()) {
-    if (!await isWorkingTreeClean()) {
+  const gitCwd = opts.workspaceDir ?? opts.dir
+
+  if (opts.gitChecks !== false && await isGitRepo({ cwd: gitCwd })) {
+    if (!await isWorkingTreeClean({ cwd: gitCwd })) {
       throw new PnpmError('UNCLEAN_WORKING_TREE', 'Working tree is not clean. Commit or stash your changes.')
     }
   }
@@ -187,12 +189,12 @@ export async function handler (
     throw new PnpmError('NO_PACKAGES_TO_VERSION', 'No packages to version')
   }
 
-  if (opts.gitTagVersion !== false && await isGitRepo()) {
-    await commitAndTag(changes, opts)
+  if (opts.gitTagVersion !== false && await isGitRepo({ cwd: gitCwd })) {
+    await commitAndTag(changes, { ...opts, cwd: gitCwd })
   }
 
   if (opts.json) {
-    return JSON.stringify(changes.map(({ manifestPath, ...change }) => change), null, 2) // eslint-disable-line @typescript-eslint/no-unused-vars
+    return JSON.stringify(changes.map(({ manifestPath: _manifestPath, ...change }) => change), null, 2)
   }
 
   let output = 'Version bumped successfully:\n'
@@ -243,18 +245,35 @@ async function bumpPackageVersion (
   }
 }
 
-async function commitAndTag (changes: VersionChange[], opts: VersionHandlerOptions): Promise<void> {
-  // When multiple packages are bumped in one run, use the new version of the
-  // first change (usually the root) for the commit message and tag.
-  const primary = changes[0]
+async function commitAndTag (changes: VersionChange[], opts: VersionHandlerOptions & { cwd: string }): Promise<void> {
+  const resolvedCwd = path.resolve(opts.cwd)
+  // Pick the change at cwd (usually the workspace root) when present,
+  // otherwise fall back to a deterministic order so the commit subject and
+  // tag version are stable across runs.
+  const primary = changes.find(change => path.resolve(change.path) === resolvedCwd) ??
+    [...changes].sort((a, b) => a.path.localeCompare(b.path))[0]
   const rawMessage = opts.message ?? '%s'
   const message = rawMessage.replace(/%s/g, primary.newVersion)
   const tagPrefix = opts.tagVersionPrefix ?? 'v'
   const tagName = `${tagPrefix}${primary.newVersion}`
-  const cwd = opts.workspaceDir ?? opts.dir
-  const execOpts = { cwd }
+  const execOpts = { cwd: opts.cwd }
 
-  const manifestPaths = changes.map(change => change.manifestPath)
+  const manifestPaths = changes.map(change => {
+    const resolvedManifestPath = path.resolve(change.manifestPath)
+    const relativeManifestPath = path.relative(resolvedCwd, resolvedManifestPath)
+    if (
+      relativeManifestPath === '' ||
+      path.isAbsolute(relativeManifestPath) ||
+      relativeManifestPath.startsWith(`..${path.sep}`) ||
+      relativeManifestPath === '..'
+    ) {
+      throw new PnpmError(
+        'INVALID_MANIFEST_PATH',
+        `Cannot stage manifest outside of git cwd: ${change.manifestPath}`
+      )
+    }
+    return relativeManifestPath.split(path.sep).join('/')
+  })
   await execa('git', ['add', ...manifestPaths], execOpts)
 
   const commitArgs = ['commit', '-m', message]
