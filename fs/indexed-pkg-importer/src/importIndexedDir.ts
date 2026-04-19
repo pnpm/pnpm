@@ -205,10 +205,11 @@ async function tryImportIndexedDir (
     if (dir === '.') continue
     allDirs.add(dir)
   }
+  const dirLimit = pLimit(16)
   await Promise.all(
     Array.from(allDirs)
       .sort((d1, d2) => d1.length - d2.length) // from shortest to longest
-      .map(async (dir) => fsPromises.mkdir(path.join(newDir, dir), { recursive: true }))
+      .map(async (dir) => dirLimit(() => fsPromises.mkdir(path.join(newDir, dir), { recursive: true })))
   )
   // Write package.json last so it acts as a completion marker.
   // pkgExistsAtTargetDir() checks for package.json to decide if a package

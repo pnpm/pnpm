@@ -40,6 +40,9 @@ export async function cloneDir (src: string, dest: string): Promise<boolean> {
     case 'darwin':
       return cloneDirMacOS(src, dest)
     case 'linux':
+      if (!(await isReflinkSupported(src))) {
+        return false
+      }
       return cloneDirLinux(src, dest)
     default:
       return false
@@ -70,11 +73,6 @@ async function cloneDirMacOS (src: string, dest: string): Promise<boolean> {
  * Attempts to use reflink cloning for COW filesystems.
  */
 async function cloneDirLinux (src: string, dest: string): Promise<boolean> {
-  // First check if we're on a filesystem that supports reflink
-  if (!(await isReflinkSupported(src))) {
-    return false
-  }
-
   // For Linux, we use the copy_file_range approach through fs.copyFile
   // with COPYFILE_FICLONE flag. However, this only works for files, not directories.
   // So we need to manually implement directory cloning using FICLONE.
@@ -94,11 +92,8 @@ async function cloneDirLinux (src: string, dest: string): Promise<boolean> {
       if (entry.isDirectory()) {
         // Recursively clone subdirectories
         if (!(await cloneDirLinux(srcPath, destPath))) {
-          // If subdirectory clone fails, fall back to copy
-          await fsPromises.mkdir(destPath, { recursive: true })
-          if (!(await cloneDirLinux(srcPath, destPath))) {
-            return false
-          }
+          // If subdirectory clone fails, fall back to false
+          return false
         }
       } else if (entry.isFile()) {
         // Try to reflink clone the file using FICLONE ioctl

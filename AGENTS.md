@@ -204,3 +204,7 @@ The script force-fetches the base branch (avoiding stale refs), rebases, auto-re
 -   `pnpm-workspace.yaml`: Defines the workspace structure.
 -   `package.json` (root): Root scripts and devDependencies.
 -   `CONTRIBUTING.md`: Detailed contribution guidelines.
+
+## Performance Guidelines
+
+- **Asynchronous File System Operations vs. Synchronous OS-level Tools**: Avoid heavy asynchronous \`fs.promises\` mapping for thousands of \`node_modules\` files. Mapping large numbers of async FS operations degrades performance compared to leveraging synchronous OS-level tools. For example, use platform-specific synchronous mechanisms like \`cp -c\` on macOS for directory cloning (\`cloneDir\`) where possible, instead of concurrent async promise maps.

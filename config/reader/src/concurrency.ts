@@ -17,7 +17,7 @@ export function resetAvailableParallelismCache (): void {
 }
 
 export function getDefaultWorkspaceConcurrency (cache?: boolean): number {
-  return Math.min(16, getAvailableParallelism(cache))
+  return Math.min(MaxDefaultWorkspaceConcurrency, getAvailableParallelism(cache))
 }
 
 export function getWorkspaceConcurrency (option: number | undefined): number {

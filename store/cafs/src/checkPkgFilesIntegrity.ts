@@ -6,6 +6,7 @@ import gfs from '@pnpm/fs.graceful-fs'
 import type { FilesMap, PackageFileInfo, PackageFiles, SideEffects } from '@pnpm/store.cafs-types'
 import type { BundledManifest } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
+import pLimit from 'p-limit'
 
 import { getFilePathByModeInCafs } from './getFilePathInCafs.js'
 
@@ -120,6 +121,7 @@ async function checkFilesIntegrity (
   let allVerified = true
   const filesMap: FilesMap = new Map()
 
+  const limit = pLimit(100)
   const verifyPromises: Promise<void>[] = []
 
   for (const [f, fstat] of files) {
@@ -132,13 +134,13 @@ async function checkFilesIntegrity (
     if (verifiedFilesCache.has(filename)) continue
 
     verifyPromises.push(
-      verifyFile(filename, fstat, algo).then((passed) => {
+      limit(() => verifyFile(filename, fstat, algo).then((passed) => {
         if (passed) {
           verifiedFilesCache.add(filename)
         } else {
           allVerified = false
         }
-      })
+      }))
     )
   }
 
