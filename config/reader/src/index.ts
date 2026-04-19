@@ -668,8 +668,11 @@ function getWantedPackageManager (manifest: ProjectManifest): { pm?: WantedPacka
       warnings.push(`Cannot use devEngines.packageManager version "${pmFromDevEngines.version}": not a valid version or range`)
       pmFromDevEngines.version = undefined
     }
-    if (manifest.packageManager && packageManagerFieldsConflict(manifest.packageManager, pmFromDevEngines)) {
-      warnings.push('Cannot use both "packageManager" and "devEngines.packageManager" in package.json. "packageManager" will be ignored')
+    if (manifest.packageManager) {
+      const legacyPm = parsePackageManager(manifest.packageManager)
+      if (legacyPm.name !== pmFromDevEngines.name || legacyPm.version !== pmFromDevEngines.version) {
+        warnings.push('Cannot use both "packageManager" and "devEngines.packageManager" in package.json. "packageManager" will be ignored')
+      }
     }
     return { pm: { ...pmFromDevEngines, fromDevEngines: true }, warnings }
   }
@@ -701,19 +704,6 @@ function parsePackageManager (packageManager: string): { name: string, version: 
     name,
     version,
   }
-}
-
-function packageManagerFieldsConflict (packageManager: string, pmFromDevEngines: EngineDependency): boolean {
-  const legacyPm = parsePackageManager(packageManager)
-  if (legacyPm.name !== pmFromDevEngines.name) return true
-  // If either side lacks a version, there's nothing concrete to conflict on.
-  if (pmFromDevEngines.version == null || legacyPm.version == null) return false
-  const legacyVersion = semver.valid(legacyPm.version)
-  // The legacy `packageManager` field is only respected for canonical exact versions.
-  // A non-canonical value (e.g. "pnpm@v1.2.3") would be rejected on its own, so treat
-  // it as a conflict here so the warning still surfaces the underlying problem.
-  if (legacyVersion == null || legacyVersion !== legacyPm.version) return true
-  return !semver.satisfies(legacyVersion, pmFromDevEngines.version)
 }
 
 function parseDevEnginesPackageManager (devEngines?: DevEngines): EngineDependency | undefined {
