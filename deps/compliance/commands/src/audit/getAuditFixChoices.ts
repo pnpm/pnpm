@@ -114,7 +114,7 @@ function alignColumns (rows: string[][]): string[] {
         1: { width: 10 },
         2: { width: 20, truncate: 40 },
         3: { width: 15, truncate: 30 },
-        4: { width: getColumnWidth(rows, 4, 20) },
+        4: { width: Math.min(getColumnWidth(rows, 4, 20), 50), truncate: 100 },
       },
       drawHorizontalLine: () => false,
     }

@@ -5,6 +5,7 @@ import { audit, type AuditAdvisory, type AuditLevelNumber, type AuditLevelString
 import { PnpmError } from '@pnpm/error'
 import { type InstallCommandOptions, update } from '@pnpm/installing.commands'
 import { readEnvLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
+import { globalInfo } from '@pnpm/logger'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import type { Registries } from '@pnpm/types'
 import { table } from '@zkochan/table'
@@ -246,18 +247,13 @@ export async function handler (opts: AuditOptions): Promise<{ exitCode: number, 
     throw new PnpmError('INVALID_FIX_OPTION', `Invalid value for --fix: ${opts.fix as string}. Should be one of "override" or "update"`)
   }
   if (fixMethod != null) {
-    const auditLevel = AUDIT_LEVEL_NUMBER[opts.auditLevel ?? 'low']
-    const ignoreGhsas = opts.auditConfig?.ignoreGhsas
-    const ignoreGhsaSet = ignoreGhsas?.length ? new Set(ignoreGhsas.map(normalizeGhsaId)) : undefined
-    const filteredAdvisories = Object.fromEntries(
-      Object.entries(auditReport.advisories)
-        .filter(([, { severity, github_advisory_id: ghsaId }]) => {
-          if (AUDIT_LEVEL_NUMBER[severity] < auditLevel) return false
-          if (ignoreGhsaSet && ghsaId && ignoreGhsaSet.has(normalizeGhsaId(ghsaId))) return false
-          return true
-        })
-    )
-    let filteredAuditReport: AuditReport = { ...auditReport, advisories: filteredAdvisories }
+    // Pre-filter by auditLevel and ignoreGhsas so the interactive prompt
+    // and the update-method path see the same set of advisories that
+    // fix.ts's getFixableAdvisories filters for the override path.
+    let filteredAuditReport: AuditReport = {
+      ...auditReport,
+      advisories: filterAdvisoriesForFix(auditReport.advisories, opts),
+    }
     if (opts.interactive) {
       filteredAuditReport = await interactiveAuditFix(filteredAuditReport)
     }
@@ -442,6 +438,22 @@ export function formatFixWithUpdateOutput (result: FixWithUpdateResult, auditRep
   return output.join('\n')
 }
 
+function filterAdvisoriesForFix (
+  advisories: AuditReport['advisories'],
+  opts: Pick<AuditOptions, 'auditLevel' | 'auditConfig'>
+): AuditReport['advisories'] {
+  const auditLevel = AUDIT_LEVEL_NUMBER[opts.auditLevel ?? 'low']
+  const ignoreGhsas = opts.auditConfig?.ignoreGhsas
+  const ignoreGhsaSet = ignoreGhsas?.length ? new Set(ignoreGhsas.map(normalizeGhsaId)) : undefined
+  return Object.fromEntries(
+    Object.entries(advisories).filter(([, { severity, github_advisory_id: ghsaId }]) => {
+      if (AUDIT_LEVEL_NUMBER[severity] < auditLevel) return false
+      if (ignoreGhsaSet && ghsaId && ignoreGhsaSet.has(normalizeGhsaId(ghsaId))) return false
+      return true
+    })
+  )
+}
+
 async function interactiveAuditFix (auditReport: AuditReport): Promise<AuditReport> {
   const choices = getAuditFixChoices(Object.values(auditReport.advisories))
   if (choices.length === 0) {
@@ -491,7 +503,11 @@ async function interactiveAuditFix (auditReport: AuditReport): Promise<AuditRepo
       return this.up()
     },
     cancel () {
-      process.stdout.write('Audit fix canceled\n')
+      // By default, canceling the prompt via Ctrl+c throws an empty string.
+      // The custom cancel function prevents that behavior.
+      // Otherwise, pnpm CLI would print an error and confuse users.
+      // See related issue: https://github.com/enquirer/enquirer/issues/225
+      globalInfo('Audit fix canceled')
       process.exit(0)
     },
   } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
