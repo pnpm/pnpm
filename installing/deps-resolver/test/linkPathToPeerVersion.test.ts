@@ -1,4 +1,4 @@
-import { linkPathToPeerVersion } from '../lib/resolvePeers.js'
+import { linkPathToPeerVersion } from '../lib/linkPathToPeerVersion.js'
 
 // These outputs are lockfile-format: changing any of them breaks existing
 // v9 lockfiles. See https://github.com/pnpm/pnpm/issues/11272.
