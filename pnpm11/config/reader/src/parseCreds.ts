@@ -86,7 +86,7 @@ function decodeBase64Credential (value: string, key: '_auth' | '_password'): str
         return atob(normalizedValue)
       } catch {}
     }
-    throw new AuthBase64DecodeError(key)
+    throw new AuthBase64DecodeError(key, value)
   }
 }
 
@@ -117,10 +117,11 @@ export class AuthMissingSeparatorError extends PnpmError {
 }
 
 export class AuthBase64DecodeError extends PnpmError {
-  constructor (key: '_auth' | '_password') {
-    super('AUTH_INVALID_BASE64', `Failed to decode ${key} as base64`, {
-      hint: `${key} must contain a base64-encoded ${key === '_auth' ? '<username>:<password>' : 'password'} value`,
-    })
+  constructor (key: '_auth' | '_password', value?: string) {
+    const hint = value?.includes('${')
+      ? `The ${key} value still contains an unresolved env placeholder. Make sure the referenced env var is set in the config source that defines this credential before running pnpm.`
+      : `${key} must contain a base64-encoded ${key === '_auth' ? '<username>:<password>' : 'password'} value`
+    super('AUTH_INVALID_BASE64', `Failed to decode ${key} as base64`, { hint })
   }
 }
 
