@@ -15,6 +15,14 @@ const AUDIT_COLOR: Record<AuditLevelString, (s: string) => string> = {
 
 const SEVERITY_ORDER: AuditLevelString[] = ['critical', 'high', 'moderate', 'low', 'info']
 
+const SEVERITY_RANK: Record<AuditLevelString, number> = {
+  info: 0,
+  low: 1,
+  moderate: 2,
+  high: 3,
+  critical: 4,
+}
+
 const COLUMN_HEADER = ['Package', 'Vulnerable', 'Patched', 'Title']
 
 export interface AuditChoiceRow {
@@ -40,7 +48,12 @@ export function getAuditFixChoices (advisories: AuditAdvisory[]): AuditChoiceGro
     return []
   }
 
-  const grouped = groupBy((a: AuditAdvisory) => a.severity, fixable)
+  // Collapse advisories that share module_name@vulnerable_versions: they
+  // produce the same override, so showing them as separate rows would
+  // duplicate every choice. Titles are joined; the highest severity wins.
+  const deduped = dedupeByFixKey(fixable)
+
+  const grouped = groupBy((a: AuditAdvisory) => a.severity, deduped)
 
   const finalChoices: AuditChoiceGroup = []
   for (const severity of SEVERITY_ORDER) {
@@ -120,6 +133,27 @@ function alignColumns (rows: string[][]): string[] {
       drawHorizontalLine: () => false,
     }
   ).split('\n').filter((line) => line.trim() !== '')
+}
+
+function dedupeByFixKey (advisories: AuditAdvisory[]): AuditAdvisory[] {
+  const byKey = new Map<string, AuditAdvisory>()
+  for (const advisory of advisories) {
+    const key = `${advisory.module_name}@${advisory.vulnerable_versions}`
+    const existing = byKey.get(key)
+    if (!existing) {
+      byKey.set(key, advisory)
+      continue
+    }
+    const keepSeverity = SEVERITY_RANK[advisory.severity] > SEVERITY_RANK[existing.severity]
+      ? advisory.severity
+      : existing.severity
+    byKey.set(key, {
+      ...existing,
+      severity: keepSeverity,
+      title: existing.title === advisory.title ? existing.title : `${existing.title}; ${advisory.title}`,
+    })
+  }
+  return Array.from(byKey.values())
 }
 
 function getColumnWidth (rows: string[][], columnIndex: number, minWidth: number): number {
