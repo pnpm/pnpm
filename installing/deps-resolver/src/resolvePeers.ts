@@ -974,8 +974,8 @@ function getLocationFromParentNodeIds<T> (
 // segments are dropped, and `/`, `\`, and literal `+` all collapse into a
 // single `+`. For example, `packages/b`, `./packages/b`, and
 // `../packages/b` all produce `packages+b`. The only way to make this
-// injective is to hash the normalized link target (or switch to a
-// lossless escape encoding), either of which would change every
+// collision-free is to hash the normalized link target (or switch to
+// a lossless escape encoding), either of which would change every
 // link-path peer suffix in existing lockfiles. We accept the
 // (extremely rare in practice) collision for lockfile stability; see
 // https://github.com/pnpm/pnpm/issues/11272.
