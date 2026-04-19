@@ -1204,6 +1204,22 @@ test('return a warning when the .npmrc has an env variable that does not exist',
   expect(warnings).toEqual(expect.arrayContaining(expected))
 })
 
+test('throw a descriptive auth config error when unresolved _auth placeholder reaches auth parsing', async () => {
+  fs.writeFileSync('.npmrc', '//registry.npmjs.org/:_auth=${ENV_VAR_123}', 'utf8')
+
+  await expect(getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_INVALID_AUTH_CONFIG',
+    message: 'Failed to parse auth config: invalid _auth value',
+    hint: expect.stringContaining('unresolved env placeholder'),
+  })
+})
+
 test('return a warning if a package.json has workspaces field but there is no pnpm-workspaces.yaml file', async () => {
   const prefix = f.find('pkg-using-workspaces')
   const { warnings } = await getConfig({
