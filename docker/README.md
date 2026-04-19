@@ -22,6 +22,8 @@ Based on `debian:stable-slim` with the pnpm standalone binary. Node.js is **not*
 
 ## Usage
 
+Install Node.js explicitly with `pnpm runtime set`:
+
 ```dockerfile
 FROM ghcr.io/pnpm/pnpm:latest
 RUN pnpm runtime set node 22
@@ -29,6 +31,29 @@ WORKDIR /app
 COPY . .
 RUN pnpm install --frozen-lockfile
 CMD ["node", "index.js"]
+```
+
+Or let pnpm install Node.js from `devEngines.runtime` in your `package.json`:
+
+```json
+{
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "22.x",
+      "onFail": "download"
+    }
+  }
+}
+```
+
+```dockerfile
+FROM ghcr.io/pnpm/pnpm:latest
+WORKDIR /app
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY . .
+CMD ["pnpm", "start"]
 ```
 
 ## Build locally
