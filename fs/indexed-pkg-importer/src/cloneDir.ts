@@ -1,19 +1,5 @@
-import { execFileSync } from 'node:child_process'
-import {
-  chmodSync,
-  closeSync,
-  constants,
-  existsSync,
-  fstatSync,
-  mkdirSync,
-  openSync,
-  readdirSync,
-  readlinkSync,
-  statfsSync,
-  statSync,
-  symlinkSync,
-  utimesSync,
-} from 'node:fs'
+import { constants } from 'node:fs'
+import fsPromises from 'node:fs/promises'
 import path from 'node:path'
 
 import gracefulFs from '@pnpm/fs.graceful-fs'
@@ -22,20 +8,29 @@ import gracefulFs from '@pnpm/fs.graceful-fs'
 const BTRFS_SUPER_MAGIC = 0x9123683e
 const XFS_SUPER_MAGIC = 0x58465342
 
+async function exists (p: string): Promise<boolean> {
+  try {
+    await fsPromises.access(p)
+    return true
+  } catch {
+    return false
+  }
+}
+
 /**
  * Clone a directory using platform-specific copy-on-write mechanisms.
  * Returns true if cloning succeeded, false if fallback to per-file cloning is needed.
  */
-export function cloneDir (src: string, dest: string): boolean {
-  if (!existsSync(src)) {
+export async function cloneDir (src: string, dest: string): Promise<boolean> {
+  if (!(await exists(src))) {
     return false
   }
 
   // Ensure parent directory exists
   const parentDir = path.dirname(dest)
-  if (parentDir && !existsSync(parentDir)) {
+  if (parentDir && !(await exists(parentDir))) {
     try {
-      mkdirSync(parentDir, { recursive: true })
+      await fsPromises.mkdir(parentDir, { recursive: true })
     } catch {
       return false
     }
@@ -52,18 +47,16 @@ export function cloneDir (src: string, dest: string): boolean {
 }
 
 /**
- * macOS APFS directory cloning using clonefile syscall via cp -c.
- * macOS 10.15+ supports the -c flag for copy-on-write cloning.
+ * macOS APFS directory cloning using fsPromises.cp.
+ * macOS 10.15+ supports copy-on-write cloning on APFS.
  */
-function cloneDirMacOS (src: string, dest: string): boolean {
+async function cloneDirMacOS (src: string, dest: string): Promise<boolean> {
   try {
-    // Try cp -c first (macOS 10.15+ supports this for clonefile)
-    // The -c flag enables copy-on-write cloning on APFS
-    // The -R flag is for recursive directory copy
-    // The -p flag preserves permissions, timestamps, etc.
-    execFileSync('cp', ['-c', '-R', '-p', src, dest], {
-      stdio: 'pipe',
-      timeout: 60000,
+    await fsPromises.cp(src, dest, {
+      recursive: true,
+      mode: constants.COPYFILE_FICLONE,
+      preserveTimestamps: true,
+      verbatimSymlinks: true,
     })
     return true
   } catch {
@@ -76,58 +69,60 @@ function cloneDirMacOS (src: string, dest: string): boolean {
  * Linux Btrfs/XFS directory cloning using ioctl FICLONE.
  * Attempts to use reflink cloning for COW filesystems.
  */
-function cloneDirLinux (src: string, dest: string): boolean {
+async function cloneDirLinux (src: string, dest: string): Promise<boolean> {
   // First check if we're on a filesystem that supports reflink
-  if (!isReflinkSupported(src)) {
+  if (!(await isReflinkSupported(src))) {
     return false
   }
 
-  // For Linux, we use the copy_file_range approach through fs.copyFileSync
+  // For Linux, we use the copy_file_range approach through fs.copyFile
   // with COPYFILE_FICLONE flag. However, this only works for files, not directories.
   // So we need to manually implement directory cloning using FICLONE.
 
   try {
     // Create the destination directory
-    mkdirSync(dest, { recursive: true })
+    await fsPromises.mkdir(dest, { recursive: true })
 
     // Read the source directory
-    const entries = readdirSync(src, { withFileTypes: true })
+    const entries = await fsPromises.readdir(src, { withFileTypes: true })
 
+    /* eslint-disable no-await-in-loop */
     for (const entry of entries) {
       const srcPath = path.join(src, entry.name)
       const destPath = path.join(dest, entry.name)
 
       if (entry.isDirectory()) {
         // Recursively clone subdirectories
-        if (!cloneDirLinux(srcPath, destPath)) {
+        if (!(await cloneDirLinux(srcPath, destPath))) {
           // If subdirectory clone fails, fall back to copy
-          mkdirSync(destPath, { recursive: true })
-          if (!cloneDirLinux(srcPath, destPath)) {
+          await fsPromises.mkdir(destPath, { recursive: true })
+          if (!(await cloneDirLinux(srcPath, destPath))) {
             return false
           }
         }
       } else if (entry.isFile()) {
         // Try to reflink clone the file using FICLONE ioctl
-        if (!reflinkCloneFile(srcPath, destPath)) {
+        if (!(await reflinkCloneFile(srcPath, destPath))) {
           // Fall back to regular copyFile with FICLONE_FORCE
           try {
-            gracefulFs.copyFileSync(srcPath, destPath, constants.COPYFILE_FICLONE)
+            await gracefulFs.copyFile(srcPath, destPath, constants.COPYFILE_FICLONE)
           } catch {
-            gracefulFs.copyFileSync(srcPath, destPath)
+            await gracefulFs.copyFile(srcPath, destPath)
           }
         }
       } else if (entry.isSymbolicLink()) {
         // Copy symlinks as symlinks
-        const linkTarget = readlinkSync(srcPath)
-        symlinkSync(linkTarget, destPath)
+        const linkTarget = await fsPromises.readlink(srcPath)
+        await fsPromises.symlink(linkTarget, destPath)
       }
     }
+    /* eslint-enable no-await-in-loop */
 
     // Copy permissions and timestamps from source to destination
     try {
-      const srcStat = statSync(src)
-      chmodSync(dest, srcStat.mode)
-      utimesSync(dest, srcStat.atime, srcStat.mtime)
+      const srcStat = await fsPromises.stat(src)
+      await fsPromises.chmod(dest, srcStat.mode)
+      await fsPromises.utimes(dest, srcStat.atime, srcStat.mtime)
     } catch {
       // Ignore errors setting permissions/timestamps
     }
@@ -142,9 +137,9 @@ function cloneDirLinux (src: string, dest: string): boolean {
  * Check if the filesystem supports reflink cloning.
  * Currently checks for Btrfs and XFS filesystems.
  */
-function isReflinkSupported (path: string): boolean {
+async function isReflinkSupported (p: string): Promise<boolean> {
   try {
-    const statfs = statfsSync(path)
+    const statfs = await fsPromises.statfs(p)
     return statfs.type === BTRFS_SUPER_MAGIC || statfs.type === XFS_SUPER_MAGIC
   } catch {
     // If we can't determine filesystem type, assume no reflink support
@@ -156,39 +151,40 @@ function isReflinkSupported (path: string): boolean {
  * Use ioctl FICLONE to reflink clone a single file.
  * This is more efficient than copy_file_range for CoW filesystems.
  */
-function reflinkCloneFile (src: string, dest: string): boolean {
-  let srcFd: number | undefined
-  let destFd: number | undefined
+async function reflinkCloneFile (src: string, dest: string): Promise<boolean> {
+  let srcFile: fsPromises.FileHandle | undefined
+  let destFile: fsPromises.FileHandle | undefined
 
   try {
     // Open source file read-only
-    srcFd = openSync(src, 'r')
+    srcFile = await fsPromises.open(src, 'r')
 
     // Get source file stats for permissions
-    const srcStat = fstatSync(srcFd)
+    const srcStat = await srcFile.stat()
 
     // Open/create destination file with same permissions
-    destFd = openSync(dest, 'w', srcStat.mode)
+    destFile = await fsPromises.open(dest, 'w', srcStat.mode)
 
     // Perform the reflink clone using ioctl
     // We need to use a native addon or process.binding for ioctl
     // Since we can't easily do that, fall back to copy_file_range
     // which uses the same underlying mechanism
-    gracefulFs.copyFileSync(src, dest, constants.COPYFILE_FICLONE_FORCE)
+    await gracefulFs.copyFile(src, dest, constants.COPYFILE_FICLONE_FORCE)
 
     return true
   } catch {
     return false
   } finally {
-    if (srcFd !== undefined) {
+    if (srcFile !== undefined) {
       try {
-        closeSync(srcFd)
+        await srcFile.close()
       } catch {} // eslint-disable-line:no-empty
     }
-    if (destFd !== undefined) {
+    if (destFile !== undefined) {
       try {
-        closeSync(destFd)
+        await destFile.close()
       } catch {} // eslint-disable-line:no-empty
     }
   }
 }
+

@@ -18,7 +18,7 @@ beforeEach(() => {
   renameOverwriteSyncMock.mockReset()
 })
 
-test('safeToSkip skips when target already exists (content-addressed)', () => {
+test('safeToSkip skips when target already exists (content-addressed)', async () => {
   const tmp = tempDir()
   const srcFile = path.join(tmp, 'src', 'package.json')
   const newDir = path.join(tmp, 'dest')
@@ -34,7 +34,7 @@ test('safeToSkip skips when target already exists (content-addressed)', () => {
   const filenames = new Map([['package.json', srcFile]])
 
   // Should not throw — target exists, path is content-addressed so content is correct
-  importIndexedDir({ importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync }, newDir, filenames, { safeToSkip: true })
+  await importIndexedDir({ importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync }, newDir, filenames, { safeToSkip: true })
 
   expect(fs.existsSync(path.join(newDir, 'package.json'))).toBe(true)
   // When safeToSkip is true and the target already exists with matching content,
@@ -42,7 +42,7 @@ test('safeToSkip skips when target already exists (content-addressed)', () => {
   expect(renameOverwriteSyncMock).not.toHaveBeenCalled()
 })
 
-test('fast-path failure does not delete directory populated by another process', () => {
+test('fast-path failure does not delete directory populated by another process', async () => {
   const tmp = tempDir()
   const srcDir = path.join(tmp, 'src')
   fs.mkdirSync(srcDir, { recursive: true })
@@ -76,7 +76,7 @@ test('fast-path failure does not delete directory populated by another process',
   }
 
   // Should not throw — the staging path recovers
-  importIndexedDir(
+  await importIndexedDir(
     { importFile: failingImportFile, importFileAtomic: failingImportFile },
     newDir,
     filenames,
@@ -88,7 +88,7 @@ test('fast-path failure does not delete directory populated by another process',
   expect(fs.existsSync(path.join(newDir, 'index.js'))).toBe(true)
 })
 
-test('safeToSkip creates dir when target does not exist', () => {
+test('safeToSkip creates dir when target does not exist', async () => {
   const tmp = tempDir()
   const srcFile = path.join(tmp, 'src', 'index.js')
   const newDir = path.join(tmp, 'dest')
@@ -100,7 +100,7 @@ test('safeToSkip creates dir when target does not exist', () => {
   const filenames = new Map([['index.js', srcFile]])
 
   // Target doesn't exist — should create it
-  importIndexedDir({ importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync }, newDir, filenames, { safeToSkip: true })
+  await importIndexedDir({ importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync }, newDir, filenames, { safeToSkip: true })
 
   expect(fs.existsSync(path.join(newDir, 'index.js'))).toBe(true)
 })

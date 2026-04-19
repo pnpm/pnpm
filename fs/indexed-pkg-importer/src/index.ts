@@ -1,15 +1,15 @@
 import assert from 'node:assert'
-import { constants, existsSync, promises as fsPromises, type Stats } from 'node:fs'
-import fs from 'node:fs'
+import { promises as fsPromises } from 'node:fs'
+import { constants, existsSync, type Stats } from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
 import { packageImportMethodLogger } from '@pnpm/core-loggers'
-import gfs from '@pnpm/fs.graceful-fs'
+import fs from '@pnpm/fs.graceful-fs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import type { FilesMap, ImportIndexedPackage, ImportOptions } from '@pnpm/store.controller-types'
 import { fastPathTemp as pathTemp } from 'path-temp'
-import { renameOverwrite, renameOverwriteSync } from 'rename-overwrite'
+import { renameOverwrite } from 'rename-overwrite'
 
 import { cloneDir } from './cloneDir.js'
 import { type Importer, type ImportFile, importIndexedDir } from './importIndexedDir.js'
@@ -162,7 +162,7 @@ async function tryClonePkg (
  * This is more efficient than file-by-file cloning on CoW filesystems
  * but may fail if the filesystem doesn't support cloning.
  */
-function cloneDirPkg (
+async function cloneDirPkg (
   to: string,
   opts: ImportOptions
 ): Promise<'clone-dir' | undefined> {
@@ -171,11 +171,11 @@ function cloneDirPkg (
     // For local-dir, this will be a real package directory, not a CAFS shard
     const firstSrcPath = opts.filesMap.values().next().value!
     const srcDirPath = path.dirname(firstSrcPath)
-    if (cloneDir(srcDirPath, to)) {
-      return Promise.resolve('clone-dir')
+    if (await cloneDir(srcDirPath, to)) {
+      return 'clone-dir'
     }
   }
-  return Promise.resolve(undefined)
+  return undefined
 }
 
 /**
@@ -288,7 +288,7 @@ function shouldRelinkPkg (
 
 async function linkOrCopy (existingPath: string, newPath: string): Promise<void> {
   try {
-    await fs.promises.link(existingPath, newPath)
+    await fs.link(existingPath, newPath)
   } catch (err: unknown) {
     // If a hard link to the same file already exists
     // then trying to copy it will make an empty file from it.
@@ -305,11 +305,11 @@ async function linkOrCopy (existingPath: string, newPath: string): Promise<void>
 // Fall back to manual read+write which uses plain read/write syscalls.
 async function resilientCopyFileSync (src: string, dest: string): Promise<void> {
   try {
-    await fs.promises.copyFile(src, dest)
+    await fs.copyFile(src, dest)
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOTSUP') {
-      const srcMode = (await fs.promises.stat(src)).mode
-      await fs.promises.writeFile(dest, await fs.promises.readFile(src), { mode: srcMode })
+      const srcMode = (await fs.stat(src)).mode
+      await fs.writeFile(dest, await fs.readFile(src), { mode: srcMode })
     } else {
       throw err
     }
@@ -351,7 +351,7 @@ async function atomicCopyFileSync (src: string, dest: string): Promise<void> {
     await resilientCopyFileSync(src, tmp)
   } catch (err) {
     try {
-      await fs.promises.unlink(tmp)
+      await fsPromises.unlink(tmp)
     } catch {} // eslint-disable-line:no-empty
     throw err
   }

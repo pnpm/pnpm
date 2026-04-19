@@ -1,16 +1,16 @@
-import fs from 'node:fs'
 import { promises as fsPromises } from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
+import fs from '@pnpm/fs.graceful-fs'
 import gfs from '@pnpm/fs.graceful-fs'
 import { globalInfo, globalWarn, logger } from '@pnpm/logger'
-import { rimraf, rimrafSync } from '@zkochan/rimraf'
+import { rimraf } from '@zkochan/rimraf'
 import fsx from 'fs-extra'
-import { makeEmptyDir, makeEmptyDirSync } from 'make-empty-dir'
+import { makeEmptyDir } from 'make-empty-dir'
 import pLimit from 'p-limit'
 import { fastPathTemp as pathTemp } from 'path-temp'
-import { renameOverwrite, renameOverwriteSync } from 'rename-overwrite'
+import { renameOverwrite } from 'rename-overwrite'
 import sanitizeFilename from 'sanitize-filename'
 
 const filenameConflictsLogger = logger('_filename-conflicts')

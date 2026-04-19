@@ -12,6 +12,7 @@ jest.unstable_mockModule('@pnpm/fs.graceful-fs', () => {
   const fsMock = {
     access,
     copyFileSync: jest.fn(),
+    copyFile: jest.fn(),
     statSync: jest.fn(),
   }
   return {
@@ -45,17 +46,17 @@ describe('cloneDir', () => {
     fs.rmSync(tempDir, { recursive: true, force: true })
   })
 
-  test('returns false for non-existent source', () => {
+  test('returns false for non-existent source', async () => {
     const src = path.join(tempDir, 'non-existent-source')
     const dest = path.join(tempDir, 'dest')
 
-    const result = cloneDir(src, dest)
+    const result = await cloneDir(src, dest)
 
     expect(result).toBe(false)
     expect(fs.existsSync(dest)).toBe(false)
   })
 
-  test('successfully clones a directory with files', () => {
+  test('successfully clones a directory with files', async () => {
     const src = path.join(tempDir, 'source')
     const dest = path.join(tempDir, 'dest')
 
@@ -63,7 +64,7 @@ describe('cloneDir', () => {
     fs.writeFileSync(path.join(src, 'file1.txt'), 'content1')
     fs.writeFileSync(path.join(src, 'file2.txt'), 'content2')
 
-    const result = cloneDir(src, dest)
+    const result = await cloneDir(src, dest)
 
     if (process.platform === 'linux' || process.platform === 'darwin') {
       // On supported platforms, it should succeed (assuming filesystem support)
@@ -73,14 +74,14 @@ describe('cloneDir', () => {
     }
   })
 
-  test('cloned files have correct content', () => {
+  test('cloned files have correct content', async () => {
     const src = path.join(tempDir, 'source')
     const dest = path.join(tempDir, 'dest')
 
     fs.mkdirSync(src, { recursive: true })
     fs.writeFileSync(path.join(src, 'file.txt'), 'expected content')
 
-    const result = cloneDir(src, dest)
+    const result = await cloneDir(src, dest)
 
     if (result) {
       expect(fs.existsSync(dest)).toBe(true)
@@ -90,7 +91,7 @@ describe('cloneDir', () => {
     }
   })
 
-  test('handles symlinks correctly', () => {
+  test('handles symlinks correctly', async () => {
     const src = path.join(tempDir, 'source-with-symlink')
     const dest = path.join(tempDir, 'dest-symlink')
 
@@ -98,7 +99,7 @@ describe('cloneDir', () => {
     fs.writeFileSync(path.join(src, 'realfile.txt'), 'real content')
     fs.symlinkSync('realfile.txt', path.join(src, 'link.txt'))
 
-    const result = cloneDir(src, dest)
+    const result = await cloneDir(src, dest)
 
     if (result) {
       expect(fs.existsSync(dest)).toBe(true)
@@ -116,7 +117,7 @@ describe('cloneDir', () => {
     }
   })
 
-  testOnLinuxOnly('Linux: successfully clones nested directories', () => {
+  testOnLinuxOnly('Linux: successfully clones nested directories', async () => {
     const src = path.join(tempDir, 'nested-source')
     const dest = path.join(tempDir, 'nested-dest')
 
@@ -125,7 +126,7 @@ describe('cloneDir', () => {
     fs.writeFileSync(path.join(src, 'subdir', 'mid.txt'), 'mid content')
     fs.writeFileSync(path.join(src, 'subdir', 'deep', 'deep.txt'), 'deep content')
 
-    const result = cloneDir(src, dest)
+    const result = await cloneDir(src, dest)
 
     expect(result).toBe(true)
     expect(fs.existsSync(dest)).toBe(true)
@@ -135,27 +136,27 @@ describe('cloneDir', () => {
     expect(fs.readFileSync(path.join(dest, 'subdir', 'deep', 'deep.txt'), 'utf8')).toBe('deep content')
   })
 
-  testOnLinuxOnly('Linux: clones empty directories', () => {
+  testOnLinuxOnly('Linux: clones empty directories', async () => {
     const src = path.join(tempDir, 'empty-source')
     const dest = path.join(tempDir, 'empty-dest')
 
     fs.mkdirSync(src, { recursive: true })
 
-    const result = cloneDir(src, dest)
+    const result = await cloneDir(src, dest)
 
     expect(result).toBe(true)
     expect(fs.existsSync(dest)).toBe(true)
     expect(fs.statSync(dest).isDirectory()).toBe(true)
   })
 
-  testOnMacOSOnly('macOS: successfully clones directories', () => {
+  testOnMacOSOnly('macOS: successfully clones directories', async () => {
     const src = path.join(tempDir, 'mac-source')
     const dest = path.join(tempDir, 'mac-dest')
 
     fs.mkdirSync(src, { recursive: true })
     fs.writeFileSync(path.join(src, 'file.txt'), 'mac content')
 
-    const result = cloneDir(src, dest)
+    const result = await cloneDir(src, dest)
 
     // On macOS, cp -c is used. May fail on non-APFS filesystems
     if (result) {
