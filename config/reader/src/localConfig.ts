@@ -84,6 +84,18 @@ const SECURITY_POLICY_CFG_KEYS = [
   'trustPolicyIgnoreAfter',
 ] satisfies Array<keyof Config>
 
+const CATALOGS_CFG_KEYS = [
+  'catalogs',
+] satisfies Array<keyof Config>
+
+const FETCH_CFG_KEYS = [
+  'fetchRetryFactor',
+  'fetchRetryMaxtimeout',
+  'fetchRetryMintimeout',
+  'fetchRetries',
+  'fetchTimeout',
+] satisfies Array<keyof Config>
+
 const NPM_AUTH_SETTINGS = [
   ...RAW_AUTH_CFG_KEYS,
   '_auth',
@@ -106,6 +118,14 @@ function isAuthCfgKey (cfgKey: keyof Config): cfgKey is typeof AUTH_CFG_KEYS[num
 
 function isSecurityPolicyCfgKey (cfgKey: keyof Config): cfgKey is typeof SECURITY_POLICY_CFG_KEYS[number] {
   return (SECURITY_POLICY_CFG_KEYS as Array<keyof Config>).includes(cfgKey)
+}
+
+function isCatalogsCfgKey (cfgKey: keyof Config): cfgKey is typeof CATALOGS_CFG_KEYS[number] {
+  return (CATALOGS_CFG_KEYS as Array<keyof Config>).includes(cfgKey)
+}
+
+function isFetchCfgKey (cfgKey: keyof Config): cfgKey is typeof FETCH_CFG_KEYS[number] {
+  return (FETCH_CFG_KEYS as Array<keyof Config>).includes(cfgKey)
 }
 
 function pickRawAuthConfig<RawLocalCfg extends Record<string, unknown>> (rawLocalCfg: RawLocalCfg): Partial<RawLocalCfg> {
@@ -131,7 +151,7 @@ function pickAuthConfig (localCfg: Partial<Config>): Partial<Config> {
 function pickDlxConfig (localCfg: Partial<Config>): Partial<Config> {
   const result: Record<string, unknown> = {}
   for (const key in localCfg) {
-    if (isAuthCfgKey(key as keyof Config) || isSecurityPolicyCfgKey(key as keyof Config)) {
+    if (isAuthCfgKey(key as keyof Config) || isSecurityPolicyCfgKey(key as keyof Config) || isCatalogsCfgKey(key as keyof Config) || isFetchCfgKey(key as keyof Config)) {
       result[key] = localCfg[key as keyof Config]
     }
   }
