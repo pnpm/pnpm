@@ -6,7 +6,7 @@ Official base image for pnpm, published to GitHub Container Registry.
 ghcr.io/pnpm/pnpm
 ```
 
-Based on `debian:stable-slim` with the pnpm standalone binary. Node.js is **not** bundled — install the version you need inside your own image with `pnpm runtime set node <version>`.
+Based on `debian:stable-slim` with the pnpm standalone binary. Node.js is **not** bundled — install the version you need inside your own image with `pnpm runtime set node <version> -g` (the `-g` flag makes `node` available on `PATH` for subsequent layers and at runtime).
 
 ## Tags
 
@@ -26,7 +26,7 @@ Install Node.js explicitly with `pnpm runtime set`:
 
 ```dockerfile
 FROM ghcr.io/pnpm/pnpm:latest
-RUN pnpm runtime set node 22
+RUN pnpm runtime set node 22 -g
 WORKDIR /app
 COPY . .
 RUN pnpm install --frozen-lockfile

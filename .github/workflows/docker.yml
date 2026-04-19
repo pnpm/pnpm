@@ -29,16 +29,26 @@ jobs:
 
       - name: Resolve release metadata
         id: meta
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_PRERELEASE: ${{ inputs.prerelease }}
         run: |
           set -eu
-          if [ "${{ github.event_name }}" = "release" ]; then
-            tag="${{ github.event.release.tag_name }}"
-            version="${tag#v}"
-            prerelease="${{ github.event.release.prerelease }}"
+          if [ "$EVENT_NAME" = "release" ]; then
+            version="${RELEASE_TAG#v}"
+            prerelease="$RELEASE_PRERELEASE"
           else
-            version="${{ inputs.version }}"
-            prerelease="${{ inputs.prerelease }}"
+            version="${INPUT_VERSION#v}"
+            prerelease="$INPUT_PRERELEASE"
           fi
+          case "$version" in
+            *[!0-9A-Za-z.+-]*) echo "invalid version: $version" >&2; exit 1 ;;
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "invalid version: $version" >&2; exit 1 ;;
+          esac
           major="${version%%.*}"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "major=$major" >> "$GITHUB_OUTPUT"
@@ -46,24 +56,25 @@ jobs:
 
       - name: Compute image tags
         id: tags
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          MAJOR: ${{ steps.meta.outputs.major }}
+          PRERELEASE: ${{ steps.meta.outputs.prerelease }}
         run: |
           set -eu
-          version='${{ steps.meta.outputs.version }}'
-          major='${{ steps.meta.outputs.major }}'
-          prerelease='${{ steps.meta.outputs.prerelease }}'
-
-          tags="${IMAGE}:${version}"
-          if [ "$prerelease" != "true" ]; then
-            tags="${tags},${IMAGE}:${major},${IMAGE}:latest"
+          tags="${IMAGE}:${VERSION}"
+          if [ "$PRERELEASE" != "true" ]; then
+            tags="${tags},${IMAGE}:${MAJOR},${IMAGE}:latest"
           fi
           echo "tags=$tags" >> "$GITHUB_OUTPUT"
 
       - name: Compute pnpm tarball checksums
         id: checksums
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
         run: |
           set -eu
-          version='${{ steps.meta.outputs.version }}'
-          base="https://github.com/pnpm/pnpm/releases/download/v${version}"
+          base="https://github.com/pnpm/pnpm/releases/download/v${VERSION}"
           for pair in amd64:x64 arm64:arm64; do
             key="${pair%:*}"
             name="${pair#*:}"

@@ -10,7 +10,7 @@ ARG PNPM_SHA256_ARM64
 ARG TARGETARCH
 
 ENV PNPM_HOME=/pnpm
-ENV PATH=$PNPM_HOME:$PATH
+ENV PATH=$PNPM_HOME/bin:$PATH
 
 RUN set -eu; \
     test -n "$PNPM_VERSION"; \
@@ -23,7 +23,8 @@ RUN set -eu; \
       *) echo "unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
     esac; \
     test -n "$expected_sha" || { echo "missing PNPM_SHA256_* build-arg for $TARGETARCH" >&2; exit 1; }; \
-    mkdir -p /opt/pnpm "$PNPM_HOME"; \
+    mkdir -p /opt/pnpm "$PNPM_HOME/bin"; \
+    chmod -R a+rwX "$PNPM_HOME"; \
     curl -fsSL --retry 3 --retry-delay 2 -o /tmp/pnpm.tgz \
       "https://github.com/pnpm/pnpm/releases/download/v${PNPM_VERSION}/pnpm-linux-${arch}.tar.gz"; \
     actual_sha="$(sha256sum /tmp/pnpm.tgz | awk '{print $1}')"; \
