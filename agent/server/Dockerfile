@@ -8,7 +8,7 @@ FROM ghcr.io/pnpm/pnpm
 # The base image ships pnpm on PATH (PNPM_HOME=/pnpm) but no Node runtime.
 # Install one with pnpm's runtime manager, then install pnpm-agent itself
 # into the same global bin dir so both `node` and `pnpm-agent` resolve.
-RUN pnpm runtime set node 22 -g \
+RUN pnpm runtime set node 24 -g \
  && pnpm add -g pnpm-agent
 
 # Server config (override at runtime with `docker run -e`).
