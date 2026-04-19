@@ -60,7 +60,7 @@ export function help (): string {
             name: '--preid <preid>',
           },
           {
-            description: 'Sets the tag prefix. Default is "v". Set to empty string to disable.',
+            description: 'Sets the tag prefix. Default is "v". Set to empty string to remove the prefix.',
             name: '--tag-version-prefix <prefix>',
           },
           {
@@ -276,6 +276,13 @@ async function commitAndTag (changes: VersionChange[], opts: VersionHandlerOptio
   const commitArgs = ['commit', '-m', message]
   if (opts.commitHooks === false) {
     commitArgs.push('--no-verify')
+  }
+  // writeProjectManifest skips writing when the new content matches the existing
+  // file, so an --allow-same-version run can leave nothing staged and fail the
+  // commit. Pass --allow-empty in that case to let the tag point at the current
+  // HEAD as a deliberate marker.
+  if (opts.allowSameVersion) {
+    commitArgs.push('--allow-empty')
   }
   await execa('git', commitArgs, execOpts)
 

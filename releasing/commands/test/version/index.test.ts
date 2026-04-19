@@ -302,6 +302,20 @@ describe('version command', () => {
       expect(commitsAfter).toBe(commitsBefore)
     })
 
+    it('should tag --allow-same-version runs even when the manifest is unchanged', async () => {
+      await handler({
+        dir: tempDir,
+        workspaceDir: tempDir,
+        allowSameVersion: true,
+      } as any, ['1.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+      const { stdout: tags } = await execa('git', ['tag', '--list'], { cwd: tempDir })
+      expect(tags).toBe('v1.0.0')
+
+      const { stdout: logSubject } = await execa('git', ['log', '-1', '--pretty=%s'], { cwd: tempDir })
+      expect(logSubject).toBe('1.0.0')
+    })
+
     it('should bypass commit hooks with --no-commit-hooks', async () => {
       const hookDir = path.join(tempDir, '.git', 'hooks')
       const hookPath = path.join(hookDir, 'pre-commit')
