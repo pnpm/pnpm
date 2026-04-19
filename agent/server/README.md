@@ -23,6 +23,34 @@ pnpm add -g pnpm-agent
 pnpm-agent
 ```
 
+### Docker
+
+A Dockerfile is provided at `agent/server/Dockerfile`. It is layered on top of [`ghcr.io/pnpm/pnpm`](https://github.com/pnpm/pnpm/pkgs/container/pnpm) and installs Node.js and `pnpm-agent` inside the image.
+
+```bash
+# Build the image locally
+docker build -t pnpm-agent agent/server
+
+# Run it, persisting the store + cache in ./agent-data
+docker run --rm \
+  -p 4873:4873 \
+  -v "$(pwd)/agent-data:/agent-data" \
+  pnpm-agent
+```
+
+Override the defaults with `-e`, same variables as described below:
+
+```bash
+docker run --rm \
+  -p 4000:4000 \
+  -e PORT=4000 \
+  -e PNPM_AGENT_UPSTREAM=https://my-proxy.example.com/ \
+  -v "$(pwd)/agent-data:/agent-data" \
+  pnpm-agent
+```
+
+The image exposes port `4873` and declares a `/agent-data` volume; mount a host directory there if you want the resolved metadata, store index, and file store to survive container restarts.
+
 ### From source
 
 ```bash
