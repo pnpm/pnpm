@@ -15,6 +15,8 @@ const AUDIT_COLOR: Record<AuditLevelString, (s: string) => string> = {
 
 const SEVERITY_ORDER: AuditLevelString[] = ['critical', 'high', 'moderate', 'low', 'info']
 
+const COLUMN_HEADER = ['Package', 'Vulnerable', 'Patched', 'Title']
+
 export interface AuditChoiceRow {
   name: string
   value: string
@@ -40,8 +42,6 @@ export function getAuditFixChoices (advisories: AuditAdvisory[]): AuditChoiceGro
 
   const grouped = groupBy((a: AuditAdvisory) => a.severity, fixable)
 
-  const header = ['Package', 'Severity', 'Vulnerable', 'Patched', 'Title']
-
   const finalChoices: AuditChoiceGroup = []
   for (const severity of SEVERITY_ORDER) {
     const groupAdvisories = grouped[severity]
@@ -54,7 +54,7 @@ export function getAuditFixChoices (advisories: AuditAdvisory[]): AuditChoiceGro
     }
 
     const rows: RawRow[] = [
-      { raw: header, key: '', disabled: true },
+      { raw: COLUMN_HEADER, key: '', disabled: true },
     ]
 
     for (const advisory of groupAdvisories) {
@@ -62,7 +62,6 @@ export function getAuditFixChoices (advisories: AuditAdvisory[]): AuditChoiceGro
       rows.push({
         raw: [
           advisory.module_name,
-          AUDIT_COLOR[advisory.severity](advisory.severity),
           advisory.vulnerable_versions,
           advisory.patched_versions ?? '',
           advisory.title,
@@ -114,10 +113,9 @@ function alignColumns (rows: string[][]): string[] {
       },
       columns: {
         0: { width: 30, truncate: 30 },
-        1: { width: 10, truncate: 10 },
-        2: { width: 20, truncate: 20 },
-        3: { width: 15, truncate: 15 },
-        4: { width: Math.min(getColumnWidth(rows, 4, 20), 80), truncate: 80 },
+        1: { width: 20, truncate: 20 },
+        2: { width: 15, truncate: 15 },
+        3: { width: Math.min(getColumnWidth(rows, 3, 20), 80), truncate: 80 },
       },
       drawHorizontalLine: () => false,
     }
