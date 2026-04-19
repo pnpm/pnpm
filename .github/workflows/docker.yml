@@ -1,0 +1,111 @@
+name: Docker
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "pnpm version to build (without leading v)"
+        required: true
+      prerelease:
+        description: "Treat as prerelease (skips mutable tags)"
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/pnpm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Resolve release metadata
+        id: meta
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          set -eu
+          if [ "$EVENT_NAME" = "release" ]; then
+            version="${RELEASE_TAG#v}"
+            prerelease="$RELEASE_PRERELEASE"
+          else
+            version="${INPUT_VERSION#v}"
+            prerelease="$INPUT_PRERELEASE"
+          fi
+          case "$version" in
+            *[!0-9A-Za-z.+-]*) echo "invalid version: $version" >&2; exit 1 ;;
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "invalid version: $version" >&2; exit 1 ;;
+          esac
+          major="${version%%.*}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "major=$major" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+
+      - name: Compute image tags
+        id: tags
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          MAJOR: ${{ steps.meta.outputs.major }}
+          PRERELEASE: ${{ steps.meta.outputs.prerelease }}
+        run: |
+          set -eu
+          tags="${IMAGE}:${VERSION}"
+          if [ "$PRERELEASE" != "true" ]; then
+            tags="${tags},${IMAGE}:${MAJOR},${IMAGE}:latest"
+          fi
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+
+      - name: Compute pnpm tarball checksums
+        id: checksums
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -eu
+          base="https://github.com/pnpm/pnpm/releases/download/v${VERSION}"
+          for pair in amd64:x64 arm64:arm64; do
+            key="${pair%:*}"
+            name="${pair#*:}"
+            sha="$(curl -fsSL --retry 3 --retry-delay 2 "${base}/pnpm-linux-${name}.tar.gz" \
+                   | sha256sum | awk '{print $1}')"
+            echo "sha_${key}=${sha}" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Login to GHCR
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: ./docker
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          build-args: |
+            PNPM_VERSION=${{ steps.meta.outputs.version }}
+            PNPM_SHA256_AMD64=${{ steps.checksums.outputs.sha_amd64 }}
+            PNPM_SHA256_ARM64=${{ steps.checksums.outputs.sha_arm64 }}
+          provenance: mode=max
+          sbom: true
