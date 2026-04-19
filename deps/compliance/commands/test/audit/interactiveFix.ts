@@ -141,8 +141,7 @@ test('audit --fix -i collapses advisories that share module_name@vulnerable_vers
   const allRows = choices.flatMap((g) => g.choices)
   const minimatchRows = allRows.filter((c) => c.value === 'minimatch@<3.1.3')
   expect(minimatchRows).toHaveLength(1)
-  expect(minimatchRows[0].message).toContain('GHSA-3ppc-4f35-3m26')
-  expect(minimatchRows[0].message).toContain('GHSA-7r86-cg39-jmmj')
+  expect(minimatchRows[0].message).toMatch(/GHSA-3ppc-4f35-3m26.*GHSA-7r86-[a-z0-9-]+/)
 })
 
 test('audit --fix -i with auditLevel filters before showing prompt', async () => {

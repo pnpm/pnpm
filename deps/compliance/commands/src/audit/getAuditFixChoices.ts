@@ -1,5 +1,3 @@
-import { stripVTControlCharacters } from 'node:util'
-
 import type { AuditAdvisory, AuditLevelString } from '@pnpm/deps.compliance.audit'
 import { getBorderCharacters, table } from '@zkochan/table'
 import chalk from 'chalk'
@@ -112,23 +110,18 @@ export function getAuditFixChoices (advisories: AuditAdvisory[]): AuditChoiceGro
 }
 
 function alignColumns (rows: string[][]): string[] {
-  // wrapWord is intentionally left false: the caller assumes each row maps to
-  // exactly one rendered line when picking `rendered[i]` for choice `i`.
-  // With wrapping enabled, long cells produce continuation lines that shift
-  // every subsequent row, leaving choices with blank/garbled messages.
+  // No per-column width / truncate: each cell is short (package name,
+  // semver range, one or two GHSA IDs), so the table library can
+  // auto-size columns and still keep each row on a single line. Keeping
+  // rows 1:1 with rendered lines is required because the caller picks
+  // `rendered[i]` for choice `i`.
   return table(
     rows,
     {
       border: getBorderCharacters('void'),
       columnDefault: {
         paddingLeft: 0,
-        paddingRight: 1,
-      },
-      columns: {
-        0: { width: 30, truncate: 30 },
-        1: { width: 20, truncate: 20 },
-        2: { width: 15, truncate: 15 },
-        3: { width: Math.min(getColumnWidth(rows, 3, 19), 60), truncate: 60 },
+        paddingRight: 2,
       },
       drawHorizontalLine: () => false,
     }
@@ -159,9 +152,3 @@ function dedupeByFixKey (advisories: AuditAdvisory[]): AuditAdvisory[] {
   return Array.from(byKey.values())
 }
 
-function getColumnWidth (rows: string[][], columnIndex: number, minWidth: number): number {
-  return rows.reduce((max, row) => {
-    if (row[columnIndex] == null) return max
-    return Math.max(max, stripVTControlCharacters(row[columnIndex]).length)
-  }, minWidth)
-}
