@@ -247,6 +247,74 @@ test('devEngines.packageManager takes precedence over packageManager field', asy
   expect(stderr.toString()).toContain('"packageManager" will be ignored')
 })
 
+test('no warning when packageManager and devEngines.packageManager specify the same exact version', async () => {
+  prepare({
+    packageManager: 'pnpm@1.2.3',
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '1.2.3',
+        onFail: 'ignore',
+      },
+    },
+  })
+
+  const { stderr } = execPnpmSync(['install'])
+
+  expect(stderr.toString()).not.toContain('Cannot use both')
+})
+
+test('no warning when packageManager version satisfies the devEngines.packageManager range', async () => {
+  prepare({
+    packageManager: 'pnpm@1.2.3',
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '>=1.0.0',
+        onFail: 'ignore',
+      },
+    },
+  })
+
+  const { stderr } = execPnpmSync(['install'])
+
+  expect(stderr.toString()).not.toContain('Cannot use both')
+})
+
+test('warns when packageManager specifies a different package manager from devEngines.packageManager', async () => {
+  prepare({
+    packageManager: 'yarn@4.0.0',
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '>=1.0.0',
+        onFail: 'ignore',
+      },
+    },
+  })
+
+  const { stderr } = execPnpmSync(['install'])
+
+  expect(stderr.toString()).toContain('Cannot use both "packageManager" and "devEngines.packageManager"')
+})
+
+test('warns when packageManager version does not satisfy the devEngines.packageManager range', async () => {
+  prepare({
+    packageManager: 'pnpm@1.2.3',
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '>=2.0.0',
+        onFail: 'ignore',
+      },
+    },
+  })
+
+  const { stderr } = execPnpmSync(['install'])
+
+  expect(stderr.toString()).toContain('Cannot use both "packageManager" and "devEngines.packageManager"')
+})
+
 test('pmOnFail=ignore via env var bypasses the devEngines.packageManager check', async () => {
   prepare({
     devEngines: {
