@@ -97,6 +97,8 @@ interface GetConfigOptions {
    * `SELF_UPDATE_SKIPPED_SETTINGS`.
    */
   forSelfUpdate?: boolean
+  /** Collects warnings as they are found, so they survive a failed load. */
+  warnings?: string[]
 }
 
 interface GetConfigResult {
@@ -146,7 +148,7 @@ export async function getConfig (opts: GetConfigOptions): Promise<GetConfigResul
 }
 
 async function getConfigInheritingDlxSettingsFromLocal (opts: GetConfigOptions): Promise<GetConfigResult> {
-  const { onlyInheritDlxSettingsFromLocal: _, ...localOpts } = opts
+  const { onlyInheritDlxSettingsFromLocal: _, warnings = [], ...localOpts } = opts
   const globalCfgOpts: typeof localOpts = {
     ...localOpts,
     ignoreLocalSettings: true,
@@ -155,10 +157,21 @@ async function getConfigInheritingDlxSettingsFromLocal (opts: GetConfigOptions):
       dir: os.homedir(),
     },
   }
-  const [final, localSrc] = await Promise.all([getConfig(globalCfgOpts), getConfig(localOpts)])
+  const globalWarnings: string[] = []
+  const localWarnings: string[] = []
+  let final: GetConfigResult
+  let localSrc: GetConfigResult
+  try {
+    [final, localSrc] = await Promise.all([
+      getConfig({ ...globalCfgOpts, warnings: globalWarnings }),
+      getConfig({ ...localOpts, warnings: localWarnings }),
+    ])
+  } finally {
+    // Both loads read the user-level config, so they report its warnings twice.
+    warnings.push(...new Set([...globalWarnings, ...localWarnings]))
+  }
   inheritDlxConfig(final, localSrc)
-  final.warnings.push(...localSrc.warnings)
-  return final
+  return { ...final, warnings }
 }
 
 function assertNoHoistConflicts (cliOptions: CliOptions): void {
@@ -201,6 +214,8 @@ async function loadConfigSources (opts: GetConfigOptions, cliOptions: CliOptions
     // `globalYamlConfig` later so it isn't flagged as an unknown setting).
     globalConfigAuth: (globalYamlConfig as unknown as Record<string, unknown> | undefined)?._auth,
   })
+  const warnings = opts.warnings ?? []
+  warnings.push(...npmrcResult.warnings)
 
   const configFromCliOpts = Object.fromEntries(Object.entries(cliOptions)
     .filter(([_, value]) => typeof value !== 'undefined')
@@ -222,7 +237,7 @@ async function loadConfigSources (opts: GetConfigOptions, cliOptions: CliOptions
     npmrcResult,
     pnpmConfig,
     registrySetOnCommandLine: explicitlySetKeys.has('registry'),
-    warnings: npmrcResult.warnings,
+    warnings,
   }
   return { configDir, state, globalDepsBuildConfig, globalYamlConfig }
 }

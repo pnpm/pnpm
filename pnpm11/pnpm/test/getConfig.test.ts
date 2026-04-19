@@ -88,6 +88,53 @@ test('console a warning when a project-level .npmrc has an unresolved env variab
   expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('Failed to replace env in config: ${ENV_VAR_123}'))
 })
 
+test('console warnings before rethrowing a config error', async () => {
+  prepare()
+
+  const userconfig = path.resolve('user.npmrc')
+  fs.writeFileSync(userconfig, [
+    '//registry.npmjs.org/:_authToken=${ENV_VAR_123}',
+    '//registry.npmjs.org/:_auth=\\${ENV_VAR_123}',
+  ].join('\n'), 'utf8')
+
+  await expect(getConfig({
+    json: false,
+    userconfig,
+  }, {
+    workspaceDir: '.',
+    excludeReporter: false,
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_AUTH_INVALID_BASE64',
+    message: 'Failed to decode _auth as base64',
+  })
+
+  expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('Failed to replace env in config: ${ENV_VAR_123}'))
+})
+
+test('console warnings before rethrowing a config error when onlyInheritDlxSettingsFromLocal is true', async () => {
+  prepare()
+
+  const userconfig = path.resolve('user.npmrc')
+  fs.writeFileSync(userconfig, [
+    '//registry.npmjs.org/:_authToken=${ENV_VAR_123}',
+    '//registry.npmjs.org/:_auth=\\${ENV_VAR_123}',
+  ].join('\n'), 'utf8')
+
+  await expect(getConfig({
+    json: false,
+    userconfig,
+  }, {
+    workspaceDir: '.',
+    excludeReporter: false,
+    onlyInheritDlxSettingsFromLocal: true,
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_AUTH_INVALID_BASE64',
+    message: 'Failed to decode _auth as base64',
+  })
+
+  expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('Failed to replace env in config: ${ENV_VAR_123}'))
+})
+
 test('console a warning when a project-level .npmrc uses an env variable in a request destination', async () => {
   prepare()
 
