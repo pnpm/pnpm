@@ -23,7 +23,7 @@ const SEVERITY_RANK: Record<AuditLevelString, number> = {
   critical: 4,
 }
 
-const COLUMN_HEADER = ['Package', 'Vulnerable', 'Patched', 'Title']
+const COLUMN_HEADER = ['Package', 'Vulnerable', 'Patched', 'Advisories']
 
 export interface AuditChoiceRow {
   name: string
@@ -77,7 +77,7 @@ export function getAuditFixChoices (advisories: AuditAdvisory[]): AuditChoiceGro
           advisory.module_name,
           advisory.vulnerable_versions,
           advisory.patched_versions ?? '',
-          advisory.title,
+          advisory.github_advisory_id ?? '',
         ],
         key,
       })
@@ -128,7 +128,7 @@ function alignColumns (rows: string[][]): string[] {
         0: { width: 30, truncate: 30 },
         1: { width: 20, truncate: 20 },
         2: { width: 15, truncate: 15 },
-        3: { width: Math.min(getColumnWidth(rows, 3, 20), 80), truncate: 80 },
+        3: { width: Math.min(getColumnWidth(rows, 3, 19), 60), truncate: 60 },
       },
       drawHorizontalLine: () => false,
     }
@@ -147,10 +147,13 @@ function dedupeByFixKey (advisories: AuditAdvisory[]): AuditAdvisory[] {
     const keepSeverity = SEVERITY_RANK[advisory.severity] > SEVERITY_RANK[existing.severity]
       ? advisory.severity
       : existing.severity
+    const mergedId = existing.github_advisory_id && advisory.github_advisory_id && existing.github_advisory_id !== advisory.github_advisory_id
+      ? `${existing.github_advisory_id}, ${advisory.github_advisory_id}`
+      : existing.github_advisory_id || advisory.github_advisory_id
     byKey.set(key, {
       ...existing,
       severity: keepSeverity,
-      title: existing.title === advisory.title ? existing.title : `${existing.title}; ${advisory.title}`,
+      github_advisory_id: mergedId,
     })
   }
   return Array.from(byKey.values())

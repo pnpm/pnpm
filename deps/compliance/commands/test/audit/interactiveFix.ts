@@ -113,6 +113,38 @@ test('audit --fix -i prompt is called with correct structure', async () => {
   expect(groupNames[2]).toBe('[moderate]')
 })
 
+test('audit --fix -i collapses advisories that share module_name@vulnerable_versions', async () => {
+  const tmp = f.prepare('has-vulnerabilities')
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
+
+  prompt.mockResolvedValue({
+    selectedVulnerabilities: [
+      { value: 'minimatch@<3.1.3', name: 'minimatch@<3.1.3' },
+    ],
+  })
+
+  await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+    interactive: true,
+  })
+
+  // The mock fixture has 2 distinct advisories for minimatch@<3.1.3 with
+  // different GHSA IDs; they must render as a single interactive choice
+  // whose rendered row lists both GHSA IDs.
+  const choices = (prompt.mock.calls[0][0] as unknown as Record<string, unknown>).choices as Array<{ choices: Array<{ value: string, message?: string }> }>
+  const allRows = choices.flatMap((g) => g.choices)
+  const minimatchRows = allRows.filter((c) => c.value === 'minimatch@<3.1.3')
+  expect(minimatchRows).toHaveLength(1)
+  expect(minimatchRows[0].message).toContain('GHSA-3ppc-4f35-3m26')
+  expect(minimatchRows[0].message).toContain('GHSA-7r86-cg39-jmmj')
+})
+
 test('audit --fix -i with auditLevel filters before showing prompt', async () => {
   const tmp = f.prepare('has-vulnerabilities')
 
