@@ -122,9 +122,15 @@ export async function getConfig (opts: {
    * {@link SELF_UPDATE_SKIPPED_SETTINGS}.
    */
   forSelfUpdate?: boolean
+  /**
+   * Optional sink for warnings collected during config loading.
+   */
+  warnings?: string[]
 }): Promise<{ config: Config, context: ConfigContext, warnings: string[] }> {
+  const warnings = opts.warnings ?? []
+
   if (opts.onlyInheritDlxSettingsFromLocal) {
-    const { onlyInheritDlxSettingsFromLocal: _, ...localOpts } = opts
+    const { onlyInheritDlxSettingsFromLocal: _, warnings: callerWarnings, ...localOpts } = opts
     const globalCfgOpts: typeof localOpts = {
       ...localOpts,
       ignoreLocalSettings: true,
@@ -133,9 +139,26 @@ export async function getConfig (opts: {
         dir: os.homedir(),
       },
     }
-    const [final, localSrc] = await Promise.all([getConfig(globalCfgOpts), getConfig(localOpts)])
+    const globalWarnings: string[] = []
+    const localWarnings: string[] = []
+    let final!: { config: Config, context: ConfigContext, warnings: string[] }
+    let localSrc!: { config: Config, context: ConfigContext, warnings: string[] }
+    try {
+      ;[final, localSrc] = await Promise.all([
+        getConfig({ ...globalCfgOpts, warnings: globalWarnings }),
+        getConfig({ ...localOpts, warnings: localWarnings }),
+      ])
+    } finally {
+      if (callerWarnings) {
+        for (const warning of [...globalWarnings, ...localWarnings]) {
+          if (!callerWarnings.includes(warning)) {
+            callerWarnings.push(warning)
+          }
+        }
+      }
+    }
     inheritDlxConfig(final, localSrc)
-    final.warnings.push(...localSrc.warnings)
+    final.warnings = callerWarnings ?? Array.from(new Set([...globalWarnings, ...localWarnings]))
     return final
   }
 
@@ -280,7 +303,7 @@ export async function getConfig (opts: {
     // `globalYamlConfig` below so it isn't flagged as an unknown setting).
     globalConfigAuth: (globalYamlConfigForNpmrcAuthFile as unknown as Record<string, unknown> | undefined)?._auth,
   })
-  const warnings = npmrcResult.warnings
+  warnings.push(...npmrcResult.warnings)
 
   const configFromCliOpts = Object.fromEntries(Object.entries(cliOptions)
     .filter(([_, value]) => typeof value !== 'undefined')

@@ -4863,6 +4863,21 @@ test('return a warning when the .npmrc has an env variable that does not exist',
   expect(warnings).toEqual(expect.arrayContaining(expected))
 })
 
+test('return the caller-provided warnings array', async () => {
+  const warnings: string[] = []
+
+  const result = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    warnings,
+  })
+
+  expect(result.warnings).toBe(warnings)
+})
+
 test('throw a descriptive auth config error when unresolved _auth placeholder reaches auth parsing', async () => {
   prepare()
 
