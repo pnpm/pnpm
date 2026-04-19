@@ -10,24 +10,18 @@ import { readYamlFileSync } from 'read-yaml-file'
 
 function getBinDir (): string {
   const isWin = isWindows()
-  const cwd = process.cwd()
-  const pnpmDir = path.join(cwd, isWin ? 'dist' : 'bin')
-  if (fs.existsSync(path.join(pnpmDir, 'pnpm.mjs'))) {
-    return pnpmDir
+  const base = import.meta.dirname
+  const candidates = [
+    path.join(base, '../..', isWin ? 'dist' : 'bin'),
+    path.join(base, '../../dist'),
+    path.join(base, '../../bin'),
+  ]
+  for (const candidate of candidates) {
+    if (fs.existsSync(path.join(candidate, 'pnpm.mjs'))) {
+      return candidate
+    }
   }
-  const fromPackage = path.join(cwd, '..', 'bin')
-  if (fs.existsSync(path.join(fromPackage, 'pnpm.mjs'))) {
-    return fromPackage
-  }
-  const altDir = path.join(cwd, isWin ? 'dist' : 'dist')
-  if (fs.existsSync(path.join(altDir, 'pnpm.mjs'))) {
-    return altDir
-  }
-  const parentBin = path.join(cwd, '..', isWin ? 'dist' : 'bin')
-  if (fs.existsSync(path.join(parentBin, 'pnpm.mjs'))) {
-    return parentBin
-  }
-  return fromPackage
+  return candidates[0]
 }
 export const binDir = getBinDir()
 export const pnpmBinLocation = path.join(binDir, 'pnpm.mjs')
