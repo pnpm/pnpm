@@ -3,16 +3,13 @@
 # Build:  docker build -t pnpm-agent .
 # Run:    docker run -p 4873:4873 -v $(pwd)/agent-data:/agent-data pnpm-agent
 
-FROM node:22-slim
+FROM ghcr.io/pnpm/pnpm
 
-# Install pnpm via corepack — pinned for reproducibility.
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
-# `pnpm add -g` installs the binary into PNPM_HOME; put it on PATH.
-ENV PNPM_HOME=/usr/local/share/pnpm
-ENV PATH=$PNPM_HOME:$PATH
-
-RUN pnpm add -g pnpm-agent
+# The base image ships pnpm on PATH (PNPM_HOME=/pnpm) but no Node runtime.
+# Install one with pnpm's runtime manager, then install pnpm-agent itself
+# into the same global bin dir so both `node` and `pnpm-agent` resolve.
+RUN pnpm runtime set node 22 -g \
+ && pnpm add -g pnpm-agent
 
 # Server config (override at runtime with `docker run -e`).
 ENV PORT=4873 \
