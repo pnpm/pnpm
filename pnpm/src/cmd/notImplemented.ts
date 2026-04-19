@@ -10,22 +10,19 @@ const NOT_IMPLEMENTED_COMMANDS = [
   'find',
   'home',
   'issues',
-  'owner',
-  'ping',
+
   'prefix',
   'profile',
   'pkg',
   'repo',
   's',
   'se',
-  'search',
+
   'set-script',
-  'star',
-  'stars',
+
   'team',
   'token',
-  'unstar',
-  'whoami',
+
   'xmas',
 ]
 

@@ -7,7 +7,7 @@ import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.ty
 import type { Registries, RegistryConfig } from '@pnpm/types'
 import semver from 'semver'
 
-import { parsePackageSpec, rcOptionsTypes } from '../common.js'
+import { normalizeRegistryUrl, parsePackageSpec, rcOptionsTypes } from '../common.js'
 
 export { parsePackageSpec, rcOptionsTypes }
 
@@ -19,7 +19,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
 }
 
 export interface DeprecateOptions extends CreateFetchFromRegistryOptions {
-  cliOptions: {
+  cliOptions?: {
     otp?: string
   }
   configByUri?: Record<string, RegistryConfig>
@@ -36,7 +36,7 @@ export async function updateDeprecation (
   opts: DeprecateOptions,
   { deprecated, packageName, versionRange }: UpdateDeprecationOptions
 ): Promise<string> {
-  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
+  const registryUrl = normalizeRegistryUrl(pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName))
 
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {}, registryUrl)
 

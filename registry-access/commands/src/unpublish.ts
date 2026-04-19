@@ -8,7 +8,7 @@ import type { Registries, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
 
-import { parsePackageSpec, rcOptionsTypes } from './common.js'
+import { normalizeRegistryUrl, parsePackageSpec, rcOptionsTypes } from './common.js'
 
 export { rcOptionsTypes }
 
@@ -53,7 +53,7 @@ export function help (): string {
 }
 
 export interface UnpublishOptions extends CreateFetchFromRegistryOptions {
-  cliOptions: {
+  cliOptions?: {
     force?: boolean
     otp?: string
   }
@@ -102,7 +102,7 @@ async function unpublishPackage (
   versionRange: string | undefined,
   opts: UnpublishOptions
 ): Promise<string> {
-  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
+  const registryUrl = normalizeRegistryUrl(pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName))
 
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {}, registryUrl)
 
