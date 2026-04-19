@@ -58,7 +58,6 @@
     "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/workspace.spec-parser": "workspace:*",
     "@yarnpkg/core": "catalog:",
-    "filenamify": "catalog:",
     "graph-cycles": "catalog:",
     "is-inner-link": "catalog:",
     "is-subdir": "catalog:",

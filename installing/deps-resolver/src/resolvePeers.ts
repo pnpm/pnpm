@@ -10,13 +10,13 @@ import type {
   ProjectRootDir,
 } from '@pnpm/types'
 import * as semverUtils from '@yarnpkg/core/semverUtils'
-import filenamify from 'filenamify'
 import { analyzeGraph, type Graph } from 'graph-cycles'
 import pDefer, { type DeferredPromise } from 'p-defer'
 import { partition, pick } from 'ramda'
 import semver from 'semver'
 
 import { dedupeInjectedDeps } from './dedupeInjectedDeps.js'
+import { linkPathToPeerVersion } from './linkPathToPeerVersion.js'
 import { mergePeers } from './mergePeers.js'
 import type { NodeId } from './nextNodeId.js'
 import type {
@@ -977,7 +977,7 @@ function peerNodeIdToPeerId<T extends PartialResolvedPackage> (
   if (typeof peerNodeId === 'string' && peerNodeId.startsWith('link:')) {
     return {
       name: alias,
-      version: filenamify(peerNodeId.slice(5), { replacement: '+' }),
+      version: linkPathToPeerVersion(peerNodeId.slice(5)),
     }
   }
   if (ctx.dedupePeers) {
