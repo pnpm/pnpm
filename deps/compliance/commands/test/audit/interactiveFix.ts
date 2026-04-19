@@ -58,7 +58,7 @@ test('audit --fix -i shows interactive prompt and only fixes selected vulnerabil
   const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
 
   // Only the selected advisory should be fixed
-  expect(manifest.overrides?.['xmlhttprequest-ssl@<1.6.1']).toBe('>=1.6.1')
+  expect(manifest.overrides?.['xmlhttprequest-ssl@<1.6.1']).toBe('^1.6.1')
 
   // Other advisories should NOT be fixed
   expect(manifest.overrides?.['axios@<=0.18.0']).toBeFalsy()

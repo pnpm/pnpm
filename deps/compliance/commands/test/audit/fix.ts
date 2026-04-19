@@ -39,7 +39,7 @@ test('overrides are added for vulnerable dependencies', async () => {
   expect(output).toContain('entries were added to minimumReleaseAgeExclude')
 
   const manifest = readYamlFileSync<{ overrides?: Record<string, string>, minimumReleaseAgeExclude?: string[] }>(path.join(tmp, 'pnpm-workspace.yaml'))
-  expect(manifest.overrides?.['axios@<=0.18.0']).toBe('>=0.18.1')
+  expect(manifest.overrides?.['axios@<=0.18.0']).toBe('^0.18.1')
   expect(manifest.overrides?.['sync-exec@>=0.0.0']).toBeFalsy()
 
   // minimumReleaseAgeExclude should contain the minimum patched versions
@@ -118,9 +118,9 @@ test('audit --fix respects auditLevel and only fixes matching severities', async
   const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
 
   // Critical advisories should be fixed
-  expect(manifest.overrides?.['xmlhttprequest-ssl@<1.6.1']).toBe('>=1.6.1')
-  expect(manifest.overrides?.['nodemailer@<6.4.16']).toBe('>=6.4.16')
-  expect(manifest.overrides?.['netmask@<1.1.0']).toBe('>=1.1.0')
+  expect(manifest.overrides?.['xmlhttprequest-ssl@<1.6.1']).toBe('^1.6.1')
+  expect(manifest.overrides?.['nodemailer@<6.4.16']).toBe('^6.4.16')
+  expect(manifest.overrides?.['netmask@<1.1.0']).toBe('^1.1.0')
 
   // Non-critical advisories (high, moderate, low) should NOT be fixed
   expect(manifest.overrides?.['axios@<=0.18.0']).toBeFalsy()
