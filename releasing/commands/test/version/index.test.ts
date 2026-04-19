@@ -317,6 +317,34 @@ describe('version command', () => {
       const { stdout: tags } = await execa('git', ['tag', '--list'], { cwd: tempDir })
       expect(tags).toBe('v1.0.1')
     })
+
+    it('should skip commit and tag in recursive mode', async () => {
+      const pkgADir = path.join(tempDir, 'packages', 'pkg-a')
+      const pkgBDir = path.join(tempDir, 'packages', 'pkg-b')
+      fs.mkdirSync(pkgADir, { recursive: true })
+      fs.mkdirSync(pkgBDir, { recursive: true })
+
+      fs.writeFileSync(path.join(tempDir, 'pnpm-workspace.yaml'), 'packages:\n  - "packages/*"\n')
+      fs.writeFileSync(path.join(pkgADir, 'package.json'), JSON.stringify({ name: 'pkg-a', version: '1.0.0' }))
+      fs.writeFileSync(path.join(pkgBDir, 'package.json'), JSON.stringify({ name: 'pkg-b', version: '2.3.0' }))
+
+      await execa('git', ['add', '.'], { cwd: tempDir })
+      await execa('git', ['commit', '-q', '-m', 'add workspace', '--no-gpg-sign'], { cwd: tempDir })
+
+      const { stdout: commitsBefore } = await execa('git', ['rev-list', '--count', 'HEAD'], { cwd: tempDir })
+
+      await handler({
+        dir: tempDir,
+        workspaceDir: tempDir,
+        recursive: true,
+      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+      const { stdout: tags } = await execa('git', ['tag', '--list'], { cwd: tempDir })
+      expect(tags).toBe('')
+
+      const { stdout: commitsAfter } = await execa('git', ['rev-list', '--count', 'HEAD'], { cwd: tempDir })
+      expect(commitsAfter).toBe(commitsBefore)
+    })
   })
 
   describe('recursive mode', () => {

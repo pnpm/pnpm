@@ -72,7 +72,7 @@ export function help (): string {
             name: '--message <message>',
           },
           {
-            description: "Don't create a commit or tag for the version bump",
+            description: "Don't create a commit or tag for the version bump. Git commits and tags are always skipped in recursive mode.",
             name: '--no-git-tag-version',
           },
           {
@@ -189,7 +189,10 @@ export async function handler (
     throw new PnpmError('NO_PACKAGES_TO_VERSION', 'No packages to version')
   }
 
-  if (opts.gitTagVersion !== false && await isGitRepo({ cwd: gitCwd })) {
+  // In recursive mode, multiple packages can be bumped to different versions
+  // in a single run, and there is no obvious single version to tag the commit
+  // with. Skip the git commit and tag entirely in that case.
+  if (!opts.recursive && opts.gitTagVersion !== false && await isGitRepo({ cwd: gitCwd })) {
     await commitAndTag(changes, { ...opts, cwd: gitCwd })
   }
 
@@ -247,34 +250,28 @@ async function bumpPackageVersion (
 
 async function commitAndTag (changes: VersionChange[], opts: VersionHandlerOptions & { cwd: string }): Promise<void> {
   const resolvedCwd = path.resolve(opts.cwd)
-  // Pick the change at cwd (usually the workspace root) when present,
-  // otherwise fall back to a deterministic order so the commit subject and
-  // tag version are stable across runs.
-  const primary = changes.find(change => path.resolve(change.path) === resolvedCwd) ??
-    [...changes].sort((a, b) => a.path.localeCompare(b.path))[0]
+  const [change] = changes
   const rawMessage = opts.message ?? '%s'
-  const message = rawMessage.replace(/%s/g, primary.newVersion)
+  const message = rawMessage.replace(/%s/g, change.newVersion)
   const tagPrefix = opts.tagVersionPrefix ?? 'v'
-  const tagName = `${tagPrefix}${primary.newVersion}`
+  const tagName = `${tagPrefix}${change.newVersion}`
   const execOpts = { cwd: opts.cwd }
 
-  const manifestPaths = changes.map(change => {
-    const resolvedManifestPath = path.resolve(change.manifestPath)
-    const relativeManifestPath = path.relative(resolvedCwd, resolvedManifestPath)
-    if (
-      relativeManifestPath === '' ||
-      path.isAbsolute(relativeManifestPath) ||
-      relativeManifestPath.startsWith(`..${path.sep}`) ||
-      relativeManifestPath === '..'
-    ) {
-      throw new PnpmError(
-        'INVALID_MANIFEST_PATH',
-        `Cannot stage manifest outside of git cwd: ${change.manifestPath}`
-      )
-    }
-    return relativeManifestPath.split(path.sep).join('/')
-  })
-  await execa('git', ['add', ...manifestPaths], execOpts)
+  const resolvedManifestPath = path.resolve(change.manifestPath)
+  const relativeManifestPath = path.relative(resolvedCwd, resolvedManifestPath)
+  if (
+    relativeManifestPath === '' ||
+    path.isAbsolute(relativeManifestPath) ||
+    relativeManifestPath.startsWith(`..${path.sep}`) ||
+    relativeManifestPath === '..'
+  ) {
+    throw new PnpmError(
+      'INVALID_MANIFEST_PATH',
+      `Cannot stage manifest outside of git cwd: ${change.manifestPath}`
+    )
+  }
+  const manifestPath = relativeManifestPath.split(path.sep).join('/')
+  await execa('git', ['add', manifestPath], execOpts)
 
   const commitArgs = ['commit', '-m', message]
   if (opts.commitHooks === false) {
