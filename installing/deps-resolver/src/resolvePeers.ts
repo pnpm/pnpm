@@ -970,16 +970,16 @@ function getLocationFromParentNodeIds<T> (
 // across pnpm versions so that lockfiles don't churn; it replicates what
 // filenamify v4 produced for these paths in pnpm <= 10.
 //
-// Note: this encoding is lossy and can collide. All leading `./` and `../`
-// segments are dropped, and `/`, `\`, and literal `+` all collapse into a
-// single `+`. For example, `packages/b`, `./packages/b`, and
-// `../packages/b` all produce `packages+b`. The only way to make this
-// collision-free is to hash the normalized link target (or switch to
-// a lossless escape encoding), either of which would change every
-// link-path peer suffix in existing lockfiles. We accept the
-// (extremely rare in practice) collision for lockfile stability; see
-// https://github.com/pnpm/pnpm/issues/11272.
-function linkPathToPeerVersion (relPath: string): string {
+// Note: this encoding is lossy and can collide. Any leading run of `.`
+// characters is dropped, and `/`, `\`, and literal `+` all collapse into
+// a single `+`. For example, `packages/b`, `./packages/b`, and
+// `../packages/b` all produce `packages+b`, and `.hidden/pkg` produces
+// `hidden+pkg`. The only way to make this collision-free is to hash the
+// normalized link target (or switch to a lossless escape encoding),
+// either of which would change every link-path peer suffix in existing
+// lockfiles. We accept the (extremely rare in practice) collision for
+// lockfile stability; see https://github.com/pnpm/pnpm/issues/11272.
+export function linkPathToPeerVersion (relPath: string): string {
   // Drop leading dots: v4 replaced `^\.+` with '+' and then stripOuter removed it.
   let i = 0
   while (i < relPath.length && relPath[i] === '.') i++
