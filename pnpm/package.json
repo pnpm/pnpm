@@ -112,6 +112,7 @@
     "@pnpm/logger": "workspace:*",
     "@pnpm/nopt": "catalog:",
     "@pnpm/patching.commands": "workspace:*",
+    "@pnpm/pkg.commands": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
