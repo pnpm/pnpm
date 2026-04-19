@@ -27,6 +27,7 @@ import type { BundledManifest, DependencyManifest } from '@pnpm/types'
 import { equalOrSemverEqual } from './equalOrSemverEqual.js'
 import type {
   AddDirToStoreMessage,
+  FetchAndWriteCafsMessage,
   HardLinkDirMessage,
   InitStoreMessage,
   LinkPkgMessage,
@@ -63,6 +64,7 @@ async function handleMessage (
   | SymlinkAllModulesMessage
   | HardLinkDirMessage
   | InitStoreMessage
+  | FetchAndWriteCafsMessage
   | false
 ): Promise<void> {
   if (message === false) {
@@ -164,6 +166,10 @@ async function handleMessage (
       case 'hardLinkDir': {
         hardLinkDir(message.src, message.destDirs)
         parentPort!.postMessage({ status: 'success' })
+        break
+      }
+      case 'fetch-and-write-cafs': {
+        parentPort!.postMessage(await fetchAndWriteCafs(message))
         break
       }
     }
@@ -473,5 +479,192 @@ function symlinkAllModules (opts: SymlinkAllModulesMessage): { status: 'success'
     }
   }
   return { status: 'success' }
+}
+
+async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ status: string, filesWritten: number }> {
+  const http = await import('node:http')
+  const https = await import('node:https')
+  const { URL } = await import('node:url')
+  const { createGunzip } = await import('node:zlib')
+  const { contentPathFromHex } = await import('@pnpm/store.cafs')
+
+  // Preserve any path prefix on the agent URL (e.g. https://host/pnpm-agent/)
+  // by normalizing the base and using a relative URL.
+  const base = message.registryUrl.endsWith('/') ? message.registryUrl : `${message.registryUrl}/`
+  const url = new URL('v1/files', base)
+  const requestFn = url.protocol === 'https:' ? https.request : http.request
+  const body = JSON.stringify({ digests: message.digests })
+  const createdDirs = new Set<string>()
+
+  // Build a set of digests we actually requested, so we can reject a
+  // misbehaving agent that streams unrelated entries and tries to write
+  // unbounded files into our CAFS. The set is keyed by `${digest}:${exec}`
+  // because the same digest may appear with different modes.
+  const requestedDigests = new Set<string>()
+  for (const d of message.digests) {
+    requestedDigests.add(`${d.digest}:${d.executable ? 'x' : ''}`)
+  }
+
+  // Stream: HTTP response → gunzip → parse entries → write to CAFS.
+  // No buffering — files are written as data arrives.
+  return new Promise<{ status: string, filesWritten: number }>((resolve, reject) => {
+    let filesWritten = 0
+    let buf = Buffer.alloc(0)
+    let headerSkipped = false
+    let endMarkerSeen = false
+    const END_MARKER = Buffer.alloc(64, 0)
+
+    const processBuffer = () => {
+      // Skip JSON header on first chunk
+      if (!headerSkipped && buf.length >= 4) {
+        const jsonLen = buf.readUInt32BE(0)
+        if (buf.length >= 4 + jsonLen) {
+          buf = buf.subarray(4 + jsonLen)
+          headerSkipped = true
+        } else {
+          return
+        }
+      }
+
+      // Parse complete file entries from the buffer
+      while (headerSkipped && !endMarkerSeen) {
+        if (buf.length < 64) break
+        if (buf.subarray(0, 64).equals(END_MARKER)) {
+          buf = buf.subarray(64)
+          endMarkerSeen = true
+          break
+        }
+        if (buf.length < 69) break // 64 digest + 4 size + 1 mode
+
+        const size = buf.readUInt32BE(64)
+        const entryLen = 69 + size
+        if (buf.length < entryLen) break // incomplete entry
+
+        const digest = buf.subarray(0, 64).toString('hex')
+        const executable = (buf[68] & 0x01) !== 0
+
+        const requestKey = `${digest}:${executable ? 'x' : ''}`
+        if (!requestedDigests.has(requestKey)) {
+          throw new Error(`pnpm agent /v1/files returned an entry that was not requested: digest=${digest} executable=${String(executable)}`)
+        }
+        // Consume the request so duplicates past the requested count also fail.
+        requestedDigests.delete(requestKey)
+
+        const content = buf.subarray(69, entryLen)
+
+        const relPath = contentPathFromHex(executable ? 'exec' : 'nonexec', digest)
+        const fullPath = path.join(message.storeDir, relPath)
+        const dir = path.dirname(fullPath)
+        if (!createdDirs.has(dir)) {
+          fs.mkdirSync(dir, { recursive: true })
+          createdDirs.add(dir)
+        }
+        try {
+          fs.writeFileSync(fullPath, content, { flag: 'wx', mode: executable ? 0o755 : 0o644 })
+        } catch (err: unknown) {
+          if (!(err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'EEXIST')) {
+            throw err
+          }
+          // EEXIST means the same digest is already at this CAFS path. CAFS
+          // is content-addressed, so a complete file is by definition correct.
+          // But a previous process could have crashed mid-write and left a
+          // truncated file — the agent path skips integrity verification, so
+          // we'd silently install garbage. Detect truncation by size and
+          // overwrite atomically if the on-disk file is the wrong length.
+          const onDiskSize = fs.statSync(fullPath).size
+          if (onDiskSize !== content.length) {
+            const tmpPath = `${fullPath}.tmp-${process.pid}-${Date.now()}`
+            fs.writeFileSync(tmpPath, content, { mode: executable ? 0o755 : 0o644 })
+            fs.renameSync(tmpPath, fullPath)
+          }
+        }
+        filesWritten++
+        buf = buf.subarray(entryLen)
+      }
+    }
+
+    // processBuffer is called from stream event handlers where a thrown
+    // exception would become `uncaughtException` and crash the worker.
+    // Surface errors via the Promise rejection instead.
+    const safeProcessBuffer = (): boolean => {
+      try {
+        processBuffer()
+        return true
+      } catch (err) {
+        reject(err)
+        req.destroy()
+        return false
+      }
+    }
+
+    // Match the NDJSON client timeout — a stalled connection would otherwise
+    // hang the install indefinitely waiting on `fileDownloads`.
+    const FILES_REQUEST_TIMEOUT_MS = 600_000
+
+    const req = requestFn(url, {
+      method: 'POST',
+      timeout: FILES_REQUEST_TIMEOUT_MS,
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+        'Accept-Encoding': 'gzip',
+      },
+    }, (res: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      // Non-2xx responses are JSON error bodies from the agent server; read
+      // and reject so we never try to gunzip an error payload as a file stream.
+      if (typeof res.statusCode === 'number' && (res.statusCode < 200 || res.statusCode >= 300)) {
+        const chunks: Buffer[] = []
+        res.on('data', (chunk: Buffer) => chunks.push(chunk))
+        res.on('end', () => {
+          reject(new Error(`pnpm agent /v1/files responded with ${res.statusCode}: ${Buffer.concat(chunks).toString('utf-8')}`))
+        })
+        res.on('error', reject)
+        return
+      }
+
+      let stream: NodeJS.ReadableStream = res
+      if (res.headers['content-encoding'] === 'gzip') {
+        const gunzip = createGunzip()
+        res.pipe(gunzip)
+        stream = gunzip
+      }
+
+      stream.on('data', (chunk: Buffer) => {
+        buf = Buffer.concat([buf, chunk])
+        safeProcessBuffer()
+      })
+      stream.on('end', () => {
+        if (!safeProcessBuffer()) return
+        // Guard against a truncated response: the server must terminate the
+        // stream with the 64-byte end marker. If it didn't, or if there's a
+        // partial entry still in `buf`, fail — otherwise we'd silently leave
+        // the CAFS missing files.
+        if (!endMarkerSeen) {
+          reject(new Error('pnpm agent /v1/files stream ended without the end marker'))
+          return
+        }
+        if (buf.length > 0) {
+          reject(new Error(`pnpm agent /v1/files stream left ${buf.length} unparsed bytes after end marker`))
+          return
+        }
+        // Every received entry was drained from `requestedDigests` as it was
+        // parsed; anything still in the set means the server ended cleanly
+        // but omitted files, which would silently leave the CAFS incomplete.
+        if (requestedDigests.size > 0) {
+          const sample = [...requestedDigests].slice(0, 3).join(', ')
+          reject(new Error(`pnpm agent /v1/files omitted ${requestedDigests.size} requested entries (e.g. ${sample})`))
+          return
+        }
+        resolve({ status: 'success', filesWritten })
+      })
+      stream.on('error', reject)
+    })
+    req.on('timeout', () => {
+      req.destroy(new Error(`pnpm agent /v1/files request timed out after ${FILES_REQUEST_TIMEOUT_MS / 1000}s`))
+    })
+    req.on('error', reject)
+    req.write(body)
+    req.end()
+  })
 }
 

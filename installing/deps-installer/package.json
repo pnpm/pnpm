@@ -56,6 +56,7 @@
     ".test": "cross-env PNPM_REGISTRY_MOCK_PORT=7769 NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/agent.client": "workspace:*",
     "@pnpm/bins.linker": "workspace:*",
     "@pnpm/bins.remover": "workspace:*",
     "@pnpm/building.after-install": "workspace:*",
@@ -103,6 +104,7 @@
     "@pnpm/resolving.parse-wanted-dependency": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
+    "@pnpm/store.index": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
@@ -136,7 +138,6 @@
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/resolving.registry.types": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
-    "@pnpm/store.index": "workspace:*",
     "@pnpm/store.path": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",

@@ -36,6 +36,7 @@ export { normalizeBundledManifest }
 export {
   buildFileMapsFromIndex,
   checkPkgFilesIntegrity,
+  contentPathFromHex,
   type FilesIndex,
   type FileType,
   getFilePathByModeInCafs,
