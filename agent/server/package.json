@@ -1,7 +1,6 @@
 {
-  "name": "@pnpm/agent.server",
-  "version": "1000.0.0",
-  "private": true,
+  "name": "pnpm-agent",
+  "version": "0.0.1-0",
   "description": "pnpm agent server for server-side resolution and store-aware downloads",
   "keywords": [
     "pnpm",
@@ -17,16 +16,17 @@
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
-  "bin": {
-    "pnpm-agent": "./lib/bin.js"
-  },
   "exports": {
     ".": "./lib/index.js"
   },
   "files": [
     "lib",
-    "!*.map"
+    "!*.map",
+    "bin"
   ],
+  "bin": {
+    "pnpm-agent": "./lib/bin.js"
+  },
   "scripts": {
     "start": "tsgo --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -51,10 +51,10 @@
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/agent.client": "workspace:*",
-    "@pnpm/agent.server": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
-    "cross-env": "catalog:"
+    "cross-env": "catalog:",
+    "pnpm-agent": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

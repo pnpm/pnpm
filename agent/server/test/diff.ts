@@ -1,8 +1,8 @@
 import { describe, expect, it } from '@jest/globals'
-import { computeDiff, type IntegrityEntry } from '@pnpm/agent.server'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { packForStorage } from '@pnpm/store.index'
+import { computeDiff, type IntegrityEntry } from 'pnpm-agent'
 
 function createIntegrityIndex (entries: Record<string, PackageFilesIndex>): Map<string, IntegrityEntry> {
   return new Map(Object.entries(entries).map(([k, v]) => [k, {

@@ -1468,9 +1468,6 @@ importers:
       '@pnpm/agent.client':
         specifier: workspace:*
         version: link:../client
-      '@pnpm/agent.server':
-        specifier: workspace:*
-        version: 'link:'
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
@@ -1480,6 +1477,9 @@ importers:
       cross-env:
         specifier: 'catalog:'
         version: 10.1.0
+      pnpm-agent:
+        specifier: workspace:*
+        version: 'link:'
 
   auth/commands:
     dependencies:
@@ -7243,9 +7243,6 @@ importers:
       '@jest/globals':
         specifier: 'catalog:'
         version: 30.3.0
-      '@pnpm/agent.server':
-        specifier: workspace:*
-        version: link:../agent/server
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../__utils__/assert-project
@@ -7513,6 +7510,9 @@ importers:
       pidtree:
         specifier: 'catalog:'
         version: 0.6.0
+      pnpm-agent:
+        specifier: workspace:*
+        version: link:../agent/server
       ps-list:
         specifier: 'catalog:'
         version: 9.0.0

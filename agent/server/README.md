@@ -1,6 +1,8 @@
-# @pnpm/agent.server
+# pnpm-agent
 
 A pnpm agent server that resolves dependencies server-side and streams only the files missing from the client's content-addressable store.
+
+> **Status:** experimental. Versions are pre-1.0; the wire protocol may change between releases.
 
 ## How it works
 
@@ -14,11 +16,18 @@ This eliminates sequential metadata round-trips (the server resolves in one shot
 
 ## Starting the server
 
-### From the command line
+### Install from npm
+
+```bash
+pnpm add -g pnpm-agent
+pnpm-agent
+```
+
+### From source
 
 ```bash
 # Build first
-pnpm --filter @pnpm/agent.server run compile
+pnpm --filter pnpm-agent run compile
 
 # Run with defaults (port 4873, upstream https://registry.npmjs.org/)
 node lib/bin.js
@@ -43,7 +52,7 @@ node lib/bin.js
 ### Programmatic usage
 
 ```typescript
-import { createRegistryServer } from '@pnpm/agent.server'
+import { createRegistryServer } from 'pnpm-agent'
 
 const server = await createRegistryServer({
   storeDir: '/var/lib/pnpm-agent/store',
