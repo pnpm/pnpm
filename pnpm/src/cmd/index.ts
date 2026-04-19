@@ -6,8 +6,8 @@ import { createCompletionServer, generateCompletion } from '@pnpm/cli.commands'
 import { config, getCommand, setCommand } from '@pnpm/config.commands'
 import { types as allTypes } from '@pnpm/config.reader'
 import { audit, licenses, sbom } from '@pnpm/deps.compliance.commands'
-import { list, ll, outdated, peers, view, why } from '@pnpm/deps.inspection.commands'
-import { selfUpdate, setup } from '@pnpm/engine.pm.commands'
+import { docs, list, ll, outdated, peers, view, why } from '@pnpm/deps.inspection.commands'
+import { selfUpdate, setup, withCmd } from '@pnpm/engine.pm.commands'
 import { env, runtime } from '@pnpm/engine.runtime.commands'
 import {
   create,
@@ -57,6 +57,7 @@ export const GLOBAL_OPTIONS = pick([
   'yes',
   'include-workspace-root',
   'fail-if-no-match',
+  'pm-on-fail',
 ], allTypes)
 
 export type CommandResponse = string | { output?: string, exitCode: number }
@@ -137,6 +138,7 @@ const commands: CommandDefinition[] = [
   deploy,
   distTag,
   dlx,
+  docs,
   env,
   exec,
   runtime,
@@ -160,6 +162,7 @@ const commands: CommandDefinition[] = [
   patchCommit,
   patchRemove,
   peers,
+  ping,
   prune,
   publish,
   unpublish,
@@ -172,16 +175,22 @@ const commands: CommandDefinition[] = [
   sbom,
   setScript,
   setup,
+  search,
+  star,
+  stars,
   store,
   catFile,
   catIndex,
   findHash,
   undeprecate,
   unlink,
+  unstar,
   update,
   version,
   view,
+  whoami,
   why,
+  withCmd,
   createHelp(helpByCommandName),
   ...notImplementedCommandDefinitions,
 ]

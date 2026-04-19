@@ -1,5 +1,39 @@
 # @pnpm/config.deps-installer
 
+## 1100.1.0
+
+### Minor Changes
+
+- ea2a7fb: When pnpm is declared via the `packageManager` field in `package.json`, its resolution info is no longer written to `pnpm-lock.yaml` — unless the pinned pnpm version is v12 or newer. The `packageManagerDependencies` section is still populated (and reused across runs) when pnpm is declared via `devEngines.packageManager`. This makes the transition from pnpm v10 to v11 quieter by avoiding unnecessary lockfile churn for projects that pin an older pnpm in the legacy `packageManager` field.
+
+### Patch Changes
+
+- @pnpm/installing.deps-resolver@1100.0.2
+- @pnpm/store.controller@1100.0.1
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/config.pick-registry-for-package@1100.0.1
+  - @pnpm/config.writer@1100.0.1
+  - @pnpm/core-loggers@1100.0.1
+  - @pnpm/deps.graph-hasher@1100.0.1
+  - @pnpm/installing.deps-resolver@1100.0.1
+  - @pnpm/lockfile.fs@1100.0.1
+  - @pnpm/lockfile.pruner@1100.0.1
+  - @pnpm/lockfile.types@1100.0.1
+  - @pnpm/lockfile.utils@1100.0.1
+  - @pnpm/network.auth-header@1100.0.1
+  - @pnpm/network.fetch@1100.0.1
+  - @pnpm/pkg-manifest.reader@1100.0.1
+  - @pnpm/resolving.npm-resolver@1100.0.1
+  - @pnpm/store.controller@1100.0.1
+  - @pnpm/store.controller-types@1100.0.1
+  - @pnpm/worker@1100.0.1
+
 ## 1001.0.0
 
 ### Major Changes

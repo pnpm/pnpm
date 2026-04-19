@@ -20,7 +20,7 @@ import {
 } from '@pnpm/global.packages'
 import { headlessInstall } from '@pnpm/installing.deps-restorer'
 import type { EnvLockfile, LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
-import type { StoreController } from '@pnpm/store.controller'
+import { registerProject, type StoreController } from '@pnpm/store.controller'
 import type { DepPath, ProjectId, ProjectRootDir, Registries } from '@pnpm/types'
 import { symlinkDir } from 'symlink-dir'
 
@@ -196,6 +196,11 @@ async function installPnpmToGlobalDir (
         virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
         packageManager: opts.packageManager,
       })
+      // headlessInstall does not register the project, so we must do it
+      // explicitly. Without this, `pnpm store prune` would not know about
+      // this install directory and would remove its packages from the
+      // global virtual store.
+      await registerProject(opts.storeDir, installDir)
     } else {
       await installFromResolution(installDir, opts, [`${pkgName}@${version}`])
     }

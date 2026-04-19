@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/pkg-manifest.reader",
-  "version": "1100.0.0",
+  "version": "1100.0.1",
   "description": "Read a package.json",
   "keywords": [
     "pnpm",

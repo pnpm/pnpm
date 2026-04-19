@@ -1,5 +1,19 @@
 # @pnpm/scripts
 
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [cee550a]
+  - @pnpm/workspace.projects-reader@1101.0.0
+
+## 1100.0.1
+
+### Patch Changes
+
+- @pnpm/workspace.projects-reader@1100.0.1
+- @pnpm/workspace.workspace-manifest-reader@1100.0.1
+
 ## 1001.0.0
 
 ### Major Changes

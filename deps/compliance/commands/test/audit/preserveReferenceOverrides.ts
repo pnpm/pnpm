@@ -25,7 +25,7 @@ test('overrides with references (via $) are preserved during audit --fix', async
   const tmp = f.prepare('preserve-reference-overrides')
 
   getMockAgent().get(registries.default.replace(/\/$/, ''))
-    .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
     .reply(200, responses.ALL_VULN_RESP)
 
   const { manifest: initialManifest } = await readProjectManifest(tmp)

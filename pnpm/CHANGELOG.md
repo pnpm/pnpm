@@ -1,5 +1,77 @@
 # pnpm
 
+## 11.0.0-rc.2
+
+### Major Changes
+
+- **Breaking:** removed the `managePackageManagerVersions`, `packageManagerStrict`, and `packageManagerStrictVersion` settings. They existed only to derive the `onFail` behavior for the legacy `packageManager` field, and the `pmOnFail` setting introduced alongside `pnpm with` subsumes all three — it directly sets the `onFail` behavior of both `packageManager` and `devEngines.packageManager`. The `COREPACK_ENABLE_STRICT` environment variable is no longer honored (it only gated `packageManagerStrict`); use `pmOnFail` instead.
+
+  Migration:
+
+  | Removed setting                       | Replace with                   |
+  | ------------------------------------- | ------------------------------ |
+  | `managePackageManagerVersions: true`  | `pmOnFail: download` (default) |
+  | `managePackageManagerVersions: false` | `pmOnFail: ignore`             |
+  | `packageManagerStrict: false`         | `pmOnFail: warn`               |
+  | `packageManagerStrictVersion: true`   | `pmOnFail: error`              |
+  | `COREPACK_ENABLE_STRICT=0`            | `pmOnFail: warn`               |
+
+### Minor Changes
+
+- `pnpm dlx` and `pnpm create` now respect security and trust policy settings (`minimumReleaseAge`, `minimumReleaseAgeExclude`, `minimumReleaseAgeStrict`, `trustPolicy`, `trustPolicyExclude`, `trustPolicyIgnoreAfter`) from project-level configuration [#11183](https://github.com/pnpm/pnpm/issues/11183).
+- Implemented native `star`, `unstar`, `stars`, and `whoami` commands.
+- Add `pnpm with <version|current> <args...>` command. Runs pnpm at a specific version (or the currently active one) for a single invocation, bypassing the project's `packageManager` and `devEngines.packageManager` pins. Uses the same install mechanism as `pnpm self-update`, caching the downloaded pnpm in the global virtual store for reuse.
+
+  Examples:
+
+  ```
+  pnpm with current install           # ignore the pinned version, use the running pnpm
+  pnpm with 11.0.0-rc.1 install       # install using pnpm 11.0.0-rc.1
+  pnpm with next install              # install using the "next" dist-tag
+  ```
+
+  Also adds a new `pmOnFail` setting that overrides the `onFail` behavior of `packageManager` and `devEngines.packageManager`. Accepted values: `download`, `error`, `warn`, `ignore`. Can be set via CLI flag, env var, `pnpm-workspace.yaml`, or `.npmrc` — useful when version management is handled by an external tool (asdf, mise, Volta, etc.) and the project wants pnpm itself to skip the check.
+
+  ```
+  pnpm install --pm-on-fail=ignore            # direct CLI flag
+  pnpm_config_pm_on_fail=ignore pnpm install  # env var
+  # or in pnpm-workspace.yaml:
+  #   pmOnFail: ignore
+  ```
+
+- `pnpm init` now writes a `devEngines.packageManager` field instead of the `packageManager` field when `init-package-manager` is enabled.
+- When pnpm is declared via the `packageManager` field in `package.json`, its resolution info is no longer written to `pnpm-lock.yaml` — unless the pinned pnpm version is v12 or newer. The `packageManagerDependencies` section is still populated (and reused across runs) when pnpm is declared via `devEngines.packageManager`. This makes the transition from pnpm v10 to v11 quieter by avoiding unnecessary lockfile churn for projects that pin an older pnpm in the legacy `packageManager` field.
+- Added a new setting `runtimeOnFail` that overrides the `onFail` field of `devEngines.runtime` (and `engines.runtime`) in the root project's `package.json`. Accepted values: `ignore`, `warn`, `error`, `download`. For example, setting `runtimeOnFail=download` makes pnpm download the declared runtime version even when the manifest does not set `onFail: "download"`.
+
+### Patch Changes
+
+- `pnpm init` no longer adds the `devEngines.packageManager` field when run inside a workspace subpackage. The field is only added to the workspace root's `package.json`.
+
+## 11.0.0-rc.1
+
+### Major Changes
+
+- `pnpm audit` now calls npm's `/-/npm/v1/security/advisories/bulk` endpoint. The legacy `/-/npm/v1/security/audits{,/quick}` endpoints have been retired by the registry, so the legacy request/response contract is no longer supported.
+
+  The bulk endpoint does not return CVE identifiers. CVE-based filtering has been replaced with GitHub advisory ID (GHSA) filtering:
+
+  - `auditConfig.ignoreCves` → `auditConfig.ignoreGhsas` (the previous key is no longer recognized)
+  - `pnpm audit --ignore <id>` / `pnpm audit --ignore-unfixable` now read and write GHSAs instead of CVEs
+  - GHSAs are derived from each advisory's `url` (`https://github.com/advisories/GHSA-xxxx-xxxx-xxxx`)
+
+  To migrate: replace each `CVE-YYYY-NNNNN` entry in your `auditConfig.ignoreCves` with the corresponding `GHSA-xxxx-xxxx-xxxx` value (visible in the `More info` column of `pnpm audit` output) and move it under `auditConfig.ignoreGhsas`.
+
+### Minor Changes
+
+- Added the `pnpm docs` command and its alias `pnpm home`. This command opens the package documentation or homepage in the browser. When the package has no valid homepage, it falls back to `https://npmx.dev/package/<name>`.
+- Added native `pnpm ping` command to test registry connectivity.
+  Provides a simple way to verify connectivity to the configured registry without requiring external tools.
+- Implemented native `search` command and its aliases (`s`, `se`, `find`).
+
+### Patch Changes
+
+- Fixed `pnpm store prune` removing packages used by the globally installed pnpm, breaking it.
+
 ## 11.0.0-rc.0
 
 ### Highlights
@@ -310,4 +382,3 @@
 - Fixed `pnpm dedupe --check` unexpectedly failing due to non-deterministic resolution [#11110](https://github.com/pnpm/pnpm/pull/11110).
 - Fixed empty files not being rejected in `isEmptyDirOrNothing` [#11182](https://github.com/pnpm/pnpm/pull/11182).
 - Fixed `.bat`/`.cmd` token helpers not working on Windows due to missing `shell: true` option.
-

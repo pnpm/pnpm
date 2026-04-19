@@ -100,13 +100,13 @@ export async function main (inputArgv: string[]): Promise<void> {
       excludeReporter: false,
       globalDirShouldAllowWrite,
       workspaceDir,
-      ignoreNonAuthSettingsFromLocal: isDlxOrCreateCommand,
+      onlyInheritDlxSettingsFromLocal: isDlxOrCreateCommand,
     }) as { config: typeof config, context: ConfigContext })
-    if (!isExecutedByCorepack() && cmd !== 'setup' && context.wantedPackageManager != null) {
+    if (!isExecutedByCorepack() && cmd !== 'setup' && context.wantedPackageManager != null && !shouldSkipPmHandling(cmd, cliParams)) {
       const pm = context.wantedPackageManager
-      if (pm.onFail === 'download' && pm.name === 'pnpm' && cmd !== 'self-update') {
+      if (pm.onFail === 'download' && pm.name === 'pnpm') {
         await switchCliVersion(config, context)
-      } else if (pm.onFail !== 'ignore' && (!cmd || !skipPackageManagerCheckForCommand.has(cmd))) {
+      } else if (pm.onFail !== 'ignore') {
         if (cliOptions.global) {
           globalWarn('Using --global skips the package manager check for this project')
         } else {
@@ -115,7 +115,7 @@ export async function main (inputArgv: string[]): Promise<void> {
       }
     }
     ;({ config, context } = await installConfigDepsAndLoadHooks(config, context) as { config: typeof config, context: ConfigContext })
-    if (isDlxOrCreateCommand || cmd === 'sbom') {
+    if (isDlxOrCreateCommand || cmd === 'sbom' || cmd === 'with') {
       config.useStderr = true
     }
     config.argv = argv
@@ -370,6 +370,22 @@ function printError (message: string, hint?: string): void {
   }
 }
 
+/**
+ * Whether to skip the packageManager/devEngines handling block (both auto
+ * download and warn/error check). Returns true when the command itself
+ * opts out via `skipPackageManagerCheck: true`, or when the user is asking
+ * for help on such a command — `pnpm help <skippable>` and
+ * `pnpm <skippable> --help` (which parse-cli-args rewrites to the same
+ * cmd='help' form) shouldn't download an older pinned pnpm just to render
+ * help for a command that older pnpm may not even have.
+ */
+function shouldSkipPmHandling (cmd: string | null, cliParams: string[]): boolean {
+  if (cmd == null) return false
+  if (skipPackageManagerCheckForCommand.has(cmd)) return true
+  if (cmd === 'help' && cliParams[0] != null && skipPackageManagerCheckForCommand.has(cliParams[0])) return true
+  return false
+}
+
 function checkPackageManager (pm: EngineDependency): void {
   if (!pm.name) return
   const shouldError = pm.onFail === 'error' || pm.onFail === 'download'
@@ -387,7 +403,7 @@ function checkPackageManager (pm: EngineDependency): void {
       const msg = `This project is configured to use ${pm.version} of pnpm. Your current pnpm is v${currentPnpmVersion}`
       if (shouldError) {
         throw new PnpmError('BAD_PM_VERSION', msg, {
-          hint: 'If you want to bypass this version check, you can set the "package-manager-strict" configuration to "false" or set the "COREPACK_ENABLE_STRICT" environment variable to "0". If using "devEngines.packageManager", you can set its "onFail" to "warn" or "ignore"',
+          hint: 'If you want to bypass this version check, you can set the "pmOnFail" configuration to "warn" or "ignore" (e.g. via --pm-on-fail=ignore). If using "devEngines.packageManager", you can set its "onFail" to "warn" or "ignore"',
         })
       } else {
         globalWarn(msg)
