@@ -669,7 +669,10 @@ function getWantedPackageManager (manifest: ProjectManifest): { pm?: WantedPacka
       pmFromDevEngines.version = undefined
     }
     if (manifest.packageManager) {
-      warnings.push('Cannot use both "packageManager" and "devEngines.packageManager" in package.json. "packageManager" will be ignored')
+      const legacyPm = parsePackageManager(manifest.packageManager)
+      if (legacyPm.name !== pmFromDevEngines.name || legacyPm.version !== pmFromDevEngines.version) {
+        warnings.push('Cannot use both "packageManager" and "devEngines.packageManager" in package.json. "packageManager" will be ignored')
+      }
     }
     return { pm: { ...pmFromDevEngines, fromDevEngines: true }, warnings }
   }
