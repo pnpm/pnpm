@@ -100,6 +100,10 @@ export function getAuditFixChoices (advisories: AuditAdvisory[]): AuditChoiceGro
 }
 
 function alignColumns (rows: string[][]): string[] {
+  // wrapWord is intentionally left false: the caller assumes each row maps to
+  // exactly one rendered line when picking `rendered[i]` for choice `i`.
+  // With wrapping enabled, long cells produce continuation lines that shift
+  // every subsequent row, leaving choices with blank/garbled messages.
   return table(
     rows,
     {
@@ -107,18 +111,17 @@ function alignColumns (rows: string[][]): string[] {
       columnDefault: {
         paddingLeft: 0,
         paddingRight: 1,
-        wrapWord: true,
       },
       columns: {
-        0: { width: 30, truncate: 60 },
-        1: { width: 10 },
-        2: { width: 20, truncate: 40 },
-        3: { width: 15, truncate: 30 },
-        4: { width: Math.min(getColumnWidth(rows, 4, 20), 50), truncate: 100 },
+        0: { width: 30, truncate: 30 },
+        1: { width: 10, truncate: 10 },
+        2: { width: 20, truncate: 20 },
+        3: { width: 15, truncate: 15 },
+        4: { width: Math.min(getColumnWidth(rows, 4, 20), 80), truncate: 80 },
       },
       drawHorizontalLine: () => false,
     }
-  ).split('\n')
+  ).split('\n').filter((line) => line.trim() !== '')
 }
 
 function getColumnWidth (rows: string[][], columnIndex: number, minWidth: number): number {
