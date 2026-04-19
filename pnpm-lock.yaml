@@ -2816,9 +2816,6 @@ importers:
       '@pnpm/lockfile.walker':
         specifier: workspace:*
         version: link:../../../lockfile/walker
-      '@pnpm/logger':
-        specifier: 'catalog:'
-        version: 1001.0.1
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../../network/auth-header
@@ -2859,6 +2856,9 @@ importers:
       '@pnpm/deps.compliance.commands':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../../core/logger
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../../../pkg-manifest/reader
