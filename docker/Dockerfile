@@ -15,7 +15,7 @@ ENV PATH=$PNPM_HOME/bin:$PATH
 RUN set -eu; \
     test -n "$PNPM_VERSION"; \
     apt-get update; \
-    apt-get install -y --no-install-recommends ca-certificates curl; \
+    apt-get install -y --no-install-recommends ca-certificates curl libatomic1; \
     rm -rf /var/lib/apt/lists/*; \
     case "$TARGETARCH" in \
       amd64) arch=x64; expected_sha="$PNPM_SHA256_AMD64" ;; \
