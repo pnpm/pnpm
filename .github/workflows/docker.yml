@@ -58,6 +58,20 @@ jobs:
           fi
           echo "tags=$tags" >> "$GITHUB_OUTPUT"
 
+      - name: Compute pnpm tarball checksums
+        id: checksums
+        run: |
+          set -eu
+          version='${{ steps.meta.outputs.version }}'
+          base="https://github.com/pnpm/pnpm/releases/download/v${version}"
+          for pair in amd64:x64 arm64:arm64; do
+            key="${pair%:*}"
+            name="${pair#*:}"
+            sha="$(curl -fsSL --retry 3 --retry-delay 2 "${base}/pnpm-linux-${name}.tar.gz" \
+                   | sha256sum | awk '{print $1}')"
+            echo "sha_${key}=${sha}" >> "$GITHUB_OUTPUT"
+          done
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
 
@@ -80,5 +94,7 @@ jobs:
           tags: ${{ steps.tags.outputs.tags }}
           build-args: |
             PNPM_VERSION=${{ steps.meta.outputs.version }}
+            PNPM_SHA256_AMD64=${{ steps.checksums.outputs.sha_amd64 }}
+            PNPM_SHA256_ARM64=${{ steps.checksums.outputs.sha_arm64 }}
           provenance: mode=max
           sbom: true

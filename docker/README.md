@@ -59,9 +59,14 @@ CMD ["pnpm", "start"]
 ## Build locally
 
 ```sh
+VERSION=11.0.0-rc.2
+SHA=$(curl -fsSL "https://github.com/pnpm/pnpm/releases/download/v${VERSION}/pnpm-linux-x64.tar.gz" \
+      | sha256sum | awk '{print $1}')
 docker buildx build \
-  --build-arg PNPM_VERSION=11.0.0-rc.2 \
+  --build-arg PNPM_VERSION=${VERSION} \
+  --build-arg PNPM_SHA256_AMD64=${SHA} \
   --platform linux/amd64 \
+  --load \
   -t pnpm-test ./docker
 docker run --rm pnpm-test pnpm --version
 ```
