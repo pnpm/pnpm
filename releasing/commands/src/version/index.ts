@@ -1,38 +1,50 @@
+import path from 'node:path'
+
 import { readProjectManifest } from '@pnpm/cli.utils'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { isGitRepo, isWorkingTreeClean } from '@pnpm/network.git-utils'
 import { filterProjectsFromDir, type WorkspaceFilter } from '@pnpm/workspace.projects-filter'
+import { safeExeca as execa } from 'execa'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 import { inc, valid } from 'semver'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
+    'allow-same-version',
+    'commit-hooks',
     'git-checks',
+    'git-tag-version',
+    'message',
+    'sign-git-tag',
+    'tag-version-prefix',
   ], allTypes)
 }
 
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...rcOptionsTypes(),
-    'allow-same-version': Boolean,
-    'no-git-checks': Boolean,
-    'no-commit-hooks': Boolean,
-    'no-strict': Boolean,
-    'preid': String,
-    'tag-version-prefix': String,
-    recursive: Boolean,
     json: Boolean,
+    preid: String,
+    recursive: Boolean,
   }
 }
 
 export const commandNames = ['version']
 
+const BUMP_TYPES = ['major', 'minor', 'patch', 'premajor', 'preminor', 'prepatch', 'prerelease'] as const
+type BumpType = typeof BUMP_TYPES[number]
+
+function isBumpType (value: string): value is BumpType {
+  return (BUMP_TYPES as readonly string[]).includes(value)
+}
+
 export function help (): string {
   return renderHelp({
     description: 'Bumps the version of a package.',
     usages: [
+      'pnpm version <newversion>',
       'pnpm version <major|minor|patch|premajor|preminor|prepatch|prerelease>',
     ],
     descriptionLists: [
@@ -48,7 +60,7 @@ export function help (): string {
             name: '--preid <preid>',
           },
           {
-            description: 'Sets the tag prefix (default: v)',
+            description: 'Sets the tag prefix. Default is "v". Set to empty string to disable.',
             name: '--tag-version-prefix <prefix>',
           },
           {
@@ -56,8 +68,20 @@ export function help (): string {
             name: '--allow-same-version',
           },
           {
-            description: 'Skip running commit hooks',
+            description: 'Commit message. "%s" is replaced with the new version. Default is "%s".',
+            name: '--message <message>',
+          },
+          {
+            description: "Don't create a commit or tag for the version bump",
+            name: '--no-git-tag-version',
+          },
+          {
+            description: 'Skip running git commit hooks when committing the version bump',
             name: '--no-commit-hooks',
+          },
+          {
+            description: 'Sign the generated git tag with GPG',
+            name: '--sign-git-tag',
           },
           {
             description: 'Filter packages by name (glob pattern)',
@@ -82,32 +106,38 @@ interface VersionChange {
   currentVersion: string
   newVersion: string
   path: string
+  manifestPath: string
 }
 
 interface VersionHandlerOptions extends Config {
   allowSameVersion?: boolean
-  noGitChecks?: boolean
-  noCommitHooks?: boolean
-  noStrict?: boolean
-  preid?: string
-  tagVersionPrefix?: string
-  recursive?: boolean
+  commitHooks?: boolean
+  gitChecks?: boolean
+  gitTagVersion?: boolean
   json?: boolean
-  ignoredPackages?: string[]
+  message?: string
+  preid?: string
+  recursive?: boolean
+  signGitTag?: boolean
+  tagVersionPrefix?: string
 }
 
 export async function handler (
   opts: VersionHandlerOptions,
   params: string[]
 ): Promise<string | { output?: string, exitCode: number }> {
-  const bumpType = params[0]
+  const rawBump = params[0]
 
-  if (!bumpType || !['major', 'minor', 'patch', 'premajor', 'preminor', 'prepatch', 'prerelease'].includes(bumpType)) {
-    throw new PnpmError('INVALID_VERSION_BUMP', 'Invalid version bump type. Must be one of: major, minor, patch, premajor, preminor, prepatch, prerelease')
+  if (!rawBump) {
+    throw new PnpmError('INVALID_VERSION_BUMP', 'A version argument is required. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease')
   }
 
-  // Check git status if needed
-  if (!opts.noGitChecks && await isGitRepo()) {
+  const explicitVersion = valid(rawBump)
+  if (!explicitVersion && !isBumpType(rawBump)) {
+    throw new PnpmError('INVALID_VERSION_BUMP', `Invalid version argument: ${rawBump}. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease`)
+  }
+
+  if (opts.gitChecks !== false && await isGitRepo()) {
     if (!await isWorkingTreeClean()) {
       throw new PnpmError('UNCLEAN_WORKING_TREE', 'Working tree is not clean. Commit or stash your changes.')
     }
@@ -116,7 +146,6 @@ export async function handler (
   const changes: VersionChange[] = []
 
   if (opts.recursive) {
-    // Handle workspace versioning
     const workspaceDir = opts.workspaceDir || opts.dir
     const filters: WorkspaceFilter[] = []
 
@@ -140,7 +169,7 @@ export async function handler (
 
     const pkgDirs = Object.keys(result.selectedProjectsGraph)
     const bumpResults = await Promise.all(
-      pkgDirs.map(pkgDir => bumpPackageVersion(pkgDir, bumpType, opts))
+      pkgDirs.map(pkgDir => bumpPackageVersion(pkgDir, rawBump, explicitVersion, opts))
     )
     for (const change of bumpResults) {
       if (change) {
@@ -148,8 +177,7 @@ export async function handler (
       }
     }
   } else {
-    // Handle single package versioning
-    const change = await bumpPackageVersion(opts.dir, bumpType, opts)
+    const change = await bumpPackageVersion(opts.dir, rawBump, explicitVersion, opts)
     if (change) {
       changes.push(change)
     }
@@ -159,9 +187,12 @@ export async function handler (
     throw new PnpmError('NO_PACKAGES_TO_VERSION', 'No packages to version')
   }
 
-  // Output results
+  if (opts.gitTagVersion !== false && await isGitRepo()) {
+    await commitAndTag(changes, opts)
+  }
+
   if (opts.json) {
-    return JSON.stringify(changes, null, 2)
+    return JSON.stringify(changes.map(({ manifestPath, ...change }) => change), null, 2) // eslint-disable-line @typescript-eslint/no-unused-vars
   }
 
   let output = 'Version bumped successfully:\n'
@@ -174,10 +205,11 @@ export async function handler (
 
 async function bumpPackageVersion (
   pkgDir: string,
-  bumpType: string,
+  rawBump: string,
+  explicitVersion: string | null,
   opts: VersionHandlerOptions
 ): Promise<VersionChange | null> {
-  const { manifest, writeProjectManifest } = await readProjectManifest(pkgDir)
+  const { manifest, writeProjectManifest, fileName } = await readProjectManifest(pkgDir)
 
   if (!manifest.name || !manifest.version) {
     return null
@@ -189,10 +221,10 @@ async function bumpPackageVersion (
     throw new PnpmError('INVALID_VERSION', `Invalid version in ${pkgDir}: ${currentVersion}`)
   }
 
-  const newVersion = inc(currentVersion, bumpType as 'major' | 'minor' | 'patch' | 'premajor' | 'preminor' | 'prepatch' | 'prerelease', false, opts.preid)
+  const newVersion = explicitVersion ?? inc(currentVersion, rawBump as BumpType, false, opts.preid)
 
   if (!newVersion) {
-    throw new PnpmError('VERSION_BUMP_FAILED', `Failed to bump version from ${currentVersion} using ${bumpType}`)
+    throw new PnpmError('VERSION_BUMP_FAILED', `Failed to bump version from ${currentVersion} using ${rawBump}`)
   }
 
   if (newVersion === currentVersion && !opts.allowSameVersion) {
@@ -207,7 +239,38 @@ async function bumpPackageVersion (
     currentVersion,
     newVersion,
     path: pkgDir,
+    manifestPath: path.join(pkgDir, fileName),
   }
+}
+
+async function commitAndTag (changes: VersionChange[], opts: VersionHandlerOptions): Promise<void> {
+  // When multiple packages are bumped in one run, use the new version of the
+  // first change (usually the root) for the commit message and tag.
+  const primary = changes[0]
+  const rawMessage = opts.message ?? '%s'
+  const message = rawMessage.replace(/%s/g, primary.newVersion)
+  const tagPrefix = opts.tagVersionPrefix ?? 'v'
+  const tagName = `${tagPrefix}${primary.newVersion}`
+  const cwd = opts.workspaceDir ?? opts.dir
+  const execOpts = { cwd }
+
+  const manifestPaths = changes.map(change => change.manifestPath)
+  await execa('git', ['add', ...manifestPaths], execOpts)
+
+  const commitArgs = ['commit', '-m', message]
+  if (opts.commitHooks === false) {
+    commitArgs.push('--no-verify')
+  }
+  await execa('git', commitArgs, execOpts)
+
+  const tagArgs = ['tag']
+  if (opts.signGitTag) {
+    tagArgs.push('-s')
+  } else {
+    tagArgs.push('-a')
+  }
+  tagArgs.push(tagName, '-m', message)
+  await execa('git', tagArgs, execOpts)
 }
 
 export const version = {
