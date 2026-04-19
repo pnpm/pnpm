@@ -5,8 +5,8 @@
   "keywords": [
     "pnpm",
     "pnpm11",
-    "pkg",
-    "package.json"
+    "package.json",
+    "pkg"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
@@ -45,6 +45,7 @@
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/logger": "workspace:*",
+    "@pnpm/pkg.commands": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/ramda": "catalog:",
     "read-yaml-file": "catalog:"

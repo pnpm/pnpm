@@ -9,6 +9,9 @@
   ],
   "references": [
     {
+      "path": "../../__utils__/prepare"
+    },
+    {
       "path": "../../cli/utils"
     },
     {
@@ -18,10 +21,13 @@
       "path": "../../core/error"
     },
     {
-      "path": "../../pkg-manifest/reader"
+      "path": "../../core/logger"
     },
     {
       "path": "../../core/types"
+    },
+    {
+      "path": "../../pkg-manifest/reader"
     },
     {
       "path": "../../workspace/project-manifest-writer"
