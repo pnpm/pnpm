@@ -3,6 +3,8 @@ import { getBorderCharacters, table } from '@zkochan/table'
 import chalk from 'chalk'
 import { groupBy } from 'ramda'
 
+import { caretRangeForPatched } from './fix.js'
+
 const AUDIT_COLOR: Record<AuditLevelString, (s: string) => string> = {
   info: chalk.dim,
   low: chalk.bold,
@@ -74,7 +76,7 @@ export function getAuditFixChoices (advisories: AuditAdvisory[]): AuditChoiceGro
         raw: [
           advisory.module_name,
           advisory.vulnerable_versions,
-          advisory.patched_versions ?? '',
+          advisory.patched_versions ? caretRangeForPatched(advisory.patched_versions) : '',
           advisory.github_advisory_id ?? '',
         ],
         key,

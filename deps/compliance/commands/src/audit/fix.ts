@@ -49,7 +49,7 @@ function createOverrides (advisories: AuditAdvisory[]): Record<string, string> {
 // same major as the fix. `>=X.Y.Z` alone can silently promote a dep to a
 // later breaking major; `^X.Y.Z` still satisfies the patch while
 // preserving the major the user originally pinned to.
-function caretRangeForPatched (patchedRange: string): string {
+export function caretRangeForPatched (patchedRange: string): string {
   const min = semver.minVersion(patchedRange)
   return min ? `^${min.version}` : patchedRange
 }
