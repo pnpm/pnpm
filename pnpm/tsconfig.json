@@ -123,6 +123,9 @@
       "path": "../patching/commands"
     },
     {
+      "path": "../pkg/commands"
+    },
+    {
       "path": "../pkg-manifest/reader"
     },
     {

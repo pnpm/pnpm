@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/pkg.commands",
-  "version": "1.0.0",
+  "version": "1100.1.0",
   "description": "Commands for managing package.json",
   "keywords": [
     "pnpm",
@@ -46,6 +46,7 @@
     "@jest/globals": "catalog:",
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
+    "@types/ramda": "catalog:",
     "read-yaml-file": "catalog:"
   },
   "engines": {

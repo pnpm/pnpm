@@ -7184,6 +7184,9 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.31.1
       read-yaml-file:
         specifier: 'catalog:'
         version: 3.0.0

@@ -1,11 +1,10 @@
-import fs from 'node:fs'
-import path from 'node:path'
-import { setScript } from '../src/index'
-import { prepare } from '@pnpm/prepare'
+import { expect, test } from '@jest/globals'
 import { readPackageJsonFromDirRawSync } from '@pnpm/pkg-manifest.reader'
+import { prepare } from '@pnpm/prepare'
+import { setScript } from '../src/index.js'
 
 test('set-script adds a script to package.json', async () => {
-  const project = prepare()
+  prepare()
 
   await setScript.handler({ dir: process.cwd() }, ['test-script', 'echo "hello"'])
 
@@ -14,7 +13,7 @@ test('set-script adds a script to package.json', async () => {
 })
 
 test('set-script updates an existing script in package.json', async () => {
-  const project = prepare({
+  prepare({
     scripts: {
       'test-script': 'echo "old"',
     },

@@ -1,0 +1,30 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts"
+  ],
+  "references": [
+    {
+      "path": "../../cli/utils"
+    },
+    {
+      "path": "../../config/reader"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../pkg-manifest/reader"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../workspace/project-manifest-writer"
+    }
+  ]
+}
