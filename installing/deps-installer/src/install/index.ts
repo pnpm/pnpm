@@ -538,14 +538,14 @@ export async function mutateModules (
     // Pre-compute preferredSpecs to avoid race conditions in concurrent execution
     const preferredSpecs: Record<string, string> | undefined = projects.some(project => project.mutation === 'installSome')
       ? (() => {
-          const manifests = []
-          for (const versions of ctx.workspacePackages.values()) {
-            for (const { manifest } of versions.values()) {
-              manifests.push(manifest)
-            }
+        const manifests = []
+        for (const versions of ctx.workspacePackages.values()) {
+          for (const { manifest } of versions.values()) {
+            manifests.push(manifest)
           }
-          return getAllUniqueSpecs(manifests)
-        })()
+        }
+        return getAllUniqueSpecs(manifests)
+      })()
       : undefined
 
     interface ProjectResult {

@@ -10,7 +10,7 @@ jest.unstable_mockModule('@pnpm/fs.graceful-fs', () => {
   const fsMock = {
     access,
     copyFileSync: jest.fn(),
-    copyFile: jest.fn().mockResolvedValue(undefined),
+    copyFile: jest.fn().mockReturnValue(Promise.resolve()),
     readFileSync: jest.fn(),
     readdirSync: jest.fn(),
     linkSync: jest.fn(),
