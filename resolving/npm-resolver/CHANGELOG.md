@@ -1,5 +1,19 @@
 # @pnpm/npm-resolver
 
+## 1100.1.0
+
+### Minor Changes
+
+- 9e0833c: Added a new setting `minimumReleaseAgeIgnoreMissingTime`, which is `true` by default. When enabled, pnpm skips the `minimumReleaseAge` maturity check if the registry metadata does not include the `time` field. Set to `false` to fail resolution instead.
+
+### Patch Changes
+
+- Updated dependencies [72c1e05]
+  - @pnpm/resolving.resolver-base@1100.1.0
+  - @pnpm/store.cafs@1100.0.2
+  - @pnpm/worker@1100.0.2
+  - @pnpm/crypto.hash@1100.0.0
+
 ## 1100.0.1
 
 ### Patch Changes

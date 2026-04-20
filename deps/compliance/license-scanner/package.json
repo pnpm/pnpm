@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.compliance.license-scanner",
-  "version": "1100.0.2",
+  "version": "1100.0.3",
   "description": "Check for licenses packages",
   "keywords": [
     "pnpm",

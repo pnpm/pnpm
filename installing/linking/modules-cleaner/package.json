@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.linking.modules-cleaner",
-  "version": "1100.0.1",
+  "version": "1100.0.2",
   "description": "Exports util functions to clean up node_modules",
   "keywords": [
     "pnpm",

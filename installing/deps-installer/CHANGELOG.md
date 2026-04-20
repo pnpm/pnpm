@@ -1,5 +1,38 @@
 # @pnpm/core
 
+## 1100.0.3
+
+### Patch Changes
+
+- 72c1e05: Fix: different platform variants of the same runtime (e.g. `node@runtime:25.9.0` glibc vs. musl) no longer share a single global-virtual-store entry. The virtual store path now incorporates the selected variant's integrity, so installs with different `--os`/`--cpu`/`--libc` end up in separate directories and `pnpm add --libc=musl node@runtime:<v>` reliably fetches the musl binary even when the glibc variant is already cached.
+- Updated dependencies [c86c423]
+- Updated dependencies [72c1e05]
+  - @pnpm/installing.deps-resolver@1100.0.3
+  - @pnpm/deps.graph-hasher@1100.1.0
+  - @pnpm/resolving.resolver-base@1100.1.0
+  - @pnpm/installing.deps-restorer@1100.0.3
+  - @pnpm/installing.package-requester@1100.0.2
+  - @pnpm/building.after-install@1100.0.3
+  - @pnpm/building.during-install@1100.0.3
+  - @pnpm/exec.lifecycle@1100.0.3
+  - @pnpm/hooks.types@1100.0.2
+  - @pnpm/installing.context@1100.0.2
+  - @pnpm/lockfile.preferred-versions@1100.0.3
+  - @pnpm/lockfile.utils@1100.0.2
+  - @pnpm/lockfile.verification@1100.0.2
+  - @pnpm/store.controller-types@1100.0.2
+  - @pnpm/agent.client@0.0.1
+  - @pnpm/installing.linking.modules-cleaner@1100.0.2
+  - @pnpm/lockfile.filtering@1100.0.2
+  - @pnpm/lockfile.fs@1100.0.2
+  - @pnpm/lockfile.pruner@1100.0.2
+  - @pnpm/lockfile.settings-checker@1100.0.2
+  - @pnpm/lockfile.walker@1100.0.2
+  - @pnpm/lockfile.to-pnp@1100.0.2
+  - @pnpm/worker@1100.0.2
+  - @pnpm/crypto.hash@1100.0.0
+  - @pnpm/fs.symlink-dependency@1100.0.1
+
 ## 1100.0.2
 
 ### Patch Changes

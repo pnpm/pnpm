@@ -1,5 +1,14 @@
 # @pnpm/pnpmfile
 
+## 1100.0.2
+
+### Patch Changes
+
+- @pnpm/hooks.types@1100.0.2
+- @pnpm/lockfile.types@1100.0.2
+- @pnpm/store.controller-types@1100.0.2
+- @pnpm/crypto.hash@1100.0.0
+
 ## 1100.0.1
 
 ### Patch Changes

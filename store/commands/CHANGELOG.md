@@ -1,5 +1,20 @@
 # @pnpm/store.commands
 
+## 1100.0.3
+
+### Patch Changes
+
+- Updated dependencies [7d25bc1]
+- Updated dependencies [9e0833c]
+  - @pnpm/config.reader@1101.1.0
+  - @pnpm/store.connection-manager@1100.0.3
+  - @pnpm/installing.client@1100.0.3
+  - @pnpm/installing.context@1100.0.2
+  - @pnpm/lockfile.types@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.2
+  - @pnpm/store.controller-types@1100.0.2
+  - @pnpm/store.cafs@1100.0.2
+
 ## 1100.0.2
 
 ### Patch Changes

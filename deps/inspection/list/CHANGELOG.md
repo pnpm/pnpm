@@ -1,5 +1,12 @@
 # @pnpm/list
 
+## 1100.0.3
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1100.0.2
+- @pnpm/deps.inspection.tree-builder@1100.0.2
+
 ## 1100.0.2
 
 ### Patch Changes

@@ -1,5 +1,24 @@
 # @pnpm/resolve-dependencies
 
+## 1100.0.3
+
+### Patch Changes
+
+- c86c423: Restore the peer suffix encoding used by pnpm 10 for linked dependency paths. A `filenamify` upgrade changed how leading `./` and `../` segments were normalized, producing peer suffixes like `(b@+packages+b)` instead of `(b@packages+b)` for linked packages outside the workspace root, causing lockfile churn [#11272](https://github.com/pnpm/pnpm/issues/11272).
+- 72c1e05: Fix: different platform variants of the same runtime (e.g. `node@runtime:25.9.0` glibc vs. musl) no longer share a single global-virtual-store entry. The virtual store path now incorporates the selected variant's integrity, so installs with different `--os`/`--cpu`/`--libc` end up in separate directories and `pnpm add --libc=musl node@runtime:<v>` reliably fetches the musl binary even when the glibc variant is already cached.
+- Updated dependencies [72c1e05]
+- Updated dependencies [9e0833c]
+  - @pnpm/deps.graph-hasher@1100.1.0
+  - @pnpm/resolving.resolver-base@1100.1.0
+  - @pnpm/resolving.npm-resolver@1100.1.0
+  - @pnpm/fetching.pick-fetcher@1100.0.2
+  - @pnpm/hooks.types@1100.0.2
+  - @pnpm/lockfile.preferred-versions@1100.0.3
+  - @pnpm/lockfile.types@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.2
+  - @pnpm/store.controller-types@1100.0.2
+  - @pnpm/lockfile.pruner@1100.0.2
+
 ## 1100.0.2
 
 ### Patch Changes

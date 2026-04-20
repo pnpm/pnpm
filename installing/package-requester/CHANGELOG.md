@@ -1,5 +1,19 @@
 # @pnpm/package-requester
 
+## 1100.0.2
+
+### Patch Changes
+
+- 72c1e05: Fix: different platform variants of the same runtime (e.g. `node@runtime:25.9.0` glibc vs. musl) no longer share a single global-virtual-store entry. The virtual store path now incorporates the selected variant's integrity, so installs with different `--os`/`--cpu`/`--libc` end up in separate directories and `pnpm add --libc=musl node@runtime:<v>` reliably fetches the musl binary even when the glibc variant is already cached.
+- Updated dependencies [72c1e05]
+  - @pnpm/resolving.resolver-base@1100.1.0
+  - @pnpm/fetching.fetcher-base@1100.0.2
+  - @pnpm/fetching.pick-fetcher@1100.0.2
+  - @pnpm/hooks.types@1100.0.2
+  - @pnpm/store.controller-types@1100.0.2
+  - @pnpm/store.cafs@1100.0.2
+  - @pnpm/worker@1100.0.2
+
 ## 1100.0.1
 
 ### Patch Changes

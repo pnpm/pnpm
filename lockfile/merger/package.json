@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.merger",
-  "version": "1100.0.1",
+  "version": "1100.0.2",
   "description": "Merges lockfiles. Can automatically fix merge conflicts",
   "keywords": [
     "pnpm",

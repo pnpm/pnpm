@@ -1,5 +1,37 @@
 # @pnpm/releasing.commands
 
+## 1100.1.0
+
+### Minor Changes
+
+- 72c1e05: Added a new `pnpm pack-app` command that packs a CommonJS entry file into a standalone executable for one or more target platforms, using the [Node.js Single Executable Applications](https://nodejs.org/api/single-executable-applications.html) API under the hood. Targets are specified as `<os>-<arch>[-<libc>]` (e.g. `linux-x64`, `linux-x64-musl`, `macos-arm64`, `win-x64`) and each produces an executable under `dist-app/<target>/` by default. Requires Node.js v25.5+ to perform the injection; an older host downloads Node.js v25 automatically.
+- 53668a4: Fixed and expanded `pnpm version` to match npm behavior:
+
+  - Accept an explicit semver version (e.g. `pnpm version 1.2.3`) in addition to bump types.
+  - Recognize `--no-commit-hooks`, `--no-git-tag-version`, `--sign-git-tag`, and `--message`.
+  - Fix `--no-git-checks` which was previously parsed incorrectly.
+  - Create a git commit and annotated tag for the version bump when running inside a git repository (unless `--no-git-tag-version` is used). `--message` supports `%s` replacement with the new version, and `--tag-version-prefix` controls the tag prefix (defaults to `v`). Git commits and tags are always skipped in recursive mode since multiple packages may be bumped to different versions in a single run [#11271](https://github.com/pnpm/pnpm/issues/11271).
+
+### Patch Changes
+
+- Updated dependencies [7d25bc1]
+- Updated dependencies [e03e8f4]
+- Updated dependencies [72c1e05]
+- Updated dependencies [9e0833c]
+  - @pnpm/config.reader@1101.1.0
+  - @pnpm/fetching.directory-fetcher@1100.0.3
+  - @pnpm/resolving.resolver-base@1100.1.0
+  - @pnpm/engine.runtime.commands@1100.0.3
+  - @pnpm/engine.runtime.node-resolver@1100.0.3
+  - @pnpm/installing.commands@1100.1.1
+  - @pnpm/exec.lifecycle@1100.0.3
+  - @pnpm/installing.client@1100.0.3
+  - @pnpm/lockfile.types@1100.0.2
+  - @pnpm/lockfile.fs@1100.0.2
+  - @pnpm/fs.indexed-pkg-importer@1100.0.2
+  - @pnpm/workspace.projects-filter@1100.0.3
+  - @pnpm/releasing.exportable-manifest@1100.0.2
+
 ## 1100.0.2
 
 ### Patch Changes

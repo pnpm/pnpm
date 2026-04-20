@@ -1,5 +1,49 @@
 # pnpm
 
+## 11.0.0-rc.3
+
+### Minor Changes
+
+- Added a new `pnpm pack-app` command that packs a CommonJS entry file into a standalone executable for one or more target platforms, using the [Node.js Single Executable Applications](https://nodejs.org/api/single-executable-applications.html) API under the hood. Targets are specified as `<os>-<arch>[-<libc>]` (e.g. `linux-x64`, `linux-x64-musl`, `macos-arm64`, `win-x64`) and each produces an executable under `dist-app/<target>/` by default. Requires Node.js v25.5+ to perform the injection; an older host downloads Node.js v25 automatically.
+- `pnpm audit --fix` now respects the `auditLevel` setting and supports a new interactive mode via `--interactive`/`-i`. Previously, `pnpm audit --fix` would fix all vulnerabilities regardless of the configured `auditLevel`, while `pnpm audit` (without `--fix`) correctly filtered by severity. Now both commands consistently filter advisories by the `auditLevel` setting, and you can use `pnpm audit --fix -i` to review and select which vulnerabilities to fix interactively.
+
+  Overrides emitted by `pnpm audit --fix` now use a caret range (`^X.Y.Z`) instead of an open-ended `>=X.Y.Z`, so applying a security fix can no longer silently promote a dependency across a major version boundary.
+
+- Added a new setting `minimumReleaseAgeIgnoreMissingTime`, which is `true` by default. When enabled, pnpm skips the `minimumReleaseAge` maturity check if the registry metadata does not include the `time` field. Set to `false` to fail resolution instead.
+- Fixed and expanded `pnpm version` to match npm behavior:
+
+  - Accept an explicit semver version (e.g. `pnpm version 1.2.3`) in addition to bump types.
+  - Recognize `--no-commit-hooks`, `--no-git-tag-version`, `--sign-git-tag`, and `--message`.
+  - Fix `--no-git-checks` which was previously parsed incorrectly.
+  - Create a git commit and annotated tag for the version bump when running inside a git repository (unless `--no-git-tag-version` is used). `--message` supports `%s` replacement with the new version, and `--tag-version-prefix` controls the tag prefix (defaults to `v`). Git commits and tags are always skipped in recursive mode since multiple packages may be bumped to different versions in a single run [#11271](https://github.com/pnpm/pnpm/issues/11271).
+
+- Renamed the platform-specific optional dependencies of `@pnpm/exe` to the new `@pnpm/exe.<platform>-<arch>[-<libc>]` scheme, using `process.platform` values (`linux`, `darwin`, `win32`) for the OS segment. The umbrella package `@pnpm/exe` itself is unchanged so existing `npm i -g @pnpm/exe` and `pnpm self-update` flows keep working.
+
+  | before                    | after                        |
+  | ------------------------- | ---------------------------- |
+  | `@pnpm/linux-x64`         | `@pnpm/exe.linux-x64`        |
+  | `@pnpm/linux-arm64`       | `@pnpm/exe.linux-arm64`      |
+  | `@pnpm/linuxstatic-x64`   | `@pnpm/exe.linux-x64-musl`   |
+  | `@pnpm/linuxstatic-arm64` | `@pnpm/exe.linux-arm64-musl` |
+  | `@pnpm/macos-x64`         | `@pnpm/exe.darwin-x64`       |
+  | `@pnpm/macos-arm64`       | `@pnpm/exe.darwin-arm64`     |
+  | `@pnpm/win-x64`           | `@pnpm/exe.win32-x64`        |
+  | `@pnpm/win-arm64`         | `@pnpm/exe.win32-arm64`      |
+
+  GitHub release asset filenames follow the same scheme — `pnpm-linuxstatic-x64.tar.gz` becomes `pnpm-linux-x64-musl.tar.gz`, `pnpm-macos-*` becomes `pnpm-darwin-*`, `pnpm-win-*` becomes `pnpm-win32-*`. Anyone downloading releases directly needs to use the new filenames; `get.pnpm.io/install.sh` and `install.ps1` will be updated in lockstep to accept both schemes based on the requested version.
+
+  Resolves [#11314](https://github.com/pnpm/pnpm/issues/11314).
+
+### Patch Changes
+
+- Do not print the `Cannot use both "packageManager" and "devEngines.packageManager" in package.json. "packageManager" will be ignored` warning when the two fields specify the exact same package manager name and version string. This lets projects keep both fields during the migration from `packageManager` to `devEngines.packageManager` without a noisy warning [#11301](https://github.com/pnpm/pnpm/issues/11301).
+- Fix installing a directory dependency (`file:<dir>`) from an absolute path on a different drive on Windows. The directory fetcher was joining the stored directory onto `lockfileDir`, which on Windows concatenates an absolute cross-drive path literally (`path.join('D:\\...', 'C:\\Users\\...')` → `'D:\\...\\C:\\Users\\...'`). Use `path.resolve` so absolute paths are respected. This surfaced as an ENOENT during `pnpm setup` in CI when `PNPM_HOME` and the OS temp directory were on different drives.
+- Fixed `pnpm sbom` and `pnpm licenses` failing to resolve license information for git-sourced dependencies (`git+https://`, `git+ssh://`, `github:` shorthand). These commands now correctly read the package manifest from the content-addressable store for `type: 'git'` resolutions [#11260](https://github.com/pnpm/pnpm/issues/11260).
+- Fix `ERR_PNPM_OUTDATED_LOCKFILE` when approving builds during a global install. The `approve-builds` flow called by `pnpm add -g` passed the global packages directory to the subsequent install as `workspaceDir`, which caused sibling install directories (such as those left behind by `pnpm self-update`) to be picked up as workspace projects and fail the frozen-lockfile check.
+- Restore the peer suffix encoding used by pnpm 10 for linked dependency paths. A `filenamify` upgrade changed how leading `./` and `../` segments were normalized, producing peer suffixes like `(b@+packages+b)` instead of `(b@packages+b)` for linked packages outside the workspace root, causing lockfile churn [#11272](https://github.com/pnpm/pnpm/issues/11272).
+- Fix: different platform variants of the same runtime (e.g. `node@runtime:25.9.0` glibc vs. musl) no longer share a single global-virtual-store entry. The virtual store path now incorporates the selected variant's integrity, so installs with different `--os`/`--cpu`/`--libc` end up in separate directories and `pnpm add --libc=musl node@runtime:<v>` reliably fetches the musl binary even when the glibc variant is already cached.
+- `pnpm sbom` now detects licenses declared via the deprecated `licenses` array in `package.json` (e.g. `busboy`, `streamsearch`, `limiter`) and falls back to scanning on-disk `LICENSE` files — mirroring the resolution logic of `pnpm licenses`. Previously these packages were reported as `NOASSERTION`. Shared license resolution (manifest parsing + LICENSE-file fallback) lives in the new `@pnpm/deps.compliance.license-resolver` package. When a manifest sets both `license` and `licenses`, the modern `license` field now takes precedence for both commands (previously `pnpm licenses` preferred `licenses`) [#11248](https://github.com/pnpm/pnpm/issues/11248).
+
 ## 11.0.0-rc.2
 
 ### Major Changes

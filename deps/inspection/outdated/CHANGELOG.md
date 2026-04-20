@@ -1,5 +1,16 @@
 # @pnpm/outdated
 
+## 1100.0.3
+
+### Patch Changes
+
+- 9e0833c: Added a new setting `minimumReleaseAgeIgnoreMissingTime`, which is `true` by default. When enabled, pnpm skips the `minimumReleaseAge` maturity check if the registry metadata does not include the `time` field. Set to `false` to fail resolution instead.
+- Updated dependencies [9e0833c]
+  - @pnpm/resolving.npm-resolver@1100.1.0
+  - @pnpm/installing.client@1100.0.3
+  - @pnpm/lockfile.utils@1100.0.2
+  - @pnpm/lockfile.fs@1100.0.2
+
 ## 1100.0.2
 
 ### Patch Changes

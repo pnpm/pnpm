@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.inspection.peers-checker",
-  "version": "1100.0.1",
+  "version": "1100.0.2",
   "description": "Check for unmet and missing peer dependency issues from the lockfile",
   "keywords": [
     "pnpm",

@@ -1,5 +1,32 @@
 # @pnpm/plugin-commands-installation
 
+## 1100.1.1
+
+### Patch Changes
+
+- Updated dependencies [7d25bc1]
+- Updated dependencies [72c1e05]
+- Updated dependencies [9e0833c]
+  - @pnpm/config.reader@1101.1.0
+  - @pnpm/resolving.resolver-base@1100.1.0
+  - @pnpm/installing.deps-installer@1100.0.3
+  - @pnpm/building.after-install@1100.0.3
+  - @pnpm/store.connection-manager@1100.0.3
+  - @pnpm/deps.inspection.outdated@1100.0.3
+  - @pnpm/deps.status@1100.0.3
+  - @pnpm/global.commands@1100.0.3
+  - @pnpm/workspace.state@1100.0.3
+  - @pnpm/installing.env-installer@1100.1.1
+  - @pnpm/installing.context@1100.0.2
+  - @pnpm/lockfile.types@1100.0.2
+  - @pnpm/store.controller@1100.0.2
+  - @pnpm/workspace.projects-graph@1100.0.2
+  - @pnpm/hooks.pnpmfile@1100.0.2
+  - @pnpm/installing.dedupe.check@1100.0.2
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.2
+  - @pnpm/workspace.projects-filter@1100.0.3
+  - @pnpm/config.writer@1100.0.2
+
 ## 1100.1.0
 
 ### Minor Changes

@@ -1,5 +1,23 @@
 # @pnpm/engine.pm.commands
 
+## 1101.0.1
+
+### Patch Changes
+
+- Updated dependencies [7d25bc1]
+- Updated dependencies [72c1e05]
+- Updated dependencies [9e0833c]
+  - @pnpm/config.reader@1101.1.0
+  - @pnpm/deps.graph-hasher@1100.1.0
+  - @pnpm/installing.deps-restorer@1100.0.3
+  - @pnpm/resolving.npm-resolver@1100.1.0
+  - @pnpm/store.connection-manager@1100.0.3
+  - @pnpm/global.commands@1100.0.3
+  - @pnpm/installing.client@1100.0.3
+  - @pnpm/installing.env-installer@1100.1.1
+  - @pnpm/lockfile.types@1100.0.2
+  - @pnpm/store.controller@1100.0.2
+
 ## 1101.0.0
 
 ### Major Changes
