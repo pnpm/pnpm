@@ -37,7 +37,7 @@ describe('pnpm-agent integration', () => {
     await new Promise<void>((resolve) => {
       server.listen(0, resolve)
     })
-    serverPort = (server.address() as any).port // eslint-disable-line @typescript-eslint/no-explicit-any
+    serverPort = (server.address() as import('node:net').AddressInfo).port
   })
 
   afterAll(async () => {

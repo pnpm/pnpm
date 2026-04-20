@@ -109,5 +109,5 @@ test('custom resolver receives currentPkg on subsequent installs', async () => {
 
   expect(resolveCallCount).toBe(2)
   expect(receivedCurrentPkg).toBeTruthy()
-  expect((receivedCurrentPkg as any).id).toBe('@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0') // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect((receivedCurrentPkg as { id: string }).id).toBe('@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0')
 })

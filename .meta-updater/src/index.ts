@@ -215,7 +215,7 @@ async function updateTSConfig (
         '**/*.ts',
         normalizePath(path.relative(testDir, path.join(context.workspaceDir, '__typings__/**/*.d.ts'))),
       ],
-      references: (tsConfig as any)?.compilerOptions?.composite === false // eslint-disable-line
+      references: (tsConfig as { compilerOptions?: { composite?: boolean } })?.compilerOptions?.composite === false
         // If composite is explicitly set to false, we can't add the main
         // tsconfig.json as a project reference. Only composite enabled projects
         // can be referenced by definition. Instead, we have to add all the
@@ -259,7 +259,7 @@ async function updateTSConfig (
     ...tsConfig,
     extends: '@pnpm/tsconfig',
     compilerOptions: {
-      ...(tsConfig as any)['compilerOptions'], // eslint-disable-line
+      ...(tsConfig as { compilerOptions?: Record<string, unknown> })['compilerOptions'],
       rootDir: 'src',
     },
     references: linkValues.map(path => ({ path })),
@@ -401,7 +401,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   if (scripts.test) {
     Object.assign(manifest, {
       jest: {
-        ...(manifest as any).jest, // eslint-disable-line
+        ...(manifest as { jest?: Record<string, unknown> }).jest,
         preset,
       },
     })

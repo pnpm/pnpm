@@ -1,7 +1,9 @@
 import { jest } from '@jest/globals'
-import type { Fetchers, FetchFunction } from '@pnpm/fetching.fetcher-base'
+import type { BinaryFetcher, DirectoryFetcher, Fetchers, FetchFunction, FetchOptions, GitFetcher } from '@pnpm/fetching.fetcher-base'
 import { pickFetcher } from '@pnpm/fetching.pick-fetcher'
 import type { CustomFetcher } from '@pnpm/hooks.types'
+import type { AtomicResolution } from '@pnpm/resolving.resolver-base'
+import type { Cafs } from '@pnpm/store.cafs-types'
 
 // Helper to create a mock Fetchers object with only the needed fetcher
 function createMockFetchers (partial: Partial<Fetchers>): Fetchers {
@@ -10,9 +12,9 @@ function createMockFetchers (partial: Partial<Fetchers>): Fetchers {
     localTarball: noop,
     remoteTarball: noop,
     gitHostedTarball: noop,
-    directory: noop as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-    git: noop as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-    binary: noop as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    directory: noop as unknown as DirectoryFetcher,
+    git: noop as unknown as GitFetcher,
+    binary: noop as unknown as BinaryFetcher,
     ...partial,
   }
 }
@@ -42,7 +44,7 @@ test.each([
 test('should fail to pick fetcher if the type is not defined', async () => {
   await expect(async () => {
     // This test specifically needs an incomplete Fetchers object to test error handling
-    await pickFetcher({} as any, { type: 'directory', directory: expect.anything() } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+    await pickFetcher({} as Fetchers, { type: 'directory', directory: expect.anything() } as unknown as AtomicResolution)
   }).rejects.toThrow('Fetching for dependency type "directory" is not supported')
 })
 
@@ -70,11 +72,11 @@ describe('custom fetcher support', () => {
     expect(typeof fetcher).toBe('function')
 
     // Call the fetcher and verify it uses the custom fetch function
-    const mockCafs = {} as any // eslint-disable-line @typescript-eslint/no-explicit-any
-    const mockResolution = { tarball: 'http://example.com/package.tgz' } as any // eslint-disable-line @typescript-eslint/no-explicit-any
-    const mockFetchOpts = {} as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    const mockCafs = {} as unknown as Cafs
+    const mockResolution = { tarball: 'http://example.com/package.tgz' } as unknown as AtomicResolution
+    const mockFetchOpts = {} as unknown as FetchOptions
 
-    const result = await fetcher(mockCafs, mockResolution, mockFetchOpts)
+    const result = await (fetcher as FetchFunction)(mockCafs, mockResolution, mockFetchOpts)
 
     expect(result).toBe(mockFetchResult)
     expect(customFetch).toHaveBeenCalledWith(
@@ -108,7 +110,7 @@ describe('custom fetcher support', () => {
   })
 
   test('should fall through to standard fetcher when canFetch returns false', async () => {
-    const customFetch = jest.fn() as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    const customFetch = jest.fn() as unknown as CustomFetcher['fetch']
     const remoteTarball = jest.fn() as FetchFunction
 
     const customFetcher: Partial<CustomFetcher> = {
@@ -134,7 +136,7 @@ describe('custom fetcher support', () => {
 
     const customFetcher: Partial<CustomFetcher> = {
       // No canFetch method
-      fetch: jest.fn() as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      fetch: jest.fn() as unknown as CustomFetcher['fetch'],
     }
 
     const fetcher = await pickFetcher(
@@ -172,11 +174,11 @@ describe('custom fetcher support', () => {
       }
     )
 
-    const mockCafs = {} as any // eslint-disable-line @typescript-eslint/no-explicit-any
-    const mockResolution = { tarball: 'http://example.com/package.tgz' } as any // eslint-disable-line @typescript-eslint/no-explicit-any
-    const mockFetchOpts = {} as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    const mockCafs = {} as unknown as Cafs
+    const mockResolution = { tarball: 'http://example.com/package.tgz' } as unknown as AtomicResolution
+    const mockFetchOpts = {} as unknown as FetchOptions
 
-    const result = await fetcher(mockCafs, mockResolution, mockFetchOpts)
+    const result = await (fetcher as FetchFunction)(mockCafs, mockResolution, mockFetchOpts)
 
     expect(result).toBe(mockFetchResult1)
     expect(fetcher1.fetch).toHaveBeenCalled()
@@ -195,18 +197,18 @@ describe('custom fetcher support', () => {
     const mockFetchers = createMockFetchers({})
     const fetcher = await pickFetcher(
       mockFetchers,
-      { type: 'custom:test', customField: 'value' } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      { type: 'custom:test', customField: 'value' } as unknown as AtomicResolution,
       {
         customFetchers: [customFetcher as CustomFetcher],
         packageId: 'test-package@1.0.0',
       }
     )
 
-    const mockCafs = {} as any // eslint-disable-line @typescript-eslint/no-explicit-any
-    const mockResolution = { type: 'custom:test', customField: 'value' } as any // eslint-disable-line @typescript-eslint/no-explicit-any
-    const mockFetchOpts = {} as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    const mockCafs = {} as Cafs
+    const mockResolution = { type: 'custom:test', customField: 'value' } as unknown as AtomicResolution
+    const mockFetchOpts = {} as FetchOptions
 
-    await fetcher(mockCafs, mockResolution, mockFetchOpts)
+    await (fetcher as FetchFunction)(mockCafs, mockResolution, mockFetchOpts)
 
     expect(customFetch).toHaveBeenCalledWith(
       mockCafs,
@@ -234,16 +236,16 @@ describe('custom fetcher support', () => {
       }
     )
 
-    const mockCafs = { addFilesFromTarball: jest.fn() } as any // eslint-disable-line @typescript-eslint/no-explicit-any
-    const mockResolution = { tarball: 'http://example.com/package.tgz' } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    const mockCafs = { addFilesFromTarball: jest.fn() } as unknown as Cafs
+    const mockResolution = { tarball: 'http://example.com/package.tgz' } as AtomicResolution
     const mockFetchOpts = {
       onStart: jest.fn(),
       onProgress: jest.fn(),
       readManifest: true,
       filesIndexFile: 'index.json',
-    } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as unknown as FetchOptions
 
-    await fetcher(mockCafs, mockResolution, mockFetchOpts)
+    await (fetcher as FetchFunction)(mockCafs, mockResolution, mockFetchOpts)
 
     expect(customFetch).toHaveBeenCalledWith(mockCafs, mockResolution, mockFetchOpts, mockFetchers)
   })
@@ -253,7 +255,7 @@ describe('custom fetcher support', () => {
     const customResolution = {
       type: 'custom:cdn',
       cdnUrl: 'https://cdn.company.com/package.tgz',
-    } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as unknown as AtomicResolution
 
     await expect(
       pickFetcher(createMockFetchers({}), customResolution, {

@@ -143,8 +143,15 @@ export function toOutput$ (
   const scopePushStream = new Rx.Subject<logs.ScopeLog>()
   const requestRetryPushStream = new Rx.Subject<logs.RequestRetryLog>()
   const updateCheckPushStream = new Rx.Subject<logs.UpdateCheckLog>()
+  // These log names are emitted by external callers (e.g. Bit CLI) but are
+  // not part of the typed `Log` union, so we match them before the switch.
+  const externalOtherLogNames = new Set<string>(['pnpm', 'pnpm:global', 'pnpm:store', 'pnpm:lockfile'])
   setTimeout(() => {
     opts.streamParser.on('data', (log: logs.Log) => {
+      if (externalOtherLogNames.has(log.name as string)) {
+        otherPushStream.next(log)
+        return
+      }
       switch (log.name) {
         case 'pnpm:context':
           contextPushStream.next(log)
@@ -214,12 +221,6 @@ export function toOutput$ (
           break
         case 'pnpm:update-check':
           updateCheckPushStream.next(log)
-          break
-      case 'pnpm' as any: // eslint-disable-line
-      case 'pnpm:global' as any: // eslint-disable-line
-      case 'pnpm:store' as any: // eslint-disable-line
-      case 'pnpm:lockfile' as any: // eslint-disable-line
-          otherPushStream.next(log)
           break
       }
     })

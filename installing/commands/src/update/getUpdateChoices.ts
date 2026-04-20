@@ -100,7 +100,7 @@ function buildPkgChoice (outdatedPkg: OutdatedPackage, workspacesEnabled: boolea
   const sdiff = semverDiff.default(outdatedPkg.wanted, outdatedPkg.latestManifest!.version)
   const nextVersion = sdiff.change === null
     ? outdatedPkg.latestManifest!.version
-    : colorizeSemverDiff.default(sdiff as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+    : colorizeSemverDiff.default(sdiff as Parameters<typeof colorizeSemverDiff.default>[0])
   const label = outdatedPkg.packageName
 
   const lineParts = {

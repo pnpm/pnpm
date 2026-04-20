@@ -123,7 +123,7 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
   } else {
     const { result } = await enquirer.prompt({
       choices: sortUniqueStrings([...automaticallyIgnoredBuilds]),
-      indicator (state: any, choice: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+      indicator (_state: unknown, choice: { enabled: boolean }) {
         return ` ${choice.enabled ? '●' : '○'}`
       },
       message: 'Choose which packages to build ' +
@@ -221,7 +221,7 @@ Do you approve?`,
         allowBuilds,
         frozenLockfile: true,
         optimisticRepeatInstall: false,
-      } as any, [], commands) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as unknown as Parameters<typeof install.handler>[0], [], commands)
       return
     }
     return rebuild.handler({
