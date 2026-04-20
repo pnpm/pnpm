@@ -3108,9 +3108,15 @@ importers:
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: link:../../lockfile/utils
+      '@pnpm/resolving.resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
+      detect-libc:
+        specifier: 'catalog:'
+        version: 2.1.2
     devDependencies:
       '@pnpm/deps.graph-hasher':
         specifier: workspace:*
@@ -7689,12 +7695,18 @@ importers:
       '@pnpm/engine.runtime.commands':
         specifier: workspace:*
         version: link:../../engine/runtime/commands
+      '@pnpm/engine.runtime.node-resolver':
+        specifier: workspace:*
+        version: link:../../engine/runtime/node-resolver
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
       '@pnpm/exec.lifecycle':
         specifier: workspace:*
         version: link:../../exec/lifecycle
+      '@pnpm/exec.pnpm-cli-runner':
+        specifier: workspace:*
+        version: link:../../exec/pnpm-cli-runner
       '@pnpm/fetching.directory-fetcher':
         specifier: workspace:*
         version: link:../../fetching/directory-fetcher
