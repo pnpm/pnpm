@@ -180,7 +180,7 @@ function copyDistAssets (targetDir: string): void {
 async function build (target: string, config: TargetConfig): Promise<void> {
   const targetDir = path.join(artifactsDir, target)
   let artifactFile = path.join(targetDir, 'pnpm')
-  if (target.startsWith('win-')) {
+  if (target.startsWith('win32-')) {
     artifactFile += '.exe'
   }
 
