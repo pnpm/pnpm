@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@pnpm/config.package-is-installable": "workspace:*",
+    "@pnpm/deps.compliance.license-resolver": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/lockfile.detect-dep-types": "workspace:*",

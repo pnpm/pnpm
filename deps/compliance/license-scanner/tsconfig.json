@@ -50,6 +50,9 @@
     },
     {
       "path": "../../path"
+    },
+    {
+      "path": "../license-resolver"
     }
   ]
 }

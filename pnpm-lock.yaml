@@ -2789,6 +2789,9 @@ importers:
       '@pnpm/deps.compliance.audit':
         specifier: workspace:*
         version: link:../audit
+      '@pnpm/deps.compliance.license-resolver':
+        specifier: workspace:*
+        version: link:../license-resolver
       '@pnpm/deps.compliance.license-scanner':
         specifier: workspace:*
         version: link:../license-scanner
@@ -2899,11 +2902,20 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
 
+  deps/compliance/license-resolver:
+    devDependencies:
+      '@pnpm/deps.compliance.license-resolver':
+        specifier: workspace:*
+        version: 'link:'
+
   deps/compliance/license-scanner:
     dependencies:
       '@pnpm/config.package-is-installable':
         specifier: workspace:*
         version: link:../../../config/package-is-installable
+      '@pnpm/deps.compliance.license-resolver':
+        specifier: workspace:*
+        version: link:../license-resolver
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../../path
@@ -2974,6 +2986,9 @@ importers:
       '@cyclonedx/cyclonedx-library':
         specifier: 'catalog:'
         version: 10.0.0(ajv@8.18.0)(spdx-expression-parse@4.0.0)
+      '@pnpm/deps.compliance.license-resolver':
+        specifier: workspace:*
+        version: link:../license-resolver
       '@pnpm/lockfile.detect-dep-types':
         specifier: workspace:*
         version: link:../../../lockfile/detect-dep-types

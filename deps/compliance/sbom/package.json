@@ -35,6 +35,7 @@
   },
   "dependencies": {
     "@cyclonedx/cyclonedx-library": "catalog:",
+    "@pnpm/deps.compliance.license-resolver": "workspace:*",
     "@pnpm/lockfile.detect-dep-types": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",

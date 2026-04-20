@@ -35,6 +35,9 @@
     },
     {
       "path": "../../../store/pkg-finder"
+    },
+    {
+      "path": "../license-resolver"
     }
   ]
 }

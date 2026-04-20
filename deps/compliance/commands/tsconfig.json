@@ -86,6 +86,9 @@
       "path": "../audit"
     },
     {
+      "path": "../license-resolver"
+    },
+    {
       "path": "../license-scanner"
     },
     {

@@ -43,6 +43,7 @@
     "@pnpm/config.writer": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/deps.compliance.audit": "workspace:*",
+    "@pnpm/deps.compliance.license-resolver": "workspace:*",
     "@pnpm/deps.compliance.license-scanner": "workspace:*",
     "@pnpm/deps.compliance.sbom": "workspace:*",
     "@pnpm/error": "workspace:*",
