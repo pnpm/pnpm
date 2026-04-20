@@ -43,6 +43,9 @@
       "path": "../../../pkg-manifest/reader"
     },
     {
+      "path": "../../../store/cafs"
+    },
+    {
       "path": "../../../store/index"
     },
     {
