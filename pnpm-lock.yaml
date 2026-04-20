@@ -847,6 +847,9 @@ catalogs:
     sort-keys:
       specifier: ^6.0.0
       version: 6.0.0
+    spdx-expression-parse:
+      specifier: ^4.0.0
+      version: 4.0.0
     split-cmd:
       specifier: ^1.1.0
       version: 1.1.0
@@ -2974,6 +2977,9 @@ importers:
       '@pnpm/deps.compliance.audit':
         specifier: workspace:*
         version: link:../audit
+      '@pnpm/deps.compliance.license-checker':
+        specifier: workspace:*
+        version: link:../license-checker
       '@pnpm/deps.compliance.license-resolver':
         specifier: workspace:*
         version: link:../license-resolver
@@ -3092,6 +3098,37 @@ importers:
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
+
+  deps/compliance/license-checker:
+    dependencies:
+      '@pnpm/deps.compliance.license-scanner':
+        specifier: workspace:*
+        version: link:../license-scanner
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../../core/error
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../../lockfile/fs
+      '@pnpm/store.path':
+        specifier: workspace:*
+        version: link:../../../store/path
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../../core/types
+      spdx-expression-parse:
+        specifier: 'catalog:'
+        version: 4.0.0
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
+      '@pnpm/deps.compliance.license-checker':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../../core/logger
 
   deps/compliance/license-resolver:
     devDependencies:
@@ -5217,6 +5254,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants
+      '@pnpm/deps.compliance.license-checker':
+        specifier: workspace:*
+        version: link:../../deps/compliance/license-checker
       '@pnpm/deps.inspection.outdated':
         specifier: workspace:*
         version: link:../../deps/inspection/outdated
