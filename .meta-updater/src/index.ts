@@ -373,7 +373,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
 && shx cp -r node_modules/ps-list/vendor dist/vendor \
 && shx cp pnpmrc dist/pnpmrc'
   } else {
-    scripts.prepublishOnly = 'pn compile'
+    scripts.prepublishOnly = 'tsgo --build'
     homepage = `https://github.com/pnpm/pnpm/tree/main/${relative}#readme`
     repository = `https://github.com/pnpm/pnpm/tree/main/${relative}`
   }
