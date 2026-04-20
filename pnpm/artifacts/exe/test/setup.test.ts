@@ -3,16 +3,14 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const exeDir = path.resolve(import.meta.dirname, '..')
-const platform = process.platform === 'win32'
-  ? 'win'
-  : process.platform === 'darwin'
-    ? 'macos'
-    : process.platform
-const arch = platform === 'win' && process.arch === 'ia32' ? 'x86' : process.arch
-const isWindows = platform === 'win'
-
+const platform = process.platform
+const arch = platform === 'win32' && process.arch === 'ia32' ? 'x86' : process.arch
+const isWindows = platform === 'win32'
+// The test doesn't create a musl libc marker, so setup.js's detect-libc call
+// reports the host's native libc; on a glibc Linux CI box that resolves to the
+// non-musl package name. For non-Linux hosts there is no libc suffix.
 const platformBin = path.join(
-  exeDir, 'node_modules', '@pnpm', `${platform}-${arch}`,
+  exeDir, 'node_modules', '@pnpm', `exe.${platform}-${arch}`,
   isWindows ? 'pnpm.exe' : 'pnpm'
 )
 const hasPlatformBinary = fs.existsSync(platformBin)

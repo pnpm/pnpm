@@ -38,42 +38,42 @@ function getTargets (): Record<string, TargetConfig> {
       nodeBinPath: `node-v${v}-linux-arm64/bin/node`,
       needsLdidSigning: false,
     },
-    'linuxstatic-x64': {
+    'linux-x64-musl': {
       platform: 'linux',
       arch: 'x64',
       nodeUrl: `https://unofficial-builds.nodejs.org/download/release/v${v}/node-v${v}-linux-x64-musl.tar.xz`,
       nodeBinPath: `node-v${v}-linux-x64-musl/bin/node`,
       needsLdidSigning: false,
     },
-    'linuxstatic-arm64': {
+    'linux-arm64-musl': {
       platform: 'linux',
       arch: 'arm64',
       nodeUrl: `https://unofficial-builds.nodejs.org/download/release/v${v}/node-v${v}-linux-arm64-musl.tar.xz`,
       nodeBinPath: `node-v${v}-linux-arm64-musl/bin/node`,
       needsLdidSigning: false,
     },
-    'macos-x64': {
+    'darwin-x64': {
       platform: 'darwin',
       arch: 'x64',
       nodeUrl: `https://nodejs.org/dist/v${v}/node-v${v}-darwin-x64.tar.gz`,
       nodeBinPath: `node-v${v}-darwin-x64/bin/node`,
       needsLdidSigning: process.platform === 'linux',
     },
-    'macos-arm64': {
+    'darwin-arm64': {
       platform: 'darwin',
       arch: 'arm64',
       nodeUrl: `https://nodejs.org/dist/v${v}/node-v${v}-darwin-arm64.tar.gz`,
       nodeBinPath: `node-v${v}-darwin-arm64/bin/node`,
       needsLdidSigning: process.platform === 'linux',
     },
-    'win-x64': {
+    'win32-x64': {
       platform: 'win32',
       arch: 'x64',
       nodeUrl: `https://nodejs.org/dist/v${v}/node-v${v}-win-x64.zip`,
       nodeBinPath: `node-v${v}-win-x64/node.exe`,
       needsLdidSigning: false,
     },
-    'win-arm64': {
+    'win32-arm64': {
       platform: 'win32',
       arch: 'arm64',
       nodeUrl: `https://nodejs.org/dist/v${v}/node-v${v}-win-arm64.zip`,
@@ -229,17 +229,17 @@ async function build (target: string, config: TargetConfig): Promise<void> {
 ;(async () => {
   const targets = getTargets()
 
-  await build('win-x64', targets['win-x64'])
+  await build('win32-x64', targets['win32-x64'])
   await build('linux-x64', targets['linux-x64'])
-  await build('macos-x64', targets['macos-x64'])
+  await build('darwin-x64', targets['darwin-x64'])
 
   const isM1Mac = process.platform === 'darwin' && process.arch === 'arm64'
   if (process.platform === 'linux' || isM1Mac) {
-    await build('macos-arm64', targets['macos-arm64'])
+    await build('darwin-arm64', targets['darwin-arm64'])
     await build('linux-arm64', targets['linux-arm64'])
-    await build('win-arm64', targets['win-arm64'])
-    await build('linuxstatic-x64', targets['linuxstatic-x64'])
-    await build('linuxstatic-arm64', targets['linuxstatic-arm64'])
+    await build('win32-arm64', targets['win32-arm64'])
+    await build('linux-x64-musl', targets['linux-x64-musl'])
+    await build('linux-arm64-musl', targets['linux-arm64-musl'])
   }
 
   // Copy dist/ to the exe directory for npm publishing.

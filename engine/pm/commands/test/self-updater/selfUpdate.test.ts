@@ -508,14 +508,13 @@ test('installPnpm without env lockfile uses resolution path', async () => {
 })
 
 describe('linkExePlatformBinary', () => {
-  const platform = process.platform === 'win32'
-    ? 'win'
-    : process.platform === 'darwin'
-      ? 'macos'
-      : process.platform
-  const arch = platform === 'win' && process.arch === 'ia32' ? 'x86' : process.arch
-  const executable = platform === 'win' ? 'pnpm.exe' : 'pnpm'
-  const platformPkgName = `${platform}-${arch}`
+  const platform = process.platform
+  const arch = platform === 'win32' && process.arch === 'ia32' ? 'x86' : process.arch
+  const executable = platform === 'win32' ? 'pnpm.exe' : 'pnpm'
+  // NOTE: the test layout doesn't set up a musl libc marker on Linux, so the
+  // non-musl platform package is what gets linked here. Matching what
+  // linkExePlatformBinary detects via detect-libc.
+  const platformPkgName = `exe.${platform}-${arch}`
 
   test('links platform binary in pnpm symlinked node_modules layout', () => {
     const dir = tempDir(false)

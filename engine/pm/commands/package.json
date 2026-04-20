@@ -52,6 +52,7 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "cross-spawn": "catalog:",
+    "detect-libc": "catalog:",
     "path-name": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:",
