@@ -7616,9 +7616,6 @@ importers:
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.3.0
-      tar:
-        specifier: 'catalog:'
-        version: 7.5.13
     optionalDependencies:
       '@pnpm/exe.darwin-arm64':
         specifier: workspace:*
