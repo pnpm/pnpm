@@ -73,3 +73,10 @@ export interface HardLinkDirMessage {
   src: string
   destDirs: string[]
 }
+
+export interface FetchAndWriteCafsMessage {
+  type: 'fetch-and-write-cafs'
+  registryUrl: string
+  storeDir: string
+  digests: Array<{ digest: string, size: number, executable: boolean }>
+}

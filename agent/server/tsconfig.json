@@ -1,0 +1,43 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../installing/client"
+    },
+    {
+      "path": "../../installing/deps-installer"
+    },
+    {
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/types"
+    },
+    {
+      "path": "../../store/cafs"
+    },
+    {
+      "path": "../../store/controller"
+    },
+    {
+      "path": "../../store/index"
+    },
+    {
+      "path": "../client"
+    }
+  ]
+}

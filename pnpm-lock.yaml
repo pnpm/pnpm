@@ -1407,6 +1407,77 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  agent/client:
+    dependencies:
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../../lockfile/types
+      '@pnpm/logger':
+        specifier: 'catalog:'
+        version: 1001.0.1
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
+      '@pnpm/worker':
+        specifier: workspace:^
+        version: link:../../worker
+    devDependencies:
+      '@pnpm/agent.client':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../core/types
+
+  agent/server:
+    dependencies:
+      '@pnpm/installing.client':
+        specifier: workspace:*
+        version: link:../../installing/client
+      '@pnpm/installing.deps-installer':
+        specifier: workspace:*
+        version: link:../../installing/deps-installer
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../../lockfile/types
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
+      '@pnpm/store.controller':
+        specifier: workspace:*
+        version: link:../../store/controller
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../core/types
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
+      '@pnpm/agent.client':
+        specifier: workspace:*
+        version: link:../client
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../core/logger
+      '@pnpm/registry-mock':
+        specifier: 'catalog:'
+        version: 6.0.0(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+      cross-env:
+        specifier: 'catalog:'
+        version: 10.1.0
+      pnpm-agent:
+        specifier: workspace:*
+        version: 'link:'
+
   auth/commands:
     dependencies:
       '@pnpm/cli.utils':
@@ -5214,6 +5285,9 @@ importers:
 
   installing/deps-installer:
     dependencies:
+      '@pnpm/agent.client':
+        specifier: workspace:*
+        version: link:../../agent/client
       '@pnpm/bins.linker':
         specifier: workspace:*
         version: link:../../bins/linker
@@ -5355,6 +5429,9 @@ importers:
       '@pnpm/store.controller-types':
         specifier: workspace:*
         version: link:../../store/controller-types
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
@@ -5440,9 +5517,6 @@ importers:
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
-      '@pnpm/store.index':
-        specifier: workspace:*
-        version: link:../../store/index
       '@pnpm/store.path':
         specifier: workspace:*
         version: link:../../store/path
@@ -7454,6 +7528,9 @@ importers:
       pidtree:
         specifier: 'catalog:'
         version: 0.6.0
+      pnpm-agent:
+        specifier: workspace:*
+        version: link:../agent/server
       ps-list:
         specifier: 'catalog:'
         version: 9.0.0

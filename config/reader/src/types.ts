@@ -138,6 +138,7 @@ export const pnpmTypes = {
   'changed-files-ignore-pattern': [String, Array],
   'embed-readme': Boolean,
   'update-notifier': Boolean,
+  'agent': [null, String],
   'registry-supports-time-field': Boolean,
   'fail-if-no-match': Boolean,
   'sync-injected-deps-after-scripts': Array,

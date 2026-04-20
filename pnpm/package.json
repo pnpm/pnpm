@@ -117,6 +117,7 @@
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/registry-access.commands": "workspace:*",
     "@pnpm/releasing.commands": "workspace:*",
+    "pnpm-agent": "workspace:*",
     "@pnpm/shell.path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.commands": "workspace:*",
