@@ -62,7 +62,10 @@ export function help (): string {
       `Requires Node.js v${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor}+ to perform ` +
       'the injection. The running Node.js is used when it is new enough; otherwise, the ' +
       `latest Node.js v${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor}+ in the ` +
-      `v${MIN_BUILDER_VERSION.major}.x line is downloaded automatically.`,
+      `v${MIN_BUILDER_VERSION.major}.x line is downloaded automatically.\n\n` +
+      'Defaults for --entry, --target, --node-version, --output-dir, and --output-name can be ' +
+      'set in the package.json under "pnpm.app". CLI flags override the config; --target entirely ' +
+      'replaces the configured list so you can narrow it at invocation time.',
     url: docsUrl('pack-app'),
     usages: [
       'pnpm pack-app --entry dist/index.cjs --target linux-x64 --target win32-x64',
@@ -135,10 +138,15 @@ interface ParsedTarget {
 }
 
 export async function handler (opts: PackAppOptions, params: string[]): Promise<string> {
-  const entryPath = opts.entry ?? params[0]
+  // pnpm.app in package.json supplies defaults for every flag. CLI flags win,
+  // but `--target` entirely replaces the config list (additive merging would
+  // prevent narrowing from the CLI). See ProjectAppConfig below for the shape.
+  const project = await readProjectAppConfig(opts.dir)
+
+  const entryPath = opts.entry ?? params[0] ?? project.app?.entry
   if (!entryPath) {
     throw new PnpmError('PACK_APP_MISSING_ENTRY',
-      '"pnpm pack-app" requires a CJS entry file (pass --entry <path>)')
+      '"pnpm pack-app" requires a CJS entry file — pass --entry <path> or set "pnpm.app.entry" in package.json.')
   }
   const resolvedEntry = path.resolve(opts.dir, entryPath)
   let entryStat: fs.Stats
@@ -152,20 +160,21 @@ export async function handler (opts: PackAppOptions, params: string[]): Promise<
       `Entry path must be a regular file: ${resolvedEntry}`)
   }
 
-  const rawTargets = opts.target == null
-    ? []
+  const cliTargets = opts.target == null
+    ? undefined
     : Array.isArray(opts.target) ? opts.target : [opts.target]
+  const rawTargets = cliTargets ?? project.app?.targets ?? []
   if (rawTargets.length === 0) {
     throw new PnpmError('PACK_APP_MISSING_TARGET',
-      `"pnpm pack-app" requires at least one --target. Supported: ${SUPPORTED_TARGETS}`)
+      `"pnpm pack-app" requires at least one target — pass --target <triplet> or set "pnpm.app.targets" in package.json. Supported: ${SUPPORTED_TARGETS}`)
   }
   const targets = rawTargets.map(parseTarget)
 
-  const outputDir = path.resolve(opts.dir, opts.outputDir ?? 'dist-app')
+  const outputDir = path.resolve(opts.dir, opts.outputDir ?? project.app?.outputDir ?? 'dist-app')
   await mkdir(outputDir, { recursive: true })
 
-  const outputName = validateOutputName(opts.outputName ?? await readPackageName(opts.dir))
-  const requestedNodeSpec = opts.nodeVersion ?? process.version.slice(1)
+  const outputName = validateOutputName(opts.outputName ?? project.app?.outputName ?? deriveOutputNameFromPackage(project, opts.dir))
+  const requestedNodeSpec = opts.nodeVersion ?? project.app?.nodeVersion ?? process.version.slice(1)
 
   const fetch = createFetchFromRegistry(opts)
   const buildRoot = path.join(opts.pnpmHomeDir, 'pack-app')
@@ -356,24 +365,104 @@ function validateOutputName (name: string): string {
   return name
 }
 
-async function readPackageName (dir: string): Promise<string> {
+/** Fields pack-app reads from `pnpm.app` in package.json. */
+export interface ProjectAppConfig {
+  entry?: string
+  targets?: string[]
+  nodeVersion?: string
+  outputDir?: string
+  outputName?: string
+}
+
+interface ReadProjectAppConfigResult {
+  name?: string
+  app?: ProjectAppConfig
+}
+
+// A narrow reader just for this command. Using readProjectManifest from
+// @pnpm/cli.utils would pull in the installable/engine checks, which are
+// irrelevant here: pack-app doesn't need the current project to be installable
+// under the running Node, just to have a package.json with optional settings.
+async function readProjectAppConfig (dir: string): Promise<ReadProjectAppConfigResult> {
   let raw: string
   try {
     raw = await readFile(path.join(dir, 'package.json'), 'utf8')
   } catch {
-    throw new PnpmError('PACK_APP_NO_PACKAGE_NAME',
-      `Could not determine --output-name: failed to read package.json in ${dir}`,
-      { hint: 'Pass --output-name <name> to set the executable name explicitly.' }
+    return {}
+  }
+  let manifest: unknown
+  try {
+    manifest = JSON.parse(raw)
+  } catch (err) {
+    throw new PnpmError('PACK_APP_INVALID_PACKAGE_JSON',
+      `Failed to parse ${path.join(dir, 'package.json')}: ${(err as Error).message}`)
+  }
+  if (!isObject(manifest)) return {}
+
+  const name = typeof manifest.name === 'string' && manifest.name !== '' ? manifest.name : undefined
+  const pnpmField = isObject(manifest.pnpm) ? manifest.pnpm : undefined
+  const appField = pnpmField && isObject(pnpmField.app) ? pnpmField.app : undefined
+  if (!appField) return { name }
+  return { name, app: validateAppConfig(appField) }
+}
+
+function validateAppConfig (raw: Record<string, unknown>): ProjectAppConfig {
+  const known = new Set(['entry', 'targets', 'nodeVersion', 'outputDir', 'outputName'])
+  for (const key of Object.keys(raw)) {
+    if (!known.has(key)) {
+      throw new PnpmError('PACK_APP_INVALID_CONFIG',
+        `Unknown "pnpm.app.${key}" setting in package.json. Allowed keys: ${Array.from(known).join(', ')}.`)
+    }
+  }
+  const config: ProjectAppConfig = {}
+  if (raw.entry != null) {
+    if (typeof raw.entry !== 'string') {
+      throw new PnpmError('PACK_APP_INVALID_CONFIG', '"pnpm.app.entry" must be a string.')
+    }
+    config.entry = raw.entry
+  }
+  if (raw.targets != null) {
+    if (!Array.isArray(raw.targets) || !raw.targets.every((t): t is string => typeof t === 'string')) {
+      throw new PnpmError('PACK_APP_INVALID_CONFIG', '"pnpm.app.targets" must be an array of strings.')
+    }
+    config.targets = raw.targets
+  }
+  if (raw.nodeVersion != null) {
+    if (typeof raw.nodeVersion !== 'string') {
+      throw new PnpmError('PACK_APP_INVALID_CONFIG', '"pnpm.app.nodeVersion" must be a string.')
+    }
+    config.nodeVersion = raw.nodeVersion
+  }
+  if (raw.outputDir != null) {
+    if (typeof raw.outputDir !== 'string') {
+      throw new PnpmError('PACK_APP_INVALID_CONFIG', '"pnpm.app.outputDir" must be a string.')
+    }
+    config.outputDir = raw.outputDir
+  }
+  if (raw.outputName != null) {
+    if (typeof raw.outputName !== 'string') {
+      throw new PnpmError('PACK_APP_INVALID_CONFIG', '"pnpm.app.outputName" must be a string.')
+    }
+    config.outputName = raw.outputName
+  }
+  return config
+}
+
+function deriveOutputNameFromPackage (project: ReadProjectAppConfigResult, dir: string): string {
+  if (!project.name) {
+    throw new PnpmError('PACK_APP_NO_OUTPUT_NAME',
+      `Could not determine the output name: package.json in ${dir} has no "name" field.`,
+      { hint: 'Pass --output-name <name> or set "pnpm.app.outputName" in package.json.' }
     )
   }
-  const manifest = JSON.parse(raw) as { name?: unknown }
-  if (typeof manifest.name !== 'string' || manifest.name === '') {
-    throw new PnpmError('PACK_APP_NO_PACKAGE_NAME',
-      `Could not determine --output-name: package.json in ${dir} has no "name" field`,
-      { hint: 'Pass --output-name <name> to set the executable name explicitly.' }
-    )
-  }
-  return manifest.name.replace(/^@[^/]+\//, '')
+  // Strip @scope/ prefix from scoped packages so the binary name is a plain
+  // filename instead of "scope/name". The second validateOutputName() pass
+  // downstream rejects any leftover path separators.
+  return project.name.replace(/^@[^/]+\//, '')
+}
+
+function isObject (value: unknown): value is Record<string, unknown> {
+  return value != null && typeof value === 'object' && !Array.isArray(value)
 }
 
 /**

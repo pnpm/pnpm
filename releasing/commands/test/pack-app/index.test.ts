@@ -74,6 +74,79 @@ describe('pack-app command', () => {
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_ENTRY_NOT_FILE' })
   })
 
+  it('reads entry from pnpm.app.entry when --entry is omitted', async () => {
+    fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({
+      name: 'test-app',
+      pnpm: { app: { entry: 'from-config.cjs' } },
+    }))
+    fs.writeFileSync(path.join(tempDir, 'from-config.cjs'), 'module.exports = {}')
+    // With entry from config but no target, we hit MISSING_TARGET — that's
+    // enough to verify the entry was picked up from pnpm.app.entry.
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      handler(baseOpts() as any, [])
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_MISSING_TARGET' })
+  })
+
+  it('reads targets from pnpm.app.targets when --target is omitted', async () => {
+    fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({
+      name: 'test-app',
+      pnpm: { app: { targets: ['bad-target'] } },
+    }))
+    fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
+    // A bad-target in the config should reach parseTarget and surface
+    // INVALID_TARGET — proves the config list was consulted.
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      handler({ ...baseOpts(), entry: 'entry.cjs' } as any, [])
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_INVALID_TARGET' })
+  })
+
+  it('CLI --target replaces pnpm.app.targets entirely (no merging)', async () => {
+    // Config says targets = [bad-target]. If the CLI list were merged in, the
+    // bad config entry would still hit parseTarget and throw INVALID_TARGET.
+    // With an unresolvable node version, validation passes but the later
+    // version lookup fails — we only assert that INVALID_TARGET never fires.
+    fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({
+      name: 'test-app',
+      pnpm: { app: { entry: 'entry.cjs', targets: ['bad-target'] } },
+    }))
+    fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      handler({ ...baseOpts(), target: 'linux-x64', nodeVersion: '0.0.0-nonexistent-xxx' } as any, [])
+    ).rejects.toMatchObject({ code: expect.not.stringMatching(/INVALID_TARGET/) })
+  })
+
+  it('rejects unknown keys in pnpm.app', async () => {
+    fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({
+      name: 'test-app',
+      pnpm: { app: { entry: 'entry.cjs', bogus: 'yes' } },
+    }))
+    fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      handler(baseOpts() as any, [])
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_INVALID_CONFIG' })
+  })
+
+  it.each([
+    ['entry as number', { entry: 42 }],
+    ['targets as string', { targets: 'linux-x64' }],
+    ['targets with non-string', { targets: ['linux-x64', 7] }],
+    ['nodeVersion as array', { nodeVersion: ['25'] }],
+  ])('rejects malformed pnpm.app: %s', async (_label, appConfig) => {
+    fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({
+      name: 'test-app',
+      pnpm: { app: appConfig },
+    }))
+    fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      handler(baseOpts() as any, [])
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_INVALID_CONFIG' })
+  })
+
   it('fails fast when no --target is provided', async () => {
     fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
     await expect(
