@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.graph-hasher",
-  "version": "1100.0.0",
+  "version": "1100.0.1",
   "description": "Calculates the state of a dependency",
   "keywords": [
     "pnpm",
@@ -36,7 +36,9 @@
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
-    "@pnpm/types": "workspace:*"
+    "@pnpm/resolving.resolver-base": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "detect-libc": "catalog:"
   },
   "devDependencies": {
     "@pnpm/deps.graph-hasher": "workspace:*"

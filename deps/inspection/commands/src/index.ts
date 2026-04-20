@@ -1,3 +1,4 @@
+export * as docs from './docs/index.js'
 export { list, ll, why } from './listing/index.js'
 export { outdated } from './outdated/index.js'
 export * as peers from './peers.js'

@@ -4,7 +4,7 @@ import { findWorkspaceDir } from '@pnpm/workspace.root-finder'
 import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
 
 const RECURSIVE_CMDS = new Set(['recursive', 'multi', 'm'])
-const SPECIALLY_ESCAPED_CMDS = new Set(['run', 'dlx'])
+const SPECIALLY_ESCAPED_CMDS = new Set(['run', 'dlx', 'with'])
 
 export interface ParsedCliArgs {
   argv: {

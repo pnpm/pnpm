@@ -3,8 +3,10 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 
 import { jest } from '@jest/globals'
+import { STORE_VERSION } from '@pnpm/constants'
 import { prepare as prepareWithPkg, tempDir } from '@pnpm/prepare'
 import { prependDirsToPath } from '@pnpm/shell.path'
+import { getRegisteredProjects } from '@pnpm/store.controller'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import spawn from 'cross-spawn'
 
@@ -21,7 +23,7 @@ jest.unstable_mockModule('@pnpm/cli.meta', () => {
     },
   }
 })
-const { selfUpdate, installPnpm, linkExePlatformBinary } = await import('@pnpm/engine.pm.commands')
+const { selfUpdate, installPnpm, linkExePlatformBinary, exePlatformPkgDirName } = await import('@pnpm/engine.pm.commands')
 
 beforeEach(async () => {
   await setupMockAgent()
@@ -63,7 +65,6 @@ function prepareOptions (dir: string) {
     cacheDir: path.join(dir, '.cache'),
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     dir,
-    managePackageManagerVersions: false,
   }
 }
 
@@ -138,13 +139,23 @@ test('self-update', async () => {
 
   await selfUpdate.handler(opts, [])
 
-  // Verify the package was installed in the global dir
+  // Verify the package was installed in the global dir.
+  // The globalDir contains both the real install dir (a directory) and a
+  // hash symlink pointing to it. Use lstatSync to pick the real dir.
   const globalDir = path.join(opts.pnpmHomeDir, 'global', 'v11')
   const entries = fs.readdirSync(globalDir)
-  const installDirName = entries.find((e) => fs.statSync(path.join(globalDir, e)).isDirectory())
+  const installDirName = entries.find((e) => fs.lstatSync(path.join(globalDir, e)).isDirectory())
   expect(installDirName).toBeDefined()
-  const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(globalDir, installDirName!, 'node_modules/pnpm/package.json'), 'utf8'))
+  const installDir = path.join(globalDir, installDirName!)
+  const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(installDir, 'node_modules/pnpm/package.json'), 'utf8'))
   expect(pnpmPkgJson.version).toBe('9.1.0')
+
+  // Verify the install dir was registered in the store's project registry.
+  // Without this, `pnpm store prune` would remove the install's packages
+  // from the global virtual store.
+  const storeDir = path.join(opts.pnpmHomeDir, 'store', STORE_VERSION)
+  const registeredProjects = await getRegisteredProjects(storeDir)
+  expect(registeredProjects).toContain(installDir)
 
   const pnpmEnv = prependDirsToPath([path.join(opts.pnpmHomeDir, 'bin')])
   const { status, stdout } = spawn.sync('pnpm', ['-v'], {
@@ -214,7 +225,6 @@ test('should update packageManager field when a newer pnpm version is available'
 
   const output = await selfUpdate.handler({
     ...opts,
-    managePackageManagerVersions: true,
     wantedPackageManager: {
       name: 'pnpm',
       version: '8.0.0',
@@ -237,7 +247,6 @@ test('should not update packageManager field when current version matches latest
 
   const output = await selfUpdate.handler({
     ...opts,
-    managePackageManagerVersions: true,
     wantedPackageManager: {
       name: 'pnpm',
       version: '9.0.0',
@@ -262,7 +271,6 @@ test('should update devEngines.packageManager version when a newer pnpm version 
 
   const output = await selfUpdate.handler({
     ...opts,
-    managePackageManagerVersions: true,
     wantedPackageManager: {
       name: 'pnpm',
       version: '8.0.0',
@@ -292,7 +300,6 @@ test('should update pnpm entry in devEngines.packageManager array', async () => 
 
   const output = await selfUpdate.handler({
     ...opts,
-    managePackageManagerVersions: true,
     wantedPackageManager: {
       name: 'pnpm',
       version: '8.0.0',
@@ -320,7 +327,6 @@ test('should not modify devEngines.packageManager range when resolved version st
 
   const output = await selfUpdate.handler({
     ...opts,
-    managePackageManagerVersions: true,
     wantedPackageManager: {
       name: 'pnpm',
       version: '>=8.0.0',
@@ -350,7 +356,6 @@ test('should fall back to ^version when complex range cannot accommodate the new
 
   await selfUpdate.handler({
     ...opts,
-    managePackageManagerVersions: true,
     wantedPackageManager: {
       name: 'pnpm',
       version: '>=8.0.0 <9.0.0',
@@ -375,7 +380,6 @@ test('should update devEngines.packageManager range when resolved version no lon
 
   const output = await selfUpdate.handler({
     ...opts,
-    managePackageManagerVersions: true,
     wantedPackageManager: {
       name: 'pnpm',
       version: '^8',
@@ -468,7 +472,6 @@ test('self-update updates the packageManager field in package.json', async () =>
   })
   const opts = {
     ...prepareOptions(process.cwd()),
-    managePackageManagerVersions: true,
     wantedPackageManager: {
       name: 'pnpm',
       version: '9.0.0',
@@ -505,14 +508,13 @@ test('installPnpm without env lockfile uses resolution path', async () => {
 })
 
 describe('linkExePlatformBinary', () => {
-  const platform = process.platform === 'win32'
-    ? 'win'
-    : process.platform === 'darwin'
-      ? 'macos'
-      : process.platform
-  const arch = platform === 'win' && process.arch === 'ia32' ? 'x86' : process.arch
-  const executable = platform === 'win' ? 'pnpm.exe' : 'pnpm'
-  const platformPkgName = `${platform}-${arch}`
+  const platform = process.platform
+  const arch = platform === 'win32' && process.arch === 'ia32' ? 'x86' : process.arch
+  const executable = platform === 'win32' ? 'pnpm.exe' : 'pnpm'
+  // NOTE: the test layout doesn't set up a musl libc marker on Linux, so the
+  // non-musl platform package is what gets linked here. Matching what
+  // linkExePlatformBinary detects via detect-libc.
+  const platformPkgName = `exe.${platform}-${arch}`
 
   test('links platform binary in pnpm symlinked node_modules layout', () => {
     const dir = tempDir(false)
@@ -596,5 +598,28 @@ describe('linkExePlatformBinary', () => {
     // Placeholder should remain unchanged
     const result = fs.readFileSync(path.join(exeDir, executable), 'utf8')
     expect(result).toBe(placeholder)
+  })
+})
+
+describe('exePlatformPkgDirName', () => {
+  test('appends -musl for linux + musl libc family', () => {
+    expect(exePlatformPkgDirName('linux', 'x64', 'musl')).toBe('exe.linux-x64-musl')
+    expect(exePlatformPkgDirName('linux', 'arm64', 'musl')).toBe('exe.linux-arm64-musl')
+  })
+
+  test('does not append -musl when libc is glibc or unknown', () => {
+    expect(exePlatformPkgDirName('linux', 'x64', 'glibc')).toBe('exe.linux-x64')
+    expect(exePlatformPkgDirName('linux', 'arm64', null)).toBe('exe.linux-arm64')
+  })
+
+  test('libc is irrelevant on non-linux platforms', () => {
+    expect(exePlatformPkgDirName('darwin', 'arm64', 'musl')).toBe('exe.darwin-arm64')
+    expect(exePlatformPkgDirName('darwin', 'x64', null)).toBe('exe.darwin-x64')
+    expect(exePlatformPkgDirName('win32', 'x64', 'musl')).toBe('exe.win32-x64')
+  })
+
+  test('normalizes ia32 to x86 on win32 only', () => {
+    expect(exePlatformPkgDirName('win32', 'ia32', null)).toBe('exe.win32-x86')
+    expect(exePlatformPkgDirName('linux', 'ia32', null)).toBe('exe.linux-ia32')
   })
 })

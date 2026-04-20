@@ -34,6 +34,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'localAddress'
 | 'maxSockets'
 | 'minimumReleaseAge'
+| 'minimumReleaseAgeIgnoreMissingTime'
 | 'minimumReleaseAgeStrict'
 | 'networkConcurrency'
 | 'noProxy'
@@ -111,6 +112,7 @@ export async function createNewStoreController (
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
     preserveAbsolutePaths: opts.preserveAbsolutePaths,
     strictPublishedByCheck: Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true,
+    ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime,
     storeIndex,
   })
   return {

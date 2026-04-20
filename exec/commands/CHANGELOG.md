@@ -1,5 +1,46 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [cee550a]
+- Updated dependencies [4ab3d9b]
+- Updated dependencies [9af708a]
+- Updated dependencies [ea2a7fb]
+- Updated dependencies [ff7733c]
+  - @pnpm/cli.utils@1101.0.0
+  - @pnpm/config.reader@1101.0.0
+  - @pnpm/installing.commands@1100.1.0
+  - @pnpm/engine.runtime.commands@1100.0.2
+  - @pnpm/deps.status@1100.0.2
+  - @pnpm/workspace.injected-deps-syncer@1100.0.2
+  - @pnpm/workspace.project-manifest-reader@1100.0.2
+  - @pnpm/exec.lifecycle@1100.0.2
+  - @pnpm/installing.client@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/bins.resolver@1100.0.1
+  - @pnpm/cli.utils@1100.0.1
+  - @pnpm/config.reader@1100.0.1
+  - @pnpm/config.version-policy@1100.0.1
+  - @pnpm/core-loggers@1100.0.1
+  - @pnpm/deps.status@1100.0.1
+  - @pnpm/exec.lifecycle@1100.0.1
+  - @pnpm/installing.client@1100.0.1
+  - @pnpm/installing.commands@1100.0.1
+  - @pnpm/pkg-manifest.reader@1100.0.1
+  - @pnpm/workspace.injected-deps-syncer@1100.0.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.1
+  - @pnpm/workspace.projects-sorter@1100.0.1
+  - @pnpm/crypto.hash@1100.0.0
+  - @pnpm/engine.runtime.commands@1100.0.1
+
 ## 1002.0.0
 
 ### Major Changes

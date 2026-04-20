@@ -1,17 +1,18 @@
 import { fileURLToPath } from 'url'
 import path from 'path'
 import fs from 'fs'
+import { familySync } from 'detect-libc'
+import { exePlatformPkgName } from './platform-pkg-name.js'
 
-const platform = process.platform === 'win32'
-  ? 'win'
-  : process.platform === 'darwin'
-  ? 'macos'
-  : process.platform
-const arch = platform === 'win' && process.arch === 'ia32' ? 'x86' : process.arch
-
-const pkgName = `@pnpm/${platform}-${arch}`
+// Platform names match process.platform (linux | darwin | win32). On linux,
+// add a `-musl` libc suffix when detect-libc reports musl, matching the
+// @pnpm/exe.linux-<arch>-musl optional-dep naming. The name computation lives
+// in platform-pkg-name.js so it can be unit-tested without triggering the
+// side effects of this preinstall script.
+const platform = process.platform
+const pkgName = exePlatformPkgName(platform, process.arch, familySync())
 const pkgJson = fileURLToPath(import.meta.resolve(`${pkgName}/package.json`))
-const executable = platform === 'win' ? 'pnpm.exe' : 'pnpm'
+const executable = platform === 'win32' ? 'pnpm.exe' : 'pnpm'
 const platformDir = path.dirname(pkgJson)
 const bin = path.resolve(platformDir, executable)
 
@@ -21,7 +22,7 @@ if (!fs.existsSync(bin)) process.exit(0)
 
 linkSync(bin, path.resolve(ownDir, executable))
 
-if (platform === 'win') {
+if (platform === 'win32') {
   // On Windows, also hardlink the binary as 'pnpm' (no .exe extension).
   // npm's bin shims point to the name from publishConfig.bin, and npm
   // does NOT re-read package.json after preinstall, so rewriting the bin

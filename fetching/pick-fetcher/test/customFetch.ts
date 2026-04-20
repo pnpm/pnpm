@@ -480,8 +480,8 @@ describe('custom fetcher implementation examples', () => {
 
       const customResolution = createMockResolution({
         type: 'custom:git',
-        repo: 'sveltejs/action-deploy-docs',
-        commit: 'a65fbf5a90f53c9d72fed4daaca59da50f074355',
+        repo: 'pnpm-e2e/drupal-js-build',
+        commit: 'f766801580f10543c24ba8bfa59046a776848097',
       })
 
       const fetcher = await pickFetcher(

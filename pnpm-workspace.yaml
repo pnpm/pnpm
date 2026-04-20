@@ -38,6 +38,7 @@ packages:
   - testing/*
   - worker
   - pnpm/artifacts/*
+  - agent/*
   - registry-access/*
   - releasing/*
   - resolving/*
@@ -60,8 +61,6 @@ allowBuilds:
   unrs-resolver: true
 
 auditConfig:
-  ignoreCves:
-    - CVE-2025-56200
   ignoreGhsas:
     - GHSA-2g4f-4pwh-qvx6
     - GHSA-76c9-3jph-rj3q
@@ -194,7 +193,6 @@ catalog:
   exists-link: 2.0.0
   fast-deep-equal: ^3.1.3
   fast-glob: ^3.3.3
-  filenamify: ^7.0.1
   find-up: ^8.0.0
   fs-extra: ^11.3.1
   fuse-native: ^2.2.6
@@ -241,6 +239,7 @@ catalog:
   normalize-registry-url: 2.0.1
   npm-packlist: 10.0.4
   object-hash: 3.0.0
+  open: ^7.4.2
   p-defer: ^4.0.1
   p-every: ^2.0.0
   p-filter: ^4.1.0
@@ -337,8 +336,6 @@ gitChecks: false
 
 hoistPattern:
   - jest-runner
-
-managePackageManagerVersions: true
 
 minimumReleaseAge: 1440 # At least a day
 

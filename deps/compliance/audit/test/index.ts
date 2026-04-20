@@ -1,168 +1,180 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { audit } from '@pnpm/deps.compliance.audit'
+import { audit, buildAuditPathIndex, lockfileToAuditRequest } from '@pnpm/deps.compliance.audit'
 import type { PnpmError } from '@pnpm/error'
-import { fixtures } from '@pnpm/test-fixtures'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import type { DepPath, ProjectId } from '@pnpm/types'
 
-import { lockfileToAuditTree } from '../lib/lockfileToAuditTree.js'
-
-const f = fixtures(import.meta.dirname)
-
 describe('audit', () => {
-  test('lockfileToAuditTree()', async () => {
-    expect(await lockfileToAuditTree({
+  test('lockfileToAuditRequest() flattens dependencies', () => {
+    const result = lockfileToAuditRequest({
       importers: {
         ['.' as ProjectId]: {
-          dependencies: {
-            foo: '1.0.0',
-          },
-          specifiers: {
-            foo: '^1.0.0',
-          },
+          dependencies: { foo: '1.0.0' },
+          specifiers: { foo: '^1.0.0' },
         },
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        ['bar@1.0.0' as DepPath]: {
-          resolution: {
-            integrity: 'bar-integrity',
-          },
-        },
+        ['bar@1.0.0' as DepPath]: { resolution: { integrity: 'bar-integrity' } },
         ['foo@1.0.0' as DepPath]: {
-          dependencies: {
-            bar: '1.0.0',
-          },
-          resolution: {
-            integrity: 'foo-integrity',
-          },
+          dependencies: { bar: '1.0.0' },
+          resolution: { integrity: 'foo-integrity' },
         },
       },
-    }, { lockfileDir: f.find('one-project') })).toEqual({
-      name: undefined,
-      version: undefined,
+    }, {})
 
-      dependencies: {
-        '.': {
-          dependencies: {
-            foo: {
-              dependencies: {
-                bar: {
-                  dev: false,
-                  integrity: 'bar-integrity',
-                  version: '1.0.0',
-                },
-              },
-              dev: false,
-              integrity: 'foo-integrity',
-              requires: {
-                bar: '1.0.0',
-              },
-              version: '1.0.0',
-            },
-          },
-          dev: false,
-          requires: {
-            foo: '1.0.0',
-          },
-          version: '1.0.0',
+    expect(result.request).toEqual({ foo: ['1.0.0'], bar: ['1.0.0'] })
+    expect(result.totalDependencies).toBe(2)
+    expect(result.devDependencies).toBe(0)
+  })
+
+  test('buildAuditPathIndex() records install paths for vulnerable packages', () => {
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { foo: '1.0.0' },
+          specifiers: { foo: '^1.0.0' },
         },
       },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['bar@1.0.0' as DepPath]: { resolution: { integrity: 'bar-integrity' } },
+        ['foo@1.0.0' as DepPath]: {
+          dependencies: { bar: '1.0.0' },
+          resolution: { integrity: 'foo-integrity' },
+        },
+      },
+    }
+    const result = buildAuditPathIndex(lockfile, new Set(['bar']), {})
+
+    expect(result['bar']!.get('1.0.0')).toEqual({ paths: ['.>foo>bar'], dev: false, optional: false })
+    expect(result['foo']).toBeUndefined()
+  })
+
+  test('buildAuditPathIndex() records every distinct install path for shared deps', () => {
+    // lodash is reachable via two different parent chains. The lockfile walker
+    // globally dedupes by depPath, so using it directly would record only the
+    // first-seen chain. buildAuditPathIndex must produce one path per chain.
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { a: '1.0.0', b: '1.0.0' },
+          specifiers: { a: '^1.0.0', b: '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['a@1.0.0' as DepPath]: {
+          dependencies: { lodash: '4.0.0' },
+          resolution: { integrity: 'a-integrity' },
+        },
+        ['b@1.0.0' as DepPath]: {
+          dependencies: { lodash: '4.0.0' },
+          resolution: { integrity: 'b-integrity' },
+        },
+        ['lodash@4.0.0' as DepPath]: { resolution: { integrity: 'lodash-integrity' } },
+      },
+    }
+    const result = buildAuditPathIndex(lockfile, new Set(['lodash']), {})
+
+    const info = result['lodash']!.get('4.0.0')!
+    expect(info.paths).toHaveLength(2)
+    expect(info.paths).toEqual(expect.arrayContaining(['.>a>lodash', '.>b>lodash']))
+  })
+
+  test('buildAuditPathIndex() classifies as optional when the only non-optional path runs through an excluded devDependency', () => {
+    // shared-pkg is reachable two ways: via a devDependency chain (excluded
+    // when include.devDependencies === false) and via an optionalDependency
+    // root. With dev excluded, the only remaining path runs through the
+    // optional edge, so the finding should be flagged as optional.
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          devDependencies: { 'dev-root': '1.0.0' },
+          optionalDependencies: { 'opt-root': '1.0.0' },
+          specifiers: { 'dev-root': '^1.0.0', 'opt-root': '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['dev-root@1.0.0' as DepPath]: {
+          dependencies: { 'shared-pkg': '1.0.0' },
+          resolution: { integrity: 'dev-root-integrity' },
+        },
+        ['opt-root@1.0.0' as DepPath]: {
+          dependencies: { 'shared-pkg': '1.0.0' },
+          resolution: { integrity: 'opt-root-integrity' },
+        },
+        ['shared-pkg@1.0.0' as DepPath]: { resolution: { integrity: 'shared-pkg-integrity' } },
+      },
+    }
+
+    const withDev = buildAuditPathIndex(lockfile, new Set(['shared-pkg']), {
+      include: { dependencies: true, devDependencies: true, optionalDependencies: true },
+    })
+    // When the dev chain is in scope the dep is reachable via a non-optional
+    // path too, so it is NOT optional-only.
+    expect(withDev['shared-pkg']!.get('1.0.0')!.optional).toBe(false)
+
+    const prodOnly = buildAuditPathIndex(lockfile, new Set(['shared-pkg']), {
+      include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+    })
+    // With devDependencies excluded the only remaining way to reach shared-pkg
+    // is through opt-root, so the dep becomes optional-only.
+    expect(prodOnly['shared-pkg']!.get('1.0.0')!.optional).toBe(true)
+  })
+
+  test('buildAuditPathIndex() flags findings reached only through optional edges', () => {
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          optionalDependencies: { native: '1.0.0' },
+          specifiers: { native: '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['native@1.0.0' as DepPath]: { resolution: { integrity: 'native-integrity' } },
+      },
+    }
+    const result = buildAuditPathIndex(lockfile, new Set(['native']), {})
+
+    expect(result['native']!.get('1.0.0')).toEqual({
+      paths: ['.>native'],
       dev: false,
-      install: [],
-      integrity: undefined,
-      metadata: {},
-      remove: [],
-      requires: { '.': '1.0.0' },
+      optional: true,
     })
   })
 
-  test('lockfileToAuditTree() without specified version should use default version 0.0.0', async () => {
-    expect(await lockfileToAuditTree({
+  test('buildAuditPathIndex() replaces slashes in workspace importer ids', () => {
+    const lockfile = {
       importers: {
-        ['.' as ProjectId]: {
-          dependencies: {
-            foo: '1.0.0',
-          },
-          specifiers: {
-            foo: '^1.0.0',
-          },
+        ['packages/foo' as ProjectId]: {
+          dependencies: { foo: '1.0.0' },
+          specifiers: { foo: '^1.0.0' },
         },
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        ['bar@1.0.0' as DepPath]: {
-          resolution: {
-            integrity: 'bar-integrity',
-          },
-        },
-        ['foo@1.0.0' as DepPath]: {
-          dependencies: {
-            bar: '1.0.0',
-          },
-          resolution: {
-            integrity: 'foo-integrity',
-          },
-        },
+        ['foo@1.0.0' as DepPath]: { resolution: { integrity: 'foo-integrity' } },
       },
-    }, { lockfileDir: f.find('project-without-version') })).toEqual({
-      name: undefined,
-      version: undefined,
+    }
+    const result = buildAuditPathIndex(lockfile, new Set(['foo']), {})
 
-      dependencies: {
-        '.': {
-          dependencies: {
-            foo: {
-              dependencies: {
-                bar: {
-                  dev: false,
-                  integrity: 'bar-integrity',
-                  version: '1.0.0',
-                },
-              },
-              dev: false,
-              integrity: 'foo-integrity',
-              requires: {
-                bar: '1.0.0',
-              },
-              version: '1.0.0',
-            },
-          },
-          dev: false,
-          requires: {
-            foo: '1.0.0',
-          },
-          version: '0.0.0',
-        },
-      },
-      dev: false,
-      install: [],
-      integrity: undefined,
-      metadata: {},
-      remove: [],
-      requires: { '.': '0.0.0' },
-    })
+    expect(result['foo']!.get('1.0.0')!.paths).toEqual(['packages__foo>foo'])
   })
 
-  test('lockfileToAuditTree() includes env lockfile configDependencies and packageManagerDependencies as separate groups', async () => {
-    const result = await lockfileToAuditTree({
+  test('lockfileToAuditRequest() includes env lockfile configDependencies and packageManagerDependencies', () => {
+    const result = lockfileToAuditRequest({
       importers: {
         ['.' as ProjectId]: {
-          dependencies: {
-            foo: '1.0.0',
-          },
-          specifiers: {
-            foo: '^1.0.0',
-          },
+          dependencies: { foo: '1.0.0' },
+          specifiers: { foo: '^1.0.0' },
         },
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        ['foo@1.0.0' as DepPath]: {
-          resolution: {
-            integrity: 'foo-integrity',
-          },
-        },
+        ['foo@1.0.0' as DepPath]: { resolution: { integrity: 'foo-integrity' } },
       },
     }, {
       envLockfile: {
@@ -170,186 +182,53 @@ describe('audit', () => {
         importers: {
           '.': {
             configDependencies: {
-              'my-config': {
-                specifier: '2.0.0',
-                version: '2.0.0',
-              },
+              'my-config': { specifier: '2.0.0', version: '2.0.0' },
             },
             packageManagerDependencies: {
-              pnpm: {
-                specifier: '9.0.0',
-                version: '9.0.0',
-              },
+              pnpm: { specifier: '9.0.0', version: '9.0.0' },
             },
           },
         },
         packages: {
-          'my-config@2.0.0': {
-            resolution: { integrity: 'my-config-integrity' },
-          },
-          'config-util@1.0.0': {
-            resolution: { integrity: 'config-util-integrity' },
-          },
-          'pnpm@9.0.0': {
-            resolution: { integrity: 'pnpm-integrity' },
-          },
+          'my-config@2.0.0': { resolution: { integrity: 'my-config-integrity' } },
+          'config-util@1.0.0': { resolution: { integrity: 'config-util-integrity' } },
+          'pnpm@9.0.0': { resolution: { integrity: 'pnpm-integrity' } },
         },
         snapshots: {
-          'my-config@2.0.0': {
-            dependencies: {
-              'config-util': '1.0.0',
-            },
-          },
+          'my-config@2.0.0': { dependencies: { 'config-util': '1.0.0' } },
           'config-util@1.0.0': {},
           'pnpm@9.0.0': {},
         },
       },
-      lockfileDir: f.find('one-project'),
     })
 
-    expect(result.dependencies).toHaveProperty('configDependencies')
-    expect(result.dependencies).toHaveProperty('packageManagerDependencies')
-
-    expect(result.dependencies!['configDependencies']).toEqual({
-      dev: false,
-      version: '0.0.0',
-      dependencies: {
-        'my-config': {
-          dev: false,
-          integrity: 'my-config-integrity',
-          version: '2.0.0',
-          dependencies: {
-            'config-util': {
-              dev: false,
-              integrity: 'config-util-integrity',
-              version: '1.0.0',
-            },
-          },
-          requires: {
-            'config-util': '1.0.0',
-          },
-        },
-      },
-      requires: {
-        'my-config': '2.0.0',
-      },
-    })
-
-    expect(result.dependencies!['packageManagerDependencies']).toEqual({
-      dev: false,
-      version: '0.0.0',
-      dependencies: {
-        pnpm: {
-          dev: false,
-          integrity: 'pnpm-integrity',
-          version: '9.0.0',
-        },
-      },
-      requires: {
-        pnpm: '9.0.0',
-      },
-    })
+    expect(result.request['foo']).toEqual(['1.0.0'])
+    expect(result.request['my-config']).toEqual(['2.0.0'])
+    expect(result.request['config-util']).toEqual(['1.0.0'])
+    expect(result.request['pnpm']).toEqual(['9.0.0'])
   })
 
-  test('lockfileToAuditTree() with env lockfile with only configDependencies omits packageManagerDependencies group', async () => {
-    const result = await lockfileToAuditTree({
+  test('lockfileToAuditRequest() accepts a null envLockfile', () => {
+    const result = lockfileToAuditRequest({
       importers: {
         ['.' as ProjectId]: {
-          specifiers: {},
-        },
-      },
-      lockfileVersion: LOCKFILE_VERSION,
-    }, {
-      envLockfile: {
-        lockfileVersion: LOCKFILE_VERSION,
-        importers: {
-          '.': {
-            configDependencies: {
-              'my-hook': {
-                specifier: '1.0.0',
-                version: '1.0.0',
-              },
-            },
-          },
-        },
-        packages: {
-          'my-hook@1.0.0': {
-            resolution: { integrity: 'my-hook-integrity' },
-          },
-        },
-        snapshots: {
-          'my-hook@1.0.0': {},
-        },
-      },
-      lockfileDir: f.find('one-project'),
-    })
-
-    expect(result.dependencies).toHaveProperty('configDependencies')
-    expect(result.dependencies).not.toHaveProperty('packageManagerDependencies')
-  })
-
-  test('lockfileToAuditTree() with env lockfile with empty configDependencies and no packageManagerDependencies adds no groups', async () => {
-    const result = await lockfileToAuditTree({
-      importers: {
-        ['.' as ProjectId]: {
-          specifiers: {},
-        },
-      },
-      lockfileVersion: LOCKFILE_VERSION,
-    }, {
-      envLockfile: {
-        lockfileVersion: LOCKFILE_VERSION,
-        importers: {
-          '.': {
-            configDependencies: {},
-          },
-        },
-        packages: {},
-        snapshots: {},
-      },
-      lockfileDir: f.find('one-project'),
-    })
-
-    expect(result.dependencies).not.toHaveProperty('configDependencies')
-    expect(result.dependencies).not.toHaveProperty('packageManagerDependencies')
-  })
-
-  test('lockfileToAuditTree() with null envLockfile adds no groups', async () => {
-    const result = await lockfileToAuditTree({
-      importers: {
-        ['.' as ProjectId]: {
-          dependencies: {
-            foo: '1.0.0',
-          },
-          specifiers: {
-            foo: '^1.0.0',
-          },
+          dependencies: { foo: '1.0.0' },
+          specifiers: { foo: '^1.0.0' },
         },
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        ['foo@1.0.0' as DepPath]: {
-          resolution: {
-            integrity: 'foo-integrity',
-          },
-        },
+        ['foo@1.0.0' as DepPath]: { resolution: { integrity: 'foo-integrity' } },
       },
-    }, {
-      envLockfile: null,
-      lockfileDir: f.find('one-project'),
-    })
+    }, { envLockfile: null })
 
-    expect(result.dependencies).not.toHaveProperty('configDependencies')
-    expect(result.dependencies).not.toHaveProperty('packageManagerDependencies')
-    expect(result.dependencies!['.'] ).toBeDefined()
+    expect(result.request).toEqual({ foo: ['1.0.0'] })
   })
 
-  test('lockfileToAuditTree() env lockfile includes optionalDependencies from snapshots', async () => {
-    const result = await lockfileToAuditTree({
+  test('lockfileToAuditRequest() includes optionalDependencies from env snapshots', () => {
+    const result = lockfileToAuditRequest({
       importers: {
-        ['.' as ProjectId]: {
-          specifiers: {},
-        },
+        ['.' as ProjectId]: { specifiers: {} },
       },
       lockfileVersion: LOCKFILE_VERSION,
     }, {
@@ -358,66 +237,34 @@ describe('audit', () => {
         importers: {
           '.': {
             configDependencies: {
-              'my-tool': {
-                specifier: '1.0.0',
-                version: '1.0.0',
-              },
+              'my-tool': { specifier: '1.0.0', version: '1.0.0' },
             },
           },
         },
         packages: {
-          'my-tool@1.0.0': {
-            resolution: { integrity: 'my-tool-integrity' },
-          },
-          'required-dep@1.0.0': {
-            resolution: { integrity: 'required-dep-integrity' },
-          },
-          'optional-dep@2.0.0': {
-            resolution: { integrity: 'optional-dep-integrity' },
-          },
+          'my-tool@1.0.0': { resolution: { integrity: 'my-tool-integrity' } },
+          'required-dep@1.0.0': { resolution: { integrity: 'required-dep-integrity' } },
+          'optional-dep@2.0.0': { resolution: { integrity: 'optional-dep-integrity' } },
         },
         snapshots: {
           'my-tool@1.0.0': {
-            dependencies: {
-              'required-dep': '1.0.0',
-            },
-            optionalDependencies: {
-              'optional-dep': '2.0.0',
-            },
+            dependencies: { 'required-dep': '1.0.0' },
+            optionalDependencies: { 'optional-dep': '2.0.0' },
           },
           'required-dep@1.0.0': {},
           'optional-dep@2.0.0': {},
         },
       },
-      lockfileDir: f.find('one-project'),
     })
 
-    const myTool = result.dependencies!['configDependencies']?.dependencies!['my-tool']
-    expect(myTool).toBeDefined()
-    expect(myTool.dependencies).toHaveProperty('required-dep')
-    expect(myTool.dependencies).toHaveProperty('optional-dep')
-    expect(myTool.dependencies!['required-dep']).toEqual({
-      dev: false,
-      integrity: 'required-dep-integrity',
-      version: '1.0.0',
-    })
-    expect(myTool.dependencies!['optional-dep']).toEqual({
-      dev: false,
-      integrity: 'optional-dep-integrity',
-      version: '2.0.0',
-    })
-    expect(myTool.requires).toEqual({
-      'required-dep': '1.0.0',
-      'optional-dep': '2.0.0',
-    })
+    expect(result.request['required-dep']).toEqual(['1.0.0'])
+    expect(result.request['optional-dep']).toEqual(['2.0.0'])
   })
 
-  test('lockfileToAuditTree() env lockfile does not include unreachable packages', async () => {
-    const result = await lockfileToAuditTree({
+  test('lockfileToAuditRequest() does not include env packages unreachable from importers', () => {
+    const result = lockfileToAuditRequest({
       importers: {
-        ['.' as ProjectId]: {
-          specifiers: {},
-        },
+        ['.' as ProjectId]: { specifiers: {} },
       },
       lockfileVersion: LOCKFILE_VERSION,
     }, {
@@ -426,35 +273,23 @@ describe('audit', () => {
         importers: {
           '.': {
             configDependencies: {
-              'my-config': {
-                specifier: '1.0.0',
-                version: '1.0.0',
-              },
+              'my-config': { specifier: '1.0.0', version: '1.0.0' },
             },
           },
         },
         packages: {
-          'my-config@1.0.0': {
-            resolution: { integrity: 'my-config-integrity' },
-          },
-          'orphan-pkg@3.0.0': {
-            resolution: { integrity: 'orphan-integrity' },
-          },
+          'my-config@1.0.0': { resolution: { integrity: 'my-config-integrity' } },
+          'orphan-pkg@3.0.0': { resolution: { integrity: 'orphan-integrity' } },
         },
         snapshots: {
           'my-config@1.0.0': {},
           'orphan-pkg@3.0.0': {},
         },
       },
-      lockfileDir: f.find('one-project'),
     })
 
-    const configDeps = result.dependencies!['configDependencies']
-    expect(configDeps.dependencies).toHaveProperty('my-config')
-    expect(configDeps.dependencies).not.toHaveProperty('orphan-pkg')
-
-    // Also verify it doesn't appear anywhere in the top-level dependencies
-    expect(result.dependencies).not.toHaveProperty('orphan-pkg')
+    expect(result.request).toHaveProperty('my-config')
+    expect(result.request).not.toHaveProperty('orphan-pkg')
   })
 
   test('an error is thrown if the audit endpoint responds with a non-OK code', async () => {
@@ -462,11 +297,8 @@ describe('audit', () => {
     const getAuthHeader = () => undefined
     await setupMockAgent()
     getMockAgent().get('http://registry.registry')
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(500, { message: 'Something bad happened' })
-    getMockAgent().get('http://registry.registry')
-      .intercept({ path: '/-/npm/v1/security/audits', method: 'POST' })
-      .reply(500, { message: 'Fallback failed too' })
 
     try {
       let err!: PnpmError
@@ -477,12 +309,10 @@ describe('audit', () => {
         },
         getAuthHeader,
         {
-          lockfileDir: f.find('one-project'),
           registry,
           retry: {
             retries: 0,
           },
-          virtualStoreDirMaxLength: 120,
         })
       } catch (_err: any) { // eslint-disable-line
         err = _err
@@ -490,71 +320,61 @@ describe('audit', () => {
 
       expect(err).toBeDefined()
       expect(err.code).toBe('ERR_PNPM_AUDIT_BAD_RESPONSE')
-      expect(err.message).toBe('The audit endpoint (at http://registry.registry/-/npm/v1/security/audits/quick) responded with 500: {"message":"Something bad happened"}. Fallback endpoint (at http://registry.registry/-/npm/v1/security/audits) responded with 500: {"message":"Fallback failed too"}')
+      expect(err.message).toBe('The audit endpoint (at http://registry.registry/-/npm/v1/security/advisories/bulk) responded with 500: {"message":"Something bad happened"}')
     } finally {
       await teardownMockAgent()
     }
   })
 
-  test('falls back to /audits if /audits/quick fails', async () => {
+  test('throws AUDIT_BAD_RESPONSE if the registry body is not valid JSON', async () => {
     const registry = 'http://registry.registry/'
     const getAuthHeader = () => undefined
     await setupMockAgent()
     getMockAgent().get('http://registry.registry')
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
-      .reply(500, { message: 'Something bad happened' })
-    getMockAgent().get('http://registry.registry')
-      .intercept({ path: '/-/npm/v1/security/audits', method: 'POST' })
-      .reply(200, {
-        actions: [],
-        advisories: {},
-        metadata: {
-          dependencies: 0,
-          devDependencies: 0,
-          optionalDependencies: 0,
-          totalDependencies: 0,
-          vulnerabilities: {
-            critical: 0,
-            high: 0,
-            info: 0,
-            low: 0,
-            moderate: 0,
-          },
-        },
-        muted: [],
-      })
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, 'not json <html>')
 
     try {
-      expect(await audit({
-        importers: {},
-        lockfileVersion: LOCKFILE_VERSION,
-      },
-      getAuthHeader,
-      {
-        lockfileDir: f.find('one-project'),
-        registry,
-        retry: {
-          retries: 0,
-        },
-        virtualStoreDirMaxLength: 120,
-      })).toEqual({
-        actions: [],
-        advisories: {},
-        metadata: {
-          dependencies: 0,
-          devDependencies: 0,
-          optionalDependencies: 0,
-          totalDependencies: 0,
-          vulnerabilities: {
-            critical: 0,
-            high: 0,
-            info: 0,
-            low: 0,
-            moderate: 0,
-          },
-        },
-        muted: [],
-      })
+      let err!: PnpmError
+      try {
+        await audit(
+          { importers: {}, lockfileVersion: LOCKFILE_VERSION },
+          getAuthHeader,
+          { registry, retry: { retries: 0 } }
+        )
+      } catch (_err: any) { // eslint-disable-line
+        err = _err
+      }
+      expect(err).toBeDefined()
+      expect(err.code).toBe('ERR_PNPM_AUDIT_BAD_RESPONSE')
+      expect(err.message).toMatch(/invalid JSON/)
+    } finally {
+      await teardownMockAgent()
+    }
+  })
+
+  test('throws AUDIT_BAD_RESPONSE if the registry returns a non-object body', async () => {
+    const registry = 'http://registry.registry/'
+    const getAuthHeader = () => undefined
+    await setupMockAgent()
+    getMockAgent().get('http://registry.registry')
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, [])
+
+    try {
+      let err!: PnpmError
+      try {
+        await audit(
+          { importers: {}, lockfileVersion: LOCKFILE_VERSION },
+          getAuthHeader,
+          { registry, retry: { retries: 0 } }
+        )
+      } catch (_err: any) { // eslint-disable-line
+        err = _err
+      }
+      expect(err).toBeDefined()
+      expect(err.code).toBe('ERR_PNPM_AUDIT_BAD_RESPONSE')
+      expect(err.message).toMatch(/unexpected body/)
     } finally {
       await teardownMockAgent()
     }
@@ -567,19 +387,75 @@ describe('audit', () => {
     // intercept will only match if the authorization header is present and correct
     getMockAgent().get('http://registry.registry')
       .intercept({
-        path: '/-/npm/v1/security/audits/quick',
+        path: '/-/npm/v1/security/advisories/bulk',
         method: 'POST',
         headers: { authorization: 'Bearer test-token' },
       })
-      .reply(200, { actions: [], advisories: {}, metadata: { dependencies: 0, devDependencies: 0, optionalDependencies: 0, totalDependencies: 0, vulnerabilities: { critical: 0, high: 0, info: 0, low: 0, moderate: 0 } }, muted: [] })
+      .reply(200, {})
 
     try {
       const result = await audit(
         { importers: {}, lockfileVersion: LOCKFILE_VERSION },
         getAuthHeader,
-        { lockfileDir: f.find('one-project'), registry, retry: { retries: 0 }, virtualStoreDirMaxLength: 120 }
+        { registry, retry: { retries: 0 } }
       )
       expect(result.advisories).toEqual({})
+    } finally {
+      await teardownMockAgent()
+    }
+  })
+
+  test('computes findings paths and severity counts locally when the bulk response omits findings', async () => {
+    const registry = 'http://registry.registry/'
+    const getAuthHeader = () => undefined
+    await setupMockAgent()
+    // Bare bulk response — no `findings`, no `patched_versions`, no `cves`,
+    // no `module_name`. Exactly what registry.npmjs.org returns today.
+    getMockAgent().get('http://registry.registry')
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, {
+        bar: [
+          {
+            id: 42,
+            url: 'https://github.com/advisories/GHSA-xxxx-yyyy-zzzz',
+            title: 'bar is bad',
+            severity: 'high',
+            vulnerable_versions: '<2.0.0',
+          },
+        ],
+      })
+
+    try {
+      const result = await audit(
+        {
+          importers: {
+            ['.' as ProjectId]: {
+              dependencies: { foo: '1.0.0' },
+              specifiers: { foo: '^1.0.0' },
+            },
+          },
+          lockfileVersion: LOCKFILE_VERSION,
+          packages: {
+            ['bar@1.0.0' as DepPath]: { resolution: { integrity: 'bar-integrity' } },
+            ['foo@1.0.0' as DepPath]: {
+              dependencies: { bar: '1.0.0' },
+              resolution: { integrity: 'foo-integrity' },
+            },
+          },
+        },
+        getAuthHeader,
+        { registry, retry: { retries: 0 } }
+      )
+      const advisory = result.advisories['42']
+      expect(advisory).toBeDefined()
+      expect(advisory.module_name).toBe('bar')
+      expect(advisory.github_advisory_id).toBe('GHSA-xxxx-yyyy-zzzz')
+      expect(advisory.patched_versions).toBe('>=2.0.0')
+      expect(advisory.findings).toHaveLength(1)
+      expect(advisory.findings[0].version).toBe('1.0.0')
+      expect(advisory.findings[0].paths).toEqual(['.>foo>bar'])
+      expect(result.metadata.vulnerabilities.high).toBe(1)
+      expect(result.metadata.totalDependencies).toBe(2)
     } finally {
       await teardownMockAgent()
     }
@@ -591,19 +467,61 @@ describe('audit', () => {
     await setupMockAgent()
     let capturedHeaders: Record<string, string> = {}
     getMockAgent().get('http://registry.registry')
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(200, (opts) => {
         capturedHeaders = opts.headers as Record<string, string>
-        return { actions: [], advisories: {}, metadata: { dependencies: 0, devDependencies: 0, optionalDependencies: 0, totalDependencies: 0, vulnerabilities: { critical: 0, high: 0, info: 0, low: 0, moderate: 0 } }, muted: [] }
+        return {}
       })
 
     try {
       await audit(
         { importers: {}, lockfileVersion: LOCKFILE_VERSION },
         getAuthHeader,
-        { lockfileDir: f.find('one-project'), registry, retry: { retries: 0 }, virtualStoreDirMaxLength: 120 }
+        { registry, retry: { retries: 0 } }
       )
       expect(capturedHeaders).not.toHaveProperty('authorization')
+    } finally {
+      await teardownMockAgent()
+    }
+  })
+
+  test('handles info severity in bulk response', async () => {
+    const registry = 'http://registry.registry/'
+    const getAuthHeader = () => undefined
+    await setupMockAgent()
+    getMockAgent().get('http://registry.registry')
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, {
+        info_pkg: [
+          {
+            id: 100,
+            url: 'https://github.com/advisories/GHSA-info-info-info',
+            title: 'just some info',
+            severity: 'info',
+            vulnerable_versions: '*',
+          },
+        ],
+      })
+
+    try {
+      const result = await audit(
+        {
+          importers: {
+            ['.' as ProjectId]: {
+              dependencies: { info_pkg: '1.0.0' },
+              specifiers: { info_pkg: '1.0.0' },
+            },
+          },
+          lockfileVersion: LOCKFILE_VERSION,
+          packages: {
+            ['info_pkg@1.0.0' as DepPath]: { resolution: { integrity: 'info-integrity' } },
+          },
+        },
+        getAuthHeader,
+        { registry, retry: { retries: 0 } }
+      )
+      expect(result.metadata.vulnerabilities.info).toBe(1)
+      expect(result.advisories['100'].severity).toBe('info')
     } finally {
       await teardownMockAgent()
     }

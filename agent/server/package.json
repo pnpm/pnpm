@@ -1,0 +1,65 @@
+{
+  "name": "pnpm-agent",
+  "version": "0.0.1-0",
+  "description": "pnpm agent server for server-side resolution and store-aware downloads",
+  "keywords": [
+    "pnpm",
+    "pnpm11"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/agent/server",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/agent/server#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map",
+    "bin"
+  ],
+  "bin": {
+    "pnpm-agent": "./lib/bin.js"
+  },
+  "scripts": {
+    "start": "tsgo --watch",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "pn compile",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/installing.client": "workspace:*",
+    "@pnpm/installing.deps-installer": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.controller": "workspace:*",
+    "@pnpm/store.index": "workspace:*",
+    "@pnpm/types": "workspace:*"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/agent.client": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/registry-mock": "catalog:",
+    "cross-env": "catalog:",
+    "pnpm-agent": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config/with-registry"
+  }
+}

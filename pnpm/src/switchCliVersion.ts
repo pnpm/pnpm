@@ -12,11 +12,23 @@ import { createStoreController } from '@pnpm/store.connection-manager'
 import spawn from 'cross-spawn'
 import semver from 'semver'
 
+import { shouldPersistLockfile } from './shouldPersistLockfile.js'
+
 export async function switchCliVersion (config: Config, context: ConfigContext): Promise<void> {
   const pm = context.wantedPackageManager
   if (pm == null || pm.name !== 'pnpm' || pm.version == null) return
 
-  let envLockfile = await readEnvLockfile(context.rootProjectManifestDir) ?? undefined
+  const persistLockfile = shouldPersistLockfile(pm)
+
+  // In non-persist mode the env lockfile is intentionally not read, so there
+  // is no cached resolution to compare against. Since the legacy
+  // `packageManager` field always carries an exact version, we can skip both
+  // resolution and store access when the running CLI already matches.
+  if (!persistLockfile && pm.version === packageManager.version) return
+
+  let envLockfile = persistLockfile
+    ? (await readEnvLockfile(context.rootProjectManifestDir) ?? undefined)
+    : undefined
   let storeToUse: Awaited<ReturnType<typeof createStoreController>> | undefined
 
   // Check if the env lockfile already has a resolved version that satisfies the wanted version/range.
@@ -30,11 +42,12 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
       rootDir: context.rootProjectManifestDir,
       storeController: storeToUse.ctrl,
       storeDir: storeToUse.dir,
+      save: persistLockfile,
     })
     pmVersion = envLockfile.importers['.'].packageManagerDependencies?.['pnpm']?.version
     if (!pmVersion) {
       globalWarn(`Cannot resolve pnpm version for "${pm.version}"`)
-      await storeToUse?.ctrl.close()
+      await storeToUse.ctrl.close()
       return
     }
   } else if (!isPackageManagerResolved(envLockfile, pmVersion)) {
@@ -45,10 +58,12 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
       rootDir: context.rootProjectManifestDir,
       storeController: storeToUse.ctrl,
       storeDir: storeToUse.dir,
+      save: persistLockfile,
     })
   }
 
-  // If the wanted version matches the current version, no switch needed
+  // If the wanted version matches the current version, no switch needed.
+  // Skip install-to-store entirely — we're already running this version.
   if (pmVersion === packageManager.version) {
     await storeToUse?.ctrl.close()
     return
@@ -61,19 +76,23 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
   }
 
   if (!envLockfile) {
+    await storeToUse.ctrl.close()
     throw new PnpmError('NO_PKG_MANAGER_INTEGRITY', `The packageManager dependency ${pmVersion} was not found in pnpm-lock.yaml`)
   }
 
-  const { binDir: wantedPnpmBinDir } = await installPnpmToStore(pmVersion, {
-    envLockfile,
-    storeController: storeToUse.ctrl,
-    storeDir: storeToUse.dir,
-    registries: config.registries,
-    virtualStoreDirMaxLength: config.virtualStoreDirMaxLength,
-    packageManager: { name: packageManager.name, version: packageManager.version },
-  })
-
-  await storeToUse.ctrl.close()
+  let wantedPnpmBinDir: string
+  try {
+    ;({ binDir: wantedPnpmBinDir } = await installPnpmToStore(pmVersion, {
+      envLockfile,
+      storeController: storeToUse.ctrl,
+      storeDir: storeToUse.dir,
+      registries: config.registries,
+      virtualStoreDirMaxLength: config.virtualStoreDirMaxLength,
+      packageManager: { name: packageManager.name, version: packageManager.version },
+    }))
+  } finally {
+    await storeToUse.ctrl.close()
+  }
 
   const pnpmEnv = prependDirsToPath([wantedPnpmBinDir])
   if (!pnpmEnv.updated) {

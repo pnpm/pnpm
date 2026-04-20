@@ -16,9 +16,6 @@ const TEST_CONTEXT: LoginContext = {
   enquirer: { prompt: async () => {
     throw new Error('Unexpected call to enquirer.prompt')
   } },
-  execFile: () => {
-    throw new Error('Unexpected call to execFile')
-  },
   fetch: async url => {
     throw new Error(`Unexpected call to fetch: ${url}`)
   },

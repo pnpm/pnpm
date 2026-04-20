@@ -14,7 +14,17 @@ import { renderHelp } from 'render-help'
 import { rebuild, type RebuildCommandOpts } from '../build/index.js'
 import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds.js'
 
-export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'allowBuilds' | 'enableGlobalVirtualStore'> & Pick<ConfigContext, 'rootProjectManifest' | 'rootProjectManifestDir'> & { all?: boolean, global?: boolean }
+export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'allowBuilds' | 'enableGlobalVirtualStore'> & Pick<ConfigContext, 'rootProjectManifest' | 'rootProjectManifestDir'> & {
+  all?: boolean
+  global?: boolean
+  /**
+   * When set, overrides the target directory for writeSettings.
+   * Used by the global-install flow to point allowBuilds updates at the
+   * global pnpm-workspace.yaml while keeping workspaceDir unset so the
+   * install itself targets only the single install directory.
+   */
+  settingsDir?: string
+}
 
 export const commandNames = ['approve-builds']
 
@@ -184,7 +194,7 @@ Do you approve?`,
   }
   await writeSettings({
     ...opts,
-    workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+    workspaceDir: opts.settingsDir ?? opts.workspaceDir ?? opts.rootProjectManifestDir,
     updatedSettings: { allowBuilds },
   })
   if (modulesManifest?.ignoredBuilds) {

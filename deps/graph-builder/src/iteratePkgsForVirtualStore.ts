@@ -15,7 +15,7 @@ import type { LockfileObject } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
-import type { AllowBuild, DepPath } from '@pnpm/types'
+import type { AllowBuild, DepPath, SupportedArchitectures } from '@pnpm/types'
 
 interface PkgSnapshotWithLocation {
   pkgMeta: PkgMetaAndSnapshot
@@ -28,16 +28,17 @@ export function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
   virtualStoreDirMaxLength: number
   virtualStoreDir: string
   globalVirtualStoreDir: string
+  supportedArchitectures?: SupportedArchitectures
 }): IterableIterator<PkgSnapshotWithLocation> {
   if (opts.enableGlobalVirtualStore) {
-    for (const { hash, pkgMeta } of hashDependencyPaths(lockfile, opts.allowBuild)) {
+    for (const { hash, pkgMeta } of hashDependencyPaths(lockfile, opts.allowBuild, opts.supportedArchitectures)) {
       yield {
         dirInVirtualStore: path.join(opts.globalVirtualStoreDir, hash),
         pkgMeta,
       }
     }
   } else if (lockfile.packages) {
-    let graphNodeHashOpts: { graph: DepsGraph<DepPath>, cache: DepsStateCache } | undefined
+    let graphNodeHashOpts: { graph: DepsGraph<DepPath>, cache: DepsStateCache, supportedArchitectures?: SupportedArchitectures } | undefined
     for (const depPath in lockfile.packages) {
       if (!Object.hasOwn(lockfile.packages, depPath)) {
         continue
@@ -55,7 +56,8 @@ export function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
       if (dp.isRuntimeDepPath(depPath as DepPath)) {
         graphNodeHashOpts ??= {
           cache: {},
-          graph: lockfileToDepGraph(lockfile),
+          graph: lockfileToDepGraph(lockfile, opts.supportedArchitectures),
+          supportedArchitectures: opts.supportedArchitectures,
         }
         const hash = calcGraphNodeHash(graphNodeHashOpts, pkgMeta)
         dirInVirtualStore = path.join(opts.globalVirtualStoreDir, hash)
@@ -70,7 +72,11 @@ export function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
   }
 }
 
-function hashDependencyPaths (lockfile: LockfileObject, allowBuild?: AllowBuild): IterableIterator<HashedDepPath<PkgMetaAndSnapshot>> {
-  const graph = lockfileToDepGraph(lockfile)
-  return iterateHashedGraphNodes(graph, iteratePkgMeta(lockfile, graph), allowBuild)
+function hashDependencyPaths (
+  lockfile: LockfileObject,
+  allowBuild?: AllowBuild,
+  supportedArchitectures?: SupportedArchitectures
+): IterableIterator<HashedDepPath<PkgMetaAndSnapshot>> {
+  const graph = lockfileToDepGraph(lockfile, supportedArchitectures)
+  return iterateHashedGraphNodes(graph, iteratePkgMeta(lockfile, graph), allowBuild, supportedArchitectures)
 }

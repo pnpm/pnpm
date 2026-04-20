@@ -1,5 +1,70 @@
 # @pnpm/plugin-commands-installation
 
+## 1100.1.0
+
+### Minor Changes
+
+- ff7733c: Added a new setting `runtimeOnFail` that overrides the `onFail` field of `devEngines.runtime` (and `engines.runtime`) in the root project's `package.json`. Accepted values: `ignore`, `warn`, `error`, `download`. For example, setting `runtimeOnFail=download` makes pnpm download the declared runtime version even when the manifest does not set `onFail: "download"`.
+
+### Patch Changes
+
+- Updated dependencies [cee550a]
+- Updated dependencies [4ab3d9b]
+- Updated dependencies [9af708a]
+- Updated dependencies [ea2a7fb]
+- Updated dependencies [ff7733c]
+  - @pnpm/cli.utils@1101.0.0
+  - @pnpm/config.reader@1101.0.0
+  - @pnpm/workspace.projects-reader@1101.0.0
+  - @pnpm/installing.env-installer@1100.1.0
+  - @pnpm/pkg-manifest.utils@1100.1.0
+  - @pnpm/global.commands@1100.0.2
+  - @pnpm/building.after-install@1100.0.2
+  - @pnpm/deps.status@1100.0.2
+  - @pnpm/store.connection-manager@1100.0.2
+  - @pnpm/workspace.state@1100.0.2
+  - @pnpm/workspace.projects-filter@1100.0.2
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.1
+  - @pnpm/deps.inspection.outdated@1100.0.2
+  - @pnpm/installing.deps-installer@1100.0.2
+  - @pnpm/workspace.project-manifest-reader@1100.0.2
+  - @pnpm/store.controller@1100.0.1
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/building.after-install@1100.0.1
+  - @pnpm/cli.utils@1100.0.1
+  - @pnpm/config.pick-registry-for-package@1100.0.1
+  - @pnpm/config.reader@1100.0.1
+  - @pnpm/config.writer@1100.0.1
+  - @pnpm/deps.inspection.outdated@1100.0.1
+  - @pnpm/deps.path@1100.0.1
+  - @pnpm/deps.status@1100.0.1
+  - @pnpm/global.commands@1100.0.1
+  - @pnpm/hooks.pnpmfile@1100.0.1
+  - @pnpm/installing.context@1100.0.1
+  - @pnpm/installing.dedupe.check@1100.0.1
+  - @pnpm/installing.deps-installer@1100.0.1
+  - @pnpm/installing.env-installer@1100.0.1
+  - @pnpm/lockfile.types@1100.0.1
+  - @pnpm/pkg-manifest.reader@1100.0.1
+  - @pnpm/pkg-manifest.utils@1100.0.1
+  - @pnpm/resolving.resolver-base@1100.0.1
+  - @pnpm/store.controller@1100.0.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.1
+  - @pnpm/workspace.project-manifest-writer@1100.0.1
+  - @pnpm/workspace.projects-filter@1100.0.1
+  - @pnpm/workspace.projects-graph@1100.0.1
+  - @pnpm/workspace.projects-reader@1100.0.1
+  - @pnpm/workspace.projects-sorter@1100.0.1
+  - @pnpm/workspace.state@1100.0.1
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.1
+  - @pnpm/store.connection-manager@1100.0.1
+
 ## 1005.0.0
 
 ### Major Changes

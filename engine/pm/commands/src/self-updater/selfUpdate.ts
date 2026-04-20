@@ -49,7 +49,6 @@ export function help (): string {
 export type SelfUpdateCommandOptions = CreateStoreControllerOptions & Pick<Config,
 | 'globalPkgDir'
 | 'lockfileDir'
-| 'managePackageManagerVersions'
 | 'modulesDir'
 | 'pnpmHomeDir'
 > & Pick<ConfigContext,

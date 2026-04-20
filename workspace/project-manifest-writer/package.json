@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.project-manifest-writer",
-  "version": "1100.0.0",
+  "version": "1100.0.1",
   "description": "Write a project manifest (called package.json in most cases)",
   "keywords": [
     "pnpm",

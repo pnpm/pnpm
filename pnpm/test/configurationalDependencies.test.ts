@@ -122,7 +122,7 @@ test('config deps are installed after switching to a pnpm version that supports 
   expect(fs.existsSync('node_modules/.pnpm-config/@pnpm.e2e/has-patch-for-foo')).toBeTruthy()
 })
 
-test('package manager is saved into the lockfile even if it matches the current version', async () => {
+test('package manager from the packageManager field is not saved into the lockfile', async () => {
   const pnpmVersion = JSON.parse(fs.readFileSync(path.join(path.dirname(pnpmBinLocation), '..', 'package.json'), 'utf8')).version as string
   prepare({
     packageManager: `pnpm@${pnpmVersion}`,
@@ -135,18 +135,17 @@ test('package manager is saved into the lockfile even if it matches the current 
 
   expect(fs.existsSync('node_modules/.pnpm-config/@pnpm.e2e/has-patch-for-foo')).toBeTruthy()
 
-  // The env lockfile should have both config dep and package manager entries
+  // The legacy packageManager field already pins an exact version in the
+  // manifest itself, so pnpm resolution info must not leak into the lockfile.
+  // Config dependencies are still persisted because they are managed by an
+  // independent code path.
   const envLockfile = await readEnvLockfile(process.cwd())
   expect(envLockfile).not.toBeNull()
   expect(envLockfile!.importers['.'].configDependencies['@pnpm.e2e/has-patch-for-foo']).toStrictEqual({
     specifier: '1.0.0',
     version: '1.0.0',
   })
-  expect(envLockfile!.importers['.'].packageManagerDependencies).toBeDefined()
-  expect(envLockfile!.importers['.'].packageManagerDependencies!['pnpm']).toStrictEqual({
-    specifier: pnpmVersion,
-    version: pnpmVersion,
-  })
+  expect(envLockfile!.importers['.'].packageManagerDependencies).toBeUndefined()
 })
 
 test('installing a new configurational dependency', async () => {

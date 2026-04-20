@@ -6,8 +6,8 @@ import { createCompletionServer, generateCompletion } from '@pnpm/cli.commands'
 import { config, getCommand, setCommand } from '@pnpm/config.commands'
 import { types as allTypes } from '@pnpm/config.reader'
 import { audit, licenses, sbom } from '@pnpm/deps.compliance.commands'
-import { list, ll, outdated, peers, view, why } from '@pnpm/deps.inspection.commands'
-import { selfUpdate, setup } from '@pnpm/engine.pm.commands'
+import { docs, list, ll, outdated, peers, view, why } from '@pnpm/deps.inspection.commands'
+import { selfUpdate, setup, withCmd } from '@pnpm/engine.pm.commands'
 import { env, runtime } from '@pnpm/engine.runtime.commands'
 import {
   create,
@@ -18,8 +18,8 @@ import {
 } from '@pnpm/exec.commands'
 import { add, dedupe, fetch, importCommand, install, link, prune, remove, unlink, update } from '@pnpm/installing.commands'
 import { patch, patchCommit, patchRemove } from '@pnpm/patching.commands'
-import { deprecate, distTag, undeprecate, unpublish } from '@pnpm/registry-access.commands'
-import { deploy, pack, publish, version } from '@pnpm/releasing.commands'
+import { deprecate, distTag, ping, search, star, stars, undeprecate, unpublish, unstar, whoami } from '@pnpm/registry-access.commands'
+import { deploy, pack, packApp, publish, version } from '@pnpm/releasing.commands'
 import { catFile, catIndex, findHash, store } from '@pnpm/store.commands'
 import { init } from '@pnpm/workspace.commands'
 import { pick } from 'ramda'
@@ -56,6 +56,7 @@ export const GLOBAL_OPTIONS = pick([
   'yes',
   'include-workspace-root',
   'fail-if-no-match',
+  'pm-on-fail',
 ], allTypes)
 
 export type CommandResponse = string | { output?: string, exitCode: number }
@@ -136,6 +137,7 @@ const commands: CommandDefinition[] = [
   deploy,
   distTag,
   dlx,
+  docs,
   env,
   exec,
   runtime,
@@ -155,10 +157,12 @@ const commands: CommandDefinition[] = [
   licenses,
   outdated,
   pack,
+  packApp,
   patch,
   patchCommit,
   patchRemove,
   peers,
+  ping,
   prune,
   publish,
   unpublish,
@@ -170,16 +174,22 @@ const commands: CommandDefinition[] = [
   run,
   sbom,
   setup,
+  search,
+  star,
+  stars,
   store,
   catFile,
   catIndex,
   findHash,
   undeprecate,
   unlink,
+  unstar,
   update,
   version,
   view,
+  whoami,
   why,
+  withCmd,
   createHelp(helpByCommandName),
   ...notImplementedCommandDefinitions,
 ]

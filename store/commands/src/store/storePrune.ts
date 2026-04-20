@@ -19,20 +19,23 @@ export async function storePrune (
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
-  await opts.storeController.prune(opts.removeAlienFiles)
-  await opts.storeController.close()
 
-  await cleanExpiredDlxCache({
-    cacheDir: opts.cacheDir,
-    dlxCacheMaxAge: opts.dlxCacheMaxAge,
-    now: new Date(),
-  })
+  try {
+    await opts.storeController.prune(opts.removeAlienFiles)
 
-  if (opts.globalPkgDir) {
-    cleanOrphanedInstallDirs(opts.globalPkgDir)
-  }
+    await cleanExpiredDlxCache({
+      cacheDir: opts.cacheDir,
+      dlxCacheMaxAge: opts.dlxCacheMaxAge,
+      now: new Date(),
+    })
 
-  if ((reporter != null) && typeof reporter === 'function') {
-    streamParser.removeListener('data', reporter)
+    if (opts.globalPkgDir) {
+      cleanOrphanedInstallDirs(opts.globalPkgDir)
+    }
+  } finally {
+    await opts.storeController.close()
+    if ((reporter != null) && typeof reporter === 'function') {
+      streamParser.removeListener('data', reporter)
+    }
   }
 }
