@@ -473,7 +473,7 @@ catalogs:
       version: 4.17.1
     eslint-plugin-jest:
       specifier: ^29.15.2
-      version: 29.15.4
+      version: 29.15.2
     eslint-plugin-n:
       specifier: ^18.1.0
       version: 18.2.1
@@ -765,6 +765,9 @@ catalogs:
     sort-keys:
       specifier: ^6.0.0
       version: 6.0.1
+    spdx-expression-parse:
+      specifier: ^4.0.0
+      version: 4.0.0
     split-cmd:
       specifier: ^1.1.0
       version: 1.1.0
@@ -942,7 +945,7 @@ importers:
         version: link:pnpm11/__utils__/jest-config
       '@pnpm/meta-updater':
         specifier: 'catalog:'
-        version: 2.0.6(@types/node@22.20.0)(typanion@3.14.0)
+        version: 2.0.6(@types/node@22.20.0)(supports-color@10.2.2)
       '@pnpm/tgz-fixtures':
         specifier: 'catalog:'
         version: 0.0.0
@@ -975,16 +978,16 @@ importers:
         version: 9.8.0
       eslint:
         specifier: 'catalog:'
-        version: 10.6.0(jiti@2.6.1)
+        version: 10.6.0(jiti@2.6.1)(supports-color@10.2.2)
       eslint-plugin-regexp:
         specifier: 'catalog:'
-        version: 3.1.1(eslint@10.6.0(jiti@2.6.1))
+        version: 3.1.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))
       husky:
         specifier: 'catalog:'
         version: 9.1.7
       jest:
         specifier: 'catalog:'
-        version: 30.4.2(@babel/types@7.29.7)(@types/node@22.20.0)
+        version: 30.4.2(@babel/types@7.29.7)(@types/node@22.20.0)(supports-color@10.2.2)
       keyv:
         specifier: 'catalog:'
         version: 5.6.0
@@ -1014,7 +1017,7 @@ importers:
         version: link:../pnpm11/core/logger
       '@pnpm/meta-updater':
         specifier: 'catalog:'
-        version: 2.0.6(@types/node@22.20.0)(typanion@3.14.0)
+        version: 2.0.6(@types/node@22.20.0)(supports-color@10.2.2)
       '@pnpm/object.key-sorting':
         specifier: workspace:*
         version: link:../pnpm11/object/key-sorting
@@ -1078,7 +1081,7 @@ importers:
     dependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/assert-store':
         specifier: workspace:*
         version: link:../assert-store
@@ -1133,7 +1136,7 @@ importers:
     dependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -1158,41 +1161,41 @@ importers:
     dependencies:
       '@eslint/js':
         specifier: 'catalog:'
-        version: 10.0.1(eslint@10.6.0(jiti@2.6.1))
+        version: 10.0.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))
       '@stylistic/eslint-plugin':
         specifier: 'catalog:'
-        version: 5.10.0(eslint@10.6.0(jiti@2.6.1))
+        version: 5.10.0(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))
       eslint:
         specifier: 'catalog:'
-        version: 10.6.0(jiti@2.6.1)
+        version: 10.6.0(jiti@2.6.1)(supports-color@10.2.2)
       eslint-plugin-import-x:
         specifier: 'catalog:'
-        version: 4.17.1(@typescript-eslint/utils@8.62.1(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3))(eslint@10.6.0(jiti@2.6.1))
+        version: 4.17.1(@typescript-eslint/utils@8.62.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3))(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)
       eslint-plugin-n:
         specifier: 'catalog:'
-        version: 18.2.1(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3)
+        version: 18.2.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(typescript@6.0.3)
       eslint-plugin-promise:
         specifier: 'catalog:'
-        version: 7.3.0(eslint@10.6.0(jiti@2.6.1))
+        version: 7.3.0(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))
       eslint-plugin-simple-import-sort:
         specifier: 'catalog:'
-        version: 13.0.0(eslint@10.6.0(jiti@2.6.1))
+        version: 13.0.0(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
       typescript-eslint:
         specifier: 'catalog:'
-        version: 8.62.1(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3)
+        version: 8.62.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3)
     devDependencies:
       '@pnpm/eslint-config':
         specifier: workspace:*
         version: 'link:'
       '@typescript-eslint/utils':
         specifier: 'catalog:'
-        version: 8.62.1(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3)
+        version: 8.62.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3)
       eslint-plugin-jest:
         specifier: 'catalog:'
-        version: 29.15.4(@typescript-eslint/eslint-plugin@8.62.1(@typescript-eslint/parser@8.62.1(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3))(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3))(eslint@10.6.0(jiti@2.6.1))(jest@30.4.2(@babel/types@7.29.7)(@types/node@22.20.0))(typescript@6.0.3)
+        version: 29.15.2(@typescript-eslint/eslint-plugin@8.62.1(@typescript-eslint/parser@8.62.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3))(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3))(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(jest@30.4.2(@babel/types@7.29.7)(@types/node@22.20.0)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3)
 
   pnpm11/__utils__/get-release-text:
     dependencies:
@@ -1201,7 +1204,7 @@ importers:
         version: 4.0.0
       remark-parse:
         specifier: 'catalog:'
-        version: 11.0.0(unified@11.0.5)
+        version: 11.0.0(supports-color@10.2.2)(unified@11.0.5)
       remark-stringify:
         specifier: 'catalog:'
         version: 11.0.0(unified@11.0.5)
@@ -1220,10 +1223,10 @@ importers:
     dependencies:
       '@babel/core':
         specifier: 'catalog:'
-        version: 7.29.7
+        version: 7.29.7(supports-color@10.2.2)
       '@babel/plugin-transform-explicit-resource-management':
         specifier: 'catalog:'
-        version: 7.29.7(@babel/core@7.29.7)
+        version: 7.29.7(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2)
       '@pnpm/testing.registry-mock':
         specifier: workspace:*
         version: link:../../testing/registry-mock
@@ -1316,7 +1319,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/jest-config':
         specifier: workspace:*
         version: link:../jest-config
@@ -1353,7 +1356,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../prepare
@@ -1411,7 +1414,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/auth.commands':
         specifier: workspace:*
         version: 'link:'
@@ -1472,7 +1475,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/bins.linker':
         specifier: workspace:*
         version: 'link:'
@@ -1555,7 +1558,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/bins.resolver':
         specifier: workspace:*
         version: 'link:'
@@ -1734,7 +1737,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../../__utils__/assert-project
@@ -1852,7 +1855,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/building.during-install':
         specifier: workspace:*
         version: 'link:'
@@ -1887,7 +1890,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/building.policy':
         specifier: workspace:*
         version: 'link:'
@@ -1952,7 +1955,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/cache.commands':
         specifier: workspace:*
         version: 'link:'
@@ -1983,7 +1986,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/catalogs.config':
         specifier: workspace:*
         version: 'link:'
@@ -1998,7 +2001,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/catalogs.protocol-parser':
         specifier: workspace:*
         version: 'link:'
@@ -2014,7 +2017,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/catalogs.resolver':
         specifier: workspace:*
         version: 'link:'
@@ -2032,7 +2035,7 @@ importers:
     dependencies:
       '@pnpm/tabtab':
         specifier: 'catalog:'
-        version: 0.5.4
+        version: 0.5.4(supports-color@10.2.2)
     devDependencies:
       '@pnpm/cli.command':
         specifier: workspace:*
@@ -2060,7 +2063,7 @@ importers:
         version: 0.3.1
       '@pnpm/tabtab':
         specifier: 'catalog:'
-        version: 0.5.4
+        version: 0.5.4(supports-color@10.2.2)
       '@pnpm/workspace.projects-reader':
         specifier: workspace:^
         version: link:../../workspace/projects-reader
@@ -2082,7 +2085,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/cli.commands':
         specifier: workspace:*
         version: 'link:'
@@ -2167,7 +2170,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/cli.default-reporter':
         specifier: workspace:*
         version: 'link:'
@@ -2204,7 +2207,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/cli.meta':
         specifier: workspace:*
         version: 'link:'
@@ -2226,7 +2229,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/cli.parse-cli-args':
         specifier: workspace:*
         version: 'link:'
@@ -2318,7 +2321,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/config.commands':
         specifier: workspace:*
         version: 'link:'
@@ -2346,7 +2349,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/config.matcher':
         specifier: workspace:*
         version: 'link:'
@@ -2402,7 +2405,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/config.package-is-installable':
         specifier: workspace:*
         version: 'link:'
@@ -2430,7 +2433,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/config.parse-overrides':
         specifier: workspace:*
         version: 'link:'
@@ -2443,7 +2446,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/config.pick-registry-for-package':
         specifier: workspace:*
         version: 'link:'
@@ -2543,7 +2546,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/config.reader':
         specifier: workspace:*
         version: 'link:'
@@ -2589,7 +2592,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/config.version-policy':
         specifier: workspace:*
         version: 'link:'
@@ -2637,7 +2640,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/error':
         specifier: workspace:*
         version: 'link:'
@@ -2653,7 +2656,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/logger':
         specifier: workspace:*
         version: 'link:'
@@ -2675,7 +2678,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: 'link:'
@@ -2700,7 +2703,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/crypto.integrity':
         specifier: workspace:*
         version: 'link:'
@@ -2716,7 +2719,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/crypto.object-hasher':
         specifier: workspace:*
         version: 'link:'
@@ -2744,7 +2747,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@openpgp/web-stream-tools':
         specifier: 'catalog:'
         version: 0.3.1(@types/node@26.1.0)(typescript@6.0.3)
@@ -2790,7 +2793,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../../core/constants
@@ -2845,6 +2848,9 @@ importers:
       '@pnpm/deps.compliance.audit':
         specifier: workspace:*
         version: link:../audit
+      '@pnpm/deps.compliance.license-checker':
+        specifier: workspace:*
+        version: link:../license-checker
       '@pnpm/deps.compliance.license-resolver':
         specifier: workspace:*
         version: link:../license-resolver
@@ -2914,7 +2920,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/deps.compliance.commands':
         specifier: workspace:*
         version: 'link:'
@@ -2961,11 +2967,42 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
 
+  pnpm11/deps/compliance/license-checker:
+    dependencies:
+      '@pnpm/deps.compliance.license-scanner':
+        specifier: workspace:*
+        version: link:../license-scanner
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../../core/error
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../../lockfile/fs
+      '@pnpm/store.path':
+        specifier: workspace:*
+        version: link:../../../store/path
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../../core/types
+      spdx-expression-parse:
+        specifier: 'catalog:'
+        version: 4.0.0
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1(supports-color@10.2.2)
+      '@pnpm/deps.compliance.license-checker':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../../core/logger
+
   pnpm11/deps/compliance/license-resolver:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/deps.compliance.license-resolver':
         specifier: workspace:*
         version: 'link:'
@@ -3026,7 +3063,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../../core/constants
@@ -3090,7 +3127,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/deps.compliance.sbom':
         specifier: workspace:*
         version: 'link:'
@@ -3157,7 +3194,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/deps.graph-builder':
         specifier: workspace:*
         version: 'link:'
@@ -3197,7 +3234,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/deps.graph-hasher':
         specifier: workspace:*
         version: 'link:'
@@ -3206,7 +3243,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/deps.graph-sequencer':
         specifier: workspace:*
         version: 'link:'
@@ -3315,7 +3352,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../../core/constants
@@ -3394,7 +3431,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/deps.inspection.list':
         specifier: workspace:*
         version: 'link:'
@@ -3461,7 +3498,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/deps.inspection.outdated':
         specifier: workspace:*
         version: 'link:'
@@ -3510,7 +3547,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/deps.inspection.peers-checker':
         specifier: workspace:*
         version: 'link:'
@@ -3532,7 +3569,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/deps.inspection.peers-issues-renderer':
         specifier: workspace:*
         version: 'link:'
@@ -3602,7 +3639,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../../core/constants
@@ -3633,7 +3670,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/deps.path':
         specifier: workspace:*
         version: 'link:'
@@ -3671,7 +3708,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/deps.security.signatures':
         specifier: workspace:*
         version: 'link:'
@@ -3741,7 +3778,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/deps.status':
         specifier: workspace:*
         version: 'link:'
@@ -3856,7 +3893,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../../core/constants
@@ -3954,7 +3991,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/engine.runtime.commands':
         specifier: workspace:*
         version: 'link:'
@@ -4037,7 +4074,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/engine.runtime.node-resolver':
         specifier: workspace:*
         version: 'link:'
@@ -4065,7 +4102,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/engine.runtime.system-version':
         specifier: workspace:*
         version: 'link:'
@@ -4189,7 +4226,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/engine.runtime.system-version':
         specifier: workspace:*
         version: link:../../engine/runtime/system-version
@@ -4243,7 +4280,7 @@ importers:
         version: link:../../fetching/directory-fetcher
       '@pnpm/npm-lifecycle':
         specifier: 'catalog:'
-        version: 1100.0.0(typanion@3.14.0)
+        version: 1100.0.0(supports-color@10.2.2)
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../../pkg-manifest/reader
@@ -4274,7 +4311,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/exec.lifecycle':
         specifier: workspace:*
         version: 'link:'
@@ -4339,7 +4376,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/exec.prepare-package':
         specifier: workspace:*
         version: 'link:'
@@ -4394,7 +4431,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/fetching.binary-fetcher':
         specifier: workspace:*
         version: 'link:'
@@ -4431,7 +4468,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/fetching.directory-fetcher':
         specifier: workspace:*
         version: 'link:'
@@ -4499,7 +4536,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/fetching.git-fetcher':
         specifier: workspace:*
         version: 'link:'
@@ -4542,7 +4579,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/fetching.pick-fetcher':
         specifier: workspace:*
         version: 'link:'
@@ -4615,7 +4652,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/fetching.tarball-fetcher':
         specifier: workspace:*
         version: 'link:'
@@ -4696,7 +4733,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/fs.hard-link-dir':
         specifier: workspace:*
         version: 'link:'
@@ -4745,7 +4782,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/fs.indexed-pkg-importer':
         specifier: workspace:*
         version: 'link:'
@@ -4763,7 +4800,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/fs.is-empty-dir-or-nothing':
         specifier: workspace:*
         version: 'link:'
@@ -4808,7 +4845,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/fs.symlink-dependency':
         specifier: workspace:*
         version: 'link:'
@@ -4881,7 +4918,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/global.commands':
         specifier: workspace:*
         version: 'link:'
@@ -4940,7 +4977,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/fetching.fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
@@ -4989,7 +5026,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/hooks.read-package-hook':
         specifier: workspace:*
         version: 'link:'
@@ -5026,7 +5063,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/hooks.types':
         specifier: workspace:*
         version: 'link:'
@@ -5084,7 +5121,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/fetching.fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
@@ -5142,6 +5179,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants
+      '@pnpm/deps.compliance.license-checker':
+        specifier: workspace:*
+        version: link:../../deps/compliance/license-checker
       '@pnpm/deps.inspection.outdated':
         specifier: workspace:*
         version: link:../../deps/inspection/outdated
@@ -5304,7 +5344,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../../__utils__/assert-project
@@ -5428,7 +5468,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/installing.context':
         specifier: workspace:*
         version: 'link:'
@@ -5456,7 +5496,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/installing.dedupe.check':
         specifier: workspace:*
         version: 'link:'
@@ -5475,7 +5515,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/installing.dedupe.issues-renderer':
         specifier: workspace:*
         version: 'link:'
@@ -5695,7 +5735,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../../__utils__/assert-project
@@ -5924,7 +5964,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/installing.deps-resolver':
         specifier: workspace:*
         version: 'link:'
@@ -6051,7 +6091,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../../__utils__/assert-project
@@ -6202,7 +6242,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/installing.env-installer':
         specifier: workspace:*
         version: 'link:'
@@ -6362,7 +6402,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/installing.linking.real-hoist':
         specifier: workspace:*
         version: 'link:'
@@ -6396,7 +6436,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/installing.modules-yaml':
         specifier: workspace:*
         version: 'link:'
@@ -6484,7 +6524,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/installing.client':
         specifier: workspace:*
         version: link:../client
@@ -6610,7 +6650,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/lockfile.filtering':
         specifier: workspace:*
         version: 'link:'
@@ -6689,7 +6729,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: 'link:'
@@ -6759,7 +6799,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/lockfile.make-dedicated-lockfile':
         specifier: workspace:*
         version: 'link:'
@@ -6793,7 +6833,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/lockfile.merger':
         specifier: workspace:*
         version: 'link:'
@@ -6824,7 +6864,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/lockfile.preferred-versions':
         specifier: workspace:*
         version: 'link:'
@@ -6852,7 +6892,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/lockfile.pruner':
         specifier: workspace:*
         version: 'link:'
@@ -6926,7 +6966,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/lockfile.to-pnp':
         specifier: workspace:*
         version: 'link:'
@@ -6985,7 +7025,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: 'link:'
@@ -7046,7 +7086,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants
@@ -7129,7 +7169,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants
@@ -7161,7 +7201,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: 'link:'
@@ -7201,7 +7241,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
@@ -7210,7 +7250,7 @@ importers:
         version: 'link:'
       https-proxy-server-express:
         specifier: 'catalog:'
-        version: 0.1.2
+        version: 0.1.2(supports-color@10.2.2)
 
   pnpm11/network/git-utils:
     dependencies:
@@ -7220,7 +7260,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/network.git-utils':
         specifier: workspace:*
         version: 'link:'
@@ -7242,7 +7282,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/network.web-auth':
         specifier: workspace:*
         version: 'link:'
@@ -7261,7 +7301,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/object.key-sorting':
         specifier: workspace:*
         version: 'link:'
@@ -7274,7 +7314,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/object.property-path':
         specifier: workspace:*
         version: 'link:'
@@ -7290,7 +7330,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
@@ -7405,7 +7445,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
@@ -7466,7 +7506,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/patching.config':
         specifier: workspace:*
         version: 'link:'
@@ -7503,7 +7543,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/pkg-manifest.commands':
         specifier: workspace:*
         version: 'link:'
@@ -7528,7 +7568,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: 'link:'
@@ -7556,7 +7596,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
@@ -7574,14 +7614,14 @@ importers:
         version: 0.1.19
       node-gyp:
         specifier: ^12.3.0
-        version: 12.4.0
+        version: 12.3.0
       v8-compile-cache:
         specifier: 2.4.0
         version: 2.4.0
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../__utils__/assert-project
@@ -7728,7 +7768,7 @@ importers:
         version: link:../store/index
       '@pnpm/tabtab':
         specifier: 'catalog:'
-        version: 0.5.4
+        version: 0.5.4(supports-color@10.2.2)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../__utils__/test-fixtures
@@ -7918,7 +7958,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/exe':
         specifier: workspace:*
         version: 'link:'
@@ -8081,7 +8121,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
@@ -8240,7 +8280,7 @@ importers:
         version: 2.0.0
       libnpmpublish:
         specifier: 'catalog:'
-        version: 11.2.0
+        version: 11.2.0(supports-color@10.2.2)
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
@@ -8249,7 +8289,7 @@ importers:
         version: 2.0.1
       npm-registry-fetch:
         specifier: 'catalog:'
-        version: 19.1.1
+        version: 19.1.1(supports-color@10.2.2)
       p-filter:
         specifier: 'catalog:'
         version: 4.1.0
@@ -8289,7 +8329,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../../__utils__/assert-project
@@ -8395,7 +8435,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/catalogs.config':
         specifier: workspace:*
         version: link:../../catalogs/config
@@ -8505,7 +8545,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/fetching.fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
@@ -8554,7 +8594,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/resolving.git-resolver':
         specifier: workspace:*
         version: 'link:'
@@ -8582,7 +8622,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/resolving.jsr-specifier-parser':
         specifier: workspace:*
         version: 'link:'
@@ -8613,7 +8653,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
@@ -8725,7 +8765,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
@@ -8787,7 +8827,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../../core/logger
@@ -8816,7 +8856,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: 'link:'
@@ -8832,7 +8872,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/network.fetch':
         specifier: workspace:*
         version: link:../../network/fetch
@@ -8844,7 +8884,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/resolving.tarball-url':
         specifier: workspace:*
         version: 'link:'
@@ -8857,7 +8897,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/shell.path':
         specifier: workspace:*
         version: 'link:'
@@ -8903,7 +8943,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: 'link:'
@@ -9027,7 +9067,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/assert-store':
         specifier: workspace:*
         version: link:../../__utils__/assert-store
@@ -9173,7 +9213,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/installing.client':
         specifier: workspace:*
         version: link:../../installing/client
@@ -9266,7 +9306,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/store.index':
         specifier: workspace:*
         version: 'link:'
@@ -9306,7 +9346,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/store.path':
         specifier: workspace:*
         version: 'link:'
@@ -9343,7 +9383,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/store.pkg-finder':
         specifier: workspace:*
         version: 'link:'
@@ -9417,7 +9457,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/text.comments-parser':
         specifier: workspace:*
         version: 'link:'
@@ -9426,7 +9466,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/text.naming-cases':
         specifier: workspace:*
         version: 'link:'
@@ -9435,7 +9475,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/text.tree-renderer':
         specifier: workspace:*
         version: 'link:'
@@ -9487,7 +9527,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../core/logger
@@ -9539,7 +9579,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -9591,7 +9631,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
@@ -9652,7 +9692,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -9689,7 +9729,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/workspace.project-manifest-writer':
         specifier: workspace:*
         version: 'link:'
@@ -9735,7 +9775,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
@@ -9787,7 +9827,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/workspace.projects-graph':
         specifier: workspace:*
         version: 'link:'
@@ -9824,7 +9864,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
@@ -9846,7 +9886,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/workspace.projects-sorter':
         specifier: workspace:*
         version: 'link:'
@@ -9859,7 +9899,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/workspace.range-resolver':
         specifier: workspace:*
         version: 'link:'
@@ -9878,7 +9918,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/workspace.root-finder':
         specifier: workspace:*
         version: 'link:'
@@ -9887,7 +9927,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/workspace.spec-parser':
         specifier: workspace:*
         version: 'link:'
@@ -9912,7 +9952,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
@@ -9946,7 +9986,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/workspace.workspace-manifest-reader':
         specifier: workspace:*
         version: 'link:'
@@ -9992,7 +10032,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -10026,7 +10066,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.4.1
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/yaml.document-sync':
         specifier: workspace:*
         version: 'link:'
@@ -12941,10 +12981,6 @@ packages:
     resolution: {integrity: sha512-2bxTP2yUH7AJj/VAXfcA+4IcWGdQ87HwBANLt5XxGTeomo8yG0y95N1um9i5StvhT/Bl0/2cARA5v1PpPXUxUA==}
     engines: {node: '>=14.16'}
 
-  chalk@3.0.0:
-    resolution: {integrity: sha512-4D3B6Wf41KOYRFdszmDqMCGq5VV/uMAB273JILmO+3jAlh8X4qDtdtgCR3fxtbLEMzSx22QdhnDcJvu2u1fVwg==}
-    engines: {node: '>=8'}
-
   chalk@4.1.2:
     resolution: {integrity: sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA==}
     engines: {node: '>=10'}
@@ -13554,8 +13590,8 @@ packages:
       eslint-import-resolver-node:
         optional: true
 
-  eslint-plugin-jest@29.15.4:
-    resolution: {integrity: sha512-6ln5i9Nkrb27X4w91ZPt/xHDsVQnvxTS2ntgq6r32u+8gymdUrp88TdcBXSveZW0Dl+M5v2H6K75kJhMvUGhjg==}
+  eslint-plugin-jest@29.15.2:
+    resolution: {integrity: sha512-kEN4r9RZl1xcsb4arGq89LrcVdOUFII/JSCwtTPJyv16mDwmPrcuEQwpxqZHeINvcsd7oK5O/rhdGlxFRaZwvQ==}
     engines: {node: ^20.12.0 || ^22.0.0 || >=24.0.0}
     peerDependencies:
       '@typescript-eslint/eslint-plugin': ^8.0.0
@@ -15237,8 +15273,8 @@ packages:
     engines: {node: ^18.17.0 || >=20.5.0}
     hasBin: true
 
-  node-gyp@12.4.0:
-    resolution: {integrity: sha512-OMcPNvqTCFUnNaBlmdgq+lfNqY7gTiSmNRDjY3uAXRyudeKZEZxu3CLtjMQrx4zZxCX2b/mpNqTtwuCJgXhHkw==}
+  node-gyp@12.3.0:
+    resolution: {integrity: sha512-QNcUWM+HgJplcPzBvFBZ9VXacyGZ4+VTOb80PwWR+TlVzoHbRKULNEzpRsnaoxG3Wzr7Qh7BYxGDU3CbKib2Yg==}
     engines: {node: ^20.17.0 || >=22.9.0}
     hasBin: true
 
@@ -17173,20 +17209,20 @@ snapshots:
 
   '@babel/compat-data@7.29.7': {}
 
-  '@babel/core@7.29.7':
+  '@babel/core@7.29.7(supports-color@10.2.2)':
     dependencies:
       '@babel/code-frame': 7.29.7
       '@babel/generator': 7.29.7
       '@babel/helper-compilation-targets': 7.29.7
-      '@babel/helper-module-transforms': 7.29.7(@babel/core@7.29.7)
+      '@babel/helper-module-transforms': 7.29.7(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2)
       '@babel/helpers': 7.29.7
       '@babel/parser': 7.29.7(@babel/types@7.29.7)
       '@babel/template': 7.29.7
-      '@babel/traverse': 7.29.7
+      '@babel/traverse': 7.29.7(supports-color@10.2.2)
       '@babel/types': 7.29.7
       '@jridgewell/remapping': 2.3.5
       convert-source-map: 2.0.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
       gensync: 1.0.0-beta.2
       json5: 2.2.3
       semver: 7.8.5
@@ -17211,19 +17247,19 @@ snapshots:
 
   '@babel/helper-globals@7.29.7': {}
 
-  '@babel/helper-module-imports@7.29.7':
+  '@babel/helper-module-imports@7.29.7(supports-color@10.2.2)':
     dependencies:
-      '@babel/traverse': 7.29.7
+      '@babel/traverse': 7.29.7(supports-color@10.2.2)
       '@babel/types': 7.29.7
     transitivePeerDependencies:
       - supports-color
 
-  '@babel/helper-module-transforms@7.29.7(@babel/core@7.29.7)':
+  '@babel/helper-module-transforms@7.29.7(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2)':
     dependencies:
-      '@babel/core': 7.29.7
-      '@babel/helper-module-imports': 7.29.7
+      '@babel/core': 7.29.7(supports-color@10.2.2)
+      '@babel/helper-module-imports': 7.29.7(supports-color@10.2.2)
       '@babel/helper-validator-identifier': 7.29.7
-      '@babel/traverse': 7.29.7
+      '@babel/traverse': 7.29.7(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
 
@@ -17244,104 +17280,104 @@ snapshots:
     dependencies:
       '@babel/types': 7.29.7
 
-  '@babel/plugin-syntax-async-generators@7.8.4(@babel/core@7.29.7)':
+  '@babel/plugin-syntax-async-generators@7.8.4(@babel/core@7.29.7(supports-color@10.2.2))':
     dependencies:
-      '@babel/core': 7.29.7
+      '@babel/core': 7.29.7(supports-color@10.2.2)
       '@babel/helper-plugin-utils': 7.29.7
 
-  '@babel/plugin-syntax-bigint@7.8.3(@babel/core@7.29.7)':
+  '@babel/plugin-syntax-bigint@7.8.3(@babel/core@7.29.7(supports-color@10.2.2))':
     dependencies:
-      '@babel/core': 7.29.7
+      '@babel/core': 7.29.7(supports-color@10.2.2)
       '@babel/helper-plugin-utils': 7.29.7
 
-  '@babel/plugin-syntax-class-properties@7.12.13(@babel/core@7.29.7)':
+  '@babel/plugin-syntax-class-properties@7.12.13(@babel/core@7.29.7(supports-color@10.2.2))':
     dependencies:
-      '@babel/core': 7.29.7
+      '@babel/core': 7.29.7(supports-color@10.2.2)
       '@babel/helper-plugin-utils': 7.29.7
 
-  '@babel/plugin-syntax-class-static-block@7.14.5(@babel/core@7.29.7)':
+  '@babel/plugin-syntax-class-static-block@7.14.5(@babel/core@7.29.7(supports-color@10.2.2))':
     dependencies:
-      '@babel/core': 7.29.7
+      '@babel/core': 7.29.7(supports-color@10.2.2)
       '@babel/helper-plugin-utils': 7.29.7
 
-  '@babel/plugin-syntax-import-attributes@7.29.7(@babel/core@7.29.7)':
+  '@babel/plugin-syntax-import-attributes@7.29.7(@babel/core@7.29.7(supports-color@10.2.2))':
     dependencies:
-      '@babel/core': 7.29.7
+      '@babel/core': 7.29.7(supports-color@10.2.2)
       '@babel/helper-plugin-utils': 7.29.7
 
-  '@babel/plugin-syntax-import-meta@7.10.4(@babel/core@7.29.7)':
+  '@babel/plugin-syntax-import-meta@7.10.4(@babel/core@7.29.7(supports-color@10.2.2))':
     dependencies:
-      '@babel/core': 7.29.7
+      '@babel/core': 7.29.7(supports-color@10.2.2)
       '@babel/helper-plugin-utils': 7.29.7
 
-  '@babel/plugin-syntax-json-strings@7.8.3(@babel/core@7.29.7)':
+  '@babel/plugin-syntax-json-strings@7.8.3(@babel/core@7.29.7(supports-color@10.2.2))':
     dependencies:
-      '@babel/core': 7.29.7
+      '@babel/core': 7.29.7(supports-color@10.2.2)
       '@babel/helper-plugin-utils': 7.29.7
 
-  '@babel/plugin-syntax-jsx@7.29.7(@babel/core@7.29.7)':
+  '@babel/plugin-syntax-jsx@7.29.7(@babel/core@7.29.7(supports-color@10.2.2))':
     dependencies:
-      '@babel/core': 7.29.7
+      '@babel/core': 7.29.7(supports-color@10.2.2)
       '@babel/helper-plugin-utils': 7.29.7
 
-  '@babel/plugin-syntax-logical-assignment-operators@7.10.4(@babel/core@7.29.7)':
+  '@babel/plugin-syntax-logical-assignment-operators@7.10.4(@babel/core@7.29.7(supports-color@10.2.2))':
     dependencies:
-      '@babel/core': 7.29.7
+      '@babel/core': 7.29.7(supports-color@10.2.2)
       '@babel/helper-plugin-utils': 7.29.7
 
-  '@babel/plugin-syntax-nullish-coalescing-operator@7.8.3(@babel/core@7.29.7)':
+  '@babel/plugin-syntax-nullish-coalescing-operator@7.8.3(@babel/core@7.29.7(supports-color@10.2.2))':
     dependencies:
-      '@babel/core': 7.29.7
+      '@babel/core': 7.29.7(supports-color@10.2.2)
       '@babel/helper-plugin-utils': 7.29.7
 
-  '@babel/plugin-syntax-numeric-separator@7.10.4(@babel/core@7.29.7)':
+  '@babel/plugin-syntax-numeric-separator@7.10.4(@babel/core@7.29.7(supports-color@10.2.2))':
     dependencies:
-      '@babel/core': 7.29.7
+      '@babel/core': 7.29.7(supports-color@10.2.2)
       '@babel/helper-plugin-utils': 7.29.7
 
-  '@babel/plugin-syntax-object-rest-spread@7.8.3(@babel/core@7.29.7)':
+  '@babel/plugin-syntax-object-rest-spread@7.8.3(@babel/core@7.29.7(supports-color@10.2.2))':
     dependencies:
-      '@babel/core': 7.29.7
+      '@babel/core': 7.29.7(supports-color@10.2.2)
       '@babel/helper-plugin-utils': 7.29.7
 
-  '@babel/plugin-syntax-optional-catch-binding@7.8.3(@babel/core@7.29.7)':
+  '@babel/plugin-syntax-optional-catch-binding@7.8.3(@babel/core@7.29.7(supports-color@10.2.2))':
     dependencies:
-      '@babel/core': 7.29.7
+      '@babel/core': 7.29.7(supports-color@10.2.2)
       '@babel/helper-plugin-utils': 7.29.7
 
-  '@babel/plugin-syntax-optional-chaining@7.8.3(@babel/core@7.29.7)':
+  '@babel/plugin-syntax-optional-chaining@7.8.3(@babel/core@7.29.7(supports-color@10.2.2))':
     dependencies:
-      '@babel/core': 7.29.7
+      '@babel/core': 7.29.7(supports-color@10.2.2)
       '@babel/helper-plugin-utils': 7.29.7
 
-  '@babel/plugin-syntax-private-property-in-object@7.14.5(@babel/core@7.29.7)':
+  '@babel/plugin-syntax-private-property-in-object@7.14.5(@babel/core@7.29.7(supports-color@10.2.2))':
     dependencies:
-      '@babel/core': 7.29.7
+      '@babel/core': 7.29.7(supports-color@10.2.2)
       '@babel/helper-plugin-utils': 7.29.7
 
-  '@babel/plugin-syntax-top-level-await@7.14.5(@babel/core@7.29.7)':
+  '@babel/plugin-syntax-top-level-await@7.14.5(@babel/core@7.29.7(supports-color@10.2.2))':
     dependencies:
-      '@babel/core': 7.29.7
+      '@babel/core': 7.29.7(supports-color@10.2.2)
       '@babel/helper-plugin-utils': 7.29.7
 
-  '@babel/plugin-syntax-typescript@7.29.7(@babel/core@7.29.7)':
+  '@babel/plugin-syntax-typescript@7.29.7(@babel/core@7.29.7(supports-color@10.2.2))':
     dependencies:
-      '@babel/core': 7.29.7
+      '@babel/core': 7.29.7(supports-color@10.2.2)
       '@babel/helper-plugin-utils': 7.29.7
 
-  '@babel/plugin-transform-destructuring@7.29.7(@babel/core@7.29.7)':
+  '@babel/plugin-transform-destructuring@7.29.7(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2)':
     dependencies:
-      '@babel/core': 7.29.7
+      '@babel/core': 7.29.7(supports-color@10.2.2)
       '@babel/helper-plugin-utils': 7.29.7
-      '@babel/traverse': 7.29.7
+      '@babel/traverse': 7.29.7(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
 
-  '@babel/plugin-transform-explicit-resource-management@7.29.7(@babel/core@7.29.7)':
+  '@babel/plugin-transform-explicit-resource-management@7.29.7(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2)':
     dependencies:
-      '@babel/core': 7.29.7
+      '@babel/core': 7.29.7(supports-color@10.2.2)
       '@babel/helper-plugin-utils': 7.29.7
-      '@babel/plugin-transform-destructuring': 7.29.7(@babel/core@7.29.7)
+      '@babel/plugin-transform-destructuring': 7.29.7(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
 
@@ -17353,7 +17389,7 @@ snapshots:
       '@babel/parser': 7.29.7(@babel/types@7.29.7)
       '@babel/types': 7.29.7
 
-  '@babel/traverse@7.29.7':
+  '@babel/traverse@7.29.7(supports-color@10.2.2)':
     dependencies:
       '@babel/code-frame': 7.29.7
       '@babel/generator': 7.29.7
@@ -17361,7 +17397,7 @@ snapshots:
       '@babel/parser': 7.29.7(@babel/types@7.29.7)
       '@babel/template': 7.29.7
       '@babel/types': 7.29.7
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
 
@@ -17977,17 +18013,17 @@ snapshots:
   '@esbuild/win32-x64@0.28.1':
     optional: true
 
-  '@eslint-community/eslint-utils@4.9.1(eslint@10.6.0(jiti@2.6.1))':
+  '@eslint-community/eslint-utils@4.9.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))':
     dependencies:
-      eslint: 10.6.0(jiti@2.6.1)
+      eslint: 10.6.0(jiti@2.6.1)(supports-color@10.2.2)
       eslint-visitor-keys: 3.4.3
 
   '@eslint-community/regexpp@4.12.2': {}
 
-  '@eslint/config-array@0.23.5':
+  '@eslint/config-array@0.23.5(supports-color@10.2.2)':
     dependencies:
       '@eslint/object-schema': 3.0.5
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
       minimatch: 10.2.5
     transitivePeerDependencies:
       - supports-color
@@ -18000,9 +18036,9 @@ snapshots:
     dependencies:
       '@types/json-schema': 7.0.15
 
-  '@eslint/js@10.0.1(eslint@10.6.0(jiti@2.6.1))':
+  '@eslint/js@10.0.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))':
     optionalDependencies:
-      eslint: 10.6.0(jiti@2.6.1)
+      eslint: 10.6.0(jiti@2.6.1)(supports-color@10.2.2)
 
   '@eslint/object-schema@3.0.5': {}
 
@@ -18178,21 +18214,21 @@ snapshots:
   '@jest/console@30.4.1':
     dependencies:
       '@jest/types': 30.4.1
-      '@types/node': 22.20.0
+      '@types/node': 26.1.0
       chalk: 4.1.2
       jest-message-util: 30.4.1
       jest-util: 30.4.1
       slash: 3.0.0
 
-  '@jest/core@30.4.2(@babel/types@7.29.7)':
+  '@jest/core@30.4.2(@babel/types@7.29.7)(supports-color@10.2.2)':
     dependencies:
       '@jest/console': 30.4.1
       '@jest/pattern': 30.4.0
-      '@jest/reporters': 30.4.1(@babel/types@7.29.7)
+      '@jest/reporters': 30.4.1(@babel/types@7.29.7)(supports-color@10.2.2)
       '@jest/test-result': 30.4.1
-      '@jest/transform': 30.4.1(@babel/types@7.29.7)
+      '@jest/transform': 30.4.1(@babel/types@7.29.7)(supports-color@10.2.2)
       '@jest/types': 30.4.1
-      '@types/node': 22.20.0
+      '@types/node': 26.1.0
       ansi-escapes: 4.3.2
       chalk: 4.1.2
       ci-info: 4.4.0
@@ -18200,15 +18236,15 @@ snapshots:
       fast-json-stable-stringify: 2.1.0
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
       jest-changed-files: 30.4.1
-      jest-config: 30.4.2(@babel/types@7.29.7)(@types/node@22.20.0)
+      jest-config: 30.4.2(@babel/types@7.29.7)(@types/node@26.1.0)(supports-color@10.2.2)
       jest-haste-map: 30.4.1
       jest-message-util: 30.4.1
       jest-regex-util: 30.4.0
       jest-resolve: 30.4.1
-      jest-resolve-dependencies: 30.4.2
-      jest-runner: 30.4.2(@babel/types@7.29.7)
-      jest-runtime: 30.4.2(@babel/types@7.29.7)
-      jest-snapshot: 30.4.1
+      jest-resolve-dependencies: 30.4.2(supports-color@10.2.2)
+      jest-runner: 30.4.2(@babel/types@7.29.7)(supports-color@10.2.2)
+      jest-runtime: 30.4.2(@babel/types@7.29.7)(supports-color@10.2.2)
+      jest-snapshot: 30.4.1(supports-color@10.2.2)
       jest-util: 30.4.1
       jest-validate: 30.4.1
       jest-watcher: 30.4.1
@@ -18227,17 +18263,17 @@ snapshots:
     dependencies:
       '@jest/fake-timers': 30.4.1
       '@jest/types': 30.4.1
-      '@types/node': 22.20.0
+      '@types/node': 26.1.0
       jest-mock: 30.4.1
 
   '@jest/expect-utils@30.4.1':
     dependencies:
       '@jest/get-type': 30.1.0
 
-  '@jest/expect@30.4.1':
+  '@jest/expect@30.4.1(supports-color@10.2.2)':
     dependencies:
       expect: 30.4.1
-      jest-snapshot: 30.4.1
+      jest-snapshot: 30.4.1(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
 
@@ -18245,17 +18281,17 @@ snapshots:
     dependencies:
       '@jest/types': 30.4.1
       '@sinonjs/fake-timers': 15.4.0
-      '@types/node': 22.20.0
+      '@types/node': 26.1.0
       jest-message-util: 30.4.1
       jest-mock: 30.4.1
       jest-util: 30.4.1
 
   '@jest/get-type@30.1.0': {}
 
-  '@jest/globals@30.4.1':
+  '@jest/globals@30.4.1(supports-color@10.2.2)':
     dependencies:
       '@jest/environment': 30.4.1
-      '@jest/expect': 30.4.1
+      '@jest/expect': 30.4.1(supports-color@10.2.2)
       '@jest/types': 30.4.1
       jest-mock: 30.4.1
     transitivePeerDependencies:
@@ -18263,27 +18299,27 @@ snapshots:
 
   '@jest/pattern@30.4.0':
     dependencies:
-      '@types/node': 22.20.0
+      '@types/node': 26.1.0
       jest-regex-util: 30.4.0
 
-  '@jest/reporters@30.4.1(@babel/types@7.29.7)':
+  '@jest/reporters@30.4.1(@babel/types@7.29.7)(supports-color@10.2.2)':
     dependencies:
       '@bcoe/v8-coverage': 0.2.3
       '@jest/console': 30.4.1
       '@jest/test-result': 30.4.1
-      '@jest/transform': 30.4.1(@babel/types@7.29.7)
+      '@jest/transform': 30.4.1(@babel/types@7.29.7)(supports-color@10.2.2)
       '@jest/types': 30.4.1
       '@jridgewell/trace-mapping': 0.3.31
-      '@types/node': 22.20.0
+      '@types/node': 26.1.0
       chalk: 4.1.2
       collect-v8-coverage: 1.0.3
       exit-x: 0.2.2
       glob: 11.1.0
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
       istanbul-lib-coverage: 3.2.2
-      istanbul-lib-instrument: 6.0.3(@babel/types@7.29.7)
+      istanbul-lib-instrument: 6.0.3(@babel/types@7.29.7)(supports-color@10.2.2)
       istanbul-lib-report: 3.0.1
-      istanbul-lib-source-maps: 5.0.6
+      istanbul-lib-source-maps: 5.0.6(supports-color@10.2.2)
       istanbul-reports: '@zkochan/istanbul-reports@3.0.2'
       jest-message-util: 30.4.1
       jest-util: 30.4.1
@@ -18330,12 +18366,12 @@ snapshots:
       jest-haste-map: 30.4.1
       slash: 3.0.0
 
-  '@jest/transform@30.4.1(@babel/types@7.29.7)':
+  '@jest/transform@30.4.1(@babel/types@7.29.7)(supports-color@10.2.2)':
     dependencies:
-      '@babel/core': 7.29.7
+      '@babel/core': 7.29.7(supports-color@10.2.2)
       '@jest/types': 30.4.1
       '@jridgewell/trace-mapping': 0.3.31
-      babel-plugin-istanbul: 7.0.1(@babel/types@7.29.7)
+      babel-plugin-istanbul: 7.0.1(@babel/types@7.29.7)(supports-color@10.2.2)
       chalk: 4.1.2
       convert-source-map: 2.0.0
       fast-json-stable-stringify: 2.1.0
@@ -18365,7 +18401,7 @@ snapshots:
       '@jest/schemas': 30.4.1
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 22.20.0
+      '@types/node': 26.1.0
       '@types/yargs': 17.0.35
       chalk: 4.1.2
 
@@ -18455,23 +18491,23 @@ snapshots:
 
   '@npm/types@2.1.0': {}
 
-  '@npmcli/agent@3.0.0':
+  '@npmcli/agent@3.0.0(supports-color@10.2.2)':
     dependencies:
       agent-base: 7.1.4
-      http-proxy-agent: 7.0.2
-      https-proxy-agent: 7.0.6
+      http-proxy-agent: 7.0.2(supports-color@10.2.2)
+      https-proxy-agent: 7.0.6(supports-color@10.2.2)
       lru-cache: 10.4.3
-      socks-proxy-agent: 8.0.5
+      socks-proxy-agent: 8.0.5(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
 
-  '@npmcli/agent@4.0.2':
+  '@npmcli/agent@4.0.2(supports-color@10.2.2)':
     dependencies:
       agent-base: 7.1.4
-      http-proxy-agent: 7.0.2
-      https-proxy-agent: 7.0.6
+      http-proxy-agent: 7.0.2(supports-color@10.2.2)
+      https-proxy-agent: 7.0.6(supports-color@10.2.2)
       lru-cache: 11.5.1
-      socks-proxy-agent: 8.0.5
+      socks-proxy-agent: 8.0.5(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
 
@@ -18532,11 +18568,11 @@ snapshots:
       '@pnpm/types': 1001.3.0
       load-json-file: 6.2.0
 
-  '@pnpm/cli-utils@1001.3.10(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(typanion@3.14.0)':
+  '@pnpm/cli-utils@1001.3.10(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(supports-color@10.2.2)':
     dependencies:
       '@pnpm/cli-meta': 1000.0.16
       '@pnpm/config': 1004.11.0(@pnpm/logger@1001.0.1)
-      '@pnpm/config.deps-installer': 1000.1.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))
+      '@pnpm/config.deps-installer': 1000.1.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(supports-color@10.2.2)
       '@pnpm/default-reporter': 1002.1.14(@pnpm/logger@1001.0.1)
       '@pnpm/error': 1000.1.0
       '@pnpm/logger': 1001.0.1
@@ -18544,7 +18580,7 @@ snapshots:
       '@pnpm/package-is-installable': 1000.0.21(@pnpm/logger@1001.0.1)
       '@pnpm/pnpmfile': 1002.1.13(@pnpm/logger@1001.0.1)
       '@pnpm/read-project-manifest': 1001.2.6(@pnpm/logger@1001.0.1)
-      '@pnpm/store-connection-manager': 1002.3.19(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(typanion@3.14.0)
+      '@pnpm/store-connection-manager': 1002.3.19(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(supports-color@10.2.2)
       '@pnpm/types': 1001.3.0
       '@pnpm/util.lex-comparator': 3.0.2
       chalk: 4.1.2
@@ -18553,20 +18589,19 @@ snapshots:
       - '@pnpm/worker'
       - domexception
       - supports-color
-      - typanion
 
-  '@pnpm/client@1001.1.24(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(typanion@3.14.0)':
+  '@pnpm/client@1001.1.24(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(supports-color@10.2.2)':
     dependencies:
-      '@pnpm/default-resolver': 1002.3.8(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(typanion@3.14.0)
+      '@pnpm/default-resolver': 1002.3.8(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(supports-color@10.2.2)
       '@pnpm/directory-fetcher': 1000.1.24(@pnpm/logger@1001.0.1)
-      '@pnpm/fetch': 1001.0.0(@pnpm/logger@1001.0.1)
+      '@pnpm/fetch': 1001.0.0(@pnpm/logger@1001.0.1)(supports-color@10.2.2)
       '@pnpm/fetching-types': 1000.2.1
       '@pnpm/fetching.binary-fetcher': 1005.0.4(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))
-      '@pnpm/git-fetcher': 1006.0.6(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(typanion@3.14.0)
+      '@pnpm/git-fetcher': 1006.0.6(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(supports-color@10.2.2)
       '@pnpm/network.auth-header': 1000.0.7
-      '@pnpm/node.fetcher': 1001.0.27(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(typanion@3.14.0)
+      '@pnpm/node.fetcher': 1001.0.27(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(supports-color@10.2.2)
       '@pnpm/resolver-base': 1005.4.1
-      '@pnpm/tarball-fetcher': 1006.0.6(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(typanion@3.14.0)
+      '@pnpm/tarball-fetcher': 1006.0.6(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(supports-color@10.2.2)
       '@pnpm/types': 1001.3.0
       ramda: '@pnpm/ramda@0.28.1'
     transitivePeerDependencies:
@@ -18574,7 +18609,6 @@ snapshots:
       - '@pnpm/worker'
       - domexception
       - supports-color
-      - typanion
 
   '@pnpm/colorize-semver-diff@2.0.0':
     dependencies:
@@ -18589,12 +18623,12 @@ snapshots:
     transitivePeerDependencies:
       - '@pnpm/logger'
 
-  '@pnpm/config.deps-installer@1000.1.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))':
+  '@pnpm/config.deps-installer@1000.1.5(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(supports-color@10.2.2)':
     dependencies:
       '@pnpm/config.config-writer': 1000.1.3(@pnpm/logger@1001.0.1)
       '@pnpm/core-loggers': 1001.0.9(@pnpm/logger@1001.0.1)
       '@pnpm/error': 1000.1.0
-      '@pnpm/fetch': 1001.0.0(@pnpm/logger@1001.0.1)
+      '@pnpm/fetch': 1001.0.0(@pnpm/logger@1001.0.1)(supports-color@10.2.2)
       '@pnpm/logger': 1001.0.1
       '@pnpm/network.auth-header': 1000.0.7
       '@pnpm/npm-resolver': 1005.2.3(@pnpm/logger@1001.0.1)
@@ -18737,24 +18771,23 @@ snapshots:
       stacktracey: 2.2.0
       string-length: 4.0.2
 
-  '@pnpm/default-resolver@1002.3.8(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(typanion@3.14.0)':
+  '@pnpm/default-resolver@1002.3.8(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(supports-color@10.2.2)':
     dependencies:
       '@pnpm/error': 1000.1.0
       '@pnpm/fetching-types': 1000.2.1
-      '@pnpm/git-resolver': 1001.2.2(@pnpm/logger@1001.0.1)
+      '@pnpm/git-resolver': 1001.2.2(@pnpm/logger@1001.0.1)(supports-color@10.2.2)
       '@pnpm/local-resolver': 1002.1.13(@pnpm/logger@1001.0.1)
       '@pnpm/node.resolver': 1001.0.23(@pnpm/logger@1001.0.1)
       '@pnpm/npm-resolver': 1005.2.3(@pnpm/logger@1001.0.1)
       '@pnpm/resolver-base': 1005.4.1
-      '@pnpm/resolving.bun-resolver': 1005.0.11(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(typanion@3.14.0)
-      '@pnpm/resolving.deno-resolver': 1005.0.11(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(typanion@3.14.0)
+      '@pnpm/resolving.bun-resolver': 1005.0.11(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(supports-color@10.2.2)
+      '@pnpm/resolving.deno-resolver': 1005.0.11(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(supports-color@10.2.2)
       '@pnpm/tarball-resolver': 1002.2.1
     transitivePeerDependencies:
       - '@pnpm/logger'
       - '@pnpm/worker'
       - domexception
       - supports-color
-      - typanion
 
   '@pnpm/dependency-path@1001.1.10':
     dependencies:
@@ -18796,12 +18829,12 @@ snapshots:
       cross-spawn: 7.0.6
       pnpm: 11.10.0
 
-  '@pnpm/fetch@1001.0.0(@pnpm/logger@1001.0.1)':
+  '@pnpm/fetch@1001.0.0(@pnpm/logger@1001.0.1)(supports-color@10.2.2)':
     dependencies:
       '@pnpm/core-loggers': 1001.0.9(@pnpm/logger@1001.0.1)
       '@pnpm/fetching-types': 1000.2.1
       '@pnpm/logger': 1001.0.1
-      '@pnpm/network.agent': 2.0.3
+      '@pnpm/network.agent': 2.0.3(supports-color@10.2.2)
       '@pnpm/types': 1001.3.0
       '@zkochan/retry': 0.2.0
       node-fetch: '@pnpm/node-fetch@1.0.0'
@@ -18898,24 +18931,23 @@ snapshots:
     dependencies:
       npm-packlist: 5.1.3
 
-  '@pnpm/git-fetcher@1006.0.6(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(typanion@3.14.0)':
+  '@pnpm/git-fetcher@1006.0.6(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(supports-color@10.2.2)':
     dependencies:
       '@pnpm/error': 1000.1.0
       '@pnpm/fetcher-base': 1001.2.2
       '@pnpm/fs.packlist': 1000.0.0
       '@pnpm/logger': 1001.0.1
-      '@pnpm/prepare-package': 1001.0.7(@pnpm/logger@1001.0.1)(typanion@3.14.0)
+      '@pnpm/prepare-package': 1001.0.7(@pnpm/logger@1001.0.1)(supports-color@10.2.2)
       '@pnpm/worker': 1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0)
       '@zkochan/rimraf': 3.0.2
       execa: safe-execa@0.1.2
     transitivePeerDependencies:
       - supports-color
-      - typanion
 
-  '@pnpm/git-resolver@1001.2.2(@pnpm/logger@1001.0.1)':
+  '@pnpm/git-resolver@1001.2.2(@pnpm/logger@1001.0.1)(supports-color@10.2.2)':
     dependencies:
       '@pnpm/error': 1000.1.0
-      '@pnpm/fetch': 1001.0.0(@pnpm/logger@1001.0.1)
+      '@pnpm/fetch': 1001.0.0(@pnpm/logger@1001.0.1)(supports-color@10.2.2)
       '@pnpm/resolver-base': 1005.4.1
       graceful-git: 4.0.0
       hosted-git-info: '@pnpm/hosted-git-info@1.0.0'
@@ -18942,14 +18974,14 @@ snapshots:
     dependencies:
       lru-cache: 6.0.0
 
-  '@pnpm/lifecycle@1001.0.37(@pnpm/logger@1001.0.1)(typanion@3.14.0)':
+  '@pnpm/lifecycle@1001.0.37(@pnpm/logger@1001.0.1)(supports-color@10.2.2)':
     dependencies:
       '@pnpm/core-loggers': 1001.0.9(@pnpm/logger@1001.0.1)
       '@pnpm/directory-fetcher': 1000.1.24(@pnpm/logger@1001.0.1)
       '@pnpm/error': 1000.1.0
       '@pnpm/link-bins': 1000.3.8(@pnpm/logger@1001.0.1)
       '@pnpm/logger': 1001.0.1
-      '@pnpm/npm-lifecycle': 1001.0.0(typanion@3.14.0)
+      '@pnpm/npm-lifecycle': 1001.0.0(supports-color@10.2.2)
       '@pnpm/read-package-json': 1000.1.8
       '@pnpm/store-controller-types': 1004.5.1
       '@pnpm/types': 1001.3.0
@@ -18959,7 +18991,6 @@ snapshots:
       shlex: 2.1.2
     transitivePeerDependencies:
       - supports-color
-      - typanion
 
   '@pnpm/link-bins@1000.3.8(@pnpm/logger@1001.0.1)':
     dependencies:
@@ -19025,13 +19056,13 @@ snapshots:
     dependencies:
       escape-string-regexp: 4.0.0
 
-  '@pnpm/meta-updater@2.0.6(@types/node@22.20.0)(typanion@3.14.0)':
+  '@pnpm/meta-updater@2.0.6(@types/node@22.20.0)(supports-color@10.2.2)':
     dependencies:
       '@pnpm/find-workspace-dir': 1000.1.5
       '@pnpm/logger': 1001.0.1
       '@pnpm/types': 1000.9.0
       '@pnpm/worker': 1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0)
-      '@pnpm/workspace.find-packages': 1000.0.65(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(typanion@3.14.0)
+      '@pnpm/workspace.find-packages': 1000.0.65(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(supports-color@10.2.2)
       '@pnpm/workspace.read-manifest': 1000.3.1
       load-json-file: 7.0.1
       meow: 11.0.0
@@ -19041,12 +19072,11 @@ snapshots:
       - '@types/node'
       - domexception
       - supports-color
-      - typanion
 
-  '@pnpm/network.agent@2.0.3':
+  '@pnpm/network.agent@2.0.3(supports-color@10.2.2)':
     dependencies:
       '@pnpm/network.config': 2.1.0
-      '@pnpm/network.proxy-agent': 2.0.3
+      '@pnpm/network.proxy-agent': 2.0.3(supports-color@10.2.2)
       agentkeepalive: 4.6.0
       lru-cache: 7.18.3
     transitivePeerDependencies:
@@ -19065,13 +19095,13 @@ snapshots:
     dependencies:
       '@pnpm/config.nerf-dart': 1.0.1
 
-  '@pnpm/network.proxy-agent@2.0.3':
+  '@pnpm/network.proxy-agent@2.0.3(supports-color@10.2.2)':
     dependencies:
       '@pnpm/error': 1000.1.0
-      http-proxy-agent: 7.0.2
-      https-proxy-agent: 7.0.6
+      http-proxy-agent: 7.0.2(supports-color@10.2.2)
+      https-proxy-agent: 7.0.6(supports-color@10.2.2)
       lru-cache: 7.18.3
-      socks-proxy-agent: 8.0.5
+      socks-proxy-agent: 8.0.5(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
 
@@ -19082,7 +19112,7 @@ snapshots:
     transitivePeerDependencies:
       - domexception
 
-  '@pnpm/node.fetcher@1001.0.27(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(typanion@3.14.0)':
+  '@pnpm/node.fetcher@1001.0.27(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(supports-color@10.2.2)':
     dependencies:
       '@pnpm/create-cafs-store': 1000.0.33(@pnpm/logger@1001.0.1)
       '@pnpm/crypto.shasums-file': 1001.0.5
@@ -19090,14 +19120,13 @@ snapshots:
       '@pnpm/fetching-types': 1000.2.1
       '@pnpm/fetching.binary-fetcher': 1005.0.4(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))
       '@pnpm/node.resolver': 1001.0.23(@pnpm/logger@1001.0.1)
-      '@pnpm/tarball-fetcher': 1006.0.6(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(typanion@3.14.0)
+      '@pnpm/tarball-fetcher': 1006.0.6(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(supports-color@10.2.2)
       detect-libc: 2.1.2
     transitivePeerDependencies:
       - '@pnpm/logger'
       - '@pnpm/worker'
       - domexception
       - supports-color
-      - typanion
 
   '@pnpm/node.resolver@1001.0.23(@pnpm/logger@1001.0.1)':
     dependencies:
@@ -19124,13 +19153,13 @@ snapshots:
       '@pnpm/network.ca-file': 1.0.2
       config-chain: 1.1.13
 
-  '@pnpm/npm-lifecycle@1001.0.0(typanion@3.14.0)':
+  '@pnpm/npm-lifecycle@1001.0.0(supports-color@10.2.2)':
     dependencies:
       '@pnpm/byline': 1.0.0
       '@pnpm/error': 1000.1.0
       '@yarnpkg/fslib': 3.1.5
-      '@yarnpkg/shell': 4.0.0(typanion@3.14.0)
-      node-gyp: 11.5.0
+      '@yarnpkg/shell': 4.0.0
+      node-gyp: 11.5.0(supports-color@10.2.2)
       resolve-from: 5.0.0
       slide: 1.1.6
       uid-number: 0.0.6
@@ -19138,20 +19167,18 @@ snapshots:
       which: 4.0.0
     transitivePeerDependencies:
       - supports-color
-      - typanion
 
-  '@pnpm/npm-lifecycle@1100.0.0(typanion@3.14.0)':
+  '@pnpm/npm-lifecycle@1100.0.0(supports-color@10.2.2)':
     dependencies:
       '@pnpm/byline': 1.0.0
       '@pnpm/error': 1000.1.0
       '@yarnpkg/fslib': 3.1.5
-      '@yarnpkg/shell': 4.0.0(typanion@3.14.0)
-      node-gyp: 11.5.0
+      '@yarnpkg/shell': 4.0.0
+      node-gyp: 11.5.0(supports-color@10.2.2)
       uid-number: 0.0.6
       which: 4.0.0
     transitivePeerDependencies:
       - supports-color
-      - typanion
 
   '@pnpm/npm-package-arg@2.0.0':
     dependencies:
@@ -19321,10 +19348,10 @@ snapshots:
       chalk: 4.1.2
       path-absolute: 1.0.1
 
-  '@pnpm/prepare-package@1001.0.7(@pnpm/logger@1001.0.1)(typanion@3.14.0)':
+  '@pnpm/prepare-package@1001.0.7(@pnpm/logger@1001.0.1)(supports-color@10.2.2)':
     dependencies:
       '@pnpm/error': 1000.1.0
-      '@pnpm/lifecycle': 1001.0.37(@pnpm/logger@1001.0.1)(typanion@3.14.0)
+      '@pnpm/lifecycle': 1001.0.37(@pnpm/logger@1001.0.1)(supports-color@10.2.2)
       '@pnpm/read-package-json': 1000.1.8
       '@pnpm/types': 1001.3.0
       '@zkochan/rimraf': 3.0.2
@@ -19334,7 +19361,6 @@ snapshots:
     transitivePeerDependencies:
       - '@pnpm/logger'
       - supports-color
-      - typanion
 
   '@pnpm/ramda@0.28.1': {}
 
@@ -19396,7 +19422,7 @@ snapshots:
     dependencies:
       '@pnpm/types': 1001.3.1
 
-  '@pnpm/resolving.bun-resolver@1005.0.11(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(typanion@3.14.0)':
+  '@pnpm/resolving.bun-resolver@1005.0.11(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(supports-color@10.2.2)':
     dependencies:
       '@pnpm/constants': 1001.3.1
       '@pnpm/crypto.shasums-file': 1001.0.5
@@ -19404,7 +19430,7 @@ snapshots:
       '@pnpm/fetcher-base': 1001.2.2
       '@pnpm/fetching-types': 1000.2.1
       '@pnpm/fetching.binary-fetcher': 1005.0.4(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))
-      '@pnpm/node.fetcher': 1001.0.27(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(typanion@3.14.0)
+      '@pnpm/node.fetcher': 1001.0.27(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(supports-color@10.2.2)
       '@pnpm/npm-resolver': 1005.2.3(@pnpm/logger@1001.0.1)
       '@pnpm/resolver-base': 1005.4.1
       '@pnpm/types': 1001.3.0
@@ -19415,9 +19441,8 @@ snapshots:
       - '@pnpm/logger'
       - domexception
       - supports-color
-      - typanion
 
-  '@pnpm/resolving.deno-resolver@1005.0.11(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(typanion@3.14.0)':
+  '@pnpm/resolving.deno-resolver@1005.0.11(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(supports-color@10.2.2)':
     dependencies:
       '@pnpm/constants': 1001.3.1
       '@pnpm/crypto.shasums-file': 1001.0.5
@@ -19425,7 +19450,7 @@ snapshots:
       '@pnpm/fetcher-base': 1001.2.2
       '@pnpm/fetching-types': 1000.2.1
       '@pnpm/fetching.binary-fetcher': 1005.0.4(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))
-      '@pnpm/node.fetcher': 1001.0.27(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(typanion@3.14.0)
+      '@pnpm/node.fetcher': 1001.0.27(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(supports-color@10.2.2)
       '@pnpm/npm-resolver': 1005.2.3(@pnpm/logger@1001.0.1)
       '@pnpm/resolver-base': 1005.4.1
       '@pnpm/types': 1001.3.0
@@ -19436,7 +19461,6 @@ snapshots:
       - '@pnpm/logger'
       - domexception
       - supports-color
-      - typanion
 
   '@pnpm/resolving.jsr-specifier-parser@1000.0.4':
     dependencies:
@@ -19448,9 +19472,9 @@ snapshots:
     dependencies:
       semver: 7.8.5
 
-  '@pnpm/server@1001.0.20(@pnpm/logger@1001.0.1)':
+  '@pnpm/server@1001.0.20(@pnpm/logger@1001.0.1)(supports-color@10.2.2)':
     dependencies:
-      '@pnpm/fetch': 1001.0.0(@pnpm/logger@1001.0.1)
+      '@pnpm/fetch': 1001.0.0(@pnpm/logger@1001.0.1)(supports-color@10.2.2)
       '@pnpm/logger': 1001.0.1
       '@pnpm/store-controller-types': 1004.5.1
       '@pnpm/types': 1001.3.0
@@ -19465,15 +19489,15 @@ snapshots:
     dependencies:
       grapheme-splitter: 1.0.4
 
-  '@pnpm/store-connection-manager@1002.3.19(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(typanion@3.14.0)':
+  '@pnpm/store-connection-manager@1002.3.19(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(supports-color@10.2.2)':
     dependencies:
       '@pnpm/cli-meta': 1000.0.16
-      '@pnpm/client': 1001.1.24(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(typanion@3.14.0)
+      '@pnpm/client': 1001.1.24(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(supports-color@10.2.2)
       '@pnpm/config': 1004.11.0(@pnpm/logger@1001.0.1)
       '@pnpm/error': 1000.1.0
       '@pnpm/logger': 1001.0.1
       '@pnpm/package-store': 1007.1.6(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))
-      '@pnpm/server': 1001.0.20(@pnpm/logger@1001.0.1)
+      '@pnpm/server': 1001.0.20(@pnpm/logger@1001.0.1)(supports-color@10.2.2)
       '@pnpm/store-path': 1000.0.6
       '@zkochan/diable': 1.0.2
       delay: 5.0.0
@@ -19482,7 +19506,6 @@ snapshots:
       - '@pnpm/worker'
       - domexception
       - supports-color
-      - typanion
 
   '@pnpm/store-controller-types@1004.5.1':
     dependencies:
@@ -19541,16 +19564,16 @@ snapshots:
       symlink-dir: 6.0.5
       validate-npm-package-name: 5.0.0
 
-  '@pnpm/tabtab@0.5.4':
+  '@pnpm/tabtab@0.5.4(supports-color@10.2.2)':
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
       enquirer: 2.4.1
       minimist: 1.2.8
       untildify: 4.0.0
     transitivePeerDependencies:
       - supports-color
 
-  '@pnpm/tarball-fetcher@1006.0.6(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(typanion@3.14.0)':
+  '@pnpm/tarball-fetcher@1006.0.6(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(supports-color@10.2.2)':
     dependencies:
       '@pnpm/core-loggers': 1001.0.9(@pnpm/logger@1001.0.1)
       '@pnpm/error': 1000.1.0
@@ -19559,7 +19582,7 @@ snapshots:
       '@pnpm/fs.packlist': 1000.0.0
       '@pnpm/graceful-fs': 1000.1.0
       '@pnpm/logger': 1001.0.1
-      '@pnpm/prepare-package': 1001.0.7(@pnpm/logger@1001.0.1)(typanion@3.14.0)
+      '@pnpm/prepare-package': 1001.0.7(@pnpm/logger@1001.0.1)(supports-color@10.2.2)
       '@pnpm/types': 1001.3.0
       '@pnpm/worker': 1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0)
       '@zkochan/retry': 0.2.0
@@ -19571,7 +19594,6 @@ snapshots:
     transitivePeerDependencies:
       - domexception
       - supports-color
-      - typanion
 
   '@pnpm/tarball-resolver@1002.2.1':
     dependencies:
@@ -19621,9 +19643,9 @@ snapshots:
     transitivePeerDependencies:
       - '@types/node'
 
-  '@pnpm/workspace.find-packages@1000.0.65(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(typanion@3.14.0)':
+  '@pnpm/workspace.find-packages@1000.0.65(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(supports-color@10.2.2)':
     dependencies:
-      '@pnpm/cli-utils': 1001.3.10(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(typanion@3.14.0)
+      '@pnpm/cli-utils': 1001.3.10(@pnpm/logger@1001.0.1)(@pnpm/worker@1000.6.11(@pnpm/logger@1001.0.1)(@types/node@22.20.0))(supports-color@10.2.2)
       '@pnpm/constants': 1001.3.1
       '@pnpm/fs.find-packages': 1000.0.24(@pnpm/logger@1001.0.1)
       '@pnpm/logger': 1001.0.1
@@ -19633,7 +19655,6 @@ snapshots:
       - '@pnpm/worker'
       - domexception
       - supports-color
-      - typanion
 
   '@pnpm/workspace.manifest-writer@1001.3.1':
     dependencies:
@@ -19706,21 +19727,21 @@ snapshots:
 
   '@sigstore/protobuf-specs@0.5.1': {}
 
-  '@sigstore/sign@4.1.1':
+  '@sigstore/sign@4.1.1(supports-color@10.2.2)':
     dependencies:
       '@gar/promise-retry': 1.0.3
       '@sigstore/bundle': 4.0.0
       '@sigstore/core': 3.2.1
       '@sigstore/protobuf-specs': 0.5.1
-      make-fetch-happen: 15.0.6
+      make-fetch-happen: 15.0.6(supports-color@10.2.2)
       proc-log: 6.1.0
     transitivePeerDependencies:
       - supports-color
 
-  '@sigstore/tuf@4.0.2':
+  '@sigstore/tuf@4.0.2(supports-color@10.2.2)':
     dependencies:
       '@sigstore/protobuf-specs': 0.5.1
-      tuf-js: 4.1.0
+      tuf-js: 4.1.0(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
 
@@ -19754,11 +19775,11 @@ snapshots:
     dependencies:
       '@sinonjs/commons': 3.0.1
 
-  '@stylistic/eslint-plugin@5.10.0(eslint@10.6.0(jiti@2.6.1))':
+  '@stylistic/eslint-plugin@5.10.0(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))':
     dependencies:
-      '@eslint-community/eslint-utils': 4.9.1(eslint@10.6.0(jiti@2.6.1))
+      '@eslint-community/eslint-utils': 4.9.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))
       '@typescript-eslint/types': 8.62.1
-      eslint: 10.6.0(jiti@2.6.1)
+      eslint: 10.6.0(jiti@2.6.1)(supports-color@10.2.2)
       eslint-visitor-keys: 4.2.1
       espree: 10.4.0
       estraverse: 5.3.0
@@ -19861,7 +19882,7 @@ snapshots:
 
   '@types/isexe@2.0.4':
     dependencies:
-      '@types/node': 22.20.0
+      '@types/node': 26.1.0
 
   '@types/istanbul-lib-coverage@2.0.6': {}
 
@@ -19997,7 +20018,7 @@ snapshots:
 
   '@types/touch@3.1.5':
     dependencies:
-      '@types/node': 22.20.0
+      '@types/node': 26.1.0
 
   '@types/treeify@1.0.3': {}
 
@@ -20019,15 +20040,15 @@ snapshots:
 
   '@types/yarnpkg__lockfile@1.1.9': {}
 
-  '@typescript-eslint/eslint-plugin@8.62.1(@typescript-eslint/parser@8.62.1(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3))(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3)':
+  '@typescript-eslint/eslint-plugin@8.62.1(@typescript-eslint/parser@8.62.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3))(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3)':
     dependencies:
       '@eslint-community/regexpp': 4.12.2
-      '@typescript-eslint/parser': 8.62.1(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3)
+      '@typescript-eslint/parser': 8.62.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3)
       '@typescript-eslint/scope-manager': 8.62.1
-      '@typescript-eslint/type-utils': 8.62.1(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3)
-      '@typescript-eslint/utils': 8.62.1(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3)
+      '@typescript-eslint/type-utils': 8.62.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3)
+      '@typescript-eslint/utils': 8.62.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3)
       '@typescript-eslint/visitor-keys': 8.62.1
-      eslint: 10.6.0(jiti@2.6.1)
+      eslint: 10.6.0(jiti@2.6.1)(supports-color@10.2.2)
       ignore: 7.0.5
       natural-compare: 1.4.0
       ts-api-utils: 2.5.0(typescript@6.0.3)
@@ -20035,23 +20056,23 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/parser@8.62.1(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3)':
+  '@typescript-eslint/parser@8.62.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3)':
     dependencies:
       '@typescript-eslint/scope-manager': 8.62.1
       '@typescript-eslint/types': 8.62.1
-      '@typescript-eslint/typescript-estree': 8.62.1(typescript@6.0.3)
+      '@typescript-eslint/typescript-estree': 8.62.1(supports-color@10.2.2)(typescript@6.0.3)
       '@typescript-eslint/visitor-keys': 8.62.1
-      debug: 4.4.3
-      eslint: 10.6.0(jiti@2.6.1)
+      debug: 4.4.3(supports-color@10.2.2)
+      eslint: 10.6.0(jiti@2.6.1)(supports-color@10.2.2)
       typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/project-service@8.62.1(typescript@6.0.3)':
+  '@typescript-eslint/project-service@8.62.1(supports-color@10.2.2)(typescript@6.0.3)':
     dependencies:
       '@typescript-eslint/tsconfig-utils': 8.62.1(typescript@6.0.3)
       '@typescript-eslint/types': 8.62.1
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
       typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
@@ -20065,13 +20086,13 @@ snapshots:
     dependencies:
       typescript: 6.0.3
 
-  '@typescript-eslint/type-utils@8.62.1(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3)':
+  '@typescript-eslint/type-utils@8.62.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3)':
     dependencies:
       '@typescript-eslint/types': 8.62.1
-      '@typescript-eslint/typescript-estree': 8.62.1(typescript@6.0.3)
-      '@typescript-eslint/utils': 8.62.1(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3)
-      debug: 4.4.3
-      eslint: 10.6.0(jiti@2.6.1)
+      '@typescript-eslint/typescript-estree': 8.62.1(supports-color@10.2.2)(typescript@6.0.3)
+      '@typescript-eslint/utils': 8.62.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3)
+      debug: 4.4.3(supports-color@10.2.2)
+      eslint: 10.6.0(jiti@2.6.1)(supports-color@10.2.2)
       ts-api-utils: 2.5.0(typescript@6.0.3)
       typescript: 6.0.3
     transitivePeerDependencies:
@@ -20079,13 +20100,13 @@ snapshots:
 
   '@typescript-eslint/types@8.62.1': {}
 
-  '@typescript-eslint/typescript-estree@8.62.1(typescript@6.0.3)':
+  '@typescript-eslint/typescript-estree@8.62.1(supports-color@10.2.2)(typescript@6.0.3)':
     dependencies:
-      '@typescript-eslint/project-service': 8.62.1(typescript@6.0.3)
+      '@typescript-eslint/project-service': 8.62.1(supports-color@10.2.2)(typescript@6.0.3)
       '@typescript-eslint/tsconfig-utils': 8.62.1(typescript@6.0.3)
       '@typescript-eslint/types': 8.62.1
       '@typescript-eslint/visitor-keys': 8.62.1
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
       minimatch: 10.2.5
       semver: 7.8.5
       tinyglobby: 0.2.17
@@ -20094,13 +20115,13 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/utils@8.62.1(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3)':
+  '@typescript-eslint/utils@8.62.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3)':
     dependencies:
-      '@eslint-community/eslint-utils': 4.9.1(eslint@10.6.0(jiti@2.6.1))
+      '@eslint-community/eslint-utils': 4.9.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))
       '@typescript-eslint/scope-manager': 8.62.1
       '@typescript-eslint/types': 8.62.1
-      '@typescript-eslint/typescript-estree': 8.62.1(typescript@6.0.3)
-      eslint: 10.6.0(jiti@2.6.1)
+      '@typescript-eslint/typescript-estree': 8.62.1(supports-color@10.2.2)(typescript@6.0.3)
+      eslint: 10.6.0(jiti@2.6.1)(supports-color@10.2.2)
       typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
@@ -20309,18 +20330,7 @@ snapshots:
       '@types/node': 18.19.130
       '@yarnpkg/fslib': 3.1.5
 
-  '@yarnpkg/shell@4.0.0(typanion@3.14.0)':
-    dependencies:
-      '@yarnpkg/fslib': 3.1.5
-      '@yarnpkg/parsers': 3.0.3
-      chalk: 3.0.0
-      clipanion: 3.2.0-rc.6(typanion@3.14.0)
-      cross-spawn: 7.0.6
-      fast-glob: 3.3.3
-      micromatch: 4.0.8
-      tslib: 2.8.1
-    transitivePeerDependencies:
-      - typanion
+  '@yarnpkg/shell@4.0.0': {}
 
   '@yarnpkg/shell@4.1.3(typanion@3.14.0)':
     dependencies:
@@ -20525,13 +20535,13 @@ snapshots:
 
   b4a@1.8.1: {}
 
-  babel-jest@30.4.1(@babel/core@7.29.7)(@babel/types@7.29.7):
+  babel-jest@30.4.1(@babel/core@7.29.7(supports-color@10.2.2))(@babel/types@7.29.7)(supports-color@10.2.2):
     dependencies:
-      '@babel/core': 7.29.7
-      '@jest/transform': 30.4.1(@babel/types@7.29.7)
+      '@babel/core': 7.29.7(supports-color@10.2.2)
+      '@jest/transform': 30.4.1(@babel/types@7.29.7)(supports-color@10.2.2)
       '@types/babel__core': 7.20.5
-      babel-plugin-istanbul: 7.0.1(@babel/types@7.29.7)
-      babel-preset-jest: 30.4.0(@babel/core@7.29.7)
+      babel-plugin-istanbul: 7.0.1(@babel/types@7.29.7)(supports-color@10.2.2)
+      babel-preset-jest: 30.4.0(@babel/core@7.29.7(supports-color@10.2.2))
       chalk: 4.1.2
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
       slash: 3.0.0
@@ -20539,12 +20549,12 @@ snapshots:
       - '@babel/types'
       - supports-color
 
-  babel-plugin-istanbul@7.0.1(@babel/types@7.29.7):
+  babel-plugin-istanbul@7.0.1(@babel/types@7.29.7)(supports-color@10.2.2):
     dependencies:
       '@babel/helper-plugin-utils': 7.29.7
       '@istanbuljs/load-nyc-config': 1.1.0
       '@istanbuljs/schema': 0.1.6
-      istanbul-lib-instrument: 6.0.3(@babel/types@7.29.7)
+      istanbul-lib-instrument: 6.0.3(@babel/types@7.29.7)(supports-color@10.2.2)
       test-exclude: 6.0.0
     transitivePeerDependencies:
       - '@babel/types'
@@ -20554,30 +20564,30 @@ snapshots:
     dependencies:
       '@types/babel__core': 7.20.5
 
-  babel-preset-current-node-syntax@1.2.0(@babel/core@7.29.7):
+  babel-preset-current-node-syntax@1.2.0(@babel/core@7.29.7(supports-color@10.2.2)):
     dependencies:
-      '@babel/core': 7.29.7
-      '@babel/plugin-syntax-async-generators': 7.8.4(@babel/core@7.29.7)
-      '@babel/plugin-syntax-bigint': 7.8.3(@babel/core@7.29.7)
-      '@babel/plugin-syntax-class-properties': 7.12.13(@babel/core@7.29.7)
-      '@babel/plugin-syntax-class-static-block': 7.14.5(@babel/core@7.29.7)
-      '@babel/plugin-syntax-import-attributes': 7.29.7(@babel/core@7.29.7)
-      '@babel/plugin-syntax-import-meta': 7.10.4(@babel/core@7.29.7)
-      '@babel/plugin-syntax-json-strings': 7.8.3(@babel/core@7.29.7)
-      '@babel/plugin-syntax-logical-assignment-operators': 7.10.4(@babel/core@7.29.7)
-      '@babel/plugin-syntax-nullish-coalescing-operator': 7.8.3(@babel/core@7.29.7)
-      '@babel/plugin-syntax-numeric-separator': 7.10.4(@babel/core@7.29.7)
-      '@babel/plugin-syntax-object-rest-spread': 7.8.3(@babel/core@7.29.7)
-      '@babel/plugin-syntax-optional-catch-binding': 7.8.3(@babel/core@7.29.7)
-      '@babel/plugin-syntax-optional-chaining': 7.8.3(@babel/core@7.29.7)
-      '@babel/plugin-syntax-private-property-in-object': 7.14.5(@babel/core@7.29.7)
-      '@babel/plugin-syntax-top-level-await': 7.14.5(@babel/core@7.29.7)
+      '@babel/core': 7.29.7(supports-color@10.2.2)
+      '@babel/plugin-syntax-async-generators': 7.8.4(@babel/core@7.29.7(supports-color@10.2.2))
+      '@babel/plugin-syntax-bigint': 7.8.3(@babel/core@7.29.7(supports-color@10.2.2))
+      '@babel/plugin-syntax-class-properties': 7.12.13(@babel/core@7.29.7(supports-color@10.2.2))
+      '@babel/plugin-syntax-class-static-block': 7.14.5(@babel/core@7.29.7(supports-color@10.2.2))
+      '@babel/plugin-syntax-import-attributes': 7.29.7(@babel/core@7.29.7(supports-color@10.2.2))
+      '@babel/plugin-syntax-import-meta': 7.10.4(@babel/core@7.29.7(supports-color@10.2.2))
+      '@babel/plugin-syntax-json-strings': 7.8.3(@babel/core@7.29.7(supports-color@10.2.2))
+      '@babel/plugin-syntax-logical-assignment-operators': 7.10.4(@babel/core@7.29.7(supports-color@10.2.2))
+      '@babel/plugin-syntax-nullish-coalescing-operator': 7.8.3(@babel/core@7.29.7(supports-color@10.2.2))
+      '@babel/plugin-syntax-numeric-separator': 7.10.4(@babel/core@7.29.7(supports-color@10.2.2))
+      '@babel/plugin-syntax-object-rest-spread': 7.8.3(@babel/core@7.29.7(supports-color@10.2.2))
+      '@babel/plugin-syntax-optional-catch-binding': 7.8.3(@babel/core@7.29.7(supports-color@10.2.2))
+      '@babel/plugin-syntax-optional-chaining': 7.8.3(@babel/core@7.29.7(supports-color@10.2.2))
+      '@babel/plugin-syntax-private-property-in-object': 7.14.5(@babel/core@7.29.7(supports-color@10.2.2))
+      '@babel/plugin-syntax-top-level-await': 7.14.5(@babel/core@7.29.7(supports-color@10.2.2))
 
-  babel-preset-jest@30.4.0(@babel/core@7.29.7):
+  babel-preset-jest@30.4.0(@babel/core@7.29.7(supports-color@10.2.2)):
     dependencies:
-      '@babel/core': 7.29.7
+      '@babel/core': 7.29.7(supports-color@10.2.2)
       babel-plugin-jest-hoist: 30.4.0
-      babel-preset-current-node-syntax: 1.2.0(@babel/core@7.29.7)
+      babel-preset-current-node-syntax: 1.2.0(@babel/core@7.29.7(supports-color@10.2.2))
 
   bail@2.0.2: {}
 
@@ -20651,11 +20661,11 @@ snapshots:
       inherits: 2.0.4
       readable-stream: 3.6.2
 
-  body-parser@2.3.0:
+  body-parser@2.3.0(supports-color@10.2.2):
     dependencies:
       bytes: 3.1.2
       content-type: 2.0.0
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
       http-errors: 2.0.1
       iconv-lite: 0.7.3
       on-finished: 2.4.1
@@ -20825,11 +20835,6 @@ snapshots:
   chalk-template@1.1.2:
     dependencies:
       chalk: 5.6.2
-
-  chalk@3.0.0:
-    dependencies:
-      ansi-styles: 4.3.0
-      supports-color: 7.2.0
 
   chalk@4.1.2:
     dependencies:
@@ -21140,9 +21145,11 @@ snapshots:
       es-errors: 1.3.0
       is-data-view: 1.0.2
 
-  debug@4.4.3:
+  debug@4.4.3(supports-color@10.2.2):
     dependencies:
       ms: 2.1.3
+    optionalDependencies:
+      supports-color: 10.2.2
 
   decamelize-keys@1.1.1:
     dependencies:
@@ -21462,9 +21469,9 @@ snapshots:
 
   escape-string-regexp@5.0.0: {}
 
-  eslint-compat-utils@0.5.1(eslint@10.6.0(jiti@2.6.1)):
+  eslint-compat-utils@0.5.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2)):
     dependencies:
-      eslint: 10.6.0(jiti@2.6.1)
+      eslint: 10.6.0(jiti@2.6.1)(supports-color@10.2.2)
       semver: 7.8.5
 
   eslint-import-context@0.1.9(unrs-resolver@1.12.2):
@@ -21474,19 +21481,19 @@ snapshots:
     optionalDependencies:
       unrs-resolver: 1.12.2
 
-  eslint-plugin-es-x@7.8.0(eslint@10.6.0(jiti@2.6.1)):
+  eslint-plugin-es-x@7.8.0(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2)):
     dependencies:
-      '@eslint-community/eslint-utils': 4.9.1(eslint@10.6.0(jiti@2.6.1))
+      '@eslint-community/eslint-utils': 4.9.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))
       '@eslint-community/regexpp': 4.12.2
-      eslint: 10.6.0(jiti@2.6.1)
-      eslint-compat-utils: 0.5.1(eslint@10.6.0(jiti@2.6.1))
+      eslint: 10.6.0(jiti@2.6.1)(supports-color@10.2.2)
+      eslint-compat-utils: 0.5.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))
 
-  eslint-plugin-import-x@4.17.1(@typescript-eslint/utils@8.62.1(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3))(eslint@10.6.0(jiti@2.6.1)):
+  eslint-plugin-import-x@4.17.1(@typescript-eslint/utils@8.62.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3))(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2):
     dependencies:
       '@typescript-eslint/types': 8.62.1
       comment-parser: 1.4.7
-      debug: 4.4.3
-      eslint: 10.6.0(jiti@2.6.1)
+      debug: 4.4.3(supports-color@10.2.2)
+      eslint: 10.6.0(jiti@2.6.1)(supports-color@10.2.2)
       eslint-import-context: 0.1.9(unrs-resolver@1.12.2)
       is-glob: 4.0.3
       minimatch: 10.2.5
@@ -21494,27 +21501,27 @@ snapshots:
       stable-hash-x: 0.2.0
       unrs-resolver: 1.12.2
     optionalDependencies:
-      '@typescript-eslint/utils': 8.62.1(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3)
+      '@typescript-eslint/utils': 8.62.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3)
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-jest@29.15.4(@typescript-eslint/eslint-plugin@8.62.1(@typescript-eslint/parser@8.62.1(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3))(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3))(eslint@10.6.0(jiti@2.6.1))(jest@30.4.2(@babel/types@7.29.7)(@types/node@22.20.0))(typescript@6.0.3):
+  eslint-plugin-jest@29.15.2(@typescript-eslint/eslint-plugin@8.62.1(@typescript-eslint/parser@8.62.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3))(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3))(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(jest@30.4.2(@babel/types@7.29.7)(@types/node@22.20.0)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3):
     dependencies:
-      '@typescript-eslint/utils': 8.62.1(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3)
-      eslint: 10.6.0(jiti@2.6.1)
+      '@typescript-eslint/utils': 8.62.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3)
+      eslint: 10.6.0(jiti@2.6.1)(supports-color@10.2.2)
     optionalDependencies:
-      '@typescript-eslint/eslint-plugin': 8.62.1(@typescript-eslint/parser@8.62.1(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3))(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3)
-      jest: 30.4.2(@babel/types@7.29.7)(@types/node@22.20.0)
+      '@typescript-eslint/eslint-plugin': 8.62.1(@typescript-eslint/parser@8.62.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3))(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3)
+      jest: 30.4.2(@babel/types@7.29.7)(@types/node@22.20.0)(supports-color@10.2.2)
       typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-n@18.2.1(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3):
+  eslint-plugin-n@18.2.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(typescript@6.0.3):
     dependencies:
-      '@eslint-community/eslint-utils': 4.9.1(eslint@10.6.0(jiti@2.6.1))
+      '@eslint-community/eslint-utils': 4.9.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))
       enhanced-resolve: 5.24.1
-      eslint: 10.6.0(jiti@2.6.1)
-      eslint-plugin-es-x: 7.8.0(eslint@10.6.0(jiti@2.6.1))
+      eslint: 10.6.0(jiti@2.6.1)(supports-color@10.2.2)
+      eslint-plugin-es-x: 7.8.0(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))
       get-tsconfig: 4.14.0
       globals: 15.15.0
       globrex: 0.1.2
@@ -21523,25 +21530,25 @@ snapshots:
     optionalDependencies:
       typescript: 6.0.3
 
-  eslint-plugin-promise@7.3.0(eslint@10.6.0(jiti@2.6.1)):
+  eslint-plugin-promise@7.3.0(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2)):
     dependencies:
-      '@eslint-community/eslint-utils': 4.9.1(eslint@10.6.0(jiti@2.6.1))
-      eslint: 10.6.0(jiti@2.6.1)
+      '@eslint-community/eslint-utils': 4.9.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))
+      eslint: 10.6.0(jiti@2.6.1)(supports-color@10.2.2)
 
-  eslint-plugin-regexp@3.1.1(eslint@10.6.0(jiti@2.6.1)):
+  eslint-plugin-regexp@3.1.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2)):
     dependencies:
-      '@eslint-community/eslint-utils': 4.9.1(eslint@10.6.0(jiti@2.6.1))
+      '@eslint-community/eslint-utils': 4.9.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))
       '@eslint-community/regexpp': 4.12.2
       comment-parser: 1.4.7
-      eslint: 10.6.0(jiti@2.6.1)
+      eslint: 10.6.0(jiti@2.6.1)(supports-color@10.2.2)
       jsdoc-type-pratt-parser: 7.2.0
       refa: 0.12.1
       regexp-ast-analysis: 0.7.1
       scslre: 0.3.0
 
-  eslint-plugin-simple-import-sort@13.0.0(eslint@10.6.0(jiti@2.6.1)):
+  eslint-plugin-simple-import-sort@13.0.0(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2)):
     dependencies:
-      eslint: 10.6.0(jiti@2.6.1)
+      eslint: 10.6.0(jiti@2.6.1)(supports-color@10.2.2)
 
   eslint-scope@9.1.2:
     dependencies:
@@ -21556,11 +21563,11 @@ snapshots:
 
   eslint-visitor-keys@5.0.1: {}
 
-  eslint@10.6.0(jiti@2.6.1):
+  eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2):
     dependencies:
-      '@eslint-community/eslint-utils': 4.9.1(eslint@10.6.0(jiti@2.6.1))
+      '@eslint-community/eslint-utils': 4.9.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))
       '@eslint-community/regexpp': 4.12.2
-      '@eslint/config-array': 0.23.5
+      '@eslint/config-array': 0.23.5(supports-color@10.2.2)
       '@eslint/config-helpers': 0.6.0
       '@eslint/core': 1.2.1
       '@eslint/plugin-kit': 0.7.2
@@ -21570,7 +21577,7 @@ snapshots:
       '@types/estree': 1.0.9
       ajv: 6.15.0
       cross-spawn: 7.0.6
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
       escape-string-regexp: 4.0.0
       eslint-scope: 9.1.2
       eslint-visitor-keys: 5.0.1
@@ -21683,21 +21690,21 @@ snapshots:
 
   exponential-backoff@3.1.3: {}
 
-  express@4.22.2:
+  express@4.22.2(supports-color@10.2.2):
     dependencies:
       accepts: 1.3.8
       array-flatten: 1.1.1
-      body-parser: 2.3.0
+      body-parser: 2.3.0(supports-color@10.2.2)
       content-disposition: 0.5.4
       content-type: 1.0.5
       cookie: 0.7.2
       cookie-signature: 1.0.7
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
       depd: 2.0.0
       encodeurl: 2.0.0
       escape-html: 1.0.3
       etag: 1.8.1
-      finalhandler: 1.3.2
+      finalhandler: 1.3.2(supports-color@10.2.2)
       fresh: 0.5.2
       http-errors: 2.0.1
       merge-descriptors: 1.0.3
@@ -21709,8 +21716,8 @@ snapshots:
       qs: 6.15.3
       range-parser: 1.2.1
       safe-buffer: 5.2.1
-      send: 0.19.2
-      serve-static: 1.16.3
+      send: 0.19.2(supports-color@10.2.2)
+      serve-static: 1.16.3(supports-color@10.2.2)
       setprototypeof: 1.2.0
       statuses: 2.0.2
       type-is: 1.6.18
@@ -21790,9 +21797,9 @@ snapshots:
     dependencies:
       to-regex-range: 5.0.1
 
-  finalhandler@1.3.2:
+  finalhandler@1.3.2(supports-color@10.2.2):
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
       encodeurl: 2.0.0
       escape-html: 1.0.3
       on-finished: 2.4.1
@@ -21851,9 +21858,9 @@ snapshots:
 
   flatted@3.4.2: {}
 
-  follow-redirects@1.16.0(debug@4.4.3):
+  follow-redirects@1.16.0(debug@4.4.3(supports-color@10.2.2)):
     optionalDependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
 
   for-each@0.3.5:
     dependencies:
@@ -22206,28 +22213,28 @@ snapshots:
       statuses: 2.0.2
       toidentifier: 1.0.1
 
-  http-proxy-agent@7.0.2:
+  http-proxy-agent@7.0.2(supports-color@10.2.2):
     dependencies:
       agent-base: 7.1.4
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
 
-  http-proxy-middleware@3.0.7:
+  http-proxy-middleware@3.0.7(supports-color@10.2.2):
     dependencies:
       '@types/http-proxy': 1.17.17
-      debug: 4.4.3
-      http-proxy: 1.18.1(debug@4.4.3)
+      debug: 4.4.3(supports-color@10.2.2)
+      http-proxy: 1.18.1(debug@4.4.3(supports-color@10.2.2))
       is-glob: 4.0.3
       is-plain-object: 5.0.0
       micromatch: 4.0.8
     transitivePeerDependencies:
       - supports-color
 
-  http-proxy@1.18.1(debug@4.4.3):
+  http-proxy@1.18.1(debug@4.4.3(supports-color@10.2.2)):
     dependencies:
       eventemitter3: 4.0.7
-      follow-redirects: 1.16.0(debug@4.4.3)
+      follow-redirects: 1.16.0(debug@4.4.3(supports-color@10.2.2))
       requires-port: 1.0.0
     transitivePeerDependencies:
       - debug
@@ -22237,17 +22244,17 @@ snapshots:
       quick-lru: 5.1.1
       resolve-alpn: 1.2.1
 
-  https-proxy-agent@7.0.6:
+  https-proxy-agent@7.0.6(supports-color@10.2.2):
     dependencies:
       agent-base: 7.1.4
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
 
-  https-proxy-server-express@0.1.2:
+  https-proxy-server-express@0.1.2(supports-color@10.2.2):
     dependencies:
-      express: 4.22.2
-      http-proxy-middleware: 3.0.7
+      express: 4.22.2(supports-color@10.2.2)
+      http-proxy-middleware: 3.0.7(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
 
@@ -22555,9 +22562,9 @@ snapshots:
 
   istanbul-lib-coverage@3.2.2: {}
 
-  istanbul-lib-instrument@6.0.3(@babel/types@7.29.7):
+  istanbul-lib-instrument@6.0.3(@babel/types@7.29.7)(supports-color@10.2.2):
     dependencies:
-      '@babel/core': 7.29.7
+      '@babel/core': 7.29.7(supports-color@10.2.2)
       '@babel/parser': 7.29.7(@babel/types@7.29.7)
       '@istanbuljs/schema': 0.1.6
       istanbul-lib-coverage: 3.2.2
@@ -22572,10 +22579,10 @@ snapshots:
       make-dir: 4.0.0
       supports-color: 7.2.0
 
-  istanbul-lib-source-maps@5.0.6:
+  istanbul-lib-source-maps@5.0.6(supports-color@10.2.2):
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
       istanbul-lib-coverage: 3.2.2
     transitivePeerDependencies:
       - supports-color
@@ -22590,13 +22597,13 @@ snapshots:
       jest-util: 30.4.1
       p-limit: 3.1.0
 
-  jest-circus@30.4.2(@babel/types@7.29.7):
+  jest-circus@30.4.2(@babel/types@7.29.7)(supports-color@10.2.2):
     dependencies:
       '@jest/environment': 30.4.1
-      '@jest/expect': 30.4.1
+      '@jest/expect': 30.4.1(supports-color@10.2.2)
       '@jest/test-result': 30.4.1
       '@jest/types': 30.4.1
-      '@types/node': 22.20.0
+      '@types/node': 26.1.0
       chalk: 4.1.2
       co: 4.6.0
       dedent: 1.7.2
@@ -22604,8 +22611,8 @@ snapshots:
       jest-each: 30.4.1
       jest-matcher-utils: 30.4.1
       jest-message-util: 30.4.1
-      jest-runtime: 30.4.2(@babel/types@7.29.7)
-      jest-snapshot: 30.4.1
+      jest-runtime: 30.4.2(@babel/types@7.29.7)(supports-color@10.2.2)
+      jest-snapshot: 30.4.1(supports-color@10.2.2)
       jest-util: 30.4.1
       p-limit: 3.1.0
       pretty-format: 30.4.1
@@ -22617,15 +22624,15 @@ snapshots:
       - babel-plugin-macros
       - supports-color
 
-  jest-cli@30.4.2(@babel/types@7.29.7)(@types/node@22.20.0):
+  jest-cli@30.4.2(@babel/types@7.29.7)(@types/node@22.20.0)(supports-color@10.2.2):
     dependencies:
-      '@jest/core': 30.4.2(@babel/types@7.29.7)
+      '@jest/core': 30.4.2(@babel/types@7.29.7)(supports-color@10.2.2)
       '@jest/test-result': 30.4.1
       '@jest/types': 30.4.1
       chalk: 4.1.2
       exit-x: 0.2.2
       import-local: 3.2.0
-      jest-config: 30.4.2(@babel/types@7.29.7)(@types/node@22.20.0)
+      jest-config: 30.4.2(@babel/types@7.29.7)(@types/node@22.20.0)(supports-color@10.2.2)
       jest-util: 30.4.1
       jest-validate: 30.4.1
       yargs: 17.7.3
@@ -22637,25 +22644,25 @@ snapshots:
       - supports-color
       - ts-node
 
-  jest-config@30.4.2(@babel/types@7.29.7)(@types/node@22.20.0):
+  jest-config@30.4.2(@babel/types@7.29.7)(@types/node@22.20.0)(supports-color@10.2.2):
     dependencies:
-      '@babel/core': 7.29.7
+      '@babel/core': 7.29.7(supports-color@10.2.2)
       '@jest/get-type': 30.1.0
       '@jest/pattern': 30.4.0
       '@jest/test-sequencer': 30.4.1
       '@jest/types': 30.4.1
-      babel-jest: 30.4.1(@babel/core@7.29.7)(@babel/types@7.29.7)
+      babel-jest: 30.4.1(@babel/core@7.29.7(supports-color@10.2.2))(@babel/types@7.29.7)(supports-color@10.2.2)
       chalk: 4.1.2
       ci-info: 4.4.0
       deepmerge: 4.3.1
       glob: 11.1.0
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
-      jest-circus: 30.4.2(@babel/types@7.29.7)
+      jest-circus: 30.4.2(@babel/types@7.29.7)(supports-color@10.2.2)
       jest-docblock: 30.4.0
       jest-environment-node: 30.4.1
       jest-regex-util: 30.4.0
       jest-resolve: 30.4.1
-      jest-runner: 30.4.2(@babel/types@7.29.7)
+      jest-runner: 30.4.2(@babel/types@7.29.7)(supports-color@10.2.2)
       jest-util: 30.4.1
       jest-validate: 30.4.1
       parse-json: 5.2.0
@@ -22664,6 +22671,38 @@ snapshots:
       strip-json-comments: 3.1.1
     optionalDependencies:
       '@types/node': 22.20.0
+    transitivePeerDependencies:
+      - '@babel/types'
+      - babel-plugin-macros
+      - supports-color
+
+  jest-config@30.4.2(@babel/types@7.29.7)(@types/node@26.1.0)(supports-color@10.2.2):
+    dependencies:
+      '@babel/core': 7.29.7(supports-color@10.2.2)
+      '@jest/get-type': 30.1.0
+      '@jest/pattern': 30.4.0
+      '@jest/test-sequencer': 30.4.1
+      '@jest/types': 30.4.1
+      babel-jest: 30.4.1(@babel/core@7.29.7(supports-color@10.2.2))(@babel/types@7.29.7)(supports-color@10.2.2)
+      chalk: 4.1.2
+      ci-info: 4.4.0
+      deepmerge: 4.3.1
+      glob: 11.1.0
+      graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
+      jest-circus: 30.4.2(@babel/types@7.29.7)(supports-color@10.2.2)
+      jest-docblock: 30.4.0
+      jest-environment-node: 30.4.1
+      jest-regex-util: 30.4.0
+      jest-resolve: 30.4.1
+      jest-runner: 30.4.2(@babel/types@7.29.7)(supports-color@10.2.2)
+      jest-util: 30.4.1
+      jest-validate: 30.4.1
+      parse-json: 5.2.0
+      pretty-format: 30.4.1
+      slash: 3.0.0
+      strip-json-comments: 3.1.1
+    optionalDependencies:
+      '@types/node': 26.1.0
     transitivePeerDependencies:
       - '@babel/types'
       - babel-plugin-macros
@@ -22693,7 +22732,7 @@ snapshots:
       '@jest/environment': 30.4.1
       '@jest/fake-timers': 30.4.1
       '@jest/types': 30.4.1
-      '@types/node': 22.20.0
+      '@types/node': 26.1.0
       jest-mock: 30.4.1
       jest-util: 30.4.1
       jest-validate: 30.4.1
@@ -22719,7 +22758,7 @@ snapshots:
   jest-haste-map@30.4.1:
     dependencies:
       '@jest/types': 30.4.1
-      '@types/node': 22.20.0
+      '@types/node': 26.1.0
       anymatch: 3.1.3
       fb-watchman: 2.0.2
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
@@ -22759,7 +22798,7 @@ snapshots:
   jest-mock@30.4.1:
     dependencies:
       '@jest/types': 30.4.1
-      '@types/node': 22.20.0
+      '@types/node': 26.1.0
       jest-util: 30.4.1
 
   jest-pnp-resolver@1.2.3(jest-resolve@29.7.0):
@@ -22774,10 +22813,10 @@ snapshots:
 
   jest-regex-util@30.4.0: {}
 
-  jest-resolve-dependencies@30.4.2:
+  jest-resolve-dependencies@30.4.2(supports-color@10.2.2):
     dependencies:
       jest-regex-util: 30.4.0
-      jest-snapshot: 30.4.1
+      jest-snapshot: 30.4.1(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
 
@@ -22804,14 +22843,14 @@ snapshots:
       slash: 3.0.0
       unrs-resolver: 1.12.2
 
-  jest-runner@30.4.2(@babel/types@7.29.7):
+  jest-runner@30.4.2(@babel/types@7.29.7)(supports-color@10.2.2):
     dependencies:
       '@jest/console': 30.4.1
       '@jest/environment': 30.4.1
       '@jest/test-result': 30.4.1
-      '@jest/transform': 30.4.1(@babel/types@7.29.7)
+      '@jest/transform': 30.4.1(@babel/types@7.29.7)(supports-color@10.2.2)
       '@jest/types': 30.4.1
-      '@types/node': 22.20.0
+      '@types/node': 26.1.0
       chalk: 4.1.2
       emittery: 0.13.1
       exit-x: 0.2.2
@@ -22822,7 +22861,7 @@ snapshots:
       jest-leak-detector: 30.4.1
       jest-message-util: 30.4.1
       jest-resolve: 30.4.1
-      jest-runtime: 30.4.2(@babel/types@7.29.7)
+      jest-runtime: 30.4.2(@babel/types@7.29.7)(supports-color@10.2.2)
       jest-util: 30.4.1
       jest-watcher: 30.4.1
       jest-worker: 30.4.1
@@ -22832,16 +22871,16 @@ snapshots:
       - '@babel/types'
       - supports-color
 
-  jest-runtime@30.4.2(@babel/types@7.29.7):
+  jest-runtime@30.4.2(@babel/types@7.29.7)(supports-color@10.2.2):
     dependencies:
       '@jest/environment': 30.4.1
       '@jest/fake-timers': 30.4.1
-      '@jest/globals': 30.4.1
+      '@jest/globals': 30.4.1(supports-color@10.2.2)
       '@jest/source-map': 30.0.1
       '@jest/test-result': 30.4.1
-      '@jest/transform': 30.4.1(@babel/types@7.29.7)
+      '@jest/transform': 30.4.1(@babel/types@7.29.7)(supports-color@10.2.2)
       '@jest/types': 30.4.1
-      '@types/node': 22.20.0
+      '@types/node': 26.1.0
       chalk: 4.1.2
       cjs-module-lexer: 2.2.0
       collect-v8-coverage: 1.0.3
@@ -22852,7 +22891,7 @@ snapshots:
       jest-mock: 30.4.1
       jest-regex-util: 30.4.0
       jest-resolve: 30.4.1
-      jest-snapshot: 30.4.1
+      jest-snapshot: 30.4.1(supports-color@10.2.2)
       jest-util: 30.4.1
       slash: 3.0.0
       strip-bom: 4.0.0
@@ -22860,19 +22899,19 @@ snapshots:
       - '@babel/types'
       - supports-color
 
-  jest-snapshot@30.4.1:
+  jest-snapshot@30.4.1(supports-color@10.2.2):
     dependencies:
-      '@babel/core': 7.29.7
+      '@babel/core': 7.29.7(supports-color@10.2.2)
       '@babel/generator': 7.29.7
-      '@babel/plugin-syntax-jsx': 7.29.7(@babel/core@7.29.7)
-      '@babel/plugin-syntax-typescript': 7.29.7(@babel/core@7.29.7)
+      '@babel/plugin-syntax-jsx': 7.29.7(@babel/core@7.29.7(supports-color@10.2.2))
+      '@babel/plugin-syntax-typescript': 7.29.7(@babel/core@7.29.7(supports-color@10.2.2))
       '@babel/types': 7.29.7
       '@jest/expect-utils': 30.4.1
       '@jest/get-type': 30.1.0
       '@jest/snapshot-utils': 30.4.1
-      '@jest/transform': 30.4.1(@babel/types@7.29.7)
+      '@jest/transform': 30.4.1(@babel/types@7.29.7)(supports-color@10.2.2)
       '@jest/types': 30.4.1
-      babel-preset-current-node-syntax: 1.2.0(@babel/core@7.29.7)
+      babel-preset-current-node-syntax: 1.2.0(@babel/core@7.29.7(supports-color@10.2.2))
       chalk: 4.1.2
       expect: 30.4.1
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
@@ -22898,7 +22937,7 @@ snapshots:
   jest-util@30.4.1:
     dependencies:
       '@jest/types': 30.4.1
-      '@types/node': 22.20.0
+      '@types/node': 26.1.0
       chalk: 4.1.2
       ci-info: 4.4.0
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
@@ -22926,7 +22965,7 @@ snapshots:
     dependencies:
       '@jest/test-result': 30.4.1
       '@jest/types': 30.4.1
-      '@types/node': 22.20.0
+      '@types/node': 26.1.0
       ansi-escapes: 4.3.2
       chalk: 4.1.2
       emittery: 0.13.1
@@ -22942,18 +22981,18 @@ snapshots:
 
   jest-worker@30.4.1:
     dependencies:
-      '@types/node': 22.20.0
+      '@types/node': 26.1.0
       '@ungap/structured-clone': 1.3.2
       jest-util: 30.4.1
       merge-stream: 2.0.0
       supports-color: 8.1.1
 
-  jest@30.4.2(@babel/types@7.29.7)(@types/node@22.20.0):
+  jest@30.4.2(@babel/types@7.29.7)(@types/node@22.20.0)(supports-color@10.2.2):
     dependencies:
-      '@jest/core': 30.4.2(@babel/types@7.29.7)
+      '@jest/core': 30.4.2(@babel/types@7.29.7)(supports-color@10.2.2)
       '@jest/types': 30.4.1
       import-local: 3.2.0
-      jest-cli: 30.4.2(@babel/types@7.29.7)(@types/node@22.20.0)
+      jest-cli: 30.4.2(@babel/types@7.29.7)(@types/node@22.20.0)(supports-color@10.2.2)
     transitivePeerDependencies:
       - '@babel/types'
       - '@types/node'
@@ -23027,15 +23066,15 @@ snapshots:
       prelude-ls: 1.2.1
       type-check: 0.4.0
 
-  libnpmpublish@11.2.0:
+  libnpmpublish@11.2.0(supports-color@10.2.2):
     dependencies:
       '@npmcli/package-json': 7.0.5
       ci-info: 4.4.0
       npm-package-arg: 13.0.2
-      npm-registry-fetch: 19.1.1
+      npm-registry-fetch: 19.1.1(supports-color@10.2.2)
       proc-log: 6.1.0
       semver: 7.8.5
-      sigstore: 4.1.1
+      sigstore: 4.1.1(supports-color@10.2.2)
       ssri: 13.0.1
     transitivePeerDependencies:
       - supports-color
@@ -23140,9 +23179,9 @@ snapshots:
     dependencies:
       '@zkochan/rimraf': 4.0.0
 
-  make-fetch-happen@14.0.3:
+  make-fetch-happen@14.0.3(supports-color@10.2.2):
     dependencies:
-      '@npmcli/agent': 3.0.0
+      '@npmcli/agent': 3.0.0(supports-color@10.2.2)
       cacache: 19.0.1
       http-cache-semantics: 4.2.0
       minipass: 7.1.3
@@ -23156,10 +23195,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  make-fetch-happen@15.0.6:
+  make-fetch-happen@15.0.6(supports-color@10.2.2):
     dependencies:
       '@gar/promise-retry': 1.0.3
-      '@npmcli/agent': 4.0.2
+      '@npmcli/agent': 4.0.2(supports-color@10.2.2)
       '@npmcli/redact': 4.0.0
       cacache: 20.0.4
       http-cache-semantics: 4.2.0
@@ -23191,14 +23230,14 @@ snapshots:
 
   math-intrinsics@1.1.0: {}
 
-  mdast-util-from-markdown@2.0.3:
+  mdast-util-from-markdown@2.0.3(supports-color@10.2.2):
     dependencies:
       '@types/mdast': 4.0.4
       '@types/unist': 3.0.3
       decode-named-character-reference: 1.3.0
       devlop: 1.1.0
       mdast-util-to-string: 4.0.0
-      micromark: 4.0.2
+      micromark: 4.0.2(supports-color@10.2.2)
       micromark-util-decode-numeric-character-reference: 2.0.2
       micromark-util-decode-string: 2.0.1
       micromark-util-normalize-identifier: 2.0.1
@@ -23400,10 +23439,10 @@ snapshots:
 
   micromark-util-types@2.0.2: {}
 
-  micromark@4.0.2:
+  micromark@4.0.2(supports-color@10.2.2):
     dependencies:
       '@types/debug': 4.1.13
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
       decode-named-character-reference: 1.3.0
       devlop: 1.1.0
       micromark-core-commonmark: 2.0.3
@@ -23580,12 +23619,12 @@ snapshots:
   node-gyp-build@4.8.4:
     optional: true
 
-  node-gyp@11.5.0:
+  node-gyp@11.5.0(supports-color@10.2.2):
     dependencies:
       env-paths: 2.2.1
       exponential-backoff: 3.1.3
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
-      make-fetch-happen: 14.0.3
+      make-fetch-happen: 14.0.3(supports-color@10.2.2)
       nopt: 8.1.0
       proc-log: 5.0.0
       semver: 7.8.5
@@ -23595,7 +23634,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  node-gyp@12.4.0:
+  node-gyp@12.3.0:
     dependencies:
       env-paths: 2.2.1
       exponential-backoff: 3.1.3
@@ -23635,12 +23674,7 @@ snapshots:
       semver: 7.8.5
       validate-npm-package-license: 3.0.4
 
-  normalize-package-data@3.0.3:
-    dependencies:
-      hosted-git-info: 4.1.0
-      is-core-module: 2.16.2
-      semver: 7.8.5
-      validate-npm-package-license: 3.0.4
+  normalize-package-data@3.0.3: {}
 
   normalize-package-data@4.0.1:
     dependencies:
@@ -23713,11 +23747,11 @@ snapshots:
       npm-package-arg: 13.0.2
       semver: 7.8.5
 
-  npm-registry-fetch@19.1.1:
+  npm-registry-fetch@19.1.1(supports-color@10.2.2):
     dependencies:
       '@npmcli/redact': 4.0.0
       jsonparse: 1.3.1
-      make-fetch-happen: 15.0.6
+      make-fetch-happen: 15.0.6(supports-color@10.2.2)
       minipass: 7.1.3
       minipass-fetch: 5.0.2
       minizlib: 3.1.0
@@ -24282,10 +24316,10 @@ snapshots:
       gopd: 1.2.0
       set-function-name: 2.0.2
 
-  remark-parse@11.0.0(unified@11.0.5):
+  remark-parse@11.0.0(supports-color@10.2.2)(unified@11.0.5):
     dependencies:
       '@types/mdast': 4.0.4
-      mdast-util-from-markdown: 2.0.3
+      mdast-util-from-markdown: 2.0.3(supports-color@10.2.2)
       micromark-util-types: 2.0.2
       unified: 11.0.5
       vfile: 6.0.3
@@ -24470,9 +24504,9 @@ snapshots:
 
   semver@7.8.5: {}
 
-  send@0.19.2:
+  send@0.19.2(supports-color@10.2.2):
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
       depd: 2.0.0
       destroy: 1.2.0
       encodeurl: 2.0.0
@@ -24488,12 +24522,12 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  serve-static@1.16.3:
+  serve-static@1.16.3(supports-color@10.2.2):
     dependencies:
       encodeurl: 2.0.0
       escape-html: 1.0.3
       parseurl: 1.3.3
-      send: 0.19.2
+      send: 0.19.2(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
 
@@ -24586,13 +24620,13 @@ snapshots:
     dependencies:
       varint: 5.0.0
 
-  sigstore@4.1.1:
+  sigstore@4.1.1(supports-color@10.2.2):
     dependencies:
       '@sigstore/bundle': 4.0.0
       '@sigstore/core': 3.2.1
       '@sigstore/protobuf-specs': 0.5.1
-      '@sigstore/sign': 4.1.1
-      '@sigstore/tuf': 4.0.2
+      '@sigstore/sign': 4.1.1(supports-color@10.2.2)
+      '@sigstore/tuf': 4.0.2(supports-color@10.2.2)
       '@sigstore/verify': 3.1.1
     transitivePeerDependencies:
       - supports-color
@@ -24624,10 +24658,10 @@ snapshots:
 
   smol-toml@1.7.0: {}
 
-  socks-proxy-agent@8.0.5:
+  socks-proxy-agent@8.0.5(supports-color@10.2.2):
     dependencies:
       agent-base: 7.1.4
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@10.2.2)
       socks: 2.8.9
     transitivePeerDependencies:
       - supports-color
@@ -25004,11 +25038,11 @@ snapshots:
 
   tslib@2.8.1: {}
 
-  tuf-js@4.1.0:
+  tuf-js@4.1.0(supports-color@10.2.2):
     dependencies:
       '@tufjs/models': 4.1.0
-      debug: 4.4.3
-      make-fetch-happen: 15.0.6
+      debug: 4.4.3(supports-color@10.2.2)
+      make-fetch-happen: 15.0.6(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
 
@@ -25098,13 +25132,13 @@ snapshots:
     dependencies:
       ts-toolbelt: 9.6.0
 
-  typescript-eslint@8.62.1(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3):
+  typescript-eslint@8.62.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3):
     dependencies:
-      '@typescript-eslint/eslint-plugin': 8.62.1(@typescript-eslint/parser@8.62.1(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3))(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3)
-      '@typescript-eslint/parser': 8.62.1(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3)
-      '@typescript-eslint/typescript-estree': 8.62.1(typescript@6.0.3)
-      '@typescript-eslint/utils': 8.62.1(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3)
-      eslint: 10.6.0(jiti@2.6.1)
+      '@typescript-eslint/eslint-plugin': 8.62.1(@typescript-eslint/parser@8.62.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3))(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3)
+      '@typescript-eslint/parser': 8.62.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3)
+      '@typescript-eslint/typescript-estree': 8.62.1(supports-color@10.2.2)(typescript@6.0.3)
+      '@typescript-eslint/utils': 8.62.1(eslint@10.6.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3)
+      eslint: 10.6.0(jiti@2.6.1)(supports-color@10.2.2)
       typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
