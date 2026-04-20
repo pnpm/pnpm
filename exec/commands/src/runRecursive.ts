@@ -10,6 +10,7 @@ import {
   type RunLifecycleHookOptions,
 } from '@pnpm/exec.lifecycle'
 import { groupStart } from '@pnpm/log.group'
+import { logger } from '@pnpm/logger'
 import type { PackageScripts, ProjectRootDir } from '@pnpm/types'
 import { sortProjects } from '@pnpm/workspace.projects-sorter'
 import pLimit from 'p-limit'
@@ -190,11 +191,21 @@ export async function runRecursive (
 
   if (scriptName !== 'test' && !hasCommand && !opts.ifPresent) {
     const allPackagesAreSelected = Object.keys(opts.selectedProjectsGraph).length === opts.allProjects.length
-    if (allPackagesAreSelected) {
-      throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `None of the packages has a "${scriptName}" script`)
-    } else {
-      throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `None of the selected packages has a "${scriptName}" script`)
+
+    if (!allPackagesAreSelected) {
+      // Filtered run: warn instead of failing
+      logger.warn({
+        message: `None of the selected packages has a "${scriptName}" script`,
+        prefix: process.cwd(),
+      })
+      return
     }
+
+    // Full workspace: keep original error behavior
+    throw new PnpmError(
+      'RECURSIVE_RUN_NO_SCRIPT',
+      `None of the packages has a "${scriptName}" script`
+    )
   }
   if (opts.reportSummary) {
     await writeRecursiveSummary({
