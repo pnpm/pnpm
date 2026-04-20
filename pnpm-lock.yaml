@@ -2831,6 +2831,9 @@ importers:
       chalk:
         specifier: 'catalog:'
         version: 5.6.2
+      enquirer:
+        specifier: 'catalog:'
+        version: 2.4.1
       memoize:
         specifier: 'catalog:'
         version: 10.2.0
@@ -2844,9 +2847,15 @@ importers:
         specifier: 'catalog:'
         version: 7.7.4
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/deps.compliance.commands':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../../core/logger
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../../../pkg-manifest/reader

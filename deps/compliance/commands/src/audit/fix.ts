@@ -40,9 +40,18 @@ function createOverrides (advisories: AuditAdvisory[]): Record<string, string> {
   const entries: Array<[string, string]> = []
   for (const advisory of advisories) {
     if (!advisory.patched_versions) continue
-    entries.push([`${advisory.module_name}@${advisory.vulnerable_versions}`, advisory.patched_versions])
+    entries.push([`${advisory.module_name}@${advisory.vulnerable_versions}`, caretRangeForPatched(advisory.patched_versions)])
   }
   return Object.fromEntries(entries)
+}
+
+// Use the minimum patched version with a caret so pnpm stays within the
+// same major as the fix. `>=X.Y.Z` alone can silently promote a dep to a
+// later breaking major; `^X.Y.Z` still satisfies the patch while
+// preserving the major the user originally pinned to.
+export function caretRangeForPatched (patchedRange: string): string {
+  const min = semver.minVersion(patchedRange)
+  return min ? `^${min.version}` : patchedRange
 }
 
 export function createMinimumReleaseAgeExcludes (advisories: AuditAdvisory[]): string[] {

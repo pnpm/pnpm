@@ -57,13 +57,19 @@
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@zkochan/table": "catalog:",
     "chalk": "catalog:",
+    "enquirer": "catalog:",
     "memoize": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:",
     "semver": "catalog:"
   },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/deps.compliance.commands": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
