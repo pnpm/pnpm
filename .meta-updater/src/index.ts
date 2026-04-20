@@ -119,7 +119,16 @@ export default async (workspaceDir: string) => { // eslint-disable-line
       if (dir.includes('artifacts') || manifest.name === '@pnpm/exe') {
         manifest.version = pnpmVersion
         if (manifest.name === '@pnpm/exe') {
-          for (const depName of ['@pnpm/linux-arm64', '@pnpm/linux-x64', '@pnpm/win-x64', '@pnpm/win-arm64', '@pnpm/macos-x64', '@pnpm/macos-arm64']) {
+          for (const depName of [
+            '@pnpm/exe.darwin-arm64',
+            '@pnpm/exe.darwin-x64',
+            '@pnpm/exe.linux-arm64',
+            '@pnpm/exe.linux-arm64-musl',
+            '@pnpm/exe.linux-x64',
+            '@pnpm/exe.linux-x64-musl',
+            '@pnpm/exe.win32-arm64',
+            '@pnpm/exe.win32-x64',
+          ]) {
             manifest.optionalDependencies![depName] = 'workspace:*'
           }
         }

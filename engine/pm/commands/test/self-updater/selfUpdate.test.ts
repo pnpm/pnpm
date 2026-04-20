@@ -23,7 +23,7 @@ jest.unstable_mockModule('@pnpm/cli.meta', () => {
     },
   }
 })
-const { selfUpdate, installPnpm, linkExePlatformBinary } = await import('@pnpm/engine.pm.commands')
+const { selfUpdate, installPnpm, linkExePlatformBinary, exePlatformPkgDirName } = await import('@pnpm/engine.pm.commands')
 
 beforeEach(async () => {
   await setupMockAgent()
@@ -508,14 +508,13 @@ test('installPnpm without env lockfile uses resolution path', async () => {
 })
 
 describe('linkExePlatformBinary', () => {
-  const platform = process.platform === 'win32'
-    ? 'win'
-    : process.platform === 'darwin'
-      ? 'macos'
-      : process.platform
-  const arch = platform === 'win' && process.arch === 'ia32' ? 'x86' : process.arch
-  const executable = platform === 'win' ? 'pnpm.exe' : 'pnpm'
-  const platformPkgName = `${platform}-${arch}`
+  const platform = process.platform
+  const arch = platform === 'win32' && process.arch === 'ia32' ? 'x86' : process.arch
+  const executable = platform === 'win32' ? 'pnpm.exe' : 'pnpm'
+  // NOTE: the test layout doesn't set up a musl libc marker on Linux, so the
+  // non-musl platform package is what gets linked here. Matching what
+  // linkExePlatformBinary detects via detect-libc.
+  const platformPkgName = `exe.${platform}-${arch}`
 
   test('links platform binary in pnpm symlinked node_modules layout', () => {
     const dir = tempDir(false)
@@ -599,5 +598,28 @@ describe('linkExePlatformBinary', () => {
     // Placeholder should remain unchanged
     const result = fs.readFileSync(path.join(exeDir, executable), 'utf8')
     expect(result).toBe(placeholder)
+  })
+})
+
+describe('exePlatformPkgDirName', () => {
+  test('appends -musl for linux + musl libc family', () => {
+    expect(exePlatformPkgDirName('linux', 'x64', 'musl')).toBe('exe.linux-x64-musl')
+    expect(exePlatformPkgDirName('linux', 'arm64', 'musl')).toBe('exe.linux-arm64-musl')
+  })
+
+  test('does not append -musl when libc is glibc or unknown', () => {
+    expect(exePlatformPkgDirName('linux', 'x64', 'glibc')).toBe('exe.linux-x64')
+    expect(exePlatformPkgDirName('linux', 'arm64', null)).toBe('exe.linux-arm64')
+  })
+
+  test('libc is irrelevant on non-linux platforms', () => {
+    expect(exePlatformPkgDirName('darwin', 'arm64', 'musl')).toBe('exe.darwin-arm64')
+    expect(exePlatformPkgDirName('darwin', 'x64', null)).toBe('exe.darwin-x64')
+    expect(exePlatformPkgDirName('win32', 'x64', 'musl')).toBe('exe.win32-x64')
+  })
+
+  test('normalizes ia32 to x86 on win32 only', () => {
+    expect(exePlatformPkgDirName('win32', 'ia32', null)).toBe('exe.win32-x86')
+    expect(exePlatformPkgDirName('linux', 'ia32', null)).toBe('exe.linux-ia32')
   })
 })

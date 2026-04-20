@@ -21,13 +21,13 @@ const pnpmDistDir = path.join(repoRoot, 'pnpm/dist')
     })
   }
   await createArtifactTarball('linux-x64', 'pnpm')
-  await createArtifactTarball('linuxstatic-x64', 'pnpm')
-  await createArtifactTarball('linuxstatic-arm64', 'pnpm')
+  await createArtifactTarball('linux-x64-musl', 'pnpm')
   await createArtifactTarball('linux-arm64', 'pnpm')
-  await createArtifactTarball('macos-x64', 'pnpm')
-  await createArtifactTarball('macos-arm64', 'pnpm')
-  await createArtifactTarball('win-x64', 'pnpm.exe')
-  await createArtifactTarball('win-arm64', 'pnpm.exe')
+  await createArtifactTarball('linux-arm64-musl', 'pnpm')
+  await createArtifactTarball('darwin-x64', 'pnpm')
+  await createArtifactTarball('darwin-arm64', 'pnpm')
+  await createArtifactTarball('win32-x64', 'pnpm.exe')
+  await createArtifactTarball('win32-arm64', 'pnpm.exe')
   await createSourceMapsArchive()
 })().catch((err) => {
   console.error(err)
@@ -54,7 +54,7 @@ async function createArtifactTarball (target: string, binaryName: string): Promi
       fs.rmSync(path.join(distDest, mapFile))
     }
 
-    const isWindows = target.startsWith('win-')
+    const isWindows = target.startsWith('win32-')
     const archiveName = isWindows ? `pnpm-${target}.zip` : `pnpm-${target}.tar.gz`
 
     if (isWindows) {
@@ -91,15 +91,17 @@ async function createSourceMapsArchive () {
 }
 
 // Reflink platform package names needed for a build target.
-// Target format: 'linux-x64', 'linuxstatic-arm64', 'macos-arm64', 'win-x64'.
+// Target format: '<platform>-<arch>[-<libc>]' where <platform> is one of
+// 'linux', 'darwin', 'win32', <arch> is 'x64' | 'arm64', and <libc> is only
+// ever 'musl' (linux-only).
 function getReflinkKeepPackages (target: string): string[] {
-  if (target.startsWith('macos-')) {
-    return [`@reflink/reflink-darwin-${target.slice('macos-'.length)}`]
+  if (target.startsWith('darwin-')) {
+    return [`@reflink/reflink-${target}`]
   }
-  if (target.startsWith('win-')) {
-    return [`@reflink/reflink-win32-${target.slice('win-'.length)}-msvc`]
+  if (target.startsWith('win32-')) {
+    return [`@reflink/reflink-${target}-msvc`]
   }
-  if (target.startsWith('linux')) {
+  if (target.startsWith('linux-')) {
     const arch = target.includes('arm64') ? 'arm64' : 'x64'
     return [
       `@reflink/reflink-linux-${arch}-gnu`,

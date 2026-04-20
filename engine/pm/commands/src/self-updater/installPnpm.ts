@@ -22,6 +22,7 @@ import { headlessInstall } from '@pnpm/installing.deps-restorer'
 import type { EnvLockfile, LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
 import { registerProject, type StoreController } from '@pnpm/store.controller'
 import type { DepPath, ProjectId, ProjectRootDir, Registries } from '@pnpm/types'
+import { familySync } from 'detect-libc'
 import { symlinkDir } from 'symlink-dir'
 
 // @pnpm/exe has platform-specific binaries, so its GVS hash must
@@ -319,31 +320,44 @@ async function installFromResolution (
   }, params)
 }
 
-// @pnpm/exe bundles Node.js via optional platform-specific packages (e.g. @pnpm/macos-arm64).
+/**
+ * Computes the scope-local directory name of the `@pnpm/exe` platform
+ * package for a given host: `exe.<platform>-<arch>[-musl]`. Pure so that the
+ * musl branch is unit-testable without mocking detect-libc or patching
+ * process.platform.
+ */
+export function exePlatformPkgDirName (
+  platform: NodeJS.Platform,
+  arch: string,
+  libcFamily: string | null
+): string {
+  const normalizedArch = platform === 'win32' && arch === 'ia32' ? 'x86' : arch
+  const libcSuffix = platform === 'linux' && libcFamily === 'musl' ? '-musl' : ''
+  return `exe.${platform}-${normalizedArch}${libcSuffix}`
+}
+
+// @pnpm/exe bundles Node.js via optional platform-specific packages
+// (e.g. @pnpm/exe.darwin-arm64, @pnpm/exe.linux-x64-musl).
 // Its postinstall script links the correct binary into the @pnpm/exe package dir.
 // Since scripts are disabled during install (to support systems without Node.js),
 // we replicate that linking here.
 export function linkExePlatformBinary (installDir: string): void {
-  const platform = process.platform === 'win32'
-    ? 'win'
-    : process.platform === 'darwin'
-      ? 'macos'
-      : process.platform
-  const arch = platform === 'win' && process.arch === 'ia32' ? 'x86' : process.arch
+  const platform = process.platform
+  const pkgDirName = exePlatformPkgDirName(platform, process.arch, familySync())
   const exePkgDir = path.join(installDir, 'node_modules', '@pnpm', 'exe')
   if (!fs.existsSync(exePkgDir)) return
   // In pnpm's symlinked node_modules layout, the platform package is not hoisted
   // to the top-level node_modules. It's a dependency of @pnpm/exe and lives as a
   // sibling in the virtual store. Resolve through the @pnpm/exe symlink to find it.
   const exeRealDir = fs.realpathSync(exePkgDir)
-  const platformPkgDir = path.join(path.dirname(exeRealDir), `${platform}-${arch}`)
-  const executable = platform === 'win' ? 'pnpm.exe' : 'pnpm'
+  const platformPkgDir = path.join(path.dirname(exeRealDir), pkgDirName)
+  const executable = platform === 'win32' ? 'pnpm.exe' : 'pnpm'
   const src = path.join(platformPkgDir, executable)
   if (!fs.existsSync(src)) return
   const dest = path.join(exePkgDir, executable)
   forceLink(src, dest)
 
-  if (platform === 'win') {
+  if (platform === 'win32') {
     const exePkgJsonPath = path.join(exePkgDir, 'package.json')
     const exePkg = JSON.parse(fs.readFileSync(exePkgJsonPath, 'utf8'))
     exePkg.bin.pnpm = 'pnpm.exe'
