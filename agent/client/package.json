@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/agent.client",
-  "version": "1000.0.0",
+  "version": "0.0.0",
   "description": "Client for pnpm agent server — sends store state, receives resolved lockfile and missing files",
   "keywords": [
     "pnpm",

@@ -15,6 +15,13 @@ import { writeJsonFile } from 'write-json-file'
 
 const CLI_PKG_NAME = 'pnpm'
 
+// Experimental packages that are versioned independently on the 0.0.x track
+// and should not be normalized to the pnpm major version.
+const EXPERIMENTAL_PKGS = new Set([
+  '@pnpm/agent.client',
+  'pnpm-agent',
+])
+
 // Packages whose tests spawn the local pnpm CLI binary (pnpm/bin/pnpm.mjs)
 // and therefore need the CLI bundle (pnpm/dist/pnpm.mjs) to be built first.
 const PKGS_NEEDING_CLI_COMPILE = new Set([
@@ -67,7 +74,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
       const smallestAllowedLibVersion = Number(pnpmMajorNumber) * 100
       const libMajorVersion = Number(manifest.version!.split('.')[0])
       if (manifest.name !== CLI_PKG_NAME) {
-        if (!semver.prerelease(pnpmVersion) && (libMajorVersion < smallestAllowedLibVersion || libMajorVersion >= smallestAllowedLibVersion + 100)) {
+        if (!semver.prerelease(pnpmVersion) && !EXPERIMENTAL_PKGS.has(manifest.name!) && (libMajorVersion < smallestAllowedLibVersion || libMajorVersion >= smallestAllowedLibVersion + 100)) {
           manifest.version = `${smallestAllowedLibVersion}.0.0`
         }
         for (const depType of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
