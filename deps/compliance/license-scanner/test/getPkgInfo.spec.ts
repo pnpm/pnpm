@@ -136,20 +136,24 @@ describe('getPkgInfo', () => {
       repository: { url: 'https://github.com/stevemao/left-pad' },
     }))
 
-    const depPath = 'left-pad@git+https://github.com/stevemao/left-pad.git#2fca6157fcca165438e0f9495cf0e5a4e6f71349'
+    // The installer stores git packages under just the git URL, without the
+    // package name prefix. packageIdFromSnapshot strips the prefix when the
+    // caller (lockfileToLicenseNodeTree) builds the id for getPkgInfo.
+    const gitUrl = 'git+https://github.com/stevemao/left-pad.git#2fca6157fcca165438e0f9495cf0e5a4e6f71349'
+    const depPath = `left-pad@${gitUrl}`
     const filesIndex: PackageFilesIndex = {
       algo: 'sha256',
       files: new Map([
         ['package.json', { digest, mode: 0o644, size: 0 }],
       ]),
     }
-    storeIndex.set(gitHostedStoreIndexKey(depPath, { built: true }), filesIndex)
+    storeIndex.set(gitHostedStoreIndexKey(gitUrl, { built: true }), filesIndex)
 
     const result = await getPkgInfo(
       {
         name: 'left-pad',
         version: '1.3.0',
-        id: depPath,
+        id: gitUrl,
         depPath,
         snapshot: {
           resolution: {

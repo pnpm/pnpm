@@ -54,6 +54,7 @@
     "@jest/globals": "catalog:",
     "@pnpm/deps.compliance.sbom": "workspace:*",
     "@pnpm/logger": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
     "@types/ssri": "catalog:"
   },
   "engines": {
