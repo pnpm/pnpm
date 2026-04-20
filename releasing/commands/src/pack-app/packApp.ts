@@ -36,7 +36,7 @@ const TARGET_OS_MAP: Record<string, string> = {
 const SUPPORTED_TARGETS =
   'linux-x64, linux-x64-musl, linux-arm64, linux-arm64-musl, macos-x64, macos-arm64, win-x64, win-arm64'
 
-export const commandNames = ['build-sea']
+export const commandNames = ['pack-app']
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return {}
@@ -60,14 +60,15 @@ export const shorthands: Record<string, string> = {
 export function help (): string {
   return renderHelp({
     description:
-      'Build a standalone Single Executable Application (SEA) from a CommonJS entry file.\n\n' +
+      'Pack a CommonJS entry file into a standalone executable for one or more target platforms.\n\n' +
+      'The executable embeds a Node.js binary via the Node.js Single Executable Applications API.\n' +
       `Requires Node.js v${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor}+ to perform ` +
       'the injection. The running Node.js is used when it is new enough; otherwise, a ' +
       `Node.js v${DEFAULT_BUILDER_SPEC} binary is downloaded automatically.`,
-    url: docsUrl('build-sea'),
+    url: docsUrl('pack-app'),
     usages: [
-      'pnpm build-sea --entry dist/index.cjs --target linux-x64 --target win-x64',
-      'pnpm build-sea --entry dist/index.cjs --target linux-x64-musl --node-version 22',
+      'pnpm pack-app --entry dist/index.cjs --target linux-x64 --target win-x64',
+      'pnpm pack-app --entry dist/index.cjs --target linux-x64-musl --node-version 22',
     ],
     descriptionLists: [
       {
@@ -90,7 +91,7 @@ export function help (): string {
             name: '--node-version',
           },
           {
-            description: 'Output directory for the built executables. Defaults to "dist-sea".',
+            description: 'Output directory for the built executables. Defaults to "dist-app".',
             name: '--output-dir',
             shortAlias: '-o',
           },
@@ -105,7 +106,7 @@ export function help (): string {
   })
 }
 
-export type BuildSeaOptions = Pick<Config,
+export type PackAppOptions = Pick<Config,
   | 'dir'
   | 'pnpmHomeDir'
 > & Partial<Pick<Config,
@@ -135,34 +136,34 @@ interface ParsedTarget {
   libc?: string
 }
 
-export async function handler (opts: BuildSeaOptions, params: string[]): Promise<string> {
+export async function handler (opts: PackAppOptions, params: string[]): Promise<string> {
   const entryPath = opts.entry ?? params[0]
   if (!entryPath) {
-    throw new PnpmError('BUILD_SEA_MISSING_ENTRY',
-      '"pnpm build-sea" requires a CJS entry file (pass --entry <path>)')
+    throw new PnpmError('PACK_APP_MISSING_ENTRY',
+      '"pnpm pack-app" requires a CJS entry file (pass --entry <path>)')
   }
   const resolvedEntry = path.resolve(opts.dir, entryPath)
   if (!fs.existsSync(resolvedEntry)) {
-    throw new PnpmError('BUILD_SEA_ENTRY_NOT_FOUND', `Entry file not found: ${resolvedEntry}`)
+    throw new PnpmError('PACK_APP_ENTRY_NOT_FOUND', `Entry file not found: ${resolvedEntry}`)
   }
 
   const rawTargets = opts.target == null
     ? []
     : Array.isArray(opts.target) ? opts.target : [opts.target]
   if (rawTargets.length === 0) {
-    throw new PnpmError('BUILD_SEA_MISSING_TARGET',
-      `"pnpm build-sea" requires at least one --target. Supported: ${SUPPORTED_TARGETS}`)
+    throw new PnpmError('PACK_APP_MISSING_TARGET',
+      `"pnpm pack-app" requires at least one --target. Supported: ${SUPPORTED_TARGETS}`)
   }
   const targets = rawTargets.map(parseTarget)
 
-  const outputDir = path.resolve(opts.dir, opts.outputDir ?? 'dist-sea')
+  const outputDir = path.resolve(opts.dir, opts.outputDir ?? 'dist-app')
   await mkdir(outputDir, { recursive: true })
 
   const outputName = validateOutputName(opts.outputName ?? await readPackageName(opts.dir))
   const requestedNodeSpec = opts.nodeVersion ?? process.version.slice(1)
 
   const fetch = createFetchFromRegistry(opts)
-  const buildRoot = path.join(opts.pnpmHomeDir, 'build-sea')
+  const buildRoot = path.join(opts.pnpmHomeDir, 'pack-app')
 
   const builderBin = await resolveBuilderBinary({ fetch, nodeDownloadMirrors: opts.nodeDownloadMirrors, buildRoot })
   const resolvedTargetVersion = await resolveVersion(fetch, requestedNodeSpec, opts.nodeDownloadMirrors)
@@ -198,7 +199,7 @@ export async function handler (opts: BuildSeaOptions, params: string[]): Promise
     // by default) rather than a predictable path under os.tmpdir(). Avoids
     // TOCTOU/symlink attacks on multi-user systems.
     // eslint-disable-next-line no-await-in-loop
-    const tmpConfigDir = await mkdtemp(path.join(os.tmpdir(), 'pnpm-sea-'))
+    const tmpConfigDir = await mkdtemp(path.join(os.tmpdir(), 'pnpm-pack-app-'))
     const configPath = path.join(tmpConfigDir, 'sea-config.json')
     // eslint-disable-next-line no-await-in-loop
     await writeFile(configPath, JSON.stringify(seaConfig, null, 2), { flag: 'wx' })
@@ -273,7 +274,7 @@ async function ensureNodeRuntime (opts: {
   await mkdir(installDir, { recursive: true })
   await writeFile(
     path.join(installDir, 'package.json'),
-    `${JSON.stringify({ name: `pnpm-build-sea-${targetId}`, private: true }, null, 2)}\n`
+    `${JSON.stringify({ name: `pnpm-pack-app-${targetId}`, private: true }, null, 2)}\n`
   )
 
   // Flags that select the target variant must come before the positional
@@ -292,7 +293,7 @@ async function ensureNodeRuntime (opts: {
   runPnpmCli(args, { cwd: installDir })
 
   if (!fs.existsSync(binaryPath)) {
-    throw new PnpmError('BUILD_SEA_NODE_BINARY_MISSING',
+    throw new PnpmError('PACK_APP_NODE_BINARY_MISSING',
       `Expected Node.js binary at ${binaryPath} after installing node@runtime:${opts.version}, but it was not found.`)
   }
   return binaryPath
@@ -313,7 +314,7 @@ async function resolveVersion (
   const nodeMirrorBaseUrl = getNodeMirror(nodeDownloadMirrors, releaseChannel)
   const version = await resolveNodeVersion(fetch, versionSpecifier, nodeMirrorBaseUrl)
   if (!version) {
-    throw new PnpmError('BUILD_SEA_NODE_VERSION_NOT_FOUND',
+    throw new PnpmError('PACK_APP_NODE_VERSION_NOT_FOUND',
       `Could not find a Node.js version that satisfies "${specifier}"`)
   }
   return version
@@ -328,13 +329,13 @@ const TARGET_PATTERN = /^(linux|macos|win)-(x64|arm64)(?:-(musl))?$/
 function parseTarget (raw: string): ParsedTarget {
   const match = TARGET_PATTERN.exec(raw)
   if (!match) {
-    throw new PnpmError('BUILD_SEA_INVALID_TARGET',
+    throw new PnpmError('PACK_APP_INVALID_TARGET',
       `Invalid target: "${raw}". Expected format: <os>-<arch>[-<libc>] where <os> is linux|macos|win, <arch> is x64|arm64, optional <libc> is musl (linux only).`)
   }
   const [, osName, arch, libc] = match
   const platform = TARGET_OS_MAP[osName]
   if (libc === 'musl' && platform !== 'linux') {
-    throw new PnpmError('BUILD_SEA_INVALID_TARGET',
+    throw new PnpmError('PACK_APP_INVALID_TARGET',
       `The "musl" libc suffix is only valid for linux targets (got "${raw}").`)
   }
   return { raw, platform, arch, libc: libc || undefined }
@@ -345,7 +346,7 @@ function parseTarget (raw: string): ParsedTarget {
 function validateOutputName (name: string): string {
   if (name !== path.basename(name) || name === '' || name === '.' || name === '..' ||
       name.includes('/') || name.includes('\\') || name.includes('\0')) {
-    throw new PnpmError('BUILD_SEA_INVALID_OUTPUT_NAME',
+    throw new PnpmError('PACK_APP_INVALID_OUTPUT_NAME',
       `Invalid --output-name "${name}". The name must be a plain filename without path separators.`)
   }
   return name
@@ -356,14 +357,14 @@ async function readPackageName (dir: string): Promise<string> {
   try {
     raw = await readFile(path.join(dir, 'package.json'), 'utf8')
   } catch {
-    throw new PnpmError('BUILD_SEA_NO_PACKAGE_NAME',
+    throw new PnpmError('PACK_APP_NO_PACKAGE_NAME',
       `Could not determine --output-name: failed to read package.json in ${dir}`,
       { hint: 'Pass --output-name <name> to set the executable name explicitly.' }
     )
   }
   const manifest = JSON.parse(raw) as { name?: unknown }
   if (typeof manifest.name !== 'string' || manifest.name === '') {
-    throw new PnpmError('BUILD_SEA_NO_PACKAGE_NAME',
+    throw new PnpmError('PACK_APP_NO_PACKAGE_NAME',
       `Could not determine --output-name: package.json in ${dir} has no "name" field`,
       { hint: 'Pass --output-name <name> to set the executable name explicitly.' }
     )
@@ -388,7 +389,7 @@ async function adHocSignMacBinary (target: ParsedTarget, outputFile: string): Pr
     try {
       await execa('ldid', ['-S', outputFile], { stdio: 'inherit' })
     } catch {
-      throw new PnpmError('BUILD_SEA_MACOS_SIGN_FAILED',
+      throw new PnpmError('PACK_APP_MACOS_SIGN_FAILED',
         `Cross-compiled macOS binary at ${outputFile} could not be ad-hoc signed with "ldid".`,
         { hint: 'Install ldid (https://github.com/ProcursusTeam/ldid) or re-sign the binary on macOS with "codesign --sign - <file>".' }
       )

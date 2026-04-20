@@ -19,7 +19,7 @@ import {
 import { add, dedupe, fetch, importCommand, install, link, prune, remove, unlink, update } from '@pnpm/installing.commands'
 import { patch, patchCommit, patchRemove } from '@pnpm/patching.commands'
 import { deprecate, distTag, ping, search, star, stars, undeprecate, unpublish, unstar, whoami } from '@pnpm/registry-access.commands'
-import { buildSea, deploy, pack, publish, version } from '@pnpm/releasing.commands'
+import { deploy, pack, packApp, publish, version } from '@pnpm/releasing.commands'
 import { catFile, catIndex, findHash, store } from '@pnpm/store.commands'
 import { init } from '@pnpm/workspace.commands'
 import { pick } from 'ramda'
@@ -125,7 +125,6 @@ const commands: CommandDefinition[] = [
   approveBuilds,
   audit,
   bin,
-  buildSea,
   cache,
   ci,
   clean,
@@ -158,6 +157,7 @@ const commands: CommandDefinition[] = [
   licenses,
   outdated,
   pack,
+  packApp,
   patch,
   patchCommit,
   patchRemove,

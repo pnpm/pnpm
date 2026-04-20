@@ -4,15 +4,15 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals'
 
-import { buildSea } from '../../src/index.js'
+import { packApp } from '../../src/index.js'
 
-const { cliOptionsTypes, commandNames, handler, help, shorthands } = buildSea
+const { cliOptionsTypes, commandNames, handler, help, shorthands } = packApp
 
-describe('build-sea command', () => {
+describe('pack-app command', () => {
   let tempDir: string
 
   beforeEach(() => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-build-sea-test-'))
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-pack-app-test-'))
   })
 
   afterEach(() => {
@@ -20,7 +20,7 @@ describe('build-sea command', () => {
   })
 
   it('exposes the expected command name and shorthands', () => {
-    expect(commandNames).toEqual(['build-sea'])
+    expect(commandNames).toEqual(['pack-app'])
     expect(shorthands.t).toBe('--target')
     expect(shorthands.o).toBe('--output-dir')
   })
@@ -56,14 +56,14 @@ describe('build-sea command', () => {
     await expect(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       handler(baseOpts() as any, [])
-    ).rejects.toMatchObject({ code: 'ERR_PNPM_BUILD_SEA_MISSING_ENTRY' })
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_MISSING_ENTRY' })
   })
 
   it('fails fast when the entry file does not exist', async () => {
     await expect(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       handler({ ...baseOpts(), entry: 'missing.cjs' } as any, [])
-    ).rejects.toMatchObject({ code: 'ERR_PNPM_BUILD_SEA_ENTRY_NOT_FOUND' })
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_ENTRY_NOT_FOUND' })
   })
 
   it('fails fast when no --target is provided', async () => {
@@ -71,7 +71,7 @@ describe('build-sea command', () => {
     await expect(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       handler({ ...baseOpts(), entry: 'entry.cjs' } as any, [])
-    ).rejects.toMatchObject({ code: 'ERR_PNPM_BUILD_SEA_MISSING_TARGET' })
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_MISSING_TARGET' })
   })
 
   it.each([
@@ -89,7 +89,7 @@ describe('build-sea command', () => {
     await expect(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       handler({ ...baseOpts(), entry: 'entry.cjs', target } as any, [])
-    ).rejects.toMatchObject({ code: 'ERR_PNPM_BUILD_SEA_INVALID_TARGET' })
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_INVALID_TARGET' })
   })
 
   it.each([
@@ -109,7 +109,7 @@ describe('build-sea command', () => {
         { ...baseOpts(), entry: 'entry.cjs', target: 'linux-x64', outputName } as any,
         []
       )
-    ).rejects.toMatchObject({ code: 'ERR_PNPM_BUILD_SEA_INVALID_OUTPUT_NAME' })
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_INVALID_OUTPUT_NAME' })
   })
 
   it('uses --output-name when set, instead of requiring a package.json', async () => {
@@ -123,6 +123,6 @@ describe('build-sea command', () => {
         { ...baseOpts(), entry: 'entry.cjs', outputName: 'explicit' } as any,
         []
       )
-    ).rejects.toMatchObject({ code: 'ERR_PNPM_BUILD_SEA_MISSING_TARGET' })
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_MISSING_TARGET' })
   })
 })
