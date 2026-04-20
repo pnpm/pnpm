@@ -68,9 +68,6 @@
       "path": "../../../store/path"
     },
     {
-      "path": "../license-resolver"
-    },
-    {
       "path": "../../../testing/command-defaults"
     },
     {
@@ -84,6 +81,9 @@
     },
     {
       "path": "../audit"
+    },
+    {
+      "path": "../license-resolver"
     },
     {
       "path": "../license-scanner"
