@@ -80,12 +80,36 @@ describe('build-sea command', () => {
     ['unknown libc', 'linux-x64-gnu'],
     ['musl on non-linux', 'macos-arm64-musl'],
     ['incomplete', 'linux'],
+    ['extra segment', 'linux-x64-musl-extra'],
+    ['path traversal injected after musl', 'linux-x64-musl-../../pwn'],
+    ['uppercase', 'LINUX-x64'],
+    ['leading whitespace', ' linux-x64'],
   ])('rejects invalid target: %s (%s)', async (_label, target) => {
     fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
     await expect(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       handler({ ...baseOpts(), entry: 'entry.cjs', target } as any, [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_BUILD_SEA_INVALID_TARGET' })
+  })
+
+  it.each([
+    ['with forward slash', 'sub/dir'],
+    ['with backslash', 'sub\\\\dir'],
+    ['dot dot', '..'],
+    ['relative traversal', '../pwn'],
+    ['absolute', '/tmp/pwn'],
+    ['dot only', '.'],
+    ['null byte', 'pwn\x00'],
+    ['empty', ''],
+  ])('rejects invalid --output-name: %s (%j)', async (_label, outputName) => {
+    fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
+    await expect(
+      handler(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        { ...baseOpts(), entry: 'entry.cjs', target: 'linux-x64', outputName } as any,
+        []
+      )
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_BUILD_SEA_INVALID_OUTPUT_NAME' })
   })
 
   it('uses --output-name when set, instead of requiring a package.json', async () => {

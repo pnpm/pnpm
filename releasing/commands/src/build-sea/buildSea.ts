@@ -1,5 +1,5 @@
 import fs from 'node:fs'
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -158,7 +158,7 @@ export async function handler (opts: BuildSeaOptions, params: string[]): Promise
   const outputDir = path.resolve(opts.dir, opts.outputDir ?? 'dist-sea')
   await mkdir(outputDir, { recursive: true })
 
-  const outputName = opts.outputName ?? await readPackageName(opts.dir)
+  const outputName = validateOutputName(opts.outputName ?? await readPackageName(opts.dir))
   const requestedNodeSpec = opts.nodeVersion ?? process.version.slice(1)
 
   const fetch = createFetchFromRegistry(opts)
@@ -194,16 +194,21 @@ export async function handler (opts: BuildSeaOptions, params: string[]): Promise
       useCodeCache: false,
       useSnapshot: false,
     }
-    const configPath = path.join(os.tmpdir(), `pnpm-sea-${target.raw}-${Date.now()}.json`)
+    // Write the SEA config into a fresh, unpredictable temp directory (0700
+    // by default) rather than a predictable path under os.tmpdir(). Avoids
+    // TOCTOU/symlink attacks on multi-user systems.
     // eslint-disable-next-line no-await-in-loop
-    await writeFile(configPath, JSON.stringify(seaConfig, null, 2))
+    const tmpConfigDir = await mkdtemp(path.join(os.tmpdir(), 'pnpm-sea-'))
+    const configPath = path.join(tmpConfigDir, 'sea-config.json')
+    // eslint-disable-next-line no-await-in-loop
+    await writeFile(configPath, JSON.stringify(seaConfig, null, 2), { flag: 'wx' })
 
     try {
       // eslint-disable-next-line no-await-in-loop
       await execa(builderBin, ['--build-sea', configPath], { stdio: 'inherit' })
     } finally {
       // eslint-disable-next-line no-await-in-loop
-      await unlink(configPath).catch(() => {})
+      await rm(tmpConfigDir, { recursive: true, force: true }).catch(() => {})
     }
 
     // eslint-disable-next-line no-await-in-loop
@@ -314,30 +319,36 @@ async function resolveVersion (
   return version
 }
 
+// Parsed triplet must match this shape exactly. We anchor and constrain each
+// segment so that inputs like `linux-x64-musl-../../outside` are rejected
+// outright — otherwise `target.raw` would later flow into path.join for the
+// output directory and could escape it.
+const TARGET_PATTERN = /^(linux|macos|win)-(x64|arm64)(?:-(musl))?$/
+
 function parseTarget (raw: string): ParsedTarget {
-  const [osName, arch, libc] = raw.split('-')
-  if (!osName || !arch) {
+  const match = TARGET_PATTERN.exec(raw)
+  if (!match) {
     throw new PnpmError('BUILD_SEA_INVALID_TARGET',
-      `Invalid target: "${raw}". Expected format: <os>-<arch>[-<libc>] (e.g. linux-x64, linux-x64-musl, macos-arm64, win-x64)`)
+      `Invalid target: "${raw}". Expected format: <os>-<arch>[-<libc>] where <os> is linux|macos|win, <arch> is x64|arm64, optional <libc> is musl (linux only).`)
   }
+  const [, osName, arch, libc] = match
   const platform = TARGET_OS_MAP[osName]
-  if (!platform) {
-    throw new PnpmError('BUILD_SEA_INVALID_TARGET',
-      `Unknown OS "${osName}" in target "${raw}". Supported: linux, macos, win`)
-  }
-  if (arch !== 'x64' && arch !== 'arm64') {
-    throw new PnpmError('BUILD_SEA_INVALID_TARGET',
-      `Unknown arch "${arch}" in target "${raw}". Supported: x64, arm64`)
-  }
-  if (libc != null && libc !== 'musl') {
-    throw new PnpmError('BUILD_SEA_INVALID_TARGET',
-      `Unknown libc "${libc}" in target "${raw}". Only "musl" is supported.`)
-  }
   if (libc === 'musl' && platform !== 'linux') {
     throw new PnpmError('BUILD_SEA_INVALID_TARGET',
       `The "musl" libc suffix is only valid for linux targets (got "${raw}").`)
   }
-  return { raw, platform, arch, libc }
+  return { raw, platform, arch, libc: libc || undefined }
+}
+
+// Reject anything that would let the output escape its target directory when
+// joined in `path.join(targetOutputDir, outputName)`.
+function validateOutputName (name: string): string {
+  if (name !== path.basename(name) || name === '' || name === '.' || name === '..' ||
+      name.includes('/') || name.includes('\\') || name.includes('\0')) {
+    throw new PnpmError('BUILD_SEA_INVALID_OUTPUT_NAME',
+      `Invalid --output-name "${name}". The name must be a plain filename without path separators.`)
+  }
+  return name
 }
 
 async function readPackageName (dir: string): Promise<string> {
