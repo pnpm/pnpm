@@ -19,11 +19,6 @@ export async function readPkg (pkgPath: string): Promise<PackageManifest> {
   return limitPkgReads(async () => readPackageJson(pkgPath))
 }
 
-export interface LicenseInfo {
-  name: string
-  licenseFile?: string
-}
-
 export interface PackageInfo {
   id: string
   name?: string

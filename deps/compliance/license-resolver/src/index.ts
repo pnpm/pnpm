@@ -121,9 +121,18 @@ export async function resolveLicense ({ manifest, files }: ResolveLicenseInput):
   return manifestLicense ? { name: manifestLicense } : undefined
 }
 
+const LICENSE_NAME_PATTERN = new RegExp(
+  `\\b(${LICENSE_NAMES.map(escapeRegExp).join('|')})\\b`,
+  'gi'
+)
+
 function detectLicenseFromText (content: string): string | undefined {
   if (!content) return undefined
-  const match = content.match(new RegExp(`\\b(${LICENSE_NAMES.join('|')})\\b`, 'gi'))
+  const match = content.match(LICENSE_NAME_PATTERN)
   if (!match) return undefined
   return [...new Set(match)].join(' OR ')
+}
+
+function escapeRegExp (value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
