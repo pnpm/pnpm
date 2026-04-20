@@ -1099,3 +1099,40 @@ test('pnpm recursive run with custom node-options', async () => {
     workspaceDir: process.cwd(),
   }, ['build'])
 })
+
+test('filtered run does not fail when script is missing', async () => {
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+      // no scripts
+    },
+    {
+      name: 'project-b',
+      version: '1.0.0',
+      scripts: {
+        build: 'echo build',
+      },
+    },
+  ])
+
+  const { allProjects } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjects(
+    allProjects,
+    [{ namePattern: 'project-a' }], // only select project-a (no script)
+    { workspaceDir: process.cwd() }
+  )
+
+  // Should NOT throw
+  await run.handler(
+    {
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+    },
+    ['build'] // script does not exist in filtered project
+  )
+})
