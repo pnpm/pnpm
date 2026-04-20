@@ -7770,6 +7770,9 @@ importers:
       ci-info:
         specifier: 'catalog:'
         version: 4.4.0
+      detect-libc:
+        specifier: 'catalog:'
+        version: 2.1.2
       enquirer:
         specifier: 'catalog:'
         version: 2.4.1

@@ -13,6 +13,7 @@ import {
 import { PnpmError } from '@pnpm/error'
 import { runPnpmCli } from '@pnpm/exec.pnpm-cli-runner'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
+import { familySync } from 'detect-libc'
 import { safeExeca as execa } from 'execa'
 import { renderHelp } from 'render-help'
 
@@ -253,7 +254,17 @@ async function resolveBuilderBinary (ctx: {
     version,
     platform: process.platform,
     arch: process.arch,
+    // Pin libc to the host's. Otherwise a caller that had set
+    // supportedArchitectures.libc=musl in their config would cause the
+    // glibc host to download a musl Node that it cannot execute.
+    libc: hostLinuxLibc(),
   })
+}
+
+function hostLinuxLibc (): 'glibc' | 'musl' | undefined {
+  if (process.platform !== 'linux') return undefined
+  const family = familySync()
+  return family === 'musl' ? 'musl' : 'glibc'
 }
 
 function runningNodeCanBuildSea (): boolean {
@@ -279,7 +290,11 @@ async function ensureNodeRuntime (opts: {
   arch: string
   libc?: string
 }): Promise<string> {
-  const targetId = [opts.platform, opts.arch, opts.libc].filter(Boolean).join('-')
+  // Linux variants always need a libc pin (glibc or musl) so that variant
+  // selection is deterministic and doesn't depend on the host's detected
+  // libc or the user's supportedArchitectures.libc config.
+  const libc = opts.platform === 'linux' ? opts.libc ?? 'glibc' : opts.libc
+  const targetId = [opts.platform, opts.arch, libc].filter(Boolean).join('-')
   const installDir = path.join(opts.buildRoot, `${targetId}-${opts.version}`)
   const nodeDir = path.join(installDir, 'node_modules', 'node')
   const binaryPath = nodeBinaryPath(nodeDir, opts.platform)
@@ -300,8 +315,8 @@ async function ensureNodeRuntime (opts: {
     `--os=${opts.platform}`,
     `--cpu=${opts.arch}`,
   ]
-  if (opts.libc != null) {
-    args.push(`--libc=${opts.libc}`)
+  if (libc != null) {
+    args.push(`--libc=${libc}`)
   }
   args.push(`node@runtime:${opts.version}`)
   runPnpmCli(args, { cwd: installDir })
@@ -354,13 +369,27 @@ function parseTarget (raw: string): ParsedTarget {
   return { raw, platform, arch, libc: libc || undefined }
 }
 
-// Reject anything that would let the output escape its target directory when
-// joined in `path.join(targetOutputDir, outputName)`.
+// Characters that Win32 rejects in filenames, plus NUL. Path separators are
+// checked separately via `path.basename` so the message is crisp.
+const INVALID_FILENAME_CHARS = /[<>:"|?*\0]/
+// Win32 reserved device names (case-insensitive, with or without an extension).
+const RESERVED_WINDOWS_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i
+
+// Reject anything that would let the output escape its target directory, or
+// that would fail filesystem-level validation on any supported host. This
+// surfaces problems at `pack-app` invocation time instead of letting them
+// blow up later in `writeFile(outputFile, …)`.
 function validateOutputName (name: string): string {
-  if (name !== path.basename(name) || name === '' || name === '.' || name === '..' ||
-      name.includes('/') || name.includes('\\') || name.includes('\0')) {
+  if (
+    name !== path.basename(name) ||
+    name === '' || name === '.' || name === '..' ||
+    name.includes('/') || name.includes('\\') ||
+    INVALID_FILENAME_CHARS.test(name) ||
+    RESERVED_WINDOWS_NAME.test(name) ||
+    /[. ]$/.test(name)
+  ) {
     throw new PnpmError('PACK_APP_INVALID_OUTPUT_NAME',
-      `Invalid --output-name "${name}". The name must be a plain filename without path separators.`)
+      `Invalid --output-name "${name}". The name must be a plain filename without path separators, Windows-reserved names (e.g. CON, NUL), characters like <>:"|?* or NUL, and must not end in a dot or space.`)
   }
   return name
 }

@@ -54,10 +54,15 @@ test('lockfileToDepGraph', () => {
 })
 
 describe('lockfileToDepGraph with variations resolution', () => {
-  const hostVariantIntegrity = 'sha256-host=='
+  const glibcVariantIntegrity = 'sha256-glibc=='
   const muslVariantIntegrity = 'sha256-musl=='
-  const hostPlatform = process.platform
-  const hostArch = process.arch
+  const darwinVariantIntegrity = 'sha256-darwin=='
+
+  // Always-explicit selectors — don't rely on process.platform / host libc so
+  // these tests produce the same result on glibc, musl, macOS, and Windows CI.
+  const linuxGlibcSelector = { os: ['linux'], cpu: ['x64'], libc: ['glibc'] }
+  const linuxMuslSelector = { os: ['linux'], cpu: ['x64'], libc: ['musl'] }
+  const darwinSelector = { os: ['darwin'], cpu: ['arm64'] }
 
   function variantResolution (integrity: string): BinaryResolution {
     return {
@@ -74,31 +79,24 @@ describe('lockfileToDepGraph with variations resolution', () => {
       type: 'variations' as const,
       variants: [
         {
-          targets: [{ os: hostPlatform, cpu: hostArch }],
-          resolution: variantResolution(hostVariantIntegrity),
+          // Linux default (glibc) — variant has no libc marker.
+          targets: [{ os: 'linux', cpu: 'x64' }],
+          resolution: variantResolution(glibcVariantIntegrity),
         },
         {
           targets: [{ os: 'linux', cpu: 'x64', libc: 'musl' as const }],
           resolution: variantResolution(muslVariantIntegrity),
         },
+        {
+          targets: [{ os: 'darwin', cpu: 'arm64' }],
+          resolution: variantResolution(darwinVariantIntegrity),
+        },
       ],
     },
   }
 
-  test('picks the host variant by default and uses its integrity in fullPkgId', () => {
-    const graph = lockfileToDepGraph({
-      lockfileVersion: '9.0',
-      importers: {},
-      packages: {
-        ['node@runtime:22.0.0' as DepPath]: pkgWithVariants,
-      },
-    })
-    expect(graph['node@runtime:22.0.0' as DepPath].fullPkgId)
-      .toBe(`node@runtime:22.0.0:${hostVariantIntegrity}`)
-  })
-
-  test('incorporates the explicitly selected musl variant when supportedArchitectures.libc=musl', () => {
-    const graph = lockfileToDepGraph(
+  function graphFor (selector: Parameters<typeof lockfileToDepGraph>[1]) {
+    return lockfileToDepGraph(
       {
         lockfileVersion: '9.0',
         importers: {},
@@ -106,27 +104,29 @@ describe('lockfileToDepGraph with variations resolution', () => {
           ['node@runtime:22.0.0' as DepPath]: pkgWithVariants,
         },
       },
-      { os: ['linux'], cpu: ['x64'], libc: ['musl'] }
+      selector
     )
-    expect(graph['node@runtime:22.0.0' as DepPath].fullPkgId)
+  }
+
+  test('picks the linux glibc variant when supportedArchitectures matches it', () => {
+    expect(graphFor(linuxGlibcSelector)['node@runtime:22.0.0' as DepPath].fullPkgId)
+      .toBe(`node@runtime:22.0.0:${glibcVariantIntegrity}`)
+  })
+
+  test('picks the linux musl variant when supportedArchitectures.libc=musl', () => {
+    expect(graphFor(linuxMuslSelector)['node@runtime:22.0.0' as DepPath].fullPkgId)
       .toBe(`node@runtime:22.0.0:${muslVariantIntegrity}`)
   })
 
+  test('picks the darwin variant when supportedArchitectures.os=darwin', () => {
+    expect(graphFor(darwinSelector)['node@runtime:22.0.0' as DepPath].fullPkgId)
+      .toBe(`node@runtime:22.0.0:${darwinVariantIntegrity}`)
+  })
+
   test('different variants produce different fullPkgIds for the same runtime version', () => {
-    const host = lockfileToDepGraph({
-      lockfileVersion: '9.0',
-      importers: {},
-      packages: { ['node@runtime:22.0.0' as DepPath]: pkgWithVariants },
-    })
-    const musl = lockfileToDepGraph(
-      {
-        lockfileVersion: '9.0',
-        importers: {},
-        packages: { ['node@runtime:22.0.0' as DepPath]: pkgWithVariants },
-      },
-      { os: ['linux'], cpu: ['x64'], libc: ['musl'] }
-    )
-    expect(host['node@runtime:22.0.0' as DepPath].fullPkgId)
-      .not.toBe(musl['node@runtime:22.0.0' as DepPath].fullPkgId)
+    const glibc = graphFor(linuxGlibcSelector)['node@runtime:22.0.0' as DepPath].fullPkgId
+    const musl = graphFor(linuxMuslSelector)['node@runtime:22.0.0' as DepPath].fullPkgId
+    const darwin = graphFor(darwinSelector)['node@runtime:22.0.0' as DepPath].fullPkgId
+    expect(new Set([glibc, musl, darwin]).size).toBe(3)
   })
 })

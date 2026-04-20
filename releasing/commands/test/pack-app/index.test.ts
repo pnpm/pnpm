@@ -184,6 +184,18 @@ describe('pack-app command', () => {
     ['dot only', '.'],
     ['null byte', 'pwn\x00'],
     ['empty', ''],
+    ['Windows reserved CON', 'CON'],
+    ['Windows reserved nul.exe', 'nul.exe'],
+    ['Windows reserved COM1', 'COM1'],
+    ['Windows colon', 'my:tool'],
+    ['Windows pipe', 'my|tool'],
+    ['Windows question mark', 'my?tool'],
+    ['Windows asterisk', 'my*tool'],
+    ['Windows lt', 'my<tool'],
+    ['Windows gt', 'my>tool'],
+    ['Windows quote', 'my"tool'],
+    ['trailing dot', 'tool.'],
+    ['trailing space', 'tool '],
   ])('rejects invalid --output-name: %s (%j)', async (_label, outputName) => {
     fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
     await expect(

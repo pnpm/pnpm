@@ -65,6 +65,7 @@
     "@types/normalize-path": "catalog:",
     "@zkochan/rimraf": "catalog:",
     "chalk": "catalog:",
+    "detect-libc": "catalog:",
     "ci-info": "catalog:",
     "enquirer": "catalog:",
     "execa": "catalog:",
