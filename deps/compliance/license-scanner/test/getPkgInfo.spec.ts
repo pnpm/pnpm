@@ -97,7 +97,7 @@ describe('getPkgInfo', () => {
     }))
 
     const pkgId = 'express@4.18.2'
-    const integrity = 'sha512-testintegrity001'
+    const integrity = 'sha512-test/integrity001'
     const filesIndex: PackageFilesIndex = {
       algo: 'sha256',
       files: new Map([
