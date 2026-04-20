@@ -7,6 +7,7 @@ import { createMatcher } from '@pnpm/config.matcher'
 import { GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { getCurrentBranch } from '@pnpm/network.git-utils'
+import { applyRuntimeOnFailOverride } from '@pnpm/pkg-manifest.utils'
 import { isCamelCase } from '@pnpm/text.naming-cases'
 import type { DevEngines, EngineDependency, ProjectManifest } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -31,6 +32,7 @@ import type {
   ProjectConfig,
   UniversalOptions,
   VerifyDepsBeforeRun,
+  WantedPackageManager,
 } from './Config.js'
 import { isConfigFileKey } from './configFileKey.js'
 import { extractAndRemoveDependencyBuildOptions, hasDependencyBuildOptions } from './dependencyBuildOptions.js'
@@ -64,7 +66,7 @@ export {
   ProjectConfigsMatchItemIsNotAStringError,
   ProjectConfigUnsupportedFieldError,
 } from './projectConfig.js'
-export type { Config, ConfigContext, ProjectConfig, UniversalOptions, VerifyDepsBeforeRun }
+export type { Config, ConfigContext, ProjectConfig, UniversalOptions, VerifyDepsBeforeRun, WantedPackageManager }
 
 export { type ConfigFileKey, isConfigFileKey } from './configFileKey.js'
 export { isIniConfigKey, isNpmrcReadableKey } from './localConfig.js'
@@ -170,15 +172,13 @@ export async function getConfig (opts: {
     'inject-workspace-packages': false,
     'link-workspace-packages': false,
     'lockfile-include-tarball-url': false,
-    'manage-package-manager-versions': true,
     'minimum-release-age': 24 * 60, // 1 day
+    'minimum-release-age-ignore-missing-time': true,
     'modules-cache-max-age': 7 * 24 * 60, // 7 days
     'dlx-cache-max-age': 24 * 60, // 1 day
     'node-linker': 'isolated',
     'package-lock': npmDefaults['package-lock'],
     pending: false,
-    'package-manager-strict': process.env.COREPACK_ENABLE_STRICT !== '0',
-    'package-manager-strict-version': false,
     'prefer-workspace-packages': false,
     'public-hoist-pattern': [],
     'recursive-install': true,
@@ -619,23 +619,19 @@ export async function getConfig (opts: {
 
   // The `pmOnFail` config setting overrides whatever onFail the
   // wantedPackageManager carried, so users (and internal callers) can force
-  // a specific behavior without editing the manifest.
-  // Otherwise, for the legacy packageManager field, derive onFail from config
-  // settings. devEngines.packageManager already has onFail set during parsing.
+  // a specific behavior without editing the manifest. Otherwise, the legacy
+  // `packageManager` field defaults to `download` — `devEngines.packageManager`
+  // already has onFail set during parsing.
   if (pnpmConfig.wantedPackageManager) {
     if (pnpmConfig.pmOnFail) {
       pnpmConfig.wantedPackageManager.onFail = pnpmConfig.pmOnFail
     } else if (pnpmConfig.wantedPackageManager.onFail == null) {
-      if (pnpmConfig.packageManagerStrict === false) {
-        pnpmConfig.wantedPackageManager.onFail = 'warn'
-      } else if (pnpmConfig.managePackageManagerVersions) {
-        pnpmConfig.wantedPackageManager.onFail = 'download'
-      } else if (pnpmConfig.packageManagerStrictVersion) {
-        pnpmConfig.wantedPackageManager.onFail = 'error'
-      } else {
-        pnpmConfig.wantedPackageManager.onFail = 'ignore'
-      }
+      pnpmConfig.wantedPackageManager.onFail = 'download'
     }
+  }
+
+  if (pnpmConfig.runtimeOnFail && pnpmConfig.rootProjectManifest) {
+    applyRuntimeOnFailOverride(pnpmConfig.rootProjectManifest, pnpmConfig.runtimeOnFail)
   }
 
   const {
@@ -664,7 +660,7 @@ function getProcessEnv (env: string): string | undefined {
     process.env[env.toLowerCase()]
 }
 
-function getWantedPackageManager (manifest: ProjectManifest): { pm?: EngineDependency, warnings: string[] } {
+function getWantedPackageManager (manifest: ProjectManifest): { pm?: WantedPackageManager, warnings: string[] } {
   const warnings: string[] = []
   const pmFromDevEngines = parseDevEnginesPackageManager(manifest.devEngines)
   if (pmFromDevEngines) {
@@ -673,9 +669,12 @@ function getWantedPackageManager (manifest: ProjectManifest): { pm?: EngineDepen
       pmFromDevEngines.version = undefined
     }
     if (manifest.packageManager) {
-      warnings.push('Cannot use both "packageManager" and "devEngines.packageManager" in package.json. "packageManager" will be ignored')
+      const legacyPm = parsePackageManager(manifest.packageManager)
+      if (legacyPm.name !== pmFromDevEngines.name || legacyPm.version !== pmFromDevEngines.version) {
+        warnings.push('Cannot use both "packageManager" and "devEngines.packageManager" in package.json. "packageManager" will be ignored')
+      }
     }
-    return { pm: pmFromDevEngines, warnings }
+    return { pm: { ...pmFromDevEngines, fromDevEngines: true }, warnings }
   }
   if (manifest.packageManager) {
     const pm = parsePackageManager(manifest.packageManager)

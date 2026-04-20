@@ -37,6 +37,9 @@
       "path": "../../network/git-utils"
     },
     {
+      "path": "../../pkg-manifest/utils"
+    },
+    {
       "path": "../../text/naming-cases"
     },
     {

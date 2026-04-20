@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.inspection.outdated",
-  "version": "1100.0.1",
+  "version": "1100.0.2",
   "description": "Check for outdated packages",
   "keywords": [
     "pnpm",

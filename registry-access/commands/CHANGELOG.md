@@ -1,5 +1,21 @@
 # @pnpm/registry-access.commands
 
+## 1100.2.0
+
+### Minor Changes
+
+- 75942bf: Implemented native `star`, `unstar`, `stars`, and `whoami` commands.
+
+### Patch Changes
+
+- Updated dependencies [cee550a]
+- Updated dependencies [4ab3d9b]
+- Updated dependencies [9af708a]
+- Updated dependencies [ea2a7fb]
+- Updated dependencies [ff7733c]
+  - @pnpm/cli.utils@1101.0.0
+  - @pnpm/config.reader@1101.0.0
+
 ## 1100.1.0
 
 ### Minor Changes

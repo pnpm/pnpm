@@ -283,6 +283,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     case '@pnpm/store.commands':
     case '@pnpm/deps.compliance.commands':
     case CLI_PKG_NAME:
+    case 'pnpm-agent':
     case '@pnpm/installing.deps-installer': {
       preset = '@pnpm/jest-config/with-registry'
       scripts = {

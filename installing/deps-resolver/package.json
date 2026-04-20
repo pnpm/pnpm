@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.deps-resolver",
-  "version": "1100.0.1",
+  "version": "1100.0.2",
   "description": "Resolves dependency graph of a package",
   "keywords": [
     "pnpm",
@@ -58,7 +58,6 @@
     "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/workspace.spec-parser": "workspace:*",
     "@yarnpkg/core": "catalog:",
-    "filenamify": "catalog:",
     "graph-cycles": "catalog:",
     "is-inner-link": "catalog:",
     "is-subdir": "catalog:",

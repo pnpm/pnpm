@@ -1,5 +1,22 @@
 # @pnpm/core
 
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [ff7733c]
+  - @pnpm/pkg-manifest.utils@1100.1.0
+  - @pnpm/building.after-install@1100.0.2
+  - @pnpm/building.during-install@1100.0.2
+  - @pnpm/bins.linker@1100.0.2
+  - @pnpm/installing.deps-resolver@1100.0.2
+  - @pnpm/lockfile.preferred-versions@1100.0.2
+  - @pnpm/workspace.project-manifest-reader@1100.0.2
+  - @pnpm/installing.deps-restorer@1100.0.2
+  - @pnpm/exec.lifecycle@1100.0.2
+  - @pnpm/installing.linking.hoist@1100.0.2
+  - @pnpm/installing.package-requester@1100.0.1
+
 ## 1100.0.1
 
 ### Patch Changes

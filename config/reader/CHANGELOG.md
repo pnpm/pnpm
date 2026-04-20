@@ -1,5 +1,53 @@
 # @pnpm/config
 
+## 1101.0.0
+
+### Major Changes
+
+- cee550a: **Breaking:** removed the `managePackageManagerVersions`, `packageManagerStrict`, and `packageManagerStrictVersion` settings. They existed only to derive the `onFail` behavior for the legacy `packageManager` field, and the `pmOnFail` setting introduced alongside `pnpm with` subsumes all three — it directly sets the `onFail` behavior of both `packageManager` and `devEngines.packageManager`. The `COREPACK_ENABLE_STRICT` environment variable is no longer honored (it only gated `packageManagerStrict`); use `pmOnFail` instead.
+
+  Migration:
+
+  | Removed setting                       | Replace with                   |
+  | ------------------------------------- | ------------------------------ |
+  | `managePackageManagerVersions: true`  | `pmOnFail: download` (default) |
+  | `managePackageManagerVersions: false` | `pmOnFail: ignore`             |
+  | `packageManagerStrict: false`         | `pmOnFail: warn`               |
+  | `packageManagerStrictVersion: true`   | `pmOnFail: error`              |
+  | `COREPACK_ENABLE_STRICT=0`            | `pmOnFail: warn`               |
+
+- 4ab3d9b: `pnpm dlx` and `pnpm create` now respect security and trust policy settings (`minimumReleaseAge`, `minimumReleaseAgeExclude`, `minimumReleaseAgeStrict`, `trustPolicy`, `trustPolicyExclude`, `trustPolicyIgnoreAfter`) from project-level configuration [#11183](https://github.com/pnpm/pnpm/issues/11183).
+
+### Minor Changes
+
+- 9af708a: Add `pnpm with <version|current> <args...>` command. Runs pnpm at a specific version (or the currently active one) for a single invocation, bypassing the project's `packageManager` and `devEngines.packageManager` pins. Uses the same install mechanism as `pnpm self-update`, caching the downloaded pnpm in the global virtual store for reuse.
+
+  Examples:
+
+  ```
+  pnpm with current install           # ignore the pinned version, use the running pnpm
+  pnpm with 11.0.0-rc.1 install       # install using pnpm 11.0.0-rc.1
+  pnpm with next install              # install using the "next" dist-tag
+  ```
+
+  Also adds a new `pmOnFail` setting that overrides the `onFail` behavior of `packageManager` and `devEngines.packageManager`. Accepted values: `download`, `error`, `warn`, `ignore`. Can be set via CLI flag, env var, `pnpm-workspace.yaml`, or `.npmrc` — useful when version management is handled by an external tool (asdf, mise, Volta, etc.) and the project wants pnpm itself to skip the check.
+
+  ```
+  pnpm install --pm-on-fail=ignore            # direct CLI flag
+  pnpm_config_pm_on_fail=ignore pnpm install  # env var
+  # or in pnpm-workspace.yaml:
+  #   pmOnFail: ignore
+  ```
+
+- ea2a7fb: When pnpm is declared via the `packageManager` field in `package.json`, its resolution info is no longer written to `pnpm-lock.yaml` — unless the pinned pnpm version is v12 or newer. The `packageManagerDependencies` section is still populated (and reused across runs) when pnpm is declared via `devEngines.packageManager`. This makes the transition from pnpm v10 to v11 quieter by avoiding unnecessary lockfile churn for projects that pin an older pnpm in the legacy `packageManager` field.
+- ff7733c: Added a new setting `runtimeOnFail` that overrides the `onFail` field of `devEngines.runtime` (and `engines.runtime`) in the root project's `package.json`. Accepted values: `ignore`, `warn`, `error`, `download`. For example, setting `runtimeOnFail=download` makes pnpm download the declared runtime version even when the manifest does not set `onFail: "download"`.
+
+### Patch Changes
+
+- Updated dependencies [ff7733c]
+  - @pnpm/pkg-manifest.utils@1100.1.0
+  - @pnpm/workspace.project-manifest-reader@1100.0.2
+
 ## 1100.0.1
 
 ### Patch Changes

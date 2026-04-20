@@ -458,7 +458,7 @@ test('fetch a big repository', async () => {
 
   process.chdir(temporaryDirectory())
 
-  const resolution = { tarball: 'https://codeload.github.com/sveltejs/action-deploy-docs/tar.gz/a65fbf5a90f53c9d72fed4daaca59da50f074355' }
+  const resolution = { tarball: 'https://codeload.github.com/pnpm-e2e/drupal-js-build/tar.gz/f766801580f10543c24ba8bfa59046a776848097' }
 
   const result = await fetch.gitHostedTarball(cafs, resolution, {
     filesIndexFile,

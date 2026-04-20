@@ -27,9 +27,9 @@ test('install should not fail if the used pnpm version does not satisfy the pnpm
     packageManager: 'pnpm@0.0.0',
   })
 
-  expect(execPnpmSync(['install', '--config.manage-package-manager-versions=false']).status).toBe(0)
+  expect(execPnpmSync(['install', '--pm-on-fail=ignore']).status).toBe(0)
 
-  const { status, stderr } = execPnpmSync(['install', '--config.manage-package-manager-versions=false', '--config.package-manager-strict-version=true'])
+  const { status, stderr } = execPnpmSync(['install', '--pm-on-fail=error'])
 
   expect(status).toBe(1)
   expect(stderr.toString()).toContain('This project is configured to use 0.0.0 of pnpm. Your current pnpm is')
@@ -43,12 +43,12 @@ test('install should fail if the project requires a different package manager', 
     packageManager: 'yarn@4.0.0',
   })
 
-  const { status, stderr } = execPnpmSync(['install', '--config.manage-package-manager-versions=true'])
+  const { status, stderr } = execPnpmSync(['install'])
 
   expect(status).toBe(1)
   expect(stderr.toString()).toContain('This project is configured to use yarn')
 
-  expect(execPnpmSync(['install', '--config.package-manager-strict=false']).status).toBe(0)
+  expect(execPnpmSync(['install', '--pm-on-fail=warn']).status).toBe(0)
 })
 
 test('install should not fail for packageManager field with hash', async () => {
@@ -245,6 +245,57 @@ test('devEngines.packageManager takes precedence over packageManager field', asy
   expect(status).toBe(1)
   expect(stderr.toString()).toContain('This project is configured to use 0.0.1 of pnpm')
   expect(stderr.toString()).toContain('"packageManager" will be ignored')
+})
+
+test('no warning when packageManager and devEngines.packageManager specify the same exact version', async () => {
+  prepare({
+    packageManager: 'pnpm@1.2.3',
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '1.2.3',
+        onFail: 'ignore',
+      },
+    },
+  })
+
+  const { stderr } = execPnpmSync(['install'])
+
+  expect(stderr.toString()).not.toContain('Cannot use both')
+})
+
+test('warns when packageManager specifies a different package manager from devEngines.packageManager', async () => {
+  prepare({
+    packageManager: 'yarn@1.2.3',
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '1.2.3',
+        onFail: 'ignore',
+      },
+    },
+  })
+
+  const { stderr } = execPnpmSync(['install'])
+
+  expect(stderr.toString()).toContain('Cannot use both "packageManager" and "devEngines.packageManager"')
+})
+
+test('warns when packageManager version does not match the devEngines.packageManager version string exactly', async () => {
+  prepare({
+    packageManager: 'pnpm@1.2.3',
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '>=1.0.0',
+        onFail: 'ignore',
+      },
+    },
+  })
+
+  const { stderr } = execPnpmSync(['install'])
+
+  expect(stderr.toString()).toContain('Cannot use both "packageManager" and "devEngines.packageManager"')
 })
 
 test('pmOnFail=ignore via env var bypasses the devEngines.packageManager check', async () => {

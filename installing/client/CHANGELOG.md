@@ -1,5 +1,14 @@
 # @pnpm/client
 
+## 1100.0.2
+
+### Patch Changes
+
+- @pnpm/resolving.default-resolver@1100.0.2
+- @pnpm/fetching.directory-fetcher@1100.0.2
+- @pnpm/fetching.git-fetcher@1100.0.2
+- @pnpm/fetching.tarball-fetcher@1100.0.2
+
 ## 1100.0.1
 
 ### Patch Changes

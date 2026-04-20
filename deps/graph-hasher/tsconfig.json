@@ -25,6 +25,9 @@
       "path": "../../lockfile/utils"
     },
     {
+      "path": "../../resolving/resolver-base"
+    },
+    {
       "path": "../path"
     }
   ]

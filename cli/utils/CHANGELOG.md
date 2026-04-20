@@ -1,5 +1,27 @@
 # @pnpm/cli-utils
 
+## 1101.0.0
+
+### Major Changes
+
+- cee550a: **Breaking:** removed the `managePackageManagerVersions`, `packageManagerStrict`, and `packageManagerStrictVersion` settings. They existed only to derive the `onFail` behavior for the legacy `packageManager` field, and the `pmOnFail` setting introduced alongside `pnpm with` subsumes all three — it directly sets the `onFail` behavior of both `packageManager` and `devEngines.packageManager`. The `COREPACK_ENABLE_STRICT` environment variable is no longer honored (it only gated `packageManagerStrict`); use `pmOnFail` instead.
+
+  Migration:
+
+  | Removed setting                       | Replace with                   |
+  | ------------------------------------- | ------------------------------ |
+  | `managePackageManagerVersions: true`  | `pmOnFail: download` (default) |
+  | `managePackageManagerVersions: false` | `pmOnFail: ignore`             |
+  | `packageManagerStrict: false`         | `pmOnFail: warn`               |
+  | `packageManagerStrictVersion: true`   | `pmOnFail: error`              |
+  | `COREPACK_ENABLE_STRICT=0`            | `pmOnFail: warn`               |
+
+### Patch Changes
+
+- Updated dependencies [ff7733c]
+  - @pnpm/pkg-manifest.utils@1100.1.0
+  - @pnpm/workspace.project-manifest-reader@1100.0.2
+
 ## 1100.0.1
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/building.during-install",
-  "version": "1100.0.1",
+  "version": "1100.0.2",
   "description": "Build packages in node_modules",
   "keywords": [
     "pnpm",

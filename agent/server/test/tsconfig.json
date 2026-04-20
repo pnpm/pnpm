@@ -1,0 +1,18 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "../node_modules/.test.lib",
+    "rootDir": "..",
+    "isolatedModules": true
+  },
+  "include": [
+    "**/*.ts",
+    "../../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": ".."
+    }
+  ]
+}

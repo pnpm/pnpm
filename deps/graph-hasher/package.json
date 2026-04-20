@@ -36,7 +36,9 @@
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
-    "@pnpm/types": "workspace:*"
+    "@pnpm/resolving.resolver-base": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "detect-libc": "catalog:"
   },
   "devDependencies": {
     "@pnpm/deps.graph-hasher": "workspace:*"

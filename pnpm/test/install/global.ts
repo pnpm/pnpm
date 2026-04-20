@@ -93,7 +93,6 @@ test('global install warns when project has packageManager configured', async ()
     'add',
     '--global',
     'is-positive',
-    '--config.package-manager-strict=true',
   ], { env })
 
   expect(status).toBe(0)

@@ -1,5 +1,14 @@
 # @pnpm/workspace.injected-deps-syncer
 
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [cee550a]
+  - @pnpm/workspace.projects-reader@1101.0.0
+  - @pnpm/bins.linker@1100.0.2
+  - @pnpm/fetching.directory-fetcher@1100.0.2
+
 ## 1100.0.1
 
 ### Patch Changes

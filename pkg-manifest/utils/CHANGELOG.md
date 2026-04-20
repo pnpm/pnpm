@@ -1,5 +1,11 @@
 # @pnpm/manifest-utils
 
+## 1100.1.0
+
+### Minor Changes
+
+- ff7733c: Added a new setting `runtimeOnFail` that overrides the `onFail` field of `devEngines.runtime` (and `engines.runtime`) in the root project's `package.json`. Accepted values: `ignore`, `warn`, `error`, `download`. For example, setting `runtimeOnFail=download` makes pnpm download the declared runtime version even when the manifest does not set `onFail: "download"`.
+
 ## 1100.0.1
 
 ### Patch Changes

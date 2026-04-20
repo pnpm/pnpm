@@ -1,5 +1,21 @@
 # @pnpm/deps.inspection.commands
 
+## 1100.1.1
+
+### Patch Changes
+
+- Updated dependencies [cee550a]
+- Updated dependencies [4ab3d9b]
+- Updated dependencies [9af708a]
+- Updated dependencies [ea2a7fb]
+- Updated dependencies [ff7733c]
+  - @pnpm/cli.utils@1101.0.0
+  - @pnpm/config.reader@1101.0.0
+  - @pnpm/global.commands@1100.0.2
+  - @pnpm/deps.inspection.outdated@1100.0.2
+  - @pnpm/resolving.default-resolver@1100.0.2
+  - @pnpm/deps.inspection.list@1100.0.2
+
 ## 1100.1.0
 
 ### Minor Changes

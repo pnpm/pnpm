@@ -12,11 +12,23 @@ import { createStoreController } from '@pnpm/store.connection-manager'
 import spawn from 'cross-spawn'
 import semver from 'semver'
 
+import { shouldPersistLockfile } from './shouldPersistLockfile.js'
+
 export async function switchCliVersion (config: Config, context: ConfigContext): Promise<void> {
   const pm = context.wantedPackageManager
   if (pm == null || pm.name !== 'pnpm' || pm.version == null) return
 
-  let envLockfile = await readEnvLockfile(context.rootProjectManifestDir) ?? undefined
+  const persistLockfile = shouldPersistLockfile(pm)
+
+  // In non-persist mode the env lockfile is intentionally not read, so there
+  // is no cached resolution to compare against. Since the legacy
+  // `packageManager` field always carries an exact version, we can skip both
+  // resolution and store access when the running CLI already matches.
+  if (!persistLockfile && pm.version === packageManager.version) return
+
+  let envLockfile = persistLockfile
+    ? (await readEnvLockfile(context.rootProjectManifestDir) ?? undefined)
+    : undefined
   let storeToUse: Awaited<ReturnType<typeof createStoreController>> | undefined
 
   // Check if the env lockfile already has a resolved version that satisfies the wanted version/range.
@@ -30,6 +42,7 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
       rootDir: context.rootProjectManifestDir,
       storeController: storeToUse.ctrl,
       storeDir: storeToUse.dir,
+      save: persistLockfile,
     })
     pmVersion = envLockfile.importers['.'].packageManagerDependencies?.['pnpm']?.version
     if (!pmVersion) {
@@ -45,6 +58,7 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
       rootDir: context.rootProjectManifestDir,
       storeController: storeToUse.ctrl,
       storeDir: storeToUse.dir,
+      save: persistLockfile,
     })
   }
 

@@ -1,5 +1,12 @@
 # @pnpm/lockfile.preferred-versions
 
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [ff7733c]
+  - @pnpm/pkg-manifest.utils@1100.1.0
+
 ## 1100.0.1
 
 ### Patch Changes
