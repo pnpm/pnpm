@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@pnpm/config.package-is-installable": "workspace:*",
+    "@pnpm/deps.compliance.license-resolver": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/lockfile.detect-dep-types": "workspace:*",
@@ -41,7 +42,6 @@
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/lockfile.walker": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
-    "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/store.pkg-finder": "workspace:*",
     "@pnpm/types": "workspace:*",

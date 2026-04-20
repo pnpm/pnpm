@@ -2,7 +2,7 @@ import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { resolveLicense } from '@pnpm/pkg-manifest.utils'
+import { resolveLicense } from '@pnpm/deps.compliance.license-resolver'
 
 async function tempDir (): Promise<string> {
   return mkdtemp(path.join(tmpdir(), 'pnpm-resolve-license-'))

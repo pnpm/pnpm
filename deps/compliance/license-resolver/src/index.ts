@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 
-import { type ManifestWithLicense, parseLicenseFromManifest } from './parseLicenseFromManifest.js'
+import { type ManifestWithLicense, parseLicenseFromManifest } from '@pnpm/pkg-manifest.utils'
 
 /** Filenames commonly used to ship a package's license text. Checked in order. */
 export const LICENSE_FILES = [

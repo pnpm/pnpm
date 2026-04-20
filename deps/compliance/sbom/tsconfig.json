@@ -31,13 +31,13 @@
       "path": "../../../pkg-manifest/reader"
     },
     {
-      "path": "../../../pkg-manifest/utils"
-    },
-    {
       "path": "../../../store/index"
     },
     {
       "path": "../../../store/pkg-finder"
+    },
+    {
+      "path": "../license-resolver"
     }
   ]
 }

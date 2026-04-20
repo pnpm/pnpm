@@ -43,9 +43,6 @@
       "path": "../../../pkg-manifest/reader"
     },
     {
-      "path": "../../../pkg-manifest/utils"
-    },
-    {
       "path": "../../../store/index"
     },
     {
@@ -53,6 +50,9 @@
     },
     {
       "path": "../../path"
+    },
+    {
+      "path": "../license-resolver"
     }
   ]
 }

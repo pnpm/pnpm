@@ -35,12 +35,12 @@
   },
   "dependencies": {
     "@cyclonedx/cyclonedx-library": "catalog:",
+    "@pnpm/deps.compliance.license-resolver": "workspace:*",
     "@pnpm/lockfile.detect-dep-types": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/lockfile.walker": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
-    "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/store.pkg-finder": "workspace:*",
     "@pnpm/types": "workspace:*",
