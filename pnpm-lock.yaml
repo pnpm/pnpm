@@ -2365,6 +2365,7 @@ snapshots:
 				"@pnpm/config.writer": "workspace:*",
 				"@pnpm/constants": "workspace:*",
 				"@pnpm/deps.compliance.audit": "workspace:*",
+				"@pnpm/deps.compliance.license-checker": "workspace:*",
 				"@pnpm/deps.compliance.license-resolver": "workspace:*",
 				"@pnpm/deps.compliance.license-scanner": "workspace:*",
 				"@pnpm/deps.compliance.sbom": "workspace:*",
@@ -2412,6 +2413,26 @@ snapshots:
 				"load-json-file": "catalog:",
 				"read-yaml-file": "catalog:",
 				"tempy": "catalog:",
+			},
+		},
+
+		"pnpm11/deps/compliance/license-checker": {
+			"name": "@pnpm/deps.compliance.license-checker",
+			"dependencies": {
+				"@pnpm/deps.compliance.license-scanner": "workspace:*",
+				"@pnpm/error": "workspace:*",
+				"@pnpm/lockfile.fs": "workspace:*",
+				"@pnpm/store.path": "workspace:*",
+				"@pnpm/types": "workspace:*",
+				"spdx-expression-parse": "catalog:",
+			},
+			"devDependencies": {
+				"@jest/globals": "catalog:",
+				"@pnpm/deps.compliance.license-checker": {
+					"specifier": "workspace:*",
+					"version": "link:",
+				},
+				"@pnpm/logger": "workspace:*",
 			},
 		},
 
@@ -3743,6 +3764,7 @@ snapshots:
 				"@pnpm/config.writer": "workspace:*",
 				"@pnpm/constants": "workspace:*",
 				"@pnpm/core-loggers": "workspace:*",
+				"@pnpm/deps.compliance.license-checker": "workspace:*",
 				"@pnpm/deps.github-actions": "workspace:*",
 				"@pnpm/deps.inspection.outdated": "workspace:*",
 				"@pnpm/deps.path": "workspace:*",
