@@ -2241,8 +2241,7 @@ async function installFromPnpmRegistry (
       skipped: new Set<DepPath>(),
       wantedLockfile: lockfile,
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { ignoredBuilds, stats } = await headlessInstall(headlessOpts as any)
+    const { ignoredBuilds, stats } = await headlessInstall(headlessOpts as unknown as Parameters<typeof headlessInstall>[0])
 
     return {
       updatedCatalogs: undefined,
