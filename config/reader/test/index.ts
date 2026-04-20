@@ -429,7 +429,7 @@ test('when using --global, linkWorkspacePackages, sharedWorkspaceLockfile and lo
     })
     expect(config.linkWorkspacePackages).toBeFalsy()
     expect(config.sharedWorkspaceLockfile).toBeFalsy()
-    // FIXME: it supposed to return null but is undefined
+    // FIXME: it is supposed to return null but is undefined
     expect(config.lockfileDir).toBeUndefined()
   }
 })
@@ -454,7 +454,7 @@ test('registries of scoped packages are read and normalized', async () => {
   })
 })
 
-test('registries in current directory\'s .npmrc have bigger priority then global config settings', async () => {
+test('registries in current directory\'s .npmrc have bigger priority than global config settings', async () => {
   prepare()
 
   fs.writeFileSync('.npmrc', 'registry=https://pnpm.io/', 'utf8')
