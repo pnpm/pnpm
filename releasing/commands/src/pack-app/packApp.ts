@@ -19,8 +19,11 @@ import { renderHelp } from 'render-help'
 /** Minimum Node.js version that supports `node --build-sea`. */
 const MIN_BUILDER_VERSION = { major: 25, minor: 5 } as const
 
-/** Node.js major to download for building SEAs when the running Node is too old. */
-const DEFAULT_BUILDER_SPEC = String(MIN_BUILDER_VERSION.major)
+// Range to download when the running Node is too old. Constrained to the
+// current major so we don't silently jump majors across releases, and pinned
+// above MIN_BUILDER_VERSION.minor so older point releases (e.g. 25.0.x) that
+// don't support `--build-sea` aren't picked.
+const DEFAULT_BUILDER_SPEC = `>=${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor}.0 <${MIN_BUILDER_VERSION.major + 1}.0.0`
 
 /**
  * Maps target-OS strings accepted on the command line to Node.js's `process.platform`
@@ -63,8 +66,9 @@ export function help (): string {
       'Pack a CommonJS entry file into a standalone executable for one or more target platforms.\n\n' +
       'The executable embeds a Node.js binary via the Node.js Single Executable Applications API.\n' +
       `Requires Node.js v${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor}+ to perform ` +
-      'the injection. The running Node.js is used when it is new enough; otherwise, a ' +
-      `Node.js v${DEFAULT_BUILDER_SPEC} binary is downloaded automatically.`,
+      'the injection. The running Node.js is used when it is new enough; otherwise, the ' +
+      `latest Node.js v${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor}+ in the ` +
+      `v${MIN_BUILDER_VERSION.major}.x line is downloaded automatically.`,
     url: docsUrl('pack-app'),
     usages: [
       'pnpm pack-app --entry dist/index.cjs --target linux-x64 --target win-x64',
@@ -143,8 +147,15 @@ export async function handler (opts: PackAppOptions, params: string[]): Promise<
       '"pnpm pack-app" requires a CJS entry file (pass --entry <path>)')
   }
   const resolvedEntry = path.resolve(opts.dir, entryPath)
-  if (!fs.existsSync(resolvedEntry)) {
+  let entryStat: fs.Stats
+  try {
+    entryStat = fs.statSync(resolvedEntry)
+  } catch {
     throw new PnpmError('PACK_APP_ENTRY_NOT_FOUND', `Entry file not found: ${resolvedEntry}`)
+  }
+  if (!entryStat.isFile()) {
+    throw new PnpmError('PACK_APP_ENTRY_NOT_FILE',
+      `Entry path must be a regular file: ${resolvedEntry}`)
   }
 
   const rawTargets = opts.target == null
@@ -374,10 +385,10 @@ async function readPackageName (dir: string): Promise<string> {
 
 /**
  * SEA injection invalidates the existing code signature on macOS binaries, so
- * the output must be re-signed. For native macOS builds we use `codesign` (ships
- * with Xcode command line tools). When cross-compiling on Linux we use `ldid`
- * when it is available; otherwise the binary is left unsigned and users will
- * need to sign it themselves before distribution.
+ * the output must be re-signed. Native macOS hosts use `codesign`; Linux hosts
+ * cross-signing a darwin target use `ldid`. Windows hosts have no readily
+ * available ad-hoc signer, so we refuse to produce an unsigned output silently
+ * and tell the user to re-sign on macOS or Linux.
  */
 async function adHocSignMacBinary (target: ParsedTarget, outputFile: string): Promise<void> {
   if (target.platform !== 'darwin') return
@@ -394,5 +405,10 @@ async function adHocSignMacBinary (target: ParsedTarget, outputFile: string): Pr
         { hint: 'Install ldid (https://github.com/ProcursusTeam/ldid) or re-sign the binary on macOS with "codesign --sign - <file>".' }
       )
     }
+    return
   }
+  throw new PnpmError('PACK_APP_MACOS_SIGN_UNSUPPORTED_HOST',
+    `Cannot ad-hoc sign the macOS binary at ${outputFile} on a ${process.platform} host.`,
+    { hint: 'Build macOS targets on a macOS or Linux host, or re-sign the produced binary yourself with "codesign --sign -" on macOS.' }
+  )
 }

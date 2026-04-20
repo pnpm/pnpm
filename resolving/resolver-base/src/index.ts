@@ -84,8 +84,10 @@ export interface PlatformSelector {
 
 /**
  * Resolve a {@link PlatformSelector} from the user's supportedArchitectures config
- * and the host's own platform/arch/libc. When `supportedArchitectures.xxx` holds
- * a single non-`current` value, that value wins; otherwise the host's value is used.
+ * and the host's own platform/arch/libc. When `supportedArchitectures.xxx` is set
+ * and its first entry is not `"current"`, that entry wins; otherwise the host's
+ * value is used. Additional entries beyond the first are ignored — variant
+ * selection picks exactly one (os, cpu, libc) triplet per install.
  */
 export function resolvePlatformSelector (
   supportedArchitectures: SupportedArchitectures | undefined,

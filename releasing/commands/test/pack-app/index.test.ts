@@ -66,6 +66,14 @@ describe('pack-app command', () => {
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_ENTRY_NOT_FOUND' })
   })
 
+  it('fails fast when the entry path is a directory', async () => {
+    fs.mkdirSync(path.join(tempDir, 'entry-dir'))
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      handler({ ...baseOpts(), entry: 'entry-dir' } as any, [])
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_ENTRY_NOT_FILE' })
+  })
+
   it('fails fast when no --target is provided', async () => {
     fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
     await expect(
