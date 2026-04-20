@@ -30,6 +30,7 @@ import type {
   HoistedDependencies,
   ProjectId,
   Registries,
+  SupportedArchitectures,
 } from '@pnpm/types'
 import { symlinkAllModules } from '@pnpm/worker'
 import pLimit from 'p-limit'
@@ -74,6 +75,7 @@ export interface LinkPackagesOptions {
   wantedToBeSkippedPackageIds: Set<string>
   hoistWorkspacePackages?: boolean
   virtualStoreOnly: boolean
+  supportedArchitectures?: SupportedArchitectures
 }
 
 export interface LinkPackagesResult {
@@ -160,6 +162,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
       symlink: opts.symlink,
       skipped: opts.skipped,
       storeController: opts.storeController,
+      supportedArchitectures: opts.supportedArchitectures,
       virtualStoreDir: opts.virtualStoreDir,
     }
   )
@@ -331,6 +334,7 @@ interface LinkNewPackagesOptions {
   symlink: boolean
   skipped: Set<DepPath>
   storeController: StoreController
+  supportedArchitectures?: SupportedArchitectures
   virtualStoreDir: string
 }
 
@@ -408,6 +412,7 @@ async function linkNewPackages (
       ignoreScripts: opts.ignoreScripts,
       lockfileDir: opts.lockfileDir,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
+      supportedArchitectures: opts.supportedArchitectures,
     }),
   ])
 
@@ -463,6 +468,7 @@ async function linkAllPkgs (
     ignoreScripts: boolean
     lockfileDir: string
     sideEffectsCacheRead: boolean
+    supportedArchitectures?: SupportedArchitectures
   }
 ): Promise<void> {
   await Promise.all(
@@ -476,6 +482,7 @@ async function linkAllPkgs (
           sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
             includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
             patchFileHash: depNode.patch?.hash,
+            supportedArchitectures: opts.supportedArchitectures,
           })
         }
       }

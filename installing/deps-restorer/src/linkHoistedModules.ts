@@ -16,7 +16,7 @@ import type {
   PackageFilesResponse,
   StoreController,
 } from '@pnpm/store.controller-types'
-import type { AllowBuild } from '@pnpm/types'
+import type { AllowBuild, SupportedArchitectures } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
 import pLimit from 'p-limit'
 import { difference, isEmpty } from 'ramda'
@@ -37,6 +37,7 @@ export async function linkHoistedModules (
     lockfileDir: string
     preferSymlinkedExecutables?: boolean
     sideEffectsCacheRead: boolean
+    supportedArchitectures?: SupportedArchitectures
   }
 ): Promise<void> {
   // TODO: remove nested node modules first
@@ -97,10 +98,10 @@ async function linkAllPkgsInOrder (
     lockfileDir: string
     preferSymlinkedExecutables?: boolean
     sideEffectsCacheRead: boolean
+    supportedArchitectures?: SupportedArchitectures
     warn: (message: string) => void
   }
 ): Promise<void> {
-  const _calcDepState = calcDepState.bind(null, graph, opts.depsStateCache)
   await Promise.all(
     Object.entries(hierarchy).map(async ([dir, deps]) => {
       const depNode = graph[dir]
@@ -117,9 +118,10 @@ async function linkAllPkgsInOrder (
         let sideEffectsCacheKey: string | undefined
         if (opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
           if (opts.allowBuild?.(depNode.name, depNode.version) === true) {
-            sideEffectsCacheKey = _calcDepState(dir, {
+            sideEffectsCacheKey = calcDepState(graph, opts.depsStateCache, dir, {
               includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
               patchFileHash: depNode.patch?.hash,
+              supportedArchitectures: opts.supportedArchitectures,
             })
           }
         }

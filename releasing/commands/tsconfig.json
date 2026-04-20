@@ -61,7 +61,13 @@
       "path": "../../engine/runtime/commands"
     },
     {
+      "path": "../../engine/runtime/node-resolver"
+    },
+    {
       "path": "../../exec/lifecycle"
+    },
+    {
+      "path": "../../exec/pnpm-cli-runner"
     },
     {
       "path": "../../fetching/directory-fetcher"

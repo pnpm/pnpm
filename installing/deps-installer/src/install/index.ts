@@ -1427,6 +1427,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         wantedToBeSkippedPackageIds,
         hoistWorkspacePackages: opts.hoistWorkspacePackages,
         virtualStoreOnly: opts.virtualStoreOnly,
+        supportedArchitectures: opts.supportedArchitectures,
       }
     )
     stats = result.stats
