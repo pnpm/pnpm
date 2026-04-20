@@ -25,19 +25,13 @@ const MIN_BUILDER_VERSION = { major: 25, minor: 5 } as const
 // don't support `--build-sea` aren't picked.
 const DEFAULT_BUILDER_SPEC = `>=${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor}.0 <${MIN_BUILDER_VERSION.major + 1}.0.0`
 
-/**
- * Maps target-OS strings accepted on the command line to Node.js's `process.platform`
- * values. We use friendlier names in the CLI ("macos", "win") than the Node.js
- * constants ("darwin", "win32").
- */
-const TARGET_OS_MAP: Record<string, string> = {
-  linux: 'linux',
-  macos: 'darwin',
-  win: 'win32',
-}
+// Target OS names match `process.platform`. That keeps the CLI surface
+// consistent with pnpm's own `--os` flag (which also takes platform constants)
+// and with `supportedArchitectures.os` in pnpm-workspace.yaml.
+const SUPPORTED_OS = ['linux', 'darwin', 'win32'] as const
 
 const SUPPORTED_TARGETS =
-  'linux-x64, linux-x64-musl, linux-arm64, linux-arm64-musl, macos-x64, macos-arm64, win-x64, win-arm64'
+  'linux-x64, linux-x64-musl, linux-arm64, linux-arm64-musl, darwin-x64, darwin-arm64, win32-x64, win32-arm64'
 
 export const commandNames = ['pack-app']
 
@@ -71,7 +65,7 @@ export function help (): string {
       `v${MIN_BUILDER_VERSION.major}.x line is downloaded automatically.`,
     url: docsUrl('pack-app'),
     usages: [
-      'pnpm pack-app --entry dist/index.cjs --target linux-x64 --target win-x64',
+      'pnpm pack-app --entry dist/index.cjs --target linux-x64 --target win32-x64',
       'pnpm pack-app --entry dist/index.cjs --target linux-x64-musl --node-version 22',
     ],
     descriptionLists: [
@@ -335,16 +329,15 @@ async function resolveVersion (
 // segment so that inputs like `linux-x64-musl-../../outside` are rejected
 // outright — otherwise `target.raw` would later flow into path.join for the
 // output directory and could escape it.
-const TARGET_PATTERN = /^(linux|macos|win)-(x64|arm64)(?:-(musl))?$/
+const TARGET_PATTERN = /^(linux|darwin|win32)-(x64|arm64)(?:-(musl))?$/
 
 function parseTarget (raw: string): ParsedTarget {
   const match = TARGET_PATTERN.exec(raw)
   if (!match) {
     throw new PnpmError('PACK_APP_INVALID_TARGET',
-      `Invalid target: "${raw}". Expected format: <os>-<arch>[-<libc>] where <os> is linux|macos|win, <arch> is x64|arm64, optional <libc> is musl (linux only).`)
+      `Invalid target: "${raw}". Expected format: <os>-<arch>[-<libc>] where <os> is ${SUPPORTED_OS.join('|')}, <arch> is x64|arm64, optional <libc> is musl (linux only).`)
   }
-  const [, osName, arch, libc] = match
-  const platform = TARGET_OS_MAP[osName]
+  const [, platform, arch, libc] = match
   if (libc === 'musl' && platform !== 'linux') {
     throw new PnpmError('PACK_APP_INVALID_TARGET',
       `The "musl" libc suffix is only valid for linux targets (got "${raw}").`)

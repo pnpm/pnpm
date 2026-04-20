@@ -40,7 +40,7 @@ describe('pack-app command', () => {
     expect(text).toContain('--entry')
     expect(text).toContain('--target')
     expect(text).toContain('linux-x64')
-    expect(text).toContain('win-arm64')
+    expect(text).toContain('win32-arm64')
     expect(text).toContain('linux-x64-musl')
   })
 
@@ -86,7 +86,9 @@ describe('pack-app command', () => {
     ['unknown OS', 'freebsd-x64'],
     ['unknown arch', 'linux-mips'],
     ['unknown libc', 'linux-x64-gnu'],
-    ['musl on non-linux', 'macos-arm64-musl'],
+    ['musl on non-linux', 'darwin-arm64-musl'],
+    ['legacy macos alias', 'macos-arm64'],
+    ['legacy win alias', 'win-x64'],
     ['incomplete', 'linux'],
     ['extra segment', 'linux-x64-musl-extra'],
     ['path traversal injected after musl', 'linux-x64-musl-../../pwn'],
