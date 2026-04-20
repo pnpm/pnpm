@@ -2974,6 +2974,9 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../../core/logger
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../../store/cafs
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.31.1

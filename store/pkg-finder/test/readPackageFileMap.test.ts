@@ -12,8 +12,8 @@ function createFilesIndex (): PackageFilesIndex {
   return {
     algo: 'sha256',
     files: new Map([
-      ['package.json', { digest: 'abc123', mode: 0o644 }],
-      ['index.js', { digest: 'def456', mode: 0o644 }],
+      ['package.json', { digest: 'abc123', mode: 0o644, size: 0 }],
+      ['index.js', { digest: 'def456', mode: 0o644, size: 0 }],
     ]),
   }
 }
@@ -94,7 +94,7 @@ describe('readPackageFileMap', () => {
     const filesIndex: PackageFilesIndex = {
       algo: 'sha256',
       files: new Map([
-        ['package.json', { digest, mode: 0o644 }],
+        ['package.json', { digest, mode: 0o644, size: 0 }],
       ]),
     }
     storeIndex.set(gitHostedStoreIndexKey(pkgId, { built: true }), filesIndex)

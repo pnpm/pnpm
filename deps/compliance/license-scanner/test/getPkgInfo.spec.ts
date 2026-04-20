@@ -101,7 +101,7 @@ describe('getPkgInfo', () => {
     const filesIndex: PackageFilesIndex = {
       algo: 'sha256',
       files: new Map([
-        ['package.json', { digest, mode: 0o644 }],
+        ['package.json', { digest, mode: 0o644, size: 0 }],
       ]),
     }
     storeIndex.set(storeIndexKey(integrity, pkgId), filesIndex)
@@ -140,7 +140,7 @@ describe('getPkgInfo', () => {
     const filesIndex: PackageFilesIndex = {
       algo: 'sha256',
       files: new Map([
-        ['package.json', { digest, mode: 0o644 }],
+        ['package.json', { digest, mode: 0o644, size: 0 }],
       ]),
     }
     storeIndex.set(gitHostedStoreIndexKey(depPath, { built: true }), filesIndex)

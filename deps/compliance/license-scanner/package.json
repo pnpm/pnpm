@@ -58,6 +58,7 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/deps.compliance.license-scanner": "workspace:*",
     "@pnpm/logger": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:"
   },
