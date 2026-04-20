@@ -91,13 +91,13 @@ describe('getPkgInfo', () => {
       version: '4.18.2',
       license: 'MIT',
       description: 'Fast web framework',
-      author: { name: 'TJ Holowaychuk' },
+      author: { name: 'Test Author' },
       homepage: 'https://expressjs.com/',
       repository: { url: 'https://github.com/expressjs/express' },
     }))
 
     const pkgId = 'express@4.18.2'
-    const integrity = 'sha512-registrytest001'
+    const integrity = 'sha512-testintegrity001'
     const filesIndex: PackageFilesIndex = {
       algo: 'sha256',
       files: new Map([
@@ -121,7 +121,7 @@ describe('getPkgInfo', () => {
     )
 
     expect(result.license).toBe('MIT')
-    expect(result.author).toBe('TJ Holowaychuk')
+    expect(result.author).toBe('Test Author')
     expect(result.description).toBe('Fast web framework')
   })
 
