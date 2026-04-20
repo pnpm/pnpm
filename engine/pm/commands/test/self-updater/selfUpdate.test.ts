@@ -23,7 +23,7 @@ jest.unstable_mockModule('@pnpm/cli.meta', () => {
     },
   }
 })
-const { selfUpdate, installPnpm, linkExePlatformBinary } = await import('@pnpm/engine.pm.commands')
+const { selfUpdate, installPnpm, linkExePlatformBinary, exePlatformPkgDirName } = await import('@pnpm/engine.pm.commands')
 
 beforeEach(async () => {
   await setupMockAgent()
@@ -598,5 +598,28 @@ describe('linkExePlatformBinary', () => {
     // Placeholder should remain unchanged
     const result = fs.readFileSync(path.join(exeDir, executable), 'utf8')
     expect(result).toBe(placeholder)
+  })
+})
+
+describe('exePlatformPkgDirName', () => {
+  test('appends -musl for linux + musl libc family', () => {
+    expect(exePlatformPkgDirName('linux', 'x64', 'musl')).toBe('exe.linux-x64-musl')
+    expect(exePlatformPkgDirName('linux', 'arm64', 'musl')).toBe('exe.linux-arm64-musl')
+  })
+
+  test('does not append -musl when libc is glibc or unknown', () => {
+    expect(exePlatformPkgDirName('linux', 'x64', 'glibc')).toBe('exe.linux-x64')
+    expect(exePlatformPkgDirName('linux', 'arm64', null)).toBe('exe.linux-arm64')
+  })
+
+  test('libc is irrelevant on non-linux platforms', () => {
+    expect(exePlatformPkgDirName('darwin', 'arm64', 'musl')).toBe('exe.darwin-arm64')
+    expect(exePlatformPkgDirName('darwin', 'x64', null)).toBe('exe.darwin-x64')
+    expect(exePlatformPkgDirName('win32', 'x64', 'musl')).toBe('exe.win32-x64')
+  })
+
+  test('normalizes ia32 to x86 on win32 only', () => {
+    expect(exePlatformPkgDirName('win32', 'ia32', null)).toBe('exe.win32-x86')
+    expect(exePlatformPkgDirName('linux', 'ia32', null)).toBe('exe.linux-ia32')
   })
 })

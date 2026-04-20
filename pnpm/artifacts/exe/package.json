@@ -17,6 +17,7 @@
   "type": "module",
   "files": [
     "setup.js",
+    "platform-pkg-name.js",
     "prepare.js",
     "dist/",
     "pn.cmd",

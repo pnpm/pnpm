@@ -320,6 +320,22 @@ async function installFromResolution (
   }, params)
 }
 
+/**
+ * Computes the scope-local directory name of the `@pnpm/exe` platform
+ * package for a given host: `exe.<platform>-<arch>[-musl]`. Pure so that the
+ * musl branch is unit-testable without mocking detect-libc or patching
+ * process.platform.
+ */
+export function exePlatformPkgDirName (
+  platform: NodeJS.Platform,
+  arch: string,
+  libcFamily: string | null
+): string {
+  const normalizedArch = platform === 'win32' && arch === 'ia32' ? 'x86' : arch
+  const libcSuffix = platform === 'linux' && libcFamily === 'musl' ? '-musl' : ''
+  return `exe.${platform}-${normalizedArch}${libcSuffix}`
+}
+
 // @pnpm/exe bundles Node.js via optional platform-specific packages
 // (e.g. @pnpm/exe.darwin-arm64, @pnpm/exe.linux-x64-musl).
 // Its postinstall script links the correct binary into the @pnpm/exe package dir.
@@ -327,15 +343,14 @@ async function installFromResolution (
 // we replicate that linking here.
 export function linkExePlatformBinary (installDir: string): void {
   const platform = process.platform
-  const arch = platform === 'win32' && process.arch === 'ia32' ? 'x86' : process.arch
-  const libcSuffix = platform === 'linux' && familySync() === 'musl' ? '-musl' : ''
+  const pkgDirName = exePlatformPkgDirName(platform, process.arch, familySync())
   const exePkgDir = path.join(installDir, 'node_modules', '@pnpm', 'exe')
   if (!fs.existsSync(exePkgDir)) return
   // In pnpm's symlinked node_modules layout, the platform package is not hoisted
   // to the top-level node_modules. It's a dependency of @pnpm/exe and lives as a
   // sibling in the virtual store. Resolve through the @pnpm/exe symlink to find it.
   const exeRealDir = fs.realpathSync(exePkgDir)
-  const platformPkgDir = path.join(path.dirname(exeRealDir), `exe.${platform}-${arch}${libcSuffix}`)
+  const platformPkgDir = path.join(path.dirname(exeRealDir), pkgDirName)
   const executable = platform === 'win32' ? 'pnpm.exe' : 'pnpm'
   const src = path.join(platformPkgDir, executable)
   if (!fs.existsSync(src)) return

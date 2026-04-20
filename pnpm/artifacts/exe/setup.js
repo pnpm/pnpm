@@ -2,15 +2,15 @@ import { fileURLToPath } from 'url'
 import path from 'path'
 import fs from 'fs'
 import { familySync } from 'detect-libc'
+import { exePlatformPkgName } from './platform-pkg-name.js'
 
 // Platform names match process.platform (linux | darwin | win32). On linux,
 // add a `-musl` libc suffix when detect-libc reports musl, matching the
-// @pnpm/exe.linux-<arch>-musl optional-dep naming.
+// @pnpm/exe.linux-<arch>-musl optional-dep naming. The name computation lives
+// in platform-pkg-name.js so it can be unit-tested without triggering the
+// side effects of this preinstall script.
 const platform = process.platform
-const arch = platform === 'win32' && process.arch === 'ia32' ? 'x86' : process.arch
-const libcSuffix = platform === 'linux' && familySync() === 'musl' ? '-musl' : ''
-
-const pkgName = `@pnpm/exe.${platform}-${arch}${libcSuffix}`
+const pkgName = exePlatformPkgName(platform, process.arch, familySync())
 const pkgJson = fileURLToPath(import.meta.resolve(`${pkgName}/package.json`))
 const executable = platform === 'win32' ? 'pnpm.exe' : 'pnpm'
 const platformDir = path.dirname(pkgJson)
