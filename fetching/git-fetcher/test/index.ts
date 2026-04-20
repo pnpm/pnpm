@@ -171,8 +171,8 @@ test('fetch a big repository', async () => {
   const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git
   const { filesMap } = await fetch(createCafsStore(storeDir),
     {
-      commit: 'a65fbf5a90f53c9d72fed4daaca59da50f074355',
-      repo: 'https://github.com/sveltejs/action-deploy-docs.git',
+      commit: 'f766801580f10543c24ba8bfa59046a776848097',
+      repo: 'https://github.com/pnpm-e2e/drupal-js-build.git',
       type: 'git',
     }, {
       filesIndexFile: path.join(storeDir, 'index.json'),
