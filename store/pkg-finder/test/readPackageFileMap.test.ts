@@ -5,7 +5,6 @@ import path from 'node:path'
 import type { GitResolution, Resolution, TarballResolution } from '@pnpm/resolving.resolver-base'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { gitHostedStoreIndexKey, StoreIndex, storeIndexKey } from '@pnpm/store.index'
-
 import { readPackageFileMap } from '@pnpm/store.pkg-finder'
 
 function createFilesIndex (): PackageFilesIndex {
