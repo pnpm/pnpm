@@ -31,9 +31,6 @@
     "compile": "tsgo --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
-  "dependencies": {
-    "@pnpm/pkg-manifest.utils": "workspace:*"
-  },
   "devDependencies": {
     "@pnpm/deps.compliance.license-resolver": "workspace:*"
   },

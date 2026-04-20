@@ -1,4 +1,4 @@
-import { resolveLicense } from '@pnpm/deps.compliance.license-resolver'
+import { isSpdxLicenseExpression, resolveLicense } from '@pnpm/deps.compliance.license-resolver'
 import { type PackageSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 import { readPackageJson } from '@pnpm/pkg-manifest.reader'
 import type { StoreIndex } from '@pnpm/store.index'
@@ -59,14 +59,23 @@ async function getPkgMetadataUnclamped (
 async function extractMetadata (manifest: PackageManifest, files: Map<string, string>): Promise<PkgMetadata> {
   const license = await resolveLicense({ manifest, files })
   return {
-    // Drop 'Unknown' so SBOM serializers emit SPDX NOASSERTION / CycloneDX absence
-    // rather than a literal "Unknown" component.
-    license: license && license.name !== 'Unknown' ? license.name : undefined,
+    license: serializableLicense(license),
     description: manifest.description,
     author: parseAuthorField(manifest.author),
     homepage: manifest.homepage,
     repository: parseRepositoryField(manifest.repository),
   }
+}
+
+// Drop:
+//   - missing / "Unknown" — so serializers emit NOASSERTION / absence.
+//   - LICENSE-file-detected values that aren't SPDX-valid (e.g. "Eclipse Public
+//     License 1.0") — would produce non-compliant SPDX output. Manifest-declared
+//     licenses are trusted as-is; authors use SPDX expressions there.
+function serializableLicense (license: { name: string, licenseFile?: string } | undefined): string | undefined {
+  if (!license || license.name === 'Unknown') return undefined
+  if (license.licenseFile && !isSpdxLicenseExpression(license.name)) return undefined
+  return license.name
 }
 
 function parseAuthorField (field: unknown): string | undefined {

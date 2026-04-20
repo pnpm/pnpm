@@ -65,10 +65,10 @@
       "path": "../../../pkg-manifest/reader"
     },
     {
-      "path": "../../../pkg-manifest/utils"
+      "path": "../../../store/path"
     },
     {
-      "path": "../../../store/path"
+      "path": "../license-resolver"
     },
     {
       "path": "../../../testing/command-defaults"

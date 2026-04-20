@@ -2789,6 +2789,9 @@ importers:
       '@pnpm/deps.compliance.audit':
         specifier: workspace:*
         version: link:../audit
+      '@pnpm/deps.compliance.license-resolver':
+        specifier: workspace:*
+        version: link:../license-resolver
       '@pnpm/deps.compliance.license-scanner':
         specifier: workspace:*
         version: link:../license-scanner
@@ -2816,9 +2819,6 @@ importers:
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../../network/auth-header
-      '@pnpm/pkg-manifest.utils':
-        specifier: workspace:*
-        version: link:../../../pkg-manifest/utils
       '@pnpm/store.path':
         specifier: workspace:*
         version: link:../../../store/path
@@ -2894,10 +2894,6 @@ importers:
         version: 3.0.0
 
   deps/compliance/license-resolver:
-    dependencies:
-      '@pnpm/pkg-manifest.utils':
-        specifier: workspace:*
-        version: link:../../../pkg-manifest/utils
     devDependencies:
       '@pnpm/deps.compliance.license-resolver':
         specifier: workspace:*

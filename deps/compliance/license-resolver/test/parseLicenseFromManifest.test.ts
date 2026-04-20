@@ -1,4 +1,4 @@
-import { parseLicenseFromManifest } from '@pnpm/pkg-manifest.utils'
+import { parseLicenseFromManifest } from '@pnpm/deps.compliance.license-resolver'
 
 describe('parseLicenseFromManifest', () => {
   test('reads a plain SPDX string from the modern `license` field', () => {
