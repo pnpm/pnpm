@@ -53,9 +53,9 @@ export async function readPackageFileMap (
       packageResolution.integrity as string,
       parsedId.nonSemverVersion ?? `${parsedId.name}@${parsedId.version}`
     )
-  } else if (packageResolution.type === 'git') {
-    pkgIndexFilePath = gitHostedStoreIndexKey(packageId, { built: true })
   } else if (!packageResolution.type && 'tarball' in packageResolution && packageResolution.tarball) {
+    pkgIndexFilePath = gitHostedStoreIndexKey(packageId, { built: true })
+  } else if (packageResolution.type === 'git') {
     pkgIndexFilePath = gitHostedStoreIndexKey(packageId, { built: true })
   } else {
     return undefined
