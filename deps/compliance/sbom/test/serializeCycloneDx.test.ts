@@ -178,6 +178,33 @@ describe('serializeCycloneDx', () => {
     expect(distRef.hashes[0].content).toBeDefined()
   })
 
+  it('should include distribution ref with git URL for git dependencies', () => {
+    const result = makeSbomResult()
+    result.components[0].tarballUrl = 'git+https://github.com/lodash/lodash.git#abc123'
+    result.components[0].integrity = undefined
+    const parsed = JSON.parse(serializeCycloneDx(result))
+
+    const lodash = parsed.components[0]
+    const distRef = lodash.externalReferences.find(
+      (r: { type: string }) => r.type === 'distribution'
+    )
+    expect(distRef).toBeDefined()
+    expect(distRef.url).toBe('git+https://github.com/lodash/lodash.git#abc123')
+    expect(distRef.hashes).toBeUndefined()
+  })
+
+  it('should omit distribution ref when tarballUrl is absent', () => {
+    const result = makeSbomResult()
+    result.components[0].tarballUrl = undefined
+    const parsed = JSON.parse(serializeCycloneDx(result))
+
+    const lodash = parsed.components[0]
+    const distRef = lodash.externalReferences?.find(
+      (r: { type: string }) => r.type === 'distribution'
+    )
+    expect(distRef).toBeUndefined()
+  })
+
   it('should use license.id for known SPDX identifiers', () => {
     const result = makeSbomResult()
     const parsed = JSON.parse(serializeCycloneDx(result))
