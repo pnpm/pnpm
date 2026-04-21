@@ -17,13 +17,12 @@ const buildFullMatrix = process.platform === 'linux' || isM1Mac
 
 const narrowTargets = ['win32-x64', 'linux-x64', 'darwin-x64']
 
-// nodeVersion is passed on the CLI rather than from pnpm.app because pnpm's
-// global `node-version` rc setting (which controls which Node runs user
-// scripts) leaks into Config['nodeVersion'] and overrides pnpm.app.nodeVersion.
-// The CLI value always wins, so we pin the embedded Node explicitly here.
-const EMBEDDED_NODE_VERSION = '25.6.1'
+// Could equivalently live under `pnpm.app.runtime` in package.json; keeping
+// it here colocates the pinned runtime with the other host-conditional build
+// logic (target narrowing) rather than splitting it across two files.
+const EMBEDDED_RUNTIME = 'node@25.6.1'
 
-const packAppArgs = ['pack-app', '--node-version', EMBEDDED_NODE_VERSION]
+const packAppArgs = ['pack-app', '--runtime', EMBEDDED_RUNTIME]
 if (!buildFullMatrix) {
   for (const target of narrowTargets) {
     packAppArgs.push('--target', target)
