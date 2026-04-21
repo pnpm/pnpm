@@ -21,6 +21,12 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
+// Resolves via the pnpm CLI's own node_modules (which always contains
+// symlink-dir — the CLI depends on it directly). symlink-dir handles Windows
+// junctions internally, so the verifier doesn't need its own elevation /
+// link-type branching.
+import { symlinkDirSync } from 'symlink-dir'
+
 const [targetOs, targetArch, targetLibc] = process.argv.slice(2)
 if (!targetOs || !targetArch) {
   console.error('Usage: verify-binary.mjs <os> <arch> [libc]')
@@ -58,10 +64,6 @@ if (!osMatches || !archMatches || !libcMatches) {
 
 const distLinkPath = path.resolve('dist')
 const distLinkTarget = path.join('..', 'exe', 'dist')
-// Windows refuses 'dir' symlinks without elevated privileges or Developer
-// Mode; junctions are the elevation-free directory-link primitive and are
-// silently ignored on POSIX hosts that never see this branch.
-const symlinkType = process.platform === 'win32' ? 'junction' : 'dir'
 let distLinkCreated = false
 // Remove a prior symlink from an aborted run so cleanup ownership is always
 // well-defined. A real dist/ directory (unlikely in a platform package, but
@@ -110,12 +112,15 @@ if (!distPreexists) {
   }
 }
 
-try {
-  fs.symlinkSync(distLinkTarget, distLinkPath, symlinkType)
-  distLinkCreated = true
-} catch (err) {
-  if (err.code !== 'EEXIST') {
-    console.error(`Error: could not stage dist/ symlink: ${err.message}`)
+// Only stage the symlink when nothing's there already — symlink-dir will
+// atomically rename away any existing dir/file, which would silently drop a
+// developer's staged dist/ directory.
+if (!distPreexists) {
+  try {
+    symlinkDirSync(distLinkTarget, distLinkPath)
+    distLinkCreated = true
+  } catch (err) {
+    console.error(`Error: could not stage dist/ symlink: ${String(err)}`)
     process.exit(1)
   }
 }
