@@ -66,14 +66,22 @@ export interface CafsFunctions {
 export function createCafs (storeDir: string, { ignoreFile, cafsLocker }: CreateCafsOpts = {}): CafsFunctions {
   const _writeBufferToCafs = writeBufferToCafs.bind(null, cafsLocker ?? new Map(), storeDir)
   const addBuffer = addBufferToCafs.bind(null, _writeBufferToCafs)
-  const cafsIgnore = ignoreFile ?? null
   return {
     addFilesFromDir: addFilesFromDir.bind(null, addBuffer),
     addFilesFromTarball: (tarballBuffer, readManifest, callIgnore) =>
-      addFilesFromTarball(addBuffer, cafsIgnore, tarballBuffer, readManifest, callIgnore),
+      addFilesFromTarball(addBuffer, tarballBuffer, readManifest, combineIgnore(ignoreFile, callIgnore)),
     addFile: addBuffer,
     getFilePathByModeInCafs: getFilePathByModeInCafs.bind(null, storeDir),
   }
+}
+
+function combineIgnore (
+  a?: (filename: string) => boolean,
+  b?: (filename: string) => boolean
+): ((filename: string) => boolean) | undefined {
+  if (!a) return b
+  if (!b) return a
+  return (filename) => a(filename) || b(filename)
 }
 
 type WriteBufferToCafs = (buffer: Buffer, fileDest: string, mode: number | undefined, integrity: Integrity) => { checkedAt: number, filePath: string }
