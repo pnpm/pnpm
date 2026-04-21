@@ -202,8 +202,15 @@ async function extractZipToTarget (
   // entries in this loop.
   const testEntry = toStatelessTester(ignoreEntry)
 
-  // Extract each entry with path validation to prevent path traversal attacks
+  // Extract each entry with path validation to prevent path traversal attacks.
+  // Directory entries are skipped: AdmZip's `extractEntryTo(dir, ...)` expands
+  // to every descendant via `getEntryChildren`, which would bypass the
+  // `ignoreEntry` filter (e.g. the archive's top-level
+  // `node-vX.Y.Z-<platform>-<arch>/` entry would pull in npm/corepack files
+  // even though the per-file relative paths match the ignore regex).
+  // File extraction creates parent directories implicitly.
   for (const entry of zip.getEntries()) {
+    if (entry.isDirectory) continue
     const entryPath = entry.entryName
     validatePathSecurity(nodeDir, entryPath)
     if (testEntry) {
