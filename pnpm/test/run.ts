@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import isWindows from 'is-windows'
 import { writeYamlFileSync } from 'write-yaml-file'
@@ -8,7 +9,6 @@ import { writeYamlFileSync } from 'write-yaml-file'
 import { execPnpm, execPnpmSync } from './utils/index.js'
 
 const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
-import { expect, test } from '@jest/globals'
 const testOnPosix = isWindows() ? test.skip : test
 
 test('run -r: pass the args to the command that is specified in the build script', async () => {

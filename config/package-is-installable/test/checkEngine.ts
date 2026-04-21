@@ -1,7 +1,8 @@
+import { expect, test } from '@jest/globals'
+
 import { checkEngine } from '../lib/checkEngine.js'
 
 const packageId = 'registry.npmjs.org/foo/1.0.0'
-import { expect, test } from '@jest/globals'
 
 test('no engine defined', () => {
   expect(checkEngine(packageId, {}, { pnpm: '1.1.2', node: '0.2.1' })).toBeNull()

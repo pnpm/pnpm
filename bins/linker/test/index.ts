@@ -466,19 +466,18 @@ test('linkBins() would throw error if package has no name field', async () => {
   const binTarget = temporaryDirectory()
   const noNameFixture = f.prepare('no-name')
   const warn = jest.fn()
+  const packagePath = normalizePath(path.join(noNameFixture, 'node_modules/simple'))
 
-  try {
-    await linkBins(path.join(noNameFixture, 'node_modules'), binTarget, {
+  await expect(
+    linkBins(path.join(noNameFixture, 'node_modules'), binTarget, {
       allowExoticManifests: true,
       warn,
     })
-    throw new Error('linkBins should fail when package has no name')
-  } catch (err: any) { // eslint-disable-line
-    const packagePath = normalizePath(path.join(noNameFixture, 'node_modules/simple'))
-    expect(err.message).toBe(`Package in ${packagePath} must have a name to get bin linked.`)
-    expect(err.code).toBe('ERR_PNPM_INVALID_PACKAGE_NAME')
-    expect(warn).not.toHaveBeenCalled()
-  }
+  ).rejects.toMatchObject({
+    message: `Package in ${packagePath} must have a name to get bin linked.`,
+    code: 'ERR_PNPM_INVALID_PACKAGE_NAME',
+  })
+  expect(warn).not.toHaveBeenCalled()
 })
 
 test('linkBins() would give warning if package has no bin field', async () => {

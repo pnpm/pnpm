@@ -40,15 +40,12 @@ test('readWantedLockfile()', async () => {
     })
   }
 
-  try {
-    await readWantedLockfile(path.join('fixtures', '3'), {
+  await expect(
+    readWantedLockfile(path.join('fixtures', '3'), {
       ignoreIncompatible: false,
       wantedVersions: ['3'],
     })
-    throw new Error('should have thrown')
-  } catch (err: any) { // eslint-disable-line
-    expect(err.code).toBe('ERR_PNPM_LOCKFILE_BREAKING_CHANGE')
-  }
+  ).rejects.toMatchObject({ code: 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE' })
 })
 
 test('readWantedLockfile() when lockfileVersion is a string', async () => {

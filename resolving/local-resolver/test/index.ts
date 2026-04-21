@@ -166,14 +166,10 @@ test('resolve file with different integrity (forceFetch)', async () => {
 })
 
 test('fail when resolving tarball specified with the link: protocol', async () => {
-  try {
-    const wantedDependency = { bareSpecifier: 'link:./pnpm-local-resolver-0.1.1.tgz' }
-    await resolveFromLocal({}, wantedDependency, { projectDir: TEST_DIR })
-    throw new Error('should have thrown')
-  } catch (err: any) { // eslint-disable-line
-    expect(err).toBeDefined()
-    expect(err.code).toBe('ERR_PNPM_NOT_PACKAGE_DIRECTORY')
-  }
+  const wantedDependency = { bareSpecifier: 'link:./pnpm-local-resolver-0.1.1.tgz' }
+  await expect(
+    resolveFromLocal({}, wantedDependency, { projectDir: TEST_DIR })
+  ).rejects.toMatchObject({ code: 'ERR_PNPM_NOT_PACKAGE_DIRECTORY' })
 })
 
 test('fail when resolving from not existing directory an injected dependency', async () => {
@@ -200,13 +196,11 @@ test('do not fail when resolving from not existing directory', async () => {
 })
 
 test('throw error when the path: protocol is used', async () => {
-  try {
-    await resolveFromLocal({}, { bareSpecifier: 'path:..' }, { projectDir: import.meta.dirname })
-    throw new Error('should have thrown')
-  } catch (err: any) { // eslint-disable-line
-    expect(err).toBeDefined()
-    expect(err.code).toBe('ERR_PNPM_PATH_IS_UNSUPPORTED_PROTOCOL')
-    expect(err.bareSpecifier).toBe('path:..')
-    expect(err.protocol).toBe('path:')
-  }
+  await expect(
+    resolveFromLocal({}, { bareSpecifier: 'path:..' }, { projectDir: import.meta.dirname })
+  ).rejects.toMatchObject({
+    code: 'ERR_PNPM_PATH_IS_UNSUPPORTED_PROTOCOL',
+    bareSpecifier: 'path:..',
+    protocol: 'path:',
+  })
 })
