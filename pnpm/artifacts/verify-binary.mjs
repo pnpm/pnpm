@@ -68,6 +68,44 @@ try {
 } catch (err) {
   if (err.code !== 'ENOENT') throw err
 }
+const distPreexists = fs.existsSync(distLinkPath)
+
+process.on('exit', () => {
+  if (!distLinkCreated) return
+  try { fs.unlinkSync(distLinkPath) } catch { /* nothing to clean up */ }
+})
+
+// Relocation check: before staging dist/, confirm the binary reads its bundle
+// path from process.execPath at runtime and not from a build-time constant.
+// A pnpm.cjs shim that accidentally captured __filename or a cwd-relative
+// path during packaging would keep working on the build machine but break on
+// every end-user machine. Asserting the error references the *runtime* cwd
+// catches that regression here instead of after publish.
+//
+// Skipped when a real dist/ is already present (developer layout); in that
+// case we can't distinguish a correctly-resolved dist from a hardcoded one.
+if (!distPreexists) {
+  const expectedRuntimeDist = path.join(fs.realpathSync(process.cwd()), 'dist', 'pnpm.mjs')
+  let sansDistStdout
+  try {
+    sansDistStdout = execFileSync(`./${binName}`, ['-v'], {
+      encoding: 'utf8',
+      timeout: 30_000,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+  } catch (err) {
+    const stderr = String(err.stderr ?? '')
+    if (!stderr.includes(expectedRuntimeDist)) {
+      console.error(`Error: ${binName} -v failed without dist/ as expected, but the error does not reference the runtime path ${expectedRuntimeDist}. pnpm.cjs may have regressed to a non-relocatable form. stderr:\n${stderr}`)
+      process.exit(1)
+    }
+  }
+  if (sansDistStdout !== undefined) {
+    console.error(`Error: ${binName} -v unexpectedly succeeded without dist/ alongside the binary. Output: ${JSON.stringify(sansDistStdout.trim())}. pnpm.cjs is loading a bundle from somewhere other than dirname(process.execPath); the published binary would ignore the dist shipped in @pnpm/exe.`)
+    process.exit(1)
+  }
+}
+
 try {
   fs.symlinkSync(distLinkTarget, distLinkPath, 'dir')
   distLinkCreated = true
@@ -77,11 +115,6 @@ try {
     process.exit(1)
   }
 }
-
-process.on('exit', () => {
-  if (!distLinkCreated) return
-  try { fs.unlinkSync(distLinkPath) } catch { /* nothing to clean up */ }
-})
 
 let stdout
 try {
