@@ -1,4 +1,5 @@
 import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
+import { type NamedRegistrySpec, parseNamedRegistrySpecifier } from '@pnpm/resolving.named-registry-specifier-parser'
 import parseNpmTarballUrl from 'parse-npm-tarball-url'
 import getVersionSelectorType from 'version-selector-type'
 
@@ -71,5 +72,29 @@ export function parseJsrSpecifierToRegistryPackageSpec (
     name: spec.npmPkgName,
     type: selector.type,
     jsrPkgName: spec.jsrPkgName,
+  }
+}
+
+export interface NamedRegistryPackageSpec extends RegistryPackageSpec {
+  registryAlias: string
+}
+
+export function parseNamedRegistrySpecifierToRegistryPackageSpec (
+  rawSpecifier: string,
+  knownAliases: ReadonlySet<string>,
+  alias: string | undefined,
+  defaultTag: string
+): NamedRegistryPackageSpec | null {
+  const spec: NamedRegistrySpec | null = parseNamedRegistrySpecifier(rawSpecifier, knownAliases, alias)
+  if (!spec?.pkgName) return null
+
+  const selector = getVersionSelectorType(spec.versionSelector ?? defaultTag)
+  if (selector == null) return null
+
+  return {
+    fetchSpec: selector.normalized,
+    name: spec.pkgName,
+    type: selector.type,
+    registryAlias: spec.registryAlias,
   }
 }

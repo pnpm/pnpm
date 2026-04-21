@@ -67,6 +67,9 @@
       "path": "../jsr-specifier-parser"
     },
     {
+      "path": "../named-registry-specifier-parser"
+    },
+    {
       "path": "../registry/pkg-metadata-filter"
     },
     {

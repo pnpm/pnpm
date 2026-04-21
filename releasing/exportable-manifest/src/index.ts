@@ -198,13 +198,9 @@ async function replaceJsrProtocol (depName: string, depSpec: string): Promise<st
   if (spec == null) {
     return depSpec
   }
-  return createNpmAliasedSpecifier(spec.npmPkgName, spec.versionSelector)
-}
-
-function createNpmAliasedSpecifier (npmPkgName: string, versionSelector?: string): string {
-  const npmPkgSpecifier = `npm:${npmPkgName}`
-  if (!versionSelector) {
+  const npmPkgSpecifier = `npm:${spec.npmPkgName}`
+  if (!spec.versionSelector) {
     return npmPkgSpecifier
   }
-  return `${npmPkgSpecifier}@${versionSelector}`
+  return `${npmPkgSpecifier}@${spec.versionSelector}`
 }

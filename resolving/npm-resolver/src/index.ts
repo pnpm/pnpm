@@ -7,6 +7,7 @@ import type {
   GetAuthHeader,
   RetryTimeoutOptions,
 } from '@pnpm/fetching.types'
+import { BUILTIN_NAMED_REGISTRIES, isReservedRegistryAlias } from '@pnpm/resolving.named-registry-specifier-parser'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type {
   DirectoryResolution,
@@ -43,8 +44,10 @@ import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOption
 import { normalizeRegistryUrl } from './normalizeRegistryUrl.js'
 import {
   type JsrRegistryPackageSpec,
+  type NamedRegistryPackageSpec,
   parseBareSpecifier,
   parseJsrSpecifierToRegistryPackageSpec,
+  parseNamedRegistrySpecifierToRegistryPackageSpec,
   type RegistryPackageSpec,
 } from './parseBareSpecifier.js'
 import {
@@ -133,6 +136,12 @@ export interface ResolverFactoryOptions {
   retry?: RetryTimeoutOptions
   timeout?: number
   registries: Registries
+  /**
+   * User-defined named-registry aliases, mapped to a registry URL. Enables
+   * vlt-style `<alias>:<pkg>` specifiers for arbitrary registries. Merged
+   * on top of built-in defaults (e.g. `gh`); keys in this map take precedence.
+   */
+  namedRegistries?: Record<string, string>
   saveWorkspaceProtocol?: boolean | 'rolling'
   preserveAbsolutePaths?: boolean
   strictPublishedByCheck?: boolean
@@ -158,6 +167,15 @@ export interface JsrResolveResult extends ResolveResult {
   resolvedVia: 'jsr-registry'
 }
 
+export interface NamedRegistryResolveResult extends ResolveResult {
+  alias: string
+  /** The named-registry alias that was matched, e.g. `gh` or a user-defined name. */
+  registryAlias: string
+  manifest: DependencyManifest
+  resolution: TarballResolution
+  resolvedVia: 'named-registry'
+}
+
 export interface WorkspaceResolveResult extends ResolveResult {
   manifest: DependencyManifest
   resolution: DirectoryResolution
@@ -167,13 +185,13 @@ export interface WorkspaceResolveResult extends ResolveResult {
 export type NpmResolver = (
   wantedDependency: WantedDependency & { optional?: boolean },
   opts: ResolveFromNpmOptions
-) => Promise<NpmResolveResult | JsrResolveResult | WorkspaceResolveResult | null>
+) => Promise<NpmResolveResult | JsrResolveResult | NamedRegistryResolveResult | WorkspaceResolveResult | null>
 
 export function createNpmResolver (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
   opts: ResolverFactoryOptions
-): { resolveFromNpm: NpmResolver, resolveFromJsr: NpmResolver, clearCache: () => void } {
+): { resolveFromNpm: NpmResolver, resolveFromJsr: NpmResolver, resolveFromNamedRegistry: NpmResolver, clearCache: () => void } {
   if (typeof opts.cacheDir !== 'string') {
     throw new TypeError('`opts.cacheDir` is required and needs to be a string')
   }
@@ -218,6 +236,8 @@ export function createNpmResolver (
       return request
     }
   }
+  const namedRegistries = mergeNamedRegistries(opts.namedRegistries)
+  const namedRegistryAliases: ReadonlySet<string> = new Set(Object.keys(namedRegistries))
   const ctx: ResolveFromNpmContext = {
     getAuthHeaderValueByURI: getAuthHeader,
     pickPackage: pickPackage.bind(null, {
@@ -232,12 +252,15 @@ export function createNpmResolver (
       ignoreMissingTimeField: opts.ignoreMissingTimeField,
     }),
     registries: opts.registries,
+    namedRegistries,
+    namedRegistryAliases,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
     peekManifestFromStore,
   }
   return {
     resolveFromNpm: resolveNpm.bind(null, ctx),
     resolveFromJsr: resolveJsr.bind(null, ctx),
+    resolveFromNamedRegistry: resolveFromNamedRegistry.bind(null, ctx),
     clearCache: () => {
       if ('clear' in metaCache && typeof metaCache.clear === 'function') {
         metaCache.clear()
@@ -251,6 +274,8 @@ export interface ResolveFromNpmContext {
   pickPackage: (spec: RegistryPackageSpec, opts: PickPackageOptions) => ReturnType<typeof pickPackage>
   getAuthHeaderValueByURI: (registry: string) => string | undefined
   registries: Registries
+  namedRegistries: Record<string, string>
+  namedRegistryAliases: ReadonlySet<string>
   saveWorkspaceProtocol?: boolean | 'rolling'
   peekManifestFromStore?: (opts: {
     id: PkgResolutionId
@@ -553,6 +578,131 @@ function calcJsrSpecifier ({
   const range = calcRange(version, wantedDependency, defaultPinnedVersion)
   if (!wantedDependency.alias || spec.jsrPkgName === wantedDependency.alias) return `jsr:${range}`
   return `jsr:${spec.jsrPkgName}@${range}`
+}
+
+// Merges user-supplied named-registry aliases (from config) on top of pnpm's
+// built-in defaults (e.g. `gh` → GitHub Packages). User entries take precedence
+// so GHES users can point `gh` at their enterprise host. Reserved aliases that
+// collide with other specifier protocols (`npm`, `jsr`, `github`, `workspace`, …)
+// are rejected with a clear error instead of silently shadowing the protocol.
+// URLs are validated here so typos like `npm.work.example.com` (no scheme)
+// surface at startup rather than as a confusing 404 during resolution.
+function mergeNamedRegistries (userDefined?: Record<string, string>): Record<string, string> {
+  const merged: Record<string, string> = { ...BUILTIN_NAMED_REGISTRIES }
+  if (!userDefined) return merged
+  for (const [alias, url] of Object.entries(userDefined)) {
+    if (isReservedRegistryAlias(alias)) {
+      throw new PnpmError(
+        'RESERVED_NAMED_REGISTRY_ALIAS',
+        `The named registry alias '${alias}' is reserved by pnpm and cannot be redefined.`,
+        { hint: 'Pick a different alias (for example, prepend your organization name).' }
+      )
+    }
+    if (typeof url !== 'string' || !isValidHttpUrl(url)) {
+      throw new PnpmError(
+        'INVALID_NAMED_REGISTRY_URL',
+        `The named registry alias '${alias}' is mapped to '${String(url)}', which is not a valid http(s) URL.`,
+        { hint: 'Provide a URL that starts with http:// or https://, e.g. https://npm.pkg.example.com/' }
+      )
+    }
+    merged[alias] = url
+  }
+  return merged
+}
+
+function isValidHttpUrl (url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+// Resolves a `<alias>:` specifier from one of the configured named registries.
+// The `gh:` alias ships as a built-in default pointing at the GitHub Packages
+// npm registry; additional aliases come from pnpm-workspace.yaml's
+// `namedRegistries` field. Auth tokens are looked up by the resolved registry
+// URL, so a `//npm.pkg.github.com/:_authToken=...` entry in `.npmrc` is
+// picked up automatically for `gh:` specifiers (and analogously for any user-
+// configured alias).
+async function resolveFromNamedRegistry (
+  ctx: ResolveFromNpmContext,
+  wantedDependency: WantedDependency & { optional?: boolean },
+  opts: Omit<ResolveFromNpmOptions, 'registry'>
+): Promise<NamedRegistryResolveResult | null> {
+  if (!wantedDependency.bareSpecifier) return null
+  const defaultTag = opts.defaultTag ?? 'latest'
+
+  const spec = parseNamedRegistrySpecifierToRegistryPackageSpec(
+    wantedDependency.bareSpecifier,
+    ctx.namedRegistryAliases,
+    wantedDependency.alias,
+    defaultTag
+  )
+  if (spec == null) return null
+
+  const registry = ctx.namedRegistries[spec.registryAlias]
+  if (!registry) return null // defensive: should never trigger because parse checks the alias set
+
+  const authHeaderValue = ctx.getAuthHeaderValueByURI(registry)
+  const { meta, pickedPackage } = await ctx.pickPackage(spec, {
+    pickLowestVersion: opts.pickLowestVersion,
+    publishedBy: opts.publishedBy,
+    publishedByExclude: opts.publishedByExclude,
+    authHeaderValue,
+    dryRun: opts.dryRun === true,
+    preferredVersionSelectors: opts.preferredVersions?.[spec.name],
+    registry,
+    includeLatestTag: opts.update === 'latest',
+    optional: wantedDependency.optional,
+  })
+
+  if (pickedPackage == null) {
+    throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
+  }
+
+  const id = `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId
+  const resolution = {
+    integrity: getIntegrity(pickedPackage.dist),
+    tarball: normalizeRegistryUrl(pickedPackage.dist.tarball),
+  }
+  return {
+    id,
+    latest: meta['dist-tags'].latest,
+    manifest: pickedPackage,
+    normalizedBareSpecifier: opts.calcSpecifier
+      ? calcNamedRegistrySpecifier({
+        wantedDependency,
+        spec,
+        version: pickedPackage.version,
+        defaultPinnedVersion: opts.pinnedVersion,
+      })
+      : undefined,
+    resolution,
+    resolvedVia: 'named-registry',
+    registryAlias: spec.registryAlias,
+    publishedAt: meta.time?.[pickedPackage.version],
+    // Exposes the scoped package name so callers that omit an explicit alias
+    // (e.g. `pnpm add gh:@acme/foo`) record the dependency under `@acme/foo`.
+    alias: spec.name,
+  }
+}
+
+function calcNamedRegistrySpecifier ({
+  wantedDependency,
+  spec,
+  version,
+  defaultPinnedVersion,
+}: {
+  wantedDependency: WantedDependency
+  spec: NamedRegistryPackageSpec
+  version: string
+  defaultPinnedVersion?: PinnedVersion
+}): string {
+  const range = calcRange(version, wantedDependency, defaultPinnedVersion)
+  if (!wantedDependency.alias || spec.name === wantedDependency.alias) return `${spec.registryAlias}:${range}`
+  return `${spec.registryAlias}:${spec.name}@${range}`
 }
 
 function calcSpecifier ({
