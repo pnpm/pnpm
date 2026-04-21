@@ -197,22 +197,52 @@ async function extractZipToTarget (
   }
 
   const basenamePrefix = basename === '' ? '' : `${basename}/`
+  // Normalize `ignoreEntry` to a stateless regex. `.test()` on a `/g` or `/y` regex
+  // advances `lastIndex` between calls, which would cause inconsistent skips across
+  // entries in this loop.
+  const testEntry = toStatelessTester(ignoreEntry)
 
   // Extract each entry with path validation to prevent path traversal attacks
   for (const entry of zip.getEntries()) {
     const entryPath = entry.entryName
     validatePathSecurity(nodeDir, entryPath)
-    if (ignoreEntry) {
+    if (testEntry) {
       const relative = basenamePrefix && entryPath.startsWith(basenamePrefix)
         ? entryPath.slice(basenamePrefix.length)
         : entryPath
-      if (ignoreEntry.test(relative)) continue
+      if (testEntry(relative)) continue
     }
     zip.extractEntryTo(entry, nodeDir, true, true)
   }
 
   const extractedDir = path.join(nodeDir, basename)
+  // If a filter skipped every file and the archive has no top-level directory entry,
+  // nothing was created under `extractedDir` and the rename below would fail with an
+  // opaque ENOENT. Surface a clearer error instead.
+  try {
+    await fsPromises.stat(extractedDir)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      throw new PnpmError(
+        'EMPTY_BINARY_ARCHIVE',
+        `No files were extracted from "${zipPath}" into "${extractedDir}" — every entry was skipped by the configured filter`
+      )
+    }
+    throw err
+  }
   await renameOverwrite(extractedDir, targetDir)
+}
+
+function toStatelessTester (regex: RegExp | undefined): ((input: string) => boolean) | undefined {
+  if (!regex) return undefined
+  // `/g` and `/y` make `RegExp.prototype.test` stateful via `lastIndex`.
+  // Strip those flags by cloning into a fresh RegExp with only the safe flags.
+  if (!regex.global && !regex.sticky) {
+    return (input) => regex.test(input)
+  }
+  const safeFlags = regex.flags.replace(/[gy]/g, '')
+  const clone = new RegExp(regex.source, safeFlags)
+  return (input) => clone.test(input)
 }
 
 /**

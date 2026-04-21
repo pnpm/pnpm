@@ -278,6 +278,62 @@ describe('extractZipToTarget security', () => {
       expect(fs.existsSync(path.join(targetDir, 'bin/node'))).toBe(true)
       expect(fs.existsSync(path.join(targetDir, 'bin/npm'))).toBe(false)
     })
+
+    it('strips /g /y flags from ignoreEntry so .test() is not stateful across entries', async () => {
+      const targetDir = temporaryDirectory()
+      const zip = new AdmZip()
+      zip.addFile('node-v20.0.0/node.exe', Buffer.from('binary'))
+      zip.addFile('node-v20.0.0/npm', Buffer.from('npm shim 1'))
+      zip.addFile('node-v20.0.0/npx', Buffer.from('npx shim 2'))
+      zip.addFile('node-v20.0.0/corepack', Buffer.from('corepack 3'))
+      const zipBuffer = zip.toBuffer()
+      const integrity = ssri.fromData(zipBuffer).toString()
+      const mockFetch = createMockFetch(zipBuffer)
+
+      await downloadAndUnpackZip(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        mockFetch as any,
+        {
+          url: 'https://example.com/node.zip',
+          integrity,
+          basename: 'node-v20.0.0',
+          // Deliberately pass a /g regex — a stateful .test() would skip only
+          // every other matching entry. All three shims must still be dropped.
+          ignoreEntry: /^(?:npm|npx|corepack)$/g,
+        },
+        targetDir
+      )
+
+      expect(fs.existsSync(path.join(targetDir, 'node.exe'))).toBe(true)
+      expect(fs.existsSync(path.join(targetDir, 'npm'))).toBe(false)
+      expect(fs.existsSync(path.join(targetDir, 'npx'))).toBe(false)
+      expect(fs.existsSync(path.join(targetDir, 'corepack'))).toBe(false)
+    })
+
+    it('throws a clear error if ignoreEntry filters out every file and no basename dir entry exists', async () => {
+      const targetDir = temporaryDirectory()
+      const zip = new AdmZip()
+      // No basename dir entry — only file entries, all of which the filter will skip.
+      zip.addFile('node-v20.0.0/npm', Buffer.from('npm'))
+      zip.addFile('node-v20.0.0/npx', Buffer.from('npx'))
+      const zipBuffer = zip.toBuffer()
+      const integrity = ssri.fromData(zipBuffer).toString()
+      const mockFetch = createMockFetch(zipBuffer)
+
+      await expect(
+        downloadAndUnpackZip(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          mockFetch as any,
+          {
+            url: 'https://example.com/node.zip',
+            integrity,
+            basename: 'node-v20.0.0',
+            ignoreEntry: /.*/,
+          },
+          targetDir
+        )
+      ).rejects.toMatchObject({ code: 'ERR_PNPM_EMPTY_BINARY_ARCHIVE' })
+    })
   })
 })
 
