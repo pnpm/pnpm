@@ -43,6 +43,7 @@
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/config.writer": "workspace:*",
     "@pnpm/constants": "workspace:*",
+    "@pnpm/deps.compliance.license-checker": "workspace:*",
     "@pnpm/deps.inspection.outdated": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/deps.status": "workspace:*",
