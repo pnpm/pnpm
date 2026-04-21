@@ -69,6 +69,24 @@ describe('readWantedPnpmMajor', () => {
     expect(readWantedPnpmMajor(nested)).toBe(11)
   })
 
+  test('walks up past a nested package.json without packageManager to an ancestor', () => {
+    writeManifest(tmpDir, { packageManager: 'pnpm@11.0.0' })
+    const nested = path.join(tmpDir, 'packages', 'foo')
+    fs.mkdirSync(nested, { recursive: true })
+    writeManifest(nested, { name: 'foo', version: '1.0.0' })
+
+    expect(readWantedPnpmMajor(nested)).toBe(11)
+  })
+
+  test('respects a nested package.json that declares a non-pnpm packageManager', () => {
+    writeManifest(tmpDir, { packageManager: 'pnpm@11.0.0' })
+    const nested = path.join(tmpDir, 'packages', 'foo')
+    fs.mkdirSync(nested, { recursive: true })
+    writeManifest(nested, { packageManager: 'yarn@4.0.0' })
+
+    expect(readWantedPnpmMajor(nested)).toBeNull()
+  })
+
   test('returns null for malformed JSON', () => {
     fs.writeFileSync(path.join(tmpDir, 'package.json'), '{not json')
 

@@ -1,5 +1,3 @@
-import { readWantedPnpmMajor } from './readWantedPnpmMajor.js'
-
 // Avoid "Possible EventEmitter memory leak detected" warnings
 // because it breaks pnpm's CLI output
 process.setMaxListeners(0)
@@ -49,7 +47,7 @@ const argv = process.argv.slice(2)
     // the legacy npm passthrough: those pnpm versions implement these
     // commands natively, and passing through first would bypass main()'s
     // switchCliVersion and hand control to npm instead of the wanted pnpm.
-    if (shouldSkipNpmPassthrough()) {
+    if (await shouldSkipNpmPassthrough()) {
       await runPnpm()
     } else {
       await passThruToNpm()
@@ -77,12 +75,15 @@ async function passThruToNpm (): Promise<void> {
   process.exit(status!)
 }
 
-function shouldSkipNpmPassthrough (): boolean {
+async function shouldSkipNpmPassthrough (): Promise<boolean> {
   // Corepack already resolved which pnpm to run; don't second-guess it.
   if (process.env.COREPACK_ROOT != null) return false
   // A parent pnpm already switched to us via switchCliVersion — skipping the
   // passthrough now would loop right back into switchCliVersion again.
   if (process.env.npm_config_manage_package_manager_versions === 'false') return false
+  // Lazy-loaded so the extra fs/path work only happens on the passthrough
+  // branch, preserving cold-start for everything else.
+  const { readWantedPnpmMajor } = await import('./readWantedPnpmMajor.js')
   const wantedMajor = readWantedPnpmMajor()
   return wantedMajor != null && wantedMajor >= 11
 }
