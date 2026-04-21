@@ -322,11 +322,37 @@ async function installFromResolution (
 
 /**
  * Computes the scope-local directory name of the `@pnpm/exe` platform
- * package for a given host: `exe.<platform>-<arch>[-musl]`. Pure so that the
- * musl branch is unit-testable without mocking detect-libc or patching
- * process.platform.
+ * package for a given host. Returns the legacy name currently published on npm
+ * (`macos-<arch>`, `win-<arch>`, `linux-<arch>`, `linuxstatic-<arch>`); callers
+ * should also consider the future `exe.<platform>-<arch>[-musl]` scheme, since
+ * a later release will switch to it. Pure so that the musl branch is
+ * unit-testable without mocking detect-libc or patching process.platform.
  */
 export function exePlatformPkgDirName (
+  platform: NodeJS.Platform,
+  arch: string,
+  libcFamily: string | null
+): string {
+  const normalizedArch = platform === 'win32' && arch === 'ia32' ? 'x86' : arch
+  return `${legacyOsSegment(platform, libcFamily)}-${normalizedArch}`
+}
+
+function legacyOsSegment (platform: NodeJS.Platform, libcFamily: string | null): string {
+  switch (platform) {
+    case 'darwin': return 'macos'
+    case 'win32': return 'win'
+    case 'linux': return libcFamily === 'musl' ? 'linuxstatic' : 'linux'
+    default: return platform
+  }
+}
+
+/**
+ * Future scope-local directory name of the `@pnpm/exe` platform package, under
+ * the `exe.<platform>-<arch>[-musl]` scheme that matches the workspace
+ * directory layout. `linkExePlatformBinary` checks this as a fallback so a
+ * future rename of the published packages works without touching this logic.
+ */
+export function exePlatformPkgDirNameNext (
   platform: NodeJS.Platform,
   arch: string,
   libcFamily: string | null
@@ -337,23 +363,36 @@ export function exePlatformPkgDirName (
 }
 
 // @pnpm/exe bundles Node.js via optional platform-specific packages
-// (e.g. @pnpm/exe.darwin-arm64, @pnpm/exe.linux-x64-musl).
-// Its postinstall script links the correct binary into the @pnpm/exe package dir.
-// Since scripts are disabled during install (to support systems without Node.js),
-// we replicate that linking here.
+// (e.g. @pnpm/macos-arm64, @pnpm/linuxstatic-x64; or, after a future rename,
+// @pnpm/exe.darwin-arm64, @pnpm/exe.linux-x64-musl). Its postinstall script
+// links the correct binary into the @pnpm/exe package dir. Since scripts are
+// disabled during install (to support systems without Node.js), we replicate
+// that linking here, checking both naming schemes so self-update works across
+// the rename.
 export function linkExePlatformBinary (installDir: string): void {
-  const platform = process.platform
-  const pkgDirName = exePlatformPkgDirName(platform, process.arch, familySync())
   const exePkgDir = path.join(installDir, 'node_modules', '@pnpm', 'exe')
   if (!fs.existsSync(exePkgDir)) return
   // In pnpm's symlinked node_modules layout, the platform package is not hoisted
   // to the top-level node_modules. It's a dependency of @pnpm/exe and lives as a
   // sibling in the virtual store. Resolve through the @pnpm/exe symlink to find it.
   const exeRealDir = fs.realpathSync(exePkgDir)
-  const platformPkgDir = path.join(path.dirname(exeRealDir), pkgDirName)
+  const platform = process.platform
+  const arch = process.arch
+  const libcFamily = familySync()
   const executable = platform === 'win32' ? 'pnpm.exe' : 'pnpm'
-  const src = path.join(platformPkgDir, executable)
-  if (!fs.existsSync(src)) return
+  const candidateDirNames = [
+    exePlatformPkgDirName(platform, arch, libcFamily),
+    exePlatformPkgDirNameNext(platform, arch, libcFamily),
+  ]
+  let src: string | undefined
+  for (const dirName of candidateDirNames) {
+    const candidate = path.join(path.dirname(exeRealDir), dirName, executable)
+    if (fs.existsSync(candidate)) {
+      src = candidate
+      break
+    }
+  }
+  if (src == null) return
   const dest = path.join(exePkgDir, executable)
   forceLink(src, dest)
 

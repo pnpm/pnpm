@@ -7588,13 +7588,13 @@ importers:
 
   pnpm/artifacts/darwin-arm64:
     devDependencies:
-      '@pnpm/exe.darwin-arm64':
+      '@pnpm/macos-arm64':
         specifier: workspace:*
         version: 'link:'
 
   pnpm/artifacts/darwin-x64:
     devDependencies:
-      '@pnpm/exe.darwin-x64':
+      '@pnpm/macos-x64':
         specifier: workspace:*
         version: 'link:'
 
@@ -7620,64 +7620,64 @@ importers:
         specifier: 'catalog:'
         version: safe-execa@0.3.0
     optionalDependencies:
-      '@pnpm/exe.darwin-arm64':
-        specifier: workspace:*
-        version: link:../darwin-arm64
-      '@pnpm/exe.darwin-x64':
-        specifier: workspace:*
-        version: link:../darwin-x64
-      '@pnpm/exe.linux-arm64':
+      '@pnpm/linux-arm64':
         specifier: workspace:*
         version: link:../linux-arm64
-      '@pnpm/exe.linux-arm64-musl':
-        specifier: workspace:*
-        version: link:../linux-arm64-musl
-      '@pnpm/exe.linux-x64':
+      '@pnpm/linux-x64':
         specifier: workspace:*
         version: link:../linux-x64
-      '@pnpm/exe.linux-x64-musl':
+      '@pnpm/linuxstatic-arm64':
+        specifier: workspace:*
+        version: link:../linux-arm64-musl
+      '@pnpm/linuxstatic-x64':
         specifier: workspace:*
         version: link:../linux-x64-musl
-      '@pnpm/exe.win32-arm64':
+      '@pnpm/macos-arm64':
+        specifier: workspace:*
+        version: link:../darwin-arm64
+      '@pnpm/macos-x64':
+        specifier: workspace:*
+        version: link:../darwin-x64
+      '@pnpm/win-arm64':
         specifier: workspace:*
         version: link:../win32-arm64
-      '@pnpm/exe.win32-x64':
+      '@pnpm/win-x64':
         specifier: workspace:*
         version: link:../win32-x64
 
   pnpm/artifacts/linux-arm64:
     devDependencies:
-      '@pnpm/exe.linux-arm64':
+      '@pnpm/linux-arm64':
         specifier: workspace:*
         version: 'link:'
 
   pnpm/artifacts/linux-arm64-musl:
     devDependencies:
-      '@pnpm/exe.linux-arm64-musl':
+      '@pnpm/linuxstatic-arm64':
         specifier: workspace:*
         version: 'link:'
 
   pnpm/artifacts/linux-x64:
     devDependencies:
-      '@pnpm/exe.linux-x64':
+      '@pnpm/linux-x64':
         specifier: workspace:*
         version: 'link:'
 
   pnpm/artifacts/linux-x64-musl:
     devDependencies:
-      '@pnpm/exe.linux-x64-musl':
+      '@pnpm/linuxstatic-x64':
         specifier: workspace:*
         version: 'link:'
 
   pnpm/artifacts/win32-arm64:
     devDependencies:
-      '@pnpm/exe.win32-arm64':
+      '@pnpm/win-arm64':
         specifier: workspace:*
         version: 'link:'
 
   pnpm/artifacts/win32-x64:
     devDependencies:
-      '@pnpm/exe.win32-x64':
+      '@pnpm/win-x64':
         specifier: workspace:*
         version: 'link:'
 
