@@ -106,12 +106,18 @@ test('`pnpm version` routes through switchCliVersion to v11 when packageManager 
   const { stdout, stderr } = execPnpmSync(['version'], { env })
   const combined = stdout.toString() + stderr.toString()
 
-  // Only pnpm v11's native `version` command emits this error code when a
-  // bump argument is missing. npm's `version` would print the current
-  // package version instead, and pnpm v10 has no native version command —
-  // so seeing this marker proves main() → switchCliVersion actually ran
-  // and handed off to v11's native implementation.
-  expect(combined).toContain('ERR_PNPM_INVALID_VERSION_BUMP')
+  // The #11328 fix: v11 is wanted, so argv[0] must not passthrough to npm.
+  // `Bump a package version` is the first line of `npm version --help`, so
+  // its absence confirms the legacy passthrough didn't fire.
+  expect(combined).not.toContain('Bump a package version')
+  // installPnpmToTools is only reached from main() → switchCliVersion, so
+  // the tool dir's existence is direct proof that the argv[0] passthrough
+  // was skipped and the command was routed through main() instead. This
+  // intentionally doesn't rely on v11 *executing* its `version` command —
+  // pnpm v11 requires Node.js >= 22.13 while CI runs on 22.12, so v11
+  // errors out at its own Node check rather than reaching the command.
+  const toolDir = getToolDirPath({ pnpmHomeDir: pnpmHome, tool: { name: 'pnpm', version } })
+  expect(fs.existsSync(path.join(toolDir, 'bin/pnpm'))).toBe(true)
 })
 
 test('npm passthrough still fires when packageManager selects pnpm v11+ but switching is disabled via .npmrc', () => {
