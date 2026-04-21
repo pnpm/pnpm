@@ -10,7 +10,7 @@
   },
   "scripts": {
     "lint": "eslint src/**/*.ts",
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "test": "pn compile",
     "compile": "rimraf tsconfig.tsbuildinfo lib && tsc --build"
   },

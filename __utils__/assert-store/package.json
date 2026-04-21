@@ -27,7 +27,7 @@
   "scripts": {
     "compile": "tsc --build",
     "lint": "eslint src/**/*.ts test/**/*.ts",
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "pretest": "pn install -C test/fixture/project --force --no-shared-workspace-lockfile",
     "test": "pn pretest && pn compile && jest"
   },

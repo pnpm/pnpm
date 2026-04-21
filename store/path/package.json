@@ -24,7 +24,7 @@
     "!*.map"
   ],
   "scripts": {
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pn compile && pn .test",
     "compile": "tsgo --build && pn lint --fix",
