@@ -68,4 +68,18 @@ test('prepare writes correct content for all bin files', () => {
 
   const pnpmBin = path.join(exeDir, isWindows ? 'pnpm.exe' : 'pnpm')
   expect(fs.statSync(pnpmBin).ino).toBe(fs.statSync(platformBin).ino)
+});
+
+// Actually execute the hardlinked pnpm binary. Existence and inode-match are
+// not enough — a SEA blob built by a Node.js version that differs from the
+// embedded runtime deserializes on startup with a native assertion and an
+// abort signal, not a clean error exit (see rc.4 regression). Running `-v`
+// verifies the SEA payload is actually readable by the embedded Node.
+(hasPlatformBinary ? test : test.skip)('pnpm -v runs and prints a semver', () => {
+  execFileSync(process.execPath, [path.join(exeDir, 'prepare.js')], { cwd: exeDir })
+  execFileSync(process.execPath, [path.join(exeDir, 'setup.js')], { cwd: exeDir })
+
+  const pnpmBin = path.join(exeDir, isWindows ? 'pnpm.exe' : 'pnpm')
+  const stdout = execFileSync(pnpmBin, ['-v'], { encoding: 'utf8' }).trim()
+  expect(stdout).toMatch(/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/)
 })
