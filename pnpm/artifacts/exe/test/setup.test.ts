@@ -2,7 +2,6 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-expect-error — JS helper without type declarations
 import { exePlatformPkgName } from '../platform-pkg-name.js'
 
@@ -12,8 +11,8 @@ const arch = platform === 'win32' && process.arch === 'ia32' ? 'x86' : process.a
 const isWindows = platform === 'win32'
 const osSegment =
   platform === 'darwin' ? 'macos'
-  : platform === 'win32' ? 'win'
-  : platform
+    : platform === 'win32' ? 'win'
+      : platform
 // The test doesn't create a musl libc marker, so setup.js's detect-libc call
 // reports the host's native libc; on a glibc Linux CI box that resolves to the
 // glibc package name. Non-Linux hosts don't have a musl variant.
