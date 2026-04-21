@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import { run } from '@pnpm/exec.commands'
 import { preparePackages } from '@pnpm/prepare'
@@ -11,7 +12,6 @@ import { safeExeca as execa } from 'execa'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils/index.js'
-import { expect, test } from '@jest/globals'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 

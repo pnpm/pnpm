@@ -1,7 +1,8 @@
 import path from 'node:path'
 
-import { createVersionsOverrider } from '../src/createVersionsOverrider.js'
 import { expect, test } from '@jest/globals'
+
+import { createVersionsOverrider } from '../src/createVersionsOverrider.js'
 
 test('createVersionsOverrider() matches sub-ranges', () => {
   const overrider = createVersionsOverrider([

@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
 import type { LockfileFile } from '@pnpm/lockfile.fs'
@@ -8,7 +9,6 @@ import { addDistTag } from '@pnpm/registry-mock'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
-import { expect, it, test } from '@jest/globals'
 
 test('preserve subdeps on update', async () => {
   const project = prepareEmpty()

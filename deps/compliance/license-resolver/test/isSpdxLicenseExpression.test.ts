@@ -1,5 +1,5 @@
-import { isSpdxLicenseExpression } from '@pnpm/deps.compliance.license-resolver'
 import { describe, expect, test } from '@jest/globals'
+import { isSpdxLicenseExpression } from '@pnpm/deps.compliance.license-resolver'
 
 describe('isSpdxLicenseExpression', () => {
   test.each([

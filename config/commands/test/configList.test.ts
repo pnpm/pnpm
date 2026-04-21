@@ -1,7 +1,7 @@
+import { expect, test } from '@jest/globals'
 import { config } from '@pnpm/config.commands'
 
 import { createConfigCommandOpts, getOutputString } from './utils/index.js'
-import { expect, test } from '@jest/globals'
 
 test('config list', async () => {
   const output = await config.handler(createConfigCommandOpts({

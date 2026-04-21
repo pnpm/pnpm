@@ -1,10 +1,10 @@
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import { writeJsonFileSync } from 'write-json-file'
 
 import { execPnpmSync } from './utils/index.js'
-import { expect, test } from '@jest/globals'
 
 test('pnpm with current runs the currently active pnpm even when the project pins a different version', () => {
   prepare()

@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import {
   install,
   type MutatedProject,
@@ -11,7 +12,6 @@ import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectRootDir } from '@pnpm/types'
 
 import { testDefaults } from '../utils/index.js'
-import { expect, jest, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 

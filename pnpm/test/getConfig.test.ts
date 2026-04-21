@@ -2,7 +2,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { afterEach, beforeEach, describe, expect, it, jest, test } from '@jest/globals'
+import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 
 import { calcPnpmfilePathsOfPluginDeps, getConfig } from '../src/getConfig.js'

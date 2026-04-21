@@ -1,7 +1,7 @@
+import { expect, test } from '@jest/globals'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 
 import { checkCompatibility } from '../lib/install/checkCompatibility/index.js'
-import { expect, test } from '@jest/globals'
 
 test('fail if the store directory changed', () => {
   expect(() => {

@@ -2,9 +2,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 import { temporaryDirectory } from 'tempy'
-import { expect, it, test } from '@jest/globals'
 
 test('skip directories.bin with real path traversal', async () => {
   // Create a secret file outside the package directory

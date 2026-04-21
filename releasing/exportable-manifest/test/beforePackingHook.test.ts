@@ -1,10 +1,10 @@
 import fs from 'node:fs'
 
+import { expect, test } from '@jest/globals'
 import { requireHooks } from '@pnpm/hooks.pnpmfile'
 import { prepare } from '@pnpm/prepare'
 import { createExportableManifest, type MakePublishManifestOptions } from '@pnpm/releasing.exportable-manifest'
 import { writeYamlFileSync } from 'write-yaml-file'
-import { expect, test } from '@jest/globals'
 
 const defaultOpts: MakePublishManifestOptions = {
   catalogs: {},

@@ -1,13 +1,13 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import isWindows from 'is-windows'
 import { writeJsonFileSync } from 'write-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpmSync } from './utils/index.js'
-import { expect, it, test } from '@jest/globals'
 
 test('switch to the pnpm version specified in the packageManager field of package.json', async () => {
   prepare()

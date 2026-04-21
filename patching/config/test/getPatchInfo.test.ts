@@ -1,6 +1,7 @@
+import { expect, test } from '@jest/globals'
+
 import { getPatchInfo } from '../src/getPatchInfo.js'
 import type { PatchGroupRecord } from '../src/index.js'
-import { expect, test } from '@jest/globals'
 
 test('getPatchInfo(undefined, ...) returns undefined', () => {
   expect(getPatchInfo(undefined, 'foo', '1.0.0')).toBeUndefined()

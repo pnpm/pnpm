@@ -1,7 +1,7 @@
 import fs, { type BigIntStats } from 'node:fs'
 import path from 'node:path'
 
-import { afterAll, beforeEach, expect, it, jest, test } from '@jest/globals'
+import { afterAll, beforeEach, expect, jest, test } from '@jest/globals'
 const testOnLinuxOnly = (process.platform === 'darwin' || process.platform === 'win32') ? test.skip : test
 
 jest.unstable_mockModule('@pnpm/fs.graceful-fs', () => {

@@ -1,5 +1,5 @@
-import { type JsrSpec, parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
 import { describe, expect, test } from '@jest/globals'
+import { type JsrSpec, parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
 
 describe('parseJsrSpecifier', () => {
   test('skips on non-jsr specifiers', () => {

@@ -1,5 +1,6 @@
-import { getOptionsFromPnpmSettings } from '../lib/getOptionsFromRootManifest.js'
 import { afterEach, expect, test } from '@jest/globals'
+
+import { getOptionsFromPnpmSettings } from '../lib/getOptionsFromRootManifest.js'
 
 const ORIGINAL_ENV = process.env
 

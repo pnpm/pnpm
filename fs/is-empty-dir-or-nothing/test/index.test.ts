@@ -2,8 +2,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { isEmptyDirOrNothing } from '@pnpm/fs.is-empty-dir-or-nothing'
 import { describe, expect, it } from '@jest/globals'
+import { isEmptyDirOrNothing } from '@pnpm/fs.is-empty-dir-or-nothing'
 
 describe('isEmptyDirOrNothing', () => {
   it('should return true on a non-existent path', () => {

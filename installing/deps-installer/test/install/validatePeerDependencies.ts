@@ -1,12 +1,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { install } from '@pnpm/installing.deps-installer'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { preparePackages } from '@pnpm/prepare'
 
 import { testDefaults } from '../utils/index.js'
-import { expect, test } from '@jest/globals'
 
 test('throws an error when the peerDependencies have unallowed specs', async () => {
   preparePackages([

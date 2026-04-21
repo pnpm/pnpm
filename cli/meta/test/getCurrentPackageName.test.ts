@@ -1,5 +1,5 @@
-import { detectIfCurrentPkgIsExecutable, getCurrentPackageName, isExecutedByCorepack } from '@pnpm/cli.meta'
 import { describe, expect, test } from '@jest/globals'
+import { detectIfCurrentPkgIsExecutable, getCurrentPackageName, isExecutedByCorepack } from '@pnpm/cli.meta'
 
 describe('detectIfCurrentPkgIsExecutable()', () => {
   test('returns false when not running as a SEA binary', () => {

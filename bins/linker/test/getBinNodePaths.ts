@@ -1,10 +1,10 @@
 import fs, { promises as fsPromises } from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { temporaryDirectory } from 'tempy'
 
 import { getBinNodePaths } from '../src/getBinNodePaths.js'
-import { expect, it, test } from '@jest/globals'
 
 // On Windows, temporaryDirectory() may return 8.3 short paths (e.g., RUNNER~1)
 // but getBinNodePaths resolves these via fs.promises.realpath (the native

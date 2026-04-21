@@ -1,5 +1,5 @@
-import { parseLicenseFromManifest } from '@pnpm/deps.compliance.license-resolver'
 import { describe, expect, test } from '@jest/globals'
+import { parseLicenseFromManifest } from '@pnpm/deps.compliance.license-resolver'
 
 describe('parseLicenseFromManifest', () => {
   test('reads a plain SPDX string from the modern `license` field', () => {

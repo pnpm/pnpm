@@ -1,10 +1,10 @@
 import fs from 'node:fs'
 
+import { expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
 
 import { execPnpmSync } from './utils/index.js'
-import { expect, test } from '@jest/globals'
 
 test('read settings from pnpm-workspace.yaml', async () => {
   prepare()

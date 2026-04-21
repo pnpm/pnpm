@@ -659,7 +659,7 @@ describe('multiple versions', () => {
         type: 'confirm',
         name: 'applyToAll',
       },
-    ]]])
+    ]]] as unknown as Record<string, unknown>[])
 
     const patchDir = getPatchDirFromPatchOutput(output)
     const fileToPatch = path.join(patchDir, 'index.js')
@@ -765,7 +765,7 @@ describe('prompt to choose version', () => {
         type: 'confirm',
         name: 'applyToAll',
       },
-    ]]])
+    ]]] as unknown as Record<string, unknown>[])
 
     const patchDir = getPatchDirFromPatchOutput(output)
 
@@ -832,7 +832,7 @@ describe('prompt to choose version', () => {
         type: 'confirm',
         name: 'applyToAll',
       },
-    ]]])
+    ]]] as unknown as Record<string, unknown>[])
 
     const patchDir = getPatchDirFromPatchOutput(output)
 
@@ -1226,7 +1226,7 @@ describe('patch and commit in workspaces', () => {
         type: 'confirm',
         name: 'applyToAll',
       },
-    ]]])
+    ]]] as unknown as Record<string, unknown>[])
     const patchDir = getPatchDirFromPatchOutput(output)
     expect(fs.existsSync(patchDir)).toBe(true)
     expect(fs.readFileSync(path.join(patchDir, 'index.js'), 'utf8')).toContain('module.exports = \'Hi\'')

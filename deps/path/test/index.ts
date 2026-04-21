@@ -1,4 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
+import { expect, test } from '@jest/globals'
 import {
   depPathToFilename,
   getPkgIdWithPatchHash,
@@ -10,7 +11,6 @@ import {
   tryGetPackageId,
 } from '@pnpm/deps.path'
 import type { DepPath } from '@pnpm/types'
-import { expect, test } from '@jest/globals'
 
 test('isAbsolute()', () => {
   expect(isAbsolute('/foo/1.0.0')).toBeFalsy()

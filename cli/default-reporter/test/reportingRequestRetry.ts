@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { toOutput$ } from '@pnpm/cli.default-reporter'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import {
@@ -6,7 +7,6 @@ import {
 import { firstValueFrom } from 'rxjs'
 
 import { formatWarn } from '../src/reporterForClient/utils/formatWarn.js'
-import { expect, test } from '@jest/globals'
 
 test('print warning about request retry', async () => {
   const output$ = toOutput$({

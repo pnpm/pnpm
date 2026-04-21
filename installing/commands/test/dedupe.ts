@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { describe, expect, test } from '@jest/globals'
 import { dedupe, install } from '@pnpm/installing.commands'
 import { DedupeCheckIssuesError } from '@pnpm/installing.dedupe.check'
 import type { LockfileObject } from '@pnpm/lockfile.types'
@@ -12,7 +13,6 @@ import { diff } from 'jest-diff'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
-import { describe, expect, it, jest, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 

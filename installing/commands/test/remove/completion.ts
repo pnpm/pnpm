@@ -1,6 +1,6 @@
+import { expect, test } from '@jest/globals'
 import { remove } from '@pnpm/installing.commands'
 import { prepare } from '@pnpm/prepare'
-import { expect, test } from '@jest/globals'
 
 test('remove arg completions', async () => {
   prepare({

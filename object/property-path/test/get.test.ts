@@ -1,5 +1,6 @@
-import { getObjectValueByPropertyPathString } from '../src/index.js'
 import { expect, test } from '@jest/globals'
+
+import { getObjectValueByPropertyPathString } from '../src/index.js'
 
 const OBJECT = {
   packages: [

@@ -1,5 +1,5 @@
-import { formatIntegrity, parseIntegrity } from '@pnpm/crypto.integrity'
 import { describe, expect, it } from '@jest/globals'
+import { formatIntegrity, parseIntegrity } from '@pnpm/crypto.integrity'
 
 describe('parseIntegrity', () => {
   it('parses a valid sha512 integrity string', () => {

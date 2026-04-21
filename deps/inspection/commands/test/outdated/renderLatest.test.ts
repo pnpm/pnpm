@@ -1,11 +1,11 @@
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
+import { expect, test } from '@jest/globals'
 import { outdated } from '@pnpm/deps.inspection.commands'
 import semverDiff from '@pnpm/semver-diff'
 import type { PackageManifest } from '@pnpm/types'
 
 import type { OutdatedWithVersionDiff } from '../../src/outdated/utils.js'
-import { expect, test } from '@jest/globals'
 
 test('renderLatest: outdated and deprecated', () => {
   const diffResult = semverDiff.default('0.0.1', '1.0.0')

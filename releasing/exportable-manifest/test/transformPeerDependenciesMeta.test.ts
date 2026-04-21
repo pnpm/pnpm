@@ -1,7 +1,7 @@
+import { expect, test } from '@jest/globals'
 import type { ProjectManifest } from '@pnpm/types'
 
 import { transformPeerDependenciesMeta } from '../lib/transform/peerDependenciesMeta.js'
-import { expect, test } from '@jest/globals'
 
 test('returns manifest as-is when peerDependenciesMeta is absent', () => {
   const manifest: ProjectManifest = {

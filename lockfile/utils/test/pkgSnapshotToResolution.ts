@@ -1,5 +1,5 @@
-import { pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 import { expect, test } from '@jest/globals'
+import { pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 
 test('pkgSnapshotToResolution()', () => {
   expect(pkgSnapshotToResolution('foo@1.0.0', {

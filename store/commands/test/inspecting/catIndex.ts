@@ -1,12 +1,12 @@
 /// <reference path="../../../../__typings__/index.d.ts" />
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { getConfig } from '@pnpm/config.reader'
 import type { PnpmError } from '@pnpm/error'
 import { prepare } from '@pnpm/prepare'
 import { catIndex } from '@pnpm/store.commands'
 import { safeExeca as execa } from 'execa'
-import { expect, test } from '@jest/globals'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
 

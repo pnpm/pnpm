@@ -1,5 +1,6 @@
-import { getPinnedVersion } from '../lib/getPinnedVersion.js'
 import { expect, test } from '@jest/globals'
+
+import { getPinnedVersion } from '../lib/getPinnedVersion.js'
 
 test('getPinnedVersion()', () => {
   expect(getPinnedVersion({ saveExact: true })).toBe('patch')

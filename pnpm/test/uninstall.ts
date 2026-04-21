@@ -1,12 +1,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { prepare } from '@pnpm/prepare'
 import PATH from 'path-name'
 
 import { execPnpm } from './utils/index.js'
-import { expect, test } from '@jest/globals'
 
 test('uninstall package and remove from appropriate property', async () => {
   const project = prepare()

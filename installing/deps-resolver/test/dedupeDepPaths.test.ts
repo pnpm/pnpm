@@ -1,9 +1,9 @@
+import { expect, test } from '@jest/globals'
 import type { PkgIdWithPatchHash, PkgResolutionId, ProjectRootDir } from '@pnpm/types'
 
 import type { NodeId } from '../lib/nextNodeId.js'
 import type { DependenciesTreeNode } from '../lib/resolveDependencies.js'
 import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers.js'
-import { expect, test } from '@jest/globals'
 
 test('packages are not deduplicated when versions do not match', async () => {
   const fooPkg: PartialResolvedPackage = {

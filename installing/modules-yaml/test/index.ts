@@ -1,11 +1,11 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { readModulesManifest, type StrictModules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import isWindows from 'is-windows'
 import { readYamlFileSync } from 'read-yaml-file'
 import { temporaryDirectory } from 'tempy'
-import { expect, test } from '@jest/globals'
 
 test('writeModulesManifest() and readModulesManifest()', async () => {
   const modulesDir = temporaryDirectory()

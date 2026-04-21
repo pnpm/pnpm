@@ -1,13 +1,13 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
 import { loadWorkspaceState } from '@pnpm/workspace.state'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from '../utils/index.js'
-import { expect, test } from '@jest/globals'
 
 const CONFIG = ['--config.verify-deps-before-run=error'] as const
 

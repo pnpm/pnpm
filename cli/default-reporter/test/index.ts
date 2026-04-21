@@ -1,6 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { toOutput$ } from '@pnpm/cli.default-reporter'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import {
@@ -25,7 +26,6 @@ import { firstValueFrom } from 'rxjs'
 import { map, skip, take } from 'rxjs/operators'
 
 import { formatWarn } from '../src/reporterForClient/utils/formatWarn.js'
-import { expect, it, test } from '@jest/globals'
 
 const formatErrorCode = (code: string) => chalk.bgRed.black(`\u2009${code}\u2009`)
 const formatError = (code: string, message: string) => {

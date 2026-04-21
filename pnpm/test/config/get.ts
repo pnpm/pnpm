@@ -1,12 +1,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import type { WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpmSync } from '../utils/index.js'
-import { expect, jest, test } from '@jest/globals'
 
 test('pnpm config get reads npm options but ignores other settings from .npmrc', () => {
   prepare()

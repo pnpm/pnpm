@@ -1,5 +1,6 @@
-import { normalizeBinObject } from '../lib/transform/bin.js'
 import { expect, test } from '@jest/globals'
+
+import { normalizeBinObject } from '../lib/transform/bin.js'
 
 test('string', () => {
   expect(normalizeBinObject('foo', 'bin.js')).toStrictEqual({ foo: 'bin.js' })

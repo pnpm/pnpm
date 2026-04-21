@@ -1,8 +1,8 @@
+import { describe, expect, it } from '@jest/globals'
 import { ENGINE_NAME } from '@pnpm/constants'
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 import { calcGraphNodeHash, type DepsGraph, type DepsStateCache, type PkgMeta } from '@pnpm/deps.graph-hasher'
 import type { DepPath, PkgIdWithPatchHash } from '@pnpm/types'
-import { describe, expect, it } from '@jest/globals'
 
 describe('calcGraphNodeHash', () => {
   it('should return correct hash format for unscoped package', () => {

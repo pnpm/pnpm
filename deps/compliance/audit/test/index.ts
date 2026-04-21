@@ -1,9 +1,9 @@
+import { describe, expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { audit, buildAuditPathIndex, lockfileToAuditRequest } from '@pnpm/deps.compliance.audit'
 import type { PnpmError } from '@pnpm/error'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import type { DepPath, ProjectId } from '@pnpm/types'
-import { describe, expect, it, test } from '@jest/globals'
 
 describe('audit', () => {
   test('lockfileToAuditRequest() flattens dependencies', () => {

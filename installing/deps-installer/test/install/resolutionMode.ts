@@ -1,9 +1,9 @@
+import { expect, test } from '@jest/globals'
 import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 
 import { testDefaults } from '../utils/index.js'
-import { expect, test } from '@jest/globals'
 
 test('time-based resolution mode', async () => {
   const project = prepareEmpty()

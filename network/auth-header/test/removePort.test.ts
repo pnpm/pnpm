@@ -1,5 +1,6 @@
-import { removePort } from '../src/helpers/removePort.js'
 import { describe, expect, it } from '@jest/globals'
+
+import { removePort } from '../src/helpers/removePort.js'
 
 describe('removePort()', () => {
   it('does not mutate the url if no port is found', () => {

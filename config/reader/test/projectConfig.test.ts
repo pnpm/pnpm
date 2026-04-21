@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals'
 import { omit } from 'ramda'
 
 import type {
@@ -8,7 +9,6 @@ import type {
   ProjectConfigSet,
 } from '../src/Config.js'
 import { createProjectConfigRecord } from '../src/projectConfig.js'
-import { describe, expect, it } from '@jest/globals'
 
 it('returns undefined for undefined', () => {
   expect(createProjectConfigRecord({})).toBeUndefined()

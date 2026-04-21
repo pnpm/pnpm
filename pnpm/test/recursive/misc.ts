@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import type { Config } from '@pnpm/config.reader'
 import type { LockfileFile } from '@pnpm/lockfile.types'
 import { preparePackages } from '@pnpm/prepare'
@@ -14,7 +15,6 @@ import {
   execPnpm,
   execPnpmSync,
 } from '../utils/index.js'
-import { expect, it, test } from '@jest/globals'
 
 test('recursive installation with packageConfigs', async () => {
   const projects = preparePackages([

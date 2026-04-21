@@ -1,8 +1,8 @@
+import { expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import type { DepPath, ProjectId } from '@pnpm/types'
 
 import { outdated } from '../lib/outdated.js'
-import { expect, it, test } from '@jest/globals'
 
 async function getLatestManifest (packageName: string) {
   return ({

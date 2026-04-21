@@ -1,5 +1,6 @@
-import { personToString } from '../lib/utils.js'
 import { expect, test } from '@jest/globals'
+
+import { personToString } from '../lib/utils.js'
 
 test('run the personToString function', () => {
   const expectAuthor = 'pnpm <xxxxxx@pnpm.com> (https://www.github.com/pnpm)'

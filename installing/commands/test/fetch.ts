@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { STORE_VERSION } from '@pnpm/constants'
 import { fetch, install } from '@pnpm/installing.commands'
 import { prepare } from '@pnpm/prepare'
@@ -9,7 +10,6 @@ import { closeAllStoreIndexes } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
 import { finishWorkers } from '@pnpm/worker'
 import { rimrafSync } from '@zkochan/rimraf'
-import { expect, test } from '@jest/globals'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 

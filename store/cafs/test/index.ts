@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { describe, expect, it, test } from '@jest/globals'
 import { fixtures } from '@pnpm/test-fixtures'
 import { symlinkDir } from 'symlink-dir'
 import { temporaryDirectory } from 'tempy'
@@ -11,7 +12,6 @@ import {
   getFilePathByModeInCafs,
 } from '../src/index.js'
 import { parseTarball } from '../src/parseTarball.js'
-import { describe, expect, it, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 

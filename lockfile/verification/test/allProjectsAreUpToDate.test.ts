@@ -2,6 +2,7 @@ import { createWriteStream } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { pipeline } from 'node:stream/promises'
 
+import { beforeEach, describe, expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
 import type { LockfileObject } from '@pnpm/lockfile.types'
@@ -10,7 +11,6 @@ import { prepareEmpty } from '@pnpm/prepare'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, DepPath, ProjectId, ProjectRootDir } from '@pnpm/types'
 import tar from 'tar-stream'
-import { beforeEach, describe, expect, test } from '@jest/globals'
 
 const fooManifest = {
   name: 'foo',

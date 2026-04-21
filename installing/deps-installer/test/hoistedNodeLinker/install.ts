@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { addDependenciesToPackage, install, mutateModules, mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
@@ -11,7 +12,6 @@ import { readYamlFileSync } from 'read-yaml-file'
 import { symlinkDir } from 'symlink-dir'
 
 import { testDefaults } from '../utils/index.js'
-import { expect, it, test } from '@jest/globals'
 
 test('installing with hoisted node-linker', async () => {
   prepareEmpty()

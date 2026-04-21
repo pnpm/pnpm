@@ -1,3 +1,5 @@
+import { describe, expect, test } from '@jest/globals'
+
 import {
   allRegistryConfigKeys,
   type NormalizedRegistryUrl,
@@ -5,7 +7,6 @@ import {
   type RegistryConfigKey,
   type SupportedRegistryUrlInfo,
 } from '../../src/publish/registryConfigKeys.js'
-import { describe, expect, test } from '@jest/globals'
 
 describe('parseSupportedRegistryUrl', () => {
   type Case = [string, SupportedRegistryUrlInfo | undefined]

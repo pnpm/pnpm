@@ -1,5 +1,6 @@
-import { type NumericLiteral, parseNumericLiteral } from '../../src/index.js'
 import { expect, test } from '@jest/globals'
+
+import { type NumericLiteral, parseNumericLiteral } from '../../src/index.js'
 
 test('not a numeric literal', () => {
   expect(parseNumericLiteral('')).toBeUndefined()

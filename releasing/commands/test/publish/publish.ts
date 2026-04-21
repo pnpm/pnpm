@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { describe, expect, test } from '@jest/globals'
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_CREDENTIALS, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -14,7 +15,6 @@ import { temporaryDirectory } from 'tempy'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { checkPkgExists, DEFAULT_OPTS } from './utils/index.js'
-import { describe, expect, test } from '@jest/globals'
 
 const skipOnWindowsCI = isCI && isWindows() ? test.skip : test
 

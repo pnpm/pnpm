@@ -1,9 +1,9 @@
 import fs from 'node:fs'
 
+import { expect, test } from '@jest/globals'
 import { prepareEmpty } from '@pnpm/prepare'
 
 import { getNetworkConfigs, type NetworkConfigs } from '../src/getNetworkConfigs.js'
-import { expect, test } from '@jest/globals'
 
 test('without files', () => {
   expect(getNetworkConfigs({})).toStrictEqual({

@@ -1,8 +1,8 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 // cspell:ignore buildserver
+import { expect, test } from '@jest/globals'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { resolveFromTarball as _resolveFromTarball } from '@pnpm/resolving.tarball-resolver'
-import { expect, test } from '@jest/globals'
 
 const fetch = createFetchFromRegistry({})
 const resolveFromTarball = _resolveFromTarball.bind(null, fetch)

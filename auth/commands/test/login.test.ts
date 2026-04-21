@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { describe, expect, it, jest } from '@jest/globals'
+
 import { login, type LoginContext, type LoginFetchResponse } from '../src/login.js'
 
 const TEST_CONTEXT: LoginContext = {

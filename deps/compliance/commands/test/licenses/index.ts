@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
+import { expect, test } from '@jest/globals'
 import { STORE_VERSION } from '@pnpm/constants'
 import { licenses } from '@pnpm/deps.compliance.commands'
 import { install } from '@pnpm/installing.commands'
@@ -11,7 +12,6 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 
 import { DEFAULT_OPTS } from './utils/index.js'
-import { expect, it, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 

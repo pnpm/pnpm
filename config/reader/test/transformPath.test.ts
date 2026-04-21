@@ -1,8 +1,9 @@
 import path from 'node:path'
 
+import { describe, expect, test } from '@jest/globals'
+
 import type { Config } from '../src/Config.js'
 import { transformPath, transformPathKeys } from '../src/transformPath.js'
-import { describe, expect, test } from '@jest/globals'
 
 describe('transformPath', () => {
   test('replaces starting tilde with homedir', () => {

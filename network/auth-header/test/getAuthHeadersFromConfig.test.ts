@@ -1,8 +1,9 @@
 import os from 'node:os'
 import path from 'node:path'
 
+import { describe, expect, it } from '@jest/globals'
+
 import { getAuthHeadersFromCreds } from '../src/getAuthHeadersFromConfig.js'
-import { describe, expect, it, test } from '@jest/globals'
 
 const osTokenHelper = {
   linux: path.join(import.meta.dirname, 'utils/test-exec.js'),

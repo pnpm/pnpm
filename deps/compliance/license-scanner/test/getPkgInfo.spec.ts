@@ -2,11 +2,11 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { afterAll, beforeAll, describe, expect, test } from '@jest/globals'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { gitHostedStoreIndexKey, StoreIndex, storeIndexKey } from '@pnpm/store.index'
 
 import { getPkgInfo } from '../lib/getPkgInfo.js'
-import { afterAll, beforeAll, describe, expect, test } from '@jest/globals'
 
 export const DEFAULT_REGISTRIES = {
   default: 'https://registry.npmjs.org/',

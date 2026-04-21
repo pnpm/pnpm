@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { toOutput$ } from '@pnpm/cli.default-reporter'
 import { peerDependencyIssuesLogger } from '@pnpm/core-loggers'
 import {
@@ -5,7 +6,6 @@ import {
   logger,
 } from '@pnpm/logger'
 import { firstValueFrom } from 'rxjs'
-import { expect, test } from '@jest/globals'
 
 test('print peer dependency issues warning', async () => {
   const output$ = toOutput$({

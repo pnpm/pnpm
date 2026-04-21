@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { createHash } from '@pnpm/crypto.hash'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
@@ -9,7 +10,6 @@ import { loadJsonFileSync } from 'load-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from './utils/index.js'
-import { expect, test } from '@jest/globals'
 
 test('readPackage hook in single project doesn\'t modify manifest', async () => {
   const project = prepare()

@@ -1,8 +1,8 @@
+import { expect, test } from '@jest/globals'
 import { hoist } from '@pnpm/installing.linking.real-hoist'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectId } from '@pnpm/types'
-import { expect, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 

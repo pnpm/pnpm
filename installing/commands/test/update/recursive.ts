@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import { install, update } from '@pnpm/installing.commands'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
@@ -9,7 +10,6 @@ import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { DEFAULT_OPTS } from '../utils/index.js'
-import { expect, test } from '@jest/globals'
 
 test('recursive update', async () => {
   const projects = preparePackages([

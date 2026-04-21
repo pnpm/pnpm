@@ -1,6 +1,7 @@
 import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
+import { afterEach, beforeAll, beforeEach, describe, expect, test } from '@jest/globals'
 import { AuditEndpointNotExistsError } from '@pnpm/deps.compliance.audit'
 import { audit } from '@pnpm/deps.compliance.commands'
 import { install } from '@pnpm/installing.commands'
@@ -9,7 +10,6 @@ import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.m
 
 import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS, DEFAULT_OPTS } from './utils/options.js'
 import * as responses from './utils/responses/index.js'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, test } from '@jest/globals'
 
 const f = fixtures(path.join(import.meta.dirname, 'fixtures'))
 

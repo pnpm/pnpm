@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { run } from '@pnpm/exec.commands'
 import { preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
@@ -8,7 +9,6 @@ import { filterProjectsBySelectorObjects } from '@pnpm/workspace.projects-filter
 import { safeExeca as execa } from 'execa'
 
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils/index.js'
-import { expect, test } from '@jest/globals'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 

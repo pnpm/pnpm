@@ -1,8 +1,8 @@
+import { describe, expect, test } from '@jest/globals'
 import { list } from '@pnpm/deps.inspection.commands'
 import { prepare } from '@pnpm/prepare'
 
 import { DEFAULT_OPTS } from './utils/index.js'
-import { describe, expect, test } from '@jest/globals'
 
 // Covers https://github.com/pnpm/pnpm/issues/8519
 describe('correctly report the value of the private field when arguments are provided', () => {

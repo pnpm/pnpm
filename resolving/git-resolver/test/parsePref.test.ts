@@ -1,5 +1,6 @@
-import { parseBareSpecifier } from '../lib/parseBareSpecifier.js'
 import { expect, test } from '@jest/globals'
+
+import { parseBareSpecifier } from '../lib/parseBareSpecifier.js'
 
 test.each([
   ['ssh://username:password@example.com:repo.git', 'ssh://username:password@example.com/repo.git'],

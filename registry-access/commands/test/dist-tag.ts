@@ -1,9 +1,9 @@
+import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import { distTag } from '@pnpm/registry-access.commands'
 import { REGISTRY_MOCK_CREDENTIALS, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { publish } from '@pnpm/releasing.commands'
 import { DEFAULT_OPTS as BASE_OPTS } from '@pnpm/testing.command-defaults'
-import { expect, it, test } from '@jest/globals'
 
 const DEFAULT_OPTS = {
   ...BASE_OPTS,

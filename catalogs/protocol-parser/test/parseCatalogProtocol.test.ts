@@ -1,5 +1,5 @@
-import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { describe, expect, test } from '@jest/globals'
+import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 
 test('parses named catalog', () => {
   expect(parseCatalogProtocol('catalog:foo')).toBe('foo')

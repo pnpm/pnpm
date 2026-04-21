@@ -1,6 +1,7 @@
 /// <reference path="../../../../../__typings__/index.d.ts" />
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { STORE_VERSION } from '@pnpm/constants'
 import { sbom } from '@pnpm/deps.compliance.commands'
 import { install } from '@pnpm/installing.commands'
@@ -8,7 +9,6 @@ import { tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 
 import { DEFAULT_OPTS } from './utils/index.js'
-import { expect, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 

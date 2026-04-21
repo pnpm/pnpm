@@ -1,9 +1,9 @@
+import { expect, test } from '@jest/globals'
 import {
   applyRuntimeOnFailOverride,
   convertEnginesRuntimeToDependencies,
 } from '@pnpm/pkg-manifest.utils'
 import type { ProjectManifest } from '@pnpm/types'
-import { expect, test } from '@jest/globals'
 
 test('convertEnginesRuntimeToDependencies() skips runtime entries without a version', () => {
   const manifest: ProjectManifest = {

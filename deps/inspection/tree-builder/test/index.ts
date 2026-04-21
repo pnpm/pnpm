@@ -2,11 +2,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { buildDependenciesTree, type DependencyNode } from '@pnpm/deps.inspection.tree-builder'
 import { depPathToFilename } from '@pnpm/deps.path'
 import { fixtures } from '@pnpm/test-fixtures'
-import { expect, test } from '@jest/globals'
 
 const virtualStoreDirMaxLength = process.platform === 'win32' ? 60 : 120
 const f = fixtures(import.meta.dirname)

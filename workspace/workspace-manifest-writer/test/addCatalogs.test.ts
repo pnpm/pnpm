@@ -1,12 +1,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { tempDir } from '@pnpm/prepare-temp-dir'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
-import { expect, it, test } from '@jest/globals'
 
 test('addCatalogs does not write new workspace manifest for empty catalogs', async () => {
   const dir = tempDir(false)

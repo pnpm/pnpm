@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { install, type MutatedProject, mutateModules } from '@pnpm/installing.deps-installer'
 import type { LockfileFile, PackageSnapshots } from '@pnpm/lockfile.fs'
@@ -9,7 +10,6 @@ import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
-import { expect, test } from '@jest/globals'
 
 test('fix broken lockfile with --fix-lockfile', async () => {
   prepareEmpty()

@@ -1,11 +1,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 
 import { testDefaults } from '../utils/index.js'
-import { expect, test } from '@jest/globals'
 
 test('production install (with --production flag)', async () => {
   const project = prepareEmpty()

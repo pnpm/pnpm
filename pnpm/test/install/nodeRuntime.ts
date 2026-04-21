@@ -1,9 +1,9 @@
 import fs from 'node:fs'
 
+import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 
 import { execPnpm } from '../utils/index.js'
-import { expect, it, test } from '@jest/globals'
 
 test('installing a CLI tool that requires a specific version of Node.js to be installed alongside it', async () => {
   prepare()

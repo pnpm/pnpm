@@ -1,10 +1,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { getCurrentBranch, isGitRepo, isWorkingTreeClean } from '@pnpm/network.git-utils'
 import { safeExeca as execa } from 'execa'
 import { temporaryDirectory } from 'tempy'
-import { expect, test } from '@jest/globals'
 
 test('isGitRepo', async () => {
   const tempDir = temporaryDirectory()

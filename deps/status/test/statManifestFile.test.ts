@@ -1,9 +1,9 @@
+import { expect, test } from '@jest/globals'
 import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import { writeProjectManifest } from '@pnpm/workspace.project-manifest-writer'
 
 import { statManifestFile } from '../src/statManifestFile.js'
-import { expect, test } from '@jest/globals'
 
 test.each(MANIFEST_BASE_NAMES)('load %s', async baseName => {
   prepareEmpty()

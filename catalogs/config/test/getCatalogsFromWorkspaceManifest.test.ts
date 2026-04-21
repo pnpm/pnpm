@@ -1,5 +1,5 @@
-import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { expect, test } from '@jest/globals'
+import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 
 test('combines implicit default and named catalogs', () => {
   expect(getCatalogsFromWorkspaceManifest({

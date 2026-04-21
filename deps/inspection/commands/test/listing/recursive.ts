@@ -1,6 +1,7 @@
 import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
+import { expect, test } from '@jest/globals'
 import { list, why } from '@pnpm/deps.inspection.commands'
 import type { PnpmError } from '@pnpm/error'
 import { install } from '@pnpm/installing.commands'
@@ -10,7 +11,6 @@ import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
-import { expect, test } from '@jest/globals'
 
 test('recursive list', async () => {
   preparePackages([

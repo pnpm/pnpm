@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { beforeAll, describe, expect, it, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import { install, update } from '@pnpm/installing.commands'
 import { prepare, preparePackages } from '@pnpm/prepare'
@@ -8,7 +9,6 @@ import type { ProjectManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 
 import { DEFAULT_OPTS } from '../utils/index.js'
-import { beforeAll, describe, expect, it, test } from '@jest/globals'
 
 test('update with "*" pattern', async () => {
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })

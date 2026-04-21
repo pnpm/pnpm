@@ -1,11 +1,11 @@
 import { setTimeout } from 'node:timers/promises'
 
+import { expect, test } from '@jest/globals'
 import { toOutput$ } from '@pnpm/cli.default-reporter'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { scopeLogger } from '@pnpm/core-loggers'
 import { createStreamParser } from '@pnpm/logger'
 import { firstValueFrom } from 'rxjs'
-import { expect, test } from '@jest/globals'
 
 const NO_OUTPUT = Symbol('test should not log anything')
 

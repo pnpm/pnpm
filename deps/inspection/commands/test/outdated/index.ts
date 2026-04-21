@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
+import { expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { outdated } from '@pnpm/deps.inspection.commands'
 import type { PnpmError } from '@pnpm/error'
@@ -10,7 +11,6 @@ import { prepare, tempDir } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { symlinkDirSync } from 'symlink-dir'
-import { expect, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 const hasOutdatedDepsFixture = f.find('has-outdated-deps')

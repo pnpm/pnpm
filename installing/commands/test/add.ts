@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { describe, expect, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import { add, remove } from '@pnpm/installing.commands'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
@@ -8,7 +9,6 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import type { ProjectManifest } from '@pnpm/types'
 import { loadJsonFile } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
-import { describe, expect, test } from '@jest/globals'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 const tmp = temporaryDirectory()

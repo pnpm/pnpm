@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { add } from '@pnpm/installing.commands'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { preparePackages } from '@pnpm/prepare'
@@ -8,7 +9,6 @@ import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
-import { expect, test } from '@jest/globals'
 
 test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles', async () => {
   const projects = preparePackages([

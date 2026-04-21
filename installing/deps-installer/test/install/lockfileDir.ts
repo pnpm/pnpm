@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { addDependenciesToPackage, mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
@@ -10,7 +11,6 @@ import { rimrafSync } from '@zkochan/rimraf'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
-import { expect, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 

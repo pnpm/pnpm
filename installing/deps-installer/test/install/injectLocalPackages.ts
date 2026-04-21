@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import { type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/installing.deps-installer'
 import { preparePackages } from '@pnpm/prepare'
@@ -9,7 +10,6 @@ import { rimrafSync } from '@zkochan/rimraf'
 import { writeJsonFileSync } from 'write-json-file'
 
 import { testDefaults } from '../utils/index.js'
-import { expect, it, test } from '@jest/globals'
 
 test('inject local packages', async () => {
   const project1Manifest = {

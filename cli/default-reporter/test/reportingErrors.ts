@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { toOutput$ } from '@pnpm/cli.default-reporter'
 import { PnpmError } from '@pnpm/error'
 import {
@@ -12,7 +13,6 @@ import normalizeNewline from 'normalize-newline'
 import { firstValueFrom } from 'rxjs'
 import { map, take } from 'rxjs/operators'
 import StackTracey from 'stacktracey'
-import { expect, it, test } from '@jest/globals'
 
 interface Exception extends NodeJS.ErrnoException {
   prefix?: string

@@ -1,5 +1,5 @@
+import { expect, test } from '@jest/globals'
 import { extractComments, insertComments } from '@pnpm/text.comments-parser'
-import { expect, it, test } from '@jest/globals'
 
 test('extract and insert JSON5 comments', () => {
   const json5WithComments = `/* This is an example of a package.json5 file with comments. */

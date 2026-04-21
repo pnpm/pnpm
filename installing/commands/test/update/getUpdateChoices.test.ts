@@ -1,9 +1,9 @@
 import { stripVTControlCharacters } from 'node:util'
 
+import { expect, test } from '@jest/globals'
 import chalk from 'chalk'
 
 import { getUpdateChoices } from '../../lib/update/getUpdateChoices.js'
-import { expect, test } from '@jest/globals'
 
 test('getUpdateChoices()', () => {
   expect(

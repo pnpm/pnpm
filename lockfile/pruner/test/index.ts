@@ -1,4 +1,5 @@
 /// <reference path="../../../__typings__/local.d.ts"/>
+import { expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   pruneLockfile,
@@ -6,7 +7,6 @@ import {
 } from '@pnpm/lockfile.pruner'
 import type { DepPath, ProjectId } from '@pnpm/types'
 import yaml from 'yaml-tag'
-import { expect, it, test } from '@jest/globals'
 
 const DEFAULT_OPTS = {
   warn (_msg: string) {

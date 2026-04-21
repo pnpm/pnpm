@@ -1,11 +1,11 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
+import { afterEach, beforeEach, describe, expect, test } from '@jest/globals'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
 import type { Registries } from '@pnpm/types'
 import { temporaryDirectory } from 'tempy'
 
 import { getMockAgent, setupMockAgent, teardownMockAgent } from './utils/index.js'
-import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
 
 const registries = {
   default: 'https://registry.npmjs.org/',

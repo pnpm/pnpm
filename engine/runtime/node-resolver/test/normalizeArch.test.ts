@@ -1,5 +1,6 @@
-import { getNormalizedArch } from '../lib/normalizeArch.js'
 import { expect, test } from '@jest/globals'
+
+import { getNormalizedArch } from '../lib/normalizeArch.js'
 
 test.each([
   ['win32', 'ia32', 'x86'],

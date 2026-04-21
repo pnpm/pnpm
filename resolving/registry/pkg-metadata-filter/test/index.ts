@@ -1,5 +1,5 @@
-import { filterPkgMetadataByPublishDate } from '@pnpm/resolving.registry.pkg-metadata-filter'
 import { expect, test } from '@jest/globals'
+import { filterPkgMetadataByPublishDate } from '@pnpm/resolving.registry.pkg-metadata-filter'
 
 test('filterPkgMetadataByPublishDate', () => {
   const cutoff = new Date('2020-04-01T00:00:00.000Z')

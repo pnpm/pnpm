@@ -1,6 +1,6 @@
+import { expect, test } from '@jest/globals'
 import { run } from '@pnpm/exec.commands'
 import { prepare } from '@pnpm/prepare'
-import { expect, test } from '@jest/globals'
 
 test('run completion', async () => {
   prepare({

@@ -2,7 +2,7 @@
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
-import { expect, it, jest, test } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import { logger } from '@pnpm/logger'
 import { resolveFromLocal } from '@pnpm/resolving.local-resolver'
 import type { DirectoryResolution } from '@pnpm/resolving.resolver-base'

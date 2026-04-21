@@ -1,11 +1,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { preparePackages, tempDir } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpmSync } from './utils/index.js'
-import { expect, it, test } from '@jest/globals'
 
 function writeJsonFile (filePath: string, obj: object): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true })

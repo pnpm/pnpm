@@ -2,12 +2,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { describe, expect, it } from '@jest/globals'
 import { PnpmError } from '@pnpm/error'
 import { createBinaryFetcher, downloadAndUnpackZip } from '@pnpm/fetching.binary-fetcher'
 import AdmZip from 'adm-zip'
 import ssri from 'ssri'
 import { temporaryDirectory } from 'tempy'
-import { describe, expect, it, test } from '@jest/globals'
 
 // Mock fetch function that returns a ZIP buffer and simulates FetchFromRegistry
 function createMockFetch (zipBuffer: Buffer) {

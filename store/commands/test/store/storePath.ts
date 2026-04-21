@@ -1,11 +1,11 @@
 import os from 'node:os'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { STORE_VERSION } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { store } from '@pnpm/store.commands'
-import { expect, test } from '@jest/globals'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 

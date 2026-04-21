@@ -1,3 +1,5 @@
+import { describe, expect, test } from '@jest/globals'
+
 import {
   checkCustomResolverCanResolve,
   type CustomResolver,
@@ -5,7 +7,6 @@ import {
   getCustomResolverCacheKey,
   setCachedCanResolve,
 } from '../src/index.js'
-import { describe, expect, test } from '@jest/globals'
 
 describe('customResolverCache', () => {
   describe('getCustomResolverCacheKey', () => {

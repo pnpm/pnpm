@@ -1,10 +1,11 @@
+import { describe, expect, test } from '@jest/globals'
+
 import {
   AuthMissingSeparatorError,
   type Creds,
   parseCreds,
   TokenHelperUnsupportedCharacterError,
 } from '../src/parseCreds.js'
-import { describe, expect, test } from '@jest/globals'
 
 describe('parseCreds', () => {
   test('empty object', () => {

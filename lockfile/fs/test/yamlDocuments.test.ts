@@ -1,13 +1,13 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { describe, expect, test } from '@jest/globals'
 import { temporaryDirectory } from 'tempy'
 
 import {
   extractMainDocument,
   streamReadFirstYamlDocument,
 } from '../lib/yamlDocuments.js'
-import { describe, expect, it, test } from '@jest/globals'
 
 describe('streamReadFirstYamlDocument', () => {
   test('returns the first document content from a two-document file', async () => {

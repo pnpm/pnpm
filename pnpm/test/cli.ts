@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { rimrafSync } from '@zkochan/rimraf'
@@ -12,7 +13,6 @@ import {
   execPnpmSync,
   execPnpxSync,
 } from './utils/index.js'
-import { expect, it, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 const hasOutdatedDepsFixture = f.find('has-outdated-deps')

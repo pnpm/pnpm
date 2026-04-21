@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { afterEach, expect, test } from '@jest/globals'
 import { add } from '@pnpm/installing.commands'
-import type { LockfileFile } from '@pnpm/lockfile.types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
@@ -10,7 +10,6 @@ import { loadJsonFileSync } from 'load-json-file'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
-import { afterEach, expect, test } from '@jest/globals'
 
 // This must be a function because some of its values depend on CWD
 const createOptions = (saveCatalogName = 'default'): add.AddCommandOptions => ({
@@ -68,7 +67,7 @@ test('saveCatalogName creates new workspace manifest with the new catalogs', asy
         resolution: expect.anything(),
       },
     },
-  } as Partial<LockfileFile>))
+  }))
 })
 
 test('saveCatalogName works with different protocols', async () => {
@@ -140,7 +139,7 @@ test('saveCatalogName works with different protocols', async () => {
         },
       },
     },
-  } as Partial<LockfileFile>))
+  }))
 })
 
 test('saveCatalogName does not work with local dependencies', async () => {
@@ -221,5 +220,5 @@ test('saveCatalogName with non-default name', async () => {
         resolution: expect.anything(),
       },
     },
-  } as Partial<LockfileFile>))
+  }))
 })

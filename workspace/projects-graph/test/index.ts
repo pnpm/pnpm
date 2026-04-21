@@ -1,7 +1,7 @@
 /// <reference path="../../../__typings__/local.d.ts"/>
+import { expect, test } from '@jest/globals'
 import { createProjectsGraph } from '@pnpm/workspace.projects-graph'
 import { betterPathResolve as pathResolve } from 'better-path-resolve'
-import { expect, test } from '@jest/globals'
 
 const BAR1_PATH = pathResolve('/zkochan/src/bar')
 const FOO1_PATH = pathResolve('/zkochan/src/foo')

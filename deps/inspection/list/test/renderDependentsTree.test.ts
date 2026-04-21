@@ -1,9 +1,9 @@
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
+import { describe, expect, test } from '@jest/globals'
 import type { DependentsTree } from '@pnpm/deps.inspection.tree-builder'
 
 import { renderDependentsJson, renderDependentsParseable, renderDependentsTree } from '../lib/renderDependentsTree.js'
-import { describe, expect, it, test } from '@jest/globals'
 
 // Shared fixture: target → mid-a → root-project (2 levels of dependents)
 function deepTree (): DependentsTree[] {

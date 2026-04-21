@@ -3,6 +3,7 @@ import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
 
+import { afterAll, beforeAll, expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -11,7 +12,6 @@ import { createRegistryServer } from 'pnpm-agent'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm } from '../utils/index.js'
-import { afterAll, beforeAll, expect, test } from '@jest/globals'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 

@@ -1,5 +1,6 @@
-import { type Token, tokenize } from '../../src/index.js'
 import { expect, test } from '@jest/globals'
+
+import { type Token, tokenize } from '../../src/index.js'
 
 test('valid tokens', () => {
   expect(Array.from(tokenize(''))).toStrictEqual([] as Token[])

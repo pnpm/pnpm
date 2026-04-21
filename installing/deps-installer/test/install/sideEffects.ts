@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { afterAll, expect, test } from '@jest/globals'
 import { ENGINE_NAME } from '@pnpm/constants'
 import { hashObject } from '@pnpm/crypto.object-hasher'
 import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
@@ -11,7 +12,6 @@ import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { rimrafSync } from '@zkochan/rimraf'
 
 import { testDefaults } from '../utils/index.js'
-import { afterAll, expect, it, test } from '@jest/globals'
 
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 

@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { describe, expect, test } from '@jest/globals'
 import { STORE_VERSION } from '@pnpm/constants'
 import { add, install } from '@pnpm/installing.commands'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
@@ -9,7 +10,6 @@ import delay from 'delay'
 import { loadJsonFileSync } from 'load-json-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
-import { describe, expect, it, test } from '@jest/globals'
 
 const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
 

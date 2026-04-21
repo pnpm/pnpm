@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import { add, install, remove, update } from '@pnpm/installing.commands'
 import type { LockfileFile } from '@pnpm/lockfile.types'
@@ -15,7 +16,6 @@ import { writeJsonFileSync } from 'write-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
-import { expect, test } from '@jest/globals'
 
 test('recursive add/remove', async () => {
   const projects = preparePackages([

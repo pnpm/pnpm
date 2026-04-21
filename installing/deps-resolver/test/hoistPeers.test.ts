@@ -1,5 +1,6 @@
+import { expect, test } from '@jest/globals'
+
 import { getHoistableOptionalPeers, hoistPeers } from '../lib/hoistPeers.js'
-import { expect, it, test } from '@jest/globals'
 
 test('hoistPeers picks an already available prerelease version', () => {
   expect(hoistPeers({

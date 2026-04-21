@@ -3,7 +3,7 @@ import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
 
-import { afterAll, beforeAll, describe, expect, it, jest, test } from '@jest/globals'
+import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals'
 // First run downloads packages from registry-mock — slow on Windows CI
 jest.setTimeout(600_000)
 import { fetchFromPnpmRegistry } from '@pnpm/agent.client'

@@ -1,6 +1,7 @@
+import { expect, test } from '@jest/globals'
+
 import type { InheritableConfigPair } from './inheritPickedConfig.js'
 import { inheritAuthConfig, inheritDlxConfig } from './localConfig.js'
-import { expect, test } from '@jest/globals'
 
 test('inheritAuthConfig copies only auth keys from source to target', () => {
   const target: InheritableConfigPair = {

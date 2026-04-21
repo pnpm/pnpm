@@ -1,5 +1,6 @@
-import { getPatchInfo, groupPatchedDependencies } from '../src/index.js'
 import { expect, test } from '@jest/globals'
+
+import { getPatchInfo, groupPatchedDependencies } from '../src/index.js'
 
 const _getPatchInfo = (patchedDependencies: Record<string, string>, name: string, version: string) =>
   getPatchInfo(groupPatchedDependencies(patchedDependencies), name, version)

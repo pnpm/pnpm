@@ -1,5 +1,6 @@
+import { describe, expect, it } from '@jest/globals'
+
 import { normalizeBundledManifest } from '../src/normalizeBundledManifest.js'
-import { describe, expect, it, jest, test } from '@jest/globals'
 
 describe('normalizeBundledManifest', () => {
   it('returns undefined for an empty manifest', () => {

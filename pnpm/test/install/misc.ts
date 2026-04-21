@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { afterAll, expect, test } from '@jest/globals'
 import { STORE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
@@ -23,7 +24,6 @@ import {
   execPnpm,
   execPnpmSync,
 } from '../utils/index.js'
-import { afterAll, expect, it, test } from '@jest/globals'
 
 const skipOnWindows = isWindows() ? test.skip : test
 const f = fixtures(import.meta.dirname)

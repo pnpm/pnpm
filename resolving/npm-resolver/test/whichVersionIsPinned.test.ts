@@ -1,5 +1,6 @@
-import { whichVersionIsPinned } from '../lib/whichVersionIsPinned.js'
 import { expect, test } from '@jest/globals'
+
+import { whichVersionIsPinned } from '../lib/whichVersionIsPinned.js'
 
 test.each([
   ['^1.0.0', 'major'],

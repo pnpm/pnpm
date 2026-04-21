@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { afterEach, beforeEach, expect, test } from '@jest/globals'
 import { audit } from '@pnpm/deps.compliance.commands'
 import { fixtures } from '@pnpm/test-fixtures'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
@@ -8,7 +9,6 @@ import { readYamlFileSync } from 'read-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/options.js'
 import * as responses from './utils/responses/index.js'
-import { afterEach, beforeEach, expect, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 

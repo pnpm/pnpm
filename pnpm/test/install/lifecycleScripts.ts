@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import type { PackageManifest, ProjectManifest } from '@pnpm/types'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
@@ -9,7 +10,6 @@ import PATH from 'path-name'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpmSync, pnpmBinLocation } from '../utils/index.js'
-import { expect, it, test } from '@jest/globals'
 
 const pkgRoot = path.join(import.meta.dirname, '..', '..')
 const pnpmPkg = loadJsonFileSync<PackageManifest>(path.join(pkgRoot, 'package.json'))

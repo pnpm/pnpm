@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import { createGzip } from 'node:zlib'
 
+import { describe, expect, test } from '@jest/globals'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import tar from 'tar-stream'
@@ -11,7 +12,6 @@ import {
   PublishArchiveMissingManifestError,
   type TarballPath,
 } from '../../src/publish/extractManifestFromPacked.js'
-import { describe, expect, test } from '@jest/globals'
 
 async function createTarball (tarballPath: string, contents: Record<string, string | ExportedManifest>): Promise<void> {
   const pack = tar.pack()

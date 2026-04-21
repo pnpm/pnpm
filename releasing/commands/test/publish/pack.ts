@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { beforeAll, describe, expect, test } from '@jest/globals'
 import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
 import { pack } from '@pnpm/releasing.commands'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
@@ -10,7 +11,6 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import type { PackResultJson } from '../../src/publish/pack.js'
 import { DEFAULT_OPTS } from './utils/index.js'
-import { beforeAll, describe, expect, it, test } from '@jest/globals'
 
 test('pack: package with package.json', async () => {
   prepare({

@@ -1,11 +1,11 @@
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import type { Log } from '@pnpm/core-loggers'
 import { BadReadPackageHookError, type HookContext, requireHooks } from '@pnpm/hooks.pnpmfile'
 import { fixtures } from '@pnpm/test-fixtures'
 
 import { requirePnpmfile } from '../src/requirePnpmfile.js'
-import { expect, it, test } from '@jest/globals'
 
 const defaultHookContext: HookContext = { log () {} }
 const f = fixtures(import.meta.dirname)

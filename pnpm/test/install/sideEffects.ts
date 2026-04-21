@@ -1,12 +1,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { rimrafSync } from '@zkochan/rimraf'
 
 import { execPnpm } from '../utils/index.js'
-import { expect, it, test } from '@jest/globals'
 
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 

@@ -4,7 +4,6 @@ import path from 'node:path'
 import { lockfileToAuditRequest } from '@pnpm/deps.compliance.audit'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { fixtures } from '@pnpm/test-fixtures'
-import { test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 

@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import { type MutatedProject, mutateModules } from '@pnpm/installing.deps-installer'
 import { preparePackages } from '@pnpm/prepare'
@@ -7,7 +8,6 @@ import { addDistTag } from '@pnpm/registry-mock'
 import type { ProjectRootDir } from '@pnpm/types'
 
 import { testDefaults } from '../utils/index.js'
-import { expect, test } from '@jest/globals'
 
 test('pick common range for a dependency used in two workspace projects when resolution mode is highest', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })

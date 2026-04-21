@@ -1,11 +1,11 @@
 import path from 'node:path'
 
+import { beforeAll, describe, expect, test } from '@jest/globals'
 import { cache } from '@pnpm/cache.commands'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { rimrafSync } from '@zkochan/rimraf'
 import { safeExeca as execa } from 'execa'
-import { beforeAll, describe, expect, test } from '@jest/globals'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`

@@ -1,7 +1,7 @@
 /// <reference path="../../../../__typings__/index.d.ts"/>
+import { expect, test } from '@jest/globals'
 import { checkPeerDependencies } from '@pnpm/deps.inspection.peers-checker'
 import { fixtures } from '@pnpm/test-fixtures'
-import { expect, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 

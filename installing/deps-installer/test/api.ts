@@ -1,7 +1,7 @@
+import { expect, test } from '@jest/globals'
 import * as pnpm from '@pnpm/installing.deps-installer'
 
 import { testDefaults } from './utils/index.js'
-import { expect, test } from '@jest/globals'
 
 test('API', () => {
   expect(typeof pnpm.install).toBe('function')

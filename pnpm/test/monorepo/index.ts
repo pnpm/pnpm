@@ -2,6 +2,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import type { Config } from '@pnpm/config.reader'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
@@ -26,7 +27,6 @@ import { temporaryDirectory } from 'tempy'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from '../utils/index.js'
-import { expect, test } from '@jest/globals'
 
 test('no projects matched the filters', async () => {
   preparePackages([

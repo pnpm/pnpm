@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { config } from '@pnpm/config.commands'
 import { tempDir } from '@pnpm/prepare'
 import { readIniFileSync } from 'read-ini-file'
@@ -8,7 +9,6 @@ import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { createConfigCommandOpts } from './utils/index.js'
-import { expect, test } from '@jest/globals'
 
 test('config delete on registry key not set', async () => {
   const tmp = tempDir()

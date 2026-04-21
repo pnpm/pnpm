@@ -1,9 +1,9 @@
+import { expect, test } from '@jest/globals'
 import { getPeerDependencyIssues } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
 
 import { testDefaults } from './utils/index.js'
-import { expect, test } from '@jest/globals'
 
 test('cannot resolve peer dependency for top-level dependency', async () => {
   prepareEmpty()

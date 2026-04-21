@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { config } from '@pnpm/config.commands'
 import { PnpmError } from '@pnpm/error'
 import { tempDir } from '@pnpm/prepare'
@@ -8,7 +9,6 @@ import { readIniFileSync } from 'read-ini-file'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { type ConfigFilesData, createConfigCommandOpts, readConfigFiles, writeConfigFiles } from './utils/index.js'
-import { expect, it, jest, test } from '@jest/globals'
 
 test('config set registry setting using the global option', async () => {
   const tmp = tempDir()

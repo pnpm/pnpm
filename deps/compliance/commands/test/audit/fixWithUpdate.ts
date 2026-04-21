@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 
+import { afterEach, beforeEach, describe, expect, test } from '@jest/globals'
 import { audit } from '@pnpm/deps.compliance.commands'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { addDistTag } from '@pnpm/registry-mock'
@@ -13,7 +14,6 @@ import { loadJsonFile } from 'load-json-file'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { MOCK_REGISTRY, MOCK_REGISTRY_OPTS } from './utils/options.js'
-import { afterEach, beforeEach, describe, expect, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 

@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { afterEach, expect, test } from '@jest/globals'
 import { type MutatedProject, mutateModules, type MutateModulesOptions, type ProjectOptions } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
@@ -7,7 +8,6 @@ import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.m
 import type { ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 
 import { testDefaults } from '../utils/index.js'
-import { afterEach, expect, test } from '@jest/globals'
 
 afterEach(async () => {
   await teardownMockAgent()

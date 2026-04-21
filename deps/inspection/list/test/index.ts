@@ -1,13 +1,13 @@
 /// <reference path="../../../../__typings__/index.d.ts"/>
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { list, listForPackages } from '@pnpm/deps.inspection.list'
 import { fixtures } from '@pnpm/test-fixtures'
 import chalk from 'chalk'
 
 import { renderParseable } from '../lib/renderParseable.js'
 import { renderTree } from '../lib/renderTree.js'
-import { expect, test } from '@jest/globals'
 
 const DEV_DEP_ONLY_CLR = chalk.yellow
 const PROD_DEP_CLR = (s: string) => s // just use the default color

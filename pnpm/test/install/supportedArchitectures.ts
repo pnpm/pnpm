@@ -1,12 +1,12 @@
 import fs from 'node:fs'
 
+import { describe, expect, test } from '@jest/globals'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import type { WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm } from '../utils/index.js'
-import { describe, expect, test } from '@jest/globals'
 
 const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
 

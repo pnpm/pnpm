@@ -1,8 +1,8 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'node:path'
 
-import { readPackageJson, readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { expect, test } from '@jest/globals'
+import { readPackageJson, readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 
 const fixtures = path.join(import.meta.dirname, 'fixtures')
 

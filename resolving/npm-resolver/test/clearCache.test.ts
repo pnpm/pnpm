@@ -1,3 +1,4 @@
+import { afterEach, beforeEach, expect, test } from '@jest/globals'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
@@ -5,7 +6,6 @@ import type { Registries } from '@pnpm/types'
 import { temporaryDirectory } from 'tempy'
 
 import { getMockAgent, setupMockAgent, teardownMockAgent } from './utils/index.js'
-import { afterEach, beforeEach, expect, test } from '@jest/globals'
 
 const registries: Registries = {
   default: 'https://registry.npmjs.org/',

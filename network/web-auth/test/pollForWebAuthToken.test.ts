@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals'
 import {
   pollForWebAuthToken,
   type WebAuthContext,
@@ -5,7 +6,6 @@ import {
   type WebAuthFetchResponse,
   WebAuthTimeoutError,
 } from '@pnpm/network.web-auth'
-import { describe, expect, it } from '@jest/globals'
 
 function createMockResponse (init: {
   ok: boolean

@@ -1,5 +1,6 @@
-import { getSaveType } from '../lib/getSaveType.js'
 import { expect, test } from '@jest/globals'
+
+import { getSaveType } from '../lib/getSaveType.js'
 
 test('getSaveType()', () => {
   expect(getSaveType({ saveDev: true })).toBe('devDependencies')

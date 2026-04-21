@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
+import { expect, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import type { ProjectRootDir } from '@pnpm/types'
 import { filterWorkspaceProjects, type ProjectGraph } from '@pnpm/workspace.projects-filter'
@@ -14,7 +15,6 @@ import { temporaryDirectory } from 'tempy'
 import touchCB from 'touch'
 
 import './parseProjectSelector.js'
-import { expect, test } from '@jest/globals'
 
 const touch = promisify(touchCB)
 const mkdir = promisify(fs.mkdir)

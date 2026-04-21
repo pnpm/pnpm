@@ -1,5 +1,6 @@
-import { optionsWithOtpEnv } from '../../src/publish/otpEnv.js'
 import { describe, expect, test } from '@jest/globals'
+
+import { optionsWithOtpEnv } from '../../src/publish/otpEnv.js'
 
 describe('optionsWithOtpEnv', () => {
   test('returns the same unchanged options when neither --otp nor PNPM_CONFIG_OTP is defined', () => {

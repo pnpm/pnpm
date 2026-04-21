@@ -1,12 +1,12 @@
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { resolveAndInstallConfigDeps } from '@pnpm/installing.env-installer'
 import { createEnvLockfile, readEnvLockfile, writeEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { createTempStore } from '@pnpm/testing.temp-store'
 import { loadJsonFileSync } from 'load-json-file'
-import { expect, test } from '@jest/globals'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 

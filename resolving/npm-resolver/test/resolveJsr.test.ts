@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { afterEach, beforeEach, expect, test } from '@jest/globals'
 import { ABBREVIATED_META_DIR } from '@pnpm/constants'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
@@ -9,7 +10,6 @@ import { loadJsonFileSync } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
 
 import { getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
-import { afterEach, beforeEach, expect, it, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 /* eslint-disable @typescript-eslint/no-explicit-any */

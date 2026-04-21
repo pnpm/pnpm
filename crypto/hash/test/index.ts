@@ -2,10 +2,10 @@
 import fs from 'node:fs'
 import { pipeline } from 'node:stream/promises'
 
+import { expect, test } from '@jest/globals'
 import { createHashFromFile, createShortHash, getTarballIntegrity } from '@pnpm/crypto.hash'
 import { tempDir } from '@pnpm/prepare'
 import tar from 'tar-stream'
-import { expect, test } from '@jest/globals'
 
 test('createShortHash()', () => {
   expect(createShortHash('AAA')).toBe('cb1ad2119d8fafb69566510ee712661f')

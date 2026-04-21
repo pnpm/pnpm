@@ -1,9 +1,9 @@
 import fs from 'node:fs'
 
+import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 
 import { execPnpm } from '../utils/index.js'
-import { expect, test } from '@jest/globals'
 
 test('runtimeOnFail=download causes Node.js to be downloaded even when the manifest does not set onFail', async () => {
   const project = prepare({

@@ -1,5 +1,6 @@
-import { getNodeMirror } from '../lib/getNodeMirror.js'
 import { expect, test } from '@jest/globals'
+
+import { getNodeMirror } from '../lib/getNodeMirror.js'
 
 test.each([
   ['release', { release: 'http://test.mirror.localhost/release' }, 'http://test.mirror.localhost/release/'],

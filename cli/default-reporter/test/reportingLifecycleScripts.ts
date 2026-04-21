@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { toOutput$ } from '@pnpm/cli.default-reporter'
 import { lifecycleLogger } from '@pnpm/core-loggers'
 import { createStreamParser } from '@pnpm/logger'
@@ -7,7 +8,6 @@ import chalk from 'chalk'
 import normalizeNewline from 'normalize-newline'
 import { firstValueFrom } from 'rxjs'
 import { map, skip, take, toArray } from 'rxjs/operators'
-import { expect, it, test } from '@jest/globals'
 
 const hlValue = chalk.cyanBright
 

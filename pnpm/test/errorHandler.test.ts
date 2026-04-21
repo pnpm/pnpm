@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import getPort from 'get-port'
@@ -6,7 +7,6 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpmSync } from './utils/index.js'
 import { isPortInUse } from './utils/isPortInUse.js'
-import { expect, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 const multipleScriptsErrorExit = f.find('multiple-scripts-error-exit')

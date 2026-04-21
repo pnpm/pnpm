@@ -1,10 +1,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 
 import { execPnpm, execPnpmSync } from './utils/index.js'
-import { expect, test } from '@jest/globals'
 
 test("exec should respect the caller's current working directory", async () => {
   prepare({

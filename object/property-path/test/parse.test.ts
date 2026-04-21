@@ -1,3 +1,5 @@
+import { expect, test } from '@jest/globals'
+
 import {
   type ExactToken,
   parsePropertyPath,
@@ -7,7 +9,6 @@ import {
   type UnexpectedToken,
   type UnexpectedTokenError,
 } from '../src/index.js'
-import { expect, test } from '@jest/globals'
 
 test('valid property path', () => {
   expect(Array.from(parsePropertyPath(''))).toStrictEqual([])

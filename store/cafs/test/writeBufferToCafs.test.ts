@@ -4,10 +4,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
+import { describe, expect, it } from '@jest/globals'
 import { temporaryDirectory } from 'tempy'
 
 import { writeBufferToCafs } from '../src/writeBufferToCafs.js'
-import { describe, expect, it } from '@jest/globals'
 
 const testDir = path.dirname(fileURLToPath(import.meta.url))
 

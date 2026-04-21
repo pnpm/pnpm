@@ -1,7 +1,7 @@
+import { expect, test } from '@jest/globals'
 import { createHexHash } from '@pnpm/crypto.hash'
 
 import { createCacheKey } from '../src/dlx.js'
-import { expect, test } from '@jest/globals'
 
 test('creates a hash', () => {
   const received = createCacheKey({

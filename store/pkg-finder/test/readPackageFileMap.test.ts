@@ -2,11 +2,11 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { afterAll, beforeAll, describe, expect, it } from '@jest/globals'
 import type { GitResolution, Resolution, TarballResolution } from '@pnpm/resolving.resolver-base'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { gitHostedStoreIndexKey, StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { readPackageFileMap } from '@pnpm/store.pkg-finder'
-import { afterAll, beforeAll, describe, expect, it, test } from '@jest/globals'
 
 function createFilesIndex (): PackageFilesIndex {
   return {

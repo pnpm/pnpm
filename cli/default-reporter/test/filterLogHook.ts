@@ -1,8 +1,8 @@
+import { expect, test } from '@jest/globals'
 import { toOutput$ } from '@pnpm/cli.default-reporter'
 import type { Log } from '@pnpm/core-loggers'
 import { createStreamParser, logger } from '@pnpm/logger'
 import { firstValueFrom } from 'rxjs'
-import { expect, test } from '@jest/globals'
 
 test('logger with filterLog hook', async () => {
   const output$ = toOutput$({

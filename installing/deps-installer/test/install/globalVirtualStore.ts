@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { afterAll, expect, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import { install, type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/installing.deps-installer'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
@@ -11,7 +12,6 @@ import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 
 import { testDefaults } from '../utils/index.js'
-import { afterAll, expect, it, test } from '@jest/globals'
 
 const storeIndexes: StoreIndex[] = []
 afterAll(() => {

@@ -1,5 +1,6 @@
-import { createInstallArgs } from '../src/runDepsStatusCheck.js'
 import { describe, expect, test } from '@jest/globals'
+
+import { createInstallArgs } from '../src/runDepsStatusCheck.js'
 
 describe('createInstallArgs', () => {
   test.each([

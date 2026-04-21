@@ -1,5 +1,5 @@
-import { renderTree, type TreeNode, type TreeNodeGroup } from '@pnpm/text.tree-renderer'
 import { expect, test } from '@jest/globals'
+import { renderTree, type TreeNode, type TreeNodeGroup } from '@pnpm/text.tree-renderer'
 
 test('single root with no children', () => {
   expect(renderTree({ label: 'root' })).toBe('root\n')

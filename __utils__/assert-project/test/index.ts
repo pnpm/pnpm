@@ -1,8 +1,9 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'node:path'
 
-import { assertProject } from '../src/index.js'
 import { expect, test } from '@jest/globals'
+
+import { assertProject } from '../src/index.js'
 
 test('assertProject()', async () => {
   const project = assertProject(path.join(import.meta.dirname, '../../..'))

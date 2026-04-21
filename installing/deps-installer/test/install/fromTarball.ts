@@ -1,9 +1,9 @@
+import { expect, test } from '@jest/globals'
 import { addDependenciesToPackage } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 
 import { testDefaults } from '../utils/index.js'
-import { expect, test } from '@jest/globals'
 
 test('tarball from npm registry', async () => {
   const project = prepareEmpty()

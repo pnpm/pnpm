@@ -1,9 +1,9 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { assertStore } from '@pnpm/assert-store'
 import { STORE_VERSION } from '@pnpm/constants'
-import { expect, test } from '@jest/globals'
 
 test('assertStore() store assertions', async () => {
   const storePath = path.join(import.meta.dirname, `fixture/store/${STORE_VERSION}/`)

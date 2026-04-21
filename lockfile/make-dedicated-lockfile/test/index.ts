@@ -1,11 +1,11 @@
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { fixtures } from '@pnpm/test-fixtures'
 import { safeExeca as execa } from 'execa'
 
 import { makeDedicatedLockfile } from '../lib/index.js'
-import { expect, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')

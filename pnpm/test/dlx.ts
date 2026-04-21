@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { beforeAll, describe, expect, test } from '@jest/globals'
 import { getConfig } from '@pnpm/config.reader'
 import { dlx } from '@pnpm/exec.commands'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
@@ -11,7 +12,6 @@ import PATH_NAME from 'path-name'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from './utils/index.js'
-import { beforeAll, describe, expect, it, test } from '@jest/globals'
 
 let registries: Record<string, string>
 

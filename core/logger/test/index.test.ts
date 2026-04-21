@@ -1,5 +1,5 @@
-import { type LogBase, logger, streamParser } from '@pnpm/logger'
 import { expect, test } from '@jest/globals'
+import { type LogBase, logger, streamParser } from '@pnpm/logger'
 
 test('logger logs', async () => {
   const promise = new Promise<LogBase>(resolve => {

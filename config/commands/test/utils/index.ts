@@ -9,7 +9,6 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import type { ConfigCommandOptions } from '../../src/ConfigCommandOptions.js'
 import type { config } from '../../src/index.js'
-import { expect } from '@jest/globals'
 
 /**
  * Build a {@link ConfigCommandOptions} object for tests.

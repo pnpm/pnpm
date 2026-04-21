@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 
+import { expect, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import { addDependenciesToPackage, mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
@@ -10,7 +11,6 @@ import type { ProjectRootDir } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 
 import { testDefaults } from '../utils/index.js'
-import { expect, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 

@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
@@ -13,7 +14,6 @@ import {
   execPnpm,
   execPnpmSync,
 } from '../utils/index.js'
-import { expect, test } from '@jest/globals'
 
 function globalPkgDir (pnpmHome: string): string {
   return path.join(pnpmHome, 'global', GLOBAL_LAYOUT_VERSION)
