@@ -50,8 +50,24 @@
     "@jest/globals": "catalog:",
     "@pnpm/exe": "workspace:*",
     "@pnpm/jest-config": "workspace:*",
-    "execa": "catalog:",
-    "tar": "catalog:"
+    "execa": "catalog:"
+  },
+  "pnpm": {
+    "app": {
+      "entry": "../../pnpm.cjs",
+      "outputDir": "..",
+      "outputName": "pnpm",
+      "targets": [
+        "win32-x64",
+        "linux-x64",
+        "darwin-x64",
+        "darwin-arm64",
+        "linux-arm64",
+        "win32-arm64",
+        "linux-x64-musl",
+        "linux-arm64-musl"
+      ]
+    }
   },
   "jest": {
     "preset": "@pnpm/jest-config"

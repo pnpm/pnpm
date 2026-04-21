@@ -1,253 +1,67 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
 import * as execa from 'execa'
-import fs from 'fs'
-import path from 'path'
-import { pipeline } from 'stream/promises'
-import { createGunzip } from 'zlib'
-import * as tar from 'tar'
 
-const NODE_VERSION = '25.6.1'
-const artifactsDir = path.join(import.meta.dirname, '../..')
-const pnpmDir = path.join(artifactsDir, '..')
-const nodeBinCacheDir = path.join(artifactsDir, '.node-binaries')
+// scripts/ → exe/ → artifacts/ → pnpm/
+const exeDir = path.resolve(import.meta.dirname, '..')
+const pnpmRootDir = path.resolve(exeDir, '..', '..')
 
-interface TargetConfig {
-  platform: string
-  arch: string
-  /** URL to download the Node.js binary */
-  nodeUrl: string
-  /** Path to the node binary inside the downloaded archive */
-  nodeBinPath: string
-  /** Whether this target needs ldid signing (macOS cross-compiled from Linux) */
-  needsLdidSigning: boolean
-}
+// On Intel Mac we only build the three baseline targets to keep dev-local runs
+// fast. CI (Linux) and M1 Macs produce the full eight-target matrix. The
+// defaults (entry, outputDir, outputName, targets) live in the "pnpm.app"
+// object of pnpm/artifacts/exe/package.json — CLI --target flags replace that
+// list when we want to narrow it.
+const isM1Mac = process.platform === 'darwin' && process.arch === 'arm64'
+const buildFullMatrix = process.platform === 'linux' || isM1Mac
 
-function getTargets (): Record<string, TargetConfig> {
-  const v = NODE_VERSION
-  return {
-    'linux-x64': {
-      platform: 'linux',
-      arch: 'x64',
-      nodeUrl: `https://nodejs.org/dist/v${v}/node-v${v}-linux-x64.tar.xz`,
-      nodeBinPath: `node-v${v}-linux-x64/bin/node`,
-      needsLdidSigning: false,
-    },
-    'linux-arm64': {
-      platform: 'linux',
-      arch: 'arm64',
-      nodeUrl: `https://nodejs.org/dist/v${v}/node-v${v}-linux-arm64.tar.xz`,
-      nodeBinPath: `node-v${v}-linux-arm64/bin/node`,
-      needsLdidSigning: false,
-    },
-    'linux-x64-musl': {
-      platform: 'linux',
-      arch: 'x64',
-      nodeUrl: `https://unofficial-builds.nodejs.org/download/release/v${v}/node-v${v}-linux-x64-musl.tar.xz`,
-      nodeBinPath: `node-v${v}-linux-x64-musl/bin/node`,
-      needsLdidSigning: false,
-    },
-    'linux-arm64-musl': {
-      platform: 'linux',
-      arch: 'arm64',
-      nodeUrl: `https://unofficial-builds.nodejs.org/download/release/v${v}/node-v${v}-linux-arm64-musl.tar.xz`,
-      nodeBinPath: `node-v${v}-linux-arm64-musl/bin/node`,
-      needsLdidSigning: false,
-    },
-    'darwin-x64': {
-      platform: 'darwin',
-      arch: 'x64',
-      nodeUrl: `https://nodejs.org/dist/v${v}/node-v${v}-darwin-x64.tar.gz`,
-      nodeBinPath: `node-v${v}-darwin-x64/bin/node`,
-      needsLdidSigning: process.platform === 'linux',
-    },
-    'darwin-arm64': {
-      platform: 'darwin',
-      arch: 'arm64',
-      nodeUrl: `https://nodejs.org/dist/v${v}/node-v${v}-darwin-arm64.tar.gz`,
-      nodeBinPath: `node-v${v}-darwin-arm64/bin/node`,
-      needsLdidSigning: process.platform === 'linux',
-    },
-    'win32-x64': {
-      platform: 'win32',
-      arch: 'x64',
-      nodeUrl: `https://nodejs.org/dist/v${v}/node-v${v}-win-x64.zip`,
-      nodeBinPath: `node-v${v}-win-x64/node.exe`,
-      needsLdidSigning: false,
-    },
-    'win32-arm64': {
-      platform: 'win32',
-      arch: 'arm64',
-      nodeUrl: `https://nodejs.org/dist/v${v}/node-v${v}-win-arm64.zip`,
-      nodeBinPath: `node-v${v}-win-arm64/node.exe`,
-      needsLdidSigning: false,
-    },
+const narrowTargets = ['win32-x64', 'linux-x64', 'darwin-x64']
+
+// Could equivalently live under `pnpm.app.runtime` in package.json; kept here
+// next to the host-conditional target narrowing so the whole build matrix is
+// visible in one place.
+const EMBEDDED_RUNTIME = 'node@25.9.0'
+
+const packAppArgs = ['pack-app', '--runtime', EMBEDDED_RUNTIME]
+if (!buildFullMatrix) {
+  for (const target of narrowTargets) {
+    packAppArgs.push('--target', target)
   }
 }
 
-async function downloadNodeBinary (target: string, config: TargetConfig): Promise<string> {
-  const cacheDir = path.join(nodeBinCacheDir, target)
-  const cachedBin = path.join(cacheDir, path.basename(config.nodeBinPath))
+// Use the just-built bundle so pack-app is invoked from the same tree we're
+// releasing. runPnpmCli inside pack-app forwards through process.execPath +
+// argv[1], so nested `pnpm add node@runtime:<v>` calls also go through this
+// bundle rather than whatever pnpm happens to be on PATH.
+const pnpmBundle = path.join(pnpmRootDir, 'dist', 'pnpm.mjs')
+execa.sync(process.execPath, [pnpmBundle, 'with', 'current', ...packAppArgs], {
+  cwd: exeDir,
+  stdio: 'inherit',
+})
 
-  if (fs.existsSync(cachedBin)) {
-    console.log(`Using cached Node.js binary for ${target}`)
-    return cachedBin
-  }
+// Platform packages only contain the binary; the JS bundle ships inside
+// @pnpm/exe. Copy it here so `pn publish` picks it up from this package's
+// "files" list. Source maps are stripped (they're archived separately).
+const distSrc = path.join(pnpmRootDir, 'dist')
+const distDest = path.join(exeDir, 'dist')
+fs.rmSync(distDest, { recursive: true, force: true })
+fs.cpSync(distSrc, distDest, { recursive: true })
 
-  console.log(`Downloading Node.js binary for ${target} from ${config.nodeUrl}`)
-  fs.mkdirSync(cacheDir, { recursive: true })
-
-  const url = config.nodeUrl
-  if (url.endsWith('.zip')) {
-    // Windows: download zip and extract node.exe
-    const zipPath = path.join(cacheDir, 'node.zip')
-    const response = await fetch(url)
-    if (!response.ok) throw new Error(`Failed to download ${url}: ${response.status}`)
-    const buffer = Buffer.from(await response.arrayBuffer())
-    fs.writeFileSync(zipPath, buffer)
-
-    // Extract node.exe from zip using unzip command
-    execa.sync('unzip', ['-o', '-j', zipPath, config.nodeBinPath, '-d', cacheDir], {
-      stdio: 'inherit',
-    })
-    fs.unlinkSync(zipPath)
-  } else {
-    // Unix: download tar.gz or tar.xz and extract node binary
-    const response = await fetch(url)
-    if (!response.ok) throw new Error(`Failed to download ${url}: ${response.status}`)
-
-    const archivePath = path.join(cacheDir, 'node.tar')
-    if (url.endsWith('.tar.xz')) {
-      // xz-compressed: use xz command to decompress, then extract
-      const xzPath = path.join(cacheDir, 'node.tar.xz')
-      const buffer = Buffer.from(await response.arrayBuffer())
-      fs.writeFileSync(xzPath, buffer)
-      execa.sync('xz', ['-d', xzPath], { stdio: 'inherit' })
-      await tar.extract({
-        file: archivePath,
-        cwd: cacheDir,
-        strip: config.nodeBinPath.split('/').length - 1,
-        filter: (entryPath) => entryPath === config.nodeBinPath,
-      })
-      try { fs.unlinkSync(archivePath) } catch {}
-    } else {
-      // gzip-compressed: pipe through gunzip
-      const buffer = Buffer.from(await response.arrayBuffer())
-      fs.writeFileSync(archivePath + '.gz', buffer)
-      const readStream = fs.createReadStream(archivePath + '.gz')
-      const writeStream = fs.createWriteStream(archivePath)
-      await pipeline(readStream, createGunzip(), writeStream)
-      try { fs.unlinkSync(archivePath + '.gz') } catch {}
-      await tar.extract({
-        file: archivePath,
-        cwd: cacheDir,
-        strip: config.nodeBinPath.split('/').length - 1,
-        filter: (entryPath) => entryPath === config.nodeBinPath,
-      })
-      try { fs.unlinkSync(archivePath) } catch {}
+const removeMapFiles = (dir: string): void => {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const fullPath = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      removeMapFiles(fullPath)
+    } else if (entry.name.endsWith('.map')) {
+      fs.unlinkSync(fullPath)
     }
   }
-
-  if (!fs.existsSync(cachedBin)) {
-    throw new Error(`Failed to extract Node.js binary for ${target}: ${cachedBin} not found`)
-  }
-
-  return cachedBin
 }
+removeMapFiles(distDest)
 
-function copyDistAssets (targetDir: string): void {
-  const distSrc = path.join(pnpmDir, 'dist')
-  const distDest = path.join(targetDir, 'dist')
+// @pnpm/exe declares @reflink/reflink as a dependency, so npm installs the
+// right platform package on the consumer. Drop the bundled copies from the
+// published dist/ to avoid shipping them twice.
+fs.rmSync(path.join(distDest, 'node_modules', '@reflink'), { recursive: true, force: true })
 
-  // Remove existing dist directory
-  fs.rmSync(distDest, { recursive: true, force: true })
-
-  // Copy the dist directory
-  fs.cpSync(distSrc, distDest, { recursive: true })
-
-  // Remove source maps from the copied dist (they're archived separately)
-  const removeMapFiles = (dir: string) => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const fullPath = path.join(dir, entry.name)
-      if (entry.isDirectory()) {
-        removeMapFiles(fullPath)
-      } else if (entry.name.endsWith('.map')) {
-        fs.unlinkSync(fullPath)
-      }
-    }
-  }
-  removeMapFiles(distDest)
-}
-
-async function build (target: string, config: TargetConfig): Promise<void> {
-  const targetDir = path.join(artifactsDir, target)
-  let artifactFile = path.join(targetDir, 'pnpm')
-  if (target.startsWith('win32-')) {
-    artifactFile += '.exe'
-  }
-
-  // Clean up existing artifact
-  try { fs.unlinkSync(artifactFile) } catch {}
-  fs.mkdirSync(targetDir, { recursive: true })
-
-  // Download the Node.js binary for this platform
-  const nodeBin = await downloadNodeBinary(target, config)
-
-  // Generate SEA config for this target
-  const seaConfig = {
-    main: path.join(pnpmDir, 'pnpm.cjs'),
-    executable: nodeBin,
-    output: artifactFile,
-    disableExperimentalSEAWarning: true,
-    useCodeCache: false,
-    useSnapshot: false,
-  }
-  const seaConfigPath = path.join(targetDir, 'sea-config.json')
-  fs.writeFileSync(seaConfigPath, JSON.stringify(seaConfig, null, 2))
-
-  // Build the SEA
-  console.log(`Building SEA for ${target}...`)
-  execa.sync('node', ['--build-sea', seaConfigPath], {
-    stdio: 'inherit',
-  })
-
-  // Clean up config
-  fs.unlinkSync(seaConfigPath)
-
-  // Sign macOS binaries
-  if (config.needsLdidSigning) {
-    console.log(`Signing macOS binary for ${target} with ldid...`)
-    execa.sync('ldid', ['-S', artifactFile], { stdio: 'inherit' })
-  } else if (config.platform === 'darwin' && process.platform === 'darwin') {
-    console.log(`Signing macOS binary for ${target} with codesign...`)
-    execa.sync('codesign', ['--sign', '-', artifactFile], { stdio: 'inherit' })
-  }
-
-  // Verifying that the artifact was created.
-  fs.statSync(artifactFile)
-  console.log(`Successfully built ${target}`)
-}
-
-;(async () => {
-  const targets = getTargets()
-
-  await build('win32-x64', targets['win32-x64'])
-  await build('linux-x64', targets['linux-x64'])
-  await build('darwin-x64', targets['darwin-x64'])
-
-  const isM1Mac = process.platform === 'darwin' && process.arch === 'arm64'
-  if (process.platform === 'linux' || isM1Mac) {
-    await build('darwin-arm64', targets['darwin-arm64'])
-    await build('linux-arm64', targets['linux-arm64'])
-    await build('win32-arm64', targets['win32-arm64'])
-    await build('linux-x64-musl', targets['linux-x64-musl'])
-    await build('linux-arm64-musl', targets['linux-arm64-musl'])
-  }
-
-  // Copy dist/ to the exe directory for npm publishing.
-  // Platform packages only contain the binary; dist/ is shipped in @pnpm/exe.
-  const exeDir = path.join(artifactsDir, 'exe')
-  copyDistAssets(exeDir)
-  // Remove all bundled reflink packages — @pnpm/exe declares @reflink/reflink
-  // as a dependency, so npm installs the right platform package automatically.
-  fs.rmSync(path.join(exeDir, 'dist', 'node_modules', '@reflink'), { recursive: true, force: true })
-  console.log('Copied dist/ to exe directory for npm publishing')
-})()
+console.log('Copied dist/ to exe directory for npm publishing')
