@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.settings-checker",
-  "version": "1100.0.0",
+  "version": "1100.0.3",
   "description": "Utilities to check if lockfile settings are out-of-date",
   "keywords": [
     "pnpm",
@@ -29,7 +29,7 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pn compile",
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {

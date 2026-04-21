@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import type { WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { writeYamlFileSync } from 'write-yaml-file'

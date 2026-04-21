@@ -1,5 +1,117 @@
 # @pnpm/engine.pm.commands
 
+## 1101.0.2
+
+### Patch Changes
+
+- ef4ef7b: Restored the legacy `@pnpm/{macos,win,linux,linuxstatic}-{x64,arm64}` npm names for the platform-specific optional dependencies of `@pnpm/exe`, reverting the scope-nested `@pnpm/exe.<platform>-<arch>[-musl]` rename from [#11316](https://github.com/pnpm/pnpm/pull/11316) on the published package names only — the workspace directory layout (`pnpm/artifacts/<platform>-<arch>[-musl]/`) and the GitHub release asset filenames stay on the new scheme. The rename broke `pnpm self-update` from v10, which looks up the platform child by its legacy name. `linkExePlatformBinary` now checks for both schemes so a later rename can ship without a v10-compatibility hazard.
+  - @pnpm/installing.client@1100.0.4
+  - @pnpm/store.controller@1101.0.0
+  - @pnpm/installing.deps-restorer@1101.0.0
+  - @pnpm/resolving.npm-resolver@1101.0.0
+  - @pnpm/installing.env-installer@1101.0.0
+  - @pnpm/store.connection-manager@1100.0.4
+  - @pnpm/global.commands@1100.0.4
+  - @pnpm/deps.graph-hasher@1100.1.1
+  - @pnpm/config.reader@1101.1.1
+
+## 1101.0.1
+
+### Patch Changes
+
+- Updated dependencies [7d25bc1]
+- Updated dependencies [72c1e05]
+- Updated dependencies [9e0833c]
+  - @pnpm/config.reader@1101.1.0
+  - @pnpm/deps.graph-hasher@1100.1.0
+  - @pnpm/installing.deps-restorer@1100.0.3
+  - @pnpm/resolving.npm-resolver@1100.1.0
+  - @pnpm/store.connection-manager@1100.0.3
+  - @pnpm/global.commands@1100.0.3
+  - @pnpm/installing.client@1100.0.3
+  - @pnpm/installing.env-installer@1100.1.1
+  - @pnpm/lockfile.types@1100.0.2
+  - @pnpm/store.controller@1100.0.2
+
+## 1101.0.0
+
+### Major Changes
+
+- cee550a: **Breaking:** removed the `managePackageManagerVersions`, `packageManagerStrict`, and `packageManagerStrictVersion` settings. They existed only to derive the `onFail` behavior for the legacy `packageManager` field, and the `pmOnFail` setting introduced alongside `pnpm with` subsumes all three — it directly sets the `onFail` behavior of both `packageManager` and `devEngines.packageManager`. The `COREPACK_ENABLE_STRICT` environment variable is no longer honored (it only gated `packageManagerStrict`); use `pmOnFail` instead.
+
+  Migration:
+
+  | Removed setting                       | Replace with                   |
+  | ------------------------------------- | ------------------------------ |
+  | `managePackageManagerVersions: true`  | `pmOnFail: download` (default) |
+  | `managePackageManagerVersions: false` | `pmOnFail: ignore`             |
+  | `packageManagerStrict: false`         | `pmOnFail: warn`               |
+  | `packageManagerStrictVersion: true`   | `pmOnFail: error`              |
+  | `COREPACK_ENABLE_STRICT=0`            | `pmOnFail: warn`               |
+
+### Minor Changes
+
+- 9af708a: Add `pnpm with <version|current> <args...>` command. Runs pnpm at a specific version (or the currently active one) for a single invocation, bypassing the project's `packageManager` and `devEngines.packageManager` pins. Uses the same install mechanism as `pnpm self-update`, caching the downloaded pnpm in the global virtual store for reuse.
+
+  Examples:
+
+  ```
+  pnpm with current install           # ignore the pinned version, use the running pnpm
+  pnpm with 11.0.0-rc.1 install       # install using pnpm 11.0.0-rc.1
+  pnpm with next install              # install using the "next" dist-tag
+  ```
+
+  Also adds a new `pmOnFail` setting that overrides the `onFail` behavior of `packageManager` and `devEngines.packageManager`. Accepted values: `download`, `error`, `warn`, `ignore`. Can be set via CLI flag, env var, `pnpm-workspace.yaml`, or `.npmrc` — useful when version management is handled by an external tool (asdf, mise, Volta, etc.) and the project wants pnpm itself to skip the check.
+
+  ```
+  pnpm install --pm-on-fail=ignore            # direct CLI flag
+  pnpm_config_pm_on_fail=ignore pnpm install  # env var
+  # or in pnpm-workspace.yaml:
+  #   pmOnFail: ignore
+  ```
+
+### Patch Changes
+
+- Updated dependencies [cee550a]
+- Updated dependencies [4ab3d9b]
+- Updated dependencies [9af708a]
+- Updated dependencies [ea2a7fb]
+- Updated dependencies [ff7733c]
+  - @pnpm/cli.utils@1101.0.0
+  - @pnpm/config.reader@1101.0.0
+  - @pnpm/installing.env-installer@1100.1.0
+  - @pnpm/global.commands@1100.0.2
+  - @pnpm/store.connection-manager@1100.0.2
+  - @pnpm/bins.linker@1100.0.2
+  - @pnpm/workspace.project-manifest-reader@1100.0.2
+  - @pnpm/installing.deps-restorer@1100.0.2
+  - @pnpm/installing.client@1100.0.2
+  - @pnpm/store.controller@1100.0.1
+
+## 1100.0.1
+
+### Patch Changes
+
+- b989a4a: Fixed `pnpm store prune` removing packages used by the globally installed pnpm, breaking it.
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/bins.linker@1100.0.1
+  - @pnpm/building.policy@1100.0.1
+  - @pnpm/cli.meta@1100.0.1
+  - @pnpm/cli.utils@1100.0.1
+  - @pnpm/config.reader@1100.0.1
+  - @pnpm/deps.graph-hasher@1100.0.1
+  - @pnpm/global.commands@1100.0.1
+  - @pnpm/global.packages@1100.0.1
+  - @pnpm/installing.client@1100.0.1
+  - @pnpm/installing.deps-restorer@1100.0.1
+  - @pnpm/installing.env-installer@1100.0.1
+  - @pnpm/lockfile.types@1100.0.1
+  - @pnpm/resolving.npm-resolver@1100.0.1
+  - @pnpm/store.controller@1100.0.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.1
+  - @pnpm/store.connection-manager@1100.0.1
+
 ## 1001.0.0
 
 ### Major Changes

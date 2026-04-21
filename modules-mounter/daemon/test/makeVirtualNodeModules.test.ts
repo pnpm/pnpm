@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 
 import { makeVirtualNodeModules } from '../src/makeVirtualNodeModules.js'

@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { describe, expect, test } from '@jest/globals'
 import { dedupe, install } from '@pnpm/installing.commands'
 import { DedupeCheckIssuesError } from '@pnpm/installing.dedupe.check'
 import type { LockfileObject } from '@pnpm/lockfile.types'

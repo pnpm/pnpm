@@ -1,6 +1,6 @@
-import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
+import { afterEach, beforeEach, describe, expect, test } from '@jest/globals'
 import { audit } from '@pnpm/deps.compliance.commands'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { addDistTag } from '@pnpm/registry-mock'
@@ -10,6 +10,7 @@ import type { DepPath } from '@pnpm/types'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { filterProjectsFromDir } from '@pnpm/workspace.projects-filter'
 import chalk from 'chalk'
+import { loadJsonFile } from 'load-json-file'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { MOCK_REGISTRY, MOCK_REGISTRY_OPTS } from './utils/options.js'
@@ -42,11 +43,11 @@ describe('audit fix with update', () => {
     expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
 
-    const mockResponse = await readFile(join(tmp, 'responses', 'top-level-vulnerability.json'), 'utf-8')
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -108,11 +109,11 @@ The fixed vulnerabilities are:
     expect(originalLockfile!.packages![originalDepPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedDepPkgId]).toBeUndefined()
 
-    const mockResponse = await readFile(join(tmp, 'responses', 'top-level-vulnerability.json'), 'utf-8')
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -169,11 +170,11 @@ The fixed vulnerabilities are:
     expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
 
-    const mockResponse = await readFile(join(tmp, 'responses', 'depth-2-vulnerability.json'), 'utf-8')
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'depth-2-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -220,11 +221,11 @@ The fixed vulnerabilities are:
     expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
 
-    const mockResponse = await readFile(join(tmp, 'responses', 'depth-3-vulnerability.json'), 'utf-8')
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'depth-3-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -274,11 +275,11 @@ The fixed vulnerabilities are:
     expect(originalLockfile!.packages).toBeDefined()
     expect(originalLockfile!.packages![pkgId]).toBeDefined()
 
-    const mockResponse = await readFile(join(tmp, 'responses', 'unfixable-vulnerability.json'), 'utf-8')
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'unfixable-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -338,11 +339,11 @@ The remaining vulnerabilities are:
     expect(originalLockfile!.packages![expectedPkgId1]).toBeUndefined()
     expect(originalLockfile!.packages![expectedPkgId2]).toBeUndefined()
 
-    const mockResponse = await readFile(join(tmp, 'responses', 'form-data-vulnerability.json'), 'utf-8')
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'form-data-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -404,11 +405,11 @@ The fixed vulnerabilities are:
     expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
 
-    const mockResponse = await readFile(join(tmp, 'responses', 'top-level-vulnerability.json'), 'utf-8')
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(200, mockResponse)
 
     const {
@@ -478,11 +479,11 @@ The fixed vulnerabilities are:
     expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
 
-    const mockResponse = await readFile(join(tmp, 'responses', 'depth-2-vulnerability.json'), 'utf-8')
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'depth-2-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(200, mockResponse)
 
     const {
@@ -559,11 +560,11 @@ The fixed vulnerabilities are:
     expect(originalLockfile!.packages![originalDepPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedDepPkgId]).toBeUndefined()
 
-    const mockResponse = await readFile(join(tmp, 'responses', 'top-level-vulnerability.json'), 'utf-8')
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(200, mockResponse)
 
     const {
@@ -650,11 +651,11 @@ The fixed vulnerabilities are:
     expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
 
-    const mockResponse = await readFile(join(tmp, 'responses', 'top-level-vulnerability.json'), 'utf-8')
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(200, mockResponse)
 
     const {
@@ -738,11 +739,11 @@ The fixed vulnerabilities are:
     expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
 
-    const mockResponse = await readFile(join(tmp, 'responses', 'top-level-vulnerability.json'), 'utf-8')
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/audits/quick', method: 'POST' })
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
       .reply(200, mockResponse)
 
     const {

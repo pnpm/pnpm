@@ -84,8 +84,8 @@ for bin in "${VARIANT_BINS[@]}"; do
 done
 
 for i in "${!VARIANTS[@]}"; do
-  # Run --version from BENCH_DIR to avoid pnpm's manage-package-manager-versions
-  # switching the CLI based on a packageManager field in the current directory.
+  # Run --version from BENCH_DIR to avoid pnpm's automatic version switching
+  # based on a packageManager field in the current directory.
   echo "${VARIANTS[$i]}:   $(cd "$BENCH_DIR" && node "${VARIANT_BINS[$i]}" --version)  (${VARIANT_DIRS[$i]})"
 done
 echo "workdir: $BENCH_DIR"

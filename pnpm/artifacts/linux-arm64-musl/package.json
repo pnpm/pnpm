@@ -1,0 +1,36 @@
+{
+  "name": "@pnpm/linuxstatic-arm64",
+  "version": "11.0.0-rc.5",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "pnpm-artifact"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm/artifacts/linux-arm64-musl",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm/artifacts/linux-arm64-musl#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "files": [
+    "pnpm"
+  ],
+  "scripts": {
+    "prepublishOnly": "node ../verify-binary.mjs linux arm64 musl"
+  },
+  "devDependencies": {
+    "@pnpm/linuxstatic-arm64": "workspace:*"
+  },
+  "publishConfig": {
+    "os": [
+      "linux"
+    ],
+    "cpu": [
+      "arm64"
+    ],
+    "libc": [
+      "musl"
+    ]
+  }
+}

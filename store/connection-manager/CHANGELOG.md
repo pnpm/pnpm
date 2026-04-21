@@ -1,5 +1,46 @@
 # @pnpm/store-connection-manager
 
+## 1100.0.4
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.4
+- @pnpm/store.controller@1101.0.0
+- @pnpm/config.reader@1101.1.1
+
+## 1100.0.3
+
+### Patch Changes
+
+- 9e0833c: Added a new setting `minimumReleaseAgeIgnoreMissingTime`, which is `true` by default. When enabled, pnpm skips the `minimumReleaseAge` maturity check if the registry metadata does not include the `time` field. Set to `false` to fail resolution instead.
+- Updated dependencies [7d25bc1]
+- Updated dependencies [9e0833c]
+  - @pnpm/config.reader@1101.1.0
+  - @pnpm/installing.client@1100.0.3
+  - @pnpm/store.controller@1100.0.2
+
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [cee550a]
+- Updated dependencies [4ab3d9b]
+- Updated dependencies [9af708a]
+- Updated dependencies [ea2a7fb]
+- Updated dependencies [ff7733c]
+  - @pnpm/config.reader@1101.0.0
+  - @pnpm/installing.client@1100.0.2
+  - @pnpm/store.controller@1100.0.1
+
+## 1100.0.1
+
+### Patch Changes
+
+- @pnpm/cli.meta@1100.0.1
+- @pnpm/config.reader@1100.0.1
+- @pnpm/installing.client@1100.0.1
+- @pnpm/store.controller@1100.0.1
+
 ## 1003.0.0
 
 ### Major Changes

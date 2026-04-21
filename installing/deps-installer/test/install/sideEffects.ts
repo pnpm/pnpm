@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { afterAll, expect, test } from '@jest/globals'
 import { ENGINE_NAME } from '@pnpm/constants'
 import { hashObject } from '@pnpm/crypto.object-hasher'
 import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'

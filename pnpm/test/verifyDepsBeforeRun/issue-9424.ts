@@ -1,9 +1,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { preparePackages } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
-import { loadWorkspaceState, type WorkspaceState } from '@pnpm/workspace.state'
+import { loadWorkspaceState } from '@pnpm/workspace.state'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from '../utils/index.js'
@@ -60,7 +61,7 @@ test('hoisted node linker and node_modules not exist (#9424)', async () => {
     settings: {
       nodeLinker: 'hoisted',
     },
-  } as Partial<WorkspaceState>)
+  })
 
   // pnpm install creates a node_modules at root, but none in the workspace members
   expect(fs.readdirSync(process.cwd())).toContain('node_modules')

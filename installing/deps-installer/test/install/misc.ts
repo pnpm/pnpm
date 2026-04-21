@@ -1,15 +1,8 @@
 import fs from 'node:fs'
 import * as path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import type {
-  PackageManifestLog,
-  ProgressLog,
-  RootLog,
-  StageLog,
-  StatsLog,
-} from '@pnpm/core-loggers'
 import {
   addDependenciesToPackage,
   install,
@@ -80,44 +73,44 @@ test('no dependencies (lodash)', async () => {
     initial: { name: 'project', version: '0.0.0' },
     level: 'debug',
     name: 'pnpm:package-manifest',
-  } as PackageManifestLog)
+  })
   expect(reporter.mock.calls.filter(([arg]) => manifestMatcher.asymmetricMatch(arg))).toHaveLength(1)
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stage',
     prefix: process.cwd(),
     stage: 'resolution_started',
-  } as StageLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stage',
     prefix: process.cwd(),
     stage: 'resolution_done',
-  } as StageLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stage',
     prefix: process.cwd(),
     stage: 'importing_started',
-  } as StageLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stage',
     prefix: process.cwd(),
     stage: 'importing_done',
-  } as StageLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     added: 1,
     level: 'debug',
     name: 'pnpm:stats',
     prefix: process.cwd(),
-  } as StatsLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stats',
     prefix: process.cwd(),
     removed: 0,
-  } as StatsLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     added: expect.objectContaining({
       dependencyType: 'prod',
@@ -129,7 +122,7 @@ test('no dependencies (lodash)', async () => {
     level: 'debug',
     name: 'pnpm:root',
     prefix: process.cwd(),
-  } as RootLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:package-manifest',
@@ -140,7 +133,7 @@ test('no dependencies (lodash)', async () => {
       name: 'project',
       version: '0.0.0',
     } as ProjectManifest,
-  } as PackageManifestLog))
+  }))
 
   const m = project.requireModule('lodash')
   expect(typeof m).toBe('function')
@@ -157,7 +150,7 @@ test('only the new packages are added', async () => {
     added: 1,
     level: 'debug',
     name: 'pnpm:stats',
-  } as StatsLog))
+  }))
 })
 
 test('scoped modules without version spec', async () => {
@@ -242,7 +235,7 @@ test('update a package when installing with a dist-tag', async () => {
       name: '@pnpm.e2e/dep-of-pkg-with-1-dep',
       version: '100.0.0',
     }),
-  } as RootLog))
+  }))
 
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     added: expect.objectContaining({
@@ -252,7 +245,7 @@ test('update a package when installing with a dist-tag', async () => {
     }),
     level: 'debug',
     name: 'pnpm:root',
-  } as RootLog))
+  }))
 
   project.has('@pnpm.e2e/dep-of-pkg-with-1-dep')
   project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
@@ -305,7 +298,7 @@ test('idempotency', async () => {
     }),
     level: 'debug',
     name: 'pnpm:root',
-  } as RootLog))
+  }))
 
   reporter.mockClear()
 
@@ -319,7 +312,7 @@ test('idempotency', async () => {
     }),
     level: 'debug',
     name: 'pnpm:root',
-  } as RootLog))
+  }))
 
   project.has('@pnpm.e2e/pkg-with-1-dep')
 })
@@ -342,7 +335,7 @@ test('reporting adding root package', async () => {
     }),
     level: 'debug',
     name: 'pnpm:root',
-  } as RootLog))
+  }))
 })
 
 test('overwriting (magic-hook@2.0.0 and @0.1.0)', async () => {
@@ -582,7 +575,7 @@ test('should update subdep on second install', async () => {
     level: 'debug',
     name: 'pnpm:stats',
     prefix: process.cwd(),
-  } as StatsLog))
+  }))
 
   project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
 
@@ -699,13 +692,13 @@ test('lockfile locks npm dependencies', async () => {
     packageId: '@pnpm.e2e/pkg-with-1-dep@100.0.0',
     requester: process.cwd(),
     status: 'resolved',
-  } as ProgressLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     packageId: '@pnpm.e2e/pkg-with-1-dep@100.0.0',
     requester: process.cwd(),
     status: 'fetched',
-  } as ProgressLog))
+  }))
 
   project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
 
@@ -721,13 +714,13 @@ test('lockfile locks npm dependencies', async () => {
     packageId: '@pnpm.e2e/pkg-with-1-dep@100.0.0',
     requester: process.cwd(),
     status: 'resolved',
-  } as ProgressLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     packageId: '@pnpm.e2e/pkg-with-1-dep@100.0.0',
     requester: process.cwd(),
     status: 'found_in_store',
-  } as ProgressLog))
+  }))
 
   const m = project.requireModule('.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json')
 
@@ -777,7 +770,7 @@ test('install a dependency with * range', async () => {
         '@pnpm.e2e/has-beta-only': '*',
       },
     } as ProjectManifest,
-  } as PackageManifestLog))
+  }))
 })
 
 test('should throw error when trying to install a package without name', async () => {

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.linking.direct-dep-linker",
-  "version": "1100.0.0",
+  "version": "1100.0.1",
   "description": "Fast installation using only pnpm-lock.yaml",
   "keywords": [
     "pnpm",
@@ -26,7 +26,7 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pn compile",
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {

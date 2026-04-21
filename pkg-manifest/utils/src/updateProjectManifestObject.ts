@@ -26,7 +26,7 @@ function getPeerSpecifier (spec: string, resolvedVersion?: string, pinnedVersion
   return rangeFromResolved ?? '*'
 }
 
-function createVersionSpecFromResolvedVersion (resolvedVersion: string, pinnedVersion?: PinnedVersion): string | null {
+export function createVersionSpecFromResolvedVersion (resolvedVersion: string, pinnedVersion?: PinnedVersion): string | null {
   const parsed = semver.parse(resolvedVersion)
   if (!parsed) return null
   if (parsed.prerelease.length) return resolvedVersion

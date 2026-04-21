@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { describe, expect, it, jest } from '@jest/globals'
 
 import { login, type LoginContext, type LoginFetchResponse } from '../src/login.js'
 
@@ -16,9 +16,6 @@ const TEST_CONTEXT: LoginContext = {
   enquirer: { prompt: async () => {
     throw new Error('Unexpected call to enquirer.prompt')
   } },
-  execFile: () => {
-    throw new Error('Unexpected call to execFile')
-  },
   fetch: async url => {
     throw new Error(`Unexpected call to fetch: ${url}`)
   },

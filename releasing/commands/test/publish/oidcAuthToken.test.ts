@@ -1,10 +1,9 @@
-import { jest } from '@jest/globals'
+import { describe, expect, jest, test } from '@jest/globals'
 
 import {
   type AuthTokenContext,
   AuthTokenExchangeError,
   AuthTokenFetchError,
-  type AuthTokenFetchOptions,
   AuthTokenJsonInterruptedError,
   AuthTokenMalformedJsonError,
   fetchAuthToken,
@@ -16,7 +15,7 @@ describe('fetchAuthToken', () => {
   const idToken = 'test-id-token'
 
   test('successfully fetches auth token', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<AuthTokenContext['fetch']>(async () => ({
       ok: true,
       status: 200,
       json: async () => ({ token: 'fetched-auth-token' }),
@@ -41,12 +40,12 @@ describe('fetchAuthToken', () => {
         },
         body: '',
         method: 'POST',
-      } as AuthTokenFetchOptions)
+      })
     )
   })
 
   test('encodes package name in URL', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<AuthTokenContext['fetch']>(async () => ({
       ok: true,
       status: 200,
       json: async () => ({ token: 'token' }),
@@ -66,7 +65,7 @@ describe('fetchAuthToken', () => {
   })
 
   test('passes fetch options correctly', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<AuthTokenContext['fetch']>(async () => ({
       ok: true,
       status: 200,
       json: async () => ({ token: 'token' }),
@@ -109,7 +108,7 @@ describe('fetchAuthToken', () => {
 
   test('throws AuthTokenFetchError when fetch fails', async () => {
     const fetchError = new Error('Network error')
-    const mockFetch = jest.fn(async () => {
+    const mockFetch = jest.fn<AuthTokenContext['fetch']>(async () => {
       throw fetchError
     })
 
@@ -127,7 +126,7 @@ describe('fetchAuthToken', () => {
   })
 
   test('throws AuthTokenExchangeError when response is not ok and returns a payload of error', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<AuthTokenContext['fetch']>(async () => ({
       ok: false,
       status: 401,
       json: async () => ({ body: { message: 'Unauthorized' } }),
@@ -150,7 +149,7 @@ describe('fetchAuthToken', () => {
   })
 
   test('throws AuthTokenExchangeError when response is not ok and the returned payload could not be fetched', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<AuthTokenContext['fetch']>(async () => ({
       ok: false,
       status: 401,
       json: async () => {
@@ -175,7 +174,7 @@ describe('fetchAuthToken', () => {
   })
 
   test('handles exchange error with missing body message', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<AuthTokenContext['fetch']>(async () => ({
       ok: false,
       status: 403,
       json: async () => ({}),
@@ -196,7 +195,7 @@ describe('fetchAuthToken', () => {
   })
 
   test('handles exchange error when json response is valid', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<AuthTokenContext['fetch']>(async () => ({
       ok: false,
       status: 500,
       json: async () => ({ body: { message: 'Internal Server Error' } }),
@@ -215,7 +214,7 @@ describe('fetchAuthToken', () => {
 
   test('throws AuthTokenJsonInterruptedError when JSON parsing fails on success response', async () => {
     const jsonError = new Error('JSON parse error')
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<AuthTokenContext['fetch']>(async () => ({
       ok: true,
       status: 200,
       json: async () => {
@@ -235,7 +234,7 @@ describe('fetchAuthToken', () => {
   })
 
   test('throws AuthTokenMalformedJsonError when JSON response is missing token', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<AuthTokenContext['fetch']>(async () => ({
       ok: true,
       status: 200,
       json: async () => ({}),
@@ -255,7 +254,7 @@ describe('fetchAuthToken', () => {
   })
 
   test('throws AuthTokenMalformedJsonError when token is not a string', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<AuthTokenContext['fetch']>(async () => ({
       ok: true,
       status: 200,
       json: async () => ({ token: 12345 }),
@@ -269,7 +268,7 @@ describe('fetchAuthToken', () => {
   })
 
   test('throws AuthTokenMalformedJsonError when JSON response is null', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<AuthTokenContext['fetch']>(async () => ({
       ok: true,
       status: 200,
       json: async () => null,
@@ -283,7 +282,7 @@ describe('fetchAuthToken', () => {
   })
 
   test('throws AuthTokenMalformedJsonError when JSON response is not an object', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<AuthTokenContext['fetch']>(async () => ({
       ok: true,
       status: 200,
       json: async () => 'string response',

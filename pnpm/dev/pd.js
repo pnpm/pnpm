@@ -95,16 +95,14 @@ const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(import.meta.dirn
   const { status } = childProcess.spawnSync(nodeBin, [
     '--enable-source-maps',
     pathLib.resolve(import.meta.dirname, 'dist/pnpm.mjs'),
-    '--config.manage-package-manager-versions=false',
+    '--pm-on-fail=ignore',
     ...process.argv.slice(2),
   ], {
     stdio: 'inherit',
     env: {
       ...process.env,
-      // During local development we don't want to switch to another version of pnpm
-      // NOTE: Disabling through env variable stopped working for some reasone!
-      // We need to check why. We set it through CLI argument for now.
-      npm_config_manage_package_manager_versions: false,
+      // During local development we don't want to switch to another version of pnpm.
+      pnpm_config_pm_on_fail: 'ignore',
     },
   })
   process.exit(status)

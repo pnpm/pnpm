@@ -98,6 +98,7 @@ export interface PackageVulnerability {
 }
 
 export type VulnerabilitySeverity =
+  | 'info'
   | 'low'
   | 'moderate'
   | 'high'

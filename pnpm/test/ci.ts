@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { prepare, tempDir } from '@pnpm/prepare'
 
 import { execPnpmSync } from './utils/index.js'

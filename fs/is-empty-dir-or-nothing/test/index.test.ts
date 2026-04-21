@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { describe, expect, it } from '@jest/globals'
 import { isEmptyDirOrNothing } from '@pnpm/fs.is-empty-dir-or-nothing'
 
 describe('isEmptyDirOrNothing', () => {

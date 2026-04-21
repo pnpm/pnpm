@@ -1,9 +1,8 @@
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { add } from '@pnpm/installing.commands'
-import type { LockfileFile } from '@pnpm/lockfile.types'
 import { prepare } from '@pnpm/prepare'
-import type { ProjectManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
@@ -34,7 +33,7 @@ test('pnpm add jsr:@<scope>/<name>', async () => {
     dependencies: {
       '@pnpm-e2e/foo': 'jsr:^0.1.0',
     },
-  } as ProjectManifest)
+  })
 
   expect(project.readLockfile()).toMatchObject({
     importers: {
@@ -57,7 +56,7 @@ test('pnpm add jsr:@<scope>/<name>', async () => {
     snapshots: {
       '@jsr/pnpm-e2e__foo@0.1.0': expect.any(Object),
     },
-  } as Partial<LockfileFile>)
+  })
 })
 
 test('pnpm add jsr:@<scope>/<name> --save-peer writes a valid peer range', async () => {
@@ -75,7 +74,7 @@ test('pnpm add jsr:@<scope>/<name> --save-peer writes a valid peer range', async
     peerDependencies: {
       '@pnpm-e2e/foo': '^0.1.0',
     },
-  } as ProjectManifest)
+  })
 })
 
 test('pnpm add jsr:@<scope>/<name>@latest', async () => {
@@ -91,7 +90,7 @@ test('pnpm add jsr:@<scope>/<name>@latest', async () => {
     dependencies: {
       '@pnpm-e2e/foo': 'jsr:^0.1.0',
     },
-  } as ProjectManifest)
+  })
 
   expect(project.readLockfile()).toMatchObject({
     importers: {
@@ -114,7 +113,7 @@ test('pnpm add jsr:@<scope>/<name>@latest', async () => {
     snapshots: {
       '@jsr/pnpm-e2e__foo@0.1.0': expect.any(Object),
     },
-  } as Partial<LockfileFile>)
+  })
 })
 
 test('pnpm add jsr:@<scope>/<name>@<version_selector>', async () => {
@@ -130,7 +129,7 @@ test('pnpm add jsr:@<scope>/<name>@<version_selector>', async () => {
     dependencies: {
       '@pnpm-e2e/foo': 'jsr:~0.1.0',
     },
-  } as ProjectManifest)
+  })
 
   expect(project.readLockfile()).toMatchObject({
     importers: {
@@ -153,7 +152,7 @@ test('pnpm add jsr:@<scope>/<name>@<version_selector>', async () => {
     snapshots: {
       '@jsr/pnpm-e2e__foo@0.1.0': expect.any(Object),
     },
-  } as Partial<LockfileFile>)
+  })
 })
 
 test('pnpm add <alias>@jsr:@<scope>/<name>', async () => {
@@ -169,7 +168,7 @@ test('pnpm add <alias>@jsr:@<scope>/<name>', async () => {
     dependencies: {
       'foo-from-jsr': 'jsr:@pnpm-e2e/foo@^0.1.0',
     },
-  } as ProjectManifest)
+  })
 
   expect(project.readLockfile()).toMatchObject({
     importers: {
@@ -192,7 +191,7 @@ test('pnpm add <alias>@jsr:@<scope>/<name>', async () => {
     snapshots: {
       '@jsr/pnpm-e2e__foo@0.1.0': expect.any(Object),
     },
-  } as Partial<LockfileFile>)
+  })
 })
 
 test('pnpm add <alias>@jsr:@<scope>/<name>@<version_selector>', async () => {
@@ -208,7 +207,7 @@ test('pnpm add <alias>@jsr:@<scope>/<name>@<version_selector>', async () => {
     dependencies: {
       'foo-from-jsr': 'jsr:@pnpm-e2e/foo@~0.1.0',
     },
-  } as ProjectManifest)
+  })
 
   expect(project.readLockfile()).toMatchObject({
     importers: {
@@ -231,5 +230,5 @@ test('pnpm add <alias>@jsr:@<scope>/<name>@<version_selector>', async () => {
     snapshots: {
       '@jsr/pnpm-e2e__foo@0.1.0': expect.any(Object),
     },
-  } as Partial<LockfileFile>)
+  })
 })

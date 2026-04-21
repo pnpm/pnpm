@@ -1,7 +1,7 @@
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { install, update } from '@pnpm/installing.commands'
-import type { LockfileFile } from '@pnpm/lockfile.types'
 import { prepare } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import type { ProjectManifest } from '@pnpm/types'
@@ -53,7 +53,7 @@ test('jsr without alias', async () => {
     snapshots: {
       '@jsr/pnpm-e2e__bar@1.0.0': expect.any(Object),
     },
-  } as Partial<LockfileFile>)
+  })
 
   await update.handler({
     ...createOptions(),
@@ -85,7 +85,7 @@ test('jsr without alias', async () => {
     snapshots: {
       '@jsr/pnpm-e2e__bar@2.0.0': expect.any(Object),
     },
-  } as Partial<LockfileFile>)
+  })
 })
 
 test('jsr with alias', async () => {
@@ -119,7 +119,7 @@ test('jsr with alias', async () => {
     snapshots: {
       '@jsr/pnpm-e2e__bar@1.0.0': expect.any(Object),
     },
-  } as Partial<LockfileFile>)
+  })
 
   await update.handler({
     ...createOptions(),
@@ -151,5 +151,5 @@ test('jsr with alias', async () => {
     snapshots: {
       '@jsr/pnpm-e2e__bar@2.0.0': expect.any(Object),
     },
-  } as Partial<LockfileFile>)
+  })
 })

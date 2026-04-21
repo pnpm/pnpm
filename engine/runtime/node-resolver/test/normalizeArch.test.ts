@@ -1,3 +1,5 @@
+import { expect, test } from '@jest/globals'
+
 import { getNormalizedArch } from '../lib/normalizeArch.js'
 
 test.each([

@@ -1,5 +1,147 @@
 # pnpm
 
+## 11.0.0-rc.5
+
+### Patch Changes
+
+- Fix the `@pnpm/exe` SEA executable crashing at startup on Node.js v25.7+. Two separate regressions in `@pnpm/exe@11.0.0-rc.4` are addressed:
+
+  1. `pnpm pack-app` now pins the Node.js used to write the SEA blob to the exact embedded runtime version. The SEA blob format changed in Node.js v25.7 (ESM entry-point support added a `ModuleFormat` header byte), so a blob produced by a pre-25.7 builder cannot be deserialized by a 25.7+ runtime and vice versa. In rc.4 the CI host Node.js (v25.6.1) built blobs embedded in a v25.9.0 runtime, tripping `SeaDeserializer::Read() ... format_value <= kModule` on every invocation. `pack-app` now downloads a host-arch builder Node.js of the target version when the running Node.js doesn't already match.
+
+  2. The pnpm CJS SEA entry shim now loads `dist/pnpm.mjs` through `Module.createRequire(process.execPath)` instead of `await import(pathToFileURL(...).href)`. In Node.js v25.7+, the ambient `require` and `import()` inside a CJS SEA entry are replaced with embedder hooks that only resolve built-in module names, causing external `file://` loads to fail with `ERR_UNKNOWN_BUILTIN_MODULE`. An explicit `createRequire()` bypasses those hooks.
+
+## 11.0.0-rc.4
+
+### Major Changes
+
+- Installing a Node.js runtime via `node@runtime:<version>` (including `pnpm env use` and `pnpm runtime set node`) no longer extracts the bundled `npm`, `npx`, and `corepack` from the Node.js archive. This cuts roughly half of the files pnpm has to hash, write to the CAS, and link during installation, making runtime installs noticeably faster. Users who still need `npm` can install it as a separate package.
+
+### Minor Changes
+
+- `pnpm pack-app`: replaced the `--node-version` flag with `--runtime`, which takes a `<name>@<version>` spec (e.g. `--runtime node@22.0.0`). The corresponding `pnpm.app.nodeVersion` key in package.json was renamed to `pnpm.app.runtime` with the same syntax. Only `node` is supported today; the prefix leaves room for future runtimes (`bun`, `deno`).
+
+  The previous `--node-version` flag silently inherited from pnpm's global `node-version` rc setting (which controls which Node runs user scripts), causing the wrong Node build to be embedded in SEAs for users who had that rc key set.
+
+### Patch Changes
+
+- Restored the legacy `@pnpm/{macos,win,linux,linuxstatic}-{x64,arm64}` npm names for the platform-specific optional dependencies of `@pnpm/exe`, reverting the scope-nested `@pnpm/exe.<platform>-<arch>[-musl]` rename from [#11316](https://github.com/pnpm/pnpm/pull/11316) on the published package names only — the workspace directory layout (`pnpm/artifacts/<platform>-<arch>[-musl]/`) and the GitHub release asset filenames stay on the new scheme. The rename broke `pnpm self-update` from v10, which looks up the platform child by its legacy name. `linkExePlatformBinary` now checks for both schemes so a later rename can ship without a v10-compatibility hazard.
+
+## 11.0.0-rc.3
+
+### Minor Changes
+
+- Added a new `pnpm pack-app` command that packs a CommonJS entry file into a standalone executable for one or more target platforms, using the [Node.js Single Executable Applications](https://nodejs.org/api/single-executable-applications.html) API under the hood. Targets are specified as `<os>-<arch>[-<libc>]` (e.g. `linux-x64`, `linux-x64-musl`, `macos-arm64`, `win-x64`) and each produces an executable under `dist-app/<target>/` by default. Requires Node.js v25.5+ to perform the injection; an older host downloads Node.js v25 automatically.
+- `pnpm audit --fix` now respects the `auditLevel` setting and supports a new interactive mode via `--interactive`/`-i`. Previously, `pnpm audit --fix` would fix all vulnerabilities regardless of the configured `auditLevel`, while `pnpm audit` (without `--fix`) correctly filtered by severity. Now both commands consistently filter advisories by the `auditLevel` setting, and you can use `pnpm audit --fix -i` to review and select which vulnerabilities to fix interactively.
+
+  Overrides emitted by `pnpm audit --fix` now use a caret range (`^X.Y.Z`) instead of an open-ended `>=X.Y.Z`, so applying a security fix can no longer silently promote a dependency across a major version boundary.
+
+- Added a new setting `minimumReleaseAgeIgnoreMissingTime`, which is `true` by default. When enabled, pnpm skips the `minimumReleaseAge` maturity check if the registry metadata does not include the `time` field. Set to `false` to fail resolution instead.
+- Fixed and expanded `pnpm version` to match npm behavior:
+
+  - Accept an explicit semver version (e.g. `pnpm version 1.2.3`) in addition to bump types.
+  - Recognize `--no-commit-hooks`, `--no-git-tag-version`, `--sign-git-tag`, and `--message`.
+  - Fix `--no-git-checks` which was previously parsed incorrectly.
+  - Create a git commit and annotated tag for the version bump when running inside a git repository (unless `--no-git-tag-version` is used). `--message` supports `%s` replacement with the new version, and `--tag-version-prefix` controls the tag prefix (defaults to `v`). Git commits and tags are always skipped in recursive mode since multiple packages may be bumped to different versions in a single run [#11271](https://github.com/pnpm/pnpm/issues/11271).
+
+- Renamed the platform-specific optional dependencies of `@pnpm/exe` to the new `@pnpm/exe.<platform>-<arch>[-<libc>]` scheme, using `process.platform` values (`linux`, `darwin`, `win32`) for the OS segment. The umbrella package `@pnpm/exe` itself is unchanged so existing `npm i -g @pnpm/exe` and `pnpm self-update` flows keep working.
+
+  | before                    | after                        |
+  | ------------------------- | ---------------------------- |
+  | `@pnpm/linux-x64`         | `@pnpm/exe.linux-x64`        |
+  | `@pnpm/linux-arm64`       | `@pnpm/exe.linux-arm64`      |
+  | `@pnpm/linuxstatic-x64`   | `@pnpm/exe.linux-x64-musl`   |
+  | `@pnpm/linuxstatic-arm64` | `@pnpm/exe.linux-arm64-musl` |
+  | `@pnpm/macos-x64`         | `@pnpm/exe.darwin-x64`       |
+  | `@pnpm/macos-arm64`       | `@pnpm/exe.darwin-arm64`     |
+  | `@pnpm/win-x64`           | `@pnpm/exe.win32-x64`        |
+  | `@pnpm/win-arm64`         | `@pnpm/exe.win32-arm64`      |
+
+  GitHub release asset filenames follow the same scheme — `pnpm-linuxstatic-x64.tar.gz` becomes `pnpm-linux-x64-musl.tar.gz`, `pnpm-macos-*` becomes `pnpm-darwin-*`, `pnpm-win-*` becomes `pnpm-win32-*`. Anyone downloading releases directly needs to use the new filenames; `get.pnpm.io/install.sh` and `install.ps1` will be updated in lockstep to accept both schemes based on the requested version.
+
+  Resolves [#11314](https://github.com/pnpm/pnpm/issues/11314).
+
+### Patch Changes
+
+- Do not print the `Cannot use both "packageManager" and "devEngines.packageManager" in package.json. "packageManager" will be ignored` warning when the two fields specify the exact same package manager name and version string. This lets projects keep both fields during the migration from `packageManager` to `devEngines.packageManager` without a noisy warning [#11301](https://github.com/pnpm/pnpm/issues/11301).
+- Fix installing a directory dependency (`file:<dir>`) from an absolute path on a different drive on Windows. The directory fetcher was joining the stored directory onto `lockfileDir`, which on Windows concatenates an absolute cross-drive path literally (`path.join('D:\\...', 'C:\\Users\\...')` → `'D:\\...\\C:\\Users\\...'`). Use `path.resolve` so absolute paths are respected. This surfaced as an ENOENT during `pnpm setup` in CI when `PNPM_HOME` and the OS temp directory were on different drives.
+- Fixed `pnpm sbom` and `pnpm licenses` failing to resolve license information for git-sourced dependencies (`git+https://`, `git+ssh://`, `github:` shorthand). These commands now correctly read the package manifest from the content-addressable store for `type: 'git'` resolutions [#11260](https://github.com/pnpm/pnpm/issues/11260).
+- Fix `ERR_PNPM_OUTDATED_LOCKFILE` when approving builds during a global install. The `approve-builds` flow called by `pnpm add -g` passed the global packages directory to the subsequent install as `workspaceDir`, which caused sibling install directories (such as those left behind by `pnpm self-update`) to be picked up as workspace projects and fail the frozen-lockfile check.
+- Restore the peer suffix encoding used by pnpm 10 for linked dependency paths. A `filenamify` upgrade changed how leading `./` and `../` segments were normalized, producing peer suffixes like `(b@+packages+b)` instead of `(b@packages+b)` for linked packages outside the workspace root, causing lockfile churn [#11272](https://github.com/pnpm/pnpm/issues/11272).
+- Fix: different platform variants of the same runtime (e.g. `node@runtime:25.9.0` glibc vs. musl) no longer share a single global-virtual-store entry. The virtual store path now incorporates the selected variant's integrity, so installs with different `--os`/`--cpu`/`--libc` end up in separate directories and `pnpm add --libc=musl node@runtime:<v>` reliably fetches the musl binary even when the glibc variant is already cached.
+- `pnpm sbom` now detects licenses declared via the deprecated `licenses` array in `package.json` (e.g. `busboy`, `streamsearch`, `limiter`) and falls back to scanning on-disk `LICENSE` files — mirroring the resolution logic of `pnpm licenses`. Previously these packages were reported as `NOASSERTION`. Shared license resolution (manifest parsing + LICENSE-file fallback) lives in the new `@pnpm/deps.compliance.license-resolver` package. When a manifest sets both `license` and `licenses`, the modern `license` field now takes precedence for both commands (previously `pnpm licenses` preferred `licenses`) [#11248](https://github.com/pnpm/pnpm/issues/11248).
+
+## 11.0.0-rc.2
+
+### Major Changes
+
+- **Breaking:** removed the `managePackageManagerVersions`, `packageManagerStrict`, and `packageManagerStrictVersion` settings. They existed only to derive the `onFail` behavior for the legacy `packageManager` field, and the `pmOnFail` setting introduced alongside `pnpm with` subsumes all three — it directly sets the `onFail` behavior of both `packageManager` and `devEngines.packageManager`. The `COREPACK_ENABLE_STRICT` environment variable is no longer honored (it only gated `packageManagerStrict`); use `pmOnFail` instead.
+
+  Migration:
+
+  | Removed setting                       | Replace with                   |
+  | ------------------------------------- | ------------------------------ |
+  | `managePackageManagerVersions: true`  | `pmOnFail: download` (default) |
+  | `managePackageManagerVersions: false` | `pmOnFail: ignore`             |
+  | `packageManagerStrict: false`         | `pmOnFail: warn`               |
+  | `packageManagerStrictVersion: true`   | `pmOnFail: error`              |
+  | `COREPACK_ENABLE_STRICT=0`            | `pmOnFail: warn`               |
+
+### Minor Changes
+
+- `pnpm dlx` and `pnpm create` now respect security and trust policy settings (`minimumReleaseAge`, `minimumReleaseAgeExclude`, `minimumReleaseAgeStrict`, `trustPolicy`, `trustPolicyExclude`, `trustPolicyIgnoreAfter`) from project-level configuration [#11183](https://github.com/pnpm/pnpm/issues/11183).
+- Implemented native `star`, `unstar`, `stars`, and `whoami` commands.
+- Add `pnpm with <version|current> <args...>` command. Runs pnpm at a specific version (or the currently active one) for a single invocation, bypassing the project's `packageManager` and `devEngines.packageManager` pins. Uses the same install mechanism as `pnpm self-update`, caching the downloaded pnpm in the global virtual store for reuse.
+
+  Examples:
+
+  ```
+  pnpm with current install           # ignore the pinned version, use the running pnpm
+  pnpm with 11.0.0-rc.1 install       # install using pnpm 11.0.0-rc.1
+  pnpm with next install              # install using the "next" dist-tag
+  ```
+
+  Also adds a new `pmOnFail` setting that overrides the `onFail` behavior of `packageManager` and `devEngines.packageManager`. Accepted values: `download`, `error`, `warn`, `ignore`. Can be set via CLI flag, env var, `pnpm-workspace.yaml`, or `.npmrc` — useful when version management is handled by an external tool (asdf, mise, Volta, etc.) and the project wants pnpm itself to skip the check.
+
+  ```
+  pnpm install --pm-on-fail=ignore            # direct CLI flag
+  pnpm_config_pm_on_fail=ignore pnpm install  # env var
+  # or in pnpm-workspace.yaml:
+  #   pmOnFail: ignore
+  ```
+
+- `pnpm init` now writes a `devEngines.packageManager` field instead of the `packageManager` field when `init-package-manager` is enabled.
+- When pnpm is declared via the `packageManager` field in `package.json`, its resolution info is no longer written to `pnpm-lock.yaml` — unless the pinned pnpm version is v12 or newer. The `packageManagerDependencies` section is still populated (and reused across runs) when pnpm is declared via `devEngines.packageManager`. This makes the transition from pnpm v10 to v11 quieter by avoiding unnecessary lockfile churn for projects that pin an older pnpm in the legacy `packageManager` field.
+- Added a new setting `runtimeOnFail` that overrides the `onFail` field of `devEngines.runtime` (and `engines.runtime`) in the root project's `package.json`. Accepted values: `ignore`, `warn`, `error`, `download`. For example, setting `runtimeOnFail=download` makes pnpm download the declared runtime version even when the manifest does not set `onFail: "download"`.
+
+### Patch Changes
+
+- `pnpm init` no longer adds the `devEngines.packageManager` field when run inside a workspace subpackage. The field is only added to the workspace root's `package.json`.
+
+## 11.0.0-rc.1
+
+### Major Changes
+
+- `pnpm audit` now calls npm's `/-/npm/v1/security/advisories/bulk` endpoint. The legacy `/-/npm/v1/security/audits{,/quick}` endpoints have been retired by the registry, so the legacy request/response contract is no longer supported.
+
+  The bulk endpoint does not return CVE identifiers. CVE-based filtering has been replaced with GitHub advisory ID (GHSA) filtering:
+
+  - `auditConfig.ignoreCves` → `auditConfig.ignoreGhsas` (the previous key is no longer recognized)
+  - `pnpm audit --ignore <id>` / `pnpm audit --ignore-unfixable` now read and write GHSAs instead of CVEs
+  - GHSAs are derived from each advisory's `url` (`https://github.com/advisories/GHSA-xxxx-xxxx-xxxx`)
+
+  To migrate: replace each `CVE-YYYY-NNNNN` entry in your `auditConfig.ignoreCves` with the corresponding `GHSA-xxxx-xxxx-xxxx` value (visible in the `More info` column of `pnpm audit` output) and move it under `auditConfig.ignoreGhsas`.
+
+### Minor Changes
+
+- Added the `pnpm docs` command and its alias `pnpm home`. This command opens the package documentation or homepage in the browser. When the package has no valid homepage, it falls back to `https://npmx.dev/package/<name>`.
+- Added native `pnpm ping` command to test registry connectivity.
+  Provides a simple way to verify connectivity to the configured registry without requiring external tools.
+- Implemented native `search` command and its aliases (`s`, `se`, `find`).
+
+### Patch Changes
+
+- Fixed `pnpm store prune` removing packages used by the globally installed pnpm, breaking it.
+
 ## 11.0.0-rc.0
 
 ### Highlights
@@ -310,4 +452,3 @@
 - Fixed `pnpm dedupe --check` unexpectedly failing due to non-deterministic resolution [#11110](https://github.com/pnpm/pnpm/pull/11110).
 - Fixed empty files not being rejected in `isEmptyDirOrNothing` [#11182](https://github.com/pnpm/pnpm/pull/11182).
 - Fixed `.bat`/`.cmd` token helpers not working on Windows due to missing `shell: true` option.
-

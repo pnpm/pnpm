@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/testing.temp-store",
-  "version": "1100.0.0",
+  "version": "1100.0.4",
   "description": "A temporary store for testing purposes",
   "keywords": [
     "pnpm",
@@ -25,7 +25,7 @@
     "!*.map"
   ],
   "scripts": {
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pn compile",
     "start": "tsgo --watch",

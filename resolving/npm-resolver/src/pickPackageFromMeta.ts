@@ -31,8 +31,8 @@ export function pickPackageFromMeta (
     publishedBy,
     publishedByExclude,
   }: PickPackageFromMetaOptions,
-  spec: RegistryPackageSpec,
-  meta: PackageMeta
+  meta: PackageMeta,
+  spec: RegistryPackageSpec
 ): PackageInRegistry | null {
   if (publishedBy) {
     const excludeResult = publishedByExclude?.(meta.name) ?? false

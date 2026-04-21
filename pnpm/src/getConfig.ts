@@ -16,7 +16,7 @@ export async function getConfig (
     excludeReporter: boolean
     globalDirShouldAllowWrite?: boolean
     workspaceDir: string | undefined
-    ignoreNonAuthSettingsFromLocal?: boolean
+    onlyInheritDlxSettingsFromLocal?: boolean
   }
 ): Promise<{ config: Config, context: ConfigContext }> {
   const { config, context, warnings } = await _getConfig({
@@ -24,7 +24,7 @@ export async function getConfig (
     globalDirShouldAllowWrite: opts.globalDirShouldAllowWrite,
     packageManager,
     workspaceDir: opts.workspaceDir,
-    ignoreNonAuthSettingsFromLocal: opts.ignoreNonAuthSettingsFromLocal,
+    onlyInheritDlxSettingsFromLocal: opts.onlyInheritDlxSettingsFromLocal,
   })
   context.cliOptions = cliOptions
   applyDerivedConfig(config)

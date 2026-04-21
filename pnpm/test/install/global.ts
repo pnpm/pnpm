@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
@@ -93,7 +94,6 @@ test('global install warns when project has packageManager configured', async ()
     'add',
     '--global',
     'is-positive',
-    '--config.package-manager-strict=true',
   ], { env })
 
   expect(status).toBe(0)

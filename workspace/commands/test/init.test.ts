@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
 import { init } from '@pnpm/workspace.commands'
@@ -73,7 +74,12 @@ test('init a new package.json with init-package-manager=true', async () => {
   await init.handler({ cliOptions: {}, initPackageManager: true })
   const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('package.json'))
   expect(manifest).toBeTruthy()
-  expect(manifest.packageManager).toBeTruthy()
+  expect(manifest).not.toHaveProperty('packageManager')
+  expect(manifest.devEngines?.packageManager).toEqual({
+    name: 'pnpm',
+    version: expect.stringMatching(/^\^\d+\.\d+\.\d+/),
+    onFail: 'download',
+  })
 })
 
 test('init a new package.json with init-package-manager=false', async () => {
@@ -82,6 +88,39 @@ test('init a new package.json with init-package-manager=false', async () => {
   const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('package.json'))
   expect(manifest).toBeTruthy()
   expect(manifest).not.toHaveProperty('packageManager')
+  expect(manifest).not.toHaveProperty('devEngines')
+})
+
+test('init a new package.json in a workspace subpackage does not add devEngines', async () => {
+  prepareEmpty()
+  const workspaceDir = process.cwd()
+  const subpackageDir = path.join(workspaceDir, 'packages/foo')
+  fs.mkdirSync(subpackageDir, { recursive: true })
+  await init.handler({
+    cliOptions: { dir: subpackageDir },
+    initPackageManager: true,
+    workspaceDir,
+  })
+  const manifest = loadJsonFileSync<ProjectManifest>(path.join(subpackageDir, 'package.json'))
+  expect(manifest).toBeTruthy()
+  expect(manifest).not.toHaveProperty('devEngines')
+  expect(manifest).not.toHaveProperty('packageManager')
+})
+
+test('init a new package.json at the workspace root adds devEngines', async () => {
+  prepareEmpty()
+  const workspaceDir = process.cwd()
+  await init.handler({
+    cliOptions: {},
+    initPackageManager: true,
+    workspaceDir,
+  })
+  const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('package.json'))
+  expect(manifest.devEngines?.packageManager).toEqual({
+    name: 'pnpm',
+    version: expect.stringMatching(/^\^\d+\.\d+\.\d+/),
+    onFail: 'download',
+  })
 })
 
 test('init a new package.json with init-type=module', async () => {

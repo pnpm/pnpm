@@ -1,5 +1,80 @@
 # @pnpm/building.after-install
 
+## 1101.0.0
+
+### Patch Changes
+
+- Updated dependencies [421317c]
+  - @pnpm/store.cafs@1100.1.0
+  - @pnpm/worker@1100.1.0
+  - @pnpm/store.controller-types@1100.0.3
+  - @pnpm/store.connection-manager@1100.0.4
+  - @pnpm/exec.lifecycle@1100.0.4
+  - @pnpm/lockfile.utils@1100.0.3
+  - @pnpm/installing.context@1100.0.3
+  - @pnpm/deps.graph-hasher@1100.1.1
+  - @pnpm/config.reader@1101.1.1
+
+## 1100.0.3
+
+### Patch Changes
+
+- 72c1e05: Fix: different platform variants of the same runtime (e.g. `node@runtime:25.9.0` glibc vs. musl) no longer share a single global-virtual-store entry. The virtual store path now incorporates the selected variant's integrity, so installs with different `--os`/`--cpu`/`--libc` end up in separate directories and `pnpm add --libc=musl node@runtime:<v>` reliably fetches the musl binary even when the glibc variant is already cached.
+- Updated dependencies [7d25bc1]
+- Updated dependencies [72c1e05]
+- Updated dependencies [9e0833c]
+  - @pnpm/config.reader@1101.1.0
+  - @pnpm/deps.graph-hasher@1100.1.0
+  - @pnpm/store.connection-manager@1100.0.3
+  - @pnpm/exec.lifecycle@1100.0.3
+  - @pnpm/installing.context@1100.0.2
+  - @pnpm/lockfile.types@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.2
+  - @pnpm/store.controller-types@1100.0.2
+  - @pnpm/store.cafs@1100.0.2
+  - @pnpm/lockfile.walker@1100.0.2
+  - @pnpm/worker@1100.0.2
+
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [cee550a]
+- Updated dependencies [4ab3d9b]
+- Updated dependencies [9af708a]
+- Updated dependencies [ea2a7fb]
+- Updated dependencies [ff7733c]
+  - @pnpm/config.reader@1101.0.0
+  - @pnpm/store.connection-manager@1100.0.2
+  - @pnpm/bins.linker@1100.0.2
+  - @pnpm/exec.lifecycle@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/bins.linker@1100.0.1
+  - @pnpm/building.pkg-requires-build@1100.0.1
+  - @pnpm/building.policy@1100.0.1
+  - @pnpm/config.normalize-registries@1100.0.1
+  - @pnpm/config.reader@1100.0.1
+  - @pnpm/core-loggers@1100.0.1
+  - @pnpm/deps.graph-hasher@1100.0.1
+  - @pnpm/deps.path@1100.0.1
+  - @pnpm/exec.lifecycle@1100.0.1
+  - @pnpm/installing.context@1100.0.1
+  - @pnpm/installing.modules-yaml@1100.0.1
+  - @pnpm/lockfile.types@1100.0.1
+  - @pnpm/lockfile.utils@1100.0.1
+  - @pnpm/lockfile.walker@1100.0.1
+  - @pnpm/pkg-manifest.reader@1100.0.1
+  - @pnpm/store.cafs@1100.0.1
+  - @pnpm/store.controller-types@1100.0.1
+  - @pnpm/worker@1100.0.1
+  - @pnpm/store.connection-manager@1100.0.1
+
 ## 1000.0.0
 
 ### Major Changes

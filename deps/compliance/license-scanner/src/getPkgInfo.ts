@@ -1,6 +1,6 @@
-import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 
+import { resolveLicense } from '@pnpm/deps.compliance.license-resolver'
 import { depPathToFilename } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { type PackageSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
@@ -17,174 +17,6 @@ const limitPkgReads = pLimit(4)
 
 export async function readPkg (pkgPath: string): Promise<PackageManifest> {
   return limitPkgReads(async () => readPackageJson(pkgPath))
-}
-
-/**
- * @const
- * List of typical names for license files
- */
-const LICENSE_FILES = [
-  'LICENSE',
-  'LICENCE',
-  'LICENSE.md',
-  'LICENCE.md',
-  'LICENSE.txt',
-  'LICENCE.txt',
-  'MIT-LICENSE.txt',
-  'MIT-LICENSE.md',
-  'MIT-LICENSE',
-]
-
-/**
- * @const
- * List common license names
- * Refer https://github.com/pivotal/LicenseFinder/blob/master/lib/license_finder/license/definitions.rb
-*/
-const LICENSE_NAMES = [
-  'Apache1_1',
-  'Apache-1.1',
-  'Apache 1.1',
-  'Apache2',
-  'Apache-2.0',
-  'Apache 2.0',
-  'BSD',
-  'BSD-4-Clause',
-  'CC01',
-  'CC0-1.0',
-  'CC0 1.0',
-  'CDDL1',
-  'CDDL-1.0',
-  'Common Development and Distribution License 1.0',
-  'EPL1',
-  'EPL-1.0',
-  'Eclipse Public License 1.0',
-  'GPLv2',
-  'GPL-2.0-only',
-  'GPLv3',
-  'GPL-3.0-only',
-  'ISC',
-  'LGPL',
-  'LGPL-3.0-only',
-  'LGPL2_1',
-  'LGPL-2.1-only',
-  'MIT',
-  'MPL1_1',
-  'MPL-1.1',
-  'Mozilla Public License 1.1',
-  'MPL2',
-  'MPL-2.0',
-  'Mozilla Public License 2.0',
-  'NewBSD',
-  'BSD-3-Clause',
-  'New BSD',
-  'OFL',
-  'OFL-1.1',
-  'SIL OPEN FONT LICENSE Version 1.1',
-  'Python',
-  'PSF-2.0',
-  'Python Software Foundation License',
-  'Ruby',
-  'SimplifiedBSD',
-  'BSD-2-Clause',
-  'Simplified BSD',
-  'WTFPL',
-  '0BSD',
-  'BSD Zero Clause License',
-  'Zlib',
-  'zlib/libpng license',
-]
-
-export interface LicenseInfo {
-  name: string
-  licenseFile?: string
-}
-
-/**
- * Coerce the given value to a string or a null value
- * @param field the string to be converted
- * @returns string | null
- */
-function coerceToString (field: unknown): string | null {
-  const string = String(field)
-  return typeof field === 'string' || field === string ? string : null
-}
-
-/**
- * Parses the value of the license-property of a
- * package manifest and return it as a string
- * @param field the value to parse
- * @returns string
- */
-function parseLicenseManifestField (field: unknown): string {
-  if (Array.isArray(field)) {
-    const licenses = field
-    const licenseTypes = licenses
-      .map(license => coerceToString(license.type) ?? coerceToString(license.name))
-      .filter((licenseType): licenseType is string => !!licenseType)
-
-    if (licenseTypes.length > 1) {
-      const combinedLicenseTypes = licenseTypes.join(' OR ') as string
-      return `(${combinedLicenseTypes})`
-    }
-
-    return licenseTypes[0] ?? null
-  } else {
-    return (field as { type: string })?.type ?? coerceToString(field)
-  }
-}
-
-/**
- * Reads the license field or LICENSE file from
- * the directory of the given package manifest
- *
- * If the package.json file is missing the `license`-property
- * the root of the manifest directory will be scanned for
- * files named listed in the array LICENSE_FILES and the
- * contents will be returned.
- *
- * @param {*} pkg the package to check
- * @returns Promise<LicenseInfo>
- */
-async function parseLicense (
-  pkg: {
-    manifest: PackageManifest
-    files: Map<string, string>
-  }
-): Promise<LicenseInfo> {
-  let licenseField: unknown = pkg.manifest.license
-  if ('licenses' in pkg.manifest) {
-    licenseField = (
-      pkg.manifest as PackageManifest & {
-        licenses: unknown
-      }
-    ).licenses
-  }
-  const license = parseLicenseManifestField(licenseField)
-
-  // check if we discovered a license, if not attempt to parse the LICENSE file
-  if (!license || /see license/i.test(license)) {
-    const licenseFileName = LICENSE_FILES.find((f) => pkg.files.has(f))
-    if (licenseFileName) {
-      const licenseFilePath = pkg.files.get(licenseFileName)!
-      const licenseContents = await readFile(licenseFilePath)
-      const licenseContent = licenseContents.toString('utf-8')
-      let name = 'Unknown'
-      if (licenseContent) {
-        // eslint-disable-next-line regexp/no-unused-capturing-group
-        const match = licenseContent.match(new RegExp(`\\b(${LICENSE_NAMES.join('|')})\\b`, 'gi'))
-        if (match) {
-          name = [...new Set(match)].join(' OR ')
-        }
-      }
-
-      return {
-        name,
-        licenseFile: licenseContent,
-      }
-    }
-  }
-
-  return { name: license ?? 'Unknown' }
 }
 
 export interface PackageInfo {
@@ -279,9 +111,7 @@ export async function getPkgInfo (
     manifest.name
   )
 
-  const licenseInfo = await parseLicense(
-    { manifest, files }
-  )
+  const licenseInfo = await resolveLicense({ manifest, files })
 
   const packageInfo = {
     from: manifest.name,
@@ -289,8 +119,8 @@ export async function getPkgInfo (
     name: manifest.name,
     version: manifest.version,
     description: manifest.description,
-    license: licenseInfo.name,
-    licenseContents: licenseInfo.licenseFile,
+    license: licenseInfo?.name ?? 'Unknown',
+    licenseContents: licenseInfo?.licenseFile,
     author:
       (manifest.author &&
         (typeof manifest.author === 'string'

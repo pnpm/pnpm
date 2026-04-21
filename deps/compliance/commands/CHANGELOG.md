@@ -1,5 +1,92 @@
 # @pnpm/deps.compliance.commands
 
+## 1101.1.1
+
+### Patch Changes
+
+- @pnpm/deps.compliance.license-scanner@1100.0.4
+- @pnpm/deps.compliance.sbom@1100.0.4
+- @pnpm/installing.commands@1100.1.2
+- @pnpm/lockfile.utils@1100.0.3
+- @pnpm/deps.compliance.audit@1101.0.2
+- @pnpm/lockfile.fs@1100.0.3
+- @pnpm/config.reader@1101.1.1
+
+## 1101.1.0
+
+### Minor Changes
+
+- 390ee62: `pnpm audit --fix` now respects the `auditLevel` setting and supports a new interactive mode via `--interactive`/`-i`. Previously, `pnpm audit --fix` would fix all vulnerabilities regardless of the configured `auditLevel`, while `pnpm audit` (without `--fix`) correctly filtered by severity. Now both commands consistently filter advisories by the `auditLevel` setting, and you can use `pnpm audit --fix -i` to review and select which vulnerabilities to fix interactively.
+
+  Overrides emitted by `pnpm audit --fix` now use a caret range (`^X.Y.Z`) instead of an open-ended `>=X.Y.Z`, so applying a security fix can no longer silently promote a dependency across a major version boundary.
+
+### Patch Changes
+
+- 61952c2: `pnpm sbom` now detects licenses declared via the deprecated `licenses` array in `package.json` (e.g. `busboy`, `streamsearch`, `limiter`) and falls back to scanning on-disk `LICENSE` files — mirroring the resolution logic of `pnpm licenses`. Previously these packages were reported as `NOASSERTION`. Shared license resolution (manifest parsing + LICENSE-file fallback) lives in the new `@pnpm/deps.compliance.license-resolver` package. When a manifest sets both `license` and `licenses`, the modern `license` field now takes precedence for both commands (previously `pnpm licenses` preferred `licenses`) [#11248](https://github.com/pnpm/pnpm/issues/11248).
+- Updated dependencies [7d25bc1]
+- Updated dependencies [9e0833c]
+- Updated dependencies [61952c2]
+  - @pnpm/config.reader@1101.1.0
+  - @pnpm/deps.compliance.license-resolver@1100.0.0
+  - @pnpm/deps.compliance.sbom@1100.0.3
+  - @pnpm/deps.compliance.license-scanner@1100.0.3
+  - @pnpm/installing.commands@1100.1.1
+  - @pnpm/lockfile.types@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.2
+  - @pnpm/deps.compliance.audit@1101.0.1
+  - @pnpm/lockfile.fs@1100.0.2
+  - @pnpm/lockfile.walker@1100.0.2
+  - @pnpm/config.writer@1100.0.2
+
+## 1101.0.1
+
+### Patch Changes
+
+- Updated dependencies [cee550a]
+- Updated dependencies [4ab3d9b]
+- Updated dependencies [9af708a]
+- Updated dependencies [ea2a7fb]
+- Updated dependencies [ff7733c]
+  - @pnpm/cli.utils@1101.0.0
+  - @pnpm/config.reader@1101.0.0
+  - @pnpm/installing.commands@1100.1.0
+  - @pnpm/workspace.project-manifest-reader@1100.0.2
+  - @pnpm/deps.compliance.license-scanner@1100.0.2
+  - @pnpm/deps.compliance.sbom@1100.0.2
+
+## 1101.0.0
+
+### Major Changes
+
+- ff28085: `pnpm audit` now calls npm's `/-/npm/v1/security/advisories/bulk` endpoint. The legacy `/-/npm/v1/security/audits{,/quick}` endpoints have been retired by the registry, so the legacy request/response contract is no longer supported.
+
+  The bulk endpoint does not return CVE identifiers. CVE-based filtering has been replaced with GitHub advisory ID (GHSA) filtering:
+
+  - `auditConfig.ignoreCves` → `auditConfig.ignoreGhsas` (the previous key is no longer recognized)
+  - `pnpm audit --ignore <id>` / `pnpm audit --ignore-unfixable` now read and write GHSAs instead of CVEs
+  - GHSAs are derived from each advisory's `url` (`https://github.com/advisories/GHSA-xxxx-xxxx-xxxx`)
+
+  To migrate: replace each `CVE-YYYY-NNNNN` entry in your `auditConfig.ignoreCves` with the corresponding `GHSA-xxxx-xxxx-xxxx` value (visible in the `More info` column of `pnpm audit` output) and move it under `auditConfig.ignoreGhsas`.
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/deps.compliance.audit@1101.0.0
+  - @pnpm/types@1101.0.0
+  - @pnpm/cli.meta@1100.0.1
+  - @pnpm/cli.utils@1100.0.1
+  - @pnpm/config.reader@1100.0.1
+  - @pnpm/config.writer@1100.0.1
+  - @pnpm/deps.compliance.license-scanner@1100.0.1
+  - @pnpm/deps.compliance.sbom@1100.0.1
+  - @pnpm/installing.commands@1100.0.1
+  - @pnpm/lockfile.fs@1100.0.1
+  - @pnpm/lockfile.types@1100.0.1
+  - @pnpm/lockfile.utils@1100.0.1
+  - @pnpm/lockfile.walker@1100.0.1
+  - @pnpm/network.auth-header@1100.0.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.1
+
 ## 1001.0.0
 
 ### Major Changes

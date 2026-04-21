@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 
 test('nameVerFromPkgSnapshot()', () => {

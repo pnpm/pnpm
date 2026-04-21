@@ -41,6 +41,9 @@
       "path": "../../../core/error"
     },
     {
+      "path": "../../../core/logger"
+    },
+    {
       "path": "../../../core/types"
     },
     {
@@ -81,6 +84,9 @@
     },
     {
       "path": "../audit"
+    },
+    {
+      "path": "../license-resolver"
     },
     {
       "path": "../license-scanner"

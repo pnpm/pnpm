@@ -1,5 +1,55 @@
 # @pnpm/default-resolver
 
+## 1100.0.4
+
+### Patch Changes
+
+- Updated dependencies [421317c]
+  - @pnpm/engine.runtime.node-resolver@1101.0.0
+  - @pnpm/engine.runtime.bun-resolver@1101.0.0
+  - @pnpm/engine.runtime.deno-resolver@1101.0.0
+  - @pnpm/hooks.types@1100.0.3
+  - @pnpm/resolving.npm-resolver@1101.0.0
+
+## 1100.0.3
+
+### Patch Changes
+
+- Updated dependencies [72c1e05]
+- Updated dependencies [9e0833c]
+  - @pnpm/resolving.resolver-base@1100.1.0
+  - @pnpm/resolving.npm-resolver@1100.1.0
+  - @pnpm/engine.runtime.node-resolver@1100.0.3
+  - @pnpm/engine.runtime.bun-resolver@1100.0.2
+  - @pnpm/engine.runtime.deno-resolver@1100.0.2
+  - @pnpm/hooks.types@1100.0.2
+  - @pnpm/resolving.git-resolver@1100.0.2
+  - @pnpm/resolving.local-resolver@1100.0.3
+  - @pnpm/resolving.tarball-resolver@1100.0.2
+
+## 1100.0.2
+
+### Patch Changes
+
+- @pnpm/engine.runtime.node-resolver@1100.0.2
+- @pnpm/resolving.local-resolver@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/engine.runtime.bun-resolver@1100.0.1
+  - @pnpm/engine.runtime.deno-resolver@1100.0.1
+  - @pnpm/engine.runtime.node-resolver@1100.0.1
+  - @pnpm/hooks.types@1100.0.1
+  - @pnpm/resolving.local-resolver@1100.0.1
+  - @pnpm/resolving.npm-resolver@1100.0.1
+  - @pnpm/resolving.resolver-base@1100.0.1
+  - @pnpm/resolving.git-resolver@1100.0.1
+  - @pnpm/resolving.tarball-resolver@1100.0.1
+
 ## 1003.0.0
 
 ### Major Changes

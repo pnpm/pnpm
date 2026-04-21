@@ -2,11 +2,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { findWorkspaceDir } from '@pnpm/workspace.root-finder'
 
 const NPM_CONFIG_WORKSPACE_DIR_ENV_VAR = 'NPM_CONFIG_WORKSPACE_DIR'
 const FAKE_PATH = 'FAKE_PATH'
-
 function isFileSystemCaseSensitive () {
   try {
     fs.realpathSync.native(process.cwd().toUpperCase())

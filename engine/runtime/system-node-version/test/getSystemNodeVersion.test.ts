@@ -1,5 +1,4 @@
-import { jest } from '@jest/globals'
-
+import { expect, jest, test } from '@jest/globals'
 let isSea = false
 
 jest.unstable_mockModule('@pnpm/cli.meta', () => ({

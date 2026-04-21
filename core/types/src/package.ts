@@ -165,7 +165,6 @@ export type ConfigDependencies = Record<string, VersionWithIntegrity | {
 export type ConfigDependencySpecifiers = Record<string, string>
 
 export interface AuditConfig {
-  ignoreCves?: string[]
   ignoreGhsas?: string[]
 }
 
@@ -191,6 +190,7 @@ export interface PnpmSettings {
   httpProxy?: string
   httpsProxy?: string
   noProxy?: string | boolean
+  agent?: string
 }
 
 export interface ProjectManifest extends BaseManifest {

@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
+import { expect, test } from '@jest/globals'
 import { writeProjectManifest } from '@pnpm/workspace.project-manifest-writer'
 import { temporaryDirectory } from 'tempy'
 

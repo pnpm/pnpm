@@ -1,4 +1,3 @@
-import { execFile } from 'node:child_process'
 import readline from 'node:readline'
 
 import { globalInfo, globalWarn } from '@pnpm/logger'
@@ -34,7 +33,6 @@ export const SHARED_CONTEXT: SharedContext = {
   createReadlineInterface: readline.createInterface.bind(null, { input: process.stdin }),
   ciInfo,
   enquirer,
-  execFile,
   fetch,
   globalInfo,
   globalWarn,

@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { arrayOfWorkspacePackagesToMap, getContext } from '@pnpm/installing.context'
 import type { ProjectId, ProjectRootDir } from '@pnpm/types'
 

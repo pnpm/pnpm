@@ -1,5 +1,59 @@
 # @pnpm/building.commands
 
+## 1100.0.4
+
+### Patch Changes
+
+- @pnpm/building.after-install@1101.0.0
+- @pnpm/installing.commands@1100.1.2
+- @pnpm/store.connection-manager@1100.0.4
+- @pnpm/config.reader@1101.1.1
+
+## 1100.0.3
+
+### Patch Changes
+
+- 7d9aae9: Fix `ERR_PNPM_OUTDATED_LOCKFILE` when approving builds during a global install. The `approve-builds` flow called by `pnpm add -g` passed the global packages directory to the subsequent install as `workspaceDir`, which caused sibling install directories (such as those left behind by `pnpm self-update`) to be picked up as workspace projects and fail the frozen-lockfile check.
+- Updated dependencies [7d25bc1]
+- Updated dependencies [72c1e05]
+- Updated dependencies [9e0833c]
+  - @pnpm/config.reader@1101.1.0
+  - @pnpm/building.after-install@1100.0.3
+  - @pnpm/store.connection-manager@1100.0.3
+  - @pnpm/installing.commands@1100.1.1
+  - @pnpm/config.writer@1100.0.2
+
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [cee550a]
+- Updated dependencies [4ab3d9b]
+- Updated dependencies [9af708a]
+- Updated dependencies [ea2a7fb]
+- Updated dependencies [ff7733c]
+  - @pnpm/cli.utils@1101.0.0
+  - @pnpm/config.reader@1101.0.0
+  - @pnpm/installing.commands@1100.1.0
+  - @pnpm/building.after-install@1100.0.2
+  - @pnpm/store.connection-manager@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/building.after-install@1100.0.1
+  - @pnpm/cli.utils@1100.0.1
+  - @pnpm/config.reader@1100.0.1
+  - @pnpm/config.writer@1100.0.1
+  - @pnpm/deps.path@1100.0.1
+  - @pnpm/installing.commands@1100.0.1
+  - @pnpm/installing.modules-yaml@1100.0.1
+  - @pnpm/workspace.projects-sorter@1100.0.1
+  - @pnpm/store.connection-manager@1100.0.1
+
 ## 1000.0.0
 
 ### Major Changes

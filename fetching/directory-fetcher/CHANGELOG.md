@@ -1,5 +1,39 @@
 # @pnpm/directory-fetcher
 
+## 1100.0.4
+
+### Patch Changes
+
+- Updated dependencies [421317c]
+  - @pnpm/fetching.fetcher-base@1100.1.0
+
+## 1100.0.3
+
+### Patch Changes
+
+- e03e8f4: Fix installing a directory dependency (`file:<dir>`) from an absolute path on a different drive on Windows. The directory fetcher was joining the stored directory onto `lockfileDir`, which on Windows concatenates an absolute cross-drive path literally (`path.join('D:\\...', 'C:\\Users\\...')` → `'D:\\...\\C:\\Users\\...'`). Use `path.resolve` so absolute paths are respected. This surfaced as an ENOENT during `pnpm setup` in CI when `PNPM_HOME` and the OS temp directory were on different drives.
+- Updated dependencies [72c1e05]
+  - @pnpm/resolving.resolver-base@1100.1.0
+  - @pnpm/fetching.fetcher-base@1100.0.2
+
+## 1100.0.2
+
+### Patch Changes
+
+- @pnpm/workspace.project-manifest-reader@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/building.pkg-requires-build@1100.0.1
+  - @pnpm/fetching.fetcher-base@1100.0.1
+  - @pnpm/resolving.resolver-base@1100.0.1
+  - @pnpm/store.cafs-types@1100.0.0
+  - @pnpm/workspace.project-manifest-reader@1100.0.1
+
 ## 1001.0.0
 
 ### Major Changes

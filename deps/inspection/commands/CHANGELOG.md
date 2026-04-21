@@ -1,5 +1,75 @@
 # @pnpm/deps.inspection.commands
 
+## 1100.1.3
+
+### Patch Changes
+
+- @pnpm/resolving.default-resolver@1100.0.4
+- @pnpm/resolving.npm-resolver@1101.0.0
+- @pnpm/deps.inspection.outdated@1100.0.4
+- @pnpm/deps.inspection.list@1100.0.4
+- @pnpm/global.commands@1100.0.4
+- @pnpm/lockfile.fs@1100.0.3
+- @pnpm/config.reader@1101.1.1
+- @pnpm/deps.inspection.peers-checker@1100.0.3
+
+## 1100.1.2
+
+### Patch Changes
+
+- Updated dependencies [7d25bc1]
+- Updated dependencies [9e0833c]
+  - @pnpm/config.reader@1101.1.0
+  - @pnpm/resolving.npm-resolver@1100.1.0
+  - @pnpm/deps.inspection.outdated@1100.0.3
+  - @pnpm/global.commands@1100.0.3
+  - @pnpm/resolving.default-resolver@1100.0.3
+  - @pnpm/lockfile.fs@1100.0.2
+  - @pnpm/deps.inspection.list@1100.0.3
+  - @pnpm/deps.inspection.peers-checker@1100.0.2
+
+## 1100.1.1
+
+### Patch Changes
+
+- Updated dependencies [cee550a]
+- Updated dependencies [4ab3d9b]
+- Updated dependencies [9af708a]
+- Updated dependencies [ea2a7fb]
+- Updated dependencies [ff7733c]
+  - @pnpm/cli.utils@1101.0.0
+  - @pnpm/config.reader@1101.0.0
+  - @pnpm/global.commands@1100.0.2
+  - @pnpm/deps.inspection.outdated@1100.0.2
+  - @pnpm/resolving.default-resolver@1100.0.2
+  - @pnpm/deps.inspection.list@1100.0.2
+
+## 1100.1.0
+
+### Minor Changes
+
+- 2410cf4: Added the `pnpm docs` command and its alias `pnpm home`. This command opens the package documentation or homepage in the browser. When the package has no valid homepage, it falls back to `https://npmx.dev/package/<name>`.
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/cli.utils@1100.0.1
+  - @pnpm/config.pick-registry-for-package@1100.0.1
+  - @pnpm/config.reader@1100.0.1
+  - @pnpm/deps.inspection.list@1100.0.1
+  - @pnpm/deps.inspection.outdated@1100.0.1
+  - @pnpm/deps.inspection.peers-checker@1100.0.1
+  - @pnpm/global.commands@1100.0.1
+  - @pnpm/global.packages@1100.0.1
+  - @pnpm/installing.modules-yaml@1100.0.1
+  - @pnpm/lockfile.fs@1100.0.1
+  - @pnpm/network.auth-header@1100.0.1
+  - @pnpm/network.fetch@1100.0.1
+  - @pnpm/resolving.default-resolver@1100.0.1
+  - @pnpm/resolving.npm-resolver@1100.0.1
+  - @pnpm/resolving.registry.types@1100.0.1
+
 ## 1001.0.0
 
 ### Major Changes

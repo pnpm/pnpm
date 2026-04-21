@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { describe, expect, it } from '@jest/globals'
 import { checkGlobalBinConflicts } from '@pnpm/global.commands'
 import type { DependencyManifest } from '@pnpm/types'
 import { symlinkDirSync } from 'symlink-dir'

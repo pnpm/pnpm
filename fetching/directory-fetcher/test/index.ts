@@ -2,7 +2,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { beforeAll, describe, expect, jest, test } from '@jest/globals'
 import { fixtures } from '@pnpm/test-fixtures'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { rimrafSync } from '@zkochan/rimraf'
@@ -109,6 +109,26 @@ test('fetch does not fail on package with broken symlink', async () => {
     'package.json',
   ])
   expect(debug).toHaveBeenCalledWith({ brokenSymlink: path.resolve('not-exists') })
+})
+
+test('fetch respects absolute directory regardless of lockfileDir', async () => {
+  const absDir = f.find('simple-pkg')
+  const fetcher = createDirectoryFetcher({ includeOnlyPackageFiles: true })
+
+  // lockfileDir is unrelated to the directory being fetched. When the
+  // stored directory is absolute (e.g. cross-drive `file:` deps on Windows)
+  // the fetcher must use the absolute path as-is rather than joining it
+  // onto lockfileDir.
+  // eslint-disable-next-line
+  const fetchResult = await fetcher.directory({} as any, {
+    directory: absDir,
+    type: 'directory',
+  }, {
+    lockfileDir: f.find('no-manifest'),
+  })
+
+  expect(fetchResult.local).toBe(true)
+  expect(fetchResult.filesMap.get('package.json')).toBe(path.join(absDir, 'package.json'))
 })
 
 describe('fetch resolves symlinked files to their real locations', () => {

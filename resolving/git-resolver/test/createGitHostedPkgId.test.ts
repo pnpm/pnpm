@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { createGitHostedPkgId } from '@pnpm/resolving.git-resolver'
 
 test.each([

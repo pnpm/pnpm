@@ -28,6 +28,7 @@ export function createLocalTarballFetcher (storeIndex: StoreIndex): FetchFunctio
       url: tarball,
       pkg: opts.pkg,
       appendManifest: opts.appendManifest,
+      ignoreFilePattern: opts.ignoreFilePattern,
     })
   }
 

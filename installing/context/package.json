@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.context",
-  "version": "1100.0.0",
+  "version": "1100.0.3",
   "description": "Gets context information about a project",
   "keywords": [
     "pnpm",
@@ -27,7 +27,7 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pn compile && pn .test",
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "compile": "tsgo --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
@@ -47,6 +47,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/installing.context": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@types/ramda": "catalog:"

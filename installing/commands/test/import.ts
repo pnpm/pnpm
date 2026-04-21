@@ -1,6 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import { PnpmError } from '@pnpm/error'
 import { importCommand } from '@pnpm/installing.commands'

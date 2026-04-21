@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'

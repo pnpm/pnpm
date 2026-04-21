@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { hashObject as _hashObject } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
 import { addDependenciesToPackage, install, mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'

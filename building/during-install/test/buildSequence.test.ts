@@ -1,3 +1,5 @@
+import { expect, test } from '@jest/globals'
+
 import { buildSequence } from '../lib/buildSequence.js'
 
 test('buildSequence() test 1', () => {

@@ -9,6 +9,7 @@
     "test-ipc-server-client": "./bin/test-ipc-server-client.js"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
     "@types/node": "catalog:",

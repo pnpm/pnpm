@@ -1,5 +1,11 @@
 # @pnpm/patching.config
 
+## 1100.0.1
+
+### Patch Changes
+
+- @pnpm/deps.path@1100.0.1
+
 ## 1002.0.0
 
 ### Major Changes

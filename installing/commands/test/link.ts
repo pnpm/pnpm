@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import { assertProject, isExecutable } from '@pnpm/assert-project'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'

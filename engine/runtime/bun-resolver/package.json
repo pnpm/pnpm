@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/engine.runtime.bun-resolver",
-  "version": "1100.0.0",
+  "version": "1101.0.0",
   "description": "Resolves the Bun runtime",
   "keywords": [
     "pnpm",
@@ -28,7 +28,7 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pn compile",
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {

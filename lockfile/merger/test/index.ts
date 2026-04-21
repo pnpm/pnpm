@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import type { DepPath, ProjectId } from '@pnpm/types'
 

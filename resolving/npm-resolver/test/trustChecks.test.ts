@@ -1,3 +1,4 @@
+import { describe, expect, test } from '@jest/globals'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import type { PackageInRegistry, PackageMetaWithTime } from '@pnpm/resolving.registry.types'
 

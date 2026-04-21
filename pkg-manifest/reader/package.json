@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/pkg-manifest.reader",
-  "version": "1100.0.0",
+  "version": "1100.0.1",
   "description": "Read a package.json",
   "keywords": [
     "pnpm",
@@ -27,7 +27,7 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pn compile && pn .test",
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "compile": "tsgo --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
@@ -38,6 +38,7 @@
     "normalize-package-data": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@types/normalize-package-data": "catalog:"
   },
