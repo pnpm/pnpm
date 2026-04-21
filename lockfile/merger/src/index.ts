@@ -25,6 +25,8 @@ export function mergeLockfileChanges (ours: LockfileObject, theirs: LockfileObje
 
   for (const importerId of Array.from(new Set([...Object.keys(ours.importers), ...Object.keys(theirs.importers)] as ProjectId[]))) {
     newLockfile.importers[importerId] = {
+      ...ours.importers[importerId],
+      ...theirs.importers[importerId],
       specifiers: {},
     }
     for (const key of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {

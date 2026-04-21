@@ -387,3 +387,36 @@ test('does not crash when merging non-semver versions (link: protocol)', () => {
   // Should not crash and should pick theirs (the incoming change)
   expect(mergedLockfile.packages?.['/a@1.0.0' as DepPath].dependencies?.linked).toBe('link:../pkg2')
 })
+
+test('preserves dependenciesMeta and publishDirectory of importers', () => {
+  const ours: LockfileObject = {
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { foo: '1.0.0' },
+        specifiers: { foo: '1.0.0' },
+        dependenciesMeta: {
+          foo: { injected: true },
+        },
+        publishDirectory: 'dist',
+      },
+    },
+    lockfileVersion: '6.0',
+  }
+
+  const theirs: LockfileObject = {
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { foo: '1.1.0' },
+        specifiers: { foo: '1.1.0' },
+      },
+    },
+    lockfileVersion: '6.0',
+  }
+
+  const mergedLockfile = mergeLockfileChanges(ours, theirs)
+
+  expect(mergedLockfile.importers['.' as ProjectId].dependenciesMeta).toStrictEqual({
+    foo: { injected: true },
+  })
+  expect(mergedLockfile.importers['.' as ProjectId].publishDirectory).toBe('dist')
+})
