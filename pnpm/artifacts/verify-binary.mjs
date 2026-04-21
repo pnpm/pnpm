@@ -87,11 +87,13 @@ let stdout
 try {
   stdout = execFileSync(`./${binName}`, ['-v'], { encoding: 'utf8', timeout: 30_000 }).trim()
 } catch (err) {
-  console.error(`Error: ${binName} -v failed: ${err.message}`)
+  console.error(`Error: ${binName} -v failed: ${String(err)}`)
   process.exit(1)
 }
 
-if (!/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/.test(stdout)) {
+// Accept SemVer 2 with optional prerelease and build-metadata suffixes so a
+// future `11.0.0-rc.4+sha.<hash>` release doesn't fail this gate spuriously.
+if (!/^\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?$/.test(stdout)) {
   console.error(`Error: ${binName} -v produced unexpected output: ${JSON.stringify(stdout)}`)
   process.exit(1)
 }

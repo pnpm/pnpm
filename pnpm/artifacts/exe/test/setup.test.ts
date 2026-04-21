@@ -80,6 +80,6 @@ test('prepare writes correct content for all bin files', () => {
   execFileSync(process.execPath, [path.join(exeDir, 'setup.js')], { cwd: exeDir })
 
   const pnpmBin = path.join(exeDir, isWindows ? 'pnpm.exe' : 'pnpm')
-  const stdout = execFileSync(pnpmBin, ['-v'], { encoding: 'utf8' }).trim()
-  expect(stdout).toMatch(/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/)
+  const stdout = execFileSync(pnpmBin, ['-v'], { encoding: 'utf8', timeout: 30_000 }).trim()
+  expect(stdout).toMatch(/^\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?$/)
 })

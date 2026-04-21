@@ -190,8 +190,6 @@ export async function handler (opts: PackAppOptions, params: string[]): Promise<
   // at startup with an opaque native assertion.
   const resolvedTargetVersion = await resolveVersion(fetch, requestedNodeSpec, opts.nodeDownloadMirrors)
   const builderBin = await resolveBuilderBinary({
-    fetch,
-    nodeDownloadMirrors: opts.nodeDownloadMirrors,
     buildRoot,
     targetVersion: resolvedTargetVersion,
   })
@@ -261,8 +259,6 @@ export async function handler (opts: PackAppOptions, params: string[]): Promise<
  * otherwise downloads the target version for the host platform.
  */
 async function resolveBuilderBinary (ctx: {
-  fetch: ReturnType<typeof createFetchFromRegistry>
-  nodeDownloadMirrors?: Record<string, string>
   buildRoot: string
   targetVersion: string
 }): Promise<string> {
