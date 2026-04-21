@@ -5,6 +5,7 @@ import {
   lockfileWalkerGroupImporterSteps,
   type LockfileWalkerStep,
 } from '@pnpm/lockfile.walker'
+import type { Resolution } from '@pnpm/resolving.resolver-base'
 import { StoreIndex } from '@pnpm/store.index'
 import type { DependenciesField, ProjectId, Registries } from '@pnpm/types'
 
@@ -110,7 +111,7 @@ async function walkStep (
 
       const integrity = (pkgSnapshot.resolution as TarballResolution).integrity
       const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
-      const tarballUrl = (resolution as TarballResolution).tarball
+      const tarballUrl = (resolution as TarballResolution).tarball ?? gitDownloadUrl(resolution)
 
       let metadata: { license?: string, description?: string, author?: string, homepage?: string, repository?: string } = {}
       if (metadataOpts) {
@@ -136,3 +137,8 @@ async function walkStep (
   )
 }
 
+export function gitDownloadUrl (resolution: Resolution): string | undefined {
+  if (resolution.type !== 'git') return undefined
+  const prefix = resolution.repo.includes('://') ? 'git+' : ''
+  return `${prefix}${resolution.repo}#${resolution.commit}`
+}
