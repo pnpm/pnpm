@@ -10,35 +10,39 @@ const exeDir = path.resolve(import.meta.dirname, '..')
 const platform = process.platform
 const arch = platform === 'win32' && process.arch === 'ia32' ? 'x86' : process.arch
 const isWindows = platform === 'win32'
+const osSegment =
+  platform === 'darwin' ? 'macos'
+  : platform === 'win32' ? 'win'
+  : platform
 // The test doesn't create a musl libc marker, so setup.js's detect-libc call
 // reports the host's native libc; on a glibc Linux CI box that resolves to the
-// non-musl package name. For non-Linux hosts there is no libc suffix.
+// glibc package name. Non-Linux hosts don't have a musl variant.
 const platformBin = path.join(
-  exeDir, 'node_modules', '@pnpm', `exe.${platform}-${arch}`,
+  exeDir, 'node_modules', '@pnpm', `${osSegment}-${arch}`,
   isWindows ? 'pnpm.exe' : 'pnpm'
 )
 const hasPlatformBinary = fs.existsSync(platformBin)
 
 describe('exePlatformPkgName', () => {
-  test('appends -musl for linux + musl libc family', () => {
-    expect(exePlatformPkgName('linux', 'x64', 'musl')).toBe('@pnpm/exe.linux-x64-musl')
-    expect(exePlatformPkgName('linux', 'arm64', 'musl')).toBe('@pnpm/exe.linux-arm64-musl')
+  test('uses linuxstatic- prefix for linux + musl libc family', () => {
+    expect(exePlatformPkgName('linux', 'x64', 'musl')).toBe('@pnpm/linuxstatic-x64')
+    expect(exePlatformPkgName('linux', 'arm64', 'musl')).toBe('@pnpm/linuxstatic-arm64')
   })
 
-  test('does not append -musl when libc is glibc or unknown', () => {
-    expect(exePlatformPkgName('linux', 'x64', 'glibc')).toBe('@pnpm/exe.linux-x64')
-    expect(exePlatformPkgName('linux', 'arm64', null)).toBe('@pnpm/exe.linux-arm64')
+  test('uses linux- prefix when libc is glibc or unknown', () => {
+    expect(exePlatformPkgName('linux', 'x64', 'glibc')).toBe('@pnpm/linux-x64')
+    expect(exePlatformPkgName('linux', 'arm64', null)).toBe('@pnpm/linux-arm64')
   })
 
   test('libc is irrelevant on non-linux platforms', () => {
-    expect(exePlatformPkgName('darwin', 'arm64', 'musl')).toBe('@pnpm/exe.darwin-arm64')
-    expect(exePlatformPkgName('darwin', 'x64', null)).toBe('@pnpm/exe.darwin-x64')
-    expect(exePlatformPkgName('win32', 'x64', 'musl')).toBe('@pnpm/exe.win32-x64')
+    expect(exePlatformPkgName('darwin', 'arm64', 'musl')).toBe('@pnpm/macos-arm64')
+    expect(exePlatformPkgName('darwin', 'x64', null)).toBe('@pnpm/macos-x64')
+    expect(exePlatformPkgName('win32', 'x64', 'musl')).toBe('@pnpm/win-x64')
   })
 
   test('normalizes ia32 to x86 on win32 only', () => {
-    expect(exePlatformPkgName('win32', 'ia32', null)).toBe('@pnpm/exe.win32-x86')
-    expect(exePlatformPkgName('linux', 'ia32', null)).toBe('@pnpm/exe.linux-ia32')
+    expect(exePlatformPkgName('win32', 'ia32', null)).toBe('@pnpm/win-x86')
+    expect(exePlatformPkgName('linux', 'ia32', null)).toBe('@pnpm/linux-ia32')
   })
 })
 

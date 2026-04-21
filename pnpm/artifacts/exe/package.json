@@ -37,14 +37,14 @@
     "detect-libc": "catalog:"
   },
   "optionalDependencies": {
-    "@pnpm/exe.darwin-arm64": "workspace:*",
-    "@pnpm/exe.darwin-x64": "workspace:*",
-    "@pnpm/exe.linux-arm64": "workspace:*",
-    "@pnpm/exe.linux-arm64-musl": "workspace:*",
-    "@pnpm/exe.linux-x64": "workspace:*",
-    "@pnpm/exe.linux-x64-musl": "workspace:*",
-    "@pnpm/exe.win32-arm64": "workspace:*",
-    "@pnpm/exe.win32-x64": "workspace:*"
+    "@pnpm/linux-arm64": "workspace:*",
+    "@pnpm/linux-x64": "workspace:*",
+    "@pnpm/linuxstatic-arm64": "workspace:*",
+    "@pnpm/linuxstatic-x64": "workspace:*",
+    "@pnpm/macos-arm64": "workspace:*",
+    "@pnpm/macos-x64": "workspace:*",
+    "@pnpm/win-arm64": "workspace:*",
+    "@pnpm/win-x64": "workspace:*"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",

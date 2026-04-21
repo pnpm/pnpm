@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/exe.linux-x64-musl",
+  "name": "@pnpm/linuxstatic-x64",
   "version": "11.0.0-rc.3",
   "keywords": [
     "pnpm",
@@ -20,7 +20,7 @@
     "prepublishOnly": "test -f pnpm || (echo 'Error: pnpm is missing' && exit 1)"
   },
   "devDependencies": {
-    "@pnpm/exe.linux-x64-musl": "workspace:*"
+    "@pnpm/linuxstatic-x64": "workspace:*"
   },
   "publishConfig": {
     "os": [

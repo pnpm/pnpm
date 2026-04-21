@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/exe.win32-x64",
+  "name": "@pnpm/win-x64",
   "version": "11.0.0-rc.3",
   "keywords": [
     "pnpm",
@@ -20,7 +20,7 @@
     "prepublishOnly": "test -f pnpm.exe || (echo 'Error: pnpm.exe is missing' && exit 1)"
   },
   "devDependencies": {
-    "@pnpm/exe.win32-x64": "workspace:*"
+    "@pnpm/win-x64": "workspace:*"
   },
   "publishConfig": {
     "os": [
