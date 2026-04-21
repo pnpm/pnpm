@@ -83,9 +83,35 @@ test('commands that v10 passes through to npm keep passing through when packageM
   const { stdout } = execPnpmSync(['version', '--help'], { env })
 
   // npm's version help has this at the top — if we saw it, the argv[0]
-  // passthrough fired as it always has on pnpm v10. (See #11328 for the
-  // complementary v11 case, verified by the next test.)
+  // passthrough fired as it always has on pnpm v10. See #11328; the two
+  // tests below cover the pnpm v11+ cases (switching enabled and disabled).
   expect(stdout.toString()).toContain('Bump a package version')
+})
+
+test('`pnpm version` routes through switchCliVersion to v11 when packageManager selects pnpm v11+', () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const version = '11.0.0-rc.5'
+  // Bypass the registry mock for this one install: fetching pnpm v11 (and its
+  // full dep tree) through the proxy is slow and flaky, and all we need here
+  // is a real pnpm v11 tarball to prove the handoff happened.
+  const env = {
+    PNPM_HOME: pnpmHome,
+    npm_config_registry: 'https://registry.npmjs.org/',
+  }
+  writeJsonFile('package.json', {
+    packageManager: `pnpm@${version}`,
+  })
+
+  const { stdout, stderr } = execPnpmSync(['version', '--help'], { env })
+  const combined = stdout.toString() + stderr.toString()
+
+  // The #11328 fix: v11 is wanted, so argv[0] must not passthrough to npm.
+  expect(combined).not.toContain('Bump a package version')
+  // switchCliVersion actually ran (rather than the skip silently no-oping),
+  // which is what routes the command into v11's native `version` command.
+  const toolDir = getToolDirPath({ pnpmHomeDir: pnpmHome, tool: { name: 'pnpm', version } })
+  expect(fs.existsSync(path.join(toolDir, 'bin/pnpm'))).toBe(true)
 })
 
 test('npm passthrough still fires when packageManager selects pnpm v11+ but switching is disabled via .npmrc', () => {
