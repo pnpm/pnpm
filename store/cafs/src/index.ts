@@ -58,7 +58,7 @@ export interface CreateCafsOpts {
 
 export interface CafsFunctions {
   addFilesFromDir: (dirname: string, opts?: { files?: string[], readManifest?: boolean, includeNodeModules?: boolean }) => AddToStoreResult
-  addFilesFromTarball: (tarballBuffer: Buffer, readManifest?: boolean) => AddToStoreResult
+  addFilesFromTarball: (tarballBuffer: Buffer, readManifest?: boolean, ignore?: (filename: string) => boolean) => AddToStoreResult
   addFile: (buffer: Buffer, mode: number) => FileWriteResult
   getFilePathByModeInCafs: (digest: string, mode: number) => string
 }
@@ -66,9 +66,11 @@ export interface CafsFunctions {
 export function createCafs (storeDir: string, { ignoreFile, cafsLocker }: CreateCafsOpts = {}): CafsFunctions {
   const _writeBufferToCafs = writeBufferToCafs.bind(null, cafsLocker ?? new Map(), storeDir)
   const addBuffer = addBufferToCafs.bind(null, _writeBufferToCafs)
+  const cafsIgnore = ignoreFile ?? null
   return {
     addFilesFromDir: addFilesFromDir.bind(null, addBuffer),
-    addFilesFromTarball: addFilesFromTarball.bind(null, addBuffer, ignoreFile ?? null),
+    addFilesFromTarball: (tarballBuffer, readManifest, callIgnore) =>
+      addFilesFromTarball(addBuffer, cafsIgnore, tarballBuffer, readManifest, callIgnore),
     addFile: addBuffer,
     getFilePathByModeInCafs: getFilePathByModeInCafs.bind(null, storeDir),
   }

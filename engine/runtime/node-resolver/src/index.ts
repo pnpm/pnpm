@@ -198,17 +198,9 @@ async function fetchAllVersions (fetch: FetchFromRegistry, nodeMirrorBaseUrl?: s
 
 function getNodeBinsForCurrentOS (platform: string = process.platform): Record<string, string> {
   if (platform === 'win32') {
-    return {
-      node: 'node.exe',
-      npm: 'node_modules/npm/bin/npm-cli.js',
-      npx: 'node_modules/npm/bin/npx-cli.js',
-    }
+    return { node: 'node.exe' }
   }
-  return {
-    node: 'bin/node',
-    npm: 'lib/node_modules/npm/bin/npm-cli.js',
-    npx: 'lib/node_modules/npm/bin/npx-cli.js',
-  }
+  return { node: 'bin/node' }
 }
 
 function filterVersions (versions: NodeVersion[], versionSelector: string): { versions: string[], versionRange: string } {

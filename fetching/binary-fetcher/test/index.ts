@@ -220,5 +220,63 @@ describe('extractZipToTarget security', () => {
 
       expect(fs.existsSync(path.join(targetDir, 'bin/node'))).toBe(true)
     })
+
+    it('skips entries matching ignoreEntry regex (basename stripped)', async () => {
+      const targetDir = temporaryDirectory()
+      const zip = new AdmZip()
+      zip.addFile('node-v20.0.0/node.exe', Buffer.from('binary'))
+      zip.addFile('node-v20.0.0/npm', Buffer.from('npm shim'))
+      zip.addFile('node-v20.0.0/npm.cmd', Buffer.from('npm cmd'))
+      zip.addFile('node-v20.0.0/node_modules/npm/package.json', Buffer.from('{}'))
+      zip.addFile('node-v20.0.0/node_modules/corepack/package.json', Buffer.from('{}'))
+      zip.addFile('node-v20.0.0/node_modules/keep-me/index.js', Buffer.from('kept'))
+      const zipBuffer = zip.toBuffer()
+      const integrity = ssri.fromData(zipBuffer).toString()
+      const mockFetch = createMockFetch(zipBuffer)
+
+      await downloadAndUnpackZip(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        mockFetch as any,
+        {
+          url: 'https://example.com/node.zip',
+          integrity,
+          basename: 'node-v20.0.0',
+          ignoreEntry: /^(?:node_modules\/(?:npm|corepack)(?:\/|$)|npm(?:\.cmd)?$)/,
+        },
+        targetDir
+      )
+
+      expect(fs.existsSync(path.join(targetDir, 'node.exe'))).toBe(true)
+      expect(fs.existsSync(path.join(targetDir, 'node_modules/keep-me/index.js'))).toBe(true)
+      expect(fs.existsSync(path.join(targetDir, 'npm'))).toBe(false)
+      expect(fs.existsSync(path.join(targetDir, 'npm.cmd'))).toBe(false)
+      expect(fs.existsSync(path.join(targetDir, 'node_modules/npm'))).toBe(false)
+      expect(fs.existsSync(path.join(targetDir, 'node_modules/corepack'))).toBe(false)
+    })
+
+    it('skips entries matching ignoreEntry regex when basename is empty', async () => {
+      const targetDir = temporaryDirectory()
+      const zip = new AdmZip()
+      zip.addFile('bin/node', Buffer.from('#!/bin/sh\necho "node"'))
+      zip.addFile('bin/npm', Buffer.from('npm shim'))
+      const zipBuffer = zip.toBuffer()
+      const integrity = ssri.fromData(zipBuffer).toString()
+      const mockFetch = createMockFetch(zipBuffer)
+
+      await downloadAndUnpackZip(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        mockFetch as any,
+        {
+          url: 'https://example.com/node.zip',
+          integrity,
+          basename: '',
+          ignoreEntry: /^bin\/npm$/,
+        },
+        targetDir
+      )
+
+      expect(fs.existsSync(path.join(targetDir, 'bin/node'))).toBe(true)
+      expect(fs.existsSync(path.join(targetDir, 'bin/npm'))).toBe(false)
+    })
   })
 })

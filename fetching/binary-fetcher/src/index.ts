@@ -12,6 +12,13 @@ import { renameOverwrite } from 'rename-overwrite'
 import ssri from 'ssri'
 import { temporaryDirectory } from 'tempy'
 
+// Node.js archives ship with npm, npx, and corepack. pnpm manages package managers itself,
+// so these are excluded from the runtime install — skipping ~2,800 files out of ~5,800 in the
+// Node.js tarball. Users who still want npm can install it separately.
+// Matches paths *after* the top-level `node-vX.Y.Z-<platform>-<arch>/` prefix has been stripped.
+const NODE_EXTRAS_IGNORE_PATTERN = '^(?:(?:lib/)?node_modules/(?:npm|corepack)(?:/|$)|bin/(?:npm|npx|corepack)$|(?:npm|npx|corepack)(?:\\.(?:cmd|ps1))?$)'
+const NODE_EXTRAS_IGNORE_REGEX = new RegExp(NODE_EXTRAS_IGNORE_PATTERN)
+
 export function createBinaryFetcher (ctx: {
   fetch: FetchFromRegistry
   fetchFromRemoteTarball: FetchFunction
@@ -28,6 +35,7 @@ export function createBinaryFetcher (ctx: {
       version: opts.pkg.version!,
       bin: resolution.bin,
     }
+    const isNodeRuntime = opts.pkg.name === 'node'
 
     let fetchResult!: FetchResult
     switch (resolution.archive) {
@@ -36,8 +44,9 @@ export function createBinaryFetcher (ctx: {
           tarball: resolution.url,
           integrity: resolution.integrity,
         }, {
-          appendManifest: manifest,
           ...opts,
+          appendManifest: manifest,
+          ignoreFilePattern: isNodeRuntime ? NODE_EXTRAS_IGNORE_PATTERN : opts.ignoreFilePattern,
         })
         break
       }
@@ -47,6 +56,7 @@ export function createBinaryFetcher (ctx: {
           url: resolution.url,
           integrity: resolution.integrity,
           basename: resolution.prefix ?? '',
+          ignoreEntry: isNodeRuntime ? NODE_EXTRAS_IGNORE_REGEX : undefined,
         }, tempLocation)
         fetchResult = await addFilesFromDir({
           storeDir: cafs.storeDir,
@@ -77,6 +87,11 @@ export interface AssetInfo {
   url: string
   integrity: string
   basename: string
+  /**
+   * Regex matched against each zip entry's path relative to the archive's top-level basename.
+   * Matching entries are skipped during extraction.
+   */
+  ignoreEntry?: RegExp
 }
 
 /**
@@ -96,7 +111,7 @@ export async function downloadAndUnpackZip (
 
   try {
     await downloadWithIntegrityCheck(fetchFromRegistry, assetInfo, tmp)
-    await extractZipToTarget(tmp, assetInfo.basename, targetDir)
+    await extractZipToTarget(tmp, assetInfo.basename, targetDir, assetInfo.ignoreEntry)
   } finally {
     // Clean up temporary file
     try {
@@ -144,12 +159,15 @@ async function downloadWithIntegrityCheck (
  * @param zipPath - Path to the zip file
  * @param basename - Base name of the file (without extension)
  * @param targetDir - Directory where contents should be extracted
+ * @param ignoreEntry - Optional regex matched against the entry path relative to `basename`;
+ *   matching entries are skipped.
  * @throws {PnpmError} When extraction fails or path traversal is detected
  */
 async function extractZipToTarget (
   zipPath: string,
   basename: string,
-  targetDir: string
+  targetDir: string,
+  ignoreEntry?: RegExp
 ): Promise<void> {
   const zip = new AdmZip(zipPath)
   const nodeDir = basename === '' ? targetDir : path.dirname(targetDir)
@@ -159,10 +177,18 @@ async function extractZipToTarget (
     validatePathSecurity(nodeDir, basename)
   }
 
+  const basenamePrefix = basename === '' ? '' : `${basename}/`
+
   // Extract each entry with path validation to prevent path traversal attacks
   for (const entry of zip.getEntries()) {
     const entryPath = entry.entryName
     validatePathSecurity(nodeDir, entryPath)
+    if (ignoreEntry) {
+      const relative = basenamePrefix && entryPath.startsWith(basenamePrefix)
+        ? entryPath.slice(basenamePrefix.length)
+        : entryPath
+      if (ignoreEntry.test(relative)) continue
+    }
     zip.extractEntryTo(entry, nodeDir, true, true)
   }
 

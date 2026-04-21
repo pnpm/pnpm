@@ -185,7 +185,7 @@ async function handleMessage (
   }
 }
 
-function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appendManifest }: TarballExtractMessage) {
+function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appendManifest, ignoreFilePattern }: TarballExtractMessage) {
   if (integrity) {
     const { algorithm, hexDigest } = parseIntegrity(integrity)
     const calculatedHash: string = crypto.hash(algorithm, buffer, 'hex')
@@ -205,7 +205,8 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
     cafsCache.set(storeDir, createCafs(storeDir))
   }
   const cafs = cafsCache.get(storeDir)!
-  let { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, true)
+  const ignore = ignoreFilePattern ? makeIgnoreFromPattern(ignoreFilePattern) : undefined
+  let { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, true, ignore)
   if (appendManifest && manifest == null) {
     manifest = appendManifest
     addManifestToCafs(cafs, filesIndex, appendManifest)
@@ -236,6 +237,17 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
 function calcIntegrity (buffer: Buffer): string {
   const calculatedHash: string = crypto.hash('sha512', buffer, 'hex')
   return formatIntegrity('sha512', calculatedHash)
+}
+
+const ignoreRegexCache = new Map<string, RegExp>()
+
+function makeIgnoreFromPattern (pattern: string): (filename: string) => boolean {
+  let regex = ignoreRegexCache.get(pattern)
+  if (!regex) {
+    regex = new RegExp(pattern)
+    ignoreRegexCache.set(pattern, regex)
+  }
+  return (filename) => regex!.test(filename)
 }
 
 function packToShared (data: unknown): Uint8Array {

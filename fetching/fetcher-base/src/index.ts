@@ -21,6 +21,11 @@ export interface FetchOptions {
   readManifest?: boolean
   pkg: PkgNameVersion
   appendManifest?: DependencyManifest
+  /**
+   * Regex source (compatible with `new RegExp(pattern)`) matching file paths inside the
+   * downloaded archive that should be skipped during extraction. Honored by tarball fetchers.
+   */
+  ignoreFilePattern?: string
 }
 
 export type FetchFunction<FetcherResolution = Resolution, Options = FetchOptions, Result = FetchResult> = (

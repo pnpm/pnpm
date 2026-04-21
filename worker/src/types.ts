@@ -20,6 +20,8 @@ export interface TarballExtractMessage {
   readManifest?: boolean
   pkg?: PkgNameVersion
   appendManifest?: DependencyManifest
+  /** Regex source matching file paths inside the tarball that should be skipped. */
+  ignoreFilePattern?: string
 }
 
 export interface LinkPkgMessage {
