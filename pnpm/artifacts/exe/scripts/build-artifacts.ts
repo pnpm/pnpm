@@ -17,9 +17,9 @@ const buildFullMatrix = process.platform === 'linux' || isM1Mac
 
 const narrowTargets = ['win32-x64', 'linux-x64', 'darwin-x64']
 
-// Could equivalently live under `pnpm.app.runtime` in package.json; keeping
-// it here colocates the pinned runtime with the other host-conditional build
-// logic (target narrowing) rather than splitting it across two files.
+// Could equivalently live under `pnpm.app.runtime` in package.json; kept here
+// next to the host-conditional target narrowing so the whole build matrix is
+// visible in one place.
 const EMBEDDED_RUNTIME = 'node@25.6.1'
 
 const packAppArgs = ['pack-app', '--runtime', EMBEDDED_RUNTIME]
