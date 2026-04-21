@@ -9,6 +9,7 @@ import PATH from 'path-name'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpmSync, pnpmBinLocation } from '../utils/index.js'
+import { expect, it, test } from '@jest/globals'
 
 const pkgRoot = path.join(import.meta.dirname, '..', '..')
 const pnpmPkg = loadJsonFileSync<PackageManifest>(path.join(pkgRoot, 'package.json'))

@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
 import { logger } from '@pnpm/logger'
 import {
   findWorkspaceProjects,

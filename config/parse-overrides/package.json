@@ -37,6 +37,7 @@
     "@pnpm/resolving.parse-wanted-dependency": "workspace:*"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/config.parse-overrides": "workspace:*"
   },
   "engines": {

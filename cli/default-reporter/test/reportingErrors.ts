@@ -12,6 +12,7 @@ import normalizeNewline from 'normalize-newline'
 import { firstValueFrom } from 'rxjs'
 import { map, take } from 'rxjs/operators'
 import StackTracey from 'stacktracey'
+import { expect, it, test } from '@jest/globals'
 
 interface Exception extends NodeJS.ErrnoException {
   prefix?: string

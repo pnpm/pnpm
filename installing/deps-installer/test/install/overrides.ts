@@ -11,6 +11,7 @@ import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
+import { expect, it, test } from '@jest/globals'
 
 test('versions are replaced with versions specified through overrides option', async () => {
   const project = prepareEmpty()

@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import { parseProjectSelector, type ProjectSelector } from '@pnpm/workspace.projects-filter'
 import isWindows from 'is-windows'
+import { expect, test } from '@jest/globals'
 
 const fixtures: Array<[string, ProjectSelector]> = [
   [

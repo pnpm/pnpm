@@ -9,6 +9,7 @@ import { rimrafSync } from '@zkochan/rimraf'
 import { writeJsonFileSync } from 'write-json-file'
 
 import { testDefaults } from '../utils/index.js'
+import { expect, it, test } from '@jest/globals'
 
 test('inject local packages', async () => {
   const project1Manifest = {

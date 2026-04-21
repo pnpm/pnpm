@@ -10,6 +10,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, DepPath, ProjectId, ProjectRootDir } from '@pnpm/types'
 import tar from 'tar-stream'
+import { beforeEach, describe, expect, test } from '@jest/globals'
 
 const fooManifest = {
   name: 'foo',

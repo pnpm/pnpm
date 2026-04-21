@@ -1,6 +1,7 @@
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { filterLockfileByImporters } from '@pnpm/lockfile.filtering'
 import type { DepPath, ProjectId } from '@pnpm/types'
+import { expect, test } from '@jest/globals'
 
 test('filterByImporters(): only prod dependencies of one importer', () => {
   const filteredLockfile = filterLockfileByImporters(

@@ -10,6 +10,7 @@ import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm } from '../utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('deduplicate packages that have peers, when adding new dependency in a workspace', async () => {
   await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })

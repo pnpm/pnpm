@@ -2,6 +2,7 @@
 import path from 'node:path'
 
 import { assertProject } from '../src/index.js'
+import { expect, test } from '@jest/globals'
 
 test('assertProject()', async () => {
   const project = assertProject(path.join(import.meta.dirname, '../../..'))

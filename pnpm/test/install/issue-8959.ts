@@ -4,6 +4,7 @@ import { preparePackages } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm } from '../utils/index.js'
+import { expect, test } from '@jest/globals'
 
 // Covers https://github.com/pnpm/pnpm/issues/8959
 test('restores deleted modules dir of a workspace package', async () => {

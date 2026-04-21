@@ -7,6 +7,7 @@ import { loadWorkspaceState } from '@pnpm/workspace.state'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils/index.js'
+import { expect, it, test } from '@jest/globals'
 
 const CONFIG = ['--config.verify-deps-before-run=error'] as const
 

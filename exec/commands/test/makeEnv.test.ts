@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { makeEnv } from '../src/makeEnv.js'
+import { expect, it, test } from '@jest/globals'
 
 test('makeEnv should fail if prependPaths has a path with a colon', () => {
   const prependPath = `/foo/bar${path.delimiter}/baz`

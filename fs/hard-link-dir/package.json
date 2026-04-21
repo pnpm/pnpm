@@ -41,6 +41,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/fs.hard-link-dir": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*"

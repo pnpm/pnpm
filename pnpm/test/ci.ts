@@ -4,6 +4,7 @@ import path from 'node:path'
 import { prepare, tempDir } from '@pnpm/prepare'
 
 import { execPnpmSync } from './utils/index.js'
+import { expect, it, test } from '@jest/globals'
 
 test('pnpm ci fails when lockfile is missing', () => {
   tempDir()

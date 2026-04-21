@@ -10,6 +10,7 @@ import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects
 import { safeExeca as execa } from 'execa'
 
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils/index.js'
+import { expect, test } from '@jest/globals'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 const testOnPosixOnly = process.platform === 'win32' ? test.skip : test

@@ -2,6 +2,7 @@ import { ENGINE_NAME } from '@pnpm/constants'
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 import { calcDepState, calcGraphNodeHash } from '@pnpm/deps.graph-hasher'
 import type { DepPath, PkgIdWithPatchHash } from '@pnpm/types'
+import { describe, expect, test } from '@jest/globals'
 
 const depsGraph = {
   'foo@1.0.0': {

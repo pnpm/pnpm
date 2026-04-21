@@ -10,6 +10,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import type { ProjectRootDir } from '@pnpm/types'
 import isWindows from 'is-windows'
+import { expect, test } from '@jest/globals'
 
 const skipOnWindows = isWindows() ? test.skip : test
 

@@ -1,4 +1,5 @@
 import { WorkspaceSpec } from '../src/index.js'
+import { expect, test } from '@jest/globals'
 
 test('parse valid workspace spec', () => {
   expect(WorkspaceSpec.parse('workspace:*')).toStrictEqual(new WorkspaceSpec('*'))

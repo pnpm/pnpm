@@ -6,6 +6,7 @@ import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { preparePackages } from '@pnpm/prepare'
 
 import { testDefaults } from '../utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('throws an error when the peerDependencies have unallowed specs', async () => {
   preparePackages([

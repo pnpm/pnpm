@@ -18,6 +18,7 @@ import { omit } from 'ramda'
 import { temporaryDirectory } from 'tempy'
 
 import { delay, getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
+import { afterEach, beforeEach, expect, it, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 /* eslint-disable @typescript-eslint/no-explicit-any */

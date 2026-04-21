@@ -11,6 +11,7 @@ import PATH_NAME from 'path-name'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from './utils/index.js'
+import { beforeAll, describe, expect, it, test } from '@jest/globals'
 
 let registries: Record<string, string>
 

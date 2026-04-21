@@ -20,6 +20,7 @@ import { readYamlFileSync } from 'read-yaml-file'
 import { writeJsonFileSync } from 'write-json-file'
 
 import { testDefaults } from '../utils/index.js'
+import { expect, it, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 

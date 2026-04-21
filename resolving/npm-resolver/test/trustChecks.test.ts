@@ -2,6 +2,7 @@ import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import type { PackageInRegistry, PackageMetaWithTime } from '@pnpm/resolving.registry.types'
 
 import { failIfTrustDowngraded, getTrustEvidence } from '../src/trustChecks.js'
+import { describe, expect, test } from '@jest/globals'
 
 describe('getTrustEvidence', () => {
   test('returns "trustedPublisher" when _npmUser.trustedPublisher exists', () => {

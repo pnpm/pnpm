@@ -4,6 +4,7 @@ import { preparePackage } from '@pnpm/exec.prepare-package'
 import { tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
+import { expect, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 const allowBuild = () => true

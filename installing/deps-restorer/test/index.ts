@@ -2,7 +2,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { afterAll, expect, it, jest, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
 import type {

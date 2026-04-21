@@ -11,6 +11,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 
 import { DEFAULT_OPTS } from './utils/index.js'
+import { expect, it, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 

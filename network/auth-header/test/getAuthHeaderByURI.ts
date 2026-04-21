@@ -1,4 +1,5 @@
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
+import { expect, test } from '@jest/globals'
 
 const configByUri = {
   '//reg.com/': { creds: { authToken: 'abc123' } },

@@ -1,4 +1,5 @@
 import { shouldPersistLockfile } from './shouldPersistLockfile.js'
+import { describe, expect, test } from '@jest/globals'
 
 describe('shouldPersistLockfile', () => {
   test('devEngines.packageManager always persists, regardless of version', () => {

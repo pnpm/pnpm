@@ -5,6 +5,7 @@ import { addDependenciesToPackage, install } from '@pnpm/installing.deps-install
 import { prepareEmpty } from '@pnpm/prepare'
 
 import { testDefaults } from '../utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('production install (with --production flag)', async () => {
   const project = prepareEmpty()

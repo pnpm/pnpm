@@ -5,6 +5,7 @@ import { promisify } from 'node:util'
 
 import { writeProjectManifest } from '@pnpm/workspace.project-manifest-writer'
 import { temporaryDirectory } from 'tempy'
+import { expect, test } from '@jest/globals'
 
 const readFile = promisify(fs.readFile)
 

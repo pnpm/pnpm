@@ -1,4 +1,5 @@
 import { buildSequence } from '../lib/buildSequence.js'
+import { expect, test } from '@jest/globals'
 
 test('buildSequence() test 1', () => {
   const chunks = buildSequence({

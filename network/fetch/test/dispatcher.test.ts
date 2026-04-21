@@ -3,6 +3,7 @@ import net from 'node:net'
 
 import { clearDispatcherCache, type DispatcherOptions, getDispatcher } from '@pnpm/network.fetch'
 import { Agent, ProxyAgent } from 'undici'
+import { afterEach, describe, expect, test } from '@jest/globals'
 
 afterEach(() => {
   clearDispatcherCache()

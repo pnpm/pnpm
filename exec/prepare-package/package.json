@@ -41,6 +41,7 @@
     "ramda": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/exec.prepare-package": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",

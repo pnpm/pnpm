@@ -7,6 +7,7 @@ import { preparePackages } from '@pnpm/prepare'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 
 import { DEFAULT_OPTS, DEFAULT_OUTDATED_OPTS } from './utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('pnpm recursive outdated', async () => {
   preparePackages([

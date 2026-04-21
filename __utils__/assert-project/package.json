@@ -17,6 +17,7 @@
     "lib/"
   ],
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/assert-project": "workspace:*",
     "@types/is-windows": "catalog:",
     "@types/isexe": "catalog:",

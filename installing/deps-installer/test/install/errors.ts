@@ -10,6 +10,7 @@ import type { ProjectRootDir } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 
 import { testDefaults } from '../utils/index.js'
+import { expect, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 

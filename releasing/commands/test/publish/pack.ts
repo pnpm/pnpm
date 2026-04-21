@@ -10,6 +10,7 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import type { PackResultJson } from '../../src/publish/pack.js'
 import { DEFAULT_OPTS } from './utils/index.js'
+import { beforeAll, describe, expect, it, test } from '@jest/globals'
 
 test('pack: package with package.json', async () => {
   prepare({

@@ -10,6 +10,7 @@ import { loadJsonFileSync } from 'load-json-file'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
+import { afterEach, expect, test } from '@jest/globals'
 
 // This must be a function because some of its values depend on CWD
 const createOptions = (saveCatalogName = 'default'): add.AddCommandOptions => ({

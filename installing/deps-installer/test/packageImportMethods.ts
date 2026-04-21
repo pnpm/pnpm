@@ -5,6 +5,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { loadJsonFileSync } from 'load-json-file'
 
 import { testDefaults } from './utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('packageImportMethod can be set to copy', async () => {
   const project = prepareEmpty()

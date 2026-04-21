@@ -7,6 +7,7 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { temporaryDirectory } from 'tempy'
+import { expect, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`

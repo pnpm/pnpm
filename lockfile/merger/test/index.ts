@@ -2,6 +2,7 @@ import type { LockfileObject } from '@pnpm/lockfile.types'
 import type { DepPath, ProjectId } from '@pnpm/types'
 
 import { mergeLockfileChanges } from '../src/index.js'
+import { expect, it, test } from '@jest/globals'
 
 const simpleLockfile = {
   importers: {

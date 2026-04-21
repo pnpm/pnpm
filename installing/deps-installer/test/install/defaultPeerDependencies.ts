@@ -8,6 +8,7 @@ import { addDistTag } from '@pnpm/registry-mock'
 import deepRequireCwd from 'deep-require-cwd'
 
 import { testDefaults } from '../utils/index.js'
+import { expect, it, test } from '@jest/globals'
 
 test('package with default peer dependency, when auto install peers is on', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })

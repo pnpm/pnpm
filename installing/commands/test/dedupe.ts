@@ -12,6 +12,7 @@ import { diff } from 'jest-diff'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
+import { describe, expect, it, jest, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 

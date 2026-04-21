@@ -3,6 +3,7 @@ import {
   getLastOption,
   getOptionCompletions,
 } from '../../src/completion/getOptionType.js'
+import { expect, test } from '@jest/globals'
 
 const TYPES = {
   color: ['red', 'blue', Array],

@@ -6,6 +6,7 @@ import { createPackageStore } from '@pnpm/store.controller'
 import type { FetchPackageToStoreFunction } from '@pnpm/store.controller-types'
 import { StoreIndex } from '@pnpm/store.index'
 import { temporaryDirectory } from 'tempy'
+import { describe, expect, it } from '@jest/globals'
 
 describe('store.importPackage()', () => {
   it('selects import method automatically', async () => {

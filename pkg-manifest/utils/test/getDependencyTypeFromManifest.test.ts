@@ -1,4 +1,5 @@
 import { getDependencyTypeFromManifest } from '@pnpm/pkg-manifest.utils'
+import { expect, test } from '@jest/globals'
 
 test('getDependencyTypeFromManifest()', () => {
   expect(

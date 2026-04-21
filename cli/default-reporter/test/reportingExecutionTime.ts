@@ -5,6 +5,7 @@ import { packageManager } from '@pnpm/cli.meta'
 import { executionTimeLogger } from '@pnpm/core-loggers'
 import { createStreamParser } from '@pnpm/logger'
 import { firstValueFrom } from 'rxjs'
+import { expect, test } from '@jest/globals'
 
 const NO_OUTPUT = Symbol('test should not log anything')
 

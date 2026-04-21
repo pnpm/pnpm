@@ -10,6 +10,7 @@ import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('recursive list', async () => {
   preparePackages([

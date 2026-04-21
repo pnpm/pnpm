@@ -40,6 +40,7 @@
     "read-yaml-file": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/installing.modules-yaml": "workspace:*",
     "@types/is-windows": "catalog:",
     "@types/ramda": "catalog:",

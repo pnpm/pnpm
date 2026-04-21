@@ -11,6 +11,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectRootDir } from '@pnpm/types'
 
 import { testDefaults } from '../utils/index.js'
+import { expect, jest, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 

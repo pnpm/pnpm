@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { expect, it, jest, test } from '@jest/globals'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import type { RootLog } from '@pnpm/core-loggers'
 import type { PnpmError } from '@pnpm/error'

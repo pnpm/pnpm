@@ -2,6 +2,7 @@ import { LOCKFILE_VERSION } from '@pnpm/constants'
 import type { ProjectId } from '@pnpm/types'
 
 import { convertToLockfileFile } from '../lib/lockfileFormatConverters.js'
+import { expect, test } from '@jest/globals'
 
 test('empty overrides are removed during lockfile normalization', () => {
   expect(convertToLockfileFile({

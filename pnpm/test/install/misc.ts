@@ -23,6 +23,7 @@ import {
   execPnpm,
   execPnpmSync,
 } from '../utils/index.js'
+import { afterAll, expect, it, test } from '@jest/globals'
 
 const skipOnWindows = isWindows() ? test.skip : test
 const f = fixtures(import.meta.dirname)

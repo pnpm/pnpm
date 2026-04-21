@@ -4,6 +4,7 @@ import { addDependenciesToPackage, install } from '@pnpm/installing.deps-install
 import { prepareEmpty } from '@pnpm/prepare'
 
 import { testDefaults } from '../utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('setting a custom virtual store directory max length', async () => {
   prepareEmpty()

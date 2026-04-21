@@ -7,6 +7,7 @@ import { createExportableManifest, type MakePublishManifestOptions } from '@pnpm
 import type { ProjectManifest } from '@pnpm/types'
 import crossSpawn from 'cross-spawn'
 import { writeYamlFileSync } from 'write-yaml-file'
+import { expect, test } from '@jest/globals'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 

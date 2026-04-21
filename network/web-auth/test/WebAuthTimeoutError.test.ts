@@ -1,4 +1,5 @@
 import { WebAuthTimeoutError } from '@pnpm/network.web-auth'
+import { describe, expect, it } from '@jest/globals'
 
 describe('WebAuthTimeoutError', () => {
   it('stores endTime, startTime, and timeout', () => {

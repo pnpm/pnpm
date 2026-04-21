@@ -2,6 +2,7 @@
 import path from 'node:path'
 
 import { findPackages } from '@pnpm/workspace.projects-reader'
+import { expect, test } from '@jest/globals'
 
 function compare (a: string | undefined, b: string | undefined) {
   if (a == null) return 1

@@ -1,6 +1,7 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 
 import { sortLockfileKeys } from '../lib/sortLockfileKeys.js'
+import { expect, test } from '@jest/globals'
 
 test('sorts keys alphabetically', () => {
   const normalizedLockfile = sortLockfileKeys({

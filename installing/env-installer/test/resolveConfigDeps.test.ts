@@ -6,6 +6,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { createTempStore } from '@pnpm/testing.temp-store'
 import { readYamlFileSync } from 'read-yaml-file'
+import { expect, test } from '@jest/globals'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 

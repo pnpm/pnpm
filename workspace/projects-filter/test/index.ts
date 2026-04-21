@@ -14,6 +14,7 @@ import { temporaryDirectory } from 'tempy'
 import touchCB from 'touch'
 
 import './parseProjectSelector.js'
+import { expect, test } from '@jest/globals'
 
 const touch = promisify(touchCB)
 const mkdir = promisify(fs.mkdir)

@@ -1,5 +1,4 @@
-import { jest } from '@jest/globals'
-
+import { expect, jest, test } from '@jest/globals'
 import { executeTokenHelper } from '../../src/publish/executeTokenHelper.js'
 
 test('executeTokenHelper returns stdout of the tokenHelper command', () => {

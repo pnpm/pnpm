@@ -5,6 +5,7 @@ import { BadReadPackageHookError, type HookContext, requireHooks } from '@pnpm/h
 import { fixtures } from '@pnpm/test-fixtures'
 
 import { requirePnpmfile } from '../src/requirePnpmfile.js'
+import { expect, it, test } from '@jest/globals'
 
 const defaultHookContext: HookContext = { log () {} }
 const f = fixtures(import.meta.dirname)

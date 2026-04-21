@@ -5,6 +5,7 @@ import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm } from '../utils/index.js'
+import { expect, test } from '@jest/globals'
 
 // Covers https://github.com/pnpm/pnpm/issues/6272
 test('peer dependency is not unlinked when adding a new dependency', async () => {

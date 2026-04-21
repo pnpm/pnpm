@@ -10,6 +10,7 @@ import { rimrafSync } from '@zkochan/rimraf'
 import { isCI } from 'ci-info'
 
 import { testDefaults } from './utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('fail on non-compatible node_modules', async () => {
   prepareEmpty()

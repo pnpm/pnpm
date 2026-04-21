@@ -7,6 +7,7 @@ import { prepare } from '@pnpm/prepare'
 import { findHash } from '@pnpm/store.commands'
 import { safeExeca as execa } from 'execa'
 import { temporaryDirectory } from 'tempy'
+import { expect, test } from '@jest/globals'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
 

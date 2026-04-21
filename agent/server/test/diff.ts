@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals'
+import { describe, expect, it, test } from '@jest/globals'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { packForStorage } from '@pnpm/store.index'

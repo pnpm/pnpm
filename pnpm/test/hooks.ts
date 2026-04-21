@@ -9,6 +9,7 @@ import { loadJsonFileSync } from 'load-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from './utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('readPackage hook in single project doesn\'t modify manifest', async () => {
   const project = prepare()

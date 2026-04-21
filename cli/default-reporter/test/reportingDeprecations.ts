@@ -11,6 +11,7 @@ import { firstValueFrom } from 'rxjs'
 import { map, take } from 'rxjs/operators'
 
 import { formatWarn } from '../src/reporterForClient/utils/formatWarn.js'
+import { expect, test } from '@jest/globals'
 
 test('prints summary of deprecated subdependencies', async () => {
   const prefix = '/home/jane/project'

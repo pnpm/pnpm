@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { symlinkDirectRootDependency } from '@pnpm/fs.symlink-dependency'
 import { tempDir } from '@pnpm/prepare'
+import { expect, test } from '@jest/globals'
 
 test('symlink is created to directory that does not yet exist', async () => {
   const tmp = tempDir(false)

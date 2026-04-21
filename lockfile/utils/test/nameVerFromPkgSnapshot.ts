@@ -1,4 +1,5 @@
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+import { expect, test } from '@jest/globals'
 
 test('nameVerFromPkgSnapshot()', () => {
   expect(nameVerFromPkgSnapshot('foo@some-weird-path', {

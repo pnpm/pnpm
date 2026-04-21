@@ -6,6 +6,7 @@ import type { ProjectManifest } from '@pnpm/types'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm } from './utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test.each([
   { message: '--filter should include devDependencies', filter: '--filter', expected: ['project-1', 'project-3', 'project-4'] },

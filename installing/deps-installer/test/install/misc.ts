@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import * as path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { expect, it, jest, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import type {
   PackageManifestLog,

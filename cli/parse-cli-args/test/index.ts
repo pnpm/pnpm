@@ -3,6 +3,7 @@ import os from 'node:os'
 import { parseCliArgs } from '@pnpm/cli.parse-cli-args'
 import type { PnpmError } from '@pnpm/error'
 import { temporaryDirectory } from 'tempy'
+import { expect, it, test } from '@jest/globals'
 
 const DEFAULT_OPTS = {
   getCommandLongName: (_commandName: string) => _commandName,

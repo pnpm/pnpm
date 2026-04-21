@@ -3,6 +3,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 
 import { testDefaults } from '../utils/index.js'
+import { afterEach, beforeEach, expect, it, test } from '@jest/globals'
 
 beforeEach(async () => {
   await setupMockAgent()

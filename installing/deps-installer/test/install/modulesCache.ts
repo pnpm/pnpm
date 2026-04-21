@@ -10,6 +10,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
 
 import { testDefaults } from '../utils/index.js'
+import { expect, it, test } from '@jest/globals'
 
 test('the modules cache is pruned when it expires', async () => {
   const project = prepareEmpty()

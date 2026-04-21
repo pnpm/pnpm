@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import { prepare } from '@pnpm/prepare'
 
 import { execPnpmSync } from '../utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('pnpm --filter <root> add <pkg> should work', async () => {
   prepare({

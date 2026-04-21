@@ -3,6 +3,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { rimrafSync } from '@zkochan/rimraf'
 
 import { testDefaults } from './utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('offline installation fails when package meta not found in local registry mirror', async () => {
   prepareEmpty()

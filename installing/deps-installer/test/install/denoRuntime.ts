@@ -7,6 +7,7 @@ import { rimrafSync } from '@zkochan/rimraf'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
+import { afterEach, beforeEach, expect, test } from '@jest/globals'
 
 beforeEach(async () => {
   await setupMockAgent()

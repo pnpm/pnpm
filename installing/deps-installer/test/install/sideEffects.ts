@@ -11,6 +11,7 @@ import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { rimrafSync } from '@zkochan/rimraf'
 
 import { testDefaults } from '../utils/index.js'
+import { afterAll, expect, it, test } from '@jest/globals'
 
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 

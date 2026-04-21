@@ -1,4 +1,5 @@
 import { optionTypesToCompletions } from '../../src/completion/optionTypesToCompletions.js'
+import { expect, test } from '@jest/globals'
 
 test('optionTypesToCompletions', () => {
   expect(optionTypesToCompletions({

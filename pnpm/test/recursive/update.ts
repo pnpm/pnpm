@@ -7,6 +7,7 @@ import type { WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reade
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm } from '../utils/index.js'
+import { expect, test } from '@jest/globals'
 
 // TODO: This should work if the settings are passed through CLI
 test.skip('recursive update --latest should update deps with correct specs', async () => {

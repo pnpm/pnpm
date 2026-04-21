@@ -37,7 +37,9 @@
     "@pnpm/store.index": "workspace:*"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/assert-store": "workspace:*",
-    "@pnpm/constants": "workspace:*"
+    "@pnpm/constants": "workspace:*",
+    "@types/node": "catalog:"
   }
 }

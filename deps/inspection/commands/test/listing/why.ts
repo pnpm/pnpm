@@ -7,6 +7,7 @@ import type { PnpmError } from '@pnpm/error'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { safeExeca as execa } from 'execa'
+import { expect, test } from '@jest/globals'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../../../pnpm/bin/pnpm.mjs')
 

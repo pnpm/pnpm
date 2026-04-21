@@ -1,6 +1,7 @@
 import type { PackageManifest, PublishConfig } from '@pnpm/types'
 
 import { overridePublishConfig } from '../lib/overridePublishConfig.js'
+import { expect, test } from '@jest/globals'
 
 test('publish config to be overridden', async () => {
   const publishConfig: PublishConfig = {

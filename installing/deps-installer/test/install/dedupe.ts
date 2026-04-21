@@ -3,6 +3,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 
 import { testDefaults } from '../utils/index.js'
+import { expect, it, test } from '@jest/globals'
 
 test('prefer version ranges specified for top dependencies', async () => {
   const project = prepareEmpty()

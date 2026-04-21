@@ -7,6 +7,7 @@ import { readYamlFileSync } from 'read-yaml-file'
 
 import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS } from './utils/options.js'
 import * as responses from './utils/responses/index.js'
+import { afterEach, beforeEach, expect, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 

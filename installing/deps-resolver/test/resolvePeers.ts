@@ -9,6 +9,7 @@ import type {
 import type { NodeId } from '../lib/nextNodeId.js'
 import type { DependenciesTreeNode, PeerDependencies } from '../lib/resolveDependencies.js'
 import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers.js'
+import { beforeAll, describe, expect, it, test } from '@jest/globals'
 
 test('resolve peer dependencies of cyclic dependencies', async () => {
   const fooPkg = {

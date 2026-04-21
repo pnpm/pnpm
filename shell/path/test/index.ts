@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import { prependDirsToPath } from '@pnpm/shell.path'
 import PATH from 'path-name'
+import { expect, test } from '@jest/globals'
 
 test('prependDirsToPath', () => {
   expect(prependDirsToPath(['foo'], {})).toStrictEqual({

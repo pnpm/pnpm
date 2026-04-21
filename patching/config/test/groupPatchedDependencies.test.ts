@@ -1,6 +1,7 @@
 import type { ExtendedPatchInfo, PatchGroupRecord } from '@pnpm/patching.types'
 
 import { groupPatchedDependencies } from '../src/groupPatchedDependencies.js'
+import { expect, test } from '@jest/globals'
 
 function sanitizePatchGroupRecord (patchGroups: PatchGroupRecord): PatchGroupRecord {
   for (const name in patchGroups) {

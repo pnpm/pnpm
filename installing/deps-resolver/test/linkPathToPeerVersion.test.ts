@@ -1,4 +1,5 @@
 import { linkPathToPeerVersion } from '../lib/linkPathToPeerVersion.js'
+import { expect, test } from '@jest/globals'
 
 // These outputs are lockfile-format: changing any of them breaks existing
 // v9 lockfiles. See https://github.com/pnpm/pnpm/issues/11272.

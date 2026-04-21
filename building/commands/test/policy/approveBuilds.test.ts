@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import type { ApproveBuildsCommandOpts, RebuildCommandOpts } from '@pnpm/building.commands'
 import { getConfig } from '@pnpm/config.reader'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'

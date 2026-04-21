@@ -7,6 +7,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { symlinkDirSync } from 'symlink-dir'
 
 import { testDefaults } from './utils/index.js'
+import { expect, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 

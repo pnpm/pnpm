@@ -7,6 +7,7 @@ import { loadJsonFileSync } from 'load-json-file'
 import PATH_NAME from 'path-name'
 
 import { execPnpm, execPnpmSync } from '../utils/index.js'
+import { expect, it, test } from '@jest/globals'
 
 test('self-update updates the packageManager field in package.json', async () => {
   prepare({

@@ -1,4 +1,5 @@
 import { parseStringLiteral, type StringLiteral } from '../../src/index.js'
+import { expect, test } from '@jest/globals'
 
 test('not a string literal', () => {
   expect(parseStringLiteral('')).toBeUndefined()

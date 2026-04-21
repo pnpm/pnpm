@@ -1,4 +1,5 @@
 import { satisfiesPackageManifest } from '@pnpm/lockfile.verification'
+import { expect, test } from '@jest/globals'
 
 const DEFAULT_PKG_FIELDS = {
   name: 'project',

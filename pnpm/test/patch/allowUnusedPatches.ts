@@ -3,6 +3,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpmSync } from '../utils/index.js'
+import { expect, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 

@@ -7,6 +7,7 @@ import type { PackageExtension, ProjectManifest, ProjectRootDir } from '@pnpm/ty
 import {
   testDefaults,
 } from '../utils/index.js'
+import { expect, test } from '@jest/globals'
 
 function hashObject (obj: Record<string, unknown>): string {
   return `sha256-${_hashObject(obj)}`

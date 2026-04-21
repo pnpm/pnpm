@@ -1,4 +1,5 @@
 import { generateQrCode } from '@pnpm/network.web-auth'
+import { describe, expect, it } from '@jest/globals'
 
 describe('generateQrCode', () => {
   it('returns a non-empty string', () => {

@@ -1,4 +1,5 @@
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
+import { expect, test } from '@jest/globals'
 
 test('pick correct scope', () => {
   const registries = {

@@ -1,5 +1,6 @@
 import { list } from '@pnpm/deps.inspection.list'
 import { fixtures } from '@pnpm/test-fixtures'
+import { expect, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 const fixtureWithManyDeps = f.find('many-deps')

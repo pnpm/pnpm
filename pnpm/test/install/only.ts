@@ -5,6 +5,7 @@ import type { PackageManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 
 import { execPnpm } from '../utils/index.js'
+import { expect, test } from '@jest/globals'
 
 const basicPackageManifest = loadJsonFileSync<PackageManifest>(path.join(import.meta.dirname, '../utils/simple-package.json'))
 

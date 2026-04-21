@@ -5,6 +5,7 @@ import {
   createWorkspaceSpecs,
   updateToWorkspacePackagesFromManifest,
 } from '../lib/updateWorkspaceDependencies.js'
+import { expect, test } from '@jest/globals'
 
 const INCLUDE_ALL = {
   dependencies: true,

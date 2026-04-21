@@ -7,6 +7,7 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { symlinkDirSync } from 'symlink-dir'
+import { expect, test } from '@jest/globals'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 const f = fixtures(import.meta.dirname)

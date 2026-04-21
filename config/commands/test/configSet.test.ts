@@ -8,6 +8,7 @@ import { readIniFileSync } from 'read-ini-file'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { type ConfigFilesData, createConfigCommandOpts, readConfigFiles, writeConfigFiles } from './utils/index.js'
+import { expect, it, jest, test } from '@jest/globals'
 
 test('config set registry setting using the global option', async () => {
   const tmp = tempDir()

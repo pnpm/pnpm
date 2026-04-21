@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { getRegisteredProjects, registerProject } from '@pnpm/store.controller'
 import { temporaryDirectory } from 'tempy'
+import { describe, expect, it } from '@jest/globals'
 
 describe('projectRegistry', () => {
   describe('registerProject()', () => {

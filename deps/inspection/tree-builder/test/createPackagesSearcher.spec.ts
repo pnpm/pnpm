@@ -1,6 +1,7 @@
 import type { DependencyManifest } from '@pnpm/types'
 
 import { createPackagesSearcher } from '../lib/createPackagesSearcher.js'
+import { expect, test } from '@jest/globals'
 
 test('packages searcher', () => {
   {

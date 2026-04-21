@@ -1,5 +1,6 @@
 import { DEFAULT_OPTS as BASE_OPTS, REGISTRY_URL } from '@pnpm/testing.command-defaults'
 import { safeExeca as execa } from 'execa'
+import { expect } from '@jest/globals'
 
 export const DEFAULT_OPTS = {
   ...BASE_OPTS,

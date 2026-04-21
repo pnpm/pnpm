@@ -10,6 +10,7 @@ import { prepare, tempDir } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { symlinkDirSync } from 'symlink-dir'
+import { expect, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 const hasOutdatedDepsFixture = f.find('has-outdated-deps')

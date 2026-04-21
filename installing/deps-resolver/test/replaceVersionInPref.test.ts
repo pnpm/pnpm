@@ -1,4 +1,5 @@
 import { replaceVersionInBareSpecifier } from '../lib/replaceVersionInBareSpecifier.js'
+import { expect, test } from '@jest/globals'
 
 test('replaceVersionInBareSpecifier()', () => {
   expect(replaceVersionInBareSpecifier('^1.0.0', '1.1.0')).toBe('1.1.0')

@@ -5,6 +5,7 @@ import type { Registries } from '@pnpm/types'
 import { temporaryDirectory } from 'tempy'
 
 import { getMockAgent, setupMockAgent, teardownMockAgent } from './utils/index.js'
+import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
 
 const registries = {
   default: 'https://registry.npmjs.org/',

@@ -69,6 +69,7 @@
     "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",

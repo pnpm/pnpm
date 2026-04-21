@@ -1,4 +1,5 @@
 import { validatePeerDependencies } from '../src/validatePeerDependencies.js'
+import { expect, test } from '@jest/globals'
 
 test('accepts valid specifications that make sense for peerDependencies', () => {
   validatePeerDependencies({

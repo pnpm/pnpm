@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import type { DepPath, ProjectId } from '@pnpm/types'
 import { temporaryDirectory } from 'tempy'
 
@@ -45,7 +45,7 @@ test('readWantedLockfile()', async () => {
       ignoreIncompatible: false,
       wantedVersions: ['3'],
     })
-    fail()
+    throw new Error('should have thrown')
   } catch (err: any) { // eslint-disable-line
     expect(err.code).toBe('ERR_PNPM_LOCKFILE_BREAKING_CHANGE')
   }

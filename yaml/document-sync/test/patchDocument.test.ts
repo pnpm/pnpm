@@ -1,5 +1,6 @@
 import { patchDocument } from '@pnpm/yaml.document-sync'
 import yaml from 'yaml'
+import { describe, expect, it, test } from '@jest/globals'
 
 describe('patchNode', () => {
   it('throws error when document has errors', () => {

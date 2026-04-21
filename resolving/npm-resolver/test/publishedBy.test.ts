@@ -10,6 +10,7 @@ import { loadJsonFileSync } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
 
 import { getMockAgent, setupMockAgent, teardownMockAgent } from './utils/index.js'
+import { afterEach, beforeEach, expect, it, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 

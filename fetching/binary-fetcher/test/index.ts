@@ -7,6 +7,7 @@ import { createBinaryFetcher, downloadAndUnpackZip } from '@pnpm/fetching.binary
 import AdmZip from 'adm-zip'
 import ssri from 'ssri'
 import { temporaryDirectory } from 'tempy'
+import { describe, expect, it, test } from '@jest/globals'
 
 // Mock fetch function that returns a ZIP buffer and simulates FetchFromRegistry
 function createMockFetch (zipBuffer: Buffer) {

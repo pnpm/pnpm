@@ -1,4 +1,5 @@
 import { createGitHostedPkgId } from '@pnpm/resolving.git-resolver'
+import { expect, test } from '@jest/globals'
 
 test.each([
   [{ repo: 'ssh://git@example.com/org/repo.git', commit: 'cba04669e621b85fbdb33371604de1a2898e68e9' }, 'git+ssh://git@example.com/org/repo.git#cba04669e621b85fbdb33371604de1a2898e68e9'],

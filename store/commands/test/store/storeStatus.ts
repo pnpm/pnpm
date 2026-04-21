@@ -8,6 +8,7 @@ import { store } from '@pnpm/store.commands'
 import { rimrafSync } from '@zkochan/rimraf'
 import { safeExeca as execa } from 'execa'
 import { temporaryDirectory } from 'tempy'
+import { expect, test } from '@jest/globals'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')

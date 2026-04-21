@@ -1,4 +1,4 @@
-import { jest } from '@jest/globals'
+import { describe, expect, it, jest, test } from '@jest/globals'
 import type { Fetchers, FetchFunction } from '@pnpm/fetching.fetcher-base'
 import { pickFetcher } from '@pnpm/fetching.pick-fetcher'
 import type { CustomFetcher } from '@pnpm/hooks.types'

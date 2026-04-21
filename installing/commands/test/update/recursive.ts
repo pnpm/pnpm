@@ -9,6 +9,7 @@ import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { DEFAULT_OPTS } from '../utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('recursive update', async () => {
   const projects = preparePackages([

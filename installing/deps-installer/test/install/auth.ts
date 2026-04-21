@@ -7,6 +7,7 @@ import type { RegistryConfig } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 
 import { testDefaults } from '../utils/index.js'
+import { test } from '@jest/globals'
 
 const skipOnNode17 = ['v14', 'v16'].includes(process.version.split('.')[0]) ? test : test.skip
 

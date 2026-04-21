@@ -1,4 +1,5 @@
 import { unwrapPackageName } from '../lib/unwrapPackageName.js'
+import { expect, test } from '@jest/globals'
 
 test('works for wanted dependency with no alias', () => {
   expect(unwrapPackageName('is-positive', '^3.1.0')).toEqual({ pkgName: 'is-positive', bareSpecifier: '^3.1.0' })

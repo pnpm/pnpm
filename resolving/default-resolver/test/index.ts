@@ -1,6 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createResolver } from '@pnpm/resolving.default-resolver'
+import { expect, test } from '@jest/globals'
 
 test('createResolver()', () => {
   const getAuthHeader = () => undefined

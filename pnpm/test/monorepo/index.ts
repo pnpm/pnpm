@@ -26,6 +26,7 @@ import { temporaryDirectory } from 'tempy'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from '../utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('no projects matched the filters', async () => {
   preparePackages([

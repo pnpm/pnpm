@@ -19,6 +19,7 @@ import { symlinkDir } from 'symlink-dir'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
+import { expect, it, test } from '@jest/globals'
 
 test('should hoist dependencies', async () => {
   const project = prepareEmpty()

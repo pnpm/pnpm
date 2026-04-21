@@ -5,6 +5,7 @@ import path from 'node:path'
 import { clearDispatcherCache, createFetchFromRegistry } from '@pnpm/network.fetch'
 import { ProxyServer } from 'https-proxy-server-express'
 import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
+import { expect, test } from '@jest/globals'
 
 let originalDispatcher: Dispatcher | null = null
 let currentMockAgent: MockAgent | null = null

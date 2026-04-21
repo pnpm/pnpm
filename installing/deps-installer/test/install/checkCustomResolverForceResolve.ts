@@ -2,6 +2,7 @@ import type { CustomResolver } from '@pnpm/hooks.types'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 
 import { checkCustomResolverForceResolve } from '../../src/install/checkCustomResolverForceResolve.js'
+import { describe, expect, test } from '@jest/globals'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyPackages = any

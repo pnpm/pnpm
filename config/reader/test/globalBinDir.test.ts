@@ -7,6 +7,7 @@ import { getConfig } from '@pnpm/config.reader'
 import { tempDir } from '@pnpm/prepare'
 import pathName from 'path-name'
 import { symlinkDir } from 'symlink-dir'
+import { expect, test } from '@jest/globals'
 
 const globalBinDir = path.join(homedir(), '.local', 'pnpm')
 

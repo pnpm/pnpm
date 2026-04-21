@@ -10,6 +10,7 @@ import { rimrafSync } from '@zkochan/rimraf'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
+import { expect, it, test } from '@jest/globals'
 
 // The standard glibc variants from nodejs.org/download/release/
 const GLIBC_RESOLUTIONS = [

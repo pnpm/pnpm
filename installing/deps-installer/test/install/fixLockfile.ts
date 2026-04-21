@@ -9,6 +9,7 @@ import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('fix broken lockfile with --fix-lockfile', async () => {
   prepareEmpty()

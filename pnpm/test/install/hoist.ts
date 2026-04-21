@@ -2,6 +2,7 @@ import { prepare, preparePackages } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm } from '../utils/index.js'
+import { test } from '@jest/globals'
 
 test('hoist the dependency graph', async () => {
   const project = prepare()

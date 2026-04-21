@@ -8,6 +8,7 @@ import { addDistTag } from '@pnpm/registry-mock'
 import type { ProjectRootDir } from '@pnpm/types'
 
 import { testDefaults } from '../utils/index.js'
+import { expect, it, test } from '@jest/globals'
 
 test('save to package.json (is-positive@^1.0.0)', async () => {
   const project = prepareEmpty()

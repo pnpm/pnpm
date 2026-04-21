@@ -1,4 +1,5 @@
 import { createMatcher, createMatcherWithIndex } from '@pnpm/config.matcher'
+import { expect, test } from '@jest/globals'
 
 test('matcher()', () => {
   {

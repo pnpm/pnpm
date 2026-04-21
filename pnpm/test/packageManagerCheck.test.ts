@@ -2,6 +2,7 @@ import { prepare } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpmSync } from './utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('install should fail if the used pnpm version does not satisfy the pnpm version specified in engines', async () => {
   prepare({

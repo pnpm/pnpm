@@ -1,4 +1,5 @@
 import { type Diff, diffFlatRecords } from '../src/diffFlatRecords.js'
+import { expect, test } from '@jest/globals'
 
 test('diffFlatRecords', () => {
   const diff = diffFlatRecords<string, string>({

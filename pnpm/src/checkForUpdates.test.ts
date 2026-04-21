@@ -1,4 +1,4 @@
-import { jest } from '@jest/globals'
+import { beforeEach, expect, jest, test } from '@jest/globals'
 import { getConfig } from '@pnpm/config.reader'
 import { prepareEmpty } from '@pnpm/prepare'
 import { loadJsonFileSync } from 'load-json-file'

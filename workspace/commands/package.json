@@ -44,6 +44,7 @@
     "render-help": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/workspace.commands": "workspace:*",

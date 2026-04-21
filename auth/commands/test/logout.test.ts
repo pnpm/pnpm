@@ -1,7 +1,6 @@
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
-
+import { describe, expect, it, jest } from '@jest/globals'
 import { logout, type LogoutContext, type LogoutFetchResponse } from '../src/logout.js'
 
 const TEST_CONTEXT: LogoutContext = {

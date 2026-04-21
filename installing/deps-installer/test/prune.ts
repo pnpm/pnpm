@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import type { RootLog } from '@pnpm/core-loggers'
 import {
   addDependenciesToPackage,

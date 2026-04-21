@@ -6,6 +6,7 @@ import { prepare } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpmSync } from '../utils/index.js'
+import { expect, it, jest, test } from '@jest/globals'
 
 test('pnpm config list reads npm options but ignores other settings from .npmrc', () => {
   prepare()

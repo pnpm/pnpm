@@ -12,6 +12,7 @@ import {
   execPnpmSync,
   execPnpxSync,
 } from './utils/index.js'
+import { expect, it, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 const hasOutdatedDepsFixture = f.find('has-outdated-deps')

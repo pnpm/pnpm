@@ -10,6 +10,7 @@ import { rimrafSync } from '@zkochan/rimraf'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
+import { expect, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 

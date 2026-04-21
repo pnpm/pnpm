@@ -2,6 +2,7 @@ import { prepare } from '@pnpm/prepare'
 import deepRequireCwd from 'deep-require-cwd'
 
 import { execPnpm } from '../utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('installing optional dependencies when --no-optional is not used', async () => {
   const project = prepare({

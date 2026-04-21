@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { afterAll, beforeAll, describe, expect, jest, test } from '@jest/globals'
 import type { Fetchers, FetchFunction, FetchOptions } from '@pnpm/fetching.fetcher-base'
 import { pickFetcher } from '@pnpm/fetching.pick-fetcher'
 import { createTarballFetcher } from '@pnpm/fetching.tarball-fetcher'

@@ -5,6 +5,7 @@ import { tempDir } from '@pnpm/prepare'
 import PATH_NAME from 'path-name'
 
 import { execPnpmSync } from './utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('pnpm bin', async () => {
   tempDir()

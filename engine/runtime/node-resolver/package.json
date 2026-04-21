@@ -43,6 +43,7 @@
     "version-selector-type": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/engine.runtime.node-resolver": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
     "@types/semver": "catalog:"

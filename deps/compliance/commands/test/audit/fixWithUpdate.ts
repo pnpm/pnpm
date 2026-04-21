@@ -13,6 +13,7 @@ import { loadJsonFile } from 'load-json-file'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { MOCK_REGISTRY, MOCK_REGISTRY_OPTS } from './utils/options.js'
+import { afterEach, beforeEach, describe, expect, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 

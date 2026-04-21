@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { getGitBranchLockfileNames } from '../lib/gitBranchLockfile.js'
+import { expect, test } from '@jest/globals'
 
 process.chdir(import.meta.dirname)
 

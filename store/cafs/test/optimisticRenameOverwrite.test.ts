@@ -4,6 +4,7 @@ import path from 'node:path'
 import { temporaryDirectory } from 'tempy'
 
 import { optimisticRenameOverwrite } from '../src/writeBufferToCafs.js'
+import { test } from '@jest/globals'
 
 test("optimisticRenameOverwrite() doesn't crash if target file exists", () => {
   const tempDir = temporaryDirectory()

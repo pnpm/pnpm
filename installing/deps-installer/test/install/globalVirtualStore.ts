@@ -11,6 +11,7 @@ import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 
 import { testDefaults } from '../utils/index.js'
+import { afterAll, expect, it, test } from '@jest/globals'
 
 const storeIndexes: StoreIndex[] = []
 afterAll(() => {

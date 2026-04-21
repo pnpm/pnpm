@@ -8,6 +8,7 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import type { ProjectManifest } from '@pnpm/types'
 import { loadJsonFile } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
+import { describe, expect, test } from '@jest/globals'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 const tmp = temporaryDirectory()

@@ -7,6 +7,7 @@ import chalk from 'chalk'
 
 import { renderParseable } from '../lib/renderParseable.js'
 import { renderTree } from '../lib/renderTree.js'
+import { expect, test } from '@jest/globals'
 
 const DEV_DEP_ONLY_CLR = chalk.yellow
 const PROD_DEP_CLR = (s: string) => s // just use the default color

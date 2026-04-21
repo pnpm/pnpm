@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { temporaryDirectory } from 'tempy'
+import { expect, test } from '@jest/globals'
 
 test('StoreIndex round-trips data via SQLite key', () => {
   const storeDir = path.join(temporaryDirectory(), 'store', 'v11')

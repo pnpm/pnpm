@@ -6,6 +6,7 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import crossSpawn from 'cross-spawn'
 import isWindows from 'is-windows'
 import { readYamlFileSync } from 'read-yaml-file'
+import { expect, it, test } from '@jest/globals'
 
 export const binDir = path.join(import.meta.dirname, '../..', isWindows() ? 'dist' : 'bin')
 export const pnpmBinLocation = path.join(binDir, 'pnpm.mjs')

@@ -3,6 +3,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 
 import { testDefaults } from './utils/index.js'
+import { test } from '@jest/globals'
 
 test('should fail to update when requests are cached', async () => {
   const project = prepareEmpty()

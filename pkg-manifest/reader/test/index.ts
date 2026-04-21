@@ -2,6 +2,7 @@
 import path from 'node:path'
 
 import { readPackageJson, readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
+import { expect, test } from '@jest/globals'
 
 const fixtures = path.join(import.meta.dirname, 'fixtures')
 

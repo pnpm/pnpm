@@ -4,6 +4,7 @@ import { preparePackages } from '@pnpm/prepare'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 
 import { DEFAULT_OPTS } from './utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('should error if disallow-workspace-cycles is set', async () => {
   preparePackages([

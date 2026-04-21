@@ -1,4 +1,5 @@
 import { createInstallArgs } from '../src/runDepsStatusCheck.js'
+import { describe, expect, test } from '@jest/globals'
 
 describe('createInstallArgs', () => {
   test.each([

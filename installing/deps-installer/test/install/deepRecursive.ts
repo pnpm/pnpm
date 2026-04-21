@@ -4,6 +4,7 @@ import { addDependenciesToPackage } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 
 import { testDefaults } from '../utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('a package with a huge amount of circular dependencies and many peer dependencies should successfully be resolved', async () => {
   prepareEmpty()

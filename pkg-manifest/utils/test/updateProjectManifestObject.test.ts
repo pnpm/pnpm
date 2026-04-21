@@ -1,4 +1,5 @@
 import { guessDependencyType, updateProjectManifestObject } from '@pnpm/pkg-manifest.utils'
+import { expect, test } from '@jest/globals'
 
 test('guessDependencyType()', () => {
   expect(

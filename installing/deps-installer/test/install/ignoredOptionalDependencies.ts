@@ -5,6 +5,7 @@ import type { ProjectManifest } from '@pnpm/types'
 import {
   testDefaults,
 } from '../utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('ignoredOptionalDependencies causes listed optional dependencies to be skipped', async () => {
   const project = prepareEmpty()

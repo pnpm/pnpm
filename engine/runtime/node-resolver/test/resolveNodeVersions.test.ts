@@ -1,5 +1,6 @@
 import { resolveNodeVersions } from '@pnpm/engine.runtime.node-resolver'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
+import { expect, test } from '@jest/globals'
 
 const fetch = createFetchFromRegistry({})
 

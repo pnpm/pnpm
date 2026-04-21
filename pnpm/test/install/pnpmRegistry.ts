@@ -11,6 +11,7 @@ import { createRegistryServer } from 'pnpm-agent'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm } from '../utils/index.js'
+import { afterAll, beforeAll, expect, test } from '@jest/globals'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 

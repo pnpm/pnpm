@@ -1,4 +1,5 @@
 import { hashObject, hashObjectNullableWithPrefix, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
+import { describe, expect, it } from '@jest/globals'
 
 describe('hashObject', () => {
   const hash = hashObject

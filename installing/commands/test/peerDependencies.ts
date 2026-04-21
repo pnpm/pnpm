@@ -4,6 +4,7 @@ import { add, install } from '@pnpm/installing.commands'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { temporaryDirectory } from 'tempy'
+import { expect, test } from '@jest/globals'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 const TMP = temporaryDirectory()

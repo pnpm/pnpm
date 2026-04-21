@@ -21,6 +21,7 @@ import { readYamlFileSync } from 'read-yaml-file'
 import { symlinkDir } from 'symlink-dir'
 
 import { testDefaults } from '../utils/index.js'
+import { expect, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 

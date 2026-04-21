@@ -7,6 +7,7 @@ import chalk from 'chalk'
 import normalizeNewline from 'normalize-newline'
 import { firstValueFrom } from 'rxjs'
 import { map, skip, take, toArray } from 'rxjs/operators'
+import { expect, it, test } from '@jest/globals'
 
 const hlValue = chalk.cyanBright
 

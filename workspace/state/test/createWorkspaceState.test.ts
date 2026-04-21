@@ -4,6 +4,7 @@ import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
 
 import { createWorkspaceState } from '../src/createWorkspaceState.js'
+import { expect, test } from '@jest/globals'
 
 test('createWorkspaceState() on empty list', () => {
   prepareEmpty()

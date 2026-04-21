@@ -1,4 +1,5 @@
 import { diffDir, DIR, type DirDiff, type InodeMap } from '../src/DirPatcher.js'
+import { expect, test } from '@jest/globals'
 
 test('produces a diff', () => {
   const unchangedParts = {

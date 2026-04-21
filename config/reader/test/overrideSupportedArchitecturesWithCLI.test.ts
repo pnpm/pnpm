@@ -1,6 +1,7 @@
 import type { SupportedArchitectures } from '@pnpm/types'
 
 import { type CliOptions, overrideSupportedArchitecturesWithCLI, type TargetConfig } from '../src/overrideSupportedArchitecturesWithCLI.js'
+import { expect, test } from '@jest/globals'
 
 function getOverriddenSupportedArchitectures (
   supportedArchitectures: SupportedArchitectures | undefined,

@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import { prepareEmpty } from '@pnpm/prepare'
+import { expect, test } from '@jest/globals'
 
 test('importing a package with invalid files', () => {
   prepareEmpty()

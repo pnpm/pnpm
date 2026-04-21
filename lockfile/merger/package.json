@@ -40,6 +40,7 @@
     "semver": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/lockfile.merger": "workspace:*",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:"

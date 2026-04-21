@@ -3,6 +3,7 @@ import { remove } from '@pnpm/installing.commands'
 import { prepare } from '@pnpm/prepare'
 
 import { DEFAULT_OPTS } from '../utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('remove should fail if no dependency is specified for removal', async () => {
   prepare()

@@ -11,6 +11,7 @@ import {
   PublishArchiveMissingManifestError,
   type TarballPath,
 } from '../../src/publish/extractManifestFromPacked.js'
+import { describe, expect, test } from '@jest/globals'
 
 async function createTarball (tarballPath: string, contents: Record<string, string | ExportedManifest>): Promise<void> {
   const pack = tar.pack()

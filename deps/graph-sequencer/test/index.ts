@@ -1,4 +1,5 @@
 import { graphSequencer } from '../src/index.js'
+import { expect, test } from '@jest/globals'
 
 test('graph with three independent self-cycles', () => {
   expect(graphSequencer(new Map([

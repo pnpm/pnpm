@@ -8,6 +8,7 @@ import { addDistTag } from '@pnpm/registry-mock'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
+import { expect, it, test } from '@jest/globals'
 
 test('preserve subdeps on update', async () => {
   const project = prepareEmpty()

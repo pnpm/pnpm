@@ -3,6 +3,7 @@ import path from 'node:path'
 import { prepareEmpty } from '@pnpm/prepare'
 
 import { getFilePath } from '../src/filePath.js'
+import { expect, test } from '@jest/globals'
 
 test('getFilePath()', () => {
   prepareEmpty()

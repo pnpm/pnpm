@@ -7,6 +7,7 @@ import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm } from './utils/index.js'
+import { expect, it, test } from '@jest/globals'
 
 test('--save-catalog adds catalogs to the manifest of a single package workspace', async () => {
   const manifest: ProjectManifest = {

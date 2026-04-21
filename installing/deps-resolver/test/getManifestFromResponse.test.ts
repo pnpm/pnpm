@@ -1,6 +1,7 @@
 import type { PackageResponse } from '@pnpm/store.controller-types'
 
 import { getManifestFromResponse, type WantedDependency } from '../lib/resolveDependencies.js'
+import { expect, test } from '@jest/globals'
 
 test('getManifestFromResponse returns manifest from pkgResponse when available', () => {
   const pkgResponse = {

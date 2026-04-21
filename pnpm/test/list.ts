@@ -5,6 +5,7 @@ import { prepare, preparePackages } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from './utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('ls --filter=not-exist --json should prints an empty array (#9672)', async () => {
   preparePackages([

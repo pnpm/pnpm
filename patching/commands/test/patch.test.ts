@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { beforeAll, beforeEach, describe, expect, it, jest, test } from '@jest/globals'
 import { install } from '@pnpm/installing.commands'
 import type { PatchCommandOptions, PatchRemoveCommandOptions } from '@pnpm/patching.commands'
 import { prepare, preparePackages, tempDir } from '@pnpm/prepare'

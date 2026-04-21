@@ -7,6 +7,7 @@ import type { PackageSnapshots, ProjectSnapshot } from '@pnpm/lockfile.fs'
 import type { DepPath, ProjectId } from '@pnpm/types'
 
 import { buildDependentsTree } from '../lib/buildDependentsTree.js'
+import { describe, expect, test } from '@jest/globals'
 
 function refToRelativeOrThrow (reference: string, pkgName: string): DepPath {
   const relative = refToRelative(reference, pkgName)

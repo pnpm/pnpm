@@ -1,6 +1,7 @@
 import { lockfileToDepGraph } from '@pnpm/deps.graph-hasher'
 import type { BinaryResolution } from '@pnpm/resolving.resolver-base'
 import type { DepPath } from '@pnpm/types'
+import { describe, expect, it, test } from '@jest/globals'
 
 test('lockfileToDepGraph', () => {
   expect(lockfileToDepGraph({

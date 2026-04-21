@@ -2,7 +2,7 @@
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { expect, it, jest, test } from '@jest/globals'
 import { logger } from '@pnpm/logger'
 import { resolveFromLocal } from '@pnpm/resolving.local-resolver'
 import type { DirectoryResolution } from '@pnpm/resolving.resolver-base'
@@ -169,7 +169,7 @@ test('fail when resolving tarball specified with the link: protocol', async () =
   try {
     const wantedDependency = { bareSpecifier: 'link:./pnpm-local-resolver-0.1.1.tgz' }
     await resolveFromLocal({}, wantedDependency, { projectDir: TEST_DIR })
-    fail()
+    throw new Error('should have thrown')
   } catch (err: any) { // eslint-disable-line
     expect(err).toBeDefined()
     expect(err.code).toBe('ERR_PNPM_NOT_PACKAGE_DIRECTORY')
@@ -202,7 +202,7 @@ test('do not fail when resolving from not existing directory', async () => {
 test('throw error when the path: protocol is used', async () => {
   try {
     await resolveFromLocal({}, { bareSpecifier: 'path:..' }, { projectDir: import.meta.dirname })
-    fail()
+    throw new Error('should have thrown')
   } catch (err: any) { // eslint-disable-line
     expect(err).toBeDefined()
     expect(err.code).toBe('ERR_PNPM_PATH_IS_UNSUPPORTED_PROTOCOL')

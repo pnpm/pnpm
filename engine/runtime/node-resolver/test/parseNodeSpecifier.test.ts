@@ -1,4 +1,5 @@
 import { parseNodeSpecifier } from '../lib/parseNodeSpecifier.js'
+import { expect, test } from '@jest/globals'
 
 test.each([
   // Semver ranges → release channel

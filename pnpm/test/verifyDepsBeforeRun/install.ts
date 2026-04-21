@@ -5,6 +5,7 @@ import type { ProjectManifest } from '@pnpm/types'
 import { loadWorkspaceState } from '@pnpm/workspace.state'
 
 import { execPnpm, execPnpmSync } from '../utils/index.js'
+import { expect, test } from '@jest/globals'
 
 const CONFIG = [
   '--config.verify-deps-before-run=install',

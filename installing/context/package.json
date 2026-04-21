@@ -47,6 +47,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/installing.context": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@types/ramda": "catalog:"

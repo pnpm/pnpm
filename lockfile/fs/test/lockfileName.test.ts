@@ -1,4 +1,4 @@
-import { jest } from '@jest/globals'
+import { afterEach, describe, expect, jest, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 
 jest.unstable_mockModule('@pnpm/network.git-utils', () => ({ getCurrentBranch: jest.fn() }))

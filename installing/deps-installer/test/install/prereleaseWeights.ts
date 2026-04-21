@@ -7,6 +7,7 @@ import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.m
 import type { ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 
 import { testDefaults } from '../utils/index.js'
+import { afterEach, expect, test } from '@jest/globals'
 
 afterEach(async () => {
   await teardownMockAgent()

@@ -1,4 +1,5 @@
 import { workspacePrefToNpm } from '../lib/workspacePrefToNpm.js'
+import { describe, expect, test } from '@jest/globals'
 
 describe('workspacePrefToNpm', () => {
   test('resolve workspace only version aliases', async () => {

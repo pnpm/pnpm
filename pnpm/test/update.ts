@@ -9,6 +9,7 @@ import {
   addDistTag,
   execPnpm,
 } from './utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('update <dep>', async () => {
   const project = prepare()

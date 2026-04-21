@@ -1,4 +1,5 @@
 import { convertToLockfileFile, convertToLockfileObject } from '../lib/lockfileFormatConverters.js'
+import { expect, test } from '@jest/globals'
 
 test('convertToLockfileFile()', () => {
   const lockfileV5 = {

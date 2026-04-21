@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { afterAll, expect, jest, test } from '@jest/globals'
 import { ENGINE_NAME } from '@pnpm/constants'
 import type { IgnoredScriptsLog } from '@pnpm/core-loggers'
 import { createHexHashFromFile } from '@pnpm/crypto.hash'

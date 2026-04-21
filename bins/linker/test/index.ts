@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { beforeEach, describe, expect, it, jest, test } from '@jest/globals'
 import { fixtures } from '@pnpm/test-fixtures'
 import { cmdExtension as CMD_EXTENSION } from 'cmd-extension'
 import isWindows from 'is-windows'
@@ -472,7 +472,7 @@ test('linkBins() would throw error if package has no name field', async () => {
       allowExoticManifests: true,
       warn,
     })
-    fail('linkBins should fail when package has no name')
+    throw new Error('linkBins should fail when package has no name')
   } catch (err: any) { // eslint-disable-line
     const packagePath = normalizePath(path.join(noNameFixture, 'node_modules/simple'))
     expect(err.message).toBe(`Package in ${packagePath} must have a name to get bin linked.`)

@@ -1,4 +1,5 @@
 import { getShellFromParams, getShellFromString } from '../../src/completion/getShell.js'
+import { expect, test } from '@jest/globals'
 
 test('getShellFromString errors on undefined', () => {
   expect(() => getShellFromString()).toThrow('`pnpm completion` requires a shell name')

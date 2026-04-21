@@ -1,5 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import { jest } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import type { CustomResolver, WantedDependency } from '@pnpm/hooks.types'
 import { createResolver } from '@pnpm/resolving.default-resolver'
 

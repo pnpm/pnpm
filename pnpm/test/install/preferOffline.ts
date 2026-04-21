@@ -6,6 +6,7 @@ import {
   addDistTag,
   execPnpm,
 } from '../utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('when prefer offline is used, meta from store is used, where latest might be out-of-date', async () => {
   const project = prepare()

@@ -6,6 +6,7 @@ import type { WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reade
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm } from '../utils/index.js'
+import { describe, expect, test } from '@jest/globals'
 
 const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
 

@@ -6,6 +6,7 @@ import { tempDir } from '@pnpm/prepare-temp-dir'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
+import { expect, test } from '@jest/globals'
 
 test('updateWorkspaceManifest adds a new setting', async () => {
   const dir = tempDir(false)

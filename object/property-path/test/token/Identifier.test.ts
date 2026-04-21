@@ -1,4 +1,5 @@
 import { type Identifier, parseIdentifier } from '../../src/index.js'
+import { expect, test } from '@jest/globals'
 
 test('not an identifier', () => {
   expect(parseIdentifier('')).toBeUndefined()

@@ -11,6 +11,7 @@ import {
   getFilePathByModeInCafs,
 } from '../src/index.js'
 import { parseTarball } from '../src/parseTarball.js'
+import { describe, expect, it, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 

@@ -6,6 +6,7 @@ import { preparePackages } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
 
 import { testDefaults } from '../utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('workspace packages should maintain link: protocol after single-project pnpm rm with injectWorkspacePackages', async () => {
   const projectAManifest: { name: string, version: string, dependencies: Record<string, string> } = {

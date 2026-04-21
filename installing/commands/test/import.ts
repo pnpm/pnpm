@@ -8,6 +8,7 @@ import { prepare } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { temporaryDirectory } from 'tempy'
+import { expect, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 

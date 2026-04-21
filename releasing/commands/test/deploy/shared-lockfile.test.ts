@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import url from 'node:url'
 
-import { jest } from '@jest/globals'
+import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import { install } from '@pnpm/installing.commands'
 import type { LockfileFile, LockfilePackageSnapshot } from '@pnpm/lockfile.types'

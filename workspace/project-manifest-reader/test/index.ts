@@ -6,6 +6,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectManifest } from '@pnpm/types'
 import { readProjectManifest, tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { temporaryDirectory } from 'tempy'
+import { expect, it, test } from '@jest/globals'
 
 const f = fixtures(import.meta.dirname)
 

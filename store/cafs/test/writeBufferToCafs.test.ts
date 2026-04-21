@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { temporaryDirectory } from 'tempy'
 
 import { writeBufferToCafs } from '../src/writeBufferToCafs.js'
+import { describe, expect, it } from '@jest/globals'
 
 const testDir = path.dirname(fileURLToPath(import.meta.url))
 

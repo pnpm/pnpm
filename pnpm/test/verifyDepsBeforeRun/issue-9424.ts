@@ -7,6 +7,7 @@ import { loadWorkspaceState, type WorkspaceState } from '@pnpm/workspace.state'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from '../utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('hoisted node linker and node_modules not exist (#9424)', async () => {
   const config = [

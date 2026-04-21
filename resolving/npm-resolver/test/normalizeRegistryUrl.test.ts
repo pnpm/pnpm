@@ -1,4 +1,5 @@
 import { normalizeRegistryUrl } from '../lib/normalizeRegistryUrl.js'
+import { expect, test } from '@jest/globals'
 
 test.each([
   ['https://registry.example.com:443/package.tgz', 'https://registry.example.com/package.tgz'],

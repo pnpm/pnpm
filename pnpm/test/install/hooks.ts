@@ -13,6 +13,7 @@ import {
   execPnpm,
   execPnpmSync,
 } from '../utils/index.js'
+import { expect, it, test } from '@jest/globals'
 
 test('readPackage hook', async () => {
   const project = prepare()

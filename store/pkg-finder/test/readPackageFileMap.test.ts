@@ -6,6 +6,7 @@ import type { GitResolution, Resolution, TarballResolution } from '@pnpm/resolvi
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { gitHostedStoreIndexKey, StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { readPackageFileMap } from '@pnpm/store.pkg-finder'
+import { afterAll, beforeAll, describe, expect, it, test } from '@jest/globals'
 
 function createFilesIndex (): PackageFilesIndex {
   return {

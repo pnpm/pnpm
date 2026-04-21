@@ -6,6 +6,7 @@ import { prepare } from '@pnpm/prepare'
 import PATH from 'path-name'
 
 import { execPnpm } from './utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('uninstall package and remove from appropriate property', async () => {
   const project = prepare()

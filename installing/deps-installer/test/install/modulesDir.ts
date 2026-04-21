@@ -10,6 +10,7 @@ import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 
 import { testDefaults } from '../utils/index.js'
+import { test } from '@jest/globals'
 
 test('installing to a custom modules directory', async () => {
   const project = prepareEmpty()

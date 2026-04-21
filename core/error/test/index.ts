@@ -1,4 +1,5 @@
 import { FetchError, PnpmError } from '@pnpm/error'
+import { expect, test } from '@jest/globals'
 
 test('PnpmError exposes cause when provided', () => {
   const cause = new Error('original failure')

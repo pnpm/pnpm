@@ -6,6 +6,7 @@ import { findWorkspaceDir } from '@pnpm/workspace.root-finder'
 
 const NPM_CONFIG_WORKSPACE_DIR_ENV_VAR = 'NPM_CONFIG_WORKSPACE_DIR'
 const FAKE_PATH = 'FAKE_PATH'
+import { expect, it, test } from '@jest/globals'
 
 function isFileSystemCaseSensitive () {
   try {

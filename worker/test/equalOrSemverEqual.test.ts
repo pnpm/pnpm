@@ -1,4 +1,5 @@
 import { equalOrSemverEqual } from '../lib/equalOrSemverEqual.js'
+import { expect, test } from '@jest/globals'
 
 test('equalOrSemverEqual()', () => {
   expect(equalOrSemverEqual('a', 'a')).toBeTruthy()

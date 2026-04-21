@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { resolveLicenseFromDir } from '@pnpm/deps.compliance.license-resolver'
+import { describe, expect, test } from '@jest/globals'
 
 async function tempDir (): Promise<string> {
   return mkdtemp(path.join(tmpdir(), 'pnpm-resolve-license-from-dir-'))

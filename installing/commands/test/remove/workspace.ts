@@ -7,6 +7,7 @@ import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { DEFAULT_OPTS } from '../utils/index.js'
+import { expect, test } from '@jest/globals'
 
 test('remove --filter only changes the specified dependency, when run with link-workspace-packages=false', async () => {
   const projects = preparePackages([

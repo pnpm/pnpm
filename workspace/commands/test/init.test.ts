@@ -5,6 +5,7 @@ import { prepare, prepareEmpty } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
 import { init } from '@pnpm/workspace.commands'
 import { loadJsonFileSync } from 'load-json-file'
+import { expect, test } from '@jest/globals'
 
 test('init a new package.json', async () => {
   prepareEmpty()

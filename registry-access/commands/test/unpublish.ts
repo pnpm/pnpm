@@ -4,6 +4,7 @@ import { REGISTRY_MOCK_CREDENTIALS, REGISTRY_MOCK_PORT } from '@pnpm/registry-mo
 import { publish } from '@pnpm/releasing.commands'
 import { DEFAULT_OPTS as BASE_OPTS } from '@pnpm/testing.command-defaults'
 import { safeExeca as execa } from 'execa'
+import { expect, test } from '@jest/globals'
 
 const DEFAULT_OPTS = {
   ...BASE_OPTS,

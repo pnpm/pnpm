@@ -7,6 +7,7 @@ import {
   extractMainDocument,
   streamReadFirstYamlDocument,
 } from '../lib/yamlDocuments.js'
+import { describe, expect, it, test } from '@jest/globals'
 
 describe('streamReadFirstYamlDocument', () => {
   test('returns the first document content from a two-document file', async () => {

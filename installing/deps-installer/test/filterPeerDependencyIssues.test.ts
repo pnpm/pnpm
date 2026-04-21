@@ -1,4 +1,5 @@
 import { filterPeerDependencyIssues } from '../src/install/reportPeerDependencyIssues.js'
+import { expect, test } from '@jest/globals'
 
 test('filterPeerDependencyIssues() ignore missing', () => {
   expect(filterPeerDependencyIssues({

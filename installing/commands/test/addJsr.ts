@@ -7,6 +7,7 @@ import type { ProjectManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
+import { expect, test } from '@jest/globals'
 
 // This must be a function because some of its values depend on CWD
 const createOptions = (jsr: string = 'https://npm.jsr.io/') => ({

@@ -1,4 +1,5 @@
 import { deployHook } from '../../src/deploy/deployHook.js'
+import { expect, test } from '@jest/globals'
 
 test('deployHook()', () => {
   expect(deployHook({

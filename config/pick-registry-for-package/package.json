@@ -34,6 +34,7 @@
     "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/config.pick-registry-for-package": "workspace:*"
   },
   "engines": {

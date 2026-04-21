@@ -9,6 +9,7 @@ import { closeAllStoreIndexes } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
 import { finishWorkers } from '@pnpm/worker'
 import { rimrafSync } from '@zkochan/rimraf'
+import { expect, test } from '@jest/globals'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 

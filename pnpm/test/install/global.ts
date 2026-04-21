@@ -13,6 +13,7 @@ import {
   execPnpm,
   execPnpmSync,
 } from '../utils/index.js'
+import { expect, test } from '@jest/globals'
 
 function globalPkgDir (pnpmHome: string): string {
   return path.join(pnpmHome, 'global', GLOBAL_LAYOUT_VERSION)

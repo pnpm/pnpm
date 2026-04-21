@@ -8,6 +8,7 @@ import type { ProjectId, ProjectRootDir } from '@pnpm/types'
 
 import type { GetContextOptions } from '../src/index.js'
 import { readLockfiles } from '../src/readLockfiles.js'
+import { expect, test } from '@jest/globals'
 
 const DEFAULT_OPTIONS: GetContextOptions = {
   allProjects: [],

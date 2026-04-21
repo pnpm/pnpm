@@ -7,6 +7,7 @@ import { list, why } from '@pnpm/deps.inspection.commands'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { safeExeca as execa } from 'execa'
 import { writeYamlFileSync } from 'write-yaml-file'
+import { expect, test } from '@jest/globals'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../../../pnpm/bin/pnpm.mjs')
 

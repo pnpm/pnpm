@@ -6,6 +6,7 @@ import type { DepPath, Finder } from '@pnpm/types'
 import { buildDependencyGraph } from '../lib/buildDependencyGraph.js'
 import { getTree, type MaterializationCache } from '../lib/getTree.js'
 import type { TreeNodeId } from '../lib/TreeNodeId.js'
+import { describe, expect, it, test } from '@jest/globals'
 
 /**
  * Maps an npm package name to its dependencies.

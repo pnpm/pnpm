@@ -8,6 +8,7 @@ import { promisify } from 'node:util'
 import { prepare } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { safeExeca as execa } from 'execa'
+import { describe, expect, it, test } from '@jest/globals'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 

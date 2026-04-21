@@ -1,4 +1,5 @@
 import { parseOverrides } from '@pnpm/config.parse-overrides'
+import { expect, test } from '@jest/globals'
 
 test.each([
   [
