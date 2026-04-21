@@ -20,6 +20,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export interface StarOptions extends CreateFetchFromRegistryOptions {
   configByUri?: Record<string, RegistryConfig>
   registries?: Registries
+  registryOverrides?: Record<string, string>
 }
 
 interface StarActionArgs {
@@ -36,7 +37,7 @@ interface PackumentWithStars {
 export async function performStarAction (opts: StarOptions, { packageName, star }: StarActionArgs): Promise<void> {
   const { escapedName } = parsePackageSpec(packageName)
   const registryUrl = normalizeRegistryUrl(
-    pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
+    pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName, undefined, opts.registryOverrides)
   )
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
   const action = star ? 'star' : 'unstar'

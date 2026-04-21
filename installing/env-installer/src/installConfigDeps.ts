@@ -20,6 +20,7 @@ import type { NormalizedConfigDep } from './parseIntegrity.js'
 export interface InstallConfigDepsOpts {
   frozenLockfile?: boolean
   registries: Registries
+  registryOverrides?: Record<string, string>
   rootDir: string
   store: StoreController
   storeDir: string
@@ -95,14 +96,14 @@ async function normalizeForInstall (
 ): Promise<Record<string, NormalizedConfigDep>> {
   // If it's a EnvLockfile object (has lockfileVersion), use it directly
   if (isEnvLockfile(configDepsOrLockfile)) {
-    return normalizeFromLockfile(configDepsOrLockfile, opts.registries)
+    return normalizeFromLockfile(configDepsOrLockfile, opts.registries, opts.registryOverrides)
   }
 
   // It's ConfigDependencies from workspace manifest.
   // Try to read the env lockfile first.
   const envLockfile = await readEnvLockfile(opts.rootDir)
   if (envLockfile) {
-    return normalizeFromLockfile(envLockfile, opts.registries)
+    return normalizeFromLockfile(envLockfile, opts.registries, opts.registryOverrides)
   }
 
   // No env lockfile yet — migrate from old inline integrity format
@@ -127,7 +128,8 @@ function isEnvLockfile (obj: ConfigDependencies | EnvLockfile): obj is EnvLockfi
 
 function normalizeFromLockfile (
   lockfile: EnvLockfile,
-  registries: Registries
+  registries: Registries,
+  registryOverrides?: Record<string, string>
 ): Record<string, NormalizedConfigDep> {
   const deps: Record<string, NormalizedConfigDep> = {}
   const configDeps = lockfile.importers['.']?.configDependencies ?? {}
@@ -148,7 +150,7 @@ function normalizeFromLockfile (
         `pnpm-lock.yaml is corrupted or incomplete: missing integrity for "${pkgKey}"`
       )
     }
-    const registry = pickRegistryForPackage(registries, pkgName)
+    const registry = pickRegistryForPackage(registries, pkgName, undefined, registryOverrides)
     deps[pkgName] = {
       version,
       resolution: {

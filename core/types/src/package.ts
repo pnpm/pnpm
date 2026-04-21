@@ -171,6 +171,14 @@ export interface AuditConfig {
 export interface PnpmSettings {
   npmrcAuthFile?: string
   registries?: Registries
+  /**
+   * Per-package registry overrides. Keys are exact package names (including scope)
+   * and values are registry URLs. An override takes precedence over the scope-based
+   * registry lookup in `registries`, allowing mixing of public and private packages
+   * within the same scope (e.g. some `@foo/*` packages from GitHub Packages,
+   * others from the default npm registry).
+   */
+  registryOverrides?: Record<string, string>
   configDependencies?: ConfigDependencies
   allowBuilds?: Record<string, boolean | string>
   overrides?: Record<string, string>

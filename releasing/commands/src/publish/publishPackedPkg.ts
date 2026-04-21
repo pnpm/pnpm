@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 
+import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
@@ -26,6 +27,7 @@ export type PublishPackedPkgOptions = Pick<Config,
 | 'fetchRetryMintimeout'
 | 'fetchTimeout'
 | 'registries'
+| 'registryOverrides'
 | 'tag'
 | 'userAgent'
 > & {
@@ -133,13 +135,9 @@ interface RegistryInfo {
  */
 function findRegistryInfo (
   { name }: ExportedManifest,
-  { configByUri, registries }: Pick<Config, 'configByUri' | 'registries'>
+  { configByUri, registries, registryOverrides }: Pick<Config, 'configByUri' | 'registries' | 'registryOverrides'>
 ): Partial<RegistryInfo> {
-  // eslint-disable-next-line regexp/no-unused-capturing-group
-  const scopedMatches = /@(?<scope>[^/]+)\/(?<slug>[^/]+)/.exec(name)
-
-  const registryName = scopedMatches?.groups ? `@${scopedMatches.groups.scope}` : 'default'
-  const nonNormalizedRegistry = registries[registryName] ?? registries.default
+  const nonNormalizedRegistry = pickRegistryForPackage(registries, name, undefined, registryOverrides)
 
   const supportedRegistryInfo = parseSupportedRegistryUrl(nonNormalizedRegistry)
   if (!supportedRegistryInfo) {

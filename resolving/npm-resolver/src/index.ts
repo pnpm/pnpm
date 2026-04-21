@@ -133,6 +133,7 @@ export interface ResolverFactoryOptions {
   retry?: RetryTimeoutOptions
   timeout?: number
   registries: Registries
+  registryOverrides?: Record<string, string>
   saveWorkspaceProtocol?: boolean | 'rolling'
   preserveAbsolutePaths?: boolean
   strictPublishedByCheck?: boolean
@@ -232,6 +233,7 @@ export function createNpmResolver (
       ignoreMissingTimeField: opts.ignoreMissingTimeField,
     }),
     registries: opts.registries,
+    registryOverrides: opts.registryOverrides,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
     peekManifestFromStore,
   }
@@ -251,6 +253,7 @@ export interface ResolveFromNpmContext {
   pickPackage: (spec: RegistryPackageSpec, opts: PickPackageOptions) => ReturnType<typeof pickPackage>
   getAuthHeaderValueByURI: (registry: string) => string | undefined
   registries: Registries
+  registryOverrides?: Record<string, string>
   saveWorkspaceProtocol?: boolean | 'rolling'
   peekManifestFromStore?: (opts: {
     id: PkgResolutionId
@@ -299,7 +302,7 @@ async function resolveNpm (
 ): Promise<NpmResolveResult | WorkspaceResolveResult | null> {
   const defaultTag = opts.defaultTag ?? 'latest'
   const registry = wantedDependency.alias
-    ? pickRegistryForPackage(ctx.registries, wantedDependency.alias, wantedDependency.bareSpecifier)
+    ? pickRegistryForPackage(ctx.registries, wantedDependency.alias, wantedDependency.bareSpecifier, ctx.registryOverrides)
     : ctx.registries.default
   if (wantedDependency.bareSpecifier?.startsWith('workspace:')) {
     if (wantedDependency.bareSpecifier.startsWith('workspace:.')) return null

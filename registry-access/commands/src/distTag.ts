@@ -73,6 +73,7 @@ export interface DistTagOptions extends CreateFetchFromRegistryOptions {
   }
   configByUri?: Record<string, RegistryConfig>
   registries?: Registries
+  registryOverrides?: Record<string, string>
 }
 
 export async function handler (
@@ -103,7 +104,7 @@ async function distTagLs (
   }
 
   const packageName = params[0]
-  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
+  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName, undefined, opts.registryOverrides)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
   const fetchFromRegistry = createFetchFromRegistry(opts)
 
@@ -136,7 +137,7 @@ async function distTagAdd (
 
   const tag = params[1] ?? 'latest'
 
-  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
+  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName, undefined, opts.registryOverrides)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp
@@ -174,7 +175,7 @@ async function distTagRm (
     throw new PnpmError('DIST_TAG_RM_LATEST', 'Removing the "latest" dist-tag is not allowed')
   }
 
-  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
+  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName, undefined, opts.registryOverrides)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp

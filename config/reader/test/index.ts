@@ -434,6 +434,57 @@ test('when using --global, linkWorkspacePackages, sharedWorkspaceLockfile and lo
   }
 })
 
+test('registryOverrides from pnpm-workspace.yaml are read and URL-normalized', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registryOverrides: {
+      '@foo/private-lib': 'https://npm.pkg.github.com',
+      '@foo/internal': 'https://npm.pkg.github.com:443',
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {
+      global: false,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  // normalize-registry-url adds a trailing slash and strips default ports.
+  expect(config.registryOverrides).toStrictEqual({
+    '@foo/private-lib': 'https://npm.pkg.github.com/',
+    '@foo/internal': 'https://npm.pkg.github.com/',
+  })
+})
+
+test('registryOverrides is dropped when all entries are empty or invalid', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registryOverrides: {
+      '@foo/x': '',
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {
+      global: false,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.registryOverrides).toBeUndefined()
+})
+
 test('registries of scoped packages are read and normalized', async () => {
   const { config } = await getConfig({
     cliOptions: {

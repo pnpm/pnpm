@@ -59,6 +59,7 @@ export async function outdated (
     minimumReleaseAgeExclude?: string[]
     prefix: string
     registries: Registries
+    registryOverrides?: Record<string, string>
     wantedLockfile: LockfileObject | null
   }
 ): Promise<OutdatedPackage[]> {
@@ -139,7 +140,7 @@ export async function outdated (
           // it means that the package is not from a npm-compatible registry.
           // In that case, we can't check whether the package is up-to-date
           if (
-            parseBareSpecifier(bareSpecifier, alias, 'latest', pickRegistryForPackage(opts.registries, name)) == null
+            parseBareSpecifier(bareSpecifier, alias, 'latest', pickRegistryForPackage(opts.registries, name, undefined, opts.registryOverrides)) == null
           ) {
             if (current !== wanted) {
               outdated.push({

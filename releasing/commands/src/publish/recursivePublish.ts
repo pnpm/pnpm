@@ -48,6 +48,7 @@ Partial<Pick<Config,
 | 'noProxy'
 | 'npmPath'
 | 'offline'
+| 'registryOverrides'
 | 'strictSsl'
 | 'unsafePerm'
 | 'userAgent'
@@ -119,7 +120,7 @@ export async function recursivePublish (
       for (const pkgDir of chunk) {
         if (!publishedPkgDirs.has(pkgDir)) continue
         const pkg = opts.selectedProjectsGraph[pkgDir].package
-        const registry = pkg.manifest.publishConfig?.registry ?? pickRegistryForPackage(opts.registries, pkg.manifest.name!)
+        const registry = pkg.manifest.publishConfig?.registry ?? pickRegistryForPackage(opts.registries, pkg.manifest.name!, undefined, opts.registryOverrides)
         // eslint-disable-next-line no-await-in-loop
         const publishResult = await publish({
           ...opts,

@@ -62,6 +62,7 @@ export async function outdatedDepsOfProjects (
       minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
       prefix: rootDir,
       registries: opts.registries,
+      registryOverrides: opts.registryOverrides,
       wantedLockfile,
     })
   }))

@@ -44,7 +44,7 @@ export async function resolveAndInstallConfigDeps (
     if (typeof value === 'object') {
       // Old object format — migrate inline into lockfile
       if (!lockfileConfigDeps[name]) {
-        const registry = pickRegistryForPackage(opts.registries, name)
+        const registry = pickRegistryForPackage(opts.registries, name, undefined, opts.registryOverrides)
         const { version, integrity } = parseIntegrity(name, value.integrity)
         const tarball = value.tarball ?? getNpmTarballUrl(name, version, { registry })
         const pkgKey = `${name}@${version}`
@@ -61,7 +61,7 @@ export async function resolveAndInstallConfigDeps (
     if (value.includes('+')) {
       // Old string format with inline integrity — migrate into lockfile
       if (!lockfileConfigDeps[name]) {
-        const registry = pickRegistryForPackage(opts.registries, name)
+        const registry = pickRegistryForPackage(opts.registries, name, undefined, opts.registryOverrides)
         const { version, integrity } = parseIntegrity(name, value)
         const tarball = getNpmTarballUrl(name, version, { registry })
         const pkgKey = `${name}@${version}`
@@ -117,7 +117,7 @@ export async function resolveAndInstallConfigDeps (
       throw new PnpmError('BAD_CONFIG_DEP', `Cannot resolve ${name}@${specifier} as a configuration dependency because it has no integrity`)
     }
     const version = resolution.manifest.version
-    const registry = pickRegistryForPackage(opts.registries, name)
+    const registry = pickRegistryForPackage(opts.registries, name, undefined, opts.registryOverrides)
     const pkgKey = `${name}@${version}`
 
     lockfileConfigDeps[name] = {

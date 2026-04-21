@@ -24,6 +24,7 @@ export interface DeprecateOptions extends CreateFetchFromRegistryOptions {
   }
   configByUri?: Record<string, RegistryConfig>
   registries?: Registries
+  registryOverrides?: Record<string, string>
 }
 
 interface UpdateDeprecationOptions {
@@ -36,7 +37,7 @@ export async function updateDeprecation (
   opts: DeprecateOptions,
   { deprecated, packageName, versionRange }: UpdateDeprecationOptions
 ): Promise<string> {
-  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
+  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName, undefined, opts.registryOverrides)
 
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {}, registryUrl)
 

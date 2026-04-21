@@ -50,7 +50,7 @@ export async function fetchPackageInfo (
     fetchSpec: subSpec?.fetchSpec ?? 'latest',
     type: specType,
   }
-  const registry = pickRegistryForPackage(opts.registries, packageName)
+  const registry = pickRegistryForPackage(opts.registries, packageName, undefined, opts.registryOverrides)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {}, opts.registries?.default)
   const fetchResult = await fetchMetadataFromFromRegistry(

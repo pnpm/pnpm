@@ -11,6 +11,7 @@ import { parseIntegrity } from './parseIntegrity.js'
 
 interface MigrateOpts {
   registries: Registries
+  registryOverrides?: Record<string, string>
   rootDir: string
 }
 
@@ -30,7 +31,7 @@ export async function migrateConfigDepsToLockfile (
   const normalizedDeps: Record<string, NormalizedConfigDep> = {}
 
   for (const [pkgName, pkgSpec] of Object.entries(configDeps)) {
-    const registry = pickRegistryForPackage(opts.registries, pkgName)
+    const registry = pickRegistryForPackage(opts.registries, pkgName, undefined, opts.registryOverrides)
 
     if (typeof pkgSpec === 'object') {
       const { version, integrity } = parseIntegrity(pkgName, pkgSpec.integrity)
