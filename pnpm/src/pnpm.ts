@@ -76,14 +76,8 @@ async function passThruToNpm (): Promise<void> {
 }
 
 async function shouldSkipNpmPassthrough (): Promise<boolean> {
-  // Corepack already resolved which pnpm to run; don't second-guess it.
-  if (process.env.COREPACK_ROOT != null) return false
-  // A parent pnpm already switched to us via switchCliVersion — skipping the
-  // passthrough now would loop right back into switchCliVersion again.
-  if (process.env.npm_config_manage_package_manager_versions === 'false') return false
   // Lazy-loaded so the extra fs/path work only happens on the passthrough
   // branch, preserving cold-start for everything else.
-  const { readWantedPnpmMajor } = await import('./readWantedPnpmMajor.js')
-  const wantedMajor = readWantedPnpmMajor()
-  return wantedMajor != null && wantedMajor >= 11
+  const { shouldSkipNpmPassthrough: decide } = await import('./readWantedPnpmMajor.js')
+  return decide(process.env as { COREPACK_ROOT?: string, npm_config_manage_package_manager_versions?: string })
 }
