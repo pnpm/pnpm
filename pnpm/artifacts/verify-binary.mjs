@@ -100,9 +100,18 @@ if (!distPreexists) {
       stdio: ['ignore', 'pipe', 'pipe'],
     })
   } catch (err) {
-    const stderr = String(err.stderr ?? '')
+    const stderr = String(err?.stderr ?? '')
+    // Expected: binary tried to require the runtime dist path and failed
+    // because it isn't there. Anything else (a spawn error, crash signal,
+    // timeout) is NOT evidence of a non-relocatable pnpm.cjs — it's an
+    // unrelated failure that would hide the regression we actually care
+    // about. Surface it with the raw diagnostic so the operator can tell
+    // which one they're looking at.
     if (!stderr.includes(expectedRuntimeDist)) {
-      console.error(`Error: ${binName} -v failed without dist/ as expected, but the error does not reference the runtime path ${expectedRuntimeDist}. pnpm.cjs may have regressed to a non-relocatable form. stderr:\n${stderr}`)
+      const status = err?.status ?? 'none'
+      const signal = err?.signal ?? 'none'
+      const code = err?.code ?? 'none'
+      console.error(`Error: ${binName} -v without dist/ did not fail with a missing-runtime-dist error. Either pnpm.cjs regressed to a non-relocatable form, or the binary failed for an unrelated reason. status=${status} signal=${signal} code=${code}\nstderr:\n${stderr}`)
       process.exit(1)
     }
   }

@@ -17,6 +17,11 @@ const platformBin = path.join(
   isWindows ? 'pnpm.exe' : 'pnpm'
 )
 const hasPlatformBinary = fs.existsSync(platformBin)
+// dist/ is staged by the build-artifacts flow (not by `pn compile`), so
+// ordinary test runs don't have it. The hardlink test is fine without it
+// (existence + inode only), but the -v test actually executes the SEA, which
+// loads dist/pnpm.mjs from next to the binary and would fail here.
+const hasStagedBundle = fs.existsSync(path.join(exeDir, 'dist', 'pnpm.mjs'))
 
 describe('exePlatformPkgName', () => {
   test('uses linuxstatic- prefix for linux + musl libc family', () => {
@@ -75,7 +80,7 @@ test('prepare writes correct content for all bin files', () => {
 // embedded runtime deserializes on startup with a native assertion and an
 // abort signal, not a clean error exit (see rc.4 regression). Running `-v`
 // verifies the SEA payload is actually readable by the embedded Node.
-(hasPlatformBinary ? test : test.skip)('pnpm -v runs and prints a semver', () => {
+(hasPlatformBinary && hasStagedBundle ? test : test.skip)('pnpm -v runs and prints a semver', () => {
   execFileSync(process.execPath, [path.join(exeDir, 'prepare.js')], { cwd: exeDir })
   execFileSync(process.execPath, [path.join(exeDir, 'setup.js')], { cwd: exeDir })
 
