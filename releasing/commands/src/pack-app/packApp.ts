@@ -65,7 +65,7 @@ export function help (): string {
     url: docsUrl('pack-app'),
     usages: [
       'pnpm pack-app --entry dist/index.cjs --target linux-x64 --target win32-x64',
-      'pnpm pack-app --entry dist/index.cjs --target linux-x64-musl --runtime node@22',
+      `pnpm pack-app --entry dist/index.cjs --target linux-x64-musl --runtime node@${MIN_BUILDER_VERSION.major}`,
     ],
     descriptionLists: [
       {
@@ -84,7 +84,8 @@ export function help (): string {
           {
             description:
               'Runtime to embed in the output executables, as a "<name>@<version>" spec ' +
-              '(e.g. "node@22", "node@22.0.0", "node@lts"). Only "node" is supported today. ' +
+              `(e.g. "node@${MIN_BUILDER_VERSION.major}", "node@${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor}.0"). ` +
+              `Only "node" is supported today, and the version must be >= v${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor} (the minimum that supports --build-sea). ` +
               'Defaults to the running Node.js version.',
             name: '--runtime',
           },
@@ -416,7 +417,7 @@ function parseRuntime (spec: string): ParsedRuntime {
   const match = RUNTIME_PATTERN.exec(spec)
   if (!match) {
     throw new PnpmError('PACK_APP_INVALID_RUNTIME',
-      `Invalid runtime "${spec}". Expected format: <name>@<version> (supported runtimes: ${SUPPORTED_RUNTIMES.join(', ')}; e.g. "node@22.0.0", "node@lts").`)
+      `Invalid runtime "${spec}". Expected format: <name>@<version> (supported runtimes: ${SUPPORTED_RUNTIMES.join(', ')}; e.g. "node@${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor}.0").`)
   }
   return { name: match[1] as ParsedRuntime['name'], version: match[2] }
 }

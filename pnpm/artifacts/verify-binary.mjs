@@ -9,10 +9,11 @@
 // any invocation. Executing -v would have caught it on the Linux CI host.
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
+import process from 'node:process'
 
-const [targetOs, targetArch] = process.argv.slice(2)
+const [targetOs, targetArch, targetLibc] = process.argv.slice(2)
 if (!targetOs || !targetArch) {
-  console.error('Usage: verify-binary.mjs <os> <arch>')
+  console.error('Usage: verify-binary.mjs <os> <arch> [libc]')
   process.exit(2)
 }
 
@@ -22,10 +23,26 @@ if (!fs.existsSync(binName)) {
   process.exit(1)
 }
 
-// Cross-platform targets (e.g. win32 or darwin from a Linux CI) can't be
-// executed from the publish host. Existence is the best we can verify.
-if (process.platform !== targetOs || process.arch !== targetArch) {
-  console.log(`Skipping ${binName} -v: host ${process.platform}/${process.arch} cannot execute target ${targetOs}/${targetArch}`)
+// Node populates header.glibcVersionRuntime only on glibc hosts, so its
+// presence is a reliable glibc/musl discriminator without shelling out.
+function detectHostLibc () {
+  if (process.platform !== 'linux') return null
+  const header = process.report.getReport().header
+  return header.glibcVersionRuntime ? 'glibc' : 'musl'
+}
+const hostLibc = detectHostLibc()
+
+// Cross-platform or cross-libc targets can't be executed from the publish
+// host. Existence is the best we can verify — skip the -v check instead of
+// failing, so a musl artifact published from a glibc CI still goes through.
+const osMatches = process.platform === targetOs
+const archMatches = process.arch === targetArch
+const libcMatches = targetOs !== 'linux' || !targetLibc || targetLibc === hostLibc
+
+if (!osMatches || !archMatches || !libcMatches) {
+  const targetLabel = [targetOs, targetArch, targetLibc].filter(Boolean).join('/')
+  const hostLabel = [process.platform, process.arch, hostLibc].filter(Boolean).join('/')
+  console.log(`Skipping ${binName} -v: host ${hostLabel} cannot execute target ${targetLabel}`)
   process.exit(0)
 }
 
@@ -37,7 +54,7 @@ try {
   process.exit(1)
 }
 
-if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(stdout)) {
+if (!/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/.test(stdout)) {
   console.error(`Error: ${binName} -v produced unexpected output: ${JSON.stringify(stdout)}`)
   process.exit(1)
 }

@@ -17,7 +17,7 @@
     "pnpm"
   ],
   "scripts": {
-    "prepublishOnly": "node ../verify-binary.mjs linux arm64"
+    "prepublishOnly": "node ../verify-binary.mjs linux arm64 glibc"
   },
   "devDependencies": {
     "@pnpm/linux-arm64": "workspace:*"
