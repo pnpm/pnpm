@@ -23,6 +23,7 @@ beforeAll(async () => {
 const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({ packages, registries })
 
 const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
+const skipOnWindows = process.platform === 'win32' ? test.skip : test
 
 test('dlx parses options between "dlx" and the command name', async () => {
   prepareEmpty()
@@ -93,7 +94,7 @@ describe('minimumReleaseAge from pnpm-workspace.yaml', () => {
   const SHX_0_3_3_PUBLISHED = new Date('2020-10-26T05:35:14.984Z').getTime()
   const MINUTES_MS = 60 * 1000
 
-  test('dlx fails when the requested version is younger than minimumReleaseAge', () => {
+  skipOnWindows('dlx fails when the requested version is younger than minimumReleaseAge', () => {
     prepare()
     writeYamlFileSync('pnpm-workspace.yaml', {
       minimumReleaseAge: 60 * 24 * 10000, // ~27.4 years: rejects everything published recently
@@ -157,7 +158,7 @@ describe('minimumReleaseAge from pnpm-workspace.yaml', () => {
 })
 
 // pnpm create delegates to dlx, so the same inheritance applies.
-test('pnpm create respects minimumReleaseAge from pnpm-workspace.yaml', () => {
+skipOnWindows('pnpm create respects minimumReleaseAge from pnpm-workspace.yaml', () => {
   prepare()
   writeYamlFileSync('pnpm-workspace.yaml', {
     minimumReleaseAge: 60 * 24 * 10000, // ~27.4 years: rejects everything published recently
