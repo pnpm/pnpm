@@ -84,8 +84,29 @@ test('commands that v10 passes through to npm keep passing through when packageM
 
   // npm's version help has this at the top — if we saw it, the argv[0]
   // passthrough fired as it always has on pnpm v10. (See #11328 for the
-  // complementary v11 case, covered by readWantedPnpmMajor unit tests.)
+  // complementary v11 case, verified by the next test.)
   expect(stdout.toString()).toContain('Bump a package version')
+})
+
+test('`pnpm version` routes through main() instead of npm when packageManager selects pnpm v11+', () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  // Disable auto-switching so we can verify main() took over without paying
+  // for a full pnpm v11 install. pnpm v10 has no native `version` command, so
+  // main() falls through to its `run` fallback — which clearly differs from
+  // the argv[0] npm passthrough that used to fire here (the #11328
+  // regression emitted npm's "Bump a package version" help instead).
+  fs.writeFileSync('.npmrc', 'manage-package-manager-versions=false')
+  writeJsonFile('package.json', {
+    packageManager: 'pnpm@11.0.0-rc.3',
+  })
+
+  const { stdout, stderr } = execPnpmSync(['version', '--help'], { env })
+  const combined = stdout.toString() + stderr.toString()
+
+  expect(combined).not.toContain('Bump a package version')
+  expect(combined).toContain('Command "version" not found')
 })
 
 test('throws error if pnpm tools dir is corrupt', () => {
