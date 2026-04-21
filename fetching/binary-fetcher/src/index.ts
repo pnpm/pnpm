@@ -28,13 +28,14 @@ export interface CreateBinaryFetcherOptions {
 }
 
 export function createBinaryFetcher (ctx: CreateBinaryFetcherOptions): { binary: BinaryFetcher } {
-  const archiveFilters = ctx.archiveFilters ?? {}
-  // Validate each pattern once so a broken filter fails at setup rather than mid-fetch.
-  // Downstream consumers (tarball worker, zip extraction) can trust that `new RegExp(pattern)`
-  // won't throw later.
-  for (const [name, pattern] of Object.entries(archiveFilters)) {
+  // Snapshot and pre-compile `archiveFilters` at creation time so later mutations to the
+  // caller's object can't reintroduce invalid patterns, and so zip extraction doesn't
+  // recompile the regex per fetch. The tarball path still needs the pattern string — it
+  // crosses the worker thread boundary, where RegExp instances don't survive structured clone.
+  const archiveFilters = new Map<string, { pattern: string, regex: RegExp }>()
+  for (const [name, pattern] of Object.entries(ctx.archiveFilters ?? {})) {
     try {
-      new RegExp(pattern)
+      archiveFilters.set(name, { pattern, regex: new RegExp(pattern) })
     } catch (err: unknown) {
       const detail = util.types.isNativeError(err) ? `: ${err.message}` : ''
       throw new PnpmError(
@@ -53,7 +54,7 @@ export function createBinaryFetcher (ctx: CreateBinaryFetcherOptions): { binary:
       version: opts.pkg.version!,
       bin: resolution.bin,
     }
-    const archiveFilter = opts.pkg.name != null ? archiveFilters[opts.pkg.name] : undefined
+    const archiveFilter = opts.pkg.name != null ? archiveFilters.get(opts.pkg.name) : undefined
 
     let fetchResult!: FetchResult
     switch (resolution.archive) {
@@ -64,7 +65,7 @@ export function createBinaryFetcher (ctx: CreateBinaryFetcherOptions): { binary:
         }, {
           ...opts,
           appendManifest: manifest,
-          ignoreFilePattern: archiveFilter ?? opts.ignoreFilePattern,
+          ignoreFilePattern: archiveFilter?.pattern ?? opts.ignoreFilePattern,
         })
         break
       }
@@ -74,7 +75,7 @@ export function createBinaryFetcher (ctx: CreateBinaryFetcherOptions): { binary:
           url: resolution.url,
           integrity: resolution.integrity,
           basename: resolution.prefix ?? '',
-          ignoreEntry: archiveFilter ? new RegExp(archiveFilter) : undefined,
+          ignoreEntry: archiveFilter?.regex,
         }, tempLocation)
         fetchResult = await addFilesFromDir({
           storeDir: cafs.storeDir,

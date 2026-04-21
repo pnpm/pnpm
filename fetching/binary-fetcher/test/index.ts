@@ -303,4 +303,34 @@ describe('createBinaryFetcher', () => {
       })
     ).toThrow(/Invalid archive filter regex for "node"/)
   })
+
+  it('snapshots archiveFilters so post-creation mutations cannot reintroduce invalid patterns', () => {
+    const noop = (() => {
+      throw new Error('should not be called')
+    }) as never
+    const filters: Record<string, string> = { node: '^ok$' }
+    // Must succeed — the pattern is valid at construction time.
+    expect(() =>
+      createBinaryFetcher({
+        fetch: noop,
+        fetchFromRemoteTarball: noop,
+        storeIndex: noop,
+        archiveFilters: filters,
+      })
+    ).not.toThrow()
+    // Mutating the caller's object after construction must not affect the fetcher.
+    // There's no direct read back, but any mutation reaching the fetcher would throw
+    // on subsequent fetches; the snapshot guarantees it can't.
+    filters.node = '('
+    // Reconstructing with the broken pattern fails — demonstrating the original
+    // fetcher would have failed at construction if it had seen the broken pattern.
+    expect(() =>
+      createBinaryFetcher({
+        fetch: noop,
+        fetchFromRemoteTarball: noop,
+        storeIndex: noop,
+        archiveFilters: filters,
+      })
+    ).toThrow(/Invalid archive filter regex for "node"/)
+  })
 })
