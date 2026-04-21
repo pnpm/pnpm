@@ -172,9 +172,9 @@ export async function handler (opts: PackAppOptions, params: string[]): Promise<
   }
   const targets = rawTargets.map(parseTarget)
 
-  // Parse the runtime up front — before any I/O or output-name derivation —
-  // so a malformed --runtime fails fast with a clear error instead of being
-  // masked by later problems (missing package.json name, etc.).
+  // Parse the runtime before output-name derivation and any network work so
+  // that a malformed --runtime fails fast with a clear error instead of being
+  // masked by later problems (missing package.json name, registry lookup, etc.).
   const runtimeSpec = opts.runtime ?? project.app?.runtime ?? `node@${process.version.slice(1)}`
   const { version: requestedNodeSpec } = parseRuntime(runtimeSpec)
 
