@@ -12,19 +12,22 @@ import { renameOverwrite } from 'rename-overwrite'
 import ssri from 'ssri'
 import { temporaryDirectory } from 'tempy'
 
-// Node.js archives ship with npm, npx, and corepack. pnpm manages package managers itself,
-// so these are excluded from the runtime install — skipping ~2,800 files out of ~5,800 in the
-// Node.js tarball. Users who still want npm can install it separately.
-// Matches paths *after* the top-level `node-vX.Y.Z-<platform>-<arch>/` prefix has been stripped.
-const NODE_EXTRAS_IGNORE_PATTERN = '^(?:(?:lib/)?node_modules/(?:npm|corepack)(?:/|$)|bin/(?:npm|npx|corepack)$|(?:npm|npx|corepack)(?:\\.(?:cmd|ps1))?$)'
-const NODE_EXTRAS_IGNORE_REGEX = new RegExp(NODE_EXTRAS_IGNORE_PATTERN)
-
-export function createBinaryFetcher (ctx: {
+export interface CreateBinaryFetcherOptions {
   fetch: FetchFromRegistry
   fetchFromRemoteTarball: FetchFunction
   storeIndex: StoreIndex
   offline?: boolean
-}): { binary: BinaryFetcher } {
+  /**
+   * Per-package-name regex sources (compatible with `new RegExp(pattern)`) matching file
+   * paths inside the downloaded archive that should be skipped during extraction.
+   * The lookup key is `pkg.name`. For zip archives, paths are matched relative to the
+   * archive's top-level directory (i.e. after the `prefix` has been stripped).
+   */
+  archiveFilters?: Record<string, string>
+}
+
+export function createBinaryFetcher (ctx: CreateBinaryFetcherOptions): { binary: BinaryFetcher } {
+  const archiveFilters = ctx.archiveFilters ?? {}
   const fetchBinary: BinaryFetcher = async (cafs, resolution, opts) => {
     if (ctx.offline) {
       throw new PnpmError('CANNOT_DOWNLOAD_BINARY_OFFLINE', `Cannot download binary "${resolution.url}" because offline mode is enabled.`)
@@ -35,7 +38,7 @@ export function createBinaryFetcher (ctx: {
       version: opts.pkg.version!,
       bin: resolution.bin,
     }
-    const isNodeRuntime = opts.pkg.name === 'node'
+    const archiveFilter = opts.pkg.name != null ? archiveFilters[opts.pkg.name] : undefined
 
     let fetchResult!: FetchResult
     switch (resolution.archive) {
@@ -46,7 +49,7 @@ export function createBinaryFetcher (ctx: {
         }, {
           ...opts,
           appendManifest: manifest,
-          ignoreFilePattern: isNodeRuntime ? NODE_EXTRAS_IGNORE_PATTERN : opts.ignoreFilePattern,
+          ignoreFilePattern: archiveFilter ?? opts.ignoreFilePattern,
         })
         break
       }
@@ -56,7 +59,7 @@ export function createBinaryFetcher (ctx: {
           url: resolution.url,
           integrity: resolution.integrity,
           basename: resolution.prefix ?? '',
-          ignoreEntry: isNodeRuntime ? NODE_EXTRAS_IGNORE_REGEX : undefined,
+          ignoreEntry: archiveFilter ? new RegExp(archiveFilter) : undefined,
         }, tempLocation)
         fetchResult = await addFilesFromDir({
           storeDir: cafs.storeDir,

@@ -23,6 +23,12 @@ export { getNodeArtifactAddress, getNodeMirror, parseNodeSpecifier }
 export const DEFAULT_NODE_MIRROR_BASE_URL = 'https://nodejs.org/download/release/'
 export const UNOFFICIAL_NODE_MIRROR_BASE_URL = 'https://unofficial-builds.nodejs.org/download/release/'
 
+// Node.js archives ship with npm, npx, and corepack. pnpm manages package managers itself,
+// so these are excluded from the runtime install — skipping ~2,800 files out of ~5,800 in the
+// Node.js tarball. The pattern matches paths *after* the archive's top-level
+// `node-vX.Y.Z-<platform>-<arch>/` prefix has been stripped.
+export const NODE_EXTRAS_IGNORE_PATTERN = '^(?:(?:lib/)?node_modules/(?:npm|corepack)(?:/|$)|bin/(?:npm|npx|corepack)$|(?:npm|npx|corepack)(?:\\.(?:cmd|ps1))?$)'
+
 export interface NodeRuntimeResolveResult extends ResolveResult {
   resolution: VariationsResolution
   resolvedVia: 'nodejs.org'

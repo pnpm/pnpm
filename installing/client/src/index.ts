@@ -1,3 +1,4 @@
+import { NODE_EXTRAS_IGNORE_PATTERN } from '@pnpm/engine.runtime.node-resolver'
 import { createBinaryFetcher } from '@pnpm/fetching.binary-fetcher'
 import { createDirectoryFetcher } from '@pnpm/fetching.directory-fetcher'
 import type { BinaryFetcher, DirectoryFetcher, GitFetcher } from '@pnpm/fetching.fetcher-base'
@@ -81,6 +82,7 @@ function createFetchers (
       fetchFromRemoteTarball: tarballFetchers.remoteTarball,
       offline: opts.offline,
       storeIndex: opts.storeIndex,
+      archiveFilters: { node: NODE_EXTRAS_IGNORE_PATTERN },
     }),
   }
 }
