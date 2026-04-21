@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { PnpmError } from '@pnpm/error'
-import { downloadAndUnpackZip } from '@pnpm/fetching.binary-fetcher'
+import { createBinaryFetcher, downloadAndUnpackZip } from '@pnpm/fetching.binary-fetcher'
 import AdmZip from 'adm-zip'
 import ssri from 'ssri'
 import { temporaryDirectory } from 'tempy'
@@ -278,5 +278,29 @@ describe('extractZipToTarget security', () => {
       expect(fs.existsSync(path.join(targetDir, 'bin/node'))).toBe(true)
       expect(fs.existsSync(path.join(targetDir, 'bin/npm'))).toBe(false)
     })
+  })
+})
+
+describe('createBinaryFetcher', () => {
+  it('rejects an invalid archiveFilters regex at creation time', () => {
+    const noop = (() => {
+      throw new Error('should not be called')
+    }) as never
+    expect(() =>
+      createBinaryFetcher({
+        fetch: noop,
+        fetchFromRemoteTarball: noop,
+        storeIndex: noop,
+        archiveFilters: { node: '(' },
+      })
+    ).toThrow(PnpmError)
+    expect(() =>
+      createBinaryFetcher({
+        fetch: noop,
+        fetchFromRemoteTarball: noop,
+        storeIndex: noop,
+        archiveFilters: { node: '(' },
+      })
+    ).toThrow(/Invalid archive filter regex for "node"/)
   })
 })

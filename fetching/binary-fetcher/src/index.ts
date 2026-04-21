@@ -1,5 +1,6 @@
 import fsPromises from 'node:fs/promises'
 import path from 'node:path'
+import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
 import type { BinaryFetcher, FetchFunction, FetchResult } from '@pnpm/fetching.fetcher-base'
@@ -28,6 +29,20 @@ export interface CreateBinaryFetcherOptions {
 
 export function createBinaryFetcher (ctx: CreateBinaryFetcherOptions): { binary: BinaryFetcher } {
   const archiveFilters = ctx.archiveFilters ?? {}
+  // Validate each pattern once so a broken filter fails at setup rather than mid-fetch.
+  // Downstream consumers (tarball worker, zip extraction) can trust that `new RegExp(pattern)`
+  // won't throw later.
+  for (const [name, pattern] of Object.entries(archiveFilters)) {
+    try {
+      new RegExp(pattern)
+    } catch (err: unknown) {
+      const detail = util.types.isNativeError(err) ? `: ${err.message}` : ''
+      throw new PnpmError(
+        'INVALID_ARCHIVE_FILTER',
+        `Invalid archive filter regex for "${name}"${detail}: ${pattern}`
+      )
+    }
+  }
   const fetchBinary: BinaryFetcher = async (cafs, resolution, opts) => {
     if (ctx.offline) {
       throw new PnpmError('CANNOT_DOWNLOAD_BINARY_OFFLINE', `Cannot download binary "${resolution.url}" because offline mode is enabled.`)

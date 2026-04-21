@@ -239,15 +239,9 @@ function calcIntegrity (buffer: Buffer): string {
   return formatIntegrity('sha512', calculatedHash)
 }
 
-const ignoreRegexCache = new Map<string, RegExp>()
-
 function makeIgnoreFromPattern (pattern: string): (filename: string) => boolean {
-  let regex = ignoreRegexCache.get(pattern)
-  if (!regex) {
-    regex = new RegExp(pattern)
-    ignoreRegexCache.set(pattern, regex)
-  }
-  return (filename) => regex!.test(filename)
+  const regex = new RegExp(pattern)
+  return (filename) => regex.test(filename)
 }
 
 function packToShared (data: unknown): Uint8Array {
