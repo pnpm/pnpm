@@ -283,8 +283,8 @@ describe('extractZipToTarget security', () => {
     it('still honors ignoreEntry when the archive contains directory entries (regression for #11325)', async () => {
       // Real Node.js Windows zips include directory entries in addition to file
       // entries. AdmZip's extractEntryTo(dirEntry, …) expands to every descendant
-      // via getEntryChildren(subfolders=true), which previously bypassed the
-      // ignoreEntry filter. Covering that path explicitly here.
+      // via getEntryChildren, which previously bypassed the ignoreEntry filter.
+      // Covering that path explicitly here.
       const targetDir = temporaryDirectory()
       const zip = new AdmZip()
       zip.addFile('node-v20.0.0/', Buffer.alloc(0))
