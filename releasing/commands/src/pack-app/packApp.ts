@@ -268,7 +268,7 @@ async function resolveBuilderBinary (ctx: {
   if (!builderVersionCanBuildSea(ctx.targetVersion)) {
     throw new PnpmError('PACK_APP_RUNTIME_TOO_OLD',
       `The embedded runtime "node@${ctx.targetVersion}" is older than Node.js v${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor}, which is the minimum version that supports --build-sea.`,
-      { hint: `Pass --runtime node@>=${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor}.0 or set "pnpm.app.runtime" to a newer version.` }
+      { hint: `Pass --runtime node@${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor}.0 (or newer) or set "pnpm.app.runtime" in package.json.` }
     )
   }
   return ensureNodeRuntime({

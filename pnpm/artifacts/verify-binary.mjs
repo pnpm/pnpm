@@ -58,6 +58,10 @@ if (!osMatches || !archMatches || !libcMatches) {
 
 const distLinkPath = path.resolve('dist')
 const distLinkTarget = path.join('..', 'exe', 'dist')
+// Windows refuses 'dir' symlinks without elevated privileges or Developer
+// Mode; junctions are the elevation-free directory-link primitive and are
+// silently ignored on POSIX hosts that never see this branch.
+const symlinkType = process.platform === 'win32' ? 'junction' : 'dir'
 let distLinkCreated = false
 // Remove a prior symlink from an aborted run so cleanup ownership is always
 // well-defined. A real dist/ directory (unlikely in a platform package, but
@@ -107,7 +111,7 @@ if (!distPreexists) {
 }
 
 try {
-  fs.symlinkSync(distLinkTarget, distLinkPath, 'dir')
+  fs.symlinkSync(distLinkTarget, distLinkPath, symlinkType)
   distLinkCreated = true
 } catch (err) {
   if (err.code !== 'EEXIST') {
