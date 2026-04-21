@@ -50,6 +50,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/constants": "workspace:*",
     "@pnpm/lockfile.verification": "workspace:*",
     "@pnpm/logger": "workspace:*",

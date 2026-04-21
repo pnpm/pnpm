@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { toOutput$ } from '@pnpm/cli.default-reporter'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import {

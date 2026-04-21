@@ -55,6 +55,7 @@
     "semver": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/constants": "workspace:*",
     "@pnpm/deps.inspection.tree-builder": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",

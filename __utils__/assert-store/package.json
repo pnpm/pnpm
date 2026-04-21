@@ -32,12 +32,14 @@
     "test": "pn pretest && pn compile && jest"
   },
   "dependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.index": "workspace:*"
   },
   "devDependencies": {
     "@pnpm/assert-store": "workspace:*",
-    "@pnpm/constants": "workspace:*"
+    "@pnpm/constants": "workspace:*",
+    "@types/node": "catalog:"
   }
 }

@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import { STORE_VERSION } from '@pnpm/constants'
 import isWindows from 'is-windows'
 

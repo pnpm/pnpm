@@ -1,3 +1,5 @@
+import { expect, test } from '@jest/globals'
+
 import { getNodeMirror } from '../lib/getNodeMirror.js'
 
 test.each([

@@ -1,4 +1,4 @@
-import { jest } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import type { ResolveFunction } from '@pnpm/installing.client'
 import type { PkgResolutionId, TarballResolution } from '@pnpm/resolving.resolver-base'
 

@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import deepRequireCwd from 'deep-require-cwd'
 

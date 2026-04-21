@@ -1,6 +1,8 @@
 import os from 'node:os'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
+
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from '../lib/dirs.js'
 
 test('getCacheDir()', () => {

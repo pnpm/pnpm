@@ -50,6 +50,7 @@
     "symlink-dir": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/global.commands": "workspace:*"
   },
   "engines": {

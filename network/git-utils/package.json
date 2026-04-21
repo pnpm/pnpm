@@ -38,6 +38,7 @@
     "execa": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/network.git-utils": "workspace:*",
     "tempy": "catalog:"
   },

@@ -45,6 +45,7 @@
     "test": "pn pretest && pn compile && jest"
   },
   "dependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/installing.modules-yaml": "workspace:*",

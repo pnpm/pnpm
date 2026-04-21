@@ -35,6 +35,7 @@
     "semver": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/workspace.range-resolver": "workspace:*",
     "@types/semver": "catalog:"
   },

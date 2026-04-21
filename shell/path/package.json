@@ -35,6 +35,7 @@
     "path-name": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/shell.path": "workspace:*"
   },
   "engines": {

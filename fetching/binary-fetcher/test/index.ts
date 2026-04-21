@@ -2,6 +2,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { describe, expect, it } from '@jest/globals'
 import { PnpmError } from '@pnpm/error'
 import { createBinaryFetcher, downloadAndUnpackZip } from '@pnpm/fetching.binary-fetcher'
 import AdmZip from 'adm-zip'

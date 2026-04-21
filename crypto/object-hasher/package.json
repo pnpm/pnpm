@@ -37,6 +37,7 @@
     "ramda": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/crypto.object-hasher": "workspace:*",
     "@types/object-hash": "catalog:",
     "@types/ramda": "catalog:"

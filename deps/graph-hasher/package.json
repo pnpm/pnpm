@@ -41,6 +41,7 @@
     "detect-libc": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/deps.graph-hasher": "workspace:*"
   },
   "engines": {

@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { afterAll, describe, expect, jest, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { DepPath, ProjectId, ProjectManifest, Registries } from '@pnpm/types'

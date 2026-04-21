@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals'
 import { pickFileChecksumFromShasumsFile } from '@pnpm/crypto.shasums-file'
 
 describe('pickFileChecksumFromShasumsFile', () => {

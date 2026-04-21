@@ -38,6 +38,7 @@
     "normalize-package-data": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@types/normalize-package-data": "catalog:"
   },

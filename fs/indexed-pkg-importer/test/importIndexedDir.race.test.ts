@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { beforeEach, expect, jest, test } from '@jest/globals'
 import { tempDir } from '@pnpm/prepare'
 
 // Mock renameOverwriteSync so we can verify it's called (or not called)

@@ -1,3 +1,4 @@
+import { describe, expect, test } from '@jest/globals'
 import type { DependencyNode } from '@pnpm/deps.inspection.tree-builder'
 import { refToRelative } from '@pnpm/deps.path'
 import type { PackageSnapshots } from '@pnpm/lockfile.fs'

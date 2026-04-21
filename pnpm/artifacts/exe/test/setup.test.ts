@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { describe, expect, test } from '@jest/globals'
 import { familySync } from 'detect-libc'
 
 // @ts-expect-error — JS helper without type declarations

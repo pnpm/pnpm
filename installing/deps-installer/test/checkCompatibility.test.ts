@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 
 import { checkCompatibility } from '../lib/install/checkCompatibility/index.js'

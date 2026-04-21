@@ -1,3 +1,5 @@
+import { expect, test } from '@jest/globals'
+
 import { getPinnedVersion } from '../lib/getPinnedVersion.js'
 
 test('getPinnedVersion()', () => {

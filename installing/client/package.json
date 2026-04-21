@@ -49,6 +49,7 @@
     "ramda": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/fetching.fetcher-base": "workspace:*",
     "@pnpm/installing.client": "workspace:*",
     "@types/ramda": "catalog:"

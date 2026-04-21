@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import { deprecate, undeprecate } from '@pnpm/registry-access.commands'
 import { REGISTRY_MOCK_CREDENTIALS, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'

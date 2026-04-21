@@ -44,6 +44,7 @@
     "yaml": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/prepare-temp-dir": "workspace:*",
     "@pnpm/workspace.projects-reader": "workspace:*",

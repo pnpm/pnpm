@@ -5,6 +5,7 @@ import path from 'node:path'
 import { setTimeout } from 'node:timers/promises'
 import { promisify } from 'node:util'
 
+import { describe, expect, it } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { safeExeca as execa } from 'execa'

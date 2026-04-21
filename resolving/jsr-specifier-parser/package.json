@@ -35,6 +35,7 @@
     "@pnpm/error": "workspace:*"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/resolving.jsr-specifier-parser": "workspace:*"
   },
   "engines": {

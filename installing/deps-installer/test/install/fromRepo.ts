@@ -1,9 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
-import type { RootLog } from '@pnpm/core-loggers'
 import { depPathToFilename } from '@pnpm/deps.path'
 import {
   addDependenciesToPackage,
@@ -84,7 +83,7 @@ test('from a github repo with different name via named installation', async () =
     }),
     level: 'debug',
     name: 'pnpm:root',
-  } as RootLog))
+  }))
 
   expect(m).toBe('Hi')
 
@@ -128,7 +127,7 @@ test('from a github repo with different name', async () => {
     }),
     level: 'debug',
     name: 'pnpm:root',
-  } as RootLog))
+  }))
 
   expect(m).toBe('Hi')
 

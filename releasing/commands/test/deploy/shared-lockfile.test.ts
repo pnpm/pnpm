@@ -2,10 +2,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 import url from 'node:url'
 
-import { jest } from '@jest/globals'
+import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import { install } from '@pnpm/installing.commands'
-import type { LockfileFile, LockfilePackageSnapshot } from '@pnpm/lockfile.types'
 import { preparePackages } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectManifest } from '@pnpm/types'
@@ -121,7 +120,7 @@ test('deploy with a shared lockfile after full install', async () => {
   })
   expect(fs.existsSync('pnpm-lock.yaml')).toBeTruthy()
 
-  const expectedDeployManifest: ProjectManifest = {
+  const expectedDeployManifest = {
     name: 'project-1',
     version: '1.0.0',
     dependencies: {
@@ -347,7 +346,7 @@ test('the deploy manifest should inherit some fields from the pnpm object from t
         },
       },
     },
-  } as LockfileFile['importers'])
+  })
 })
 
 test('deploy with a shared lockfile and --prod filter should not fail even if dev workspace package does not exist (#8778)', async () => {
@@ -450,7 +449,7 @@ test('deploy with a shared lockfile and --prod filter should not fail even if de
         },
       },
     },
-  } as LockfileFile['importers'])
+  })
 
   const manifest = readPackageJson('deploy') as ProjectManifest
   expect(manifest).toStrictEqual({
@@ -465,7 +464,7 @@ test('deploy with a shared lockfile and --prod filter should not fail even if de
       'is-negative': '1.0.0',
     },
     optionalDependencies: {},
-  } as ProjectManifest)
+  })
 
   const prod1Name = fs.readdirSync('deploy/node_modules/.pnpm').find(name => name.includes('prod-1@'))
   expect(prod1Name).toBeDefined()
@@ -535,7 +534,7 @@ test('deploy with a shared lockfile should correctly handle workspace dependenci
         },
       },
     },
-  } as LockfileFile['importers'])
+  })
 
   const manifest = readPackageJson('deploy') as ProjectManifest
   expect(manifest).toStrictEqual({
@@ -547,7 +546,7 @@ test('deploy with a shared lockfile should correctly handle workspace dependenci
     },
     devDependencies: {},
     optionalDependencies: {},
-  } as ProjectManifest)
+  })
 
   const project1Name = fs.readdirSync('deploy/node_modules/.pnpm').find(name => name.includes('project-1@'))
   expect(project1Name).toBeDefined()
@@ -622,7 +621,7 @@ test('deploy with a shared lockfile should correctly handle package that depends
         },
       },
     },
-  } as LockfileFile['importers'])
+  })
 
   const manifest = readPackageJson('deploy') as ProjectManifest
   expect(manifest).toStrictEqual({
@@ -636,7 +635,7 @@ test('deploy with a shared lockfile should correctly handle package that depends
     },
     devDependencies: {},
     optionalDependencies: {},
-  } as ProjectManifest)
+  })
 
   expect(fs.realpathSync('deploy/node_modules/project-0')).toBe(path.resolve('deploy'))
   expect(fs.realpathSync('deploy/node_modules/renamed-workspace')).toBe(path.resolve('deploy'))
@@ -730,7 +729,7 @@ test('deploy with a shared lockfile should correctly handle packageExtensions', 
       'project-0': 'link:.',
       'project-1': expect.stringMatching(/^project-1@file:/),
     },
-  } as LockfilePackageSnapshot)
+  })
 
   const manifest = readPackageJson('deploy') as ProjectManifest
   expect(manifest).toStrictEqual({
@@ -741,7 +740,7 @@ test('deploy with a shared lockfile should correctly handle packageExtensions', 
     },
     devDependencies: {},
     optionalDependencies: {},
-  } as ProjectManifest)
+  })
 
   const project1Name = fs.readdirSync('deploy/node_modules/.pnpm').find(name => name.includes('project-1@'))
   expect(project1Name).toBeDefined()
@@ -856,7 +855,7 @@ test('deploy with a shared lockfile should correctly handle patchedDependencies'
     },
     devDependencies: {},
     optionalDependencies: {},
-  } as ProjectManifest)
+  })
 
   // patchedDependencies should be written to pnpm-workspace.yaml
   const workspaceManifestPath = path.resolve('deploy', 'pnpm-workspace.yaml')
@@ -1045,7 +1044,7 @@ test('deploy with a shared lockfile that has peer dependencies suffix in workspa
       'project-1': '*',
       'project-2': '*',
     },
-  } as ProjectManifest)
+  })
 
   expect(readPackageJson('deploy/node_modules/project-1')).toStrictEqual(preparedManifests['project-1'])
   expect(readPackageJson('deploy/node_modules/project-2')).toStrictEqual(preparedManifests['project-2'])

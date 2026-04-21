@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 
+import { expect, test } from '@jest/globals'
 import { installConfigDeps } from '@pnpm/installing.env-installer'
 import { createEnvLockfile, type EnvLockfile, readEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'

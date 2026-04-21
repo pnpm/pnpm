@@ -43,6 +43,7 @@
     "semver-range-intersect": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/deps.inspection.peers-checker": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/semver": "catalog:"

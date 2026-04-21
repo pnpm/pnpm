@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { beforeEach, describe, expect, jest, test } from '@jest/globals'
 import type { Project } from '@pnpm/assert-project'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { createPeerDepGraphHash, depPathToFilename } from '@pnpm/deps.path'

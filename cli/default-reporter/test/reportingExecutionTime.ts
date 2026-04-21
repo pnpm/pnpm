@@ -1,5 +1,6 @@
 import { setTimeout } from 'node:timers/promises'
 
+import { expect, test } from '@jest/globals'
 import { toOutput$ } from '@pnpm/cli.default-reporter'
 import { packageManager } from '@pnpm/cli.meta'
 import { executionTimeLogger } from '@pnpm/core-loggers'

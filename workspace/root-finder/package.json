@@ -35,6 +35,7 @@
     "find-up": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/workspace.root-finder": "workspace:*"
   },
   "engines": {

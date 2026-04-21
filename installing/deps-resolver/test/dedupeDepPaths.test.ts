@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import type { PkgIdWithPatchHash, PkgResolutionId, ProjectRootDir } from '@pnpm/types'
 
 import type { NodeId } from '../lib/nextNodeId.js'

@@ -36,6 +36,7 @@
     "yaml": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/yaml.document-sync": "workspace:*"
   },
   "engines": {

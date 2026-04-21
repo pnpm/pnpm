@@ -2,6 +2,7 @@ import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { describe, expect, test } from '@jest/globals'
 import { resolveLicense } from '@pnpm/deps.compliance.license-resolver'
 
 async function tempDir (): Promise<string> {

@@ -35,6 +35,7 @@
     "load-json-file": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/cli.meta": "workspace:*"
   },
   "engines": {

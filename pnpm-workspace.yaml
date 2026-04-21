@@ -137,9 +137,7 @@ catalog:
   '@types/yarnpkg__lockfile': ^1.1.9
   '@types/zkochan__table': npm:@types/table@6.0.0
   '@typescript-eslint/utils': ^8.57.1
-  # Newer tsgo dev builds have a regression where @types/node can't be resolved,
-  # causing all node built-in types (path, url, stream, process, etc.) to fail.
-  '@typescript/native-preview': 7.0.0-dev.20260216.1
+  '@typescript/native-preview': 7.0.0-dev.20260421.2
   '@yarnpkg/core': 4.5.0
   '@yarnpkg/extensions': 2.0.6
   '@yarnpkg/lockfile': ^1.1.0

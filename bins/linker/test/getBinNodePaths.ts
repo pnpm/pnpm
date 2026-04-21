@@ -1,6 +1,7 @@
 import fs, { promises as fsPromises } from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { temporaryDirectory } from 'tempy'
 
 import { getBinNodePaths } from '../src/getBinNodePaths.js'

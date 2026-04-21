@@ -1,6 +1,7 @@
 // cspell:ignore haspeer
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { lockfileToPackageRegistry } from '@pnpm/lockfile.to-pnp'
 import type { DepPath, ProjectId } from '@pnpm/types'
 

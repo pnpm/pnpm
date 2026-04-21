@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
 import { rimrafSync } from '@zkochan/rimraf'

@@ -1,5 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import { jest } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import type { CustomResolver, WantedDependency } from '@pnpm/hooks.types'
 import { createResolver } from '@pnpm/resolving.default-resolver'
 
@@ -160,7 +160,7 @@ test('custom resolver error handling', async () => {
 })
 
 test('preferredVersions are passed to custom resolver', async () => {
-  const resolve = jest.fn(() => ({
+  const resolve = jest.fn<NonNullable<CustomResolver['resolve']>>(() => ({
     id: 'test@1.0.0',
     resolution: { tarball: 'file://test.tgz', integrity: 'sha512-test' },
   }))
@@ -185,7 +185,14 @@ test('preferredVersions are passed to custom resolver', async () => {
     { lockfileDir: '/test', projectDir: '/test', preferredVersions: { any: { '1.0.0': 'version' } } as unknown as Record<string, Record<string, 'version' | 'range' | 'tag'>> }
   )
 
-  expect(resolve).toHaveBeenCalledWith({ alias: 'any', bareSpecifier: '1.0.0' }, { lockfileDir: '/test', projectDir: '/test', preferredVersions: { any: { '1.0.0': 'version' } } })
+  expect(resolve).toHaveBeenCalledWith(
+    { alias: 'any', bareSpecifier: '1.0.0' },
+    expect.objectContaining({
+      lockfileDir: '/test',
+      projectDir: '/test',
+      preferredVersions: { any: { '1.0.0': 'version' } },
+    })
+  )
 })
 
 test('custom resolver can intercept any protocol', async () => {

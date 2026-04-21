@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { tempDir } from '@pnpm/prepare'
 import PATH_NAME from 'path-name'
 

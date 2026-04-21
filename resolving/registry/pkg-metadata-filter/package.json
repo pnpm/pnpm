@@ -40,6 +40,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/logger": "workspace:*",
     "@pnpm/resolving.registry.pkg-metadata-filter": "workspace:*",
     "@types/semver": "catalog:"

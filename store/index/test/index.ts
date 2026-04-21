@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { temporaryDirectory } from 'tempy'
 

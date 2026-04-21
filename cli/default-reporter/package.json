@@ -58,6 +58,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/cli.default-reporter": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@types/normalize-path": "catalog:",

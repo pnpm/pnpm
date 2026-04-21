@@ -38,6 +38,7 @@
     "@yarnpkg/nm": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/installing.linking.real-hoist": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",

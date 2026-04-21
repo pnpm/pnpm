@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { tempDir } from '@pnpm/prepare-temp-dir'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'

@@ -37,6 +37,7 @@
     "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/network.auth-header": "workspace:*",
     "safe-buffer": "catalog:"
   },
