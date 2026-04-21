@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { PnpmError } from '@pnpm/error'
-import { downloadAndUnpackZip } from '@pnpm/fetching.binary-fetcher'
+import { createBinaryFetcher, downloadAndUnpackZip } from '@pnpm/fetching.binary-fetcher'
 import AdmZip from 'adm-zip'
 import ssri from 'ssri'
 import { temporaryDirectory } from 'tempy'
@@ -220,5 +220,149 @@ describe('extractZipToTarget security', () => {
 
       expect(fs.existsSync(path.join(targetDir, 'bin/node'))).toBe(true)
     })
+
+    it('skips entries matching ignoreEntry regex (basename stripped)', async () => {
+      const targetDir = temporaryDirectory()
+      const zip = new AdmZip()
+      zip.addFile('node-v20.0.0/node.exe', Buffer.from('binary'))
+      zip.addFile('node-v20.0.0/npm', Buffer.from('npm shim'))
+      zip.addFile('node-v20.0.0/npm.cmd', Buffer.from('npm cmd'))
+      zip.addFile('node-v20.0.0/node_modules/npm/package.json', Buffer.from('{}'))
+      zip.addFile('node-v20.0.0/node_modules/corepack/package.json', Buffer.from('{}'))
+      zip.addFile('node-v20.0.0/node_modules/keep-me/index.js', Buffer.from('kept'))
+      const zipBuffer = zip.toBuffer()
+      const integrity = ssri.fromData(zipBuffer).toString()
+      const mockFetch = createMockFetch(zipBuffer)
+
+      await downloadAndUnpackZip(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        mockFetch as any,
+        {
+          url: 'https://example.com/node.zip',
+          integrity,
+          basename: 'node-v20.0.0',
+          ignoreEntry: /^(?:node_modules\/(?:npm|corepack)(?:\/|$)|npm(?:\.cmd)?$)/,
+        },
+        targetDir
+      )
+
+      expect(fs.existsSync(path.join(targetDir, 'node.exe'))).toBe(true)
+      expect(fs.existsSync(path.join(targetDir, 'node_modules/keep-me/index.js'))).toBe(true)
+      expect(fs.existsSync(path.join(targetDir, 'npm'))).toBe(false)
+      expect(fs.existsSync(path.join(targetDir, 'npm.cmd'))).toBe(false)
+      expect(fs.existsSync(path.join(targetDir, 'node_modules/npm'))).toBe(false)
+      expect(fs.existsSync(path.join(targetDir, 'node_modules/corepack'))).toBe(false)
+    })
+
+    it('skips entries matching ignoreEntry regex when basename is empty', async () => {
+      const targetDir = temporaryDirectory()
+      const zip = new AdmZip()
+      zip.addFile('bin/node', Buffer.from('#!/bin/sh\necho "node"'))
+      zip.addFile('bin/npm', Buffer.from('npm shim'))
+      const zipBuffer = zip.toBuffer()
+      const integrity = ssri.fromData(zipBuffer).toString()
+      const mockFetch = createMockFetch(zipBuffer)
+
+      await downloadAndUnpackZip(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        mockFetch as any,
+        {
+          url: 'https://example.com/node.zip',
+          integrity,
+          basename: '',
+          ignoreEntry: /^bin\/npm$/,
+        },
+        targetDir
+      )
+
+      expect(fs.existsSync(path.join(targetDir, 'bin/node'))).toBe(true)
+      expect(fs.existsSync(path.join(targetDir, 'bin/npm'))).toBe(false)
+    })
+
+    it('strips /g /y flags from ignoreEntry so .test() is not stateful across entries', async () => {
+      const targetDir = temporaryDirectory()
+      const zip = new AdmZip()
+      zip.addFile('node-v20.0.0/node.exe', Buffer.from('binary'))
+      zip.addFile('node-v20.0.0/npm', Buffer.from('npm shim 1'))
+      zip.addFile('node-v20.0.0/npx', Buffer.from('npx shim 2'))
+      zip.addFile('node-v20.0.0/corepack', Buffer.from('corepack 3'))
+      const zipBuffer = zip.toBuffer()
+      const integrity = ssri.fromData(zipBuffer).toString()
+      const mockFetch = createMockFetch(zipBuffer)
+
+      await downloadAndUnpackZip(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        mockFetch as any,
+        {
+          url: 'https://example.com/node.zip',
+          integrity,
+          basename: 'node-v20.0.0',
+          // Deliberately pass a /g regex — a stateful .test() would skip only
+          // every other matching entry. All three shims must still be dropped.
+          ignoreEntry: /^(?:npm|npx|corepack)$/g,
+        },
+        targetDir
+      )
+
+      expect(fs.existsSync(path.join(targetDir, 'node.exe'))).toBe(true)
+      expect(fs.existsSync(path.join(targetDir, 'npm'))).toBe(false)
+      expect(fs.existsSync(path.join(targetDir, 'npx'))).toBe(false)
+      expect(fs.existsSync(path.join(targetDir, 'corepack'))).toBe(false)
+    })
+
+  })
+})
+
+describe('createBinaryFetcher', () => {
+  it('rejects an invalid archiveFilters regex at creation time', () => {
+    const noop = (() => {
+      throw new Error('should not be called')
+    }) as never
+    expect(() =>
+      createBinaryFetcher({
+        fetch: noop,
+        fetchFromRemoteTarball: noop,
+        storeIndex: noop,
+        archiveFilters: { node: '(' },
+      })
+    ).toThrow(PnpmError)
+    expect(() =>
+      createBinaryFetcher({
+        fetch: noop,
+        fetchFromRemoteTarball: noop,
+        storeIndex: noop,
+        archiveFilters: { node: '(' },
+      })
+    ).toThrow(/Invalid archive filter regex for "node"/)
+  })
+
+  it('snapshots archiveFilters so post-creation mutations cannot reintroduce invalid patterns', () => {
+    const noop = (() => {
+      throw new Error('should not be called')
+    }) as never
+    const filters: Record<string, string> = { node: '^ok$' }
+    // Must succeed — the pattern is valid at construction time.
+    expect(() =>
+      createBinaryFetcher({
+        fetch: noop,
+        fetchFromRemoteTarball: noop,
+        storeIndex: noop,
+        archiveFilters: filters,
+      })
+    ).not.toThrow()
+    // Mutating the caller's object after construction must not affect the fetcher.
+    // There's no direct read back, but any mutation reaching the fetcher would throw
+    // on subsequent fetches; the snapshot guarantees it can't.
+    filters.node = '('
+    // Reconstructing with the broken pattern fails — demonstrating the original
+    // fetcher would have failed at construction if it had seen the broken pattern.
+    expect(() =>
+      createBinaryFetcher({
+        fetch: noop,
+        fetchFromRemoteTarball: noop,
+        storeIndex: noop,
+        archiveFilters: filters,
+      })
+    ).toThrow(/Invalid archive filter regex for "node"/)
   })
 })

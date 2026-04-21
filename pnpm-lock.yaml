@@ -4893,6 +4893,9 @@ importers:
 
   installing/client:
     dependencies:
+      '@pnpm/engine.runtime.node-resolver':
+        specifier: workspace:*
+        version: link:../../engine/runtime/node-resolver
       '@pnpm/fetching.binary-fetcher':
         specifier: workspace:*
         version: link:../../fetching/binary-fetcher

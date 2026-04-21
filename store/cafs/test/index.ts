@@ -29,6 +29,25 @@ describe('cafs', () => {
     expect(pkgFile!.digest).toBe('f310afae50bb5b74e5c17c5eb6fe426538b9deccd88664fbb66a5717fb6d36d86d4d1f530bb63b58914f9894e81da490e2e39bb99c8e01174e258358b9349b5c')
   })
 
+  it('addFilesFromTarball honors a per-call ignore predicate', () => {
+    const dest = temporaryDirectory()
+    const cafs = createCafs(dest)
+    const tarball = fs.readFileSync(f.find('node-gyp-6.1.0.tgz'))
+    const baseline = cafs.addFilesFromTarball(tarball)
+    const filtered = cafs.addFilesFromTarball(tarball, false, (name) => name === 'package.json')
+    expect(filtered.filesIndex.has('package.json')).toBe(false)
+    expect(filtered.filesIndex.size).toBe(baseline.filesIndex.size - 1)
+  })
+
+  it('addFilesFromTarball combines cafs-level ignoreFile with per-call ignore', () => {
+    const dest = temporaryDirectory()
+    const cafs = createCafs(dest, { ignoreFile: (name) => name === 'package.json' })
+    const tarball = fs.readFileSync(f.find('node-gyp-6.1.0.tgz'))
+    const { filesIndex } = cafs.addFilesFromTarball(tarball, false, (name) => name === 'README.md')
+    expect(filesIndex.has('package.json')).toBe(false)
+    expect(filesIndex.has('README.md')).toBe(false)
+  })
+
   it('replaces an already existing file, if the integrity of it was broken', () => {
     const storeDir = temporaryDirectory()
     const srcDir = path.join(import.meta.dirname, 'fixtures/one-file')

@@ -1,5 +1,6 @@
 import fsPromises from 'node:fs/promises'
 import path from 'node:path'
+import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
 import type { BinaryFetcher, FetchFunction, FetchResult } from '@pnpm/fetching.fetcher-base'
@@ -12,12 +13,37 @@ import { renameOverwrite } from 'rename-overwrite'
 import ssri from 'ssri'
 import { temporaryDirectory } from 'tempy'
 
-export function createBinaryFetcher (ctx: {
+export interface CreateBinaryFetcherOptions {
   fetch: FetchFromRegistry
   fetchFromRemoteTarball: FetchFunction
   storeIndex: StoreIndex
   offline?: boolean
-}): { binary: BinaryFetcher } {
+  /**
+   * Per-package-name regex sources (compatible with `new RegExp(pattern)`) matching file
+   * paths inside the downloaded archive that should be skipped during extraction.
+   * The lookup key is `pkg.name`. For zip archives, paths are matched relative to the
+   * archive's top-level directory (i.e. after the `prefix` has been stripped).
+   */
+  archiveFilters?: Record<string, string>
+}
+
+export function createBinaryFetcher (ctx: CreateBinaryFetcherOptions): { binary: BinaryFetcher } {
+  // Snapshot and pre-compile `archiveFilters` at creation time so later mutations to the
+  // caller's object can't reintroduce invalid patterns, and so zip extraction doesn't
+  // recompile the regex per fetch. The tarball path still needs the pattern string — it
+  // crosses the worker thread boundary, where RegExp instances don't survive structured clone.
+  const archiveFilters = new Map<string, { pattern: string, regex: RegExp }>()
+  for (const [name, pattern] of Object.entries(ctx.archiveFilters ?? {})) {
+    try {
+      archiveFilters.set(name, { pattern, regex: new RegExp(pattern) })
+    } catch (err: unknown) {
+      const detail = util.types.isNativeError(err) ? `: ${err.message}` : ''
+      throw new PnpmError(
+        'INVALID_ARCHIVE_FILTER',
+        `Invalid archive filter regex for "${name}"${detail}: ${pattern}`
+      )
+    }
+  }
   const fetchBinary: BinaryFetcher = async (cafs, resolution, opts) => {
     if (ctx.offline) {
       throw new PnpmError('CANNOT_DOWNLOAD_BINARY_OFFLINE', `Cannot download binary "${resolution.url}" because offline mode is enabled.`)
@@ -28,6 +54,7 @@ export function createBinaryFetcher (ctx: {
       version: opts.pkg.version!,
       bin: resolution.bin,
     }
+    const archiveFilter = opts.pkg.name != null ? archiveFilters.get(opts.pkg.name) : undefined
 
     let fetchResult!: FetchResult
     switch (resolution.archive) {
@@ -36,8 +63,9 @@ export function createBinaryFetcher (ctx: {
           tarball: resolution.url,
           integrity: resolution.integrity,
         }, {
-          appendManifest: manifest,
           ...opts,
+          appendManifest: manifest,
+          ignoreFilePattern: archiveFilter?.pattern ?? opts.ignoreFilePattern,
         })
         break
       }
@@ -47,6 +75,7 @@ export function createBinaryFetcher (ctx: {
           url: resolution.url,
           integrity: resolution.integrity,
           basename: resolution.prefix ?? '',
+          ignoreEntry: archiveFilter?.regex,
         }, tempLocation)
         fetchResult = await addFilesFromDir({
           storeDir: cafs.storeDir,
@@ -77,6 +106,11 @@ export interface AssetInfo {
   url: string
   integrity: string
   basename: string
+  /**
+   * Regex matched against each zip entry's path relative to the archive's top-level basename.
+   * Matching entries are skipped during extraction.
+   */
+  ignoreEntry?: RegExp
 }
 
 /**
@@ -96,7 +130,7 @@ export async function downloadAndUnpackZip (
 
   try {
     await downloadWithIntegrityCheck(fetchFromRegistry, assetInfo, tmp)
-    await extractZipToTarget(tmp, assetInfo.basename, targetDir)
+    await extractZipToTarget(tmp, assetInfo.basename, targetDir, assetInfo.ignoreEntry)
   } finally {
     // Clean up temporary file
     try {
@@ -144,12 +178,15 @@ async function downloadWithIntegrityCheck (
  * @param zipPath - Path to the zip file
  * @param basename - Base name of the file (without extension)
  * @param targetDir - Directory where contents should be extracted
+ * @param ignoreEntry - Optional regex matched against the entry path relative to `basename`;
+ *   matching entries are skipped.
  * @throws {PnpmError} When extraction fails or path traversal is detected
  */
 async function extractZipToTarget (
   zipPath: string,
   basename: string,
-  targetDir: string
+  targetDir: string,
+  ignoreEntry?: RegExp
 ): Promise<void> {
   const zip = new AdmZip(zipPath)
   const nodeDir = basename === '' ? targetDir : path.dirname(targetDir)
@@ -159,15 +196,39 @@ async function extractZipToTarget (
     validatePathSecurity(nodeDir, basename)
   }
 
+  const basenamePrefix = basename === '' ? '' : `${basename}/`
+  // Normalize `ignoreEntry` to a stateless regex. `.test()` on a `/g` or `/y` regex
+  // advances `lastIndex` between calls, which would cause inconsistent skips across
+  // entries in this loop.
+  const testEntry = toStatelessTester(ignoreEntry)
+
   // Extract each entry with path validation to prevent path traversal attacks
   for (const entry of zip.getEntries()) {
     const entryPath = entry.entryName
     validatePathSecurity(nodeDir, entryPath)
+    if (testEntry) {
+      const relative = basenamePrefix && entryPath.startsWith(basenamePrefix)
+        ? entryPath.slice(basenamePrefix.length)
+        : entryPath
+      if (testEntry(relative)) continue
+    }
     zip.extractEntryTo(entry, nodeDir, true, true)
   }
 
   const extractedDir = path.join(nodeDir, basename)
   await renameOverwrite(extractedDir, targetDir)
+}
+
+function toStatelessTester (regex: RegExp | undefined): ((input: string) => boolean) | undefined {
+  if (!regex) return undefined
+  // `/g` and `/y` make `RegExp.prototype.test` stateful via `lastIndex`.
+  // Strip those flags by cloning into a fresh RegExp with only the safe flags.
+  if (!regex.global && !regex.sticky) {
+    return (input) => regex.test(input)
+  }
+  const safeFlags = regex.flags.replace(/[gy]/g, '')
+  const clone = new RegExp(regex.source, safeFlags)
+  return (input) => clone.test(input)
 }
 
 /**

@@ -27,8 +27,6 @@ const GLIBC_RESOLUTIONS = [
       integrity: 'sha256-13Q/3fXoZxJPVVqR9scpEE/Vx12TgvEChsP7s/0S7wc=',
       bin: {
         node: 'bin/node',
-        npm: 'lib/node_modules/npm/bin/npm-cli.js',
-        npx: 'lib/node_modules/npm/bin/npx-cli.js',
       },
     },
   },
@@ -46,8 +44,6 @@ const GLIBC_RESOLUTIONS = [
       integrity: 'sha256-6pbTSc+qZ6qHzuqj5bUskWf3rDAv2NH/Fi0HhencB4U=',
       bin: {
         node: 'bin/node',
-        npm: 'lib/node_modules/npm/bin/npm-cli.js',
-        npx: 'lib/node_modules/npm/bin/npx-cli.js',
       },
     },
   },
@@ -65,8 +61,6 @@ const GLIBC_RESOLUTIONS = [
       integrity: 'sha256-Qio4h/9UGPCkVS2Jz5k0arirUbtdOEZguqiLhETSwRE=',
       bin: {
         node: 'bin/node',
-        npm: 'lib/node_modules/npm/bin/npm-cli.js',
-        npx: 'lib/node_modules/npm/bin/npx-cli.js',
       },
     },
   },
@@ -84,8 +78,6 @@ const GLIBC_RESOLUTIONS = [
       integrity: 'sha256-HTVHImvn5ZrO7lx9Aan4/BjeZ+AVxaFdjPOFtuAtBis=',
       bin: {
         node: 'bin/node',
-        npm: 'lib/node_modules/npm/bin/npm-cli.js',
-        npx: 'lib/node_modules/npm/bin/npx-cli.js',
       },
     },
   },
@@ -103,8 +95,6 @@ const GLIBC_RESOLUTIONS = [
       integrity: 'sha256-0h239Xxc4YKuwrmoPjKVq8N+FzGrtzmV09Vz4EQJl3w=',
       bin: {
         node: 'bin/node',
-        npm: 'lib/node_modules/npm/bin/npm-cli.js',
-        npx: 'lib/node_modules/npm/bin/npx-cli.js',
       },
     },
   },
@@ -122,8 +112,6 @@ const GLIBC_RESOLUTIONS = [
       integrity: 'sha256-OwmNzPVtRGu7gIRdNbvsvbdGEoYNFpDzohY4fJnJ1iA=',
       bin: {
         node: 'bin/node',
-        npm: 'lib/node_modules/npm/bin/npm-cli.js',
-        npx: 'lib/node_modules/npm/bin/npx-cli.js',
       },
     },
   },
@@ -141,8 +129,6 @@ const GLIBC_RESOLUTIONS = [
       integrity: 'sha256-fsX9rQyBnuoXkA60PB3pSNYgp4OxrJQGLKpDh3ipKzA=',
       bin: {
         node: 'bin/node',
-        npm: 'lib/node_modules/npm/bin/npm-cli.js',
-        npx: 'lib/node_modules/npm/bin/npx-cli.js',
       },
     },
   },
@@ -160,8 +146,6 @@ const GLIBC_RESOLUTIONS = [
       integrity: 'sha256-dLsPOoAwfFKUIcPthFF7j1Q4Z3CfQeU81z35nmRCr00=',
       bin: {
         node: 'bin/node',
-        npm: 'lib/node_modules/npm/bin/npm-cli.js',
-        npx: 'lib/node_modules/npm/bin/npx-cli.js',
       },
     },
   },
@@ -179,8 +163,6 @@ const GLIBC_RESOLUTIONS = [
       integrity: 'sha256-N2Ehz0a9PAJcXmetrhkK/14l0zoLWPvA2GUtczULOPA=',
       bin: {
         node: 'node.exe',
-        npm: 'node_modules/npm/bin/npm-cli.js',
-        npx: 'node_modules/npm/bin/npx-cli.js',
       },
       prefix: 'node-v22.0.0-win-arm64',
     },
@@ -199,8 +181,6 @@ const GLIBC_RESOLUTIONS = [
       integrity: 'sha256-MtY5tH1MCmUf+PjX1BpFQWij1ARb43mF+agQz4zvYXQ=',
       bin: {
         node: 'node.exe',
-        npm: 'node_modules/npm/bin/npm-cli.js',
-        npx: 'node_modules/npm/bin/npx-cli.js',
       },
       prefix: 'node-v22.0.0-win-x64',
     },
@@ -219,8 +199,6 @@ const GLIBC_RESOLUTIONS = [
       integrity: 'sha256-4BNPUBcVSjN2csf7zRVOKyx3S0MQkRhWAZINY9DEt9A=',
       bin: {
         node: 'node.exe',
-        npm: 'node_modules/npm/bin/npm-cli.js',
-        npx: 'node_modules/npm/bin/npx-cli.js',
       },
       prefix: 'node-v22.0.0-win-x86',
     },
@@ -233,6 +211,25 @@ test('installing Node.js runtime', async () => {
 
   project.isExecutable('.bin/node')
   expect(fs.readlinkSync('node_modules/node')).toContain(path.join('links', '@', 'node', '22.0.0'))
+
+  // npm, npx, and corepack are stripped from the Node.js archive; no shims or bundled sources should exist.
+  const nodeInstallDir = fs.realpathSync(path.resolve('node_modules/node'))
+  const isWindows = process.platform === 'win32'
+  const bundledNpmDir = isWindows
+    ? path.join(nodeInstallDir, 'node_modules', 'npm')
+    : path.join(nodeInstallDir, 'lib', 'node_modules', 'npm')
+  const bundledCorepackDir = isWindows
+    ? path.join(nodeInstallDir, 'node_modules', 'corepack')
+    : path.join(nodeInstallDir, 'lib', 'node_modules', 'corepack')
+  expect(fs.existsSync(bundledNpmDir)).toBe(false)
+  expect(fs.existsSync(bundledCorepackDir)).toBe(false)
+  for (const shim of ['npm', 'npx', 'corepack']) {
+    expect(fs.existsSync(path.resolve('node_modules/.bin', shim))).toBe(false)
+    expect(fs.existsSync(path.resolve('node_modules/.bin', `${shim}.cmd`))).toBe(false)
+    if (isWindows) {
+      expect(fs.existsSync(path.resolve('node_modules/.bin', `${shim}.ps1`))).toBe(false)
+    }
+  }
 
   const lockfile = project.readLockfile()
   expect(lockfile).toStrictEqual({

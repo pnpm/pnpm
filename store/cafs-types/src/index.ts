@@ -70,7 +70,7 @@ export interface AddToStoreResult {
 export interface Cafs {
   storeDir: string
   addFilesFromDir: (dir: string) => AddToStoreResult
-  addFilesFromTarball: (buffer: Buffer) => AddToStoreResult
+  addFilesFromTarball: (buffer: Buffer, readManifest?: boolean, ignore?: (filename: string) => boolean) => AddToStoreResult
   addFile: (buffer: Buffer, mode: number) => FileWriteResult
   getFilePathByModeInCafs: (digest: string, mode: number) => string
   importPackage: ImportPackageFunction

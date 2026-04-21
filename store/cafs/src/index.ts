@@ -58,7 +58,7 @@ export interface CreateCafsOpts {
 
 export interface CafsFunctions {
   addFilesFromDir: (dirname: string, opts?: { files?: string[], readManifest?: boolean, includeNodeModules?: boolean }) => AddToStoreResult
-  addFilesFromTarball: (tarballBuffer: Buffer, readManifest?: boolean) => AddToStoreResult
+  addFilesFromTarball: (tarballBuffer: Buffer, readManifest?: boolean, ignore?: (filename: string) => boolean) => AddToStoreResult
   addFile: (buffer: Buffer, mode: number) => FileWriteResult
   getFilePathByModeInCafs: (digest: string, mode: number) => string
 }
@@ -68,10 +68,20 @@ export function createCafs (storeDir: string, { ignoreFile, cafsLocker }: Create
   const addBuffer = addBufferToCafs.bind(null, _writeBufferToCafs)
   return {
     addFilesFromDir: addFilesFromDir.bind(null, addBuffer),
-    addFilesFromTarball: addFilesFromTarball.bind(null, addBuffer, ignoreFile ?? null),
+    addFilesFromTarball: (tarballBuffer, readManifest, callIgnore) =>
+      addFilesFromTarball(addBuffer, tarballBuffer, readManifest, combineIgnore(ignoreFile, callIgnore)),
     addFile: addBuffer,
     getFilePathByModeInCafs: getFilePathByModeInCafs.bind(null, storeDir),
   }
+}
+
+function combineIgnore (
+  a?: (filename: string) => boolean,
+  b?: (filename: string) => boolean
+): ((filename: string) => boolean) | undefined {
+  if (!a) return b
+  if (!b) return a
+  return (filename) => a(filename) || b(filename)
 }
 
 type WriteBufferToCafs = (buffer: Buffer, fileDest: string, mode: number | undefined, integrity: Integrity) => { checkedAt: number, filePath: string }
