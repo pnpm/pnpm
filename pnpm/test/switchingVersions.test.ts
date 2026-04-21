@@ -103,12 +103,15 @@ test('`pnpm version` routes through switchCliVersion to v11 when packageManager 
     packageManager: `pnpm@${version}`,
   })
 
-  const { stdout } = execPnpmSync(['version', '--help'], { env })
+  const { stdout, stderr } = execPnpmSync(['version'], { env })
+  const combined = stdout.toString() + stderr.toString()
 
-  // pnpm v11's native `version --help` starts with its own version header,
-  // which is what we'd see only if main() → switchCliVersion → v11 actually
-  // ran. The old argv[0] passthrough would have shown npm's help instead.
-  expect(stdout.toString()).toContain(`Version ${version}`)
+  // Only pnpm v11's native `version` command emits this error code when a
+  // bump argument is missing. npm's `version` would print the current
+  // package version instead, and pnpm v10 has no native version command —
+  // so seeing this marker proves main() → switchCliVersion actually ran
+  // and handed off to v11's native implementation.
+  expect(combined).toContain('ERR_PNPM_INVALID_VERSION_BUMP')
 })
 
 test('npm passthrough still fires when packageManager selects pnpm v11+ but switching is disabled via .npmrc', () => {
