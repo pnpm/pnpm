@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 import { parentPort } from 'node:worker_threads'
 
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
@@ -240,7 +241,20 @@ function calcIntegrity (buffer: Buffer): string {
 }
 
 function makeIgnoreFromPattern (pattern: string): (filename: string) => boolean {
-  const regex = new RegExp(pattern)
+  // `ignoreFilePattern` is a public field on FetchOptions, so callers that don't go
+  // through the binary-fetcher's validated `archiveFilters` path could still supply a
+  // bad regex. Convert the SyntaxError into a PnpmError with a stable code so it's
+  // actionable for users.
+  let regex: RegExp
+  try {
+    regex = new RegExp(pattern)
+  } catch (err: unknown) {
+    const detail = util.types.isNativeError(err) ? `: ${err.message}` : ''
+    throw new PnpmError(
+      'INVALID_IGNORE_FILE_PATTERN',
+      `Invalid ignoreFilePattern regex${detail}: ${pattern}`
+    )
+  }
   return (filename) => regex.test(filename)
 }
 

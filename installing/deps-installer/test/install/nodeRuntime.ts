@@ -226,6 +226,9 @@ test('installing Node.js runtime', async () => {
   for (const shim of ['npm', 'npx', 'corepack']) {
     expect(fs.existsSync(path.resolve('node_modules/.bin', shim))).toBe(false)
     expect(fs.existsSync(path.resolve('node_modules/.bin', `${shim}.cmd`))).toBe(false)
+    if (isWindows) {
+      expect(fs.existsSync(path.resolve('node_modules/.bin', `${shim}.ps1`))).toBe(false)
+    }
   }
 
   const lockfile = project.readLockfile()
