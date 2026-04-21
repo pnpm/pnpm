@@ -1,5 +1,14 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 1100.0.3
+
+### Patch Changes
+
+- Updated dependencies [421317c]
+  - @pnpm/store.cafs@1100.1.0
+  - @pnpm/lockfile.utils@1100.0.3
+  - @pnpm/lockfile.fs@1100.0.3
+
 ## 1100.0.2
 
 ### Patch Changes

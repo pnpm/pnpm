@@ -1,5 +1,12 @@
 # @pnpm/lockfile-utils
 
+## 1100.0.3
+
+### Patch Changes
+
+- @pnpm/fetching.pick-fetcher@1100.0.3
+- @pnpm/hooks.types@1100.0.3
+
 ## 1100.0.2
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cli.commands",
-  "version": "1100.0.3",
+  "version": "1100.0.4",
   "description": "Commands for pnpm CLI",
   "keywords": [
     "pnpm",

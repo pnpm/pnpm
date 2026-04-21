@@ -1,5 +1,28 @@
 # @pnpm/releasing.commands
 
+## 1100.2.0
+
+### Minor Changes
+
+- db81c32: `pnpm pack-app`: replaced the `--node-version` flag with `--runtime`, which takes a `<name>@<version>` spec (e.g. `--runtime node@22.0.0`). The corresponding `pnpm.app.nodeVersion` key in package.json was renamed to `pnpm.app.runtime` with the same syntax. Only `node` is supported today; the prefix leaves room for future runtimes (`bun`, `deno`).
+
+  The previous `--node-version` flag silently inherited from pnpm's global `node-version` rc setting (which controls which Node runs user scripts), causing the wrong Node build to be embedded in SEAs for users who had that rc key set.
+
+### Patch Changes
+
+- Updated dependencies [421317c]
+  - @pnpm/engine.runtime.node-resolver@1101.0.0
+  - @pnpm/installing.client@1100.0.4
+  - @pnpm/fetching.directory-fetcher@1100.0.4
+  - @pnpm/engine.runtime.commands@1100.0.4
+  - @pnpm/installing.commands@1100.1.2
+  - @pnpm/exec.lifecycle@1100.0.4
+  - @pnpm/fs.indexed-pkg-importer@1100.0.3
+  - @pnpm/lockfile.fs@1100.0.3
+  - @pnpm/config.reader@1101.1.1
+  - @pnpm/releasing.exportable-manifest@1100.0.2
+  - @pnpm/workspace.projects-filter@1100.0.4
+
 ## 1100.1.0
 
 ### Minor Changes

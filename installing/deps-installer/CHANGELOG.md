@@ -1,5 +1,33 @@
 # @pnpm/core
 
+## 1101.0.0
+
+### Patch Changes
+
+- Updated dependencies [421317c]
+  - @pnpm/worker@1100.1.0
+  - @pnpm/hooks.types@1100.0.3
+  - @pnpm/installing.package-requester@1101.0.0
+  - @pnpm/store.controller-types@1100.0.3
+  - @pnpm/agent.client@1.0.0
+  - @pnpm/building.after-install@1101.0.0
+  - @pnpm/installing.deps-restorer@1101.0.0
+  - @pnpm/building.during-install@1101.0.0
+  - @pnpm/exec.lifecycle@1100.0.4
+  - @pnpm/installing.deps-resolver@1100.0.4
+  - @pnpm/lockfile.utils@1100.0.3
+  - @pnpm/installing.context@1100.0.3
+  - @pnpm/installing.linking.modules-cleaner@1100.0.3
+  - @pnpm/deps.graph-hasher@1100.1.1
+  - @pnpm/lockfile.filtering@1100.0.3
+  - @pnpm/lockfile.fs@1100.0.3
+  - @pnpm/lockfile.preferred-versions@1100.0.4
+  - @pnpm/lockfile.to-pnp@1100.0.3
+  - @pnpm/lockfile.verification@1100.0.3
+  - @pnpm/lockfile.settings-checker@1100.0.3
+  - @pnpm/crypto.hash@1100.0.0
+  - @pnpm/fs.symlink-dependency@1100.0.1
+
 ## 1100.0.3
 
 ### Patch Changes

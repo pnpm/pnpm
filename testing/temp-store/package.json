@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/testing.temp-store",
-  "version": "1100.0.3",
+  "version": "1100.0.4",
   "description": "A temporary store for testing purposes",
   "keywords": [
     "pnpm",

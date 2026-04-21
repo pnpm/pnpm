@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.inspection.commands",
-  "version": "1100.1.2",
+  "version": "1100.1.3",
   "description": "The list, ll, why, and outdated commands of pnpm",
   "keywords": [
     "pnpm",

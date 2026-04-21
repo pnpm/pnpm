@@ -1,5 +1,14 @@
 # @pnpm/building.commands
 
+## 1100.0.4
+
+### Patch Changes
+
+- @pnpm/building.after-install@1101.0.0
+- @pnpm/installing.commands@1100.1.2
+- @pnpm/store.connection-manager@1100.0.4
+- @pnpm/config.reader@1101.1.1
+
 ## 1100.0.3
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.read-projects-context",
-  "version": "1100.0.2",
+  "version": "1100.0.3",
   "description": "Reads the current state of projects from modules manifest",
   "keywords": [
     "pnpm",

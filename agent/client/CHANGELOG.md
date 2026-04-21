@@ -1,5 +1,13 @@
 # @pnpm/agent.client
 
+## 1.0.0
+
+### Patch Changes
+
+- Updated dependencies [421317c]
+  - @pnpm/store.cafs@1100.1.0
+  - @pnpm/worker@1100.1.0
+
 ## 0.0.1
 
 ### Patch Changes

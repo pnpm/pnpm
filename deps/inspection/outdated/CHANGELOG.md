@@ -1,5 +1,14 @@
 # @pnpm/outdated
 
+## 1100.0.4
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.4
+- @pnpm/resolving.npm-resolver@1101.0.0
+- @pnpm/lockfile.utils@1100.0.3
+- @pnpm/lockfile.fs@1100.0.3
+
 ## 1100.0.3
 
 ### Patch Changes

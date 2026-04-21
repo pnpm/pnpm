@@ -1,5 +1,16 @@
 # @pnpm/default-resolver
 
+## 1100.0.4
+
+### Patch Changes
+
+- Updated dependencies [421317c]
+  - @pnpm/engine.runtime.node-resolver@1101.0.0
+  - @pnpm/engine.runtime.bun-resolver@1101.0.0
+  - @pnpm/engine.runtime.deno-resolver@1101.0.0
+  - @pnpm/hooks.types@1100.0.3
+  - @pnpm/resolving.npm-resolver@1101.0.0
+
 ## 1100.0.3
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/deps.graph-builder
 
+## 1100.0.3
+
+### Patch Changes
+
+- @pnpm/hooks.types@1100.0.3
+- @pnpm/store.controller-types@1100.0.3
+- @pnpm/lockfile.utils@1100.0.3
+- @pnpm/deps.graph-hasher@1100.1.1
+- @pnpm/lockfile.fs@1100.0.3
+
 ## 1100.0.2
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.projects-filter",
-  "version": "1100.0.3",
+  "version": "1100.0.4",
   "description": "Filters packages in a workspace",
   "keywords": [
     "pnpm",

@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 1101.1.1
+
+### Patch Changes
+
+- @pnpm/hooks.pnpmfile@1100.0.3
+
 ## 1101.1.0
 
 ### Minor Changes

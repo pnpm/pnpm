@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-mounter.daemon",
-  "version": "1100.0.3",
+  "version": "1100.0.4",
   "description": "Mounts a node_modules directory with FUSE",
   "keywords": [
     "pnpm",

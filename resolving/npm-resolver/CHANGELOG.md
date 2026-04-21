@@ -1,5 +1,14 @@
 # @pnpm/npm-resolver
 
+## 1101.0.0
+
+### Patch Changes
+
+- Updated dependencies [421317c]
+  - @pnpm/store.cafs@1100.1.0
+  - @pnpm/worker@1100.1.0
+  - @pnpm/crypto.hash@1100.0.0
+
 ## 1100.1.0
 
 ### Minor Changes

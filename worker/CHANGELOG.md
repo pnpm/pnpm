@@ -1,5 +1,19 @@
 # @pnpm/worker
 
+## 1100.1.0
+
+### Minor Changes
+
+- 421317c: Installing a Node.js runtime via `node@runtime:<version>` (including `pnpm env use` and `pnpm runtime set node`) no longer extracts the bundled `npm`, `npx`, and `corepack` from the Node.js archive. This cuts roughly half of the files pnpm has to hash, write to the CAS, and link during installation, making runtime installs noticeably faster. Users who still need `npm` can install it as a separate package.
+
+### Patch Changes
+
+- Updated dependencies [421317c]
+  - @pnpm/store.cafs@1100.1.0
+  - @pnpm/store.create-cafs-store@1100.0.3
+  - @pnpm/fs.hard-link-dir@1100.0.0
+  - @pnpm/fs.symlink-dependency@1100.0.1
+
 ## 1100.0.2
 
 ### Patch Changes

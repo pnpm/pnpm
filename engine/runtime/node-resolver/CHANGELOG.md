@@ -1,5 +1,15 @@
 # @pnpm/node.resolver
 
+## 1101.0.0
+
+### Major Changes
+
+- 421317c: Installing a Node.js runtime via `node@runtime:<version>` (including `pnpm env use` and `pnpm runtime set node`) no longer extracts the bundled `npm`, `npx`, and `corepack` from the Node.js archive. This cuts roughly half of the files pnpm has to hash, write to the CAS, and link during installation, making runtime installs noticeably faster. Users who still need `npm` can install it as a separate package.
+
+### Patch Changes
+
+- @pnpm/config.reader@1101.1.1
+
 ## 1100.0.3
 
 ### Patch Changes

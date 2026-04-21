@@ -1,5 +1,12 @@
 # @pnpm/audit
 
+## 1101.0.2
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1100.0.3
+- @pnpm/lockfile.fs@1100.0.3
+
 ## 1101.0.1
 
 ### Patch Changes

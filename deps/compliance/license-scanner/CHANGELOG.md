@@ -1,5 +1,13 @@
 # @pnpm/license-scanner
 
+## 1100.0.4
+
+### Patch Changes
+
+- @pnpm/store.pkg-finder@1100.0.4
+- @pnpm/lockfile.utils@1100.0.3
+- @pnpm/lockfile.fs@1100.0.3
+
 ## 1100.0.3
 
 ### Patch Changes

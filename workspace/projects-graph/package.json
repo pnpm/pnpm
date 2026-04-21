@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.projects-graph",
-  "version": "1100.0.2",
+  "version": "1100.0.3",
   "description": "Create a graph from an array of packages",
   "keywords": [
     "pnpm",
