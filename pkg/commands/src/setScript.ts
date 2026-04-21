@@ -1,11 +1,11 @@
-import { pick } from 'ramda'
 import path from 'node:path'
-import { renderHelp } from 'render-help'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { readPackageJsonFromDirRawSync } from '@pnpm/pkg-manifest.reader'
 import { writeProjectManifest } from '@pnpm/workspace.project-manifest-writer'
+import { pick } from 'ramda'
+import { renderHelp } from 'render-help'
 
 export const rcOptionsTypes = cliOptionsTypes
 

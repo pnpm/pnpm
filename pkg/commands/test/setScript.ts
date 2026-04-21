@@ -1,6 +1,6 @@
 import { expect, test } from '@jest/globals'
-import { readPackageJsonFromDirRawSync } from '@pnpm/pkg-manifest.reader'
 import { prepare } from '@pnpm/prepare'
+import { readPackageJsonFromDirRawSync } from '@pnpm/pkg-manifest.reader'
 import { setScript } from '../src/index.js'
 
 test('set-script adds a script to package.json', async () => {
