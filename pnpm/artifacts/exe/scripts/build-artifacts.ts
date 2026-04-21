@@ -29,7 +29,7 @@ if (!buildFullMatrix) {
 // argv[1], so nested `pnpm add node@runtime:<v>` calls also go through this
 // bundle rather than whatever pnpm happens to be on PATH.
 const pnpmBundle = path.join(pnpmRootDir, 'dist', 'pnpm.mjs')
-execa.sync(process.execPath, [pnpmBundle, ...packAppArgs], {
+execa.sync(process.execPath, [pnpmBundle, 'with', 'current', ...packAppArgs], {
   cwd: exeDir,
   stdio: 'inherit',
 })
