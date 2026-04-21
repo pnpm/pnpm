@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { afterEach, beforeEach, expect, test } from '@jest/globals'
 import { audit } from '@pnpm/deps.compliance.commands'
 import { fixtures } from '@pnpm/test-fixtures'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'

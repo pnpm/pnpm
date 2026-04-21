@@ -1,8 +1,4 @@
-import { jest } from '@jest/globals'
-import type {
-  PackageManifestLog,
-  StatsLog,
-} from '@pnpm/core-loggers'
+import { expect, jest, test } from '@jest/globals'
 import {
   addDependenciesToPackage,
   mutateModulesInSingleProject,
@@ -38,13 +34,13 @@ test('uninstall package with no dependencies', async () => {
     level: 'debug',
     name: 'pnpm:package-manifest',
     prefix: process.cwd(),
-  } as PackageManifestLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stats',
     prefix: process.cwd(),
     removed: 1,
-  } as StatsLog))
+  }))
   /* This should be fixed
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
@@ -54,7 +50,7 @@ test('uninstall package with no dependencies', async () => {
       name: 'is-negative',
       version: '2.1.0',
     },
-  } as RootLog))
+  }))
   */
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
@@ -62,7 +58,7 @@ test('uninstall package with no dependencies', async () => {
     updated: {
       dependencies: {},
     },
-  } as PackageManifestLog))
+  }))
 
   // uninstall does not remove packages from store
   // even if they become unreferenced

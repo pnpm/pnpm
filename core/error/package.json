@@ -35,6 +35,7 @@
     "@pnpm/constants": "workspace:*"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/error": "workspace:*"
   },
   "engines": {

@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { describe, expect, it, test } from '@jest/globals'
 import { fixtures } from '@pnpm/test-fixtures'
 import { symlinkDir } from 'symlink-dir'
 import { temporaryDirectory } from 'tempy'

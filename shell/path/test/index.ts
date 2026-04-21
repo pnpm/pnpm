@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { prependDirsToPath } from '@pnpm/shell.path'
 import PATH from 'path-name'
 

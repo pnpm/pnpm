@@ -1,4 +1,4 @@
-import { jest } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import type * as DetectLibc from 'detect-libc'
 
 const packageId = 'registry.npmjs.org/foo/1.0.0'

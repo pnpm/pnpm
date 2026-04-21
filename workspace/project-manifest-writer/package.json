@@ -38,6 +38,7 @@
     "write-yaml-file": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/workspace.project-manifest-writer": "workspace:*",
     "@types/write-file-atomic": "catalog:",
     "tempy": "catalog:"

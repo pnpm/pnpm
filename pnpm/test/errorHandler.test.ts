@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import getPort from 'get-port'

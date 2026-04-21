@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { filterLockfileByImporters } from '@pnpm/lockfile.filtering'
 import type { DepPath, ProjectId } from '@pnpm/types'

@@ -1,4 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts" />
+import { beforeAll, describe, expect, it, test } from '@jest/globals'
 import type {
   PeerDependencyIssuesByProjects,
   PkgIdWithPatchHash,

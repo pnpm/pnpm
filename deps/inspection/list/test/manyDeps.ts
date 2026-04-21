@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { list } from '@pnpm/deps.inspection.list'
 import { fixtures } from '@pnpm/test-fixtures'
 

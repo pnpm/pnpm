@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 
+import { expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
 

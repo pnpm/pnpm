@@ -37,6 +37,7 @@
     "ssri": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/ssri": "catalog:",

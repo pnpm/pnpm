@@ -40,6 +40,7 @@
     "ramda": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/lockfile.pruner": "workspace:*",
     "@types/ramda": "catalog:",
     "yaml-tag": "catalog:"

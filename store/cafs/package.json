@@ -45,6 +45,7 @@
     "strip-bom": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.cafs-types": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",

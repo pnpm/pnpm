@@ -49,6 +49,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@types/is-windows": "catalog:",

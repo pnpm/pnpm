@@ -38,6 +38,7 @@
     "tinyglobby": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/bins.resolver": "workspace:*",
     "@types/node": "catalog:",
     "tempy": "catalog:"

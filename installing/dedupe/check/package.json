@@ -37,6 +37,7 @@
     "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/installing.dedupe.check": "workspace:*"
   },
   "engines": {

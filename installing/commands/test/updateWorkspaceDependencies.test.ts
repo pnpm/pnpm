@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import type { ProjectRootDir } from '@pnpm/types'
 

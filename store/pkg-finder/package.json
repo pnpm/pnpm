@@ -38,6 +38,7 @@
     "@pnpm/store.index": "workspace:*"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/store.pkg-finder": "workspace:*"
   },
   "engines": {

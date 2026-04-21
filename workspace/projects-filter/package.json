@@ -43,6 +43,7 @@
     "ramda": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.projects-filter": "workspace:*",
     "@types/is-windows": "catalog:",

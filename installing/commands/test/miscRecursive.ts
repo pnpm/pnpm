@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import { add, install, remove, update } from '@pnpm/installing.commands'
 import type { LockfileFile } from '@pnpm/lockfile.types'

@@ -38,6 +38,7 @@
     "ramda": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/workspace.projects-graph": "workspace:*",
     "@types/ramda": "catalog:",
     "better-path-resolve": "catalog:"

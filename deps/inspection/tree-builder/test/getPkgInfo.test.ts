@@ -1,5 +1,7 @@
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
+
 import { getPkgInfo, type GetPkgInfoOpts } from '../src/getPkgInfo.js'
 
 test('getPkgInfo handles missing pkgSnapshot without crashing', () => {

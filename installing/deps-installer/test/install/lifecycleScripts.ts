@@ -1,9 +1,8 @@
 import fs from 'node:fs'
 import * as path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
-import type { LifecycleLog } from '@pnpm/core-loggers'
 import {
   addDependenciesToPackage,
   install,
@@ -228,7 +227,7 @@ test("reports child's output", async () => {
     name: 'pnpm:lifecycle',
     script: 'node postinstall',
     stage: 'postinstall',
-  } as LifecycleLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     depPath: '@pnpm.e2e/count-to-10@1.0.0',
     level: 'debug',
@@ -236,7 +235,7 @@ test("reports child's output", async () => {
     name: 'pnpm:lifecycle',
     stage: 'postinstall',
     stdio: 'stdout',
-  } as LifecycleLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     depPath: '@pnpm.e2e/count-to-10@1.0.0',
     level: 'debug',
@@ -244,7 +243,7 @@ test("reports child's output", async () => {
     name: 'pnpm:lifecycle',
     stage: 'postinstall',
     stdio: 'stdout',
-  } as LifecycleLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     depPath: '@pnpm.e2e/count-to-10@1.0.0',
     level: 'debug',
@@ -252,14 +251,14 @@ test("reports child's output", async () => {
     name: 'pnpm:lifecycle',
     stage: 'postinstall',
     stdio: 'stderr',
-  } as LifecycleLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     depPath: '@pnpm.e2e/count-to-10@1.0.0',
     exitCode: 0,
     level: 'debug',
     name: 'pnpm:lifecycle',
     stage: 'postinstall',
-  } as LifecycleLog))
+  }))
 })
 
 test("reports child's close event", async () => {
@@ -277,7 +276,7 @@ test("reports child's close event", async () => {
     level: 'debug',
     name: 'pnpm:lifecycle',
     stage: 'postinstall',
-  } as LifecycleLog))
+  }))
 })
 
 testOnNonWindows('lifecycle scripts have access to node-gyp', async () => {

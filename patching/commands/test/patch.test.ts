@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { beforeAll, beforeEach, describe, expect, it, jest, test } from '@jest/globals'
 import { install } from '@pnpm/installing.commands'
 import type { PatchCommandOptions, PatchRemoveCommandOptions } from '@pnpm/patching.commands'
 import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
@@ -659,7 +659,7 @@ describe('multiple versions', () => {
         type: 'confirm',
         name: 'applyToAll',
       },
-    ]]])
+    ]]] as unknown as Record<string, unknown>[])
 
     const patchDir = getPatchDirFromPatchOutput(output)
     const fileToPatch = path.join(patchDir, 'index.js')
@@ -765,7 +765,7 @@ describe('prompt to choose version', () => {
         type: 'confirm',
         name: 'applyToAll',
       },
-    ]]])
+    ]]] as unknown as Record<string, unknown>[])
 
     const patchDir = getPatchDirFromPatchOutput(output)
 
@@ -832,7 +832,7 @@ describe('prompt to choose version', () => {
         type: 'confirm',
         name: 'applyToAll',
       },
-    ]]])
+    ]]] as unknown as Record<string, unknown>[])
 
     const patchDir = getPatchDirFromPatchOutput(output)
 
@@ -1226,7 +1226,7 @@ describe('patch and commit in workspaces', () => {
         type: 'confirm',
         name: 'applyToAll',
       },
-    ]]])
+    ]]] as unknown as Record<string, unknown>[])
     const patchDir = getPatchDirFromPatchOutput(output)
     expect(fs.existsSync(patchDir)).toBe(true)
     expect(fs.readFileSync(path.join(patchDir, 'index.js'), 'utf8')).toContain('module.exports = \'Hi\'')

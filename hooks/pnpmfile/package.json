@@ -45,6 +45,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/fetching.fetcher-base": "workspace:*",
     "@pnpm/hooks.pnpmfile": "workspace:*",
     "@pnpm/logger": "workspace:*",

@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { afterAll, beforeAll, describe, expect, test } from '@jest/globals'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { gitHostedStoreIndexKey, StoreIndex, storeIndexKey } from '@pnpm/store.index'
 

@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 
+import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 
 import { execPnpmSync } from '../utils/index.js'

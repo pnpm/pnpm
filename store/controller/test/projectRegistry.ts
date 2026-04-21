@@ -2,6 +2,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
+import { describe, expect, it } from '@jest/globals'
 import { getRegisteredProjects, registerProject } from '@pnpm/store.controller'
 import { temporaryDirectory } from 'tempy'
 

@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { afterEach, expect, jest, test } from '@jest/globals'
 import { preparePackages } from '@pnpm/prepare'
 import { writeYamlFile } from 'write-yaml-file'
 

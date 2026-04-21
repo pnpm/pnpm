@@ -1,3 +1,5 @@
+import { expect, test } from '@jest/globals'
+
 import { createHelp } from '../src/cmd/help.js'
 
 test('print an error when help not found', () => {

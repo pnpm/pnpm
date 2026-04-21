@@ -35,6 +35,7 @@
     "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/building.policy": "workspace:*"
   },
   "engines": {

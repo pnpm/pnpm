@@ -48,6 +48,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/constants": "workspace:*",
     "@pnpm/deps.compliance.audit": "workspace:*",
     "@pnpm/logger": "workspace:*",

@@ -1,3 +1,5 @@
+import { expect, test } from '@jest/globals'
+
 import { getNodeArtifactAddress } from '../lib/getNodeArtifactAddress.js'
 
 test.each([

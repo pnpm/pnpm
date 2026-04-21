@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { describe, expect, test } from '@jest/globals'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 
 test('readWorkspaceManifest() works with a valid workspace file', async () => {

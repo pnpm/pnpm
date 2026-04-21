@@ -38,6 +38,7 @@
     "@pnpm/fetching.types": "workspace:*"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/crypto.shasums-file": "workspace:*"
   },
   "engines": {

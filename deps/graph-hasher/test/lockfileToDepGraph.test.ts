@@ -1,3 +1,4 @@
+import { describe, expect, test } from '@jest/globals'
 import { lockfileToDepGraph } from '@pnpm/deps.graph-hasher'
 import type { BinaryResolution } from '@pnpm/resolving.resolver-base'
 import type { DepPath } from '@pnpm/types'
