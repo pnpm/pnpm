@@ -20,12 +20,6 @@ import { renderHelp } from 'render-help'
 /** Minimum Node.js version that supports `node --build-sea`. */
 const MIN_BUILDER_VERSION = { major: 25, minor: 5 } as const
 
-// Range to download when the running Node is too old. Constrained to the
-// current major so we don't silently jump majors across releases, and pinned
-// above MIN_BUILDER_VERSION.minor so older point releases (e.g. 25.0.x) that
-// don't support `--build-sea` aren't picked.
-const DEFAULT_BUILDER_SPEC = `>=${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor}.0 <${MIN_BUILDER_VERSION.major + 1}.0.0`
-
 // Target OS names match `process.platform`. That keeps the CLI surface
 // consistent with pnpm's own `--os` flag (which also takes platform constants)
 // and with `supportedArchitectures.os` in pnpm-workspace.yaml.
@@ -61,16 +55,17 @@ export function help (): string {
       'Pack a CommonJS entry file into a standalone executable for one or more target platforms.\n\n' +
       'The executable embeds a Node.js binary via the Node.js Single Executable Applications API.\n' +
       `Requires Node.js v${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor}+ to perform ` +
-      'the injection. The running Node.js is used when it is new enough; otherwise, the ' +
-      `latest Node.js v${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor}+ in the ` +
-      `v${MIN_BUILDER_VERSION.major}.x line is downloaded automatically.\n\n` +
+      'the injection. SEA blobs are not compatible across Node.js minor releases, so the ' +
+      'builder Node.js must match the embedded runtime version exactly. The running Node.js ' +
+      'is used when it already matches; otherwise a host-arch Node.js of the embedded runtime ' +
+      'version is downloaded automatically.\n\n' +
       'Defaults for --entry, --target, --runtime, --output-dir, and --output-name can be ' +
       'set in the package.json under "pnpm.app". CLI flags override the config; --target entirely ' +
       'replaces the configured list so you can narrow it at invocation time.',
     url: docsUrl('pack-app'),
     usages: [
       'pnpm pack-app --entry dist/index.cjs --target linux-x64 --target win32-x64',
-      'pnpm pack-app --entry dist/index.cjs --target linux-x64-musl --runtime node@22',
+      `pnpm pack-app --entry dist/index.cjs --target linux-x64-musl --runtime node@${MIN_BUILDER_VERSION.major}`,
     ],
     descriptionLists: [
       {
@@ -89,7 +84,8 @@ export function help (): string {
           {
             description:
               'Runtime to embed in the output executables, as a "<name>@<version>" spec ' +
-              '(e.g. "node@22", "node@22.0.0", "node@lts"). Only "node" is supported today. ' +
+              `(e.g. "node@${MIN_BUILDER_VERSION.major}", "node@${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor}.0"). ` +
+              `Only "node" is supported today, and the version must be >= v${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor} (the minimum that supports --build-sea). ` +
               'Defaults to the running Node.js version.',
             name: '--runtime',
           },
@@ -186,8 +182,17 @@ export async function handler (opts: PackAppOptions, params: string[]): Promise<
   const fetch = createFetchFromRegistry(opts)
   const buildRoot = path.join(opts.pnpmHomeDir, 'pack-app')
 
-  const builderBin = await resolveBuilderBinary({ fetch, nodeDownloadMirrors: opts.nodeDownloadMirrors, buildRoot })
+  // Resolve the embedded target version first so the builder can be pinned to
+  // the same version. SEA blobs carry no version header and the serialized
+  // format has changed across Node.js minor releases (e.g. v25.7 added a
+  // ModuleFormat byte for ESM entry points), so a blob produced by a builder
+  // of a different version than the embedded runtime will fail deserialization
+  // at startup with an opaque native assertion.
   const resolvedTargetVersion = await resolveVersion(fetch, requestedNodeSpec, opts.nodeDownloadMirrors)
+  const builderBin = await resolveBuilderBinary({
+    buildRoot,
+    targetVersion: resolvedTargetVersion,
+  })
 
   const results: string[] = []
   for (const target of targets) {
@@ -243,21 +248,32 @@ export async function handler (opts: PackAppOptions, params: string[]): Promise<
 }
 
 /**
- * Returns a Node.js binary that supports `--build-sea`. Prefers the running
- * interpreter to avoid a download; falls back to downloading Node.js v25.
+ * Returns a Node.js binary that supports `--build-sea` AND produces a SEA
+ * blob the embedded runtime can deserialize. The second constraint forces the
+ * builder to match the target runtime version exactly: blobs are versioned by
+ * the writer's internal struct layout with no header, and Node bumps that
+ * layout in minor releases (e.g. v25.7 added a ModuleFormat byte for ESM
+ * entries), so a cross-version blob crashes at startup.
+ *
+ * Prefers the running interpreter when it already matches the target version;
+ * otherwise downloads the target version for the host platform.
  */
 async function resolveBuilderBinary (ctx: {
-  fetch: ReturnType<typeof createFetchFromRegistry>
-  nodeDownloadMirrors?: Record<string, string>
   buildRoot: string
+  targetVersion: string
 }): Promise<string> {
-  if (runningNodeCanBuildSea()) {
+  if (runningNodeCanBuildSea() && process.version === `v${ctx.targetVersion}`) {
     return process.execPath
   }
-  const version = await resolveVersion(ctx.fetch, DEFAULT_BUILDER_SPEC, ctx.nodeDownloadMirrors)
+  if (!builderVersionCanBuildSea(ctx.targetVersion)) {
+    throw new PnpmError('PACK_APP_RUNTIME_TOO_OLD',
+      `The embedded runtime "node@${ctx.targetVersion}" is older than Node.js v${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor}, which is the minimum version that supports --build-sea.`,
+      { hint: `Pass --runtime node@${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor}.0 (or newer) or set "pnpm.app.runtime" in package.json.` }
+    )
+  }
   return ensureNodeRuntime({
     buildRoot: ctx.buildRoot,
-    version,
+    version: ctx.targetVersion,
     platform: process.platform,
     arch: process.arch,
     // Pin libc to the host's. Otherwise a caller that had set
@@ -274,7 +290,11 @@ function hostLinuxLibc (): 'glibc' | 'musl' | undefined {
 }
 
 function runningNodeCanBuildSea (): boolean {
-  const [majorStr, minorStr] = process.version.slice(1).split('.')
+  return builderVersionCanBuildSea(process.version.slice(1))
+}
+
+function builderVersionCanBuildSea (version: string): boolean {
+  const [majorStr, minorStr] = version.split('.')
   const major = Number(majorStr)
   const minor = Number(minorStr)
   return (
@@ -393,7 +413,7 @@ function parseRuntime (spec: string): ParsedRuntime {
   const match = RUNTIME_PATTERN.exec(spec)
   if (!match) {
     throw new PnpmError('PACK_APP_INVALID_RUNTIME',
-      `Invalid runtime "${spec}". Expected format: <name>@<version> (supported runtimes: ${SUPPORTED_RUNTIMES.join(', ')}; e.g. "node@22.0.0", "node@lts").`)
+      `Invalid runtime "${spec}". Expected format: <name>@<version> (supported runtimes: ${SUPPORTED_RUNTIMES.join(', ')}; e.g. "node@${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor}.0").`)
   }
   return { name: match[1] as ParsedRuntime['name'], version: match[2] }
 }

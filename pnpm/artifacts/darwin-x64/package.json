@@ -17,7 +17,7 @@
     "pnpm"
   ],
   "scripts": {
-    "prepublishOnly": "test -f pnpm || (echo 'Error: pnpm is missing' && exit 1)"
+    "prepublishOnly": "node ../verify-binary.mjs darwin x64"
   },
   "devDependencies": {
     "@pnpm/macos-x64": "workspace:*"

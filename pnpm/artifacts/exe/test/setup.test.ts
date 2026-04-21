@@ -17,6 +17,11 @@ const platformBin = path.join(
   isWindows ? 'pnpm.exe' : 'pnpm'
 )
 const hasPlatformBinary = fs.existsSync(platformBin)
+// dist/ is staged by the build-artifacts flow (not by `pn compile`), so
+// ordinary test runs don't have it. The hardlink test is fine without it
+// (existence + inode only), but the -v test actually executes the SEA, which
+// loads dist/pnpm.mjs from next to the binary and would fail here.
+const hasStagedBundle = fs.existsSync(path.join(exeDir, 'dist', 'pnpm.mjs'))
 
 describe('exePlatformPkgName', () => {
   test('uses linuxstatic- prefix for linux + musl libc family', () => {
@@ -68,4 +73,18 @@ test('prepare writes correct content for all bin files', () => {
 
   const pnpmBin = path.join(exeDir, isWindows ? 'pnpm.exe' : 'pnpm')
   expect(fs.statSync(pnpmBin).ino).toBe(fs.statSync(platformBin).ino)
+});
+
+// Actually execute the hardlinked pnpm binary. Existence and inode-match are
+// not enough — a SEA blob built by a Node.js version that differs from the
+// embedded runtime deserializes on startup with a native assertion and an
+// abort signal, not a clean error exit (see rc.4 regression). Running `-v`
+// verifies the SEA payload is actually readable by the embedded Node.
+(hasPlatformBinary && hasStagedBundle ? test : test.skip)('pnpm -v runs and prints a semver', () => {
+  execFileSync(process.execPath, [path.join(exeDir, 'prepare.js')], { cwd: exeDir })
+  execFileSync(process.execPath, [path.join(exeDir, 'setup.js')], { cwd: exeDir })
+
+  const pnpmBin = path.join(exeDir, isWindows ? 'pnpm.exe' : 'pnpm')
+  const stdout = execFileSync(pnpmBin, ['-v'], { encoding: 'utf8', timeout: 30_000 }).trim()
+  expect(stdout).toMatch(/^\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?$/)
 })

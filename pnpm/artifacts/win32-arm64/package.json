@@ -17,7 +17,7 @@
     "pnpm.exe"
   ],
   "scripts": {
-    "prepublishOnly": "test -f pnpm.exe || (echo 'Error: pnpm.exe is missing' && exit 1)"
+    "prepublishOnly": "node ../verify-binary.mjs win32 arm64"
   },
   "devDependencies": {
     "@pnpm/win-arm64": "workspace:*"
