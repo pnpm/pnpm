@@ -1,5 +1,6 @@
 ---
 "@pnpm/engine.pm.commands": patch
+"@pnpm/exe": patch
 "pnpm": patch
 ---
 

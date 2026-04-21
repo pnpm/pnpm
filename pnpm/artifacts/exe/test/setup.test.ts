@@ -2,17 +2,18 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { familySync } from 'detect-libc'
+
 // @ts-expect-error — JS helper without type declarations
 import { exePlatformPkgName } from '../platform-pkg-name.js'
 
 const exeDir = path.resolve(import.meta.dirname, '..')
 const platform = process.platform
 const isWindows = platform === 'win32'
-// The test doesn't create a musl libc marker, so setup.js's detect-libc call
-// reports the host's native libc; on a glibc Linux CI box that resolves to the
-// glibc package name. Non-Linux hosts don't have a musl variant.
+// Match setup.js's detect-libc call so the fixture path lines up with the
+// package `setup.js` actually resolves on this host (including musl).
 const platformBin = path.join(
-  exeDir, 'node_modules', exePlatformPkgName(platform, process.arch, null),
+  exeDir, 'node_modules', exePlatformPkgName(platform, process.arch, familySync()),
   isWindows ? 'pnpm.exe' : 'pnpm'
 )
 const hasPlatformBinary = fs.existsSync(platformBin)

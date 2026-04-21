@@ -9,6 +9,7 @@ import { prependDirsToPath } from '@pnpm/shell.path'
 import { getRegisteredProjects } from '@pnpm/store.controller'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import spawn from 'cross-spawn'
+import { familySync } from 'detect-libc'
 
 const require = createRequire(import.meta.dirname)
 const pnpmTarballPath = require.resolve('@pnpm/tgz-fixtures/tgz/pnpm-9.1.0.tgz')
@@ -511,10 +512,11 @@ describe('linkExePlatformBinary', () => {
   const platform = process.platform
   const arch = platform === 'win32' && process.arch === 'ia32' ? 'x86' : process.arch
   const executable = platform === 'win32' ? 'pnpm.exe' : 'pnpm'
-  // NOTE: the test layout doesn't set up a musl libc marker on Linux, so the
-  // glibc platform package is what gets linked here. Matching what
-  // linkExePlatformBinary detects via detect-libc.
-  const platformPkgName = exePlatformPkgDirName(platform, arch, null)
+  // Match the libc family linkExePlatformBinary detects at runtime so the
+  // fixture directory matches what the implementation looks up, including on
+  // musl hosts (Alpine CI).
+  const libcFamily = familySync()
+  const platformPkgName = exePlatformPkgDirName(platform, arch, libcFamily)
 
   test('links platform binary in pnpm symlinked node_modules layout', () => {
     const dir = tempDir(false)
@@ -605,10 +607,7 @@ describe('linkExePlatformBinary', () => {
 
     // Simulate a future release where only the new-scheme platform package
     // directory exists under the virtual store — the legacy name is absent.
-    // As with the other cases in this suite, the test host is assumed to be
-    // non-musl Linux (or a non-Linux OS), so exePlatformPkgDirNameNext does not
-    // append `-musl`.
-    const nextPkgName = `exe.${platform}-${arch}`
+    const nextPkgName = exePlatformPkgDirNameNext(platform, arch, libcFamily)
     const exeDir = path.join(dir, 'node_modules', '@pnpm', 'exe')
     const platformDir = path.join(dir, 'node_modules', '@pnpm', nextPkgName)
 
