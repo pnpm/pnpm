@@ -370,15 +370,15 @@ export function exePlatformPkgDirNameNext (
 // that linking here, checking both naming schemes so self-update works across
 // the rename.
 export function linkExePlatformBinary (installDir: string): void {
-  const platform = process.platform
-  const arch = process.arch
-  const libcFamily = familySync()
   const exePkgDir = path.join(installDir, 'node_modules', '@pnpm', 'exe')
   if (!fs.existsSync(exePkgDir)) return
   // In pnpm's symlinked node_modules layout, the platform package is not hoisted
   // to the top-level node_modules. It's a dependency of @pnpm/exe and lives as a
   // sibling in the virtual store. Resolve through the @pnpm/exe symlink to find it.
   const exeRealDir = fs.realpathSync(exePkgDir)
+  const platform = process.platform
+  const arch = process.arch
+  const libcFamily = familySync()
   const executable = platform === 'win32' ? 'pnpm.exe' : 'pnpm'
   const candidateDirNames = [
     exePlatformPkgDirName(platform, arch, libcFamily),
