@@ -280,6 +280,41 @@ describe('extractZipToTarget security', () => {
       expect(fs.existsSync(path.join(targetDir, 'bin/npm'))).toBe(false)
     })
 
+    it('still honors ignoreEntry when the archive contains directory entries (regression for #11325)', async () => {
+      // Real Node.js Windows zips include directory entries in addition to file
+      // entries. AdmZip's extractEntryTo(dirEntry, …) expands to every descendant
+      // via getEntryChildren, which previously bypassed the ignoreEntry filter.
+      // Covering that path explicitly here.
+      const targetDir = temporaryDirectory()
+      const zip = new AdmZip()
+      zip.addFile('node-v20.0.0/', Buffer.alloc(0))
+      zip.addFile('node-v20.0.0/node.exe', Buffer.from('binary'))
+      zip.addFile('node-v20.0.0/node_modules/', Buffer.alloc(0))
+      zip.addFile('node-v20.0.0/node_modules/npm/', Buffer.alloc(0))
+      zip.addFile('node-v20.0.0/node_modules/npm/package.json', Buffer.from('{}'))
+      zip.addFile('node-v20.0.0/node_modules/corepack/', Buffer.alloc(0))
+      zip.addFile('node-v20.0.0/node_modules/corepack/package.json', Buffer.from('{}'))
+      const zipBuffer = zip.toBuffer()
+      const integrity = ssri.fromData(zipBuffer).toString()
+      const mockFetch = createMockFetch(zipBuffer)
+
+      await downloadAndUnpackZip(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        mockFetch as any,
+        {
+          url: 'https://example.com/node.zip',
+          integrity,
+          basename: 'node-v20.0.0',
+          ignoreEntry: /^node_modules\/(?:npm|corepack)(?:\/|$)/,
+        },
+        targetDir
+      )
+
+      expect(fs.existsSync(path.join(targetDir, 'node.exe'))).toBe(true)
+      expect(fs.existsSync(path.join(targetDir, 'node_modules/npm'))).toBe(false)
+      expect(fs.existsSync(path.join(targetDir, 'node_modules/corepack'))).toBe(false)
+    })
+
     it('strips /g /y flags from ignoreEntry so .test() is not stateful across entries', async () => {
       const targetDir = temporaryDirectory()
       const zip = new AdmZip()
