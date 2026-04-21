@@ -171,6 +171,12 @@ export interface AuditConfig {
 export interface PnpmSettings {
   npmrcAuthFile?: string
   registries?: Registries
+  /**
+   * User-defined named-registry aliases mapped to a registry URL. Enables
+   * vlt-style `<alias>:<pkg>` specifiers. pnpm ships with `gh` as a built-in
+   * default pointing at GitHub Packages; this map overrides and extends it.
+   */
+  namedRegistries?: Record<string, string>
   configDependencies?: ConfigDependencies
   allowBuilds?: Record<string, boolean | string>
   overrides?: Record<string, string>

@@ -9,6 +9,7 @@ import { type LocalResolveResult, resolveFromLocal } from '@pnpm/resolving.local
 import {
   createNpmResolver,
   type JsrResolveResult,
+  type NamedRegistryResolveResult,
   type NpmResolveResult,
   type PackageMeta,
   type PackageMetaCache,
@@ -38,6 +39,7 @@ export interface CustomResolverResolveResult extends ResolveResult {
 export type DefaultResolveResult =
   | NpmResolveResult
   | JsrResolveResult
+  | NamedRegistryResolveResult
   | GitResolveResult
   | LocalResolveResult
   | TarballResolveResult
@@ -91,7 +93,7 @@ export function createResolver (
     customResolvers?: CustomResolver[]
   }
 ): { resolve: DefaultResolver, clearCache: () => void } {
-  const { resolveFromNpm, resolveFromJsr, clearCache } = createNpmResolver(fetchFromRegistry, getAuthHeader, pnpmOpts)
+  const { resolveFromNpm, resolveFromJsr, resolveFromNamedRegistry, clearCache } = createNpmResolver(fetchFromRegistry, getAuthHeader, pnpmOpts)
   const resolveFromGit = createGitResolver(pnpmOpts)
   const _resolveFromLocal = resolveFromLocal.bind(null, {
     preserveAbsolutePaths: pnpmOpts.preserveAbsolutePaths,
@@ -107,6 +109,7 @@ export function createResolver (
       const resolution = await _resolveFromCustomResolvers?.(wantedDependency, opts) ??
         await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions) ??
         await resolveFromJsr(wantedDependency, opts as ResolveFromNpmOptions) ??
+        await resolveFromNamedRegistry(wantedDependency, opts as ResolveFromNpmOptions) ??
         (wantedDependency.bareSpecifier && (
           await resolveFromGit(wantedDependency as { bareSpecifier: string }, opts) ??
           await resolveFromTarball(fetchFromRegistry, wantedDependency as { bareSpecifier: string }) ??
