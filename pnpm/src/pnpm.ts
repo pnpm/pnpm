@@ -1,4 +1,3 @@
-'use strict'
 // Avoid "Possible EventEmitter memory leak detected" warnings
 // because it breaks pnpm's CLI output
 process.setMaxListeners(0)
@@ -44,7 +43,15 @@ const argv = process.argv.slice(2)
   case 'view':
   case 'whoami':
   case 'xmas':
-    await passThruToNpm()
+    // When the project's packageManager field selects pnpm v11 or newer, skip
+    // the legacy npm passthrough: those pnpm versions implement these
+    // commands natively, and passing through first would bypass main()'s
+    // switchCliVersion and hand control to npm instead of the wanted pnpm.
+    if (await shouldSkipNpmPassthrough()) {
+      await runPnpm()
+    } else {
+      await passThruToNpm()
+    }
     break
   default:
     await runPnpm()
@@ -66,4 +73,11 @@ async function passThruToNpm (): Promise<void> {
   const { runNpm } = await import('./runNpm.js')
   const { status } = await runNpm(argv)
   process.exit(status!)
+}
+
+async function shouldSkipNpmPassthrough (): Promise<boolean> {
+  // Lazy-loaded so the extra fs/path work only happens on the passthrough
+  // branch, preserving cold-start for everything else.
+  const { shouldSkipNpmPassthrough: decide } = await import('./readWantedPnpmMajor.js')
+  return decide(process.env as { COREPACK_ROOT?: string, npm_config_manage_package_manager_versions?: string })
 }
