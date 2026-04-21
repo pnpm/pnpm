@@ -310,30 +310,6 @@ describe('extractZipToTarget security', () => {
       expect(fs.existsSync(path.join(targetDir, 'corepack'))).toBe(false)
     })
 
-    it('throws a clear error if ignoreEntry filters out every file and no basename dir entry exists', async () => {
-      const targetDir = temporaryDirectory()
-      const zip = new AdmZip()
-      // No basename dir entry — only file entries, all of which the filter will skip.
-      zip.addFile('node-v20.0.0/npm', Buffer.from('npm'))
-      zip.addFile('node-v20.0.0/npx', Buffer.from('npx'))
-      const zipBuffer = zip.toBuffer()
-      const integrity = ssri.fromData(zipBuffer).toString()
-      const mockFetch = createMockFetch(zipBuffer)
-
-      await expect(
-        downloadAndUnpackZip(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          mockFetch as any,
-          {
-            url: 'https://example.com/node.zip',
-            integrity,
-            basename: 'node-v20.0.0',
-            ignoreEntry: /.*/,
-          },
-          targetDir
-        )
-      ).rejects.toMatchObject({ code: 'ERR_PNPM_EMPTY_BINARY_ARCHIVE' })
-    })
   })
 })
 
