@@ -511,14 +511,10 @@ describe('linkExePlatformBinary', () => {
   const platform = process.platform
   const arch = platform === 'win32' && process.arch === 'ia32' ? 'x86' : process.arch
   const executable = platform === 'win32' ? 'pnpm.exe' : 'pnpm'
-  const osSegment =
-    platform === 'darwin' ? 'macos'
-      : platform === 'win32' ? 'win'
-        : platform
   // NOTE: the test layout doesn't set up a musl libc marker on Linux, so the
   // glibc platform package is what gets linked here. Matching what
   // linkExePlatformBinary detects via detect-libc.
-  const platformPkgName = `${osSegment}-${arch}`
+  const platformPkgName = exePlatformPkgDirName(platform, arch, null)
 
   test('links platform binary in pnpm symlinked node_modules layout', () => {
     const dir = tempDir(false)

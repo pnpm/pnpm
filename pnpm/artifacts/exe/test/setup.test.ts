@@ -7,17 +7,12 @@ import { exePlatformPkgName } from '../platform-pkg-name.js'
 
 const exeDir = path.resolve(import.meta.dirname, '..')
 const platform = process.platform
-const arch = platform === 'win32' && process.arch === 'ia32' ? 'x86' : process.arch
 const isWindows = platform === 'win32'
-const osSegment =
-  platform === 'darwin' ? 'macos'
-    : platform === 'win32' ? 'win'
-      : platform
 // The test doesn't create a musl libc marker, so setup.js's detect-libc call
 // reports the host's native libc; on a glibc Linux CI box that resolves to the
 // glibc package name. Non-Linux hosts don't have a musl variant.
 const platformBin = path.join(
-  exeDir, 'node_modules', '@pnpm', `${osSegment}-${arch}`,
+  exeDir, 'node_modules', exePlatformPkgName(platform, process.arch, null),
   isWindows ? 'pnpm.exe' : 'pnpm'
 )
 const hasPlatformBinary = fs.existsSync(platformBin)

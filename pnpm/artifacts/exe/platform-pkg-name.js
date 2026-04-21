@@ -5,10 +5,14 @@
 // detect-libc call — so the musl branch is unit-testable without mocking.
 export function exePlatformPkgName(platform, arch, libcFamily) {
   const normalizedArch = platform === 'win32' && arch === 'ia32' ? 'x86' : arch
-  const osSegment =
-    platform === 'darwin' ? 'macos'
-    : platform === 'win32' ? 'win'
-    : platform === 'linux' && libcFamily === 'musl' ? 'linuxstatic'
-    : platform
-  return `@pnpm/${osSegment}-${normalizedArch}`
+  return `@pnpm/${legacyOsSegment(platform, libcFamily)}-${normalizedArch}`
+}
+
+function legacyOsSegment(platform, libcFamily) {
+  switch (platform) {
+    case 'darwin': return 'macos'
+    case 'win32': return 'win'
+    case 'linux': return libcFamily === 'musl' ? 'linuxstatic' : 'linux'
+    default: return platform
+  }
 }

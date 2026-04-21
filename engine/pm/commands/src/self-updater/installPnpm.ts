@@ -334,12 +334,16 @@ export function exePlatformPkgDirName (
   libcFamily: string | null
 ): string {
   const normalizedArch = platform === 'win32' && arch === 'ia32' ? 'x86' : arch
-  const osSegment =
-    platform === 'darwin' ? 'macos'
-      : platform === 'win32' ? 'win'
-        : platform === 'linux' && libcFamily === 'musl' ? 'linuxstatic'
-          : platform
-  return `${osSegment}-${normalizedArch}`
+  return `${legacyOsSegment(platform, libcFamily)}-${normalizedArch}`
+}
+
+function legacyOsSegment (platform: NodeJS.Platform, libcFamily: string | null): string {
+  switch (platform) {
+    case 'darwin': return 'macos'
+    case 'win32': return 'win'
+    case 'linux': return libcFamily === 'musl' ? 'linuxstatic' : 'linux'
+    default: return platform
+  }
 }
 
 /**
