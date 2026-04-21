@@ -9,15 +9,21 @@ const pnpmRootDir = path.resolve(exeDir, '..', '..')
 
 // On Intel Mac we only build the three baseline targets to keep dev-local runs
 // fast. CI (Linux) and M1 Macs produce the full eight-target matrix. The
-// defaults (entry, outputDir, outputName, nodeVersion, targets) live in the
-// "pnpm.app" object of pnpm/artifacts/exe/package.json — CLI --target flags
-// replace that list when we want to narrow it.
+// defaults (entry, outputDir, outputName, targets) live in the "pnpm.app"
+// object of pnpm/artifacts/exe/package.json — CLI --target flags replace that
+// list when we want to narrow it.
 const isM1Mac = process.platform === 'darwin' && process.arch === 'arm64'
 const buildFullMatrix = process.platform === 'linux' || isM1Mac
 
 const narrowTargets = ['win32-x64', 'linux-x64', 'darwin-x64']
 
-const packAppArgs = ['pack-app']
+// nodeVersion is passed on the CLI rather than from pnpm.app because pnpm's
+// global `node-version` rc setting (which controls which Node runs user
+// scripts) leaks into Config['nodeVersion'] and overrides pnpm.app.nodeVersion.
+// The CLI value always wins, so we pin the embedded Node explicitly here.
+const EMBEDDED_NODE_VERSION = '25.6.1'
+
+const packAppArgs = ['pack-app', '--node-version', EMBEDDED_NODE_VERSION]
 if (!buildFullMatrix) {
   for (const target of narrowTargets) {
     packAppArgs.push('--target', target)
