@@ -5269,9 +5269,6 @@ importers:
       version-selector-type:
         specifier: 'catalog:'
         version: 3.0.0
-      which:
-        specifier: 'catalog:'
-        version: '@pnpm/which@3.0.1'
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -5321,9 +5318,6 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.31.1
-      '@types/which':
-        specifier: 'catalog:'
-        version: 3.0.4
       '@types/yarnpkg__lockfile':
         specifier: 'catalog:'
         version: 1.1.9
