@@ -132,14 +132,13 @@ interface RegistryInfo {
  * Follows {@link https://docs.npmjs.com/cli/v10/configuring-npm/npmrc#auth-related-configuration}.
  */
 function findRegistryInfo (
-  { name }: ExportedManifest,
+  { name, registry: manifestRegistry }: ExportedManifest & { registry?: string },
   { configByUri, registries }: Pick<Config, 'configByUri' | 'registries'>
 ): Partial<RegistryInfo> {
-  // eslint-disable-next-line regexp/no-unused-capturing-group
-  const scopedMatches = /@(?<scope>[^/]+)\/(?<slug>[^/]+)/.exec(name)
+  const scopedMatches = /@(?<scope>[^/]+)\/[^/]+/.exec(name)
 
   const registryName = scopedMatches?.groups ? `@${scopedMatches.groups.scope}` : 'default'
-  const nonNormalizedRegistry = registries[registryName] ?? registries.default
+  const nonNormalizedRegistry = manifestRegistry ?? registries[registryName] ?? registries.default
 
   const supportedRegistryInfo = parseSupportedRegistryUrl(nonNormalizedRegistry)
   if (!supportedRegistryInfo) {
