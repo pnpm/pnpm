@@ -43,6 +43,7 @@ const DEFAULT_OPTIONS = {
 
 test('globally installed package is linked with active version of Node.js', async () => {
   const nodeExecPath = await getNodeExecPath()
+  if (nodeExecPath == null) throw new Error('Node.js executable was not found')
   prepare()
   await add.handler({
     ...DEFAULT_OPTIONS,

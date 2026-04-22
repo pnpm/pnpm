@@ -268,7 +268,7 @@ when running add/update with the --workspace option')
   }
   if (opts.global && opts.pnpmHomeDir != null) {
     const nodeExecPath = await getNodeExecPath()
-    if (isSubdir(opts.pnpmHomeDir, nodeExecPath)) {
+    if (nodeExecPath != null && isSubdir(opts.pnpmHomeDir, nodeExecPath)) {
       installOpts['nodeExecPath'] = nodeExecPath
     }
   }

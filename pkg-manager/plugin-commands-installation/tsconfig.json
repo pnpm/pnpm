@@ -25,6 +25,9 @@
       "path": "../../catalogs/types"
     },
     {
+      "path": "../../cli/cli-meta"
+    },
+    {
       "path": "../../cli/cli-utils"
     },
     {

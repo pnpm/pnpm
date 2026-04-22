@@ -5754,6 +5754,9 @@ importers:
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types
+      '@pnpm/cli-meta':
+        specifier: workspace:*
+        version: link:../../cli/cli-meta
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../../cli/cli-utils
