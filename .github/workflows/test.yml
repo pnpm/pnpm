@@ -53,7 +53,7 @@ jobs:
       id: test-scope
       shell: bash
       run: |
-        if [[ "${{ github.ref_name }}" == "main" || "${{ github.ref_name }}" == "chore/update-lockfile" ]]; then
+        if [[ "${{ github.ref_name }}" == "main" || "${{ github.ref_name }}" == "chore/update-lockfile" || "${{ github.ref_name }}" == release/* ]]; then
           echo "script=ci:test-all" >> "$GITHUB_OUTPUT"
           echo "scope=all" >> "$GITHUB_OUTPUT"
         else
