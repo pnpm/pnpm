@@ -52,6 +52,34 @@ test('overrides are added for vulnerable dependencies', async () => {
   expect(manifest.minimumReleaseAgeExclude).not.toContain('timespan@0.0.0')
 })
 
+test('minimumReleaseAgeExclude entries are not added when minimumReleaseAgeBypass is false', async () => {
+  const tmp = f.prepare('has-vulnerabilities')
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
+
+  const { exitCode, output } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    minimumReleaseAge: 1440,
+    minimumReleaseAgeBypass: false,
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+  })
+
+  expect(exitCode).toBe(0)
+  expect(output).toMatch(/Run "pnpm install"/)
+  expect(output).not.toContain('minimumReleaseAgeExclude')
+
+  const manifest = readYamlFileSync<{ overrides?: Record<string, string>, minimumReleaseAgeExclude?: string[] }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  // Overrides should still be added
+  expect(manifest.overrides?.['axios@<=0.18.0']).toBe('^0.18.1')
+  // But minimumReleaseAgeExclude should NOT be present
+  expect(manifest.minimumReleaseAgeExclude).toBeUndefined()
+})
+
 test('no overrides are added if no vulnerabilities are found', async () => {
   const tmp = f.prepare('fixture')
 
