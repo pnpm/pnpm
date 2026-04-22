@@ -89,8 +89,7 @@
     "p-limit": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:",
-    "version-selector-type": "catalog:",
-    "which": "catalog:"
+    "version-selector-type": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -113,7 +112,6 @@
     "@types/normalize-path": "catalog:",
     "@types/proxyquire": "catalog:",
     "@types/ramda": "catalog:",
-    "@types/which": "catalog:",
     "@types/yarnpkg__lockfile": "catalog:",
     "@types/zkochan__table": "catalog:",
     "ci-info": "catalog:",
