@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.inspection.tree-builder",
-  "version": "1100.0.1",
+  "version": "1100.0.3",
   "description": "Creates a dependencies hierarchy for a symlinked `node_modules`",
   "keywords": [
     "pnpm",
@@ -55,6 +55,7 @@
     "semver": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/constants": "workspace:*",
     "@pnpm/deps.inspection.tree-builder": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",

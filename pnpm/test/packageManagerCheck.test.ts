@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
 
@@ -245,6 +246,57 @@ test('devEngines.packageManager takes precedence over packageManager field', asy
   expect(status).toBe(1)
   expect(stderr.toString()).toContain('This project is configured to use 0.0.1 of pnpm')
   expect(stderr.toString()).toContain('"packageManager" will be ignored')
+})
+
+test('no warning when packageManager and devEngines.packageManager specify the same exact version', async () => {
+  prepare({
+    packageManager: 'pnpm@1.2.3',
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '1.2.3',
+        onFail: 'ignore',
+      },
+    },
+  })
+
+  const { stderr } = execPnpmSync(['install'])
+
+  expect(stderr.toString()).not.toContain('Cannot use both')
+})
+
+test('warns when packageManager specifies a different package manager from devEngines.packageManager', async () => {
+  prepare({
+    packageManager: 'yarn@1.2.3',
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '1.2.3',
+        onFail: 'ignore',
+      },
+    },
+  })
+
+  const { stderr } = execPnpmSync(['install'])
+
+  expect(stderr.toString()).toContain('Cannot use both "packageManager" and "devEngines.packageManager"')
+})
+
+test('warns when packageManager version does not match the devEngines.packageManager version string exactly', async () => {
+  prepare({
+    packageManager: 'pnpm@1.2.3',
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '>=1.0.0',
+        onFail: 'ignore',
+      },
+    },
+  })
+
+  const { stderr } = execPnpmSync(['install'])
+
+  expect(stderr.toString()).toContain('Cannot use both "packageManager" and "devEngines.packageManager"')
 })
 
 test('pmOnFail=ignore via env var bypasses the devEngines.packageManager check', async () => {

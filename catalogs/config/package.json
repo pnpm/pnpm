@@ -35,6 +35,7 @@
     "@pnpm/error": "workspace:*"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/catalogs.config": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/workspace.workspace-manifest-reader": "workspace:*"

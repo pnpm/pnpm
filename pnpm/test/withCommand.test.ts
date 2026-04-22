@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import { writeJsonFileSync } from 'write-json-file'
 

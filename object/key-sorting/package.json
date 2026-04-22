@@ -36,6 +36,7 @@
     "sort-keys": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/object.key-sorting": "workspace:*"
   },
   "engines": {

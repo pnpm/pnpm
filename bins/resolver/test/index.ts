@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 
 test('getBinsFromPackageManifest()', async () => {

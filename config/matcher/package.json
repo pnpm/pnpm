@@ -37,6 +37,7 @@
     "escape-string-regexp": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/config.matcher": "workspace:*"
   },
   "engines": {

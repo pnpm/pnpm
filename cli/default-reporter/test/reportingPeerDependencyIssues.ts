@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { toOutput$ } from '@pnpm/cli.default-reporter'
 import { peerDependencyIssuesLogger } from '@pnpm/core-loggers'
 import {

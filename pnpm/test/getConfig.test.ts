@@ -1,8 +1,8 @@
-/// <reference path="../../../__typings__/index.d.ts"/>
+/// <reference path="../../__typings__/index.d.ts"/>
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 
 import { calcPnpmfilePathsOfPluginDeps, getConfig } from '../src/getConfig.js'

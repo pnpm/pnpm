@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.linking.real-hoist",
-  "version": "1100.0.1",
+  "version": "1100.0.3",
   "description": "Hoists dependencies in a node_modules created by pnpm",
   "keywords": [
     "pnpm",
@@ -38,6 +38,7 @@
     "@yarnpkg/nm": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/installing.linking.real-hoist": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",

@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { toOutput$ } from '@pnpm/cli.default-reporter'
 import { lifecycleLogger } from '@pnpm/core-loggers'
 import { createStreamParser } from '@pnpm/logger'

@@ -1,3 +1,5 @@
+import { expect, test } from '@jest/globals'
+
 import { isStrictlyKebabCase } from '../src/index.js'
 
 test('kebab-case names with more than 1 words should satisfy', () => {

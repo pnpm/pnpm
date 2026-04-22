@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.make-dedicated-lockfile",
-  "version": "1100.0.2",
+  "version": "1100.0.4",
   "description": "Creates a dedicated lockfile for a subset of workspace projects",
   "keywords": [
     "pnpm",
@@ -47,6 +47,7 @@
     "rename-overwrite": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/lockfile.make-dedicated-lockfile": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "catalog:",

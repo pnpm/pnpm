@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolving.npm-resolver",
-  "version": "1100.0.1",
+  "version": "1101.0.0",
   "description": "Resolver for npm-hosted packages",
   "keywords": [
     "pnpm",
@@ -69,6 +69,7 @@
     "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",

@@ -1,7 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { beforeEach, expect, jest, test } from '@jest/globals'
 import isWindows from 'is-windows'
 
 const { fetchWithDispatcher: fetchWithDispatcherOriginal } = await import('@pnpm/network.fetch')

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.pruner",
-  "version": "1100.0.1",
+  "version": "1100.0.2",
   "description": "Prune a pnpm-lock.yaml",
   "keywords": [
     "pnpm",
@@ -40,6 +40,7 @@
     "ramda": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/lockfile.pruner": "workspace:*",
     "@types/ramda": "catalog:",
     "yaml-tag": "catalog:"

@@ -1,4 +1,4 @@
-import { jest } from '@jest/globals'
+import { beforeEach, expect, it, jest } from '@jest/globals'
 import { PnpmError } from '@pnpm/error'
 
 import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils/index.js'
@@ -7,7 +7,9 @@ jest.unstable_mockModule('../src/dlx.js', () => ({ handler: jest.fn() }))
 
 const { create, dlx } = await import('../src/index.js')
 
-beforeEach(() => jest.mocked(dlx.handler).mockClear())
+beforeEach(() => {
+  jest.mocked(dlx.handler).mockClear()
+})
 
 it('throws an error if called without arguments', async () => {
   await expect(create.handler({

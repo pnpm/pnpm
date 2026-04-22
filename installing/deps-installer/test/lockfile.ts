@@ -1,9 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import type { RootLog } from '@pnpm/core-loggers'
 import type { PnpmError } from '@pnpm/error'
 import {
   addDependenciesToPackage,
@@ -584,7 +583,7 @@ test('packages are placed in devDependencies even if they are present as non-dev
     }),
     level: 'debug',
     name: 'pnpm:root',
-  } as RootLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     added: expect.objectContaining({
       dependencyType: 'dev',
@@ -593,7 +592,7 @@ test('packages are placed in devDependencies even if they are present as non-dev
     }),
     level: 'debug',
     name: 'pnpm:root',
-  } as RootLog))
+  }))
 })
 
 // This testcase verifies that pnpm is not failing when trying to preserve dependencies.

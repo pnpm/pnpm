@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/building.during-install",
-  "version": "1100.0.2",
+  "version": "1101.0.0",
   "description": "Build packages in node_modules",
   "keywords": [
     "pnpm",
@@ -56,6 +56,7 @@
     "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/building.during-install": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@types/ramda": "catalog:"

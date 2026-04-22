@@ -36,6 +36,7 @@
     "split2": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/logger": "workspace:*"
   },
   "engines": {

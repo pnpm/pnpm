@@ -36,6 +36,7 @@
     "chalk": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/installing.dedupe.issues-renderer": "workspace:*"
   },
   "engines": {

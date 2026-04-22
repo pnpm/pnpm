@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { add } from '@pnpm/installing.commands'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { preparePackages } from '@pnpm/prepare'

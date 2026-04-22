@@ -37,6 +37,7 @@
     "read-yaml-file": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/workspace.workspace-manifest-reader": "workspace:*"
   },
   "engines": {

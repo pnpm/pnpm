@@ -1,6 +1,7 @@
 /// <reference path="../../../../__typings__/index.d.ts" />
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { getConfig } from '@pnpm/config.reader'
 import type { PnpmError } from '@pnpm/error'
 import { prepare } from '@pnpm/prepare'

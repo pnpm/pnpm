@@ -178,6 +178,8 @@ export interface StrictInstallOptions {
   trustPolicyIgnoreAfter?: number
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
   blockExoticSubdeps?: boolean
+  /** URL of a pnpm agent server. See the pnpm-agent README. */
+  agent?: string
 }
 
 export type InstallOptions =

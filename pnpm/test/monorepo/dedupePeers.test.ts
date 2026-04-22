@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { createPeerDepGraphHash } from '@pnpm/deps.path'
 import type { LockfileFile } from '@pnpm/lockfile.types'

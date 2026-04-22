@@ -1,4 +1,4 @@
-import { jest } from '@jest/globals'
+import { describe, expect, it, jest } from '@jest/globals'
 import {
   OtpNonInteractiveError,
   OtpSecondChallengeError,

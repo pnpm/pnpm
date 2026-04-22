@@ -38,6 +38,7 @@
     "didyoumean2": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/cli.parse-cli-args": "workspace:*",
     "tempy": "catalog:"
   },

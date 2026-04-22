@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import type { ProjectManifest } from '@pnpm/types'
 
 import { transformPeerDependenciesMeta } from '../lib/transform/peerDependenciesMeta.js'

@@ -1,3 +1,4 @@
+import { describe, expect, test } from '@jest/globals'
 import type { CustomResolver } from '@pnpm/hooks.types'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 

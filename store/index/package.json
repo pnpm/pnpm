@@ -35,6 +35,7 @@
     "msgpackr": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/store.index": "workspace:*",
     "@types/node": "catalog:",
     "tempy": "catalog:"

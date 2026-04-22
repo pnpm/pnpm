@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.merger",
-  "version": "1100.0.1",
+  "version": "1100.0.2",
   "description": "Merges lockfiles. Can automatically fix merge conflicts",
   "keywords": [
     "pnpm",
@@ -40,6 +40,7 @@
     "semver": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/lockfile.merger": "workspace:*",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:"

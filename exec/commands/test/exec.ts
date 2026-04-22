@@ -1,4 +1,4 @@
-import { jest } from '@jest/globals'
+import { beforeEach, expect, jest, test } from '@jest/globals'
 import { prepareEmpty } from '@pnpm/prepare'
 
 import { DEFAULT_OPTS } from './utils/index.js'
@@ -11,7 +11,9 @@ jest.unstable_mockModule('execa', () => ({
 const { safeExeca: execa } = await import('execa')
 const { exec } = await import('@pnpm/exec.commands')
 
-beforeEach(() => jest.mocked(execa).mockClear())
+beforeEach(() => {
+  jest.mocked(execa).mockClear()
+})
 
 test('exec should set npm_config_user_agent', async () => {
   prepareEmpty()

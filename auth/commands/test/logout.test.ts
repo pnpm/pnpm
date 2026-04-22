@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { describe, expect, it, jest } from '@jest/globals'
 
 import { logout, type LogoutContext, type LogoutFetchResponse } from '../src/logout.js'
 
@@ -64,7 +64,7 @@ describe('logout', () => {
   })
 
   it('should revoke token on registry and remove from auth.ini', async () => {
-    const fetch = jest.fn(async () => createMockResponse({ ok: true, status: 200 }))
+    const fetch = jest.fn<LogoutContext['fetch']>(async () => createMockResponse({ ok: true, status: 200 }))
     let savedPath = ''
     let savedSettings: Record<string, unknown> = {}
 
@@ -104,7 +104,7 @@ describe('logout', () => {
   })
 
   it('should logout from a custom registry', async () => {
-    const fetch = jest.fn(async () => createMockResponse({ ok: true, status: 200 }))
+    const fetch = jest.fn<LogoutContext['fetch']>(async () => createMockResponse({ ok: true, status: 200 }))
     let savedSettings: Record<string, unknown> = {}
 
     const context = createMockContext({
@@ -320,7 +320,7 @@ describe('logout', () => {
   })
 
   it('should URL-encode the token when revoking', async () => {
-    const fetch = jest.fn(async () => createMockResponse({ ok: true, status: 200 }))
+    const fetch = jest.fn<LogoutContext['fetch']>(async () => createMockResponse({ ok: true, status: 200 }))
     const globalWarn = jest.fn()
 
     const context = createMockContext({
@@ -375,7 +375,7 @@ describe('logout', () => {
   })
 
   it('should handle registry with a path', async () => {
-    const fetch = jest.fn(async () => createMockResponse({ ok: true, status: 200 }))
+    const fetch = jest.fn<LogoutContext['fetch']>(async () => createMockResponse({ ok: true, status: 200 }))
     let savedSettings: Record<string, unknown> = {}
 
     const context = createMockContext({

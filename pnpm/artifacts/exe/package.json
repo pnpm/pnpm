@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exe",
-  "version": "11.0.0-rc.2",
+  "version": "11.0.0-rc.5",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -17,6 +17,7 @@
   "type": "module",
   "files": [
     "setup.js",
+    "platform-pkg-name.js",
     "prepare.js",
     "dist/",
     "pn.cmd",
@@ -29,14 +30,17 @@
   "scripts": {
     "preinstall": "node setup.js",
     "prepare": "node prepare.js",
-    "prepublishOnly": "pn --filter=pnpm prepublishOnly && node ./scripts/build-artifacts.ts"
+    "build-artifacts": "pn --filter=pnpm prepublishOnly && node ./scripts/build-artifacts.ts"
   },
   "dependencies": {
-    "@reflink/reflink": "catalog:"
+    "@reflink/reflink": "catalog:",
+    "detect-libc": "catalog:"
   },
   "optionalDependencies": {
     "@pnpm/linux-arm64": "workspace:*",
     "@pnpm/linux-x64": "workspace:*",
+    "@pnpm/linuxstatic-arm64": "workspace:*",
+    "@pnpm/linuxstatic-x64": "workspace:*",
     "@pnpm/macos-arm64": "workspace:*",
     "@pnpm/macos-x64": "workspace:*",
     "@pnpm/win-arm64": "workspace:*",
@@ -46,8 +50,24 @@
     "@jest/globals": "catalog:",
     "@pnpm/exe": "workspace:*",
     "@pnpm/jest-config": "workspace:*",
-    "execa": "catalog:",
-    "tar": "catalog:"
+    "execa": "catalog:"
+  },
+  "pnpm": {
+    "app": {
+      "entry": "../../pnpm.cjs",
+      "outputDir": "..",
+      "outputName": "pnpm",
+      "targets": [
+        "win32-x64",
+        "linux-x64",
+        "darwin-x64",
+        "darwin-arm64",
+        "linux-arm64",
+        "win32-arm64",
+        "linux-x64-musl",
+        "linux-arm64-musl"
+      ]
+    }
   },
   "jest": {
     "preset": "@pnpm/jest-config"

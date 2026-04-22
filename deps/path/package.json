@@ -38,6 +38,7 @@
     "semver": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/deps.path": "workspace:*",
     "@types/semver": "catalog:"
   },

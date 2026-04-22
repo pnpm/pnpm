@@ -1,3 +1,5 @@
+import { describe, expect, test } from '@jest/globals'
+
 import { workspacePrefToNpm } from '../lib/workspacePrefToNpm.js'
 
 describe('workspacePrefToNpm', () => {

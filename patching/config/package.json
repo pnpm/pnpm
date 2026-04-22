@@ -41,6 +41,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/patching.config": "workspace:*",
     "@types/semver": "catalog:"
   },

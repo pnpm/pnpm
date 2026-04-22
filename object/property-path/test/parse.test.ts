@@ -1,3 +1,5 @@
+import { expect, test } from '@jest/globals'
+
 import {
   type ExactToken,
   parsePropertyPath,

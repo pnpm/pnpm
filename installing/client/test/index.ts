@@ -1,4 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
+import { afterAll, expect, test } from '@jest/globals'
 import { createClient, createResolver } from '@pnpm/installing.client'
 import { StoreIndex } from '@pnpm/store.index'
 

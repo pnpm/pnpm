@@ -1,3 +1,5 @@
+import { expect, test } from '@jest/globals'
+
 import { complete } from '../../src/completion/complete.js'
 
 test('complete an option value', async () => {

@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import type { BaseManifest } from '@pnpm/types'
 
 import { createOptionalDependenciesRemover } from '../lib/createOptionalDependenciesRemover.js'

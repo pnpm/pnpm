@@ -15,15 +15,17 @@ import { pickFetcher } from '@pnpm/fetching.pick-fetcher'
 import gfs from '@pnpm/fs.graceful-fs'
 import type { CustomFetcher } from '@pnpm/hooks.types'
 import { logger } from '@pnpm/logger'
-import type {
-  AtomicResolution,
-  DirectoryResolution,
-  PlatformAssetResolution,
-  PreferredVersions,
-  Resolution,
-  ResolveFunction,
-  ResolveResult,
-  TarballResolution,
+import {
+  type AtomicResolution,
+  type DirectoryResolution,
+  type PlatformAssetResolution,
+  type PreferredVersions,
+  type Resolution,
+  type ResolveFunction,
+  resolvePlatformSelector,
+  type ResolveResult,
+  selectPlatformVariant,
+  type TarballResolution,
 } from '@pnpm/resolving.resolver-base'
 import {
   normalizeBundledManifest,
@@ -368,28 +370,17 @@ function getFilesIndexFilePath (
 }
 
 function findResolution (resolutionVariants: PlatformAssetResolution[], supportedArchitectures?: SupportedArchitectures): AtomicResolution {
-  const platform = getOneIfNonCurrent(supportedArchitectures?.os) ?? process.platform
-  const cpu = getOneIfNonCurrent(supportedArchitectures?.cpu) ?? process.arch
-  const libc = getOneIfNonCurrent(supportedArchitectures?.libc) ?? getLibcFamilySync()
-  const resolutionVariant = resolutionVariants
-    .find((resolutionVariant) => resolutionVariant.targets.some(
-      (target) =>
-        target.os === platform &&
-        target.cpu === cpu &&
-        (target.libc == null || target.libc === libc)
-    ))
-  if (!resolutionVariant) {
+  const selector = resolvePlatformSelector(supportedArchitectures, {
+    platform: process.platform,
+    arch: process.arch,
+    libc: getLibcFamilySync(),
+  })
+  const variant = selectPlatformVariant(resolutionVariants, selector)
+  if (!variant) {
     const resolutionTargets = resolutionVariants.map((variant) => variant.targets)
     throw new PnpmError('NO_RESOLUTION_MATCHED', `Cannot find a resolution variant for the current platform in these resolutions: ${JSON.stringify(resolutionTargets)}`)
   }
-  return resolutionVariant.resolution
-}
-
-function getOneIfNonCurrent (requirements: string[] | undefined): string | undefined {
-  if (requirements?.length && requirements[0] !== 'current') {
-    return requirements[0]
-  }
-  return undefined
+  return variant.resolution
 }
 
 function fetchToStore (

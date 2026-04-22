@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.compliance.audit",
-  "version": "1101.0.0",
+  "version": "1101.0.2",
   "description": "Audit a lockfile",
   "keywords": [
     "pnpm",
@@ -48,6 +48,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/constants": "workspace:*",
     "@pnpm/deps.compliance.audit": "workspace:*",
     "@pnpm/logger": "workspace:*",

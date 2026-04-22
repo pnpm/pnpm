@@ -1,3 +1,5 @@
+import { expect, test } from '@jest/globals'
+
 import { parseStringLiteral, type StringLiteral } from '../../src/index.js'
 
 test('not a string literal', () => {

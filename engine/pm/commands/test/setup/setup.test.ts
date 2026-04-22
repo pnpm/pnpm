@@ -1,4 +1,4 @@
-import { jest } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import { PnpmError } from '@pnpm/error'
 import type { PathExtenderReport } from '@pnpm/os.env.path-extender'
 

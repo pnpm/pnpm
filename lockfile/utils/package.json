@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.utils",
-  "version": "1100.0.1",
+  "version": "1100.0.3",
   "description": "Utils for dealing with pnpm-lock.yaml",
   "keywords": [
     "pnpm",
@@ -44,6 +44,7 @@
     "ramda": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/lockfile.utils": "workspace:*",
     "@types/ramda": "catalog:",
     "tempy": "catalog:",

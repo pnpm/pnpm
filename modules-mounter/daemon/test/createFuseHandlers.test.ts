@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { beforeAll, describe, expect, it, jest } from '@jest/globals'
 import { STORE_VERSION } from '@pnpm/constants'
 
 jest.unstable_mockModule('fuse-native', () => ({ default: { ENOENT: -2 } }))

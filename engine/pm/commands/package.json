@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/engine.pm.commands",
-  "version": "1101.0.0",
+  "version": "1101.0.2",
   "description": "pnpm commands for self-updating and setting up pnpm",
   "keywords": [
     "pnpm",
@@ -52,6 +52,7 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "cross-spawn": "catalog:",
+    "detect-libc": "catalog:",
     "path-name": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:",

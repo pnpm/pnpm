@@ -2,6 +2,7 @@ import { createWriteStream } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { pipeline } from 'node:stream/promises'
 
+import { beforeEach, describe, expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
 import type { LockfileObject } from '@pnpm/lockfile.types'

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exec.prepare-package",
-  "version": "1100.0.2",
+  "version": "1100.0.4",
   "description": "Prepares a Git-hosted package",
   "keywords": [
     "pnpm",
@@ -41,6 +41,7 @@
     "ramda": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/exec.prepare-package": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",

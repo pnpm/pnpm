@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'

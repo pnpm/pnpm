@@ -1,3 +1,5 @@
+import { expect, test } from '@jest/globals'
+
 import type { InheritableConfigPair } from './inheritPickedConfig.js'
 import { inheritAuthConfig, inheritDlxConfig } from './localConfig.js'
 

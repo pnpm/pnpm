@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 
-import { jest } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import { streamParser } from '@pnpm/logger'
 import { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_CREDENTIALS, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'

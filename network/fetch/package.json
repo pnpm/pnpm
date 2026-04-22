@@ -47,6 +47,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/logger": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
     "https-proxy-server-express": "catalog:"

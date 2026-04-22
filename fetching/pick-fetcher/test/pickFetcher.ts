@@ -1,4 +1,4 @@
-import { jest } from '@jest/globals'
+import { describe, expect, jest, test } from '@jest/globals'
 import type { Fetchers, FetchFunction } from '@pnpm/fetching.fetcher-base'
 import { pickFetcher } from '@pnpm/fetching.pick-fetcher'
 import type { CustomFetcher } from '@pnpm/hooks.types'
@@ -49,7 +49,7 @@ test('should fail to pick fetcher if the type is not defined', async () => {
 describe('custom fetcher support', () => {
   test('should use custom fetcher when canFetch returns true', async () => {
     const mockFetchResult = { filesMap: new Map(), manifest: { name: 'test', version: '1.0.0' }, requiresBuild: false }
-    const customFetch = jest.fn(async () => mockFetchResult)
+    const customFetch = jest.fn<NonNullable<CustomFetcher['fetch']>>(async () => mockFetchResult)
     const remoteTarball = jest.fn() as FetchFunction
 
     const customFetcher: Partial<CustomFetcher> = {
@@ -88,7 +88,7 @@ describe('custom fetcher support', () => {
 
   test('should use custom fetcher when canFetch returns promise resolving to true', async () => {
     const mockFetchResult = { filesMap: new Map(), manifest: { name: 'test', version: '1.0.0' }, requiresBuild: false }
-    const customFetch = jest.fn(async () => mockFetchResult)
+    const customFetch = jest.fn<NonNullable<CustomFetcher['fetch']>>(async () => mockFetchResult)
 
     const customFetcher: Partial<CustomFetcher> = {
       canFetch: async () => Promise.resolve(true),
@@ -185,7 +185,7 @@ describe('custom fetcher support', () => {
 
   test('should handle custom resolution types', async () => {
     const mockFetchResult = { filesMap: new Map(), manifest: { name: 'test', version: '1.0.0' }, requiresBuild: false }
-    const customFetch = jest.fn(async () => mockFetchResult)
+    const customFetch = jest.fn<NonNullable<CustomFetcher['fetch']>>(async () => mockFetchResult)
 
     const customFetcher: Partial<CustomFetcher> = {
       canFetch: (pkgId: string, resolution: any) => resolution.type === 'custom:test', // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -217,7 +217,7 @@ describe('custom fetcher support', () => {
   })
 
   test('should pass all fetch options to custom fetcher.fetch', async () => {
-    const customFetch = jest.fn(async () => ({ filesMap: new Map(), manifest: { name: 'test', version: '1.0.0' }, requiresBuild: false }))
+    const customFetch = jest.fn<NonNullable<CustomFetcher['fetch']>>(async () => ({ filesMap: new Map(), manifest: { name: 'test', version: '1.0.0' }, requiresBuild: false }))
 
     const customFetcher: Partial<CustomFetcher> = {
       canFetch: () => true,

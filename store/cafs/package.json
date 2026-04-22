@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store.cafs",
-  "version": "1100.0.1",
+  "version": "1100.1.0",
   "description": "A content-addressable filesystem for the packages storage",
   "keywords": [
     "pnpm",
@@ -45,6 +45,7 @@
     "strip-bom": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.cafs-types": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",

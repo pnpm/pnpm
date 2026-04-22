@@ -24,6 +24,9 @@
       "path": "../__utils__/test-ipc-server"
     },
     {
+      "path": "../agent/server"
+    },
+    {
       "path": "../auth/commands"
     },
     {

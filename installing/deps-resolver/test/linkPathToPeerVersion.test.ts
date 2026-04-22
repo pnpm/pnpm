@@ -1,3 +1,5 @@
+import { expect, test } from '@jest/globals'
+
 import { linkPathToPeerVersion } from '../lib/linkPathToPeerVersion.js'
 
 // These outputs are lockfile-format: changing any of them breaks existing

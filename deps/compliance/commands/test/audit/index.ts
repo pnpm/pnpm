@@ -1,6 +1,7 @@
 import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
+import { afterEach, beforeAll, beforeEach, describe, expect, test } from '@jest/globals'
 import { AuditEndpointNotExistsError } from '@pnpm/deps.compliance.audit'
 import { audit } from '@pnpm/deps.compliance.commands'
 import { install } from '@pnpm/installing.commands'

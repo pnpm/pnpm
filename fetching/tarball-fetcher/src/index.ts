@@ -99,5 +99,6 @@ async function fetchFromTarball (
     filesIndexFile: opts.filesIndexFile,
     pkg: opts.pkg,
     appendManifest: opts.appendManifest,
+    ignoreFilePattern: opts.ignoreFilePattern,
   })
 }

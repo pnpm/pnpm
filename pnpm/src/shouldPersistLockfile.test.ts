@@ -1,3 +1,5 @@
+import { describe, expect, test } from '@jest/globals'
+
 import { shouldPersistLockfile } from './shouldPersistLockfile.js'
 
 describe('shouldPersistLockfile', () => {
