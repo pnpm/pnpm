@@ -1,7 +1,0 @@
-{
-  "name": "has-vulnerable-is-odd",
-  "version": "1.0.0",
-  "dependencies": {
-    "is-odd": "0.1.0"
-  }
-}

@@ -13,7 +13,7 @@ import chalk from 'chalk'
 import { loadJsonFile } from 'load-json-file'
 import { readYamlFileSync } from 'read-yaml-file'
 
-import { DEFAULT_OPTS, MOCK_REGISTRY, MOCK_REGISTRY_OPTS } from './utils/options.js'
+import { MOCK_REGISTRY, MOCK_REGISTRY_OPTS } from './utils/options.js'
 
 const f = fixtures(import.meta.dirname)
 
@@ -804,69 +804,47 @@ The fixed vulnerabilities are:
   })
 
   test('vulnerability is fixed when minimumReleaseAge is set, without persisting excludes', async () => {
-    const tmp = f.prepare('has-vulnerable-is-odd')
+    const tmp = f.prepare('update-workspace-pinned')
 
-    const originalPkgId = 'is-odd@0.1.0' as DepPath
-    const expectedPkgId = 'is-odd@0.1.2' as DepPath
+    const originalPkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
+    const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
 
     const originalLockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
     expect(originalLockfile).toBeTruthy()
     expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
     expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
 
-    // is-odd@0.1.2 was published 2017-05-27. Set minimumReleaseAge high enough
-    // that maximumPublishedBy (= now - minimumReleaseAge) falls BEFORE the
-    // publication date so 0.1.2 is considered "immature" and blocked.
-    const isOdd012PublishDate = new Date('2017-05-27T16:54:36.730Z')
-    const minimumReleaseAge = (Date.now() - isOdd012PublishDate.getTime()) / (60 * 1000) + 60 * 24 * 30 // add 30 days buffer
+    const advisoryResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
+    expect(advisoryResponse).toBeTruthy()
 
-    // Mock advisory: is-odd <0.1.2 is vulnerable, fix is >=0.1.2
-    const mockResponse = {
-      'is-odd': [
-        {
-          findings: [{ version: '0.1.0', paths: ['.>is-odd'] }],
-          metadata: null,
-          vulnerable_versions: '<0.1.2',
-          module_name: 'is-odd',
-          severity: 'high',
-          github_advisory_id: 'GHSA-mock-is-odd',
-          cves: [],
-          access: 'public',
-          patched_versions: '>=0.1.2',
-          updated: '2025-01-01T00:00:00.000Z',
-          recommendation: 'Upgrade to version 0.1.2 or later',
-          cwe: '',
-          found_by: null,
-          deleted: null,
-          id: 999999,
-          references: '',
-          created: '2025-01-01T00:00:00.000Z',
-          reported_by: null,
-          title: 'Mock vulnerability in is-odd',
-          npm_advisory_id: null,
-          overview: 'Mock vulnerability in is-odd',
-          url: 'https://example.com',
-        },
-      ],
-    }
-
-    // Use real npm registry for package resolution (provides time metadata),
-    // but mock the advisory endpoint.
-    getMockAgent().enableNetConnect()
-    getMockAgent().get(DEFAULT_OPTS.registry.replace(/\/$/, ''))
+    getMockAgent().get(MOCK_REGISTRY)
       .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
-      .reply(200, mockResponse)
+      .reply(200, advisoryResponse)
+
+    const {
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+    } = await filterProjectsFromDir(tmp, [], {
+      workspaceDir: tmp,
+      prefix: tmp,
+    })
 
     const { exitCode, output } = await audit.handler({
-      ...DEFAULT_OPTS,
+      ...MOCK_REGISTRY_OPTS,
       cacheDir: join(tmp, 'cache'),
       storeDir: join(tmp, 'store'),
       dir: tmp,
+      workspaceDir: tmp,
+      lockfileDir: tmp,
       rootProjectManifestDir: tmp,
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
       auditLevel: 'moderate',
       fix: 'update',
       lockfileOnly: true,
-      minimumReleaseAge,
+      minimumReleaseAge: 60 * 24 * 365 * 100, // 100 years in minutes
       minimumReleaseAgeStrict: true,
       // minimumReleaseAgeBypass defaults to true
     })
@@ -874,81 +852,58 @@ The fixed vulnerabilities are:
     expect(exitCode).toBe(0)
     expect(output).toContain(`${chalk.green(1)} vulnerability was fixed`)
 
-    // The vulnerable dependency should be updated to 0.1.2
+    // The vulnerable dependency should be updated to 100.1.0
     const lockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
     expect(lockfile).toBeTruthy()
     const packagesArray = Object.keys(lockfile!.packages!)
     expect(packagesArray).not.toContain(originalPkgId)
     expect(packagesArray).toContain(expectedPkgId)
 
-    // minimumReleaseAgeExclude should NOT be present
-    const manifest = readYamlFileSync<{ minimumReleaseAgeExclude?: string[] }>(join(tmp, 'pnpm-workspace.yaml'))
-    expect(manifest.minimumReleaseAgeExclude).toBeUndefined()
+    // minimumReleaseAgeExclude should NOT be persisted in pnpm-workspace.yaml
+    const workspaceManifest = readYamlFileSync<{ minimumReleaseAgeExclude?: string[] }>(join(tmp, 'pnpm-workspace.yaml'))
+    expect(workspaceManifest.minimumReleaseAgeExclude).toBeUndefined()
   })
 
   test('vulnerability is NOT fixed when minimumReleaseAgeBypass is false', async () => {
-    const tmp = f.prepare('has-vulnerable-is-odd')
+    const tmp = f.prepare('update-workspace-pinned')
 
-    // is-odd@0.1.2 was published 2017-05-27. Set minimumReleaseAge high enough
-    // that maximumPublishedBy falls BEFORE 0.1.2's publication date.
-    const isOdd012PublishDate = new Date('2017-05-27T16:54:36.730Z')
-    const minimumReleaseAge = (Date.now() - isOdd012PublishDate.getTime()) / (60 * 1000) + 60 * 24 * 30
+    const advisoryResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
+    expect(advisoryResponse).toBeTruthy()
 
-    const mockResponse = {
-      'is-odd': [
-        {
-          findings: [{ version: '0.1.0', paths: ['.>is-odd'] }],
-          metadata: null,
-          vulnerable_versions: '<0.1.2',
-          module_name: 'is-odd',
-          severity: 'high',
-          github_advisory_id: 'GHSA-mock-is-odd',
-          cves: [],
-          access: 'public',
-          patched_versions: '>=0.1.2',
-          updated: '2025-01-01T00:00:00.000Z',
-          recommendation: 'Upgrade to version 0.1.2 or later',
-          cwe: '',
-          found_by: null,
-          deleted: null,
-          id: 999999,
-          references: '',
-          created: '2025-01-01T00:00:00.000Z',
-          reported_by: null,
-          title: 'Mock vulnerability in is-odd',
-          npm_advisory_id: null,
-          overview: 'Mock vulnerability in is-odd',
-          url: 'https://example.com',
-        },
-      ],
-    }
-
-    const NPM_REGISTRY = 'https://registry.npmjs.org/'
-    getMockAgent().enableNetConnect()
-    getMockAgent().get(NPM_REGISTRY.replace(/\/$/, ''))
+    getMockAgent().get(MOCK_REGISTRY)
       .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
-      .reply(200, mockResponse)
+      .reply(200, advisoryResponse)
 
-    const { exitCode } = await audit.handler({
-      ...DEFAULT_OPTS,
+    const {
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+    } = await filterProjectsFromDir(tmp, [], {
+      workspaceDir: tmp,
+      prefix: tmp,
+    })
+
+    await expect(() => audit.handler({
+      ...MOCK_REGISTRY_OPTS,
       cacheDir: join(tmp, 'cache'),
       storeDir: join(tmp, 'store'),
       dir: tmp,
+      workspaceDir: tmp,
+      lockfileDir: tmp,
       rootProjectManifestDir: tmp,
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
       auditLevel: 'moderate',
       fix: 'update',
       lockfileOnly: true,
-      minimumReleaseAge,
+      minimumReleaseAge: 60 * 24 * 365 * 100, // 100 years in minutes
       minimumReleaseAgeStrict: true,
       minimumReleaseAgeBypass: false,
-    })
+    })).rejects.toThrow(/Version 100\.1\.0 \(released .+\) of @pnpm\.e2e\/pkg-with-1-dep does not meet the minimumReleaseAge constraint/)
 
-    // With bypass disabled, the resolver cannot install is-odd@0.1.2 because
-    // it's blocked by minimumReleaseAge. The vulnerability remains unfixed.
-    expect(exitCode).toBe(1)
-
-    // minimumReleaseAgeExclude should NOT be present
-    const manifest = readYamlFileSync<{ minimumReleaseAgeExclude?: string[] }>(join(tmp, 'pnpm-workspace.yaml'))
-    expect(manifest.minimumReleaseAgeExclude).toBeUndefined()
+    // minimumReleaseAgeExclude should NOT be persisted in pnpm-workspace.yaml
+    const workspaceManifest = readYamlFileSync<{ minimumReleaseAgeExclude?: string[] }>(join(tmp, 'pnpm-workspace.yaml'))
+    expect(workspaceManifest.minimumReleaseAgeExclude).toBeUndefined()
   })
 })

@@ -86,14 +86,11 @@ export async function fixWithUpdate (auditReport: AuditReport, opts: FixWithUpda
     },
   }
 
-  // Add vulnerable packages to minimumReleaseAgeExclude so the resolver
-  // can install them even when minimumReleaseAge would otherwise block them.
-  const addedAgeExcludes = opts.minimumReleaseAge && opts.minimumReleaseAgeBypass !== false ? Array.from(vulnerabilitiesByPackage.keys()) : []
-
   await update.handler({
     ...opts,
     packageVulnerabilityAudit,
-    minimumReleaseAgeExclude: [...(opts.minimumReleaseAgeExclude ?? []), ...addedAgeExcludes],
+    // If minimumReleaseAgeBypass is not false, set minimumReleaseAge to 0 to allow updating vulnerable packages, even if they are new
+    minimumReleaseAge: opts.minimumReleaseAgeBypass !== false ? 0 : opts.minimumReleaseAge,
   }, [])
 
   const lockfileDir = opts.lockfileDir ?? opts.dir
