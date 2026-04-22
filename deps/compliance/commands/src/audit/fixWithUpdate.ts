@@ -89,8 +89,10 @@ export async function fixWithUpdate (auditReport: AuditReport, opts: FixWithUpda
   await update.handler({
     ...opts,
     packageVulnerabilityAudit,
-    // If minimumReleaseAgeBypass is not false, set minimumReleaseAge to 0 to allow updating vulnerable packages, even if they are new
-    minimumReleaseAge: opts.minimumReleaseAgeBypass !== false ? 0 : opts.minimumReleaseAge,
+    // If bypassMinimumReleaseAge is not false, set minimumReleaseAge to 0 to allow updating vulnerable packages, even if they are new.
+    // This update operation will only touch vulnerable packages, so this will not affect any packages outside of the ones listed in
+    // the audit report and their dependencies.
+    minimumReleaseAge: opts.bypassMinimumReleaseAge !== false ? 0 : opts.minimumReleaseAge,
   }, [])
 
   const lockfileDir = opts.lockfileDir ?? opts.dir

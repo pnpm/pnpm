@@ -63,7 +63,7 @@ test('minimumReleaseAgeExclude entries are not added when minimumReleaseAgeBypas
     ...AUDIT_REGISTRY_OPTS,
     auditLevel: 'moderate',
     minimumReleaseAge: 1440,
-    minimumReleaseAgeBypass: false,
+    bypassMinimumReleaseAge: false,
     dir: tmp,
     rootProjectManifestDir: tmp,
     fix: true,

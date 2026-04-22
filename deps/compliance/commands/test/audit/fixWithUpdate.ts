@@ -832,8 +832,6 @@ The fixed vulnerabilities are:
 
     const { exitCode, output } = await audit.handler({
       ...MOCK_REGISTRY_OPTS,
-      cacheDir: join(tmp, 'cache'),
-      storeDir: join(tmp, 'store'),
       dir: tmp,
       workspaceDir: tmp,
       lockfileDir: tmp,
@@ -846,7 +844,7 @@ The fixed vulnerabilities are:
       lockfileOnly: true,
       minimumReleaseAge: 60 * 24 * 365 * 100, // 100 years in minutes
       minimumReleaseAgeStrict: true,
-      // minimumReleaseAgeBypass defaults to true
+      // bypassMinimumReleaseAge defaults to true
     })
 
     expect(exitCode).toBe(0)
@@ -885,8 +883,6 @@ The fixed vulnerabilities are:
 
     await expect(() => audit.handler({
       ...MOCK_REGISTRY_OPTS,
-      cacheDir: join(tmp, 'cache'),
-      storeDir: join(tmp, 'store'),
       dir: tmp,
       workspaceDir: tmp,
       lockfileDir: tmp,
@@ -899,7 +895,7 @@ The fixed vulnerabilities are:
       lockfileOnly: true,
       minimumReleaseAge: 60 * 24 * 365 * 100, // 100 years in minutes
       minimumReleaseAgeStrict: true,
-      minimumReleaseAgeBypass: false,
+      bypassMinimumReleaseAge: false,
     })).rejects.toThrow(/Version 100\.1\.0 \(released .+\) of @pnpm\.e2e\/pkg-with-1-dep does not meet the minimumReleaseAge constraint/)
 
     // minimumReleaseAgeExclude should NOT be persisted in pnpm-workspace.yaml

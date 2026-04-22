@@ -65,7 +65,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'ignore-registry-errors': Boolean,
     ignore: [String, Array],
     'ignore-unfixable': Boolean,
-    'minimum-release-age-bypass': Boolean,
+    'bypass-minimum-release-age': Boolean,
   }
 }
 
@@ -141,8 +141,8 @@ export function help (): string {
             shortAlias: '-i',
           },
           {
-            description: 'When true (the default), audit fix bypasses minimumReleaseAge for vulnerable packages. Set to false to enforce the age restriction even during audit fix.',
-            name: '--minimum-release-age-bypass',
+            description: 'When true (the default), audit fix bypasses minimumReleaseAge when updating vulnerable packages. Set to false to enforce the age restriction even during audit fix.',
+            name: '--bypass-minimum-release-age',
           },
         ],
       },
@@ -158,7 +158,7 @@ export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
   interactive?: boolean
   json?: boolean
   lockfileDir?: string
-  minimumReleaseAgeBypass?: boolean
+  bypassMinimumReleaseAge?: boolean
   registries: Registries
   ignore?: string[]
   ignoreUnfixable?: boolean
