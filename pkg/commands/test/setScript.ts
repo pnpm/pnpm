@@ -1,5 +1,6 @@
 import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
+
 import { readPackageJsonFromDirRawSync } from '@pnpm/pkg-manifest.reader'
 import { setScript } from '../src/index.js'
 

@@ -1,4 +1,5 @@
 import path from 'node:path'
+
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 import { docsUrl } from '@pnpm/cli.utils'
