@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1001.2.11
+
+### Patch Changes
+
+- Updated dependencies [78951f2]
+- Updated dependencies [08bf69c]
+  - @pnpm/plugin-commands-installation@1004.9.15
+  - @pnpm/exec.pnpm-cli-runner@1000.1.0
+
 ## 1001.2.10
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # pnpm
 
+## 10.33.2
+
+### Patch Changes
+
+- Globally-installed bins no longer fail with `ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND` when pnpm was installed via the standalone `@pnpm/exe` binary (e.g. `curl -fsSL https://get.pnpm.io/install.sh | sh -`) on a system without a separate Node.js installation. Previously, when `which('node')` failed during `pnpm add --global`, pnpm fell back to `process.execPath`, which in `@pnpm/exe` is the pnpm binary itself — and that path was baked into the generated bin shim, causing the shim to invoke pnpm instead of Node [#11291](https://github.com/pnpm/pnpm/issues/11291), [#4645](https://github.com/pnpm/pnpm/issues/4645).
+- Fix an infinite fork-bomb that could happen when pnpm was installed with one version (e.g. `npm install -g pnpm@A`) and run inside a project whose `package.json` selected a different pnpm version via the `packageManager` field (e.g. `pnpm@B`), while a `pnpm-workspace.yaml` also existed at the project root.
+
+  The child's environment is now forced to `manage-package-manager-versions=false` (v10) and `pm-on-fail=ignore` (v11+), which disables the package-manager-version handling in whichever pnpm runs as the child.
+
+  Fixes [#11337](https://github.com/pnpm/pnpm/issues/11337).
+
 ## 10.33.1
 
 ### Patch Changes
