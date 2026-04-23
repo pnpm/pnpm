@@ -52,20 +52,25 @@ export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateC
       // which breaks the junctions on Windows.
       '--config.node-linker=hoisted',
       '--config.bin=bin',
+      // This is an isolated install into `stage` and must not inherit the
+      // caller's workspace context. Without this, the child's workspace
+      // walk-up from `stage` can discover an ancestor pnpm-workspace.yaml
+      // and treat the caller's project as the workspace root — breaking the
+      // add (it's outside the workspace's packages list) and, before the env
+      // guards below existed, picking up the caller's packageManager field
+      // and re-entering switchCliVersion for a fork bomb. See pnpm/pnpm#11337.
+      '--ignore-workspace',
     ], {
       cwd: stage,
-      // Force the child to skip its own package-manager-version switching.
-      // Without these the child's workspace walk-up from `stage` can discover
-      // an ancestor pnpm-workspace.yaml + package.json whose packageManager
-      // field selects a different pnpm version, causing the child to call
-      // installPnpmToTools again. Because the target tool dir hasn't been
-      // symlinked in yet, `fs.existsSync(binDir)` still returns false, so the
-      // child starts another nested install — fork-bombing the process tree.
-      // See pnpm/pnpm#11337.
+      // Defense in depth against re-entering switchCliVersion in the child,
+      // in case any future code path surfaces a wantedPackageManager without
+      // going through workspace discovery. Both env-var names are set so the
+      // guard works regardless of whether the child reads pnpm's v10
+      // (npm_config_*) or v11+ (pnpm_config_*) convention.
       env: {
         ...process.env,
-        npm_config_manage_package_manager_versions: 'false', // v10 setting name
-        pnpm_config_pm_on_fail: 'ignore', // v11+ setting name
+        npm_config_manage_package_manager_versions: 'false',
+        pnpm_config_pm_on_fail: 'ignore',
       },
     })
     if (currentPkgName === '@pnpm/exe') {

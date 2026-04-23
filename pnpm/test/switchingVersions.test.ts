@@ -89,7 +89,7 @@ test('commands that v10 passes through to npm keep passing through when packageM
   expect(stdout.toString()).toContain('Bump a package version')
 })
 
-test('`pnpm version` routes through switchCliVersion to v11 when packageManager selects pnpm v11+', () => {
+test('`pnpm version` routes through switchCliVersion to v11 when packageManager selects pnpm v11+, even with a pnpm-workspace.yaml at the project root', () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const version = '11.0.0-rc.5'
@@ -100,6 +100,11 @@ test('`pnpm version` routes through switchCliVersion to v11 when packageManager 
     PNPM_HOME: pnpmHome,
     npm_config_registry: 'https://registry.npmjs.org/',
   }
+  // pnpm-workspace.yaml at the project root is what lets the install-child's
+  // workspace walk-up see this dir's package.json + packageManager field.
+  // Before the #11337 fix this would fork-bomb; the tool-dir assertion below
+  // doubles as a fork-bomb regression check in the v11-target path.
+  fs.writeFileSync('pnpm-workspace.yaml', '')
   writeJsonFile('package.json', {
     packageManager: `pnpm@${version}`,
   })
@@ -158,36 +163,6 @@ test('switching does not fork-bomb when a pnpm-workspace.yaml at the project roo
 
   expect(stdout.toString()).toContain('Version 9.3.0')
 }, 90_000)
-
-test('switching to v11 does not fork-bomb when a pnpm-workspace.yaml at the project root is visible to the install-child (#11337 regression)', () => {
-  prepare()
-  const pnpmHome = path.resolve('pnpm')
-  const version = '11.0.0-rc.5'
-  // Same reasoning as the sibling v11 test above: fetch pnpm v11 from the real
-  // npmjs registry because the registry mock is slow/flaky for v11's full dep
-  // tree and here we only need a real tarball to prove the handoff happened.
-  const env = {
-    PNPM_HOME: pnpmHome,
-    npm_config_registry: 'https://registry.npmjs.org/',
-  }
-  // Pair a v11+ packageManager with a root pnpm-workspace.yaml. This mirrors
-  // the primary #11337 reproducer (where the target major differs from the
-  // running major), and would fork-bomb on v10 without the env-var guard that
-  // keeps the install-child from re-entering switchCliVersion.
-  fs.writeFileSync('pnpm-workspace.yaml', '')
-  writeJsonFile('package.json', {
-    packageManager: `pnpm@${version}`,
-  })
-
-  execPnpmSync(['version'], { env, timeout: 120_000 })
-
-  // The tool dir's presence is direct proof that installPnpmToTools completed
-  // (reached only from main() → switchCliVersion), so the switch succeeded
-  // without looping. See the sibling v11 test above for why we don't assert on
-  // v11 executing its own `version` command.
-  const toolDir = getToolDirPath({ pnpmHomeDir: pnpmHome, tool: { name: 'pnpm', version } })
-  expect(fs.existsSync(path.join(toolDir, 'bin/pnpm'))).toBe(true)
-}, 180_000)
 
 test('no spurious re-entry when the packageManager version matches the current pnpm, even with a pnpm-workspace.yaml at the root', () => {
   prepare()
