@@ -9,6 +9,7 @@ import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { linkBins } from '@pnpm/link-bins'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
+import semver from 'semver'
 import { installPnpmToTools } from './installPnpmToTools.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
@@ -22,6 +23,15 @@ export function cliOptionsTypes (): Record<string, unknown> {
 }
 
 export const commandNames = ['self-update']
+
+// Migration guidance printed once when `pnpm self-update` crosses a major
+// boundary. Add an entry here for each future major that ships breaking
+// changes users need to act on.
+const MAJOR_UPGRADE_HINTS: Record<number, string> = {
+  11:
+    'pnpm v11 removed or renamed several v10 settings. ' +
+    'See https://pnpm.io/11.x/migration for migration instructions.',
+}
 
 export function help (): string {
   return renderHelp({
@@ -67,6 +77,30 @@ export async function handler (
   })
   if (!resolution?.manifest) {
     throw new PnpmError('CANNOT_RESOLVE_PNPM', `Cannot find "${bareSpecifier}" version of pnpm`)
+  }
+
+  // Determine the "previous" pnpm version being upgraded FROM. If the
+  // project pins pnpm via `packageManager`, the pin is the source of
+  // truth — the running pnpm binary may already be at a newer major
+  // (e.g. a globally-installed v11 operating on a project still pinned
+  // to v10). Otherwise fall back to the running binary. Skip the hint
+  // entirely on a no-op (target === previous).
+  const targetVersion = resolution.manifest.version
+  let previousVersion: string | undefined
+  if (opts.wantedPackageManager?.name === packageManager.name && opts.managePackageManagerVersions) {
+    if (opts.wantedPackageManager.version !== targetVersion) {
+      previousVersion = opts.wantedPackageManager.version
+    }
+  } else if (packageManager.version !== targetVersion) {
+    previousVersion = packageManager.version
+  }
+  const previousMajor = previousVersion != null
+    ? semver.coerce(previousVersion)?.major
+    : undefined
+  const targetMajor = semver.major(targetVersion)
+  if (previousMajor != null && targetMajor > previousMajor) {
+    const hint = MAJOR_UPGRADE_HINTS[targetMajor]
+    if (hint) globalWarn(hint)
   }
 
   if (opts.wantedPackageManager?.name === packageManager.name && opts.managePackageManagerVersions) {
