@@ -139,6 +139,25 @@ test('npm passthrough still fires when packageManager selects pnpm v11+ but swit
   expect(stdout.toString()).toContain('Bump a package version')
 })
 
+test('switching does not fork-bomb when a pnpm-workspace.yaml at the project root is visible to the install-child (#11337 regression)', () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  // pnpm-workspace.yaml at the project root is what makes the install-child's
+  // workspace walk-up hit this dir's package.json, pulling in its
+  // packageManager field and re-triggering switchCliVersion inside the child.
+  // Without the env-var guard in installPnpmToTools, that would recurse
+  // indefinitely because the target tool dir is not symlinked in yet.
+  fs.writeFileSync('pnpm-workspace.yaml', '')
+  writeJsonFile('package.json', {
+    packageManager: 'pnpm@9.3.0',
+  })
+
+  const { stdout } = execPnpmSync(['help'], { env, timeout: 60_000 })
+
+  expect(stdout.toString()).toContain('Version 9.3.0')
+}, 90_000)
+
 test('throws error if pnpm tools dir is corrupt', () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')

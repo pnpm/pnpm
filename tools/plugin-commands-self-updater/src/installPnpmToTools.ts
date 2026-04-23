@@ -52,7 +52,22 @@ export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateC
       // which breaks the junctions on Windows.
       '--config.node-linker=hoisted',
       '--config.bin=bin',
-    ], { cwd: stage })
+    ], {
+      cwd: stage,
+      // Force the child to skip its own package-manager-version switching.
+      // Without these the child's workspace walk-up from `stage` can discover
+      // an ancestor pnpm-workspace.yaml + package.json whose packageManager
+      // field selects a different pnpm version, causing the child to call
+      // installPnpmToTools again. Because the target tool dir hasn't been
+      // symlinked in yet, `fs.existsSync(binDir)` still returns false, so the
+      // child starts another nested install — fork-bombing the process tree.
+      // See pnpm/pnpm#11337.
+      env: {
+        ...process.env,
+        npm_config_manage_package_manager_versions: 'false', // v10 setting name
+        pnpm_config_pm_on_fail: 'ignore', // v11+ setting name
+      },
+    })
     if (currentPkgName === '@pnpm/exe') {
       linkExePlatformBinary(stage)
     }
