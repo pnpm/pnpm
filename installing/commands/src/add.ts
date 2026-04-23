@@ -1,3 +1,6 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl } from '@pnpm/cli.utils'
@@ -7,6 +10,7 @@ import { PnpmError } from '@pnpm/error'
 import { handleGlobalAdd } from '@pnpm/global.commands'
 import { resolveConfigDeps } from '@pnpm/installing.env-installer'
 import { createStoreController } from '@pnpm/store.connection-manager'
+import normalizePath from 'normalize-path'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
@@ -208,6 +212,18 @@ export type AddCommandOptions = InstallCommandOptions & {
   config?: boolean
 }
 
+const ROOT_WORKSPACE_ADD_MESSAGE =
+  'Running this command will add the dependency to the workspace root, ' +
+  'which might not be what you want - if you really meant it, ' +
+  'make it explicit by running this command again with the -w flag (or --workspace-root). ' +
+  'If you don\'t want to see this warning anymore, you may set the ignore-workspace-root-check setting to true.'
+
+const WORKSPACE_PACKAGE_DIR_ADD_MESSAGE =
+  'Running this command in a workspace package directory without a package manifest will add the dependency to the workspace root, which might not be what you want. ' +
+  'If this directory is meant to be a package, create a package manifest first, for example by running "pnpm init" to generate a package.json. ' +
+  'If you really meant it, make it explicit by running this command again with the -w flag (or --workspace-root). ' +
+  'If you don\'t want to see this warning anymore, you may set the ignore-workspace-root-check setting to true.'
+
 export async function handler (
   opts: AddCommandOptions,
   params: string[],
@@ -238,10 +254,7 @@ export async function handler (
     opts.workspacePackagePatterns.length > 1
   ) {
     throw new PnpmError('ADDING_TO_ROOT',
-      'Running this command will add the dependency to the workspace root, ' +
-      'which might not be what you want - if you really meant it, ' +
-      'make it explicit by running this command again with the -w flag (or --workspace-root). ' +
-      'If you don\'t want to see this warning anymore, you may set the ignore-workspace-root-check setting to true.'
+      getWorkspaceRootCheckMessage(opts)
     )
   }
   if (opts.global) {
@@ -311,4 +324,78 @@ export async function handler (
     include,
     includeDirect: include,
   }, params)
+}
+
+function getWorkspaceRootCheckMessage (opts: AddCommandOptions): string {
+  if (isWorkspacePackageDirWithoutManifest(opts)) {
+    return WORKSPACE_PACKAGE_DIR_ADD_MESSAGE
+  }
+  return ROOT_WORKSPACE_ADD_MESSAGE
+}
+
+function isWorkspacePackageDirWithoutManifest (opts: AddCommandOptions): boolean {
+  if (!opts.workspaceDir || !opts.workspacePackagePatterns) return false
+
+  const currentDir = process.cwd()
+  if (currentDir === opts.workspaceDir) return false
+  if (hasProjectManifest(currentDir)) return false
+
+  const relativeDir = normalizePath(path.relative(opts.workspaceDir, currentDir)) || '.'
+  if (relativeDir === '.' || relativeDir.startsWith('../')) return false
+
+  return matchesWorkspacePackagePatterns(relativeDir, opts.workspacePackagePatterns)
+}
+
+function hasProjectManifest (dir: string): boolean {
+  return ['package.json', 'package.json5', 'package.yaml'].some((manifestFileName) => fs.existsSync(path.join(dir, manifestFileName)))
+}
+
+function matchesWorkspacePackagePatterns (relativeDir: string, patterns: string[]): boolean {
+  let matched = false
+  for (const rawPattern of patterns) {
+    const ignore = rawPattern.startsWith('!')
+    const pattern = ignore ? rawPattern.slice(1) : rawPattern
+    if (!matchesWorkspacePackagePattern(relativeDir, pattern)) continue
+    matched = !ignore
+  }
+  return matched
+}
+
+function matchesWorkspacePackagePattern (relativeDir: string, pattern: string): boolean {
+  const normalizedPattern = normalizePath(pattern)
+    .replace(/^\.\//, '')
+    .replace(/\/$/, '')
+
+  if (normalizedPattern === '.') {
+    return relativeDir === '.'
+  }
+
+  return matchGlobSegments(
+    relativeDir.split('/'),
+    normalizedPattern.split('/')
+  )
+}
+
+function matchGlobSegments (inputSegments: string[], patternSegments: string[]): boolean {
+  if (patternSegments.length === 0) return inputSegments.length === 0
+
+  const [currentPatternSegment, ...restPatternSegments] = patternSegments
+  if (currentPatternSegment === '**') {
+    return matchGlobSegments(inputSegments, restPatternSegments) ||
+      (inputSegments.length > 0 && matchGlobSegments(inputSegments.slice(1), patternSegments))
+  }
+
+  return inputSegments.length > 0 &&
+    matchGlobSegment(inputSegments[0], currentPatternSegment) &&
+    matchGlobSegments(inputSegments.slice(1), restPatternSegments)
+}
+
+function matchGlobSegment (inputSegment: string, patternSegment: string): boolean {
+  if (patternSegment === '*') return true
+
+  const escapedPatternSegment = patternSegment
+    .replace(/[|\\{}()[\]^$+?.]/g, '\\$&')
+    .replace(/\*/g, '[^/]*')
+
+  return new RegExp(`^${escapedPatternSegment}$`).test(inputSegment)
 }
