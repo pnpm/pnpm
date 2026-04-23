@@ -1,11 +1,13 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { formatWarn } from '@pnpm/cli.default-reporter'
 import { packageManager } from '@pnpm/cli.meta'
 import { type CliOptions, type Config, type ConfigContext, getConfig as _getConfig } from '@pnpm/config.reader'
 import { requireHooks } from '@pnpm/hooks.pnpmfile'
 import { resolveAndInstallConfigDeps } from '@pnpm/installing.env-installer'
+import { logger } from '@pnpm/logger'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import type { ConfigDependencies } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
@@ -42,27 +44,43 @@ export async function getConfig (
 
 export async function installConfigDepsAndLoadHooks (
   config: Config,
-  context: ConfigContext
+  context: ConfigContext,
+  opts?: {
+    catchConfigDependenciesErrors?: boolean
+  }
 ): Promise<{ config: Config, context: ConfigContext }> {
+  let configDepsInstalled = false
   if (config.configDependencies) {
-    const store = await createStoreController({ ...config, ...context })
     try {
-      await resolveAndInstallConfigDeps(config.configDependencies, {
-        ...config,
-        ...context,
-        store: store.ctrl,
-        storeDir: store.dir,
-        rootDir: config.lockfileDir ?? context.rootProjectManifestDir,
-        frozenLockfile: config.frozenLockfile,
+      const store = await createStoreController({ ...config, ...context })
+      try {
+        await resolveAndInstallConfigDeps(config.configDependencies, {
+          ...config,
+          ...context,
+          store: store.ctrl,
+          storeDir: store.dir,
+          rootDir: config.lockfileDir ?? context.rootProjectManifestDir,
+          frozenLockfile: config.frozenLockfile,
+        })
+        configDepsInstalled = true
+      } finally {
+        await store.ctrl.close()
+      }
+    } catch (err: unknown) {
+      if (!opts?.catchConfigDependenciesErrors) {
+        throw err
+      }
+      const errorMessage = util.types.isNativeError(err) ? err.message : String(err)
+      logger.debug({
+        message: `Failed to install configDependencies. This is expected if authentication is not yet configured. Proceeding. Error: ${errorMessage}`,
+        err,
       })
-    } finally {
-      await store.ctrl.close()
     }
   }
   if (!config.ignorePnpmfile) {
     config.tryLoadDefaultPnpmfile = config.pnpmfile == null
     const pnpmfiles = config.pnpmfile == null ? [] : Array.isArray(config.pnpmfile) ? config.pnpmfile : [config.pnpmfile]
-    if (config.configDependencies) {
+    if (config.configDependencies && configDepsInstalled) {
       const configModulesDir = path.join(config.lockfileDir ?? context.rootProjectManifestDir, 'node_modules/.pnpm-config')
       pnpmfiles.unshift(...calcPnpmfilePathsOfPluginDeps(configModulesDir, config.configDependencies))
     }

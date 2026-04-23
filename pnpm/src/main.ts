@@ -114,7 +114,13 @@ export async function main (inputArgv: string[]): Promise<void> {
         }
       }
     }
-    ;({ config, context } = await installConfigDepsAndLoadHooks(config, context) as { config: typeof config, context: ConfigContext })
+    // `pnpm set` / `pnpm get` are separate top-level commands whose handlers
+    // delegate to the `config` command internally. They are not rewritten to
+    // `cmd === 'config'` at this layer, so list them explicitly — users can
+    // hit the #10684 crash via any of these three entry points.
+    ;({ config, context } = await installConfigDepsAndLoadHooks(config, context, {
+      catchConfigDependenciesErrors: cmd === 'config' || cmd === 'set' || cmd === 'get',
+    }) as { config: typeof config, context: ConfigContext })
     if (isDlxOrCreateCommand || cmd === 'sbom' || cmd === 'with') {
       config.useStderr = true
     }
