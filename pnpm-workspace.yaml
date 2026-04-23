@@ -55,10 +55,11 @@ auditConfig:
   ignoreCves:
     - CVE-2025-56200
   ignoreGhsas:
+    - GHSA-6rw7-vpxm-498p
     - GHSA-76c9-3jph-rj3q
     - GHSA-ffrw-9mx8-89p8
     - GHSA-mh29-5h37-fv8m
-    - GHSA-6rw7-vpxm-498p
+    - GHSA-w5hq-g745-h8pq
     - GHSA-xxjr-mmjv-4gpg
 
 catalog:
@@ -466,4 +467,3 @@ updateConfig:
     - write-pkg
 
 verifyDepsBeforeRun: install
-
