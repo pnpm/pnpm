@@ -13,6 +13,7 @@ import { createStoreController } from '@pnpm/store.connection-manager'
 import normalizePath from 'normalize-path'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
+import { globSync } from 'tinyglobby'
 
 import { getFetchFullMetadata } from './getFetchFullMetadata.js'
 import type { InstallCommandOptions } from './install.js'
@@ -343,59 +344,14 @@ function isWorkspacePackageDirWithoutManifest (opts: AddCommandOptions): boolean
   const relativeDir = normalizePath(path.relative(opts.workspaceDir, currentDir)) || '.'
   if (relativeDir === '.' || relativeDir.startsWith('../')) return false
 
-  return matchesWorkspacePackagePatterns(relativeDir, opts.workspacePackagePatterns)
+  return globSync(opts.workspacePackagePatterns, {
+    cwd: opts.workspaceDir,
+    deep: relativeDir.split('/').length,
+    expandDirectories: false,
+    onlyDirectories: true,
+  }).some((matchedDir) => normalizePath(matchedDir) === relativeDir)
 }
 
 function hasProjectManifest (dir: string): boolean {
   return ['package.json', 'package.json5', 'package.yaml'].some((manifestFileName) => fs.existsSync(path.join(dir, manifestFileName)))
-}
-
-function matchesWorkspacePackagePatterns (relativeDir: string, patterns: string[]): boolean {
-  let matched = false
-  for (const rawPattern of patterns) {
-    const ignore = rawPattern.startsWith('!')
-    const pattern = ignore ? rawPattern.slice(1) : rawPattern
-    if (!matchesWorkspacePackagePattern(relativeDir, pattern)) continue
-    matched = !ignore
-  }
-  return matched
-}
-
-function matchesWorkspacePackagePattern (relativeDir: string, pattern: string): boolean {
-  const normalizedPattern = normalizePath(pattern)
-    .replace(/^\.\//, '')
-    .replace(/\/$/, '')
-
-  if (normalizedPattern === '.') {
-    return relativeDir === '.'
-  }
-
-  return matchGlobSegments(
-    relativeDir.split('/'),
-    normalizedPattern.split('/')
-  )
-}
-
-function matchGlobSegments (inputSegments: string[], patternSegments: string[]): boolean {
-  if (patternSegments.length === 0) return inputSegments.length === 0
-
-  const [currentPatternSegment, ...restPatternSegments] = patternSegments
-  if (currentPatternSegment === '**') {
-    return matchGlobSegments(inputSegments, restPatternSegments) ||
-      (inputSegments.length > 0 && matchGlobSegments(inputSegments.slice(1), patternSegments))
-  }
-
-  return inputSegments.length > 0 &&
-    matchGlobSegment(inputSegments[0], currentPatternSegment) &&
-    matchGlobSegments(inputSegments.slice(1), restPatternSegments)
-}
-
-function matchGlobSegment (inputSegment: string, patternSegment: string): boolean {
-  if (patternSegment === '*') return true
-
-  const escapedPatternSegment = patternSegment
-    .replace(/[|\\{}()[\]^$+?.]/g, '\\$&')
-    .replace(/\*/g, '[^/]*')
-
-  return new RegExp(`^${escapedPatternSegment}$`).test(inputSegment)
 }

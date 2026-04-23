@@ -432,6 +432,30 @@ test('adding a dependency from a directory outside the workspace package pattern
   expect(stdout.toString()).not.toMatch(/running "pnpm init" to generate a package\.json/)
 })
 
+test('adding a dependency from a directory ignored by anchored workspace patterns should keep the workspace root warning', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+  ])
+
+  fs.mkdirSync('packages/ignored', { recursive: true })
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - '.'
+  - '/packages/*'
+  - '!/packages/ignored'
+`, 'utf8')
+
+  const { status, stdout } = execPnpmSync(['add', 'is-positive'], { cwd: path.resolve('packages/ignored') })
+
+  expect(status).toBe(1)
+  expect(stdout.toString()).toMatch(/Running this command will add the dependency to the workspace root/)
+  expect(stdout.toString()).not.toMatch(/running "pnpm init" to generate a package\.json/)
+})
+
 test('--workspace-packages', async () => {
   const projects = preparePackages([
     {

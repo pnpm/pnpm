@@ -89,6 +89,7 @@
     "p-limit": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:",
+    "tinyglobby": "catalog:",
     "version-selector-type": "catalog:"
   },
   "peerDependencies": {
