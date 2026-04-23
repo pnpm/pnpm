@@ -209,6 +209,36 @@ test('linkBinsOfPackages()', async () => {
   expect(content).toMatch('node_modules/simple/index.js')
 })
 
+testOnWindows('linkBinsOfPackages() resolves node_modules bin paths from the virtual store layout', async () => {
+  const binTarget = temporaryDirectory()
+  const virtualStoreDir = path.join(temporaryDirectory(), 'node_modules', '.pnpm', 'meta-tool@1.0.0', 'node_modules')
+  const metaDir = path.join(virtualStoreDir, 'meta-tool')
+  const depDir = path.join(virtualStoreDir, 'dep-tool')
+  fs.mkdirSync(metaDir, { recursive: true })
+  fs.mkdirSync(depDir, { recursive: true })
+  fs.writeFileSync(path.join(depDir, 'cli.js'), '#!/usr/bin/env node\nconsole.log("dep")\n', 'utf8')
+
+  await linkBinsOfPackages(
+    [
+      {
+        location: metaDir,
+        manifest: {
+          name: 'meta-tool',
+          version: '1.0.0',
+          bin: {
+            'meta-tool': 'node_modules/dep-tool/cli.js',
+          },
+        },
+      },
+    ],
+    binTarget
+  )
+
+  expect(globalWarn).not.toHaveBeenCalled()
+  expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['meta-tool']))
+  expect(fs.readFileSync(path.join(binTarget, `meta-tool${CMD_EXTENSION}`), 'utf8')).toMatch(/dep-tool[\\/]+cli\.js/)
+})
+
 test('linkBinsOfPkgsByAliases()', async () => {
   const binTarget = temporaryDirectory()
   const simpleFixture = f.prepare('simple-fixture')
