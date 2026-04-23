@@ -43,7 +43,12 @@ export async function switchCliVersion (config: Config): Promise<void> {
     env: {
       ...process.env,
       [pnpmEnv.name]: pnpmEnv.value,
+      // Disable the target pnpm's own package-manager-version management so
+      // it doesn't try to switch again. We set both names because v10 reads
+      // npm_config_* while v11+ reads pnpm_config_*, and this spawn may
+      // target either major.
       npm_config_manage_package_manager_versions: 'false',
+      pnpm_config_pm_on_fail: 'ignore',
     },
   })
 

@@ -1,10 +1,14 @@
 import path from 'path'
 import { sync as execSync } from 'execa'
 
-export function runPnpmCli (command: string[], { cwd }: { cwd: string }): void {
+export function runPnpmCli (
+  command: string[],
+  { cwd, env }: { cwd: string, env?: NodeJS.ProcessEnv }
+): void {
   const execOpts = {
     cwd,
     stdio: 'inherit' as const,
+    ...(env ? { env } : {}),
   }
   const execFileName = path.basename(process.execPath).toLowerCase()
   if (execFileName === 'pnpm' || execFileName === 'pnpm.exe') {
