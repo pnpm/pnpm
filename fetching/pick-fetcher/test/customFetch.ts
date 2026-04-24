@@ -454,49 +454,63 @@ describe('custom fetcher implementation examples', () => {
     })
 
     test('custom fetcher can use gitHostedTarball fetcher for custom git URLs', async () => {
-      const storeDir = temporaryDirectory()
-      const cafs = createCafsStore(storeDir)
-      const filesIndexFile = path.join(storeDir, 'index.json')
+      clearDispatcherCache()
+      const mockAgent = new MockAgent()
+      mockAgent.disableNetConnect()
+      setGlobalDispatcher(mockAgent)
 
-      const fetchFromRegistry = createFetchFromRegistry({})
-      const tarballFetchers = createTarballFetcher(
-        fetchFromRegistry,
-        () => undefined,
-        { storeIndex, ignoreScripts: true }
-      )
-
-      // Custom fetcher that maps custom git resolution to git-hosted tarball
-      const customFetcher = createMockCustomFetcher(
-        (_pkgId, resolution) => resolution.type === 'custom:git',
-        async (cafs, resolution, opts, fetchers) => {
-          // Map custom git resolution to GitHub codeload URL
-          const tarballResolution = {
-            tarball: `https://codeload.github.com/${(resolution as any).repo}/tar.gz/${(resolution as any).commit}`, // eslint-disable-line @typescript-eslint/no-explicit-any
-          }
-
-          return fetchers.gitHostedTarball(cafs, tarballResolution, opts)
-        }
-      )
-
-      const customResolution = createMockResolution({
-        type: 'custom:git',
-        repo: 'pnpm-e2e/drupal-js-build',
-        commit: 'f766801580f10543c24ba8bfa59046a776848097',
+      const tarballContent = fs.readFileSync(tarballPath)
+      const mockPool = mockAgent.get('https://codeload.github.com')
+      mockPool.intercept({ path: '/sveltejs/action-deploy-docs/tar.gz/a65fbf5a90f53c9d72fed4daaca59da50f074355', method: 'GET' }).reply(200, tarballContent, {
+        headers: { 'content-length': String(tarballContent.length) },
       })
 
-      const fetcher = await pickFetcher(
-        tarballFetchers as Fetchers,
-        customResolution,
-        { customFetchers: [customFetcher], packageId: 'git-pkg@1.0.0' }
-      )
+      try {
+        const storeDir = temporaryDirectory()
+        const cafs = createCafsStore(storeDir)
+        const filesIndexFile = path.join(storeDir, 'index.json')
 
-      const result = await fetcher(
-        cafs,
-        customResolution,
-        createMockFetchOptions({ filesIndexFile, lockfileDir: process.cwd() })
-      )
+        const fetchFromRegistry = createFetchFromRegistry({})
+        const tarballFetchers = createTarballFetcher(
+          fetchFromRegistry,
+          () => undefined,
+          { storeIndex, ignoreScripts: true }
+        )
 
-      expect(result.filesMap).toBeTruthy()
+        const customFetcher = createMockCustomFetcher(
+          (_pkgId, resolution) => resolution.type === 'custom:git',
+          async (cafs, resolution, opts, fetchers) => {
+            const tarballResolution = {
+              tarball: `https://codeload.github.com/${(resolution as any).repo}/tar.gz/${(resolution as any).commit}`, // eslint-disable-line @typescript-eslint/no-explicit-any
+            }
+
+            return fetchers.gitHostedTarball(cafs, tarballResolution, opts)
+          }
+        )
+
+        const customResolution = createMockResolution({
+          type: 'custom:git',
+          repo: 'sveltejs/action-deploy-docs',
+          commit: 'a65fbf5a90f53c9d72fed4daaca59da50f074355',
+        })
+
+        const fetcher = await pickFetcher(
+          tarballFetchers as Fetchers,
+          customResolution,
+          { customFetchers: [customFetcher], packageId: 'git-pkg@1.0.0' }
+        )
+
+        const result = await fetcher(
+          cafs,
+          customResolution,
+          createMockFetchOptions({ filesIndexFile, lockfileDir: process.cwd() })
+        )
+
+        expect(result.filesMap).toBeTruthy()
+      } finally {
+        await mockAgent.close()
+        setGlobalDispatcher(originalDispatcher)
+      }
     })
   })
 
