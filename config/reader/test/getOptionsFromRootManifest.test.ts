@@ -33,3 +33,14 @@ test('getOptionsFromPnpmSettings() converts allowBuilds', () => {
     },
   })
 })
+
+test('getOptionsFromPnpmSettings() passes registryOverrides through', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    registryOverrides: {
+      '@foo/private-lib': 'https://npm.pkg.github.com/',
+    },
+  })
+  expect(options.registryOverrides).toStrictEqual({
+    '@foo/private-lib': 'https://npm.pkg.github.com/',
+  })
+})

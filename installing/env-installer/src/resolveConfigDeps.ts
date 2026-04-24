@@ -50,7 +50,7 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
     }
     const pkgName = wantedDep.alias
     const version = resolution.manifest.version
-    const registry = pickRegistryForPackage(opts.registries, pkgName)
+    const registry = pickRegistryForPackage(opts.registries, pkgName, undefined, opts.registryOverrides)
 
     // Write clean specifier to workspace manifest
     configDependencySpecifiers[pkgName] = wantedDep.bareSpecifier ?? version
