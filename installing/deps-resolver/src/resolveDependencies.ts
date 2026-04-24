@@ -1813,6 +1813,7 @@ const NON_EXOTIC_RESOLVED_VIA = new Set([
   'github.com/oven-sh/bun',
   'jsr-registry',
   'local-filesystem',
+  'named-registry',
   'nodejs.org',
   'npm-registry',
   'workspace',

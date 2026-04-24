@@ -1,0 +1,48 @@
+{
+  "name": "@pnpm/resolving.named-registry-specifier-parser",
+  "version": "1100.0.0",
+  "description": "Parser of named-registry specifiers (e.g. gh:@acme/pkg)",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "gh",
+    "github-packages",
+    "named-registries"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/resolving/named-registry-specifier-parser",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/resolving/named-registry-specifier-parser#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "tsgo --build",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/error": "workspace:*"
+  },
+  "devDependencies": {
+    "@pnpm/resolving.named-registry-specifier-parser": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}
