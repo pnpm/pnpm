@@ -30,6 +30,24 @@ test('console a warning when the .npmrc has an env variable that does not exist'
   expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('Failed to replace env in config: ${ENV_VAR_123}'))
 })
 
+test('console warnings before rethrowing a config error', async () => {
+  prepare()
+
+  fs.writeFileSync('.npmrc', '//registry.npmjs.org/:_auth=${ENV_VAR_123}', 'utf8')
+
+  await expect(getConfig({
+    json: false,
+  }, {
+    workspaceDir: '.',
+    excludeReporter: false,
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_INVALID_AUTH_CONFIG',
+    message: 'Failed to parse auth config: invalid _auth value',
+  })
+
+  expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('Failed to replace env in config: ${ENV_VAR_123}'))
+})
+
 describe('calcPnpmfilePathsOfPluginDeps', () => {
   test('yields pnpmfile.mjs when it exists', () => {
     const tmpDir = fs.mkdtempSync(path.join(import.meta.dirname, '.tmp-'))
