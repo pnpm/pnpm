@@ -93,7 +93,7 @@ export type RebuildCommandOpts = Pick<Config,
 | 'rootProjectManifestDir'
 | 'selectedProjectsGraph'
 > &
-CreateStoreControllerOptions &
+  CreateStoreControllerOptions &
 {
   recursive?: boolean
   reporter?: (logObj: LogBase) => void
@@ -116,6 +116,11 @@ export async function handler (
     sideEffectsCacheWrite: opts.sideEffectsCache,
     storeController: store.ctrl,
     storeDir: store.dir,
+    include: {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    },
   })
 
   if (params.length === 0) {
