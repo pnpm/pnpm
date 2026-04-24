@@ -545,6 +545,21 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       )
   }
   let ignoredBuilds: IgnoredBuilds | undefined
+  // Even when scripts are not being run (e.g. per-workspace lockfile installs),
+  // check pending builds against allowBuild to detect unapproved packages.
+  // This ensures strictDepBuilds works with sharedWorkspaceLockfile=false.
+  // See: https://github.com/pnpm/pnpm/issues/9082
+  if (opts.ignoreScripts && allowBuild) {
+    for (const depNode of depNodes) {
+      if (depNode.requiresBuild) {
+        const allowed = allowBuild(depNode.name, depNode.version)
+        if (allowed === undefined) {
+          ignoredBuilds ??= new Set()
+          ignoredBuilds.add(depNode.depPath)
+        }
+      }
+    }
+  }
   if ((!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) && opts.enableModulesDir !== false) {
     const directNodes = new Set<string>()
     for (const id of union(importerIds, ['.'])) {
