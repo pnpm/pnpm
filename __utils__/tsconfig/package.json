@@ -33,7 +33,7 @@
   "scripts": {
     "test": "pn compile",
     "compile": "tsc --build && pn lint --fix",
-    "prepublishOnly": "pn compile"
+    "prepublishOnly": "tsgo --build"
   },
   "exports": {
     ".": "./tsconfig.json"

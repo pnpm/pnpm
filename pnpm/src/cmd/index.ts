@@ -18,6 +18,7 @@ import {
 } from '@pnpm/exec.commands'
 import { add, dedupe, fetch, importCommand, install, link, prune, remove, unlink, update } from '@pnpm/installing.commands'
 import { patch, patchCommit, patchRemove } from '@pnpm/patching.commands'
+import { setScript } from '@pnpm/pkg.commands'
 import { deprecate, distTag, ping, search, star, stars, undeprecate, unpublish, unstar, whoami } from '@pnpm/registry-access.commands'
 import { deploy, pack, packApp, publish, version } from '@pnpm/releasing.commands'
 import { catFile, catIndex, findHash, store } from '@pnpm/store.commands'
@@ -173,6 +174,7 @@ const commands: CommandDefinition[] = [
   root,
   run,
   sbom,
+  setScript,
   setup,
   search,
   star,

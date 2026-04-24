@@ -4,15 +4,12 @@ import type { CommandDefinition } from './index.js'
 
 const NOT_IMPLEMENTED_COMMANDS = [
   'access',
-  'bugs',
   'edit',
   'issues',
-  'owner',
   'prefix',
   'profile',
   'pkg',
   'repo',
-  'set-script',
   'team',
   'token',
   'xmas',

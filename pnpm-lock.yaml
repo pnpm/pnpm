@@ -997,6 +997,7 @@ overrides:
   tmp@<=0.2.3: '>=0.2.4'
   tough-cookie@<4.1.3: '>=4.1.3'
   validator@<13.15.22: '>=13.15.22'
+  uuid: '>=14.0.0'
   yaml@<2.2.2: '>=2.2.2'
 
 packageExtensionsChecksum: sha256-87FOGilaYY8gmnjYsryuV/BI3ZuhaaJd/1fN2oxQwzY=
@@ -7468,6 +7469,52 @@ importers:
         specifier: 'catalog:'
         version: 7.7.1
 
+  pkg/commands:
+    dependencies:
+      '@pnpm/cli.utils':
+        specifier: workspace:*
+        version: link:../../cli/utils
+      '@pnpm/config.reader':
+        specifier: workspace:*
+        version: link:../../config/reader
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
+      '@pnpm/pkg-manifest.reader':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/reader
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../core/types
+      '@pnpm/workspace.project-manifest-writer':
+        specifier: workspace:*
+        version: link:../../workspace/project-manifest-writer
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+      render-help:
+        specifier: 'catalog:'
+        version: 2.0.0
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../core/logger
+      '@pnpm/pkg.commands':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.31.1
+      read-yaml-file:
+        specifier: 'catalog:'
+        version: 3.0.0
+
   pnpm:
     dependencies:
       '@reflink/reflink':
@@ -7591,6 +7638,9 @@ importers:
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../pkg-manifest/reader
+      '@pnpm/pkg.commands':
+        specifier: workspace:*
+        version: link:../pkg/commands
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../__utils__/prepare
@@ -16881,12 +16931,8 @@ packages:
     resolution: {integrity: sha512-pMZTvIkT1d+TFGvDOqodOclx0QWkkgi6Tdoa8gC8ffGAAqz9pzPTZWAybbsHHoED/ztMtkv/VoYTYyShUn81hA==}
     engines: {node: '>= 0.4.0'}
 
-  uuid@8.3.2:
-    resolution: {integrity: sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==}
-    hasBin: true
-
-  uuid@9.0.1:
-    resolution: {integrity: sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA==}
+  uuid@14.0.0:
+    resolution: {integrity: sha512-Qo+uWgilfSmAhXCMav1uYFynlQO7fMFiMVZsQqZRMIXp0O7rR7qjkj+cPvBHLgBqi960QCoo/PH2/6ZtVqKvrg==}
     hasBin: true
 
   v8-compile-cache@2.4.0:
@@ -17912,7 +17958,7 @@ snapshots:
       safe-buffer: 5.2.1
       tough-cookie: 5.1.2
       tunnel-agent: 0.6.0
-      uuid: 8.3.2
+      uuid: 14.0.0
 
   '@emnapi/core@1.9.2':
     dependencies:
@@ -19326,7 +19372,7 @@ snapshots:
       '@pnpm/types': 1001.3.0
       p-limit: 3.1.0
       promise-share: 1.0.0
-      uuid: 9.0.1
+      uuid: 14.0.0
     transitivePeerDependencies:
       - domexception
       - supports-color
@@ -24498,7 +24544,7 @@ snapshots:
       qs: 6.15.1
       safe-buffer: 5.2.1
       stream-length: 1.0.2
-      uuid: 8.3.2
+      uuid: 14.0.0
 
   preferred-pm@3.1.4:
     dependencies:
@@ -25866,9 +25912,7 @@ snapshots:
 
   utils-merge@1.0.1: {}
 
-  uuid@8.3.2: {}
-
-  uuid@9.0.1: {}
+  uuid@14.0.0: {}
 
   v8-compile-cache@2.4.0: {}
 

@@ -129,6 +129,9 @@
       "path": "../pkg-manifest/reader"
     },
     {
+      "path": "../pkg/commands"
+    },
+    {
       "path": "../registry-access/commands"
     },
     {
