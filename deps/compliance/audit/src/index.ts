@@ -91,7 +91,19 @@ export async function audit (
     throw new AuditEndpointNotExistsError(auditUrl)
   }
 
-  throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${auditUrl}) responded with ${res.status}: ${await res.text()}`)
+  const responseText = await res.text();
+  const errorMessage = `The audit endpoint (at ${auditUrl}) responded with ${res.status}: ${responseText}`
+
+  if (res.status === 410) {
+    throw new PnpmError('AUDIT_BAD_RESPONSE', errorMessage, {
+      hint: `This endpoint has been retired by the registry. Upgrade to pnpm v11, or run:
+  pnpm dlx pnpm@11.0.0-rc.1 audit --config.manage-package-manager-versions=false
+On Node.js <22.13, run instead:
+  pnpm dlx --package=@pnpm/exe@11.0.0-rc.1 pnpm audit --config.manage-package-manager-versions=false`
+    })
+  }
+
+  throw new PnpmError('AUDIT_BAD_RESPONSE', errorMessage)
 }
 
 function bulkResponseToAuditReport (bulk: BulkAdvisoriesResponse, auditRequest: AuditIndexRequest, auditPathIndex: AuditPathIndex): AuditReport {
