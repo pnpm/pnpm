@@ -6,9 +6,8 @@ import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type Fetc
 import npa from '@pnpm/npm-package-arg'
 import type { Registries, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
-import semver from 'semver'
 
-import { normalizeRegistryUrl, parsePackageSpec, rcOptionsTypes } from './common.js'
+import { normalizeRegistryUrl, rcOptionsTypes } from './common.js'
 
 export { rcOptionsTypes }
 
@@ -19,26 +18,26 @@ export function cliOptionsTypes (): Record<string, unknown> {
   }
 }
 
-export const commandNames = ['dist-tag', 'dist-tags']
+export const commandNames = ['owner', 'owners']
 
 export function help (): string {
   return renderHelp({
-    description: 'Manages distribution tags for a package.',
+    description: 'Manages package owners on the registry.',
     descriptionLists: [
       {
         title: 'Commands',
 
         list: [
           {
-            description: 'List all dist-tags for a package. Default if no subcommand is given.',
+            description: 'List all owners of a package. Default if no subcommand is given.',
             name: 'ls',
           },
           {
-            description: 'Add a dist-tag to a specific version of a package.',
+            description: 'Add an owner to a package.',
             name: 'add',
           },
           {
-            description: 'Remove a dist-tag from a package.',
+            description: 'Remove an owner from a package.',
             name: 'rm',
           },
         ],
@@ -58,48 +57,48 @@ export function help (): string {
         ],
       },
     ],
-    url: docsUrl('dist-tag'),
+    url: docsUrl('owner'),
     usages: [
-      'pnpm dist-tag ls [<package>]',
-      'pnpm dist-tag add <package>@<version> [<tag>]',
-      'pnpm dist-tag rm <package> <tag>',
+      'pnpm owner ls <package>',
+      'pnpm owner add <package> <user>',
+      'pnpm owner rm <package> <user>',
     ],
   })
 }
 
-export interface DistTagOptions extends CreateFetchFromRegistryOptions {
-  cliOptions?: {
+export interface OwnerOptions extends CreateFetchFromRegistryOptions {
+  cliOptions: {
     otp?: string
   }
   configByUri?: Record<string, RegistryConfig>
   registries?: Registries
+  registry?: string
 }
 
 export async function handler (
-  opts: DistTagOptions,
+  opts: OwnerOptions,
   params: string[]
 ): Promise<string> {
   const subcommand = params[0]
 
   if (subcommand === 'add') {
-    return distTagAdd(opts, params.slice(1))
+    return ownerAdd(opts, params.slice(1))
   }
   if (subcommand === 'rm') {
-    return distTagRm(opts, params.slice(1))
+    return ownerRm(opts, params.slice(1))
   }
   if (subcommand === 'ls' || subcommand === 'list') {
-    return distTagLs(opts, params.slice(1))
+    return ownerLs(opts, params.slice(1))
   }
-  // Default: treat all params as arguments to ls
-  return distTagLs(opts, params)
+  return ownerLs(opts, params)
 }
 
-async function distTagLs (
-  opts: DistTagOptions,
+async function ownerLs (
+  opts: OwnerOptions,
   params: string[]
 ): Promise<string> {
   if (params.length === 0) {
-    throw new PnpmError('DIST_TAG_LS_PACKAGE_REQUIRED', 'Package name is required')
+    throw new PnpmError('OWNER_LS_PACKAGE_REQUIRED', 'Package name is required')
   }
 
   const packageName = params[0]
@@ -107,86 +106,67 @@ async function distTagLs (
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
   const fetchFromRegistry = createFetchFromRegistry(opts)
 
-  const distTags = await fetchDistTags(packageName, registryUrl, fetchFromRegistry, authHeader)
+  const owners = await fetchOwners(packageName, registryUrl, fetchFromRegistry, authHeader)
 
   const lines: string[] = []
-  for (const [tag, version] of Object.entries(distTags).sort(([a], [b]) => a.localeCompare(b))) {
-    lines.push(`${tag}: ${version}`)
+  for (const owner of owners) {
+    lines.push(`${owner.username} <${owner.email}>`)
   }
   return lines.join('\n')
 }
 
-async function distTagAdd (
-  opts: DistTagOptions,
+async function ownerAdd (
+  opts: OwnerOptions,
   params: string[]
 ): Promise<string> {
-  if (params.length === 0) {
-    throw new PnpmError('DIST_TAG_ADD_SPEC_REQUIRED', 'Package name and version are required (e.g., pnpm dist-tag add pkg@1.0.0 latest)')
+  if (params.length < 2) {
+    throw new PnpmError('OWNER_ADD_ARGS_REQUIRED', 'Package name and owner are required (e.g., pnpm owner add pkg username)')
   }
 
-  const { name: packageName, versionRange: version } = parsePackageSpec(params[0])
-
-  if (!version) {
-    throw new PnpmError('DIST_TAG_ADD_VERSION_REQUIRED', 'Version is required (e.g., pnpm dist-tag add pkg@1.0.0 latest)')
-  }
-
-  if (!semver.valid(version)) {
-    throw new PnpmError('DIST_TAG_ADD_INVALID_VERSION', `Version must be an exact semver version, got "${version}"`)
-  }
-
-  const tag = params[1] ?? 'latest'
+  const packageName = params[0]
+  const owner = params[1]
 
   const registryUrl = normalizeRegistryUrl(pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName))
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp
 
-  const distTagUrl = getDistTagUrl(packageName, registryUrl, tag)
-  const response = await fetchFromRegistry(distTagUrl, {
+  const ownerUrl = getOwnerUrl(packageName, registryUrl)
+  const response = await fetchFromRegistry(ownerUrl, {
     authHeaderValue: authHeader,
     method: 'PUT',
     headers: {
       'content-type': 'application/json',
       ...(otp ? { 'npm-otp': otp } : {}),
     },
-    body: JSON.stringify(version),
+    body: JSON.stringify({ user: owner }),
   })
 
   if (!response.ok) {
-    await throwRegistryError(response, `set dist-tag "${tag}" on`)
+    await throwRegistryError(response, `add owner "${owner}" to`)
   }
 
-  return `+${tag}: ${packageName}@${version}`
+  return `+${owner}: ${packageName}`
 }
 
-async function distTagRm (
-  opts: DistTagOptions,
+async function ownerRm (
+  opts: OwnerOptions,
   params: string[]
 ): Promise<string> {
   if (params.length < 2) {
-    throw new PnpmError('DIST_TAG_RM_ARGS_REQUIRED', 'Package name and tag are required (e.g., pnpm dist-tag rm pkg tag)')
+    throw new PnpmError('OWNER_RM_ARGS_REQUIRED', 'Package name and owner are required (e.g., pnpm owner rm pkg username)')
   }
 
   const packageName = params[0]
-  const tag = params[1]
-
-  if (tag === 'latest') {
-    throw new PnpmError('DIST_TAG_RM_LATEST', 'Removing the "latest" dist-tag is not allowed')
-  }
+  const owner = params[1]
 
   const registryUrl = normalizeRegistryUrl(pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName))
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp
 
-  // First check the tag exists
-  const distTags = await fetchDistTags(packageName, registryUrl, fetchFromRegistry, authHeader)
-  if (!(tag in distTags)) {
-    throw new PnpmError('DIST_TAG_NOT_FOUND', `dist-tag "${tag}" is not set on package "${packageName}"`)
-  }
-
-  const distTagUrl = getDistTagUrl(packageName, registryUrl, tag)
-  const response = await fetchFromRegistry(distTagUrl, {
+  const ownerUrl = getOwnerUrl(packageName, registryUrl, owner)
+  const response = await fetchFromRegistry(ownerUrl, {
     authHeaderValue: authHeader,
     method: 'DELETE',
     headers: {
@@ -195,10 +175,10 @@ async function distTagRm (
   })
 
   if (!response.ok) {
-    await throwRegistryError(response, `remove dist-tag "${tag}" from`)
+    await throwRegistryError(response, `remove owner "${owner}" from`)
   }
 
-  return `-${tag}: ${packageName}@${distTags[tag]}`
+  return `-${owner}: ${packageName}`
 }
 
 function getAuthHeaderForRegistry (
@@ -209,20 +189,29 @@ function getAuthHeaderForRegistry (
   return getAuthHeader(registryUrl)
 }
 
-function getDistTagUrl (packageName: string, registryUrl: string, tag: string): string {
+function getOwnerUrl (packageName: string, registryUrl: string, owner?: string): string {
   const encodedName = npa(packageName).escapedName
-  return new URL(`-/package/${encodedName}/dist-tags/${encodeURIComponent(tag)}`, registryUrl).href
+  const base = new URL(`-/package/${encodedName}/owners`, registryUrl).href
+  if (owner) {
+    return `${base}/${encodeURIComponent(owner)}`
+  }
+  return base
 }
 
-async function fetchDistTags (
+interface Owner {
+  username: string
+  email: string
+}
+
+async function fetchOwners (
   packageName: string,
   registryUrl: string,
   fetchFromRegistry: FetchFromRegistry,
   authHeader: string | undefined
-): Promise<Record<string, string>> {
+): Promise<Owner[]> {
   const encodedName = npa(packageName).escapedName
-  const distTagsUrl = new URL(`-/package/${encodedName}/dist-tags`, registryUrl).href
-  const response = await fetchFromRegistry(distTagsUrl, {
+  const ownersUrl = new URL(`-/package/${encodedName}/owners`, registryUrl).href
+  const response = await fetchFromRegistry(ownersUrl, {
     authHeaderValue: authHeader,
   })
 
@@ -233,7 +222,7 @@ async function fetchDistTags (
     throw new PnpmError('REGISTRY_ERROR', `Failed to fetch package info: ${response.status} ${response.statusText}`)
   }
 
-  return await response.json() as Record<string, string>
+  return await response.json() as Owner[]
 }
 
 async function throwRegistryError (response: Response, action: string): Promise<never> {
@@ -243,6 +232,9 @@ async function throwRegistryError (response: Response, action: string): Promise<
   }
   if (response.status === 403) {
     throw new PnpmError('FORBIDDEN', `You do not have permission to ${action} this package. ${errorBody}`)
+  }
+  if (response.status === 404) {
+    throw new PnpmError('PACKAGE_NOT_FOUND', `Package not found in registry. ${errorBody}`)
   }
   throw new PnpmError('REGISTRY_ERROR', `Failed to ${action} package: ${response.status} ${response.statusText}. ${errorBody}`)
 }

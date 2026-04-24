@@ -43,7 +43,9 @@
   "type": "module",
   "main": "bin/pnpm.mjs",
   "exports": {
-    ".": "./package.json"
+    ".": "./package.json",
+    "./pn": "./bin/pnpm.mjs",
+    "./pnx": "./bin/pnpx.mjs"
   },
   "files": [
     "dist",

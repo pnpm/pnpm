@@ -1,4 +1,4 @@
-bin/nodes
+bin/
 dist-spnpm
 
 # Used by bundle-deps.ts
