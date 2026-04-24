@@ -65,6 +65,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'ignore-registry-errors': Boolean,
     ignore: [String, Array],
     'ignore-unfixable': Boolean,
+    'bypass-minimum-release-age': Boolean,
   }
 }
 
@@ -139,6 +140,10 @@ export function help (): string {
             name: '--interactive',
             shortAlias: '-i',
           },
+          {
+            description: 'When true (the default), audit fix bypasses minimumReleaseAge when updating vulnerable packages. Set to false to enforce the age restriction even during audit fix.',
+            name: '--bypass-minimum-release-age',
+          },
         ],
       },
     ],
@@ -153,6 +158,7 @@ export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
   interactive?: boolean
   json?: boolean
   lockfileDir?: string
+  bypassMinimumReleaseAge?: boolean
   registries: Registries
   ignore?: string[]
   ignoreUnfixable?: boolean
@@ -259,10 +265,7 @@ export async function handler (opts: AuditOptions): Promise<{ exitCode: number, 
     }
     if (fixMethod === 'update') {
       const result = await fixWithUpdate(filteredAuditReport, { ...opts, include })
-      let output = formatFixWithUpdateOutput(result, filteredAuditReport)
-      if (result.addedAgeExcludes.length > 0) {
-        output += `\n${result.addedAgeExcludes.length} entries were added to minimumReleaseAgeExclude to allow installing the patched versions:\n${result.addedAgeExcludes.join('\n')}\n`
-      }
+      const output = formatFixWithUpdateOutput(result, filteredAuditReport)
       return {
         exitCode: result.remaining.length > 0 ? 1 : 0,
         output,
