@@ -82,7 +82,7 @@ function checkList (value: string | string[], list: string | string[]): boolean 
       }
     }
   }
-  return match || blc === list.length
+  return match || blc === list.length * values.length
 }
 
 function dedupeCurrent (current: string, supported: string[]): string[] {
