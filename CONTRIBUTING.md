@@ -90,27 +90,30 @@ One-time setup:
    pnpm add -g @zkochan/git-wt
    ```
 
-   Then add one line to your shell config so `wt` is available in every future session:
+   Then wire the `wt` function into your shell config so it's available in every future
+   session. Pick the snippet for your shell — it appends to the right rc file and activates
+   `wt` in the current session too:
 
-   **fish** — add to `~/.config/fish/config.fish`:
+   **fish**:
 
-   ```fish
+   ```shell
+   echo 'git-wt init fish | source' >> ~/.config/fish/config.fish
    git-wt init fish | source
    ```
 
-   **bash** — add to `~/.bashrc`:
+   **bash**:
 
-   ```sh
+   ```shell
+   echo 'eval "$(git-wt init bash)"' >> ~/.bashrc
    eval "$(git-wt init bash)"
    ```
 
-   **zsh** — add to `~/.zshrc`:
+   **zsh**:
 
-   ```sh
+   ```shell
+   echo 'eval "$(git-wt init zsh)"' >> ~/.zshrc
    eval "$(git-wt init zsh)"
    ```
-
-   To use `wt` in the current terminal without restarting it, run the snippet directly once too.
 
 5. (Optional) If you push to your own fork as well as `origin`, add it once in the bare repo:
 
