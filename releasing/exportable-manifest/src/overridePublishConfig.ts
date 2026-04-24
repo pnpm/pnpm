@@ -25,6 +25,7 @@ const PUBLISH_CONFIG_WHITELIST = new Set([
   'libc',
   // https://www.typescriptlang.org/docs/handbook/declaration-files/publishing.html#version-selection-with-typesversions
   'typesVersions',
+  'registry',
 ])
 
 export function overridePublishConfig (publishManifest: ProjectManifest): void {

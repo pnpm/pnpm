@@ -31,3 +31,17 @@ test('publish config to be overridden', async () => {
     expect(publishManifest[publishConfigKey as keyof PackageManifest]).toEqual(publishConfig[publishConfigKey])
   }
 })
+
+test('publishConfig.registry is copied to manifest', async () => {
+  const publishConfig: PublishConfig = {
+    registry: 'https://custom.registry.example.com/',
+  }
+  const publishManifest: PackageManifest = {
+    name: 'foo',
+    version: '1.0.0',
+    publishConfig,
+  }
+  overridePublishConfig(publishManifest)
+  expect(publishManifest.publishConfig).toBeUndefined()
+  expect(publishManifest.registry).toBe('https://custom.registry.example.com/')
+})
