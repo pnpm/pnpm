@@ -2,8 +2,10 @@ import { stripVTControlCharacters } from 'node:util'
 
 import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
 import type { OutdatedPackage } from '@pnpm/deps.inspection.outdated'
+import { getTrustEvidence } from '@pnpm/resolving.npm-resolver'
 import semverDiff from '@pnpm/semver-diff'
 import { getBorderCharacters, table } from '@zkochan/table'
+import chalk from 'chalk'
 import { and, groupBy, isEmpty, pickBy, pipe, pluck, uniqBy } from 'ramda'
 
 export interface ChoiceRow {
@@ -19,7 +21,28 @@ type ChoiceGroup = Array<{
   disabled?: boolean
 }>
 
-export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], workspacesEnabled: boolean): ChoiceGroup {
+const trustLevels = {
+  none: 0,
+  provenance: 1,
+  trustedPublisher: 2,
+}
+
+function trustPolicyChange (outdatedPkg: OutdatedPackage): string {
+  const currentTrustEvidence = getTrustEvidence(outdatedPkg.currentManifest!) ?? 'none'
+  const latestTrustEvidence = getTrustEvidence(outdatedPkg.latestManifest!) ?? 'none'
+  const currentLevel = trustLevels[currentTrustEvidence]
+  const latestLevel = trustLevels[latestTrustEvidence]
+
+  if (latestLevel < currentLevel) {
+    return chalk.red(latestTrustEvidence)
+  } else if (latestLevel > currentLevel) {
+    return chalk.green(latestTrustEvidence)
+  } else {
+    return latestLevel > 0 ? chalk.green(latestTrustEvidence) : latestTrustEvidence
+  }
+}
+
+export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], workspacesEnabled: boolean, trustPolicy?: 'no-downgrade' | 'off' | undefined): ChoiceGroup {
   if (isEmpty(outdatedPkgsOfProjects)) {
     return []
   }
@@ -35,13 +58,17 @@ export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], wor
 
   const groupPkgsByType = dedupeAndGroupPkgs(outdatedPkgsOfProjects)
 
-  const headerRow = {
+  const headerRow: Record<string, boolean> = {
     Package: true,
     Current: true,
     ' ': true,
     Target: true,
     Workspace: workspacesEnabled,
     URL: true,
+  }
+
+  if (trustPolicy === 'no-downgrade') {
+    headerRow['Provenance'] = true
   }
   // returns only the keys that are true
   const header: string[] = Object.keys(pickBy(and, headerRow))
@@ -54,7 +81,7 @@ export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], wor
       // The list of outdated dependencies also contains deprecated packages.
       // But we only want to show those dependencies that have newer versions.
       if (choice.latestManifest?.version !== choice.current) {
-        rawChoices.push(buildPkgChoice(choice, workspacesEnabled))
+        rawChoices.push(buildPkgChoice(choice, workspacesEnabled, trustPolicy))
       }
     }
     if (rawChoices.length === 0) continue
@@ -65,7 +92,6 @@ export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], wor
       disabled: true,
     })
     const renderedTable = alignColumns(pluck('raw', rawChoices)).filter(Boolean)
-
     const choices = rawChoices.map((outdatedPkg, i) => {
       if (i === 0) {
         return {
@@ -96,14 +122,14 @@ interface RawChoice {
   disabled?: boolean
 }
 
-function buildPkgChoice (outdatedPkg: OutdatedPackage, workspacesEnabled: boolean): RawChoice {
+function buildPkgChoice (outdatedPkg: OutdatedPackage, workspacesEnabled: boolean, trustPolicy?: 'no-downgrade' | 'off' | undefined): RawChoice {
   const sdiff = semverDiff.default(outdatedPkg.wanted, outdatedPkg.latestManifest!.version)
   const nextVersion = sdiff.change === null
     ? outdatedPkg.latestManifest!.version
     : colorizeSemverDiff.default(sdiff as any) // eslint-disable-line @typescript-eslint/no-explicit-any
   const label = outdatedPkg.packageName
 
-  const lineParts = {
+  const lineParts: Record<string, unknown> = {
     label,
     current: outdatedPkg.current,
     arrow: '❯',
@@ -112,12 +138,16 @@ function buildPkgChoice (outdatedPkg: OutdatedPackage, workspacesEnabled: boolea
     url: getPkgUrl(outdatedPkg),
   }
 
+  if (trustPolicy === 'no-downgrade') {
+    lineParts['provenance'] = trustPolicyChange(outdatedPkg)
+  }
+
   if (!workspacesEnabled) {
     delete lineParts.workspace
   }
 
   return {
-    raw: Object.values(lineParts),
+    raw: Object.values(lineParts) as string[],
     name: outdatedPkg.packageName,
   }
 }
