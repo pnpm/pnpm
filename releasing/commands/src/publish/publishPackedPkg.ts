@@ -132,7 +132,7 @@ interface RegistryInfo {
  * Follows {@link https://docs.npmjs.com/cli/v10/configuring-npm/npmrc#auth-related-configuration}.
  */
 function findRegistryInfo (
-  { name, registry: manifestRegistry }: ExportedManifest & { registry?: string },
+  { name, registry: manifestRegistry }: ExportedManifest,
   { configByUri, registries }: Pick<Config, 'configByUri' | 'registries'>
 ): Partial<RegistryInfo> {
   const scopedMatches = /@(?<scope>[^/]+)\/[^/]+/.exec(name)
