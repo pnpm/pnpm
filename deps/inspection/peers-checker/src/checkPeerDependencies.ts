@@ -8,6 +8,7 @@ import {
   getLockfileImporterId,
   type LockfileObject,
   type PackageSnapshots,
+  type ProjectSnapshot,
   readCurrentLockfile,
   readWantedLockfile,
 } from '@pnpm/lockfile.fs'
@@ -31,6 +32,14 @@ export async function checkPeerDependencies (
     checkWantedLockfileOnly?: boolean
     modulesDir?: string
     peerDependencyRules?: PeerDependencyRules
+    /**
+     * When true (default), peer dependencies provided by the workspace root
+     * importer are not reported as missing or unmet for non-root importers.
+     * This matches the behavior of `resolvePeersFromWorkspaceRoot` during
+     * install: in a monorepo, peers can legitimately be satisfied by a
+     * singleton installed at the workspace root.
+     */
+    resolvePeersFromWorkspaceRoot?: boolean
   }
 ): Promise<PeerDependencyIssuesByProjects> {
   const modulesDir = opts.modulesDir ?? 'node_modules'
@@ -40,22 +49,37 @@ export async function checkPeerDependencies (
       ?? await readWantedLockfile(opts.lockfileDir, { ignoreIncompatible: false })
   if (!lockfile) return {}
 
-  const issues = checkPeerDependenciesFromLockfile(projectPaths, lockfile, opts.lockfileDir)
+  const issues = checkPeerDependenciesFromLockfile(projectPaths, lockfile, opts.lockfileDir, {
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot ?? true,
+  })
   if (opts.peerDependencyRules) {
     return filterPeerDependencyIssues(issues, opts.peerDependencyRules)
   }
   return issues
 }
 
+interface RootPeerProvider {
+  /** Pre-resolved version provided by the workspace root for a given peer name. */
+  resolvedVersionByPeerName: Map<string, string>
+}
+
 function checkPeerDependenciesFromLockfile (
   projectPaths: string[],
   lockfile: LockfileObject,
-  lockfileDir: string
+  lockfileDir: string,
+  opts: { resolvePeersFromWorkspaceRoot: boolean }
 ): PeerDependencyIssuesByProjects {
   const packages = lockfile.packages ?? {}
   const importerIds = projectPaths.map((p) => getLockfileImporterId(lockfileDir, p))
   const walkerSteps = lockfileWalkerGroupImporterSteps(lockfile, importerIds as ProjectId[])
   const result: PeerDependencyIssuesByProjects = {}
+
+  // Build a lookup of peer-eligible packages provided by the workspace root.
+  // We only do this when there's an actual workspace (multiple importers) and
+  // a root importer exists at id ".".
+  const rootPeerProvider = opts.resolvePeersFromWorkspaceRoot
+    ? buildRootPeerProvider(lockfile, packages, importerIds)
+    : undefined
 
   for (const { importerId, step } of walkerSteps) {
     const projectIssues: PeerDependencyIssues = {
@@ -65,7 +89,12 @@ function checkPeerDependenciesFromLockfile (
       intersections: {},
     }
 
-    walkStep(step, packages, [], projectIssues)
+    // The workspace root provides peers; sub-projects can rely on those.
+    // For the root importer itself, we don't apply this filter because its
+    // peers must be satisfied within its own dependency tree.
+    const provider = importerId === '.' ? undefined : rootPeerProvider
+
+    walkStep(step, packages, [], projectIssues, provider)
 
     const merged = mergePeers(projectIssues.missing)
     projectIssues.conflicts = merged.conflicts
@@ -77,11 +106,39 @@ function checkPeerDependenciesFromLockfile (
   return result
 }
 
+function buildRootPeerProvider (
+  lockfile: LockfileObject,
+  packages: PackageSnapshots,
+  importerIds: string[]
+): RootPeerProvider | undefined {
+  // Only meaningful in a workspace where the root and at least one other
+  // importer are being checked together.
+  if (importerIds.length < 2 || !importerIds.includes('.')) return undefined
+  const rootImporter: ProjectSnapshot | undefined = lockfile.importers?.['.' as ProjectId]
+  if (!rootImporter) return undefined
+
+  const resolvedVersionByPeerName = new Map<string, string>()
+  const directRefs: Record<string, string> = {
+    ...(rootImporter.dependencies ?? {}),
+    ...(rootImporter.devDependencies ?? {}),
+    ...(rootImporter.optionalDependencies ?? {}),
+  }
+  for (const [alias, ref] of Object.entries(directRefs)) {
+    if (typeof ref !== 'string') continue
+    // Workspace links and link: refs cannot be inspected via packages map.
+    if (ref.startsWith('link:') || ref.startsWith('file:')) continue
+    const version = extractVersion(ref, alias, packages)
+    if (version) resolvedVersionByPeerName.set(alias, version)
+  }
+  return resolvedVersionByPeerName.size > 0 ? { resolvedVersionByPeerName } : undefined
+}
+
 function walkStep (
   step: LockfileWalkerStep,
   packages: PackageSnapshots,
   parents: ParentPackages,
-  issues: PeerDependencyIssues
+  issues: PeerDependencyIssues,
+  rootPeerProvider?: RootPeerProvider
 ): void {
   for (const { depPath, pkgSnapshot, next } of step.dependencies) {
     const parsed = parseDependencyPath(depPath)
@@ -95,14 +152,19 @@ function walkStep (
         const resolvedPeerRef = pkgSnapshot.dependencies?.[peerName] ?? pkgSnapshot.optionalDependencies?.[peerName]
 
         if (!resolvedPeerRef) {
-          if (!isOptional) {
-            if (!issues.missing[peerName]) issues.missing[peerName] = []
-            issues.missing[peerName].push({
-              parents: currentParents,
-              optional: isOptional,
-              wantedRange: peerRange,
-            })
-          }
+          if (isOptional) continue
+          // If the workspace root provides this peer at a satisfying version,
+          // suppress the warning entirely. This mirrors install-time behavior
+          // where peers hoisted at the workspace root are considered resolved
+          // for sub-projects.
+          const rootVersion = rootPeerProvider?.resolvedVersionByPeerName.get(peerName)
+          if (rootVersion && satisfies(rootVersion, peerRange)) continue
+          if (!issues.missing[peerName]) issues.missing[peerName] = []
+          issues.missing[peerName].push({
+            parents: currentParents,
+            optional: isOptional,
+            wantedRange: peerRange,
+          })
         } else {
           const peerVersion = extractVersion(resolvedPeerRef, peerName, packages)
           if (peerVersion && !satisfies(peerVersion, peerRange)) {
@@ -119,7 +181,7 @@ function walkStep (
       }
     }
 
-    walkStep(next(), packages, currentParents, issues)
+    walkStep(next(), packages, currentParents, issues, rootPeerProvider)
   }
 }
 
