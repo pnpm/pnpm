@@ -697,6 +697,25 @@ test('throw error if --no-hoist is used with --hoist-pattern', async () => {
   })
 })
 
+// `pnpm <cmd> --no-cache` is not a real flag, but nopt prefix-matches `cache`
+// to the String-typed `cache-dir` and coerces the negation to the literal
+// string "false". Simulate that artifact here and verify the default cache
+// directory is resolved instead of `./false`. https://github.com/pnpm/pnpm/issues/11353
+test('cacheDir falls back to default when CLI passes the "false" string from --no-cache', async () => {
+  const { config } = await getConfig({
+    cliOptions: {
+      'cache-dir': 'false',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.cacheDir).not.toBe('false')
+  expect(path.isAbsolute(config.cacheDir)).toBe(true)
+})
+
 // public-hoist-pattern normalization is done in @pnpm/cli.utils
 test('normalizing the value of public-hoist-pattern', async () => {
   {

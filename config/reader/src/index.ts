@@ -238,6 +238,16 @@ export async function getConfig (opts: {
     .map(([name, value]) => [camelcase(name, { locale: 'en-US' }), value])
   )
 
+  // `pnpm <cmd> --no-cache` is not a real flag. nopt prefix-matches `cache`
+  // to the declared `cache-dir` and, because `cache-dir` is String-typed,
+  // coerces the negation to the literal string "false" — which would then
+  // be joined as `./false/<metadata-dir>/...` by the resolver. Drop the
+  // artifact so the default cache directory is resolved instead.
+  // https://github.com/pnpm/pnpm/issues/11353
+  if ((configFromCliOpts as Record<string, unknown>).cacheDir === 'false') {
+    delete (configFromCliOpts as Record<string, unknown>).cacheDir
+  }
+
   // Build initial config from defaults, then overlay auth/registry values from .npmrc
   const pnpmConfig = Object.fromEntries(
     Object.entries(defaultOptions)
