@@ -1711,3 +1711,39 @@ test('pnpm_config_git_branch_lockfile env var overrides git-branch-lockfile from
 
   expect(config.useGitBranchLockfile).toBe(true)
 })
+
+test('GVS: .npmrc dangerouslyAllowAllBuilds is respected when no global workspace manifest exists', async () => {
+  prepareEmpty()
+
+  // Set up global config.yaml with a build policy
+  fs.mkdirSync('.config/pnpm', { recursive: true })
+  writeYamlFileSync('.config/pnpm/config.yaml', {
+    dangerouslyAllowAllBuilds: true,
+  })
+  process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+  // No global pnpm-workspace.yaml
+  // intentionally do not write a workspace manifest
+
+  const { config } = await getConfig({
+    cliOptions: {
+      global: true,
+    },
+    env,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  // enableGlobalVirtualStore is true by default when not in CI
+  expect(config.enableGlobalVirtualStore).toBe(true)
+  // The key assertion: .npmrc policy should NOT be wiped by the GVS
+  // allowBuilds = {} default. Previously this block set allowBuilds
+  // before globalDepsBuildConfig was re-applied, so hasDependencyBuildOptions
+  // saw allowBuilds = {} and skipped re-application, silently losing
+  // dangerouslyAllowAllBuilds.
+  expect(config.dangerouslyAllowAllBuilds).toBe(true)
+  // allowBuilds should remain null — dangerouslyAllowAllBuilds IS the policy
+  expect(config.allowBuilds).toBeUndefined()
+})
