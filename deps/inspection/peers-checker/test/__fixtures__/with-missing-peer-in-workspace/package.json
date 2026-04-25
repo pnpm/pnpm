@@ -1,0 +1,7 @@
+{
+  "name": "with-missing-peer-in-workspace",
+  "version": "1.0.0",
+  "dependencies": {
+    "ajv": "6.10.0"
+  }
+}

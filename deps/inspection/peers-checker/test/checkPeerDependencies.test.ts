@@ -98,3 +98,39 @@ test('returns no issues when there are no peer dependency problems', async () =>
   expect(Object.keys(projectIssues.bad)).toHaveLength(0)
   expect(Object.keys(projectIssues.missing)).toHaveLength(0)
 })
+
+// Regression test for https://github.com/pnpm/pnpm/issues/1284
+// Sub-package depends on `ajv-keywords` which has a peer dep on `ajv`.
+// `ajv` is provided by the workspace root. The lockfile-based peer check
+// must not warn that `ajv` is missing for the sub-package.
+test('does not warn about peers satisfied by the workspace root importer', async () => {
+  const fixture = f.find('with-missing-peer-in-workspace')
+  const rootDir = fixture
+  const subDir = `${fixture}/pkg`
+  const issues = await checkPeerDependencies([rootDir, subDir], {
+    lockfileDir: fixture,
+    checkWantedLockfileOnly: true,
+  })
+
+  expect(issues['.']).toBeDefined()
+  expect(Object.keys(issues['.'].missing)).toHaveLength(0)
+  expect(issues['pkg']).toBeDefined()
+  expect(Object.keys(issues['pkg'].missing)).toHaveLength(0)
+  expect(Object.keys(issues['pkg'].bad)).toHaveLength(0)
+})
+
+// When the workspace-root resolution is opted-out, the existing strict
+// per-importer behavior is preserved.
+test('still reports missing peer when resolvePeersFromWorkspaceRoot is disabled', async () => {
+  const fixture = f.find('with-missing-peer-in-workspace')
+  const rootDir = fixture
+  const subDir = `${fixture}/pkg`
+  const issues = await checkPeerDependencies([rootDir, subDir], {
+    lockfileDir: fixture,
+    checkWantedLockfileOnly: true,
+    resolvePeersFromWorkspaceRoot: false,
+  })
+
+  expect(issues['pkg']).toBeDefined()
+  expect(issues['pkg'].missing).toHaveProperty('ajv')
+})
