@@ -96,6 +96,7 @@ export const excludedPnpmKeys = [
   'lockfile-dir',
   'lockfile-include-tarball-url',
   'lockfile-only',
+  'lockfile-storage',
   'modules-dir',
   'node-linker',
   'offline',
