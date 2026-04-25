@@ -27,6 +27,7 @@ import type {
   ResolvedPackage,
 } from './resolveDependencies.js'
 import type { ResolvedImporters } from './resolveDependencyTree.js'
+import { unwrapPackageName } from './unwrapPackageName.js'
 
 export interface BaseGenericDependenciesGraphNode {
   // at this point the version is really needed only for logging
@@ -900,7 +901,7 @@ function _resolvePeers<T extends PartialResolvedPackage> (
   const resolvedPeers = new Map<string, NodeId>()
   const missingPeers = new Map<string, MissingPeerInfo>()
   for (const [peerName, { version, optional }] of Object.entries(ctx.resolvedPackage.peerDependencies)) {
-    const peerVersionRange = version.replace(/^workspace:/, '')
+    const peerVersionRange = unwrapPackageName(peerName, version.replace(/^workspace:/, '')).bareSpecifier
 
     const resolved = ctx.parentPkgs[peerName]
     const optionalPeer = optional === true
