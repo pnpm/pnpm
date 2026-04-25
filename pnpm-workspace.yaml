@@ -66,6 +66,7 @@ auditConfig:
     - GHSA-76c9-3jph-rj3q
     - GHSA-ffrw-9mx8-89p8
     - GHSA-mh29-5h37-fv8m
+    - GHSA-w5hq-g745-h8pq
 
 catalog:
   '@babel/core': ^7.28.3
