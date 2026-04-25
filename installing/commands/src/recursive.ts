@@ -54,6 +54,7 @@ import pLimit from 'p-limit'
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
+import { mergePerPackageLockfiles, recoverFromPartialSplit, splitUnifiedLockfile } from './splitLockfile.js'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
@@ -84,6 +85,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'saveWorkspaceProtocol'
 | 'lockfileIncludeTarballUrl'
 | 'sharedWorkspaceLockfile'
+| 'lockfileStorage'
 | 'tag'
 | 'cleanupUnusedCatalogs'
 | 'packageConfigs'
@@ -287,6 +289,14 @@ export async function recursive (
       throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
         'None of the specified packages were found in the dependencies of any of the projects.')
     }
+    // In split mode, merge per-package lockfiles into a unified lockfile
+    // at the workspace root so mutateModules() can read it normally.
+    const isSplitMode = opts.lockfileStorage === 'split' && opts.workspaceDir
+    if (isSplitMode) {
+      await recoverFromPartialSplit(opts.workspaceDir!)
+      const allProjectDirs = allProjects.map(p => p.rootDir)
+      await mergePerPackageLockfiles(opts.workspaceDir!, allProjectDirs)
+    }
     const {
       updatedCatalogs,
       updatedProjects: mutatedPkgs,
@@ -295,6 +305,12 @@ export async function recursive (
       ...installOpts,
       storeController: store.ctrl,
     })
+    // In split mode, split the unified lockfile back into per-package lockfiles
+    // and remove the unified lockfile from the workspace root.
+    if (isSplitMode) {
+      const allProjectDirs = allProjects.map(p => p.rootDir)
+      await splitUnifiedLockfile(opts.workspaceDir!, allProjectDirs)
+    }
     if (opts.save !== false) {
       const promises: Array<Promise<void>> = mutatedPkgs.map(async ({ originalManifest, manifest, rootDir }) => {
         return manifestsByPath[rootDir].writeProjectManifest(originalManifest ?? manifest)
