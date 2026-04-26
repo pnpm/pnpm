@@ -590,7 +590,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     if (opts.modulesFile?.ignoredBuilds?.size) {
       ignoredBuilds ??= new Set()
       for (const ignoredBuild of opts.modulesFile.ignoredBuilds.values()) {
-        if (filteredLockfile.packages?.[ignoredBuild]) {
+        if (filteredLockfile.packages?.[ignoredBuild] && shouldPreserveIgnoredBuild(ignoredBuild, allowBuild)) {
           ignoredBuilds.add(ignoredBuild)
         }
       }
@@ -717,6 +717,11 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     },
     ignoredBuilds,
   }
+}
+
+function shouldPreserveIgnoredBuild (depPath: DepPath, allowBuild?: AllowBuild): boolean {
+  const { name, version } = dp.parse(depPath)
+  return !name || !version || allowBuild?.(name, version) !== false
 }
 
 type SymlinkDirectDependenciesOpts = Pick<HeadlessOptions, 'registries' | 'symlink' | 'lockfileDir'> & {
