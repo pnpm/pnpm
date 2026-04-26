@@ -1494,7 +1494,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         if (ctx.modulesFile?.ignoredBuilds?.size) {
           ignoredBuilds ??= new Set()
           for (const ignoredBuild of ctx.modulesFile.ignoredBuilds.values()) {
-            if (result.currentLockfile.packages?.[ignoredBuild]) {
+            if (result.currentLockfile.packages?.[ignoredBuild] && shouldPreserveIgnoredBuild(ignoredBuild, opts.allowBuild)) {
               ignoredBuilds.add(ignoredBuild)
             }
           }
@@ -1822,6 +1822,11 @@ export class IgnoredBuildsError extends PnpmError {
 
 function dedupePackageNamesFromIgnoredBuilds (ignoredBuilds: IgnoredBuilds): string[] {
   return Array.from(new Set(Array.from(ignoredBuilds ?? []).map(dp.removeSuffix))).sort(lexCompare)
+}
+
+function shouldPreserveIgnoredBuild (depPath: DepPath, allowBuild?: AllowBuild): boolean {
+  const { name, version } = dp.parse(depPath)
+  return !name || !version || allowBuild?.(name, version) !== false
 }
 
 /**
