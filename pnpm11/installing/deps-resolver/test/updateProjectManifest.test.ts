@@ -57,6 +57,62 @@ test('updateProjectManifest preserves catalog specifier precedence', async () =>
   expect(manifest?.dependencies?.foo).toBe('catalog:')
 })
 
+test('does not update an unrelated dependency when an optional dependency update fails to resolve', async () => {
+  const [manifest] = await updateProjectManifest({
+    binsDir: '/project/node_modules/.bin',
+    id: '.' as ProjectId,
+    manifest: {
+      devDependencies: {
+        react: '19.0.0',
+      },
+      optionalDependencies: {
+        'react-dom': '19.0.0',
+      },
+    },
+    modulesDir: '/project/node_modules',
+    rootDir: '/project' as ProjectRootDir,
+    updatePackageManifest: true,
+    wantedDependencies: [
+      {
+        alias: 'react-dom',
+        bareSpecifier: 'foo',
+        dev: false,
+        optional: true,
+        updateSpec: true,
+      },
+      {
+        alias: 'react',
+        bareSpecifier: '19.0.0',
+        dev: true,
+        optional: false,
+      },
+    ],
+  } as ImporterToResolve, {
+    directDependencies: [
+      {
+        alias: 'react',
+        dev: true,
+        name: 'react',
+        optional: false,
+        pkgId: 'react@19.0.0',
+        resolution: {},
+        version: '19.0.0',
+      } as ResolvedDirectDependency,
+    ],
+    preserveWorkspaceProtocol: false,
+    saveWorkspaceProtocol: false,
+  })
+
+  expect(manifest).toStrictEqual({
+    devDependencies: {
+      react: '19.0.0',
+    },
+    optionalDependencies: {
+      'react-dom': '19.0.0',
+    },
+  })
+})
+
 function createImporter (bareSpecifier: string): ImporterToResolve {
   return {
     binsDir: '/project/node_modules/.bin',
