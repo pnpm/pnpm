@@ -7,7 +7,7 @@ import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config
 import { PnpmError } from '@pnpm/error'
 import { createResolver } from '@pnpm/installing.client'
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
-import { globalWarn } from '@pnpm/logger'
+import { globalInfo, globalWarn } from '@pnpm/logger'
 import { whichVersionIsPinned } from '@pnpm/resolving.npm-resolver'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { PinnedVersion } from '@pnpm/types'
@@ -63,6 +63,7 @@ export async function handler (
   if (isExecutedByCorepack()) {
     throw new PnpmError('CANT_SELF_UPDATE_IN_COREPACK', 'You should update pnpm with corepack')
   }
+  globalInfo('Checking for updates...')
   const { resolve } = createResolver({ ...opts, configByUri: opts.configByUri })
   const pkgName = 'pnpm'
   const bareSpecifier = params[0] ?? 'latest'
@@ -115,6 +116,7 @@ export async function handler (
     return `The currently active ${packageManager.name} v${packageManager.version} is already "${bareSpecifier}" and doesn't need an update`
   }
 
+  globalInfo(`Updating pnpm from v${packageManager.version} to v${resolution.manifest.version}...`)
   const store = await createStoreController(opts)
 
   // Resolve integrities and write env lockfile to pnpm-lock.yaml
@@ -138,7 +140,7 @@ export async function handler (
   if (alreadyExisted) {
     return `The ${bareSpecifier} version, v${resolution.manifest.version}, is already present on the system. It was activated by linking it from ${baseDir}.`
   }
-  return undefined
+  return `Successfully updated pnpm to v${resolution.manifest.version}`
 }
 
 /**
