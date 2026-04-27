@@ -387,6 +387,17 @@ export async function getConfig (opts: {
         }
         pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
       }
+    } else if (cliOptions['global']) {
+      const workspaceManifest = await readWorkspaceManifest(pnpmConfig.globalPkgDir)
+      if (workspaceManifest) {
+        const newSettings = Object.assign(getOptionsFromPnpmSettings(pnpmConfig.globalPkgDir, workspaceManifest, pnpmConfig.rootProjectManifest), configFromCliOpts)
+        for (const [key, value] of Object.entries(newSettings)) {
+          // @ts-expect-error
+          pnpmConfig[key] = value
+          pnpmConfig.rawConfig[kebabCase(key)] = value
+        }
+        pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
+      }
     }
   }
 
