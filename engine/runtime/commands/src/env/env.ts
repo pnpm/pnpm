@@ -52,17 +52,17 @@ export function help (): string {
     ],
     url: docsUrl('env'),
     usages: [
-      'pnpm env use --global 18',
+      'pnpm env use --global 24',
       'pnpm env use --global lts',
-      'pnpm env use --global argon',
+      'pnpm env use --global krypton',
       'pnpm env use --global latest',
-      'pnpm env use --global rc/18',
+      'pnpm env use --global rc/24',
       'pnpm env list',
-      'pnpm env list 18',
+      'pnpm env list 24',
       'pnpm env list lts',
-      'pnpm env list argon',
+      'pnpm env list krypton',
       'pnpm env list latest',
-      'pnpm env list rc/18',
+      'pnpm env list rc/24',
     ],
   })
 }
