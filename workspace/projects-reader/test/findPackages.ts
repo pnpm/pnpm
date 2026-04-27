@@ -86,3 +86,35 @@ test('json and yaml manifests are also found', async () => {
   expect(pkgs[2].rootDir).toBeDefined()
   expect(pkgs[2].manifest.name).toBe('foo')
 })
+
+test('dedupes coexisting manifest files in the same directory and prefers package.json by default', async () => {
+  const root = path.join(fixtures, 'conflicting-manifests')
+  const pkgs = await findPackages(root)
+
+  expect(pkgs).toHaveLength(2)
+  const both = pkgs.find(p => p.manifest.name === 'pkg-with-both')
+  expect(both).toBeDefined()
+  // @ts-expect-error
+  expect(both!.manifest._source).toBe('json')
+})
+
+test('honors preferredManifestFormat=json5 when both files coexist', async () => {
+  const root = path.join(fixtures, 'conflicting-manifests')
+  const pkgs = await findPackages(root, { preferredManifestFormat: 'json5' })
+
+  expect(pkgs).toHaveLength(2)
+  const both = pkgs.find(p => p.manifest.name === 'pkg-with-both')
+  expect(both).toBeDefined()
+  // @ts-expect-error
+  expect(both!.manifest._source).toBe('json5')
+})
+
+test('preferredManifestFormat falls back silently when only one format exists', async () => {
+  const root = path.join(fixtures, 'conflicting-manifests')
+  const pkgs = await findPackages(root, { preferredManifestFormat: 'json5' })
+
+  const onlyJson = pkgs.find(p => p.manifest.name === 'pkg-with-only-json')
+  expect(onlyJson).toBeDefined()
+  // @ts-expect-error
+  expect(onlyJson!.manifest._source).toBe('json')
+})

@@ -4,7 +4,7 @@ import path from 'node:path'
 import { PnpmError } from '@pnpm/error'
 import { convertEnginesRuntimeToDependencies } from '@pnpm/pkg-manifest.utils'
 import { type CommentSpecifier, extractComments } from '@pnpm/text.comments-parser'
-import type { EngineDependency, ProjectManifest } from '@pnpm/types'
+import type { EngineDependency, ManifestFormat, ProjectManifest } from '@pnpm/types'
 import { writeProjectManifest } from '@pnpm/workspace.project-manifest-writer'
 import detectIndent from 'detect-indent'
 import equal from 'fast-deep-equal'
@@ -18,9 +18,28 @@ import {
 
 export type WriteProjectManifest = (manifest: ProjectManifest, force?: boolean) => Promise<void>
 
-export async function safeReadProjectManifestOnly (projectDir: string): Promise<ProjectManifest | null> {
+export interface ReadProjectManifestOptions {
+  preferredManifestFormat?: ManifestFormat
+}
+
+const DEFAULT_FORMAT_ORDER: readonly ManifestFormat[] = ['json', 'json5', 'yaml']
+
+function buildFormatOrder (preferred?: ManifestFormat): ManifestFormat[] {
+  if (!preferred || !DEFAULT_FORMAT_ORDER.includes(preferred)) {
+    return [...DEFAULT_FORMAT_ORDER]
+  }
+  return [preferred, ...DEFAULT_FORMAT_ORDER.filter(f => f !== preferred)]
+}
+
+const FORMAT_FILENAMES: Record<ManifestFormat, string> = {
+  json: 'package.json',
+  json5: 'package.json5',
+  yaml: 'package.yaml',
+}
+
+export async function safeReadProjectManifestOnly (projectDir: string, opts?: ReadProjectManifestOptions): Promise<ProjectManifest | null> {
   try {
-    return await readProjectManifestOnly(projectDir)
+    return await readProjectManifestOnly(projectDir, opts)
   } catch (err: any) { // eslint-disable-line
     if ((err as NodeJS.ErrnoException).code === 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND') {
       return null
@@ -29,12 +48,12 @@ export async function safeReadProjectManifestOnly (projectDir: string): Promise<
   }
 }
 
-export async function readProjectManifest (projectDir: string): Promise<{
+export async function readProjectManifest (projectDir: string, opts?: ReadProjectManifestOptions): Promise<{
   fileName: string
   manifest: ProjectManifest
   writeProjectManifest: WriteProjectManifest
 }> {
-  const result = await tryReadProjectManifest(projectDir)
+  const result = await tryReadProjectManifest(projectDir, opts)
   if (result.manifest !== null) {
     return result as {
       fileName: string
@@ -46,56 +65,64 @@ export async function readProjectManifest (projectDir: string): Promise<{
     `No package.json (or package.yaml, or package.json5) was found in "${projectDir}".`)
 }
 
-export async function readProjectManifestOnly (projectDir: string): Promise<ProjectManifest> {
-  const { manifest } = await readProjectManifest(projectDir)
+export async function readProjectManifestOnly (projectDir: string, opts?: ReadProjectManifestOptions): Promise<ProjectManifest> {
+  const { manifest } = await readProjectManifest(projectDir, opts)
   return manifest
 }
 
-export async function tryReadProjectManifest (projectDir: string): Promise<{
+async function tryReadFormat (projectDir: string, format: ManifestFormat): Promise<{
   fileName: string
-  manifest: ProjectManifest | null
+  manifest: ProjectManifest
   writeProjectManifest: WriteProjectManifest
-}> {
+} | null> {
+  const fileName = FORMAT_FILENAMES[format]
+  const manifestPath = path.join(projectDir, fileName)
   try {
-    const manifestPath = path.join(projectDir, 'package.json')
-    const { data, text } = await readJsonFile(manifestPath)
-    return {
-      fileName: 'package.json',
-      manifest: convertManifestAfterRead(data),
-      writeProjectManifest: createManifestWriter({
-        ...detectFileFormatting(text),
-        initialManifest: data,
-        manifestPath,
-      }),
+    if (format === 'json') {
+      const { data, text } = await readJsonFile(manifestPath)
+      return {
+        fileName,
+        manifest: convertManifestAfterRead(data),
+        writeProjectManifest: createManifestWriter({
+          ...detectFileFormatting(text),
+          initialManifest: data,
+          manifestPath,
+        }),
+      }
     }
-  } catch (err: any) { // eslint-disable-line
-    if (err.code !== 'ENOENT') throw err
-  }
-  try {
-    const manifestPath = path.join(projectDir, 'package.json5')
-    const { data, text } = await readJson5File(manifestPath)
-    return {
-      fileName: 'package.json5',
-      manifest: convertManifestAfterRead(data),
-      writeProjectManifest: createManifestWriter({
-        ...detectFileFormattingAndComments(text),
-        initialManifest: data,
-        manifestPath,
-      }),
+    if (format === 'json5') {
+      const { data, text } = await readJson5File(manifestPath)
+      return {
+        fileName,
+        manifest: convertManifestAfterRead(data),
+        writeProjectManifest: createManifestWriter({
+          ...detectFileFormattingAndComments(text),
+          initialManifest: data,
+          manifestPath,
+        }),
+      }
     }
-  } catch (err: any) { // eslint-disable-line
-    if (err.code !== 'ENOENT') throw err
-  }
-  try {
-    const manifestPath = path.join(projectDir, 'package.yaml')
     const manifest = await readPackageYaml(manifestPath)
     return {
-      fileName: 'package.yaml',
+      fileName,
       manifest: convertManifestAfterRead(manifest),
       writeProjectManifest: createManifestWriter({ initialManifest: manifest, manifestPath }),
     }
   } catch (err: any) { // eslint-disable-line
     if (err.code !== 'ENOENT') throw err
+    return null
+  }
+}
+
+export async function tryReadProjectManifest (projectDir: string, opts?: ReadProjectManifestOptions): Promise<{
+  fileName: string
+  manifest: ProjectManifest | null
+  writeProjectManifest: WriteProjectManifest
+}> {
+  const order = buildFormatOrder(opts?.preferredManifestFormat)
+  for (const format of order) {
+    const result = await tryReadFormat(projectDir, format)
+    if (result != null) return result
   }
   if (isWindows()) {
     // ENOTDIR isn't used on Windows, but pnpm expects it.
@@ -112,9 +139,10 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
       throw err
     }
   }
-  const filePath = path.join(projectDir, 'package.json')
+  const fallbackFileName = FORMAT_FILENAMES[order[0]]
+  const filePath = path.join(projectDir, fallbackFileName)
   return {
-    fileName: 'package.json',
+    fileName: fallbackFileName,
     manifest: null,
     writeProjectManifest: async (manifest: ProjectManifest) => writeProjectManifest(filePath, manifest),
   }

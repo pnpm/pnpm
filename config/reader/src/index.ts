@@ -400,7 +400,24 @@ export async function getConfig (opts: {
 
   if (!opts.ignoreLocalSettings) {
     pnpmConfig.rootProjectManifestDir = pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
-    pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.rootProjectManifestDir) ?? undefined
+
+    // Read pnpm-workspace.yaml first so settings like `preferredManifestFormat`
+    // can influence how the root project manifest is read below.
+    let workspaceManifest: WorkspaceManifest | undefined
+    let workspaceManifestDir: string | undefined
+    if (pnpmConfig.workspaceDir != null) {
+      workspaceManifest = await readWorkspaceManifest(pnpmConfig.workspaceDir)
+      workspaceManifestDir = pnpmConfig.workspaceDir
+      pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
+    } else if (cliOptions['global']) {
+      // For global installs, read settings from pnpm-workspace.yaml in the global package directory
+      workspaceManifest = await readWorkspaceManifest(pnpmConfig.globalPkgDir)
+      workspaceManifestDir = pnpmConfig.globalPkgDir
+    }
+
+    pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.rootProjectManifestDir, {
+      preferredManifestFormat: workspaceManifest?.preferredManifestFormat,
+    }) ?? undefined
     if (pnpmConfig.rootProjectManifest != null) {
       if (pnpmConfig.rootProjectManifest.workspaces?.length && !pnpmConfig.workspaceDir) {
         warnings.push('The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead.')
@@ -415,29 +432,13 @@ export async function getConfig (opts: {
       }
     }
 
-    if (pnpmConfig.workspaceDir != null) {
-      const workspaceManifest = await readWorkspaceManifest(pnpmConfig.workspaceDir)
-
-      pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
-      if (workspaceManifest) {
-        addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
-          configFromCliOpts,
-          projectManifest: pnpmConfig.rootProjectManifest,
-          workspaceDir: pnpmConfig.workspaceDir,
-          workspaceManifest,
-        })
-      }
-    } else if (cliOptions['global']) {
-      // For global installs, read settings from pnpm-workspace.yaml in the global package directory
-      const workspaceManifest = await readWorkspaceManifest(pnpmConfig.globalPkgDir)
-      if (workspaceManifest) {
-        addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
-          configFromCliOpts,
-          projectManifest: pnpmConfig.rootProjectManifest,
-          workspaceDir: pnpmConfig.globalPkgDir,
-          workspaceManifest,
-        })
-      }
+    if (workspaceManifest) {
+      addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
+        configFromCliOpts,
+        projectManifest: pnpmConfig.rootProjectManifest,
+        workspaceDir: workspaceManifestDir!,
+        workspaceManifest,
+      })
     }
   }
 

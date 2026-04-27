@@ -167,6 +167,8 @@ export interface AuditConfig {
   ignoreGhsas?: string[]
 }
 
+export type ManifestFormat = 'json' | 'json5' | 'yaml'
+
 export interface PnpmSettings {
   configDependencies?: ConfigDependencies
   allowBuilds?: Record<string, boolean | string>
@@ -177,6 +179,14 @@ export interface PnpmSettings {
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
   allowUnusedPatches?: boolean
   patchedDependencies?: Record<string, string>
+  /**
+   * When multiple manifest files coexist in a project directory (e.g. both
+   * package.json and package.json5), this setting selects which format pnpm
+   * should read and write. Falls back to the default chain
+   * (json > json5 > yaml) when the preferred format is missing. Applies only
+   * to manifests within the workspace, not to dependencies.
+   */
+  preferredManifestFormat?: ManifestFormat
   updateConfig?: {
     ignoreDependencies?: string[]
   }

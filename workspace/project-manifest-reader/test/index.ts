@@ -33,6 +33,30 @@ test('readProjectManifest()', async () => {
   ).toBeNull()
 })
 
+test('tryReadProjectManifest() prefers package.json by default when both files exist', async () => {
+  const result = await tryReadProjectManifest(f.find('package-json-and-json5'))
+  expect(result.fileName).toBe('package.json')
+  expect(result.manifest).toStrictEqual({ name: 'from-json', version: '1.0.0' })
+})
+
+test('tryReadProjectManifest() honors preferredManifestFormat=json5 when both files exist', async () => {
+  const result = await tryReadProjectManifest(f.find('package-json-and-json5'), { preferredManifestFormat: 'json5' })
+  expect(result.fileName).toBe('package.json5')
+  expect(result.manifest).toStrictEqual({ name: 'from-json5', version: '1.0.0' })
+})
+
+test('tryReadProjectManifest() falls back to default chain when preferred format is missing', async () => {
+  const result = await tryReadProjectManifest(f.find('package-json'), { preferredManifestFormat: 'json5' })
+  expect(result.fileName).toBe('package.json')
+  expect(result.manifest).toStrictEqual({ name: 'foo', version: '1.0.0' })
+})
+
+test('tryReadProjectManifest() with preferredManifestFormat returns matching writer fileName when no manifest exists', async () => {
+  const result = await tryReadProjectManifest(import.meta.dirname, { preferredManifestFormat: 'json5' })
+  expect(result.fileName).toBe('package.json5')
+  expect(result.manifest).toBeNull()
+})
+
 test('readProjectManifest() converts devEngines runtime to devDependencies', async () => {
   const dir = f.prepare('package-json-with-dev-engines')
   const { manifest, writeProjectManifest } = await tryReadProjectManifest(dir)

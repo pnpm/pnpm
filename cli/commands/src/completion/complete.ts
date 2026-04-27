@@ -37,6 +37,7 @@ export async function complete (
       const workspaceManifest = await readWorkspaceManifest(workspaceDir)
       const allProjects = await findWorkspaceProjects(workspaceDir, {
         patterns: workspaceManifest?.packages,
+        preferredManifestFormat: workspaceManifest?.preferredManifestFormat,
         supportedArchitectures: {
           os: ['current'],
           cpu: ['current'],
