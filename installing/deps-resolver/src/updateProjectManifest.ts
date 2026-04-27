@@ -18,19 +18,18 @@ export async function updateProjectManifest (
   if (!importer.manifest) {
     throw new Error('Cannot save because no package.json found')
   }
-  const specsToUpsert: PackageSpecObject[] = opts.directDependencies
-    .filter((rdd, index) => importer.wantedDependencies[index]?.updateSpec)
-    .map((rdd, index) => {
-      const wantedDep = importer.wantedDependencies[index]!
-      return {
-        alias: rdd.alias,
-        peer: importer.peer,
-        bareSpecifier: rdd.catalogLookup?.userSpecifiedBareSpecifier ?? rdd.normalizedBareSpecifier ?? wantedDep.bareSpecifier,
-        resolvedVersion: rdd.version,
-        pinnedVersion: importer.pinnedVersion,
-        saveType: importer.targetDependenciesField,
-      }
-    })
+  const specsToUpsert: PackageSpecObject[] = opts.directDependencies.flatMap((rdd) => {
+    const wantedDep = importer.wantedDependencies.find((wantedDep) => wantedDepMatchesResolvedDep(wantedDep, rdd))
+    if (wantedDep == null) return []
+    return [{
+      alias: rdd.alias,
+      peer: importer.peer,
+      bareSpecifier: rdd.catalogLookup?.userSpecifiedBareSpecifier ?? rdd.normalizedBareSpecifier ?? wantedDep.bareSpecifier,
+      resolvedVersion: rdd.version,
+      pinnedVersion: importer.pinnedVersion,
+      saveType: importer.targetDependenciesField,
+    }]
+  })
   for (const pkgToInstall of importer.wantedDependencies) {
     if (pkgToInstall.updateSpec && pkgToInstall.alias && !specsToUpsert.some(({ alias }) => alias === pkgToInstall.alias)) {
       specsToUpsert.push({
@@ -53,4 +52,13 @@ export async function updateProjectManifest (
     )
     : undefined
   return [hookedManifest, originalManifest]
+}
+
+function wantedDepMatchesResolvedDep (
+  wantedDep: ImporterToResolve['wantedDependencies'][number],
+  resolvedDep: ResolvedDirectDependency
+): boolean {
+  if (!wantedDep.updateSpec) return false
+  if (wantedDep.alias) return wantedDep.alias === resolvedDep.alias
+  return wantedDep.bareSpecifier === resolvedDep.normalizedBareSpecifier
 }
