@@ -1,6 +1,6 @@
 import type { Stats } from 'node:fs'
 
-import { jest } from '@jest/globals'
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { WorkspaceState } from '@pnpm/workspace.state'

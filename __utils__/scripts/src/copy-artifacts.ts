@@ -15,7 +15,7 @@ const pnpmDistDir = path.join(repoRoot, 'pnpm/dist')
 ;(async () => {
   await makeEmptyDir(dest)
   if (!fs.existsSync(path.join(artifactsDir, 'linux-x64/pnpm'))) {
-    execa.sync('pnpm', ['--filter=@pnpm/exe', 'run', 'prepublishOnly'], {
+    execa.sync('pnpm', ['--filter=@pnpm/exe', 'run', 'build-artifacts'], {
       cwd: repoRoot,
       stdio: 'inherit',
     })

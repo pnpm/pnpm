@@ -2,7 +2,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { afterAll, afterEach, beforeAll, beforeEach, expect, jest, test } from '@jest/globals'
 import { FetchError, PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createCafsStore } from '@pnpm/store.create-cafs-store'

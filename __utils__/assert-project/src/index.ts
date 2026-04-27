@@ -3,6 +3,7 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 import util from 'node:util'
 
+import { expect } from '@jest/globals'
 import { assertStore } from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import type { Modules } from '@pnpm/installing.modules-yaml'

@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import type { LockfileFile } from '@pnpm/lockfile.types'
 import { preparePackages } from '@pnpm/prepare'

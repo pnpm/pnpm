@@ -24,7 +24,10 @@ export function createDirectoryFetcher (
   const fetchFromDir = opts?.includeOnlyPackageFiles ? fetchPackageFilesFromDir : fetchAllFilesFromDir.bind(null, readFileStat)
 
   const directoryFetcher: DirectoryFetcher = (cafs, resolution, opts) => {
-    const dir = path.join(opts.lockfileDir, resolution.directory)
+    // Use path.resolve so absolute directories (e.g. cross-drive Windows paths
+    // stored by `file:` deps) are respected instead of being concatenated
+    // onto lockfileDir.
+    const dir = path.resolve(opts.lockfileDir, resolution.directory)
     return fetchFromDir(dir)
   }
 

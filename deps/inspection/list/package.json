@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.inspection.list",
-  "version": "1100.0.2",
+  "version": "1100.0.4",
   "description": "List installed packages in a symlinked `node_modules`",
   "keywords": [
     "pnpm",
@@ -29,7 +29,7 @@
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepareFixtures": "cd test && node ../../pnpm recursive install --no-link-workspace-packages --no-shared-workspace-lockfile -f && cd ..",
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "pretest": "pnpm run --filter tree-builder pretest",
     "test": "pn compile && pn .test",
     "compile": "tsgo --build && pn lint --fix",
@@ -48,6 +48,7 @@
     "ramda": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/deps.inspection.list": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "catalog:"

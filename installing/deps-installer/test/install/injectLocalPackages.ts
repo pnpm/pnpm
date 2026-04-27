@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import { type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/installing.deps-installer'
 import { preparePackages } from '@pnpm/prepare'

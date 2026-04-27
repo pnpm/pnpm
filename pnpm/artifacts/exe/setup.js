@@ -4,11 +4,14 @@ import fs from 'fs'
 import { familySync } from 'detect-libc'
 import { exePlatformPkgName } from './platform-pkg-name.js'
 
-// Platform names match process.platform (linux | darwin | win32). On linux,
-// add a `-musl` libc suffix when detect-libc reports musl, matching the
-// @pnpm/exe.linux-<arch>-musl optional-dep naming. The name computation lives
-// in platform-pkg-name.js so it can be unit-tested without triggering the
-// side effects of this preinstall script.
+// Platform package names use the legacy scheme: `@pnpm/macos-<arch>` (darwin),
+// `@pnpm/win-<arch>` (win32), `@pnpm/linux-<arch>` (glibc), and
+// `@pnpm/linuxstatic-<arch>` (musl Linux, detected via detect-libc). This is
+// the naming published on npm, even though the workspace directories use the
+// newer `<os>-<arch>[-musl]` scheme. Keeping these names lets `pnpm
+// self-update` from older majors continue to resolve the right platform child.
+// The name computation lives in platform-pkg-name.js so it can be unit-tested
+// without triggering the side effects of this preinstall script.
 const platform = process.platform
 const pkgName = exePlatformPkgName(platform, process.arch, familySync())
 const pkgJson = fileURLToPath(import.meta.resolve(`${pkgName}/package.json`))

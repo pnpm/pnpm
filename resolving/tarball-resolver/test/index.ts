@@ -1,5 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 // cspell:ignore buildserver
+import { expect, test } from '@jest/globals'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { resolveFromTarball as _resolveFromTarball } from '@pnpm/resolving.tarball-resolver'
 

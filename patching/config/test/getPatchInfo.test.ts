@@ -1,3 +1,5 @@
+import { expect, test } from '@jest/globals'
+
 import { getPatchInfo } from '../src/getPatchInfo.js'
 import type { PatchGroupRecord } from '../src/index.js'
 

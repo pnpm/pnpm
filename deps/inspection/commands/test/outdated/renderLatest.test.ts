@@ -1,5 +1,6 @@
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
+import { expect, test } from '@jest/globals'
 import { outdated } from '@pnpm/deps.inspection.commands'
 import semverDiff from '@pnpm/semver-diff'
 import type { PackageManifest } from '@pnpm/types'

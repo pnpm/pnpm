@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { afterAll, expect, test } from '@jest/globals'
 import { STORE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'

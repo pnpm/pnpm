@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { beforeEach, expect, jest, test } from '@jest/globals'
 import { prepareEmpty } from '@pnpm/prepare'
 
 import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils/index.js'
@@ -13,7 +13,9 @@ jest.unstable_mockModule('execa', () => ({
 const { safeExeca: execa } = await import('execa')
 const { dlx } = await import('@pnpm/exec.commands')
 
-beforeEach(() => jest.mocked(execa).mockClear())
+beforeEach(() => {
+  jest.mocked(execa).mockClear()
+})
 
 test('dlx should work with scoped packages', async () => {
   prepareEmpty()

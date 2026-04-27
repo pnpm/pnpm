@@ -154,7 +154,7 @@ If you think that this is the case, then run "pnpm store prune" and rerun the co
   }
 }
 
-type AddFilesFromTarballOptions = Pick<TarballExtractMessage, 'buffer' | 'storeDir' | 'filesIndexFile' | 'integrity' | 'readManifest' | 'pkg' | 'appendManifest'> & {
+type AddFilesFromTarballOptions = Pick<TarballExtractMessage, 'buffer' | 'storeDir' | 'filesIndexFile' | 'integrity' | 'readManifest' | 'pkg' | 'appendManifest' | 'ignoreFilePattern'> & {
   storeIndex: StoreIndex
   url: string
 }
@@ -192,7 +192,8 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
       readManifest: opts.readManifest,
       pkg: opts.pkg,
       appendManifest: opts.appendManifest,
-    })
+      ignoreFilePattern: opts.ignoreFilePattern,
+    } satisfies TarballExtractMessage)
   })
 }
 

@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals'
 import { patchDocument } from '@pnpm/yaml.document-sync'
 import yaml from 'yaml'
 

@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 import { parentPort } from 'node:worker_threads'
 
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
@@ -185,7 +186,7 @@ async function handleMessage (
   }
 }
 
-function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appendManifest }: TarballExtractMessage) {
+function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appendManifest, ignoreFilePattern }: TarballExtractMessage) {
   if (integrity) {
     const { algorithm, hexDigest } = parseIntegrity(integrity)
     const calculatedHash: string = crypto.hash(algorithm, buffer, 'hex')
@@ -205,7 +206,8 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
     cafsCache.set(storeDir, createCafs(storeDir))
   }
   const cafs = cafsCache.get(storeDir)!
-  let { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, true)
+  const ignore = ignoreFilePattern ? makeIgnoreFromPattern(ignoreFilePattern) : undefined
+  let { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, true, ignore)
   if (appendManifest && manifest == null) {
     manifest = appendManifest
     addManifestToCafs(cafs, filesIndex, appendManifest)
@@ -236,6 +238,24 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
 function calcIntegrity (buffer: Buffer): string {
   const calculatedHash: string = crypto.hash('sha512', buffer, 'hex')
   return formatIntegrity('sha512', calculatedHash)
+}
+
+function makeIgnoreFromPattern (pattern: string): (filename: string) => boolean {
+  // `ignoreFilePattern` is a public field on FetchOptions, so callers that don't go
+  // through the binary-fetcher's validated `archiveFilters` path could still supply a
+  // bad regex. Convert the SyntaxError into a PnpmError with a stable code so it's
+  // actionable for users.
+  let regex: RegExp
+  try {
+    regex = new RegExp(pattern)
+  } catch (err: unknown) {
+    const detail = util.types.isNativeError(err) ? `: ${err.message}` : ''
+    throw new PnpmError(
+      'INVALID_IGNORE_FILE_PATTERN',
+      `Invalid ignoreFilePattern regex${detail}: ${pattern}`
+    )
+  }
+  return (filename) => regex.test(filename)
 }
 
 function packToShared (data: unknown): Uint8Array {

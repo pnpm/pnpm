@@ -1,5 +1,7 @@
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
+import { expect, test } from '@jest/globals'
+
 import { formatUnknownOptionsError } from '../src/formatError.js'
 
 test('formatUnknownOptionsError()', async () => {

@@ -15,6 +15,13 @@ import { writeJsonFile } from 'write-json-file'
 
 const CLI_PKG_NAME = 'pnpm'
 
+// Experimental packages that are versioned independently on the 0.0.x track
+// and should not be normalized to the pnpm major version.
+const EXPERIMENTAL_PKGS = new Set([
+  '@pnpm/agent.client',
+  'pnpm-agent',
+])
+
 // Packages whose tests spawn the local pnpm CLI binary (pnpm/bin/pnpm.mjs)
 // and therefore need the CLI bundle (pnpm/dist/pnpm.mjs) to be built first.
 const PKGS_NEEDING_CLI_COMPILE = new Set([
@@ -48,7 +55,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
         return manifest
       }
       if (manifest.name === 'monorepo-root') {
-        manifest.scripts!['release'] = `pn --filter=@pnpm/exe publish --tag=${nextTag} --access=public --provenance && pn publish --filter=!pnpm --filter=!@pnpm/exe --access=public --provenance && pn publish --filter=pnpm --tag=${nextTag} --access=public --provenance`
+        manifest.scripts!['release'] = `pn --filter=@pnpm/exe run build-artifacts && pn --filter=@pnpm/exe publish --tag=${nextTag} --access=public --provenance && pn publish --filter=!pnpm --filter=!@pnpm/exe --access=public --provenance && pn publish --filter=pnpm --tag=${nextTag} --access=public --provenance`
         return sortKeysInManifest(manifest)
       }
       if (manifest.name && manifest.name !== CLI_PKG_NAME) {
@@ -67,7 +74,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
       const smallestAllowedLibVersion = Number(pnpmMajorNumber) * 100
       const libMajorVersion = Number(manifest.version!.split('.')[0])
       if (manifest.name !== CLI_PKG_NAME) {
-        if (!semver.prerelease(pnpmVersion) && (libMajorVersion < smallestAllowedLibVersion || libMajorVersion >= smallestAllowedLibVersion + 100)) {
+        if (!semver.prerelease(pnpmVersion) && !EXPERIMENTAL_PKGS.has(manifest.name!) && (libMajorVersion < smallestAllowedLibVersion || libMajorVersion >= smallestAllowedLibVersion + 100)) {
           manifest.version = `${smallestAllowedLibVersion}.0.0`
         }
         for (const depType of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
@@ -120,14 +127,14 @@ export default async (workspaceDir: string) => { // eslint-disable-line
         manifest.version = pnpmVersion
         if (manifest.name === '@pnpm/exe') {
           for (const depName of [
-            '@pnpm/exe.darwin-arm64',
-            '@pnpm/exe.darwin-x64',
-            '@pnpm/exe.linux-arm64',
-            '@pnpm/exe.linux-arm64-musl',
-            '@pnpm/exe.linux-x64',
-            '@pnpm/exe.linux-x64-musl',
-            '@pnpm/exe.win32-arm64',
-            '@pnpm/exe.win32-x64',
+            '@pnpm/linux-arm64',
+            '@pnpm/linux-x64',
+            '@pnpm/linuxstatic-arm64',
+            '@pnpm/linuxstatic-x64',
+            '@pnpm/macos-arm64',
+            '@pnpm/macos-x64',
+            '@pnpm/win-arm64',
+            '@pnpm/win-x64',
           ]) {
             manifest.optionalDependencies![depName] = 'workspace:*'
           }
@@ -366,7 +373,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
 && shx cp -r node_modules/ps-list/vendor dist/vendor \
 && shx cp pnpmrc dist/pnpmrc'
   } else {
-    scripts.prepublishOnly = 'pn compile'
+    scripts.prepublishOnly = 'tsgo --build'
     homepage = `https://github.com/pnpm/pnpm/tree/main/${relative}#readme`
     repository = `https://github.com/pnpm/pnpm/tree/main/${relative}`
   }

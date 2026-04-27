@@ -1,6 +1,6 @@
 {
-  "name": "@pnpm/exe.linux-arm64",
-  "version": "11.0.0-rc.2",
+  "name": "@pnpm/linux-arm64",
+  "version": "11.0.0-rc.5",
   "keywords": [
     "pnpm",
     "pnpm11",
@@ -17,10 +17,10 @@
     "pnpm"
   ],
   "scripts": {
-    "prepublishOnly": "test -f pnpm || (echo 'Error: pnpm is missing' && exit 1)"
+    "prepublishOnly": "node ../verify-binary.mjs linux arm64 glibc"
   },
   "devDependencies": {
-    "@pnpm/exe.linux-arm64": "workspace:*"
+    "@pnpm/linux-arm64": "workspace:*"
   },
   "publishConfig": {
     "os": [

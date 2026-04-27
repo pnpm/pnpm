@@ -20,12 +20,6 @@ import { renderHelp } from 'render-help'
 /** Minimum Node.js version that supports `node --build-sea`. */
 const MIN_BUILDER_VERSION = { major: 25, minor: 5 } as const
 
-// Range to download when the running Node is too old. Constrained to the
-// current major so we don't silently jump majors across releases, and pinned
-// above MIN_BUILDER_VERSION.minor so older point releases (e.g. 25.0.x) that
-// don't support `--build-sea` aren't picked.
-const DEFAULT_BUILDER_SPEC = `>=${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor}.0 <${MIN_BUILDER_VERSION.major + 1}.0.0`
-
 // Target OS names match `process.platform`. That keeps the CLI surface
 // consistent with pnpm's own `--os` flag (which also takes platform constants)
 // and with `supportedArchitectures.os` in pnpm-workspace.yaml.
@@ -44,7 +38,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
   return {
     entry: String,
     target: [String, Array],
-    'node-version': String,
+    runtime: String,
     'output-dir': String,
     'output-name': String,
   }
@@ -61,16 +55,17 @@ export function help (): string {
       'Pack a CommonJS entry file into a standalone executable for one or more target platforms.\n\n' +
       'The executable embeds a Node.js binary via the Node.js Single Executable Applications API.\n' +
       `Requires Node.js v${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor}+ to perform ` +
-      'the injection. The running Node.js is used when it is new enough; otherwise, the ' +
-      `latest Node.js v${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor}+ in the ` +
-      `v${MIN_BUILDER_VERSION.major}.x line is downloaded automatically.\n\n` +
-      'Defaults for --entry, --target, --node-version, --output-dir, and --output-name can be ' +
+      'the injection. SEA blobs are not compatible across Node.js minor releases, so the ' +
+      'builder Node.js must match the embedded runtime version exactly. The running Node.js ' +
+      'is used when it already matches; otherwise a host-arch Node.js of the embedded runtime ' +
+      'version is downloaded automatically.\n\n' +
+      'Defaults for --entry, --target, --runtime, --output-dir, and --output-name can be ' +
       'set in the package.json under "pnpm.app". CLI flags override the config; --target entirely ' +
       'replaces the configured list so you can narrow it at invocation time.',
     url: docsUrl('pack-app'),
     usages: [
       'pnpm pack-app --entry dist/index.cjs --target linux-x64 --target win32-x64',
-      'pnpm pack-app --entry dist/index.cjs --target linux-x64-musl --node-version 22',
+      `pnpm pack-app --entry dist/index.cjs --target linux-x64-musl --runtime node@${MIN_BUILDER_VERSION.major}`,
     ],
     descriptionLists: [
       {
@@ -88,9 +83,11 @@ export function help (): string {
           },
           {
             description:
-              'Node.js version to embed in the output executables (e.g. "22", "22.0.0", "lts"). ' +
+              'Runtime to embed in the output executables, as a "<name>@<version>" spec ' +
+              `(e.g. "node@${MIN_BUILDER_VERSION.major}", "node@${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor}.0"). ` +
+              `Only "node" is supported today, and the version must be >= v${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor} (the minimum that supports --build-sea). ` +
               'Defaults to the running Node.js version.',
-            name: '--node-version',
+            name: '--runtime',
           },
           {
             description: 'Output directory for the built executables. Defaults to "dist-app".',
@@ -126,7 +123,7 @@ export type PackAppOptions = Pick<Config,
 >> & {
   entry?: string
   target?: string | string[]
-  nodeVersion?: string
+  runtime?: string
   outputDir?: string
   outputName?: string
 }
@@ -171,17 +168,31 @@ export async function handler (opts: PackAppOptions, params: string[]): Promise<
   }
   const targets = rawTargets.map(parseTarget)
 
+  // Parse the runtime before output-name derivation and any network work so
+  // that a malformed --runtime fails fast with a clear error instead of being
+  // masked by later problems (missing package.json name, registry lookup, etc.).
+  const runtimeSpec = opts.runtime ?? project.app?.runtime ?? `node@${process.version.slice(1)}`
+  const { version: requestedNodeSpec } = parseRuntime(runtimeSpec)
+
   const outputDir = path.resolve(opts.dir, opts.outputDir ?? project.app?.outputDir ?? 'dist-app')
   await mkdir(outputDir, { recursive: true })
 
   const outputName = validateOutputName(opts.outputName ?? project.app?.outputName ?? deriveOutputNameFromPackage(project, opts.dir))
-  const requestedNodeSpec = opts.nodeVersion ?? project.app?.nodeVersion ?? process.version.slice(1)
 
   const fetch = createFetchFromRegistry(opts)
   const buildRoot = path.join(opts.pnpmHomeDir, 'pack-app')
 
-  const builderBin = await resolveBuilderBinary({ fetch, nodeDownloadMirrors: opts.nodeDownloadMirrors, buildRoot })
+  // Resolve the embedded target version first so the builder can be pinned to
+  // the same version. SEA blobs carry no version header and the serialized
+  // format has changed across Node.js minor releases (e.g. v25.7 added a
+  // ModuleFormat byte for ESM entry points), so a blob produced by a builder
+  // of a different version than the embedded runtime will fail deserialization
+  // at startup with an opaque native assertion.
   const resolvedTargetVersion = await resolveVersion(fetch, requestedNodeSpec, opts.nodeDownloadMirrors)
+  const builderBin = await resolveBuilderBinary({
+    buildRoot,
+    targetVersion: resolvedTargetVersion,
+  })
 
   const results: string[] = []
   for (const target of targets) {
@@ -237,21 +248,32 @@ export async function handler (opts: PackAppOptions, params: string[]): Promise<
 }
 
 /**
- * Returns a Node.js binary that supports `--build-sea`. Prefers the running
- * interpreter to avoid a download; falls back to downloading Node.js v25.
+ * Returns a Node.js binary that supports `--build-sea` AND produces a SEA
+ * blob the embedded runtime can deserialize. The second constraint forces the
+ * builder to match the target runtime version exactly: blobs are versioned by
+ * the writer's internal struct layout with no header, and Node bumps that
+ * layout in minor releases (e.g. v25.7 added a ModuleFormat byte for ESM
+ * entries), so a cross-version blob crashes at startup.
+ *
+ * Prefers the running interpreter when it already matches the target version;
+ * otherwise downloads the target version for the host platform.
  */
 async function resolveBuilderBinary (ctx: {
-  fetch: ReturnType<typeof createFetchFromRegistry>
-  nodeDownloadMirrors?: Record<string, string>
   buildRoot: string
+  targetVersion: string
 }): Promise<string> {
-  if (runningNodeCanBuildSea()) {
+  if (runningNodeCanBuildSea() && process.version === `v${ctx.targetVersion}`) {
     return process.execPath
   }
-  const version = await resolveVersion(ctx.fetch, DEFAULT_BUILDER_SPEC, ctx.nodeDownloadMirrors)
+  if (!builderVersionCanBuildSea(ctx.targetVersion)) {
+    throw new PnpmError('PACK_APP_RUNTIME_TOO_OLD',
+      `The embedded runtime "node@${ctx.targetVersion}" is older than Node.js v${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor}, which is the minimum version that supports --build-sea.`,
+      { hint: `Pass --runtime node@${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor}.0 (or newer) or set "pnpm.app.runtime" in package.json.` }
+    )
+  }
   return ensureNodeRuntime({
     buildRoot: ctx.buildRoot,
-    version,
+    version: ctx.targetVersion,
     platform: process.platform,
     arch: process.arch,
     // Pin libc to the host's. Otherwise a caller that had set
@@ -268,7 +290,11 @@ function hostLinuxLibc (): 'glibc' | 'musl' | undefined {
 }
 
 function runningNodeCanBuildSea (): boolean {
-  const [majorStr, minorStr] = process.version.slice(1).split('.')
+  return builderVersionCanBuildSea(process.version.slice(1))
+}
+
+function builderVersionCanBuildSea (version: string): boolean {
+  const [majorStr, minorStr] = version.split('.')
   const major = Number(majorStr)
   const minor = Number(minorStr)
   return (
@@ -369,6 +395,29 @@ function parseTarget (raw: string): ParsedTarget {
   return { raw, platform, arch, libc: libc || undefined }
 }
 
+// Runtime spec is "<name>@<version>". Only "node" is supported today; the
+// prefix is kept so future runtimes (bun, deno) can share the same flag
+// without a breaking change. Reading the runtime name rather than a bare
+// version also avoids shadowing pnpm's global `node-version` rc setting,
+// whose value would otherwise leak into Config['nodeVersion'] and override
+// `pnpm.app.runtime`.
+const SUPPORTED_RUNTIMES = ['node'] as const
+const RUNTIME_PATTERN = /^(node)@(.+)$/
+
+interface ParsedRuntime {
+  name: typeof SUPPORTED_RUNTIMES[number]
+  version: string
+}
+
+function parseRuntime (spec: string): ParsedRuntime {
+  const match = RUNTIME_PATTERN.exec(spec)
+  if (!match) {
+    throw new PnpmError('PACK_APP_INVALID_RUNTIME',
+      `Invalid runtime "${spec}". Expected format: <name>@<version> (supported runtimes: ${SUPPORTED_RUNTIMES.join(', ')}; e.g. "node@${MIN_BUILDER_VERSION.major}.${MIN_BUILDER_VERSION.minor}.0").`)
+  }
+  return { name: match[1] as ParsedRuntime['name'], version: match[2] }
+}
+
 // Characters that Win32 rejects in filenames, plus NUL. Path separators are
 // checked separately via `path.basename` so the message is crisp.
 const INVALID_FILENAME_CHARS = /[<>:"|?*\0]/
@@ -398,7 +447,7 @@ function validateOutputName (name: string): string {
 export interface ProjectAppConfig {
   entry?: string
   targets?: string[]
-  nodeVersion?: string
+  runtime?: string
   outputDir?: string
   outputName?: string
 }
@@ -436,7 +485,7 @@ async function readProjectAppConfig (dir: string): Promise<ReadProjectAppConfigR
 }
 
 function validateAppConfig (raw: Record<string, unknown>): ProjectAppConfig {
-  const known = new Set(['entry', 'targets', 'nodeVersion', 'outputDir', 'outputName'])
+  const known = new Set(['entry', 'targets', 'runtime', 'outputDir', 'outputName'])
   for (const key of Object.keys(raw)) {
     if (!known.has(key)) {
       throw new PnpmError('PACK_APP_INVALID_CONFIG',
@@ -456,11 +505,11 @@ function validateAppConfig (raw: Record<string, unknown>): ProjectAppConfig {
     }
     config.targets = raw.targets
   }
-  if (raw.nodeVersion != null) {
-    if (typeof raw.nodeVersion !== 'string') {
-      throw new PnpmError('PACK_APP_INVALID_CONFIG', '"pnpm.app.nodeVersion" must be a string.')
+  if (raw.runtime != null) {
+    if (typeof raw.runtime !== 'string') {
+      throw new PnpmError('PACK_APP_INVALID_CONFIG', '"pnpm.app.runtime" must be a string.')
     }
-    config.nodeVersion = raw.nodeVersion
+    config.runtime = raw.runtime
   }
   if (raw.outputDir != null) {
     if (typeof raw.outputDir !== 'string') {

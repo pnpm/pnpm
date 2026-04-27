@@ -1,6 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import { importCommand } from '@pnpm/installing.commands'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'

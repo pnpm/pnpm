@@ -2,6 +2,7 @@
 import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
+import { expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { list, why } from '@pnpm/deps.inspection.commands'
 import { prepare, preparePackages } from '@pnpm/prepare'

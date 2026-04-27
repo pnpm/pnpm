@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 
 test('pick correct scope', () => {

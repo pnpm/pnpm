@@ -1,4 +1,4 @@
-import { jest } from '@jest/globals'
+import { describe, expect, jest, test } from '@jest/globals'
 
 import {
   getIdToken,
@@ -110,7 +110,7 @@ describe('getIdToken', () => {
   })
 
   test('fetches ID token from GitHub Actions successfully', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<IdTokenContext['fetch']>(async () => ({
       ok: true,
       status: 200,
       json: async () => ({ value: 'fetched-id-token' }),
@@ -147,7 +147,7 @@ describe('getIdToken', () => {
   })
 
   test('passes fetch options correctly', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<IdTokenContext['fetch']>(async () => ({
       ok: true,
       status: 200,
       json: async () => ({ value: 'token' }),
@@ -192,7 +192,7 @@ describe('getIdToken', () => {
   })
 
   test('logs fetch information via globalInfo', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<IdTokenContext['fetch']>(async () => ({
       ok: true,
       status: 200,
       json: async () => ({ value: 'token' }),
@@ -227,7 +227,7 @@ describe('getIdToken', () => {
   })
 
   test('throws error when fetch response is not ok', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<IdTokenContext['fetch']>(async () => ({
       ok: false,
       status: 401,
       json: async () => ({ code: 'UNAUTHORIZED', message: 'Unauthorized' }),
@@ -250,7 +250,7 @@ describe('getIdToken', () => {
   })
 
   test('throws error when JSON parsing fails', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<IdTokenContext['fetch']>(async () => ({
       ok: true,
       status: 200,
       json: async () => {
@@ -275,7 +275,7 @@ describe('getIdToken', () => {
   })
 
   test('throws error when JSON response is missing value field', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<IdTokenContext['fetch']>(async () => ({
       ok: true,
       status: 200,
       json: async () => ({}),
@@ -298,7 +298,7 @@ describe('getIdToken', () => {
   })
 
   test('throws error when JSON response value is not a string', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<IdTokenContext['fetch']>(async () => ({
       ok: true,
       status: 200,
       json: async () => ({ value: 123 }),
@@ -321,7 +321,7 @@ describe('getIdToken', () => {
   })
 
   test('throws error when JSON response is null', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<IdTokenContext['fetch']>(async () => ({
       ok: true,
       status: 200,
       json: async () => null,

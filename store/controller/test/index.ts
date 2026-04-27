@@ -1,6 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'node:path'
 
+import { describe, expect, it } from '@jest/globals'
 import { createClient } from '@pnpm/installing.client'
 import { createPackageStore } from '@pnpm/store.controller'
 import type { FetchPackageToStoreFunction } from '@pnpm/store.controller-types'

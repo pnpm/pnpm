@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { extractComments, insertComments } from '@pnpm/text.comments-parser'
 
 test('extract and insert JSON5 comments', () => {

@@ -1,3 +1,5 @@
+import { expect, test } from '@jest/globals'
+
 import { type Token, tokenize } from '../../src/index.js'
 
 test('valid tokens', () => {

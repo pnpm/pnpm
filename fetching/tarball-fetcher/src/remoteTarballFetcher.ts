@@ -28,7 +28,7 @@ export type DownloadOptions = {
   onProgress?: (downloaded: number) => void
   integrity?: string
   storeIndex: StoreIndex
-} & Pick<FetchOptions, 'pkg' | 'appendManifest' | 'readManifest' | 'filesIndexFile'>
+} & Pick<FetchOptions, 'pkg' | 'appendManifest' | 'readManifest' | 'filesIndexFile' | 'ignoreFilePattern'>
 
 export type DownloadFunction = (url: string, opts: DownloadOptions) => Promise<FetchResult>
 
@@ -208,6 +208,7 @@ export function createDownloader (
         url,
         pkg: opts.pkg,
         appendManifest: opts.appendManifest,
+        ignoreFilePattern: opts.ignoreFilePattern,
       })
     }
   }

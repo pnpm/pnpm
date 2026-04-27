@@ -1,6 +1,7 @@
 import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
+import { expect, test } from '@jest/globals'
 import { list, why } from '@pnpm/deps.inspection.commands'
 import type { PnpmError } from '@pnpm/error'
 import { install } from '@pnpm/installing.commands'

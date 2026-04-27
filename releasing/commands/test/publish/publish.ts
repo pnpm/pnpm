@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { describe, expect, test } from '@jest/globals'
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_CREDENTIALS, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'

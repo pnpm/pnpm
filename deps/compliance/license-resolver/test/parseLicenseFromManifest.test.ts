@@ -1,3 +1,4 @@
+import { describe, expect, test } from '@jest/globals'
 import { parseLicenseFromManifest } from '@pnpm/deps.compliance.license-resolver'
 
 describe('parseLicenseFromManifest', () => {

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/testing.command-defaults",
-  "version": "1100.0.0",
+  "version": "1100.0.1",
   "private": true,
   "description": "Shared DEFAULT_OPTS for pnpm command handler tests",
   "keywords": [

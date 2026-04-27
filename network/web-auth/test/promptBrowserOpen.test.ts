@@ -1,4 +1,4 @@
-import { jest } from '@jest/globals'
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import type {
   PromptBrowserOpenContext,
   PromptBrowserOpenReadlineInterface,

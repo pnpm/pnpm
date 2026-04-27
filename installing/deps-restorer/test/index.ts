@@ -2,15 +2,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { afterAll, expect, jest, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
-import type {
-  PackageManifestLog,
-  RootLog,
-  StageLog,
-  StatsLog,
-} from '@pnpm/core-loggers'
 import { hashObject } from '@pnpm/crypto.object-hasher'
 import { headlessInstall } from '@pnpm/installing.deps-restorer'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
@@ -87,25 +81,25 @@ test('installing a simple project', async () => {
     level: 'debug',
     name: 'pnpm:package-manifest',
     updated: loadJsonFileSync(path.join(prefix, 'package.json')),
-  } as PackageManifestLog)
+  })
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     added: 15,
     level: 'debug',
     name: 'pnpm:stats',
     prefix,
-  } as StatsLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stats',
     prefix,
     removed: 0,
-  } as StatsLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stage',
     prefix,
     stage: 'importing_done',
-  } as StageLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     packageId: 'is-negative@2.1.0',
@@ -125,7 +119,7 @@ test('installing a simple project', async () => {
     level: 'debug',
     name: 'pnpm:stats',
     prefix,
-  } as StatsLog))
+  }))
 })
 
 test('installing only prod deps', async () => {
@@ -284,7 +278,7 @@ test('installing non-prod deps then all deps', async () => {
     }),
     level: 'debug',
     name: 'pnpm:root',
-  } as RootLog))
+  }))
   expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
     added: expect.objectContaining({
       dependencyType: 'dev',
@@ -293,7 +287,7 @@ test('installing non-prod deps then all deps', async () => {
     }),
     level: 'debug',
     name: 'pnpm:root',
-  } as RootLog))
+  }))
 
   project.has('once')
 
@@ -426,7 +420,7 @@ test('orphan packages are removed', async () => {
     name: 'pnpm:stats',
     prefix: projectDir,
     removed: 1,
-  } as StatsLog))
+  }))
 
   const project = assertProject(projectDir)
   project.hasNot('resolve-from')
@@ -600,25 +594,25 @@ test('installing with hoistPattern=*', async () => {
       name: 'simple-shamefully-flatten',
       version: '1.0.0',
     }),
-  } as PackageManifestLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     added: 17,
     level: 'debug',
     name: 'pnpm:stats',
     prefix,
-  } as StatsLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stats',
     prefix,
     removed: 0,
-  } as StatsLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stage',
     prefix,
     stage: 'importing_done',
-  } as StageLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     packageId: 'is-negative@2.1.0',
@@ -661,26 +655,26 @@ test('installing with publicHoistPattern=*', async () => {
       level: 'debug',
       name: 'pnpm:package-manifest',
       updated: loadJsonFileSync(path.join(prefix, 'package.json')),
-    } as PackageManifestLog)
+    })
   }
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     added: 17,
     level: 'debug',
     name: 'pnpm:stats',
     prefix,
-  } as StatsLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stats',
     prefix,
     removed: 0,
-  } as StatsLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stage',
     prefix,
     stage: 'importing_done',
-  } as StageLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     packageId: 'is-negative@2.1.0',

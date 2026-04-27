@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { test } from '@jest/globals'
 import {
   install,
   type MutatedProject,

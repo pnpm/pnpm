@@ -1,7 +1,6 @@
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
-import type { RootLog } from '@pnpm/core-loggers'
+import { expect, jest, test } from '@jest/globals'
 import {
   addDependenciesToPackage,
   install,
@@ -52,7 +51,7 @@ test('prune removes extraneous packages', async () => {
       name: '@pnpm.e2e/hello-world-js-bin',
       version: '1.0.0',
     }),
-  } as RootLog))
+  }))
 
   project.hasNot('@pnpm.e2e/hello-world-js-bin') // external link pruned
 

@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals'
 import { hashObject, hashObjectNullableWithPrefix, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 
 describe('hashObject', () => {

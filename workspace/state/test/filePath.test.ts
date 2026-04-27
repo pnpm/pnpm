@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { prepareEmpty } from '@pnpm/prepare'
 
 import { getFilePath } from '../src/filePath.js'

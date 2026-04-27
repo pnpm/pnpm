@@ -1,9 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { afterAll, expect, jest, test } from '@jest/globals'
 import { ENGINE_NAME } from '@pnpm/constants'
-import type { IgnoredScriptsLog } from '@pnpm/core-loggers'
 import { createHexHashFromFile } from '@pnpm/crypto.hash'
 import { install } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
@@ -48,7 +47,7 @@ test('patch package with exact version', async () => {
     packageNames: [],
     level: 'debug',
     name: 'pnpm:ignored-scripts',
-  } as IgnoredScriptsLog))
+  }))
 
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
@@ -144,7 +143,7 @@ test('patch package with version range', async () => {
     packageNames: [],
     level: 'debug',
     name: 'pnpm:ignored-scripts',
-  } as IgnoredScriptsLog))
+  }))
 
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 

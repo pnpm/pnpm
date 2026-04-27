@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { createHash } from '@pnpm/crypto.hash'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'

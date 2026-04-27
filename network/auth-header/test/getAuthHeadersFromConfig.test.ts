@@ -1,6 +1,8 @@
 import os from 'node:os'
 import path from 'node:path'
 
+import { describe, expect, it } from '@jest/globals'
+
 import { getAuthHeadersFromCreds } from '../src/getAuthHeadersFromConfig.js'
 
 const osTokenHelper = {

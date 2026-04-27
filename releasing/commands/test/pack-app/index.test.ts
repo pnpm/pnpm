@@ -29,7 +29,7 @@ describe('pack-app command', () => {
     const types = cliOptionsTypes()
     expect(types.entry).toBe(String)
     expect(types.target).toEqual([String, Array])
-    expect(types['node-version']).toBe(String)
+    expect(types.runtime).toBe(String)
     expect(types['output-dir']).toBe(String)
     expect(types['output-name']).toBe(String)
   })
@@ -108,7 +108,7 @@ describe('pack-app command', () => {
     }))
     fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
     await expect(
-      handler({ ...baseOpts(), target: 'linux-x64', nodeVersion: '0.0.0-nonexistent-xxx' } as unknown as Parameters<typeof handler>[0], [])
+      handler({ ...baseOpts(), target: 'linux-x64', runtime: 'node@0.0.0-nonexistent-xxx' } as unknown as Parameters<typeof handler>[0], [])
     ).rejects.toMatchObject({ code: expect.not.stringMatching(/INVALID_TARGET/) })
   })
 
@@ -127,7 +127,7 @@ describe('pack-app command', () => {
     ['entry as number', { entry: 42 }],
     ['targets as string', { targets: 'linux-x64' }],
     ['targets with non-string', { targets: ['linux-x64', 7] }],
-    ['nodeVersion as array', { nodeVersion: ['25'] }],
+    ['runtime as array', { runtime: ['node@25'] }],
   ])('rejects malformed pnpm.app: %s', async (_label, appConfig) => {
     fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({
       name: 'test-app',
@@ -163,6 +163,20 @@ describe('pack-app command', () => {
     await expect(
       handler({ ...baseOpts(), entry: 'entry.cjs', target } as unknown as Parameters<typeof handler>[0], [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_INVALID_TARGET' })
+  })
+
+  it.each([
+    ['no prefix', '22'],
+    ['no prefix with full version', '22.0.0'],
+    ['unknown runtime', 'bun@1.0.0'],
+    ['empty version', 'node@'],
+    ['just @', '@'],
+    ['uppercase runtime', 'NODE@22'],
+  ])('rejects invalid --runtime: %s (%s)', async (_label, runtime) => {
+    fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
+    await expect(
+      handler({ ...baseOpts(), entry: 'entry.cjs', target: 'linux-x64', runtime } as unknown as Parameters<typeof handler>[0], [])
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_INVALID_RUNTIME' })
   })
 
   it.each([

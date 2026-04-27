@@ -2,6 +2,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { clearDispatcherCache, createFetchFromRegistry } from '@pnpm/network.fetch'
 import { ProxyServer } from 'https-proxy-server-express'
 import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'

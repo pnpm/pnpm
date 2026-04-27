@@ -1,5 +1,70 @@
 # @pnpm/releasing.commands
 
+## 1100.2.1
+
+### Patch Changes
+
+- eb7e6ae: Fix the `@pnpm/exe` SEA executable crashing at startup on Node.js v25.7+. Two separate regressions in `@pnpm/exe@11.0.0-rc.4` are addressed:
+
+  1. `pnpm pack-app` now pins the Node.js used to write the SEA blob to the exact embedded runtime version. The SEA blob format changed in Node.js v25.7 (ESM entry-point support added a `ModuleFormat` header byte), so a blob produced by a pre-25.7 builder cannot be deserialized by a 25.7+ runtime and vice versa. In rc.4 the CI host Node.js (v25.6.1) built blobs embedded in a v25.9.0 runtime, tripping `SeaDeserializer::Read() ... format_value <= kModule` on every invocation. `pack-app` now downloads a host-arch builder Node.js of the target version when the running Node.js doesn't already match.
+
+  2. The pnpm CJS SEA entry shim now loads `dist/pnpm.mjs` through `Module.createRequire(process.execPath)` instead of `await import(pathToFileURL(...).href)`. In Node.js v25.7+, the ambient `require` and `import()` inside a CJS SEA entry are replaced with embedder hooks that only resolve built-in module names, causing external `file://` loads to fail with `ERR_UNKNOWN_BUILTIN_MODULE`. An explicit `createRequire()` bypasses those hooks.
+
+## 1100.2.0
+
+### Minor Changes
+
+- db81c32: `pnpm pack-app`: replaced the `--node-version` flag with `--runtime`, which takes a `<name>@<version>` spec (e.g. `--runtime node@22.0.0`). The corresponding `pnpm.app.nodeVersion` key in package.json was renamed to `pnpm.app.runtime` with the same syntax. Only `node` is supported today; the prefix leaves room for future runtimes (`bun`, `deno`).
+
+  The previous `--node-version` flag silently inherited from pnpm's global `node-version` rc setting (which controls which Node runs user scripts), causing the wrong Node build to be embedded in SEAs for users who had that rc key set.
+
+### Patch Changes
+
+- Updated dependencies [421317c]
+  - @pnpm/engine.runtime.node-resolver@1101.0.0
+  - @pnpm/installing.client@1100.0.4
+  - @pnpm/fetching.directory-fetcher@1100.0.4
+  - @pnpm/engine.runtime.commands@1100.0.4
+  - @pnpm/installing.commands@1100.1.2
+  - @pnpm/exec.lifecycle@1100.0.4
+  - @pnpm/fs.indexed-pkg-importer@1100.0.3
+  - @pnpm/lockfile.fs@1100.0.3
+  - @pnpm/config.reader@1101.1.1
+  - @pnpm/releasing.exportable-manifest@1100.0.2
+  - @pnpm/workspace.projects-filter@1100.0.4
+
+## 1100.1.0
+
+### Minor Changes
+
+- 72c1e05: Added a new `pnpm pack-app` command that packs a CommonJS entry file into a standalone executable for one or more target platforms, using the [Node.js Single Executable Applications](https://nodejs.org/api/single-executable-applications.html) API under the hood. Targets are specified as `<os>-<arch>[-<libc>]` (e.g. `linux-x64`, `linux-x64-musl`, `macos-arm64`, `win-x64`) and each produces an executable under `dist-app/<target>/` by default. Requires Node.js v25.5+ to perform the injection; an older host downloads Node.js v25 automatically.
+- 53668a4: Fixed and expanded `pnpm version` to match npm behavior:
+
+  - Accept an explicit semver version (e.g. `pnpm version 1.2.3`) in addition to bump types.
+  - Recognize `--no-commit-hooks`, `--no-git-tag-version`, `--sign-git-tag`, and `--message`.
+  - Fix `--no-git-checks` which was previously parsed incorrectly.
+  - Create a git commit and annotated tag for the version bump when running inside a git repository (unless `--no-git-tag-version` is used). `--message` supports `%s` replacement with the new version, and `--tag-version-prefix` controls the tag prefix (defaults to `v`). Git commits and tags are always skipped in recursive mode since multiple packages may be bumped to different versions in a single run [#11271](https://github.com/pnpm/pnpm/issues/11271).
+
+### Patch Changes
+
+- Updated dependencies [7d25bc1]
+- Updated dependencies [e03e8f4]
+- Updated dependencies [72c1e05]
+- Updated dependencies [9e0833c]
+  - @pnpm/config.reader@1101.1.0
+  - @pnpm/fetching.directory-fetcher@1100.0.3
+  - @pnpm/resolving.resolver-base@1100.1.0
+  - @pnpm/engine.runtime.commands@1100.0.3
+  - @pnpm/engine.runtime.node-resolver@1100.0.3
+  - @pnpm/installing.commands@1100.1.1
+  - @pnpm/exec.lifecycle@1100.0.3
+  - @pnpm/installing.client@1100.0.3
+  - @pnpm/lockfile.types@1100.0.2
+  - @pnpm/lockfile.fs@1100.0.2
+  - @pnpm/fs.indexed-pkg-importer@1100.0.2
+  - @pnpm/workspace.projects-filter@1100.0.3
+  - @pnpm/releasing.exportable-manifest@1100.0.2
+
 ## 1100.0.2
 
 ### Patch Changes

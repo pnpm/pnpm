@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { FetchError, PnpmError } from '@pnpm/error'
 
 test('PnpmError exposes cause when provided', () => {

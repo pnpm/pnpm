@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.commands",
-  "version": "1100.1.0",
+  "version": "1100.1.2",
   "description": "Commands for installation",
   "keywords": [
     "pnpm",
@@ -27,7 +27,7 @@
     "start": "tsgo --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pn compile && pn .test",
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "compile": "tsgo --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
@@ -89,8 +89,7 @@
     "p-limit": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:",
-    "version-selector-type": "catalog:",
-    "which": "catalog:"
+    "version-selector-type": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -113,7 +112,6 @@
     "@types/normalize-path": "catalog:",
     "@types/proxyquire": "catalog:",
     "@types/ramda": "catalog:",
-    "@types/which": "catalog:",
     "@types/yarnpkg__lockfile": "catalog:",
     "@types/zkochan__table": "catalog:",
     "ci-info": "catalog:",

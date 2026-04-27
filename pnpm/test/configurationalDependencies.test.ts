@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepare } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'

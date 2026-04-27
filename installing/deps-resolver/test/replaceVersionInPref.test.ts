@@ -1,3 +1,5 @@
+import { expect, test } from '@jest/globals'
+
 import { replaceVersionInBareSpecifier } from '../lib/replaceVersionInBareSpecifier.js'
 
 test('replaceVersionInBareSpecifier()', () => {

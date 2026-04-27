@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { satisfiesPackageManifest } from '@pnpm/lockfile.verification'
 
 const DEFAULT_PKG_FIELDS = {

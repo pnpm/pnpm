@@ -1,3 +1,4 @@
+import { describe, expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { audit, buildAuditPathIndex, lockfileToAuditRequest } from '@pnpm/deps.compliance.audit'
 import type { PnpmError } from '@pnpm/error'

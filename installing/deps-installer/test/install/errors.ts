@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 
+import { expect, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import { addDependenciesToPackage, mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'

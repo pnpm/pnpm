@@ -1,5 +1,6 @@
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
+import { describe, expect, test } from '@jest/globals'
 import { renderDedupeCheckIssues } from '@pnpm/installing.dedupe.issues-renderer'
 
 describe('renderDedupeCheckIssues', () => {

@@ -1,4 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
+import { afterEach, beforeEach, describe, expect, test } from '@jest/globals'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
 import type { Registries } from '@pnpm/types'

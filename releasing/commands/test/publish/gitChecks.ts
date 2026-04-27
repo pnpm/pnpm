@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 
-import { jest } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import { PnpmError } from '@pnpm/error'
 import { prepare } from '@pnpm/prepare'
 import { safeExeca as execa } from 'execa'

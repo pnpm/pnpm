@@ -1,3 +1,5 @@
+import { expect, test } from '@jest/globals'
+
 import { checkEngine } from '../lib/checkEngine.js'
 
 const packageId = 'registry.npmjs.org/foo/1.0.0'

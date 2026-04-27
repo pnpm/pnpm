@@ -27,7 +27,7 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
     "compile": "tsgo --build && pn lint --fix",
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "test": "pn compile"
   },
   "devDependencies": {

@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
+import { expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { outdated } from '@pnpm/deps.inspection.commands'
 import type { PnpmError } from '@pnpm/error'

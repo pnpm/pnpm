@@ -1,3 +1,5 @@
+import { describe, expect, test } from '@jest/globals'
+
 import { optionsWithOtpEnv } from '../../src/publish/otpEnv.js'
 
 describe('optionsWithOtpEnv', () => {
