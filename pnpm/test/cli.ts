@@ -95,11 +95,11 @@ test('implicit run command fails when an unsupported top-level flag is used', ()
     },
   })
 
-  const { status, stdout, stderr } = execPnpmSync(['--fitler', 'web', 'dev'])
+  const { status, stdout, stderr } = execPnpmSync(['--fitler', 'web', 'dev']) // cspell:disable-line
 
   expect(status).toBe(1)
   expect(stdout.toString()).not.toContain('script should not run')
-  expect(stderr.toString()).toMatch(/Unknown option: 'fitler'/)
+  expect(stderr.toString()).toMatch(/Unknown option: 'fitler'/) // cspell:disable-line
   expect(stderr.toString()).toMatch(/Did you mean 'filter'/)
 })
 
