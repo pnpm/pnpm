@@ -115,8 +115,7 @@ test('fetch respects absolute directory regardless of lockfileDir', async () => 
   // stored directory is absolute (e.g. cross-drive `file:` deps on Windows)
   // the fetcher must use the absolute path as-is rather than joining it
   // onto lockfileDir.
-  // eslint-disable-next-line
-  const fetchResult = await fetcher.directory({} as any, {
+  const fetchResult = await fetcher.directory({} as unknown as Parameters<typeof fetcher.directory>[0], {
     directory: absDir,
     type: 'directory',
   }, {
