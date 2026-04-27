@@ -2989,6 +2989,9 @@ importers:
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../../network/auth-header
+      '@pnpm/object.key-sorting':
+        specifier: workspace:*
+        version: link:../../../object/key-sorting
       '@pnpm/store.path':
         specifier: workspace:*
         version: link:../../../store/path

@@ -65,6 +65,9 @@
       "path": "../../../network/auth-header"
     },
     {
+      "path": "../../../object/key-sorting"
+    },
+    {
       "path": "../../../pkg-manifest/reader"
     },
     {

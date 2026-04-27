@@ -53,6 +53,7 @@
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/lockfile.walker": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
+    "@pnpm/object.key-sorting": "workspace:*",
     "@pnpm/store.path": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
