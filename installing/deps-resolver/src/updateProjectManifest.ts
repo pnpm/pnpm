@@ -60,5 +60,7 @@ function wantedDepMatchesResolvedDep (
 ): boolean {
   if (!wantedDep.updateSpec) return false
   if (wantedDep.alias) return wantedDep.alias === resolvedDep.alias
-  return wantedDep.bareSpecifier === resolvedDep.normalizedBareSpecifier
+  if (wantedDep.bareSpecifier === resolvedDep.normalizedBareSpecifier) return true
+  if (resolvedDep.normalizedBareSpecifier == null) return false
+  return `github:${wantedDep.bareSpecifier}` === resolvedDep.normalizedBareSpecifier
 }
