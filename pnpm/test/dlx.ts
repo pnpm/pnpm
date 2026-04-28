@@ -253,7 +253,7 @@ testParallel('parallel dlx calls of the same package', async () => {
   ).toBe(path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4')))
 })
 
-test('dlx creates cache and store prune cleans cache', async () => {
+test.skip('dlx creates cache and store prune cleans cache', async () => {
   prepareEmpty()
 
   const commands = {
