@@ -12,9 +12,9 @@ export function replaceVersionInBareSpecifier (
   if (prefix == null) {
     return bareSpecifier
   }
-  // `<alias>:<version_selector>` (paired with a scoped package alias) —
-  // replace the whole body. Only reached for named-registry prefixes since
-  // bare `npm:<range>` is not a valid specifier.
+  // `<prefix>:<version_selector>` paired with a package alias — replace the
+  // whole body. Covers both `npm:^1.0.0` and named-registry forms like
+  // `gh:^1.0.0`, where the package name comes from the dependency alias.
   if (semver.validRange(bareSpecifier.slice(prefix.length))) {
     return `${prefix}${version}`
   }

@@ -2,11 +2,29 @@ import { describe, expect, test } from '@jest/globals'
 
 import {
   type NamedRegistryPackageSpec,
+  parseBareSpecifier,
   parseNamedRegistrySpecifierToRegistryPackageSpec,
 } from '../lib/parseBareSpecifier.js'
 
 const GH_ALIASES: ReadonlySet<string> = new Set(['gh'])
 const DEFAULT_TAG = 'latest'
+const NPM_REGISTRY = 'https://registry.npmjs.org/'
+
+describe('parseBareSpecifier', () => {
+  test('npm:<version_selector> falls back to the outer alias as the package name', () => {
+    // Mirrors the named-registry shape (`gh:^1.0.0` paired with `@acme/foo`),
+    // so `npm:^1.0.0` paired with `is-positive` resolves the outer alias.
+    expect(parseBareSpecifier('npm:^1.0.0', 'is-positive', DEFAULT_TAG, NPM_REGISTRY)).toMatchObject({
+      name: 'is-positive',
+      type: 'range',
+    })
+    expect(parseBareSpecifier('npm:1.0.0', '@acme/foo', DEFAULT_TAG, NPM_REGISTRY)).toMatchObject({
+      name: '@acme/foo',
+      type: 'version',
+      fetchSpec: '1.0.0',
+    })
+  })
+})
 
 describe('parseNamedRegistrySpecifierToRegistryPackageSpec', () => {
   test('returns null on non-named-registry specifiers', () => {

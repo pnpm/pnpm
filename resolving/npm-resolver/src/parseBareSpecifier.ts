@@ -1,6 +1,7 @@
 import { PnpmError } from '@pnpm/error'
 import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
 import parseNpmTarballUrl from 'parse-npm-tarball-url'
+import semver from 'semver'
 import getVersionSelectorType from 'version-selector-type'
 
 export interface RegistryPackageSpec {
@@ -19,13 +20,21 @@ export function parseBareSpecifier (
   let name = alias
   if (bareSpecifier.startsWith('npm:')) {
     bareSpecifier = bareSpecifier.slice(4)
-    const index = bareSpecifier.lastIndexOf('@')
-    if (index < 1) {
-      name = bareSpecifier
-      bareSpecifier = defaultTag
+    // `npm:<version_selector>` — fall back to the outer dependency alias as
+    // the package name, mirroring the named-registry shape (e.g. `gh:^1.0.0`).
+    // Restricted to semver ranges/versions so unscoped package names like
+    // `npm:is-positive` keep their npm package-aliasing meaning.
+    if (alias && semver.validRange(bareSpecifier) != null) {
+      name = alias
     } else {
-      name = bareSpecifier.slice(0, index)
-      bareSpecifier = bareSpecifier.slice(index + 1)
+      const index = bareSpecifier.lastIndexOf('@')
+      if (index < 1) {
+        name = bareSpecifier
+        bareSpecifier = defaultTag
+      } else {
+        name = bareSpecifier.slice(0, index)
+        bareSpecifier = bareSpecifier.slice(index + 1)
+      }
     }
   }
   if (name) {
