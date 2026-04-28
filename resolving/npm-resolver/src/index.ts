@@ -137,11 +137,6 @@ export interface ResolverFactoryOptions {
   retry?: RetryTimeoutOptions
   timeout?: number
   registries: Registries
-  /**
-   * User-defined named-registry aliases, mapped to a registry URL. Enables
-   * vlt-style `<alias>:<pkg>` specifiers for arbitrary registries. Merged
-   * on top of built-in defaults (e.g. `gh`); keys in this map take precedence.
-   */
   namedRegistries?: Record<string, string>
   saveWorkspaceProtocol?: boolean | 'rolling'
   preserveAbsolutePaths?: boolean

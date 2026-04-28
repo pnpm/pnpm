@@ -75,15 +75,8 @@ export function parseJsrSpecifierToRegistryPackageSpec (
   }
 }
 
-export const DEFAULT_GH_REGISTRY = 'https://npm.pkg.github.com/'
-
-export const BUILTIN_GH_ALIAS = 'gh'
-
-// Built-in named-registry aliases. Users can add more via `namedRegistries` in
-// `pnpm-workspace.yaml`. The `gh` alias mirrors vlt's convention and lets users
-// install from GitHub Packages without configuring a scope-wide registry.
 export const BUILTIN_NAMED_REGISTRIES: Readonly<Record<string, string>> = Object.freeze({
-  [BUILTIN_GH_ALIAS]: DEFAULT_GH_REGISTRY,
+  gh: 'https://npm.pkg.github.com/',
 })
 
 export interface NamedRegistryPackageSpec extends RegistryPackageSpec {

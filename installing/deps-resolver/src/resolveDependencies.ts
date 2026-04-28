@@ -178,12 +178,6 @@ export interface ResolutionContext {
   nodeVersion?: string
   pnpmVersion: string
   registries: Registries
-  /**
-   * Prefixes (e.g. `gh:`) of named-registry aliases that follow the
-   * npm-style `[<pkgName>@]<versionSelector>` body shape. Used by
-   * replaceVersionInBareSpecifier to extend its locked-version fast path
-   * beyond the standard `npm:` protocol.
-   */
   namedRegistryPrefixes: readonly string[]
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   virtualStoreDir: string

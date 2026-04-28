@@ -224,12 +224,6 @@ export interface Config extends OptionsFromRootManifest {
   agent?: string
 
   registries: Registries
-  /**
-   * User-defined named-registry aliases mapped to a registry URL. Sourced from
-   * the `namedRegistries` field in pnpm-workspace.yaml. pnpm ships with `gh`
-   * as a built-in default, which this map extends and can override (for
-   * GitHub Enterprise Server).
-   */
   namedRegistries?: Record<string, string>
   configByUri: Record<string, RegistryConfig>
   ignoreWorkspaceRootCheck: boolean
