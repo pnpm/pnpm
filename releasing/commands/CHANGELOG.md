@@ -1,5 +1,14 @@
 # @pnpm/releasing.commands
 
+## 1100.2.2
+
+### Patch Changes
+
+- Updated dependencies [9b23098]
+  - @pnpm/engine.runtime.commands@1100.0.5
+  - @pnpm/installing.client@1100.0.5
+  - @pnpm/installing.commands@1100.1.3
+
 ## 1100.2.1
 
 ### Patch Changes

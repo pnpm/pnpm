@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-patching
 
+## 1100.0.5
+
+### Patch Changes
+
+- @pnpm/installing.commands@1100.1.3
+- @pnpm/store.connection-manager@1100.0.5
+
 ## 1100.0.4
 
 ### Patch Changes

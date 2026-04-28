@@ -1,5 +1,13 @@
 # @pnpm/deps.inspection.commands
 
+## 1100.1.4
+
+### Patch Changes
+
+- @pnpm/global.commands@1100.0.5
+- @pnpm/resolving.default-resolver@1100.0.5
+- @pnpm/deps.inspection.outdated@1100.0.5
+
 ## 1100.1.3
 
 ### Patch Changes

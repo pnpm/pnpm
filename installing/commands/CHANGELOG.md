@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-installation
 
+## 1100.1.3
+
+### Patch Changes
+
+- Updated dependencies [005eeb7]
+  - @pnpm/installing.deps-installer@1101.0.1
+  - @pnpm/global.commands@1100.0.5
+  - @pnpm/deps.inspection.outdated@1100.0.5
+  - @pnpm/store.connection-manager@1100.0.5
+  - @pnpm/store.controller@1101.0.0
+  - @pnpm/building.after-install@1101.0.1
+  - @pnpm/installing.env-installer@1101.0.0
+
 ## 1100.1.2
 
 ### Patch Changes

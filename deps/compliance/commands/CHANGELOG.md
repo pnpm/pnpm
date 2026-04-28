@@ -1,5 +1,11 @@
 # @pnpm/deps.compliance.commands
 
+## 1101.1.2
+
+### Patch Changes
+
+- @pnpm/installing.commands@1100.1.3
+
 ## 1101.1.1
 
 ### Patch Changes
