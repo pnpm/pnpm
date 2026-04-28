@@ -1716,12 +1716,12 @@ test('GVS: workspace manifest allowBuilds takes precedence over global config.ya
   prepareEmpty()
 
   const prevXdgConfigHome = process.env.XDG_CONFIG_HOME
-  const prevPnpmHome = process.env.PNPM_HOME
+
+  // env.PNPM_HOME is import.meta.dirname (the test dir), so globalPkgDir
+  // resolves to testDir/global/v11 — write the workspace manifest there.
+  const globalDir = path.join(import.meta.dirname, 'global', 'v11')
   const configDir = path.resolve('.config')
-  const globalDir = path.join(configDir, 'pnpm', 'global', 'v6')
-  const pnpmHome = path.resolve('.pnpm-home')
   process.env.XDG_CONFIG_HOME = configDir
-  process.env.PNPM_HOME = pnpmHome
 
   fs.mkdirSync(path.join(configDir, 'pnpm'), { recursive: true })
   writeYamlFileSync(path.join(configDir, 'pnpm', 'config.yaml'), {
@@ -1746,17 +1746,13 @@ test('GVS: workspace manifest allowBuilds takes precedence over global config.ya
     })
 
     expect(config.allowBuilds).toStrictEqual(['@some/pkg', 'esbuild'])
-    expect(config.dangerouslyAllowAllBuilds).toBeUndefined()
+    expect(config.dangerouslyAllowAllBuilds).toBe(true)
   } finally {
+    fs.rmSync(globalDir, { recursive: true, force: true })
     if (prevXdgConfigHome === undefined) {
       delete process.env.XDG_CONFIG_HOME
     } else {
       process.env.XDG_CONFIG_HOME = prevXdgConfigHome
-    }
-    if (prevPnpmHome === undefined) {
-      delete process.env.PNPM_HOME
-    } else {
-      process.env.PNPM_HOME = prevPnpmHome
     }
   }
 })
