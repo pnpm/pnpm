@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 
+import { expect, test } from '@jest/globals'
 import { requireHooks } from '@pnpm/hooks.pnpmfile'
 import { prepare } from '@pnpm/prepare'
 import { createExportableManifest, type MakePublishManifestOptions } from '@pnpm/releasing.exportable-manifest'

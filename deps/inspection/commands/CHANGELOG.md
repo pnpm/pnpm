@@ -1,5 +1,41 @@
 # @pnpm/deps.inspection.commands
 
+## 1100.1.4
+
+### Patch Changes
+
+- @pnpm/global.commands@1100.0.5
+- @pnpm/resolving.default-resolver@1100.0.5
+- @pnpm/deps.inspection.outdated@1100.0.5
+
+## 1100.1.3
+
+### Patch Changes
+
+- @pnpm/resolving.default-resolver@1100.0.4
+- @pnpm/resolving.npm-resolver@1101.0.0
+- @pnpm/deps.inspection.outdated@1100.0.4
+- @pnpm/deps.inspection.list@1100.0.4
+- @pnpm/global.commands@1100.0.4
+- @pnpm/lockfile.fs@1100.0.3
+- @pnpm/config.reader@1101.1.1
+- @pnpm/deps.inspection.peers-checker@1100.0.3
+
+## 1100.1.2
+
+### Patch Changes
+
+- Updated dependencies [7d25bc1]
+- Updated dependencies [9e0833c]
+  - @pnpm/config.reader@1101.1.0
+  - @pnpm/resolving.npm-resolver@1100.1.0
+  - @pnpm/deps.inspection.outdated@1100.0.3
+  - @pnpm/global.commands@1100.0.3
+  - @pnpm/resolving.default-resolver@1100.0.3
+  - @pnpm/lockfile.fs@1100.0.2
+  - @pnpm/deps.inspection.list@1100.0.3
+  - @pnpm/deps.inspection.peers-checker@1100.0.2
+
 ## 1100.1.1
 
 ### Patch Changes

@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { afterAll, beforeAll, describe, expect, jest, test } from '@jest/globals'
 import type { Fetchers, FetchFunction, FetchOptions } from '@pnpm/fetching.fetcher-base'
 import { pickFetcher } from '@pnpm/fetching.pick-fetcher'
 import { createTarballFetcher } from '@pnpm/fetching.tarball-fetcher'
@@ -480,8 +480,8 @@ describe('custom fetcher implementation examples', () => {
 
       const customResolution = createMockResolution({
         type: 'custom:git',
-        repo: 'sveltejs/action-deploy-docs',
-        commit: 'a65fbf5a90f53c9d72fed4daaca59da50f074355',
+        repo: 'pnpm-e2e/drupal-js-build',
+        commit: 'f766801580f10543c24ba8bfa59046a776848097',
       })
 
       const fetcher = await pickFetcher(

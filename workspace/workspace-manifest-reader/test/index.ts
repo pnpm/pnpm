@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { describe, expect, test } from '@jest/globals'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 
 test('readWorkspaceManifest() works with a valid workspace file', async () => {
@@ -130,6 +131,15 @@ describe('readWorkspaceManifest() catalogs field', () => {
     await expect(
       readWorkspaceManifest(path.join(import.meta.dirname, '__fixtures__/catalogs-invalid-named-catalog-object'))
     ).rejects.toThrow('Expected named catalog foo to be an object, but found - number')
+  })
+
+  test('throws on null named catalog', async () => {
+    await expect(
+      readWorkspaceManifest(path.join(import.meta.dirname, '__fixtures__/catalogs-invalid-named-catalog-null'))
+    ).rejects.toMatchObject({
+      code: 'ERR_PNPM_INVALID_WORKSPACE_CONFIGURATION',
+      message: expect.stringContaining('Expected named catalog foo to be an object, but found - null'),
+    })
   })
 
   test('throws on invalid named catalog specifier', async () => {

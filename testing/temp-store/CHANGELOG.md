@@ -1,5 +1,28 @@
 # @pnpm/testing.temp-store
 
+## 1100.0.5
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.5
+- @pnpm/store.controller@1101.0.0
+
+## 1100.0.4
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.4
+- @pnpm/store.controller@1101.0.0
+- @pnpm/store.controller-types@1100.0.3
+
+## 1100.0.3
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.3
+- @pnpm/store.controller@1100.0.2
+- @pnpm/store.controller-types@1100.0.2
+
 ## 1100.0.2
 
 ### Patch Changes

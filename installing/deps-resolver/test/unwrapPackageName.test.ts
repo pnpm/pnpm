@@ -1,3 +1,5 @@
+import { expect, test } from '@jest/globals'
+
 import { unwrapPackageName } from '../lib/unwrapPackageName.js'
 
 test('works for wanted dependency with no alias', () => {

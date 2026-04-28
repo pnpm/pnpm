@@ -103,7 +103,7 @@ async function cleanProjectDir (opts: { modulesDir: string, removeLockfile?: boo
   }
 }
 
-const PNPM_HIDDEN_ENTRIES = new Set(['.bin', '.modules.yaml', '.pnpm'])
+const PNPM_HIDDEN_ENTRIES = new Set(['.bin', '.modules.yaml', '.pnpm', '.pnpm-workspace-state-v1.json'])
 
 async function hasContentsToRemove (modulesDir: string): Promise<boolean> {
   let items: string[]

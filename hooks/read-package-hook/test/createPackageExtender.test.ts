@@ -1,3 +1,5 @@
+import { expect, test } from '@jest/globals'
+
 import { createPackageExtender } from '../lib/createPackageExtender.js'
 
 const packageExtender = createPackageExtender({

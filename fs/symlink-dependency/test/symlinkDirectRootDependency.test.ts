@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { symlinkDirectRootDependency } from '@pnpm/fs.symlink-dependency'
 import { tempDir } from '@pnpm/prepare'
 

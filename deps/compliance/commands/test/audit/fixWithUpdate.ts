@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 
+import { afterEach, beforeEach, describe, expect, test } from '@jest/globals'
 import { audit } from '@pnpm/deps.compliance.commands'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { addDistTag } from '@pnpm/registry-mock'

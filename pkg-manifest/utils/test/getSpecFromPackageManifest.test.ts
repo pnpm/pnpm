@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { getSpecFromPackageManifest } from '@pnpm/pkg-manifest.utils'
 
 test('getSpecFromPackageManifest()', () => {

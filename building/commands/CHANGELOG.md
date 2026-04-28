@@ -1,5 +1,36 @@
 # @pnpm/building.commands
 
+## 1100.0.5
+
+### Patch Changes
+
+- @pnpm/installing.commands@1100.1.3
+- @pnpm/store.connection-manager@1100.0.5
+- @pnpm/building.after-install@1101.0.1
+
+## 1100.0.4
+
+### Patch Changes
+
+- @pnpm/building.after-install@1101.0.0
+- @pnpm/installing.commands@1100.1.2
+- @pnpm/store.connection-manager@1100.0.4
+- @pnpm/config.reader@1101.1.1
+
+## 1100.0.3
+
+### Patch Changes
+
+- 7d9aae9: Fix `ERR_PNPM_OUTDATED_LOCKFILE` when approving builds during a global install. The `approve-builds` flow called by `pnpm add -g` passed the global packages directory to the subsequent install as `workspaceDir`, which caused sibling install directories (such as those left behind by `pnpm self-update`) to be picked up as workspace projects and fail the frozen-lockfile check.
+- Updated dependencies [7d25bc1]
+- Updated dependencies [72c1e05]
+- Updated dependencies [9e0833c]
+  - @pnpm/config.reader@1101.1.0
+  - @pnpm/building.after-install@1100.0.3
+  - @pnpm/store.connection-manager@1100.0.3
+  - @pnpm/installing.commands@1100.1.1
+  - @pnpm/config.writer@1100.0.2
+
 ## 1100.0.2
 
 ### Patch Changes

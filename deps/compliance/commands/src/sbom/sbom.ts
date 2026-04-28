@@ -3,6 +3,7 @@ import { packageManager } from '@pnpm/cli.meta'
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { isSpdxLicenseExpression, resolveLicenseFromDir } from '@pnpm/deps.compliance.license-resolver'
 import {
   collectSbomComponents,
   type SbomComponentType,
@@ -163,7 +164,14 @@ export async function handler (
   const manifest = await readProjectManifestOnly(opts.dir)
   const rootName = manifest.name ?? 'unknown'
   const rootVersion = manifest.version ?? '0.0.0'
-  const rootLicense = typeof manifest.license === 'string' ? manifest.license : undefined
+  // Keep the root in sync with transitive deps: consult manifest `license` /
+  // legacy `licenses` first, then fall back to an on-disk LICENSE file. Drop
+  // file-scanned values that aren't SPDX-valid to avoid non-compliant output.
+  const rootLicenseInfo = await resolveLicenseFromDir({ manifest, dir: opts.dir })
+  const rootLicense = rootLicenseInfo && rootLicenseInfo.name !== 'Unknown' &&
+    (!rootLicenseInfo.licenseFile || isSpdxLicenseExpression(rootLicenseInfo.name))
+    ? rootLicenseInfo.name
+    : undefined
   const rootAuthor = typeof manifest.author === 'string'
     ? manifest.author
     : (manifest.author as { name?: string } | undefined)?.name

@@ -1,5 +1,4 @@
-import { jest } from '@jest/globals'
-import type { DeprecationLog } from '@pnpm/core-loggers'
+import { expect, jest, test } from '@jest/globals'
 import {
   addDependenciesToPackage,
 } from '@pnpm/installing.deps-installer'
@@ -19,7 +18,7 @@ test('reports warning when installing deprecated packages', async () => {
     level: 'debug',
     name: 'pnpm:deprecation',
     pkgId: 'express@0.14.1',
-  } as DeprecationLog))
+  }))
 
   const lockfile = project.readLockfile()
   expect(lockfile.packages['express@0.14.1'].deprecated).toBe('express 0.x series is deprecated')
@@ -31,7 +30,7 @@ test('reports warning when installing deprecated packages', async () => {
   expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:deprecation',
-  } as DeprecationLog))
+  }))
 })
 
 test('doesn\'t report a warning when the deprecated package is allowed', async () => {
@@ -48,5 +47,5 @@ test('doesn\'t report a warning when the deprecated package is allowed', async (
   expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:deprecation',
-  } as DeprecationLog))
+  }))
 })

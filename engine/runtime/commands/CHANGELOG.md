@@ -1,5 +1,28 @@
 # @pnpm/engine.runtime.commands
 
+## 1100.0.5
+
+### Patch Changes
+
+- 9b23098: Updated `pnpm env` help examples to use Node.js 24 and its LTS codename.
+
+## 1100.0.4
+
+### Patch Changes
+
+- Updated dependencies [421317c]
+  - @pnpm/engine.runtime.node-resolver@1101.0.0
+  - @pnpm/config.reader@1101.1.1
+
+## 1100.0.3
+
+### Patch Changes
+
+- Updated dependencies [7d25bc1]
+- Updated dependencies [9e0833c]
+  - @pnpm/config.reader@1101.1.0
+  - @pnpm/engine.runtime.node-resolver@1100.0.3
+
 ## 1100.0.2
 
 ### Patch Changes

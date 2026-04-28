@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { test } from '@jest/globals'
 import { temporaryDirectory } from 'tempy'
 
 import { optimisticRenameOverwrite } from '../src/writeBufferToCafs.js'

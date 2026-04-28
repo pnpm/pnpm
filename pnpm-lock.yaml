@@ -7,45 +7,57 @@ importers:
     configDependencies: {}
     packageManagerDependencies:
       '@pnpm/exe':
-        specifier: 11.0.0-rc.1
-        version: 11.0.0-rc.1
+        specifier: 11.0.0
+        version: 11.0.0
       pnpm:
-        specifier: 11.0.0-rc.1
-        version: 11.0.0-rc.1
+        specifier: 11.0.0
+        version: 11.0.0
 
 packages:
 
-  '@pnpm/exe@11.0.0-rc.1':
-    resolution: {integrity: sha512-nGmEQeq3w+zHDtbnsdj69EaW78UkHwIeNR9uOx893JasG3boZuiFUugwOKpQIDfMBDFK+32SDMLyqDjuaSp/ZQ==}
+  '@pnpm/exe@11.0.0':
+    resolution: {integrity: sha512-Nw9lOegzhR2NZN/hS9brC4LHTJWJ8i97Hw9ujSCJm29hjW4i7tQ0/NT+Pw09GPrm/BZoD1bfPGCSjLwj8kiA6A==}
     hasBin: true
 
-  '@pnpm/linux-arm64@11.0.0-rc.1':
-    resolution: {integrity: sha512-HJY94Zz6IEc55kPoMB+ocXWWUmqrHohwN3gxMFfFODWpKUYsNvheFJxpTRn6wIZj7n7pYSVxdGZjDvzedbeuoQ==}
+  '@pnpm/linux-arm64@11.0.0':
+    resolution: {integrity: sha512-t9y0gnwubgjV5R1IrtWZcvTtF1Tt9x+JazUQTIjWMqQ3Rxy+BfiuxsaZ+rNiy7KNuJc/jmbOBzWPx3Kx8iFczQ==}
     cpu: [arm64]
     os: [linux]
 
-  '@pnpm/linux-x64@11.0.0-rc.1':
-    resolution: {integrity: sha512-UIGMWTZqlYaTS4EjHMX1xEgwlBfW8aKCu85kZMEcFsO08S++3F7Au09fa4t+MbjeaVcgz8LSGA1zf5nqY/uK1w==}
+  '@pnpm/linux-x64@11.0.0':
+    resolution: {integrity: sha512-AjqlTCwr6nLgk6jvkwdwhX1T9RvOFfKe2Ku64OPSoU91T5bPq9lA2bTNwNNcwbpQOhWUeCNtFi+fy12Tqpjy6g==}
     cpu: [x64]
     os: [linux]
 
-  '@pnpm/macos-arm64@11.0.0-rc.1':
-    resolution: {integrity: sha512-+LC41cEalZMUCrDDNyQ2a/krK7cn6WnKDlZDBkiLVqZInfW8c31yAYIEPdkesVRudr7lneFSEP/I3AkcpsBJdQ==}
+  '@pnpm/linuxstatic-arm64@11.0.0':
+    resolution: {integrity: sha512-J72JukwD1rbCJd4LoKngGJftLC9Y+mb6Qb4FE7S2ea5QnoU7ZHqF7amy4SxSmfXCZ8xSP1CosuTK573za7fsgQ==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@pnpm/linuxstatic-x64@11.0.0':
+    resolution: {integrity: sha512-8bGjNYWx0rVckgNsD36T51jP4YdyHfkjDOTBufKCz+GOcryr0+SKcS0hNdHU2T39UP+nhkXQ9jTLo3JoCvYitg==}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@pnpm/macos-arm64@11.0.0':
+    resolution: {integrity: sha512-F9Cf7Vp8HjbH8ABZLl1Q6fhXdmDgN86GmXl7+V31uNccmDfh0JNLb9s1XuHH65qQdnSaD4EBeARM75uC/1G7PA==}
     cpu: [arm64]
     os: [darwin]
 
-  '@pnpm/macos-x64@11.0.0-rc.1':
-    resolution: {integrity: sha512-vMccaVqCCkldd3QywMc48R1wQMnXBzE13kCHu5hKTd8NLJgHOrnXsN9Qt7jj3T9WT4zRjfbfua7HzGX9ZYR02A==}
+  '@pnpm/macos-x64@11.0.0':
+    resolution: {integrity: sha512-eixwkY//5LuMQ4WkG8eVueJAh/Ef6BWFFpQ+8wUxLDL0ya4kWB9NNjcJGUfWdmGx5kBxeYtVib0Wla6Qz7me+g==}
     cpu: [x64]
     os: [darwin]
 
-  '@pnpm/win-arm64@11.0.0-rc.1':
-    resolution: {integrity: sha512-5GMjLMefmzgsIHYparaGwwNuFrtFXO5xpbA0MBT+kCYtNqy1ORGsoU0jjhKMmxcuBj6L/P7X21Zfhzc7CudeoA==}
+  '@pnpm/win-arm64@11.0.0':
+    resolution: {integrity: sha512-uxnY82mIWWpj4Pc7sP9Vi7T1jUCfESpWJ2ddvS0HosUddP6xvSYyqT8CGNYl3cn2F3Kj4Q9VMwf5/TQA0tpxWw==}
     cpu: [arm64]
     os: [win32]
 
-  '@pnpm/win-x64@11.0.0-rc.1':
-    resolution: {integrity: sha512-ebKAIHkRXVHL0rEBqBqKnw9KiEWNLe3KcW54P70nBWwxuscv3FPZHGQ3f0jkZYECruF45lvTNkuRScQK/M4SDw==}
+  '@pnpm/win-x64@11.0.0':
+    resolution: {integrity: sha512-VGRbYfX88jnqBT2hLw45cM2Nm+OKtoptQ2KwMXadapV1prvCxpZ28l2Nq3hV2ZRZKqKr5J46rT+07KG5oGUTYg==}
     cpu: [x64]
     os: [win32]
 
@@ -105,40 +117,53 @@ packages:
     resolution: {integrity: sha512-DmCG8GzysnCZ15bres3N5AHCmwBwYgp0As6xjhQ47rAUTUXxJiK+lLUxaGsX3hd/30qUpVElh05PbGuxRPgJwA==}
     engines: {node: '>= 10'}
 
-  pnpm@11.0.0-rc.1:
-    resolution: {integrity: sha512-DX2DdmjrNbgdKPVg747F4QP/XRYuJJ/Q0wxUbDmlUdKQrJzxVwk1O5TS3260Rb+kZcegUUjTKO2jKVDALkDQYA==}
+  detect-libc@2.1.2:
+    resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
+    engines: {node: '>=8'}
+
+  pnpm@11.0.0:
+    resolution: {integrity: sha512-W9GHUA5JzGw9iR2XO0MsArhEpetyCRcskKUXo+9PV57Vwj1Am2meap3EGP97KxiQ5j9tdPHT/EmEjzd3nInITA==}
     engines: {node: '>=22.13'}
     hasBin: true
 
 snapshots:
 
-  '@pnpm/exe@11.0.0-rc.1':
+  '@pnpm/exe@11.0.0':
     dependencies:
       '@reflink/reflink': 0.1.19
+      detect-libc: 2.1.2
     optionalDependencies:
-      '@pnpm/linux-arm64': 11.0.0-rc.1
-      '@pnpm/linux-x64': 11.0.0-rc.1
-      '@pnpm/macos-arm64': 11.0.0-rc.1
-      '@pnpm/macos-x64': 11.0.0-rc.1
-      '@pnpm/win-arm64': 11.0.0-rc.1
-      '@pnpm/win-x64': 11.0.0-rc.1
+      '@pnpm/linux-arm64': 11.0.0
+      '@pnpm/linux-x64': 11.0.0
+      '@pnpm/linuxstatic-arm64': 11.0.0
+      '@pnpm/linuxstatic-x64': 11.0.0
+      '@pnpm/macos-arm64': 11.0.0
+      '@pnpm/macos-x64': 11.0.0
+      '@pnpm/win-arm64': 11.0.0
+      '@pnpm/win-x64': 11.0.0
 
-  '@pnpm/linux-arm64@11.0.0-rc.1':
+  '@pnpm/linux-arm64@11.0.0':
     optional: true
 
-  '@pnpm/linux-x64@11.0.0-rc.1':
+  '@pnpm/linux-x64@11.0.0':
     optional: true
 
-  '@pnpm/macos-arm64@11.0.0-rc.1':
+  '@pnpm/linuxstatic-arm64@11.0.0':
     optional: true
 
-  '@pnpm/macos-x64@11.0.0-rc.1':
+  '@pnpm/linuxstatic-x64@11.0.0':
     optional: true
 
-  '@pnpm/win-arm64@11.0.0-rc.1':
+  '@pnpm/macos-arm64@11.0.0':
     optional: true
 
-  '@pnpm/win-x64@11.0.0-rc.1':
+  '@pnpm/macos-x64@11.0.0':
+    optional: true
+
+  '@pnpm/win-arm64@11.0.0':
+    optional: true
+
+  '@pnpm/win-x64@11.0.0':
     optional: true
 
   '@reflink/reflink-darwin-arm64@0.1.19':
@@ -176,7 +201,9 @@ snapshots:
       '@reflink/reflink-win32-arm64-msvc': 0.1.19
       '@reflink/reflink-win32-x64-msvc': 0.1.19
 
-  pnpm@11.0.0-rc.1: {}
+  detect-libc@2.1.2: {}
+
+  pnpm@11.0.0: {}
 
 ---
 lockfileVersion: '9.0'
@@ -395,8 +422,8 @@ catalogs:
       specifier: ^8.57.1
       version: 8.58.1
     '@typescript/native-preview':
-      specifier: 7.0.0-dev.20260216.1
-      version: 7.0.0-dev.20260216.1
+      specifier: 7.0.0-dev.20260421.2
+      version: 7.0.0-dev.20260421.2
     '@yarnpkg/core':
       specifier: 4.5.0
       version: 4.5.0
@@ -1021,7 +1048,7 @@ importers:
         version: 4.0.3
       '@typescript/native-preview':
         specifier: 'catalog:'
-        version: 7.0.0-dev.20260216.1
+        version: 7.0.0-dev.20260421.2
       c8:
         specifier: 'catalog:'
         version: 11.0.0
@@ -1131,6 +1158,9 @@ importers:
 
   __utils__/assert-project:
     dependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/assert-store':
         specifier: workspace:*
         version: link:../assert-store
@@ -1183,6 +1213,9 @@ importers:
 
   __utils__/assert-store:
     dependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 6.0.0(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
@@ -1199,6 +1232,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants
+      '@types/node':
+        specifier: 'catalog:'
+        version: 22.19.17
 
   __utils__/eslint-config:
     dependencies:
@@ -1388,6 +1424,9 @@ importers:
 
   __utils__/test-ipc-server:
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../prepare
@@ -1404,6 +1443,77 @@ importers:
   __utils__/tsconfig:
     devDependencies:
       '@pnpm/tsconfig':
+        specifier: workspace:*
+        version: 'link:'
+
+  agent/client:
+    dependencies:
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../../lockfile/types
+      '@pnpm/logger':
+        specifier: 'catalog:'
+        version: 1001.0.1
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
+      '@pnpm/worker':
+        specifier: workspace:^
+        version: link:../../worker
+    devDependencies:
+      '@pnpm/agent.client':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../core/types
+
+  agent/server:
+    dependencies:
+      '@pnpm/installing.client':
+        specifier: workspace:*
+        version: link:../../installing/client
+      '@pnpm/installing.deps-installer':
+        specifier: workspace:*
+        version: link:../../installing/deps-installer
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../../lockfile/types
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
+      '@pnpm/store.controller':
+        specifier: workspace:*
+        version: link:../../store/controller
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../core/types
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
+      '@pnpm/agent.client':
+        specifier: workspace:*
+        version: link:../client
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../core/logger
+      '@pnpm/registry-mock':
+        specifier: 'catalog:'
+        version: 6.0.0(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+      cross-env:
+        specifier: 'catalog:'
+        version: 10.1.0
+      pnpm-agent:
         specifier: workspace:*
         version: 'link:'
 
@@ -1584,6 +1694,9 @@ importers:
         specifier: 'catalog:'
         version: 0.2.16
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/bins.resolver':
         specifier: workspace:*
         version: 'link:'
@@ -1875,6 +1988,9 @@ importers:
         specifier: 'catalog:'
         version: 5.0.0
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/building.during-install':
         specifier: workspace:*
         version: 'link:'
@@ -1904,6 +2020,9 @@ importers:
         specifier: workspace:*
         version: link:../../core/types
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/building.policy':
         specifier: workspace:*
         version: 'link:'
@@ -1966,6 +2085,9 @@ importers:
         specifier: 'catalog:'
         version: 2.0.0
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/cache.commands':
         specifier: workspace:*
         version: 'link:'
@@ -1994,6 +2116,9 @@ importers:
         specifier: workspace:*
         version: link:../../core/error
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/catalogs.config':
         specifier: workspace:*
         version: 'link:'
@@ -2006,6 +2131,9 @@ importers:
 
   catalogs/protocol-parser:
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/catalogs.protocol-parser':
         specifier: workspace:*
         version: 'link:'
@@ -2169,6 +2297,9 @@ importers:
         specifier: 'catalog:'
         version: 7.0.1
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/cli.default-reporter':
         specifier: workspace:*
         version: 'link:'
@@ -2203,6 +2334,9 @@ importers:
         specifier: 'catalog:'
         version: 7.0.1
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/cli.meta':
         specifier: workspace:*
         version: 'link:'
@@ -2222,6 +2356,9 @@ importers:
         specifier: 'catalog:'
         version: 7.0.4
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/cli.parse-cli-args':
         specifier: workspace:*
         version: 'link:'
@@ -2339,6 +2476,9 @@ importers:
         specifier: 'catalog:'
         version: 5.0.0
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/config.matcher':
         specifier: workspace:*
         version: 'link:'
@@ -2420,6 +2560,9 @@ importers:
         specifier: workspace:*
         version: link:../../resolving/parse-wanted-dependency
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/config.parse-overrides':
         specifier: workspace:*
         version: 'link:'
@@ -2430,6 +2573,9 @@ importers:
         specifier: workspace:*
         version: link:../../core/types
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/config.pick-registry-for-package':
         specifier: workspace:*
         version: 'link:'
@@ -2570,6 +2716,9 @@ importers:
         specifier: 'catalog:'
         version: 7.7.4
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/config.version-policy':
         specifier: workspace:*
         version: 'link:'
@@ -2615,6 +2764,9 @@ importers:
         specifier: workspace:*
         version: link:../constants
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/error':
         specifier: workspace:*
         version: 'link:'
@@ -2628,6 +2780,9 @@ importers:
         specifier: 'catalog:'
         version: 4.2.0
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/logger':
         specifier: workspace:*
         version: 'link:'
@@ -2647,6 +2802,9 @@ importers:
         specifier: 'catalog:'
         version: 13.0.1
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: 'link:'
@@ -2669,6 +2827,9 @@ importers:
         specifier: workspace:*
         version: link:../../core/error
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/crypto.integrity':
         specifier: workspace:*
         version: 'link:'
@@ -2682,6 +2843,9 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/crypto.object-hasher':
         specifier: workspace:*
         version: 'link:'
@@ -2704,6 +2868,9 @@ importers:
         specifier: workspace:*
         version: link:../../fetching/types
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/crypto.shasums-file':
         specifier: workspace:*
         version: 'link:'
@@ -2744,6 +2911,9 @@ importers:
         specifier: 'catalog:'
         version: 7.7.4
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../../core/constants
@@ -2789,6 +2959,9 @@ importers:
       '@pnpm/deps.compliance.audit':
         specifier: workspace:*
         version: link:../audit
+      '@pnpm/deps.compliance.license-resolver':
+        specifier: workspace:*
+        version: link:../license-resolver
       '@pnpm/deps.compliance.license-scanner':
         specifier: workspace:*
         version: link:../license-scanner
@@ -2816,6 +2989,9 @@ importers:
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../../network/auth-header
+      '@pnpm/object.key-sorting':
+        specifier: workspace:*
+        version: link:../../../object/key-sorting
       '@pnpm/store.path':
         specifier: workspace:*
         version: link:../../../store/path
@@ -2831,6 +3007,9 @@ importers:
       chalk:
         specifier: 'catalog:'
         version: 5.6.2
+      enquirer:
+        specifier: 'catalog:'
+        version: 2.4.1
       memoize:
         specifier: 'catalog:'
         version: 10.2.0
@@ -2844,9 +3023,15 @@ importers:
         specifier: 'catalog:'
         version: 7.7.4
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/deps.compliance.commands':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../../core/logger
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../../../pkg-manifest/reader
@@ -2890,11 +3075,23 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
 
+  deps/compliance/license-resolver:
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
+      '@pnpm/deps.compliance.license-resolver':
+        specifier: workspace:*
+        version: 'link:'
+
   deps/compliance/license-scanner:
     dependencies:
       '@pnpm/config.package-is-installable':
         specifier: workspace:*
         version: link:../../../config/package-is-installable
+      '@pnpm/deps.compliance.license-resolver':
+        specifier: workspace:*
+        version: link:../license-resolver
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../../path
@@ -2953,6 +3150,9 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../../core/logger
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../../store/cafs
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.31.1
@@ -2965,6 +3165,9 @@ importers:
       '@cyclonedx/cyclonedx-library':
         specifier: 'catalog:'
         version: 10.0.0(ajv@8.18.0)(spdx-expression-parse@4.0.0)
+      '@pnpm/deps.compliance.license-resolver':
+        specifier: workspace:*
+        version: link:../license-resolver
       '@pnpm/lockfile.detect-dep-types':
         specifier: workspace:*
         version: link:../../../lockfile/detect-dep-types
@@ -3005,6 +3208,9 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../../core/logger
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../../store/cafs
       '@types/ssri':
         specifier: 'catalog:'
         version: 7.1.5
@@ -3084,16 +3290,28 @@ importers:
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: link:../../lockfile/utils
+      '@pnpm/resolving.resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
+      detect-libc:
+        specifier: 'catalog:'
+        version: 2.1.2
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/deps.graph-hasher':
         specifier: workspace:*
         version: 'link:'
 
   deps/graph-sequencer:
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/deps.graph-sequencer':
         specifier: workspace:*
         version: 'link:'
@@ -3267,6 +3485,9 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/deps.inspection.list':
         specifier: workspace:*
         version: 'link:'
@@ -3383,6 +3604,9 @@ importers:
         specifier: 'catalog:'
         version: 0.3.1
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/deps.inspection.peers-checker':
         specifier: workspace:*
         version: 'link:'
@@ -3453,6 +3677,9 @@ importers:
         specifier: 'catalog:'
         version: 7.7.4
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../../core/constants
@@ -3481,6 +3708,9 @@ importers:
         specifier: 'catalog:'
         version: 7.7.4
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/deps.path':
         specifier: workspace:*
         version: 'link:'
@@ -3633,6 +3863,9 @@ importers:
       cross-spawn:
         specifier: 'catalog:'
         version: 7.0.6
+      detect-libc:
+        specifier: 'catalog:'
+        version: 2.1.2
       path-name:
         specifier: 'catalog:'
         version: 1.0.0
@@ -3827,6 +4060,9 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/engine.runtime.node-resolver':
         specifier: workspace:*
         version: 'link:'
@@ -4058,6 +4294,9 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/exec.lifecycle':
         specifier: workspace:*
         version: 'link:'
@@ -4120,6 +4359,9 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/exec.prepare-package':
         specifier: workspace:*
         version: 'link:'
@@ -4471,6 +4713,9 @@ importers:
         specifier: 'catalog:'
         version: 7.0.1
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/fs.hard-link-dir':
         specifier: workspace:*
         version: 'link:'
@@ -4535,6 +4780,9 @@ importers:
 
   fs/is-empty-dir-or-nothing:
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/fs.is-empty-dir-or-nothing':
         specifier: workspace:*
         version: 'link:'
@@ -4574,6 +4822,9 @@ importers:
         specifier: 'catalog:'
         version: 10.0.1
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/fs.symlink-dependency':
         specifier: workspace:*
         version: 'link:'
@@ -4635,6 +4886,9 @@ importers:
         specifier: 'catalog:'
         version: 10.0.1
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/global.commands':
         specifier: workspace:*
         version: 'link:'
@@ -4691,6 +4945,9 @@ importers:
         specifier: 'catalog:'
         version: 2.0.0
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/fetching.fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
@@ -4783,6 +5040,9 @@ importers:
 
   installing/client:
     dependencies:
+      '@pnpm/engine.runtime.node-resolver':
+        specifier: workspace:*
+        version: link:../../engine/runtime/node-resolver
       '@pnpm/fetching.binary-fetcher':
         specifier: workspace:*
         version: link:../../fetching/binary-fetcher
@@ -4823,6 +5083,9 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/fetching.fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
@@ -5009,9 +5272,6 @@ importers:
       version-selector-type:
         specifier: 'catalog:'
         version: 3.0.0
-      which:
-        specifier: 'catalog:'
-        version: '@pnpm/which@3.0.1'
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -5061,9 +5321,6 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.31.1
-      '@types/which':
-        specifier: 'catalog:'
-        version: 3.0.4
       '@types/yarnpkg__lockfile':
         specifier: 'catalog:'
         version: 1.1.9
@@ -5137,6 +5394,9 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/installing.context':
         specifier: workspace:*
         version: 'link:'
@@ -5162,6 +5422,9 @@ importers:
         specifier: workspace:*
         version: link:../../../core/types
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/installing.dedupe.check':
         specifier: workspace:*
         version: 'link:'
@@ -5178,6 +5441,9 @@ importers:
         specifier: 'catalog:'
         version: 5.6.2
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/installing.dedupe.issues-renderer':
         specifier: workspace:*
         version: 'link:'
@@ -5190,6 +5456,9 @@ importers:
 
   installing/deps-installer:
     dependencies:
+      '@pnpm/agent.client':
+        specifier: workspace:*
+        version: link:../../agent/client
       '@pnpm/bins.linker':
         specifier: workspace:*
         version: link:../../bins/linker
@@ -5331,6 +5600,9 @@ importers:
       '@pnpm/store.controller-types':
         specifier: workspace:*
         version: link:../../store/controller-types
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
@@ -5416,9 +5688,6 @@ importers:
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
-      '@pnpm/store.index':
-        specifier: workspace:*
-        version: link:../../store/index
       '@pnpm/store.path':
         specifier: workspace:*
         version: link:../../store/path
@@ -5609,6 +5878,9 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/installing.deps-resolver':
         specifier: workspace:*
         version: 'link:'
@@ -5872,6 +6144,9 @@ importers:
         specifier: 'catalog:'
         version: 10.0.1
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/installing.env-installer':
         specifier: workspace:*
         version: 'link:'
@@ -6026,6 +6301,9 @@ importers:
         specifier: 'catalog:'
         version: 4.0.7(typanion@3.14.0)
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/installing.linking.real-hoist':
         specifier: workspace:*
         version: 'link:'
@@ -6057,6 +6335,9 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/installing.modules-yaml':
         specifier: workspace:*
         version: 'link:'
@@ -6414,6 +6695,9 @@ importers:
         specifier: 'catalog:'
         version: 7.0.1
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/lockfile.make-dedicated-lockfile':
         specifier: workspace:*
         version: 'link:'
@@ -6445,6 +6729,9 @@ importers:
         specifier: 'catalog:'
         version: 7.7.4
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/lockfile.merger':
         specifier: workspace:*
         version: 'link:'
@@ -6495,6 +6782,9 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/lockfile.pruner':
         specifier: workspace:*
         version: 'link:'
@@ -6563,6 +6853,9 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/lockfile.to-pnp':
         specifier: workspace:*
         version: 'link:'
@@ -6622,6 +6915,9 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: 'link:'
@@ -6680,6 +6976,9 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants
@@ -6792,6 +7091,9 @@ importers:
         specifier: workspace:*
         version: link:../../core/types
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: 'link:'
@@ -6829,6 +7131,9 @@ importers:
         specifier: 'catalog:'
         version: 7.24.8
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
@@ -6845,6 +7150,9 @@ importers:
         specifier: 'catalog:'
         version: safe-execa@0.3.0
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/network.git-utils':
         specifier: workspace:*
         version: 'link:'
@@ -6883,6 +7191,9 @@ importers:
         specifier: 'catalog:'
         version: 6.0.0
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/object.key-sorting':
         specifier: workspace:*
         version: 'link:'
@@ -6893,6 +7204,9 @@ importers:
         specifier: workspace:*
         version: link:../../core/error
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/object.property-path':
         specifier: workspace:*
         version: 'link:'
@@ -7085,6 +7399,9 @@ importers:
         specifier: 'catalog:'
         version: 7.7.4
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/patching.config':
         specifier: workspace:*
         version: 'link:'
@@ -7113,6 +7430,9 @@ importers:
         specifier: 'catalog:'
         version: 8.0.0
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: 'link:'
@@ -7138,6 +7458,9 @@ importers:
         specifier: 'catalog:'
         version: 7.7.4
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
@@ -7430,6 +7753,9 @@ importers:
       pidtree:
         specifier: 'catalog:'
         version: 0.6.0
+      pnpm-agent:
+        specifier: workspace:*
+        version: link:../agent/server
       ps-list:
         specifier: 'catalog:'
         version: 9.0.0
@@ -7467,11 +7793,26 @@ importers:
         specifier: 'catalog:'
         version: 6.0.0
 
+  pnpm/artifacts/darwin-arm64:
+    devDependencies:
+      '@pnpm/macos-arm64':
+        specifier: workspace:*
+        version: 'link:'
+
+  pnpm/artifacts/darwin-x64:
+    devDependencies:
+      '@pnpm/macos-x64':
+        specifier: workspace:*
+        version: 'link:'
+
   pnpm/artifacts/exe:
     dependencies:
       '@reflink/reflink':
         specifier: 'catalog:'
         version: 0.1.19
+      detect-libc:
+        specifier: 'catalog:'
+        version: 2.1.2
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -7485,9 +7826,6 @@ importers:
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.3.0
-      tar:
-        specifier: 'catalog:'
-        version: 7.5.13
     optionalDependencies:
       '@pnpm/linux-arm64':
         specifier: workspace:*
@@ -7495,22 +7833,34 @@ importers:
       '@pnpm/linux-x64':
         specifier: workspace:*
         version: link:../linux-x64
+      '@pnpm/linuxstatic-arm64':
+        specifier: workspace:*
+        version: link:../linux-arm64-musl
+      '@pnpm/linuxstatic-x64':
+        specifier: workspace:*
+        version: link:../linux-x64-musl
       '@pnpm/macos-arm64':
         specifier: workspace:*
-        version: link:../macos-arm64
+        version: link:../darwin-arm64
       '@pnpm/macos-x64':
         specifier: workspace:*
-        version: link:../macos-x64
+        version: link:../darwin-x64
       '@pnpm/win-arm64':
         specifier: workspace:*
-        version: link:../win-arm64
+        version: link:../win32-arm64
       '@pnpm/win-x64':
         specifier: workspace:*
-        version: link:../win-x64
+        version: link:../win32-x64
 
   pnpm/artifacts/linux-arm64:
     devDependencies:
       '@pnpm/linux-arm64':
+        specifier: workspace:*
+        version: 'link:'
+
+  pnpm/artifacts/linux-arm64-musl:
+    devDependencies:
+      '@pnpm/linuxstatic-arm64':
         specifier: workspace:*
         version: 'link:'
 
@@ -7520,25 +7870,19 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  pnpm/artifacts/macos-arm64:
+  pnpm/artifacts/linux-x64-musl:
     devDependencies:
-      '@pnpm/macos-arm64':
+      '@pnpm/linuxstatic-x64':
         specifier: workspace:*
         version: 'link:'
 
-  pnpm/artifacts/macos-x64:
-    devDependencies:
-      '@pnpm/macos-x64':
-        specifier: workspace:*
-        version: 'link:'
-
-  pnpm/artifacts/win-arm64:
+  pnpm/artifacts/win32-arm64:
     devDependencies:
       '@pnpm/win-arm64':
         specifier: workspace:*
         version: 'link:'
 
-  pnpm/artifacts/win-x64:
+  pnpm/artifacts/win32-x64:
     devDependencies:
       '@pnpm/win-x64':
         specifier: workspace:*
@@ -7665,12 +8009,18 @@ importers:
       '@pnpm/engine.runtime.commands':
         specifier: workspace:*
         version: link:../../engine/runtime/commands
+      '@pnpm/engine.runtime.node-resolver':
+        specifier: workspace:*
+        version: link:../../engine/runtime/node-resolver
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
       '@pnpm/exec.lifecycle':
         specifier: workspace:*
         version: link:../../exec/lifecycle
+      '@pnpm/exec.pnpm-cli-runner':
+        specifier: workspace:*
+        version: link:../../exec/pnpm-cli-runner
       '@pnpm/fetching.directory-fetcher':
         specifier: workspace:*
         version: link:../../fetching/directory-fetcher
@@ -7734,6 +8084,9 @@ importers:
       ci-info:
         specifier: 'catalog:'
         version: 4.4.0
+      detect-libc:
+        specifier: 'catalog:'
+        version: 2.1.2
       enquirer:
         specifier: 'catalog:'
         version: 2.4.1
@@ -7889,6 +8242,9 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/catalogs.config':
         specifier: workspace:*
         version: link:../../catalogs/config
@@ -8021,6 +8377,9 @@ importers:
         specifier: workspace:*
         version: link:../../core/error
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/resolving.jsr-specifier-parser':
         specifier: workspace:*
         version: 'link:'
@@ -8155,6 +8514,9 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/config.version-policy':
         specifier: workspace:*
         version: link:../../config/version-policy
@@ -8214,6 +8576,9 @@ importers:
         specifier: 'catalog:'
         version: 7.7.4
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../../core/logger
@@ -8253,6 +8618,9 @@ importers:
         specifier: workspace:*
         version: link:../resolver-base
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/network.fetch':
         specifier: workspace:*
         version: link:../../network/fetch
@@ -8266,6 +8634,9 @@ importers:
         specifier: 'catalog:'
         version: 1.0.0
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/shell.path':
         specifier: workspace:*
         version: 'link:'
@@ -8309,6 +8680,9 @@ importers:
         specifier: 'catalog:'
         version: 5.0.0
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: 'link:'
@@ -8573,6 +8947,9 @@ importers:
         specifier: 'catalog:'
         version: 10.0.1
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/installing.client':
         specifier: workspace:*
         version: link:../../installing/client
@@ -8663,6 +9040,9 @@ importers:
         specifier: 'catalog:'
         version: 1.11.8
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/store.index':
         specifier: workspace:*
         version: 'link:'
@@ -8740,6 +9120,9 @@ importers:
         specifier: workspace:*
         version: link:../index
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/store.pkg-finder':
         specifier: workspace:*
         version: 'link:'
@@ -8795,18 +9178,27 @@ importers:
         specifier: 'catalog:'
         version: 1.2.0
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/text.comments-parser':
         specifier: workspace:*
         version: 'link:'
 
   text/naming-cases:
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/text.naming-cases':
         specifier: workspace:*
         version: 'link:'
 
   text/tree-renderer:
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/text.tree-renderer':
         specifier: workspace:*
         version: 'link:'
@@ -8856,6 +9248,9 @@ importers:
         specifier: 'catalog:'
         version: 7.7.4
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../core/logger
@@ -8905,6 +9300,9 @@ importers:
         specifier: 'catalog:'
         version: 2.0.0
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -9012,6 +9410,9 @@ importers:
         specifier: 'catalog:'
         version: 5.0.0
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -9046,6 +9447,9 @@ importers:
         specifier: 'catalog:'
         version: 6.0.0
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/workspace.project-manifest-writer':
         specifier: workspace:*
         version: 'link:'
@@ -9089,6 +9493,9 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
@@ -9138,6 +9545,9 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/workspace.projects-graph':
         specifier: workspace:*
         version: 'link:'
@@ -9204,6 +9614,9 @@ importers:
         specifier: 'catalog:'
         version: 7.7.4
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/workspace.range-resolver':
         specifier: workspace:*
         version: 'link:'
@@ -9220,12 +9633,18 @@ importers:
         specifier: 'catalog:'
         version: 8.0.0
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/workspace.root-finder':
         specifier: workspace:*
         version: 'link:'
 
   workspace/spec-parser:
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/workspace.spec-parser':
         specifier: workspace:*
         version: 'link:'
@@ -9276,6 +9695,9 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/workspace.workspace-manifest-reader':
         specifier: workspace:*
         version: 'link:'
@@ -9316,6 +9738,9 @@ importers:
         specifier: 'catalog:'
         version: 2.8.3
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -9347,6 +9772,9 @@ importers:
         specifier: 'catalog:'
         version: 2.8.3
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/yaml.document-sync':
         specifier: workspace:*
         version: 'link:'
@@ -11407,43 +11835,43 @@ packages:
     resolution: {integrity: sha512-y+vH7QE8ycjoa0bWciFg7OpFcipUuem1ujhrdLtq1gByKwfbC7bPeKsiny9e0urg93DqwGcHey+bGRKCnF1nZQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
-  '@typescript/native-preview-darwin-arm64@7.0.0-dev.20260216.1':
-    resolution: {integrity: sha512-ZcxlhZ4Scm1LFKeGXo7V+B4H1Mb27/uVBO1o7d060jRIpGRuCOxsELo7jgUY8UhhTXtSpLECHsmAj8EyERSi9w==}
+  '@typescript/native-preview-darwin-arm64@7.0.0-dev.20260421.2':
+    resolution: {integrity: sha512-fHv1r3ZmVo6zxuAIFmuX3w9QxbcauoG0SsWhmDwm6VmRubLlOJIcmTtlmV3JAb9oOnq8LuzZljzT7Q39fSMQDw==}
     cpu: [arm64]
     os: [darwin]
 
-  '@typescript/native-preview-darwin-x64@7.0.0-dev.20260216.1':
-    resolution: {integrity: sha512-hY+hondi5/2m0rNSIgRkOfmA6FIx+KKnjPd9R6hHHumQu00XXoYA/xcIq3SyV1sXtowkhN+hR3ZUp1y3Orb84A==}
+  '@typescript/native-preview-darwin-x64@7.0.0-dev.20260421.2':
+    resolution: {integrity: sha512-KWTR6xbW9t+JS7D5DQIzo75pqVXVWUxF9PMv/+S6xsnOjCVd6g0ixHcFpFMJMKSUQpGPr8Z5f7b8ks6LHW01jg==}
     cpu: [x64]
     os: [darwin]
 
-  '@typescript/native-preview-linux-arm64@7.0.0-dev.20260216.1':
-    resolution: {integrity: sha512-L+3CgBVAjpYnWgulmTWOTp7IdbLjgOzLpppr2597i79KE5MV7UyC73UCdvK3GtAl1Huiss0HsWVBBEYRkLQsfw==}
+  '@typescript/native-preview-linux-arm64@7.0.0-dev.20260421.2':
+    resolution: {integrity: sha512-VLMEuml3BhUb+jaL0TXQ4xvVODxJF+RhkI+tBWvlynsJI4khTXEiwWh+wPOJrsfBRYFRMXEu28Odl/HXkYze8w==}
     cpu: [arm64]
     os: [linux]
 
-  '@typescript/native-preview-linux-arm@7.0.0-dev.20260216.1':
-    resolution: {integrity: sha512-Q+HBF1rlwpV1Nh2AESwte0lEHNPYVvbRLPQzTrorvx3gvXdRzfO9tHa6JL8Y1BO2KmSZBKmT7U+0188icTPBSg==}
+  '@typescript/native-preview-linux-arm@7.0.0-dev.20260421.2':
+    resolution: {integrity: sha512-BWLQO3nemLDSV5PoE5GPHe1dU9Dth77Kv8/cle9Ujcp4LhPo0KincdPqFH/qKeU/xvW25mgFueflZ1nc4rKuww==}
     cpu: [arm]
     os: [linux]
 
-  '@typescript/native-preview-linux-x64@7.0.0-dev.20260216.1':
-    resolution: {integrity: sha512-qIaQFRL2s+fi3zbS0+fCgR1Nk7fXMnbLW7wsFpcwn3fpEYuMdiQY9pwE8SvJsw2M78xZlXL5L9l5CL8ti0cNZQ==}
+  '@typescript/native-preview-linux-x64@7.0.0-dev.20260421.2':
+    resolution: {integrity: sha512-qUrJWTB5/wv4wnRG0TRXElAxc2kykNiRNyEIEqBbLmzDlrcvAW7RRy8MXoY1ZyTiKGMu14itZ3x9oW6+blFpRw==}
     cpu: [x64]
     os: [linux]
 
-  '@typescript/native-preview-win32-arm64@7.0.0-dev.20260216.1':
-    resolution: {integrity: sha512-Yu7OLyMng9A2GA0vlZ8WZuqAnI+WM55UaY1UwA03TJdcljk/AcEzb/99fEq5g0kPg3k2wwHiyMrCGxxu99+gXQ==}
+  '@typescript/native-preview-win32-arm64@7.0.0-dev.20260421.2':
+    resolution: {integrity: sha512-Rc6NsWlZmCs5YUKVzKgwoBOoRUGsPzct4BDMRX0csD1devLBBc4AbUXWKsJRbpwIAnqMO1ld4sNHEb+wXgfNHQ==}
     cpu: [arm64]
     os: [win32]
 
-  '@typescript/native-preview-win32-x64@7.0.0-dev.20260216.1':
-    resolution: {integrity: sha512-Lc+E1UNGKioOtKHUm1CLFO3W2PFWdLpJ6j2uB52RH0zhb63p4CEGCsuDH36QvgsXLibviExeNUF5Dum0rNKT9g==}
+  '@typescript/native-preview-win32-x64@7.0.0-dev.20260421.2':
+    resolution: {integrity: sha512-GQv1+dya1t6EqF2Cpsb+xoozovdX10JUSf6Kl/8xNkTapzmlHd+uMr+8ku3jIASTxoRGn0Mklgjj3MDKrOTuLg==}
     cpu: [x64]
     os: [win32]
 
-  '@typescript/native-preview@7.0.0-dev.20260216.1':
-    resolution: {integrity: sha512-Vhffqcro1Q3w1zRgZ0E1C5JOB+8CtwKjSsszYfpGkt0qvRtOBO227AcnQe1sEiX+VLZW3Iw1VGVMhc8hNhpRZw==}
+  '@typescript/native-preview@7.0.0-dev.20260421.2':
+    resolution: {integrity: sha512-CmajHI25HpVWE9R1XFoxr+cphJPxoYD3eFioQtAvXYkMFKnLdICMS9pXre9Pybizb75ejRxjKD5/CVG055rEIg==}
     hasBin: true
 
   '@ungap/structured-clone@1.3.0':
@@ -17662,7 +18090,7 @@ snapshots:
   '@jest/console@30.3.0':
     dependencies:
       '@jest/types': 30.3.0
-      '@types/node': 22.19.17
+      '@types/node': 25.6.0
       chalk: 4.1.2
       jest-message-util: 30.3.0
       jest-util: 30.3.0
@@ -17676,14 +18104,14 @@ snapshots:
       '@jest/test-result': 30.3.0
       '@jest/transform': 30.3.0(@babel/types@7.29.0)
       '@jest/types': 30.3.0
-      '@types/node': 22.19.17
+      '@types/node': 25.6.0
       ansi-escapes: 4.3.2
       chalk: 4.1.2
       ci-info: 4.4.0
       exit-x: 0.2.2
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
       jest-changed-files: 30.3.0
-      jest-config: 30.3.0(@babel/types@7.29.0)(@types/node@22.19.17)
+      jest-config: 30.3.0(@babel/types@7.29.0)(@types/node@25.6.0)
       jest-haste-map: 30.3.0
       jest-message-util: 30.3.0
       jest-regex-util: 30.0.1
@@ -17746,7 +18174,7 @@ snapshots:
 
   '@jest/pattern@30.0.1':
     dependencies:
-      '@types/node': 22.19.17
+      '@types/node': 25.6.0
       jest-regex-util: 30.0.1
 
   '@jest/reporters@30.3.0(@babel/types@7.29.0)':
@@ -17757,7 +18185,7 @@ snapshots:
       '@jest/transform': 30.3.0(@babel/types@7.29.0)
       '@jest/types': 30.3.0
       '@jridgewell/trace-mapping': 0.3.31
-      '@types/node': 22.19.17
+      '@types/node': 25.6.0
       chalk: 4.1.2
       collect-v8-coverage: 1.0.3
       exit-x: 0.2.2
@@ -17848,7 +18276,7 @@ snapshots:
       '@jest/schemas': 30.0.5
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 22.19.17
+      '@types/node': 25.6.0
       '@types/yargs': 17.0.35
       chalk: 4.1.2
 
@@ -19409,7 +19837,7 @@ snapshots:
 
   '@types/responselike@1.0.0':
     dependencies:
-      '@types/node': 22.19.17
+      '@types/node': 25.6.0
 
   '@types/responselike@1.0.3':
     dependencies:
@@ -19439,7 +19867,7 @@ snapshots:
 
   '@types/touch@3.1.5':
     dependencies:
-      '@types/node': 22.19.17
+      '@types/node': 25.6.0
 
   '@types/treeify@1.0.3': {}
 
@@ -19552,36 +19980,36 @@ snapshots:
       '@typescript-eslint/types': 8.58.1
       eslint-visitor-keys: 5.0.1
 
-  '@typescript/native-preview-darwin-arm64@7.0.0-dev.20260216.1':
+  '@typescript/native-preview-darwin-arm64@7.0.0-dev.20260421.2':
     optional: true
 
-  '@typescript/native-preview-darwin-x64@7.0.0-dev.20260216.1':
+  '@typescript/native-preview-darwin-x64@7.0.0-dev.20260421.2':
     optional: true
 
-  '@typescript/native-preview-linux-arm64@7.0.0-dev.20260216.1':
+  '@typescript/native-preview-linux-arm64@7.0.0-dev.20260421.2':
     optional: true
 
-  '@typescript/native-preview-linux-arm@7.0.0-dev.20260216.1':
+  '@typescript/native-preview-linux-arm@7.0.0-dev.20260421.2':
     optional: true
 
-  '@typescript/native-preview-linux-x64@7.0.0-dev.20260216.1':
+  '@typescript/native-preview-linux-x64@7.0.0-dev.20260421.2':
     optional: true
 
-  '@typescript/native-preview-win32-arm64@7.0.0-dev.20260216.1':
+  '@typescript/native-preview-win32-arm64@7.0.0-dev.20260421.2':
     optional: true
 
-  '@typescript/native-preview-win32-x64@7.0.0-dev.20260216.1':
+  '@typescript/native-preview-win32-x64@7.0.0-dev.20260421.2':
     optional: true
 
-  '@typescript/native-preview@7.0.0-dev.20260216.1':
+  '@typescript/native-preview@7.0.0-dev.20260421.2':
     optionalDependencies:
-      '@typescript/native-preview-darwin-arm64': 7.0.0-dev.20260216.1
-      '@typescript/native-preview-darwin-x64': 7.0.0-dev.20260216.1
-      '@typescript/native-preview-linux-arm': 7.0.0-dev.20260216.1
-      '@typescript/native-preview-linux-arm64': 7.0.0-dev.20260216.1
-      '@typescript/native-preview-linux-x64': 7.0.0-dev.20260216.1
-      '@typescript/native-preview-win32-arm64': 7.0.0-dev.20260216.1
-      '@typescript/native-preview-win32-x64': 7.0.0-dev.20260216.1
+      '@typescript/native-preview-darwin-arm64': 7.0.0-dev.20260421.2
+      '@typescript/native-preview-darwin-x64': 7.0.0-dev.20260421.2
+      '@typescript/native-preview-linux-arm': 7.0.0-dev.20260421.2
+      '@typescript/native-preview-linux-arm64': 7.0.0-dev.20260421.2
+      '@typescript/native-preview-linux-x64': 7.0.0-dev.20260421.2
+      '@typescript/native-preview-win32-arm64': 7.0.0-dev.20260421.2
+      '@typescript/native-preview-win32-x64': 7.0.0-dev.20260421.2
 
   '@ungap/structured-clone@1.3.0': {}
 
@@ -22436,7 +22864,7 @@ snapshots:
       '@jest/expect': 30.3.0
       '@jest/test-result': 30.3.0
       '@jest/types': 30.3.0
-      '@types/node': 22.19.17
+      '@types/node': 25.6.0
       chalk: 4.1.2
       co: 4.6.0
       dedent: 1.7.2
@@ -22509,6 +22937,38 @@ snapshots:
       - babel-plugin-macros
       - supports-color
 
+  jest-config@30.3.0(@babel/types@7.29.0)(@types/node@25.6.0):
+    dependencies:
+      '@babel/core': 7.29.0
+      '@jest/get-type': 30.1.0
+      '@jest/pattern': 30.0.1
+      '@jest/test-sequencer': 30.3.0
+      '@jest/types': 30.3.0
+      babel-jest: 30.3.0(@babel/core@7.29.0)(@babel/types@7.29.0)
+      chalk: 4.1.2
+      ci-info: 4.4.0
+      deepmerge: 4.3.1
+      glob: 11.1.0
+      graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
+      jest-circus: 30.3.0(@babel/types@7.29.0)
+      jest-docblock: 30.2.0
+      jest-environment-node: 30.3.0
+      jest-regex-util: 30.0.1
+      jest-resolve: 30.3.0
+      jest-runner: 30.3.0(@babel/types@7.29.0)
+      jest-util: 30.3.0
+      jest-validate: 30.3.0
+      parse-json: 5.2.0
+      pretty-format: 30.3.0
+      slash: 3.0.0
+      strip-json-comments: 3.1.1
+    optionalDependencies:
+      '@types/node': 25.6.0
+    transitivePeerDependencies:
+      - '@babel/types'
+      - babel-plugin-macros
+      - supports-color
+
   jest-diff@30.3.0:
     dependencies:
       '@jest/diff-sequences': 30.3.0
@@ -22533,7 +22993,7 @@ snapshots:
       '@jest/environment': 30.3.0
       '@jest/fake-timers': 30.3.0
       '@jest/types': 30.3.0
-      '@types/node': 22.19.17
+      '@types/node': 25.6.0
       jest-mock: 30.3.0
       jest-util: 30.3.0
       jest-validate: 30.3.0
@@ -22559,7 +23019,7 @@ snapshots:
   jest-haste-map@30.3.0:
     dependencies:
       '@jest/types': 30.3.0
-      '@types/node': 22.19.17
+      '@types/node': 25.6.0
       anymatch: 3.1.3
       fb-watchman: 2.0.2
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
@@ -22650,7 +23110,7 @@ snapshots:
       '@jest/test-result': 30.3.0
       '@jest/transform': 30.3.0(@babel/types@7.29.0)
       '@jest/types': 30.3.0
-      '@types/node': 22.19.17
+      '@types/node': 25.6.0
       chalk: 4.1.2
       emittery: 0.13.1
       exit-x: 0.2.2
@@ -22680,7 +23140,7 @@ snapshots:
       '@jest/test-result': 30.3.0
       '@jest/transform': 30.3.0(@babel/types@7.29.0)
       '@jest/types': 30.3.0
-      '@types/node': 22.19.17
+      '@types/node': 25.6.0
       chalk: 4.1.2
       cjs-module-lexer: 2.2.0
       collect-v8-coverage: 1.0.3
@@ -22737,7 +23197,7 @@ snapshots:
   jest-util@30.3.0:
     dependencies:
       '@jest/types': 30.3.0
-      '@types/node': 22.19.17
+      '@types/node': 25.6.0
       chalk: 4.1.2
       ci-info: 4.4.0
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
@@ -22765,7 +23225,7 @@ snapshots:
     dependencies:
       '@jest/test-result': 30.3.0
       '@jest/types': 30.3.0
-      '@types/node': 22.19.17
+      '@types/node': 25.6.0
       ansi-escapes: 4.3.2
       chalk: 4.1.2
       emittery: 0.13.1
@@ -22781,7 +23241,7 @@ snapshots:
 
   jest-worker@30.3.0:
     dependencies:
-      '@types/node': 22.19.17
+      '@types/node': 25.6.0
       '@ungap/structured-clone': 1.3.0
       jest-util: 30.3.0
       merge-stream: 2.0.0

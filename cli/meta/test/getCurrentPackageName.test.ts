@@ -1,3 +1,4 @@
+import { describe, expect, test } from '@jest/globals'
 import { detectIfCurrentPkgIsExecutable, getCurrentPackageName, isExecutedByCorepack } from '@pnpm/cli.meta'
 
 describe('detectIfCurrentPkgIsExecutable()', () => {

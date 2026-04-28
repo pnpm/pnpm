@@ -2,6 +2,7 @@
 import fs from 'node:fs'
 import { pipeline } from 'node:stream/promises'
 
+import { expect, test } from '@jest/globals'
 import { createHashFromFile, createShortHash, getTarballIntegrity } from '@pnpm/crypto.hash'
 import { tempDir } from '@pnpm/prepare'
 import tar from 'tar-stream'

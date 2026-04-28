@@ -5,15 +5,18 @@ import { audit, type AuditAdvisory, type AuditLevelNumber, type AuditLevelString
 import { PnpmError } from '@pnpm/error'
 import { type InstallCommandOptions, update } from '@pnpm/installing.commands'
 import { readEnvLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
+import { globalInfo } from '@pnpm/logger'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import type { Registries } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk, { type ChalkInstance } from 'chalk'
+import enquirer from 'enquirer'
 import { pick, pickBy } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { fix } from './fix.js'
 import { fixWithUpdate, type FixWithUpdateResult } from './fixWithUpdate.js'
+import { type AuditChoiceRow, getAuditFixChoices } from './getAuditFixChoices.js'
 import { ignore } from './ignore.js'
 
 const AUDIT_LEVEL_NUMBER = {
@@ -72,6 +75,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
       'workspace',
     ], update.cliOptionsTypes()),
     ...rcOptionsTypes(),
+    interactive: Boolean,
   }
 }
 
@@ -130,6 +134,11 @@ export function help (): string {
             description: 'Ignore all vulnerabilities for which no fix exists',
             name: '--ignore-unfixable',
           },
+          {
+            description: 'Show vulnerabilities and select which ones to fix interactively',
+            name: '--interactive',
+            shortAlias: '-i',
+          },
         ],
       },
     ],
@@ -141,6 +150,7 @@ export function help (): string {
 export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
   fix?: boolean | 'override' | 'update'
   ignoreRegistryErrors?: boolean
+  interactive?: boolean
   json?: boolean
   lockfileDir?: string
   registries: Registries
@@ -229,26 +239,36 @@ export async function handler (opts: AuditOptions): Promise<{ exitCode: number, 
   let fixMethod: 'update' | 'override' | undefined
   if (opts.fix === 'update' || opts.fix === 'override') {
     fixMethod = opts.fix
-  } else if (opts.fix === true) {
+  } else if (opts.fix === true || (opts.interactive && !opts.fix)) {
     fixMethod = DEFAULT_FIX_METHOD
   } else if (!opts.fix) {
     fixMethod = undefined
   } else {
     throw new PnpmError('INVALID_FIX_OPTION', `Invalid value for --fix: ${opts.fix as string}. Should be one of "override" or "update"`)
   }
-  if (fixMethod === 'update') {
-    const result = await fixWithUpdate(auditReport, { ...opts, include })
-    let output = formatFixWithUpdateOutput(result, auditReport)
-    if (result.addedAgeExcludes.length > 0) {
-      output += `\n${result.addedAgeExcludes.length} entries were added to minimumReleaseAgeExclude to allow installing the patched versions:\n${result.addedAgeExcludes.join('\n')}\n`
+  if (fixMethod != null) {
+    // Pre-filter by auditLevel and ignoreGhsas so the interactive prompt
+    // and the update-method path see the same set of advisories that
+    // fix.ts's getFixableAdvisories filters for the override path.
+    let filteredAuditReport: AuditReport = {
+      ...auditReport,
+      advisories: filterAdvisoriesForFix(auditReport.advisories, opts),
     }
-    return {
-      exitCode: result.remaining.length > 0 ? 1 : 0,
-      output,
+    if (opts.interactive) {
+      filteredAuditReport = await interactiveAuditFix(filteredAuditReport)
     }
-  }
-  if (fixMethod === 'override') {
-    const { vulnOverrides, addedAgeExcludes } = await fix(auditReport, opts)
+    if (fixMethod === 'update') {
+      const result = await fixWithUpdate(filteredAuditReport, { ...opts, include })
+      let output = formatFixWithUpdateOutput(result, filteredAuditReport)
+      if (result.addedAgeExcludes.length > 0) {
+        output += `\n${result.addedAgeExcludes.length} entries were added to minimumReleaseAgeExclude to allow installing the patched versions:\n${result.addedAgeExcludes.join('\n')}\n`
+      }
+      return {
+        exitCode: result.remaining.length > 0 ? 1 : 0,
+        output,
+      }
+    }
+    const { vulnOverrides, addedAgeExcludes } = await fix(filteredAuditReport, opts)
     if (Object.values(vulnOverrides).length === 0) {
       return {
         exitCode: 0,
@@ -416,4 +436,90 @@ export function formatFixWithUpdateOutput (result: FixWithUpdateResult, auditRep
   // Add trailing newline
   output.push('')
   return output.join('\n')
+}
+
+function filterAdvisoriesForFix (
+  advisories: AuditReport['advisories'],
+  opts: Pick<AuditOptions, 'auditLevel' | 'auditConfig'>
+): AuditReport['advisories'] {
+  const auditLevel = AUDIT_LEVEL_NUMBER[opts.auditLevel ?? 'low']
+  const ignoreGhsas = opts.auditConfig?.ignoreGhsas
+  const ignoreGhsaSet = ignoreGhsas?.length ? new Set(ignoreGhsas.map(normalizeGhsaId)) : undefined
+  return Object.fromEntries(
+    Object.entries(advisories).filter(([, { severity, github_advisory_id: ghsaId }]) => {
+      if (AUDIT_LEVEL_NUMBER[severity] < auditLevel) return false
+      if (ignoreGhsaSet && ghsaId && ignoreGhsaSet.has(normalizeGhsaId(ghsaId))) return false
+      return true
+    })
+  )
+}
+
+async function interactiveAuditFix (auditReport: AuditReport): Promise<AuditReport> {
+  const choices = getAuditFixChoices(Object.values(auditReport.advisories))
+  if (choices.length === 0) {
+    return auditReport
+  }
+  const { selectedVulnerabilities } = await enquirer.prompt({
+    choices,
+    footer: '\nEnter to start fixing. Ctrl-c to cancel.',
+    indicator (state: any, choice: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+      return ` ${choice.enabled ? '●' : '○'}`
+    },
+    message: 'Choose which vulnerabilities to fix ' +
+      `(Press ${chalk.cyan('<space>')} to select, ` +
+      `${chalk.cyan('<a>')} to toggle all, ` +
+      `${chalk.cyan('<i>')} to invert selection)`,
+    name: 'selectedVulnerabilities',
+    pointer: '❯',
+    result () {
+      return this.selected
+    },
+    format () {
+      if (!this.state.submitted || this.state.cancelled) return ''
+
+      if (Array.isArray(this.selected)) {
+        return this.selected
+          .filter((choice: AuditChoiceRow) => !/^\[.+\]$/.test(choice.name))
+          .map((choice: AuditChoiceRow) => this.styles.primary(choice.name)).join(', ')
+      }
+      return this.styles.primary(this.selected.name)
+    },
+    styles: {
+      dark: chalk.reset,
+      em: chalk.bgBlack.whiteBright,
+      success: chalk.reset,
+    },
+    type: 'multiselect',
+    validate (value: string[]) {
+      if (value.length === 0) {
+        return 'You must choose at least one vulnerability.'
+      }
+      return true
+    },
+    j () {
+      return this.down()
+    },
+    k () {
+      return this.up()
+    },
+    cancel () {
+      // By default, canceling the prompt via Ctrl+c throws an empty string.
+      // The custom cancel function prevents that behavior.
+      // Otherwise, pnpm CLI would print an error and confuse users.
+      // See related issue: https://github.com/enquirer/enquirer/issues/225
+      globalInfo('Audit fix canceled')
+      process.exit(0)
+    },
+  } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  const selectedKeys = new Set(
+    (selectedVulnerabilities as AuditChoiceRow[]).map((c) => c.value)
+  )
+  const selectedAdvisories = Object.fromEntries(
+    Object.entries(auditReport.advisories)
+      .filter(([, advisory]) =>
+        selectedKeys.has(`${advisory.module_name}@${advisory.vulnerable_versions}`)
+      )
+  )
+  return { ...auditReport, advisories: selectedAdvisories }
 }

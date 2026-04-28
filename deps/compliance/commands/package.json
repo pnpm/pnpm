@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.compliance.commands",
-  "version": "1101.0.1",
+  "version": "1101.1.2",
   "description": "pnpm commands for audit, licenses, and sbom",
   "keywords": [
     "pnpm",
@@ -29,7 +29,7 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pn compile && pn .test",
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "compile": "tsgo --build && pn lint --fix",
     "update-responses": "node test/audit/utils/responses/update.ts",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
@@ -43,6 +43,7 @@
     "@pnpm/config.writer": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/deps.compliance.audit": "workspace:*",
+    "@pnpm/deps.compliance.license-resolver": "workspace:*",
     "@pnpm/deps.compliance.license-scanner": "workspace:*",
     "@pnpm/deps.compliance.sbom": "workspace:*",
     "@pnpm/error": "workspace:*",
@@ -52,18 +53,25 @@
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/lockfile.walker": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
+    "@pnpm/object.key-sorting": "workspace:*",
     "@pnpm/store.path": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@zkochan/table": "catalog:",
     "chalk": "catalog:",
+    "enquirer": "catalog:",
     "memoize": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:",
     "semver": "catalog:"
   },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/deps.compliance.commands": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",

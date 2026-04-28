@@ -1,6 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { findPackages } from '@pnpm/workspace.projects-reader'
 
 function compare (a: string | undefined, b: string | undefined) {

@@ -1,3 +1,4 @@
+import { describe, expect, test } from '@jest/globals'
 import { resolveWorkspaceRange } from '@pnpm/workspace.range-resolver'
 
 describe('resolveWorkspaceRange', () => {

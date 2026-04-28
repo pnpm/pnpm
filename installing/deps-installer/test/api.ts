@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import * as pnpm from '@pnpm/installing.deps-installer'
 
 import { testDefaults } from './utils/index.js'

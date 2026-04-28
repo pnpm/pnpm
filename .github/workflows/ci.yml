@@ -60,10 +60,11 @@ jobs:
         exclude:
           - node: '24.0.0'
             platform: ubuntu-latest
-          # On branches, only run Windows with the lowest supported Node.js
-          - node: ${{ github.ref != 'refs/heads/main' && '24.0.0' || 'none' }}
+          # On branches, only run Windows with the lowest supported Node.js.
+          # Exception: main and release branches (release/x, release/x.x) run the full matrix.
+          - node: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && 'none' || '24.0.0' }}
             platform: windows-latest
-          - node: ${{ github.ref != 'refs/heads/main' && '25.0.0' || 'none' }}
+          - node: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && 'none' || '25.0.0' }}
             platform: windows-latest
     uses: ./.github/workflows/test.yml
     with:

@@ -41,6 +41,9 @@
       "path": "../../../core/error"
     },
     {
+      "path": "../../../core/logger"
+    },
+    {
       "path": "../../../core/types"
     },
     {
@@ -62,6 +65,9 @@
       "path": "../../../network/auth-header"
     },
     {
+      "path": "../../../object/key-sorting"
+    },
+    {
       "path": "../../../pkg-manifest/reader"
     },
     {
@@ -81,6 +87,9 @@
     },
     {
       "path": "../audit"
+    },
+    {
+      "path": "../license-resolver"
     },
     {
       "path": "../license-scanner"

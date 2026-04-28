@@ -1,3 +1,5 @@
+import { expect, test } from '@jest/globals'
+
 import { isCamelCase } from '../src/index.js'
 
 test('camelCase names should satisfy', () => {

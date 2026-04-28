@@ -37,7 +37,6 @@ jobs:
       - name: pnpm install
         run: pn install
       - name: Publish Packages
-        continue-on-error: true
         env:
           # setting the "npm_config_//registry.npmjs.org/:_authToken" env variable directly doesn't work.
           # probably "pnpm release" doesn't pass auth tokens to child processes

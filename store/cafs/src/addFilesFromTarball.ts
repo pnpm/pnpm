@@ -13,11 +13,10 @@ import { parseTarball } from './parseTarball.js'
 
 export function addFilesFromTarball (
   addBufferToCafs: (buffer: Buffer, mode: number) => FileWriteResult,
-  _ignore: null | ((filename: string) => boolean),
   tarballBuffer: Buffer,
-  readManifest?: boolean
+  readManifest?: boolean,
+  ignore?: (filename: string) => boolean
 ): AddToStoreResult {
-  const ignore = _ignore ?? (() => false)
   // chunkSize 128KB (8x the Node.js default of 16KB) reduces the number of
   // internal buffer allocations and copies during decompression. Benchmarks
   // showed ~2.3x faster decompress at 128KB. Larger values (256KB+) showed
@@ -36,7 +35,7 @@ export function addFilesFromTarball (
   let manifestBuffer: Buffer | undefined
 
   for (const [relativePath, { mode, offset, size }] of files) {
-    if (ignore(relativePath)) continue
+    if (ignore?.(relativePath)) continue
 
     const fileBuffer = tarContent.subarray(offset, offset + size)
     if (readManifest && relativePath === 'package.json') {

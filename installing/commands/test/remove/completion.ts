@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { remove } from '@pnpm/installing.commands'
 import { prepare } from '@pnpm/prepare'
 

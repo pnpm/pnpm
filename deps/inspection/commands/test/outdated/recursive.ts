@@ -1,6 +1,7 @@
 import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
+import { expect, test } from '@jest/globals'
 import { outdated } from '@pnpm/deps.inspection.commands'
 import { install } from '@pnpm/installing.commands'
 import { preparePackages } from '@pnpm/prepare'

@@ -1,5 +1,30 @@
 # @pnpm/fetching.binary-fetcher
 
+## 1101.0.1
+
+### Patch Changes
+
+- dd23d19: Fix Windows Node.js runtime installs still extracting bundled `npm`, `npx`, and `corepack` when the archive contains explicit directory entries. `extractZipToTarget` now skips directory entries: AdmZip's `extractEntryTo` for a directory recurses over every descendant internally, which bypassed the `ignoreEntry` filter and re-materialized the files the filter was supposed to drop. File extraction creates parent directories implicitly, so skipping directory entries doesn't regress the install layout.
+
+## 1101.0.0
+
+### Minor Changes
+
+- 421317c: Installing a Node.js runtime via `node@runtime:<version>` (including `pnpm env use` and `pnpm runtime set node`) no longer extracts the bundled `npm`, `npx`, and `corepack` from the Node.js archive. This cuts roughly half of the files pnpm has to hash, write to the CAS, and link during installation, making runtime installs noticeably faster. Users who still need `npm` can install it as a separate package.
+
+### Patch Changes
+
+- Updated dependencies [421317c]
+  - @pnpm/fetching.fetcher-base@1100.1.0
+  - @pnpm/worker@1100.1.0
+
+## 1100.0.2
+
+### Patch Changes
+
+- @pnpm/fetching.fetcher-base@1100.0.2
+- @pnpm/worker@1100.0.2
+
 ## 1100.0.1
 
 ### Patch Changes

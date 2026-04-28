@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import { prepareEmpty } from '@pnpm/prepare'
 

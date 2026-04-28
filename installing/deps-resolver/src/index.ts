@@ -28,6 +28,7 @@ import {
   type ProjectId,
   type ProjectManifest,
   type ProjectRootDir,
+  type SupportedArchitectures,
 } from '@pnpm/types'
 import { isSubdir } from 'is-subdir'
 import { difference, zipWith } from 'ramda'
@@ -487,12 +488,13 @@ function extendGraph (
     allowBuild?: AllowBuild
     globalVirtualStoreDir: string
     enableGlobalVirtualStore?: boolean
+    supportedArchitectures?: SupportedArchitectures
   }
 ): DependenciesGraph {
   const pkgMetaIter = iterateGraphPkgMetaEntries(graph, !opts.enableGlobalVirtualStore)
   // Only use allowBuild for engine-agnostic hash optimization when GVS is on
   const allowBuild = opts.enableGlobalVirtualStore ? opts.allowBuild : undefined
-  for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, pkgMetaIter, allowBuild)) {
+  for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, pkgMetaIter, allowBuild, opts.supportedArchitectures)) {
     const modules = path.join(opts.globalVirtualStoreDir, hash, 'node_modules')
     const node = graph[depPath]
     Object.assign(node, {

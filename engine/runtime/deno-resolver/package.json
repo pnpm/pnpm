@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/engine.runtime.deno-resolver",
-  "version": "1100.0.1",
+  "version": "1101.0.1",
   "description": "Resolves the Deno runtime",
   "keywords": [
     "pnpm",
@@ -28,7 +28,7 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pn compile",
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {

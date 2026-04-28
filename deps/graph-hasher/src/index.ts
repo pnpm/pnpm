@@ -3,7 +3,9 @@ import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher
 import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/deps.path'
 import type { LockfileObject, LockfileResolution, PackageSnapshot } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
-import type { AllowBuild, DepPath, PkgIdWithPatchHash } from '@pnpm/types'
+import { resolvePlatformSelector, selectPlatformVariant } from '@pnpm/resolving.resolver-base'
+import type { AllowBuild, DepPath, PkgIdWithPatchHash, SupportedArchitectures } from '@pnpm/types'
+import { familySync } from 'detect-libc'
 
 export type DepsGraph<T extends string> = Record<T, DepsGraphNode<T>>
 
@@ -27,11 +29,12 @@ export function calcDepState<T extends string> (
   opts: {
     patchFileHash?: string
     includeDepGraphHash: boolean
+    supportedArchitectures?: SupportedArchitectures
   }
 ): string {
   let result = ENGINE_NAME
   if (opts.includeDepGraphHash) {
-    const depGraphHash = calcDepGraphHash(depsGraph, cache, new Set(), depPath)
+    const depGraphHash = calcDepGraphHash(depsGraph, cache, new Set(), depPath, opts.supportedArchitectures)
     result += `;deps=${depGraphHash}`
   }
   if (opts.patchFileHash) {
@@ -44,7 +47,8 @@ function calcDepGraphHash<T extends string> (
   depsGraph: DepsGraph<T>,
   cache: DepsStateCache,
   parents: Set<string>,
-  depPath: T
+  depPath: T,
+  supportedArchitectures?: SupportedArchitectures
 ): string {
   if (cache[depPath]) return cache[depPath]
   const node = depsGraph[depPath]
@@ -56,16 +60,15 @@ function calcDepGraphHash<T extends string> (
     if (!node.resolution) {
       throw new Error(`resolution is not defined for ${depPath} in depsGraph`)
     }
-    node.fullPkgId = createFullPkgId(node.pkgIdWithPatchHash, node.resolution)
+    node.fullPkgId = createFullPkgId(node.pkgIdWithPatchHash, node.resolution, supportedArchitectures)
   }
   const deps: Record<string, string> = {}
   if (Object.keys(node.children).length && !parents.has(node.fullPkgId)) {
     const nextParents = new Set([...Array.from(parents), node.fullPkgId])
-    const _calcDepGraphHash = calcDepGraphHash.bind(null, depsGraph, cache, nextParents)
     for (const alias in node.children) {
       if (Object.hasOwn(node.children, alias)) {
         const childId = node.children[alias]
-        deps[alias] = _calcDepGraphHash(childId)
+        deps[alias] = calcDepGraphHash(depsGraph, cache, nextParents, childId, supportedArchitectures)
       }
     }
   }
@@ -92,7 +95,8 @@ export interface HashedDepPath<T extends PkgMeta> {
 export function * iterateHashedGraphNodes<T extends PkgMeta> (
   graph: DepsGraph<DepPath>,
   pkgMetaIterator: PkgMetaIterator<T>,
-  allowBuild?: AllowBuild
+  allowBuild?: AllowBuild,
+  supportedArchitectures?: SupportedArchitectures
 ): IterableIterator<HashedDepPath<T>> {
   let builtDepPaths: Set<DepPath> | undefined
   let entries: Iterable<T>
@@ -103,26 +107,28 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
   } else {
     entries = pkgMetaIterator
   }
-  const _calcGraphNodeHash = calcGraphNodeHash.bind(null, {
+  const ctx = {
     graph,
     cache: {},
     builtDepPaths,
     buildRequiredCache: builtDepPaths !== undefined ? {} : undefined,
-  })
+    supportedArchitectures,
+  }
   for (const pkgMeta of entries) {
     yield {
-      hash: _calcGraphNodeHash(pkgMeta),
+      hash: calcGraphNodeHash(ctx, pkgMeta),
       pkgMeta,
     }
   }
 }
 
 export function calcGraphNodeHash<T extends PkgMeta> (
-  { graph, cache, builtDepPaths, buildRequiredCache }: {
+  { graph, cache, builtDepPaths, buildRequiredCache, supportedArchitectures }: {
     graph: DepsGraph<DepPath>
     cache: DepsStateCache
     builtDepPaths?: Set<DepPath>
     buildRequiredCache?: Record<string, boolean>
+    supportedArchitectures?: SupportedArchitectures
   },
   pkgMeta: T
 ): string {
@@ -135,7 +141,7 @@ export function calcGraphNodeHash<T extends PkgMeta> (
   const includeEngine = builtDepPaths === undefined ||
     transitivelyRequiresBuild(graph, builtDepPaths, buildRequiredCache ??= {}, depPath, new Set())
   const engine = includeEngine ? ENGINE_NAME : null
-  const deps = calcDepGraphHash(graph, cache, new Set(), depPath)
+  const deps = calcDepGraphHash(graph, cache, new Set(), depPath, supportedArchitectures)
   const hexDigest = hashObjectWithoutSorting({ engine, deps }, { encoding: 'hex' })
   return formatGlobalVirtualStorePath(name, version, hexDigest)
 }
@@ -179,7 +185,10 @@ export function * iteratePkgMeta (lockfile: LockfileObject, graph: DepsGraph<Dep
   }
 }
 
-export function lockfileToDepGraph (lockfile: LockfileObject): DepsGraph<DepPath> {
+export function lockfileToDepGraph (
+  lockfile: LockfileObject,
+  supportedArchitectures?: SupportedArchitectures
+): DepsGraph<DepPath> {
   const graph: DepsGraph<DepPath> = {}
   if (lockfile.packages != null) {
     for (const [depPath, pkgSnapshot] of Object.entries(lockfile.packages)) {
@@ -189,7 +198,7 @@ export function lockfileToDepGraph (lockfile: LockfileObject): DepsGraph<DepPath
       })
       graph[depPath as DepPath] = {
         children,
-        fullPkgId: createFullPkgId(getPkgIdWithPatchHash(depPath as DepPath), pkgSnapshot.resolution),
+        fullPkgId: createFullPkgId(getPkgIdWithPatchHash(depPath as DepPath), pkgSnapshot.resolution, supportedArchitectures),
       }
     }
   }
@@ -251,7 +260,33 @@ function lockfileDepsToGraphChildren (deps: Record<string, string>): Record<stri
   return children
 }
 
-function createFullPkgId (pkgIdWithPatchHash: PkgIdWithPatchHash, resolution: LockfileResolution): string {
-  const res = 'integrity' in resolution ? String(resolution.integrity) : hashObject(resolution)
-  return `${pkgIdWithPatchHash}:${res}`
+function createFullPkgId (
+  pkgIdWithPatchHash: PkgIdWithPatchHash,
+  resolution: LockfileResolution,
+  supportedArchitectures?: SupportedArchitectures
+): string {
+  if ('integrity' in resolution && resolution.integrity != null) {
+    return `${pkgIdWithPatchHash}:${resolution.integrity}`
+  }
+  if ('type' in resolution && resolution.type === 'variations') {
+    // Variations resolutions list every platform variant for a runtime (e.g. all
+    // OS/arch combinations for a Node.js version). Hashing the whole object
+    // would be identical across hosts, so two projects that install different
+    // variants of the same runtime would collide on the same virtual store
+    // directory — the first install would "win" and subsequent installs with
+    // different --os/--cpu/--libc would silently reuse the cached variant.
+    // Incorporate the chosen variant's integrity instead so each variant gets
+    // its own entry in the global virtual store.
+    const selector = resolvePlatformSelector(supportedArchitectures, {
+      platform: process.platform,
+      arch: process.arch,
+      libc: familySync(),
+    })
+    const variant = selectPlatformVariant(resolution.variants, selector)
+    const chosenResolution = variant?.resolution
+    if (chosenResolution && 'integrity' in chosenResolution && chosenResolution.integrity != null) {
+      return `${pkgIdWithPatchHash}:${chosenResolution.integrity}`
+    }
+  }
+  return `${pkgIdWithPatchHash}:${hashObject(resolution)}`
 }

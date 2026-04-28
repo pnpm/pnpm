@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { preparePackages, tempDir } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
 
@@ -19,6 +20,7 @@ test('pnpm clean removes pnpm entries and packages but preserves non-pnpm hidden
   fs.mkdirSync('node_modules/.pnpm', { recursive: true })
   fs.mkdirSync('node_modules/.bin')
   fs.writeFileSync('node_modules/.modules.yaml', 'storeDir: /tmp/store')
+  fs.writeFileSync('node_modules/.pnpm-workspace-state-v1.json', '{}')
   fs.mkdirSync('node_modules/.cache')
   fs.writeFileSync('node_modules/.cache/some-file', 'cached')
   fs.mkdirSync('node_modules/lodash')
@@ -33,6 +35,7 @@ test('pnpm clean removes pnpm entries and packages but preserves non-pnpm hidden
   expect(fs.existsSync('node_modules/.pnpm')).toBe(false)
   expect(fs.existsSync('node_modules/.bin')).toBe(false)
   expect(fs.existsSync('node_modules/.modules.yaml')).toBe(false)
+  expect(fs.existsSync('node_modules/.pnpm-workspace-state-v1.json')).toBe(false)
 
   // Regular packages should be removed
   expect(fs.existsSync('node_modules/lodash')).toBe(false)

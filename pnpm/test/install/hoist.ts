@@ -1,3 +1,4 @@
+import { test } from '@jest/globals'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
 

@@ -138,6 +138,10 @@ export interface ResolverFactoryOptions {
   strictPublishedByCheck?: boolean
   ignoreMissingTimeField?: boolean
   fetchWarnTimeoutMs?: number
+  /** Pre-populated metadata cache. When provided, the resolver uses this
+   *  instead of creating a new LRU cache. Useful for servers that keep
+   *  metadata in SQLite or persist it across requests. */
+  metaCache?: PackageMetaCache
 }
 
 export interface NpmResolveResult extends ResolveResult {
@@ -182,7 +186,7 @@ export function createNpmResolver (
   const fetch = pMemoize(fetchMetadataFromFromRegistry.bind(null, fetchOpts), {
     cacheKey: (...args) => JSON.stringify(args),
   })
-  const metaCache = new LRUCache<string, PackageMeta>({
+  const metaCache: PackageMetaCache = opts.metaCache ?? new LRUCache<string, PackageMeta>({
     max: 10000,
     ttl: 120 * 1000, // 2 minutes
   })
@@ -235,7 +239,9 @@ export function createNpmResolver (
     resolveFromNpm: resolveNpm.bind(null, ctx),
     resolveFromJsr: resolveJsr.bind(null, ctx),
     clearCache: () => {
-      metaCache.clear()
+      if ('clear' in metaCache && typeof metaCache.clear === 'function') {
+        metaCache.clear()
+      }
       pMemoizeClear(fetch)
     },
   }

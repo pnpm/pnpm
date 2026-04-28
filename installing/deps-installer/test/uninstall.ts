@@ -1,13 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import type {
-  PackageManifestLog,
-  RootLog,
-  StatsLog,
-} from '@pnpm/core-loggers'
 import {
   addDependenciesToPackage,
   mutateModules,
@@ -49,13 +44,13 @@ test('uninstall package with no dependencies', async () => {
     level: 'debug',
     name: 'pnpm:package-manifest',
     prefix: process.cwd(),
-  } as PackageManifestLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stats',
     prefix: process.cwd(),
     removed: 1,
-  } as StatsLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:root',
@@ -64,14 +59,14 @@ test('uninstall package with no dependencies', async () => {
       name: 'is-negative',
       version: '2.1.0',
     }),
-  } as RootLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:package-manifest',
     updated: {
       dependencies: {},
     },
-  } as PackageManifestLog))
+  }))
 
   // uninstall does not remove packages from store
   // even if they become unreferenced
@@ -99,7 +94,7 @@ test('uninstall a dependency that is not present in node_modules', async () => {
     removed: expect.objectContaining({
       name: 'is-negative',
     }),
-  } as RootLog))
+  }))
 })
 
 test('uninstall scoped package', async () => {

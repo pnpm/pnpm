@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { type LogBase, logger, streamParser } from '@pnpm/logger'
 
 test('logger logs', async () => {

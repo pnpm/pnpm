@@ -2,6 +2,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { PnpmError } from '@pnpm/error'
 import { runLifecycleHook, runLifecycleHooksConcurrently, runPostinstallHooks } from '@pnpm/exec.lifecycle'
 import { tempDir } from '@pnpm/prepare'

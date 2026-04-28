@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 
 test('createPackageVersionPolicy()', () => {

@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals'
 import { WebAuthTimeoutError } from '@pnpm/network.web-auth'
 
 describe('WebAuthTimeoutError', () => {

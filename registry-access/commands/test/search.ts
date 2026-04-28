@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { search } from '@pnpm/registry-access.commands'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { DEFAULT_OPTS } from '@pnpm/testing.command-defaults'

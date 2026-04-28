@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import type { PackageResponse } from '@pnpm/store.controller-types'
 
 import { getManifestFromResponse, type WantedDependency } from '../lib/resolveDependencies.js'

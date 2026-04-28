@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import { exec, run } from '@pnpm/exec.commands'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
