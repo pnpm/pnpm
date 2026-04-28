@@ -109,7 +109,6 @@ export function createResolver (
       const resolution = await _resolveFromCustomResolvers?.(wantedDependency, opts) ??
         await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions) ??
         await resolveFromJsr(wantedDependency, opts as ResolveFromNpmOptions) ??
-        await resolveFromNamedRegistry(wantedDependency, opts as ResolveFromNpmOptions) ??
         (wantedDependency.bareSpecifier && (
           await resolveFromGit(wantedDependency as { bareSpecifier: string }, opts) ??
           await resolveFromTarball(fetchFromRegistry, wantedDependency as { bareSpecifier: string }) ??
@@ -117,7 +116,12 @@ export function createResolver (
         )) ??
         await _resolveNodeRuntime(wantedDependency, opts) ??
         await _resolveDenoRuntime(wantedDependency, opts) ??
-        await _resolveBunRuntime(wantedDependency, opts)
+        await _resolveBunRuntime(wantedDependency, opts) ??
+        // Named-registry resolution runs last so that built-in schemes
+        // (`npm:`, `jsr:`, `git:`/`github:`/`gitlab:`/…, `file:`, `link:`,
+        // tarball URLs, etc.) are always claimed by their dedicated resolver
+        // before a user-configured alias gets a chance to shadow them.
+        await resolveFromNamedRegistry(wantedDependency, opts as ResolveFromNpmOptions)
       if (!resolution) {
         let specifier = `${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.bareSpecifier ?? ''}`
         if (specifier !== '') {

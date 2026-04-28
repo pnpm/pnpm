@@ -18,34 +18,6 @@ export const BUILTIN_NAMED_REGISTRIES: Readonly<Record<string, string>> = Object
   [BUILTIN_GH_ALIAS]: DEFAULT_GH_REGISTRY,
 })
 
-// Names that pnpm must not allow as a user-defined registry alias. Each would
-// collide with an existing specifier scheme or a dependency protocol.
-// `github` is reserved by npm-package-arg as a git host shorthand.
-// Kept lowercase — callers should lowercase the incoming alias before checking.
-export const RESERVED_REGISTRY_ALIASES: ReadonlySet<string> = new Set([
-  'catalog',
-  'file',
-  'git',
-  'git+http',
-  'git+https',
-  'git+ssh',
-  'github',
-  'gitlab',
-  'bitbucket',
-  'gist',
-  'http',
-  'https',
-  'jsr',
-  'link',
-  'npm',
-  'patch',
-  'workspace',
-])
-
-export function isReservedRegistryAlias (alias: string): boolean {
-  return RESERVED_REGISTRY_ALIASES.has(alias.toLowerCase())
-}
-
 // Parses a named-registry specifier of the shape `<alias>:<body>`. Shared between
 // the built-in `gh:` prefix and any user-defined aliases configured in
 // `pnpm-workspace.yaml`. Returns `null` when the specifier does not use one of

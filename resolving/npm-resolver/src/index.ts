@@ -7,7 +7,7 @@ import type {
   GetAuthHeader,
   RetryTimeoutOptions,
 } from '@pnpm/fetching.types'
-import { BUILTIN_NAMED_REGISTRIES, isReservedRegistryAlias } from '@pnpm/resolving.named-registry-specifier-parser'
+import { BUILTIN_NAMED_REGISTRIES } from '@pnpm/resolving.named-registry-specifier-parser'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type {
   DirectoryResolution,
@@ -582,22 +582,16 @@ function calcJsrSpecifier ({
 
 // Merges user-supplied named-registry aliases (from config) on top of pnpm's
 // built-in defaults (e.g. `gh` → GitHub Packages). User entries take precedence
-// so GHES users can point `gh` at their enterprise host. Reserved aliases that
-// collide with other specifier protocols (`npm`, `jsr`, `github`, `workspace`, …)
-// are rejected with a clear error instead of silently shadowing the protocol.
-// URLs are validated here so typos like `npm.work.example.com` (no scheme)
-// surface at startup rather than as a confusing 404 during resolution.
+// so GHES users can point `gh` at their enterprise host. URLs are validated
+// here so typos like `npm.work.example.com` (no scheme) surface at startup
+// rather than as a confusing 404 during resolution. The named-registry
+// resolver runs last in the resolution chain, so an alias that collides with
+// another specifier scheme (e.g. `git`, `github`, `jsr`) is silently shadowed
+// by that scheme's dedicated resolver — no cross-resolver knowledge needed.
 function mergeNamedRegistries (userDefined?: Record<string, string>): Record<string, string> {
   const merged: Record<string, string> = { ...BUILTIN_NAMED_REGISTRIES }
   if (!userDefined) return merged
   for (const [alias, url] of Object.entries(userDefined)) {
-    if (isReservedRegistryAlias(alias)) {
-      throw new PnpmError(
-        'RESERVED_NAMED_REGISTRY_ALIAS',
-        `The named registry alias '${alias}' is reserved by pnpm and cannot be redefined.`,
-        { hint: 'Pick a different alias (for example, prepend your organization name).' }
-      )
-    }
     if (typeof url !== 'string' || !isValidHttpUrl(url)) {
       throw new PnpmError(
         'INVALID_NAMED_REGISTRY_URL',

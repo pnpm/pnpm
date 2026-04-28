@@ -199,32 +199,6 @@ test('resolveFromNamedRegistry() allows user config to override the built-in gh 
   })
 })
 
-test('creating the resolver throws when a user-defined alias shadows a reserved protocol', () => {
-  // `npm`, `github`, `jsr`, `workspace`, etc. are reserved — redefining them would silently break other resolvers.
-  expect(() => createNpmResolver(fetch, () => undefined, {
-    storeDir: temporaryDirectory(),
-    cacheDir: temporaryDirectory(),
-    registries,
-    namedRegistries: { github: 'https://never.example.com/' },
-  })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_RESERVED_NAMED_REGISTRY_ALIAS' }))
-
-  expect(() => createNpmResolver(fetch, () => undefined, {
-    storeDir: temporaryDirectory(),
-    cacheDir: temporaryDirectory(),
-    registries,
-    namedRegistries: { npm: 'https://never.example.com/' },
-  })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_RESERVED_NAMED_REGISTRY_ALIAS' }))
-
-  // Case-insensitive: an uppercase `NPM` alias must also be rejected so it cannot be used to slip
-  // past the reservation check.
-  expect(() => createNpmResolver(fetch, () => undefined, {
-    storeDir: temporaryDirectory(),
-    cacheDir: temporaryDirectory(),
-    registries,
-    namedRegistries: { NPM: 'https://never.example.com/' },
-  })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_RESERVED_NAMED_REGISTRY_ALIAS' }))
-})
-
 test('creating the resolver throws when a user-defined registry URL is malformed', () => {
   // Catch typos at startup rather than as a confusing 404 during resolution.
   expect(() => createNpmResolver(fetch, () => undefined, {
