@@ -76,7 +76,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     return
   }
 
-  if (unknownOptions.size > 0 && !fallbackCommandUsed && !(cmd && NOT_IMPLEMENTED_COMMAND_SET.has(cmd))) {
+  if (unknownOptions.size > 0 && !(cmd && NOT_IMPLEMENTED_COMMAND_SET.has(cmd))) {
     printError(formatUnknownOptionsError(unknownOptions), `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
     process.exitCode = 1
     return
