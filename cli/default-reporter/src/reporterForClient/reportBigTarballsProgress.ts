@@ -9,6 +9,7 @@ import {
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 const PRETTY_OPTS = {
+  locale: 'en-US',
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 }
