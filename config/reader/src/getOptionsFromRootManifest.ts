@@ -37,6 +37,9 @@ export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnp
   if (pnpmSettings.patchedDependencies) {
     settings.patchedDependencies = { ...pnpmSettings.patchedDependencies }
     for (const [dep, patchFile] of Object.entries(pnpmSettings.patchedDependencies)) {
+      if (typeof patchFile !== 'string') {
+        throw new PnpmError('INVALID_PATCHED_DEPENDENCY', `The value of patchedDependencies.${dep} should be a string, but got ${patchFile === null ? 'null' : typeof patchFile}`)
+      }
       if (manifestDir == null || path.isAbsolute(patchFile)) continue
       settings.patchedDependencies[dep] = path.join(manifestDir, patchFile)
     }

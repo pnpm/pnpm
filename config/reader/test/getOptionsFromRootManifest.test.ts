@@ -33,3 +33,14 @@ test('getOptionsFromPnpmSettings() converts allowBuilds', () => {
     },
   })
 })
+
+test('getOptionsFromPnpmSettings() rejects non-string patchedDependencies values', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    patchedDependencies: {
+      foo: null,
+    } as unknown as Record<string, string>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_PATCHED_DEPENDENCY',
+    message: 'The value of patchedDependencies.foo should be a string, but got null',
+  }))
+})
