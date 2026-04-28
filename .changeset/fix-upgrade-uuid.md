@@ -2,4 +2,4 @@
 "pnpm": patch
 ---
 
-Upgrade uuid to >=14.0.0 to fix vulnerability GHSA-w5hq-g745-h8pq
+Upgrade uuid to 9.0.1 to fix vulnerability GHSA-w5hq-g745-h8pq
