@@ -41,7 +41,7 @@ describe('owner command', () => {
     const mockPool = getMockAgent().get('https://registry.npmjs.org')
     mockPool.intercept({
       method: 'GET',
-      path: /^\/-\/package\/%40pnpm%2[Ff]test\/owners$/,
+      path: /^\/-\/package\/@pnpm%2[Ff]test\/owners$/,
     }).reply(200, [
       { username: 'alice', email: 'alice@example.com' },
       { username: 'bob', email: 'bob@example.com' },
@@ -90,7 +90,7 @@ describe('owner command', () => {
     const mockPool = getMockAgent().get('https://registry.npmjs.org')
     mockPool.intercept({
       method: 'PUT',
-      path: /^\/-\/package\/%40pnpm%2[Ff]test\/owners$/,
+      path: /^\/-\/package\/@pnpm%2[Ff]test\/owners$/,
       body: JSON.stringify({ user: 'newowner' }),
     }).reply(200, { ok: true })
 
@@ -131,7 +131,7 @@ describe('owner command', () => {
     const mockPool = getMockAgent().get('https://registry.npmjs.org')
     mockPool.intercept({
       method: 'DELETE',
-      path: /^\/-\/package\/%40pnpm%2[Ff]test\/owners\/newowner$/,
+      path: /^\/-\/package\/@pnpm%2[Ff]test\/owners\/newowner$/,
     }).reply(200, { ok: true })
 
     const result = await owner.handler({
@@ -171,7 +171,7 @@ describe('owner command', () => {
     const mockPool = getMockAgent().get('https://registry.npmjs.org')
     mockPool.intercept({
       method: 'PUT',
-      path: /^\/-\/package\/%40pnpm%2[Ff]test\/owners$/,
+      path: /^\/-\/package\/@pnpm%2[Ff]test\/owners$/,
     }).reply(401, { error: 'Unauthorized' })
 
     await expect(async () => {
@@ -181,14 +181,14 @@ describe('owner command', () => {
           default: 'https://registry.npmjs.org/',
         },
       }, ['add', '@pnpm/test', 'newowner'])
-    }).rejects.toThrow('UNAUTHORIZED')
+    }).rejects.toThrow('logged in')
   })
 
   it('owner add: should throw on 403 (forbidden)', async () => {
     const mockPool = getMockAgent().get('https://registry.npmjs.org')
     mockPool.intercept({
       method: 'PUT',
-      path: /^\/-\/package\/%40pnpm%2[Ff]test\/owners$/,
+      path: /^\/-\/package\/@pnpm%2[Ff]test\/owners$/,
     }).reply(403, { error: 'Forbidden' })
 
     await expect(async () => {
@@ -198,7 +198,7 @@ describe('owner command', () => {
           default: 'https://registry.npmjs.org/',
         },
       }, ['add', '@pnpm/test', 'newowner'])
-    }).rejects.toThrow('FORBIDDEN')
+    }).rejects.toThrow('permission')
   })
 
   it('owner rm: should throw on 404 (package not found)', async () => {
@@ -222,7 +222,7 @@ describe('owner command', () => {
     const mockPool = getMockAgent().get('https://registry.npmjs.org')
     mockPool.intercept({
       method: 'GET',
-      path: /^\/-\/package\/%40pnpm%2[Ff]test\/owners$/,
+      path: /^\/-\/package\/@pnpm%2[Ff]test\/owners$/,
     }).reply(200, [
       { username: 'alice', email: 'alice@example.com' },
     ])
@@ -242,7 +242,7 @@ describe('owner command', () => {
     const mockPool = getMockAgent().get('https://registry.npmjs.org')
     mockPool.intercept({
       method: 'GET',
-      path: /^\/-\/package\/%40pnpm%2[Ff]test\/owners$/,
+      path: /^\/-\/package\/@pnpm%2[Ff]test\/owners$/,
     }).reply(200, [
       { username: 'alice', email: 'alice@example.com' },
     ])
