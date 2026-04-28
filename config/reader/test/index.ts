@@ -1712,8 +1712,59 @@ test('pnpm_config_git_branch_lockfile env var overrides git-branch-lockfile from
   expect(config.useGitBranchLockfile).toBe(true)
 })
 
-test('GVS: .npmrc dangerouslyAllowAllBuilds is respected when no global workspace manifest exists', async () => {
+test('GVS: workspace manifest allowBuilds takes precedence over global config.yaml dangerouslyAllowAllBuilds', async () => {
   prepareEmpty()
+
+  const prevXdgConfigHome = process.env.XDG_CONFIG_HOME
+  const prevPnpmHome = process.env.PNPM_HOME
+  const configDir = path.resolve('.config')
+  const globalDir = path.join(configDir, 'pnpm', 'global', 'v6')
+  const pnpmHome = path.resolve('.pnpm-home')
+  process.env.XDG_CONFIG_HOME = configDir
+  process.env.PNPM_HOME = pnpmHome
+
+  fs.mkdirSync(path.join(configDir, 'pnpm'), { recursive: true })
+  writeYamlFileSync(path.join(configDir, 'pnpm', 'config.yaml'), {
+    dangerouslyAllowAllBuilds: true,
+  })
+
+  fs.mkdirSync(globalDir, { recursive: true })
+  writeYamlFileSync(path.join(globalDir, 'pnpm-workspace.yaml'), {
+    allowBuilds: ['@some/pkg', 'esbuild'],
+  })
+
+  try {
+    const { config } = await getConfig({
+      cliOptions: {
+        global: true,
+      },
+      env,
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(config.allowBuilds).toStrictEqual(['@some/pkg', 'esbuild'])
+    expect(config.dangerouslyAllowAllBuilds).toBeUndefined()
+  } finally {
+    if (prevXdgConfigHome === undefined) {
+      delete process.env.XDG_CONFIG_HOME
+    } else {
+      process.env.XDG_CONFIG_HOME = prevXdgConfigHome
+    }
+    if (prevPnpmHome === undefined) {
+      delete process.env.PNPM_HOME
+    } else {
+      process.env.PNPM_HOME = prevPnpmHome
+    }
+  }
+})
+
+test('GVS: global config.yaml dangerouslyAllowAllBuilds is respected when no global workspace manifest exists', async () => {
+  prepareEmpty()
+
+  const prevXdgConfigHome = process.env.XDG_CONFIG_HOME
 
   // Set up global config.yaml with a build policy
   fs.mkdirSync('.config/pnpm', { recursive: true })
@@ -1725,25 +1776,33 @@ test('GVS: .npmrc dangerouslyAllowAllBuilds is respected when no global workspac
   // No global pnpm-workspace.yaml
   // intentionally do not write a workspace manifest
 
-  const { config } = await getConfig({
-    cliOptions: {
-      global: true,
-    },
-    env,
-    packageManager: {
-      name: 'pnpm',
-      version: '1.0.0',
-    },
-  })
+  try {
+    const { config } = await getConfig({
+      cliOptions: {
+        global: true,
+      },
+      env,
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
 
-  // enableGlobalVirtualStore is true by default when not in CI
-  expect(config.enableGlobalVirtualStore).toBe(true)
-  // The key assertion: .npmrc policy should NOT be wiped by the GVS
-  // allowBuilds = {} default. Previously this block set allowBuilds
-  // before globalDepsBuildConfig was re-applied, so hasDependencyBuildOptions
-  // saw allowBuilds = {} and skipped re-application, silently losing
-  // dangerouslyAllowAllBuilds.
-  expect(config.dangerouslyAllowAllBuilds).toBe(true)
-  // allowBuilds should remain null — dangerouslyAllowAllBuilds IS the policy
-  expect(config.allowBuilds).toBeUndefined()
+    // enableGlobalVirtualStore is true by default when not in CI
+    expect(config.enableGlobalVirtualStore).toBe(true)
+    // The key assertion: global config.yaml policy should NOT be wiped by the GVS
+    // allowBuilds = {} default. Previously this block set allowBuilds
+    // before globalDepsBuildConfig was re-applied, so hasDependencyBuildOptions
+    // saw allowBuilds = {} and skipped re-application, silently losing
+    // dangerouslyAllowAllBuilds.
+    expect(config.dangerouslyAllowAllBuilds).toBe(true)
+    // allowBuilds should remain null — dangerouslyAllowAllBuilds IS the policy
+    expect(config.allowBuilds).toBeUndefined()
+  } finally {
+    if (prevXdgConfigHome === undefined) {
+      delete process.env.XDG_CONFIG_HOME
+    } else {
+      process.env.XDG_CONFIG_HOME = prevXdgConfigHome
+    }
+  }
 })

@@ -494,11 +494,15 @@ export async function getConfig (opts: {
   }
   // Default allowBuilds to {} when GVS is enabled and no build policy is
   // configured. This makes GVS hashes engine-agnostic for pure-JS packages.
-  // When a build policy (dangerouslyAllowAllBuilds, allowBuilds from workspace
-  // manifest, or .npmrc) exists, GVS hashes must include ENGINE_NAME so that
-  // built packages and their dependents are correctly invalidated across Node
-  // upgrades and architecture changes.
-  if (pnpmConfig.enableGlobalVirtualStore && !hasDependencyBuildOptions(pnpmConfig)) {
+  // When a build policy (dangerouslyAllowAllBuilds from global config.yaml,
+  // or allowBuilds from the workspace manifest) exists, GVS hashes must
+  // include ENGINE_NAME so that built packages and their dependents are
+  // correctly invalidated across Node upgrades and architecture changes.
+  if (
+    pnpmConfig.enableGlobalVirtualStore &&
+    pnpmConfig.allowBuilds == null &&
+    pnpmConfig.dangerouslyAllowAllBuilds !== true
+  ) {
     pnpmConfig.allowBuilds = {}
   }
   if (opts.cliOptions['save-peer']) {
