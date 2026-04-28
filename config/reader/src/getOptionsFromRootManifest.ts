@@ -35,7 +35,8 @@ export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnp
       settings.overrides = mapValues(createVersionReferencesReplacer(manifest), settings.overrides)
     }
   }
-  if (pnpmSettings.patchedDependencies) {
+  if (pnpmSettings.patchedDependencies != null) {
+    assertValidPatchedDependencies(pnpmSettings.patchedDependencies)
     settings.patchedDependencies = { ...pnpmSettings.patchedDependencies }
     for (const [dep, patchFile] of Object.entries(pnpmSettings.patchedDependencies)) {
       if (manifestDir == null || path.isAbsolute(patchFile)) continue
@@ -53,6 +54,17 @@ function assertValidOverrides (overrides: unknown): asserts overrides is Record<
   for (const [selector, spec] of Object.entries(overrides)) {
     if (typeof spec !== 'string') {
       throw new PnpmError('INVALID_OVERRIDES', `The value of overrides.${selector} should be a string, but got ${renderReceivedType(spec)}`)
+    }
+  }
+}
+
+function assertValidPatchedDependencies (patchedDependencies: unknown): asserts patchedDependencies is Record<string, string> {
+  if (patchedDependencies == null || typeof patchedDependencies !== 'object' || Array.isArray(patchedDependencies)) {
+    throw new PnpmError('INVALID_PATCHED_DEPENDENCY', `The patchedDependencies field should be an object, but got ${renderReceivedType(patchedDependencies)}`)
+  }
+  for (const [dep, patchFile] of Object.entries(patchedDependencies)) {
+    if (typeof patchFile !== 'string') {
+      throw new PnpmError('INVALID_PATCHED_DEPENDENCY', `The value of patchedDependencies.${dep} should be a string, but got ${renderReceivedType(patchFile)}`)
     }
   }
 }
