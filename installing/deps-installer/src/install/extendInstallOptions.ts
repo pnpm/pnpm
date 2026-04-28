@@ -111,6 +111,7 @@ export interface StrictInstallOptions {
   userAgent: string
   unsafePerm: boolean
   registries: Registries
+  namedRegistries?: Record<string, string>
   tag: string
   overrides: Record<string, string>
   ownLifecycleHooksStdio: 'inherit' | 'pipe'

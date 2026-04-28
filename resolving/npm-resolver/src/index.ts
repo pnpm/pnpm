@@ -113,6 +113,7 @@ function formatTimeAgo (date: Date): string {
 }
 
 export {
+  BUILTIN_NAMED_REGISTRIES,
   fetchMetadataFromFromRegistry,
   type FetchMetadataFromFromRegistryOptions,
   type PackageMeta,
