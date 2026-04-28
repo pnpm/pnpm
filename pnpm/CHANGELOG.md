@@ -11,14 +11,17 @@
 - **`allowBuilds` replaces the old build-dependency settings** — `onlyBuiltDependencies`, `onlyBuiltDependenciesFile`, `neverBuiltDependencies`, `ignoredBuiltDependencies`, and `ignoreDepScripts` have been removed.
 - **Global installs are isolated and use the global virtual store by default** — each `pnpm add -g` gets its own directory with its own `package.json`, `node_modules`, and lockfile.
 - **New SQLite-backed store index** (store v11) with bundled manifests and hex digests, reducing filesystem syscalls and speeding up installation.
-- **Native publish flow** — `pnpm publish`, `login`, `logout`, `view`, `deprecate`, `unpublish`, `dist-tag`, and `version` no longer delegate to the npm CLI, and the remaining npm passthrough commands now throw "not implemented".
+- **Native publish flow** — [`pnpm publish`](https://pnpm.io/11.x/cli/publish), [`login`](https://pnpm.io/11.x/cli/login), [`logout`](https://pnpm.io/11.x/cli/logout), [`view`](https://pnpm.io/11.x/cli/view), [`deprecate`](https://pnpm.io/11.x/cli/deprecate), [`unpublish`](https://pnpm.io/11.x/cli/unpublish), [`dist-tag`](https://pnpm.io/11.x/cli/dist-tag), and [`version`](https://pnpm.io/11.x/cli/version) no longer delegate to the npm CLI, and the remaining npm passthrough commands now throw "not implemented".
+- **[`pnpm audit`](https://pnpm.io/11.x/cli/audit) uses npm's bulk advisories endpoint** — the legacy `/security/audits` endpoints are gone. CVE-based filtering has been replaced with GHSA-based filtering: migrate `auditConfig.ignoreCves` entries to `auditConfig.ignoreGhsas`.
 - **`.npmrc` is auth/registry only** — all other settings must live in `pnpm-workspace.yaml` or the new global `config.yaml`, and environment variables use the `pnpm_config_*` prefix.
+- **Runtime installs are slimmer** — installing a Node.js runtime via `node@runtime:<version>` no longer extracts the bundled `npm`, `npx`, and `corepack`, roughly halving the files pnpm has to hash, write, and link.
 
 #### Minor
 
-- **New commands:** `pnpm ci`, `pnpm sbom`, `pnpm clean`, `pnpm peers check`, and `pnpm runtime set`, plus `pn`/`pnx` short aliases.
+- **New commands:** [`pnpm ci`](https://pnpm.io/11.x/cli/ci), [`pnpm sbom`](https://pnpm.io/11.x/cli/sbom), [`pnpm clean`](https://pnpm.io/11.x/cli/clean), [`pnpm peers check`](https://pnpm.io/11.x/cli/peers), [`pnpm runtime set`](https://pnpm.io/11.x/cli/runtime), [`pnpm docs`](https://pnpm.io/11.x/cli/docs)/`home`, [`pnpm ping`](https://pnpm.io/11.x/cli/ping), [`pnpm search`](https://pnpm.io/11.x/cli/search), [`pnpm star`](https://pnpm.io/11.x/cli/star)/`unstar`/`stars`, [`pnpm whoami`](https://pnpm.io/11.x/cli/whoami), [`pnpm with`](https://pnpm.io/11.x/cli/with), and [`pnpm pack-app`](https://pnpm.io/11.x/cli/pack-app), plus `pn`/[`pnx`](https://pnpm.io/11.x/cli/pnx) short aliases.
 - **ESM pnpmfiles** via `.pnpmfile.mjs`, which takes priority over `.pnpmfile.cjs` when present.
-- **`pnpm audit --fix=update`** fixes vulnerabilities by updating packages in the lockfile instead of adding overrides.
+- **[`pnpm audit --fix=update`](https://pnpm.io/11.x/cli/audit)** fixes vulnerabilities by updating packages in the lockfile instead of adding overrides, and `pnpm audit --fix --interactive` lets you select which advisories to fix.
+- **[`pnpm pack-app`](https://pnpm.io/11.x/cli/pack-app)** packs a CommonJS entry into a standalone executable for one or more target platforms using Node.js Single Executable Applications.
 - **Faster HTTP and I/O** — undici with Happy Eyeballs, direct-to-CAS writes, skipped staging directory, pre-allocated tarball downloads, and an NDJSON metadata cache.
 
 ### Major Changes
@@ -156,8 +159,8 @@
 
 #### Removed Commands & npm Passthrough
 
-- pnpm no longer falls back to the npm CLI. Commands that were previously passed through to npm (`access`, `bugs`, `docs`, `edit`, `find`, `home`, `issues`, `owner`, `ping`, `prefix`, `profile`, `pkg`, `repo`, `search`, `set-script`, `star`, `stars`, `team`, `token`, `unstar`, `whoami`, `xmas`) and their aliases (`s`, `se`) now throw a "not implemented" error, with a suggestion to use the npm CLI directly [#10642](https://github.com/pnpm/pnpm/pull/10642). Other previously passed-through commands — `view` (`info`, `show`, `v`), `login` (`adduser`), `logout`, `deprecate`, `unpublish`, `dist-tag`, and `version` — have been reimplemented natively in pnpm (see New Commands below).
-- `pnpm publish` now works without the `npm` CLI.
+- pnpm no longer falls back to the npm CLI. Commands that were previously passed through to npm (`access`, `bugs`, `docs`, `edit`, `find`, `home`, `issues`, `owner`, `ping`, `prefix`, `profile`, `pkg`, `repo`, `search`, `set-script`, `star`, `stars`, `team`, `token`, `unstar`, `whoami`, `xmas`) and their aliases (`s`, `se`) now throw a "not implemented" error, with a suggestion to use the npm CLI directly [#10642](https://github.com/pnpm/pnpm/pull/10642). Other previously passed-through commands — [`view`](https://pnpm.io/11.x/cli/view) (`info`, `show`, `v`), [`login`](https://pnpm.io/11.x/cli/login) (`adduser`), [`logout`](https://pnpm.io/11.x/cli/logout), [`deprecate`](https://pnpm.io/11.x/cli/deprecate), [`unpublish`](https://pnpm.io/11.x/cli/unpublish), [`dist-tag`](https://pnpm.io/11.x/cli/dist-tag), and [`version`](https://pnpm.io/11.x/cli/version) — have been reimplemented natively in pnpm (see New Commands below).
+- [`pnpm publish`](https://pnpm.io/11.x/cli/publish) now works without the `npm` CLI.
 
   The One-time Password feature now reads from `PNPM_CONFIG_OTP` instead of `NPM_CONFIG_OTP`:
 
@@ -183,7 +186,7 @@
 #### CLI Output
 
 - Cleaner output for script execution: pnpm now prints `$ command` instead of `> pkg@version stage path\n> command`, and shows project name and path only when running in a different directory. The `$ command` line is printed to stderr to keep stdout clean for piping [#11132](https://github.com/pnpm/pnpm/pull/11132).
-- During install, instead of rendering the full peer dependency issues tree, pnpm now suggests running `pnpm peers check` to view the issues [#11133](https://github.com/pnpm/pnpm/pull/11133).
+- During install, instead of rendering the full peer dependency issues tree, pnpm now suggests running [`pnpm peers check`](https://pnpm.io/11.x/cli/peers) to view the issues [#11133](https://github.com/pnpm/pnpm/pull/11133).
 
 #### Lockfile
 
@@ -203,7 +206,7 @@
 
 #### Audit
 
-- `pnpm audit` now calls npm's `/-/npm/v1/security/advisories/bulk` endpoint. The legacy `/-/npm/v1/security/audits{,/quick}` endpoints have been retired by the registry, so the legacy request/response contract is no longer supported.
+- [`pnpm audit`](https://pnpm.io/11.x/cli/audit) now calls npm's `/-/npm/v1/security/advisories/bulk` endpoint. The legacy `/-/npm/v1/security/audits{,/quick}` endpoints have been retired by the registry, so the legacy request/response contract is no longer supported.
 
   The bulk endpoint does not return CVE identifiers. CVE-based filtering has been replaced with GitHub advisory ID (GHSA) filtering:
 
@@ -215,7 +218,7 @@
 
 #### Package Manager Settings
 
-- **Breaking:** removed the `managePackageManagerVersions`, `packageManagerStrict`, and `packageManagerStrictVersion` settings. They existed only to derive the `onFail` behavior for the legacy `packageManager` field, and the `pmOnFail` setting introduced alongside `pnpm with` subsumes all three — it directly sets the `onFail` behavior of both `packageManager` and `devEngines.packageManager`. The `COREPACK_ENABLE_STRICT` environment variable is no longer honored (it only gated `packageManagerStrict`); use `pmOnFail` instead.
+- **Breaking:** removed the `managePackageManagerVersions`, `packageManagerStrict`, and `packageManagerStrictVersion` settings. They existed only to derive the `onFail` behavior for the legacy `packageManager` field, and the `pmOnFail` setting introduced alongside [`pnpm with`](https://pnpm.io/11.x/cli/with) subsumes all three — it directly sets the `onFail` behavior of both `packageManager` and `devEngines.packageManager`. The `COREPACK_ENABLE_STRICT` environment variable is no longer honored (it only gated `packageManagerStrict`); use `pmOnFail` instead.
 
   Migration:
 
@@ -235,26 +238,26 @@
 
 #### New Commands
 
-- Added native `pnpm view` (`info`, `show`, `v`) command for viewing package metadata from the registry [#11064](https://github.com/pnpm/pnpm/pull/11064).
-- Added `pnpm login` (and `pnpm adduser` alias) command for authenticating with npm registries. Supports web-based login with QR code as well as classic username/password login [#11094](https://github.com/pnpm/pnpm/pull/11094).
-- Added `pnpm logout` command for logging out of npm registries. Revokes the authentication token on the registry and removes it from the local auth config file [#11213](https://github.com/pnpm/pnpm/pull/11213).
-- Added native `pnpm deprecate` and `pnpm undeprecate` commands for setting and removing deprecation messages on package versions without delegating to the npm CLI [#11120](https://github.com/pnpm/pnpm/pull/11120).
-- Added native `pnpm unpublish` command. Supports unpublishing specific versions, version ranges via semver, and entire packages with `--force` [#11128](https://github.com/pnpm/pnpm/pull/11128).
-- Added native `pnpm dist-tag` command (`ls`, `add`, `rm` subcommands) [#11218](https://github.com/pnpm/pnpm/pull/11218).
-- Added `pnpm sbom` command for generating Software Bill of Materials in CycloneDX 1.7 and SPDX 2.3 JSON formats [#9088](https://github.com/pnpm/pnpm/issues/9088).
-- Added `pnpm clean` command that safely removes `node_modules` directories from all workspace projects [#10707](https://github.com/pnpm/pnpm/issues/10707). Use `--lockfile` to also remove `pnpm-lock.yaml` files.
-- Added a new command `pnpm runtime set <runtime name> <runtime version spec> [-g]` for installing runtimes. Deprecated `pnpm env use` in favor of the new command.
-- Added the ability to fix vulnerabilities by updating packages in the lockfile instead of adding overrides. Use `pnpm audit --fix=update` [#10341](https://github.com/pnpm/pnpm/pull/10341).
-- Added `pnpm ci` command for clean installs [#6100](https://github.com/pnpm/pnpm/issues/6100). The command runs `pnpm clean` followed by `pnpm install --frozen-lockfile`. Designed for CI/CD environments where reproducible builds are critical. Aliases: `pnpm clean-install`, `pnpm ic`, `pnpm install-clean` [#11003](https://github.com/pnpm/pnpm/pull/11003).
-- Added `pnpm peers check` command that checks for unmet and missing peer dependency issues by reading the lockfile [#7087](https://github.com/pnpm/pnpm/issues/7087).
-- Implemented the `version` command natively in pnpm to support workspaces and `workspace:` protocols correctly. The new command allows bumping package versions (major, minor, patch, etc.) with full workspace support and git integration [#10879](https://github.com/pnpm/pnpm/pull/10879).
-- `pnpm audit --fix` now supports a new interactive mode via `--interactive`/`-i`.
-- Added the `pnpm docs` command and its alias `pnpm home`. This command opens the package documentation or homepage in the browser. When the package has no valid homepage, it falls back to `https://npmx.dev/package/<name>`.
-- Added native `pnpm ping` command to test registry connectivity. Provides a simple way to verify connectivity to the configured registry without requiring external tools.
-- Implemented native `search` command and its aliases (`s`, `se`, `find`).
-- Implemented native `star`, `unstar`, `stars`, and `whoami` commands.
-- Add `pnpm with <version|current> <args...>` command. Runs pnpm at a specific version (or the currently active one) for a single invocation, bypassing the project's `packageManager` and `devEngines.packageManager` pins.
-- Added a new `pnpm pack-app` command that packs a CommonJS entry file into a standalone executable for one or more target platforms, using the [Node.js Single Executable Applications](https://nodejs.org/api/single-executable-applications.html) API under the hood.
+- Added native [`pnpm view`](https://pnpm.io/11.x/cli/view) (`info`, `show`, `v`) command for viewing package metadata from the registry [#11064](https://github.com/pnpm/pnpm/pull/11064).
+- Added [`pnpm login`](https://pnpm.io/11.x/cli/login) (and `pnpm adduser` alias) command for authenticating with npm registries. Supports web-based login with QR code as well as classic username/password login [#11094](https://github.com/pnpm/pnpm/pull/11094).
+- Added [`pnpm logout`](https://pnpm.io/11.x/cli/logout) command for logging out of npm registries. Revokes the authentication token on the registry and removes it from the local auth config file [#11213](https://github.com/pnpm/pnpm/pull/11213).
+- Added native [`pnpm deprecate`](https://pnpm.io/11.x/cli/deprecate) and `pnpm undeprecate` commands for setting and removing deprecation messages on package versions without delegating to the npm CLI [#11120](https://github.com/pnpm/pnpm/pull/11120).
+- Added native [`pnpm unpublish`](https://pnpm.io/11.x/cli/unpublish) command. Supports unpublishing specific versions, version ranges via semver, and entire packages with `--force` [#11128](https://github.com/pnpm/pnpm/pull/11128).
+- Added native [`pnpm dist-tag`](https://pnpm.io/11.x/cli/dist-tag) command (`ls`, `add`, `rm` subcommands) [#11218](https://github.com/pnpm/pnpm/pull/11218).
+- Added [`pnpm sbom`](https://pnpm.io/11.x/cli/sbom) command for generating Software Bill of Materials in CycloneDX 1.7 and SPDX 2.3 JSON formats [#9088](https://github.com/pnpm/pnpm/issues/9088).
+- Added [`pnpm clean`](https://pnpm.io/11.x/cli/clean) command that safely removes `node_modules` directories from all workspace projects [#10707](https://github.com/pnpm/pnpm/issues/10707). Use `--lockfile` to also remove `pnpm-lock.yaml` files.
+- Added a new command [`pnpm runtime set <runtime name> <runtime version spec> [-g]`](https://pnpm.io/11.x/cli/runtime) for installing runtimes. Deprecated `pnpm env use` in favor of the new command.
+- Added the ability to fix vulnerabilities by updating packages in the lockfile instead of adding overrides. Use [`pnpm audit --fix=update`](https://pnpm.io/11.x/cli/audit) [#10341](https://github.com/pnpm/pnpm/pull/10341).
+- Added [`pnpm ci`](https://pnpm.io/11.x/cli/ci) command for clean installs [#6100](https://github.com/pnpm/pnpm/issues/6100). The command runs `pnpm clean` followed by `pnpm install --frozen-lockfile`. Designed for CI/CD environments where reproducible builds are critical. Aliases: `pnpm clean-install`, `pnpm ic`, `pnpm install-clean` [#11003](https://github.com/pnpm/pnpm/pull/11003).
+- Added [`pnpm peers check`](https://pnpm.io/11.x/cli/peers) command that checks for unmet and missing peer dependency issues by reading the lockfile [#7087](https://github.com/pnpm/pnpm/issues/7087).
+- Implemented the [`version`](https://pnpm.io/11.x/cli/version) command natively in pnpm to support workspaces and `workspace:` protocols correctly. The new command allows bumping package versions (major, minor, patch, etc.) with full workspace support and git integration [#10879](https://github.com/pnpm/pnpm/pull/10879).
+- [`pnpm audit --fix`](https://pnpm.io/11.x/cli/audit) now supports a new interactive mode via `--interactive`/`-i`.
+- Added the [`pnpm docs`](https://pnpm.io/11.x/cli/docs) command and its alias `pnpm home`. This command opens the package documentation or homepage in the browser. When the package has no valid homepage, it falls back to `https://npmx.dev/package/<name>`.
+- Added native [`pnpm ping`](https://pnpm.io/11.x/cli/ping) command to test registry connectivity. Provides a simple way to verify connectivity to the configured registry without requiring external tools.
+- Implemented native [`search`](https://pnpm.io/11.x/cli/search) command and its aliases (`s`, `se`, `find`).
+- Implemented native [`star`, `unstar`, `stars`](https://pnpm.io/11.x/cli/star), and [`whoami`](https://pnpm.io/11.x/cli/whoami) commands.
+- Add [`pnpm with <version|current> <args...>`](https://pnpm.io/11.x/cli/with) command. Runs pnpm at a specific version (or the currently active one) for a single invocation, bypassing the project's `packageManager` and `devEngines.packageManager` pins.
+- Added a new [`pnpm pack-app`](https://pnpm.io/11.x/cli/pack-app) command that packs a CommonJS entry file into a standalone executable for one or more target platforms, using the [Node.js Single Executable Applications](https://nodejs.org/api/single-executable-applications.html) API under the hood.
 
 #### Configuration
 
