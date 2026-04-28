@@ -1,6 +1,4 @@
 ---
-"@pnpm/resolving.named-registry-specifier-parser": major
-"@pnpm/config.normalize-registries": major
 "@pnpm/config.reader": minor
 "@pnpm/resolving.npm-resolver": minor
 "@pnpm/resolving.default-resolver": minor
