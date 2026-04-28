@@ -1,5 +1,20 @@
 # @pnpm/engine.pm.commands
 
+## 1101.1.0
+
+### Minor Changes
+
+- 390b9d1: `pnpm self-update` now prints progress messages so the command isn't silent: `Checking for updates...` before resolving, `Updating pnpm from vX to vY...` once a newer version is found, and `Successfully updated pnpm to vY` on completion.
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.5
+- @pnpm/global.commands@1100.0.5
+- @pnpm/store.connection-manager@1100.0.5
+- @pnpm/store.controller@1101.0.0
+- @pnpm/installing.deps-restorer@1101.0.0
+- @pnpm/installing.env-installer@1101.0.0
+
 ## 1101.0.2
 
 ### Patch Changes

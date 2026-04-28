@@ -1,5 +1,13 @@
 # @pnpm/client
 
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [dd23d19]
+  - @pnpm/fetching.binary-fetcher@1101.0.1
+  - @pnpm/resolving.default-resolver@1100.0.5
+
 ## 1100.0.4
 
 ### Patch Changes

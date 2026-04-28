@@ -1,5 +1,14 @@
 # @pnpm/core
 
+## 1101.0.1
+
+### Patch Changes
+
+- 005eeb7: Fix peer dependencies not being upgraded with `pnpm upgrade --latest` [#9900](https://github.com/pnpm/pnpm/issues/9900).
+  - @pnpm/installing.package-requester@1101.0.0
+  - @pnpm/building.after-install@1101.0.1
+  - @pnpm/installing.deps-restorer@1101.0.0
+
 ## 1101.0.0
 
 ### Patch Changes

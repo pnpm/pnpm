@@ -1,5 +1,12 @@
 # @pnpm/resolving.bun-resolver
 
+## 1101.0.1
+
+### Patch Changes
+
+- Updated dependencies [dd23d19]
+  - @pnpm/fetching.binary-fetcher@1101.0.1
+
 ## 1101.0.0
 
 ### Patch Changes
