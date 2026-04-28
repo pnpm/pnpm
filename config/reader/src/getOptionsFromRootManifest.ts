@@ -28,6 +28,7 @@ export type OptionsFromRootManifest = {
 export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnpmSettings: PnpmSettings, manifest?: ProjectManifest): OptionsFromRootManifest {
   const settings: OptionsFromRootManifest = replaceEnvInSettings(pnpmSettings)
   if (settings.overrides) {
+    assertValidOverrides(settings.overrides)
     if (Object.keys(settings.overrides).length === 0) {
       delete settings.overrides
     } else if (manifest) {
@@ -43,6 +44,17 @@ export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnp
   }
 
   return settings
+}
+
+function assertValidOverrides (overrides: unknown): asserts overrides is Record<string, string> {
+  if (overrides == null || typeof overrides !== 'object' || Array.isArray(overrides)) {
+    throw new PnpmError('INVALID_OVERRIDES', `The overrides field should be an object, but got ${overrides === null ? 'null' : Array.isArray(overrides) ? 'array' : typeof overrides}`)
+  }
+  for (const [selector, spec] of Object.entries(overrides)) {
+    if (typeof spec !== 'string') {
+      throw new PnpmError('INVALID_OVERRIDES', `The value of overrides.${selector} should be a string, but got ${spec === null ? 'null' : typeof spec}`)
+    }
+  }
 }
 
 function replaceEnvInSettings (settings: PnpmSettings): PnpmSettings {
