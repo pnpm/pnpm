@@ -135,3 +135,4 @@ async function openUrl (url: string): Promise<void> {
     })
   })
 }
+
