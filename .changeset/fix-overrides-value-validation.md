@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-Throw a pnpm error when `overrides` contains a non-string value.
+Throw a pnpm error when `overrides` has an invalid shape or contains a non-string value.

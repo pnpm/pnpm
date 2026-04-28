@@ -48,13 +48,19 @@ export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnp
 
 function assertValidOverrides (overrides: unknown): asserts overrides is Record<string, string> {
   if (overrides == null || typeof overrides !== 'object' || Array.isArray(overrides)) {
-    throw new PnpmError('INVALID_OVERRIDES', `The overrides field should be an object, but got ${overrides === null ? 'null' : Array.isArray(overrides) ? 'array' : typeof overrides}`)
+    throw new PnpmError('INVALID_OVERRIDES', `The overrides field should be an object, but got ${renderReceivedType(overrides)}`)
   }
   for (const [selector, spec] of Object.entries(overrides)) {
     if (typeof spec !== 'string') {
-      throw new PnpmError('INVALID_OVERRIDES', `The value of overrides.${selector} should be a string, but got ${spec === null ? 'null' : typeof spec}`)
+      throw new PnpmError('INVALID_OVERRIDES', `The value of overrides.${selector} should be a string, but got ${renderReceivedType(spec)}`)
     }
   }
+}
+
+function renderReceivedType (value: unknown): string {
+  if (value === null) return 'null'
+  if (Array.isArray(value)) return 'array'
+  return typeof value
 }
 
 function replaceEnvInSettings (settings: PnpmSettings): PnpmSettings {
