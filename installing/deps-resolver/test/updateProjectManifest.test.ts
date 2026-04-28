@@ -88,7 +88,7 @@ test('updates manifest for GitHub shorthand dependencies without aliases', async
         pkgId: 'test-git-fetch@github:pnpm/test-git-fetch#8b333f12d5357f4f25a654c305c826294cb073bf',
         resolution: {},
         version: undefined,
-      } as ResolvedDirectDependency,
+      } as unknown as ResolvedDirectDependency,
     ],
     preserveWorkspaceProtocol: false,
     saveWorkspaceProtocol: false,
