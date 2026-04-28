@@ -8424,6 +8424,9 @@ importers:
         specifier: workspace:*
         version: link:../../core/error
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
       '@pnpm/resolving.named-registry-specifier-parser':
         specifier: workspace:*
         version: 'link:'

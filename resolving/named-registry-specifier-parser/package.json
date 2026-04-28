@@ -37,6 +37,7 @@
     "@pnpm/error": "workspace:*"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/resolving.named-registry-specifier-parser": "workspace:*"
   },
   "engines": {
