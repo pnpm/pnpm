@@ -269,6 +269,7 @@ test('dlx creates cache and store prune cleans cache', async () => {
     '--config.dlx-cache-max-age=50', // big number to avoid false negative should test unexpectedly takes too long to run
   ]
 
+  // eslint-disable-next-line no-await-in-loop
   for (const [cmd, args] of Object.entries(commands)) {
     await execPnpm([...settings, '--allow-build=shx', 'dlx', cmd, ...args])
   }
