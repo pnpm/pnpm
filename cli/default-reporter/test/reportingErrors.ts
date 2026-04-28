@@ -108,6 +108,31 @@ ${ERROR_PAD}
 ${ERROR_PAD}If you need the full list of all 4 published versions run "pnpm view is-positive versions".`)
 })
 
+test('prints no matching version error hint', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+  })
+
+  expect.assertions(1)
+
+  const err = Object.assign(new PnpmError('NO_MATCHING_VERSION', 'No matching version found for is-positive@1000.0.0', {
+    hint: 'Available workspace versions for "is-positive": 1.0.0',
+  }), {
+    packageMeta: loadJsonFileSync(path.join(import.meta.dirname, 'is-positive-meta.json')),
+  })
+  logger.error(err, err)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`${formatError('ERR_PNPM_NO_MATCHING_VERSION', 'No matching version found for is-positive@1000.0.0')}
+${ERROR_PAD}
+${ERROR_PAD}The latest release of is-positive is "3.1.0".
+${ERROR_PAD}
+${ERROR_PAD}If you need the full list of all 4 published versions run "pnpm view is-positive versions".
+${ERROR_PAD}
+${ERROR_PAD}Available workspace versions for "is-positive": 1.0.0`)
+})
+
 test('prints suggestions when an internet-connection related error happens', async () => {
   const output$ = toOutput$({
     context: { argv: ['install'] },

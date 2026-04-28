@@ -2101,8 +2101,9 @@ test('throws when workspace package version does not match and package is not fo
     registries,
   })
 
-  await expect(
-    resolveFromNpm({ alias: 'is-positive', bareSpecifier: '2.0.0' }, {
+  let err!: Error & { code: string, hint?: string }
+  try {
+    await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '2.0.0' }, {
       projectDir: '/home/istvan/src',
       update: 'compatible',
       workspacePackages: new Map([
@@ -2117,7 +2118,13 @@ test('throws when workspace package version does not match and package is not fo
         ])],
       ]),
     })
-  ).rejects.toThrow()
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+
+  expect(err).toBeTruthy()
+  expect(err.code).toBe('ERR_PNPM_FETCH_404')
+  expect(err.hint).toContain('Available workspace versions for "is-positive": 1.0.0')
 })
 
 test('throws NoMatchingVersionError when workspace package version does not match and registry has no matching version', async () => {
@@ -2132,8 +2139,9 @@ test('throws NoMatchingVersionError when workspace package version does not matc
     registries,
   })
 
-  await expect(
-    resolveFromNpm({ alias: 'is-positive', bareSpecifier: '99.0.0' }, {
+  let err!: Error & { code: string, hint?: string }
+  try {
+    await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '99.0.0' }, {
       projectDir: '/home/istvan/src',
       update: 'compatible',
       workspacePackages: new Map([
@@ -2148,7 +2156,14 @@ test('throws NoMatchingVersionError when workspace package version does not matc
         ])],
       ]),
     })
-  ).rejects.toThrow(NoMatchingVersionError)
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+
+  expect(err).toBeTruthy()
+  expect(err.code).toBe('ERR_PNPM_NO_MATCHING_VERSION')
+  expect(err).toBeInstanceOf(NoMatchingVersionError)
+  expect(err.hint).toBe('Available workspace versions for "is-positive": 1.0.0')
 })
 
 test('resolve from registry when workspace package version does not match the requested version', async () => {
