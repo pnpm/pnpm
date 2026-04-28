@@ -1,5 +1,5 @@
+import { PnpmError } from '@pnpm/error'
 import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
-import { type NamedRegistrySpec, parseNamedRegistrySpecifier } from '@pnpm/resolving.named-registry-specifier-parser'
 import parseNpmTarballUrl from 'parse-npm-tarball-url'
 import getVersionSelectorType from 'version-selector-type'
 
@@ -75,26 +75,86 @@ export function parseJsrSpecifierToRegistryPackageSpec (
   }
 }
 
+export const DEFAULT_GH_REGISTRY = 'https://npm.pkg.github.com/'
+
+export const BUILTIN_GH_ALIAS = 'gh'
+
+// Built-in named-registry aliases. Users can add more via `namedRegistries` in
+// `pnpm-workspace.yaml`. The `gh` alias mirrors vlt's convention and lets users
+// install from GitHub Packages without configuring a scope-wide registry.
+export const BUILTIN_NAMED_REGISTRIES: Readonly<Record<string, string>> = Object.freeze({
+  [BUILTIN_GH_ALIAS]: DEFAULT_GH_REGISTRY,
+})
+
 export interface NamedRegistryPackageSpec extends RegistryPackageSpec {
   registryAlias: string
 }
 
+// Parses a named-registry specifier of the shape `<alias>:<body>` into a
+// RegistryPackageSpec. Returns `null` when the specifier does not use one of
+// the configured aliases, so the caller can fall through to other resolvers.
+// Supported shapes (mirrors the `gh:` prefix, which is the canonical example):
+// - `<alias>:@<owner>/<name>[@<version_selector>]`
+// - `<alias>:<version_selector>` when paired with a scoped package alias
 export function parseNamedRegistrySpecifierToRegistryPackageSpec (
   rawSpecifier: string,
   knownAliases: ReadonlySet<string>,
-  alias: string | undefined,
+  packageAlias: string | undefined,
   defaultTag: string
 ): NamedRegistryPackageSpec | null {
-  const spec: NamedRegistrySpec | null = parseNamedRegistrySpecifier(rawSpecifier, knownAliases, alias)
-  if (!spec?.pkgName) return null
+  const colon = rawSpecifier.indexOf(':')
+  if (colon <= 0) return null
+  const registryAlias = rawSpecifier.substring(0, colon)
+  if (!knownAliases.has(registryAlias)) return null
 
-  const selector = getVersionSelectorType(spec.versionSelector ?? defaultTag)
+  const body = rawSpecifier.substring(colon + 1)
+  let pkgName: string
+  let versionSelector: string | undefined
+
+  if (body[0] === '@') {
+    // syntax: <alias>:@<owner>/<name>[@<version_selector>]
+    const index = body.lastIndexOf('@')
+    if (index === 0) {
+      pkgName = body
+    } else {
+      pkgName = body.substring(0, index)
+      versionSelector = body.substring(index + '@'.length)
+    }
+  } else if (packageAlias?.startsWith('@')) {
+    // syntax: <alias>:<version_selector> paired with a scoped package alias
+    pkgName = packageAlias
+    versionSelector = body
+  } else {
+    // No scoped alias means we cannot know the package name — let other
+    // resolvers try.
+    return null
+  }
+
+  validateScopedPackageName(pkgName, registryAlias)
+
+  const selector = getVersionSelectorType(versionSelector ?? defaultTag)
   if (selector == null) return null
 
   return {
     fetchSpec: selector.normalized,
-    name: spec.pkgName,
+    name: pkgName,
     type: selector.type,
-    registryAlias: spec.registryAlias,
+    registryAlias,
+  }
+}
+
+function validateScopedPackageName (pkgName: string, registryAlias: string): void {
+  if (pkgName[0] !== '@') {
+    throw new PnpmError(
+      'MISSING_NAMED_REGISTRY_PACKAGE_SCOPE',
+      `Package '${pkgName}' from named registry '${registryAlias}:' must have a scope (e.g. '@owner/name')`
+    )
+  }
+  const sepIndex = pkgName.indexOf('/')
+  if (sepIndex === -1 || sepIndex === pkgName.length - 1) {
+    throw new PnpmError(
+      'INVALID_NAMED_REGISTRY_PACKAGE_NAME',
+      `The package name '${pkgName}' in named registry '${registryAlias}:' is invalid`
+    )
   }
 }

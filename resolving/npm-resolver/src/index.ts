@@ -7,7 +7,6 @@ import type {
   GetAuthHeader,
   RetryTimeoutOptions,
 } from '@pnpm/fetching.types'
-import { BUILTIN_NAMED_REGISTRIES } from '@pnpm/resolving.named-registry-specifier-parser'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type {
   DirectoryResolution,
@@ -43,6 +42,7 @@ import versionSelectorType from 'version-selector-type'
 import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOptions, RegistryResponseError } from './fetch.js'
 import { normalizeRegistryUrl } from './normalizeRegistryUrl.js'
 import {
+  BUILTIN_NAMED_REGISTRIES,
   type JsrRegistryPackageSpec,
   type NamedRegistryPackageSpec,
   parseBareSpecifier,

@@ -2,7 +2,6 @@
 "@pnpm/config.reader": minor
 "@pnpm/resolving.npm-resolver": minor
 "@pnpm/resolving.default-resolver": minor
-"@pnpm/installing.deps-resolver": minor
 "@pnpm/store.connection-manager": minor
 "@pnpm/types": minor
 "pnpm": minor

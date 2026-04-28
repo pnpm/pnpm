@@ -8418,19 +8418,6 @@ importers:
         specifier: 'catalog:'
         version: 3.0.2
 
-  resolving/named-registry-specifier-parser:
-    dependencies:
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../core/error
-    devDependencies:
-      '@jest/globals':
-        specifier: 'catalog:'
-        version: 30.3.0
-      '@pnpm/resolving.named-registry-specifier-parser':
-        specifier: workspace:*
-        version: 'link:'
-
   resolving/npm-resolver:
     dependencies:
       '@pnpm/config.pick-registry-for-package':
@@ -8457,9 +8444,6 @@ importers:
       '@pnpm/resolving.jsr-specifier-parser':
         specifier: workspace:*
         version: link:../jsr-specifier-parser
-      '@pnpm/resolving.named-registry-specifier-parser':
-        specifier: workspace:*
-        version: link:../named-registry-specifier-parser
       '@pnpm/resolving.registry.pkg-metadata-filter':
         specifier: workspace:*
         version: link:../registry/pkg-metadata-filter
