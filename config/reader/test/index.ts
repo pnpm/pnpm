@@ -706,6 +706,11 @@ test('cacheDir falls back to default when CLI passes the "false" string from --n
     cliOptions: {
       'cache-dir': 'false',
     },
+    argv: {
+      remain: [],
+      cooked: ['--no-cache'],
+      original: ['--no-cache'],
+    },
     packageManager: {
       name: 'pnpm',
       version: '1.0.0',
@@ -714,6 +719,27 @@ test('cacheDir falls back to default when CLI passes the "false" string from --n
 
   expect(config.cacheDir).not.toBe('false')
   expect(path.isAbsolute(config.cacheDir)).toBe(true)
+})
+
+// Conversely, an explicit `--cache-dir=false` should be preserved as
+// user-supplied input — only the `--no-cache` parsing artifact gets dropped.
+test('cacheDir preserves "false" when --cache-dir=false is passed explicitly', async () => {
+  const { config } = await getConfig({
+    cliOptions: {
+      'cache-dir': 'false',
+    },
+    argv: {
+      remain: [],
+      cooked: ['--cache-dir=false'],
+      original: ['--cache-dir=false'],
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.cacheDir).toBe('false')
 })
 
 // public-hoist-pattern normalization is done in @pnpm/cli.utils

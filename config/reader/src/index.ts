@@ -84,6 +84,7 @@ export type CliOptions = Record<string, unknown> & SupportedArchitecturesCliOpti
 export async function getConfig (opts: {
   globalDirShouldAllowWrite?: boolean
   cliOptions: CliOptions
+  argv?: { remain: string[], cooked: string[], original: string[] }
   packageManager: {
     name: string
     version: string
@@ -241,11 +242,22 @@ export async function getConfig (opts: {
   // `pnpm <cmd> --no-cache` is not a real flag. nopt prefix-matches `cache`
   // to the declared `cache-dir` and, because `cache-dir` is String-typed,
   // coerces the negation to the literal string "false" — which would then
-  // be joined as `./false/<metadata-dir>/...` by the resolver. Drop the
-  // artifact so the default cache directory is resolved instead.
+  // be joined as `./false/<metadata-dir>/...` by the resolver. Drop only
+  // that parsing artifact so an intentional `--cache-dir=false` is preserved.
   // https://github.com/pnpm/pnpm/issues/11353
-  if ((configFromCliOpts as Record<string, unknown>).cacheDir === 'false') {
-    delete (configFromCliOpts as Record<string, unknown>).cacheDir
+  const cliCfg = configFromCliOpts as Record<string, unknown>
+  if (cliCfg.cacheDir === 'false') {
+    const argvTokens = [
+      ...(opts.argv?.original ?? []),
+      ...(opts.argv?.cooked ?? []),
+    ]
+    const hasNoCacheFlag = argvTokens.includes('--no-cache')
+    const hasExplicitCacheDirFlag = argvTokens.some(
+      (arg) => arg === '--cache-dir' || arg.startsWith('--cache-dir=')
+    )
+    if (hasNoCacheFlag && !hasExplicitCacheDirFlag) {
+      delete cliCfg.cacheDir
+    }
   }
 
   // Build initial config from defaults, then overlay auth/registry values from .npmrc
