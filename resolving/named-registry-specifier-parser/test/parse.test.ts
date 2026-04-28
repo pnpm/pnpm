@@ -28,46 +28,46 @@ describe('parseNamedRegistrySpecifier', () => {
   })
 
   test('parses <alias>:<version_selector> when a scoped package alias is given', () => {
-    expect(parseNamedRegistrySpecifier('gh:^1.0.0', GH_ALIASES, '@acme/foo')).toStrictEqual<NamedRegistrySpec>({
+    expect(parseNamedRegistrySpecifier('gh:^1.0.0', GH_ALIASES, '@acme/foo')).toStrictEqual({
       pkgName: '@acme/foo',
       versionSelector: '^1.0.0',
       registryAlias: 'gh',
-    })
-    expect(parseNamedRegistrySpecifier('gh:1.0.0', GH_ALIASES, '@acme/foo')).toStrictEqual<NamedRegistrySpec>({
+    } as NamedRegistrySpec)
+    expect(parseNamedRegistrySpecifier('gh:1.0.0', GH_ALIASES, '@acme/foo')).toStrictEqual({
       pkgName: '@acme/foo',
       versionSelector: '1.0.0',
       registryAlias: 'gh',
-    })
-    expect(parseNamedRegistrySpecifier('gh:latest', GH_ALIASES, '@acme/foo')).toStrictEqual<NamedRegistrySpec>({
+    } as NamedRegistrySpec)
+    expect(parseNamedRegistrySpecifier('gh:latest', GH_ALIASES, '@acme/foo')).toStrictEqual({
       pkgName: '@acme/foo',
       versionSelector: 'latest',
       registryAlias: 'gh',
-    })
+    } as NamedRegistrySpec)
   })
 
   test('parses <alias>:@<owner>/<name>', () => {
-    expect(parseNamedRegistrySpecifier('gh:@acme/foo', GH_ALIASES)).toStrictEqual<NamedRegistrySpec>({
+    expect(parseNamedRegistrySpecifier('gh:@acme/foo', GH_ALIASES)).toStrictEqual({
       pkgName: '@acme/foo',
       registryAlias: 'gh',
-    })
+    } as NamedRegistrySpec)
   })
 
   test('parses <alias>:@<owner>/<name>@<version_selector>', () => {
-    expect(parseNamedRegistrySpecifier('gh:@acme/foo@^1.0.0', GH_ALIASES)).toStrictEqual<NamedRegistrySpec>({
+    expect(parseNamedRegistrySpecifier('gh:@acme/foo@^1.0.0', GH_ALIASES)).toStrictEqual({
       pkgName: '@acme/foo',
       versionSelector: '^1.0.0',
       registryAlias: 'gh',
-    })
-    expect(parseNamedRegistrySpecifier('gh:@acme/foo@1.0.0', GH_ALIASES)).toStrictEqual<NamedRegistrySpec>({
+    } as NamedRegistrySpec)
+    expect(parseNamedRegistrySpecifier('gh:@acme/foo@1.0.0', GH_ALIASES)).toStrictEqual({
       pkgName: '@acme/foo',
       versionSelector: '1.0.0',
       registryAlias: 'gh',
-    })
-    expect(parseNamedRegistrySpecifier('gh:@acme/foo@latest', GH_ALIASES)).toStrictEqual<NamedRegistrySpec>({
+    } as NamedRegistrySpec)
+    expect(parseNamedRegistrySpecifier('gh:@acme/foo@latest', GH_ALIASES)).toStrictEqual({
       pkgName: '@acme/foo',
       versionSelector: 'latest',
       registryAlias: 'gh',
-    })
+    } as NamedRegistrySpec)
   })
 
   test('preserves the original package name (no scope rewrite, unlike jsr)', () => {
@@ -100,11 +100,11 @@ describe('parseNamedRegistrySpecifier', () => {
   })
 
   test('matches any alias in the configured set and reports it back to the caller', () => {
-    expect(parseNamedRegistrySpecifier('work:@acme/foo@^1.0.0', new Set(['gh', 'work']))).toStrictEqual<NamedRegistrySpec>({
+    expect(parseNamedRegistrySpecifier('work:@acme/foo@^1.0.0', new Set(['gh', 'work']))).toStrictEqual({
       pkgName: '@acme/foo',
       versionSelector: '^1.0.0',
       registryAlias: 'work',
-    })
+    } as NamedRegistrySpec)
   })
 
   test('returns null when the alias is not in the configured set', () => {
