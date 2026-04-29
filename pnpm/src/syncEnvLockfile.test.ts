@@ -4,10 +4,24 @@ import path from 'node:path'
 import { beforeEach, expect, jest, test } from '@jest/globals'
 import { packageManager } from '@pnpm/cli.meta'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
+import { readEnvLockfile, writeEnvLockfile } from '@pnpm/lockfile.fs'
 import type { EnvLockfile } from '@pnpm/lockfile.types'
 import { tempDir } from '@pnpm/prepare'
 
-const resolvePackageManagerIntegrities = jest.fn<(version: string, opts: object) => Promise<EnvLockfile>>(async () => ({} as EnvLockfile))
+// Simulate what the real resolvePackageManagerIntegrities does that this test
+// cares about: record the resolved pnpm version under
+// packageManagerDependencies and persist the lockfile to disk.
+const resolvePackageManagerIntegrities = jest.fn<(version: string, opts: { envLockfile?: EnvLockfile, rootDir: string, save?: boolean }) => Promise<EnvLockfile>>(
+  async (version, opts) => {
+    const lockfile = opts.envLockfile ?? ({ lockfileVersion: '9.0', importers: { '.': { configDependencies: {} } }, packages: {}, snapshots: {} } as EnvLockfile)
+    lockfile.importers['.'].packageManagerDependencies = {
+      pnpm: { specifier: version, version },
+      '@pnpm/exe': { specifier: version, version },
+    }
+    if (opts.save) await writeEnvLockfile(opts.rootDir, lockfile)
+    return lockfile
+  }
+)
 const createStoreController = jest.fn<(opts: object) => Promise<{ ctrl: { close: () => Promise<void> }, dir: string }>>(async () => ({
   ctrl: { close: jest.fn<() => Promise<void>>(async () => {}) },
   dir: '/store',
@@ -102,11 +116,12 @@ test('updates the lockfile when locked version no longer satisfies wanted versio
   await syncEnvLockfile(baseConfig, makeContext(dir, {
     wantedPackageManager: { name: 'pnpm', version: packageManager.version, fromDevEngines: true },
   }))
-  expect(resolvePackageManagerIntegrities).toHaveBeenCalledTimes(1)
-  expect(resolvePackageManagerIntegrities.mock.calls[0][0]).toBe(packageManager.version)
-  const opts = resolvePackageManagerIntegrities.mock.calls[0][1] as { rootDir: string, save: boolean }
-  expect(opts.rootDir).toBe(dir)
-  expect(opts.save).toBe(true)
+  const updated = await readEnvLockfile(dir)
+  expect(updated).not.toBeNull()
+  expect(updated!.importers['.'].packageManagerDependencies?.['pnpm']).toEqual({
+    specifier: packageManager.version,
+    version: packageManager.version,
+  })
 })
 
 function writeStaleEnvLockfile (dir: string, pnpmVersion: string): void {
