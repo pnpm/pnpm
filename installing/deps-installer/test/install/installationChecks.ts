@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { addDependenciesToPackage } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'

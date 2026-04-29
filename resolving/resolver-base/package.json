@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolving.resolver-base",
-  "version": "1005.1.0",
+  "version": "1100.1.0",
   "description": "Types for pnpm-compatible resolvers",
   "keywords": [
     "pnpm",
@@ -28,7 +28,7 @@
     "start": "tsgo --watch",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pn compile",
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {

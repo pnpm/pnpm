@@ -1,3 +1,5 @@
+import { afterEach, expect, test } from '@jest/globals'
+
 import { getOptionsFromPnpmSettings } from '../lib/getOptionsFromRootManifest.js'
 
 const ORIGINAL_ENV = process.env
@@ -13,6 +15,27 @@ test('getOptionsFromPnpmSettings() replaces env variables in settings', () => {
     '${PNPM_TEST_KEY}': '${PNPM_TEST_VALUE}',
   } as any) as any // eslint-disable-line
   expect(options.foo).toBe('bar')
+})
+
+test('getOptionsFromPnpmSettings() expands env variables inside registries values', () => {
+  process.env.PNPM_TEST_TOKEN = 'secret'
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      default: 'https://registry.npmjs.org/',
+      '@scope': 'https://registry.example.com/${PNPM_TEST_TOKEN}/',
+    },
+  }) as any // eslint-disable-line
+  expect(options.registries['@scope']).toBe('https://registry.example.com/secret/')
+})
+
+test('getOptionsFromPnpmSettings() expands env variables inside namedRegistries values', () => {
+  process.env.PNPM_TEST_HOST = 'work.example.com'
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    namedRegistries: {
+      work: 'https://${PNPM_TEST_HOST}/npm/',
+    },
+  } as any) as any // eslint-disable-line
+  expect(options.namedRegistries.work).toBe('https://work.example.com/npm/')
 })
 
 test('getOptionsFromPnpmSettings() converts allowBuilds', () => {

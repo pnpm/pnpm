@@ -1,4 +1,5 @@
 import { PnpmError } from '@pnpm/error'
+import npa from '@pnpm/npm-package-arg'
 
 import { displayError } from '../displayError.js'
 import type { PublishPackedPkgOptions } from '../publishPackedPkg.js'
@@ -67,12 +68,10 @@ export async function fetchAuthToken ({
   packageName,
   registry,
 }: AuthTokenParams): Promise<string> {
-  const escapedPackageName = encodeURIComponent(packageName)
-
   let response: AuthTokenFetchResponse
   try {
     response = await fetch(
-      new URL(`/-/npm/v1/oidc/token/exchange/package/${escapedPackageName}`, registry).href,
+      new URL(`/-/npm/v1/oidc/token/exchange/package/${npa(packageName).escapedName}`, registry).href,
       {
         body: '',
         headers: {

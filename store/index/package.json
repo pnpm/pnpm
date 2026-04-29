@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store.index",
-  "version": "1000.0.0-0",
+  "version": "1100.0.0",
   "description": "SQLite-backed index for the pnpm content-addressable store",
   "keywords": [
     "pnpm",
@@ -28,13 +28,14 @@
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pn compile && pn .test",
     "compile": "tsgo --build && pn lint --fix",
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "msgpackr": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/store.index": "workspace:*",
     "@types/node": "catalog:",
     "tempy": "catalog:"

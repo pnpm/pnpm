@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { afterEach, expect, jest, test } from '@jest/globals'
 import { fetchFromDir } from '@pnpm/fetching.directory-fetcher'
 import { prepareEmpty } from '@pnpm/prepare'
 import { lexCompare } from '@pnpm/util.lex-comparator'

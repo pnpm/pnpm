@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/registry-access.commands",
-  "version": "1000.0.0",
+  "version": "1100.2.2",
   "description": "Commands for managing packages on the registry",
   "keywords": [
     "pnpm",
@@ -27,7 +27,7 @@
     "start": "tsgo --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pn compile && pn .test",
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "compile": "tsgo --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
@@ -41,6 +41,7 @@
     "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/resolving.registry.types": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "chalk": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:",
     "semver": "catalog:"
@@ -52,6 +53,7 @@
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/releasing.commands": "workspace:*",
     "@pnpm/testing.command-defaults": "workspace:*",
+    "@pnpm/testing.mock-agent": "workspace:*",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
     "execa": "catalog:"

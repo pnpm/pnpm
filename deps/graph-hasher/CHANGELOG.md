@@ -1,5 +1,87 @@
 # @pnpm/calc-dep-state
 
+## 1100.1.1
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1100.0.3
+
+## 1100.1.0
+
+### Minor Changes
+
+- 72c1e05: Fix: different platform variants of the same runtime (e.g. `node@runtime:25.9.0` glibc vs. musl) no longer share a single global-virtual-store entry. The virtual store path now incorporates the selected variant's integrity, so installs with different `--os`/`--cpu`/`--libc` end up in separate directories and `pnpm add --libc=musl node@runtime:<v>` reliably fetches the musl binary even when the glibc variant is already cached.
+
+### Patch Changes
+
+- Updated dependencies [72c1e05]
+  - @pnpm/resolving.resolver-base@1100.1.0
+  - @pnpm/lockfile.types@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/deps.path@1100.0.1
+  - @pnpm/lockfile.types@1100.0.1
+  - @pnpm/lockfile.utils@1100.0.1
+
+## 1003.0.0
+
+### Major Changes
+
+- 5f73b0f: Runtime dependencies are always linked from the global virtual store [#10233](https://github.com/pnpm/pnpm/pull/10233).
+- 491a84f: This package is now pure ESM.
+- c4045fc: **Semi-breaking.** Changed the location of unscoped packages in the virtual global store. They will now be stored under a directory named `@` to maintain a uniform 4-level directory depth.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- a8f016c: Store config dependency and package manager integrity info in `pnpm-lock.yaml` instead of inlining it in `pnpm-workspace.yaml`. The workspace manifest now contains only clean version specifiers for `configDependencies`, while the resolved versions, integrity hashes, and tarball URLs are recorded in the lockfile as a separate YAML document. The env lockfile section also stores `packageManagerDependencies` resolved during version switching and self-update. Projects using the old inline-hash format are automatically migrated on install.
+- cd743ef: Use `allowBuilds` config to compute engine-agnostic GVS hashes for pure-JS packages [#10837](https://github.com/pnpm/pnpm/issues/10837).
+
+  When the global virtual store is enabled, packages that are not allowed to build (and don't transitively depend on packages that are) now get hashes that don't include the engine name (platform, architecture, Node.js major version). This means ~95% of packages in the GVS survive Node.js upgrades and architecture changes without re-import.
+
+- 38b8e35: Support for custom resolvers and fetchers.
+
+### Patch Changes
+
+- 1e6de25: Fix dependency graph hash calculation for runtime dependencies (like Node.js, Deno).
+- Updated dependencies [5f73b0f]
+- Updated dependencies [c55c614]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [606f53e]
+- Updated dependencies [491a84f]
+- Updated dependencies [075aa99]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [394d88c]
+- Updated dependencies [1e6de25]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+  - @pnpm/deps.path@1002.0.0
+  - @pnpm/constants@1002.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/lockfile.types@1003.0.0
+  - @pnpm/lockfile.utils@1004.0.0
+  - @pnpm/crypto.object-hasher@1001.0.0
+
 ## 1002.0.8
 
 ### Patch Changes

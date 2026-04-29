@@ -1,3 +1,5 @@
+import { expect, test } from '@jest/globals'
+
 import { getShellFromParams, getShellFromString } from '../../src/completion/getShell.js'
 
 test('getShellFromString errors on undefined', () => {

@@ -7,7 +7,7 @@ import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config
 import { PnpmError } from '@pnpm/error'
 import { createResolver } from '@pnpm/installing.client'
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
-import { globalWarn } from '@pnpm/logger'
+import { globalInfo, globalWarn } from '@pnpm/logger'
 import { whichVersionIsPinned } from '@pnpm/resolving.npm-resolver'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { PinnedVersion } from '@pnpm/types'
@@ -30,6 +30,15 @@ export function cliOptionsTypes (): Record<string, unknown> {
 
 export const commandNames = ['self-update']
 
+// Migration guidance printed once when `pnpm self-update` crosses a major
+// boundary. Add an entry here for each future major that ships breaking
+// changes users need to act on.
+const MAJOR_UPGRADE_HINTS: Record<number, string> = {
+  11:
+    'pnpm v11 removed or renamed several v10 settings. ' +
+    'See https://pnpm.io/11.x/migration for migration instructions.',
+}
+
 export const skipPackageManagerCheck = true
 
 export function help (): string {
@@ -49,7 +58,6 @@ export function help (): string {
 export type SelfUpdateCommandOptions = CreateStoreControllerOptions & Pick<Config,
 | 'globalPkgDir'
 | 'lockfileDir'
-| 'managePackageManagerVersions'
 | 'modulesDir'
 | 'pnpmHomeDir'
 > & Pick<ConfigContext,
@@ -64,6 +72,7 @@ export async function handler (
   if (isExecutedByCorepack()) {
     throw new PnpmError('CANT_SELF_UPDATE_IN_COREPACK', 'You should update pnpm with corepack')
   }
+  globalInfo('Checking for updates...')
   const { resolve } = createResolver({ ...opts, configByUri: opts.configByUri })
   const pkgName = 'pnpm'
   const bareSpecifier = params[0] ?? 'latest'
@@ -74,6 +83,30 @@ export async function handler (
   })
   if (!resolution?.manifest) {
     throw new PnpmError('CANNOT_RESOLVE_PNPM', `Cannot find "${bareSpecifier}" version of pnpm`)
+  }
+
+  // Determine the "previous" pnpm version being upgraded FROM. If the
+  // project pins pnpm via `packageManager`/`devEngines.packageManager`,
+  // the pin is the source of truth — the running pnpm binary may already
+  // be at a newer major (e.g. a globally-installed v11 operating on a
+  // project still pinned to v10). Otherwise fall back to the running
+  // binary. Skip the hint entirely on a no-op (target === previous).
+  const targetVersion = resolution.manifest.version
+  let previousVersion: string | undefined
+  if (opts.wantedPackageManager?.name === packageManager.name) {
+    if (opts.wantedPackageManager.version !== targetVersion) {
+      previousVersion = opts.wantedPackageManager.version
+    }
+  } else if (packageManager.version !== targetVersion) {
+    previousVersion = packageManager.version
+  }
+  const previousMajor = previousVersion != null
+    ? semver.coerce(previousVersion)?.major
+    : undefined
+  const targetMajor = semver.major(targetVersion)
+  if (previousMajor != null && targetMajor > previousMajor) {
+    const hint = MAJOR_UPGRADE_HINTS[targetMajor]
+    if (hint) globalWarn(hint)
   }
 
   if (opts.wantedPackageManager?.name === packageManager.name) {
@@ -116,6 +149,7 @@ export async function handler (
     return `The currently active ${packageManager.name} v${packageManager.version} is already "${bareSpecifier}" and doesn't need an update`
   }
 
+  globalInfo(`Updating pnpm from v${packageManager.version} to v${resolution.manifest.version}...`)
   const store = await createStoreController(opts)
 
   // Resolve integrities and write env lockfile to pnpm-lock.yaml
@@ -139,7 +173,7 @@ export async function handler (
   if (alreadyExisted) {
     return `The ${bareSpecifier} version, v${resolution.manifest.version}, is already present on the system. It was activated by linking it from ${baseDir}.`
   }
-  return undefined
+  return `Successfully updated pnpm to v${resolution.manifest.version}`
 }
 
 /**

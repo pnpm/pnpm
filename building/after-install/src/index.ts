@@ -279,7 +279,7 @@ async function _rebuild (
   } & Pick<PnpmContext, 'modulesFile'>,
   opts: StrictBuildOptions
 ): Promise<{ pkgsThatWereRebuilt: Set<string>, ignoredPkgs: IgnoredBuilds }> {
-  const depGraph = lockfileToDepGraph(ctx.currentLockfile)
+  const depGraph = lockfileToDepGraph(ctx.currentLockfile, opts.supportedArchitectures)
   const depsStateCache: DepsStateCache = {}
   const pkgsThatWereRebuilt = new Set<string>()
   const graph = new Map()
@@ -365,6 +365,7 @@ async function _rebuild (
           if (pkgFilesIndex) {
             sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
               includeDepGraphHash: true,
+              supportedArchitectures: opts.supportedArchitectures,
             })
             if (pkgFilesIndex.sideEffects?.has(sideEffectsCacheKey)) {
               pkgsThatWereRebuilt.add(depPath)

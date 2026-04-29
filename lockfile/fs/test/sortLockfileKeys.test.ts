@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 
 import { sortLockfileKeys } from '../lib/sortLockfileKeys.js'

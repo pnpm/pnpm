@@ -46,6 +46,7 @@ export async function updateWorkspaceManifest (dir: string, opts: {
   updatedFields?: Partial<WorkspaceManifest>
   updatedCatalogs?: Catalogs
   updatedOverrides?: Record<string, string>
+  addedMinimumReleaseAgeExcludes?: string[]
   fileName?: FileName
   cleanupUnusedCatalogs?: boolean
   allProjects?: Project[]
@@ -86,6 +87,15 @@ export async function updateWorkspaceManifest (dir: string, opts: {
         shouldBeUpdated = true
         manifest.overrides[key] = value
       }
+    }
+  }
+  if (opts.addedMinimumReleaseAgeExcludes?.length) {
+    const existing: string[] = manifest.minimumReleaseAgeExclude ?? []
+    const existingSet = new Set(existing)
+    const newEntries = [...new Set(opts.addedMinimumReleaseAgeExcludes)].filter((entry) => !existingSet.has(entry))
+    if (newEntries.length > 0) {
+      shouldBeUpdated = true
+      manifest.minimumReleaseAgeExclude = [...existing, ...newEntries]
     }
   }
   if (!shouldBeUpdated) {

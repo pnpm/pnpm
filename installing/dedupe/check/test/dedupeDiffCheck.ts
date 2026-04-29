@@ -1,3 +1,4 @@
+import { describe, expect, it } from '@jest/globals'
 import { DedupeCheckIssuesError, dedupeDiffCheck } from '@pnpm/installing.dedupe.check'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import type { DepPath, ProjectId } from '@pnpm/types'

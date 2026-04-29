@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import type { ExtendedPatchInfo, PatchGroupRecord } from '@pnpm/patching.types'
 
 import { groupPatchedDependencies } from '../src/groupPatchedDependencies.js'

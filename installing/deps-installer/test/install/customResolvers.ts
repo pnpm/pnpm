@@ -1,7 +1,8 @@
+import { expect, test } from '@jest/globals'
 import type { CustomResolver } from '@pnpm/hooks.types'
 import { addDependenciesToPackage } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 
 import { testDefaults } from '../utils/index.js'
 
@@ -25,7 +26,7 @@ test('custom resolver is called during install', async () => {
       return {
         id: '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
         resolution: {
-          integrity: 'sha512-atUXGBNAbym4OioYcKt1qTjiH23CSfZ1K2N8JgCUewSE5gY/i9YoK7Ez6+CuEZbH+O3R+HKNrRIaZfnkv/93tg==',
+          integrity: getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0'),
           tarball: `http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-100.0.0.tgz`,
         },
         manifest: {
@@ -74,7 +75,7 @@ test('custom resolver receives currentPkg on subsequent installs', async () => {
       return {
         id: '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
         resolution: {
-          integrity: 'sha512-atUXGBNAbym4OioYcKt1qTjiH23CSfZ1K2N8JgCUewSE5gY/i9YoK7Ez6+CuEZbH+O3R+HKNrRIaZfnkv/93tg==',
+          integrity: getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0'),
           tarball: `http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-100.0.0.tgz`,
         },
         manifest: {

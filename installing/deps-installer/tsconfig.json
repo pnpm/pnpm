@@ -25,6 +25,9 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
+      "path": "../../agent/client"
+    },
+    {
       "path": "../../bins/linker"
     },
     {
@@ -146,6 +149,9 @@
     },
     {
       "path": "../../resolving/parse-wanted-dependency"
+    },
+    {
+      "path": "../../resolving/registry/types"
     },
     {
       "path": "../../resolving/resolver-base"

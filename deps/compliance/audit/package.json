@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.compliance.audit",
-  "version": "1002.0.14",
+  "version": "1101.0.2",
   "description": "Audit a lockfile",
   "keywords": [
     "pnpm",
@@ -27,11 +27,12 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pn compile && pn .test",
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "compile": "tsgo --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching.types": "workspace:*",
     "@pnpm/lockfile.detect-dep-types": "workspace:*",
@@ -41,19 +42,19 @@
     "@pnpm/lockfile.walker": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/workspace.project-manifest-reader": "workspace:*",
-    "ramda": "catalog:"
+    "semver": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/constants": "workspace:*",
     "@pnpm/deps.compliance.audit": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/testing.mock-agent": "workspace:*",
-    "@types/ramda": "catalog:"
+    "@types/semver": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

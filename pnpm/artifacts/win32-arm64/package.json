@@ -1,0 +1,33 @@
+{
+  "name": "@pnpm/win-arm64",
+  "version": "11.0.0",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "pnpm-artifact"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm/artifacts/win32-arm64",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm/artifacts/win32-arm64#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "files": [
+    "pnpm.exe"
+  ],
+  "scripts": {
+    "prepublishOnly": "node ../verify-binary.mjs win32 arm64"
+  },
+  "devDependencies": {
+    "@pnpm/win-arm64": "workspace:*"
+  },
+  "publishConfig": {
+    "os": [
+      "win32"
+    ],
+    "cpu": [
+      "arm64"
+    ]
+  }
+}

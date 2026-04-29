@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fs.packlist",
-  "version": "1000.0.0",
+  "version": "1100.0.0",
   "description": "Get a list of the files to add from a directory into an npm package",
   "keywords": [
     "pnpm",
@@ -25,7 +25,7 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "compile": "tsgo --build && pn lint --fix",
     "test": "pn compile"
   },

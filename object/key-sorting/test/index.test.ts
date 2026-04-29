@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { sortKeysByPriority } from '@pnpm/object.key-sorting'
 
 test('sortKeysByPriority', () => {

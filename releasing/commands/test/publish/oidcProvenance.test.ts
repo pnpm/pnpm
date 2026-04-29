@@ -1,4 +1,4 @@
-import { jest } from '@jest/globals'
+import { describe, expect, jest, test } from '@jest/globals'
 
 import {
   determineProvenance,
@@ -121,7 +121,7 @@ describe('determineProvenance', () => {
   })
 
   test('returns true when package is public in GitHub Actions', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<ProvenanceContext['fetch']>(async () => ({
       ok: true,
       status: 200,
       json: async () => ({ public: true }),
@@ -159,14 +159,14 @@ describe('determineProvenance', () => {
     )
     expect(mockFetch).toHaveBeenCalledWith(
       expect.objectContaining({
-        href: expect.stringContaining(`/-/package/${encodeURIComponent(packageName)}/visibility`),
+        href: expect.stringContaining(`/-/package/${packageName.replace('/', '%2f')}/visibility`),
       }),
       expectedOptions
     )
   })
 
   test('returns true when package is public in GitLab', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<ProvenanceContext['fetch']>(async () => ({
       ok: true,
       status: 200,
       json: async () => ({ public: true }),
@@ -193,7 +193,7 @@ describe('determineProvenance', () => {
   })
 
   test('returns undefined when package visibility is not public', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<ProvenanceContext['fetch']>(async () => ({
       ok: true,
       status: 200,
       json: async () => ({ public: false }),
@@ -219,7 +219,7 @@ describe('determineProvenance', () => {
   })
 
   test('returns undefined when visibility response is missing public field', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<ProvenanceContext['fetch']>(async () => ({
       ok: true,
       status: 200,
       json: async () => ({}),
@@ -245,7 +245,7 @@ describe('determineProvenance', () => {
   })
 
   test('passes fetch options correctly', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<ProvenanceContext['fetch']>(async () => ({
       ok: true,
       status: 200,
       json: async () => ({ public: true }),
@@ -292,7 +292,7 @@ describe('determineProvenance', () => {
   })
 
   test('throws ProvenanceFailedToFetchVisibilityError when fetch fails', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<ProvenanceContext['fetch']>(async () => ({
       ok: false,
       status: 404,
       json: async () => ({ code: 'NOT_FOUND', message: 'Package not found' }),
@@ -335,7 +335,7 @@ describe('determineProvenance', () => {
   })
 
   test('handles visibility fetch error with only code', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<ProvenanceContext['fetch']>(async () => ({
       ok: false,
       status: 401,
       json: async () => ({ code: 'UNAUTHORIZED' }),
@@ -365,7 +365,7 @@ describe('determineProvenance', () => {
   })
 
   test('handles visibility fetch error with only message', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<ProvenanceContext['fetch']>(async () => ({
       ok: false,
       status: 500,
       json: async () => ({ message: 'Internal server error' }),
@@ -395,7 +395,7 @@ describe('determineProvenance', () => {
   })
 
   test('handles visibility fetch error with no error details', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<ProvenanceContext['fetch']>(async () => ({
       ok: false,
       status: 503,
       json: async () => ({}),
@@ -425,7 +425,7 @@ describe('determineProvenance', () => {
   })
 
   test('handles visibility fetch error when JSON parsing fails', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<ProvenanceContext['fetch']>(async () => ({
       ok: false,
       status: 500,
       json: async () => {
@@ -455,7 +455,7 @@ describe('determineProvenance', () => {
   })
 
   test('encodes package name in URL', async () => {
-    const mockFetch = jest.fn(async () => ({
+    const mockFetch = jest.fn<ProvenanceContext['fetch']>(async () => ({
       ok: true,
       status: 200,
       json: async () => ({ public: true }),
@@ -485,7 +485,7 @@ describe('determineProvenance', () => {
 
     expect(mockFetch.mock.calls).toStrictEqual([[
       expect.objectContaining({
-        href: expect.stringContaining(encodeURIComponent(packageName)),
+        href: expect.stringContaining(packageName.replace('/', '%2f')),
       }),
       expect.anything(),
     ]])

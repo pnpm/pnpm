@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.walker",
-  "version": "1001.0.16",
+  "version": "1100.0.2",
   "description": "Walk over all the dependencies in a lockfile",
   "keywords": [
     "pnpm",
@@ -28,7 +28,7 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pn compile",
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {

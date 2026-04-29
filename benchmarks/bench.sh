@@ -84,8 +84,8 @@ for bin in "${VARIANT_BINS[@]}"; do
 done
 
 for i in "${!VARIANTS[@]}"; do
-  # Run --version from BENCH_DIR to avoid pnpm's manage-package-manager-versions
-  # switching the CLI based on a packageManager field in the current directory.
+  # Run --version from BENCH_DIR to avoid pnpm's automatic version switching
+  # based on a packageManager field in the current directory.
   echo "${VARIANTS[$i]}:   $(cd "$BENCH_DIR" && node "${VARIANT_BINS[$i]}" --version)  (${VARIANT_DIRS[$i]})"
 done
 echo "workdir: $BENCH_DIR"
@@ -115,7 +115,7 @@ for i in "${!VARIANTS[@]}"; do
   bin="${VARIANT_BINS[$i]}"
   echo "Populating store and cache for $label..."
   rm -rf "$dir/node_modules" "$dir/pnpm-lock.yaml"
-  cd "$dir" && node "$bin" install --ignore-scripts --no-frozen-lockfile >/dev/null 2>&1
+  cd "$dir" && node "$bin" install --ignore-scripts --no-frozen-lockfile
   if [ ! -f "$dir/pnpm-lock.yaml" ]; then
     echo "error: pnpm-lock.yaml was not created for $label in $dir" >&2
     exit 1

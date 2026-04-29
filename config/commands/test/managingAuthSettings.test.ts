@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { describe, expect, it } from '@jest/globals'
 import { config } from '@pnpm/config.commands'
 import { tempDir } from '@pnpm/prepare'
 

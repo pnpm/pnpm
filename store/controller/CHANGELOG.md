@@ -1,5 +1,137 @@
 # @pnpm/package-store
 
+## 1101.0.0
+
+### Patch Changes
+
+- Updated dependencies [421317c]
+  - @pnpm/fetching.fetcher-base@1100.1.0
+  - @pnpm/store.cafs@1100.1.0
+  - @pnpm/worker@1100.1.0
+  - @pnpm/hooks.types@1100.0.3
+  - @pnpm/installing.package-requester@1101.0.0
+  - @pnpm/store.controller-types@1100.0.3
+  - @pnpm/store.create-cafs-store@1100.0.3
+  - @pnpm/crypto.hash@1100.0.0
+
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [72c1e05]
+  - @pnpm/resolving.resolver-base@1100.1.0
+  - @pnpm/installing.package-requester@1100.0.2
+  - @pnpm/fetching.fetcher-base@1100.0.2
+  - @pnpm/hooks.types@1100.0.2
+  - @pnpm/store.controller-types@1100.0.2
+  - @pnpm/store.cafs@1100.0.2
+  - @pnpm/store.create-cafs-store@1100.0.2
+  - @pnpm/worker@1100.0.2
+  - @pnpm/crypto.hash@1100.0.0
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/fetching.fetcher-base@1100.0.1
+  - @pnpm/hooks.types@1100.0.1
+  - @pnpm/installing.package-requester@1100.0.1
+  - @pnpm/resolving.resolver-base@1100.0.1
+  - @pnpm/store.cafs@1100.0.1
+  - @pnpm/store.controller-types@1100.0.1
+  - @pnpm/worker@1100.0.1
+  - @pnpm/crypto.hash@1100.0.0
+  - @pnpm/store.create-cafs-store@1100.0.1
+
+## 1005.0.0
+
+### Major Changes
+
+- e2e0a32: Optimized index file format to store the hash algorithm once per file instead of repeating it for every file entry. Each file entry now stores only the hex digest instead of the full integrity string (`<algo>-<digest>`). Using hex format improves performance since file paths in the content-addressable store use hex representation, eliminating base64-to-hex conversion during path lookups.
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- 9eddabb: Added project registry for global virtual store prune support.
+
+  Projects using the store are now registered via symlinks in `{storeDir}/v11/projects/`. This enables `pnpm store prune` to track which packages are still in use by active projects and safely remove unused packages from the global virtual store.
+
+- 9eddabb: Added mark-and-sweep garbage collection for global virtual store.
+
+  `pnpm store prune` now removes unused packages from the global virtual store's `links/` directory. The algorithm:
+
+  1. Scans all registered projects for symlinks pointing to the store
+  2. Walks transitive dependencies to mark reachable packages
+  3. Removes any package directories not marked as reachable
+
+  This includes support for workspace monorepos - all `node_modules` directories within a project (including those in workspace packages) are scanned.
+
+- 38b8e35: Support for custom resolvers and fetchers.
+- b7f0f21: Use SQLite for storing package index in the content-addressable store. Instead of individual `.mpk` files under `$STORE/index/`, package metadata is now stored in a single SQLite database at `$STORE/index.db`. This reduces filesystem syscall overhead, improves space efficiency for small metadata entries, and enables concurrent access via SQLite's WAL mode. Packages missing from the new index are re-fetched on demand [#10826](https://github.com/pnpm/pnpm/issues/10826).
+
+### Patch Changes
+
+- 5a0ed1d: Do not add a symlink to the project into the store's project registry if the store is in a subdirectory of the project [#10411](https://github.com/pnpm/pnpm/issues/10411).
+- 2f98ec8: `pnpm store prune` now displays the total size of removed files.
+- 09bb8db: `pnpm store prune` should not fail if the store contains Node.js packages [#10131](https://github.com/pnpm/pnpm/issues/10131).
+- Updated dependencies [facdd71]
+- Updated dependencies [e2e0a32]
+- Updated dependencies [9b0a460]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [7cec347]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [491a84f]
+- Updated dependencies [6656baa]
+- Updated dependencies [2ea6463]
+- Updated dependencies [50fbeca]
+- Updated dependencies [caabba4]
+- Updated dependencies [56a59df]
+- Updated dependencies [ba065f6]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [2b81a4f]
+- Updated dependencies [bb8baa7]
+- Updated dependencies [878a773]
+- Updated dependencies [f8e6774]
+- Updated dependencies [ee9fe58]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [56a59df]
+- Updated dependencies [780af09]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [4893853]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [b7f0f21]
+- Updated dependencies [831f574]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [98a0410]
+- Updated dependencies [efb48dc]
+  - @pnpm/installing.package-requester@1009.0.0
+  - @pnpm/store.controller-types@1005.0.0
+  - @pnpm/resolving.resolver-base@1006.0.0
+  - @pnpm/store.cafs@1001.0.0
+  - @pnpm/worker@1001.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/store.create-cafs-store@1001.0.0
+  - @pnpm/fetching.fetcher-base@1002.0.0
+  - @pnpm/error@1001.0.0
+  - @pnpm/crypto.hash@1001.0.0
+  - @pnpm/hooks.types@1002.0.0
+  - @pnpm/store.index@1000.0.0
+
 ## 1004.0.0
 
 ### Patch Changes

@@ -43,7 +43,18 @@ export interface ConfigContext {
     name: string
     version: string
   }
-  wantedPackageManager?: EngineDependency
+  wantedPackageManager?: WantedPackageManager
+}
+
+/**
+ * The package manager requested by the root project's manifest.
+ * Extends {@link EngineDependency} with the source of the declaration so that
+ * callers can treat the legacy `packageManager` field and
+ * `devEngines.packageManager` differently (e.g. only the latter persists
+ * resolved pnpm integrity info to `pnpm-lock.yaml`).
+ */
+export interface WantedPackageManager extends EngineDependency {
+  fromDevEngines?: boolean
 }
 
 /**
@@ -69,7 +80,6 @@ export interface Config extends OptionsFromRootManifest {
   dir: string
   bin: string
   verifyDepsBeforeRun?: VerifyDepsBeforeRun
-  ignoreDepScripts?: boolean
   ignoreScripts?: boolean
   ignoreCompatibilityDb?: boolean
   includeWorkspaceRoot?: boolean
@@ -211,7 +221,10 @@ export interface Config extends OptionsFromRootManifest {
   packGzipLevel?: number
   blockExoticSubdeps?: boolean
 
+  agent?: string
+
   registries: Registries
+  namedRegistries?: Record<string, string>
   configByUri: Record<string, RegistryConfig>
   ignoreWorkspaceRootCheck: boolean
   workspaceRoot: boolean
@@ -235,12 +248,11 @@ export interface Config extends OptionsFromRootManifest {
   lockfile?: boolean
   dedupeInjectedDeps?: boolean
   nodeOptions?: string
-  packageManagerStrict?: boolean
-  packageManagerStrictVersion?: boolean
+  pmOnFail?: 'download' | 'error' | 'warn' | 'ignore'
+  runtimeOnFail?: 'download' | 'error' | 'warn' | 'ignore'
   virtualStoreDirMaxLength: number
   peersSuffixMaxLength?: number
   strictStorePkgContentCheck: boolean
-  managePackageManagerVersions: boolean
   strictDepBuilds: boolean
   syncInjectedDepsAfterScripts?: string[]
   initPackageManager: boolean
@@ -250,12 +262,14 @@ export interface Config extends OptionsFromRootManifest {
   preserveAbsolutePaths?: boolean
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
+  minimumReleaseAgeIgnoreMissingTime?: boolean
+  minimumReleaseAgeStrict?: boolean
   fetchWarnTimeoutMs?: number
   fetchMinSpeedKiBps?: number
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number
-  auditLevel?: 'low' | 'moderate' | 'high' | 'critical'
+  auditLevel?: 'info' | 'low' | 'moderate' | 'high' | 'critical'
 
   packageConfigs?: ProjectConfigSet
 }

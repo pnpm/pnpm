@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { describe, expect, it } from '@jest/globals'
 import { isEmptyDirOrNothing } from '@pnpm/fs.is-empty-dir-or-nothing'
 
 describe('isEmptyDirOrNothing', () => {
@@ -36,5 +37,19 @@ describe('isEmptyDirOrNothing', () => {
     )
     const result = isEmptyDirOrNothing(dirWithFilesPath)
     expect(result).toBe(false)
+  })
+
+  it('should return false on an empty file', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'is-empty-dir-or-nothing-'))
+    const emptyFilePath = path.join(tempDir, 'empty-file')
+    fs.writeFileSync(emptyFilePath, '', 'utf8')
+
+    try {
+      const result = isEmptyDirOrNothing(emptyFilePath)
+
+      expect(result).toBe(false)
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true })
+    }
   })
 })

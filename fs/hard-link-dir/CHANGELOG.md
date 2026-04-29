@@ -1,5 +1,21 @@
 # @pnpm/fs.hard-link-dir
 
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Patch Changes
+
+- 2a50b89: Handle ENOENT errors thrown by `fs.linkSync()`, which can occur in containerized environments (OverlayFS) instead of EXDEV. The operation now gracefully falls back to `fs.copyFileSync()` in these cases [#10217](https://github.com/pnpm/pnpm/issues/10217).
+- 0fd53e1: Don't crash when two processes of pnpm are hardlinking the contents of a directory to the same destination simultaneously [#10179](https://github.com/pnpm/pnpm/issues/10179).
+- b09722f: Don't crash when two processes of pnpm are hardlinking the contents of a directory to the same destination simultaneously [#10160](https://github.com/pnpm/pnpm/pull/10160).
+- Updated dependencies [491a84f]
+- Updated dependencies [7d2fd48]
+  - @pnpm/fs.graceful-fs@1001.0.0
+
 ## 1000.0.2
 
 ### Patch Changes

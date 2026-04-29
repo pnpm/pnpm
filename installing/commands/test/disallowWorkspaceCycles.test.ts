@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import { install } from '@pnpm/installing.commands'
 import { preparePackages } from '@pnpm/prepare'

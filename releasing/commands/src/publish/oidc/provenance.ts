@@ -1,4 +1,5 @@
 import { PnpmError } from '@pnpm/error'
+import npa from '@pnpm/npm-package-arg'
 
 import type { PublishPackedPkgOptions } from '../publishPackedPkg.js'
 import { SHARED_CONTEXT } from '../utils/shared-context.js'
@@ -97,8 +98,7 @@ export async function determineProvenance ({
     throw new ProvenanceInsufficientInformationError()
   }
 
-  const escapedPackageName = encodeURIComponent(packageName)
-  const visibilityUrl = new URL(`/-/package/${escapedPackageName}/visibility`, registry)
+  const visibilityUrl = new URL(`/-/package/${npa(packageName).escapedName}/visibility`, registry)
   const response = await fetch(visibilityUrl, {
     headers: {
       Accept: 'application/json',

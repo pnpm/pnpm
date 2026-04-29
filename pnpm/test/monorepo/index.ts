@@ -2,6 +2,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import type { Config } from '@pnpm/config.reader'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
@@ -1969,7 +1970,7 @@ test('deploy should keep files created by lifecycle scripts', async () => {
   }
 })
 
-test('rebuild in a directory created with "pnpm deploy" and with "pnpm.neverBuiltDependencies" configured should run lifecycle scripts', async () => {
+test('rebuild in a directory created with "pnpm deploy" should run lifecycle scripts', async () => {
   const preparedManifests = {
     root: {
       name: 'root',

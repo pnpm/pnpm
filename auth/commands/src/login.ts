@@ -1,7 +1,5 @@
-import { execFile } from 'node:child_process'
 import path from 'node:path'
 import readline from 'node:readline'
-import util from 'node:util'
 
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
@@ -12,7 +10,6 @@ import {
   generateQrCode,
   pollForWebAuthToken,
   promptBrowserOpen,
-  type PromptBrowserOpenExecFile,
   type PromptBrowserOpenReadlineInterface,
   SyntheticOtpError,
   type WebAuthFetchOptions,
@@ -23,6 +20,8 @@ import normalizeRegistryUrl from 'normalize-registry-url'
 import { readIniFile } from 'read-ini-file'
 import { renderHelp } from 'render-help'
 import { writeIniFile } from 'write-ini-file'
+
+import { getRegistryConfigKey, safeReadIniFile } from './shared.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return { registry: allTypes.registry }
@@ -101,7 +100,7 @@ export interface LoginFetchResponseHeaders {
 }
 
 export interface LoginFetchOptions {
-  method?: string
+  method?: 'GET' | 'POST' | 'PUT'
   headers?: {
     accept: 'application/json'
     'content-type': 'application/json'
@@ -137,7 +136,6 @@ export interface LoginContext {
   setTimeout: (cb: () => void, ms: number) => void
   createReadlineInterface: () => PromptBrowserOpenReadlineInterface
   enquirer: LoginEnquirer
-  execFile: PromptBrowserOpenExecFile
   fetch: (url: string, options?: LoginFetchOptions) => Promise<LoginFetchResponse>
   globalInfo: (message: string) => void
   globalWarn: (message: string) => void
@@ -151,7 +149,6 @@ export const DEFAULT_CONTEXT: LoginContext = {
   setTimeout,
   createReadlineInterface: readline.createInterface.bind(null, { input: process.stdin }),
   enquirer,
-  execFile,
   fetch,
   globalInfo,
   globalWarn,
@@ -211,7 +208,7 @@ export async function login ({ context = DEFAULT_CONTEXT, opts }: LoginParams): 
 }
 
 interface WebLoginParams {
-  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'createReadlineInterface' | 'execFile' | 'fetch' | 'globalInfo' | 'globalWarn' | 'process'>
+  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'createReadlineInterface' | 'fetch' | 'globalInfo' | 'globalWarn' | 'process'>
   fetchOptions: WebAuthFetchOptions
   registry: string
 }
@@ -262,7 +259,7 @@ async function webLogin ({
 }
 
 interface ClassicLoginParams {
-  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'createReadlineInterface' | 'enquirer' | 'execFile' | 'fetch' | 'globalInfo' | 'globalWarn' | 'process'>
+  context: Pick<LoginContext, 'Date' | 'setTimeout' | 'createReadlineInterface' | 'enquirer' | 'fetch' | 'globalInfo' | 'globalWarn' | 'process'>
   fetchOptions: WebAuthFetchOptions
   registry: string
 }
@@ -358,23 +355,6 @@ async function throwIfOtpRequired (globalWarn: LoginContext['globalWarn'], respo
   } catch {}
 
   throw SyntheticOtpError.fromUnknownBody(globalWarn, body)
-}
-
-function getRegistryConfigKey (registryUrl: string): string {
-  const url = new URL(registryUrl)
-  return `//${url.host}${url.pathname}`
-}
-
-async function safeReadIniFile (
-  readIniFile: LoginContext['readIniFile'],
-  configPath: string
-): Promise<object> {
-  try {
-    return await readIniFile(configPath)
-  } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return {}
-    throw err
-  }
 }
 
 class LoginNonInteractiveError extends PnpmError {

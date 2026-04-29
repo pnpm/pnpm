@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/assert-store",
   "description": "Utils for testing pnpm store",
-  "version": "1000.0.3",
+  "version": "1100.0.3",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -32,12 +32,14 @@
     "test": "pn pretest && pn compile && jest"
   },
   "dependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.index": "workspace:*"
   },
   "devDependencies": {
     "@pnpm/assert-store": "workspace:*",
-    "@pnpm/constants": "workspace:*"
+    "@pnpm/constants": "workspace:*",
+    "@types/node": "catalog:"
   }
 }

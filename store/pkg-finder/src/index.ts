@@ -55,6 +55,8 @@ export async function readPackageFileMap (
     )
   } else if (!packageResolution.type && 'tarball' in packageResolution && packageResolution.tarball) {
     pkgIndexFilePath = gitHostedStoreIndexKey(packageId, { built: true })
+  } else if (packageResolution.type === 'git') {
+    pkgIndexFilePath = gitHostedStoreIndexKey(packageId, { built: true })
   } else {
     return undefined
   }

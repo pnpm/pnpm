@@ -1,5 +1,142 @@
 # @pnpm/client
 
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [dd23d19]
+  - @pnpm/fetching.binary-fetcher@1101.0.1
+  - @pnpm/resolving.default-resolver@1100.0.5
+
+## 1100.0.4
+
+### Patch Changes
+
+- Updated dependencies [421317c]
+  - @pnpm/fetching.binary-fetcher@1101.0.0
+  - @pnpm/fetching.tarball-fetcher@1101.0.0
+  - @pnpm/engine.runtime.node-resolver@1101.0.0
+  - @pnpm/fetching.directory-fetcher@1100.0.4
+  - @pnpm/fetching.git-fetcher@1101.0.0
+  - @pnpm/hooks.types@1100.0.3
+  - @pnpm/resolving.default-resolver@1100.0.4
+
+## 1100.0.3
+
+### Patch Changes
+
+- Updated dependencies [e03e8f4]
+- Updated dependencies [72c1e05]
+  - @pnpm/fetching.directory-fetcher@1100.0.3
+  - @pnpm/resolving.resolver-base@1100.1.0
+  - @pnpm/hooks.types@1100.0.2
+  - @pnpm/resolving.default-resolver@1100.0.3
+  - @pnpm/fetching.binary-fetcher@1100.0.2
+  - @pnpm/fetching.git-fetcher@1100.0.3
+  - @pnpm/fetching.tarball-fetcher@1100.0.3
+
+## 1100.0.2
+
+### Patch Changes
+
+- @pnpm/resolving.default-resolver@1100.0.2
+- @pnpm/fetching.directory-fetcher@1100.0.2
+- @pnpm/fetching.git-fetcher@1100.0.2
+- @pnpm/fetching.tarball-fetcher@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/fetching.directory-fetcher@1100.0.1
+  - @pnpm/fetching.git-fetcher@1100.0.1
+  - @pnpm/fetching.tarball-fetcher@1100.0.1
+  - @pnpm/hooks.types@1100.0.1
+  - @pnpm/network.auth-header@1100.0.1
+  - @pnpm/network.fetch@1100.0.1
+  - @pnpm/resolving.default-resolver@1100.0.1
+  - @pnpm/resolving.resolver-base@1100.0.1
+  - @pnpm/fetching.binary-fetcher@1100.0.1
+
+## 1002.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+- 96704a1: Renamed `rawConfig` to `authConfig` on the `Config` interface. This field now only contains auth/registry data from `.npmrc` files. Non-auth settings are no longer written to it.
+
+  Added `nodeDownloadMirrors` setting to configure custom Node.js download mirrors in `pnpm-workspace.yaml`:
+
+  ```yaml
+  nodeDownloadMirrors:
+    release: https://my-mirror.example.com/download/release/
+    nightly: https://my-mirror.example.com/download/nightly/
+  ```
+
+  Replaced `rawConfig: object` with `userAgent?: string` in lifecycle hook options. Removed unused `rawConfig` from fetcher and prepare-package options.
+
+  Removed support for the npm `init-module` setting. Custom init scripts via `.pnpm-init.js` are no longer executed by `pnpm init`.
+
+### Minor Changes
+
+- 38b8e35: Support for custom resolvers and fetchers.
+
+### Patch Changes
+
+- Updated dependencies [facdd71]
+- Updated dependencies [9b0a460]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [e3b94c0]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [491a84f]
+- Updated dependencies [260899d]
+- Updated dependencies [fb8962f]
+- Updated dependencies [ec7c5d7]
+- Updated dependencies [b1ad9c7]
+- Updated dependencies [50fbeca]
+- Updated dependencies [0dfa8b8]
+- Updated dependencies [c5fbdde]
+- Updated dependencies [ba065f6]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [bb8baa7]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [96704a1]
+- Updated dependencies [50fbeca]
+- Updated dependencies [bb8baa7]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [6c480a4]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [b7f0f21]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [efb48dc]
+- Updated dependencies [6b3d87a]
+  - @pnpm/resolving.resolver-base@1006.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/fetching.tarball-fetcher@1004.0.0
+  - @pnpm/fetching.git-fetcher@1004.0.0
+  - @pnpm/fetching.binary-fetcher@1003.0.0
+  - @pnpm/fetching.directory-fetcher@1001.0.0
+  - @pnpm/resolving.default-resolver@1003.0.0
+  - @pnpm/fetching.types@1001.0.0
+  - @pnpm/network.auth-header@1001.0.0
+  - @pnpm/network.fetch@1001.0.0
+  - @pnpm/hooks.types@1002.0.0
+  - @pnpm/store.index@1000.0.0
+
 ## 1001.1.4
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.inspection.outdated",
-  "version": "1001.1.1",
+  "version": "1100.0.5",
   "description": "Check for outdated packages",
   "keywords": [
     "pnpm",
@@ -27,7 +27,7 @@
   "scripts": {
     "test": "pn compile && pn .test",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "compile": "tsgo --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },

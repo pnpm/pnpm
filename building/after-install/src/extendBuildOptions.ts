@@ -4,7 +4,7 @@ import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/config.normalize-
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import type { LogBase } from '@pnpm/logger'
 import type { StoreController } from '@pnpm/store.controller-types'
-import type { Registries, RegistryConfig } from '@pnpm/types'
+import type { Registries, RegistryConfig, SupportedArchitectures } from '@pnpm/types'
 import { loadJsonFile } from 'load-json-file'
 
 export type StrictBuildOptions = {
@@ -46,12 +46,12 @@ export type StrictBuildOptions = {
   pending: boolean
   shamefullyHoist: boolean
   deployAllFiles: boolean
-  neverBuiltDependencies?: string[]
   allowBuilds?: Record<string, boolean | string>
   virtualStoreDirMaxLength: number
   peersSuffixMaxLength: number
   strictStorePkgContentCheck: boolean
   fetchFullMetadata?: boolean
+  supportedArchitectures?: SupportedArchitectures
 } & Pick<Config, 'allowBuilds'>
 
 export type BuildOptions = Partial<StrictBuildOptions> &

@@ -1,5 +1,340 @@
 # @pnpm/plugin-commands-installation
 
+## 1100.1.3
+
+### Patch Changes
+
+- Updated dependencies [005eeb7]
+  - @pnpm/installing.deps-installer@1101.0.1
+  - @pnpm/global.commands@1100.0.5
+  - @pnpm/deps.inspection.outdated@1100.0.5
+  - @pnpm/store.connection-manager@1100.0.5
+  - @pnpm/store.controller@1101.0.0
+  - @pnpm/building.after-install@1101.0.1
+  - @pnpm/installing.env-installer@1101.0.0
+
+## 1100.1.2
+
+### Patch Changes
+
+- @pnpm/hooks.pnpmfile@1100.0.3
+- @pnpm/store.controller@1101.0.0
+- @pnpm/building.after-install@1101.0.0
+- @pnpm/installing.deps-installer@1101.0.0
+- @pnpm/installing.env-installer@1101.0.0
+- @pnpm/deps.inspection.outdated@1100.0.4
+- @pnpm/store.connection-manager@1100.0.4
+- @pnpm/installing.context@1100.0.3
+- @pnpm/global.commands@1100.0.4
+- @pnpm/workspace.projects-graph@1100.0.3
+- @pnpm/config.reader@1101.1.1
+- @pnpm/deps.status@1100.0.4
+- @pnpm/workspace.projects-filter@1100.0.4
+- @pnpm/workspace.state@1100.0.4
+- @pnpm/workspace.workspace-manifest-writer@1100.0.2
+
+## 1100.1.1
+
+### Patch Changes
+
+- Updated dependencies [7d25bc1]
+- Updated dependencies [72c1e05]
+- Updated dependencies [9e0833c]
+  - @pnpm/config.reader@1101.1.0
+  - @pnpm/resolving.resolver-base@1100.1.0
+  - @pnpm/installing.deps-installer@1100.0.3
+  - @pnpm/building.after-install@1100.0.3
+  - @pnpm/store.connection-manager@1100.0.3
+  - @pnpm/deps.inspection.outdated@1100.0.3
+  - @pnpm/deps.status@1100.0.3
+  - @pnpm/global.commands@1100.0.3
+  - @pnpm/workspace.state@1100.0.3
+  - @pnpm/installing.env-installer@1100.1.1
+  - @pnpm/installing.context@1100.0.2
+  - @pnpm/lockfile.types@1100.0.2
+  - @pnpm/store.controller@1100.0.2
+  - @pnpm/workspace.projects-graph@1100.0.2
+  - @pnpm/hooks.pnpmfile@1100.0.2
+  - @pnpm/installing.dedupe.check@1100.0.2
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.2
+  - @pnpm/workspace.projects-filter@1100.0.3
+  - @pnpm/config.writer@1100.0.2
+
+## 1100.1.0
+
+### Minor Changes
+
+- ff7733c: Added a new setting `runtimeOnFail` that overrides the `onFail` field of `devEngines.runtime` (and `engines.runtime`) in the root project's `package.json`. Accepted values: `ignore`, `warn`, `error`, `download`. For example, setting `runtimeOnFail=download` makes pnpm download the declared runtime version even when the manifest does not set `onFail: "download"`.
+
+### Patch Changes
+
+- Updated dependencies [cee550a]
+- Updated dependencies [4ab3d9b]
+- Updated dependencies [9af708a]
+- Updated dependencies [ea2a7fb]
+- Updated dependencies [ff7733c]
+  - @pnpm/cli.utils@1101.0.0
+  - @pnpm/config.reader@1101.0.0
+  - @pnpm/workspace.projects-reader@1101.0.0
+  - @pnpm/installing.env-installer@1100.1.0
+  - @pnpm/pkg-manifest.utils@1100.1.0
+  - @pnpm/global.commands@1100.0.2
+  - @pnpm/building.after-install@1100.0.2
+  - @pnpm/deps.status@1100.0.2
+  - @pnpm/store.connection-manager@1100.0.2
+  - @pnpm/workspace.state@1100.0.2
+  - @pnpm/workspace.projects-filter@1100.0.2
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.1
+  - @pnpm/deps.inspection.outdated@1100.0.2
+  - @pnpm/installing.deps-installer@1100.0.2
+  - @pnpm/workspace.project-manifest-reader@1100.0.2
+  - @pnpm/store.controller@1100.0.1
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/building.after-install@1100.0.1
+  - @pnpm/cli.utils@1100.0.1
+  - @pnpm/config.pick-registry-for-package@1100.0.1
+  - @pnpm/config.reader@1100.0.1
+  - @pnpm/config.writer@1100.0.1
+  - @pnpm/deps.inspection.outdated@1100.0.1
+  - @pnpm/deps.path@1100.0.1
+  - @pnpm/deps.status@1100.0.1
+  - @pnpm/global.commands@1100.0.1
+  - @pnpm/hooks.pnpmfile@1100.0.1
+  - @pnpm/installing.context@1100.0.1
+  - @pnpm/installing.dedupe.check@1100.0.1
+  - @pnpm/installing.deps-installer@1100.0.1
+  - @pnpm/installing.env-installer@1100.0.1
+  - @pnpm/lockfile.types@1100.0.1
+  - @pnpm/pkg-manifest.reader@1100.0.1
+  - @pnpm/pkg-manifest.utils@1100.0.1
+  - @pnpm/resolving.resolver-base@1100.0.1
+  - @pnpm/store.controller@1100.0.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.1
+  - @pnpm/workspace.project-manifest-writer@1100.0.1
+  - @pnpm/workspace.projects-filter@1100.0.1
+  - @pnpm/workspace.projects-graph@1100.0.1
+  - @pnpm/workspace.projects-reader@1100.0.1
+  - @pnpm/workspace.projects-sorter@1100.0.1
+  - @pnpm/workspace.state@1100.0.1
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.1
+  - @pnpm/store.connection-manager@1100.0.1
+
+## 1005.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- fd511e4: Isolated global packages. Each globally installed package (or group of packages installed together) now gets its own isolated installation directory with its own `package.json`, `node_modules/`, and lockfile. This prevents global packages from interfering with each other through peer dependency conflicts, hoisting changes, or version resolution shifts.
+
+  Key changes:
+
+  - `pnpm add -g <pkg>` creates an isolated installation in `{pnpmHomeDir}/global/v11/{hash}/`
+  - `pnpm remove -g <pkg>` removes the entire installation group containing the package
+  - `pnpm update -g [pkg]` re-installs packages in new isolated directories
+  - `pnpm list -g` scans isolated directories to show all installed global packages
+  - `pnpm install -g` (no args) is no longer supported; use `pnpm add -g <pkg>` instead
+
+- fd511e4: Breaking changes to `pnpm link`:
+
+  - `pnpm link <pkg-name>` no longer resolves packages from the global store. Only relative or absolute paths are accepted. For example, use `pnpm link ./foo` instead of `pnpm link foo`.
+  - `pnpm link --global` is removed. Use `pnpm add -g .` to register a local package's bins globally.
+  - `pnpm link` (no arguments) is removed. Use `pnpm link <dir>` with an explicit path instead.
+
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+- cb367b9: Remove deprecated build dependency settings: `onlyBuiltDependencies`, `onlyBuiltDependenciesFile`, `neverBuiltDependencies`, and `ignoredBuiltDependencies`.
+- 7b1c189: Removed the deprecated `allowNonAppliedPatches` completely in favor of `allowUnusedPatches`.
+  Remove `ignorePatchFailures` so all patch application failures should throw an error.
+- 71de2b3: Removed support for the `useNodeVersion` and `executionEnv.nodeVersion` fields. `devEngines.runtime` and `engines.runtime` should be used instead [#10373](https://github.com/pnpm/pnpm/pull/10373).
+- b51bb42: Support lowercase options in `pnpm add`: `-d`, `-p`, `-o`, `-e` [#9197](https://github.com/pnpm/pnpm/issues/9197).
+
+  When using `pnpm add` command only:
+
+  - `-p` is now an alias for `--save-prod` instead of `--parseable`
+  - `-d` is now an alias for `--save-dev` instead of `--loglevel=info`
+
+### Minor Changes
+
+- 996284f: Allow `pnpm approve-builds` to receive positional arguments for approving or denying packages without the interactive prompt. Prefix a package name with `!` to deny it. Only mentioned packages are affected; the rest are left untouched.
+
+  During install, packages with ignored builds that are not yet listed in `allowBuilds` are automatically added with a placeholder value. This makes them visible in `pnpm-workspace.yaml` so users can manually change them to `true` or `false` without running `pnpm approve-builds`.
+
+- facdd71: Adding `trustPolicyIgnoreAfter` allows you to ignore trust policy checks for packages published more than a specified time ago[#10352](https://github.com/pnpm/pnpm/issues/10352).
+- 10bc391: Added a new setting: `trustPolicy`.
+- 15549a9: Add the ability to fix vulnerabilities by updating packages in the lockfile instead of adding overrides.
+- 9d3f00b: Added support for `trustPolicyExclude` [#10164](https://github.com/pnpm/pnpm/issues/10164).
+
+  You can now list one or more specific packages or versions that pnpm should allow to install, even if those packages don't satisfy the trust policy requirement. For example:
+
+  ```yaml
+  trustPolicy: no-downgrade
+  trustPolicyExclude:
+    - chokidar@4.0.3
+    - webpack@4.47.0 || 5.102.1
+  ```
+
+- 09a999a: Added a new setting `virtualStoreOnly` that populates the virtual store without creating importer symlinks, hoisting, bin links, or running lifecycle scripts. This is useful for pre-populating a store (e.g., in Nix builds) without creating unnecessary project-level artifacts. `pnpm fetch` now uses this mode internally [#10840](https://github.com/pnpm/pnpm/issues/10840).
+
+### Patch Changes
+
+- 4c6c26a: When the [`enableGlobalVirtualStore`](https://pnpm.io/settings#enableglobalvirtualstore) option is set, the `pnpm deploy` command would incorrectly create symlinks to the global virtual store. To keep the deploy directory self-contained, `pnpm deploy` now ignores this setting and always creates a localized virtual store within the deploy directory.
+- 0b5ccc9: When a user runs `pnpm update` on a dependency that is not directly listed in `package.json`, none of the direct dependencies should be updated [#10155](https://github.com/pnpm/pnpm/pull/10155).
+- 9fc552d: In GVS mode, `pnpm approve-builds` now runs a full install instead of rebuild. This ensures that GVS hash directories and symlinks are updated correctly after changing `allowBuilds`, preventing build artifact contamination of engine-agnostic directories [#11042](https://github.com/pnpm/pnpm/issues/11042).
+- 312226c: Skip local `file:` protocol dependencies during `pnpm fetch`. This fixes an issue where `pnpm fetch` would fail in Docker builds when local directory dependencies were not available [#10460](https://github.com/pnpm/pnpm/issues/10460).
+- fa5a5c6: Fixed `pnpm update --interactive` table breaking with long version strings (e.g., prerelease versions like `7.0.0-dev.20251209.1`) by dynamically calculating column widths instead of using hardcoded values [#10316](https://github.com/pnpm/pnpm/issues/10316).
+- 6f806be: Removed TypeScript specific syntax (such as enums and visibility modifiers in constructors) to enable `erasableSyntaxOnly`.
+- ace7903: The parameter set by the `--allow-build` flag is written to `allowBuilds`.
+- Updated dependencies [e1ea779]
+- Updated dependencies [7730a7f]
+- Updated dependencies [5f73b0f]
+- Updated dependencies [996284f]
+- Updated dependencies [7721d2e]
+- Updated dependencies [ae8b816]
+- Updated dependencies [facdd71]
+- Updated dependencies [e2e0a32]
+- Updated dependencies [c55c614]
+- Updated dependencies [9b0a460]
+- Updated dependencies [3c72b6b]
+- Updated dependencies [5d130c3]
+- Updated dependencies [9f5c0e3]
+- Updated dependencies [a1807b1]
+- Updated dependencies [76718b3]
+- Updated dependencies [821b36a]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [5a0ed1d]
+- Updated dependencies [90bd3c3]
+- Updated dependencies [1cc61e8]
+- Updated dependencies [606f53e]
+- Updated dependencies [c7203b9]
+- Updated dependencies [bb17724]
+- Updated dependencies [2fccb03]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [da2429d]
+- Updated dependencies [1fd7370]
+- Updated dependencies [efb48dc]
+- Updated dependencies [1cc61e8]
+- Updated dependencies [19f36cf]
+- Updated dependencies [491a84f]
+- Updated dependencies [9b801c8]
+- Updated dependencies [62f760e]
+- Updated dependencies [f0ae1b9]
+- Updated dependencies [9fc552d]
+- Updated dependencies [394d88c]
+- Updated dependencies [672e58c]
+- Updated dependencies [03c502c]
+- Updated dependencies [3417386]
+- Updated dependencies [312226c]
+- Updated dependencies [2fc9139]
+- Updated dependencies [d8be970]
+- Updated dependencies [121f64a]
+- Updated dependencies [7fab2a2]
+- Updated dependencies [cb367b9]
+- Updated dependencies [543c7e4]
+- Updated dependencies [9eddabb]
+- Updated dependencies [075aa99]
+- Updated dependencies [e119c4e]
+- Updated dependencies [fd511e4]
+- Updated dependencies [ae43ac7]
+- Updated dependencies [ccec8e7]
+- Updated dependencies [98a5f1c]
+- Updated dependencies [ba065f6]
+- Updated dependencies [4158906]
+- Updated dependencies [ac944ef]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [9eddabb]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+- Updated dependencies [d5d4eed]
+- Updated dependencies [e146e98]
+- Updated dependencies [095f659]
+- Updated dependencies [96704a1]
+- Updated dependencies [50fbeca]
+- Updated dependencies [4a36b9a]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [51b04c3]
+- Updated dependencies [69ebe38]
+- Updated dependencies [6f806be]
+- Updated dependencies [d01b81f]
+- Updated dependencies [3ed41f4]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [cee1f58]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [05158d2]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [4f66fbe]
+- Updated dependencies [38b8e35]
+- Updated dependencies [b7f0f21]
+- Updated dependencies [1e6de25]
+- Updated dependencies [831f574]
+- Updated dependencies [2df8b71]
+- Updated dependencies [2f98ec8]
+- Updated dependencies [ed1a7fe]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [5bf7768]
+- Updated dependencies [ae43ac7]
+- Updated dependencies [09bb8db]
+- Updated dependencies [a5fdbf9]
+- Updated dependencies [7354e6b]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [efb48dc]
+- Updated dependencies [9587dac]
+- Updated dependencies [efb48dc]
+- Updated dependencies [09a999a]
+- Updated dependencies [de561a5]
+- Updated dependencies [559f903]
+- Updated dependencies [2b14c74]
+- Updated dependencies [41dc031]
+- Updated dependencies [3574905]
+- Updated dependencies [4362c06]
+  - @pnpm/cli.common-cli-options-help@1001.0.0
+  - @pnpm/config.reader@1005.0.0
+  - @pnpm/deps.path@1002.0.0
+  - @pnpm/installing.deps-installer@1013.0.0
+  - @pnpm/building.after-install@1000.0.0
+  - @pnpm/config.writer@1001.0.0
+  - @pnpm/workspace.workspace-manifest-writer@1002.0.0
+  - @pnpm/resolving.resolver-base@1006.0.0
+  - @pnpm/store.controller@1005.0.0
+  - @pnpm/constants@1002.0.0
+  - @pnpm/installing.context@1002.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/installing.env-installer@1001.0.0
+  - @pnpm/lockfile.types@1003.0.0
+  - @pnpm/workspace.state@1003.0.0
+  - @pnpm/cli.utils@1002.0.0
+  - @pnpm/workspace.projects-filter@1001.0.0
+  - @pnpm/pkg-manifest.utils@1002.0.0
+  - @pnpm/deps.inspection.outdated@1002.0.0
+  - @pnpm/workspace.project-manifest-writer@1001.0.0
+  - @pnpm/workspace.project-manifest-reader@1002.0.0
+  - @pnpm/config.pick-registry-for-package@1001.0.0
+  - @pnpm/resolving.parse-wanted-dependency@1002.0.0
+  - @pnpm/pkg-manifest.reader@1001.0.0
+  - @pnpm/store.connection-manager@1003.0.0
+  - @pnpm/workspace.root-finder@1001.0.0
+  - @pnpm/workspace.projects-reader@1001.0.0
+  - @pnpm/workspace.projects-sorter@1001.0.0
+  - @pnpm/workspace.projects-graph@1001.0.0
+  - @pnpm/fs.read-modules-dir@1001.0.0
+  - @pnpm/catalogs.types@1001.0.0
+  - @pnpm/config.matcher@1001.0.0
+  - @pnpm/fs.graceful-fs@1001.0.0
+  - @pnpm/hooks.pnpmfile@1003.0.0
+  - @pnpm/error@1001.0.0
+  - @pnpm/installing.dedupe.check@1002.0.0
+  - @pnpm/cli.command@1001.0.0
+  - @pnpm/deps.status@1004.0.0
+  - @pnpm/global.commands@1000.0.0
+
 ## 1004.6.10
 
 ### Patch Changes

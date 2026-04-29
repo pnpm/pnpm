@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { beforeEach, describe, expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import type { PackageManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'

@@ -1,5 +1,195 @@
 # @pnpm/config.deps-installer
 
+## 1101.0.0
+
+### Patch Changes
+
+- Updated dependencies [421317c]
+  - @pnpm/worker@1100.1.0
+  - @pnpm/store.controller@1101.0.0
+  - @pnpm/store.controller-types@1100.0.3
+  - @pnpm/resolving.npm-resolver@1101.0.0
+  - @pnpm/installing.deps-resolver@1100.0.4
+  - @pnpm/lockfile.utils@1100.0.3
+  - @pnpm/deps.graph-hasher@1100.1.1
+  - @pnpm/lockfile.fs@1100.0.3
+
+## 1100.1.1
+
+### Patch Changes
+
+- Updated dependencies [c86c423]
+- Updated dependencies [72c1e05]
+- Updated dependencies [9e0833c]
+  - @pnpm/installing.deps-resolver@1100.0.3
+  - @pnpm/deps.graph-hasher@1100.1.0
+  - @pnpm/resolving.npm-resolver@1100.1.0
+  - @pnpm/lockfile.types@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.2
+  - @pnpm/store.controller@1100.0.2
+  - @pnpm/store.controller-types@1100.0.2
+  - @pnpm/lockfile.fs@1100.0.2
+  - @pnpm/lockfile.pruner@1100.0.2
+  - @pnpm/worker@1100.0.2
+  - @pnpm/config.writer@1100.0.2
+
+## 1100.1.0
+
+### Minor Changes
+
+- ea2a7fb: When pnpm is declared via the `packageManager` field in `package.json`, its resolution info is no longer written to `pnpm-lock.yaml` — unless the pinned pnpm version is v12 or newer. The `packageManagerDependencies` section is still populated (and reused across runs) when pnpm is declared via `devEngines.packageManager`. This makes the transition from pnpm v10 to v11 quieter by avoiding unnecessary lockfile churn for projects that pin an older pnpm in the legacy `packageManager` field.
+
+### Patch Changes
+
+- @pnpm/installing.deps-resolver@1100.0.2
+- @pnpm/store.controller@1100.0.1
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/config.pick-registry-for-package@1100.0.1
+  - @pnpm/config.writer@1100.0.1
+  - @pnpm/core-loggers@1100.0.1
+  - @pnpm/deps.graph-hasher@1100.0.1
+  - @pnpm/installing.deps-resolver@1100.0.1
+  - @pnpm/lockfile.fs@1100.0.1
+  - @pnpm/lockfile.pruner@1100.0.1
+  - @pnpm/lockfile.types@1100.0.1
+  - @pnpm/lockfile.utils@1100.0.1
+  - @pnpm/network.auth-header@1100.0.1
+  - @pnpm/network.fetch@1100.0.1
+  - @pnpm/pkg-manifest.reader@1100.0.1
+  - @pnpm/resolving.npm-resolver@1100.0.1
+  - @pnpm/store.controller@1100.0.1
+  - @pnpm/store.controller-types@1100.0.1
+  - @pnpm/worker@1100.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- 821b36a: Config dependencies are now installed into the global virtual store (`{storeDir}/links/`) and symlinked into `node_modules/.pnpm-config/`. This allows config dependencies to be shared across projects that use the same store, avoiding redundant fetches and imports.
+- a8f016c: Store config dependency and package manager integrity info in `pnpm-lock.yaml` instead of inlining it in `pnpm-workspace.yaml`. The workspace manifest now contains only clean version specifiers for `configDependencies`, while the resolved versions, integrity hashes, and tarball URLs are recorded in the lockfile as a separate YAML document. The env lockfile section also stores `packageManagerDependencies` resolved during version switching and self-update. Projects using the old inline-hash format are automatically migrated on install.
+- cc1b8e3: Fixed installation of config dependencies from private registries.
+
+  Added support for object type in `configDependencies` when the tarball URL returned from package metadata differs from the computed URL [#10431](https://github.com/pnpm/pnpm/pull/10431).
+
+- d8be970: Throws `FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE` when attempting to install configuration dependencies with `--frozen-lockfile` active and the env lockfile is missing or out-of-date. Previously, the operation would silently rewrite the workspace file or resolve in-memory.
+- 4a36b9a: Refactor workspace domains: rename `project-finder` to `projects-reader`, merge `filter-packages-from-dir` into `filter-workspace-packages`, and rename it to `projects-filter`. Also, move and rename `config/deps-installer` to `installing/env-installer`.
+
+### Patch Changes
+
+- Updated dependencies [5f73b0f]
+- Updated dependencies [7721d2e]
+- Updated dependencies [ae8b816]
+- Updated dependencies [f98a2db]
+- Updated dependencies [facdd71]
+- Updated dependencies [e2e0a32]
+- Updated dependencies [c55c614]
+- Updated dependencies [a297ebc]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [5a0ed1d]
+- Updated dependencies [7cec347]
+- Updated dependencies [606f53e]
+- Updated dependencies [831f574]
+- Updated dependencies [0e9c559]
+- Updated dependencies [e46a652]
+- Updated dependencies [cd743ef]
+- Updated dependencies [19f36cf]
+- Updated dependencies [491a84f]
+- Updated dependencies [94571fb]
+- Updated dependencies [fb8962f]
+- Updated dependencies [54c4fc4]
+- Updated dependencies [e73da5e]
+- Updated dependencies [61cad0c]
+- Updated dependencies [b1ad9c7]
+- Updated dependencies [50fbeca]
+- Updated dependencies [2fc9139]
+- Updated dependencies [19f36cf]
+- Updated dependencies [0dfa8b8]
+- Updated dependencies [121f64a]
+- Updated dependencies [9eddabb]
+- Updated dependencies [075aa99]
+- Updated dependencies [c4045fc]
+- Updated dependencies [143ca78]
+- Updated dependencies [ba065f6]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [6f361aa]
+- Updated dependencies [0625e20]
+- Updated dependencies [938ea1f]
+- Updated dependencies [83fe533]
+- Updated dependencies [2cb0657]
+- Updated dependencies [bb8baa7]
+- Updated dependencies [ee9fe58]
+- Updated dependencies [d458ab3]
+- Updated dependencies [021f70d]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [9eddabb]
+- Updated dependencies [144ce0e]
+- Updated dependencies [efb48dc]
+- Updated dependencies [56a59df]
+- Updated dependencies [780af09]
+- Updated dependencies [50fbeca]
+- Updated dependencies [bb8baa7]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [6c480a4]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [cee1f58]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [4893853]
+- Updated dependencies [10bc391]
+- Updated dependencies [ba70035]
+- Updated dependencies [3585d9a]
+- Updated dependencies [38b8e35]
+- Updated dependencies [394d88c]
+- Updated dependencies [b7f0f21]
+- Updated dependencies [1e6de25]
+- Updated dependencies [831f574]
+- Updated dependencies [2df8b71]
+- Updated dependencies [2f98ec8]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [4f3ad23]
+- Updated dependencies [09bb8db]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [6557dc0]
+- Updated dependencies [98a0410]
+- Updated dependencies [efb48dc]
+- Updated dependencies [6b3d87a]
+  - @pnpm/installing.deps-resolver@1009.0.0
+  - @pnpm/deps.graph-hasher@1003.0.0
+  - @pnpm/config.writer@1001.0.0
+  - @pnpm/store.controller-types@1005.0.0
+  - @pnpm/resolving.npm-resolver@1005.0.0
+  - @pnpm/worker@1001.0.0
+  - @pnpm/store.controller@1005.0.0
+  - @pnpm/constants@1002.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/lockfile.fs@1002.0.0
+  - @pnpm/lockfile.types@1003.0.0
+  - @pnpm/lockfile.utils@1004.0.0
+  - @pnpm/config.pick-registry-for-package@1001.0.0
+  - @pnpm/resolving.parse-wanted-dependency@1002.0.0
+  - @pnpm/pkg-manifest.reader@1001.0.0
+  - @pnpm/core-loggers@1002.0.0
+  - @pnpm/fs.read-modules-dir@1001.0.0
+  - @pnpm/network.auth-header@1001.0.0
+  - @pnpm/lockfile.pruner@1002.0.0
+  - @pnpm/error@1001.0.0
+  - @pnpm/network.fetch@1001.0.0
+
 ## 1000.0.19
 
 ### Patch Changes

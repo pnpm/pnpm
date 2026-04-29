@@ -1,5 +1,81 @@
 # @pnpm/lockfile.preferred-versions
 
+## 1100.0.4
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1100.0.3
+
+## 1100.0.3
+
+### Patch Changes
+
+- Updated dependencies [72c1e05]
+  - @pnpm/resolving.resolver-base@1100.1.0
+  - @pnpm/lockfile.utils@1100.0.2
+
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [ff7733c]
+  - @pnpm/pkg-manifest.utils@1100.1.0
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/lockfile.utils@1100.0.1
+  - @pnpm/pkg-manifest.utils@1100.0.1
+  - @pnpm/resolving.resolver-base@1100.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Patch Changes
+
+- 9b0a460: Fixed a resolution bug that could cause `pnpm dedupe --check` to fail unexpectedly.
+
+  When adding new dependencies to `package.json`, pnpm generally reuses existing versions in the `pnpm-lock.yaml` if they are satisfied by the version range specifier. There was an edge case where pnpm would instead resolve to a newly released version of a dependency. This is particularly problematic for `pnpm dedupe --check`, since a new version of a dependency published to the NPM registry could cause this check to suddenly fail. For details of this bug, see [#10626](https://github.com/pnpm/pnpm/issues/10626). This bug has been fixed.
+
+  The fix necessitated a behavioral change: In some cases, pnpm was previously able to automatically dedupe a newly used dependency deep in the dependency graph without needing to run `pnpm dedupe`. This behavior was supported by the non-determinism that is now corrected. We believe fixing this non-determinism is more important than preserving an automatic dedupe heuristic that didn't handle all cases. The `pnpm dedupe` command can still be used to clean up dependencies that aren't automatically deduped on `pnpm install`.
+
+- Updated dependencies [facdd71]
+- Updated dependencies [9b0a460]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [efb48dc]
+- Updated dependencies [491a84f]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [cee1f58]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [394d88c]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [efb48dc]
+- Updated dependencies [efb48dc]
+  - @pnpm/resolving.resolver-base@1006.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/lockfile.utils@1004.0.0
+  - @pnpm/pkg-manifest.utils@1002.0.0
+
 ## 1000.0.22
 
 ### Patch Changes

@@ -2,15 +2,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { afterAll, expect, jest, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
-import type {
-  PackageManifestLog,
-  RootLog,
-  StageLog,
-  StatsLog,
-} from '@pnpm/core-loggers'
 import { hashObject } from '@pnpm/crypto.object-hasher'
 import { headlessInstall } from '@pnpm/installing.deps-restorer'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
@@ -28,6 +22,29 @@ import { loadJsonFileSync } from 'load-json-file'
 import { testDefaults } from './utils/testDefaults.js'
 
 const f = fixtures(import.meta.dirname)
+
+// Patches all @pnpm.e2e integrity values in lockfiles to match the current registry-mock.
+// This avoids hardcoding checksums in fixture lockfiles that go stale when registry-mock is updated.
+function prepareFixtureWithIntegrity (name: string): string {
+  const prefix = f.prepare(name)
+  for (const lockfilePath of [
+    path.join(prefix, 'pnpm-lock.yaml'),
+    path.join(prefix, 'node_modules', '.pnpm', 'lock.yaml'),
+  ]) {
+    if (fs.existsSync(lockfilePath)) {
+      const content = fs.readFileSync(lockfilePath, 'utf8')
+      const updated = content.replace(
+        /('@pnpm\.e2e\/([^@]+)@(\d+\.\d+\.\d+)':[\t\v\f\r \xa0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]*\n\s*resolution:\s*\{integrity:\s*)sha512-[A-Za-z0-9+/]+=*/g,
+        (_match, beforeIntegrity, pkgName, version) => {
+          const integrity = getIntegrity(`@pnpm.e2e/${pkgName}`, version)
+          return `${beforeIntegrity}${integrity}`
+        }
+      )
+      fs.writeFileSync(lockfilePath, updated)
+    }
+  }
+  return prefix
+}
 
 const storeIndexes: StoreIndex[] = []
 afterAll(() => {
@@ -64,25 +81,25 @@ test('installing a simple project', async () => {
     level: 'debug',
     name: 'pnpm:package-manifest',
     updated: loadJsonFileSync(path.join(prefix, 'package.json')),
-  } as PackageManifestLog)
+  })
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     added: 15,
     level: 'debug',
     name: 'pnpm:stats',
     prefix,
-  } as StatsLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stats',
     prefix,
     removed: 0,
-  } as StatsLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stage',
     prefix,
     stage: 'importing_done',
-  } as StageLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     packageId: 'is-negative@2.1.0',
@@ -102,7 +119,7 @@ test('installing a simple project', async () => {
     level: 'debug',
     name: 'pnpm:stats',
     prefix,
-  } as StatsLog))
+  }))
 })
 
 test('installing only prod deps', async () => {
@@ -261,7 +278,7 @@ test('installing non-prod deps then all deps', async () => {
     }),
     level: 'debug',
     name: 'pnpm:root',
-  } as RootLog))
+  }))
   expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
     added: expect.objectContaining({
       dependencyType: 'dev',
@@ -270,7 +287,7 @@ test('installing non-prod deps then all deps', async () => {
     }),
     level: 'debug',
     name: 'pnpm:root',
-  } as RootLog))
+  }))
 
   project.has('once')
 
@@ -304,7 +321,7 @@ test('installing only optional deps', async () => {
 
 // Covers https://github.com/pnpm/pnpm/issues/1958
 test('not installing optional deps', async () => {
-  const prefix = f.prepare('simple-with-optional-dep')
+  const prefix = prepareFixtureWithIntegrity('simple-with-optional-dep')
 
   await headlessInstall(await testDefaults({
     include: {
@@ -343,7 +360,7 @@ test('skipping optional dependency if it cannot be fetched', async () => {
 })
 
 test('run pre/postinstall scripts', async () => {
-  let prefix = f.prepare('deps-have-lifecycle-scripts')
+  let prefix = prepareFixtureWithIntegrity('deps-have-lifecycle-scripts')
   await using server = await createTestIpcServer(path.join(prefix, 'test.sock'))
 
   await headlessInstall(await testDefaults({
@@ -362,7 +379,7 @@ test('run pre/postinstall scripts', async () => {
 
   expect(server.getLines()).toStrictEqual(['install', 'postinstall'])
 
-  prefix = f.prepare('deps-have-lifecycle-scripts')
+  prefix = prepareFixtureWithIntegrity('deps-have-lifecycle-scripts')
   server.clear()
 
   await headlessInstall(await testDefaults({ lockfileDir: prefix, ignoreScripts: true }))
@@ -403,7 +420,7 @@ test('orphan packages are removed', async () => {
     name: 'pnpm:stats',
     prefix: projectDir,
     removed: 1,
-  } as StatsLog))
+  }))
 
   const project = assertProject(projectDir)
   project.hasNot('resolve-from')
@@ -540,7 +557,7 @@ test('installation of a dependency that has a resolved peer in subdeps', async (
 })
 
 test('install peer dependencies that are in prod dependencies', async () => {
-  const prefix = f.prepare('reinstall-peer-deps')
+  const prefix = prepareFixtureWithIntegrity('reinstall-peer-deps')
 
   await headlessInstall(await testDefaults({ lockfileDir: prefix }))
 
@@ -550,7 +567,7 @@ test('install peer dependencies that are in prod dependencies', async () => {
 })
 
 test('installing with hoistPattern=*', async () => {
-  const prefix = f.prepare('simple-shamefully-flatten')
+  const prefix = prepareFixtureWithIntegrity('simple-shamefully-flatten')
   const reporter = jest.fn()
 
   await headlessInstall(await testDefaults({ lockfileDir: prefix, reporter, hoistPattern: '*' }))
@@ -577,25 +594,25 @@ test('installing with hoistPattern=*', async () => {
       name: 'simple-shamefully-flatten',
       version: '1.0.0',
     }),
-  } as PackageManifestLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     added: 17,
     level: 'debug',
     name: 'pnpm:stats',
     prefix,
-  } as StatsLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stats',
     prefix,
     removed: 0,
-  } as StatsLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stage',
     prefix,
     stage: 'importing_done',
-  } as StageLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     packageId: 'is-negative@2.1.0',
@@ -609,7 +626,7 @@ test('installing with hoistPattern=*', async () => {
 })
 
 test('installing with publicHoistPattern=*', async () => {
-  const prefix = f.prepare('simple-shamefully-flatten')
+  const prefix = prepareFixtureWithIntegrity('simple-shamefully-flatten')
   const reporter = jest.fn()
 
   await headlessInstall(await testDefaults({ lockfileDir: prefix, reporter, publicHoistPattern: '*' }))
@@ -638,26 +655,26 @@ test('installing with publicHoistPattern=*', async () => {
       level: 'debug',
       name: 'pnpm:package-manifest',
       updated: loadJsonFileSync(path.join(prefix, 'package.json')),
-    } as PackageManifestLog)
+    })
   }
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     added: 17,
     level: 'debug',
     name: 'pnpm:stats',
     prefix,
-  } as StatsLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stats',
     prefix,
     removed: 0,
-  } as StatsLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stage',
     prefix,
     stage: 'importing_done',
-  } as StageLog))
+  }))
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     packageId: 'is-negative@2.1.0',
@@ -687,7 +704,7 @@ test('installing with publicHoistPattern=* in a project with external lockfile',
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
 test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker=%s', async (nodeLinker) => {
-  let prefix = f.prepare('side-effects')
+  let prefix = prepareFixtureWithIntegrity('side-effects')
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
   // We disable verifyStoreIntegrity because we are going to change the cache
@@ -723,7 +740,7 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
   expect(cacheIntegrity!.sideEffects!.get(sideEffectsKey)?.added?.has('generated-by-preinstall.js')).toBeTruthy()
   storeIndex.set(cacheIntegrityPath, cacheIntegrity)
 
-  prefix = f.prepare('side-effects')
+  prefix = prepareFixtureWithIntegrity('side-effects')
   const opts2 = await testDefaults({
     lockfileDir: prefix,
     nodeLinker,
@@ -878,7 +895,7 @@ function readPkgVersion (dir: string): string {
 }
 
 test('installing a package deeply installs all required dependencies', async () => {
-  const workspaceFixture = f.prepare('workspace-external-depends-deep')
+  const workspaceFixture = prepareFixtureWithIntegrity('workspace-external-depends-deep')
   const projects = [
     path.join(workspaceFixture),
     path.join(workspaceFixture, 'packages/f'),

@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
+import { expect, test } from '@jest/globals'
 import { STORE_VERSION } from '@pnpm/constants'
 import { licenses } from '@pnpm/deps.compliance.commands'
 import { install } from '@pnpm/installing.commands'

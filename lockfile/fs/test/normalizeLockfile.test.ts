@@ -1,9 +1,10 @@
+import { expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import type { ProjectId } from '@pnpm/types'
 
 import { convertToLockfileFile } from '../lib/lockfileFormatConverters.js'
 
-test('empty overrides and neverBuiltDependencies are removed during lockfile normalization', () => {
+test('empty overrides are removed during lockfile normalization', () => {
   expect(convertToLockfileFile({
     lockfileVersion: LOCKFILE_VERSION,
     overrides: {},

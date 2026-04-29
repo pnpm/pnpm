@@ -1,5 +1,45 @@
 # @pnpm/real-hoist
 
+## 1100.0.3
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1100.0.3
+
+## 1100.0.2
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- @pnpm/deps.path@1100.0.1
+- @pnpm/lockfile.utils@1100.0.1
+
+## 1002.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Patch Changes
+
+- Updated dependencies [5f73b0f]
+- Updated dependencies [a8f016c]
+- Updated dependencies [491a84f]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [38b8e35]
+- Updated dependencies [394d88c]
+- Updated dependencies [1e6de25]
+- Updated dependencies [831f574]
+  - @pnpm/deps.path@1002.0.0
+  - @pnpm/lockfile.utils@1004.0.0
+  - @pnpm/error@1001.0.0
+
 ## 1001.0.20
 
 ### Patch Changes

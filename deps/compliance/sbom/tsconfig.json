@@ -31,10 +31,19 @@
       "path": "../../../pkg-manifest/reader"
     },
     {
+      "path": "../../../resolving/resolver-base"
+    },
+    {
+      "path": "../../../store/cafs"
+    },
+    {
       "path": "../../../store/index"
     },
     {
       "path": "../../../store/pkg-finder"
+    },
+    {
+      "path": "../license-resolver"
     }
   ]
 }

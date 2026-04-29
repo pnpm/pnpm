@@ -1,4 +1,4 @@
-import { jest } from '@jest/globals'
+import { afterEach, expect, jest, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import type { DepPath, ProjectId } from '@pnpm/types'
 

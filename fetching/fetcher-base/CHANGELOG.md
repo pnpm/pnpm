@@ -1,5 +1,65 @@
 # @pnpm/fetcher-base
 
+## 1100.1.0
+
+### Minor Changes
+
+- 421317c: Installing a Node.js runtime via `node@runtime:<version>` (including `pnpm env use` and `pnpm runtime set node`) no longer extracts the bundled `npm`, `npx`, and `corepack` from the Node.js archive. This cuts roughly half of the files pnpm has to hash, write to the CAS, and link during installation, making runtime installs noticeably faster. Users who still need `npm` can install it as a separate package.
+
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [72c1e05]
+  - @pnpm/resolving.resolver-base@1100.1.0
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/resolving.resolver-base@1100.0.1
+
+## 1002.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- ba065f6: Block git-hosted dependencies from running prepare scripts unless explicitly allowed in onlyBuiltDependencies [#10288](https://github.com/pnpm/pnpm/pull/10288).
+- 3bf5e21: Added a way to append a manifest to a package with no package.json file.
+- 98a0410: Compute integrity hash for HTTP tarball dependencies when fetching, storing it in the lockfile to prevent servers from serving altered content on subsequent installs [#10287](https://github.com/pnpm/pnpm/pull/10287).
+
+### Patch Changes
+
+- Updated dependencies [facdd71]
+- Updated dependencies [9b0a460]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [491a84f]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [efb48dc]
+  - @pnpm/resolving.resolver-base@1006.0.0
+  - @pnpm/types@1001.0.0
+
 ## 1001.0.2
 
 ### Patch Changes

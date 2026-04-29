@@ -1,5 +1,11 @@
 # @pnpm/eslint-config
 
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+
 ## 1.1.0
 
 ### Minor Changes

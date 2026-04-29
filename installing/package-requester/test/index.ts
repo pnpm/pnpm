@@ -2,7 +2,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { afterAll, afterEach, expect, jest, test } from '@jest/globals'
 import { depPathToFilename } from '@pnpm/deps.path'
 import { createClient } from '@pnpm/installing.client'
 import { createPackageRequester, type PackageResponse } from '@pnpm/installing.package-requester'

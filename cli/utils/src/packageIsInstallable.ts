@@ -13,8 +13,6 @@ export function packageIsInstallable (
     libc?: string[]
   },
   opts: {
-    packageManagerStrict?: boolean
-    packageManagerStrictVersion?: boolean
     engineStrict?: boolean
     nodeVersion?: string
     supportedArchitectures?: SupportedArchitectures

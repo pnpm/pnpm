@@ -1,3 +1,5 @@
+import { expect, test } from '@jest/globals'
+
 import { parseNodeSpecifier } from '../lib/parseNodeSpecifier.js'
 
 test.each([

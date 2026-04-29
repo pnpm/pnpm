@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config.reader",
-  "version": "1004.4.2",
+  "version": "1101.1.1",
   "description": "Gets configuration options for pnpm",
   "keywords": [
     "pnpm",
@@ -25,7 +25,7 @@
     "!*.map"
   ],
   "scripts": {
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pn compile && pn .test",
     "start": "tsgo --watch",
@@ -41,6 +41,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/hooks.pnpmfile": "workspace:*",
     "@pnpm/network.git-utils": "workspace:*",
+    "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/text.naming-cases": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",

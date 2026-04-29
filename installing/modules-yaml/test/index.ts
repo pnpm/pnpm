@@ -1,6 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { readModulesManifest, type StrictModules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import isWindows from 'is-windows'
 import { readYamlFileSync } from 'read-yaml-file'
@@ -41,7 +42,7 @@ test('writeModulesManifest() and readModulesManifest()', async () => {
 test('backward compatible read of .modules.yaml created with shamefully-hoist=true', async () => {
   const modulesYaml = await readModulesManifest(path.join(import.meta.dirname, 'fixtures/old-shamefully-hoist'))
   if (modulesYaml == null) {
-    fail('modulesYaml was nullish')
+    throw new Error('modulesYaml was nullish')
   }
   expect(modulesYaml.publicHoistPattern).toEqual(['*'])
   expect(modulesYaml.hoistedDependencies).toEqual({
@@ -54,7 +55,7 @@ test('backward compatible read of .modules.yaml created with shamefully-hoist=tr
 test('backward compatible read of .modules.yaml created with shamefully-hoist=false', async () => {
   const modulesYaml = await readModulesManifest(path.join(import.meta.dirname, 'fixtures/old-no-shamefully-hoist'))
   if (modulesYaml == null) {
-    fail('modulesYaml was nullish')
+    throw new Error('modulesYaml was nullish')
   }
   expect(modulesYaml.publicHoistPattern).toEqual([])
   expect(modulesYaml.hoistedDependencies).toEqual({

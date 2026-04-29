@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { rimrafSync } from '@zkochan/rimraf'
@@ -17,7 +18,7 @@ const f = fixtures(import.meta.dirname)
 const hasOutdatedDepsFixture = f.find('has-outdated-deps')
 
 test('commands that were previously passed through to npm now fail', () => {
-  const result = execPnpmSync(['dist-tag', 'ls', 'is-positive'])
+  const result = execPnpmSync(['access', 'public'])
 
   expect(result.status).not.toBe(0)
   const output = result.stdout.toString() + result.stderr.toString()
@@ -56,7 +57,7 @@ test('previously passed through commands fail without package.json', async () =>
   prepare()
   rimrafSync('package.json')
 
-  const result = execPnpmSync(['dist-tag', 'ls', 'pnpm'])
+  const result = execPnpmSync(['access', 'public'])
 
   expect(result.status).not.toBe(0)
 })
@@ -85,6 +86,21 @@ test('command fails when an unsupported flag is used', async () => {
 
   expect(status).toBe(1)
   expect(stderr.toString()).toMatch(/Unknown option: 'save-dev'/)
+})
+
+test('implicit run command fails when an unsupported top-level flag is used', () => {
+  prepare({
+    scripts: {
+      web: 'node -e "console.log(\'script should not run\')"',
+    },
+  })
+
+  const { status, stdout, stderr } = execPnpmSync(['--fitler', 'web', 'dev']) // cspell:disable-line
+
+  expect(status).toBe(1)
+  expect(stdout.toString()).not.toContain('script should not run')
+  expect(stderr.toString()).toMatch(/Unknown option: 'fitler'/) // cspell:disable-line
+  expect(stderr.toString()).toMatch(/Did you mean 'filter'/)
 })
 
 test('command fails when a deprecated option is used', async () => {

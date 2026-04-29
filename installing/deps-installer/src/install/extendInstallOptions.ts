@@ -53,7 +53,6 @@ export interface StrictInstallOptions {
   fixLockfile: boolean
   dedupe: boolean
   ignoreCompatibilityDb: boolean
-  ignoreDepScripts: boolean
   ignorePackageManifest: boolean
   /**
    * When true, skip fetching local dependencies (file: protocol pointing to directories).
@@ -112,6 +111,7 @@ export interface StrictInstallOptions {
   userAgent: string
   unsafePerm: boolean
   registries: Registries
+  namedRegistries?: Record<string, string>
   tag: string
   overrides: Record<string, string>
   ownLifecycleHooksStdio: 'inherit' | 'pipe'
@@ -179,6 +179,8 @@ export interface StrictInstallOptions {
   trustPolicyIgnoreAfter?: number
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
   blockExoticSubdeps?: boolean
+  /** URL of a pnpm agent server. See the pnpm-agent README. */
+  agent?: string
 }
 
 export type InstallOptions =
@@ -211,7 +213,6 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     publicHoistPattern: undefined,
     hooks: {},
     ignoreCurrentSpecifiers: false,
-    ignoreDepScripts: false,
     ignoreScripts: false,
     include: {
       dependencies: true,

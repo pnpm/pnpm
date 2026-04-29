@@ -1,6 +1,7 @@
 /// <reference path="../../../../../__typings__/index.d.ts" />
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { STORE_VERSION } from '@pnpm/constants'
 import { sbom } from '@pnpm/deps.compliance.commands'
 import { install } from '@pnpm/installing.commands'

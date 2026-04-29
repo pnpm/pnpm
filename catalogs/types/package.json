@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/catalogs.types",
-  "version": "1000.0.0",
+  "version": "1100.0.0",
   "description": "Types related to the pnpm catalogs feature.",
   "keywords": [
     "pnpm",
@@ -27,7 +27,7 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
     "compile": "tsgo --build && pn lint --fix",
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "test": "pn compile"
   },
   "devDependencies": {

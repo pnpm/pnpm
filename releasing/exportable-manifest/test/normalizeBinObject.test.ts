@@ -1,3 +1,5 @@
+import { expect, test } from '@jest/globals'
+
 import { normalizeBinObject } from '../lib/transform/bin.js'
 
 test('string', () => {

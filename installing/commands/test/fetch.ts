@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { STORE_VERSION } from '@pnpm/constants'
 import { fetch, install } from '@pnpm/installing.commands'
 import { prepare } from '@pnpm/prepare'

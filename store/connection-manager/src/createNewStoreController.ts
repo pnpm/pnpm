@@ -34,6 +34,8 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'localAddress'
 | 'maxSockets'
 | 'minimumReleaseAge'
+| 'minimumReleaseAgeIgnoreMissingTime'
+| 'minimumReleaseAgeStrict'
 | 'networkConcurrency'
 | 'noProxy'
 | 'offline'
@@ -41,6 +43,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'preferOffline'
 | 'preserveAbsolutePaths'
 | 'registries'
+| 'namedRegistries'
 | 'registrySupportsTimeField'
 | 'resolutionMode'
 | 'saveWorkspaceProtocol'
@@ -90,6 +93,7 @@ export async function createNewStoreController (
     preferOffline: opts.preferOffline,
     configByUri: opts.configByUri,
     registries: opts.registries,
+    namedRegistries: opts.namedRegistries,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,
@@ -109,7 +113,8 @@ export async function createNewStoreController (
     includeOnlyPackageFiles: !opts.deployAllFiles,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
     preserveAbsolutePaths: opts.preserveAbsolutePaths,
-    strictPublishedByCheck: Boolean(opts.minimumReleaseAge),
+    strictPublishedByCheck: Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true,
+    ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime,
     storeIndex,
   })
   return {

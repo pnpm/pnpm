@@ -165,13 +165,13 @@ export type ConfigDependencies = Record<string, VersionWithIntegrity | {
 export type ConfigDependencySpecifiers = Record<string, string>
 
 export interface AuditConfig {
-  ignoreCves?: string[]
   ignoreGhsas?: string[]
 }
 
 export interface PnpmSettings {
   npmrcAuthFile?: string
   registries?: Registries
+  namedRegistries?: Record<string, string>
   configDependencies?: ConfigDependencies
   allowBuilds?: Record<string, boolean | string>
   overrides?: Record<string, string>
@@ -191,6 +191,7 @@ export interface PnpmSettings {
   httpProxy?: string
   httpsProxy?: string
   noProxy?: string | boolean
+  agent?: string
 }
 
 export interface ProjectManifest extends BaseManifest {

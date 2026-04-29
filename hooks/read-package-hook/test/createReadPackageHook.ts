@@ -1,4 +1,4 @@
-import { jest } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import type { ReadPackageHook } from '@pnpm/types'
 
 import { createReadPackageHook } from '../lib/createReadPackageHook.js'

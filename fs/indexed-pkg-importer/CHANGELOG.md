@@ -1,5 +1,56 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 1100.0.3
+
+### Patch Changes
+
+- @pnpm/store.controller-types@1100.0.3
+
+## 1100.0.2
+
+### Patch Changes
+
+- @pnpm/store.controller-types@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- @pnpm/core-loggers@1100.0.1
+- @pnpm/store.controller-types@1100.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Patch Changes
+
+- 9b1e5da: Fixed a performance regression on Linux where `auto` import mode would copy every file instead of hardlinking on filesystems without reflink support (e.g. ext4).
+
+  The clone error fallback in `createClonePkg()` silently converted clone failures to copies, preventing the auto-importer from detecting that cloning is not supported and falling through to hardlinks. This caused a 2-9x slowdown on Linux CI for install operations.
+
+- 62f760e: Fixed intermittent failures when multiple `pnpm dlx` calls run concurrently for the same package. When the global virtual store is enabled, the importer now verifies file content before skipping a rename, avoiding destructive swap-renames that break concurrent processes. Also tolerates EPERM during bin creation on Windows and properly propagates `enableGlobalVirtualStore` through the install pipeline.
+- cbb366a: Fixed a race condition when multiple worker threads import the same package to the global virtual store concurrently. The rename operation now tolerates `ENOTEMPTY`/`EEXIST` errors if another thread already completed the import.
+- ee9fe58: Skip the staging directory when importing packages into `node_modules`. This avoids the overhead of creating a temp dir and renaming per package. Falls back to the atomic staging path on error.
+
+  Packages that lack a `package.json` now get a synthetic empty one added to the store so that `package.json` can serve as a universal completion marker for the importer.
+
+- 60b5fd1: Packages that don't have a `package.json` file (like Node.js) should not be reimported from the store on every install. Another file from the package should be checked in order to verify its presence in `node_modules`.
+- Updated dependencies [facdd71]
+- Updated dependencies [491a84f]
+- Updated dependencies [ba065f6]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [56a59df]
+- Updated dependencies [10bc391]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [98a0410]
+  - @pnpm/store.controller-types@1005.0.0
+  - @pnpm/core-loggers@1002.0.0
+  - @pnpm/fs.graceful-fs@1001.0.0
+
 ## 1000.1.14
 
 ### Patch Changes

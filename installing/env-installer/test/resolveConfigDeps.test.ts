@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { resolveConfigDeps } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'

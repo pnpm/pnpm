@@ -1,3 +1,4 @@
+import { afterEach, beforeEach, expect, test } from '@jest/globals'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
 import type { PackageMeta } from '@pnpm/resolving.registry.types'

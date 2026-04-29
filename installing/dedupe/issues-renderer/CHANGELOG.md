@@ -1,5 +1,21 @@
 # @pnpm/dedupe.issues-renderer
 
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Patch Changes
+
+- 7d5ada0: Replaced `archy` with `@pnpm/text.tree-renderer` for tree output.
+- Updated dependencies [491a84f]
+- Updated dependencies [7d5ada0]
+- Updated dependencies [7d2fd48]
+  - @pnpm/installing.dedupe.types@1001.0.0
+  - @pnpm/text.tree-renderer@1000.0.0
+
 ## 1000.0.1
 
 ### Patch Changes

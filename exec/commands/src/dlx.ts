@@ -97,7 +97,8 @@ export async function handler (
   const fullMetadata = (
     (
       opts.resolutionMode === 'time-based' ||
-      opts.trustPolicy === 'no-downgrade'
+      opts.trustPolicy === 'no-downgrade' ||
+      Boolean(opts.minimumReleaseAge)
     ) && !opts.registrySupportsTimeField
   )
   const catalogResolver = resolveFromCatalog.bind(null, opts.catalogs ?? {})
@@ -106,6 +107,8 @@ export async function handler (
     configByUri: opts.configByUri,
     fullMetadata,
     filterMetadata: fullMetadata,
+    strictPublishedByCheck: Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true,
+    ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,

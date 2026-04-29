@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import { createGzip } from 'node:zlib'
 
+import { describe, expect, test } from '@jest/globals'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import tar from 'tar-stream'

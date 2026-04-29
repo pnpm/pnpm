@@ -20,6 +20,12 @@ export interface TarballExtractMessage {
   readManifest?: boolean
   pkg?: PkgNameVersion
   appendManifest?: DependencyManifest
+  /**
+   * Regex source matching the normalized relative path of files inside the tarball that
+   * should be skipped. Matching happens after the tar parser strips the top-level directory
+   * segment — i.e. against the same path form that is written to `filesIndex`.
+   */
+  ignoreFilePattern?: string
 }
 
 export interface LinkPkgMessage {
@@ -72,4 +78,11 @@ export interface HardLinkDirMessage {
   type: 'hardLinkDir'
   src: string
   destDirs: string[]
+}
+
+export interface FetchAndWriteCafsMessage {
+  type: 'fetch-and-write-cafs'
+  registryUrl: string
+  storeDir: string
+  digests: Array<{ digest: string, size: number, executable: boolean }>
 }

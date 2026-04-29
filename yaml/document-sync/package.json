@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/yaml.document-sync",
-  "version": "1000.0.0-0",
+  "version": "1100.0.0",
   "description": "Update a YAML document to match the contents of an in-memory object.",
   "keywords": [
     "pnpm",
@@ -29,13 +29,14 @@
     "test": "pn compile && pn .test",
     "compile": "tsgo --build && pn lint --fix",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "yaml": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/yaml.document-sync": "workspace:*"
   },
   "engines": {

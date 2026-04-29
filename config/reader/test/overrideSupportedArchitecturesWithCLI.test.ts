@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import type { SupportedArchitectures } from '@pnpm/types'
 
 import { type CliOptions, overrideSupportedArchitecturesWithCLI, type TargetConfig } from '../src/overrideSupportedArchitecturesWithCLI.js'

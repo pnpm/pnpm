@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
@@ -37,8 +38,8 @@ test('version switch reuses pnpm previously installed by self-update', async () 
     XDG_DATA_HOME: path.resolve('data'),
   }
 
-  // self-update without managePackageManagerVersions installs pnpm 10.0.0
-  // globally (with GVS enabled), populating the global virtual store
+  // self-update installs pnpm 10.0.0 globally (with GVS enabled),
+  // populating the global virtual store
   await execPnpm(['self-update', '10.0.0'], { env })
 
   // Write packageManager field so the version switch triggers.

@@ -2,6 +2,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 import { temporaryDirectory } from 'tempy'
 

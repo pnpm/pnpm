@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config.normalize-registries",
-  "version": "1000.1.4",
+  "version": "1100.0.1",
   "description": "Accepts a mapping of registry URLs and returns a mapping with the same URLs but normalized",
   "keywords": [
     "pnpm",
@@ -26,7 +26,7 @@
   "scripts": {
     "test": "pn compile",
     "lint": "eslint \"src/**/*.ts\"",
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {

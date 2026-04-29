@@ -3,7 +3,7 @@ import { PnpmError } from '@pnpm/error'
 import { generateQrCode } from './generateQrCode.js'
 import type { WebAuthFetchOptions, WebAuthFetchResponse } from './pollForWebAuthToken.js'
 import { pollForWebAuthToken } from './pollForWebAuthToken.js'
-import type { PromptBrowserOpenExecFile, PromptBrowserOpenReadlineInterface } from './promptBrowserOpen.js'
+import type { PromptBrowserOpenReadlineInterface } from './promptBrowserOpen.js'
 import { promptBrowserOpen } from './promptBrowserOpen.js'
 
 export interface OtpEnquirer {
@@ -35,7 +35,6 @@ export interface OtpContext {
   setTimeout: (cb: () => void, ms: number) => void
   createReadlineInterface?: () => PromptBrowserOpenReadlineInterface
   enquirer: OtpEnquirer
-  execFile?: PromptBrowserOpenExecFile
   fetch: (url: string, options: WebAuthFetchOptions) => Promise<WebAuthFetchResponse>
   globalInfo: (message: string) => void
   globalWarn: (message: string) => void

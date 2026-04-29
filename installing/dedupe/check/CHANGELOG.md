@@ -1,5 +1,54 @@
 # @pnpm/dedupe.check
 
+## 1100.0.2
+
+### Patch Changes
+
+- @pnpm/lockfile.types@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/lockfile.types@1100.0.1
+
+## 1002.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Patch Changes
+
+- 6f806be: Removed TypeScript specific syntax (such as enums and visibility modifiers in constructors) to enable `erasableSyntaxOnly`.
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [606f53e]
+- Updated dependencies [491a84f]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [831f574]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+  - @pnpm/types@1001.0.0
+  - @pnpm/lockfile.types@1003.0.0
+  - @pnpm/error@1001.0.0
+  - @pnpm/installing.dedupe.types@1001.0.0
+
 ## 1001.0.13
 
 ### Patch Changes

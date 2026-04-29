@@ -1,3 +1,4 @@
+import { describe, expect, test } from '@jest/globals'
 import { ENGINE_NAME } from '@pnpm/constants'
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 import { calcDepState, calcGraphNodeHash } from '@pnpm/deps.graph-hasher'

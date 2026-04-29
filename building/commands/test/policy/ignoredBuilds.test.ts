@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { ignoredBuilds } from '@pnpm/building.commands'
 import { writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import { tempDir } from '@pnpm/prepare-temp-dir'

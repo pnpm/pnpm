@@ -1,5 +1,84 @@
 # @pnpm/directory-fetcher
 
+## 1100.0.4
+
+### Patch Changes
+
+- Updated dependencies [421317c]
+  - @pnpm/fetching.fetcher-base@1100.1.0
+
+## 1100.0.3
+
+### Patch Changes
+
+- e03e8f4: Fix installing a directory dependency (`file:<dir>`) from an absolute path on a different drive on Windows. The directory fetcher was joining the stored directory onto `lockfileDir`, which on Windows concatenates an absolute cross-drive path literally (`path.join('D:\\...', 'C:\\Users\\...')` → `'D:\\...\\C:\\Users\\...'`). Use `path.resolve` so absolute paths are respected. This surfaced as an ENOENT during `pnpm setup` in CI when `PNPM_HOME` and the OS temp directory were on different drives.
+- Updated dependencies [72c1e05]
+  - @pnpm/resolving.resolver-base@1100.1.0
+  - @pnpm/fetching.fetcher-base@1100.0.2
+
+## 1100.0.2
+
+### Patch Changes
+
+- @pnpm/workspace.project-manifest-reader@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/building.pkg-requires-build@1100.0.1
+  - @pnpm/fetching.fetcher-base@1100.0.1
+  - @pnpm/resolving.resolver-base@1100.0.1
+  - @pnpm/store.cafs-types@1100.0.0
+  - @pnpm/workspace.project-manifest-reader@1100.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Patch Changes
+
+- Updated dependencies [facdd71]
+- Updated dependencies [e2e0a32]
+- Updated dependencies [9b0a460]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [2fccb03]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [491a84f]
+- Updated dependencies [98a5f1c]
+- Updated dependencies [ba065f6]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [98a0410]
+- Updated dependencies [efb48dc]
+  - @pnpm/resolving.resolver-base@1006.0.0
+  - @pnpm/store.cafs-types@1001.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/building.pkg-requires-build@1000.0.0
+  - @pnpm/workspace.project-manifest-reader@1002.0.0
+  - @pnpm/fetching.fetcher-base@1002.0.0
+  - @pnpm/fs.packlist@1001.0.0
+
 ## 1000.1.14
 
 ### Patch Changes

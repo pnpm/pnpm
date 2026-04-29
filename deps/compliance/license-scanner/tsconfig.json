@@ -43,6 +43,9 @@
       "path": "../../../pkg-manifest/reader"
     },
     {
+      "path": "../../../store/cafs"
+    },
+    {
       "path": "../../../store/index"
     },
     {
@@ -50,6 +53,9 @@
     },
     {
       "path": "../../path"
+    },
+    {
+      "path": "../license-resolver"
     }
   ]
 }

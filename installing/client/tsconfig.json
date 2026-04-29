@@ -13,6 +13,9 @@
       "path": "../../core/types"
     },
     {
+      "path": "../../engine/runtime/node-resolver"
+    },
+    {
       "path": "../../fetching/binary-fetcher"
     },
     {

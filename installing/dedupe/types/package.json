@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.dedupe.types",
-  "version": "1000.0.0",
+  "version": "1100.0.0",
   "description": "Types for the pnpm dedupe command",
   "keywords": [
     "pnpm",
@@ -25,7 +25,7 @@
   ],
   "scripts": {
     "test": "pn compile",
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "compile": "tsgo --build && pn lint --fix",
     "lint": "eslint \"src/**/*.ts\""
   },

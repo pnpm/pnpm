@@ -1,5 +1,16 @@
 # @pnpm/test-fixtures
 
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+
+### Patch Changes
+
+- Updated dependencies [491a84f]
+  - @pnpm/prepare-temp-dir@1001.0.0
+
 ## 0.1.37
 
 ### Patch Changes

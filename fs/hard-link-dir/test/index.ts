@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import { tempDir as createTempDir } from '@pnpm/prepare'
 

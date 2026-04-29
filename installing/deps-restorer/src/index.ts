@@ -125,7 +125,6 @@ export interface HeadlessOptions {
   preferSymlinkedExecutables?: boolean
   hoistingLimits?: HoistingLimits
   externalDependencies?: Set<string>
-  ignoreDepScripts: boolean
   ignoreScripts: boolean
   ignorePackageManifest?: boolean
   /**
@@ -414,6 +413,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         lockfileDir: opts.lockfileDir,
         preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
         sideEffectsCacheRead: opts.sideEffectsCacheRead,
+        supportedArchitectures: opts.supportedArchitectures,
       })
       stageLogger.debug({
         prefix: lockfileDir,
@@ -452,6 +452,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           lockfileDir: opts.lockfileDir,
           sideEffectsCacheRead: opts.sideEffectsCacheRead,
           storeDir: opts.storeDir,
+          supportedArchitectures: opts.supportedArchitectures,
         }),
       ])
     }
@@ -571,7 +572,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       extraBinPaths,
       extraEnv,
       depsStateCache,
-      ignoreScripts: opts.ignoreScripts || opts.ignoreDepScripts,
+      ignoreScripts: opts.ignoreScripts,
       hoistedLocations,
       lockfileDir,
       optional: opts.include.optionalDependencies,
@@ -890,6 +891,7 @@ async function linkAllPkgs (
     lockfileDir: string
     sideEffectsCacheRead: boolean
     storeDir: string
+    supportedArchitectures?: SupportedArchitectures
   }
 ): Promise<void> {
   // Create a marker source file that will be added to filesMap for GVS packages
@@ -918,6 +920,7 @@ async function linkAllPkgs (
           sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
             includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
             patchFileHash: depNode.patch?.hash,
+            supportedArchitectures: opts.supportedArchitectures,
           })
         }
       }

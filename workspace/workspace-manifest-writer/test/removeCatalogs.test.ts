@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
 import { tempDir } from '@pnpm/prepare-temp-dir'

@@ -1,5 +1,74 @@
 # @pnpm-private/updater
 
+## 1100.0.4
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1100.0.3
+
+## 1100.0.3
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1100.0.2
+
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [cee550a]
+  - @pnpm/workspace.projects-reader@1101.0.0
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/lockfile.fs@1100.0.1
+  - @pnpm/workspace.projects-reader@1100.0.1
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- 15549a9: Add the ability to fix vulnerabilities by updating packages in the lockfile instead of adding overrides.
+
+### Patch Changes
+
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [491a84f]
+- Updated dependencies [075aa99]
+- Updated dependencies [d458ab3]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [4a36b9a]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [2b14c74]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+  - @pnpm/types@1001.0.0
+  - @pnpm/lockfile.fs@1002.0.0
+  - @pnpm/workspace.projects-reader@1001.0.0
+  - @pnpm/workspace.workspace-manifest-reader@1001.0.0
+  - @pnpm/object.key-sorting@1001.0.0
+  - @pnpm/logger@1002.0.0
+
 ## 1000.0.5
 
 ### Patch Changes

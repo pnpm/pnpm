@@ -1,5 +1,76 @@
 # @pnpm/find-workspace-packages
 
+## 1101.0.0
+
+### Major Changes
+
+- cee550a: **Breaking:** removed the `managePackageManagerVersions`, `packageManagerStrict`, and `packageManagerStrictVersion` settings. They existed only to derive the `onFail` behavior for the legacy `packageManager` field, and the `pmOnFail` setting introduced alongside `pnpm with` subsumes all three — it directly sets the `onFail` behavior of both `packageManager` and `devEngines.packageManager`. The `COREPACK_ENABLE_STRICT` environment variable is no longer honored (it only gated `packageManagerStrict`); use `pmOnFail` instead.
+
+  Migration:
+
+  | Removed setting                       | Replace with                   |
+  | ------------------------------------- | ------------------------------ |
+  | `managePackageManagerVersions: true`  | `pmOnFail: download` (default) |
+  | `managePackageManagerVersions: false` | `pmOnFail: ignore`             |
+  | `packageManagerStrict: false`         | `pmOnFail: warn`               |
+  | `packageManagerStrictVersion: true`   | `pmOnFail: error`              |
+  | `COREPACK_ENABLE_STRICT=0`            | `pmOnFail: warn`               |
+
+### Patch Changes
+
+- Updated dependencies [cee550a]
+  - @pnpm/cli.utils@1101.0.0
+  - @pnpm/workspace.project-manifest-reader@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/cli.utils@1100.0.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+- 71de2b3: Removed support for the `useNodeVersion` and `executionEnv.nodeVersion` fields. `devEngines.runtime` and `engines.runtime` should be used instead [#10373](https://github.com/pnpm/pnpm/pull/10373).
+
+### Minor Changes
+
+- 4a36b9a: Refactor workspace domains: rename `project-finder` to `projects-reader`, merge `filter-packages-from-dir` into `filter-workspace-packages`, and rename it to `projects-filter`. Also, move and rename `config/deps-installer` to `installing/env-installer`.
+
+### Patch Changes
+
+- Updated dependencies [c55c614]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [491a84f]
+- Updated dependencies [075aa99]
+- Updated dependencies [98a5f1c]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [3ed41f4]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+  - @pnpm/constants@1002.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/cli.utils@1002.0.0
+  - @pnpm/workspace.project-manifest-reader@1002.0.0
+
 ## 1000.0.43
 
 ### Patch Changes

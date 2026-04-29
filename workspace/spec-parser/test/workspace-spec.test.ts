@@ -1,3 +1,5 @@
+import { expect, test } from '@jest/globals'
+
 import { WorkspaceSpec } from '../src/index.js'
 
 test('parse valid workspace spec', () => {

@@ -1,5 +1,115 @@
 # @pnpm/deps.graph-builder
 
+## 1100.0.3
+
+### Patch Changes
+
+- @pnpm/hooks.types@1100.0.3
+- @pnpm/store.controller-types@1100.0.3
+- @pnpm/lockfile.utils@1100.0.3
+- @pnpm/deps.graph-hasher@1100.1.1
+- @pnpm/lockfile.fs@1100.0.3
+
+## 1100.0.2
+
+### Patch Changes
+
+- 72c1e05: Fix: different platform variants of the same runtime (e.g. `node@runtime:25.9.0` glibc vs. musl) no longer share a single global-virtual-store entry. The virtual store path now incorporates the selected variant's integrity, so installs with different `--os`/`--cpu`/`--libc` end up in separate directories and `pnpm add --libc=musl node@runtime:<v>` reliably fetches the musl binary even when the glibc variant is already cached.
+- Updated dependencies [72c1e05]
+  - @pnpm/deps.graph-hasher@1100.1.0
+  - @pnpm/hooks.types@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.2
+  - @pnpm/store.controller-types@1100.0.2
+  - @pnpm/lockfile.fs@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/config.package-is-installable@1100.0.1
+  - @pnpm/core-loggers@1100.0.1
+  - @pnpm/deps.graph-hasher@1100.0.1
+  - @pnpm/deps.path@1100.0.1
+  - @pnpm/hooks.types@1100.0.1
+  - @pnpm/installing.modules-yaml@1100.0.1
+  - @pnpm/lockfile.fs@1100.0.1
+  - @pnpm/lockfile.utils@1100.0.1
+  - @pnpm/store.controller-types@1100.0.1
+  - @pnpm/patching.config@1100.0.1
+
+## 1003.0.0
+
+### Major Changes
+
+- 5f73b0f: Runtime dependencies are always linked from the global virtual store [#10233](https://github.com/pnpm/pnpm/pull/10233).
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- cd743ef: Use `allowBuilds` config to compute engine-agnostic GVS hashes for pure-JS packages [#10837](https://github.com/pnpm/pnpm/issues/10837).
+
+  When the global virtual store is enabled, packages that are not allowed to build (and don't transitively depend on packages that are) now get hashes that don't include the engine name (platform, architecture, Node.js major version). This means ~95% of packages in the GVS survive Node.js upgrades and architecture changes without re-import.
+
+### Patch Changes
+
+- 394d88c: Fixed injected local packages to work correctly with the global virtual store [#10366](https://github.com/pnpm/pnpm/pull/10366).
+
+  When using `nodeLinker: 'isolated'` with `enableGlobalVirtualStore: true`, injected workspace packages now use the correct hash-based paths from the global virtual store instead of project-relative paths.
+
+- 312226c: Skip local `file:` protocol dependencies during `pnpm fetch`. This fixes an issue where `pnpm fetch` would fail in Docker builds when local directory dependencies were not available [#10460](https://github.com/pnpm/pnpm/issues/10460).
+- 97f049f: Skip re-importing packages from the global virtual store when `node_modules` is deleted but the store directories are still warm. The global store directory hash already encodes engine, integrity, and full dependency subgraph, so existence is proof of validity.
+- 38b8e35: Support for custom resolvers and fetchers.
+- Updated dependencies [5f73b0f]
+- Updated dependencies [facdd71]
+- Updated dependencies [c55c614]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [3cfffaa]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [cd743ef]
+- Updated dependencies [491a84f]
+- Updated dependencies [075aa99]
+- Updated dependencies [c4045fc]
+- Updated dependencies [ba065f6]
+- Updated dependencies [d458ab3]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [56a59df]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [394d88c]
+- Updated dependencies [1e6de25]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [3cfffaa]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [98a0410]
+- Updated dependencies [efb48dc]
+  - @pnpm/deps.path@1002.0.0
+  - @pnpm/deps.graph-hasher@1003.0.0
+  - @pnpm/store.controller-types@1005.0.0
+  - @pnpm/constants@1002.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/lockfile.fs@1002.0.0
+  - @pnpm/lockfile.utils@1004.0.0
+  - @pnpm/installing.modules-yaml@1001.0.0
+  - @pnpm/config.package-is-installable@1001.0.0
+  - @pnpm/core-loggers@1002.0.0
+  - @pnpm/patching.config@1002.0.0
+  - @pnpm/patching.types@1001.0.0
+  - @pnpm/hooks.types@1002.0.0
+
 ## 1002.3.0
 
 ### Minor Changes

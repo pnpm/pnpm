@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/test-ipc-server",
-  "version": "1000.0.0",
+  "version": "1100.0.0",
   "private": true,
   "main": "lib/index.js",
   "type": "module",
@@ -9,6 +9,7 @@
     "test-ipc-server-client": "./bin/test-ipc-server-client.js"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
     "@types/node": "catalog:",

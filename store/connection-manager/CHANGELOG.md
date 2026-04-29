@@ -1,5 +1,143 @@
 # @pnpm/store-connection-manager
 
+## 1100.0.5
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.5
+- @pnpm/store.controller@1101.0.0
+
+## 1100.0.4
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.4
+- @pnpm/store.controller@1101.0.0
+- @pnpm/config.reader@1101.1.1
+
+## 1100.0.3
+
+### Patch Changes
+
+- 9e0833c: Added a new setting `minimumReleaseAgeIgnoreMissingTime`, which is `true` by default. When enabled, pnpm skips the `minimumReleaseAge` maturity check if the registry metadata does not include the `time` field. Set to `false` to fail resolution instead.
+- Updated dependencies [7d25bc1]
+- Updated dependencies [9e0833c]
+  - @pnpm/config.reader@1101.1.0
+  - @pnpm/installing.client@1100.0.3
+  - @pnpm/store.controller@1100.0.2
+
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [cee550a]
+- Updated dependencies [4ab3d9b]
+- Updated dependencies [9af708a]
+- Updated dependencies [ea2a7fb]
+- Updated dependencies [ff7733c]
+  - @pnpm/config.reader@1101.0.0
+  - @pnpm/installing.client@1100.0.2
+  - @pnpm/store.controller@1100.0.1
+
+## 1100.0.1
+
+### Patch Changes
+
+- @pnpm/cli.meta@1100.0.1
+- @pnpm/config.reader@1100.0.1
+- @pnpm/installing.client@1100.0.1
+- @pnpm/store.controller@1100.0.1
+
+## 1003.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- ac944ef: Added a new setting `minimumReleaseAgeStrict` that is `false` by default. When disabled (the default), pnpm falls back to versions that don't meet the `minimumReleaseAge` constraint if no mature versions satisfy the range being resolved. Set to `true` to fail installation instead.
+- 96704a1: Renamed `rawConfig` to `authConfig` on the `Config` interface. This field now only contains auth/registry data from `.npmrc` files. Non-auth settings are no longer written to it.
+
+  Added `nodeDownloadMirrors` setting to configure custom Node.js download mirrors in `pnpm-workspace.yaml`:
+
+  ```yaml
+  nodeDownloadMirrors:
+    release: https://my-mirror.example.com/download/release/
+    nightly: https://my-mirror.example.com/download/nightly/
+  ```
+
+  Replaced `rawConfig: object` with `userAgent?: string` in lifecycle hook options. Removed unused `rawConfig` from fetcher and prepare-package options.
+
+  Removed support for the npm `init-module` setting. Custom init scripts via `.pnpm-init.js` are no longer executed by `pnpm init`.
+
+- 10bc391: Added a new setting: `trustPolicy`.
+- 38b8e35: Support for custom resolvers and fetchers.
+
+### Patch Changes
+
+- Updated dependencies [7730a7f]
+- Updated dependencies [ae8b816]
+- Updated dependencies [facdd71]
+- Updated dependencies [e2e0a32]
+- Updated dependencies [3c72b6b]
+- Updated dependencies [9f5c0e3]
+- Updated dependencies [76718b3]
+- Updated dependencies [5a0ed1d]
+- Updated dependencies [90bd3c3]
+- Updated dependencies [1cc61e8]
+- Updated dependencies [606f53e]
+- Updated dependencies [c7203b9]
+- Updated dependencies [bb17724]
+- Updated dependencies [da2429d]
+- Updated dependencies [1cc61e8]
+- Updated dependencies [491a84f]
+- Updated dependencies [f0ae1b9]
+- Updated dependencies [7fab2a2]
+- Updated dependencies [cb367b9]
+- Updated dependencies [543c7e4]
+- Updated dependencies [9eddabb]
+- Updated dependencies [075aa99]
+- Updated dependencies [ae43ac7]
+- Updated dependencies [ccec8e7]
+- Updated dependencies [4158906]
+- Updated dependencies [ac944ef]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [9eddabb]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [d5d4eed]
+- Updated dependencies [095f659]
+- Updated dependencies [96704a1]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [51b04c3]
+- Updated dependencies [d01b81f]
+- Updated dependencies [3ed41f4]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [b7f0f21]
+- Updated dependencies [2df8b71]
+- Updated dependencies [2f98ec8]
+- Updated dependencies [ed1a7fe]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [5bf7768]
+- Updated dependencies [ae43ac7]
+- Updated dependencies [09bb8db]
+- Updated dependencies [a5fdbf9]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [9587dac]
+- Updated dependencies [09a999a]
+- Updated dependencies [559f903]
+- Updated dependencies [3574905]
+  - @pnpm/config.reader@1005.0.0
+  - @pnpm/store.controller@1005.0.0
+  - @pnpm/installing.client@1002.0.0
+  - @pnpm/store.path@1001.0.0
+  - @pnpm/cli.meta@1001.0.0
+  - @pnpm/store.index@1000.0.0
+
 ## 1002.2.4
 
 ### Patch Changes

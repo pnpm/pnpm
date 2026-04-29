@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/text.comments-parser",
-  "version": "1000.0.0",
+  "version": "1100.0.0",
   "description": "Extracts and inserts comments from/to text",
   "keywords": [
     "pnpm",
@@ -27,7 +27,7 @@
     "start": "tsgo --watch",
     "test": "pn compile && pn .test",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "compile": "tsgo --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
@@ -35,6 +35,7 @@
     "strip-comments-strings": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/text.comments-parser": "workspace:*"
   },
   "engines": {

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/global.packages",
-  "version": "1000.0.0-0",
+  "version": "1100.0.1",
   "description": "Utilities for managing isolated global packages",
   "keywords": [
     "pnpm",
@@ -26,7 +26,7 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "compile": "tsgo --build && pn lint --fix",
     "test": "pn compile"
   },

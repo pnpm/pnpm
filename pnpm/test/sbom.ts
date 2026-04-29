@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 
 import { execPnpm, execPnpmSync } from './utils/index.js'

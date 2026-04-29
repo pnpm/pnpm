@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 
 const configByUri = {

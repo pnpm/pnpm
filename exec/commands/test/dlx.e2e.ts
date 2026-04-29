@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { jest } from '@jest/globals'
+import { afterEach, expect, jest, test } from '@jest/globals'
 import { prepareEmpty } from '@pnpm/prepare'
 
 import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils/index.js'
@@ -396,6 +396,7 @@ test('dlx should fail when the requested package does not meet the minimum age r
       ...DEFAULT_OPTS,
       dir: path.resolve('project'),
       minimumReleaseAge: 60 * 24 * 10000,
+      minimumReleaseAgeStrict: true,
       registries: {
         // We must use the public registry instead of verdaccio here
         // because verdaccio has the "times" field in the abbreviated metadata too.

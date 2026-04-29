@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { afterAll, expect, test } from '@jest/globals'
 import { STORE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
@@ -177,12 +178,12 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
   }
   const packageFiles = Array.from(filesIndex.files.keys()).sort(lexCompare)
 
-  expect(packageFiles).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
+  expect(packageFiles).toStrictEqual(['Foo.js', 'LICENSE', 'foo.js', 'package.json'])
   const files = fs.readdirSync('node_modules/@pnpm.e2e/with-same-file-in-different-cases')
   if (await dirIsCaseSensitive(storeDir)) {
-    expect([...files].sort(lexCompare)).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
+    expect([...files].sort(lexCompare)).toStrictEqual(['Foo.js', 'LICENSE', 'foo.js', 'package.json'])
   } else {
-    expect([...files].map((f) => f.toLowerCase()).sort(lexCompare)).toStrictEqual(['foo.js', 'package.json'])
+    expect([...files].map((f) => f.toLowerCase()).sort(lexCompare)).toStrictEqual(['foo.js', 'license', 'package.json'])
   }
 })
 

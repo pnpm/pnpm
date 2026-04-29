@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fs.is-empty-dir-or-nothing",
-  "version": "1000.0.0",
+  "version": "1100.0.0",
   "description": "Checks if a path is empty (Not a file or directory with content)",
   "keywords": [
     "pnpm",
@@ -26,11 +26,12 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pn compile && pn .test",
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "compile": "tsgo --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/fs.is-empty-dir-or-nothing": "workspace:*"
   },
   "engines": {

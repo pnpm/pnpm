@@ -1,5 +1,61 @@
 # @pnpm/pick-fetcher
 
+## 1100.0.3
+
+### Patch Changes
+
+- Updated dependencies [421317c]
+  - @pnpm/fetching.fetcher-base@1100.1.0
+  - @pnpm/hooks.types@1100.0.3
+
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [72c1e05]
+  - @pnpm/resolving.resolver-base@1100.1.0
+  - @pnpm/fetching.fetcher-base@1100.0.2
+  - @pnpm/hooks.types@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- @pnpm/fetching.fetcher-base@1100.0.1
+- @pnpm/hooks.types@1100.0.1
+- @pnpm/resolving.resolver-base@1100.0.1
+- @pnpm/store.cafs-types@1100.0.0
+
+## 1002.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+- 38b8e35: Support for custom resolvers and fetchers.
+
+### Patch Changes
+
+- Updated dependencies [facdd71]
+- Updated dependencies [e2e0a32]
+- Updated dependencies [9b0a460]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [491a84f]
+- Updated dependencies [ba065f6]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [50fbeca]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [831f574]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [98a0410]
+  - @pnpm/resolving.resolver-base@1006.0.0
+  - @pnpm/store.cafs-types@1001.0.0
+  - @pnpm/fetching.fetcher-base@1002.0.0
+  - @pnpm/error@1001.0.0
+  - @pnpm/hooks.types@1002.0.0
+
 ## 1001.0.0
 
 ### Major Changes

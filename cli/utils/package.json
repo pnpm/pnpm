@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cli.utils",
-  "version": "1001.2.8",
+  "version": "1101.0.0",
   "description": "Utils for pnpm commands",
   "keywords": [
     "pnpm",
@@ -25,7 +25,7 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
-    "prepublishOnly": "pn compile",
+    "prepublishOnly": "tsgo --build",
     "compile": "tsgo --build && pn lint --fix",
     "test": "pn compile"
   },

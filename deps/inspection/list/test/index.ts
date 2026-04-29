@@ -1,6 +1,7 @@
 /// <reference path="../../../../__typings__/index.d.ts"/>
 import path from 'node:path'
 
+import { expect, test } from '@jest/globals'
 import { list, listForPackages } from '@pnpm/deps.inspection.list'
 import { fixtures } from '@pnpm/test-fixtures'
 import chalk from 'chalk'
