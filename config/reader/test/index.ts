@@ -547,7 +547,7 @@ test('workspace .npmrc overrides pnpm auth file', async () => {
       packageManager: {
         name: 'pnpm',
         version: '1.0.0',
-},
+      },
     })
 
     expect(config.enableGlobalVirtualStore).toBe(true)
@@ -1723,13 +1723,10 @@ test('GVS: workspace manifest allowBuilds takes precedence over global config.ya
 
   const prevXdgConfigHome = process.env.XDG_CONFIG_HOME
 
+  const globalDir = path.join(import.meta.dirname, 'global', GLOBAL_LAYOUT_VERSION)
+
   try {
     process.env.XDG_CONFIG_HOME = path.resolve('.config')
-
-    // env.PNPM_HOME is import.meta.dirname (the test dir), so globalPkgDir
-    // resolves to testDir/global/<GLOBAL_LAYOUT_VERSION> — write the
-    // workspace manifest there.
-    const globalDir = path.join(import.meta.dirname, 'global', GLOBAL_LAYOUT_VERSION)
 
     fs.mkdirSync(path.join(process.env.XDG_CONFIG_HOME, 'pnpm'), { recursive: true })
     writeYamlFileSync(path.join(process.env.XDG_CONFIG_HOME, 'pnpm', 'config.yaml'), {
@@ -1776,47 +1773,6 @@ test('GVS: global workspace manifest allowBuilds is read even when global config
   prepareEmpty()
 
   const prevXdgConfigHome = process.env.XDG_CONFIG_HOME
-
-  try {
-    // Set up global config.yaml with a build policy
-    fs.mkdirSync('.config/pnpm', { recursive: true })
-    writeYamlFileSync('.config/pnpm/config.yaml', {
-      dangerouslyAllowAllBuilds: true,
-    })
-    process.env.XDG_CONFIG_HOME = path.resolve('.config')
-
-    // No global pnpm-workspace.yaml
-    // intentionally do not write a workspace manifest
-
-    const { config } = await getConfig({
-      cliOptions: {
-        global: true,
-      },
-      env,
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-
-    // For global installs, enableGlobalVirtualStore defaults to true.
-    expect(config.enableGlobalVirtualStore).toBe(true)
-    // The key assertion: global config.yaml policy should NOT be wiped by the GVS
-    // allowBuilds = {} default. Previously this block set allowBuilds
-    // before globalDepsBuildConfig was re-applied, so hasDependencyBuildOptions
-    // saw allowBuilds = {} and skipped re-application, silently losing
-    // dangerouslyAllowAllBuilds.
-    expect(config.dangerouslyAllowAllBuilds).toBe(true)
-    // allowBuilds should remain null — dangerouslyAllowAllBuilds IS the policy
-    expect(config.allowBuilds).toBeUndefined()
-  } finally {
-    if (prevXdgConfigHome === undefined) {
-      delete process.env.XDG_CONFIG_HOME
-    } else {
-      process.env.XDG_CONFIG_HOME = prevXdgConfigHome
-    }
-  }
-})
 
   try {
     // Set up global config.yaml with a build policy
