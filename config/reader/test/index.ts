@@ -1745,10 +1745,11 @@ test('GVS: workspace manifest allowBuilds takes precedence over global config.ya
       },
     })
 
+    expect(config.enableGlobalVirtualStore).toBe(true)
     expect(config.allowBuilds).toStrictEqual({ '@some/pkg': true, esbuild: true })
-    expect(config.dangerouslyAllowAllBuilds).toBe(true)
-  } finally {
-    fs.rmSync(globalDir, { recursive: true, force: true })
+    // config.yaml dangerouslyAllowAllBuilds survives because addSettingsFromWorkspaceManifestToConfig
+    // re-reads config.yaml after extractAndRemoveDependencyBuildOptions strips it
+    expect(config.dangerouslyAllowAllBuilds).toBe(true), { recursive: true, force: true })
     const parentGlobalDir = path.join(import.meta.dirname, 'global')
     if (fs.existsSync(parentGlobalDir)) {
       fs.rmSync(parentGlobalDir, { recursive: true, force: true })
