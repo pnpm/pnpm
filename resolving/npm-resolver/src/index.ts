@@ -43,8 +43,6 @@ import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOption
 import { normalizeRegistryUrl } from './normalizeRegistryUrl.js'
 import {
   BUILTIN_NAMED_REGISTRIES,
-  type JsrRegistryPackageSpec,
-  type NamedRegistryPackageSpec,
   parseBareSpecifier,
   parseJsrSpecifierToRegistryPackageSpec,
   parseNamedRegistrySpecifierToRegistryPackageSpec,
@@ -511,69 +509,23 @@ async function resolveNpm (
 
 async function resolveJsr (
   ctx: ResolveFromNpmContext,
-  wantedDependency: WantedDependency,
+  wantedDependency: WantedDependency & { optional?: boolean },
   opts: Omit<ResolveFromNpmOptions, 'registry'>
 ): Promise<JsrResolveResult | null> {
   if (!wantedDependency.bareSpecifier) return null
-  const defaultTag = opts.defaultTag ?? 'latest'
 
-  const registry = ctx.registries['@jsr']! // '@jsr' is always defined
-  const spec = parseJsrSpecifierToRegistryPackageSpec(wantedDependency.bareSpecifier, wantedDependency.alias, defaultTag)
+  const spec = parseJsrSpecifierToRegistryPackageSpec(wantedDependency.bareSpecifier, wantedDependency.alias, opts.defaultTag ?? 'latest')
   if (spec == null) return null
 
-  const authHeaderValue = ctx.getAuthHeaderValueByURI(registry)
-  const { meta, pickedPackage } = await ctx.pickPackage(spec, {
-    pickLowestVersion: opts.pickLowestVersion,
-    publishedBy: opts.publishedBy,
-    authHeaderValue,
-    dryRun: opts.dryRun === true,
-    preferredVersionSelectors: opts.preferredVersions?.[spec.name],
-    registry,
-    includeLatestTag: opts.update === 'latest',
-  })
-
-  if (pickedPackage == null) {
-    throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
-  }
-
-  const id = `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId
-  const resolution = {
-    integrity: getIntegrity(pickedPackage.dist),
-    tarball: normalizeRegistryUrl(pickedPackage.dist.tarball),
-  }
+  const picked = await pickFromSimpleRegistry(ctx, wantedDependency, opts, spec, ctx.registries['@jsr']!) // '@jsr' is always defined
   return {
-    id,
-    latest: meta['dist-tags'].latest,
-    manifest: pickedPackage,
+    ...picked,
     normalizedBareSpecifier: opts.calcSpecifier
-      ? calcJsrSpecifier({
-        wantedDependency,
-        spec,
-        version: pickedPackage.version,
-        defaultPinnedVersion: opts.pinnedVersion,
-      })
+      ? calcPrefixedSpecifier('jsr:', spec.jsrPkgName, wantedDependency, picked.manifest.version, opts.pinnedVersion)
       : undefined,
-    resolution,
     resolvedVia: 'jsr-registry',
-    publishedAt: meta.time?.[pickedPackage.version],
     alias: spec.jsrPkgName,
   }
-}
-
-function calcJsrSpecifier ({
-  wantedDependency,
-  spec,
-  version,
-  defaultPinnedVersion,
-}: {
-  wantedDependency: WantedDependency
-  spec: JsrRegistryPackageSpec
-  version: string
-  defaultPinnedVersion?: PinnedVersion
-}): string {
-  const range = calcRange(version, wantedDependency, defaultPinnedVersion)
-  if (!wantedDependency.alias || spec.jsrPkgName === wantedDependency.alias) return `jsr:${range}`
-  return `jsr:${spec.jsrPkgName}@${range}`
 }
 
 // Merges user-supplied named-registry aliases (from config) on top of pnpm's
@@ -622,19 +574,49 @@ async function resolveFromNamedRegistry (
   opts: Omit<ResolveFromNpmOptions, 'registry'>
 ): Promise<NamedRegistryResolveResult | null> {
   if (!wantedDependency.bareSpecifier) return null
-  const defaultTag = opts.defaultTag ?? 'latest'
 
   const spec = parseNamedRegistrySpecifierToRegistryPackageSpec(
     wantedDependency.bareSpecifier,
     ctx.namedRegistryNames,
     wantedDependency.alias,
-    defaultTag
+    opts.defaultTag ?? 'latest'
   )
   if (spec == null) return null
 
   const registry = ctx.namedRegistries[spec.registryName]
   if (!registry) return null // defensive: should never trigger because parse checks the alias set
 
+  const picked = await pickFromSimpleRegistry(ctx, wantedDependency, opts, spec, registry)
+  return {
+    ...picked,
+    normalizedBareSpecifier: opts.calcSpecifier
+      ? calcPrefixedSpecifier(`${spec.registryName}:`, spec.name, wantedDependency, picked.manifest.version, opts.pinnedVersion)
+      : undefined,
+    resolvedVia: 'named-registry',
+    registryName: spec.registryName,
+    // Exposes the scoped package name so callers that omit an explicit alias
+    // (e.g. `pnpm add gh:@acme/foo`) record the dependency under `@acme/foo`.
+    alias: spec.name,
+  }
+}
+
+// Shared inner shell for resolvers that pull from a single registry URL with
+// an already-parsed RegistryPackageSpec (jsr, named-registry). Returns the
+// fields common to their result envelopes; each caller adds its own
+// resolvedVia, alias, and normalizedBareSpecifier.
+async function pickFromSimpleRegistry (
+  ctx: ResolveFromNpmContext,
+  wantedDependency: WantedDependency & { optional?: boolean },
+  opts: Omit<ResolveFromNpmOptions, 'registry'>,
+  spec: RegistryPackageSpec,
+  registry: string
+): Promise<{
+  id: PkgResolutionId
+  latest?: string
+  manifest: DependencyManifest
+  resolution: TarballResolution
+  publishedAt?: string
+}> {
   const authHeaderValue = ctx.getAuthHeaderValueByURI(registry)
   const { meta, pickedPackage } = await ctx.pickPackage(spec, {
     pickLowestVersion: opts.pickLowestVersion,
@@ -647,52 +629,35 @@ async function resolveFromNamedRegistry (
     includeLatestTag: opts.update === 'latest',
     optional: wantedDependency.optional,
   })
-
   if (pickedPackage == null) {
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
   }
-
-  const id = `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId
-  const resolution = {
-    integrity: getIntegrity(pickedPackage.dist),
-    tarball: normalizeRegistryUrl(pickedPackage.dist.tarball),
-  }
   return {
-    id,
+    id: `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId,
     latest: meta['dist-tags'].latest,
     manifest: pickedPackage,
-    normalizedBareSpecifier: opts.calcSpecifier
-      ? calcNamedRegistrySpecifier({
-        wantedDependency,
-        spec,
-        version: pickedPackage.version,
-        defaultPinnedVersion: opts.pinnedVersion,
-      })
-      : undefined,
-    resolution,
-    resolvedVia: 'named-registry',
-    registryName: spec.registryName,
+    resolution: {
+      integrity: getIntegrity(pickedPackage.dist),
+      tarball: normalizeRegistryUrl(pickedPackage.dist.tarball),
+    },
     publishedAt: meta.time?.[pickedPackage.version],
-    // Exposes the scoped package name so callers that omit an explicit alias
-    // (e.g. `pnpm add gh:@acme/foo`) record the dependency under `@acme/foo`.
-    alias: spec.name,
   }
 }
 
-function calcNamedRegistrySpecifier ({
-  wantedDependency,
-  spec,
-  version,
-  defaultPinnedVersion,
-}: {
-  wantedDependency: WantedDependency
-  spec: NamedRegistryPackageSpec
-  version: string
+// Builds a `<prefix><pkgName>@<range>` specifier (or a bare `<prefix><range>`
+// when the dependency alias matches the package name). Shared between the
+// jsr and named-registry resolvers since they only differ in `prefix` and
+// which spec field holds the package name.
+function calcPrefixedSpecifier (
+  prefix: string,
+  pkgName: string,
+  wantedDependency: WantedDependency,
+  version: string,
   defaultPinnedVersion?: PinnedVersion
-}): string {
+): string {
   const range = calcRange(version, wantedDependency, defaultPinnedVersion)
-  if (!wantedDependency.alias || spec.name === wantedDependency.alias) return `${spec.registryName}:${range}`
-  return `${spec.registryName}:${spec.name}@${range}`
+  if (!wantedDependency.alias || pkgName === wantedDependency.alias) return `${prefix}${range}`
+  return `${prefix}${pkgName}@${range}`
 }
 
 function calcSpecifier ({
