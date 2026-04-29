@@ -1,5 +1,19 @@
 # @pnpm/engine.pm.commands
 
+## 1101.1.1
+
+### Patch Changes
+
+- 0fbcf74: `pnpm self-update` now keeps `package.json`'s `packageManager` and `devEngines.packageManager` in sync. When the legacy `packageManager` field pins pnpm, both fields are rewritten to the new exact pnpm version on update — `packageManager` to `pnpm@<version>` (without an integrity hash), and `devEngines.packageManager.version` to the same exact `<version>` (dropping any range operator). When only `devEngines.packageManager` is declared, the existing range-preserving behavior is unchanged [#11388](https://github.com/pnpm/pnpm/issues/11388).
+- Updated dependencies [0fbcf74]
+  - @pnpm/config.reader@1101.1.2
+  - @pnpm/global.commands@1100.0.6
+  - @pnpm/store.connection-manager@1100.0.6
+  - @pnpm/installing.deps-restorer@1101.0.1
+  - @pnpm/installing.client@1100.0.6
+  - @pnpm/installing.env-installer@1101.0.1
+  - @pnpm/store.controller@1101.0.0
+
 ## 1101.1.0
 
 ### Minor Changes

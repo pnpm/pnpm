@@ -1,5 +1,14 @@
 # @pnpm/config
 
+## 1101.1.2
+
+### Patch Changes
+
+- 0fbcf74: `pnpm self-update` now keeps `package.json`'s `packageManager` and `devEngines.packageManager` in sync. When the legacy `packageManager` field pins pnpm, both fields are rewritten to the new exact pnpm version on update — `packageManager` to `pnpm@<version>` (without an integrity hash), and `devEngines.packageManager.version` to the same exact `<version>` (dropping any range operator). When only `devEngines.packageManager` is declared, the existing range-preserving behavior is unchanged [#11388](https://github.com/pnpm/pnpm/issues/11388).
+- Updated dependencies [f543b77]
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.2
+  - @pnpm/catalogs.config@1100.0.0
+
 ## 1101.1.1
 
 ### Patch Changes

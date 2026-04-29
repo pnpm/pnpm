@@ -1,5 +1,12 @@
 # @pnpm/client
 
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/engine.runtime.node-resolver@1101.0.1
+- @pnpm/resolving.default-resolver@1100.0.6
+
 ## 1100.0.5
 
 ### Patch Changes

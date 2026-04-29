@@ -1,5 +1,12 @@
 # @pnpm/node.resolver
 
+## 1101.0.1
+
+### Patch Changes
+
+- Updated dependencies [0fbcf74]
+  - @pnpm/config.reader@1101.1.2
+
 ## 1101.0.0
 
 ### Major Changes

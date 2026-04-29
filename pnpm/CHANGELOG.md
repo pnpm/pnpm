@@ -1,5 +1,16 @@
 # pnpm
 
+## 11.0.1
+
+### Patch Changes
+
+- Report unknown top-level options before falling back to implicit `pnpm run` scripts.
+- Reject `null` named catalogs in workspace manifests with `InvalidWorkspaceManifestError` instead of crashing with a raw `TypeError`.
+- Populate download location for git-sourced dependencies in SBOM output. Previously `pnpm sbom` emitted `NOASSERTION` (SPDX) and omitted the distribution reference (CycloneDX) for git dependencies. Now emits the git URL with commit hash, e.g. `git+https://github.com/user/repo.git#commit`.
+- `pnpm self-update` now keeps `package.json`'s `packageManager` and `devEngines.packageManager` in sync. When the legacy `packageManager` field pins pnpm, both fields are rewritten to the new exact pnpm version on update — `packageManager` to `pnpm@<version>` (without an integrity hash), and `devEngines.packageManager.version` to the same exact `<version>` (dropping any range operator). When only `devEngines.packageManager` is declared, the existing range-preserving behavior is unchanged [#11388](https://github.com/pnpm/pnpm/issues/11388).
+- Sort the keys of the overrides object returned by `pnpm audit --fix` so that the log output order matches the order written to `pnpm-workspace.yaml`.
+- Update the env lockfile's `packageManagerDependencies` entry when `devEngines.packageManager` declares a pnpm version that the lockfile no longer satisfies. Previously, the stale entry was kept even though the running pnpm matched the declared version, silently breaking the integrity record [#11387](https://github.com/pnpm/pnpm/issues/11387).
+
 ## 11.0.0
 
 ### Highlights

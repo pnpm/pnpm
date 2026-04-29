@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.compliance.commands",
-  "version": "1101.1.2",
+  "version": "1101.1.3",
   "description": "pnpm commands for audit, licenses, and sbom",
   "keywords": [
     "pnpm",
