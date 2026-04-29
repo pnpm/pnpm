@@ -1,5 +1,13 @@
 # pnpm-agent
 
+## 0.0.4
+
+### Patch Changes
+
+- @pnpm/installing.deps-installer@1101.0.2
+- @pnpm/installing.client@1100.0.6
+- @pnpm/store.controller@1101.0.0
+
 ## 0.0.3
 
 ### Patch Changes

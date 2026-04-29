@@ -1,5 +1,17 @@
 # @pnpm/deps.compliance.commands
 
+## 1101.1.3
+
+### Patch Changes
+
+- 5e11362: Sort the keys of the overrides object returned by `pnpm audit --fix` so that the log output order matches the order written to `pnpm-workspace.yaml`.
+- Updated dependencies [f9afe81]
+- Updated dependencies [0fbcf74]
+  - @pnpm/deps.compliance.sbom@1100.0.5
+  - @pnpm/config.reader@1101.1.2
+  - @pnpm/installing.commands@1100.1.4
+  - @pnpm/config.writer@1100.0.3
+
 ## 1101.1.2
 
 ### Patch Changes
