@@ -1,0 +1,8 @@
+packages:
+  - '.'
+sharedWorkspaceLockfile: false
+auditConfig:
+  ignoreGhsas:
+    - GHSA-42xw-2xvc-qx8m
+    # Expired GHSA, should not be ignored
+    - GHSA-xxxx-xxxx-xxxx
