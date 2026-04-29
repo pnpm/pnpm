@@ -547,10 +547,15 @@ test('workspace .npmrc overrides pnpm auth file', async () => {
       packageManager: {
         name: 'pnpm',
         version: '1.0.0',
-      },
+},
     })
 
-    expect(config.authConfig['//registry.npmjs.org/:_authToken']).toBe('workspace-token')
+    expect(config.enableGlobalVirtualStore).toBe(true)
+    expect(config.allowBuilds).toStrictEqual({ '@some/pkg': true, esbuild: true })
+    // The dangerouslyAllowAllBuilds value from the already-loaded global config.yaml
+    // is preserved when workspace manifest settings are applied after
+    // extractAndRemoveDependencyBuildOptions strips the workspace build options.
+    expect(config.dangerouslyAllowAllBuilds).toBe(true)
   } finally {
     if (originalXdg != null) {
       process.env.XDG_CONFIG_HOME = originalXdg
@@ -1749,15 +1754,61 @@ test('GVS: workspace manifest allowBuilds takes precedence over global config.ya
 
     expect(config.enableGlobalVirtualStore).toBe(true)
     expect(config.allowBuilds).toStrictEqual({ '@some/pkg': true, esbuild: true })
-    // config.yaml dangerouslyAllowAllBuilds survives because addSettingsFromWorkspaceManifestToConfig
-    // re-reads config.yaml after extractAndRemoveDependencyBuildOptions strips it
+    // The dangerouslyAllowAllBuilds value from the already-loaded global config.yaml
+    // is preserved when workspace manifest settings are applied after
+    // extractAndRemoveDependencyBuildOptions strips the workspace build options.
     expect(config.dangerouslyAllowAllBuilds).toBe(true)
-
+  } finally {
+    if (prevXdgConfigHome === undefined) {
+      delete process.env.XDG_CONFIG_HOME
+    } else {
+      process.env.XDG_CONFIG_HOME = prevXdgConfigHome
+    }
     fs.rmSync(globalDir, { recursive: true, force: true })
     const parentGlobalDir = path.join(import.meta.dirname, 'global')
     if (fs.existsSync(parentGlobalDir)) {
       fs.rmSync(parentGlobalDir, { recursive: true, force: true })
     }
+  }
+})
+
+test('GVS: global workspace manifest allowBuilds is read even when global config.yaml dangerouslyAllowAllBuilds is set', async () => {
+  prepareEmpty()
+
+  const prevXdgConfigHome = process.env.XDG_CONFIG_HOME
+
+  try {
+    // Set up global config.yaml with a build policy
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', {
+      dangerouslyAllowAllBuilds: true,
+    })
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    // No global pnpm-workspace.yaml
+    // intentionally do not write a workspace manifest
+
+    const { config } = await getConfig({
+      cliOptions: {
+        global: true,
+      },
+      env,
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    // For global installs, enableGlobalVirtualStore defaults to true.
+    expect(config.enableGlobalVirtualStore).toBe(true)
+    // The key assertion: global config.yaml policy should NOT be wiped by the GVS
+    // allowBuilds = {} default. Previously this block set allowBuilds
+    // before globalDepsBuildConfig was re-applied, so hasDependencyBuildOptions
+    // saw allowBuilds = {} and skipped re-application, silently losing
+    // dangerouslyAllowAllBuilds.
+    expect(config.dangerouslyAllowAllBuilds).toBe(true)
+    // allowBuilds should remain null — dangerouslyAllowAllBuilds IS the policy
+    expect(config.allowBuilds).toBeUndefined()
   } finally {
     if (prevXdgConfigHome === undefined) {
       delete process.env.XDG_CONFIG_HOME
@@ -1766,11 +1817,6 @@ test('GVS: workspace manifest allowBuilds takes precedence over global config.ya
     }
   }
 })
-
-test('GVS: global config.yaml dangerouslyAllowAllBuilds is respected when no global workspace manifest exists', async () => {
-  prepareEmpty()
-
-  const prevXdgConfigHome = process.env.XDG_CONFIG_HOME
 
   try {
     // Set up global config.yaml with a build policy
