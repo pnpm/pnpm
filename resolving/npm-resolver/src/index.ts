@@ -166,7 +166,7 @@ export interface JsrResolveResult extends ResolveResult {
 export interface NamedRegistryResolveResult extends ResolveResult {
   alias: string
   /** The named-registry alias that was matched, e.g. `gh` or a user-defined name. */
-  registryAlias: string
+  registryName: string
   manifest: DependencyManifest
   resolution: TarballResolution
   resolvedVia: 'named-registry'
@@ -632,7 +632,7 @@ async function resolveFromNamedRegistry (
   )
   if (spec == null) return null
 
-  const registry = ctx.namedRegistries[spec.registryAlias]
+  const registry = ctx.namedRegistries[spec.registryName]
   if (!registry) return null // defensive: should never trigger because parse checks the alias set
 
   const authHeaderValue = ctx.getAuthHeaderValueByURI(registry)
@@ -671,7 +671,7 @@ async function resolveFromNamedRegistry (
       : undefined,
     resolution,
     resolvedVia: 'named-registry',
-    registryAlias: spec.registryAlias,
+    registryName: spec.registryName,
     publishedAt: meta.time?.[pickedPackage.version],
     // Exposes the scoped package name so callers that omit an explicit alias
     // (e.g. `pnpm add gh:@acme/foo`) record the dependency under `@acme/foo`.
@@ -691,8 +691,8 @@ function calcNamedRegistrySpecifier ({
   defaultPinnedVersion?: PinnedVersion
 }): string {
   const range = calcRange(version, wantedDependency, defaultPinnedVersion)
-  if (!wantedDependency.alias || spec.name === wantedDependency.alias) return `${spec.registryAlias}:${range}`
-  return `${spec.registryAlias}:${spec.name}@${range}`
+  if (!wantedDependency.alias || spec.name === wantedDependency.alias) return `${spec.registryName}:${range}`
+  return `${spec.registryName}:${spec.name}@${range}`
 }
 
 function calcSpecifier ({

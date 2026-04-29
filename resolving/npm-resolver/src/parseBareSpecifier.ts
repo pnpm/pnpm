@@ -89,7 +89,7 @@ export const BUILTIN_NAMED_REGISTRIES: Readonly<Record<string, string>> = Object
 })
 
 export interface NamedRegistryPackageSpec extends RegistryPackageSpec {
-  registryAlias: string
+  registryName: string
 }
 
 // Parses a named-registry specifier of the shape `<alias>:<body>` into a
@@ -106,8 +106,8 @@ export function parseNamedRegistrySpecifierToRegistryPackageSpec (
 ): NamedRegistryPackageSpec | null {
   const colon = rawSpecifier.indexOf(':')
   if (colon <= 0) return null
-  const registryAlias = rawSpecifier.substring(0, colon)
-  if (!knownAliases.has(registryAlias)) return null
+  const registryName = rawSpecifier.substring(0, colon)
+  if (!knownAliases.has(registryName)) return null
 
   const body = rawSpecifier.substring(colon + 1)
   let pkgName: string
@@ -132,7 +132,7 @@ export function parseNamedRegistrySpecifierToRegistryPackageSpec (
     return null
   }
 
-  validateScopedPackageName(pkgName, registryAlias)
+  validateScopedPackageName(pkgName, registryName)
 
   const selector = getVersionSelectorType(versionSelector ?? defaultTag)
   if (selector == null) return null
@@ -141,22 +141,22 @@ export function parseNamedRegistrySpecifierToRegistryPackageSpec (
     fetchSpec: selector.normalized,
     name: pkgName,
     type: selector.type,
-    registryAlias,
+    registryName,
   }
 }
 
-function validateScopedPackageName (pkgName: string, registryAlias: string): void {
+function validateScopedPackageName (pkgName: string, registryName: string): void {
   if (pkgName[0] !== '@') {
     throw new PnpmError(
       'MISSING_NAMED_REGISTRY_PACKAGE_SCOPE',
-      `Package '${pkgName}' from named registry '${registryAlias}:' must have a scope (e.g. '@owner/name')`
+      `Package '${pkgName}' from named registry '${registryName}:' must have a scope (e.g. '@owner/name')`
     )
   }
   const sepIndex = pkgName.indexOf('/')
   if (sepIndex === -1 || sepIndex === pkgName.length - 1) {
     throw new PnpmError(
       'INVALID_NAMED_REGISTRY_PACKAGE_NAME',
-      `The package name '${pkgName}' in named registry '${registryAlias}:' is invalid`
+      `The package name '${pkgName}' in named registry '${registryName}:' is invalid`
     )
   }
 }

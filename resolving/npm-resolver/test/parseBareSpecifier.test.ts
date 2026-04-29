@@ -51,19 +51,19 @@ describe('parseNamedRegistrySpecifierToRegistryPackageSpec', () => {
       name: '@acme/foo',
       fetchSpec: '>=1.0.0 <2.0.0-0',
       type: 'range',
-      registryAlias: 'gh',
+      registryName: 'gh',
     } as NamedRegistryPackageSpec)
     expect(parseNamedRegistrySpecifierToRegistryPackageSpec('gh:1.0.0', GH_ALIASES, '@acme/foo', DEFAULT_TAG)).toStrictEqual({
       name: '@acme/foo',
       fetchSpec: '1.0.0',
       type: 'version',
-      registryAlias: 'gh',
+      registryName: 'gh',
     } as NamedRegistryPackageSpec)
     expect(parseNamedRegistrySpecifierToRegistryPackageSpec('gh:latest', GH_ALIASES, '@acme/foo', DEFAULT_TAG)).toStrictEqual({
       name: '@acme/foo',
       fetchSpec: 'latest',
       type: 'tag',
-      registryAlias: 'gh',
+      registryName: 'gh',
     } as NamedRegistryPackageSpec)
   })
 
@@ -72,7 +72,7 @@ describe('parseNamedRegistrySpecifierToRegistryPackageSpec', () => {
       name: '@acme/foo',
       fetchSpec: 'latest',
       type: 'tag',
-      registryAlias: 'gh',
+      registryName: 'gh',
     } as NamedRegistryPackageSpec)
   })
 
@@ -81,19 +81,19 @@ describe('parseNamedRegistrySpecifierToRegistryPackageSpec', () => {
       name: '@acme/foo',
       fetchSpec: '>=1.0.0 <2.0.0-0',
       type: 'range',
-      registryAlias: 'gh',
+      registryName: 'gh',
     } as NamedRegistryPackageSpec)
     expect(parseNamedRegistrySpecifierToRegistryPackageSpec('gh:@acme/foo@1.0.0', GH_ALIASES, undefined, DEFAULT_TAG)).toStrictEqual({
       name: '@acme/foo',
       fetchSpec: '1.0.0',
       type: 'version',
-      registryAlias: 'gh',
+      registryName: 'gh',
     } as NamedRegistryPackageSpec)
     expect(parseNamedRegistrySpecifierToRegistryPackageSpec('gh:@acme/foo@beta', GH_ALIASES, undefined, DEFAULT_TAG)).toStrictEqual({
       name: '@acme/foo',
       fetchSpec: 'beta',
       type: 'tag',
-      registryAlias: 'gh',
+      registryName: 'gh',
     } as NamedRegistryPackageSpec)
   })
 
@@ -131,7 +131,7 @@ describe('parseNamedRegistrySpecifierToRegistryPackageSpec', () => {
       name: '@acme/foo',
       fetchSpec: '>=1.0.0 <2.0.0-0',
       type: 'range',
-      registryAlias: 'work',
+      registryName: 'work',
     } as NamedRegistryPackageSpec)
   })
 

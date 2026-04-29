@@ -60,7 +60,7 @@ test('resolveFromNamedRegistry() resolves a scoped package published to GitHub P
 
   expect(resolveResult).toMatchObject({
     resolvedVia: 'named-registry',
-    registryAlias: 'gh',
+    registryName: 'gh',
     id: '@acme/private@2.1.0',
     latest: '2.1.0',
     manifest: {
@@ -101,7 +101,7 @@ test('resolveFromNamedRegistry() preserves the scoped package name when the alia
 
   expect(resolveResult).toMatchObject({
     resolvedVia: 'named-registry',
-    registryAlias: 'gh',
+    registryName: 'gh',
     id: '@acme/private@1.0.0',
     manifest: {
       name: '@acme/private',
@@ -142,7 +142,7 @@ test('resolveFromNamedRegistry() looks up the auth header by the named registry 
   expect(calls).toContain(GH_REGISTRY)
   expect(resolveResult).toMatchObject({
     resolvedVia: 'named-registry',
-    registryAlias: 'gh',
+    registryName: 'gh',
     id: '@acme/private@2.0.0',
   })
 })
@@ -168,7 +168,7 @@ test('resolveFromNamedRegistry() honours a user-defined named registry from conf
 
   expect(resolveResult).toMatchObject({
     resolvedVia: 'named-registry',
-    registryAlias: 'work',
+    registryName: 'work',
     id: '@acme/private@2.1.0',
     normalizedBareSpecifier: 'work:^2.1.0',
   })
@@ -194,7 +194,7 @@ test('resolveFromNamedRegistry() allows user config to override the built-in gh 
 
   expect(resolveResult).toMatchObject({
     resolvedVia: 'named-registry',
-    registryAlias: 'gh',
+    registryName: 'gh',
     id: '@acme/private@2.1.0',
   })
 })
