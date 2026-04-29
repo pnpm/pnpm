@@ -77,18 +77,17 @@ export async function handler (
   opts: OwnerOptions,
   params: string[]
 ): Promise<string> {
-  const subcommand = params[0]
-
-  if (subcommand === 'add') {
-    return ownerAdd(opts, params.slice(1))
+  switch (params[0]) {
+    case 'add':
+      return ownerAdd(opts, params.slice(1))
+    case 'rm':
+      return ownerRm(opts, params.slice(1))
+    case 'ls':
+    case 'list':
+      return ownerLs(opts, params.slice(1))
+    default:
+      return ownerLs(opts, params)
   }
-  if (subcommand === 'rm') {
-    return ownerRm(opts, params.slice(1))
-  }
-  if (subcommand === 'ls' || subcommand === 'list') {
-    return ownerLs(opts, params.slice(1))
-  }
-  return ownerLs(opts, params)
 }
 
 async function ownerLs (
