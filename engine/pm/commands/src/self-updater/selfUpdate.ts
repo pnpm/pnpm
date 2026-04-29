@@ -3,7 +3,7 @@ import path from 'node:path'
 import { linkBins } from '@pnpm/bins.linker'
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
-import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, parsePackageManager, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { createResolver } from '@pnpm/installing.client'
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
@@ -120,8 +120,10 @@ export async function handler (
         // devEngines and any integrity hash on the legacy field). When only
         // devEngines is set, preserve the user's range style and let the
         // lockfile pin the exact version.
-        const legacyPinsPnpm = manifest.packageManager != null &&
-          parsePnpmLegacyVersion(manifest.packageManager) != null
+        const legacyPm = manifest.packageManager != null
+          ? parsePackageManager(manifest.packageManager)
+          : undefined
+        const legacyPinsPnpm = legacyPm?.name === 'pnpm' && legacyPm.version != null
         if (Array.isArray(manifest.devEngines.packageManager)) {
           const pnpmEntry = manifest.devEngines.packageManager.find((e) => e.name === 'pnpm')
           if (pnpmEntry) {
@@ -226,16 +228,4 @@ function versionSpecFromPinned (version: string, pinnedVersion: PinnedVersion): 
     case 'minor': return `~${version}`
     case 'patch': return version
   }
-}
-
-// Returns the version portion of a "pnpm@<version>[+integrity]" string, or
-// undefined if the field doesn't pin pnpm by version. Matches the parsing
-// done by config.reader's getWantedPackageManager so the comparison against
-// devEngines.packageManager.version uses the same notion of "version".
-function parsePnpmLegacyVersion (packageManager: string): string | undefined {
-  const prefix = 'pnpm@'
-  if (!packageManager.startsWith(prefix)) return undefined
-  const ref = packageManager.slice(prefix.length)
-  if (ref.includes(':')) return undefined
-  return ref.split('+')[0]
 }

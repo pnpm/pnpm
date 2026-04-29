@@ -1,4 +1,5 @@
 ---
+"@pnpm/config.reader": patch
 "@pnpm/engine.pm.commands": patch
 "pnpm": patch
 ---
