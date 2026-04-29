@@ -72,6 +72,9 @@ export async function handler (
 
     if (fields.length === 1) {
       const value = selectedFields[fields[0]]
+      if (fields[0] === 'versions') {
+        return `registry: ${opts.registry}\n${formatFieldValue(value)}`
+      }
       return formatFieldValue(value)
     }
 
