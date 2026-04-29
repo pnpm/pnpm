@@ -31,6 +31,7 @@ import type { ParsedCliArgsWithBuiltIn } from './parseCliArgs.js'
 import { parseCliArgs } from './parseCliArgs.js'
 import { initReporter, type ReporterType } from './reporter/index.js'
 import { switchCliVersion } from './switchCliVersion.js'
+import { syncEnvLockfile } from './syncEnvLockfile.js'
 
 export const REPORTER_INITIALIZED = Symbol('reporterInitialized')
 
@@ -111,6 +112,9 @@ export async function main (inputArgv: string[]): Promise<void> {
           globalWarn('Using --global skips the package manager check for this project')
         } else {
           checkPackageManager(pm)
+          if (pm.name === 'pnpm') {
+            await syncEnvLockfile(config, context)
+          }
         }
       }
     }
