@@ -128,3 +128,123 @@ test('audit --fix respects auditLevel and only fixes matching severities', async
   expect(manifest.overrides?.['axios@<0.21.2']).toBeFalsy()
   expect(manifest.overrides?.['url-parse@<1.5.6']).toBeFalsy()
 })
+
+test('cleanupUnusedIgnoredGhsas removes GHSAs that are no longer in the report', async () => {
+  const tmp = f.prepare('has-vulnerabilities')
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
+
+  // GHSA-42xw-2xvc-qx8m exists in the report (axios <=0.18.0)
+  // GHSA-xxxx-xxxx-xxxx does NOT exist in the report - should be removed
+  const { exitCode } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    auditConfig: {
+      ignoreGhsas: [
+        'GHSA-42xw-2xvc-qx8m',
+        'GHSA-xxxx-xxxx-xxxx',
+      ],
+      cleanupUnusedIgnoredGhsas: true,
+    },
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const manifest = readYamlFileSync<{ auditConfig?: { ignoreGhsas?: string[] } }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  expect(manifest.auditConfig?.ignoreGhsas).toContain('GHSA-42xw-2xvc-qx8m')
+  expect(manifest.auditConfig?.ignoreGhsas).not.toContain('GHSA-xxxx-xxxx-xxxx')
+})
+
+test('cleanupUnusedIgnoredGhsas is disabled by default - no cleanup', async () => {
+  const tmp = f.prepare('has-vulnerabilities')
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
+
+  // Without cleanupUnusedIgnoredGhsas: true, cleanup should NOT run
+  const { exitCode } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    auditConfig: {
+      ignoreGhsas: [
+        'GHSA-42xw-2xvc-qx8m',
+        'GHSA-xxxx-xxxx-xxxx',
+      ],
+    },
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+  })
+
+  expect(exitCode).toBe(0)
+
+  // When cleanup doesn't run, the auditConfig stays unchanged
+  const manifest = readYamlFileSync<{ auditConfig?: { ignoreGhsas?: string[] } }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  expect(manifest.auditConfig?.ignoreGhsas).toContain('GHSA-xxxx-xxxx-xxxx')
+})
+
+// GHSA ids are case-insensitive; lowercase version should match uppercase in report
+test('cleanupUnusedIgnoredGhsas handles case normalization', async () => {
+  const tmp = f.prepare('has-vulnerabilities')
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
+
+  const { exitCode } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    auditConfig: {
+      ignoreGhsas: [
+        'ghsa-42xw-2xvc-qx8m', // lowercase, should be retained
+        'GHSA-XXXX-XXXX-XXXX', // uppercase, NOT in report - should be removed
+      ],
+      cleanupUnusedIgnoredGhsas: true,
+    },
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const manifest = readYamlFileSync<{ auditConfig?: { ignoreGhsas?: string[] } }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  // The lowercase version should be retained (normalized to canonical form)
+  expect(manifest.auditConfig?.ignoreGhsas?.some((g) => g.toUpperCase() === 'GHSA-42XW-2XVC-QX8M')).toBe(true)
+  expect(manifest.auditConfig?.ignoreGhsas?.some((g) => g.toUpperCase() === 'GHSA-XXXX-XXXX-XXXX')).toBe(false)
+})
+
+test('cleanupUnusedIgnoredGhsas cleans up all when none are relevant', async () => {
+  const tmp = f.prepare('has-vulnerabilities')
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
+
+  // Only GHSAs that don't exist in the report - all should be cleaned up
+  const { exitCode } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    auditConfig: {
+      ignoreGhsas: [
+        'GHSA-xxxx-0000-0001',
+        'GHSA-xxxx-0000-0002',
+      ],
+      cleanupUnusedIgnoredGhsas: true,
+    },
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const manifest = readYamlFileSync<{ auditConfig?: { ignoreGhsas?: string[] } }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  expect(manifest.auditConfig?.ignoreGhsas).toBeUndefined()
+})
