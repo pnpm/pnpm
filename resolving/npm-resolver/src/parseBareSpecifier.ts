@@ -95,9 +95,9 @@ export interface NamedRegistryPackageSpec extends RegistryPackageSpec {
 // Parses a named-registry specifier of the shape `<alias>:<body>` into a
 // RegistryPackageSpec. Returns `null` when the specifier does not use one of
 // the configured aliases, so the caller can fall through to other resolvers.
-// Supported shapes (mirrors the `gh:` prefix, which is the canonical example):
-// - `<alias>:@<owner>/<name>[@<version_selector>]`
-// - `<alias>:<version_selector>` when paired with a scoped package alias
+// Supported shapes:
+// - `<alias>:[@<owner>/]<name>[@<version_selector>]`
+// - `<alias>:<version_selector>` paired with a package alias
 export function parseNamedRegistrySpecifierToRegistryPackageSpec (
   rawSpecifier: string,
   knownAliases: ReadonlySet<string>,
@@ -113,8 +113,14 @@ export function parseNamedRegistrySpecifierToRegistryPackageSpec (
   let pkgName: string
   let versionSelector: string | undefined
 
-  if (body[0] === '@') {
-    // syntax: <alias>:@<owner>/<name>[@<version_selector>]
+  if (semver.validRange(body) != null) {
+    // `<alias>:<version_selector>` — fall back to the dependency alias as
+    // the package name. Unresolvable without one.
+    if (!packageAlias) return null
+    pkgName = packageAlias
+    versionSelector = body
+  } else if (body[0] === '@') {
+    // `<alias>:@<owner>/<name>[@<version_selector>]` — scoped package.
     const index = body.lastIndexOf('@')
     if (index === 0) {
       pkgName = body
@@ -122,17 +128,29 @@ export function parseNamedRegistrySpecifierToRegistryPackageSpec (
       pkgName = body.substring(0, index)
       versionSelector = body.substring(index + '@'.length)
     }
+    if (pkgName.indexOf('/') === -1 || pkgName.endsWith('/')) {
+      throw new PnpmError(
+        'INVALID_NAMED_REGISTRY_PACKAGE_NAME',
+        `The package name '${pkgName}' in named registry '${registryName}:' is invalid`
+      )
+    }
   } else if (packageAlias?.startsWith('@')) {
-    // syntax: <alias>:<version_selector> paired with a scoped package alias
+    // `<alias>:<tag>` paired with a scoped alias — body is a version
+    // selector (tag/dist-tag). Mirrors GitHub Packages, where the package
+    // is always scoped and a bare body is a tag.
     pkgName = packageAlias
     versionSelector = body
   } else {
-    // No scoped alias means we cannot know the package name — let other
-    // resolvers try.
-    return null
+    // `<alias>:<name>[@<version_selector>]` — unscoped package in body.
+    const index = body.lastIndexOf('@')
+    if (index < 1) {
+      pkgName = body
+    } else {
+      pkgName = body.substring(0, index)
+      versionSelector = body.substring(index + '@'.length)
+    }
+    if (!pkgName) return null
   }
-
-  validateScopedPackageName(pkgName, registryName)
 
   const selector = getVersionSelectorType(versionSelector ?? defaultTag)
   if (selector == null) return null
@@ -142,21 +160,5 @@ export function parseNamedRegistrySpecifierToRegistryPackageSpec (
     name: pkgName,
     type: selector.type,
     registryName,
-  }
-}
-
-function validateScopedPackageName (pkgName: string, registryName: string): void {
-  if (pkgName[0] !== '@') {
-    throw new PnpmError(
-      'MISSING_NAMED_REGISTRY_PACKAGE_SCOPE',
-      `Package '${pkgName}' from named registry '${registryName}:' must have a scope (e.g. '@owner/name')`
-    )
-  }
-  const sepIndex = pkgName.indexOf('/')
-  if (sepIndex === -1 || sepIndex === pkgName.length - 1) {
-    throw new PnpmError(
-      'INVALID_NAMED_REGISTRY_PACKAGE_NAME',
-      `The package name '${pkgName}' in named registry '${registryName}:' is invalid`
-    )
   }
 }

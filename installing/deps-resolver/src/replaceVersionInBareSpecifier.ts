@@ -8,7 +8,17 @@ export function replaceVersionInBareSpecifier (
   if (semver.validRange(bareSpecifier)) {
     return version
   }
-  const prefix = ['npm:', ...namedRegistryPrefixes].find((p) => bareSpecifier.startsWith(p))
+  let prefix: string | undefined
+  if (bareSpecifier.startsWith('npm:')) {
+    prefix = 'npm:'
+  } else {
+    for (const candidate of namedRegistryPrefixes) {
+      if (bareSpecifier.startsWith(candidate)) {
+        prefix = candidate
+        break
+      }
+    }
+  }
   if (prefix == null) {
     return bareSpecifier
   }

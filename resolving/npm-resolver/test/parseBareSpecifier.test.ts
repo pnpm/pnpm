@@ -115,15 +115,38 @@ describe('parseNamedRegistrySpecifierToRegistryPackageSpec', () => {
     }))
   })
 
-  test('does not claim <alias>:<version_selector> when no scoped alias is provided', () => {
+  test('does not claim <alias>:<version_selector> when no package alias is provided', () => {
     // No alias means we cannot know the package name — we must not hijack such specifiers.
     expect(parseNamedRegistrySpecifierToRegistryPackageSpec('gh:^1.0.0', GH_ALIASES, undefined, DEFAULT_TAG)).toBeNull()
   })
 
-  test('does not claim <alias>:<version_selector> when the alias is not scoped', () => {
-    // GitHub Packages names are always scoped. If the alias isn't, the bare specifier is
-    // probably meant for another resolver.
-    expect(parseNamedRegistrySpecifierToRegistryPackageSpec('gh:^1.0.0', GH_ALIASES, 'foo', DEFAULT_TAG)).toBeNull()
+  test('falls back to the dependency alias for <alias>:<version_selector>, scoped or not', () => {
+    // Mirrors the `npm:^1.0.0` shape — works with both scoped and unscoped aliases.
+    expect(parseNamedRegistrySpecifierToRegistryPackageSpec('gh:^1.0.0', GH_ALIASES, '@acme/foo', DEFAULT_TAG)).toMatchObject({
+      name: '@acme/foo',
+      registryName: 'gh',
+    })
+    expect(parseNamedRegistrySpecifierToRegistryPackageSpec('work:^4.0.0', new Set(['work']), 'lodash', DEFAULT_TAG)).toMatchObject({
+      name: 'lodash',
+      registryName: 'work',
+    })
+  })
+
+  test('parses unscoped <alias>:<name>[@<version_selector>]', () => {
+    // Arbitrary named registries (vlt-style) accept unscoped names too,
+    // not just GitHub Packages-style scopes.
+    expect(parseNamedRegistrySpecifierToRegistryPackageSpec('work:lodash@^4.0.0', new Set(['work']), undefined, DEFAULT_TAG)).toMatchObject({
+      name: 'lodash',
+      fetchSpec: '>=4.0.0 <5.0.0-0',
+      type: 'range',
+      registryName: 'work',
+    })
+    expect(parseNamedRegistrySpecifierToRegistryPackageSpec('work:lodash', new Set(['work']), undefined, DEFAULT_TAG)).toMatchObject({
+      name: 'lodash',
+      fetchSpec: 'latest',
+      type: 'tag',
+      registryName: 'work',
+    })
   })
 
   test('matches any alias in the configured set and reports it back to the caller', () => {

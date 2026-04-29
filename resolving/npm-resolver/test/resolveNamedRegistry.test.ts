@@ -244,15 +244,15 @@ test('resolveFromNamedRegistry() does not claim the github: git shortcut scheme'
   await expect(resolveFromNamedRegistry({ bareSpecifier: 'github:@acme/foo' }, {})).resolves.toBeNull()
 })
 
-test('resolveFromNamedRegistry() returns null when the alias is not scoped (unambiguous inputs are left for other resolvers)', async () => {
+test('resolveFromNamedRegistry() returns null when no alias is provided for a bare version selector', async () => {
   const { resolveFromNamedRegistry } = createNpmResolver(fetch, () => undefined, {
     storeDir: temporaryDirectory(),
     cacheDir: temporaryDirectory(),
     registries,
   })
 
-  // Without a scoped package alias, `gh:<version>` cannot be resolved to a GitHub Packages name.
-  await expect(resolveFromNamedRegistry({ alias: 'private', bareSpecifier: 'gh:2.0.0' }, {})).resolves.toBeNull()
+  // Without any package alias, `gh:<version>` cannot map to a package name.
+  await expect(resolveFromNamedRegistry({ bareSpecifier: 'gh:2.0.0' }, {})).resolves.toBeNull()
 })
 
 test('resolveFromNamedRegistry() throws when the specifier names an invalid scoped package', async () => {

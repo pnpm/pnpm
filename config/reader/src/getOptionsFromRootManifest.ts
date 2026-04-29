@@ -66,7 +66,7 @@ function replaceEnvInSettings (settings: PnpmSettings): PnpmSettings {
 }
 
 function replaceEnvInStringValues (value: unknown): unknown {
-  if (value == null || typeof value !== 'object') return value
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) return value
   const out: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
     out[k] = typeof v === 'string' ? envReplace(v, process.env) : v
