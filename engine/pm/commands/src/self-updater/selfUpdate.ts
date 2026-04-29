@@ -3,7 +3,7 @@ import path from 'node:path'
 import { linkBins } from '@pnpm/bins.linker'
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
-import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, parsePackageManager, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { createResolver } from '@pnpm/installing.client'
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
@@ -113,22 +113,38 @@ export async function handler (
     if (opts.wantedPackageManager?.version !== resolution.manifest.version) {
       const { manifest, writeProjectManifest } = await readProjectManifest(opts.rootProjectManifestDir)
       if (manifest.devEngines?.packageManager) {
-        if (Array.isArray(manifest.devEngines.packageManager)) {
-          const pnpmEntry = manifest.devEngines.packageManager.find((e) => e.name === 'pnpm')
-          if (pnpmEntry) {
-            const updated = updateVersionConstraint(pnpmEntry.version, resolution.manifest.version)
-            if (updated !== pnpmEntry.version) {
-              pnpmEntry.version = updated
-              await writeProjectManifest(manifest)
-            }
-          }
-        } else if (manifest.devEngines.packageManager.name === 'pnpm') {
-          const updated = updateVersionConstraint(manifest.devEngines.packageManager.version, resolution.manifest.version)
-          if (updated !== manifest.devEngines.packageManager.version) {
-            manifest.devEngines.packageManager.version = updated
-            await writeProjectManifest(manifest)
+        let manifestChanged = false
+        // If "packageManager" pins pnpm, treat both fields as the user's
+        // single source of truth for the active pnpm version: rewrite both
+        // to the new exact version (dropping any range operator in
+        // devEngines and any integrity hash on the legacy field). When only
+        // devEngines is set, preserve the user's range style and let the
+        // lockfile pin the exact version.
+        const legacyPm = manifest.packageManager != null
+          ? parsePackageManager(manifest.packageManager)
+          : undefined
+        const legacyPinsPnpm = legacyPm?.name === 'pnpm' && legacyPm.version != null
+        const devEnginesPm = manifest.devEngines.packageManager
+        const pnpmEntry = Array.isArray(devEnginesPm)
+          ? devEnginesPm.find((e) => e.name === 'pnpm')
+          : devEnginesPm.name === 'pnpm' ? devEnginesPm : undefined
+        if (pnpmEntry) {
+          const updated = legacyPinsPnpm
+            ? resolution.manifest.version
+            : updateVersionConstraint(pnpmEntry.version, resolution.manifest.version)
+          if (updated !== pnpmEntry.version) {
+            pnpmEntry.version = updated
+            manifestChanged = true
           }
         }
+        if (legacyPinsPnpm) {
+          const newLegacy = `pnpm@${resolution.manifest.version}`
+          if (manifest.packageManager !== newLegacy) {
+            manifest.packageManager = newLegacy
+            manifestChanged = true
+          }
+        }
+        if (manifestChanged) await writeProjectManifest(manifest)
         const store = await createStoreController(opts)
         await resolvePackageManagerIntegrities(resolution.manifest.version, {
           registries: opts.registries,

@@ -693,7 +693,7 @@ function getWantedPackageManager (manifest: ProjectManifest): { pm?: WantedPacka
   return { warnings }
 }
 
-function parsePackageManager (packageManager: string): { name: string, version: string | undefined } {
+export function parsePackageManager (packageManager: string): { name: string, version: string | undefined } {
   if (!packageManager.includes('@')) return { name: packageManager, version: undefined }
   const [name, pmReference] = packageManager.split('@')
   // pmReference is semantic versioning, not URL
