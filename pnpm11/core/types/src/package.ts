@@ -189,6 +189,7 @@ export type AuditLevel = 'info' | 'low' | 'moderate' | 'high' | 'critical'
  */
 export interface AuditConfig {
   ignoreGhsas?: string[]
+  cleanupUnusedIgnoredGhsas?: boolean
 }
 
 export interface AuditSettings {
