@@ -3,11 +3,10 @@ import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type FetchFromRegistry } from '@pnpm/network.fetch'
-import npa from '@pnpm/npm-package-arg'
 import type { Registries, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 
-import { normalizeRegistryUrl, rcOptionsTypes } from './common.js'
+import { normalizeRegistryUrl, parsePackageSpec, rcOptionsTypes } from './common.js'
 
 export { rcOptionsTypes }
 
@@ -67,12 +66,11 @@ export function help (): string {
 }
 
 export interface OwnerOptions extends CreateFetchFromRegistryOptions {
-  cliOptions: {
+  cliOptions?: {
     otp?: string
   }
   configByUri?: Record<string, RegistryConfig>
   registries?: Registries
-  registry?: string
 }
 
 export async function handler (
@@ -101,12 +99,12 @@ async function ownerLs (
     throw new PnpmError('OWNER_LS_PACKAGE_REQUIRED', 'Package name is required')
   }
 
-  const packageName = params[0]
+  const { name: packageName, escapedName } = parsePackageSpec(params[0])
   const registryUrl = normalizeRegistryUrl(pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName))
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
   const fetchFromRegistry = createFetchFromRegistry(opts)
 
-  const owners = await fetchOwners(packageName, registryUrl, fetchFromRegistry, authHeader)
+  const owners = await fetchOwners(packageName, escapedName, registryUrl, fetchFromRegistry, authHeader)
 
   const lines: string[] = []
   for (const owner of owners) {
@@ -123,7 +121,7 @@ async function ownerAdd (
     throw new PnpmError('OWNER_ADD_ARGS_REQUIRED', 'Package name and owner are required (e.g., pnpm owner add pkg username)')
   }
 
-  const packageName = params[0]
+  const { name: packageName, escapedName } = parsePackageSpec(params[0])
   const owner = params[1]
 
   const registryUrl = normalizeRegistryUrl(pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName))
@@ -131,7 +129,7 @@ async function ownerAdd (
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp
 
-  const ownerUrl = getOwnerUrl(packageName, registryUrl)
+  const ownerUrl = getOwnerUrl(escapedName, registryUrl)
   const response = await fetchFromRegistry(ownerUrl, {
     authHeaderValue: authHeader,
     method: 'PUT',
@@ -157,7 +155,7 @@ async function ownerRm (
     throw new PnpmError('OWNER_RM_ARGS_REQUIRED', 'Package name and owner are required (e.g., pnpm owner rm pkg username)')
   }
 
-  const packageName = params[0]
+  const { name: packageName, escapedName } = parsePackageSpec(params[0])
   const owner = params[1]
 
   const registryUrl = normalizeRegistryUrl(pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName))
@@ -165,7 +163,7 @@ async function ownerRm (
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp
 
-  const ownerUrl = getOwnerUrl(packageName, registryUrl, owner)
+  const ownerUrl = getOwnerUrl(escapedName, registryUrl, owner)
   const response = await fetchFromRegistry(ownerUrl, {
     authHeaderValue: authHeader,
     method: 'DELETE',
@@ -189,9 +187,8 @@ function getAuthHeaderForRegistry (
   return getAuthHeader(registryUrl)
 }
 
-function getOwnerUrl (packageName: string, registryUrl: string, owner?: string): string {
-  const encodedName = npa(packageName).escapedName
-  const base = new URL(`-/package/${encodedName}/owners`, registryUrl).href
+function getOwnerUrl (escapedName: string, registryUrl: string, owner?: string): string {
+  const base = new URL(`-/package/${escapedName}/owners`, registryUrl).href
   if (owner) {
     return `${base}/${encodeURIComponent(owner)}`
   }
@@ -205,12 +202,12 @@ interface Owner {
 
 async function fetchOwners (
   packageName: string,
+  escapedName: string,
   registryUrl: string,
   fetchFromRegistry: FetchFromRegistry,
   authHeader: string | undefined
 ): Promise<Owner[]> {
-  const encodedName = npa(packageName).escapedName
-  const ownersUrl = new URL(`-/package/${encodedName}/owners`, registryUrl).href
+  const ownersUrl = new URL(`-/package/${escapedName}/owners`, registryUrl).href
   const response = await fetchFromRegistry(ownersUrl, {
     authHeaderValue: authHeader,
   })
@@ -219,7 +216,7 @@ async function fetchOwners (
     if (response.status === 404) {
       throw new PnpmError('PACKAGE_NOT_FOUND', `Package "${packageName}" not found in registry`)
     }
-    throw new PnpmError('REGISTRY_ERROR', `Failed to fetch package info: ${response.status} ${response.statusText}`)
+    throw new PnpmError('REGISTRY_ERROR', `Failed to fetch owners: ${response.status} ${response.statusText}`)
   }
 
   return await response.json() as Owner[]

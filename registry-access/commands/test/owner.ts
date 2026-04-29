@@ -4,8 +4,7 @@ import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.m
 
 import { owner } from '../src/index.js'
 
-const REGISTRY = 'https://registry.npmjs.org'
-const REGISTRY_URL = `${REGISTRY}/`
+const REGISTRY_URL = 'https://registry.npmjs.org/'
 
 describe('owner command', () => {
   beforeEach(async () => {
@@ -96,7 +95,6 @@ describe('owner command', () => {
 
     const result = await owner.handler({
       cliOptions: {},
-      registry: REGISTRY_URL,
       registries: {
         default: REGISTRY_URL,
       },
@@ -136,7 +134,6 @@ describe('owner command', () => {
 
     const result = await owner.handler({
       cliOptions: {},
-      registry: REGISTRY_URL,
       registries: {
         default: REGISTRY_URL,
       },
@@ -229,7 +226,6 @@ describe('owner command', () => {
 
     const result = await owner.handler({
       cliOptions: {},
-      registry: REGISTRY_URL,
       registries: {
         default: REGISTRY_URL,
       },
@@ -249,7 +245,6 @@ describe('owner command', () => {
 
     const result = await owner.handler({
       cliOptions: {},
-      registry: REGISTRY_URL,
       registries: {
         default: REGISTRY_URL,
       },
