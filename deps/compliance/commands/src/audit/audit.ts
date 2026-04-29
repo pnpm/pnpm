@@ -18,6 +18,7 @@ import { fix } from './fix.js'
 import { fixWithUpdate, type FixWithUpdateResult } from './fixWithUpdate.js'
 import { type AuditChoiceRow, getAuditFixChoices } from './getAuditFixChoices.js'
 import { ignore } from './ignore.js'
+import { auditSignatures } from './signatures.js'
 
 const AUDIT_LEVEL_NUMBER = {
   info: 0,
@@ -143,7 +144,7 @@ export function help (): string {
       },
     ],
     url: docsUrl('audit'),
-    usages: ['pnpm audit [options]'],
+    usages: ['pnpm audit [options]', 'pnpm audit signatures [options]'],
   })
 }
 
@@ -187,7 +188,18 @@ export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
 
 const DEFAULT_FIX_METHOD = 'override'
 
-export async function handler (opts: AuditOptions): Promise<{ exitCode: number, output: string }> {
+export function handler (opts: AuditOptions): Promise<{ exitCode: number, output: string }>
+export function handler (opts: AuditOptions, params: string[]): Promise<{ exitCode: number, output: string }>
+export async function handler (opts: AuditOptions, params: string[] = []): Promise<{ exitCode: number, output: string }> {
+  if (params.length > 0) {
+    if (params[0] === 'signatures') {
+      if (params.length > 1) {
+        throw new PnpmError('AUDIT_UNKNOWN_SUBCOMMAND', `Unknown audit subcommand: ${params.slice(0, 2).join(' ')}`)
+      }
+      return auditSignatures(opts)
+    }
+    throw new PnpmError('AUDIT_UNKNOWN_SUBCOMMAND', `Unknown audit subcommand: ${params[0]}`)
+  }
   const lockfileDir = opts.lockfileDir ?? opts.dir
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
   if (lockfile == null) {

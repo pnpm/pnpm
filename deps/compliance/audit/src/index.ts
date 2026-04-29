@@ -19,6 +19,7 @@ import type { AuditAdvisory, AuditFinding, AuditLevelString, AuditReport, AuditV
 export type { AuditIndexRequest, AuditPathIndex, PathInfo } from './lockfileToAuditIndex.js'
 export { buildAuditPathIndex, lockfileToAuditRequest } from './lockfileToAuditIndex.js'
 export * from './types.js'
+export * from './verifySignatures.js'
 
 // The shape of a single advisory as returned by npm's /advisories/bulk
 // endpoint. The two AuditAdvisory fields not populated directly from this

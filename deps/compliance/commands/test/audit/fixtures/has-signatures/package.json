@@ -1,0 +1,7 @@
+{
+  "name": "has-signatures",
+  "version": "0.0.0",
+  "dependencies": {
+    "signed-pkg": "1.0.0"
+  }
+}
