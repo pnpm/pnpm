@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
+import { GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import PATH from 'path-name'
@@ -1717,23 +1718,24 @@ test('GVS: workspace manifest allowBuilds takes precedence over global config.ya
 
   const prevXdgConfigHome = process.env.XDG_CONFIG_HOME
 
-  // env.PNPM_HOME is import.meta.dirname (the test dir), so globalPkgDir
-  // resolves to testDir/global/v11 — write the workspace manifest there.
-  const globalDir = path.join(import.meta.dirname, 'global', 'v11')
-  const configDir = path.resolve('.config')
-  process.env.XDG_CONFIG_HOME = configDir
-
-  fs.mkdirSync(path.join(configDir, 'pnpm'), { recursive: true })
-  writeYamlFileSync(path.join(configDir, 'pnpm', 'config.yaml'), {
-    dangerouslyAllowAllBuilds: true,
-  })
-
-  fs.mkdirSync(globalDir, { recursive: true })
-  writeYamlFileSync(path.join(globalDir, 'pnpm-workspace.yaml'), {
-    allowBuilds: { '@some/pkg': true, esbuild: true },
-  })
-
   try {
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    // env.PNPM_HOME is import.meta.dirname (the test dir), so globalPkgDir
+    // resolves to testDir/global/<GLOBAL_LAYOUT_VERSION> — write the
+    // workspace manifest there.
+    const globalDir = path.join(import.meta.dirname, 'global', GLOBAL_LAYOUT_VERSION)
+
+    fs.mkdirSync(path.join(process.env.XDG_CONFIG_HOME, 'pnpm'), { recursive: true })
+    writeYamlFileSync(path.join(process.env.XDG_CONFIG_HOME, 'pnpm', 'config.yaml'), {
+      dangerouslyAllowAllBuilds: true,
+    })
+
+    fs.mkdirSync(globalDir, { recursive: true })
+    writeYamlFileSync(path.join(globalDir, 'pnpm-workspace.yaml'), {
+      allowBuilds: { '@some/pkg': true, esbuild: true },
+    })
+
     const { config } = await getConfig({
       cliOptions: {
         global: true,
@@ -1749,11 +1751,14 @@ test('GVS: workspace manifest allowBuilds takes precedence over global config.ya
     expect(config.allowBuilds).toStrictEqual({ '@some/pkg': true, esbuild: true })
     // config.yaml dangerouslyAllowAllBuilds survives because addSettingsFromWorkspaceManifestToConfig
     // re-reads config.yaml after extractAndRemoveDependencyBuildOptions strips it
-    expect(config.dangerouslyAllowAllBuilds).toBe(true), { recursive: true, force: true })
+    expect(config.dangerouslyAllowAllBuilds).toBe(true)
+
+    fs.rmSync(globalDir, { recursive: true, force: true })
     const parentGlobalDir = path.join(import.meta.dirname, 'global')
     if (fs.existsSync(parentGlobalDir)) {
       fs.rmSync(parentGlobalDir, { recursive: true, force: true })
     }
+  } finally {
     if (prevXdgConfigHome === undefined) {
       delete process.env.XDG_CONFIG_HOME
     } else {
@@ -1767,17 +1772,17 @@ test('GVS: global config.yaml dangerouslyAllowAllBuilds is respected when no glo
 
   const prevXdgConfigHome = process.env.XDG_CONFIG_HOME
 
-  // Set up global config.yaml with a build policy
-  fs.mkdirSync('.config/pnpm', { recursive: true })
-  writeYamlFileSync('.config/pnpm/config.yaml', {
-    dangerouslyAllowAllBuilds: true,
-  })
-  process.env.XDG_CONFIG_HOME = path.resolve('.config')
-
-  // No global pnpm-workspace.yaml
-  // intentionally do not write a workspace manifest
-
   try {
+    // Set up global config.yaml with a build policy
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', {
+      dangerouslyAllowAllBuilds: true,
+    })
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    // No global pnpm-workspace.yaml
+    // intentionally do not write a workspace manifest
+
     const { config } = await getConfig({
       cliOptions: {
         global: true,
@@ -1789,7 +1794,7 @@ test('GVS: global config.yaml dangerouslyAllowAllBuilds is respected when no glo
       },
     })
 
-    // enableGlobalVirtualStore is true by default when not in CI
+    // For global installs, enableGlobalVirtualStore defaults to true.
     expect(config.enableGlobalVirtualStore).toBe(true)
     // The key assertion: global config.yaml policy should NOT be wiped by the GVS
     // allowBuilds = {} default. Previously this block set allowBuilds
