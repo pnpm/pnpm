@@ -1730,7 +1730,7 @@ test('GVS: workspace manifest allowBuilds takes precedence over global config.ya
 
   fs.mkdirSync(globalDir, { recursive: true })
   writeYamlFileSync(path.join(globalDir, 'pnpm-workspace.yaml'), {
-    allowBuilds: ['@some/pkg', 'esbuild'],
+    allowBuilds: { '@some/pkg': true, esbuild: true },
   })
 
   try {
@@ -1745,10 +1745,14 @@ test('GVS: workspace manifest allowBuilds takes precedence over global config.ya
       },
     })
 
-    expect(config.allowBuilds).toStrictEqual(['@some/pkg', 'esbuild'])
+    expect(config.allowBuilds).toStrictEqual({ '@some/pkg': true, esbuild: true })
     expect(config.dangerouslyAllowAllBuilds).toBe(true)
   } finally {
     fs.rmSync(globalDir, { recursive: true, force: true })
+    const parentGlobalDir = path.join(import.meta.dirname, 'global')
+    if (fs.existsSync(parentGlobalDir)) {
+      fs.rmSync(parentGlobalDir, { recursive: true, force: true })
+    }
     if (prevXdgConfigHome === undefined) {
       delete process.env.XDG_CONFIG_HOME
     } else {
