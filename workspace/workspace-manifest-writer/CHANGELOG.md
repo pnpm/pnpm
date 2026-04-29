@@ -1,5 +1,12 @@
 # @pnpm/workspace.manifest-writer
 
+## 1100.0.3
+
+### Patch Changes
+
+- Updated dependencies [f543b77]
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.2
+
 ## 1100.0.2
 
 ### Patch Changes

@@ -6,6 +6,7 @@ import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config
 import { PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/exec.lifecycle'
 import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from '@pnpm/network.git-utils'
+import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import type { ProjectManifest } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
 import enquirer from 'enquirer'
@@ -134,6 +135,7 @@ export async function handler (
 export interface PublishResult {
   exitCode?: number
   manifest?: ProjectManifest
+  publishedManifest?: ExportedManifest
 }
 
 export async function publish (
@@ -234,6 +236,7 @@ Do you want to continue?`,
   // from the current working directory, ignoring the package.json file
   // that was generated and packed to the tarball.
   const packDestination = temporaryDirectory()
+  let publishedManifest: ExportedManifest | undefined
   try {
     const packResult = await pack.api({
       ...opts,
@@ -242,6 +245,7 @@ Do you want to continue?`,
       dryRun: false,
     })
     await publishPackedPkg(packResult, opts)
+    publishedManifest = packResult.publishedManifest
   } finally {
     await rimraf(packDestination)
   }
@@ -252,7 +256,7 @@ Do you want to continue?`,
       'postpublish',
     ], manifest)
   }
-  return { manifest }
+  return { manifest, publishedManifest }
 }
 
 export async function runScriptsIfPresent (

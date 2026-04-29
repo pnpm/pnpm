@@ -367,6 +367,137 @@ test('should fall back to ^version when complex range cannot accommodate the new
   expect(pkgJson.devEngines.packageManager.version).toBe('^9.0.0')
 })
 
+test('should update both packageManager and devEngines.packageManager when both pin the same exact version', async () => {
+  const opts = prepare({
+    packageManager: 'pnpm@8.0.0',
+    devEngines: {
+      packageManager: { name: 'pnpm', version: '8.0.0' },
+    },
+  })
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, createMetadata('9.0.0', opts.registries.default)).persist()
+  mockExeMetadata(opts.registries.default, '9.0.0')
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '8.0.0',
+    },
+  }, [])
+
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  expect(pkgJson.packageManager).toBe('pnpm@9.0.0')
+  expect(pkgJson.devEngines.packageManager.version).toBe('9.0.0')
+})
+
+test('should update both packageManager (with integrity hash) and devEngines.packageManager when versions agree', async () => {
+  const opts = prepare({
+    packageManager: 'pnpm@8.0.0+sha512.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+    devEngines: {
+      packageManager: { name: 'pnpm', version: '8.0.0' },
+    },
+  })
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, createMetadata('9.0.0', opts.registries.default)).persist()
+  mockExeMetadata(opts.registries.default, '9.0.0')
+
+  await selfUpdate.handler({
+    ...opts,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '8.0.0',
+    },
+  }, [])
+
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  expect(pkgJson.packageManager).toBe('pnpm@9.0.0')
+  expect(pkgJson.devEngines.packageManager.version).toBe('9.0.0')
+})
+
+test('should sync both fields to the new exact version when their current versions disagree', async () => {
+  const opts = prepare({
+    packageManager: 'pnpm@7.0.0',
+    devEngines: {
+      packageManager: { name: 'pnpm', version: '8.0.0' },
+    },
+  })
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, createMetadata('9.0.0', opts.registries.default)).persist()
+  mockExeMetadata(opts.registries.default, '9.0.0')
+
+  await selfUpdate.handler({
+    ...opts,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '8.0.0',
+    },
+  }, [])
+
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  expect(pkgJson.packageManager).toBe('pnpm@9.0.0')
+  expect(pkgJson.devEngines.packageManager.version).toBe('9.0.0')
+})
+
+test('should pin devEngines.packageManager to an exact version when packageManager also pins pnpm', async () => {
+  const opts = prepare({
+    packageManager: 'pnpm@8.0.0',
+    devEngines: {
+      packageManager: { name: 'pnpm', version: '^8.0.0' },
+    },
+  })
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, createMetadata('9.0.0', opts.registries.default)).persist()
+  mockExeMetadata(opts.registries.default, '9.0.0')
+
+  await selfUpdate.handler({
+    ...opts,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '^8.0.0',
+    },
+  }, [])
+
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  expect(pkgJson.packageManager).toBe('pnpm@9.0.0')
+  expect(pkgJson.devEngines.packageManager.version).toBe('9.0.0')
+})
+
+test('should leave packageManager alone when it pins a different package manager', async () => {
+  const opts = prepare({
+    packageManager: 'yarn@4.0.0',
+    devEngines: {
+      packageManager: { name: 'pnpm', version: '^8.0.0' },
+    },
+  })
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, createMetadata('9.0.0', opts.registries.default)).persist()
+  mockExeMetadata(opts.registries.default, '9.0.0')
+
+  await selfUpdate.handler({
+    ...opts,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '^8.0.0',
+    },
+  }, [])
+
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  expect(pkgJson.packageManager).toBe('yarn@4.0.0')
+  expect(pkgJson.devEngines.packageManager.version).toBe('^9.0.0')
+})
+
 test('should update devEngines.packageManager range when resolved version no longer satisfies it', async () => {
   const opts = prepare({
     devEngines: {

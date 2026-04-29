@@ -1,5 +1,11 @@
 # @pnpm/deps.compliance.sbom
 
+## 1100.0.5
+
+### Patch Changes
+
+- f9afe81: Populate download location for git-sourced dependencies in SBOM output. Previously `pnpm sbom` emitted `NOASSERTION` (SPDX) and omitted the distribution reference (CycloneDX) for git dependencies. Now emits the git URL with commit hash, e.g. `git+https://github.com/user/repo.git#commit`.
+
 ## 1100.0.4
 
 ### Patch Changes
