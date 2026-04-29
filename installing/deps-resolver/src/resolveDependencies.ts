@@ -178,6 +178,7 @@ export interface ResolutionContext {
   nodeVersion?: string
   pnpmVersion: string
   registries: Registries
+  namedRegistryPrefixes: readonly string[]
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
@@ -1320,7 +1321,7 @@ async function resolveDependency (
   try {
     const calcSpecifier = options.currentDepth === 0
     if (!options.update && currentPkg.version && currentPkg.pkgId?.endsWith(`@${currentPkg.version}`) && !calcSpecifier) {
-      wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, currentPkg.version)
+      wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, currentPkg.version, ctx.namedRegistryPrefixes)
     }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
       allowBuild: ctx.allowBuild,
@@ -1813,6 +1814,7 @@ const NON_EXOTIC_RESOLVED_VIA = new Set([
   'github.com/oven-sh/bun',
   'jsr-registry',
   'local-filesystem',
+  'named-registry',
   'nodejs.org',
   'npm-registry',
   'workspace',
