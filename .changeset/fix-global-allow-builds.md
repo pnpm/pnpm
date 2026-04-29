@@ -9,5 +9,5 @@ The global virtual-store (GVS) default `allowBuilds = {}` was applied before wor
 
 This fix moves the GVS default to **after** workspace manifest reading and `globalDepsBuildConfig` re-application, so that:
 1. Workspace manifest `allowBuilds` takes precedence (if present)
-2. Global config `dangerously-allow-all-builds` is properly restored (if set and no workspace policy exists)
+2. Global config `dangerouslyAllowAllBuilds` is properly restored (if set and no workspace policy exists)
 3. Empty `{}` is only applied as a last resort when no policy is configured anywhere

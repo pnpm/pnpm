@@ -550,12 +550,7 @@ test('workspace .npmrc overrides pnpm auth file', async () => {
       },
     })
 
-    expect(config.enableGlobalVirtualStore).toBe(true)
-    expect(config.allowBuilds).toStrictEqual({ '@some/pkg': true, esbuild: true })
-    // The dangerouslyAllowAllBuilds value from the already-loaded global config.yaml
-    // is preserved when workspace manifest settings are applied after
-    // extractAndRemoveDependencyBuildOptions strips the workspace build options.
-    expect(config.dangerouslyAllowAllBuilds).toBe(true)
+    expect(config.authConfig['//registry.npmjs.org/:_authToken']).toBe('workspace-token')
   } finally {
     if (originalXdg != null) {
       process.env.XDG_CONFIG_HOME = originalXdg
@@ -1769,7 +1764,7 @@ test('GVS: workspace manifest allowBuilds takes precedence over global config.ya
   }
 })
 
-test('GVS: global workspace manifest allowBuilds is read even when global config.yaml dangerouslyAllowAllBuilds is set', async () => {
+test('GVS: global config.yaml dangerouslyAllowAllBuilds is preserved when no workspace manifest exists', async () => {
   prepareEmpty()
 
   const prevXdgConfigHome = process.env.XDG_CONFIG_HOME

@@ -9,13 +9,13 @@ on:
 jobs:
   opencode:
     if: |
-      contains(github.event.comment.body, ' /oc') ||
+      (contains(github.event.comment.body, ' /oc') ||
       startsWith(github.event.comment.body, '/oc') ||
       contains(github.event.comment.body, ' /opencode') ||
-      startsWith(github.event.comment.body, '/opencode')
+      startsWith(github.event.comment.body, '/opencode')) &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
     runs-on: ubuntu-latest
     permissions:
-      id-token: write
       contents: read
       pull-requests: read
       issues: read
@@ -29,5 +29,3 @@ jobs:
         uses: anomalyco/opencode/github@latest
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        with:
-          model: openai/gpt-5.4
