@@ -83,14 +83,16 @@ test('correct settings on global install', async () => {
 })
 
 test('onlyBuiltDependencies is loaded from pnpm-workspace.yaml in globalPkgDir during --global install', async () => {
-  const globalPkgDir = path.join(__dirname, 'fixtures', 'has-global-workspace-yaml')
+  const fixtureDir = path.join(__dirname, 'fixtures', 'has-global-workspace-yaml')
+  const pnpmHomeDir = path.join(fixtureDir, 'pnpm-home')
   const { config } = await getConfig({
     cliOptions: {
       global: true,
     },
     env: {
       ...env,
-      PNPM_HOME: path.join(globalPkgDir, 'pnpm-home'),
+      PNPM_HOME: pnpmHomeDir,
+      [PATH]: `${process.env.PATH}${path.delimiter}${pnpmHomeDir}`,
     },
     packageManager: {
       name: 'pnpm',
