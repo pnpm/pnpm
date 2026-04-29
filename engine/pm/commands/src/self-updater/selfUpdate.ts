@@ -124,23 +124,16 @@ export async function handler (
           ? parsePackageManager(manifest.packageManager)
           : undefined
         const legacyPinsPnpm = legacyPm?.name === 'pnpm' && legacyPm.version != null
-        if (Array.isArray(manifest.devEngines.packageManager)) {
-          const pnpmEntry = manifest.devEngines.packageManager.find((e) => e.name === 'pnpm')
-          if (pnpmEntry) {
-            const updated = legacyPinsPnpm
-              ? resolution.manifest.version
-              : updateVersionConstraint(pnpmEntry.version, resolution.manifest.version)
-            if (updated !== pnpmEntry.version) {
-              pnpmEntry.version = updated
-              manifestChanged = true
-            }
-          }
-        } else if (manifest.devEngines.packageManager.name === 'pnpm') {
+        const devEnginesPm = manifest.devEngines.packageManager
+        const pnpmEntry = Array.isArray(devEnginesPm)
+          ? devEnginesPm.find((e) => e.name === 'pnpm')
+          : devEnginesPm.name === 'pnpm' ? devEnginesPm : undefined
+        if (pnpmEntry) {
           const updated = legacyPinsPnpm
             ? resolution.manifest.version
-            : updateVersionConstraint(manifest.devEngines.packageManager.version, resolution.manifest.version)
-          if (updated !== manifest.devEngines.packageManager.version) {
-            manifest.devEngines.packageManager.version = updated
+            : updateVersionConstraint(pnpmEntry.version, resolution.manifest.version)
+          if (updated !== pnpmEntry.version) {
+            pnpmEntry.version = updated
             manifestChanged = true
           }
         }
