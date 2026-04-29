@@ -100,14 +100,14 @@ export interface NamedRegistryPackageSpec extends RegistryPackageSpec {
 // - `<alias>:<version_selector>` paired with a package alias
 export function parseNamedRegistrySpecifierToRegistryPackageSpec (
   rawSpecifier: string,
-  knownAliases: ReadonlySet<string>,
+  knownRegistryNames: ReadonlySet<string>,
   packageAlias: string | undefined,
   defaultTag: string
 ): NamedRegistryPackageSpec | null {
   const colon = rawSpecifier.indexOf(':')
   if (colon <= 0) return null
   const registryName = rawSpecifier.substring(0, colon)
-  if (!knownAliases.has(registryName)) return null
+  if (!knownRegistryNames.has(registryName)) return null
 
   const body = rawSpecifier.substring(colon + 1)
   let pkgName: string

@@ -233,7 +233,7 @@ export function createNpmResolver (
     }
   }
   const namedRegistries = mergeNamedRegistries(opts.namedRegistries)
-  const namedRegistryAliases: ReadonlySet<string> = new Set(Object.keys(namedRegistries))
+  const namedRegistryNames: ReadonlySet<string> = new Set(Object.keys(namedRegistries))
   const ctx: ResolveFromNpmContext = {
     getAuthHeaderValueByURI: getAuthHeader,
     pickPackage: pickPackage.bind(null, {
@@ -249,7 +249,7 @@ export function createNpmResolver (
     }),
     registries: opts.registries,
     namedRegistries,
-    namedRegistryAliases,
+    namedRegistryNames,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
     peekManifestFromStore,
   }
@@ -271,7 +271,7 @@ export interface ResolveFromNpmContext {
   getAuthHeaderValueByURI: (registry: string) => string | undefined
   registries: Registries
   namedRegistries: Record<string, string>
-  namedRegistryAliases: ReadonlySet<string>
+  namedRegistryNames: ReadonlySet<string>
   saveWorkspaceProtocol?: boolean | 'rolling'
   peekManifestFromStore?: (opts: {
     id: PkgResolutionId
@@ -626,7 +626,7 @@ async function resolveFromNamedRegistry (
 
   const spec = parseNamedRegistrySpecifierToRegistryPackageSpec(
     wantedDependency.bareSpecifier,
-    ctx.namedRegistryAliases,
+    ctx.namedRegistryNames,
     wantedDependency.alias,
     defaultTag
   )
