@@ -139,6 +139,7 @@ async function walkStep (
 
 export function gitDownloadUrl (resolution: Resolution): string | undefined {
   if (resolution.type !== 'git') return undefined
-  const prefix = resolution.repo.includes('://') ? 'git+' : ''
+  const needsGitPlusPrefix = resolution.repo.includes('://') && !resolution.repo.startsWith('git+')
+  const prefix = needsGitPlusPrefix ? 'git+' : ''
   return `${prefix}${resolution.repo}#${resolution.commit}`
 }

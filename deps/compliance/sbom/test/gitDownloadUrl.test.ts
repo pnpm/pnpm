@@ -39,6 +39,18 @@ describe('gitDownloadUrl', () => {
     )
   })
 
+  it('should not double-prefix when repo already starts with git+', () => {
+    const resolution: GitResolution = {
+      type: 'git',
+      repo: 'git+ssh://git@github.com/user/repo.git',
+      commit: 'abc123',
+    }
+
+    expect(gitDownloadUrl(resolution)).toBe(
+      'git+ssh://git@github.com/user/repo.git#abc123'
+    )
+  })
+
   it('should return undefined for non-git resolutions', () => {
     const resolution: TarballResolution = {
       tarball: 'https://registry.npmjs.org/express/-/express-4.22.1.tgz',
