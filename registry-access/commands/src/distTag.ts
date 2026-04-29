@@ -8,7 +8,7 @@ import type { Registries, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
 
-import { normalizeRegistryUrl, parsePackageSpec, rcOptionsTypes } from './common.js'
+import { parsePackageSpec, rcOptionsTypes } from './common.js'
 
 export { rcOptionsTypes }
 
@@ -68,7 +68,7 @@ export function help (): string {
 }
 
 export interface DistTagOptions extends CreateFetchFromRegistryOptions {
-  cliOptions?: {
+  cliOptions: {
     otp?: string
   }
   configByUri?: Record<string, RegistryConfig>
@@ -103,7 +103,7 @@ async function distTagLs (
   }
 
   const packageName = params[0]
-  const registryUrl = normalizeRegistryUrl(pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName))
+  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
   const fetchFromRegistry = createFetchFromRegistry(opts)
 
@@ -136,7 +136,7 @@ async function distTagAdd (
 
   const tag = params[1] ?? 'latest'
 
-  const registryUrl = normalizeRegistryUrl(pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName))
+  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp
@@ -174,7 +174,7 @@ async function distTagRm (
     throw new PnpmError('DIST_TAG_RM_LATEST', 'Removing the "latest" dist-tag is not allowed')
   }
 
-  const registryUrl = normalizeRegistryUrl(pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName))
+  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp

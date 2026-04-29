@@ -6,7 +6,7 @@ import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type Fetc
 import type { Registries, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 
-import { normalizeRegistryUrl, parsePackageSpec, rcOptionsTypes } from './common.js'
+import { parsePackageSpec, rcOptionsTypes } from './common.js'
 
 export { rcOptionsTypes }
 
@@ -100,7 +100,7 @@ async function ownerLs (
   }
 
   const { name: packageName, escapedName } = parsePackageSpec(params[0])
-  const registryUrl = normalizeRegistryUrl(pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName))
+  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
   const fetchFromRegistry = createFetchFromRegistry(opts)
 
@@ -124,7 +124,7 @@ async function ownerAdd (
   const { name: packageName, escapedName } = parsePackageSpec(params[0])
   const owner = params[1]
 
-  const registryUrl = normalizeRegistryUrl(pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName))
+  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp
@@ -158,7 +158,7 @@ async function ownerRm (
   const { name: packageName, escapedName } = parsePackageSpec(params[0])
   const owner = params[1]
 
-  const registryUrl = normalizeRegistryUrl(pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName))
+  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp
