@@ -12,6 +12,12 @@ import { writeYamlFileSync } from 'write-yaml-file'
 import type { PackResultJson } from '../../src/publish/pack.js'
 import { DEFAULT_OPTS } from './utils/index.js'
 
+type ProjectManifestWithPnpm = Parameters<typeof prepare>[0] & {
+  pnpm?: {
+    onlyBuiltDependencies?: string[]
+  }
+}
+
 test('pack: package with package.json', async () => {
   prepare({
     name: 'test-publish-package.json',
@@ -345,6 +351,53 @@ test('pack: remove publishConfig', async () => {
     version: '0.0.0',
     main: 'index.js',
     types: 'index.d.ts',
+  })
+})
+
+test('pack: preserves packageManager and publish lifecycle scripts but omits pnpm', async () => {
+  const manifest: ProjectManifestWithPnpm = {
+    name: 'preserve-publish-manifest-fields',
+    version: '1.0.0',
+    packageManager: 'pnpm@10.0.0',
+    pnpm: {
+      onlyBuiltDependencies: ['foo'],
+    },
+    scripts: {
+      prepublishOnly: 'echo prepublishOnly',
+      prepack: 'echo prepack',
+      prepare: 'echo prepare',
+      postpack: 'echo postpack',
+      publish: 'echo publish',
+      postpublish: 'echo postpublish',
+      postinstall: 'echo postinstall',
+    },
+  }
+
+  prepare(manifest)
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    packDestination: process.cwd(),
+  })
+
+  await tar.x({ file: 'preserve-publish-manifest-fields-1.0.0.tgz' })
+
+  expect((await import(path.resolve('package/package.json'))).default).toEqual({
+    name: 'preserve-publish-manifest-fields',
+    version: '1.0.0',
+    packageManager: 'pnpm@10.0.0',
+    scripts: {
+      prepublishOnly: 'echo prepublishOnly',
+      prepack: 'echo prepack',
+      prepare: 'echo prepare',
+      postpack: 'echo postpack',
+      publish: 'echo publish',
+      postpublish: 'echo postpublish',
+      postinstall: 'echo postinstall',
+    },
   })
 })
 

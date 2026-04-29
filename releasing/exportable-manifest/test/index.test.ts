@@ -17,7 +17,13 @@ const defaultOpts: MakePublishManifestOptions = {
   catalogs: {},
 }
 
-test('prepublish scripts and packageManager are removed', async () => {
+type ProjectManifestWithPnpm = ProjectManifest & {
+  pnpm?: {
+    onlyBuiltDependencies?: string[]
+  }
+}
+
+test('packageManager and publish lifecycle scripts are preserved', async () => {
   expect(await createExportableManifest(process.cwd(), {
     name: 'foo',
     version: '1.0.0',
@@ -37,28 +43,36 @@ test('prepublish scripts and packageManager are removed', async () => {
     },
     scripts: {
       postinstall: 'echo hello',
+      prepublishOnly: 'echo',
     },
+    packageManager: 'pnpm@10.0.0',
   })
 })
 
-test('the packageManager field is removed', async () => {
-  expect(await createExportableManifest(process.cwd(), {
+test('the pnpm field is removed', async () => {
+  const manifest: ProjectManifestWithPnpm = {
     name: 'foo',
     version: '1.0.0',
     dependencies: {
       qar: '2',
     },
     packageManager: 'pnpm@8.0.0',
-  }, defaultOpts)).toStrictEqual({
+    pnpm: {
+      onlyBuiltDependencies: ['foo'],
+    },
+  }
+
+  expect(await createExportableManifest(process.cwd(), manifest, defaultOpts)).toStrictEqual({
     name: 'foo',
     version: '1.0.0',
     dependencies: {
       qar: '2',
     },
+    packageManager: 'pnpm@8.0.0',
   })
 })
 
-test('publish lifecycle scripts are removed', async () => {
+test('publish lifecycle scripts are preserved', async () => {
   expect(await createExportableManifest(process.cwd(), {
     name: 'foo',
     version: '1.0.0',
@@ -76,6 +90,12 @@ test('publish lifecycle scripts are removed', async () => {
     name: 'foo',
     version: '1.0.0',
     scripts: {
+      prepublishOnly: 'echo',
+      prepack: 'echo',
+      prepare: 'echo',
+      postpack: 'echo',
+      publish: 'echo',
+      postpublish: 'echo',
       postinstall: 'echo',
       test: 'echo',
     },

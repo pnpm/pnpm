@@ -29,6 +29,12 @@ const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
 
 const SPAWN_ENV = { ...process.env, pnpm_config_minimum_release_age: '0' } as NodeJS.ProcessEnv
 
+type ProjectManifestWithPnpm = {
+  pnpm?: {
+    onlyBuiltDependencies?: string[]
+  }
+}
+
 test('publish: package with package.json', async () => {
   prepare({
     name: 'test-publish-package.json',
@@ -301,6 +307,66 @@ test('publish: package with all possible fields in publishConfig', async () => {
     exports: './published-exports.js',
     'umd:main': './published-umd.js',
     unpkg: './published-unpkg.js',
+  })
+})
+
+test('publish preserves packageManager and publish lifecycle scripts but omits pnpm', async () => {
+  const manifest: ProjectManifestWithPnpm & {
+    name: string
+    version: string
+    packageManager: string
+    scripts: Record<string, string>
+  } = {
+    name: 'test-publish-preserve-manifest-fields',
+    version: '1.0.0',
+    packageManager: 'pnpm@10.0.0',
+    pnpm: {
+      onlyBuiltDependencies: ['foo'],
+    },
+    scripts: {
+      prepublishOnly: 'echo prepublishOnly',
+      prepack: 'echo prepack',
+      prepare: 'echo prepare',
+      postpack: 'echo postpack',
+      publish: 'echo publish',
+      postpublish: 'echo postpublish',
+      postinstall: 'echo postinstall',
+    },
+  }
+
+  preparePackages([
+    manifest,
+    {
+      name: 'test-publish-preserve-manifest-fields-installation',
+      version: '1.0.0',
+    },
+  ])
+
+  process.chdir('test-publish-preserve-manifest-fields')
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish'] },
+    configByUri: CONFIG_BY_URI,
+    dir: process.cwd(),
+  }, [])
+
+  process.chdir('../test-publish-preserve-manifest-fields-installation')
+  crossSpawn.sync(pnpmBin, ['add', 'test-publish-preserve-manifest-fields', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`], { env: SPAWN_ENV })
+
+  const { default: publishedManifest } = await import(path.resolve('node_modules/test-publish-preserve-manifest-fields/package.json'))
+  expect(publishedManifest).toEqual({
+    name: 'test-publish-preserve-manifest-fields',
+    version: '1.0.0',
+    packageManager: 'pnpm@10.0.0',
+    scripts: {
+      prepublishOnly: 'echo prepublishOnly',
+      prepack: 'echo prepack',
+      prepare: 'echo prepare',
+      postpack: 'echo postpack',
+      publish: 'echo publish',
+      postpublish: 'echo postpublish',
+      postinstall: 'echo postinstall',
+    },
   })
 })
 
