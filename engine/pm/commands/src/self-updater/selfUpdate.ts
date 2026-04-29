@@ -113,22 +113,43 @@ export async function handler (
     if (opts.wantedPackageManager?.version !== resolution.manifest.version) {
       const { manifest, writeProjectManifest } = await readProjectManifest(opts.rootProjectManifestDir)
       if (manifest.devEngines?.packageManager) {
+        let manifestChanged = false
+        // If "packageManager" pins pnpm, treat both fields as the user's
+        // single source of truth for the active pnpm version: rewrite both
+        // to the new exact version (dropping any range operator in
+        // devEngines and any integrity hash on the legacy field). When only
+        // devEngines is set, preserve the user's range style and let the
+        // lockfile pin the exact version.
+        const legacyPinsPnpm = manifest.packageManager != null &&
+          parsePnpmLegacyVersion(manifest.packageManager) != null
         if (Array.isArray(manifest.devEngines.packageManager)) {
           const pnpmEntry = manifest.devEngines.packageManager.find((e) => e.name === 'pnpm')
           if (pnpmEntry) {
-            const updated = updateVersionConstraint(pnpmEntry.version, resolution.manifest.version)
+            const updated = legacyPinsPnpm
+              ? resolution.manifest.version
+              : updateVersionConstraint(pnpmEntry.version, resolution.manifest.version)
             if (updated !== pnpmEntry.version) {
               pnpmEntry.version = updated
-              await writeProjectManifest(manifest)
+              manifestChanged = true
             }
           }
         } else if (manifest.devEngines.packageManager.name === 'pnpm') {
-          const updated = updateVersionConstraint(manifest.devEngines.packageManager.version, resolution.manifest.version)
+          const updated = legacyPinsPnpm
+            ? resolution.manifest.version
+            : updateVersionConstraint(manifest.devEngines.packageManager.version, resolution.manifest.version)
           if (updated !== manifest.devEngines.packageManager.version) {
             manifest.devEngines.packageManager.version = updated
-            await writeProjectManifest(manifest)
+            manifestChanged = true
           }
         }
+        if (legacyPinsPnpm) {
+          const newLegacy = `pnpm@${resolution.manifest.version}`
+          if (manifest.packageManager !== newLegacy) {
+            manifest.packageManager = newLegacy
+            manifestChanged = true
+          }
+        }
+        if (manifestChanged) await writeProjectManifest(manifest)
         const store = await createStoreController(opts)
         await resolvePackageManagerIntegrities(resolution.manifest.version, {
           registries: opts.registries,
@@ -205,4 +226,16 @@ function versionSpecFromPinned (version: string, pinnedVersion: PinnedVersion): 
     case 'minor': return `~${version}`
     case 'patch': return version
   }
+}
+
+// Returns the version portion of a "pnpm@<version>[+integrity]" string, or
+// undefined if the field doesn't pin pnpm by version. Matches the parsing
+// done by config.reader's getWantedPackageManager so the comparison against
+// devEngines.packageManager.version uses the same notion of "version".
+function parsePnpmLegacyVersion (packageManager: string): string | undefined {
+  const prefix = 'pnpm@'
+  if (!packageManager.startsWith(prefix)) return undefined
+  const ref = packageManager.slice(prefix.length)
+  if (ref.includes(':')) return undefined
+  return ref.split('+')[0]
 }
