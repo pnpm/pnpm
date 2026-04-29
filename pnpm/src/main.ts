@@ -105,10 +105,10 @@ export async function main (inputArgv: string[]): Promise<void> {
     }) as { config: typeof config, context: ConfigContext })
     if (!isExecutedByCorepack() && cmd !== 'setup' && context.wantedPackageManager != null && !shouldSkipPmHandling(cmd, cliParams)) {
       const pm = context.wantedPackageManager
-      if (pm.onFail === 'download' && pm.name === 'pnpm') {
-        await switchCliVersion(config, context)
-      } else if (pm.onFail !== 'ignore') {
-        if (cliOptions.global) {
+      if (pm.onFail !== 'ignore') {
+        if (pm.name === 'pnpm' && pm.onFail === 'download') {
+          await switchCliVersion(config, context)
+        } else if (cliOptions.global) {
           globalWarn('Using --global skips the package manager check for this project')
         } else {
           checkPackageManager(pm)
