@@ -21,6 +21,7 @@ test('getOptionsFromPnpmSettings() expands env variables inside registries value
   process.env.PNPM_TEST_TOKEN = 'secret'
   const options = getOptionsFromPnpmSettings(process.cwd(), {
     registries: {
+      default: 'https://registry.npmjs.org/',
       '@scope': 'https://registry.example.com/${PNPM_TEST_TOKEN}/',
     },
   }) as any // eslint-disable-line
