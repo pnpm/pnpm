@@ -3180,6 +3180,9 @@ importers:
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../../../pkg-manifest/reader
+      '@pnpm/resolving.resolver-base':
+        specifier: workspace:*
+        version: link:../../../resolving/resolver-base
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../../../store/index
