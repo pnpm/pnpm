@@ -112,9 +112,7 @@ export async function main (inputArgv: string[]): Promise<void> {
           globalWarn('Using --global skips the package manager check for this project')
         } else {
           checkPackageManager(pm)
-          if (pm.name === 'pnpm') {
-            await syncEnvLockfile(config, context)
-          }
+          await syncEnvLockfile(config, context)
         }
       }
     }
