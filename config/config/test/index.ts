@@ -82,6 +82,26 @@ test('correct settings on global install', async () => {
   expect(config.save).toBe(true)
 })
 
+test('onlyBuiltDependencies is loaded from pnpm-workspace.yaml in globalPkgDir during --global install', async () => {
+  const fixtureDir = path.join(__dirname, 'fixtures', 'has-global-workspace-yaml')
+  const pnpmHomeDir = path.join(fixtureDir, 'pnpm-home')
+  const { config } = await getConfig({
+    cliOptions: {
+      global: true,
+    },
+    env: {
+      ...env,
+      PNPM_HOME: pnpmHomeDir,
+      [PATH]: `${process.env.PATH}${path.delimiter}${pnpmHomeDir}`,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config.onlyBuiltDependencies).toStrictEqual(['esbuild'])
+})
+
 test('throw error if --shared-workspace-lockfile is used with --global', async () => {
   await expect(getConfig({
     cliOptions: {
