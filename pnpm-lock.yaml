@@ -5179,6 +5179,9 @@ importers:
       '@pnpm/pkg-manifest.utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/utils
+      '@pnpm/resolving.npm-resolver':
+        specifier: workspace:*
+        version: link:../../resolving/npm-resolver
       '@pnpm/resolving.parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../resolving/parse-wanted-dependency
