@@ -37,8 +37,7 @@ describe('owner command', () => {
   })
 
   it('owner ls: should list owners of a package', async () => {
-    const mockPool = getMockAgent().get('https://registry.npmjs.org')
-    mockPool.intercept({
+    getMockAgent().get('https://registry.npmjs.org').intercept({
       method: 'GET',
       path: /^\/-\/package\/@pnpm%2[Ff]test\/owners$/,
     }).reply(200, [
@@ -69,8 +68,7 @@ describe('owner command', () => {
   })
 
   it('owner ls: should throw when package not found', async () => {
-    const mockPool = getMockAgent().get('https://registry.npmjs.org')
-    mockPool.intercept({
+    getMockAgent().get('https://registry.npmjs.org').intercept({
       method: 'GET',
       path: /^\/-\/package\/nonexistent-pkg-12345\/owners$/,
     }).reply(404, { error: 'Not found' })
@@ -86,8 +84,7 @@ describe('owner command', () => {
   })
 
   it('owner add: should add an owner to a package', async () => {
-    const mockPool = getMockAgent().get('https://registry.npmjs.org')
-    mockPool.intercept({
+    getMockAgent().get('https://registry.npmjs.org').intercept({
       method: 'PUT',
       path: /^\/-\/package\/@pnpm%2[Ff]test\/owners$/,
       body: JSON.stringify({ user: 'newowner' }),
@@ -126,8 +123,7 @@ describe('owner command', () => {
   })
 
   it('owner rm: should remove an owner from a package', async () => {
-    const mockPool = getMockAgent().get('https://registry.npmjs.org')
-    mockPool.intercept({
+    getMockAgent().get('https://registry.npmjs.org').intercept({
       method: 'DELETE',
       path: /^\/-\/package\/@pnpm%2[Ff]test\/owners\/newowner$/,
     }).reply(200, { ok: true })
@@ -165,8 +161,7 @@ describe('owner command', () => {
   })
 
   it('owner add: should throw on 401 (unauthorized)', async () => {
-    const mockPool = getMockAgent().get('https://registry.npmjs.org')
-    mockPool.intercept({
+    getMockAgent().get('https://registry.npmjs.org').intercept({
       method: 'PUT',
       path: /^\/-\/package\/@pnpm%2[Ff]test\/owners$/,
     }).reply(401, { error: 'Unauthorized' })
@@ -182,8 +177,7 @@ describe('owner command', () => {
   })
 
   it('owner add: should throw on 403 (forbidden)', async () => {
-    const mockPool = getMockAgent().get('https://registry.npmjs.org')
-    mockPool.intercept({
+    getMockAgent().get('https://registry.npmjs.org').intercept({
       method: 'PUT',
       path: /^\/-\/package\/@pnpm%2[Ff]test\/owners$/,
     }).reply(403, { error: 'Forbidden' })
@@ -199,8 +193,7 @@ describe('owner command', () => {
   })
 
   it('owner rm: should throw on 404 (package not found)', async () => {
-    const mockPool = getMockAgent().get('https://registry.npmjs.org')
-    mockPool.intercept({
+    getMockAgent().get('https://registry.npmjs.org').intercept({
       method: 'DELETE',
       path: /^\/-\/package\/nonexistent-pkg-12345\/owners\/oldowner$/,
     }).reply(404, { error: 'Not found' })
@@ -216,8 +209,7 @@ describe('owner command', () => {
   })
 
   it('owner ls: should default to ls when no subcommand given', async () => {
-    const mockPool = getMockAgent().get('https://registry.npmjs.org')
-    mockPool.intercept({
+    getMockAgent().get('https://registry.npmjs.org').intercept({
       method: 'GET',
       path: /^\/-\/package\/@pnpm%2[Ff]test\/owners$/,
     }).reply(200, [
@@ -235,8 +227,7 @@ describe('owner command', () => {
   })
 
   it('owner: should accept "list" as alias for ls', async () => {
-    const mockPool = getMockAgent().get('https://registry.npmjs.org')
-    mockPool.intercept({
+    getMockAgent().get('https://registry.npmjs.org').intercept({
       method: 'GET',
       path: /^\/-\/package\/@pnpm%2[Ff]test\/owners$/,
     }).reply(200, [
