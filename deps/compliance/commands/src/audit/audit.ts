@@ -93,6 +93,16 @@ export function help (): string {
     description: 'Checks for known security issues with the installed packages.',
     descriptionLists: [
       {
+        title: 'Commands',
+
+        list: [
+          {
+            description: 'Verify ECDSA registry signatures for installed packages from registries that provide signing keys at /-/npm/v1/keys.',
+            name: 'signatures',
+          },
+        ],
+      },
+      {
         title: 'Options',
 
         list: [

@@ -80,6 +80,8 @@ export async function verifySignatures (
     missing: [],
     verified: 0,
   }
+  // Registries without signing keys are not counted as audited: there is no
+  // registry trust root to verify against.
   const packumentCache = new Map<string, Promise<Packument | undefined>>()
   const limit = pLimit(opts.networkConcurrency ?? 16)
 
@@ -158,6 +160,8 @@ async function fetchRegistryKeys (
   if (!isRegistryKeysResponse(body)) {
     throw new PnpmError('AUDIT_SIGNATURE_KEYS_FETCH_FAIL', `The registry keys endpoint (at ${keysUrl}) returned an unexpected body. Expected an object with a keys array; got: ${JSON.stringify(body)?.slice(0, 500) ?? String(body)}`)
   }
+  // npm registry signing currently uses ECDSA P-256 keys. Sigstore provenance
+  // attestations are intentionally handled separately from this registry check.
   return body.keys.filter(({ keytype, scheme }) => keytype === 'ecdsa-sha2-nistp256' && scheme === 'ecdsa-sha2-nistp256')
 }
 
@@ -170,6 +174,7 @@ async function getPackument (
   const cacheKey = `${pkg.registry}:${pkg.name}`
   let packument = packumentCache.get(cacheKey)
   if (!packument) {
+    // Multiple installed versions share one full packument fetch.
     packument = fetchPackument(pkg, getAuthHeader, opts)
     packumentCache.set(cacheKey, packument)
   }
@@ -218,6 +223,7 @@ function verifyPackageSignatures (
   },
   keys: RegistryKey[]
 ): SignatureIssue | undefined {
+  // Registry signatures cover the package identity and content integrity.
   const message = `${pkg.name}@${pkg.version}:${pkg.integrity}`
   const publishedTime = pkg.publishedAt ? Date.parse(pkg.publishedAt) : undefined
 
@@ -226,6 +232,8 @@ function verifyPackageSignatures (
     if (!key) {
       return toSignatureIssue(pkg, `${pkg.name}@${pkg.version} has a registry signature with keyid ${signature.keyid} but no corresponding public key can be found`)
     }
+    // Without publish time metadata we cannot safely compare against key expiry,
+    // so keep verifying with the key instead of failing closed on incomplete metadata.
     if (key.expires && publishedTime != null && publishedTime >= Date.parse(key.expires)) {
       return toSignatureIssue(pkg, `${pkg.name}@${pkg.version} has a registry signature with keyid ${signature.keyid} but the corresponding public key has expired ${key.expires}`)
     }
