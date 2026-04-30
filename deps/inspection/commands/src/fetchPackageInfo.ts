@@ -15,6 +15,7 @@ import type { PackageInRegistry } from '@pnpm/resolving.registry.types'
 export type ExtendedPackageInfo = PackageInRegistry & {
   author?: string
   repository?: string
+  registry: string
   versions: string[]
   versionsCount?: number
   depsCount?: number
@@ -94,6 +95,7 @@ export async function fetchPackageInfo (
     ...data,
     author: typeof data.author === 'object' ? (data.author as { name: string }).name : data.author,
     repository: typeof data.repository === 'object' ? (data.repository as { url: string }).url : data.repository,
+    registry,
     versions,
     versionsCount: versions.length > 0 ? versions.length : undefined,
     depsCount: depsCount > 0 ? depsCount : undefined,
