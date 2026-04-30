@@ -53,6 +53,7 @@ export interface StrictInstallOptions {
   fixLockfile: boolean
   dedupe: boolean
   ignoreCompatibilityDb: boolean
+  ignoreLockfileSettingsChecks: boolean
   ignorePackageManifest: boolean
   /**
    * When true, skip fetching local dependencies (file: protocol pointing to directories).
@@ -231,6 +232,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     overrides: {},
     ownLifecycleHooksStdio: 'inherit',
     ignoreCompatibilityDb: false,
+    ignoreLockfileSettingsChecks: false,
     ignorePackageManifest: false,
     ignoreLocalPackages: false,
     packageExtensions: {},
