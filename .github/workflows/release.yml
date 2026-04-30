@@ -10,23 +10,11 @@ jobs:
     permissions:
       id-token: write  # Required for OIDC
       contents: write  # for softprops/action-gh-release to create GitHub release
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     environment: release
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Install ldid
-        run: |
-          sudo apt-get update
-          sudo apt-get install git build-essential libplist-dev libssl-dev openssl qemu-user-binfmt pkg-config
-          cd /tmp
-          git clone https://gitlab.com/opensource-saurik/ldid.git
-          cd ldid
-          git checkout c2f8abf013b22c335f44241a6a552a7767e73419
-          git submodule update --init
-          gcc -I. -c -o lookup2.o lookup2.c
-          g++ -std=c++11 -o ldid lookup2.o ldid.cpp -I. -lcrypto $(pkg-config --cflags --libs libplist-2.0) -lxml2
-          sudo mv ldid /usr/local/bin
       - name: Install pnpm
         uses: pnpm/action-setup@6e7bdbda5fe05107efc88b23b7ed00aa05f84ca0
         with:
