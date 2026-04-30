@@ -3,7 +3,7 @@
 > Update a YAML document to match the contents of an in-memory object.
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/yaml.document-sync.svg)](https://www.npmjs.com/package/@pnpm/yaml.document-sync)
+[![npm version](https://img.shields.io/npm/v/@pnpm/yaml.document-sync.svg)](https://npmx.dev/package/@pnpm/yaml.document-sync)
 <!--/@-->
 
 ## Installation
@@ -64,7 +64,7 @@ qux:
 
 This package is useful when your codebase:
 
-1. Uses the [yaml](https://www.npmjs.com/package/yaml) library.
+1. Uses the [yaml](https://npmx.dev/package/yaml) library.
 2. Calls `.toJSON()` on the parse result and performs changes to it.
 3. Needs to "sync" those changes back to the source document.
 

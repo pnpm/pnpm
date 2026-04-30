@@ -1,11 +1,11 @@
-# @pnpm/pkg-manager.direct-dep-linker
+# @pnpm/installing.linking.direct-dep-linker
 
 > Links direct dependencies to projects
 
 ## Installation
 
 ```
-pnpm install @pnpm/pkg-manager.direct-dep-linker
+pnpm install @pnpm/installing.linking.direct-dep-linker
 ```
 
 ## License

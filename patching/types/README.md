@@ -3,7 +3,7 @@
 > Types related to patching
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/patching.types.svg)](https://www.npmjs.com/package/@pnpm/patching.types)
+[![npm version](https://img.shields.io/npm/v/@pnpm/patching.types.svg)](https://npmx.dev/package/@pnpm/patching.types)
 <!--/@-->
 
 ## Installation

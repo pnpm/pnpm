@@ -1,13 +1,13 @@
-# @pnpm/tarball-fetcher
+# @pnpm/fetching.tarball-fetcher
 
 > Fetcher for packages hosted as tarballs
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/tarball-fetcher.svg)](https://www.npmjs.com/package/@pnpm/tarball-fetcher)
+[![npm version](https://img.shields.io/npm/v/@pnpm/fetching.tarball-fetcher.svg)](https://npmx.dev/package/@pnpm/fetching.tarball-fetcher)
 
 ## Installation
 
 ```
-pnpm add @pnpm/tarball-fetcher
+pnpm add @pnpm/fetching.tarball-fetcher
 ```
 
 ## License

@@ -1,11 +1,11 @@
-# @pnpm/dedupe.types
+# @pnpm/installing.dedupe.types
 
 > Types for the pnpm dedupe command
 
 ## Installation
 
 ```
-pnpm add @pnpm/dedupe.types
+pnpm add @pnpm/installing.dedupe.types
 ```
 
 ## License

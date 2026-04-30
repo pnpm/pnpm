@@ -3,7 +3,7 @@
 > An error class for pnpm errors
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/error.svg)](https://www.npmjs.com/package/@pnpm/error)
+[![npm version](https://img.shields.io/npm/v/@pnpm/error.svg)](https://npmx.dev/package/@pnpm/error)
 <!--/@-->
 
 ## Installation
