@@ -216,11 +216,15 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   }
 
   const depsStateCache: DepsStateCache = {}
-  const relativeModulesDir = opts.modulesDir ?? 'node_modules'
-  const rootModulesDir = await realpathMissing(path.join(lockfileDir, relativeModulesDir))
+  // `modulesDir` is conventionally a path relative to `lockfileDir`, but
+  // some callers pass it as an absolute path. Resolve via `pathAbsolute`
+  // so both forms work — `path.join` on Windows would otherwise produce a
+  // doubled prefix when the second argument is also absolute.
+  const modulesDir = opts.modulesDir ?? 'node_modules'
+  const rootModulesDir = await realpathMissing(pathAbsolute(modulesDir, lockfileDir))
   const internalPnpmDir = path.join(rootModulesDir, '.pnpm')
   const currentLockfile = opts.currentLockfile ?? await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
-  const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(relativeModulesDir, '.pnpm'), lockfileDir)
+  const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(modulesDir, '.pnpm'), lockfileDir)
   const hoistedModulesDir = path.join(
     opts.enableGlobalVirtualStore ? internalPnpmDir : virtualStoreDir,
     'node_modules'

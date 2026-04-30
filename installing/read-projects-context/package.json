@@ -35,6 +35,7 @@
     "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "path-absolute": "catalog:",
     "realpath-missing": "catalog:"
   },
   "peerDependencies": {
