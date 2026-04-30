@@ -154,7 +154,7 @@ test('accept another libc', () => {
 
 test('accept negated os with multi-valued supportedArchitectures', () => {
   expect(checkPlatform(packageId, { cpu: 'any', os: ['!win32'], libc: 'any' }, {
-    os: ['linux', 'current'],
+    os: ['linux', 'darwin'],
     cpu: ['current'],
     libc: ['current'],
   })).toBeNull()
@@ -163,7 +163,7 @@ test('accept negated os with multi-valued supportedArchitectures', () => {
 test('accept negated cpu with multi-valued supportedArchitectures', () => {
   expect(checkPlatform(packageId, { cpu: ['!ia32'], os: 'any', libc: 'any' }, {
     os: ['current'],
-    cpu: ['x64', 'current'],
+    cpu: ['x64', 'arm64'],
     libc: ['current'],
   })).toBeNull()
 })
