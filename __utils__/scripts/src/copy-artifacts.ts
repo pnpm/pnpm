@@ -48,7 +48,7 @@ async function createArtifactTarball (target: string, binaryName: string): Promi
     // createSourceMapsArchive(), which reads from the original pnpmDistDir.
     const distDest = path.join(artifactDir, 'dist')
     fs.rmSync(distDest, { recursive: true, force: true })
-    fs.cpSync(pnpmDistDir, distDest, { recursive: true })
+    fs.cpSync(pnpmDistDir, distDest, { recursive: true, verbatimSymlinks: true })
     stripReflinkPackages(distDest, getReflinkKeepPackages(target))
     for (const mapFile of await glob('**/*.map', { cwd: distDest })) {
       fs.rmSync(path.join(distDest, mapFile))
