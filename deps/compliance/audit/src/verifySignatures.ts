@@ -80,18 +80,19 @@ export async function verifySignatures (
     missing: [],
     verified: 0,
   }
-  const packumentCache = new Map<string, Promise<Packument>>()
+  const packumentCache = new Map<string, Promise<Packument | undefined>>()
   const limit = pLimit(opts.networkConcurrency ?? 16)
 
   await Promise.all(packages.map((pkg) => limit(async () => {
     const keys = keysByRegistry.get(pkg.registry) ?? []
     if (keys.length === 0) return
-    result.audited++
 
     let version: PackumentVersion | undefined
     let publishedAt: string | undefined
     try {
       const packument = await getPackument(pkg, getAuthHeader, opts, packumentCache)
+      if (!packument) return
+      result.audited++
       version = packument.versions?.[pkg.version]
       publishedAt = packument.time?.[pkg.version]
     } catch (err: unknown) {
@@ -102,8 +103,12 @@ export async function verifySignatures (
     const integrity = version?.dist?.integrity
     const resolved = version?.dist?.tarball
     const signatures = version?.dist?.signatures ?? []
-    if (!version || !integrity) {
-      result.invalid.push({ ...pkg, integrity, reason: `Missing registry metadata for ${pkg.name}@${pkg.version}`, resolved })
+    if (!version) {
+      result.invalid.push({ ...pkg, reason: `Missing registry metadata for ${pkg.name}@${pkg.version}` })
+      return
+    }
+    if (!integrity) {
+      result.missing.push({ ...pkg, resolved })
       return
     }
     if (signatures.length === 0) {
@@ -160,8 +165,8 @@ async function getPackument (
   pkg: SignaturePackage,
   getAuthHeader: GetAuthHeader,
   opts: VerifySignaturesOptions,
-  packumentCache: Map<string, Promise<Packument>>
-): Promise<Packument> {
+  packumentCache: Map<string, Promise<Packument | undefined>>
+): Promise<Packument | undefined> {
   const cacheKey = `${pkg.registry}:${pkg.name}`
   let packument = packumentCache.get(cacheKey)
   if (!packument) {
@@ -175,7 +180,7 @@ async function fetchPackument (
   pkg: SignaturePackage,
   getAuthHeader: GetAuthHeader,
   opts: VerifySignaturesOptions
-): Promise<Packument> {
+): Promise<Packument | undefined> {
   const registryUrl = pkg.registry.endsWith('/') ? pkg.registry : `${pkg.registry}/`
   const packumentUrl = toUri(pkg.name, registryUrl)
   const fetchFromRegistry = createFetchFromRegistry(opts)
@@ -186,6 +191,7 @@ async function fetchPackument (
     retry: opts.retry,
     timeout: opts.timeout,
   })
+  if (res.status === 404) return undefined
   if (res.status !== 200) {
     throw new PnpmError('AUDIT_SIGNATURE_PACKUMENT_FETCH_FAIL', `The packument endpoint (at ${packumentUrl}) responded with ${res.status}: ${await res.text()}`)
   }
@@ -213,14 +219,14 @@ function verifyPackageSignatures (
   keys: RegistryKey[]
 ): SignatureIssue | undefined {
   const message = `${pkg.name}@${pkg.version}:${pkg.integrity}`
-  const publishedTime = Date.parse(pkg.publishedAt ?? '2015-01-01T00:00:00.000Z')
+  const publishedTime = pkg.publishedAt ? Date.parse(pkg.publishedAt) : undefined
 
   for (const signature of pkg.signatures) {
     const key = keys.find(({ keyid }) => keyid === signature.keyid)
     if (!key) {
       return toSignatureIssue(pkg, `${pkg.name}@${pkg.version} has a registry signature with keyid ${signature.keyid} but no corresponding public key can be found`)
     }
-    if (key.expires && publishedTime >= Date.parse(key.expires)) {
+    if (key.expires && publishedTime != null && publishedTime >= Date.parse(key.expires)) {
       return toSignatureIssue(pkg, `${pkg.name}@${pkg.version} has a registry signature with keyid ${signature.keyid} but the corresponding public key has expired ${key.expires}`)
     }
     const verifier = crypto.createVerify('SHA256')
