@@ -1,26 +1,15 @@
 import { TABLE_OPTIONS } from '@pnpm/cli.utils'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { lockfileToAuditRequest, type SignaturePackage, type SignatureVerificationResult, verifySignatures } from '@pnpm/deps.compliance.audit'
 import { PnpmError } from '@pnpm/error'
-import { readEnvLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
 
 import type { AuditOptions } from './audit.js'
+import { createAuditNetworkOptions, loadAuditContext } from './auditContext.js'
 
 export async function auditSignatures (opts: AuditOptions): Promise<{ exitCode: number, output: string }> {
-  const lockfileDir = opts.lockfileDir ?? opts.dir
-  const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
-  if (lockfile == null) {
-    throw new PnpmError('AUDIT_NO_LOCKFILE', `No ${WANTED_LOCKFILE} found: Cannot audit a project without a lockfile`)
-  }
-  const envLockfile = await readEnvLockfile(opts.workspaceDir ?? lockfileDir)
-  const include = {
-    dependencies: opts.production !== false,
-    devDependencies: opts.dev !== false,
-    optionalDependencies: opts.optional !== false,
-  }
+  const { envLockfile, include, lockfile } = await loadAuditContext(opts)
   const auditRequest = lockfileToAuditRequest(lockfile, { envLockfile, include })
   const packages: SignaturePackage[] = Object.entries(auditRequest.request).flatMap(([name, versions]) => (
     versions.map((version) => ({ name, registry: opts.registries.default, version }))
@@ -30,25 +19,21 @@ export async function auditSignatures (opts: AuditOptions): Promise<{ exitCode: 
   }
 
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri, opts.registries?.default)
+  const networkOptions = createAuditNetworkOptions(opts)
   const result = await verifySignatures(packages, getAuthHeader, {
-    ca: opts.ca,
-    cert: opts.cert,
-    configByUri: opts.configByUri,
-    httpProxy: opts.httpProxy,
-    httpsProxy: opts.httpsProxy,
-    key: opts.key,
-    localAddress: opts.localAddress,
-    maxSockets: opts.maxSockets,
+    ca: networkOptions.ca,
+    cert: networkOptions.cert,
+    configByUri: networkOptions.configByUri,
+    httpProxy: networkOptions.httpProxy,
+    httpsProxy: networkOptions.httpsProxy,
+    key: networkOptions.key,
+    localAddress: networkOptions.localAddress,
+    maxSockets: networkOptions.maxSockets,
     networkConcurrency: opts.networkConcurrency,
-    noProxy: opts.noProxy,
-    strictSsl: opts.strictSsl,
-    retry: {
-      factor: opts.fetchRetryFactor,
-      maxTimeout: opts.fetchRetryMaxtimeout,
-      minTimeout: opts.fetchRetryMintimeout,
-      retries: opts.fetchRetries,
-    },
-    timeout: opts.fetchTimeout,
+    noProxy: networkOptions.noProxy,
+    retry: networkOptions.retry,
+    strictSsl: networkOptions.strictSsl,
+    timeout: networkOptions.fetchTimeout,
   })
 
   return {

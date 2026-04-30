@@ -1,10 +1,8 @@
 import { docsUrl, TABLE_OPTIONS } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { audit, type AuditAdvisory, type AuditLevelNumber, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts, type IgnoredAuditVulnerabilityCounts, normalizeGhsaId } from '@pnpm/deps.compliance.audit'
 import { PnpmError } from '@pnpm/error'
 import { type InstallCommandOptions, update } from '@pnpm/installing.commands'
-import { readEnvLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
 import { globalInfo } from '@pnpm/logger'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import type { Registries } from '@pnpm/types'
@@ -14,6 +12,7 @@ import enquirer from 'enquirer'
 import { pick, pickBy } from 'ramda'
 import { renderHelp } from 'render-help'
 
+import { createAuditNetworkOptions, loadAuditContext } from './auditContext.js'
 import { fix } from './fix.js'
 import { fixWithUpdate, type FixWithUpdateResult } from './fixWithUpdate.js'
 import { type AuditChoiceRow, getAuditFixChoices } from './getAuditFixChoices.js'
@@ -201,43 +200,29 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
     }
     throw new PnpmError('AUDIT_UNKNOWN_SUBCOMMAND', `Unknown audit subcommand: ${params[0]}`)
   }
-  const lockfileDir = opts.lockfileDir ?? opts.dir
-  const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
-  if (lockfile == null) {
-    throw new PnpmError('AUDIT_NO_LOCKFILE', `No ${WANTED_LOCKFILE} found: Cannot audit a project without a lockfile`)
-  }
-  const envLockfile = await readEnvLockfile(opts.workspaceDir ?? lockfileDir)
-  const include = {
-    dependencies: opts.production !== false,
-    devDependencies: opts.dev !== false,
-    optionalDependencies: opts.optional !== false,
-  }
+  const { envLockfile, include, lockfile } = await loadAuditContext(opts)
+  const networkOptions = createAuditNetworkOptions(opts)
   let auditReport!: AuditReport
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri, opts.registries?.default)
   try {
     auditReport = await audit(lockfile, getAuthHeader, {
       dispatcherOptions: {
-        ca: opts.ca,
-        cert: opts.cert,
-        httpProxy: opts.httpProxy,
-        httpsProxy: opts.httpsProxy,
-        key: opts.key,
-        localAddress: opts.localAddress,
-        maxSockets: opts.maxSockets,
-        noProxy: opts.noProxy,
-        strictSsl: opts.strictSsl,
-        timeout: opts.fetchTimeout,
+        ca: networkOptions.ca,
+        cert: networkOptions.cert,
+        httpProxy: networkOptions.httpProxy,
+        httpsProxy: networkOptions.httpsProxy,
+        key: networkOptions.key,
+        localAddress: networkOptions.localAddress,
+        maxSockets: networkOptions.maxSockets,
+        noProxy: networkOptions.noProxy,
+        strictSsl: networkOptions.strictSsl,
+        timeout: networkOptions.fetchTimeout,
       },
       envLockfile,
       include,
       registry: opts.registries.default,
-      retry: {
-        factor: opts.fetchRetryFactor,
-        maxTimeout: opts.fetchRetryMaxtimeout,
-        minTimeout: opts.fetchRetryMintimeout,
-        retries: opts.fetchRetries,
-      },
-      timeout: opts.fetchTimeout,
+      retry: networkOptions.retry,
+      timeout: networkOptions.fetchTimeout,
     })
   } catch (err: any) { // eslint-disable-line
     if (opts.ignoreRegistryErrors) {
