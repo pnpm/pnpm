@@ -1,5 +1,3 @@
-import path from 'node:path'
-
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import type { IgnoredBuilds } from '@pnpm/types'
 
@@ -24,6 +22,13 @@ export interface PromptApproveGlobalBuildsOptions {
  * only on the install directory — otherwise it would treat the global
  * packages dir as a workspace and discover sibling install directories as
  * workspace projects.
+ *
+ * `modulesDir` is left undefined so that downstream consumers compute it
+ * relative to `lockfileDir`. Passing an absolute value here would be
+ * forwarded as-is to `install.handler`, which treats `modulesDir` as a
+ * path relative to `lockfileDir` and joins it again — producing a
+ * doubled path on Windows (path.join does not collapse an embedded
+ * absolute path).
  */
 export async function promptApproveGlobalBuilds (
   opts: PromptApproveGlobalBuildsOptions,
@@ -36,7 +41,7 @@ export async function promptApproveGlobalBuilds (
     allProjects: undefined,
     selectedProjectsGraph: undefined,
     workspacePackagePatterns: undefined,
-    modulesDir: path.join(opts.installDir, 'node_modules'),
+    modulesDir: undefined,
     dir: opts.installDir,
     lockfileDir: opts.installDir,
     rootProjectManifest: undefined,
