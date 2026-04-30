@@ -10,6 +10,11 @@ jobs:
     permissions:
       id-token: write  # Required for OIDC
       contents: write  # for softprops/action-gh-release to create GitHub release
+    # Runs on macOS so darwin artifacts are signed with native `codesign`.
+    # Cross-signing on Linux with `ldid` produces ad-hoc signatures whose
+    # page hashes don't match the post-postject Mach-O layout for Node.js 25's
+    # chained fixups, leaving fixups unapplied and crashing the binary at
+    # startup (EXC_BAD_ACCESS in __cxx_global_var_init).
     runs-on: macos-latest
     environment: release
     steps:
