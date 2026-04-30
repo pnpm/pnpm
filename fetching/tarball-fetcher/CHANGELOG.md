@@ -1,5 +1,18 @@
 # @pnpm/tarball-fetcher
 
+## 1101.0.1
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+- Updated dependencies [5a901e7]
+  - @pnpm/fetching.fetcher-base@1100.1.1
+  - @pnpm/exec.prepare-package@1100.0.5
+  - @pnpm/fetching.types@1100.0.1
+  - @pnpm/fs.graceful-fs@1100.1.0
+  - @pnpm/worker@1100.1.1
+
 ## 1101.0.0
 
 ### Minor Changes

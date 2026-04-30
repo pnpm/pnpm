@@ -1,5 +1,17 @@
 # @pnpm/lockfile-utils
 
+## 1100.0.4
+
+### Patch Changes
+
+- 6b891a5: Fix `ERR_PNPM_FETCH_404` when installing a project whose lockfile depends on a `file:` tarball. The previous behavior dropped the `tarball` field from `file:` and git-hosted resolutions when `lockfile-include-tarball-url=false` (the default), even though those URLs cannot be reconstructed from the package name, version, and registry [#11407](https://github.com/pnpm/pnpm/issues/11407).
+- Updated dependencies [184ce26]
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/fetching.pick-fetcher@1100.0.4
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/hooks.types@1100.0.4
+  - @pnpm/lockfile.types@1100.0.3
+
 ## 1100.0.3
 
 ### Patch Changes

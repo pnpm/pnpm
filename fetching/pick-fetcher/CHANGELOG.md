@@ -1,5 +1,16 @@
 # @pnpm/pick-fetcher
 
+## 1100.0.4
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/fetching.fetcher-base@1100.1.1
+  - @pnpm/store.cafs-types@1100.0.1
+  - @pnpm/hooks.types@1100.0.4
+
 ## 1100.0.3
 
 ### Patch Changes

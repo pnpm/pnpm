@@ -1,5 +1,15 @@
 # @pnpm/graceful-fs
 
+## 1100.1.0
+
+### Minor Changes
+
+- 5a901e7: Add `chmod` and `unlink` (promisified) to the exported fs interface so callers can perform mode changes and removals through the same EMFILE-queueing layer as the other operations.
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+
 ## 1001.0.0
 
 ### Major Changes

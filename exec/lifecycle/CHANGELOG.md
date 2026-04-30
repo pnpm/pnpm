@@ -1,5 +1,17 @@
 # @pnpm/lifecycle
 
+## 1100.0.5
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/fetching.directory-fetcher@1100.0.5
+  - @pnpm/store.controller-types@1100.0.4
+  - @pnpm/pkg-manifest.reader@1100.0.2
+  - @pnpm/store.cafs-types@1100.0.1
+  - @pnpm/bins.linker@1100.0.3
+
 ## 1100.0.4
 
 ### Patch Changes

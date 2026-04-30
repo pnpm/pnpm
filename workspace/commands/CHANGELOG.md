@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-init
 
+## 1100.1.5
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/workspace.project-manifest-writer@1100.0.2
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/cli.utils@1101.0.2
+  - @pnpm/cli.meta@1100.0.2
+
 ## 1100.1.4
 
 ### Patch Changes

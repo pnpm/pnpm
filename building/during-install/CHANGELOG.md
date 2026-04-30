@@ -1,5 +1,22 @@
 # @pnpm/building.during-install
 
+## 1101.0.2
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/store.controller-types@1100.0.4
+  - @pnpm/pkg-manifest.reader@1100.0.2
+  - @pnpm/deps.graph-hasher@1100.1.2
+  - @pnpm/exec.lifecycle@1100.0.5
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/bins.linker@1100.0.3
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/worker@1100.1.1
+  - @pnpm/fs.hard-link-dir@1100.0.1
+  - @pnpm/patching.apply-patch@1100.0.0
+
 ## 1101.0.1
 
 ### Patch Changes

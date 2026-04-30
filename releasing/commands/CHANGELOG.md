@@ -1,5 +1,31 @@
 # @pnpm/releasing.commands
 
+## 1100.2.5
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/config.pick-registry-for-package@1100.0.2
+  - @pnpm/releasing.exportable-manifest@1100.0.3
+  - @pnpm/cli.common-cli-options-help@1100.0.1
+  - @pnpm/fetching.directory-fetcher@1100.0.5
+  - @pnpm/workspace.projects-filter@1100.0.7
+  - @pnpm/fs.indexed-pkg-importer@1100.0.4
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/installing.commands@1100.1.6
+  - @pnpm/installing.client@1100.0.7
+  - @pnpm/network.git-utils@1100.0.1
+  - @pnpm/exec.lifecycle@1100.0.5
+  - @pnpm/bins.resolver@1100.0.2
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/network.fetch@1100.0.2
+  - @pnpm/cli.utils@1101.0.2
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/engine.runtime.node-resolver@1101.0.2
+  - @pnpm/lockfile.types@1100.0.3
+  - @pnpm/lockfile.fs@1100.0.4
+  - @pnpm/engine.runtime.commands@1100.0.8
+
 ## 1100.2.4
 
 ### Patch Changes
