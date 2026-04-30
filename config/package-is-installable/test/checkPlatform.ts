@@ -1,4 +1,4 @@
-import { expect, jest, test } from '@jest/globals'
+import { afterEach, expect, jest, test } from '@jest/globals'
 import type * as DetectLibc from 'detect-libc'
 
 const packageId = 'registry.npmjs.org/foo/1.0.0'
@@ -12,6 +12,22 @@ jest.mock('detect-libc', () => {
 })
 
 const { checkPlatform } = await import('../lib/checkPlatform.js')
+
+const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
+const originalArch = Object.getOwnPropertyDescriptor(process, 'arch')!
+
+function setPlatform (platform: NodeJS.Platform): void {
+  Object.defineProperty(process, 'platform', { ...originalPlatform, value: platform })
+}
+
+function setArch (arch: NodeJS.Architecture): void {
+  Object.defineProperty(process, 'arch', { ...originalArch, value: arch })
+}
+
+afterEach(() => {
+  Object.defineProperty(process, 'platform', originalPlatform)
+  Object.defineProperty(process, 'arch', originalArch)
+})
 
 test('target cpu wrong', () => {
   const target = {
@@ -153,22 +169,25 @@ test('accept another libc', () => {
 })
 
 test('accept negated os with multi-valued supportedArchitectures', () => {
+  setPlatform('linux')
   expect(checkPlatform(packageId, { cpu: 'any', os: ['!win32'], libc: 'any' }, {
-    os: ['linux', 'darwin'],
+    os: ['linux', 'current'],
     cpu: ['current'],
     libc: ['current'],
   })).toBeNull()
 })
 
 test('accept negated cpu with multi-valued supportedArchitectures', () => {
+  setArch('x64')
   expect(checkPlatform(packageId, { cpu: ['!ia32'], os: 'any', libc: 'any' }, {
     os: ['current'],
-    cpu: ['x64', 'arm64'],
+    cpu: ['x64', 'current'],
     libc: ['current'],
   })).toBeNull()
 })
 
 test('reject negated os when any supported value matches the negation', () => {
+  setPlatform('darwin')
   const err = checkPlatform(packageId, { cpu: 'any', os: ['!win32'], libc: 'any' }, {
     os: ['win32', 'current'],
     cpu: ['current'],
