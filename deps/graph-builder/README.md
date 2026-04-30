@@ -5,7 +5,7 @@
 ## Installation
 
 ```
-pnpm install @pnpm/deps.graph.builder
+pnpm install @pnpm/deps.graph-builder
 ```
 
 ## License
