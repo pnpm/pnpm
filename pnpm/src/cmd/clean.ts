@@ -5,6 +5,7 @@ import { docsUrl } from '@pnpm/cli.utils'
 import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
 import { rimraf } from '@zkochan/rimraf'
 import { isSubdir } from 'is-subdir'
+import { pathAbsolute } from 'path-absolute'
 import { pathExists } from 'path-exists'
 import { renderHelp } from 'render-help'
 
@@ -72,7 +73,7 @@ export async function handler (
     const resolvedVirtualStoreDir = path.isAbsolute(opts.virtualStoreDir)
       ? opts.virtualStoreDir
       : path.resolve(rootDir, opts.virtualStoreDir)
-    const rootModulesDir = path.join(rootDir, modulesDir)
+    const rootModulesDir = pathAbsolute(modulesDir, rootDir)
     if (
       !isSubdir(rootModulesDir, resolvedVirtualStoreDir) &&
       isSubdir(rootDir, resolvedVirtualStoreDir) &&
@@ -89,7 +90,7 @@ function printRemoving (p: string): void {
 }
 
 async function cleanProjectDir (opts: { modulesDir: string, removeLockfile?: boolean }, dir: string): Promise<void> {
-  const fullModulesDir = path.join(dir, opts.modulesDir)
+  const fullModulesDir = pathAbsolute(opts.modulesDir, dir)
   if (await hasContentsToRemove(fullModulesDir)) {
     printRemoving(fullModulesDir)
     await removeModulesDirContents(fullModulesDir)

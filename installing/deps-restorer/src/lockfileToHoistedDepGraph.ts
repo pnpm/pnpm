@@ -28,6 +28,7 @@ import type {
   StoreController,
 } from '@pnpm/store.controller-types'
 import type { AllowBuild, DepPath, ProjectId, Registries, SupportedArchitectures } from '@pnpm/types'
+import { pathAbsolute } from 'path-absolute'
 import { pathExists } from 'path-exists'
 
 export interface LockfileToHoistedDepGraphOptions {
@@ -92,7 +93,7 @@ async function _lockfileToHoistedDepGraph (
     autoInstallPeers: opts.autoInstallPeers,
   })
   const graph: DependenciesGraph = {}
-  const modulesDir = path.join(opts.lockfileDir, opts.modulesDir ?? 'node_modules')
+  const modulesDir = pathAbsolute(opts.modulesDir ?? 'node_modules', opts.lockfileDir)
   const fetchDepsOpts = {
     ...opts,
     lockfile,

@@ -165,6 +165,7 @@
     "normalize-newline": "catalog:",
     "p-defer": "catalog:",
     "path-exists": "catalog:",
+    "path-absolute": "catalog:",
     "path-name": "catalog:",
     "pidtree": "catalog:",
     "ps-list": "catalog:",

@@ -170,11 +170,6 @@ test('run lifecycle events of global packages in correct working directory', asy
 // without prompting. The post-approval install must complete and the
 // build artifact must end up in the global install dir.
 test('approve-builds during global add does not produce a doubled modules path', async () => {
-  if (isWindows()) {
-    // The build script in @pnpm.e2e/pre-and-postinstall-scripts-example
-    // depends on a POSIX shell, which is not available on Windows CI.
-    return
-  }
   prepare()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
@@ -193,15 +188,14 @@ test('approve-builds during global add does not produce a doubled modules path',
   await execPnpm([
     'add',
     '-g',
-    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+    '@pnpm.e2e/install-script-example@1.0.0',
   ], { env })
 
-  const pkgPath = findGlobalPkg(globalPkgDir(pnpmHome), '@pnpm.e2e/pre-and-postinstall-scripts-example')
+  const pkgPath = findGlobalPkg(globalPkgDir(pnpmHome), '@pnpm.e2e/install-script-example')
   expect(pkgPath).toBeTruthy()
   // The build artifacts are only present if the post-approval install
   // ran the package's install scripts.
-  expect(fs.existsSync(path.join(pkgPath!, 'generated-by-preinstall.js'))).toBe(true)
-  expect(fs.existsSync(path.join(pkgPath!, 'generated-by-postinstall.js'))).toBe(true)
+  expect(fs.existsSync(path.join(pkgPath!, 'generated-by-install.js'))).toBe(true)
 })
 
 // CONTEXT: dangerously-allow-all-builds has been removed from rc files, as a result, this test no longer applies
