@@ -163,33 +163,18 @@ test('view: object field renders as JSON', async () => {
 })
 
 test('view: versions field returns array of version strings', async () => {
-  const originalIsTTY = process.stdout.isTTY
-  Object.defineProperty(process.stdout, 'isTTY', {
-    value: false,
-    configurable: true,
-  })
-  try {
+  await withMockedStdoutIsTTY(false, async () => {
     const result = await view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, ['is-negative', 'versions'])
     expect(typeof result).toBe('string')
     const parsed = JSON.parse(result as string)
     expect(Array.isArray(parsed)).toBe(true)
     expect(parsed.length).toBeGreaterThan(0)
     expect(parsed).toContain('1.0.0')
-  } finally {
-    Object.defineProperty(process.stdout, 'isTTY', {
-      value: originalIsTTY,
-      configurable: true,
-    })
-  }
+  })
 })
 
 test('view: versions field includes registry in interactive terminal', async () => {
-  const originalIsTTY = process.stdout.isTTY
-  Object.defineProperty(process.stdout, 'isTTY', {
-    value: true,
-    configurable: true,
-  })
-  try {
+  await withMockedStdoutIsTTY(true, async () => {
     const result = await view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, ['is-negative', 'versions'])
     expect(typeof result).toBe('string')
     expect(result).toContain(`registry: ${REGISTRY_URL}`)
@@ -197,12 +182,7 @@ test('view: versions field includes registry in interactive terminal', async () 
     const parsed = JSON.parse(versionsLine)
     expect(Array.isArray(parsed)).toBe(true)
     expect(parsed).toContain('1.0.0')
-  } finally {
-    Object.defineProperty(process.stdout, 'isTTY', {
-      value: originalIsTTY,
-      configurable: true,
-    })
-  }
+  })
 })
 
 test('view: versions field with --json returns raw array', async () => {
@@ -243,3 +223,20 @@ test('view: time field returns publish timestamps', async () => {
   expect(typeof parsed).toBe('object')
   expect(parsed['1.0.0']).toBeDefined()
 })
+
+async function withMockedStdoutIsTTY<T> (isTTY: boolean, fn: () => Promise<T>): Promise<T> {
+  const descriptor = Object.getOwnPropertyDescriptor(process.stdout, 'isTTY')
+  Object.defineProperty(process.stdout, 'isTTY', {
+    value: isTTY,
+    configurable: true,
+  })
+  try {
+    return await fn()
+  } finally {
+    if (descriptor) {
+      Object.defineProperty(process.stdout, 'isTTY', descriptor)
+    } else {
+      delete (process.stdout as { isTTY?: boolean }).isTTY
+    }
+  }
+}
