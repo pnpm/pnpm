@@ -1,5 +1,13 @@
 # @pnpm/get-context
 
+## 1100.0.4
+
+### Patch Changes
+
+- Updated dependencies [685a369]
+  - @pnpm/installing.read-projects-context@1100.0.4
+  - @pnpm/store.controller@1101.0.1
+
 ## 1100.0.3
 
 ### Patch Changes

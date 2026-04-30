@@ -1,5 +1,15 @@
 # @pnpm/releasing.commands
 
+## 1100.2.4
+
+### Patch Changes
+
+- 8c41c5c: Fix recursive publish summaries to report the manifest from `publishConfig.directory` when packages publish from a generated directory [#11239](https://github.com/pnpm/pnpm/issues/11239).
+  - @pnpm/cli.utils@1101.0.1
+  - @pnpm/installing.commands@1100.1.5
+  - @pnpm/engine.runtime.commands@1100.0.7
+  - @pnpm/workspace.projects-filter@1100.0.6
+
 ## 1100.2.3
 
 ### Patch Changes

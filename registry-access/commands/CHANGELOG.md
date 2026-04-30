@@ -1,5 +1,11 @@
 # @pnpm/registry-access.commands
 
+## 1100.2.4
+
+### Patch Changes
+
+- @pnpm/cli.utils@1101.0.1
+
 ## 1100.2.3
 
 ### Patch Changes

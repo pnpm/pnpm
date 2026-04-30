@@ -1,5 +1,17 @@
 # @pnpm/headless
 
+## 1101.0.2
+
+### Patch Changes
+
+- 685a369: Fix `ENOENT` symlink failure when `pnpm add -g` triggers the approve-builds prompt. The global add flow used to forward an absolute `modulesDir` (`<installDir>/node_modules`) into the install run by `approve-builds`. The install layer treated `modulesDir` as a path relative to `lockfileDir` and joined it again, producing a doubled path on Windows because `path.join` does not collapse an embedded absolute path. The hoist step then tried to `mkdir` and symlink under `<installDir>\<installDir>\node_modules\.pnpm\node_modules\...` and failed with `ENOENT` [#11403](https://github.com/pnpm/pnpm/issues/11403).
+- Updated dependencies [d96a1bf]
+  - @pnpm/config.package-is-installable@1100.0.2
+  - @pnpm/deps.graph-builder@1100.0.4
+  - @pnpm/installing.package-requester@1101.0.1
+  - @pnpm/lockfile.filtering@1100.0.4
+  - @pnpm/installing.linking.modules-cleaner@1100.0.4
+
 ## 1101.0.1
 
 ### Patch Changes

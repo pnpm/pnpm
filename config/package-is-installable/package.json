@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config.package-is-installable",
-  "version": "1100.0.1",
+  "version": "1100.0.2",
   "description": "Checks if a package is installable on the current system",
   "keywords": [
     "pnpm",

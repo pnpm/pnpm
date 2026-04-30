@@ -1,5 +1,13 @@
 # @pnpm/deps.compliance.commands
 
+## 1101.1.4
+
+### Patch Changes
+
+- @pnpm/cli.utils@1101.0.1
+- @pnpm/deps.compliance.license-scanner@1100.0.5
+- @pnpm/installing.commands@1100.1.5
+
 ## 1101.1.3
 
 ### Patch Changes

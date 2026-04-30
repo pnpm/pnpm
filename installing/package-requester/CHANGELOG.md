@@ -1,5 +1,12 @@
 # @pnpm/package-requester
 
+## 1101.0.1
+
+### Patch Changes
+
+- Updated dependencies [d96a1bf]
+  - @pnpm/config.package-is-installable@1100.0.2
+
 ## 1101.0.0
 
 ### Patch Changes

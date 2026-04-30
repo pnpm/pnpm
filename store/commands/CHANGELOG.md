@@ -1,5 +1,13 @@
 # @pnpm/store.commands
 
+## 1100.0.7
+
+### Patch Changes
+
+- @pnpm/cli.utils@1101.0.1
+- @pnpm/installing.context@1100.0.4
+- @pnpm/store.connection-manager@1100.0.7
+
 ## 1100.0.6
 
 ### Patch Changes
