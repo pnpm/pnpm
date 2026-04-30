@@ -1,4 +1,5 @@
 import { TABLE_OPTIONS } from '@pnpm/cli.utils'
+import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { lockfileToAuditRequest, type SignaturePackage, type SignatureVerificationResult, verifySignatures } from '@pnpm/deps.compliance.audit'
 import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
@@ -12,7 +13,7 @@ export async function auditSignatures (opts: AuditOptions): Promise<{ exitCode: 
   const { envLockfile, include, lockfile } = await loadAuditContext(opts)
   const auditRequest = lockfileToAuditRequest(lockfile, { envLockfile, include })
   const packages: SignaturePackage[] = Object.entries(auditRequest.request).flatMap(([name, versions]) => (
-    versions.map((version) => ({ name, registry: opts.registries.default, version }))
+    versions.map((version) => ({ name, registry: pickRegistryForPackage(opts.registries, name), version }))
   ))
   if (packages.length === 0) {
     throw new PnpmError('AUDIT_NO_PACKAGES', 'No installed packages found to audit')

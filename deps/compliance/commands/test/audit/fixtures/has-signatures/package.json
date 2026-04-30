@@ -2,6 +2,7 @@
   "name": "has-signatures",
   "version": "0.0.0",
   "dependencies": {
+    "@scope/signed-pkg": "1.0.0",
     "signed-pkg": "1.0.0"
   }
 }

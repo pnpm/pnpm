@@ -13,6 +13,7 @@ import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS, DEFAULT_OPTS } from './utils/optio
 import * as responses from './utils/responses/index.js'
 
 const f = fixtures(path.join(import.meta.dirname, 'fixtures'))
+const SCOPED_AUDIT_REGISTRY = 'http://scope.audit.registry/'
 
 describe('plugin-commands-audit', () => {
   const hasVulnerabilitiesDir = f.prepare('has-vulnerabilities')
@@ -94,17 +95,8 @@ describe('plugin-commands-audit', () => {
 
   test('audit signatures', async () => {
     const key = createSigningKey()
-    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
-      .intercept({ path: '/-/npm/v1/keys', method: 'GET' })
-      .reply(200, {
-        keys: [{
-          expires: null,
-          key: key.publicKey,
-          keyid: key.keyid,
-          keytype: 'ecdsa-sha2-nistp256',
-          scheme: 'ecdsa-sha2-nistp256',
-        }],
-      })
+    mockRegistryKey(AUDIT_REGISTRY, key)
+    mockRegistryKey(SCOPED_AUDIT_REGISTRY, key)
     getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
       .intercept({ path: '/signed-pkg', method: 'GET' })
       .reply(200, {
@@ -123,16 +115,35 @@ describe('plugin-commands-audit', () => {
           },
         },
       })
+    getMockAgent().get(SCOPED_AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/@scope%2Fsigned-pkg', method: 'GET' })
+      .reply(200, {
+        name: '@scope/signed-pkg',
+        time: { '1.0.0': '2023-01-01T00:00:00.000Z' },
+        versions: {
+          '1.0.0': {
+            dist: {
+              integrity: 'sha512-scoped-test-integrity',
+              shasum: 'test-shasum',
+              signatures: [{ keyid: key.keyid, sig: key.sign('@scope/signed-pkg@1.0.0', 'sha512-scoped-test-integrity') }],
+              tarball: `${SCOPED_AUDIT_REGISTRY}@scope/signed-pkg/-/signed-pkg-1.0.0.tgz`,
+            },
+            name: '@scope/signed-pkg',
+            version: '1.0.0',
+          },
+        },
+      })
 
     const { output, exitCode } = await audit.handler({
       ...AUDIT_REGISTRY_OPTS,
       dir: hasSignaturesDir,
+      registries: { ...AUDIT_REGISTRY_OPTS.registries, '@scope': SCOPED_AUDIT_REGISTRY },
       rootProjectManifestDir: hasSignaturesDir,
     }, ['signatures'])
 
     expect(exitCode).toBe(0)
-    expect(stripAnsi(output)).toContain('audited 1 package')
-    expect(stripAnsi(output)).toContain('1 package has a verified registry signature')
+    expect(stripAnsi(output)).toContain('audited 2 packages')
+    expect(stripAnsi(output)).toContain('2 packages have verified registry signatures')
   })
 
   test('audit rejects unknown subcommands', async () => {
@@ -399,4 +410,18 @@ function createSigningKey (): {
       return signer.sign(privateKey, 'base64')
     },
   }
+}
+
+function mockRegistryKey (registry: string, key: ReturnType<typeof createSigningKey>): void {
+  getMockAgent().get(registry.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/keys', method: 'GET' })
+    .reply(200, {
+      keys: [{
+        expires: null,
+        key: key.publicKey,
+        keyid: key.keyid,
+        keytype: 'ecdsa-sha2-nistp256',
+        scheme: 'ecdsa-sha2-nistp256',
+      }],
+    })
 }
