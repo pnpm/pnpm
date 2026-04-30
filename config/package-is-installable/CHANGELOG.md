@@ -1,5 +1,11 @@
 # @pnpm/package-is-installable
 
+## 1100.0.2
+
+### Patch Changes
+
+- d96a1bf: Fix negated `os` / `cpu` entries (e.g. `["!win32"]`) being incorrectly rejected when `supportedArchitectures` expands to multiple platforms [#11375](https://github.com/pnpm/pnpm/pull/11375).
+
 ## 1100.0.1
 
 ### Patch Changes

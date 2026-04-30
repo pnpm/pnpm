@@ -1,5 +1,11 @@
 # @pnpm/config.deps-installer
 
+## 1101.0.2
+
+### Patch Changes
+
+- @pnpm/store.controller@1101.0.1
+
 ## 1101.0.1
 
 ### Patch Changes

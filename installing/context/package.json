@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.context",
-  "version": "1100.0.3",
+  "version": "1100.0.4",
   "description": "Gets context information about a project",
   "keywords": [
     "pnpm",

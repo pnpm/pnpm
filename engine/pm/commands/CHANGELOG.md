@@ -1,5 +1,17 @@
 # @pnpm/engine.pm.commands
 
+## 1101.1.2
+
+### Patch Changes
+
+- Updated dependencies [685a369]
+  - @pnpm/installing.deps-restorer@1101.0.2
+  - @pnpm/global.commands@1100.0.7
+  - @pnpm/cli.utils@1101.0.1
+  - @pnpm/store.controller@1101.0.1
+  - @pnpm/installing.env-installer@1101.0.2
+  - @pnpm/store.connection-manager@1100.0.7
+
 ## 1101.1.1
 
 ### Patch Changes

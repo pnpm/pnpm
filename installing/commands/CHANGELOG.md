@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-installation
 
+## 1100.1.5
+
+### Patch Changes
+
+- Updated dependencies [685a369]
+  - @pnpm/global.commands@1100.0.7
+  - @pnpm/cli.utils@1101.0.1
+  - @pnpm/installing.deps-installer@1101.0.3
+  - @pnpm/installing.context@1100.0.4
+  - @pnpm/workspace.projects-reader@1101.0.1
+  - @pnpm/store.controller@1101.0.1
+  - @pnpm/building.after-install@1101.0.3
+  - @pnpm/deps.status@1100.0.6
+  - @pnpm/workspace.projects-filter@1100.0.6
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.3
+  - @pnpm/installing.env-installer@1101.0.2
+  - @pnpm/store.connection-manager@1100.0.7
+
 ## 1100.1.4
 
 ### Patch Changes

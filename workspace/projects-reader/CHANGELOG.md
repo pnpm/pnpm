@@ -1,5 +1,11 @@
 # @pnpm/find-workspace-packages
 
+## 1101.0.1
+
+### Patch Changes
+
+- @pnpm/cli.utils@1101.0.1
+
 ## 1101.0.0
 
 ### Major Changes

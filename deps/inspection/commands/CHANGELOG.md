@@ -1,5 +1,13 @@
 # @pnpm/deps.inspection.commands
 
+## 1100.1.6
+
+### Patch Changes
+
+- Updated dependencies [685a369]
+  - @pnpm/global.commands@1100.0.7
+  - @pnpm/cli.utils@1101.0.1
+
 ## 1100.1.5
 
 ### Patch Changes

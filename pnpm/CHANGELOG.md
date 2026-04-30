@@ -1,5 +1,14 @@
 # pnpm
 
+## 11.0.2
+
+### Patch Changes
+
+- Fix `ENOENT` symlink failure when `pnpm add -g` triggers the approve-builds prompt. The global add flow used to forward an absolute `modulesDir` (`<installDir>/node_modules`) into the install run by `approve-builds`. The install layer treated `modulesDir` as a path relative to `lockfileDir` and joined it again, producing a doubled path on Windows because `path.join` does not collapse an embedded absolute path. The hoist step then tried to `mkdir` and symlink under `<installDir>\<installDir>\node_modules\.pnpm\node_modules\...` and failed with `ENOENT` [#11403](https://github.com/pnpm/pnpm/issues/11403).
+- Fixed `packageManagerDependencies` going stale when pnpm is invoked through corepack. The lockfile sync (and the `devEngines.packageManager` version check) previously ran only when pnpm was invoked directly; under corepack the entire block was skipped, so a stale entry would persist even after the running pnpm version changed. The lockfile sync now runs regardless of how pnpm was invoked, while the pnpm-managed version switch (`onFail: 'download'`) remains skipped under corepack so it doesn't fight corepack's own version selection [#11397](https://github.com/pnpm/pnpm/issues/11397).
+- Fix recursive publish summaries to report the manifest from `publishConfig.directory` when packages publish from a generated directory [#11239](https://github.com/pnpm/pnpm/issues/11239).
+- Fix negated `os` / `cpu` entries (e.g. `["!win32"]`) being incorrectly rejected when `supportedArchitectures` expands to multiple platforms [#11375](https://github.com/pnpm/pnpm/pull/11375).
+
 ## 11.0.1
 
 ### Patch Changes

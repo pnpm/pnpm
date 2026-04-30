@@ -1,5 +1,19 @@
 # @pnpm/core
 
+## 1101.0.3
+
+### Patch Changes
+
+- Updated dependencies [685a369]
+  - @pnpm/installing.deps-restorer@1101.0.2
+  - @pnpm/installing.package-requester@1101.0.1
+  - @pnpm/lockfile.filtering@1100.0.4
+  - @pnpm/installing.context@1100.0.4
+  - @pnpm/installing.linking.modules-cleaner@1100.0.4
+  - @pnpm/building.after-install@1101.0.3
+  - @pnpm/lockfile.verification@1100.0.4
+  - @pnpm/lockfile.settings-checker@1100.0.4
+
 ## 1101.0.2
 
 ### Patch Changes
