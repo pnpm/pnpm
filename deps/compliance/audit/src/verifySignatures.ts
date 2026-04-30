@@ -63,16 +63,13 @@ interface Packument {
   versions?: Record<string, PackumentVersion>
 }
 
-export async function verifySignatures (
+export async function verifySignatures(
   packages: SignaturePackage[],
   getAuthHeader: GetAuthHeader,
   opts: VerifySignaturesOptions
 ): Promise<SignatureVerificationResult> {
   const registries = new Set(packages.map(({ registry }) => registry))
-  const keysByRegistry = new Map<string, RegistryKey[]>()
-  await Promise.all(Array.from(registries, async (registry) => {
-    keysByRegistry.set(registry, await fetchRegistryKeys(registry, getAuthHeader, opts))
-  }))
+  const keysByRegistry = await getKeysByRegistry(registries, getAuthHeader, opts)
 
   const result: SignatureVerificationResult = {
     audited: 0,
@@ -131,6 +128,19 @@ export async function verifySignatures (
   return result
 }
 
+async function getKeysByRegistry (
+  registries: Set<string>,
+  getAuthHeader: GetAuthHeader,
+  opts: VerifySignaturesOptions
+): Promise<Map<string, RegistryKey[]>> {
+  const keysByRegistry = new Map<string, RegistryKey[]>()
+  await Promise.all(Array.from(registries, async (registry) => {
+    const keys = await fetchRegistryKeys(registry, getAuthHeader, opts)
+    keysByRegistry.set(registry, keys)
+  }))
+  return keysByRegistry
+}
+
 async function fetchRegistryKeys (
   registry: string,
   getAuthHeader: GetAuthHeader,
@@ -139,33 +149,49 @@ async function fetchRegistryKeys (
   const registryUrl = registry.endsWith('/') ? registry : `${registry}/`
   const keysUrl = new url.URL('-/npm/v1/keys', registryUrl).toString()
   const fetchFromRegistry = createFetchFromRegistry(opts)
-  const res = await fetchFromRegistry(keysUrl, {
+
+  const response = await fetchFromRegistry(keysUrl, {
     authHeaderValue: getAuthHeader(registryUrl),
     method: 'GET',
     retry: opts.retry,
     timeout: opts.timeout,
   })
-  if (res.status === 404 || res.status === 400) return []
-  if (res.status !== 200) {
-    throw new PnpmError('AUDIT_SIGNATURE_KEYS_FETCH_FAIL', `The registry keys endpoint (at ${keysUrl}) responded with ${res.status}: ${await res.text()}`)
+
+  if (response.status === 404 || response.status === 400) {
+    return []
   }
-  const rawBody = await res.text()
+
+  if (response.status !== 200) {
+    const code = 'AUDIT_SIGNATURE_KEYS_FETCH_FAIL'
+    const message = `The registry keys endpoint (at ${response.url}) responded with ${response.status}: ${await response.text()}`
+    throw new PnpmError(code, message)
+  }
+
+  const rawBody = await response.text()
   let body: unknown
+
   try {
     body = JSON.parse(rawBody)
   } catch (err: unknown) {
     const reason = util.types.isNativeError(err) ? err.message : String(err)
-    throw new PnpmError('AUDIT_SIGNATURE_KEYS_FETCH_FAIL', `The registry keys endpoint (at ${keysUrl}) returned invalid JSON: ${reason}. Response body: ${rawBody.slice(0, 500)}`)
+    const code = 'AUDIT_SIGNATURE_KEYS_FETCH_FAIL'
+    const message = `The registry keys endpoint (at ${response.url}) returned invalid JSON: ${reason}. Response body: ${rawBody.slice(0, 500)}`
+    throw new PnpmError(code, message)
   }
+
   if (!isRegistryKeysResponse(body)) {
-    throw new PnpmError('AUDIT_SIGNATURE_KEYS_FETCH_FAIL', `The registry keys endpoint (at ${keysUrl}) returned an unexpected body. Expected an object with a keys array; got: ${JSON.stringify(body)?.slice(0, 500) ?? String(body)}`)
+    const code = 'AUDIT_SIGNATURE_KEYS_FETCH_FAIL'
+    const message = `The registry keys endpoint (at ${response.url}) returned an unexpected body. Expected an object with a keys array; got: ${JSON.stringify(body)?.slice(0, 500) ?? String(body)}`
+    throw new PnpmError(code, message)
   }
+
   // npm registry signing currently uses ECDSA P-256 keys. Sigstore provenance
   // attestations are intentionally handled separately from this registry check.
   return body.keys.filter(({ keytype, scheme }) => keytype === 'ecdsa-sha2-nistp256' && scheme === 'ecdsa-sha2-nistp256')
 }
 
-async function getPackument (
+
+async function getPackument(
   pkg: SignaturePackage,
   getAuthHeader: GetAuthHeader,
   opts: VerifySignaturesOptions,
@@ -181,7 +207,7 @@ async function getPackument (
   return packument
 }
 
-async function fetchPackument (
+async function fetchPackument(
   pkg: SignaturePackage,
   getAuthHeader: GetAuthHeader,
   opts: VerifySignaturesOptions
@@ -189,32 +215,47 @@ async function fetchPackument (
   const registryUrl = pkg.registry.endsWith('/') ? pkg.registry : `${pkg.registry}/`
   const packumentUrl = toUri(pkg.name, registryUrl)
   const fetchFromRegistry = createFetchFromRegistry(opts)
-  const res = await fetchFromRegistry(packumentUrl, {
+
+  const response = await fetchFromRegistry(packumentUrl, {
     authHeaderValue: getAuthHeader(registryUrl),
     fullMetadata: true,
     method: 'GET',
     retry: opts.retry,
     timeout: opts.timeout,
   })
-  if (res.status === 404) return undefined
-  if (res.status !== 200) {
-    throw new PnpmError('AUDIT_SIGNATURE_PACKUMENT_FETCH_FAIL', `The packument endpoint (at ${packumentUrl}) responded with ${res.status}: ${await res.text()}`)
+
+  if (response.status === 404) {
+    return undefined
   }
-  const rawBody = await res.text()
+
+  if (response.status !== 200) {
+    const code = 'AUDIT_SIGNATURE_PACKUMENT_FETCH_FAIL'
+    const message = `The packument endpoint (at ${response.url}) responded with ${response.status}: ${await response.text()}`
+    throw new PnpmError(code, message)
+  }
+
+  const rawBody = await response.text()
   let body: unknown
+
   try {
     body = JSON.parse(rawBody)
   } catch (err: unknown) {
     const reason = util.types.isNativeError(err) ? err.message : String(err)
-    throw new PnpmError('AUDIT_SIGNATURE_PACKUMENT_FETCH_FAIL', `The packument endpoint (at ${packumentUrl}) returned invalid JSON: ${reason}. Response body: ${rawBody.slice(0, 500)}`)
+    const code = 'AUDIT_SIGNATURE_PACKUMENT_FETCH_FAIL'
+    const message = `The packument endpoint (at ${response.url}) returned invalid JSON: ${reason}. Response body: ${rawBody.slice(0, 500)}`
+    throw new PnpmError(code, message)
   }
+
   if (!isPackument(body)) {
-    throw new PnpmError('AUDIT_SIGNATURE_PACKUMENT_FETCH_FAIL', `The packument endpoint (at ${packumentUrl}) returned an unexpected body. Expected an object with versions; got: ${JSON.stringify(body)?.slice(0, 500) ?? String(body)}`)
+    const code = 'AUDIT_SIGNATURE_PACKUMENT_FETCH_FAIL'
+    const message = `The packument endpoint (at ${response.url}) returned an unexpected body. Expected an object with versions; got: ${JSON.stringify(body)?.slice(0, 500) ?? String(body)}`
+    throw new PnpmError(code, message)
   }
+
   return body
 }
 
-function verifyPackageSignatures (
+function verifyPackageSignatures(
   pkg: SignaturePackage & {
     integrity: string
     publishedAt?: string
@@ -230,25 +271,28 @@ function verifyPackageSignatures (
   for (const signature of pkg.signatures) {
     const key = keys.find(({ keyid }) => keyid === signature.keyid)
     if (!key) {
-      return toSignatureIssue(pkg, `${pkg.name}@${pkg.version} has a registry signature with keyid ${signature.keyid} but no corresponding public key can be found`)
+      const reason = `${pkg.name}@${pkg.version} has a registry signature with keyid ${signature.keyid} but no corresponding public key can be found`
+      return toSignatureIssue(pkg, reason)
     }
     // Without publish time metadata we cannot safely compare against key expiry,
     // so keep verifying with the key instead of failing closed on incomplete metadata.
     if (key.expires && publishedTime != null && publishedTime >= Date.parse(key.expires)) {
-      return toSignatureIssue(pkg, `${pkg.name}@${pkg.version} has a registry signature with keyid ${signature.keyid} but the corresponding public key has expired ${key.expires}`)
+      const reason = `${pkg.name}@${pkg.version} has a registry signature with keyid ${signature.keyid} but the corresponding public key has expired ${key.expires}`
+      return toSignatureIssue(pkg, reason)
     }
     const verifier = crypto.createVerify('SHA256')
     verifier.write(message)
     verifier.end()
     const pem = `-----BEGIN PUBLIC KEY-----\n${key.key}\n-----END PUBLIC KEY-----`
     if (!verifier.verify(pem, signature.sig, 'base64')) {
-      return toSignatureIssue(pkg, `${pkg.name}@${pkg.version} has an invalid registry signature with keyid ${signature.keyid}`)
+      const reason = `${pkg.name}@${pkg.version} has an invalid registry signature with keyid ${signature.keyid}`
+      return toSignatureIssue(pkg, reason)
     }
   }
   return undefined
 }
 
-function toSignatureIssue (
+function toSignatureIssue(
   pkg: SignaturePackage & { integrity?: string, resolved?: string },
   reason: string
 ): SignatureIssue {
@@ -262,7 +306,17 @@ function toSignatureIssue (
   }
 }
 
-function isRegistryKeysResponse (body: unknown): body is RegistryKeysResponse {
+function toUri(pkgName: string, registry: string): string {
+  let encodedName: string
+  if (pkgName[0] === '@') {
+    encodedName = `@${encodeURIComponent(pkgName.slice(1))}`
+  } else {
+    encodedName = encodeURIComponent(pkgName)
+  }
+  return new url.URL(encodedName, registry.endsWith('/') ? registry : `${registry}/`).toString()
+}
+
+function isRegistryKeysResponse(body: unknown): body is RegistryKeysResponse {
   return typeof body === 'object' && body != null &&
     Array.isArray((body as RegistryKeysResponse).keys) &&
     (body as RegistryKeysResponse).keys.every((key) => typeof key === 'object' && key != null &&
@@ -273,20 +327,10 @@ function isRegistryKeysResponse (body: unknown): body is RegistryKeysResponse {
       (key.expires == null || typeof key.expires === 'string'))
 }
 
-function isPackument (body: unknown): body is Packument {
+function isPackument(body: unknown): body is Packument {
   return typeof body === 'object' && body != null && typeof (body as Packument).versions === 'object' && (body as Packument).versions != null
 }
 
-function toUri (pkgName: string, registry: string): string {
-  let encodedName: string
-  if (pkgName[0] === '@') {
-    encodedName = `@${encodeURIComponent(pkgName.slice(1))}`
-  } else {
-    encodedName = encodeURIComponent(pkgName)
-  }
-  return new url.URL(encodedName, registry.endsWith('/') ? registry : `${registry}/`).toString()
-}
-
-function sortIssue (a: SignatureIssue, b: SignatureIssue): number {
+function sortIssue(a: SignatureIssue, b: SignatureIssue): number {
   return `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`)
 }
