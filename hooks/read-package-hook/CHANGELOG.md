@@ -1,5 +1,15 @@
 # @pnpm/hooks.read-package-hook
 
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/resolving.parse-wanted-dependency@1100.0.1
+  - @pnpm/config.parse-overrides@1100.0.1
+  - @pnpm/deps.peer-range@1100.0.1
+  - @pnpm/config.matcher@1100.0.1
+
 ## 1100.0.1
 
 ### Patch Changes

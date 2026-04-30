@@ -1,5 +1,15 @@
 # @pnpm/read-projects-context
 
+## 1100.0.5
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/config.normalize-registries@1100.0.2
+  - @pnpm/installing.modules-yaml@1100.0.2
+  - @pnpm/lockfile.fs@1100.0.4
+
 ## 1100.0.4
 
 ### Patch Changes

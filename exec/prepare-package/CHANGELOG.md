@@ -1,5 +1,14 @@
 # @pnpm/prepare-package
 
+## 1100.0.5
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/pkg-manifest.reader@1100.0.2
+  - @pnpm/exec.lifecycle@1100.0.5
+
 ## 1100.0.4
 
 ### Patch Changes

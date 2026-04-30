@@ -1,5 +1,24 @@
 # @pnpm/outdated
 
+## 1100.0.7
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+- Updated dependencies [6b891a5]
+  - @pnpm/config.pick-registry-for-package@1100.0.2
+  - @pnpm/config.parse-overrides@1100.0.1
+  - @pnpm/resolving.npm-resolver@1101.0.1
+  - @pnpm/pkg-manifest.utils@1100.1.1
+  - @pnpm/installing.client@1100.0.7
+  - @pnpm/config.matcher@1100.0.1
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.4
+  - @pnpm/hooks.read-package-hook@1100.0.2
+  - @pnpm/lockfile.fs@1100.0.4
+  - @pnpm/config.version-policy@1100.0.2
+
 ## 1100.0.6
 
 ### Patch Changes

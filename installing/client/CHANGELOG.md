@@ -1,5 +1,22 @@
 # @pnpm/client
 
+## 1100.0.7
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/fetching.directory-fetcher@1100.0.5
+  - @pnpm/resolving.default-resolver@1100.0.7
+  - @pnpm/fetching.tarball-fetcher@1101.0.1
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/fetching.git-fetcher@1101.0.1
+  - @pnpm/fetching.types@1100.0.1
+  - @pnpm/network.fetch@1100.0.2
+  - @pnpm/engine.runtime.node-resolver@1101.0.2
+  - @pnpm/hooks.types@1100.0.4
+  - @pnpm/fetching.binary-fetcher@1101.0.2
+
 ## 1100.0.6
 
 ### Patch Changes

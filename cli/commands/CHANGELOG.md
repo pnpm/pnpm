@@ -1,5 +1,17 @@
 # @pnpm/cli.commands
 
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/workspace.projects-reader@1101.0.2
+  - @pnpm/workspace.root-finder@1100.0.1
+  - @pnpm/cli.parse-cli-args@1100.1.1
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/cli.command@1100.0.1
+  - @pnpm/cli.utils@1101.0.2
+
 ## 1100.0.5
 
 ### Patch Changes

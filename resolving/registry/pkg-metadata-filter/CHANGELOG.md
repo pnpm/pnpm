@@ -1,5 +1,13 @@
 # @pnpm/registry.pkg-metadata-filter
 
+## 1100.0.2
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/resolving.registry.types@1100.0.2
+
 ## 1100.0.1
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/resolver-base
 
+## 1100.1.1
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+
 ## 1100.1.0
 
 ### Minor Changes

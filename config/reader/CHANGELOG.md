@@ -1,5 +1,18 @@
 # @pnpm/config
 
+## 1101.1.3
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/workspace.project-manifest-reader@1100.0.3
+  - @pnpm/pkg-manifest.utils@1100.1.1
+  - @pnpm/network.git-utils@1100.0.1
+  - @pnpm/text.naming-cases@1100.0.1
+  - @pnpm/config.matcher@1100.0.1
+  - @pnpm/hooks.pnpmfile@1100.0.4
+
 ## 1101.1.2
 
 ### Patch Changes

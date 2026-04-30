@@ -1,5 +1,28 @@
 # @pnpm/engine.pm.commands
 
+## 1101.1.3
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/workspace.project-manifest-reader@1100.0.3
+  - @pnpm/installing.deps-restorer@1101.0.3
+  - @pnpm/store.connection-manager@1100.0.8
+  - @pnpm/resolving.npm-resolver@1101.0.1
+  - @pnpm/deps.graph-hasher@1100.1.2
+  - @pnpm/installing.client@1100.0.7
+  - @pnpm/store.controller@1101.0.2
+  - @pnpm/building.policy@1100.0.2
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/bins.linker@1100.0.3
+  - @pnpm/shell.path@1100.0.1
+  - @pnpm/cli.utils@1101.0.2
+  - @pnpm/cli.meta@1100.0.2
+  - @pnpm/installing.env-installer@1101.0.3
+  - @pnpm/global.commands@1100.0.8
+  - @pnpm/lockfile.types@1100.0.3
+  - @pnpm/global.packages@1100.0.2
+
 ## 1101.1.2
 
 ### Patch Changes

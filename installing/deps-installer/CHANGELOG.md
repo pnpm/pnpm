@@ -1,5 +1,54 @@
 # @pnpm/core
 
+## 1101.0.4
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+- Updated dependencies [6b891a5]
+  - @pnpm/installing.linking.direct-dep-linker@1100.0.2
+  - @pnpm/installing.linking.modules-cleaner@1100.0.5
+  - @pnpm/resolving.parse-wanted-dependency@1100.0.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.3
+  - @pnpm/installing.package-requester@1101.0.2
+  - @pnpm/config.normalize-registries@1100.0.2
+  - @pnpm/installing.deps-restorer@1101.0.3
+  - @pnpm/installing.linking.hoist@1100.0.3
+  - @pnpm/building.during-install@1101.0.2
+  - @pnpm/installing.modules-yaml@1100.0.2
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/config.parse-overrides@1100.0.1
+  - @pnpm/store.controller-types@1100.0.4
+  - @pnpm/fs.symlink-dependency@1100.0.2
+  - @pnpm/fs.read-modules-dir@1100.0.1
+  - @pnpm/installing.context@1100.0.5
+  - @pnpm/pkg-manifest.utils@1100.1.1
+  - @pnpm/deps.graph-hasher@1100.1.2
+  - @pnpm/building.policy@1100.0.2
+  - @pnpm/lockfile.to-pnp@1100.0.4
+  - @pnpm/config.matcher@1100.0.1
+  - @pnpm/exec.lifecycle@1100.0.5
+  - @pnpm/bins.remover@1100.0.2
+  - @pnpm/bins.linker@1100.0.3
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.4
+  - @pnpm/hooks.read-package-hook@1100.0.2
+  - @pnpm/lockfile.filtering@1100.0.5
+  - @pnpm/building.after-install@1101.0.4
+  - @pnpm/worker@1100.1.1
+  - @pnpm/hooks.types@1100.0.4
+  - @pnpm/installing.deps-resolver@1100.0.5
+  - @pnpm/lockfile.preferred-versions@1100.0.5
+  - @pnpm/lockfile.verification@1100.0.5
+  - @pnpm/lockfile.settings-checker@1100.0.5
+  - @pnpm/lockfile.fs@1100.0.4
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/lockfile.pruner@1100.0.3
+  - @pnpm/lockfile.walker@1100.0.3
+  - @pnpm/patching.config@1100.0.2
+  - @pnpm/agent.client@1.0.1
+
 ## 1101.0.3
 
 ### Patch Changes

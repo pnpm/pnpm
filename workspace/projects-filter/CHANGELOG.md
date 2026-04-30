@@ -1,5 +1,15 @@
 # @pnpm/filter-workspace-packages
 
+## 1100.0.7
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/workspace.projects-reader@1101.0.2
+  - @pnpm/config.matcher@1100.0.1
+  - @pnpm/workspace.projects-graph@1100.0.4
+
 ## 1100.0.6
 
 ### Patch Changes

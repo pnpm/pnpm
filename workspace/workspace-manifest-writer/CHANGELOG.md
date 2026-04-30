@@ -1,5 +1,13 @@
 # @pnpm/workspace.manifest-writer
 
+## 1100.0.4
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/config.parse-overrides@1100.0.1
+  - @pnpm/lockfile.types@1100.0.3
+
 ## 1100.0.3
 
 ### Patch Changes

@@ -1,5 +1,22 @@
 # @pnpm/global.commands
 
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/installing.deps-installer@1101.0.4
+  - @pnpm/store.connection-manager@1100.0.8
+  - @pnpm/pkg-manifest.reader@1100.0.2
+  - @pnpm/config.matcher@1100.0.1
+  - @pnpm/bins.resolver@1100.0.2
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/bins.remover@1100.0.2
+  - @pnpm/bins.linker@1100.0.3
+  - @pnpm/cli.command@1100.0.1
+  - @pnpm/cli.utils@1101.0.2
+  - @pnpm/global.packages@1100.0.2
+
 ## 1100.0.7
 
 ### Patch Changes

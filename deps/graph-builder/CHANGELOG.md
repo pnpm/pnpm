@@ -1,5 +1,22 @@
 # @pnpm/deps.graph-builder
 
+## 1100.0.5
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+- Updated dependencies [6b891a5]
+  - @pnpm/config.package-is-installable@1100.0.3
+  - @pnpm/installing.modules-yaml@1100.0.2
+  - @pnpm/store.controller-types@1100.0.4
+  - @pnpm/deps.graph-hasher@1100.1.2
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.4
+  - @pnpm/hooks.types@1100.0.4
+  - @pnpm/lockfile.fs@1100.0.4
+  - @pnpm/patching.config@1100.0.2
+
 ## 1100.0.4
 
 ### Patch Changes
