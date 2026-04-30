@@ -42,6 +42,7 @@
     "@pnpm/lockfile.walker": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "p-limit": "catalog:",
     "semver": "catalog:"
   },
   "peerDependencies": {

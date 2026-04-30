@@ -1,9 +1,11 @@
 import crypto from 'node:crypto'
 import url from 'node:url'
+import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
 import type { GetAuthHeader } from '@pnpm/fetching.types'
 import { type DispatcherOptions, fetchWithDispatcher, type RetryTimeoutOptions } from '@pnpm/network.fetch'
+import pLimit from 'p-limit'
 
 export interface SignaturePackage {
   name: string
@@ -60,6 +62,7 @@ export async function verifySignatures (
   getAuthHeader: GetAuthHeader,
   opts: {
     dispatcherOptions?: DispatcherOptions
+    networkConcurrency?: number
     retry?: RetryTimeoutOptions
     timeout?: number
   }
@@ -77,8 +80,9 @@ export async function verifySignatures (
     verified: 0,
   }
   const packumentCache = new Map<string, Promise<Packument>>()
+  const limit = pLimit(opts.networkConcurrency ?? 16)
 
-  await pMap(packages, async (pkg) => {
+  await Promise.all(packages.map((pkg) => limit(async () => {
     const keys = keysByRegistry.get(pkg.registry) ?? []
     if (keys.length === 0) return
     result.audited++
@@ -90,7 +94,7 @@ export async function verifySignatures (
       version = packument.versions?.[pkg.version]
       publishedAt = packument.time?.[pkg.version]
     } catch (err: unknown) {
-      result.invalid.push({ ...pkg, reason: err instanceof Error ? err.message : String(err) })
+      result.invalid.push({ ...pkg, reason: util.types.isNativeError(err) ? err.message : String(err) })
       return
     }
 
@@ -112,7 +116,7 @@ export async function verifySignatures (
       return
     }
     result.verified++
-  }, 20)
+  })))
 
   result.invalid.sort(sortIssue)
   result.missing.sort(sortIssue)
@@ -146,7 +150,7 @@ async function fetchRegistryKeys (
   try {
     body = JSON.parse(rawBody)
   } catch (err: unknown) {
-    const reason = err instanceof Error ? err.message : String(err)
+    const reason = util.types.isNativeError(err) ? err.message : String(err)
     throw new PnpmError('AUDIT_SIGNATURE_KEYS_FETCH_FAIL', `The registry keys endpoint (at ${keysUrl}) returned invalid JSON: ${reason}. Response body: ${rawBody.slice(0, 500)}`)
   }
   if (!isRegistryKeysResponse(body)) {
@@ -203,7 +207,7 @@ async function fetchPackument (
   try {
     body = JSON.parse(rawBody)
   } catch (err: unknown) {
-    const reason = err instanceof Error ? err.message : String(err)
+    const reason = util.types.isNativeError(err) ? err.message : String(err)
     throw new PnpmError('AUDIT_SIGNATURE_PACKUMENT_FETCH_FAIL', `The packument endpoint (at ${packumentUrl}) returned invalid JSON: ${reason}. Response body: ${rawBody.slice(0, 500)}`)
   }
   if (!isPackument(body)) {
@@ -284,18 +288,6 @@ function toUri (pkgName: string, registry: string): string {
     encodedName = encodeURIComponent(pkgName)
   }
   return new url.URL(encodedName, registry.endsWith('/') ? registry : `${registry}/`).toString()
-}
-
-async function pMap<T> (items: T[], mapper: (item: T) => Promise<void>, concurrency: number): Promise<void> {
-  let nextIndex = 0
-  async function worker (): Promise<void> {
-    const item = items[nextIndex++]
-    if (item == null) return
-    await mapper(item)
-    await worker()
-  }
-  const workers = Array.from({ length: Math.min(concurrency, items.length) }, worker)
-  await Promise.all(workers)
 }
 
 function sortIssue (a: SignatureIssue, b: SignatureIssue): number {

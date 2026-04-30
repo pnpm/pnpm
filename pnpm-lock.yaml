@@ -2907,6 +2907,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../../core/types
+      p-limit:
+        specifier: 'catalog:'
+        version: 7.3.0
       semver:
         specifier: 'catalog:'
         version: 7.7.4
