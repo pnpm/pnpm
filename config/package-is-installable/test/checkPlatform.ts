@@ -151,3 +151,29 @@ test('accept another libc', () => {
     libc: ['current', 'glibc'],
   })).toBeNull()
 })
+
+test('accept negated os with multi-valued supportedArchitectures', () => {
+  expect(checkPlatform(packageId, { cpu: 'any', os: ['!win32'], libc: 'any' }, {
+    os: ['linux', 'current'],
+    cpu: ['current'],
+    libc: ['current'],
+  })).toBeNull()
+})
+
+test('accept negated cpu with multi-valued supportedArchitectures', () => {
+  expect(checkPlatform(packageId, { cpu: ['!ia32'], os: 'any', libc: 'any' }, {
+    os: ['current'],
+    cpu: ['x64', 'current'],
+    libc: ['current'],
+  })).toBeNull()
+})
+
+test('reject negated os when any supported value matches the negation', () => {
+  const err = checkPlatform(packageId, { cpu: 'any', os: ['!win32'], libc: 'any' }, {
+    os: ['win32', 'current'],
+    cpu: ['current'],
+    libc: ['current'],
+  })
+  expect(err).toBeTruthy()
+  expect(err?.code).toBe('ERR_PNPM_UNSUPPORTED_PLATFORM')
+})
