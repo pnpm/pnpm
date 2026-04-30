@@ -166,6 +166,7 @@ export type ConfigDependencySpecifiers = Record<string, string>
 
 export interface AuditConfig {
   ignoreGhsas?: string[]
+  cleanupUnusedIgnoredGhsas?: boolean
 }
 
 export interface PnpmSettings {
