@@ -3,7 +3,7 @@
 > Types for pnpm-compatible fetchers
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/fetching.fetcher-base.svg)](https://www.npmjs.com/package/@pnpm/fetching.fetcher-base)
+[![npm version](https://img.shields.io/npm/v/@pnpm/fetching.fetcher-base.svg)](https://npmx.dev/package/@pnpm/fetching.fetcher-base)
 <!--/@-->
 
 ## Installation

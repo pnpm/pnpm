@@ -3,7 +3,7 @@
 > Resolver for local packages
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/resolving.local-resolver.svg)](https://www.npmjs.com/package/@pnpm/resolving.local-resolver)
+[![npm version](https://img.shields.io/npm/v/@pnpm/resolving.local-resolver.svg)](https://npmx.dev/package/@pnpm/resolving.local-resolver)
 <!--/@-->
 
 ## Installation

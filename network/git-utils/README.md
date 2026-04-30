@@ -3,7 +3,7 @@
 > Utilities for git
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/network.git-utils.svg)](https://www.npmjs.com/package/@pnpm/network.git-utils)
+[![npm version](https://img.shields.io/npm/v/@pnpm/network.git-utils.svg)](https://npmx.dev/package/@pnpm/network.git-utils)
 <!--/@-->
 
 ## Installation

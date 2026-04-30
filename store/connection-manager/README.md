@@ -2,7 +2,7 @@
 
 > Create a pnpm store controller
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/store.connection-manager.svg)](https://www.npmjs.com/package/@pnpm/store.connection-manager)
+[![npm version](https://img.shields.io/npm/v/@pnpm/store.connection-manager.svg)](https://npmx.dev/package/@pnpm/store.connection-manager)
 
 ## Installation
 

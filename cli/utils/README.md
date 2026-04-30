@@ -2,7 +2,7 @@
 
 > Utils for pnpm commands
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/cli.utils.svg)](https://www.npmjs.com/package/@pnpm/cli.utils)
+[![npm version](https://img.shields.io/npm/v/@pnpm/cli.utils.svg)](https://npmx.dev/package/@pnpm/cli.utils)
 
 ## Installation
 

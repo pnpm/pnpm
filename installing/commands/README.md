@@ -2,7 +2,7 @@
 
 > Commands for installation
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/installing.commands.svg)](https://www.npmjs.com/package/@pnpm/installing.commands)
+[![npm version](https://img.shields.io/npm/v/@pnpm/installing.commands.svg)](https://npmx.dev/package/@pnpm/installing.commands)
 
 ## Installation
 

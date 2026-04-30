@@ -3,7 +3,7 @@
 > Filters the package metadata from the registry
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/resolving.registry.pkg-metadata-filter.svg)](https://www.npmjs.com/package/@pnpm/resolving.registry.pkg-metadata-filter)
+[![npm version](https://img.shields.io/npm/v/@pnpm/resolving.registry.pkg-metadata-filter.svg)](https://npmx.dev/package/@pnpm/resolving.registry.pkg-metadata-filter)
 <!--/@-->
 
 ## Installation

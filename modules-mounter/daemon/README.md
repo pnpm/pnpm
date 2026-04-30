@@ -2,7 +2,7 @@
 
 > Mounts a node_modules directory with FUSE
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/modules-mounter.daemon.svg)](https://www.npmjs.com/package/@pnpm/modules-mounter.daemon)
+[![npm version](https://img.shields.io/npm/v/@pnpm/modules-mounter.daemon.svg)](https://npmx.dev/package/@pnpm/modules-mounter.daemon)
 
 ## Installation
 

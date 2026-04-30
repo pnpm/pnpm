@@ -3,7 +3,7 @@
 > Concurrent downloader of npm-compatible packages
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/installing.package-requester.svg)](https://www.npmjs.com/package/@pnpm/installing.package-requester)
+[![npm version](https://img.shields.io/npm/v/@pnpm/installing.package-requester.svg)](https://npmx.dev/package/@pnpm/installing.package-requester)
 <!--/@-->
 
 ## Installation

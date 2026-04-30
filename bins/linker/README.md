@@ -3,7 +3,7 @@
 > Link bins to node_modules/.bin
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/bins.linker.svg)](https://www.npmjs.com/package/@pnpm/bins.linker)
+[![npm version](https://img.shields.io/npm/v/@pnpm/bins.linker.svg)](https://npmx.dev/package/@pnpm/bins.linker)
 <!--/@-->
 
 ## Installation

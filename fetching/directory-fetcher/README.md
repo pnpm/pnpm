@@ -2,7 +2,7 @@
 
 > Fetcher for local directory packages
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/fetching.directory-fetcher.svg)](https://www.npmjs.com/package/@pnpm/fetching.directory-fetcher)
+[![npm version](https://img.shields.io/npm/v/@pnpm/fetching.directory-fetcher.svg)](https://npmx.dev/package/@pnpm/fetching.directory-fetcher)
 
 ## Installation
 

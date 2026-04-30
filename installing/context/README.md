@@ -2,7 +2,7 @@
 
 > Gets context information about a project
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/installing.context.svg)](https://www.npmjs.com/package/@pnpm/installing.context)
+[![npm version](https://img.shields.io/npm/v/@pnpm/installing.context.svg)](https://npmx.dev/package/@pnpm/installing.context)
 
 ## Installation
 

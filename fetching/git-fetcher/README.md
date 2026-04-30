@@ -2,7 +2,7 @@
 
 > Fetcher for git-hosted packages
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/fetching.git-fetcher.svg)](https://www.npmjs.com/package/@pnpm/fetching.git-fetcher)
+[![npm version](https://img.shields.io/npm/v/@pnpm/fetching.git-fetcher.svg)](https://npmx.dev/package/@pnpm/fetching.git-fetcher)
 
 ## Installation
 

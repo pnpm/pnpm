@@ -3,7 +3,7 @@
 > Utilities for working with symlinked node_modules
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/deps.path.svg)](https://www.npmjs.com/package/deps.path)
+[![npm version](https://img.shields.io/npm/v/deps.path.svg)](https://npmx.dev/package/deps.path)
 <!--/@-->
 
 Like `path` but for packages in a symlinked `node_modules`. Symlinked `node_modules` is a unique dependencies layout that

@@ -2,7 +2,7 @@
 
 > Checks if a package requires to be built
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/building.pkg-requires-build.svg)](https://www.npmjs.com/package/@pnpm/building.pkg-requires-build)
+[![npm version](https://img.shields.io/npm/v/@pnpm/building.pkg-requires-build.svg)](https://npmx.dev/package/@pnpm/building.pkg-requires-build)
 
 ## Installation
 

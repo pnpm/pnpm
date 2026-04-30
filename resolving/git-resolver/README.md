@@ -3,7 +3,7 @@
 > Resolver for git-hosted packages
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/resolving.git-resolver.svg)](https://www.npmjs.com/package/@pnpm/resolving.git-resolver)
+[![npm version](https://img.shields.io/npm/v/@pnpm/resolving.git-resolver.svg)](https://npmx.dev/package/@pnpm/resolving.git-resolver)
 <!--/@-->
 
 ## Installation

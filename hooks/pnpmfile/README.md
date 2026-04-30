@@ -2,7 +2,7 @@
 
 > Reading a .pnpmfile.cjs
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/hooks.pnpmfile.svg)](https://www.npmjs.com/package/@pnpm/hooks.pnpmfile)
+[![npm version](https://img.shields.io/npm/v/@pnpm/hooks.pnpmfile.svg)](https://npmx.dev/package/@pnpm/hooks.pnpmfile)
 
 ## Installation
 

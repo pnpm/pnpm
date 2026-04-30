@@ -3,7 +3,7 @@
 > Resolves the pnpm store path
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/store.path.svg)](https://www.npmjs.com/package/@pnpm/store.path)
+[![npm version](https://img.shields.io/npm/v/@pnpm/store.path.svg)](https://npmx.dev/package/@pnpm/store.path)
 <!--/@-->
 
 ## Installation

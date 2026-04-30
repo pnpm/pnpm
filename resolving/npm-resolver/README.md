@@ -3,7 +3,7 @@
 > Resolver for npm-hosted packages
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/resolving.npm-resolver.svg)](https://www.npmjs.com/package/@pnpm/resolving.npm-resolver)
+[![npm version](https://img.shields.io/npm/v/@pnpm/resolving.npm-resolver.svg)](https://npmx.dev/package/@pnpm/resolving.npm-resolver)
 <!--/@-->
 
 ## Installation

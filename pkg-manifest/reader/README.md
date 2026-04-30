@@ -3,7 +3,7 @@
 > Read a package.json
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/pkg-manifest.reader.svg)](https://www.npmjs.com/package/@pnpm/pkg-manifest.reader)
+[![npm version](https://img.shields.io/npm/v/@pnpm/pkg-manifest.reader.svg)](https://npmx.dev/package/@pnpm/pkg-manifest.reader)
 <!--/@-->
 
 ## Installation

@@ -3,7 +3,7 @@
 > List installed packages in a symlinked \`node_modules\`
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/deps.inspection.list.svg)](https://www.npmjs.com/package/@pnpm/deps.inspection.list)
+[![npm version](https://img.shields.io/npm/v/@pnpm/deps.inspection.list.svg)](https://npmx.dev/package/@pnpm/deps.inspection.list)
 <!--/@-->
 
 ## Installation

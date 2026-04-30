@@ -3,7 +3,7 @@
 > Check for the license of packages
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/deps.compliance.license-scanner.svg)](https://www.npmjs.com/package/@pnpm/deps.compliance.license-scanner)
+[![npm version](https://img.shields.io/npm/v/@pnpm/deps.compliance.license-scanner.svg)](https://npmx.dev/package/@pnpm/deps.compliance.license-scanner)
 <!--/@-->
 
 ## Installation

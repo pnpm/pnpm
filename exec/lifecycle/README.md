@@ -3,7 +3,7 @@
 > Package lifecycle hook runner
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/exec.lifecycle.svg)](https://www.npmjs.com/package/@pnpm/exec.lifecycle)
+[![npm version](https://img.shields.io/npm/v/@pnpm/exec.lifecycle.svg)](https://npmx.dev/package/@pnpm/exec.lifecycle)
 <!--/@-->
 
 ## Installation

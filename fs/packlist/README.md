@@ -3,7 +3,7 @@
 > Get a list of the files to add from a directory into an npm package
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/packlist.svg)](https://www.npmjs.com/package/@pnpm/fs.packlist)
+[![npm version](https://img.shields.io/npm/v/packlist.svg)](https://npmx.dev/package/@pnpm/fs.packlist)
 <!--/@-->
 
 ## Installation

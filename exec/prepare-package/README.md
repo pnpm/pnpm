@@ -2,7 +2,7 @@
 
 > Prepares a Git-hosted package
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/exec.prepare-package.svg)](https://www.npmjs.com/package/@pnpm/exec.prepare-package)
+[![npm version](https://img.shields.io/npm/v/@pnpm/exec.prepare-package.svg)](https://npmx.dev/package/@pnpm/exec.prepare-package)
 
 ## Installation
 

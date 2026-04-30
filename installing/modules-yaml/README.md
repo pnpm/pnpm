@@ -3,7 +3,7 @@
 > Reads/writes \`node_modules/.modules.yaml\`
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/installing.modules-yaml.svg)](https://www.npmjs.com/package/@pnpm/installing.modules-yaml)
+[![npm version](https://img.shields.io/npm/v/@pnpm/installing.modules-yaml.svg)](https://npmx.dev/package/@pnpm/installing.modules-yaml)
 <!--/@-->
 
 ## Installation

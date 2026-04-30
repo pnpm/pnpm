@@ -3,7 +3,7 @@
 > Types for the cafs
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/types.svg)](https://www.npmjs.com/package/@pnpm/types)
+[![npm version](https://img.shields.io/npm/v/@pnpm/types.svg)](https://npmx.dev/package/@pnpm/types)
 <!--/@-->
 
 ## Installation

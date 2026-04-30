@@ -2,7 +2,7 @@
 
 > Types and utils for pnpm commands
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/cli.command.svg)](https://www.npmjs.com/package/@pnpm/cli.command)
+[![npm version](https://img.shields.io/npm/v/@pnpm/cli.command.svg)](https://npmx.dev/package/@pnpm/cli.command)
 
 ## Installation
 

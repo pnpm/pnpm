@@ -3,7 +3,7 @@
 > Types related to the npm registry
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/resolving.registry.types.svg)](https://www.npmjs.com/package/@pnpm/resolving.registry.types)
+[![npm version](https://img.shields.io/npm/v/@pnpm/resolving.registry.types.svg)](https://npmx.dev/package/@pnpm/resolving.registry.types)
 <!--/@-->
 
 ## Installation

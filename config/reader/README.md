@@ -3,7 +3,7 @@
 > Gets configuration options for pnpm
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/config.reader.svg)](https://www.npmjs.com/package/@pnpm/config.reader)
+[![npm version](https://img.shields.io/npm/v/@pnpm/config.reader.svg)](https://npmx.dev/package/@pnpm/config.reader)
 <!--/@-->
 
 ## Installation

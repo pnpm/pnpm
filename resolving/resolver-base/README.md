@@ -3,7 +3,7 @@
 > Types for pnpm-compatible resolvers
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/resolving.resolver-base.svg)](https://www.npmjs.com/package/@pnpm/resolving.resolver-base)
+[![npm version](https://img.shields.io/npm/v/@pnpm/resolving.resolver-base.svg)](https://npmx.dev/package/@pnpm/resolving.resolver-base)
 <!--/@-->
 
 ## Installation

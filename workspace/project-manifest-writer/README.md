@@ -3,7 +3,7 @@
 > Write a project manifest (called package.json in most cases)
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/workspace.project-manifest-writer.svg)](https://www.npmjs.com/package/@pnpm/workspace.project-manifest-writer)
+[![npm version](https://img.shields.io/npm/v/@pnpm/workspace.project-manifest-writer.svg)](https://npmx.dev/package/@pnpm/workspace.project-manifest-writer)
 <!--/@-->
 
 ## Installation

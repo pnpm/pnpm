@@ -2,7 +2,7 @@
 
 > Commands for running scripts
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/exec.commands.svg)](https://www.npmjs.com/package/@pnpm/exec.commands)
+[![npm version](https://img.shields.io/npm/v/@pnpm/exec.commands.svg)](https://npmx.dev/package/@pnpm/exec.commands)
 
 ## Installation
 

@@ -2,7 +2,7 @@
 
 > Parses the CLI args passed to pnpm
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/cli.parse-cli-args.svg)](https://www.npmjs.com/package/@pnpm/cli.parse-cli-args)
+[![npm version](https://img.shields.io/npm/v/@pnpm/cli.parse-cli-args.svg)](https://npmx.dev/package/@pnpm/cli.parse-cli-args)
 
 ## Installation
 

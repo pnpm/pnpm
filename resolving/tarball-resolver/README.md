@@ -3,7 +3,7 @@
 > Resolver for tarball dependencies
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/resolving.tarball-resolver.svg)](https://www.npmjs.com/package/@pnpm/resolving.tarball-resolver)
+[![npm version](https://img.shields.io/npm/v/@pnpm/resolving.tarball-resolver.svg)](https://npmx.dev/package/@pnpm/resolving.tarball-resolver)
 <!--/@-->
 
 ## Installation

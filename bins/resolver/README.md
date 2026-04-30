@@ -3,7 +3,7 @@
 > Returns bins of a package
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/bins.resolver.svg)](https://www.npmjs.com/package/@pnpm/bins.resolver)
+[![npm version](https://img.shields.io/npm/v/@pnpm/bins.resolver.svg)](https://npmx.dev/package/@pnpm/bins.resolver)
 <!--/@-->
 
 ## Installation

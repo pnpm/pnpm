@@ -3,7 +3,7 @@
 > Creates the package resolve and fetch functions
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/installing.client.svg)](https://www.npmjs.com/package/@pnpm/installing.client)
+[![npm version](https://img.shields.io/npm/v/@pnpm/installing.client.svg)](https://npmx.dev/package/@pnpm/installing.client)
 <!--/@-->
 
 ## Installation

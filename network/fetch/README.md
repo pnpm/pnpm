@@ -3,7 +3,7 @@
 > node-fetch with retries
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/network.fetch.svg)](https://www.npmjs.com/package/@pnpm/network.fetch)
+[![npm version](https://img.shields.io/npm/v/@pnpm/network.fetch.svg)](https://npmx.dev/package/@pnpm/network.fetch)
 <!--/@-->
 
 ## Installation

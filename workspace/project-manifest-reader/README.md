@@ -3,7 +3,7 @@
 > Read a project manifest (called package.json in most cases)
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/workspace.project-manifest-reader.svg)](https://www.npmjs.com/package/@pnpm/workspace.project-manifest-reader)
+[![npm version](https://img.shields.io/npm/v/@pnpm/workspace.project-manifest-reader.svg)](https://npmx.dev/package/@pnpm/workspace.project-manifest-reader)
 <!--/@-->
 
 ## Installation

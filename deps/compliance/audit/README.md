@@ -2,7 +2,7 @@
 
 > Audit a lockfile
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/deps.compliance.audit.svg)](https://www.npmjs.com/package/@pnpm/deps.compliance.audit)
+[![npm version](https://img.shields.io/npm/v/@pnpm/deps.compliance.audit.svg)](https://npmx.dev/package/@pnpm/deps.compliance.audit)
 
 ## Installation
 

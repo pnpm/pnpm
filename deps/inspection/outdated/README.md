@@ -3,7 +3,7 @@
 > Check for outdated packages
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/deps.inspection.outdated.svg)](https://www.npmjs.com/package/@pnpm/deps.inspection.outdated)
+[![npm version](https://img.shields.io/npm/v/@pnpm/deps.inspection.outdated.svg)](https://npmx.dev/package/@pnpm/deps.inspection.outdated)
 <!--/@-->
 
 ## Installation
