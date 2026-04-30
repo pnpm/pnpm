@@ -1,13 +1,13 @@
-# @pnpm/get-context
+# @pnpm/installing.context
 
 > Gets context information about a project
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/get-context.svg)](https://www.npmjs.com/package/@pnpm/get-context)
+[![npm version](https://img.shields.io/npm/v/@pnpm/installing.context.svg)](https://www.npmjs.com/package/@pnpm/installing.context)
 
 ## Installation
 
 ```sh
-pnpm add @pnpm/get-context
+pnpm add @pnpm/installing.context
 ```
 
 ## License

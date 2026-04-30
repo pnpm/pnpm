@@ -1,13 +1,13 @@
-# @pnpm/find-workspace-dir
+# @pnpm/workspace.root-finder
 
 > Finds the root of a pnpm workspace
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/find-workspace-dir.svg)](https://www.npmjs.com/package/@pnpm/find-workspace-dir)
+[![npm version](https://img.shields.io/npm/v/@pnpm/workspace.root-finder.svg)](https://www.npmjs.com/package/@pnpm/workspace.root-finder)
 
 ## Installation
 
 ```sh
-pnpm add @pnpm/find-workspace-dir
+pnpm add @pnpm/workspace.root-finder
 ```
 
 ## License

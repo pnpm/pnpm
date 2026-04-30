@@ -1,13 +1,13 @@
-# @pnpm/filter-workspace-packages
+# @pnpm/workspace.projects-filter
 
 > Filters packages in a workspace
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/filter-workspace-packages.svg)](https://www.npmjs.com/package/@pnpm/filter-workspace-packages)
+[![npm version](https://img.shields.io/npm/v/@pnpm/workspace.projects-filter.svg)](https://www.npmjs.com/package/@pnpm/workspace.projects-filter)
 
 ## Installation
 
 ```sh
-pnpm add @pnpm/filter-workspace-packages
+pnpm add @pnpm/workspace.projects-filter
 ```
 
 ## License

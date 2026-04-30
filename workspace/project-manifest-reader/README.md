@@ -1,21 +1,21 @@
-# @pnpm/read-project-manifest
+# @pnpm/workspace.project-manifest-reader
 
 > Read a project manifest (called package.json in most cases)
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/read-project-manifest.svg)](https://www.npmjs.com/package/@pnpm/read-project-manifest)
+[![npm version](https://img.shields.io/npm/v/@pnpm/workspace.project-manifest-reader.svg)](https://www.npmjs.com/package/@pnpm/workspace.project-manifest-reader)
 <!--/@-->
 
 ## Installation
 
 ```sh
-pnpm add @pnpm/read-project-manifest
+pnpm add @pnpm/workspace.project-manifest-reader
 ```
 
 ## Usage
 
 ```ts
-import { readProjectManifest } from '@pnpm/read-project-manifest'
+import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 
 const { manifest, fileName } = await readProjectManifest(process.cwd())
 ```

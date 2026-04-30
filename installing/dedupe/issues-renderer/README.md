@@ -1,11 +1,11 @@
-# @pnpm/dedupe.issues-renderer
+# @pnpm/installing.dedupe.issues-renderer
 
 > Visualizes "pnpm dedupe --check" issues
 
 ## Installation
 
 ```
-pnpm add @pnpm/dedupe.issues-renderer
+pnpm add @pnpm/installing.dedupe.issues-renderer
 ```
 
 ## License

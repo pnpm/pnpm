@@ -1,4 +1,4 @@
-# @pnpm/cafs-types
+# @pnpm/store.cafs-types
 
 > Types for the cafs
 

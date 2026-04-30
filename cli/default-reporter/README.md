@@ -1,18 +1,18 @@
-# @pnpm/default-reporter
+# @pnpm/cli.default-reporter
 
 > The default reporter of pnpm
 
 ## Installation
 
 ```
-pnpm add @pnpm/default-reporter
+pnpm add @pnpm/cli.default-reporter
 ```
 
 ## Usage
 
 ```ts
 import { streamParser } from '@pnpm/logger'
-import { initDefaultReporter } from '@pnpm/default-reporter'
+import { initDefaultReporter } from '@pnpm/cli.default-reporter'
 
 const stopReporting = initDefaultReporter({
   context: {

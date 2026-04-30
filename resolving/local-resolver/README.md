@@ -1,22 +1,22 @@
-# @pnpm/local-resolver
+# @pnpm/resolving.local-resolver
 
 > Resolver for local packages
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/local-resolver.svg)](https://www.npmjs.com/package/@pnpm/local-resolver)
+[![npm version](https://img.shields.io/npm/v/@pnpm/resolving.local-resolver.svg)](https://www.npmjs.com/package/@pnpm/resolving.local-resolver)
 <!--/@-->
 
 ## Installation
 
 ```
-pnpm add @pnpm/local-resolver
+pnpm add @pnpm/resolving.local-resolver
 ```
 
 ## Usage
 
 ```js
 'use strict'
-const resolveFromLocal = require('@pnpm/local-resolver').default
+const resolveFromLocal = require('@pnpm/resolving.local-resolver').default
 
 resolveFromLocal({bareSpecifier: './example-package'}, {prefix: process.cwd()})
   .then(resolveResult => console.log(resolveResult))

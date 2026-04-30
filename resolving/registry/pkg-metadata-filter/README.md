@@ -1,21 +1,21 @@
-# @pnpm/registry.pkg-metadata-filter
+# @pnpm/resolving.registry.pkg-metadata-filter
 
 > Filters the package metadata from the registry
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/registry.pkg-metadata-filter.svg)](https://www.npmjs.com/package/@pnpm/registry.pkg-metadata-filter)
+[![npm version](https://img.shields.io/npm/v/@pnpm/resolving.registry.pkg-metadata-filter.svg)](https://www.npmjs.com/package/@pnpm/resolving.registry.pkg-metadata-filter)
 <!--/@-->
 
 ## Installation
 
 ```
-pnpm add @pnpm/registry.pkg-metadata-filter
+pnpm add @pnpm/resolving.registry.pkg-metadata-filter
 ```
 
 ## Usage
 
 ```ts
-import { filterPkgMetadataByPublishDate } from '@pnpm/registry.pkg-metadata-filter'
+import { filterPkgMetadataByPublishDate } from '@pnpm/resolving.registry.pkg-metadata-filter'
 
 const pkgDoc = await (await fetch('https://registry.npmjs.org/is-odd')).json()
 

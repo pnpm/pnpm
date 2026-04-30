@@ -1,15 +1,15 @@
-# @pnpm/client
+# @pnpm/installing.client
 
 > Creates the package resolve and fetch functions
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/client.svg)](https://www.npmjs.com/package/@pnpm/client)
+[![npm version](https://img.shields.io/npm/v/@pnpm/installing.client.svg)](https://www.npmjs.com/package/@pnpm/installing.client)
 <!--/@-->
 
 ## Installation
 
 ```sh
-pnpm add @pnpm/client
+pnpm add @pnpm/installing.client
 ```
 
 ## License

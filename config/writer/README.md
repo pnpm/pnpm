@@ -1,4 +1,4 @@
-# @pnpm/config.config-writer
+# @pnpm/config.writer
 
 > Functions for updating the configuration settings
 
@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-pnpm add @pnpm/config.config-writer
+pnpm add @pnpm/config.writer
 ```
 
 ## License

@@ -1,15 +1,15 @@
-# @pnpm/git-utils
+# @pnpm/network.git-utils
 
 > Utilities for git
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/git-utils.svg)](https://www.npmjs.com/package/@pnpm/git-utils)
+[![npm version](https://img.shields.io/npm/v/@pnpm/network.git-utils.svg)](https://www.npmjs.com/package/@pnpm/network.git-utils)
 <!--/@-->
 
 ## Installation
 
 ```
-pnpm add @pnpm/git-utils
+pnpm add @pnpm/network.git-utils
 ```
 
 ## Usage

@@ -1,27 +1,27 @@
-# @pnpm/resolver-base
+# @pnpm/resolving.resolver-base
 
 > Types for pnpm-compatible resolvers
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/resolver-base.svg)](https://www.npmjs.com/package/@pnpm/resolver-base)
+[![npm version](https://img.shields.io/npm/v/@pnpm/resolving.resolver-base.svg)](https://www.npmjs.com/package/@pnpm/resolving.resolver-base)
 <!--/@-->
 
 ## Installation
 
 ```sh
-pnpm add @pnpm/resolver-base
+pnpm add @pnpm/resolving.resolver-base
 ```
 
 ## Usage
 
-Here's a template of a resolver using types from `@pnpm/resolver-base`:
+Here's a template of a resolver using types from `@pnpm/resolving.resolver-base`:
 
 ```ts
 import {
   ResolveOptions,
   ResolveResult,
   WantedDependency,
-} from '@pnpm/resolver-base'
+} from '@pnpm/resolving.resolver-base'
 
 export async function testResolver (
   wantedDependency: WantedDependency,

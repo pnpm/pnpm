@@ -1,15 +1,15 @@
-# @pnpm/naming-cases
+# @pnpm/text.naming-cases
 
 > manipulate and check naming cases
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/naming-cases.svg)](https://www.npmjs.com/package/@pnpm/naming-cases)
+[![npm version](https://img.shields.io/npm/v/@pnpm/text.naming-cases.svg)](https://www.npmjs.com/package/@pnpm/text.naming-cases)
 <!--/@-->
 
 ## Installation
 
 ```sh
-pnpm add @pnpm/naming-cases
+pnpm add @pnpm/text.naming-cases
 ```
 
 ## License

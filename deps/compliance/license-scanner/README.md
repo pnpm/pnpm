@@ -1,15 +1,15 @@
-# @pnpm/license-scanner
+# @pnpm/deps.compliance.license-scanner
 
 > Check for the license of packages
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/license-scanner.svg)](https://www.npmjs.com/package/@pnpm/license-scanner)
+[![npm version](https://img.shields.io/npm/v/@pnpm/deps.compliance.license-scanner.svg)](https://www.npmjs.com/package/@pnpm/deps.compliance.license-scanner)
 <!--/@-->
 
 ## Installation
 
 ```sh
-pnpm add @pnpm/license-scanner
+pnpm add @pnpm/deps.compliance.license-scanner
 ```
 
 ## License

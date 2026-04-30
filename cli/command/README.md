@@ -1,13 +1,13 @@
-# @pnpm/command
+# @pnpm/cli.command
 
 > Types and utils for pnpm commands
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/command.svg)](https://www.npmjs.com/package/@pnpm/command)
+[![npm version](https://img.shields.io/npm/v/@pnpm/cli.command.svg)](https://www.npmjs.com/package/@pnpm/cli.command)
 
 ## Installation
 
 ```sh
-pnpm add @pnpm/command
+pnpm add @pnpm/cli.command
 ```
 
 ## License

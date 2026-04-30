@@ -1,21 +1,21 @@
-# @pnpm/read-package-json
+# @pnpm/pkg-manifest.reader
 
 > Read a package.json
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/read-package-json.svg)](https://www.npmjs.com/package/@pnpm/read-package-json)
+[![npm version](https://img.shields.io/npm/v/@pnpm/pkg-manifest.reader.svg)](https://www.npmjs.com/package/@pnpm/pkg-manifest.reader)
 <!--/@-->
 
 ## Installation
 
 ```sh
-pnpm add @pnpm/read-package-json
+pnpm add @pnpm/pkg-manifest.reader
 ```
 
 ## Usage
 
 ```ts
-import { readPackageJson } from '@pnpm/read-package-json'
+import { readPackageJson } from '@pnpm/pkg-manifest.reader'
 
 const pkgJson = await readPackageJson('package.json')
 ```

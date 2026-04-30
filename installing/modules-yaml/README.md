@@ -1,21 +1,21 @@
-# @pnpm/modules-yaml
+# @pnpm/installing.modules-yaml
 
 > Reads/writes \`node_modules/.modules.yaml\`
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/modules-yaml.svg)](https://www.npmjs.com/package/@pnpm/modules-yaml)
+[![npm version](https://img.shields.io/npm/v/@pnpm/installing.modules-yaml.svg)](https://www.npmjs.com/package/@pnpm/installing.modules-yaml)
 <!--/@-->
 
 ## Installation
 
 ```sh
-pnpm add @pnpm/modules-yaml
+pnpm add @pnpm/installing.modules-yaml
 ```
 
 ## Usage
 
 ```ts
-import {write, read} from '@pnpm/modules-yaml'
+import {write, read} from '@pnpm/installing.modules-yaml'
 
 await write('node_modules', {
   hoistedAliases: {},

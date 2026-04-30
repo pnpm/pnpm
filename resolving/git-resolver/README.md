@@ -1,15 +1,15 @@
-# @pnpm/git-resolver
+# @pnpm/resolving.git-resolver
 
 > Resolver for git-hosted packages
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/git-resolver.svg)](https://www.npmjs.com/package/@pnpm/git-resolver)
+[![npm version](https://img.shields.io/npm/v/@pnpm/resolving.git-resolver.svg)](https://www.npmjs.com/package/@pnpm/resolving.git-resolver)
 <!--/@-->
 
 ## Installation
 
 ```
-pnpm add @pnpm/git-resolver
+pnpm add @pnpm/resolving.git-resolver
 ```
 
 ## Usage
@@ -17,7 +17,7 @@ pnpm add @pnpm/git-resolver
 <!--@example('./example.js')-->
 ```js
 'use strict'
-const createResolveFromNpm = require('@pnpm/git-resolver').default
+const createResolveFromNpm = require('@pnpm/resolving.git-resolver').default
 
 const resolveFromNpm = createResolveFromNpm({})
 

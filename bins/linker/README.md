@@ -1,21 +1,21 @@
-# @pnpm/link-bins
+# @pnpm/bins.linker
 
 > Link bins to node_modules/.bin
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/link-bins.svg)](https://www.npmjs.com/package/@pnpm/link-bins)
+[![npm version](https://img.shields.io/npm/v/@pnpm/bins.linker.svg)](https://www.npmjs.com/package/@pnpm/bins.linker)
 <!--/@-->
 
 ## Installation
 
 ```sh
-pnpm add @pnpm/link-bins
+pnpm add @pnpm/bins.linker
 ```
 
 ## Usage
 
 ```ts
-import linkBins, {linkBinsOfPackages} from '@pnpm/link-bins'
+import linkBins, {linkBinsOfPackages} from '@pnpm/bins.linker'
 
 function warn (msg) { console.warn(msg) }
 

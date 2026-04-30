@@ -1,4 +1,4 @@
-# @pnpm/reviewing.tree-builder
+# @pnpm/deps.inspection.tree-builder
 
 > Creates a dependencies hierarchy for a symlinked \`node_modules\`
 
@@ -11,7 +11,7 @@ A symlinked `node_modules` is created when installing using [pnpm](https://githu
 ## Installation
 
 ```
-pnpm add @pnpm/reviewing.tree-builder
+pnpm add @pnpm/deps.inspection.tree-builder
 ```
 
 ## License
