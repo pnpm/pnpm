@@ -333,6 +333,61 @@ test('pmOnFail via --pm-on-fail CLI flag bypasses the devEngines.packageManager 
   expect(execPnpmSync(['install', '--config.pm-on-fail=ignore']).status).toBe(0)
 })
 
+test('devEngines.packageManager check runs even when pnpm is invoked via corepack', async () => {
+  prepare({
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '0.0.1',
+        onFail: 'warn',
+      },
+    },
+  })
+
+  // COREPACK_ROOT signals corepack-managed invocation. The package-manager
+  // handling block (check + lockfile sync) used to be guarded out entirely
+  // when this was set, leaving packageManagerDependencies stale (#11397).
+  // The check (and sync) must run regardless of how pnpm was invoked, since
+  // different developers on the same project may use either path.
+  const { status, stdout } = execPnpmSync(['install'], {
+    env: { COREPACK_ROOT: '/fake/corepack' },
+  })
+
+  expect(status).toBe(0)
+  expect(stdout.toString()).toContain('This project is configured to use 0.0.1 of pnpm')
+  // Make sure the warning explains that pnpm did not switch the version
+  // because corepack is in charge — otherwise the warning is confusing.
+  expect(stdout.toString()).toContain('Corepack invoked pnpm')
+})
+
+test('devEngines.packageManager onFail=download surfaces a regular error under corepack instead of switching versions', async () => {
+  prepare({
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '0.0.1',
+        onFail: 'download',
+      },
+    },
+  })
+
+  // Corepack owns version selection, so pnpm should not attempt a version
+  // switch when COREPACK_ROOT is set. Mismatches fall through to the regular
+  // check, which treats onFail=download as shouldError=true. The error
+  // message must spell out that pnpm did not switch the version *because*
+  // corepack is in charge — otherwise the user sees a download-on-mismatch
+  // contract that silently failed to download.
+  const { status, stderr } = execPnpmSync(['install'], {
+    env: { COREPACK_ROOT: '/fake/corepack' },
+  })
+
+  expect(status).toBe(1)
+  expect(stderr.toString()).toContain('This project is configured to use 0.0.1 of pnpm')
+  expect(stderr.toString()).toContain('Corepack invoked pnpm')
+  expect(stderr.toString()).toContain('does not switch versions when running under corepack')
+  expect(stderr.toString()).toContain('invoke pnpm directly')
+})
+
 test('pmOnFail=ignore set in pnpm-workspace.yaml bypasses the devEngines.packageManager check', async () => {
   prepare({
     devEngines: {
