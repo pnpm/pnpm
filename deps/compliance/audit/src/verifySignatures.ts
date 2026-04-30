@@ -4,7 +4,7 @@ import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
 import type { GetAuthHeader } from '@pnpm/fetching.types'
-import { type DispatcherOptions, fetchWithDispatcher, type RetryTimeoutOptions } from '@pnpm/network.fetch'
+import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type RetryTimeoutOptions } from '@pnpm/network.fetch'
 import pLimit from 'p-limit'
 
 export interface SignaturePackage {
@@ -24,6 +24,12 @@ export interface SignatureVerificationResult {
   invalid: SignatureIssue[]
   missing: SignatureIssue[]
   verified: number
+}
+
+export interface VerifySignaturesOptions extends CreateFetchFromRegistryOptions {
+  networkConcurrency?: number
+  retry?: RetryTimeoutOptions
+  timeout?: number
 }
 
 interface RegistryKey {
@@ -60,12 +66,7 @@ interface Packument {
 export async function verifySignatures (
   packages: SignaturePackage[],
   getAuthHeader: GetAuthHeader,
-  opts: {
-    dispatcherOptions?: DispatcherOptions
-    networkConcurrency?: number
-    retry?: RetryTimeoutOptions
-    timeout?: number
-  }
+  opts: VerifySignaturesOptions
 ): Promise<SignatureVerificationResult> {
   const registries = new Set(packages.map(({ registry }) => registry))
   const keysByRegistry = new Map<string, RegistryKey[]>()
@@ -126,17 +127,13 @@ export async function verifySignatures (
 async function fetchRegistryKeys (
   registry: string,
   getAuthHeader: GetAuthHeader,
-  opts: {
-    dispatcherOptions?: DispatcherOptions
-    retry?: RetryTimeoutOptions
-    timeout?: number
-  }
+  opts: VerifySignaturesOptions
 ): Promise<RegistryKey[]> {
   const registryUrl = registry.endsWith('/') ? registry : `${registry}/`
   const keysUrl = new url.URL('-/npm/v1/keys', registryUrl).toString()
-  const res = await fetchWithDispatcher(keysUrl, {
-    dispatcherOptions: opts.dispatcherOptions ?? {},
-    headers: getAuthHeaders(getAuthHeader(registryUrl)),
+  const fetchFromRegistry = createFetchFromRegistry(opts)
+  const res = await fetchFromRegistry(keysUrl, {
+    authHeaderValue: getAuthHeader(registryUrl),
     method: 'GET',
     retry: opts.retry,
     timeout: opts.timeout,
@@ -162,11 +159,7 @@ async function fetchRegistryKeys (
 async function getPackument (
   pkg: SignaturePackage,
   getAuthHeader: GetAuthHeader,
-  opts: {
-    dispatcherOptions?: DispatcherOptions
-    retry?: RetryTimeoutOptions
-    timeout?: number
-  },
+  opts: VerifySignaturesOptions,
   packumentCache: Map<string, Promise<Packument>>
 ): Promise<Packument> {
   const cacheKey = `${pkg.registry}:${pkg.name}`
@@ -181,20 +174,14 @@ async function getPackument (
 async function fetchPackument (
   pkg: SignaturePackage,
   getAuthHeader: GetAuthHeader,
-  opts: {
-    dispatcherOptions?: DispatcherOptions
-    retry?: RetryTimeoutOptions
-    timeout?: number
-  }
+  opts: VerifySignaturesOptions
 ): Promise<Packument> {
   const registryUrl = pkg.registry.endsWith('/') ? pkg.registry : `${pkg.registry}/`
   const packumentUrl = toUri(pkg.name, registryUrl)
-  const res = await fetchWithDispatcher(packumentUrl, {
-    dispatcherOptions: opts.dispatcherOptions ?? {},
-    headers: {
-      Accept: 'application/json',
-      ...getAuthHeaders(getAuthHeader(registryUrl)),
-    },
+  const fetchFromRegistry = createFetchFromRegistry(opts)
+  const res = await fetchFromRegistry(packumentUrl, {
+    authHeaderValue: getAuthHeader(registryUrl),
+    fullMetadata: true,
     method: 'GET',
     retry: opts.retry,
     timeout: opts.timeout,
@@ -274,10 +261,6 @@ function isRegistryKeysResponse (body: unknown): body is RegistryKeysResponse {
 
 function isPackument (body: unknown): body is Packument {
   return typeof body === 'object' && body != null && typeof (body as Packument).versions === 'object' && (body as Packument).versions != null
-}
-
-function getAuthHeaders (authHeaderValue?: string): Record<string, string> {
-  return authHeaderValue ? { Authorization: authHeaderValue } : {}
 }
 
 function toUri (pkgName: string, registry: string): string {

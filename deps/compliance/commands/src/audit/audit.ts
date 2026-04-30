@@ -167,6 +167,7 @@ export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
 | 'key'
 | 'localAddress'
 | 'maxSockets'
+| 'networkConcurrency'
 | 'noProxy'
 | 'strictSsl'
 | 'fetchRetries'

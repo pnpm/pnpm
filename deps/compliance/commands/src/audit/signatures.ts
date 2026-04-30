@@ -31,18 +31,17 @@ export async function auditSignatures (opts: AuditOptions): Promise<{ exitCode: 
 
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri, opts.registries?.default)
   const result = await verifySignatures(packages, getAuthHeader, {
-    dispatcherOptions: {
-      ca: opts.ca,
-      cert: opts.cert,
-      httpProxy: opts.httpProxy,
-      httpsProxy: opts.httpsProxy,
-      key: opts.key,
-      localAddress: opts.localAddress,
-      maxSockets: opts.maxSockets,
-      noProxy: opts.noProxy,
-      strictSsl: opts.strictSsl,
-      timeout: opts.fetchTimeout,
-    },
+    ca: opts.ca,
+    cert: opts.cert,
+    configByUri: opts.configByUri,
+    httpProxy: opts.httpProxy,
+    httpsProxy: opts.httpsProxy,
+    key: opts.key,
+    localAddress: opts.localAddress,
+    maxSockets: opts.maxSockets,
+    networkConcurrency: opts.networkConcurrency,
+    noProxy: opts.noProxy,
+    strictSsl: opts.strictSsl,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,
