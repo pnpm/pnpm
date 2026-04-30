@@ -116,7 +116,7 @@ describe('plugin-commands-audit', () => {
         },
       })
     getMockAgent().get(SCOPED_AUDIT_REGISTRY.replace(/\/$/, ''))
-      .intercept({ path: '/@scope%2Fsigned-pkg', method: 'GET' })
+      .intercept({ path: `/@scope${'%2F'}signed-pkg`, method: 'GET' })
       .reply(200, {
         name: '@scope/signed-pkg',
         time: { '1.0.0': '2023-01-01T00:00:00.000Z' },
