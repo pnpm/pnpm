@@ -3670,6 +3670,9 @@ importers:
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
+      path-absolute:
+        specifier: 'catalog:'
+        version: 2.0.0
       realpath-missing:
         specifier: 'catalog:'
         version: 2.0.0
@@ -5642,6 +5645,9 @@ importers:
       p-limit:
         specifier: 'catalog:'
         version: 7.3.0
+      path-absolute:
+        specifier: 'catalog:'
+        version: 2.0.0
       path-exists:
         specifier: 'catalog:'
         version: 5.0.0
@@ -6489,6 +6495,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
+      path-absolute:
+        specifier: 'catalog:'
+        version: 2.0.0
       realpath-missing:
         specifier: 'catalog:'
         version: 2.0.0
@@ -7747,6 +7756,9 @@ importers:
       p-defer:
         specifier: 'catalog:'
         version: 4.0.1
+      path-absolute:
+        specifier: 'catalog:'
+        version: 2.0.0
       path-exists:
         specifier: 'catalog:'
         version: 5.0.0

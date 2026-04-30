@@ -14,6 +14,7 @@ import type {
   ProjectRootDirRealPath,
   Registries,
 } from '@pnpm/types'
+import { pathAbsolute } from 'path-absolute'
 import { realpathMissing } from 'realpath-missing'
 
 export interface ProjectOptions {
@@ -45,8 +46,12 @@ export async function readProjectsContext<T> (
   skipped: Set<DepPath>
   virtualStoreDirMaxLength?: number
 }> {
-  const relativeModulesDir = opts.modulesDir ?? 'node_modules'
-  const rootModulesDir = await realpathMissing(path.join(opts.lockfileDir, relativeModulesDir))
+  // `modulesDir` is conventionally a path relative to `lockfileDir`, but
+  // some callers pass it as an absolute path. Resolve via `pathAbsolute`
+  // so both forms work — `path.join` on Windows would otherwise produce a
+  // doubled prefix when the second argument is also absolute.
+  const modulesDirOpt = opts.modulesDir ?? 'node_modules'
+  const rootModulesDir = await realpathMissing(pathAbsolute(modulesDirOpt, opts.lockfileDir))
   const modules = await readModulesManifest(rootModulesDir)
   return {
     currentHoistPattern: modules?.hoistPattern,
@@ -58,12 +63,12 @@ export async function readProjectsContext<T> (
     pendingBuilds: modules?.pendingBuilds ?? [],
     projects: await Promise.all(
       projects.map(async (project) => {
-        const modulesDir = await realpathMissing(path.join(project.rootDir, project.modulesDir ?? relativeModulesDir))
+        const modulesDir = await realpathMissing(pathAbsolute(project.modulesDir ?? modulesDirOpt, project.rootDir))
         const importerId = getLockfileImporterId(opts.lockfileDir, project.rootDir)
 
         return {
           ...project,
-          binsDir: project.binsDir ?? path.join(project.rootDir, relativeModulesDir, '.bin'),
+          binsDir: project.binsDir ?? path.join(modulesDir, '.bin'),
           id: importerId,
           modulesDir,
           rootDirRealPath: project.rootDirRealPath ?? await realpath(project.rootDir),

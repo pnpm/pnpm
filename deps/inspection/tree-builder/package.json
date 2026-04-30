@@ -50,6 +50,7 @@
     "@pnpm/util.lex-comparator": "catalog:",
     "load-json-file": "catalog:",
     "normalize-path": "catalog:",
+    "path-absolute": "catalog:",
     "realpath-missing": "catalog:",
     "resolve-link-target": "catalog:",
     "semver": "catalog:"
