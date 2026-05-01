@@ -1004,7 +1004,9 @@ packageExtensionsChecksum: sha256-87FOGilaYY8gmnjYsryuV/BI3ZuhaaJd/1fN2oxQwzY=
 pnpmfileChecksum: sha256-FyKtfMeHqu9zq1rXAr8P3zdA0NAXUioGdY0esg+SB5s=
 
 patchedDependencies:
-  graceful-fs@4.2.11: 68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1
+  graceful-fs@4.2.11:
+    hash: 68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1
+    path: __patches__/graceful-fs@4.2.11.patch
 
 importers:
 

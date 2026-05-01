@@ -610,7 +610,8 @@ describe('enable prefer-symlinked-executables', () => {
       const stat = fs.statSync(binFile)
       expect(stat.mode).toBe(parseInt('100755', 8))
       expect(stat.isFile()).toBe(true)
-      const stdout = spawnSync(binFile).stdout.toString('utf-8')
+      const res = spawnSync(process.execPath, [binFile])
+      const stdout = res.stdout.toString('utf-8')
       expect(stdout).toMatch('hello_world')
     }
   })
