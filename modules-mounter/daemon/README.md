@@ -1,13 +1,13 @@
-# @pnpm/mount-modules
+# @pnpm/modules-mounter.daemon
 
 > Mounts a node_modules directory with FUSE
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/mount-modules.svg)](https://www.npmjs.com/package/@pnpm/mount-modules)
+[![npm version](https://img.shields.io/npm/v/@pnpm/modules-mounter.daemon.svg)](https://npmx.dev/package/@pnpm/modules-mounter.daemon)
 
 ## Installation
 
 ```
-pnpm add @pnpm/mount-modules --global
+pnpm add @pnpm/modules-mounter.daemon --global
 ```
 
 ## Usage

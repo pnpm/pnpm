@@ -1,5 +1,14 @@
 # @pnpm/modules-yaml
 
+## 1100.0.2
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+- Updated dependencies [5a901e7]
+  - @pnpm/fs.graceful-fs@1100.1.0
+
 ## 1100.0.1
 
 ### Patch Changes

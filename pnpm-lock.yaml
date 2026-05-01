@@ -1,3 +1,211 @@
+---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    configDependencies: {}
+    packageManagerDependencies:
+      '@pnpm/exe':
+        specifier: 11.0.3
+        version: 11.0.3
+      pnpm:
+        specifier: 11.0.3
+        version: 11.0.3
+
+packages:
+
+  '@pnpm/exe@11.0.3':
+    resolution: {integrity: sha512-smSgw9W0knkDPvjmoRRl0vsanhvk+7At8+w/MT3G/lZfcVGfWhWuBbjMkL0qYX5D1UTUh4g17iS3ubCyN1vJ9w==}
+    hasBin: true
+
+  '@pnpm/linux-arm64@11.0.3':
+    resolution: {integrity: sha512-E0ApJTF+HEWp2ifXl4iXiwdlowbjqD4PLNDyYjIl5dD0BNxycR1WYMDqem+BBRX3JB25+9WSFOW/Ey+CZC6DNQ==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@pnpm/linux-x64@11.0.3':
+    resolution: {integrity: sha512-Zg5t6oJSegJJlLkwhUYXhnmFvcf5c1yBkCuJM5t6dGAVAK+wVUSRvmKzNJE2WC+m296E9w4VEcOfCOBQCvxT+g==}
+    cpu: [x64]
+    os: [linux]
+
+  '@pnpm/linuxstatic-arm64@11.0.3':
+    resolution: {integrity: sha512-X8tXWlgMeNkhHQXvCe7+7YRGkJos9NA6zgX6a31982k6F1wG3QmHkHKyVjekqN42nkm6Wt3yNGwXGHziq5ImZQ==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@pnpm/linuxstatic-x64@11.0.3':
+    resolution: {integrity: sha512-ReVy0hfz5g9176+lmxxiVQ85B3dNS1wOZmqfLk0LCEKz0YthWLjQNqTYbOw41UJan8HOkXUr2a2pJcaHWjzORQ==}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@pnpm/macos-arm64@11.0.3':
+    resolution: {integrity: sha512-fT59cNCtP91y2lz8Xe+Uvb2uxLayNHgUz+y+xPEalz1dqc15ygoDNmCkXDM8OZ9NOthvsYbxCep9w6LgMvn/Fw==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@pnpm/macos-x64@11.0.3':
+    resolution: {integrity: sha512-TjeXBkRYeS3Ud4jcg0J6LE7LDqhBu3y8FCqsEe6nenqdqSIm1yzZmvgR8kYazDL4w8EU558UapO7WUHbpUl4Kw==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@pnpm/win-arm64@11.0.3':
+    resolution: {integrity: sha512-pzFg2gSZTHGQJK7V10m8VE7XS7Q+h3fAx1XDUJt3iV6T/TMaIW8hzNZ3dQvMz7JSKnBYoPCUvCGQ9MSOY14EvQ==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@pnpm/win-x64@11.0.3':
+    resolution: {integrity: sha512-ImgIktkAvn+k47u+fKMwTo37eq5UUzjII9VvaX6yRY54NCf/aM+AXZcstJxubAkIGxH4TZybwwsRWYMxy+gg3Q==}
+    cpu: [x64]
+    os: [win32]
+
+  '@reflink/reflink-darwin-arm64@0.1.19':
+    resolution: {integrity: sha512-ruy44Lpepdk1FqDz38vExBY/PVUsjxZA+chd9wozjUH9JjuDT/HEaQYA6wYN9mf041l0yLVar6BCZuWABJvHSA==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@reflink/reflink-darwin-x64@0.1.19':
+    resolution: {integrity: sha512-By85MSWrMZa+c26TcnAy8SDk0sTUkYlNnwknSchkhHpGXOtjNDUOxJE9oByBnGbeuIE1PiQsxDG3Ud+IVV9yuA==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@reflink/reflink-linux-arm64-gnu@0.1.19':
+    resolution: {integrity: sha512-7P+er8+rP9iNeN+bfmccM4hTAaLP6PQJPKWSA4iSk2bNvo6KU6RyPgYeHxXmzNKzPVRcypZQTpFgstHam6maVg==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@reflink/reflink-linux-arm64-musl@0.1.19':
+    resolution: {integrity: sha512-37iO/Dp6m5DDaC2sf3zPtx/hl9FV3Xze4xoYidrxxS9bgP3S8ALroxRK6xBG/1TtfXKTvolvp+IjrUU6ujIGmA==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@reflink/reflink-linux-x64-gnu@0.1.19':
+    resolution: {integrity: sha512-jbI8jvuYCaA3MVUdu8vLoLAFqC+iNMpiSuLbxlAgg7x3K5bsS8nOpTRnkLF7vISJ+rVR8W+7ThXlXlUQ93ulkw==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@reflink/reflink-linux-x64-musl@0.1.19':
+    resolution: {integrity: sha512-e9FBWDe+lv7QKAwtKOt6A2W/fyy/aEEfr0g6j/hWzvQcrzHCsz07BNQYlNOjTfeytrtLU7k449H1PI95jA4OjQ==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@reflink/reflink-win32-arm64-msvc@0.1.19':
+    resolution: {integrity: sha512-09PxnVIQcd+UOn4WAW73WU6PXL7DwGS6wPlkMhMg2zlHHG65F3vHepOw06HFCq+N42qkaNAc8AKIabWvtk6cIQ==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [win32]
+
+  '@reflink/reflink-win32-x64-msvc@0.1.19':
+    resolution: {integrity: sha512-E//yT4ni2SyhwP8JRjVGWr3cbnhWDiPLgnQ66qqaanjjnMiu3O/2tjCPQXlcGc/DEYofpDc9fvhv6tALQsMV9w==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [win32]
+
+  '@reflink/reflink@0.1.19':
+    resolution: {integrity: sha512-DmCG8GzysnCZ15bres3N5AHCmwBwYgp0As6xjhQ47rAUTUXxJiK+lLUxaGsX3hd/30qUpVElh05PbGuxRPgJwA==}
+    engines: {node: '>= 10'}
+
+  detect-libc@2.1.2:
+    resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
+    engines: {node: '>=8'}
+
+  pnpm@11.0.3:
+    resolution: {integrity: sha512-EESPKYiTN4fGaZrvaDF0x0H2RyrZG348j+PivaV76KD3yvWJSbi8IuYkV4s9xuV4drpMYxkoobhMwUHhLHm8zQ==}
+    engines: {node: '>=22.13'}
+    hasBin: true
+
+snapshots:
+
+  '@pnpm/exe@11.0.3':
+    dependencies:
+      '@reflink/reflink': 0.1.19
+      detect-libc: 2.1.2
+    optionalDependencies:
+      '@pnpm/linux-arm64': 11.0.3
+      '@pnpm/linux-x64': 11.0.3
+      '@pnpm/linuxstatic-arm64': 11.0.3
+      '@pnpm/linuxstatic-x64': 11.0.3
+      '@pnpm/macos-arm64': 11.0.3
+      '@pnpm/macos-x64': 11.0.3
+      '@pnpm/win-arm64': 11.0.3
+      '@pnpm/win-x64': 11.0.3
+
+  '@pnpm/linux-arm64@11.0.3':
+    optional: true
+
+  '@pnpm/linux-x64@11.0.3':
+    optional: true
+
+  '@pnpm/linuxstatic-arm64@11.0.3':
+    optional: true
+
+  '@pnpm/linuxstatic-x64@11.0.3':
+    optional: true
+
+  '@pnpm/macos-arm64@11.0.3':
+    optional: true
+
+  '@pnpm/macos-x64@11.0.3':
+    optional: true
+
+  '@pnpm/win-arm64@11.0.3':
+    optional: true
+
+  '@pnpm/win-x64@11.0.3':
+    optional: true
+
+  '@reflink/reflink-darwin-arm64@0.1.19':
+    optional: true
+
+  '@reflink/reflink-darwin-x64@0.1.19':
+    optional: true
+
+  '@reflink/reflink-linux-arm64-gnu@0.1.19':
+    optional: true
+
+  '@reflink/reflink-linux-arm64-musl@0.1.19':
+    optional: true
+
+  '@reflink/reflink-linux-x64-gnu@0.1.19':
+    optional: true
+
+  '@reflink/reflink-linux-x64-musl@0.1.19':
+    optional: true
+
+  '@reflink/reflink-win32-arm64-msvc@0.1.19':
+    optional: true
+
+  '@reflink/reflink-win32-x64-msvc@0.1.19':
+    optional: true
+
+  '@reflink/reflink@0.1.19':
+    optionalDependencies:
+      '@reflink/reflink-darwin-arm64': 0.1.19
+      '@reflink/reflink-darwin-x64': 0.1.19
+      '@reflink/reflink-linux-arm64-gnu': 0.1.19
+      '@reflink/reflink-linux-arm64-musl': 0.1.19
+      '@reflink/reflink-linux-x64-gnu': 0.1.19
+      '@reflink/reflink-linux-x64-musl': 0.1.19
+      '@reflink/reflink-win32-arm64-msvc': 0.1.19
+      '@reflink/reflink-win32-x64-msvc': 0.1.19
+
+  detect-libc@2.1.2: {}
+
+  pnpm@11.0.3: {}
+
+---
 lockfileVersion: '9.0'
 
 settings:
@@ -235,8 +443,8 @@ catalogs:
       specifier: ^4.0.8
       version: 4.1.5
     '@zkochan/cmd-shim':
-      specifier: ^9.0.0
-      version: 9.0.0
+      specifier: ^9.0.2
+      version: 9.0.2
     '@zkochan/retry':
       specifier: ^0.2.0
       version: 0.2.0
@@ -1377,7 +1585,7 @@ importers:
         version: link:../../workspace/project-manifest-reader
       '@zkochan/cmd-shim':
         specifier: 'catalog:'
-        version: 9.0.0
+        version: 9.0.2
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 4.0.0
@@ -2975,6 +3183,9 @@ importers:
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../../../pkg-manifest/reader
+      '@pnpm/resolving.resolver-base':
+        specifier: workspace:*
+        version: link:../../../resolving/resolver-base
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../../../store/index
@@ -3459,6 +3670,9 @@ importers:
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
+      path-absolute:
+        specifier: 'catalog:'
+        version: 2.0.0
       realpath-missing:
         specifier: 'catalog:'
         version: 2.0.0
@@ -5431,6 +5645,9 @@ importers:
       p-limit:
         specifier: 'catalog:'
         version: 7.3.0
+      path-absolute:
+        specifier: 'catalog:'
+        version: 2.0.0
       path-exists:
         specifier: 'catalog:'
         version: 5.0.0
@@ -6278,6 +6495,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
+      path-absolute:
+        specifier: 'catalog:'
+        version: 2.0.0
       realpath-missing:
         specifier: 'catalog:'
         version: 2.0.0
@@ -7536,6 +7756,9 @@ importers:
       p-defer:
         specifier: 'catalog:'
         version: 4.0.1
+      path-absolute:
+        specifier: 'catalog:'
+        version: 2.0.0
       path-exists:
         specifier: 'catalog:'
         version: 5.0.0
@@ -11918,8 +12141,8 @@ packages:
     resolution: {integrity: sha512-E5mgrRS8Kk80n19Xxmrx5qO9UG03FyZd8Me5gxYi++VPZsOv8+OsclA+0Fth4KTDCrQ/FkJryNFKJ6/642lo4g==}
     engines: {node: '>=18.12'}
 
-  '@zkochan/cmd-shim@9.0.0':
-    resolution: {integrity: sha512-UH8qOvWZjZJr/mLk5xbrhGmBAf8iLbDkCZCyjnXri5cVFpvZgBUszZJmTmvDTIrzLAZ8lb++qvedOdsRokaQBg==}
+  '@zkochan/cmd-shim@9.0.2':
+    resolution: {integrity: sha512-l4x1ZcuZKS7nVVLrCzl4t0Q54mADMO6NtZFVMwoaOY/Emf62CbxMWh192nfiiwOhHmBcCR3iHrbEzwQXqCob1Q==}
     engines: {node: '>=22.13'}
 
   '@zkochan/diable@1.0.2':
@@ -20176,9 +20399,10 @@ snapshots:
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
       is-windows: 1.0.2
 
-  '@zkochan/cmd-shim@9.0.0':
+  '@zkochan/cmd-shim@9.0.2':
     dependencies:
       cmd-extension: 1.0.2
+      graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
 
   '@zkochan/diable@1.0.2':
     dependencies:

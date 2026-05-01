@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.deps-installer",
-  "version": "1101.0.0",
+  "version": "1101.0.4",
   "description": "Fast, disk space efficient installation engine",
   "keywords": [
     "pnpm",
@@ -116,6 +116,7 @@
     "normalize-path": "catalog:",
     "p-filter": "catalog:",
     "p-limit": "catalog:",
+    "path-absolute": "catalog:",
     "path-exists": "catalog:",
     "ramda": "catalog:",
     "run-groups": "catalog:",

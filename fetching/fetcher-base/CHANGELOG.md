@@ -1,5 +1,13 @@
 # @pnpm/fetcher-base
 
+## 1100.1.1
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/resolving.resolver-base@1100.1.1
+
 ## 1100.1.0
 
 ### Minor Changes

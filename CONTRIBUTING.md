@@ -145,6 +145,12 @@ Passing a number is interpreted as a PR number. The PR is fetched via
 `git fetch origin pull/<number>/head` into a local branch named `pr-<number>`, so it works
 for both same-repo branches and forks.
 
+If [Claude Code](https://www.anthropic.com/claude-code) is installed on your system, `wt
+<pr-number>` will additionally launch a Claude review of the PR via the tracked hook at
+`.git-wt/pr-hook`. The hook silently no-ops if `claude` isn't on your `PATH`, so contributors
+who don't use Claude aren't affected. Requires `@zkochan/git-wt` ≥ 0.0.3, which is the
+version that introduced the per-repo hook lookup.
+
 If you only need the worktree path (e.g. to open it in an editor) without switching directories,
 invoke `git-wt` directly — it's also exposed as a native git subcommand:
 

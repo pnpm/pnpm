@@ -1,5 +1,15 @@
 # @pnpm/store.cafs
 
+## 1100.1.1
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+- Updated dependencies [5a901e7]
+  - @pnpm/store.controller-types@1100.0.4
+  - @pnpm/fetching.fetcher-base@1100.1.1
+  - @pnpm/fs.graceful-fs@1100.1.0
+
 ## 1100.1.0
 
 ### Minor Changes

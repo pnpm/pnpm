@@ -1,11 +1,11 @@
-# @pnpm/plugin-commands-patches
+# @pnpm/patching.commands
 
 > Commands for creating patches
 
 ## Installation
 
 ```sh
-pnpm add @pnpm/plugin-commands-patching
+pnpm add @pnpm/patching.commands
 ```
 
 ## License

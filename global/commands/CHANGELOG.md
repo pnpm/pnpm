@@ -1,5 +1,48 @@
 # @pnpm/global.commands
 
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/installing.deps-installer@1101.0.4
+  - @pnpm/store.connection-manager@1100.0.8
+  - @pnpm/pkg-manifest.reader@1100.0.2
+  - @pnpm/config.matcher@1100.0.1
+  - @pnpm/bins.resolver@1100.0.2
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/bins.remover@1100.0.2
+  - @pnpm/bins.linker@1100.0.3
+  - @pnpm/cli.command@1100.0.1
+  - @pnpm/cli.utils@1101.0.2
+  - @pnpm/global.packages@1100.0.2
+
+## 1100.0.7
+
+### Patch Changes
+
+- 685a369: Fix `ENOENT` symlink failure when `pnpm add -g` triggers the approve-builds prompt. The global add flow used to forward an absolute `modulesDir` (`<installDir>/node_modules`) into the install run by `approve-builds`. The install layer treated `modulesDir` as a path relative to `lockfileDir` and joined it again, producing a doubled path on Windows because `path.join` does not collapse an embedded absolute path. The hoist step then tried to `mkdir` and symlink under `<installDir>\<installDir>\node_modules\.pnpm\node_modules\...` and failed with `ENOENT` [#11403](https://github.com/pnpm/pnpm/issues/11403).
+  - @pnpm/cli.utils@1101.0.1
+  - @pnpm/installing.deps-installer@1101.0.3
+  - @pnpm/store.connection-manager@1100.0.7
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [0fbcf74]
+  - @pnpm/config.reader@1101.1.2
+  - @pnpm/store.connection-manager@1100.0.6
+  - @pnpm/installing.deps-installer@1101.0.2
+
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [005eeb7]
+  - @pnpm/installing.deps-installer@1101.0.1
+  - @pnpm/store.connection-manager@1100.0.5
+
 ## 1100.0.4
 
 ### Patch Changes

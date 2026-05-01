@@ -1,6 +1,6 @@
 {
   "name": "pnpm",
-  "version": "11.0.0-rc.5",
+  "version": "11.0.3",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -165,6 +165,7 @@
     "normalize-newline": "catalog:",
     "p-defer": "catalog:",
     "path-exists": "catalog:",
+    "path-absolute": "catalog:",
     "path-name": "catalog:",
     "pidtree": "catalog:",
     "ps-list": "catalog:",

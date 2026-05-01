@@ -1,5 +1,35 @@
 # @pnpm/default-resolver
 
+## 1100.0.7
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/resolving.tarball-resolver@1100.0.3
+  - @pnpm/resolving.local-resolver@1100.0.4
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/resolving.git-resolver@1100.0.3
+  - @pnpm/resolving.npm-resolver@1101.0.1
+  - @pnpm/fetching.types@1100.0.1
+  - @pnpm/engine.runtime.bun-resolver@1101.0.2
+  - @pnpm/engine.runtime.deno-resolver@1101.0.2
+  - @pnpm/engine.runtime.node-resolver@1101.0.2
+  - @pnpm/hooks.types@1100.0.4
+
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/engine.runtime.node-resolver@1101.0.1
+
+## 1100.0.5
+
+### Patch Changes
+
+- @pnpm/engine.runtime.bun-resolver@1101.0.1
+- @pnpm/engine.runtime.deno-resolver@1101.0.1
+
 ## 1100.0.4
 
 ### Patch Changes

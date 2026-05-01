@@ -1,5 +1,31 @@
 # @pnpm/plugin-commands-config
 
+## 1100.0.7
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/text.naming-cases@1100.0.1
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/cli.utils@1101.0.2
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.4
+
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/cli.utils@1101.0.1
+- @pnpm/workspace.workspace-manifest-writer@1100.0.3
+
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [0fbcf74]
+  - @pnpm/config.reader@1101.1.2
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.3
+
 ## 1100.0.4
 
 ### Patch Changes

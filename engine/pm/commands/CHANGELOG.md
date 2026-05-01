@@ -1,5 +1,69 @@
 # @pnpm/engine.pm.commands
 
+## 1101.1.3
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/workspace.project-manifest-reader@1100.0.3
+  - @pnpm/installing.deps-restorer@1101.0.3
+  - @pnpm/store.connection-manager@1100.0.8
+  - @pnpm/resolving.npm-resolver@1101.0.1
+  - @pnpm/deps.graph-hasher@1100.1.2
+  - @pnpm/installing.client@1100.0.7
+  - @pnpm/store.controller@1101.0.2
+  - @pnpm/building.policy@1100.0.2
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/bins.linker@1100.0.3
+  - @pnpm/shell.path@1100.0.1
+  - @pnpm/cli.utils@1101.0.2
+  - @pnpm/cli.meta@1100.0.2
+  - @pnpm/installing.env-installer@1101.0.3
+  - @pnpm/global.commands@1100.0.8
+  - @pnpm/lockfile.types@1100.0.3
+  - @pnpm/global.packages@1100.0.2
+
+## 1101.1.2
+
+### Patch Changes
+
+- Updated dependencies [685a369]
+  - @pnpm/installing.deps-restorer@1101.0.2
+  - @pnpm/global.commands@1100.0.7
+  - @pnpm/cli.utils@1101.0.1
+  - @pnpm/store.controller@1101.0.1
+  - @pnpm/installing.env-installer@1101.0.2
+  - @pnpm/store.connection-manager@1100.0.7
+
+## 1101.1.1
+
+### Patch Changes
+
+- 0fbcf74: `pnpm self-update` now keeps `package.json`'s `packageManager` and `devEngines.packageManager` in sync. When the legacy `packageManager` field pins pnpm, both fields are rewritten to the new exact pnpm version on update — `packageManager` to `pnpm@<version>` (without an integrity hash), and `devEngines.packageManager.version` to the same exact `<version>` (dropping any range operator). When only `devEngines.packageManager` is declared, the existing range-preserving behavior is unchanged [#11388](https://github.com/pnpm/pnpm/issues/11388).
+- Updated dependencies [0fbcf74]
+  - @pnpm/config.reader@1101.1.2
+  - @pnpm/global.commands@1100.0.6
+  - @pnpm/store.connection-manager@1100.0.6
+  - @pnpm/installing.deps-restorer@1101.0.1
+  - @pnpm/installing.client@1100.0.6
+  - @pnpm/installing.env-installer@1101.0.1
+  - @pnpm/store.controller@1101.0.0
+
+## 1101.1.0
+
+### Minor Changes
+
+- 390b9d1: `pnpm self-update` now prints progress messages so the command isn't silent: `Checking for updates...` before resolving, `Updating pnpm from vX to vY...` once a newer version is found, and `Successfully updated pnpm to vY` on completion.
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.5
+- @pnpm/global.commands@1100.0.5
+- @pnpm/store.connection-manager@1100.0.5
+- @pnpm/store.controller@1101.0.0
+- @pnpm/installing.deps-restorer@1101.0.0
+- @pnpm/installing.env-installer@1101.0.0
+
 ## 1101.0.2
 
 ### Patch Changes

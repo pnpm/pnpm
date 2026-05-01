@@ -1,5 +1,56 @@
 # @pnpm/headless
 
+## 1101.0.3
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+- Updated dependencies [6b891a5]
+  - @pnpm/installing.linking.direct-dep-linker@1100.0.2
+  - @pnpm/installing.linking.modules-cleaner@1100.0.5
+  - @pnpm/workspace.project-manifest-reader@1100.0.3
+  - @pnpm/config.package-is-installable@1100.0.3
+  - @pnpm/installing.linking.real-hoist@1100.0.4
+  - @pnpm/installing.package-requester@1101.0.2
+  - @pnpm/installing.linking.hoist@1100.0.3
+  - @pnpm/building.during-install@1101.0.2
+  - @pnpm/installing.modules-yaml@1100.0.2
+  - @pnpm/store.controller-types@1100.0.4
+  - @pnpm/fs.symlink-dependency@1100.0.2
+  - @pnpm/pkg-manifest.reader@1100.0.2
+  - @pnpm/deps.graph-builder@1100.0.5
+  - @pnpm/deps.graph-hasher@1100.1.2
+  - @pnpm/building.policy@1100.0.2
+  - @pnpm/lockfile.to-pnp@1100.0.4
+  - @pnpm/exec.lifecycle@1100.0.5
+  - @pnpm/bins.linker@1100.0.3
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.4
+  - @pnpm/lockfile.filtering@1100.0.5
+  - @pnpm/worker@1100.1.1
+  - @pnpm/lockfile.fs@1100.0.4
+  - @pnpm/patching.config@1100.0.2
+
+## 1101.0.2
+
+### Patch Changes
+
+- 685a369: Fix `ENOENT` symlink failure when `pnpm add -g` triggers the approve-builds prompt. The global add flow used to forward an absolute `modulesDir` (`<installDir>/node_modules`) into the install run by `approve-builds`. The install layer treated `modulesDir` as a path relative to `lockfileDir` and joined it again, producing a doubled path on Windows because `path.join` does not collapse an embedded absolute path. The hoist step then tried to `mkdir` and symlink under `<installDir>\<installDir>\node_modules\.pnpm\node_modules\...` and failed with `ENOENT` [#11403](https://github.com/pnpm/pnpm/issues/11403).
+- Updated dependencies [d96a1bf]
+  - @pnpm/config.package-is-installable@1100.0.2
+  - @pnpm/deps.graph-builder@1100.0.4
+  - @pnpm/installing.package-requester@1101.0.1
+  - @pnpm/lockfile.filtering@1100.0.4
+  - @pnpm/installing.linking.modules-cleaner@1100.0.4
+
+## 1101.0.1
+
+### Patch Changes
+
+- @pnpm/building.during-install@1101.0.1
+- @pnpm/installing.package-requester@1101.0.0
+
 ## 1101.0.0
 
 ### Patch Changes

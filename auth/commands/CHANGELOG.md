@@ -1,5 +1,27 @@
 # @pnpm/auth.commands
 
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/network.fetch@1100.0.2
+  - @pnpm/cli.utils@1101.0.2
+
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/cli.utils@1101.0.1
+
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [0fbcf74]
+  - @pnpm/config.reader@1101.1.2
+
 ## 1100.0.4
 
 ### Patch Changes

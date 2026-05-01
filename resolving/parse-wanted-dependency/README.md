@@ -1,11 +1,11 @@
-# @pnpm/parse-wanted-dependency
+# @pnpm/resolving.parse-wanted-dependency
 
 > Parse dependency specifier
 
 ## Installation
 
 ```
-pnpm i @pnpm/parse-wanted-dependency
+pnpm i @pnpm/resolving.parse-wanted-dependency
 ```
 
 ## License

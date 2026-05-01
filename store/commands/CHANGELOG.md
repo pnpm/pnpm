@@ -1,5 +1,52 @@
 # @pnpm/store.commands
 
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+- Updated dependencies [5a901e7]
+- Updated dependencies [6b891a5]
+  - @pnpm/resolving.parse-wanted-dependency@1100.0.1
+  - @pnpm/config.normalize-registries@1100.0.2
+  - @pnpm/store.connection-manager@1100.0.8
+  - @pnpm/store.controller-types@1100.0.4
+  - @pnpm/installing.context@1100.0.5
+  - @pnpm/installing.client@1100.0.7
+  - @pnpm/fs.graceful-fs@1100.1.0
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/store.path@1100.0.1
+  - @pnpm/cli.utils@1101.0.2
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.4
+  - @pnpm/lockfile.types@1100.0.3
+  - @pnpm/store.cafs@1100.1.1
+  - @pnpm/global.packages@1100.0.2
+
+## 1100.0.7
+
+### Patch Changes
+
+- @pnpm/cli.utils@1101.0.1
+- @pnpm/installing.context@1100.0.4
+- @pnpm/store.connection-manager@1100.0.7
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [0fbcf74]
+  - @pnpm/config.reader@1101.1.2
+  - @pnpm/store.connection-manager@1100.0.6
+  - @pnpm/installing.client@1100.0.6
+
+## 1100.0.5
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.5
+- @pnpm/store.connection-manager@1100.0.5
+
 ## 1100.0.4
 
 ### Patch Changes

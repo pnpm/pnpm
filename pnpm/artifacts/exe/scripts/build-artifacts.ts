@@ -45,7 +45,7 @@ execa.sync(process.execPath, [pnpmBundle, 'with', 'current', ...packAppArgs], {
 const distSrc = path.join(pnpmRootDir, 'dist')
 const distDest = path.join(exeDir, 'dist')
 fs.rmSync(distDest, { recursive: true, force: true })
-fs.cpSync(distSrc, distDest, { recursive: true })
+fs.cpSync(distSrc, distDest, { recursive: true, verbatimSymlinks: true })
 
 const removeMapFiles = (dir: string): void => {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {

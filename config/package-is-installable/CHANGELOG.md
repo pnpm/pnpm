@@ -1,5 +1,20 @@
 # @pnpm/package-is-installable
 
+## 1100.0.3
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/engine.runtime.system-node-version@1100.0.2
+  - @pnpm/cli.meta@1100.0.2
+
+## 1100.0.2
+
+### Patch Changes
+
+- d96a1bf: Fix negated `os` / `cpu` entries (e.g. `["!win32"]`) being incorrectly rejected when `supportedArchitectures` expands to multiple platforms [#11375](https://github.com/pnpm/pnpm/pull/11375).
+
 ## 1100.0.1
 
 ### Patch Changes

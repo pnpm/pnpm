@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.read-projects-context",
-  "version": "1100.0.3",
+  "version": "1100.0.5",
   "description": "Reads the current state of projects from modules manifest",
   "keywords": [
     "pnpm",
@@ -35,6 +35,7 @@
     "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "path-absolute": "catalog:",
     "realpath-missing": "catalog:"
   },
   "peerDependencies": {

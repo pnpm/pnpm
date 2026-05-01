@@ -1,5 +1,11 @@
 # @pnpm/merge-lockfile-changes
 
+## 1100.0.3
+
+### Patch Changes
+
+- @pnpm/lockfile.types@1100.0.3
+
 ## 1100.0.2
 
 ### Patch Changes

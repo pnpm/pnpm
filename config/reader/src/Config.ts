@@ -224,6 +224,7 @@ export interface Config extends OptionsFromRootManifest {
   agent?: string
 
   registries: Registries
+  namedRegistries?: Record<string, string>
   configByUri: Record<string, RegistryConfig>
   ignoreWorkspaceRootCheck: boolean
   workspaceRoot: boolean

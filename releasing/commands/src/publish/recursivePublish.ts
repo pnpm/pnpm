@@ -137,8 +137,9 @@ export async function recursivePublish (
           gitChecks: false,
           recursive: false,
         }, [pkg.rootDir])
-        if (publishResult?.manifest != null) {
-          publishedPackages.push(pick(['name', 'version'], publishResult.manifest))
+        const publishedManifest = publishResult?.publishedManifest ?? publishResult?.manifest
+        if (publishedManifest != null) {
+          publishedPackages.push(pick(['name', 'version'], publishedManifest))
         } else if (publishResult?.exitCode) {
           return { exitCode: publishResult.exitCode }
         }

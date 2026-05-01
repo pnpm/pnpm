@@ -1,13 +1,13 @@
-# @pnpm/graceful-fs
+# @pnpm/fs.graceful-fs
 
 > Promisified graceful-fs
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/graceful-fs.svg)](https://www.npmjs.com/package/@pnpm/graceful-fs)
+[![npm version](https://img.shields.io/npm/v/@pnpm/fs.graceful-fs.svg)](https://npmx.dev/package/@pnpm/fs.graceful-fs)
 
 ## Installation
 
 ```sh
-pnpm add @pnpm/graceful-fs
+pnpm add @pnpm/fs.graceful-fs
 ```
 
 ## License

@@ -2,7 +2,7 @@
 
 > Update all injected replica of a workspace package
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/workspace.injected-deps-syncer.svg)](https://www.npmjs.com/package/@pnpm/workspace.injected-deps-syncer)
+[![npm version](https://img.shields.io/npm/v/@pnpm/workspace.injected-deps-syncer.svg)](https://npmx.dev/package/@pnpm/workspace.injected-deps-syncer)
 
 ## Installation
 
