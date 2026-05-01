@@ -34,15 +34,25 @@ export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnp
       settings.overrides = mapValues(createVersionReferencesReplacer(manifest), settings.overrides)
     }
   }
-  if (pnpmSettings.patchedDependencies) {
+  if (pnpmSettings.patchedDependencies != null) {
+    assertValidPatchedDependencies(pnpmSettings.patchedDependencies)
     settings.patchedDependencies = { ...pnpmSettings.patchedDependencies }
     for (const [dep, patchFile] of Object.entries(pnpmSettings.patchedDependencies)) {
+      if (typeof patchFile !== 'string') {
+        throw new PnpmError('INVALID_PATCHED_DEPENDENCY', `The value of patchedDependencies.${dep} should be a string, but got ${patchFile === null ? 'null' : typeof patchFile}`)
+      }
       if (manifestDir == null || path.isAbsolute(patchFile)) continue
       settings.patchedDependencies[dep] = path.join(manifestDir, patchFile)
     }
   }
 
   return settings
+}
+
+function assertValidPatchedDependencies (patchedDependencies: unknown): asserts patchedDependencies is Record<string, string> {
+  if (typeof patchedDependencies !== 'object' || Array.isArray(patchedDependencies)) {
+    throw new PnpmError('INVALID_PATCHED_DEPENDENCY', `The patchedDependencies field should be an object, but got ${Array.isArray(patchedDependencies) ? 'array' : typeof patchedDependencies}`)
+  }
 }
 
 function replaceEnvInSettings (settings: PnpmSettings): PnpmSettings {
