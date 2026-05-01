@@ -55,6 +55,25 @@ test('getConfig()', async () => {
   expect(config.nodeVersion).toBeUndefined()
 })
 
+test('onlyInheritDlxSettingsFromLocal inherits nodeDownloadMirrors from pnpm-workspace.yaml', async () => {
+  prepare({})
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['.'],
+    nodeDownloadMirrors: { release: 'https://mirror.example/nodejs/' },
+  })
+  const cwd = process.cwd()
+  const { config } = await getConfig({
+    cliOptions: { dir: cwd },
+    workspaceDir: cwd,
+    packageManager: {
+      name: 'pnpm',
+      version: '9.0.0',
+    },
+    onlyInheritDlxSettingsFromLocal: true,
+  })
+  expect(config.nodeDownloadMirrors).toStrictEqual({ release: 'https://mirror.example/nodejs/' })
+})
+
 test.each([
   { field: 'devEngines' as const, version: '22.20.0', onFail: 'download' as const, expected: '22.20.0' },
   { field: 'devEngines' as const, version: '22.20.0', onFail: 'error' as const, expected: '22.20.0' },
