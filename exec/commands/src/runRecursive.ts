@@ -154,6 +154,7 @@ export async function runRecursive (
       })
       .flat();
 
+    // eslint-disable-next-line no-await-in-loop
     await Promise.all(
       selectedScripts.map(async ({ prefix, scriptName }) =>
         limitRun(async () => {
