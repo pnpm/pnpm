@@ -89,6 +89,9 @@
       "path": "../../../workspace/projects-filter"
     },
     {
+      "path": "../../security/signatures"
+    },
+    {
       "path": "../audit"
     },
     {
@@ -99,9 +102,6 @@
     },
     {
       "path": "../sbom"
-    },
-    {
-      "path": "../signatures"
     }
   ]
 }

@@ -1,13 +1,13 @@
-# @pnpm/deps.compliance.signatures
+# @pnpm/deps.security.signatures
 
 > Verify package signatures from npm registries
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/deps.compliance.signatures.svg)](https://npmx.dev/package/@pnpm/deps.compliance.signatures)
+[![npm version](https://img.shields.io/npm/v/@pnpm/deps.security.signatures.svg)](https://npmx.dev/package/@pnpm/deps.security.signatures)
 
 ## Installation
 
 ```sh
-pnpm add @pnpm/deps.compliance.signatures
+pnpm add @pnpm/deps.security.signatures
 ```
 
 ## Signature Verification

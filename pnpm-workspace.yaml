@@ -15,6 +15,7 @@ packages:
   - deps/*
   - deps/compliance/*
   - deps/inspection/*
+  - deps/security/*
   - engine/*
   - engine/pm/*
   - engine/runtime/*

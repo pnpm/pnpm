@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/deps.compliance.signatures",
+  "name": "@pnpm/deps.security.signatures",
   "version": "1101.0.0",
   "description": "Verify package signatures from npm registries",
   "keywords": [
@@ -10,8 +10,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/deps/compliance/signatures",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/deps/compliance/signatures#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/deps/security/signatures",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/deps/security/signatures#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -43,7 +43,7 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/deps.compliance.signatures": "workspace:*",
+    "@pnpm/deps.security.signatures": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/testing.mock-agent": "workspace:*"
   },

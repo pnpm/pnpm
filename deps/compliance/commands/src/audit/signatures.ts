@@ -1,7 +1,7 @@
 import { TABLE_OPTIONS } from '@pnpm/cli.utils'
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { lockfileToAuditRequest } from '@pnpm/deps.compliance.audit'
-import { type SignaturePackage, type SignatureVerificationResult, verifySignatures } from '@pnpm/deps.compliance.signatures'
+import { type SignaturePackage, type SignatureVerificationResult, verifySignatures } from '@pnpm/deps.security.signatures'
 import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { table } from '@zkochan/table'
