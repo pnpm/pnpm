@@ -293,7 +293,16 @@ function verifyPackageSignatures (
     verifier.write(message)
     verifier.end()
     const pem = `-----BEGIN PUBLIC KEY-----\n${key.key}\n-----END PUBLIC KEY-----`
-    if (!verifier.verify(pem, signature.sig, 'base64')) {
+    // crypto.verify can throw on malformed PEM key material or signature bytes
+    // returned by the registry; treat any failure as an invalid signature so
+    // one bad key doesn't crash the whole audit.
+    let verified: boolean
+    try {
+      verified = verifier.verify(pem, signature.sig, 'base64')
+    } catch {
+      verified = false
+    }
+    if (!verified) {
       const reason = `${pkg.name}@${pkg.version} has an invalid registry signature with keyid ${signature.keyid}`
       return toSignatureIssue(pkg, reason)
     }

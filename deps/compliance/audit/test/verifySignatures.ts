@@ -94,6 +94,33 @@ describe('verifySignatures', () => {
     }])
   })
 
+  test('reports malformed registry keys as invalid signatures instead of crashing', async () => {
+    const key = createSigningKey()
+    getMockAgent().get(REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/keys', method: 'GET' })
+      .reply(200, {
+        keys: [{
+          expires: null,
+          key: 'not-actually-base64-pem-content',
+          keyid: key.keyid,
+          keytype: 'ecdsa-sha2-nistp256',
+          scheme: 'ecdsa-sha2-nistp256',
+        }],
+      })
+    mockPackument({
+      signatures: [{ keyid: key.keyid, sig: key.sign('signed-pkg@1.0.0', INTEGRITY) }],
+    })
+
+    const result = await verifySignatures([
+      { name: 'signed-pkg', registry: REGISTRY, version: '1.0.0' },
+    ], () => undefined, {})
+
+    expect(result.verified).toBe(0)
+    expect(result.missing).toEqual([])
+    expect(result.invalid).toHaveLength(1)
+    expect(result.invalid[0].reason).toBe(`signed-pkg@1.0.0 has an invalid registry signature with keyid ${key.keyid}`)
+  })
+
   test('reports signatures with unknown keys', async () => {
     const key = createSigningKey()
     mockRegistryKey(key)
