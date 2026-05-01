@@ -20,6 +20,7 @@ import { renderHelp } from 'render-help'
 export type SbomCommandOptions = {
   sbomFormat?: string
   sbomType?: string
+  sbomSpecVersion?: string
   lockfileOnly?: boolean
   sbomAuthors?: string
   sbomSupplier?: string
@@ -55,6 +56,7 @@ export const cliOptionsTypes = (): Record<string, unknown> => ({
   recursive: Boolean,
   'sbom-format': String,
   'sbom-type': String,
+  'sbom-spec-version': String,
   'sbom-authors': String,
   'sbom-supplier': String,
   'lockfile-only': Boolean,
@@ -81,6 +83,10 @@ export function help (): string {
           {
             description: 'The component type for the root package (default: library)',
             name: '--sbom-type <library|application>',
+          },
+          {
+            description: 'The SBOM specification version (e.g., 1.6 or 1.7 for CycloneDX)',
+            name: '--sbom-spec-version <version>',
           },
           {
             description: 'Only use lockfile data (skip reading from the store)',
@@ -217,6 +223,7 @@ export async function handler (
       lockfileOnly: opts.lockfileOnly,
       sbomAuthors: opts.sbomAuthors?.split(',').map((s) => s.trim()).filter(Boolean),
       sbomSupplier: opts.sbomSupplier,
+      specVersion: opts.sbomSpecVersion,
     })
     : serializeSpdx(result)
 
