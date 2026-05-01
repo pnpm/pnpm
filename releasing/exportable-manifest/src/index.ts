@@ -15,15 +15,6 @@ import { type ExportedManifest, transform } from './transform/index.js'
 
 export { type ExportedManifest }
 
-const PREPUBLISH_SCRIPTS = [
-  'prepublishOnly',
-  'prepack',
-  'prepare',
-  'postpack',
-  'publish',
-  'postpublish',
-]
-
 export interface MakePublishManifestOptions {
   catalogs: Catalogs
   hooks?: Hooks
@@ -36,10 +27,7 @@ export async function createExportableManifest (
   originalManifest: ProjectManifest,
   opts: MakePublishManifestOptions
 ): Promise<ExportedManifest> {
-  let publishManifest: ProjectManifest = omit(['scripts', 'packageManager', 'pnpm' as keyof ProjectManifest], originalManifest)
-  if (originalManifest.scripts != null) {
-    publishManifest.scripts = omit(PREPUBLISH_SCRIPTS, originalManifest.scripts)
-  }
+  let publishManifest: ProjectManifest = omit(['pnpm' as keyof ProjectManifest], originalManifest)
 
   const catalogResolver = resolveFromCatalog.bind(null, opts.catalogs)
   const replaceCatalogProtocol = resolveCatalogProtocol.bind(null, catalogResolver)
