@@ -279,6 +279,14 @@ export async function runRecursive (
         message: `None of the selected packages has a '${scriptName}' script`,
         prefix: opts.workspaceDir ?? opts.dir,
       });
+
+      if (opts.reportSummary) {
+        await writeRecursiveSummary({
+          dir: opts.workspaceDir ?? opts.dir,
+          summary: result,
+        });
+      }
+
       return;
     }
 

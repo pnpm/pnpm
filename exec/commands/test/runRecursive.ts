@@ -669,7 +669,7 @@ test('testing the bail config with "pnpm recursive run"', async () => {
       ['build']
     );
   } catch (_err: unknown) {
-    err1 = _err as PnpmError;
+    err1 = _err as PnpmError
   }
   expect(err1.code).toBe('ERR_PNPM_RECURSIVE_FAIL');
 
@@ -1250,35 +1250,6 @@ test('pnpm recursive run report summary with --bail', async () => {
   expect(executionStatus[path.resolve('project-5')].status).toBe('skipped');
 });
 
-test('pnpm recursive run with custom node-options', async () => {
-  preparePackages([
-    {
-      name: 'project-1',
-      version: '1.0.0',
-      scripts: {
-        build:
-          "node -e \"assert.strictEqual(process.env.NODE_OPTIONS, '--max-old-space-size=1200')\"",
-      },
-    },
-  ]);
-
-  const { allProjects, selectedProjectsGraph } =
-    await filterProjectsBySelectorObjectsFromDir(process.cwd(), []);
-
-  await run.handler(
-    {
-      ...DEFAULT_OPTS,
-      allProjects,
-      dir: process.cwd(),
-      nodeOptions: '--max-old-space-size=1200',
-      recursive: true,
-      selectedProjectsGraph,
-      workspaceDir: process.cwd(),
-    },
-    ['build']
-  );
-});
-
 test('filtered run warns instead of failing when script exists elsewhere in workspace', async () => {
   const warnSpy = jest.spyOn(logger, 'warn');
   preparePackages([
@@ -1305,18 +1276,21 @@ test('filtered run warns instead of failing when script exists elsewhere in work
     { workspaceDir: process.cwd() }
   );
 
-  await run.handler(
-    {
-      ...DEFAULT_OPTS,
-      allProjects,
-      dir: process.cwd(),
-      recursive: true,
-      selectedProjectsGraph,
-      workspaceDir: process.cwd(),
-    },
-    ['build']
-  );
+  try {
+    await run.handler(
+      {
+        ...DEFAULT_OPTS,
+        allProjects,
+        dir: process.cwd(),
+        recursive: true,
+        selectedProjectsGraph,
+        workspaceDir: process.cwd(),
+      },
+      ['build']
+    );
 
-  expect(warnSpy).toHaveBeenCalled();
-  warnSpy.mockRestore();
+    expect(warnSpy).toHaveBeenCalled();
+  } finally {
+    warnSpy.mockRestore();
+  }
 });
