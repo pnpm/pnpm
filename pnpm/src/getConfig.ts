@@ -13,6 +13,7 @@ import { lexCompare } from '@pnpm/util.lex-comparator'
 export async function getConfig (
   cliOptions: CliOptions,
   opts: {
+    argv?: { remain: string[], cooked: string[], original: string[] }
     excludeReporter: boolean
     globalDirShouldAllowWrite?: boolean
     workspaceDir: string | undefined
@@ -21,6 +22,7 @@ export async function getConfig (
 ): Promise<{ config: Config, context: ConfigContext }> {
   const { config, context, warnings } = await _getConfig({
     cliOptions,
+    argv: opts.argv,
     globalDirShouldAllowWrite: opts.globalDirShouldAllowWrite,
     packageManager,
     workspaceDir: opts.workspaceDir,
