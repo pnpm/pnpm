@@ -1,3 +1,4 @@
+import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { pick } from 'ramda'
@@ -72,6 +73,18 @@ export async function handler (
 
     if (fields.length === 1) {
       const value = selectedFields[fields[0]]
+      if (fields[0] === 'versions') {
+        const formattedValue = formatFieldValue(value)
+        if (process.stdout.isTTY) {
+          const registry = typeof info.name === 'string'
+            ? pickRegistryForPackage(opts.registries, info.name)
+            : opts.registries?.default
+          if (registry) {
+            return `registry: ${registry}\n${formattedValue}`
+          }
+        }
+        return formattedValue
+      }
       return formatFieldValue(value)
     }
 
