@@ -39,7 +39,7 @@ test('inheritAuthConfig copies only auth keys from source to target', () => {
   })
 })
 
-test('inheritDlxConfig copies auth and security policy keys from source to target', () => {
+test('inheritDlxConfig copies auth, security policy, and nodeDownloadMirrors from source to target', () => {
   const target: InheritableConfigPair = {
     config: {
       bin: 'foo',
@@ -59,6 +59,7 @@ test('inheritDlxConfig copies auth and security policy keys from source to targe
       storeDir: '/path/to/custom/store/dir',
       registry: 'https://example.com/local-registry/',
       shamefullyHoist: false,
+      nodeDownloadMirrors: { release: 'https://mirror.example/nodejs/' },
       minimumReleaseAge: 1440,
       minimumReleaseAgeExclude: ['trusted-pkg'],
       minimumReleaseAgeStrict: true,
@@ -72,13 +73,14 @@ test('inheritDlxConfig copies auth and security policy keys from source to targe
     },
   })
 
-  // Auth keys and security/trust policy keys are inherited;
+  // Auth, trust-policy, and Node mirror keys are inherited from the local workspace;
   // project-structural keys (bin, cacheDir, shamefullyHoist) keep their target values.
   expect(target.config).toMatchObject({
     bin: 'foo',
     cacheDir: '/path/to/cache/dir',
     shamefullyHoist: true,
     registry: 'https://example.com/local-registry/',
+    nodeDownloadMirrors: { release: 'https://mirror.example/nodejs/' },
     minimumReleaseAge: 1440,
     minimumReleaseAgeExclude: ['trusted-pkg'],
     minimumReleaseAgeStrict: true,
