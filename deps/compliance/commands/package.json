@@ -47,6 +47,7 @@
     "@pnpm/deps.compliance.license-resolver": "workspace:*",
     "@pnpm/deps.compliance.license-scanner": "workspace:*",
     "@pnpm/deps.compliance.sbom": "workspace:*",
+    "@pnpm/deps.compliance.signatures": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/installing.commands": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",

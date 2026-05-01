@@ -99,6 +99,9 @@
     },
     {
       "path": "../sbom"
+    },
+    {
+      "path": "../signatures"
     }
   ]
 }

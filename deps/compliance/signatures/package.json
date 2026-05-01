@@ -1,16 +1,17 @@
 {
-  "name": "@pnpm/deps.compliance.audit",
-  "version": "1101.0.3",
-  "description": "Audit a lockfile",
+  "name": "@pnpm/deps.compliance.signatures",
+  "version": "1101.0.0",
+  "description": "Verify package signatures from npm registries",
   "keywords": [
     "pnpm",
     "pnpm11",
-    "audit"
+    "audit",
+    "signatures"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/deps/compliance/audit",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/deps/compliance/audit#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/deps/compliance/signatures",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/deps/compliance/signatures#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -32,29 +33,19 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
-    "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching.types": "workspace:*",
-    "@pnpm/lockfile.detect-dep-types": "workspace:*",
-    "@pnpm/lockfile.fs": "workspace:*",
-    "@pnpm/lockfile.types": "workspace:*",
-    "@pnpm/lockfile.utils": "workspace:*",
-    "@pnpm/lockfile.walker": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
-    "@pnpm/types": "workspace:*",
-    "semver": "catalog:"
+    "p-limit": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/constants": "workspace:*",
-    "@pnpm/deps.compliance.audit": "workspace:*",
+    "@pnpm/deps.compliance.signatures": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/test-fixtures": "workspace:*",
-    "@pnpm/testing.mock-agent": "workspace:*",
-    "@types/semver": "catalog:"
+    "@pnpm/testing.mock-agent": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

@@ -1,5 +1,5 @@
 ---
-"@pnpm/deps.compliance.audit": minor
+"@pnpm/deps.compliance.signatures": minor
 "@pnpm/deps.compliance.commands": minor
 "pnpm": minor
 ---

@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 
 import { afterEach, beforeEach, describe, expect, test } from '@jest/globals'
-import { verifySignatures } from '@pnpm/deps.compliance.audit'
+import { verifySignatures } from '@pnpm/deps.compliance.signatures'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 
 const REGISTRY = 'https://registry.example.test/'

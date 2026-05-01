@@ -2907,9 +2907,6 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../../core/types
-      p-limit:
-        specifier: 'catalog:'
-        version: 7.3.0
       semver:
         specifier: 'catalog:'
         version: 7.7.4
@@ -2974,6 +2971,9 @@ importers:
       '@pnpm/deps.compliance.sbom':
         specifier: workspace:*
         version: link:../sbom
+      '@pnpm/deps.compliance.signatures':
+        specifier: workspace:*
+        version: link:../signatures
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../../core/error
@@ -3223,6 +3223,34 @@ importers:
       '@types/ssri':
         specifier: 'catalog:'
         version: 7.1.5
+
+  deps/compliance/signatures:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../../core/error
+      '@pnpm/fetching.types':
+        specifier: workspace:*
+        version: link:../../../fetching/types
+      '@pnpm/network.fetch':
+        specifier: workspace:*
+        version: link:../../../network/fetch
+      p-limit:
+        specifier: 'catalog:'
+        version: 7.3.0
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
+      '@pnpm/deps.compliance.signatures':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../../core/logger
+      '@pnpm/testing.mock-agent':
+        specifier: workspace:*
+        version: link:../../../testing/mock-agent
 
   deps/graph-builder:
     dependencies:
