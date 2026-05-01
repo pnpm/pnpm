@@ -63,7 +63,7 @@ interface Packument {
   versions?: Record<string, PackumentVersion>
 }
 
-export async function verifySignatures(
+export async function verifySignatures (
   packages: SignaturePackage[],
   getAuthHeader: GetAuthHeader,
   opts: VerifySignaturesOptions
@@ -191,7 +191,7 @@ async function fetchRegistryKeys (
 }
 
 
-async function getPackument(
+async function getPackument (
   pkg: SignaturePackage,
   getAuthHeader: GetAuthHeader,
   opts: VerifySignaturesOptions,
@@ -207,7 +207,7 @@ async function getPackument(
   return packument
 }
 
-async function fetchPackument(
+async function fetchPackument (
   pkg: SignaturePackage,
   getAuthHeader: GetAuthHeader,
   opts: VerifySignaturesOptions
@@ -255,7 +255,7 @@ async function fetchPackument(
   return body
 }
 
-function verifyPackageSignatures(
+function verifyPackageSignatures (
   pkg: SignaturePackage & {
     integrity: string
     publishedAt?: string
@@ -292,7 +292,7 @@ function verifyPackageSignatures(
   return undefined
 }
 
-function toSignatureIssue(
+function toSignatureIssue (
   pkg: SignaturePackage & { integrity?: string, resolved?: string },
   reason: string
 ): SignatureIssue {
@@ -306,7 +306,7 @@ function toSignatureIssue(
   }
 }
 
-function toUri(pkgName: string, registry: string): string {
+function toUri (pkgName: string, registry: string): string {
   let encodedName: string
   if (pkgName[0] === '@') {
     encodedName = `@${encodeURIComponent(pkgName.slice(1))}`
@@ -316,7 +316,7 @@ function toUri(pkgName: string, registry: string): string {
   return new url.URL(encodedName, registry.endsWith('/') ? registry : `${registry}/`).toString()
 }
 
-function isRegistryKeysResponse(body: unknown): body is RegistryKeysResponse {
+function isRegistryKeysResponse (body: unknown): body is RegistryKeysResponse {
   return typeof body === 'object' && body != null &&
     Array.isArray((body as RegistryKeysResponse).keys) &&
     (body as RegistryKeysResponse).keys.every((key) => typeof key === 'object' && key != null &&
@@ -327,10 +327,10 @@ function isRegistryKeysResponse(body: unknown): body is RegistryKeysResponse {
       (key.expires == null || typeof key.expires === 'string'))
 }
 
-function isPackument(body: unknown): body is Packument {
+function isPackument (body: unknown): body is Packument {
   return typeof body === 'object' && body != null && typeof (body as Packument).versions === 'object' && (body as Packument).versions != null
 }
 
-function sortIssue(a: SignatureIssue, b: SignatureIssue): number {
+function sortIssue (a: SignatureIssue, b: SignatureIssue): number {
   return `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`)
 }
