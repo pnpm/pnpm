@@ -54,3 +54,34 @@ test('getOptionsFromPnpmSettings() converts allowBuilds', () => {
     },
   })
 })
+
+test('getOptionsFromPnpmSettings() rejects non-string overrides values', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    overrides: {
+      foo: null,
+    } as unknown as Record<string, string>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_OVERRIDES',
+    message: 'The value of overrides.foo should be a string, but got null',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects array overrides values', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    overrides: {
+      foo: [],
+    } as unknown as Record<string, string>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_OVERRIDES',
+    message: 'The value of overrides.foo should be a string, but got array',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects non-object overrides values', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    overrides: [] as unknown as Record<string, string>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_OVERRIDES',
+    message: 'The overrides field should be an object, but got array',
+  }))
+})
