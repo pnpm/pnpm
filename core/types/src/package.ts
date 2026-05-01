@@ -114,6 +114,7 @@ export interface BaseManifest {
   cpu?: string[]
   os?: string[]
   libc?: string[]
+  registry?: string
   main?: string
   module?: string
   typings?: string
