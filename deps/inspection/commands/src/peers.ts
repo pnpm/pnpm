@@ -66,6 +66,7 @@ export type PeersCommandOptions = Pick<Config,
 | 'dir'
 | 'modulesDir'
 | 'peerDependencyRules'
+| 'resolvePeersFromWorkspaceRoot'
 > & Pick<ConfigContext, 'selectedProjectsGraph'>
 & Partial<Pick<ConfigContext, 'cliOptions'>> & {
   json?: boolean
@@ -100,6 +101,9 @@ async function checkCmd (
     checkWantedLockfileOnly: opts.lockfileOnly,
     modulesDir: opts.modulesDir,
     peerDependencyRules: opts.peerDependencyRules,
+    // Defaults to true (matches install-time behavior). When the user opts
+    // out via config, the lockfile-based check should reflect the same.
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot ?? true,
   })
 
   const noIssues = hasNoIssues(issues)
