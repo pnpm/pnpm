@@ -786,18 +786,28 @@ test('`pnpm recursive run` should always trust the scripts', async () => {
     path.resolve(DEFAULT_OPTS.storeDir),
   ]);
 
+  const prev = process.env.pnpm_config_unsafe_perm;
+
   process.env['pnpm_config_unsafe_perm'] = 'false';
-  await run.handler(
-    {
-      ...DEFAULT_OPTS,
-      dir: process.cwd(),
-      recursive: true,
-      workspaceDir: process.cwd(),
-      ...(await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])),
-    },
-    ['build']
-  );
-  delete process.env.pnpm_config_unsafe_perm;
+
+  try {
+    await run.handler(
+      {
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+        recursive: true,
+        workspaceDir: process.cwd(),
+        ...(await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])),
+      },
+      ['build']
+    );
+  } finally {
+    if (prev === undefined) {
+      delete process.env.pnpm_config_unsafe_perm;
+    } else {
+      process.env.pnpm_config_unsafe_perm = prev;
+    }
+  }
 
   expect(server.getLines()).toStrictEqual(['project']);
 });
