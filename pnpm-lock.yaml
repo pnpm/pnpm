@@ -2947,6 +2947,9 @@ importers:
       '@pnpm/cli.utils':
         specifier: workspace:*
         version: link:../../../cli/utils
+      '@pnpm/config.pick-registry-for-package':
+        specifier: workspace:*
+        version: link:../../../config/pick-registry-for-package
       '@pnpm/config.reader':
         specifier: workspace:*
         version: link:../../../config/reader
@@ -2968,6 +2971,9 @@ importers:
       '@pnpm/deps.compliance.sbom':
         specifier: workspace:*
         version: link:../sbom
+      '@pnpm/deps.security.signatures':
+        specifier: workspace:*
+        version: link:../../security/signatures
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../../core/error
@@ -3736,6 +3742,34 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.7.1
+
+  deps/security/signatures:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../../core/error
+      '@pnpm/fetching.types':
+        specifier: workspace:*
+        version: link:../../../fetching/types
+      '@pnpm/network.fetch':
+        specifier: workspace:*
+        version: link:../../../network/fetch
+      p-limit:
+        specifier: 'catalog:'
+        version: 7.3.0
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
+      '@pnpm/deps.security.signatures':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../../core/logger
+      '@pnpm/testing.mock-agent':
+        specifier: workspace:*
+        version: link:../../../testing/mock-agent
 
   deps/status:
     dependencies:

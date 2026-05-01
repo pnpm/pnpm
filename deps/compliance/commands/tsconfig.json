@@ -29,6 +29,9 @@
       "path": "../../../cli/utils"
     },
     {
+      "path": "../../../config/pick-registry-for-package"
+    },
+    {
       "path": "../../../config/reader"
     },
     {
@@ -84,6 +87,9 @@
     },
     {
       "path": "../../../workspace/projects-filter"
+    },
+    {
+      "path": "../../security/signatures"
     },
     {
       "path": "../audit"
