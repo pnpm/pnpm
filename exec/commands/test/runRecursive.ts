@@ -486,8 +486,10 @@ test('`pnpm recursive run` fails when run against a subset of packages and no pa
     ['this-command-does-not-exist']
   );
 
-  await expect(
-    run.handler(
+  const warnSpy = jest.spyOn(logger, 'warn');
+
+  try {
+    await run.handler(
       {
         ...DEFAULT_OPTS,
         allProjects,
@@ -497,8 +499,16 @@ test('`pnpm recursive run` fails when run against a subset of packages and no pa
         workspaceDir: process.cwd(),
       },
       ['this-command-does-not-exist']
-    )
-  ).rejects.toThrow(/None of the selected packages has a/);
+    );
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining('None of the selected packages has a'),
+      })
+    );
+  } finally {
+    warnSpy.mockRestore();
+  }
 });
 
 test('"pnpm run --filter <pkg>" without specifying the script name', async () => {
