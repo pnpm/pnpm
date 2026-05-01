@@ -53,7 +53,7 @@ interface PackumentVersion {
   dist?: {
     integrity?: string
     shasum?: string
-    signatures?: PackageSignature[]
+    signatures?: unknown
     tarball?: string
   }
 }
@@ -101,7 +101,16 @@ export async function verifySignatures (
 
     const integrity = version?.dist?.integrity
     const resolved = version?.dist?.tarball
-    const signatures = version?.dist?.signatures ?? []
+    const rawSignatures = version?.dist?.signatures
+    if (rawSignatures != null && !Array.isArray(rawSignatures)) {
+      result.invalid.push({ ...pkg, integrity, resolved, reason: `Malformed registry signatures metadata for ${pkg.name}@${pkg.version}` })
+      return
+    }
+    const signatures = rawSignatures ?? []
+    if (!signatures.every(isPackageSignature)) {
+      result.invalid.push({ ...pkg, integrity, resolved, reason: `Malformed registry signatures metadata for ${pkg.name}@${pkg.version}` })
+      return
+    }
     if (!version) {
       result.invalid.push({ ...pkg, reason: `Missing registry metadata for ${pkg.name}@${pkg.version}` })
       return
@@ -329,6 +338,12 @@ function isRegistryKeysResponse (body: unknown): body is RegistryKeysResponse {
 
 function isPackument (body: unknown): body is Packument {
   return typeof body === 'object' && body != null && typeof (body as Packument).versions === 'object' && (body as Packument).versions != null
+}
+
+function isPackageSignature (signature: unknown): signature is PackageSignature {
+  return typeof signature === 'object' && signature != null &&
+    typeof (signature as PackageSignature).keyid === 'string' &&
+    typeof (signature as PackageSignature).sig === 'string'
 }
 
 function sortIssue (a: SignatureIssue, b: SignatureIssue): number {

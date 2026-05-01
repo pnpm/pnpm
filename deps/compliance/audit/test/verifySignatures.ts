@@ -73,6 +73,27 @@ describe('verifySignatures', () => {
     })
   })
 
+  test('reports malformed signatures metadata as invalid', async () => {
+    const key = createSigningKey()
+    mockRegistryKey(key)
+    mockPackument({ signatures: 'not-an-array' })
+
+    const result = await verifySignatures([
+      { name: 'signed-pkg', registry: REGISTRY, version: '1.0.0' },
+    ], () => undefined, {})
+
+    expect(result.verified).toBe(0)
+    expect(result.missing).toEqual([])
+    expect(result.invalid).toEqual([{
+      name: 'signed-pkg',
+      registry: REGISTRY,
+      version: '1.0.0',
+      integrity: INTEGRITY,
+      resolved: `${REGISTRY}signed-pkg/-/signed-pkg-1.0.0.tgz`,
+      reason: 'Malformed registry signatures metadata for signed-pkg@1.0.0',
+    }])
+  })
+
   test('reports signatures with unknown keys', async () => {
     const key = createSigningKey()
     mockRegistryKey(key)
@@ -190,7 +211,7 @@ function mockRegistryKey (key: ReturnType<typeof createSigningKey>): void {
     })
 }
 
-function mockPackument (opts: { signatures: Array<{ keyid: string, sig: string }>, time?: string | null }): void {
+function mockPackument (opts: { signatures: unknown, time?: string | null }): void {
   const time = Object.hasOwn(opts, 'time')
     ? (opts.time == null ? {} : { '1.0.0': opts.time })
     : { '1.0.0': '2023-01-01T00:00:00.000Z' }

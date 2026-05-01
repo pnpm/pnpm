@@ -71,7 +71,7 @@ function renderSignatureVerificationResult (result: SignatureVerificationResult)
     lines.push('')
   }
 
-  if (result.audited === 0) {
+  if (result.audited === 0 && result.invalid.length === 0 && result.missing.length === 0 && result.verified === 0) {
     lines.push('No dependencies were installed from a registry with signing keys')
     lines.push('')
   }
