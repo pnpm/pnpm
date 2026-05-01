@@ -10,12 +10,6 @@
 pnpm add @pnpm/deps.compliance.audit
 ```
 
-## Signature Verification
-
-`verifySignatures()` verifies ECDSA registry signatures for installed package versions. It fetches public keys from each package's registry at `/-/npm/v1/keys`, fetches full package metadata, and verifies each signature over `${name}@${version}:${integrity}`.
-
-Registries that do not expose signing keys are skipped. Sigstore provenance attestations are not verified by this package yet.
-
 ## License
 
 MIT
