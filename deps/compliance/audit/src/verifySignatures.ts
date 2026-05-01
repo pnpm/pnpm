@@ -176,17 +176,7 @@ async function fetchRegistryKeys (
     throw new PnpmError(code, message)
   }
 
-  const rawBody = await response.text()
-  let body: unknown
-
-  try {
-    body = JSON.parse(rawBody)
-  } catch (err: unknown) {
-    const reason = util.types.isNativeError(err) ? err.message : String(err)
-    const code = 'AUDIT_SIGNATURE_KEYS_FETCH_FAIL'
-    const message = `The registry keys endpoint (at ${response.url}) returned invalid JSON: ${reason}. Response body: ${rawBody.slice(0, 500)}`
-    throw new PnpmError(code, message)
-  }
+  const body = await parseJsonResponse(response, 'AUDIT_SIGNATURE_KEYS_FETCH_FAIL', 'The registry keys endpoint')
 
   if (!isRegistryKeysResponse(body)) {
     const code = 'AUDIT_SIGNATURE_KEYS_FETCH_FAIL'
@@ -243,17 +233,7 @@ async function fetchPackument (
     throw new PnpmError(code, message)
   }
 
-  const rawBody = await response.text()
-  let body: unknown
-
-  try {
-    body = JSON.parse(rawBody)
-  } catch (err: unknown) {
-    const reason = util.types.isNativeError(err) ? err.message : String(err)
-    const code = 'AUDIT_SIGNATURE_PACKUMENT_FETCH_FAIL'
-    const message = `The packument endpoint (at ${response.url}) returned invalid JSON: ${reason}. Response body: ${rawBody.slice(0, 500)}`
-    throw new PnpmError(code, message)
-  }
+  const body = await parseJsonResponse(response, 'AUDIT_SIGNATURE_PACKUMENT_FETCH_FAIL', 'The packument endpoint')
 
   if (!isPackument(body)) {
     const code = 'AUDIT_SIGNATURE_PACKUMENT_FETCH_FAIL'
@@ -321,6 +301,20 @@ function toSignatureIssue (
     registry: pkg.registry,
     resolved: pkg.resolved,
     version: pkg.version,
+  }
+}
+
+async function parseJsonResponse (
+  response: { url: string, text: () => Promise<string> },
+  errorCode: string,
+  endpointDescription: string
+): Promise<unknown> {
+  const rawBody = await response.text()
+  try {
+    return JSON.parse(rawBody)
+  } catch (err: unknown) {
+    const reason = util.types.isNativeError(err) ? err.message : String(err)
+    throw new PnpmError(errorCode, `${endpointDescription} (at ${response.url}) returned invalid JSON: ${reason}. Response body: ${rawBody.slice(0, 500)}`)
   }
 }
 
