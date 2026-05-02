@@ -1457,6 +1457,22 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           .concat(
             result.newDepPaths.filter((depPath) => dependenciesGraph[depPath].requiresBuild)
           )
+        // Even when scripts are not being run (e.g. per-workspace lockfile installs),
+        // check pending builds against allowBuild to detect unapproved packages.
+        // This ensures strictDepBuilds works with sharedWorkspaceLockfile=false.
+        // See: https://github.com/pnpm/pnpm/issues/9082
+        if (opts.allowBuild) {
+          for (const depPath of ctx.pendingBuilds) {
+            const node = dependenciesGraph[depPath as DepPath]
+            if (node?.requiresBuild) {
+              const allowed = opts.allowBuild(node.name, node.version)
+              if (allowed === undefined) {
+                ignoredBuilds ??= new Set()
+                ignoredBuilds.add(depPath as DepPath)
+              }
+            }
+          }
+        }
       }
       if (!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) {
         // postinstall hooks
