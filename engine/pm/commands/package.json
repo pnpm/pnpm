@@ -43,6 +43,7 @@
     "@pnpm/installing.client": "workspace:*",
     "@pnpm/installing.deps-restorer": "workspace:*",
     "@pnpm/installing.env-installer": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/os.env.path-extender": "catalog:",
     "@pnpm/resolving.npm-resolver": "workspace:*",

@@ -7,6 +7,7 @@ import { type Config, type ConfigContext, parsePackageManager, types as allTypes
 import { PnpmError } from '@pnpm/error'
 import { createResolver } from '@pnpm/installing.client'
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
+import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { whichVersionIsPinned } from '@pnpm/resolving.npm-resolver'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
@@ -117,8 +118,14 @@ export async function handler (
 
   if (opts.wantedPackageManager?.name === packageManager.name) {
     if (opts.wantedPackageManager?.version !== resolution.manifest.version) {
-      if (isImplicitLatest && resolvesToOlder(resolution.manifest.version, opts.wantedPackageManager?.version)) {
-        return `The current project is set to use pnpm v${opts.wantedPackageManager.version}, which is newer than the "latest" version on the registry (v${resolution.manifest.version}). No update performed. Run "pnpm self-update latest" to downgrade.`
+      if (isImplicitLatest) {
+        // Prefer the lockfile-pinned version when available — for range
+        // specs like `>=8.0.0`, the spec's lower bound understates the
+        // version that was actually installed (see #11418 review).
+        const projectCurrentVersion = await readProjectPinnedPnpmVersion(opts.rootProjectManifestDir, opts.wantedPackageManager?.version)
+        if (projectCurrentVersion != null && semver.lt(resolution.manifest.version, projectCurrentVersion)) {
+          return `The current project is set to use pnpm v${projectCurrentVersion}, which is newer than the "latest" version on the registry (v${resolution.manifest.version}). No update performed. Run "pnpm self-update latest" to downgrade.`
+        }
       }
       const { manifest, writeProjectManifest } = await readProjectManifest(opts.rootProjectManifestDir)
       if (manifest.devEngines?.packageManager) {
@@ -236,14 +243,29 @@ function versionSpecFromPinned (version: string, pinnedVersion: PinnedVersion): 
   }
 }
 
-function resolvesToOlder (resolvedVersion: string, currentSpec: string | undefined): boolean {
-  if (currentSpec == null) return false
-  let minCurrent: semver.SemVer | null
+async function readProjectPinnedPnpmVersion (rootProjectManifestDir: string, spec: string | undefined): Promise<string | undefined> {
+  // The env lockfile is the most accurate source for the actually-installed
+  // pnpm version when the spec is a range. Fall back to the spec's minimum
+  // version when there's no lockfile entry (e.g. exact `packageManager` pins
+  // below v12 don't write to the lockfile). Take the max of the two so we
+  // pick whichever signal is more restrictive.
+  let lockfilePinned: string | undefined
   try {
-    minCurrent = semver.minVersion(currentSpec)
+    const envLockfile = await readEnvLockfile(rootProjectManifestDir)
+    lockfilePinned = envLockfile?.importers['.'].packageManagerDependencies?.pnpm?.version
   } catch {
-    return false
+    // ignore — fall through to spec min version
   }
-  if (minCurrent == null) return false
-  return semver.lt(resolvedVersion, minCurrent.version)
+  let specMin: string | undefined
+  if (spec != null) {
+    try {
+      specMin = semver.minVersion(spec)?.version
+    } catch {
+      // invalid range — ignore
+    }
+  }
+  if (lockfilePinned != null && specMin != null) {
+    return semver.gt(lockfilePinned, specMin) ? lockfilePinned : specMin
+  }
+  return lockfilePinned ?? specMin
 }

@@ -230,11 +230,12 @@ test('self-update refuses to downgrade when latest is older than current', async
 
 test('self-update latest forces the downgrade even when latest is older', async () => {
   const opts = prepare()
-  // Reuse the 9.1.0 fixture tarball — its package.json version drives the
-  // installed pnpm version regardless of what the registry metadata claims,
-  // so this test verifies that the install was attempted (not short-circuited
-  // by the no-downgrade guard) rather than the resulting pinned version.
-  mockRegistryForUpdate(opts.registries.default, '9.1.0', createMetadata('9.1.0', opts.registries.default))
+  // Mocked current pnpm is v9.0.0; mocking `latest` as v8.15.0 makes this an
+  // actual downgrade so the test exercises the explicit-`latest` bypass of
+  // the no-downgrade guard. The fixture tarball is still 9.1.0, but this test
+  // only checks that the install path was reached — not the resulting pinned
+  // version.
+  mockRegistryForUpdate(opts.registries.default, '8.15.0', createMetadata('8.15.0', opts.registries.default))
 
   const output = await selfUpdate.handler(opts, ['latest'])
 
@@ -277,6 +278,48 @@ test('self-update refuses to downgrade the project pin when latest is older', as
 
   expect(output).toBe('The current project is set to use pnpm v10.0.0, which is newer than the "latest" version on the registry (v9.5.0). No update performed. Run "pnpm self-update latest" to downgrade.')
   expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@10.0.0')
+})
+
+test('self-update refuses to downgrade the project pin when the lockfile is pinned above the range', async () => {
+  // Range spec like ">=8.0.0" understates the installed version when the
+  // env lockfile has pinned a higher exact version. The guard must consult
+  // the lockfile, not just the spec's lower bound.
+  const opts = prepare({
+    devEngines: {
+      packageManager: { name: 'pnpm', version: '>=8.0.0' },
+    },
+  })
+  fs.writeFileSync(path.join(opts.dir, 'pnpm-lock.yaml'), [
+    '---',
+    "lockfileVersion: '9.0'",
+    '',
+    'importers:',
+    '',
+    '  .:',
+    '    configDependencies: {}',
+    '    packageManagerDependencies:',
+    '      pnpm:',
+    "        specifier: '>=8.0.0'",
+    '        version: 10.5.0',
+    '',
+    'packages: {}',
+    'snapshots: {}',
+    '---',
+    '',
+  ].join('\n'), 'utf8')
+  getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, createMetadata('9.5.0', opts.registries.default))
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '>=8.0.0',
+    },
+  }, [])
+
+  expect(output).toBe('The current project is set to use pnpm v10.5.0, which is newer than the "latest" version on the registry (v9.5.0). No update performed. Run "pnpm self-update latest" to downgrade.')
 })
 
 test('should update packageManager field when a newer pnpm version is available', async () => {
