@@ -12,7 +12,7 @@ export type ParseWantedDependencyResult = Partial<ParsedWantedDependency> &
   | ParsedWantedDependency
 )
 
-export function parseWantedDependency (rawWantedDependency: string): ParseWantedDependencyResult {
+export function parseWantedDependency (rawWantedDependency = ''): ParseWantedDependencyResult {
   const versionDelimiter = rawWantedDependency.indexOf('@', 1) // starting from 1 to skip the @ that marks scope
   if (versionDelimiter !== -1) {
     const alias = rawWantedDependency.slice(0, versionDelimiter)
