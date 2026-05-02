@@ -1,5 +1,13 @@
 # @pnpm/deps.status
 
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+  - @pnpm/workspace.state@1100.0.7
+
 ## 1100.0.7
 
 ### Patch Changes

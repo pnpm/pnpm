@@ -1,5 +1,12 @@
 # @pnpm/headless
 
+## 1101.0.4
+
+### Patch Changes
+
+- @pnpm/building.during-install@1101.0.3
+- @pnpm/installing.package-requester@1101.0.2
+
 ## 1101.0.3
 
 ### Patch Changes

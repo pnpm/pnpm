@@ -1,5 +1,12 @@
 # @pnpm/cli.commands
 
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+
 ## 1100.0.6
 
 ### Patch Changes

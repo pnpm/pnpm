@@ -1,5 +1,15 @@
 # pnpm
 
+## 11.0.4
+
+### Patch Changes
+
+- Fixed `pnpm ci` not reinstalling workspace package `node_modules` directories after the clean step [#11427](https://github.com/pnpm/pnpm/issues/11427).
+- Remove pnpm's workspace state file when cleaning node_modules so `pnpm ci` performs a fresh install after the clean step.
+- Do not remove `pnpm-lock.yaml` during `pnpm clean` when `lockfile: true` is configured in `pnpm-workspace.yaml`. The lockfile is only removed when the `--lockfile` option is passed to `pnpm clean`.
+- `pnpm self-update` (with no version argument) no longer downgrades pnpm when the registry's `latest` dist-tag points to an older release than the currently active version. Run `pnpm self-update latest` to force a downgrade [#11418](https://github.com/pnpm/pnpm/issues/11418).
+- `minimumReleaseAgeStrict` now defaults to `true` whenever the user explicitly sets `minimumReleaseAge` (via `pnpm-workspace.yaml`, the global `config.yaml`, the CLI, or `pnpm_config_*` env vars).
+
 ## 11.0.3
 
 ### Patch Changes

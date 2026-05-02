@@ -1,5 +1,13 @@
 # @pnpm/deps.compliance.commands
 
+## 1101.1.6
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+  - @pnpm/installing.commands@1100.1.7
+
 ## 1101.1.5
 
 ### Patch Changes

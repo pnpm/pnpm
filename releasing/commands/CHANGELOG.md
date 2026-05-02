@@ -1,5 +1,16 @@
 # @pnpm/releasing.commands
 
+## 1100.2.6
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+  - @pnpm/engine.runtime.commands@1100.0.9
+  - @pnpm/engine.runtime.node-resolver@1101.0.3
+  - @pnpm/installing.commands@1100.1.7
+  - @pnpm/installing.client@1100.0.8
+
 ## 1100.2.5
 
 ### Patch Changes

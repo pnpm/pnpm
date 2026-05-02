@@ -1,5 +1,13 @@
 # @pnpm/engine.runtime.commands
 
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+  - @pnpm/engine.runtime.node-resolver@1101.0.3
+
 ## 1100.0.8
 
 ### Patch Changes
