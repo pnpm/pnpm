@@ -13,6 +13,8 @@ export const shorthands = install.shorthands
 
 export const commandNames = ['ci', 'clean-install', 'ic', 'install-clean']
 
+export const recursiveByDefault = true
+
 export function help (): string {
   return renderHelp({
     aliases: ['clean-install', 'ic', 'install-clean'],
