@@ -52,11 +52,14 @@ const AUTH_CFG_KEYS = [
  *
  * `pnpm dlx` runs packages in isolation from the current project. It must not
  * read project-structural settings (hoisting, linking, workspace layout, etc.)
- * from local config. However, two categories of local settings DO apply:
+ * from local config. However, local settings that affect **where** artifacts are
+ * fetched from DO apply:
  *
  * 1. **Registry & auth:** needed to reach the same package sources
  *    (registries, tokens, certificates).
- * 2. **Security & trust policy:** these reflect the user's or organization's
+ * 2. **Node.js download mirrors:** same idea for Node.js runtime tarballs when
+ *    those URIs are declared in `pnpm-workspace.yaml`.
+ * 3. **Security & trust policy:** these reflect the user's or organization's
  *    security posture and must apply regardless of how a package is installed.
  *    A setting that answers "what am I allowed to download?" belongs here.
  *
@@ -69,6 +72,7 @@ const AUTH_CFG_KEYS = [
  * | Category                       | Inherited by dlx? | Examples                                         |
  * |--------------------------------|--------------------|--------------------------------------------------|
  * | Registry & auth                | Yes                | registry, _authToken, ca                         |
+ * | Node.js download mirrors       | Yes                | nodeDownloadMirrors (workspace/custom tarballs)   |
  * | Security & trust policy        | Yes                | minimumReleaseAge, trustPolicy                   |
  * | Installation structure         | No                 | shamefully-hoist, node-linker, hoist-pattern      |
  * | Workspace settings             | No                 | link-workspace-packages, shared-workspace-lockfile|
@@ -131,7 +135,11 @@ function pickAuthConfig (localCfg: Partial<Config>): Partial<Config> {
 function pickDlxConfig (localCfg: Partial<Config>): Partial<Config> {
   const result: Record<string, unknown> = {}
   for (const key in localCfg) {
-    if (isAuthCfgKey(key as keyof Config) || isSecurityPolicyCfgKey(key as keyof Config)) {
+    if (
+      isAuthCfgKey(key as keyof Config) ||
+      isSecurityPolicyCfgKey(key as keyof Config) ||
+      key === 'nodeDownloadMirrors'
+    ) {
       result[key] = localCfg[key as keyof Config]
     }
   }
