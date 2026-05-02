@@ -75,6 +75,12 @@ export async function handler (
   globalInfo('Checking for updates...')
   const { resolve } = createResolver({ ...opts, configByUri: opts.configByUri })
   const pkgName = 'pnpm'
+  // `pnpm self-update` (no args) defaults to the `latest` dist-tag, but we
+  // refuse to downgrade in that case — `latest` on the registry can lag the
+  // installed version when a new major has shipped without being tagged.
+  // `pnpm self-update latest` (explicit) bypasses the guard so users can
+  // still force a downgrade when they want one.
+  const isImplicitLatest = params.length === 0
   const bareSpecifier = params[0] ?? 'latest'
   const resolution = await resolve({ alias: pkgName, bareSpecifier }, {
     lockfileDir: opts.lockfileDir ?? opts.dir,
@@ -111,6 +117,9 @@ export async function handler (
 
   if (opts.wantedPackageManager?.name === packageManager.name) {
     if (opts.wantedPackageManager?.version !== resolution.manifest.version) {
+      if (isImplicitLatest && resolvesToOlder(resolution.manifest.version, opts.wantedPackageManager?.version)) {
+        return `The current project is set to use pnpm v${opts.wantedPackageManager.version}, which is newer than the "latest" version on the registry (v${resolution.manifest.version}). No update performed. Run "pnpm self-update latest" to downgrade.`
+      }
       const { manifest, writeProjectManifest } = await readProjectManifest(opts.rootProjectManifestDir)
       if (manifest.devEngines?.packageManager) {
         let manifestChanged = false
@@ -163,6 +172,10 @@ export async function handler (
   }
   if (resolution.manifest.version === packageManager.version) {
     return `The currently active ${packageManager.name} v${packageManager.version} is already "${bareSpecifier}" and doesn't need an update`
+  }
+
+  if (isImplicitLatest && semver.lt(resolution.manifest.version, packageManager.version)) {
+    return `The currently active ${packageManager.name} v${packageManager.version} is newer than the "latest" version on the registry (v${resolution.manifest.version}). No update performed. Run "pnpm self-update latest" to downgrade.`
   }
 
   globalInfo(`Updating pnpm from v${packageManager.version} to v${resolution.manifest.version}...`)
@@ -221,4 +234,16 @@ function versionSpecFromPinned (version: string, pinnedVersion: PinnedVersion): 
     case 'minor': return `~${version}`
     case 'patch': return version
   }
+}
+
+function resolvesToOlder (resolvedVersion: string, currentSpec: string | undefined): boolean {
+  if (currentSpec == null) return false
+  let minCurrent: semver.SemVer | null
+  try {
+    minCurrent = semver.minVersion(currentSpec)
+  } catch {
+    return false
+  }
+  if (minCurrent == null) return false
+  return semver.lt(resolvedVersion, minCurrent.version)
 }
