@@ -472,6 +472,20 @@ export async function getConfig (opts: {
     }
   }
 
+  // When the user explicitly sets `minimumReleaseAge`, treat it as strict by
+  // default. Without this, a user-set value would silently fall back to
+  // installing an immature version when no mature version satisfies the
+  // requested range — making the setting look like it had no effect.
+  // The built-in default for `minimumReleaseAge` is intentionally non-strict
+  // for backward compatibility. This must run after env var parsing so
+  // pnpm_config_minimum_release_age also enables strict mode.
+  if (
+    pnpmConfig.explicitlySetKeys.has('minimumReleaseAge') &&
+    pnpmConfig.minimumReleaseAgeStrict == null
+  ) {
+    pnpmConfig.minimumReleaseAgeStrict = true
+  }
+
   overrideSupportedArchitecturesWithCLI(pnpmConfig, cliOptions)
 
   pnpmConfig.useLockfile = (() => {
