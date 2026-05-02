@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-patching
 
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+  - @pnpm/installing.commands@1100.1.7
+  - @pnpm/store.connection-manager@1100.0.9
+
 ## 1100.0.8
 
 ### Patch Changes

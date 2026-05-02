@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-init
 
+## 1100.1.6
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+
 ## 1100.1.5
 
 ### Patch Changes

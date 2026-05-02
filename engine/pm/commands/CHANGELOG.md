@@ -1,5 +1,19 @@
 # @pnpm/engine.pm.commands
 
+## 1101.1.4
+
+### Patch Changes
+
+- c1d29d2: `pnpm self-update` (with no version argument) no longer downgrades pnpm when the registry's `latest` dist-tag points to an older release than the currently active version. Run `pnpm self-update latest` to force a downgrade [#11418](https://github.com/pnpm/pnpm/issues/11418).
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+  - @pnpm/global.commands@1100.0.9
+  - @pnpm/store.connection-manager@1100.0.9
+  - @pnpm/installing.deps-restorer@1101.0.4
+  - @pnpm/installing.client@1100.0.8
+  - @pnpm/store.controller@1101.0.2
+  - @pnpm/installing.env-installer@1101.0.3
+
 ## 1101.1.3
 
 ### Patch Changes

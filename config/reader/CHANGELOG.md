@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 1101.1.4
+
+### Patch Changes
+
+- 42a8f29: `minimumReleaseAgeStrict` now defaults to `true` whenever the user explicitly sets `minimumReleaseAge` (via `pnpm-workspace.yaml`, the global `config.yaml`, the CLI, or `pnpm_config_*` env vars).
+
 ## 1101.1.3
 
 ### Patch Changes

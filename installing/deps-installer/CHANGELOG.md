@@ -1,5 +1,14 @@
 # @pnpm/core
 
+## 1101.0.5
+
+### Patch Changes
+
+- @pnpm/building.after-install@1101.0.5
+- @pnpm/building.during-install@1101.0.3
+- @pnpm/installing.deps-restorer@1101.0.4
+- @pnpm/installing.package-requester@1101.0.2
+
 ## 1101.0.4
 
 ### Patch Changes
