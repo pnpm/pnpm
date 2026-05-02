@@ -429,6 +429,19 @@ export async function getConfig (opts: {
     }
   }
 
+  // When the user explicitly sets `minimumReleaseAge`, treat it as strict by
+  // default. Without this, a user-set value would silently fall back to
+  // installing an immature version when no mature version satisfies the
+  // requested range — making the setting look like it had no effect.
+  // The built-in default for `minimumReleaseAge` is intentionally non-strict
+  // for backward compatibility.
+  if (
+    pnpmConfig.explicitlySetKeys.has('minimumReleaseAge') &&
+    pnpmConfig.minimumReleaseAgeStrict == null
+  ) {
+    pnpmConfig.minimumReleaseAgeStrict = true
+  }
+
   // Merge registries from pnpm-workspace.yaml onto the .npmrc-based registries.
   // The workspace manifest may have set pnpmConfig.registries via addSettingsFromWorkspaceManifestToConfig,
   // but we need to ensure 'default' is always set and all URLs are normalized.

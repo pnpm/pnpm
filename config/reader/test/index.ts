@@ -316,6 +316,72 @@ test('.npmrc does not load pnpm settings', async () => {
   expect(config.authConfig.packages).toBeUndefined()
 })
 
+describe('minimumReleaseAgeStrict default', () => {
+  test('defaults to true when minimumReleaseAge is set in pnpm-workspace.yaml', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: 60,
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.minimumReleaseAge).toBe(60)
+    expect(config.minimumReleaseAgeStrict).toBe(true)
+  })
+
+  test('defaults to true when minimumReleaseAge is set on the CLI', async () => {
+    prepareEmpty()
+
+    const { config } = await getConfig({
+      cliOptions: {
+        'minimum-release-age': 60,
+      },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.minimumReleaseAge).toBe(60)
+    expect(config.minimumReleaseAgeStrict).toBe(true)
+  })
+
+  test('respects an explicit minimumReleaseAgeStrict=false from pnpm-workspace.yaml', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: 60,
+      minimumReleaseAgeStrict: false,
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.minimumReleaseAgeStrict).toBe(false)
+  })
+
+  test('does not become strict when only the built-in default for minimumReleaseAge applies', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {})
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.minimumReleaseAge).toBe(1440)
+    expect(config.minimumReleaseAgeStrict).toBeUndefined()
+  })
+})
+
 test('camelCase settings from pnpm-workspace.yaml are read into typed Config properties', async () => {
   prepareEmpty()
 
