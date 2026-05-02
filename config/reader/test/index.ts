@@ -349,6 +349,22 @@ describe('minimumReleaseAgeStrict default', () => {
     expect(config.minimumReleaseAgeStrict).toBe(true)
   })
 
+  test('defaults to true when minimumReleaseAge is set via pnpm_config_* env var', async () => {
+    prepareEmpty()
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      env: {
+        pnpm_config_minimum_release_age: '60',
+      },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.minimumReleaseAge).toBe(60)
+    expect(config.minimumReleaseAgeStrict).toBe(true)
+  })
+
   test('respects an explicit minimumReleaseAgeStrict=false from pnpm-workspace.yaml', async () => {
     prepareEmpty()
 
