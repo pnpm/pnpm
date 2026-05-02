@@ -51,7 +51,7 @@ describe('version command', () => {
         workspaceDir: tempDir,
         gitChecks: false,
         gitTagVersion: false,
-      } as any, ['invalid']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as unknown as Parameters<typeof handler>[0], ['invalid'])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_VERSION_BUMP' })
   })
 
@@ -64,7 +64,7 @@ describe('version command', () => {
         workspaceDir: tempDir,
         gitChecks: false,
         gitTagVersion: false,
-      } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as unknown as Parameters<typeof handler>[0], [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_VERSION_BUMP' })
   })
 
@@ -76,7 +76,7 @@ describe('version command', () => {
       workspaceDir: tempDir,
       gitChecks: false,
       gitTagVersion: false,
-    } as any, ['major']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as unknown as Parameters<typeof handler>[0], ['major'])
 
     expect(result).toContain('1.2.3 → 2.0.0')
     const updated = JSON.parse(fs.readFileSync(path.join(tempDir, 'package.json'), 'utf-8'))
@@ -91,7 +91,7 @@ describe('version command', () => {
       workspaceDir: tempDir,
       gitChecks: false,
       gitTagVersion: false,
-    } as any, ['minor']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as unknown as Parameters<typeof handler>[0], ['minor'])
 
     expect(result).toContain('1.0.0 → 1.1.0')
     const updated = JSON.parse(fs.readFileSync(path.join(tempDir, 'package.json'), 'utf-8'))
@@ -106,7 +106,7 @@ describe('version command', () => {
       workspaceDir: tempDir,
       gitChecks: false,
       gitTagVersion: false,
-    } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as unknown as Parameters<typeof handler>[0], ['patch'])
 
     expect(result).toContain('1.0.0 → 1.0.1')
     const updated = JSON.parse(fs.readFileSync(path.join(tempDir, 'package.json'), 'utf-8'))
@@ -122,7 +122,7 @@ describe('version command', () => {
       gitChecks: false,
       gitTagVersion: false,
       preid: 'alpha',
-    } as any, ['prerelease']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as unknown as Parameters<typeof handler>[0], ['prerelease'])
 
     expect(result).toContain('1.0.0 → 1.0.1-alpha.0')
   })
@@ -136,7 +136,7 @@ describe('version command', () => {
       gitChecks: false,
       gitTagVersion: false,
       json: true,
-    } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as unknown as Parameters<typeof handler>[0], ['patch'])
 
     const parsed = JSON.parse(result as string)
     expect(parsed).toEqual([
@@ -156,7 +156,7 @@ describe('version command', () => {
       workspaceDir: tempDir,
       gitChecks: false,
       gitTagVersion: false,
-    } as any, ['0.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as unknown as Parameters<typeof handler>[0], ['0.0.0'])
 
     expect(result).toContain('1.2.3 → 0.0.0')
     const updated = JSON.parse(fs.readFileSync(path.join(tempDir, 'package.json'), 'utf-8'))
@@ -171,7 +171,7 @@ describe('version command', () => {
       workspaceDir: tempDir,
       gitChecks: false,
       gitTagVersion: false,
-    } as any, ['2.0.0-beta.1']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as unknown as Parameters<typeof handler>[0], ['2.0.0-beta.1'])
 
     expect(result).toContain('1.0.0 → 2.0.0-beta.1')
   })
@@ -185,7 +185,7 @@ describe('version command', () => {
         workspaceDir: tempDir,
         gitChecks: false,
         gitTagVersion: false,
-      } as any, ['not-a-version']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as unknown as Parameters<typeof handler>[0], ['not-a-version'])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_VERSION_BUMP' })
   })
 
@@ -198,7 +198,7 @@ describe('version command', () => {
       gitChecks: false,
       gitTagVersion: false,
       allowSameVersion: true,
-    } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as unknown as Parameters<typeof handler>[0], ['patch'])
 
     expect(result).toContain('1.0.0 → 1.0.1')
   })
@@ -212,7 +212,7 @@ describe('version command', () => {
         workspaceDir: tempDir,
         gitChecks: false,
         gitTagVersion: false,
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as unknown as Parameters<typeof handler>[0], ['patch'])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_NO_PACKAGES_TO_VERSION' })
   })
 
@@ -225,7 +225,7 @@ describe('version command', () => {
         workspaceDir: tempDir,
         gitChecks: false,
         gitTagVersion: false,
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as unknown as Parameters<typeof handler>[0], ['patch'])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_VERSION' })
   })
 
@@ -253,7 +253,7 @@ describe('version command', () => {
       const result = await handler({
         dir: tempDir,
         workspaceDir: tempDir,
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as unknown as Parameters<typeof handler>[0], ['patch'])
 
       expect(result).toContain('1.0.0 → 1.0.1')
 
@@ -269,7 +269,7 @@ describe('version command', () => {
         dir: tempDir,
         workspaceDir: tempDir,
         tagVersionPrefix: 'release-',
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as unknown as Parameters<typeof handler>[0], ['patch'])
 
       const { stdout: tags } = await execa('git', ['tag', '--list'], { cwd: tempDir })
       expect(tags).toBe('release-1.0.1')
@@ -280,7 +280,7 @@ describe('version command', () => {
         dir: tempDir,
         workspaceDir: tempDir,
         message: 'chore: release %s',
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as unknown as Parameters<typeof handler>[0], ['patch'])
 
       const { stdout: logSubject } = await execa('git', ['log', '-1', '--pretty=%s'], { cwd: tempDir })
       expect(logSubject).toBe('chore: release 1.0.1')
@@ -293,7 +293,7 @@ describe('version command', () => {
         dir: tempDir,
         workspaceDir: tempDir,
         gitTagVersion: false,
-      } as any, ['0.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as unknown as Parameters<typeof handler>[0], ['0.0.0'])
 
       const { stdout: tags } = await execa('git', ['tag', '--list'], { cwd: tempDir })
       expect(tags).toBe('')
@@ -307,7 +307,7 @@ describe('version command', () => {
         dir: tempDir,
         workspaceDir: tempDir,
         allowSameVersion: true,
-      } as any, ['1.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as unknown as Parameters<typeof handler>[0], ['1.0.0'])
 
       const { stdout: tags } = await execa('git', ['tag', '--list'], { cwd: tempDir })
       expect(tags).toBe('v1.0.0')
@@ -326,7 +326,7 @@ describe('version command', () => {
         dir: tempDir,
         workspaceDir: tempDir,
         commitHooks: false,
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as unknown as Parameters<typeof handler>[0], ['patch'])
 
       const { stdout: tags } = await execa('git', ['tag', '--list'], { cwd: tempDir })
       expect(tags).toBe('v1.0.1')
@@ -351,7 +351,7 @@ describe('version command', () => {
         dir: tempDir,
         workspaceDir: tempDir,
         recursive: true,
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as unknown as Parameters<typeof handler>[0], ['patch'])
 
       const { stdout: tags } = await execa('git', ['tag', '--list'], { cwd: tempDir })
       expect(tags).toBe('')
@@ -380,7 +380,7 @@ describe('version command', () => {
         gitChecks: false,
         gitTagVersion: false,
         recursive: true,
-      } as any, ['minor']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as unknown as Parameters<typeof handler>[0], ['minor'])
 
       const resultStr = result as string
       expect(resultStr).toContain('pkg-a')
@@ -407,7 +407,7 @@ describe('version command', () => {
         gitTagVersion: false,
         recursive: true,
         json: true,
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as unknown as Parameters<typeof handler>[0], ['patch'])
 
       const parsed = JSON.parse(result as string)
       expect(parsed).toEqual(
@@ -438,7 +438,7 @@ describe('version command', () => {
         gitChecks: false,
         gitTagVersion: false,
         recursive: true,
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as unknown as Parameters<typeof handler>[0], ['patch'])
 
       const resultStr = result as string
       expect(resultStr).toContain('pkg-a')
@@ -460,7 +460,7 @@ describe('version command', () => {
         workspaceDir: tempDir,
         gitChecks: false,
         gitTagVersion: false,
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as unknown as Parameters<typeof handler>[0], ['patch'])
 
       const resultStr = result as string
       expect(resultStr).toContain('my-workspace')

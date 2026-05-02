@@ -32,8 +32,7 @@ describe('extractZipToTarget security', () => {
 
       await expect(
         downloadAndUnpackZip(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          mockFetch as any,
+          mockFetch as unknown as Parameters<typeof downloadAndUnpackZip>[0],
           {
             url: 'https://example.com/node.zip',
             integrity,
@@ -45,8 +44,7 @@ describe('extractZipToTarget security', () => {
 
       await expect(
         downloadAndUnpackZip(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          mockFetch as any,
+          mockFetch as unknown as Parameters<typeof downloadAndUnpackZip>[0],
           {
             url: 'https://example.com/node.zip',
             integrity,
@@ -71,8 +69,7 @@ describe('extractZipToTarget security', () => {
 
       await expect(
         downloadAndUnpackZip(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          mockFetch as any,
+          mockFetch as unknown as Parameters<typeof downloadAndUnpackZip>[0],
           {
             url: 'https://example.com/node.zip',
             integrity,
@@ -97,8 +94,7 @@ describe('extractZipToTarget security', () => {
 
       await expect(
         downloadAndUnpackZip(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          mockFetch as any,
+          mockFetch as unknown as Parameters<typeof downloadAndUnpackZip>[0],
           {
             url: 'https://example.com/node.zip',
             integrity,
@@ -125,8 +121,7 @@ describe('extractZipToTarget security', () => {
 
       await expect(
         downloadAndUnpackZip(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          mockFetch as any,
+          mockFetch as unknown as Parameters<typeof downloadAndUnpackZip>[0],
           {
             url: 'https://example.com/node.zip',
             integrity,
@@ -154,8 +149,7 @@ describe('extractZipToTarget security', () => {
 
       await expect(
         downloadAndUnpackZip(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          mockFetch as any,
+          mockFetch as unknown as Parameters<typeof downloadAndUnpackZip>[0],
           {
             url: 'https://example.com/node.zip',
             integrity,
@@ -183,8 +177,7 @@ describe('extractZipToTarget security', () => {
       const mockFetch = createMockFetch(zipBuffer)
 
       await downloadAndUnpackZip(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        mockFetch as any,
+        mockFetch as unknown as Parameters<typeof downloadAndUnpackZip>[0],
         {
           url: 'https://example.com/node.zip',
           integrity,
@@ -209,8 +202,7 @@ describe('extractZipToTarget security', () => {
       const mockFetch = createMockFetch(zipBuffer)
 
       await downloadAndUnpackZip(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        mockFetch as any,
+        mockFetch as unknown as Parameters<typeof downloadAndUnpackZip>[0],
         {
           url: 'https://example.com/node.zip',
           integrity,
@@ -236,8 +228,7 @@ describe('extractZipToTarget security', () => {
       const mockFetch = createMockFetch(zipBuffer)
 
       await downloadAndUnpackZip(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        mockFetch as any,
+        mockFetch as unknown as Parameters<typeof downloadAndUnpackZip>[0],
         {
           url: 'https://example.com/node.zip',
           integrity,
@@ -265,8 +256,7 @@ describe('extractZipToTarget security', () => {
       const mockFetch = createMockFetch(zipBuffer)
 
       await downloadAndUnpackZip(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        mockFetch as any,
+        mockFetch as unknown as Parameters<typeof downloadAndUnpackZip>[0],
         {
           url: 'https://example.com/node.zip',
           integrity,
@@ -299,8 +289,7 @@ describe('extractZipToTarget security', () => {
       const mockFetch = createMockFetch(zipBuffer)
 
       await downloadAndUnpackZip(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        mockFetch as any,
+        mockFetch as unknown as Parameters<typeof downloadAndUnpackZip>[0],
         {
           url: 'https://example.com/node.zip',
           integrity,
@@ -327,8 +316,7 @@ describe('extractZipToTarget security', () => {
       const mockFetch = createMockFetch(zipBuffer)
 
       await downloadAndUnpackZip(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        mockFetch as any,
+        mockFetch as unknown as Parameters<typeof downloadAndUnpackZip>[0],
         {
           url: 'https://example.com/node.zip',
           integrity,

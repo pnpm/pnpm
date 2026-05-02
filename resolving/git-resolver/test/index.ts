@@ -25,7 +25,7 @@ beforeEach(() => {
 
 function mockFetchAsPrivate (): void {
   jest.mocked(fetchWithDispatcher).mockImplementation(async (_url, _opts) => {
-    return { ok: false } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    return { ok: false } as unknown as Response
   })
 }
 
@@ -188,7 +188,7 @@ test.skip('resolveFromGit() with range semver (v-prefixed tag)', async () => {
 test('resolveFromGit() with sub folder', async () => {
   const headCommit = '2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22'
   jest.mocked(fetchWithDispatcher).mockImplementation(async (_url, _opts) => {
-    return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    return { ok: true } as unknown as Response
   })
   jest.mocked(git).mockImplementation(async (args: string[]) => {
     if (args.includes('--exit-code')) {
@@ -211,7 +211,7 @@ test('resolveFromGit() with sub folder', async () => {
 test('resolveFromGit() with both sub folder and branch', async () => {
   const betaCommit = '777e8a3e78cc89bbf41fb3fd9f6cf922d5463313'
   jest.mocked(fetchWithDispatcher).mockImplementation(async (_url, _opts) => {
-    return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    return { ok: true } as unknown as Response
   })
   jest.mocked(git).mockImplementation(async (args: string[]) => {
     if (args.includes('--exit-code')) {

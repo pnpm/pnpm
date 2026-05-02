@@ -39,7 +39,7 @@ test('the modules cache is pruned when it expires', async () => {
   const prunedAt = new Date()
   prunedAt.setMinutes(prunedAt.getMinutes() - 3)
   modulesFile!.prunedAt = prunedAt.toString()
-  await writeModulesManifest(modulesDir, modulesFile as any) // eslint-disable-line
+  await writeModulesManifest(modulesDir, modulesFile as Parameters<typeof writeModulesManifest>[1])
 
   await addDependenciesToPackage(manifest,
     ['is-negative@2.0.0'],
@@ -78,7 +78,7 @@ test('the modules cache is pruned when it expires and headless install is used',
   const prunedAt = new Date()
   prunedAt.setMinutes(prunedAt.getMinutes() - 3)
   modulesFile!.prunedAt = prunedAt.toString()
-  await writeModulesManifest(modulesDir, modulesFile as any) // eslint-disable-line
+  await writeModulesManifest(modulesDir, modulesFile as Parameters<typeof writeModulesManifest>[1])
 
   await install(manifest, testDefaults({ frozenLockfile: true, modulesCacheMaxAge: 2 }))
 

@@ -1,11 +1,9 @@
 import type {
   PackageExtension,
-  PackageManifest,
-  ProjectManifest,
   ReadPackageHook,
 } from '@pnpm/types'
 import { packageExtensions as compatPackageExtensions } from '@yarnpkg/extensions'
-import { isEmpty, pipeWith } from 'ramda'
+import { isEmpty } from 'ramda'
 
 import { createOptionalDependenciesRemover } from './createOptionalDependenciesRemover.js'
 import { createPackageExtender } from './createPackageExtender.js'
@@ -50,8 +48,17 @@ export function createReadPackageHook (
   if (hooks.length === 0) {
     return undefined
   }
-  const readPackageAndExtend = hooks.length === 1
-    ? hooks[0]
-    : ((pkg: PackageManifest | ProjectManifest, dir: string) => pipeWith(async (f, res) => f(await res, dir), hooks as any)(pkg, dir)) as ReadPackageHook // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (hooks.length === 1) {
+    return hooks[0]
+  }
+  const readPackageAndExtend: ReadPackageHook = async (pkg, dir) => {
+    let result = pkg
+    for (const hook of hooks) {
+      // Hooks must run sequentially: each hook sees the manifest produced by the previous one.
+      // eslint-disable-next-line no-await-in-loop
+      result = await hook(result, dir)
+    }
+    return result
+  }
   return readPackageAndExtend
 }

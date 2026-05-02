@@ -2,6 +2,7 @@
 import { expect, jest, test } from '@jest/globals'
 import type { CustomResolver, WantedDependency } from '@pnpm/hooks.types'
 import { createResolver } from '@pnpm/resolving.default-resolver'
+import type { PkgResolutionId } from '@pnpm/types'
 
 test('custom resolver intercepts matching packages', async () => {
   const customResolver: CustomResolver = {
@@ -474,14 +475,14 @@ test('custom resolver receives currentPkg when provided', async () => {
       projectDir: '/test',
       preferredVersions: {},
       currentPkg: {
-        id: 'existing:test-package@1.0.0' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+        id: 'existing:test-package@1.0.0' as PkgResolutionId,
         resolution: existingResolution,
       },
     }
   )
 
   expect(receivedCurrentPkg).toBeTruthy()
-  expect((receivedCurrentPkg as any).id).toBe('existing:test-package@1.0.0') // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect((receivedCurrentPkg as { id: string }).id).toBe('existing:test-package@1.0.0')
   expect(result2.id).toBe('existing:test-package@1.0.0')
   expect(result2.resolution).toBe(existingResolution)
 })

@@ -86,7 +86,7 @@ test('print update notification that suggests to use the standalone scripts for 
       },
       process: {
         pkg: true,
-      } as any, // eslint-disable-line
+      } as unknown as NodeJS.Process,
     },
     streamParser: createStreamParser(),
   })

@@ -33,8 +33,7 @@ export function overridePublishConfig (publishManifest: ProjectManifest): void {
 
   for (const key in publishConfig) {
     if (!PUBLISH_CONFIG_WHITELIST.has(key)) continue
-    const value = publishConfig[key]
-    publishManifest[key as keyof ProjectManifest] = value as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    ;(publishManifest as unknown as Record<string, unknown>)[key] = publishConfig[key]
     delete publishConfig[key]
   }
 

@@ -45,7 +45,7 @@ test('fetchFromRegistry', async () => {
   // This test uses real network - no mock needed
   const fetchFromRegistry = createFetchFromRegistry({})
   const res = await fetchFromRegistry('https://registry.npmjs.org/is-positive')
-  const metadata = await res.json() as any // eslint-disable-line
+  const metadata = await res.json() as { name: string, versions: Record<string, { scripts?: unknown }> }
   expect(metadata.name).toBe('is-positive')
   expect(metadata.versions['1.0.0'].scripts).not.toBeTruthy()
 })
@@ -54,7 +54,7 @@ test('fetchFromRegistry fullMetadata', async () => {
   // This test uses real network - no mock needed
   const fetchFromRegistry = createFetchFromRegistry({})
   const res = await fetchFromRegistry('https://registry.npmjs.org/is-positive', { fullMetadata: true })
-  const metadata = await res.json() as any // eslint-disable-line
+  const metadata = await res.json() as { name: string, versions: Record<string, { scripts?: unknown }> }
   expect(metadata.name).toBe('is-positive')
   expect(metadata.versions['1.0.0'].scripts).toBeTruthy()
 })
@@ -154,7 +154,7 @@ test('fetch from registry with client certificate authentication', async () => {
 
   try {
     const res = await fetchFromRegistry(`https://localhost:${randomPort}/is-positive`)
-    const metadata = await res.json() as any // eslint-disable-line
+    const metadata = await res.json() as { name: string, versions: Record<string, { scripts?: unknown }> }
     expect(metadata.name).toBe('is-positive')
   } finally {
     await proxyServer.stop()
