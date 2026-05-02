@@ -379,6 +379,7 @@ describe('minimumReleaseAgeStrict default', () => {
       workspaceDir: process.cwd(),
     })
 
+    expect(config.minimumReleaseAge).toBe(60)
     expect(config.minimumReleaseAgeStrict).toBe(false)
   })
 
