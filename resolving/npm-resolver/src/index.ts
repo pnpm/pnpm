@@ -58,6 +58,8 @@ import { failIfTrustDowngraded } from './trustChecks.js'
 import { whichVersionIsPinned } from './whichVersionIsPinned.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
 
+export { getTrustEvidence } from './trustChecks.js'
+
 export interface NoMatchingVersionErrorOptions {
   wantedDependency: WantedDependency
   packageMeta: PackageMeta
