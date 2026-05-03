@@ -1,4 +1,3 @@
-import { writeSettings } from '@pnpm/config.writer'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import type { AuditReport } from '@pnpm/deps.compliance.audit'
 import { PnpmError } from '@pnpm/error'
@@ -13,7 +12,6 @@ import type {
 import semver from 'semver'
 
 import type { AuditOptions } from './audit.js'
-import { createMinimumReleaseAgeExcludes } from './fix.js'
 import { lockfileToPackages } from './lockfileToPackages.js'
 
 interface ExtendedPackageVulnerability {
@@ -27,8 +25,6 @@ export interface FixWithUpdateResult {
   fixed: number[]
   // IDs of packages that could not be fixed
   remaining: number[]
-  // Entries added to minimumReleaseAgeExclude
-  addedAgeExcludes: string[]
 }
 
 export type FixWithUpdateOptions = AuditOptions & {
@@ -90,24 +86,13 @@ export async function fixWithUpdate (auditReport: AuditReport, opts: FixWithUpda
     },
   }
 
-  // Add minimum patched versions to minimumReleaseAgeExclude so the resolver
-  // can install them even when minimumReleaseAge would otherwise block them.
-  const addedAgeExcludes = opts.minimumReleaseAge ? createMinimumReleaseAgeExcludes(Object.values(auditReport.advisories)) : []
-  const updateOpts = { ...opts } as Record<string, unknown>
-  if (addedAgeExcludes.length > 0) {
-    const existing = (updateOpts.minimumReleaseAgeExclude as string[] | undefined) ?? []
-    updateOpts.minimumReleaseAgeExclude = [...existing, ...addedAgeExcludes]
-    await writeSettings({
-      addedMinimumReleaseAgeExcludes: addedAgeExcludes,
-      rootProjectManifest: opts.rootProjectManifest,
-      rootProjectManifestDir: opts.rootProjectManifestDir,
-      workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
-    })
-  }
-
   await update.handler({
-    ...updateOpts as FixWithUpdateOptions,
+    ...opts,
     packageVulnerabilityAudit,
+    // If bypassMinimumReleaseAge is not false, set minimumReleaseAge to 0 to allow updating vulnerable packages, even if they are new.
+    // This update operation will only touch vulnerable packages, so this will not affect any packages outside of the ones listed in
+    // the audit report and their dependencies.
+    minimumReleaseAge: opts.bypassMinimumReleaseAge !== false ? 0 : opts.minimumReleaseAge,
   }, [])
 
   const lockfileDir = opts.lockfileDir ?? opts.dir
@@ -155,5 +140,5 @@ export async function fixWithUpdate (auditReport: AuditReport, opts: FixWithUpda
     }
   }
 
-  return { fixed, remaining, addedAgeExcludes }
+  return { fixed, remaining }
 }

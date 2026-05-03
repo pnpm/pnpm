@@ -802,4 +802,104 @@ The fixed vulnerabilities are:
     expect(packagesArray).not.toContain(originalPkgId)
     expect(packagesArray).toContain(expectedPkgId)
   })
+
+  test('vulnerability is fixed when minimumReleaseAge is set, without persisting excludes', async () => {
+    const tmp = f.prepare('update-workspace-pinned')
+
+    const originalPkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
+    const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
+
+    const originalLockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    expect(originalLockfile).toBeTruthy()
+    expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
+    expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
+
+    const advisoryResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
+    expect(advisoryResponse).toBeTruthy()
+
+    getMockAgent().get(MOCK_REGISTRY)
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, advisoryResponse)
+
+    const {
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+    } = await filterProjectsFromDir(tmp, [], {
+      workspaceDir: tmp,
+      prefix: tmp,
+    })
+
+    const { exitCode, output } = await audit.handler({
+      ...MOCK_REGISTRY_OPTS,
+      dir: tmp,
+      workspaceDir: tmp,
+      lockfileDir: tmp,
+      rootProjectManifestDir: tmp,
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+      auditLevel: 'moderate',
+      fix: 'update',
+      lockfileOnly: true,
+      minimumReleaseAge: 60 * 24 * 365 * 100, // 100 years in minutes
+      minimumReleaseAgeStrict: true,
+      // bypassMinimumReleaseAge defaults to true
+    })
+
+    expect(exitCode).toBe(0)
+    expect(output).toContain(`${chalk.green(1)} vulnerability was fixed`)
+
+    // The vulnerable dependency should be updated to 100.1.0
+    const lockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    expect(lockfile).toBeTruthy()
+    const packagesArray = Object.keys(lockfile!.packages!)
+    expect(packagesArray).not.toContain(originalPkgId)
+    expect(packagesArray).toContain(expectedPkgId)
+
+    // minimumReleaseAgeExclude should NOT be persisted in pnpm-workspace.yaml
+    const workspaceManifest = readYamlFileSync<{ minimumReleaseAgeExclude?: string[] }>(join(tmp, 'pnpm-workspace.yaml'))
+    expect(workspaceManifest.minimumReleaseAgeExclude).toBeUndefined()
+  })
+
+  test('vulnerability is NOT fixed when minimumReleaseAgeBypass is false', async () => {
+    const tmp = f.prepare('update-workspace-pinned')
+
+    const advisoryResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
+    expect(advisoryResponse).toBeTruthy()
+
+    getMockAgent().get(MOCK_REGISTRY)
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, advisoryResponse)
+
+    const {
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+    } = await filterProjectsFromDir(tmp, [], {
+      workspaceDir: tmp,
+      prefix: tmp,
+    })
+
+    await expect(() => audit.handler({
+      ...MOCK_REGISTRY_OPTS,
+      dir: tmp,
+      workspaceDir: tmp,
+      lockfileDir: tmp,
+      rootProjectManifestDir: tmp,
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+      auditLevel: 'moderate',
+      fix: 'update',
+      lockfileOnly: true,
+      minimumReleaseAge: 60 * 24 * 365 * 100, // 100 years in minutes
+      minimumReleaseAgeStrict: true,
+      bypassMinimumReleaseAge: false,
+    })).rejects.toThrow(/Version 100\.1\.0 \(released .+\) of @pnpm\.e2e\/pkg-with-1-dep does not meet the minimumReleaseAge constraint/)
+
+    // minimumReleaseAgeExclude should NOT be persisted in pnpm-workspace.yaml
+    const workspaceManifest = readYamlFileSync<{ minimumReleaseAgeExclude?: string[] }>(join(tmp, 'pnpm-workspace.yaml'))
+    expect(workspaceManifest.minimumReleaseAgeExclude).toBeUndefined()
+  })
 })
