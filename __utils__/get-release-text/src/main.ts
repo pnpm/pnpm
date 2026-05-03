@@ -32,7 +32,7 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
 
   let highestLevel: number = BumpLevels.dep
 
-  const nodes = ast['children'] as any[] // eslint-disable-line @typescript-eslint/no-explicit-any
+  const nodes = ast.children as Array<{ type: string, depth: number }>
   let headingStartInfo:
   | {
     index: number
@@ -68,7 +68,7 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
     }
   }
   if (headingStartInfo != null) {
-    ast['children'] = (ast['children'] as any).slice( // eslint-disable-line @typescript-eslint/no-explicit-any
+    ast.children = ast.children.slice(
       headingStartInfo.index + 1,
       endIndex
     )

@@ -25,7 +25,7 @@ export async function complete (
   }
 ): Promise<CompletionItem[]> {
   if (input.options.version) return []
-  const optionTypes = {
+  const optionTypes: Record<string, unknown> = {
     ...ctx.universalOptionsTypes,
     ...((input.cmd && ctx.cliOptionsTypesByCommandName[input.cmd]?.()) ?? {}),
   }
@@ -48,7 +48,7 @@ export async function complete (
         .filter((item): item is CompletionItem => !!item.name)
     } else if (input.lastOption) {
       const optionCompletions = getOptionCompletions(
-        optionTypes as any, // eslint-disable-line
+        optionTypes,
         {
           ...ctx.universalShorthands,
           ...(input.cmd ? ctx.shorthandsByCommandName[input.cmd] : {}),
@@ -84,6 +84,6 @@ export async function complete (
   }
   return [
     ...completions,
-    ...optionTypesToCompletions(optionTypes as any), // eslint-disable-line
+    ...optionTypesToCompletions(optionTypes),
   ]
 }

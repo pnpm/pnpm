@@ -23,7 +23,7 @@ describe('computeDiff', () => {
           resolution: { integrity: 'sha512-pkg1' },
         },
       },
-    } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as unknown as LockfileObject
 
     const integrityIndex = createIntegrityIndex({
       'sha512-pkg1': {
@@ -63,7 +63,7 @@ describe('computeDiff', () => {
           resolution: { integrity: 'sha512-pkg2' },
         },
       },
-    } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as unknown as LockfileObject
 
     const integrityIndex = createIntegrityIndex({
       'sha512-pkg1': {
@@ -109,7 +109,7 @@ describe('computeDiff', () => {
           resolution: { integrity: 'sha512-pkgB' },
         },
       },
-    } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as unknown as LockfileObject
 
     const integrityIndex = createIntegrityIndex({
       'sha512-pkgA': {
@@ -156,7 +156,7 @@ describe('computeDiff', () => {
           resolution: { integrity: 'sha512-new' },
         },
       },
-    } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as unknown as LockfileObject
 
     const integrityIndex = createIntegrityIndex({
       'sha512-old': {
@@ -200,7 +200,7 @@ describe('computeDiff', () => {
           resolution: { integrity: 'sha512-bin' },
         },
       },
-    } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as unknown as LockfileObject
 
     const integrityIndex = createIntegrityIndex({
       'sha512-bin': {
@@ -239,7 +239,7 @@ describe('computeDiff', () => {
           resolution: { integrity: 'sha512-test' },
         },
       },
-    } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as unknown as LockfileObject
 
     const integrityIndex = createIntegrityIndex({
       'sha512-test': {

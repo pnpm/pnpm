@@ -18,11 +18,9 @@ test('isAbsolute()', () => {
 })
 
 test('parse()', () => {
-  /* eslint-disable @typescript-eslint/no-explicit-any */
-  expect(() => parse(undefined as any)).toThrow(/got `undefined`/)
-  expect(() => parse({} as any)).toThrow(/got `object`/)
-  expect(() => parse(1 as any)).toThrow(/got `number`/)
-  /* eslint-enable @typescript-eslint/no-explicit-any */
+  expect(() => parse(undefined as unknown as DepPath)).toThrow(/got `undefined`/)
+  expect(() => parse({} as unknown as DepPath)).toThrow(/got `object`/)
+  expect(() => parse(1 as unknown as DepPath)).toThrow(/got `number`/)
   expect(parse('foo@1.0.0')).toStrictEqual({
     name: 'foo',
     peerDepGraphHash: undefined,

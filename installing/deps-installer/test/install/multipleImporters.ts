@@ -358,7 +358,7 @@ test('some projects were removed from the workspace and the ones that are left d
       allProjects: allProjects.slice(0, 1),
       pruneLockfileImporters: true,
       workspacePackages,
-    } as any)) // eslint-disable-line
+    }))
   ).rejects.toThrow(/"project-2@workspace:1.0.0" is in the dependencies but no package named "project-2" is present in the workspace/)
 })
 

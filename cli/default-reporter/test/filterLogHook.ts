@@ -25,7 +25,7 @@ test('logger with filterLog hook', async () => {
             return true
           }],
         },
-      } as any, // eslint-disable-line
+      } as unknown as Parameters<typeof toOutput$>[0]['context']['config'],
     },
     streamParser: createStreamParser(),
   })

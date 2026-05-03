@@ -176,8 +176,7 @@ test('writeLockfiles() does not fail if the lockfile has undefined properties', 
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-negative@1.0.0': {
-        // eslint-disable-next-line
-        dependencies: undefined as any,
+        dependencies: undefined,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },

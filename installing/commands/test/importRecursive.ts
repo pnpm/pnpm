@@ -50,7 +50,7 @@ test('import from shared yarn.lock of monorepo', async () => {
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await importCommand.handler({
     ...DEFAULT_OPTS,
-    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    allProjects: allProjects.map((project, buildIndex) => ({ ...project, buildIndex })),
     allProjectsGraph,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
@@ -74,7 +74,7 @@ test('import from shared package-lock.json of monorepo', async () => {
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await importCommand.handler({
     ...DEFAULT_OPTS,
-    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    allProjects: allProjects.map((project, buildIndex) => ({ ...project, buildIndex })),
     allProjectsGraph,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
@@ -98,7 +98,7 @@ test('import from shared npm-shrinkwrap.json of monorepo', async () => {
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await importCommand.handler({
     ...DEFAULT_OPTS,
-    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    allProjects: allProjects.map((project, buildIndex) => ({ ...project, buildIndex })),
     allProjectsGraph,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),

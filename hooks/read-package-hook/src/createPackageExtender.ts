@@ -36,10 +36,10 @@ function extendPkg (manifest: PackageManifest, extensions: PackageExtensionMatch
     if (range != null && !semver.satisfies(manifest.version, range)) continue
     for (const field of ['dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta'] as const) {
       if (!packageExtension[field]) continue
-      manifest[field] = {
+      ;(manifest as unknown as Record<string, unknown>)[field] = {
         ...packageExtension[field],
         ...manifest[field],
-      } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+      }
     }
   }
 }

@@ -1393,8 +1393,7 @@ describe('patch-remove', () => {
       rootProjectManifest: manifest,
       patchedDependencies,
     }, [])
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect((prompt.mock.calls[0][0] as any).choices).toEqual(expect.arrayContaining(['is-positive@1.0.0', 'chalk@4.1.2']))
+    expect((prompt.mock.calls[0][0] as { choices: string[] }).choices).toEqual(expect.arrayContaining(['is-positive@1.0.0', 'chalk@4.1.2']))
     prompt.mockClear()
 
     const workspaceManifest = await readWorkspaceManifest(process.cwd())

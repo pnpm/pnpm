@@ -12,7 +12,7 @@ import type { LockfileObject } from '@pnpm/lockfile.types'
 import { getFilePathByModeInCafs } from '@pnpm/store.cafs'
 import { createPackageStore, type StoreController } from '@pnpm/store.controller'
 import { StoreIndex } from '@pnpm/store.index'
-import type { Registries } from '@pnpm/types'
+import type { PkgResolutionId, ProjectRootDir, Registries } from '@pnpm/types'
 
 import { buildIntegrityIndex, computeDiff, getFilesEntries, type IntegrityEntry } from './diff.js'
 import { FileStore } from './fileStore.js'
@@ -226,7 +226,7 @@ async function handleInstall (
     ...ctx.storeController,
     requestPackage: async (...args: Parameters<StoreController['requestPackage']>) => {
       const result = await ctx.storeController.requestPackage(...args)
-      const integrity = (result.body as any)?.resolution?.integrity as string | undefined // eslint-disable-line @typescript-eslint/no-explicit-any
+      const integrity = 'integrity' in result.body.resolution ? (result.body.resolution.integrity as string | undefined) : undefined
       if (integrity && !clientIntegrities.has(integrity)) {
         const entry = ctx.integrityIndex.get(integrity)
         if (entry) {
@@ -314,7 +314,7 @@ async function handleInstall (
       await mutateModules(
         projects.map(p => ({
           mutation: 'install' as const,
-          rootDir: path.join(tmpDir, p.dir) as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+          rootDir: path.join(tmpDir, p.dir) as ProjectRootDir,
         })),
         {
           allProjects: projects.map((p, i) => ({
@@ -325,7 +325,7 @@ async function handleInstall (
               dependencies: p.dependencies ?? {},
               devDependencies: p.devDependencies ?? {},
             },
-            rootDir: path.join(tmpDir, p.dir) as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+            rootDir: path.join(tmpDir, p.dir) as ProjectRootDir,
           })),
           lockfileDir: tmpDir,
           storeController: wrappedStoreController,
@@ -338,7 +338,7 @@ async function handleInstall (
           saveLockfile: true,
           preferFrozenLockfile: false,
           minimumReleaseAge: request.minimumReleaseAge,
-        } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+        } as unknown as Parameters<typeof mutateModules>[1]
       )
     }
 
@@ -364,10 +364,10 @@ async function handleInstall (
           force: false,
           lockfileDir: tmpDir,
           pkg: {
-            id: resolution.tarball as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+            id: resolution.tarball as PkgResolutionId,
             name: '',
             version: '',
-            resolution: resolution as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+            resolution: resolution as unknown as Parameters<typeof ctx.storeController.fetchPackage>[0]['pkg']['resolution'],
           },
         })
         if (result.fetching) {

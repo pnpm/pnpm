@@ -94,10 +94,10 @@ export async function parseCliArgs (
     }
   }
 
-  const types = {
+  const types: Record<string, unknown> = {
     ...opts.universalOptionsTypes,
     ...opts.getTypesByCommandName(commandName),
-  } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+  }
 
   function getCommandName (args: string[]): string {
     if (recursiveCommandUsed) {
