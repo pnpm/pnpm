@@ -4,6 +4,7 @@ import { readProjectManifest } from '@pnpm/cli.utils'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { isGitRepo, isWorkingTreeClean } from '@pnpm/network.git-utils'
+import type { ProjectsGraph } from '@pnpm/types'
 import { filterProjectsFromDir, type WorkspaceFilter } from '@pnpm/workspace.projects-filter'
 import { safeExeca as execa } from 'execa'
 import { pick } from 'ramda'
@@ -118,6 +119,7 @@ interface VersionHandlerOptions extends Config {
   message?: string
   preid?: string
   recursive?: boolean
+  selectedProjectsGraph?: ProjectsGraph
   signGitTag?: boolean
   tagVersionPrefix?: string
 }
@@ -149,27 +151,45 @@ export async function handler (
 
   if (opts.recursive) {
     const workspaceDir = opts.workspaceDir || opts.dir
-    const filters: WorkspaceFilter[] = []
+    let pkgDirs: string[]
+    const graphDirs =
+      opts.selectedProjectsGraph != null
+        ? Object.keys(opts.selectedProjectsGraph)
+        : []
 
-    if (opts.filter && opts.filter.length > 0) {
-      opts.filter.forEach(filterPattern => {
-        filters.push({
-          filter: filterPattern,
-          followProdDepsOnly: !!opts.filterProd && opts.filterProd.length > 0,
+    if (graphDirs.length > 0) {
+      pkgDirs = graphDirs
+    } else {
+      const filters: WorkspaceFilter[] = []
+
+      if (opts.filter && opts.filter.length > 0) {
+        opts.filter.forEach(filterPattern => {
+          filters.push({
+            filter: filterPattern,
+            followProdDepsOnly: !!opts.filterProd && opts.filterProd.length > 0,
+          })
         })
-      })
-    }
-
-    const result = await filterProjectsFromDir(
-      workspaceDir,
-      filters,
-      {
-        workspaceDir,
-        prefix: opts.dir,
       }
-    )
 
-    const pkgDirs = Object.keys(result.selectedProjectsGraph)
+      const result = await filterProjectsFromDir(
+        workspaceDir,
+        filters,
+        {
+          workspaceDir,
+          prefix: opts.dir,
+          patterns: opts.workspacePackagePatterns,
+          engineStrict: opts.engineStrict,
+          nodeVersion: opts.nodeVersion,
+          sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
+          linkWorkspacePackages: !!opts.linkWorkspacePackages,
+          testPattern: opts.testPattern,
+          changedFilesIgnorePattern: opts.changedFilesIgnorePattern,
+          useGlobDirFiltering: !opts.legacyDirFiltering,
+        }
+      )
+
+      pkgDirs = Object.keys(result.selectedProjectsGraph)
+    }
     const bumpResults = await Promise.all(
       pkgDirs.map(pkgDir => bumpPackageVersion(pkgDir, rawBump, explicitVersion, opts))
     )

@@ -44,6 +44,7 @@ export const GLOBAL_OPTIONS = pick([
   'loglevel',
   'parseable',
   'prefix',
+  'recursive',
   'reporter',
   'stream',
   'aggregate-output',
