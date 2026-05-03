@@ -596,7 +596,7 @@ export async function getConfig (opts: {
   pnpmConfig.sideEffectsCacheRead = pnpmConfig.sideEffectsCache ?? pnpmConfig.sideEffectsCacheReadonly
   pnpmConfig.sideEffectsCacheWrite = pnpmConfig.sideEffectsCache
 
-  if (pnpmConfig.sharedWorkspaceLockfile && !pnpmConfig.lockfileDir && pnpmConfig.workspaceDir) {
+  if ((pnpmConfig.sharedWorkspaceLockfile || pnpmConfig.lockfileStorage === 'split') && !pnpmConfig.lockfileDir && pnpmConfig.workspaceDir) {
     pnpmConfig.lockfileDir = pnpmConfig.workspaceDir
   }
 
