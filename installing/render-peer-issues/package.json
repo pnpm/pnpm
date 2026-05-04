@@ -38,6 +38,7 @@
     "cli-columns": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/installing.render-peer-issues": "workspace:*"
   },
   "engines": {
