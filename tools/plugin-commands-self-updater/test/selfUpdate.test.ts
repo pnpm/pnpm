@@ -146,6 +146,81 @@ test('self-update does nothing when pnpm is up to date', async () => {
   expect(output).toBe('The currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
 })
 
+test('self-update refuses to downgrade when latest is older than current', async () => {
+  const opts = prepare()
+  nock(opts.registries.default)
+    .get('/pnpm')
+    .reply(200, createMetadata('8.15.0', opts.registries.default))
+
+  const output = await selfUpdate.handler(opts, [])
+
+  expect(output).toBe('The currently active pnpm v9.0.0 is newer than the "latest" version on the registry (v8.15.0). No update performed. Run "pnpm self-update latest" to downgrade.')
+  // No tools dir should have been created.
+  expect(fs.existsSync(path.join(opts.pnpmHomeDir, '.tools'))).toBe(false)
+})
+
+test('self-update latest forces the downgrade even when latest is older', async () => {
+  const opts = prepare()
+  nock(opts.registries.default)
+    .get('/pnpm')
+    .reply(200, createMetadata('8.15.0', opts.registries.default))
+
+  // Pre-stage an existing install at the target version so the handler links it
+  // instead of running a real `pnpm add`. We only care that the install/link
+  // path was reached, not the resulting binary.
+  const baseDir = path.join(opts.pnpmHomeDir, '.tools/pnpm/8.15.0')
+  fs.mkdirSync(path.join(baseDir, 'bin'), { recursive: true })
+  const targetPnpmDir = path.join(baseDir, 'node_modules/pnpm')
+  fs.mkdirSync(targetPnpmDir, { recursive: true })
+  fs.writeFileSync(path.join(targetPnpmDir, 'package.json'), JSON.stringify({ name: 'pnpm', bin: 'bin.js' }), 'utf8')
+  fs.writeFileSync(path.join(targetPnpmDir, 'bin.js'), '#!/usr/bin/env node\n', 'utf8')
+
+  const output = await selfUpdate.handler(opts, ['latest'])
+
+  expect(output).toBe(`The latest version, v8.15.0, is already present on the system. It was activated by linking it from ${baseDir}.`)
+})
+
+test('self-update by exact older version skips the no-downgrade guard', async () => {
+  const opts = prepare()
+  nock(opts.registries.default)
+    .get('/pnpm')
+    .reply(200, createMetadata('8.15.0', opts.registries.default))
+
+  const baseDir = path.join(opts.pnpmHomeDir, '.tools/pnpm/8.15.0')
+  fs.mkdirSync(path.join(baseDir, 'bin'), { recursive: true })
+  const targetPnpmDir = path.join(baseDir, 'node_modules/pnpm')
+  fs.mkdirSync(targetPnpmDir, { recursive: true })
+  fs.writeFileSync(path.join(targetPnpmDir, 'package.json'), JSON.stringify({ name: 'pnpm', bin: 'bin.js' }), 'utf8')
+  fs.writeFileSync(path.join(targetPnpmDir, 'bin.js'), '#!/usr/bin/env node\n', 'utf8')
+
+  const output = await selfUpdate.handler(opts, ['8.15.0'])
+
+  expect(output).toBe(`The 8.15.0 version, v8.15.0, is already present on the system. It was activated by linking it from ${baseDir}.`)
+})
+
+test('self-update refuses to downgrade the project pin when latest is older', async () => {
+  const opts = prepare()
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  fs.writeFileSync(pkgJsonPath, JSON.stringify({
+    packageManager: 'pnpm@10.0.0',
+  }), 'utf8')
+  nock(opts.registries.default)
+    .get('/pnpm')
+    .reply(200, createMetadata('9.5.0', opts.registries.default))
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    managePackageManagerVersions: true,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '10.0.0',
+    },
+  }, [])
+
+  expect(output).toBe('The current project is set to use pnpm v10.0.0, which is newer than the "latest" version on the registry (v9.5.0). No update performed. Run "pnpm self-update latest" to downgrade.')
+  expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@10.0.0')
+})
+
 test('should update packageManager field when a newer pnpm version is available', async () => {
   const opts = prepare()
   const pkgJsonPath = path.join(opts.dir, 'package.json')

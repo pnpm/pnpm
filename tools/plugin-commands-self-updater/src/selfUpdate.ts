@@ -69,6 +69,12 @@ export async function handler (
   }
   const { resolve } = createResolver({ ...opts, authConfig: opts.rawConfig })
   const pkgName = 'pnpm'
+  // `pnpm self-update` (no args) defaults to the `latest` dist-tag, but we
+  // refuse to downgrade in that case — `latest` on the registry can lag the
+  // installed version when a new major has shipped without being tagged.
+  // `pnpm self-update latest` (explicit) bypasses the guard so users can
+  // still force a downgrade when they want one.
+  const isImplicitLatest = params.length === 0
   const bareSpecifier = params[0] ?? 'latest'
   const resolution = await resolve({ alias: pkgName, bareSpecifier }, {
     lockfileDir: opts.lockfileDir ?? opts.dir,
@@ -105,6 +111,10 @@ export async function handler (
 
   if (opts.wantedPackageManager?.name === packageManager.name && opts.managePackageManagerVersions) {
     if (opts.wantedPackageManager?.version !== resolution.manifest.version) {
+      const pinnedVersion = opts.wantedPackageManager.version
+      if (isImplicitLatest && pinnedVersion != null && semver.lt(resolution.manifest.version, pinnedVersion)) {
+        return `The current project is set to use pnpm v${pinnedVersion}, which is newer than the "latest" version on the registry (v${resolution.manifest.version}). No update performed. Run "pnpm self-update latest" to downgrade.`
+      }
       const { manifest, writeProjectManifest } = await readProjectManifest(opts.rootProjectManifestDir)
       manifest.packageManager = `pnpm@${resolution.manifest.version}`
       await writeProjectManifest(manifest)
@@ -115,6 +125,9 @@ export async function handler (
   }
   if (resolution.manifest.version === packageManager.version) {
     return `The currently active ${packageManager.name} v${packageManager.version} is already "${bareSpecifier}" and doesn't need an update`
+  }
+  if (isImplicitLatest && semver.lt(resolution.manifest.version, packageManager.version)) {
+    return `The currently active ${packageManager.name} v${packageManager.version} is newer than the "latest" version on the registry (v${resolution.manifest.version}). No update performed. Run "pnpm self-update latest" to downgrade.`
   }
 
   const { baseDir, alreadyExisted } = await installPnpmToTools(resolution.manifest.version, opts)
