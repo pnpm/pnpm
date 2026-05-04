@@ -1,5 +1,6 @@
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 import { describe, expect, test } from '@jest/globals'
@@ -88,4 +89,58 @@ test('prepare writes correct content for all bin files', () => {
   const pnpmBin = path.join(exeDir, isWindows ? 'pnpm.exe' : 'pnpm')
   const stdout = execFileSync(pnpmBin, ['-v'], { encoding: 'utf8', timeout: 30_000 }).trim()
   expect(stdout).toMatch(/^\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?$/)
+})
+
+// Stand up a minimal sandbox that mimics @pnpm/exe with NO platform package
+// installed: setup.js + platform-pkg-name.js + a package.json (so Node loads
+// it as ESM), plus a node_modules with detect-libc symlinked from this repo
+// so the script can reach the import.meta.resolve call we want to fail. The
+// path-suffix of the fake exe dir controls whether the workspace skip fires.
+function buildFailurePathSandbox (suffixSegments: string[]): string {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-exe-setup-test-'))
+  const fakeExeDir = path.join(root, ...suffixSegments)
+  fs.mkdirSync(fakeExeDir, { recursive: true })
+  fs.copyFileSync(path.join(exeDir, 'setup.js'), path.join(fakeExeDir, 'setup.js'))
+  fs.copyFileSync(path.join(exeDir, 'platform-pkg-name.js'), path.join(fakeExeDir, 'platform-pkg-name.js'))
+  fs.writeFileSync(
+    path.join(fakeExeDir, 'package.json'),
+    JSON.stringify({ name: '@pnpm/exe', type: 'module' })
+  )
+  fs.mkdirSync(path.join(root, 'node_modules'))
+  fs.symlinkSync(
+    path.join(exeDir, 'node_modules', 'detect-libc'),
+    path.join(root, 'node_modules', 'detect-libc'),
+    'dir'
+  )
+  return fakeExeDir
+}
+
+// Skipping on Windows because fs.symlinkSync requires elevated privileges
+// there for non-junction symlinks, and the path-suffix logic in setup.js is
+// platform-independent — it's already exercised on Linux/macOS CI.
+const failurePathTest = isWindows ? test.skip : test
+
+failurePathTest('setup.js exits 0 silently when run from a workspace-shaped path with no platform package', () => {
+  const fakeExeDir = buildFailurePathSandbox(['pnpm', 'artifacts', 'exe'])
+  const result = spawnSync(process.execPath, [path.join(fakeExeDir, 'setup.js')], {
+    encoding: 'utf8',
+    timeout: 10_000,
+  })
+  expect({ status: result.status, stderr: result.stderr, stdout: result.stdout })
+    .toEqual({ status: 0, stderr: '', stdout: '' })
+})
+
+failurePathTest('setup.js exits 1 with the missing platform package name when run from a non-workspace path', () => {
+  const fakeExeDir = buildFailurePathSandbox(['somewhere', 'else'])
+  const result = spawnSync(process.execPath, [path.join(fakeExeDir, 'setup.js')], {
+    encoding: 'utf8',
+    timeout: 10_000,
+  })
+  const expectedPkgName = exePlatformPkgName(platform, process.arch, familySync())
+  expect(result.status).toBe(1)
+  // On darwin-x64 the message is the dedicated Intel-Mac one (mentions the
+  // upstream Node.js issue); on every other host it's the generic one that
+  // names the missing platform package. Both reference the package name, so
+  // assert on that.
+  expect(result.stderr).toContain(expectedPkgName === '@pnpm/macos-x64' ? '11423' : expectedPkgName)
 })
