@@ -11,11 +11,12 @@ jobs:
       id-token: write  # Required for OIDC
       contents: write  # for softprops/action-gh-release to create GitHub release
       attestations: write  # for actions/attest-build-provenance
-    # Runs on macOS so darwin artifacts are signed with native `codesign`.
-    # Cross-signing on Linux with `ldid` produces ad-hoc signatures whose
-    # page hashes don't match the post-postject Mach-O layout for Node.js 25's
-    # chained fixups, leaving fixups unapplied and crashing the binary at
-    # startup (EXC_BAD_ACCESS in __cxx_global_var_init).
+    # Runs on macOS so the darwin artifacts can be ad-hoc signed with native
+    # `codesign` (no need to build/install `ldid` on the runner) and so
+    # `verify-binary.mjs` can smoke-test the darwin-arm64 SEA in place — a
+    # macos-latest runner is Apple Silicon and can execute the arm64 binary.
+    # Note: this does NOT fix the darwin-x64 crash (nodejs/node#62893) — that's
+    # an upstream Node.js SEA bug independent of signing; see pack-app docs.
     runs-on: macos-latest
     environment: release
     steps:
