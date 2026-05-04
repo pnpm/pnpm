@@ -538,6 +538,28 @@ test('global ls --depth>0 shows the full dependency tree of a single global inst
   expect(pkg.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBeDefined()
 })
 
+test('global ls <pkg> --depth>0 narrows to the install dir containing <pkg> and shows its tree', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
+
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+
+  await execPnpm(['add', '--global', '@pnpm.e2e/pkg-with-1-dep@100.0.0'], { env })
+  await execPnpm(['add', '--global', 'is-negative@1.0.0'], { env })
+
+  // The filter narrows depth>0 down to the single install group containing
+  // pkg-with-1-dep, so its transitive dep should be visible.
+  const { stdout } = execPnpmSync(['ls', '-g', '@pnpm.e2e/pkg-with-1-dep', '--depth=1', '--json'], { env, expectSuccess: true })
+  const parsed = JSON.parse(stdout.toString())
+  expect(Array.isArray(parsed)).toBe(true)
+  expect(parsed).toHaveLength(1)
+  const pkg = parsed[0].dependencies['@pnpm.e2e/pkg-with-1-dep']
+  expect(pkg.version).toBe('100.0.0')
+  expect(pkg.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBeDefined()
+})
+
 test('global remove deletes install group and bin shims', async () => {
   prepare()
   const global = path.resolve('..', 'global')

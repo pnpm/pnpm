@@ -126,7 +126,10 @@ export async function handler (
           'Filter to a single global package, or omit --depth.')
       }
       if (installDirs.length === 1) {
-        return render([installDirs[0]], params, {
+        // Drop params: they served their purpose of narrowing to a single
+        // install group. Passing them through to `render` would activate
+        // search semantics, which prune the matched package's children.
+        return render([installDirs[0]], [], {
           ...opts,
           depth,
           include,
