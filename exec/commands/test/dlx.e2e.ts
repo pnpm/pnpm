@@ -397,11 +397,11 @@ test('dlx builds the packages passed via --allow-build', async () => {
 // dlx mirrors the global install flow: it overrides `strictDepBuilds`
 // internally so the install never throws ERR_PNPM_IGNORED_BUILDS, then
 // runs the same interactive `approve-builds` prompt that `pnpm add -g`
-// uses when transitive deps have unrun build scripts. The user can opt
-// in to the builds without retrying with `--allow-build=<pkg>`.
+// uses when transitive deps have skipped build scripts. The user can
+// opt in to the builds without retrying with `--allow-build=<pkg>`.
 //
 // Without a TTY (and without the test escape hatch below), the prompt is
-// skipped and dlx proceeds with build scripts unrun — same behavior as
+// skipped and dlx proceeds with build scripts skipped — same behavior as
 // `pnpm add -g` in CI.
 test('dlx does not error on ignored builds in non-interactive mode', async () => {
   prepareEmpty()
@@ -418,7 +418,7 @@ test('dlx does not error on ignored builds in non-interactive mode', async () =>
 
   // Cache is populated even though build scripts were skipped — the
   // package is installed so the bin can run if it does not depend on
-  // the unrun script.
+  // the skipped script.
   const dlxCacheDir = path.resolve('cache', 'dlx', createCacheKey('@pnpm.e2e/has-bin-and-needs-build@1.0.0'), 'pkg')
   expect(fs.existsSync(path.join(dlxCacheDir, 'package.json'))).toBe(true)
 })

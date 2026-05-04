@@ -164,7 +164,7 @@ export async function handler (
       await add.handler({
         ...opts,
         // Mirror the global install flow: dlx prompts via `approve-builds`
-        // when transitive deps have unrun build scripts, so it must not let
+        // when transitive deps have skipped build scripts, so it must not let
         // strictDepBuilds (the v11 default) turn that into a hard error.
         // Without this, `pnpm dlx <pkg>` cannot launch packages whose bin
         // depends on a postinstall step (e.g. native modules).
