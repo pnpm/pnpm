@@ -45,13 +45,13 @@ exports[`renderPeerIssues() renders missing peer dependencies that are required 
 
 exports[`renderPeerIssues() splits bad peer dependencies by foundVersion 1`] = `
 "✕ unmet peer a
-  Installed: 2.0.0
+  Installed: 1.0.0
   Wanted:
     ^2.0.0:
       b@1.0.0
 
 ✕ unmet peer a
-  Installed: 3.0.0
+  Installed: 2.0.0
   Wanted:
     ^3.0.0:
       c@1.0.0"
