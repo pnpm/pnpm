@@ -39,6 +39,8 @@
     "@pnpm/cli.utils": "workspace:*",
     "@pnpm/config.matcher": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
+    "@pnpm/deps.inspection.list": "workspace:*",
+    "@pnpm/deps.inspection.tree-builder": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/global.packages": "workspace:*",
     "@pnpm/installing.deps-installer": "workspace:*",

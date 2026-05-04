@@ -31,6 +31,12 @@
       "path": "../../config/reader"
     },
     {
+      "path": "../../deps/inspection/list"
+    },
+    {
+      "path": "../../deps/inspection/tree-builder"
+    },
+    {
       "path": "../../core/error"
     },
     {

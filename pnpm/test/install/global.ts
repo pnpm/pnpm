@@ -468,6 +468,41 @@ test('global add from a local directory using "."', () => {
   expect(fs.existsSync(path.join(pnpmHome, 'bin', 'my-local-tool'))).toBeTruthy()
 })
 
+test('global ls --json outputs valid JSON (#11440)', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
+
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+
+  await execPnpm(['add', '--global', 'is-positive@1.0.0'], { env })
+  await execPnpm(['add', '--global', 'is-negative@1.0.0'], { env })
+
+  const { stdout } = execPnpmSync(['ls', '-g', '--json'], { env, expectSuccess: true })
+  const parsed = JSON.parse(stdout.toString())
+  expect(Array.isArray(parsed)).toBe(true)
+  expect(parsed).toHaveLength(1)
+  expect(parsed[0].dependencies['is-positive'].version).toBe('1.0.0')
+  expect(parsed[0].dependencies['is-negative'].version).toBe('1.0.0')
+})
+
+test('global ls --parseable outputs paths', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
+
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+
+  await execPnpm(['add', '--global', 'is-positive@1.0.0'], { env })
+
+  const { stdout } = execPnpmSync(['ls', '-g', '--parseable'], { env, expectSuccess: true })
+  const lines = stdout.toString().trim().split('\n')
+  expect(lines.length).toBeGreaterThanOrEqual(2)
+  expect(lines.some((line) => line.endsWith(path.join('node_modules', 'is-positive')))).toBe(true)
+})
+
 test('global remove deletes install group and bin shims', async () => {
   prepare()
   const global = path.resolve('..', 'global')

@@ -113,7 +113,10 @@ export async function handler (
   params: string[]
 ): Promise<string> {
   if (opts.global && opts.globalPkgDir) {
-    return listGlobalPackages(opts.globalPkgDir, params)
+    return listGlobalPackages(opts.globalPkgDir, params, {
+      long: opts.long,
+      reportAs: determineReportAs(opts),
+    })
   }
   const include = computeInclude(opts)
   const depth = opts.cliOptions?.['depth'] ?? 0
