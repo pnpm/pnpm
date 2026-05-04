@@ -1,11 +1,11 @@
-# @pnpm/render-peer-issues
+# @pnpm/installing.render-peer-issues
 
 > Visualizes peer dependency issues
 
 ## Installation
 
 ```
-pnpm add @pnpm/render-peer-issues
+pnpm add @pnpm/installing.render-peer-issues
 ```
 
 ## License
