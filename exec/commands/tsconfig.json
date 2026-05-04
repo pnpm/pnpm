@@ -19,6 +19,9 @@
       "path": "../../bins/resolver"
     },
     {
+      "path": "../../building/commands"
+    },
+    {
       "path": "../../catalogs/resolver"
     },
     {
