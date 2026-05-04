@@ -44,7 +44,7 @@ export async function listGlobalPackages (
 
   if (dependencies.length === 0) {
     if (reportAs === 'json') {
-      return JSON.stringify([{ path: globalPkgDir, private: true }], null, 2)
+      return JSON.stringify([{ path: globalPkgDir, private: true, dependencies: {} }], null, 2)
     }
     if (reportAs === 'parseable') {
       return globalPkgDir

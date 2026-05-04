@@ -58,6 +58,7 @@ describe('listGlobalPackages', () => {
     expect(parsed).toHaveLength(1)
     expect(parsed[0].path).toBe(globalDir)
     expect(parsed[0].private).toBe(true)
+    expect(parsed[0].dependencies).toEqual({})
   })
 
   it('outputs paths when reportAs=parseable', async () => {
