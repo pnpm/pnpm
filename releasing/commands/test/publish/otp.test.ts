@@ -72,6 +72,33 @@ describe('publishWithOtpHandling', () => {
       .rejects.toBe(error)
   })
 
+  it('retries the publish when the registry returns a transient 409 conflict', async () => {
+    let publishCallCount = 0
+    const globalInfo = jest.fn()
+    const context = createMockContext({
+      globalInfo,
+      publish: async () => {
+        publishCallCount++
+        if (publishCallCount === 1) {
+          throw Object.assign(new Error('Failed to save packument.'), {
+            statusCode: 409,
+            code: 'E409',
+          })
+        }
+        return createOkResponse()
+      },
+    })
+    const result = await publishWithOtpHandling({
+      context,
+      manifest,
+      publishOptions: { ...publishOptions, fetchRetries: 2, fetchRetryFactor: 1, fetchRetryMintimeout: 0, fetchRetryMaxtimeout: 0 } as typeof publishOptions,
+      tarballData,
+    })
+    expect(result.ok).toBe(true)
+    expect(publishCallCount).toBe(2)
+    expect(globalInfo).toHaveBeenCalledWith(expect.stringContaining('409 Conflict'))
+  })
+
   it('throws OtpNonInteractiveError when terminal is not interactive', async () => {
     const context = createMockContext({
       process: { stdin: { isTTY: false } },

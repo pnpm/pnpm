@@ -6,6 +6,7 @@ import {
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import type { PublishOptions } from 'libnpmpublish'
 
+import { retryOnTransientConflict } from './retryOnTransientConflict.js'
 import { SHARED_CONTEXT } from './utils/shared-context.js'
 
 export interface OtpPublishResponse {
@@ -59,6 +60,13 @@ export async function publishWithOtpHandling ({
     timeout: publishOptions.timeout,
   }
 
+  const retryConfig = {
+    factor: publishOptions.fetchRetryFactor,
+    maxTimeout: publishOptions.fetchRetryMaxtimeout,
+    minTimeout: publishOptions.fetchRetryMintimeout,
+    retries: publishOptions.fetchRetries,
+  }
+
   return withOtpHandling({
     context,
     fetchOptions,
@@ -66,6 +74,10 @@ export async function publishWithOtpHandling ({
     // otp: undefined to the options. This is safe because libnpmpublish treats
     // undefined the same as absent (unlike HTTP headers, where undefined gets
     // coerced to the string "undefined").
-    operation: otp => publish(manifest, tarballData, { ...publishOptions, otp }),
+    operation: otp => retryOnTransientConflict({
+      context,
+      config: retryConfig,
+      operation: () => publish(manifest, tarballData, { ...publishOptions, otp }),
+    }),
   })
 }
