@@ -237,6 +237,11 @@ test('preserve existing transitive resolution when an unrelated direct dep intro
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/has-foo-100.1.0-dep-1'], testDefaults())
 
   lockfile = project.readLockfile()
+  // Sanity-check that the competing branch was actually introduced.
+  // Without this, the assertion below could pass even if the test fixture
+  // ever stops pulling in @pnpm.e2e/foo@100.1.0.
+  expect(lockfile.snapshots['@pnpm.e2e/has-foo-100.1.0-dep-1@1.0.0'])
+    .toHaveProperty(['dependencies', '@pnpm.e2e/foo'], '100.1.0')
   expect(lockfile.snapshots['@pnpm.e2e/requires-any-foo@1.0.0'])
     .toHaveProperty(['dependencies', '@pnpm.e2e/foo'], '100.0.0')
 })
