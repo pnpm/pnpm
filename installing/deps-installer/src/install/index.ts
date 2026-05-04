@@ -3,7 +3,7 @@ import path from 'node:path'
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { buildSelectedPkgs } from '@pnpm/building.after-install'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/building.during-install'
-import { createAllowBuildFunction } from '@pnpm/building.policy'
+import { createAllowBuildFunction, isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { type CatalogResultMatcher, matchCatalogResolveResult, resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
@@ -1495,7 +1495,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         if (ctx.modulesFile?.ignoredBuilds?.size) {
           ignoredBuilds ??= new Set()
           for (const ignoredBuild of ctx.modulesFile.ignoredBuilds.values()) {
-            if (result.currentLockfile.packages?.[ignoredBuild] && shouldPreserveIgnoredBuild(ignoredBuild, opts.allowBuild)) {
+            if (result.currentLockfile.packages?.[ignoredBuild] && !isBuildExplicitlyDisallowed(ignoredBuild, opts.allowBuild)) {
               ignoredBuilds.add(ignoredBuild)
             }
           }
@@ -1823,11 +1823,6 @@ export class IgnoredBuildsError extends PnpmError {
 
 function dedupePackageNamesFromIgnoredBuilds (ignoredBuilds: IgnoredBuilds): string[] {
   return Array.from(new Set(Array.from(ignoredBuilds ?? []).map(dp.removeSuffix))).sort(lexCompare)
-}
-
-function shouldPreserveIgnoredBuild (depPath: DepPath, allowBuild?: AllowBuild): boolean {
-  const { name, version } = dp.parse(depPath)
-  return !name || !version || allowBuild?.(name, version) !== false
 }
 
 /**

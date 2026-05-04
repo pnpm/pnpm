@@ -1,4 +1,5 @@
 ---
+"@pnpm/building.policy": patch
 "@pnpm/installing.deps-installer": patch
 "@pnpm/installing.deps-restorer": patch
 "@pnpm/deps.status": patch

@@ -2007,6 +2007,9 @@ importers:
       '@pnpm/config.version-policy':
         specifier: workspace:*
         version: link:../../config/version-policy
+      '@pnpm/deps.path':
+        specifier: workspace:*
+        version: link:../../deps/path
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
