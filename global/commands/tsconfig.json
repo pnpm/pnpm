@@ -31,16 +31,16 @@
       "path": "../../config/reader"
     },
     {
-      "path": "../../deps/inspection/list"
-    },
-    {
-      "path": "../../deps/inspection/tree-builder"
-    },
-    {
       "path": "../../core/error"
     },
     {
       "path": "../../core/types"
+    },
+    {
+      "path": "../../deps/inspection/list"
+    },
+    {
+      "path": "../../deps/inspection/tree-builder"
     },
     {
       "path": "../../installing/deps-installer"
