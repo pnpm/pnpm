@@ -3,6 +3,7 @@ import type { Log } from '@pnpm/core-loggers'
 import type { PnpmError } from '@pnpm/error'
 import { renderDedupeCheckIssues } from '@pnpm/installing.dedupe.issues-renderer'
 import type { DedupeCheckIssues } from '@pnpm/installing.dedupe.types'
+import { renderPeerIssues } from '@pnpm/installing.render-peer-issues'
 import type { PeerDependencyIssuesByProjects } from '@pnpm/types'
 import chalk from 'chalk'
 import { equals } from 'ramda'
@@ -461,9 +462,7 @@ function reportPeerDependencyIssuesError (
   msg: { issuesByProjects: PeerDependencyIssuesByProjects }
 ): ErrorInfo {
   const hasMissingPeers = getHasMissingPeers(msg.issuesByProjects)
-  const hints: string[] = [
-    'Run "pnpm peers check" to list the peer dependency issues.',
-  ]
+  const hints: string[] = []
   if (hasMissingPeers) {
     hints.push(`To auto-install peer dependencies, add the following to "pnpm-workspace.yaml" in your project root:
 
@@ -473,9 +472,18 @@ function reportPeerDependencyIssuesError (
 
   strictPeerDependencies: false
 `)
+  const rendered = renderPeerIssues(msg.issuesByProjects)
+  if (!rendered) {
+    return {
+      title: err.message,
+      body: hints.map((hint) => `hint: ${hint}`).join('\n'),
+    }
+  }
   return {
     title: err.message,
-    body: hints.map((hint) => `hint: ${hint}`).join('\n'),
+    body: `${rendered}
+${hints.map((hint) => `hint: ${hint}`).join('\n')}
+`,
   }
 }
 

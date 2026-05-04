@@ -32,6 +32,9 @@
       "path": "../../installing/dedupe/types"
     },
     {
+      "path": "../../installing/render-peer-issues"
+    },
+    {
       "path": "../meta"
     }
   ]

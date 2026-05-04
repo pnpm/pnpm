@@ -1,0 +1,42 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`renderPeerIssues() 1`] = `
+".
+└─┬ xxx 1.0.0
+  ├── ✕ unmet peer bbb@^1.0.0: found 2
+  └─┬ yyy 1.0.0
+    ├── ✕ missing peer aaa@">=1.0.0 <3.0.0"
+    └── ✕ unmet peer ccc@^1.0.0: found 2 in xxx
+Peer dependencies that should be installed:
+  aaa@^1.0.0
+
+packages/0
+├─┬ zzz 1.0.0
+│ ├── ✕ missing peer ddd@^1.0.0
+│ └── ✕ missing peer eee@^1.0.0
+└─┬ www 1.0.0
+  └── ✕ missing peer eee@^2.0.0
+✕ Conflicting peer dependencies:
+  eee
+Peer dependencies that should be installed:
+  ddd@^1.0.0"
+`;
+
+exports[`renderPeerIssues() format correctly the version ranges with spaces and "*" 1`] = `
+".
+└─┬ z 1.0.0
+  ├── ✕ missing peer a@"*"
+  └── ✕ missing peer b@"1 || 2"
+Peer dependencies that should be installed:
+  a@"*"       b@"1 || 2""
+`;
+
+exports[`renderPeerIssues() optional peer dependencies are printed only if they are in conflict with non-optional peers 1`] = `
+".
+└─┬ xxx 1.0.0
+  └─┬ yyy 1.0.0
+    ├── ✕ missing peer aaa@^1.0.0
+    └── ✕ missing peer aaa@^2.0.0
+✕ Conflicting peer dependencies:
+  aaa"
+`;

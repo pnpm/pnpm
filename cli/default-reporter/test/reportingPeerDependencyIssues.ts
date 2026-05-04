@@ -84,5 +84,5 @@ test('print peer dependency issues error', async () => {
   expect.assertions(1)
 
   const output = await firstValueFrom(output$)
-  expect(output).toContain('pnpm peers check')
+  expect(output).toContain('unmet peer a@3')
 })
