@@ -1,5 +1,15 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 1100.0.4
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+- Updated dependencies [5a901e7]
+  - @pnpm/store.controller-types@1100.0.4
+  - @pnpm/fs.graceful-fs@1100.1.0
+
 ## 1100.0.3
 
 ### Patch Changes

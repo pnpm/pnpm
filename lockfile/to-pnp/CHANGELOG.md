@@ -1,5 +1,16 @@
 # @pnpm/lockfile-to-pnp
 
+## 1100.0.4
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+- Updated dependencies [6b891a5]
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.4
+  - @pnpm/lockfile.fs@1100.0.4
+
 ## 1100.0.3
 
 ### Patch Changes

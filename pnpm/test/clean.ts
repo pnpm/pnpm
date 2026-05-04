@@ -20,6 +20,7 @@ test('pnpm clean removes pnpm entries and packages but preserves non-pnpm hidden
   fs.mkdirSync('node_modules/.pnpm', { recursive: true })
   fs.mkdirSync('node_modules/.bin')
   fs.writeFileSync('node_modules/.modules.yaml', 'storeDir: /tmp/store')
+  fs.writeFileSync('node_modules/.pnpm-workspace-state-v1.json', '{}')
   fs.mkdirSync('node_modules/.cache')
   fs.writeFileSync('node_modules/.cache/some-file', 'cached')
   fs.mkdirSync('node_modules/lodash')
@@ -34,6 +35,7 @@ test('pnpm clean removes pnpm entries and packages but preserves non-pnpm hidden
   expect(fs.existsSync('node_modules/.pnpm')).toBe(false)
   expect(fs.existsSync('node_modules/.bin')).toBe(false)
   expect(fs.existsSync('node_modules/.modules.yaml')).toBe(false)
+  expect(fs.existsSync('node_modules/.pnpm-workspace-state-v1.json')).toBe(false)
 
   // Regular packages should be removed
   expect(fs.existsSync('node_modules/lodash')).toBe(false)
@@ -58,6 +60,20 @@ test('pnpm clean handles missing node_modules gracefully', () => {
 test('pnpm clean preserves lockfile by default', () => {
   tempDir()
   fs.writeFileSync('package.json', '{}', 'utf8')
+  fs.writeFileSync('pnpm-lock.yaml', 'lockfileVersion: 9')
+  fs.mkdirSync('node_modules/.pnpm', { recursive: true })
+
+  const result = execPnpmSync(['clean'])
+  expect(result.status).toBe(0)
+
+  expect(fs.existsSync('node_modules/.pnpm')).toBe(false)
+  expect(fs.existsSync('pnpm-lock.yaml')).toBe(true)
+})
+
+test('pnpm clean preserves lockfile when pnpm-workspace.yaml sets lockfile', () => {
+  tempDir()
+  fs.writeFileSync('package.json', '{}', 'utf8')
+  writeYamlFileSync('pnpm-workspace.yaml', { lockfile: true })
   fs.writeFileSync('pnpm-lock.yaml', 'lockfileVersion: 9')
   fs.mkdirSync('node_modules/.pnpm', { recursive: true })
 

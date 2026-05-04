@@ -29,6 +29,9 @@
       "path": "../../../cli/utils"
     },
     {
+      "path": "../../../config/pick-registry-for-package"
+    },
+    {
       "path": "../../../config/reader"
     },
     {
@@ -65,6 +68,9 @@
       "path": "../../../network/auth-header"
     },
     {
+      "path": "../../../object/key-sorting"
+    },
+    {
       "path": "../../../pkg-manifest/reader"
     },
     {
@@ -81,6 +87,9 @@
     },
     {
       "path": "../../../workspace/projects-filter"
+    },
+    {
+      "path": "../../security/signatures"
     },
     {
       "path": "../audit"

@@ -4,9 +4,9 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 10.x  | :white_check_mark: |
-| 9.x   | :white_check_mark: till 2026 April 30 |
-| <= 8.x   | :x:                |
+| 11.x  | :white_check_mark: |
+| 10.x  | :white_check_mark: till 2027 April 30 |
+| <= 9.x   | :x:                |
 
 ## Reporting a Vulnerability
 

@@ -9,6 +9,7 @@ import { type LocalResolveResult, resolveFromLocal } from '@pnpm/resolving.local
 import {
   createNpmResolver,
   type JsrResolveResult,
+  type NamedRegistryResolveResult,
   type NpmResolveResult,
   type PackageMeta,
   type PackageMetaCache,
@@ -38,6 +39,7 @@ export interface CustomResolverResolveResult extends ResolveResult {
 export type DefaultResolveResult =
   | NpmResolveResult
   | JsrResolveResult
+  | NamedRegistryResolveResult
   | GitResolveResult
   | LocalResolveResult
   | TarballResolveResult
@@ -91,7 +93,7 @@ export function createResolver (
     customResolvers?: CustomResolver[]
   }
 ): { resolve: DefaultResolver, clearCache: () => void } {
-  const { resolveFromNpm, resolveFromJsr, clearCache } = createNpmResolver(fetchFromRegistry, getAuthHeader, pnpmOpts)
+  const { resolveFromNpm, resolveFromJsr, resolveFromNamedRegistry, clearCache } = createNpmResolver(fetchFromRegistry, getAuthHeader, pnpmOpts)
   const resolveFromGit = createGitResolver(pnpmOpts)
   const _resolveFromLocal = resolveFromLocal.bind(null, {
     preserveAbsolutePaths: pnpmOpts.preserveAbsolutePaths,
@@ -114,7 +116,12 @@ export function createResolver (
         )) ??
         await _resolveNodeRuntime(wantedDependency, opts) ??
         await _resolveDenoRuntime(wantedDependency, opts) ??
-        await _resolveBunRuntime(wantedDependency, opts)
+        await _resolveBunRuntime(wantedDependency, opts) ??
+        // Named-registry resolution runs last so that built-in schemes
+        // (`npm:`, `jsr:`, `git:`/`github:`/`gitlab:`/…, `file:`, `link:`,
+        // tarball URLs, etc.) are always claimed by their dedicated resolver
+        // before a user-configured alias gets a chance to shadow them.
+        await resolveFromNamedRegistry(wantedDependency, opts as ResolveFromNpmOptions)
       if (!resolution) {
         let specifier = `${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.bareSpecifier ?? ''}`
         if (specifier !== '') {

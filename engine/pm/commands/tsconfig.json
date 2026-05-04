@@ -59,6 +59,9 @@
       "path": "../../../installing/env-installer"
     },
     {
+      "path": "../../../lockfile/fs"
+    },
+    {
       "path": "../../../lockfile/types"
     },
     {

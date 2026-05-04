@@ -40,31 +40,90 @@ This is particularly powerful when running multiple AI coding agents (e.g. Claud
 same time — each agent gets its own isolated worktree, so they can work concurrently without
 interfering with each other.
 
-The repo includes a `pnpm worktree:new <branch>` script that creates a worktree as a sibling
-of the repo root. For a branch named `feat/my-feature` it creates `../feat-my-feature` (slashes
-are replaced with dashes).
+### Setting up a bare-repo layout with worktrees
 
-Because a script cannot change your shell's working directory, the repo also provides shell
-helpers (`shell/wt.sh` for bash/zsh, `shell/wt.fish` for fish) that wrap the script and `cd`
-into the new worktree automatically.
+Cloning as a **bare** repository lets all worktrees live as children of a single top-level
+directory. That avoids the "one privileged main clone + siblings" asymmetry: every branch is
+just a directory next to the others, and there is no working tree attached to the bare repo
+itself. This is especially handy when you expect to keep many worktrees around long-term —
+for example, one per in-flight PR, or one per parallel AI agent.
 
-### One-time setup
+The resulting layout looks like this:
 
-**fish** — add to `~/.config/fish/config.fish` so `wt` is available in every future session:
-
-```fish
-source /path/to/pnpm/shell/wt.fish
+```
+~/src/pnpm/pnpm/          # the bare repo (contains HEAD, config, objects/, refs/, worktrees/)
+├── main/                 # worktree for main
+├── v10/                  # worktree for the v10 release branch
+├── fix-1234/             # worktree for branch fix/1234
+└── feat-my-feature/      # worktree for branch feat/my-feature
 ```
 
-**bash/zsh** — add to `~/.bashrc` or `~/.zshrc`:
+One-time setup:
 
-```sh
-source /path/to/pnpm/shell/wt.sh
-```
+1. Clone as a bare repository at the directory that will hold all worktrees:
 
-To use `wt` in your current terminal without restarting it, also run the `source` command directly once.
+   ```shell
+   git clone --bare https://github.com/pnpm/pnpm.git ~/src/pnpm/pnpm
+   cd ~/src/pnpm/pnpm
+   ```
+
+2. Point Husky at a path that exists inside every worktree (not inside the bare repo's gitdir),
+   so commit and push hooks run when you commit from any worktree:
+
+   ```shell
+   git config core.hooksPath .husky/_
+   ```
+
+3. Create the first worktree for `main` and install dependencies:
+
+   ```shell
+   git worktree add main main
+   cd main
+   pnpm install
+   ```
+
+4. Install [`@zkochan/git-wt`](https://github.com/zkochan/git-wt) globally. It provides a
+   `git-wt` binary that creates a worktree for a branch or PR and prints its path, plus a
+   `wt` shell function that `cd`s into the new worktree in one step:
+
+   ```shell
+   pnpm add -g @zkochan/git-wt
+   ```
+
+   Then wire the `wt` function into your shell config so it's available in every future
+   session. Pick the snippet for your shell — it appends to the right rc file and activates
+   `wt` in the current session too:
+
+   **fish**:
+
+   ```shell
+   echo 'git-wt init fish | source' >> ~/.config/fish/config.fish
+   git-wt init fish | source
+   ```
+
+   **bash**:
+
+   ```shell
+   echo 'eval "$(git-wt init bash)"' >> ~/.bashrc
+   eval "$(git-wt init bash)"
+   ```
+
+   **zsh**:
+
+   ```shell
+   echo 'eval "$(git-wt init zsh)"' >> ~/.zshrc
+   eval "$(git-wt init zsh)"
+   ```
+
+5. (Optional) If you push to your own fork as well as `origin`, add it once in the bare repo:
+
+   ```shell
+   git -C ~/src/pnpm/pnpm remote add <your-username> git@github.com:<your-username>/pnpm.git
+   ```
 
 ### Usage
+
+From inside any existing worktree:
 
 ```shell
 # Create a worktree for an existing branch and switch to it
@@ -77,16 +136,27 @@ wt feat/my-feature
 wt 10000
 ```
 
+`wt` creates the new worktree next to the current one — in the bare-repo layout that means it
+lands as a sibling of `main/`, inside the bare repo directory. Branch names with slashes get
+their slashes replaced with dashes in the directory name (so `feat/my-feature` becomes
+`feat-my-feature/`).
+
 Passing a number is interpreted as a PR number. The PR is fetched via
 `git fetch origin pull/<number>/head` into a local branch named `pr-<number>`, so it works
 for both same-repo branches and forks.
 
+If [Claude Code](https://www.anthropic.com/claude-code) is installed on your system, `wt
+<pr-number>` will additionally launch a Claude review of the PR via the tracked hook at
+`.git-wt/pr-hook`. The hook silently no-ops if `claude` isn't on your `PATH`, so contributors
+who don't use Claude aren't affected. Requires `@zkochan/git-wt` ≥ 0.0.3, which is the
+version that introduced the per-repo hook lookup.
+
 If you only need the worktree path (e.g. to open it in an editor) without switching directories,
-run the underlying script directly:
+invoke `git-wt` directly — it's also exposed as a native git subcommand:
 
 ```shell
-pnpm worktree:new feat/my-feature
-pnpm worktree:new 10000
+git wt feat/my-feature
+git wt 10000
 ```
 
 ## Running Tests

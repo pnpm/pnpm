@@ -1,5 +1,17 @@
 # @pnpm/make-dedicated-lockfile
 
+## 1100.0.5
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/workspace.project-manifest-reader@1100.0.3
+  - @pnpm/releasing.exportable-manifest@1100.0.3
+  - @pnpm/workspace.root-finder@1100.0.1
+  - @pnpm/lockfile.fs@1100.0.4
+  - @pnpm/lockfile.pruner@1100.0.3
+
 ## 1100.0.4
 
 ### Patch Changes

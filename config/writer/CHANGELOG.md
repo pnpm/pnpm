@@ -1,5 +1,18 @@
 # @pnpm/config.config-writer
 
+## 1100.0.4
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.4
+
+## 1100.0.3
+
+### Patch Changes
+
+- @pnpm/workspace.workspace-manifest-writer@1100.0.3
+
 ## 1100.0.2
 
 ### Patch Changes

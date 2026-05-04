@@ -1,11 +1,11 @@
-# @pnpm/create-cafs-store
+# @pnpm/store.create-cafs-store
 
 > Create a CAFS store controller
 
 ## Installation
 
 ```
-pnpm add @pnpm/create-cafs-store
+pnpm add @pnpm/store.create-cafs-store
 ```
 
 ## License

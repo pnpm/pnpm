@@ -1,5 +1,16 @@
 # @pnpm/pnpmfile
 
+## 1100.0.4
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/store.controller-types@1100.0.4
+  - @pnpm/hooks.types@1100.0.4
+  - @pnpm/lockfile.types@1100.0.3
+  - @pnpm/crypto.hash@1100.0.1
+
 ## 1100.0.3
 
 ### Patch Changes

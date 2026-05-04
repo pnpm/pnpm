@@ -1,5 +1,13 @@
 # @pnpm/lockfile.detect-dep-types
 
+## 1100.0.3
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/lockfile.types@1100.0.3
+
 ## 1100.0.2
 
 ### Patch Changes

@@ -1,5 +1,20 @@
 # @pnpm/find-workspace-packages
 
+## 1101.0.2
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/workspace.project-manifest-reader@1100.0.3
+  - @pnpm/cli.utils@1101.0.2
+
+## 1101.0.1
+
+### Patch Changes
+
+- @pnpm/cli.utils@1101.0.1
+
 ## 1101.0.0
 
 ### Major Changes

@@ -1,5 +1,41 @@
 # @pnpm/config.deps-installer
 
+## 1101.0.3
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+- Updated dependencies [6b891a5]
+  - @pnpm/resolving.parse-wanted-dependency@1100.0.1
+  - @pnpm/config.pick-registry-for-package@1100.0.2
+  - @pnpm/resolving.npm-resolver@1101.0.1
+  - @pnpm/store.controller-types@1100.0.4
+  - @pnpm/fs.read-modules-dir@1100.0.1
+  - @pnpm/pkg-manifest.reader@1100.0.2
+  - @pnpm/deps.graph-hasher@1100.1.2
+  - @pnpm/store.controller@1101.0.2
+  - @pnpm/config.writer@1100.0.4
+  - @pnpm/network.fetch@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.4
+  - @pnpm/worker@1100.1.1
+  - @pnpm/installing.deps-resolver@1100.0.5
+  - @pnpm/lockfile.types@1100.0.3
+  - @pnpm/lockfile.fs@1100.0.4
+  - @pnpm/lockfile.pruner@1100.0.3
+
+## 1101.0.2
+
+### Patch Changes
+
+- @pnpm/store.controller@1101.0.1
+
+## 1101.0.1
+
+### Patch Changes
+
+- @pnpm/config.writer@1100.0.3
+- @pnpm/store.controller@1101.0.0
+
 ## 1101.0.0
 
 ### Patch Changes

@@ -14,6 +14,7 @@ import {
 } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
 import enquirer from 'enquirer'
+import { pathAbsolute } from 'path-absolute'
 import { equals } from 'ramda'
 
 import { checkCompatibility } from './checkCompatibility/index.js'
@@ -115,7 +116,7 @@ export async function validateModules (
   }
   if (importersToPurge.length > 0 && (rootProject == null)) {
     importersToPurge.push({
-      modulesDir: path.join(opts.lockfileDir, opts.modulesDir),
+      modulesDir: pathAbsolute(opts.modulesDir, opts.lockfileDir),
       rootDir: opts.lockfileDir as ProjectRootDir,
     })
   }

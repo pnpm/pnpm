@@ -1,5 +1,23 @@
 # @pnpm/npm-resolver
 
+## 1101.0.1
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+- Updated dependencies [5a901e7]
+  - @pnpm/resolving.registry.pkg-metadata-filter@1100.0.2
+  - @pnpm/config.pick-registry-for-package@1100.0.2
+  - @pnpm/resolving.registry.types@1100.0.2
+  - @pnpm/workspace.range-resolver@1100.0.1
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/fetching.types@1100.0.1
+  - @pnpm/fs.graceful-fs@1100.1.0
+  - @pnpm/worker@1100.1.1
+  - @pnpm/store.cafs@1100.1.1
+  - @pnpm/crypto.hash@1100.0.1
+
 ## 1101.0.0
 
 ### Patch Changes

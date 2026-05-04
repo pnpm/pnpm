@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/text.naming-cases",
-  "version": "1100.0.0",
+  "version": "1100.0.1",
   "description": "manipulate and check naming cases",
   "keywords": [
     "pnpm",

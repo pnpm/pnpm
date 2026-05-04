@@ -1,5 +1,16 @@
 # @pnpm/read-project-manifest
 
+## 1100.0.3
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+- Updated dependencies [5a901e7]
+  - @pnpm/workspace.project-manifest-writer@1100.0.2
+  - @pnpm/pkg-manifest.utils@1100.1.1
+  - @pnpm/fs.graceful-fs@1100.1.0
+
 ## 1100.0.2
 
 ### Patch Changes

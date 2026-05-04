@@ -1,5 +1,17 @@
 # @pnpm/exe
 
+## 11.0.3
+
+### Patch Changes
+
+- a99ffe0: Also pass `verbatimSymlinks: true` to the `fs.cpSync` call in `__utils__/scripts/src/copy-artifacts.ts`, which is the script that actually produces the GitHub release tarballs (`pnpm-{darwin,linux}-{x64,arm64}.tar.gz`). The previous fix in #11399 only covered the `fs.cpSync` in `pnpm/artifacts/exe/scripts/build-artifacts.ts`, which packages the `dist/` shipped inside the npm-published `@pnpm/exe` package. Verified by inspecting the v11.0.2 release tarballs after #11399 landed: the broken `/home/runner/work/pnpm/pnpm/...` symlinks under `dist/node_modules/.bin/` were still present, confirming `copy-artifacts.ts` is the offender for the GitHub release path. Follow-up to #11398.
+
+## 11.0.2
+
+### Patch Changes
+
+- d613c81: Preserve relative symlinks under `dist/node_modules/.bin/` when copying `dist/` for the standalone executable artifact, by passing `verbatimSymlinks: true` to `fs.cpSync`. This stops the release tarballs from baking absolute paths to the build host (e.g. `/home/runner/work/pnpm/pnpm/...`) into symlink targets, which previously made the tarballs unextractable by strict tar implementations that validate symlink targets (e.g. hermit) [#11398](https://github.com/pnpm/pnpm/issues/11398).
+
 ## 11.0.0
 
 ### Patch Changes

@@ -15,6 +15,7 @@ packages:
   - deps/*
   - deps/compliance/*
   - deps/inspection/*
+  - deps/security/*
   - engine/*
   - engine/pm/*
   - engine/runtime/*
@@ -66,6 +67,7 @@ auditConfig:
     - GHSA-76c9-3jph-rj3q
     - GHSA-ffrw-9mx8-89p8
     - GHSA-mh29-5h37-fv8m
+    - GHSA-w5hq-g745-h8pq
 
 catalog:
   '@babel/core': ^7.28.3
@@ -144,7 +146,7 @@ catalog:
   '@yarnpkg/nm': 4.0.7
   '@yarnpkg/parsers': 3.0.3
   '@yarnpkg/pnp': ^4.0.8
-  '@zkochan/cmd-shim': ^9.0.0
+  '@zkochan/cmd-shim': ^9.0.2
   '@zkochan/retry': ^0.2.0
   '@zkochan/rimraf': ^4.0.0
   '@zkochan/table': ^2.0.1
@@ -341,7 +343,7 @@ minimumReleaseAgeExclude:
   - '@pnpm/*'
   - '@rushstack/worker-pool@0.7.7'
   - '@zkochan/*'
-  - '@zkochan/cmd-shim@9.0.0'
+  - '@zkochan/cmd-shim@9.0.2'
   - better-path-resolve
   - body-parser@2.2.1
   - can-link

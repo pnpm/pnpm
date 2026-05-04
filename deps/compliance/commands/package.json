@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.compliance.commands",
-  "version": "1101.1.1",
+  "version": "1101.1.6",
   "description": "pnpm commands for audit, licenses, and sbom",
   "keywords": [
     "pnpm",
@@ -39,6 +39,7 @@
     "@pnpm/cli.common-cli-options-help": "workspace:*",
     "@pnpm/cli.meta": "workspace:*",
     "@pnpm/cli.utils": "workspace:*",
+    "@pnpm/config.pick-registry-for-package": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/config.writer": "workspace:*",
     "@pnpm/constants": "workspace:*",
@@ -46,6 +47,7 @@
     "@pnpm/deps.compliance.license-resolver": "workspace:*",
     "@pnpm/deps.compliance.license-scanner": "workspace:*",
     "@pnpm/deps.compliance.sbom": "workspace:*",
+    "@pnpm/deps.security.signatures": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/installing.commands": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
@@ -53,6 +55,7 @@
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/lockfile.walker": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
+    "@pnpm/object.key-sorting": "workspace:*",
     "@pnpm/store.path": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",

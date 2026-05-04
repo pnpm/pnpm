@@ -149,6 +149,47 @@ test('package manager from the packageManager field is not saved into the lockfi
   expect(envLockfile!.importers['.'].packageManagerDependencies).toBeUndefined()
 })
 
+test('packageManagerDependencies is refreshed when pnpm is invoked via corepack (#11397)', async () => {
+  const pnpmVersion = JSON.parse(fs.readFileSync(path.join(path.dirname(pnpmBinLocation), '..', 'package.json'), 'utf8')).version as string
+  prepare({
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: pnpmVersion,
+      },
+    },
+  })
+
+  // Seed the lockfile with a stale packageManagerDependencies entry that no
+  // longer satisfies devEngines.packageManager. Multi-document YAML: env
+  // lockfile is the first doc, the (empty) installer lockfile is the second.
+  fs.writeFileSync('pnpm-lock.yaml', `---
+lockfileVersion: '9.0'
+importers:
+  '.':
+    configDependencies: {}
+    packageManagerDependencies:
+      pnpm:
+        specifier: 0.0.1
+        version: 0.0.1
+packages: {}
+snapshots: {}
+
+---
+`)
+
+  // COREPACK_ROOT used to skip the entire pm-handling block, leaving the stale
+  // 0.0.1 entry untouched. The sync must run regardless of how pnpm was
+  // invoked.
+  await execPnpm(['install'], {
+    env: { COREPACK_ROOT: '/fake/corepack' },
+  })
+
+  const envLockfile = await readEnvLockfile(process.cwd())
+  expect(envLockfile).not.toBeNull()
+  expect(envLockfile!.importers['.'].packageManagerDependencies?.['pnpm'].version).toBe(pnpmVersion)
+})
+
 test('installing a new configurational dependency', async () => {
   prepare()
 

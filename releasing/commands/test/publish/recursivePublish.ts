@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import path from 'node:path'
 
 import { expect, jest, test } from '@jest/globals'
 import { streamParser } from '@pnpm/logger'
@@ -278,6 +279,47 @@ test('recursive publish writes publish summary', async () => {
       publishedPackages: [],
     })
   }
+})
+
+test('recursive publish summary uses manifest from publishConfig.directory', async () => {
+  const pkgName = `@pnpmtest/test-recursive-publish-config-directory-${Date.now()}`
+  const packages = preparePackages([
+    {
+      name: pkgName,
+      version: '1.0.0',
+
+      publishConfig: {
+        directory: 'dist',
+      },
+    },
+  ])
+  const selectedProjects = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  const project = packages[pkgName]
+  fs.mkdirSync(path.join(project.dir(), 'dist'))
+  fs.writeFileSync(path.join(project.dir(), 'dist/package.json'), JSON.stringify({
+    name: pkgName,
+    version: '2.0.0',
+  }))
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    ...selectedProjects,
+    configByUri: CONFIG_BY_URI,
+    dir: process.cwd(),
+    dryRun: true,
+    force: true,
+    recursive: true,
+    reportSummary: true,
+  }, [])
+
+  expect(loadJsonFileSync('pnpm-publish-summary.json')).toStrictEqual({
+    publishedPackages: [
+      {
+        name: pkgName,
+        version: '2.0.0',
+      },
+    ],
+  })
 })
 
 test('errors on fake registry', async () => {

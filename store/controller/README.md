@@ -1,11 +1,11 @@
-# @pnpm/package-store
+# @pnpm/store.controller
 
 > A storage for packages
 
 ## Installation
 
 ```
-pnpm add @pnpm/package-store
+pnpm add @pnpm/store.controller
 ```
 
 ## License

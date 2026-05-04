@@ -1,5 +1,30 @@
 # @pnpm/default-reporter
 
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+
+## 1100.0.6
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/installing.dedupe.issues-renderer@1100.0.1
+  - @pnpm/installing.dedupe.types@1100.0.1
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/cli.meta@1100.0.2
+
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [0fbcf74]
+  - @pnpm/config.reader@1101.1.2
+
 ## 1100.0.4
 
 ### Patch Changes

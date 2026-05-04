@@ -155,6 +155,49 @@ test('run lifecycle events of global packages in correct working directory', asy
   expect(fs.existsSync(path.join(pkgPath!, 'created-by-postinstall'))).toBeTruthy()
 })
 
+// Regression test for https://github.com/pnpm/pnpm/issues/11403.
+//
+// When `pnpm add -g` installs a package whose build is not pre-allowed,
+// the install succeeds with the build ignored and `globalAdd` then runs
+// `promptApproveGlobalBuilds`. If the user approves, `approve-builds`
+// runs `install.handler` against the install directory — and that is the
+// install run that crashed with `ENOENT` because `modulesDir` was being
+// forwarded as an absolute path and re-joined with `lockfileDir`.
+//
+// `PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS=1` lets the test drive this flow
+// non-interactively: `promptApproveGlobalBuilds` skips the TTY check and
+// passes `all: true` so `approve-builds` approves every pending build
+// without prompting. The post-approval install must complete and the
+// build artifact must end up in the global install dir.
+test('approve-builds during global add does not produce a doubled modules path', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(pnpmHome, { recursive: true })
+
+  const env = {
+    [PATH_NAME]: `${path.join(pnpmHome, 'bin')}${path.delimiter}${process.env[PATH_NAME]!}`,
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+    PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS: '1',
+  }
+
+  // Note: no --allow-build here. The first install records the build in
+  // `ignoredBuilds`; `promptApproveGlobalBuilds` then drives the
+  // approve → install chain that produced the doubled-path crash.
+  await execPnpm([
+    'add',
+    '-g',
+    '@pnpm.e2e/install-script-example@1.0.0',
+  ], { env })
+
+  const pkgPath = findGlobalPkg(globalPkgDir(pnpmHome), '@pnpm.e2e/install-script-example')
+  expect(pkgPath).toBeTruthy()
+  // The build artifacts are only present if the post-approval install
+  // ran the package's install scripts.
+  expect(fs.existsSync(path.join(pkgPath!, 'generated-by-install.js'))).toBe(true)
+})
+
 // CONTEXT: dangerously-allow-all-builds has been removed from rc files, as a result, this test no longer applies
 // TODO: Maybe we should create a yaml config file specifically for `--global`? After all, this test is to serve such use-cases
 test.skip('dangerously-allow-all-builds=true in global config', async () => {

@@ -1,5 +1,27 @@
 # @pnpm/package-store
 
+## 1101.0.2
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/installing.package-requester@1101.0.2
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/store.create-cafs-store@1100.0.4
+  - @pnpm/store.controller-types@1100.0.4
+  - @pnpm/fetching.fetcher-base@1100.1.1
+  - @pnpm/worker@1100.1.1
+  - @pnpm/hooks.types@1100.0.4
+  - @pnpm/store.cafs@1100.1.1
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1101.0.1
+
+### Patch Changes
+
+- @pnpm/installing.package-requester@1101.0.1
+
 ## 1101.0.0
 
 ### Patch Changes

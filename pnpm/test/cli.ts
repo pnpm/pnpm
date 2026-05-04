@@ -88,6 +88,21 @@ test('command fails when an unsupported flag is used', async () => {
   expect(stderr.toString()).toMatch(/Unknown option: 'save-dev'/)
 })
 
+test('implicit run command fails when an unsupported top-level flag is used', () => {
+  prepare({
+    scripts: {
+      web: 'node -e "console.log(\'script should not run\')"',
+    },
+  })
+
+  const { status, stdout, stderr } = execPnpmSync(['--fitler', 'web', 'dev']) // cspell:disable-line
+
+  expect(status).toBe(1)
+  expect(stdout.toString()).not.toContain('script should not run')
+  expect(stderr.toString()).toMatch(/Unknown option: 'fitler'/) // cspell:disable-line
+  expect(stderr.toString()).toMatch(/Did you mean 'filter'/)
+})
+
 test('command fails when a deprecated option is used', async () => {
   prepare()
 

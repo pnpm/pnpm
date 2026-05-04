@@ -681,7 +681,9 @@ export async function mutateModules (
     >
 
     async function installSome (project: InstallSomeProject) {
-      const currentBareSpecifiers = opts.ignoreCurrentSpecifiers ? {} : getAllDependenciesFromManifest(project.manifest)
+      const currentBareSpecifiers = opts.ignoreCurrentSpecifiers
+        ? {}
+        : getAllDependenciesFromManifest(project.manifest, { autoInstallPeers: opts.autoInstallPeers })
       const optionalDependencies = project.targetDependenciesField ? {} : project.manifest.optionalDependencies ?? {}
       const devDependencies = project.targetDependenciesField ? {} : project.manifest.devDependencies ?? {}
       if (preferredSpecs == null) {
@@ -1313,6 +1315,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       preferredVersions,
       preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
       registries: ctx.registries,
+      namedRegistries: opts.namedRegistries,
       resolutionMode: opts.resolutionMode,
       saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       storeController: opts.storeController,
