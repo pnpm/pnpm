@@ -9,6 +9,21 @@ import {
 } from '@pnpm/global.packages'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 
+export function findGlobalInstallDirs (globalPkgDir: string, params: string[]): string[] {
+  const packages = scanGlobalPackages(globalPkgDir)
+  const matches = params.length > 0 ? createMatcher(params) : () => true
+  const installDirs = new Set<string>()
+  for (const pkg of packages) {
+    for (const alias of Object.keys(pkg.dependencies)) {
+      if (matches(alias)) {
+        installDirs.add(pkg.installDir)
+        break
+      }
+    }
+  }
+  return [...installDirs]
+}
+
 export interface ListGlobalPackagesOptions {
   long?: boolean
   reportAs?: 'parseable' | 'tree' | 'json'

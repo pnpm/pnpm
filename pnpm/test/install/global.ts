@@ -503,6 +503,41 @@ test('global ls --parseable outputs paths', async () => {
   expect(lines.some((line) => line.endsWith(path.join('node_modules', 'is-positive')))).toBe(true)
 })
 
+test('global ls --depth>0 errors across multiple isolated installs', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
+
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+
+  await execPnpm(['add', '--global', 'is-positive@1.0.0'], { env })
+  await execPnpm(['add', '--global', 'is-negative@1.0.0'], { env })
+
+  const result = execPnpmSync(['ls', '-g', '--depth=1'], { env })
+  expect(result.status).not.toBe(0)
+  expect(result.stdout.toString() + result.stderr.toString()).toContain('GLOBAL_LS_DEPTH_NOT_SUPPORTED')
+})
+
+test('global ls --depth>0 shows the full dependency tree of a single global install', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
+
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+
+  await execPnpm(['add', '--global', '@pnpm.e2e/pkg-with-1-dep@100.0.0'], { env })
+
+  const { stdout } = execPnpmSync(['ls', '-g', '--depth=1', '--json'], { env, expectSuccess: true })
+  const parsed = JSON.parse(stdout.toString())
+  expect(Array.isArray(parsed)).toBe(true)
+  expect(parsed).toHaveLength(1)
+  const pkg = parsed[0].dependencies['@pnpm.e2e/pkg-with-1-dep']
+  expect(pkg.version).toBe('100.0.0')
+  expect(pkg.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBeDefined()
+})
+
 test('global remove deletes install group and bin shims', async () => {
   prepare()
   const global = path.resolve('..', 'global')
