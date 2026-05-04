@@ -59,7 +59,10 @@ export async function publishPackedPkg (
 }
 
 async function createPublishOptions (manifest: ExportedManifest, options: PublishPackedPkgOptions): Promise<PublishOptions> {
-  const { registry, config } = findRegistryInfo(manifest, options)
+  const publishConfigRegistry = typeof manifest.publishConfig?.registry === 'string'
+    ? manifest.publishConfig.registry
+    : undefined
+  const { registry, config } = findRegistryInfo(manifest, options, publishConfigRegistry)
   const { creds, tls } = config ?? {}
 
   const {
@@ -130,16 +133,19 @@ interface RegistryInfo {
 /**
  * Find credentials and SSL info for a package's registry.
  * Follows {@link https://docs.npmjs.com/cli/v10/configuring-npm/npmrc#auth-related-configuration}.
+ *
+ * The manifest's `publishConfig.registry`, when set, takes precedence over `registries`.
  */
 function findRegistryInfo (
   { name }: ExportedManifest,
-  { configByUri, registries }: Pick<Config, 'configByUri' | 'registries'>
+  { configByUri, registries }: Pick<Config, 'configByUri' | 'registries'>,
+  publishConfigRegistry?: string
 ): Partial<RegistryInfo> {
   // eslint-disable-next-line regexp/no-unused-capturing-group
   const scopedMatches = /@(?<scope>[^/]+)\/(?<slug>[^/]+)/.exec(name)
 
   const registryName = scopedMatches?.groups ? `@${scopedMatches.groups.scope}` : 'default'
-  const nonNormalizedRegistry = registries[registryName] ?? registries.default
+  const nonNormalizedRegistry = publishConfigRegistry ?? registries[registryName] ?? registries.default
 
   const supportedRegistryInfo = parseSupportedRegistryUrl(nonNormalizedRegistry)
   if (!supportedRegistryInfo) {

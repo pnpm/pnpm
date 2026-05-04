@@ -304,6 +304,28 @@ test('publish: package with all possible fields in publishConfig', async () => {
   })
 })
 
+test('publish: package with publishConfig.registry overrides the default registry', async () => {
+  const pkgName = `test-publish-config-registry-${Date.now()}`
+  prepare({
+    name: pkgName,
+    version: '1.0.0',
+
+    publishConfig: {
+      registry: `http://localhost:${REGISTRY_MOCK_PORT}`,
+    },
+  })
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish'] },
+    configByUri: CONFIG_BY_URI,
+    dir: process.cwd(),
+    registries: { default: 'https://__fake_npm_registry__.com' },
+  }, [])
+
+  await checkPkgExists(pkgName, '1.0.0')
+})
+
 test('publish: package with publishConfig.directory', async () => {
   const packages = preparePackages([
     {
