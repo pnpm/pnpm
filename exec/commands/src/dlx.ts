@@ -7,6 +7,7 @@ import {
   type CatalogResolver,
   resolveFromCatalog,
 } from '@pnpm/catalogs.resolver'
+import type { CommandHandlerMap } from '@pnpm/cli.command'
 import { OUTPUT_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli.utils'
 import { type Config, types } from '@pnpm/config.reader'
@@ -29,6 +30,14 @@ import { makeEnv } from './makeEnv.js'
 export const skipPackageManagerCheck = true
 
 export const commandNames = ['dlx']
+
+/**
+ * Test-only env var. When set, the dlx ignored-builds recovery path bypasses
+ * the TTY check and forwards `all: true` so `approve-builds` skips its
+ * multiselect and confirm prompts. Mirrors the same env var honored by
+ * `promptApproveGlobalBuilds` for global installs. Not for production use.
+ */
+const AUTO_APPROVE_FOR_TESTS_ENV = 'PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS'
 
 export const shorthands: Record<string, string> = {
   c: '--shell-mode',
@@ -88,7 +97,8 @@ export type DlxCommandOptions = {
 
 export async function handler (
   opts: DlxCommandOptions,
-  [command, ...args]: string[]
+  [command, ...args]: string[],
+  commands?: CommandHandlerMap
 ): Promise<{ exitCode: number, output?: string }> {
   if (!command && (!opts.package || opts.package.length === 0)) {
     return { exitCode: 1, output: help() }
@@ -147,23 +157,63 @@ export async function handler (
     supportedArchitectures: opts.supportedArchitectures,
   })
   if (!cacheExists) {
+    const allowBuilds = Object.fromEntries([...resolvedPkgAliases, ...(opts.allowBuild ?? [])].map(pkg => [pkg, true]))
     try {
       fs.mkdirSync(cachedDir, { recursive: true })
-      await add.handler({
-        ...opts,
-        enableGlobalVirtualStore: opts.enableGlobalVirtualStore ?? true,
-        bin: path.join(cachedDir, 'node_modules/.bin'),
-        dir: cachedDir,
-        lockfileDir: cachedDir,
-        allowBuilds: Object.fromEntries([...resolvedPkgAliases, ...(opts.allowBuild ?? [])].map(pkg => [pkg, true])),
-        rootProjectManifestDir: cachedDir,
-        saveProd: true, // dlx will be looking for the package in the "dependencies" field!
-        saveDev: false,
-        saveOptional: false,
-        savePeer: false,
-        symlink: true,
-        workspaceDir: undefined,
-      }, resolvedPkgs)
+      try {
+        await add.handler({
+          ...opts,
+          enableGlobalVirtualStore: opts.enableGlobalVirtualStore ?? true,
+          bin: path.join(cachedDir, 'node_modules/.bin'),
+          dir: cachedDir,
+          lockfileDir: cachedDir,
+          allowBuilds,
+          rootProjectManifestDir: cachedDir,
+          saveProd: true, // dlx will be looking for the package in the "dependencies" field!
+          saveDev: false,
+          saveOptional: false,
+          savePeer: false,
+          symlink: true,
+          workspaceDir: undefined,
+        }, resolvedPkgs)
+      } catch (err) {
+        // When the install completed but some dependencies have unrun build
+        // scripts, strictDepBuilds (default in v11) makes add.handler throw.
+        // Prompt the user to approve those builds, mirroring the global install
+        // flow. Without this, `pnpm dlx <pkg>` cannot launch packages whose
+        // bin depends on a postinstall step (e.g. native modules).
+        const autoApproveForTests = process.env[AUTO_APPROVE_FOR_TESTS_ENV] === '1'
+        if (
+          util.types.isNativeError(err) &&
+          'code' in err &&
+          err.code === 'ERR_PNPM_IGNORED_BUILDS' &&
+          (autoApproveForTests || process.stdin.isTTY) &&
+          commands?.['approve-builds']
+        ) {
+          await commands['approve-builds']({
+            ...opts,
+            dir: cachedDir,
+            lockfileDir: cachedDir,
+            rootProjectManifestDir: cachedDir,
+            modulesDir: undefined,
+            workspaceDir: undefined,
+            allProjects: undefined,
+            selectedProjectsGraph: undefined,
+            workspacePackagePatterns: undefined,
+            rootProjectManifest: undefined,
+            global: false,
+            pending: false,
+            allowBuilds,
+            all: autoApproveForTests ? true : undefined,
+          }, [], commands)
+        } else {
+          // The install left a partially populated cache directory. Remove it
+          // so a subsequent dlx run starts clean instead of reusing the broken
+          // install (which would silently skip the build scripts again).
+          await fs.promises.rm(cachedDir, { recursive: true, force: true })
+          throw err
+        }
+      }
       try {
         await symlinkDir(cachedDir, cacheLink, { overwrite: true })
       } catch (error) {

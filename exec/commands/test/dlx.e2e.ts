@@ -10,9 +10,12 @@ const { getSystemNodeVersion: originalGetSystemNodeVersion } = await import('@pn
 jest.unstable_mockModule('@pnpm/engine.runtime.system-node-version', () => ({
   getSystemNodeVersion: jest.fn(originalGetSystemNodeVersion),
 }))
-const { add: originalAdd } = await import('@pnpm/installing.commands')
+const installingCommands = await import('@pnpm/installing.commands')
+const { add: originalAdd } = installingCommands
 jest.unstable_mockModule('@pnpm/installing.commands', () => ({
+  ...installingCommands,
   add: {
+    ...originalAdd,
     handler: jest.fn(originalAdd.handler),
   },
 }))
@@ -20,6 +23,7 @@ jest.unstable_mockModule('@pnpm/installing.commands', () => ({
 const systemNodeVersion = await import('@pnpm/engine.runtime.system-node-version')
 const { add } = await import('@pnpm/installing.commands')
 const { dlx } = await import('@pnpm/exec.commands')
+const { approveBuilds } = await import('@pnpm/building.commands')
 
 const testOnWindowsOnly = process.platform === 'win32' ? test : test.skip
 
@@ -386,6 +390,80 @@ test('dlx builds the packages passed via --allow-build', async () => {
   const builtPkg2Path = path.join(dlxCacheDir, 'node_modules/.pnpm/@pnpm.e2e+install-script-example@1.0.0/node_modules/@pnpm.e2e/install-script-example')
   expect(fs.existsSync(path.join(builtPkg2Path, 'package.json'))).toBeTruthy()
   expect(fs.existsSync(path.join(builtPkg2Path, 'generated-by-install.js'))).toBeTruthy()
+})
+
+// Regression test for https://github.com/pnpm/pnpm/issues/11444.
+//
+// When dlx installs a package whose transitive deps need to run install
+// scripts and `strictDepBuilds` is on (the v11 default), the install
+// throws ERR_PNPM_IGNORED_BUILDS. Before the fix, the partially-populated
+// cache directory was left behind, so the next `pnpm dlx` run reused a
+// broken install whose builds had been silently skipped.
+test('dlx removes the cache directory when ignored builds halt the install', async () => {
+  prepareEmpty()
+
+  const cacheKey = createCacheKey('@pnpm.e2e/has-bin-and-needs-build@1.0.0')
+  const cacheCommandDir = path.resolve('cache', 'dlx', cacheKey)
+
+  // No commands map and no TTY: the ignored-builds recovery path cannot
+  // run, so dlx should re-throw and leave no orphan prepare directory.
+  await expect(
+    dlx.handler({
+      ...DEFAULT_OPTS,
+      enableGlobalVirtualStore: false,
+      strictDepBuilds: true,
+      dir: path.resolve('project'),
+      storeDir: path.resolve('store'),
+      cacheDir: path.resolve('cache'),
+      dlxCacheMaxAge: Infinity,
+    }, ['@pnpm.e2e/has-bin-and-needs-build'])
+  ).rejects.toThrow(/Ignored build scripts/)
+
+  // The cache key dir itself may still exist (created up front), but it
+  // must not contain the prepare dir from the failed install.
+  const remaining = fs.existsSync(cacheCommandDir)
+    ? fs.readdirSync(cacheCommandDir)
+    : []
+  expect(remaining).toEqual([])
+})
+
+// Regression test for https://github.com/pnpm/pnpm/issues/11444.
+//
+// When dlx hits ERR_PNPM_IGNORED_BUILDS, it should now run the same
+// `approve-builds` flow that `pnpm add -g` uses so the user can opt in
+// without re-running the command with `--allow-build=...`.
+//
+// `PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS=1` lets the test drive this flow
+// non-interactively: dlx skips the TTY check and forwards `all: true`
+// to approve-builds, which approves every pending build without
+// prompting and re-runs install. The build artifacts must end up in
+// the dlx cache.
+test('dlx prompts to approve ignored builds when invoked with a commands map', async () => {
+  prepareEmpty()
+
+  const prevAutoApprove = process.env.PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS
+  process.env.PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS = '1'
+  try {
+    await dlx.handler({
+      ...DEFAULT_OPTS,
+      enableGlobalVirtualStore: false,
+      strictDepBuilds: true,
+      dir: path.resolve('project'),
+      storeDir: path.resolve('store'),
+      cacheDir: path.resolve('cache'),
+      dlxCacheMaxAge: Infinity,
+    }, ['@pnpm.e2e/has-bin-and-needs-build'], { 'approve-builds': approveBuilds.handler })
+  } finally {
+    if (prevAutoApprove === undefined) {
+      delete process.env.PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS
+    } else {
+      process.env.PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS = prevAutoApprove
+    }
+  }
+
+  const dlxCacheDir = path.resolve('cache', 'dlx', createCacheKey('@pnpm.e2e/has-bin-and-needs-build@1.0.0'), 'pkg')
+  const builtPkg2Path = path.join(dlxCacheDir, 'node_modules/.pnpm/@pnpm.e2e+install-script-example@1.0.0/node_modules/@pnpm.e2e/install-script-example')
+  expect(fs.existsSync(path.join(builtPkg2Path, 'generated-by-install.js'))).toBe(true)
 })
 
 test('dlx should fail when the requested package does not meet the minimum age requirement', async () => {

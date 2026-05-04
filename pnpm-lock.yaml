@@ -4252,6 +4252,9 @@ importers:
       '@jest/globals':
         specifier: 'catalog:'
         version: 30.3.0
+      '@pnpm/building.commands':
+        specifier: workspace:*
+        version: link:../../building/commands
       '@pnpm/engine.runtime.system-node-version':
         specifier: workspace:*
         version: link:../../engine/runtime/system-node-version
