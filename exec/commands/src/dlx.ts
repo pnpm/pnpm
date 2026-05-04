@@ -93,7 +93,7 @@ export type DlxCommandOptions = {
   package?: string[]
   shellMode?: boolean
   allowBuild?: string[]
-} & Pick<Config, 'extraBinPaths' | 'minimumReleaseAgeExclude' | 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'symlink'> & Omit<add.AddCommandOptions, 'rootProjectManifestDir'> & PnpmSettings
+} & Pick<Config, 'extraBinPaths' | 'minimumReleaseAgeExclude' | 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'symlink'> & Partial<Pick<Config, 'strictDepBuilds'>> & Omit<add.AddCommandOptions, 'rootProjectManifestDir'> & PnpmSettings
 
 export async function handler (
   opts: DlxCommandOptions,
