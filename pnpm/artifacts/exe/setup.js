@@ -17,13 +17,25 @@ const pkgName = exePlatformPkgName(platform, process.arch, familySync())
 let pkgJson
 try {
   pkgJson = fileURLToPath(import.meta.resolve(`${pkgName}/package.json`))
-} catch {
-  // No matching platform package was installed. Currently the only host
-  // @pnpm/exe deliberately doesn't ship a binary for is darwin-x64 (Intel
-  // Mac), where Node.js SEA injection corrupts the binary on x64 Mach-O —
-  // see https://github.com/pnpm/pnpm/issues/11423 and upstream
-  // https://github.com/nodejs/node/issues/62893. Fail loudly with a clear
-  // pointer instead of leaving the user with a placeholder `pnpm` file.
+} catch (err) {
+  // Only treat ERR_MODULE_NOT_FOUND as "platform package not installed".
+  // Anything else (resolver bug, broken Node, etc.) should surface as-is.
+  if (err?.code !== 'ERR_MODULE_NOT_FOUND') throw err
+
+  // The platform package isn't on disk. The only currently-published host
+  // for which @pnpm/exe deliberately omits a binary is darwin-x64 (Intel
+  // Mac): Node.js SEA injection corrupts the binary on x64 Mach-O — see
+  // https://github.com/pnpm/pnpm/issues/11423 and upstream
+  // https://github.com/nodejs/node/issues/62893.
+  //
+  // Inside the pnpm workspace itself there's no platform package linked
+  // either — it would be `@pnpm/macos-x64` for darwin-x64 and we removed
+  // that workspace package entirely. We don't want a contributor on Intel
+  // hardware blocked from `pnpm install`-ing the repo to work on
+  // unrelated parts of pnpm, so detect the workspace via an ancestor
+  // pnpm-workspace.yaml and skip silently in that case.
+  if (isInPnpmWorkspace(import.meta.dirname)) process.exit(0)
+
   if (platform === 'darwin' && process.arch === 'x64') {
     console.error(
       '@pnpm/exe does not ship a working binary for Intel macOS (darwin-x64) due to an upstream Node.js SEA bug.\n' +
@@ -71,4 +83,19 @@ function linkSync(src, dest) {
     }
   }
   return fs.linkSync(src, dest)
+}
+
+// Walk up from the given directory until we either find a pnpm-workspace.yaml
+// (we're inside the pnpm dev workspace) or hit the filesystem root. Used to
+// distinguish "contributor running pnpm install on the repo" from "user
+// installing @pnpm/exe from the registry" so the former isn't blocked when
+// running on a host @pnpm/exe doesn't publish a binary for.
+function isInPnpmWorkspace(startDir) {
+  let dir = startDir
+  while (true) {
+    if (fs.existsSync(path.join(dir, 'pnpm-workspace.yaml'))) return true
+    const parent = path.dirname(dir)
+    if (parent === dir) return false
+    dir = parent
+  }
 }
