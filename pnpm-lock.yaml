@@ -4904,9 +4904,6 @@ importers:
       '@pnpm/deps.inspection.list':
         specifier: workspace:*
         version: link:../../deps/inspection/list
-      '@pnpm/deps.inspection.tree-builder':
-        specifier: workspace:*
-        version: link:../../deps/inspection/tree-builder
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error

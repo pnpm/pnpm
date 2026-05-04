@@ -1,8 +1,7 @@
 import path from 'node:path'
 
 import { createMatcher } from '@pnpm/config.matcher'
-import { renderJson, renderParseable, renderTree } from '@pnpm/deps.inspection.list'
-import type { DependencyNode } from '@pnpm/deps.inspection.tree-builder'
+import { type DependencyNode, renderJson, renderParseable, renderTree } from '@pnpm/deps.inspection.list'
 import {
   getGlobalPackageDetails,
   scanGlobalPackages,

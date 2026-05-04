@@ -117,23 +117,39 @@ export async function handler (
   const depth = opts.cliOptions?.['depth'] ?? 0
   if (opts.global && opts.globalPkgDir) {
     if (depth > 0) {
-      const installDirs = findGlobalInstallDirs(opts.globalPkgDir, params)
-      if (installDirs.length > 1) {
+      const allInstallDirs = findGlobalInstallDirs(opts.globalPkgDir, [])
+      if (allInstallDirs.length === 1) {
+        // Single global install: delegate with params unchanged so
+        // listForPackages can search across the whole tree (including
+        // transitive deps), matching regular `pnpm ls` semantics.
+        return render([allInstallDirs[0]], params, {
+          ...opts,
+          depth,
+          include,
+          lockfileDir: allInstallDirs[0],
+          checkWantedLockfileOnly: opts.lockfileOnly,
+          onlyProjects: opts.cliOptions?.['only-projects'] ?? opts.onlyProjects,
+        })
+      }
+      // Multiple installs — try to narrow to a single one via params,
+      // matching against top-level aliases of each install group.
+      const matchingInstallDirs = findGlobalInstallDirs(opts.globalPkgDir, params)
+      if (matchingInstallDirs.length > 1 || (matchingInstallDirs.length === 0 && allInstallDirs.length > 0)) {
         throw new PnpmError('GLOBAL_LS_DEPTH_NOT_SUPPORTED',
           'Cannot list a merged dependency tree across multiple global packages. ' +
           'Each global package is installed in an isolated directory with its own lockfile, ' +
           'so transitive dependencies cannot be coherently merged. ' +
-          'Filter to a single global package, or omit --depth.')
+          'Filter to a single global package by its top-level name, or omit --depth.')
       }
-      if (installDirs.length === 1) {
+      if (matchingInstallDirs.length === 1) {
         // Drop params: they served their purpose of narrowing to a single
         // install group. Passing them through to `render` would activate
         // search semantics, which prune the matched package's children.
-        return render([installDirs[0]], [], {
+        return render([matchingInstallDirs[0]], [], {
           ...opts,
           depth,
           include,
-          lockfileDir: installDirs[0],
+          lockfileDir: matchingInstallDirs[0],
           checkWantedLockfileOnly: opts.lockfileOnly,
           onlyProjects: opts.cliOptions?.['only-projects'] ?? opts.onlyProjects,
         })
