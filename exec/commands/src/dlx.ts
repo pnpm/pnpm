@@ -177,8 +177,9 @@ export async function handler (
           workspaceDir: undefined,
         }, resolvedPkgs)
       } catch (err) {
-        // When the install completed but some dependencies have unrun build
-        // scripts, strictDepBuilds (default in v11) makes add.handler throw.
+        // When the install completed but some dependencies have build
+        // scripts that did not run, strictDepBuilds (default in v11) makes
+        // add.handler throw.
         // Prompt the user to approve those builds, mirroring the global install
         // flow. Without this, `pnpm dlx <pkg>` cannot launch packages whose
         // bin depends on a postinstall step (e.g. native modules).
