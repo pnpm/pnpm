@@ -394,50 +394,42 @@ test('dlx builds the packages passed via --allow-build', async () => {
 
 // Regression test for https://github.com/pnpm/pnpm/issues/11444.
 //
-// When dlx installs a package whose transitive deps need to run install
-// scripts and `strictDepBuilds` is on (the v11 default), the install
-// throws ERR_PNPM_IGNORED_BUILDS. Before the fix, the partially-populated
-// cache directory was left behind, so the next `pnpm dlx` run reused a
-// broken install whose builds had been silently skipped.
-test('dlx removes the cache directory when ignored builds halt the install', async () => {
+// dlx mirrors the global install flow: it overrides `strictDepBuilds`
+// internally so the install never throws ERR_PNPM_IGNORED_BUILDS, then
+// runs the same interactive `approve-builds` prompt that `pnpm add -g`
+// uses when transitive deps have unrun build scripts. The user can opt
+// in to the builds without retrying with `--allow-build=<pkg>`.
+//
+// Without a TTY (and without the test escape hatch below), the prompt is
+// skipped and dlx proceeds with build scripts unrun — same behavior as
+// `pnpm add -g` in CI.
+test('dlx does not error on ignored builds in non-interactive mode', async () => {
   prepareEmpty()
 
-  const cacheKey = createCacheKey('@pnpm.e2e/has-bin-and-needs-build@1.0.0')
-  const cacheCommandDir = path.resolve('cache', 'dlx', cacheKey)
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    enableGlobalVirtualStore: false,
+    strictDepBuilds: true,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+    dlxCacheMaxAge: Infinity,
+  }, ['@pnpm.e2e/has-bin-and-needs-build'])
 
-  // No commands map and no TTY: the ignored-builds recovery path cannot
-  // run, so dlx should re-throw and leave no orphan prepare directory.
-  await expect(
-    dlx.handler({
-      ...DEFAULT_OPTS,
-      enableGlobalVirtualStore: false,
-      strictDepBuilds: true,
-      dir: path.resolve('project'),
-      storeDir: path.resolve('store'),
-      cacheDir: path.resolve('cache'),
-      dlxCacheMaxAge: Infinity,
-    }, ['@pnpm.e2e/has-bin-and-needs-build'])
-  ).rejects.toThrow(/Ignored build scripts/)
-
-  // The cache key dir itself may still exist (created up front), but it
-  // must not contain the prepare dir from the failed install.
-  const remaining = fs.existsSync(cacheCommandDir)
-    ? fs.readdirSync(cacheCommandDir)
-    : []
-  expect(remaining).toEqual([])
+  // Cache is populated even though build scripts were skipped — the
+  // package is installed so the bin can run if it does not depend on
+  // the unrun script.
+  const dlxCacheDir = path.resolve('cache', 'dlx', createCacheKey('@pnpm.e2e/has-bin-and-needs-build@1.0.0'), 'pkg')
+  expect(fs.existsSync(path.join(dlxCacheDir, 'package.json'))).toBe(true)
 })
 
 // Regression test for https://github.com/pnpm/pnpm/issues/11444.
 //
-// When dlx hits ERR_PNPM_IGNORED_BUILDS, it should now run the same
-// `approve-builds` flow that `pnpm add -g` uses so the user can opt in
-// without re-running the command with `--allow-build=...`.
-//
-// `PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS=1` lets the test drive this flow
-// non-interactively: dlx skips the TTY check and forwards `all: true`
-// to approve-builds, which approves every pending build without
-// prompting and re-runs install. The build artifacts must end up in
-// the dlx cache.
+// `PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS=1` lets the test drive the
+// approve-builds flow non-interactively: dlx skips the TTY check and
+// forwards `all: true` to approve-builds, which approves every pending
+// build without prompting and re-runs install. The build artifacts must
+// end up in the dlx cache.
 test('dlx prompts to approve ignored builds when invoked with a commands map', async () => {
   prepareEmpty()
 

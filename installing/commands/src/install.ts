@@ -353,7 +353,7 @@ export type InstallCommandOptions = Pick<Config,
   includeOnlyPackageFiles?: boolean
   confirmModulesPurge?: boolean
   pnpmfile: string[]
-} & Partial<Pick<Config, 'ci' | 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages' | 'useLockfile' | 'symlink'>>
+} & Partial<Pick<Config, 'ci' | 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages' | 'strictDepBuilds' | 'useLockfile' | 'symlink'>>
 
 export async function handler (opts: InstallCommandOptions & { _calledFromLink?: boolean }, _params?: string[], commands?: CommandHandlerMap): Promise<void> {
   if (opts.global && !opts._calledFromLink) {

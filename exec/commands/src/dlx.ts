@@ -3,6 +3,7 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
+import { getAutomaticallyIgnoredBuilds } from '@pnpm/building.commands'
 import {
   type CatalogResolver,
   resolveFromCatalog,
@@ -93,7 +94,7 @@ export type DlxCommandOptions = {
   package?: string[]
   shellMode?: boolean
   allowBuild?: string[]
-} & Pick<Config, 'extraBinPaths' | 'minimumReleaseAgeExclude' | 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'symlink'> & Partial<Pick<Config, 'strictDepBuilds'>> & Omit<add.AddCommandOptions, 'rootProjectManifestDir'> & PnpmSettings
+} & Pick<Config, 'extraBinPaths' | 'minimumReleaseAgeExclude' | 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'symlink'> & Omit<add.AddCommandOptions, 'rootProjectManifestDir'> & PnpmSettings
 
 export async function handler (
   opts: DlxCommandOptions,
@@ -160,61 +161,28 @@ export async function handler (
     const allowBuilds = Object.fromEntries([...resolvedPkgAliases, ...(opts.allowBuild ?? [])].map(pkg => [pkg, true]))
     try {
       fs.mkdirSync(cachedDir, { recursive: true })
-      try {
-        await add.handler({
-          ...opts,
-          enableGlobalVirtualStore: opts.enableGlobalVirtualStore ?? true,
-          bin: path.join(cachedDir, 'node_modules/.bin'),
-          dir: cachedDir,
-          lockfileDir: cachedDir,
-          allowBuilds,
-          rootProjectManifestDir: cachedDir,
-          saveProd: true, // dlx will be looking for the package in the "dependencies" field!
-          saveDev: false,
-          saveOptional: false,
-          savePeer: false,
-          symlink: true,
-          workspaceDir: undefined,
-        }, resolvedPkgs)
-      } catch (err) {
-        // When the install completed but some dependencies have build
-        // scripts that did not run, strictDepBuilds (default in v11) makes
-        // add.handler throw.
-        // Prompt the user to approve those builds, mirroring the global install
-        // flow. Without this, `pnpm dlx <pkg>` cannot launch packages whose
-        // bin depends on a postinstall step (e.g. native modules).
-        const autoApproveForTests = process.env[AUTO_APPROVE_FOR_TESTS_ENV] === '1'
-        if (
-          util.types.isNativeError(err) &&
-          'code' in err &&
-          err.code === 'ERR_PNPM_IGNORED_BUILDS' &&
-          (autoApproveForTests || process.stdin.isTTY) &&
-          commands?.['approve-builds']
-        ) {
-          await commands['approve-builds']({
-            ...opts,
-            dir: cachedDir,
-            lockfileDir: cachedDir,
-            rootProjectManifestDir: cachedDir,
-            modulesDir: undefined,
-            workspaceDir: undefined,
-            allProjects: undefined,
-            selectedProjectsGraph: undefined,
-            workspacePackagePatterns: undefined,
-            rootProjectManifest: undefined,
-            global: false,
-            pending: false,
-            allowBuilds,
-            all: autoApproveForTests ? true : undefined,
-          }, [], commands)
-        } else {
-          // The install left a partially populated cache directory. Remove it
-          // so a subsequent dlx run starts clean instead of reusing the broken
-          // install (which would silently skip the build scripts again).
-          await fs.promises.rm(cachedDir, { recursive: true, force: true })
-          throw err
-        }
-      }
+      await add.handler({
+        ...opts,
+        // Mirror the global install flow: dlx prompts via `approve-builds`
+        // when transitive deps have unrun build scripts, so it must not let
+        // strictDepBuilds (the v11 default) turn that into a hard error.
+        // Without this, `pnpm dlx <pkg>` cannot launch packages whose bin
+        // depends on a postinstall step (e.g. native modules).
+        strictDepBuilds: false,
+        enableGlobalVirtualStore: opts.enableGlobalVirtualStore ?? true,
+        bin: path.join(cachedDir, 'node_modules/.bin'),
+        dir: cachedDir,
+        lockfileDir: cachedDir,
+        allowBuilds,
+        rootProjectManifestDir: cachedDir,
+        saveProd: true, // dlx will be looking for the package in the "dependencies" field!
+        saveDev: false,
+        saveOptional: false,
+        savePeer: false,
+        symlink: true,
+        workspaceDir: undefined,
+      }, resolvedPkgs)
+      await promptApproveDlxBuilds({ cachedDir, allowBuilds, inheritedOpts: opts }, commands)
       try {
         await symlinkDir(cachedDir, cacheLink, { overwrite: true })
       } catch (error) {
@@ -233,10 +201,14 @@ export async function handler (
       // directory swaps).  If another process completed the cache in the meantime,
       // use that instead of failing.
       const completedDir = getValidCacheDir(cacheLink, opts.dlxCacheMaxAge)
-      if (completedDir == null) {
+      if (completedDir != null) {
+        cachedDir = completedDir
+      } else {
+        // Drop the partially-populated cache so a subsequent dlx run starts
+        // clean instead of reusing a broken install.
+        await fs.promises.rm(cachedDir, { recursive: true, force: true })
         throw err
       }
-      cachedDir = completedDir
     }
   }
   const binsDir = path.join(cachedDir, 'node_modules/.bin')
@@ -301,6 +273,46 @@ function scopeless (pkgName: string): string {
     return pkgName.split('/')[1]
   }
   return pkgName
+}
+
+/**
+ * After a dlx install with `strictDepBuilds: false`, check whether any
+ * transitive dependencies had their build scripts skipped and, if so, run
+ * the same `approve-builds` flow that `pnpm add -g` uses. Mirrors
+ * `promptApproveGlobalBuilds` in @pnpm/global.commands.
+ */
+async function promptApproveDlxBuilds (
+  opts: {
+    cachedDir: string
+    allowBuilds: Record<string, boolean | string>
+    inheritedOpts: object
+  },
+  commands?: CommandHandlerMap
+): Promise<void> {
+  if (!commands?.['approve-builds']) return
+  const autoApproveForTests = process.env[AUTO_APPROVE_FOR_TESTS_ENV] === '1'
+  if (!autoApproveForTests && !process.stdin.isTTY) return
+  const { automaticallyIgnoredBuilds } = await getAutomaticallyIgnoredBuilds({
+    dir: opts.cachedDir,
+    lockfileDir: opts.cachedDir,
+  })
+  if (!automaticallyIgnoredBuilds?.length) return
+  await commands['approve-builds']({
+    ...opts.inheritedOpts,
+    dir: opts.cachedDir,
+    lockfileDir: opts.cachedDir,
+    rootProjectManifestDir: opts.cachedDir,
+    modulesDir: undefined,
+    workspaceDir: undefined,
+    allProjects: undefined,
+    selectedProjectsGraph: undefined,
+    workspacePackagePatterns: undefined,
+    rootProjectManifest: undefined,
+    global: false,
+    pending: false,
+    allowBuilds: opts.allowBuilds,
+    all: autoApproveForTests ? true : undefined,
+  }, [], commands)
 }
 
 function findCache (opts: {

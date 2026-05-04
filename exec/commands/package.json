@@ -34,6 +34,7 @@
   },
   "dependencies": {
     "@pnpm/bins.resolver": "workspace:*",
+    "@pnpm/building.commands": "workspace:*",
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/cli.command": "workspace:*",
     "@pnpm/cli.common-cli-options-help": "workspace:*",
@@ -76,7 +77,6 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/building.commands": "workspace:*",
     "@pnpm/engine.runtime.system-node-version": "workspace:*",
     "@pnpm/exec.commands": "workspace:*",
     "@pnpm/logger": "workspace:*",
