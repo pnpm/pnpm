@@ -32,9 +32,15 @@ try {
   // either — it would be `@pnpm/macos-x64` for darwin-x64 and we removed
   // that workspace package entirely. We don't want a contributor on Intel
   // hardware blocked from `pnpm install`-ing the repo to work on
-  // unrelated parts of pnpm, so detect the workspace via an ancestor
-  // pnpm-workspace.yaml and skip silently in that case.
-  if (isInPnpmWorkspace(import.meta.dirname)) process.exit(0)
+  // unrelated parts of pnpm, so skip silently when this script runs as
+  // the workspace's own @pnpm/exe (whose path always ends in
+  // pnpm/artifacts/exe). A path-suffix check is more precise than walking
+  // up for `pnpm-workspace.yaml` — that walk can false-positive if the
+  // user's globally-installed @pnpm/exe happens to live anywhere under
+  // an unrelated pnpm workspace tree.
+  if (import.meta.dirname.endsWith(path.join('pnpm', 'artifacts', 'exe'))) {
+    process.exit(0)
+  }
 
   if (platform === 'darwin' && process.arch === 'x64') {
     console.error(
@@ -83,19 +89,4 @@ function linkSync(src, dest) {
     }
   }
   return fs.linkSync(src, dest)
-}
-
-// Walk up from the given directory until we either find a pnpm-workspace.yaml
-// (we're inside the pnpm dev workspace) or hit the filesystem root. Used to
-// distinguish "contributor running pnpm install on the repo" from "user
-// installing @pnpm/exe from the registry" so the former isn't blocked when
-// running on a host @pnpm/exe doesn't publish a binary for.
-function isInPnpmWorkspace(startDir) {
-  let dir = startDir
-  while (true) {
-    if (fs.existsSync(path.join(dir, 'pnpm-workspace.yaml'))) return true
-    const parent = path.dirname(dir)
-    if (parent === dir) return false
-    dir = parent
-  }
 }
