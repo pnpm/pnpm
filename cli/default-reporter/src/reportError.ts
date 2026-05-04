@@ -472,18 +472,11 @@ function reportPeerDependencyIssuesError (
 
   strictPeerDependencies: false
 `)
+  const formattedHints = hints.map((hint) => `hint: ${hint}`).join('\n')
   const rendered = renderPeerIssues(msg.issuesByProjects)
-  if (!rendered) {
-    return {
-      title: err.message,
-      body: hints.map((hint) => `hint: ${hint}`).join('\n'),
-    }
-  }
   return {
     title: err.message,
-    body: `${rendered}
-${hints.map((hint) => `hint: ${hint}`).join('\n')}
-`,
+    body: rendered ? `${rendered}\n${formattedHints}` : formattedHints,
   }
 }
 
