@@ -2,9 +2,11 @@ import fs from 'fs'
 import path from 'path'
 import { getCurrentPackageName } from '@pnpm/cli-meta'
 import { runPnpmCli } from '@pnpm/exec.pnpm-cli-runner'
+import { globalWarn } from '@pnpm/logger'
 import { getToolDirPath } from '@pnpm/tools.path'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { fastPathTemp as pathTemp } from 'path-temp'
+import semver from 'semver'
 import symlinkDir from 'symlink-dir'
 import { type SelfUpdateCommandOptions } from './selfUpdate.js'
 
@@ -16,10 +18,30 @@ export interface InstallPnpmToToolsResult {
 
 export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateCommandOptions): Promise<InstallPnpmToToolsResult> {
   const currentPkgName = getCurrentPackageName()
+  // pnpm v11 dropped the darwin-x64 artifact from @pnpm/exe because Node.js
+  // SEA injection produces a binary that segfaults at startup on Intel Macs
+  // (pnpm/pnpm#11423, upstream nodejs/node#62893). Self-updating a v10
+  // @pnpm/exe install to v11+ on Intel Mac would leave the user with no
+  // working binary. Transparently swap to the JS-only `pnpm` package, which
+  // runs against the user's system Node.js — typically already present
+  // because v10 @pnpm/exe users tend to manage Node via `pnpm env use`.
+  const targetPkgName = (
+    currentPkgName === '@pnpm/exe' &&
+    process.platform === 'darwin' &&
+    process.arch === 'x64' &&
+    semver.major(pnpmVersion) >= 11
+  )
+    ? 'pnpm'
+    : currentPkgName
+  if (targetPkgName !== currentPkgName) {
+    globalWarn(
+      `Switching from @pnpm/exe to the "pnpm" npm package because @pnpm/exe v${pnpmVersion} no longer ships a binary for Intel macOS (darwin-x64). The new "pnpm" install requires Node.js to be available on PATH. See https://github.com/pnpm/pnpm/issues/11423.`
+    )
+  }
   const dir = getToolDirPath({
     pnpmHomeDir: opts.pnpmHomeDir,
     tool: {
-      name: currentPkgName,
+      name: targetPkgName,
       version: pnpmVersion,
     },
   })
@@ -44,7 +66,7 @@ export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateC
     // Instead, we link the platform-specific binary in-process after install.
     runPnpmCli([
       'add',
-      `${currentPkgName}@${pnpmVersion}`,
+      `${targetPkgName}@${pnpmVersion}`,
       '--loglevel=error',
       '--ignore-scripts',
       '--config.strict-dep-builds=false',
@@ -73,7 +95,7 @@ export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateC
         pnpm_config_pm_on_fail: 'ignore',
       },
     })
-    if (currentPkgName === '@pnpm/exe') {
+    if (targetPkgName === '@pnpm/exe') {
       linkExePlatformBinary(stage)
     }
     // We need the operation of installing pnpm to be atomic.
