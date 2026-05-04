@@ -10,13 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../core/error"
-    },
-    {
       "path": "../../core/types"
-    },
-    {
-      "path": "../../text/tree-renderer"
     }
   ]
 }

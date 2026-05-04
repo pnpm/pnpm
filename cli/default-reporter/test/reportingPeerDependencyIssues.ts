@@ -81,8 +81,10 @@ test('print peer dependency issues error', async () => {
   })
   logger.error(err, err)
 
-  expect.assertions(1)
+  expect.assertions(3)
 
   const output = await firstValueFrom(output$)
-  expect(output).toContain('unmet peer a@3')
+  expect(output).toContain('unmet peer a')
+  expect(output).toContain('Installed: 2')
+  expect(output).toContain('b@1.0.0')
 })

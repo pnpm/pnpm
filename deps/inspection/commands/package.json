@@ -45,6 +45,7 @@
     "@pnpm/global.commands": "workspace:*",
     "@pnpm/global.packages": "workspace:*",
     "@pnpm/installing.modules-yaml": "workspace:*",
+    "@pnpm/installing.render-peer-issues": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
