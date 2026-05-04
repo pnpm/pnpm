@@ -374,7 +374,7 @@ export async function main (inputArgv: string[]): Promise<void> {
 }
 
 function printError (message: string, hint?: string): void {
-  const ERROR = chalk.bgRed.black('\u2009ERROR\u2009')
+  const ERROR = chalk.bgRed.black('ERROR:')
   console.error(`${message.startsWith(ERROR) ? '' : ERROR + ' '}${chalk.red(message)}`)
   if (hint) {
     console.error(hint)
