@@ -14,7 +14,27 @@ import { exePlatformPkgName } from './platform-pkg-name.js'
 // without triggering the side effects of this preinstall script.
 const platform = process.platform
 const pkgName = exePlatformPkgName(platform, process.arch, familySync())
-const pkgJson = fileURLToPath(import.meta.resolve(`${pkgName}/package.json`))
+let pkgJson
+try {
+  pkgJson = fileURLToPath(import.meta.resolve(`${pkgName}/package.json`))
+} catch {
+  // No matching platform package was installed. Currently the only host
+  // @pnpm/exe deliberately doesn't ship a binary for is darwin-x64 (Intel
+  // Mac), where Node.js SEA injection corrupts the binary on x64 Mach-O —
+  // see https://github.com/pnpm/pnpm/issues/11423 and upstream
+  // https://github.com/nodejs/node/issues/62893. Fail loudly with a clear
+  // pointer instead of leaving the user with a placeholder `pnpm` file.
+  if (platform === 'darwin' && process.arch === 'x64') {
+    console.error(
+      '@pnpm/exe does not ship a working binary for Intel macOS (darwin-x64) due to an upstream Node.js SEA bug.\n' +
+      'See https://github.com/pnpm/pnpm/issues/11423 and https://github.com/nodejs/node/issues/62893.\n' +
+      'Workaround: install pnpm via `npm install -g pnpm` (uses your system Node.js, no SEA), or use pnpm 10.x.'
+    )
+  } else {
+    console.error(`Could not find platform package "${pkgName}" — @pnpm/exe does not ship a binary for ${platform}-${process.arch}.`)
+  }
+  process.exit(1)
+}
 const executable = platform === 'win32' ? 'pnpm.exe' : 'pnpm'
 const platformDir = path.dirname(pkgJson)
 const bin = path.resolve(platformDir, executable)

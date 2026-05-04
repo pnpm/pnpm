@@ -7851,12 +7851,6 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  pnpm/artifacts/darwin-x64:
-    devDependencies:
-      '@pnpm/macos-x64':
-        specifier: workspace:*
-        version: 'link:'
-
   pnpm/artifacts/exe:
     dependencies:
       '@reflink/reflink':
@@ -7894,9 +7888,6 @@ importers:
       '@pnpm/macos-arm64':
         specifier: workspace:*
         version: link:../darwin-arm64
-      '@pnpm/macos-x64':
-        specifier: workspace:*
-        version: link:../darwin-x64
       '@pnpm/win-arm64':
         specifier: workspace:*
         version: link:../win32-arm64

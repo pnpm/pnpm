@@ -132,7 +132,6 @@ export default async (workspaceDir: string) => { // eslint-disable-line
             '@pnpm/linuxstatic-arm64',
             '@pnpm/linuxstatic-x64',
             '@pnpm/macos-arm64',
-            '@pnpm/macos-x64',
             '@pnpm/win-arm64',
             '@pnpm/win-x64',
           ]) {

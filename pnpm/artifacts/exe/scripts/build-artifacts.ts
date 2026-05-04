@@ -7,15 +7,17 @@ import * as execa from 'execa'
 const exeDir = path.resolve(import.meta.dirname, '..')
 const pnpmRootDir = path.resolve(exeDir, '..', '..')
 
-// On Intel Mac we only build the three baseline targets to keep dev-local runs
-// fast. CI (Linux) and M1 Macs produce the full eight-target matrix. The
+// On Intel Mac we only build the two baseline targets to keep dev-local runs
+// fast. CI (Linux) and M1 Macs produce the full seven-target matrix. The
 // defaults (entry, outputDir, outputName, targets) live in the "pnpm.app"
 // object of pnpm/artifacts/exe/package.json — CLI --target flags replace that
-// list when we want to narrow it.
+// list when we want to narrow it. darwin-x64 is intentionally absent from the
+// matrix: Node.js SEA injection produces a broken binary on Intel Mac
+// (see pnpm/pnpm#11423, nodejs/node#62893).
 const isM1Mac = process.platform === 'darwin' && process.arch === 'arm64'
 const buildFullMatrix = process.platform === 'linux' || isM1Mac
 
-const narrowTargets = ['win32-x64', 'linux-x64', 'darwin-x64']
+const narrowTargets = ['win32-x64', 'linux-x64']
 
 // Could equivalently live under `pnpm.app.runtime` in package.json; kept here
 // next to the host-conditional target narrowing so the whole build matrix is

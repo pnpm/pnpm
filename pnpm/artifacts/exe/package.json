@@ -42,7 +42,6 @@
     "@pnpm/linuxstatic-arm64": "workspace:*",
     "@pnpm/linuxstatic-x64": "workspace:*",
     "@pnpm/macos-arm64": "workspace:*",
-    "@pnpm/macos-x64": "workspace:*",
     "@pnpm/win-arm64": "workspace:*",
     "@pnpm/win-x64": "workspace:*"
   },
@@ -60,7 +59,6 @@
       "targets": [
         "win32-x64",
         "linux-x64",
-        "darwin-x64",
         "darwin-arm64",
         "linux-arm64",
         "win32-arm64",
