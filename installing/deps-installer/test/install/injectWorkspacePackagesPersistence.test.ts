@@ -207,3 +207,108 @@ test('workspace packages with their own dependencies should maintain link: proto
   // workspace dep 'b' would switch from link: to file:.
   expect(lockfileAfterRm.importers.a.dependencies!.b.version).toBe('link:../b')
 })
+
+test('peer-resolved workspace packages should keep their file: protocol after single-project pnpm rm with injectWorkspacePackages', async () => {
+  const projectAManifest: { name: string, version: string, dependencies: Record<string, string> } = {
+    name: 'a',
+    version: '1.0.0',
+    dependencies: {
+      'b': 'workspace:*',
+      'is-positive': '1.0.0',
+      'is-negative': '1.0.0',
+    },
+  }
+  const projectBManifest = {
+    name: 'b',
+    version: '1.0.0',
+    peerDependencies: {
+      'is-positive': '>=1.0.0',
+    },
+  }
+
+  preparePackages([
+    {
+      location: 'a',
+      package: projectAManifest,
+    },
+    {
+      location: 'b',
+      package: projectBManifest,
+    },
+  ])
+
+  const allProjects: ProjectOptions[] = [
+    {
+      buildIndex: 0,
+      manifest: projectAManifest,
+      rootDir: path.resolve('a') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: projectBManifest,
+      rootDir: path.resolve('b') as ProjectRootDir,
+    },
+  ]
+
+  // Initial full install with all projects
+  await mutateModules([
+    {
+      mutation: 'install',
+      rootDir: path.resolve('a') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('b') as ProjectRootDir,
+    },
+  ], testDefaults({
+    allProjects,
+    injectWorkspacePackages: true,
+    autoInstallPeers: false,
+  }))
+
+  const rootModules = assertProject(process.cwd())
+  const lockfile = rootModules.readLockfile()
+  // With a peer dep on `b`, the injected resolution depends on `a`'s peer context, so the
+  // entry stays in file: form rather than collapsing to link:../b.
+  const initialVersion = lockfile.importers.a.dependencies!.b.version
+  expect(initialVersion).not.toBe('link:../b')
+  expect(initialVersion.startsWith('file:')).toBe(true)
+
+  // Single-project rm of an unrelated dep should preserve the peer-resolved file: form.
+  delete projectAManifest.dependencies['is-negative']
+  const workspacePackages = new Map([
+    ['a', new Map([
+      ['1.0.0', {
+        rootDir: path.resolve('a') as ProjectRootDir,
+        manifest: projectAManifest,
+      }],
+    ])],
+    ['b', new Map([
+      ['1.0.0', {
+        rootDir: path.resolve('b') as ProjectRootDir,
+        manifest: projectBManifest,
+      }],
+    ])],
+  ])
+  await mutateModulesInSingleProject(
+    {
+      binsDir: path.resolve('a', 'node_modules', '.bin'),
+      dependencyNames: ['is-negative'],
+      manifest: projectAManifest,
+      mutation: 'uninstallSome',
+      rootDir: path.resolve('a') as ProjectRootDir,
+    },
+    testDefaults({
+      workspacePackages,
+      injectWorkspacePackages: true,
+      autoInstallPeers: false,
+    })
+  )
+
+  const lockfileAfterRm = rootModules.readLockfile()
+
+  // The fast-path must skip dedupe for peer-suffixed depPaths. Without the peer-suffix
+  // check, dedupeInjectedDeps would collapse the peer-resolved file: entry to link:../b
+  // and lose the importer's peer context.
+  expect(lockfileAfterRm.importers.a.dependencies!.b.version).toBe(initialVersion)
+})

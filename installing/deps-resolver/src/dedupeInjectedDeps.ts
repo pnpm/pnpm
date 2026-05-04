@@ -65,9 +65,13 @@ function getDedupeMap<T extends PartialResolvedPackage> (
       // In single-project operations (e.g. `pnpm rm` from inside a workspace package) the target
       // workspace project isn't being resolved, so its children aren't in
       // `dependenciesByProjectId`. The injected dep was resolved against the same workspace
-      // package source, so dedupe is safe.
+      // package source, so dedupe is safe. The exception is peer-suffixed depPaths
+      // (containing `(`), whose resolution depends on the importer's peer context. A plain
+      // `link:` would lose that, so we skip dedupe for those.
       if (!targetProjectDeps) {
-        dedupedInjectedDeps.set(alias, dep.id)
+        if (!dep.depPath.includes('(')) {
+          dedupedInjectedDeps.set(alias, dep.id)
+        }
         continue
       }
       // Check for subgroup not equal.
