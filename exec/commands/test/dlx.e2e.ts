@@ -401,8 +401,8 @@ test('dlx builds the packages passed via --allow-build', async () => {
 // opt in to the builds without retrying with `--allow-build=<pkg>`.
 //
 // Without a TTY (and without the test escape hatch below), the prompt is
-// skipped and dlx proceeds with build scripts skipped — same behavior as
-// `pnpm add -g` in CI.
+// skipped and dlx proceeds with build scripts skipped — same behavior
+// as `pnpm add -g` in CI.
 test('dlx does not error on ignored builds in non-interactive mode', async () => {
   prepareEmpty()
 
