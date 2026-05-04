@@ -10,6 +10,7 @@ jobs:
     permissions:
       id-token: write  # Required for OIDC
       contents: write  # for softprops/action-gh-release to create GitHub release
+      attestations: write  # for actions/attest-build-provenance
     # Runs on macOS so darwin artifacts are signed with native `codesign`.
     # Cross-signing on Linux with `ldid` produces ad-hoc signatures whose
     # page hashes don't match the post-postject Mach-O layout for Node.js 25's
@@ -39,6 +40,10 @@ jobs:
           pn release
       - name: Copy Artifacts
         run: pn copy-artifacts
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-path: 'dist/*'
       - name: Generate release description
         run: pn make-release-description
       - name: Release
