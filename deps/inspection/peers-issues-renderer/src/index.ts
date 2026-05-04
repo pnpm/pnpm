@@ -1,4 +1,4 @@
-import type { PeerDependencyIssuesByProjects } from '@pnpm/types'
+import type { BadPeerDependencyIssue, PeerDependencyIssuesByProjects } from '@pnpm/types'
 import chalk from 'chalk'
 
 export function renderPeerIssues (issuesByProjects: PeerDependencyIssuesByProjects): string {
@@ -6,10 +6,11 @@ export function renderPeerIssues (issuesByProjects: PeerDependencyIssuesByProjec
 
   for (const [, { bad, missing, conflicts, intersections }] of Object.entries(issuesByProjects)) {
     for (const [peerName, issues] of Object.entries(bad)) {
-      const foundVersion = issues[0].foundVersion
       const header = `${chalk.yellowBright('✕ unmet peer')} ${chalk.bold(peerName)}`
-      const installed = `  ${chalk.cyan('Installed:')} ${chalk.dim(foundVersion)}`
-      sections.push(`${header}\n${installed}\n${formatRequiredBy(issues)}`)
+      for (const [foundVersion, group] of groupByFoundVersion(issues)) {
+        const installed = `  ${chalk.cyan('Installed:')} ${chalk.dim(foundVersion)}`
+        sections.push(`${header}\n${installed}\n${formatRequiredBy(group)}`)
+      }
     }
 
     for (const [peerName, issues] of Object.entries(missing)) {
@@ -51,4 +52,17 @@ function formatRange (range: string): string {
     return `"${range}"`
   }
   return range
+}
+
+function groupByFoundVersion (issues: BadPeerDependencyIssue[]): Map<string, BadPeerDependencyIssue[]> {
+  const groups = new Map<string, BadPeerDependencyIssue[]>()
+  for (const issue of issues) {
+    const list = groups.get(issue.foundVersion)
+    if (list) {
+      list.push(issue)
+    } else {
+      groups.set(issue.foundVersion, [issue])
+    }
+  }
+  return groups
 }

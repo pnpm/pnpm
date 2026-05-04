@@ -37,6 +37,34 @@ test('renderPeerIssues() renders bad peer dependencies', () => {
   }))).toMatchSnapshot()
 })
 
+test('renderPeerIssues() splits bad peer dependencies by foundVersion', () => {
+  expect(stripAnsi(renderPeerIssues({
+    '.': {
+      missing: {},
+      bad: {
+        a: [
+          {
+            parents: [{ name: 'b', version: '1.0.0' }],
+            foundVersion: '2.0.0',
+            resolvedFrom: [],
+            optional: false,
+            wantedRange: '^2.0.0',
+          },
+          {
+            parents: [{ name: 'c', version: '1.0.0' }],
+            foundVersion: '3.0.0',
+            resolvedFrom: [],
+            optional: false,
+            wantedRange: '^3.0.0',
+          },
+        ],
+      },
+      conflicts: [],
+      intersections: {},
+    },
+  }))).toMatchSnapshot()
+})
+
 test('renderPeerIssues() renders missing peer dependencies that are required', () => {
   expect(stripAnsi(renderPeerIssues({
     '.': {

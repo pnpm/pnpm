@@ -470,8 +470,7 @@ function reportPeerDependencyIssuesError (
   }
   hints.push(`To disable failing on peer dependency issues, add the following to pnpm-workspace.yaml in your project root:
 
-  strictPeerDependencies: false
-`)
+  strictPeerDependencies: false`)
   const formattedHints = hints.map((hint) => `hint: ${hint}`).join('\n')
   const rendered = renderPeerIssues(msg.issuesByProjects)
   return {
