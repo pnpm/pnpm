@@ -1,5 +1,5 @@
 ---
-"@pnpm/installing.render-peer-issues": minor
+"@pnpm/deps.inspection.peers-issues-renderer": minor
 "@pnpm/deps.inspection.commands": patch
 "@pnpm/cli.default-reporter": patch
 "pnpm": patch

@@ -26,13 +26,13 @@
       "path": "../../core/types"
     },
     {
+      "path": "../../deps/inspection/peers-issues-renderer"
+    },
+    {
       "path": "../../installing/dedupe/issues-renderer"
     },
     {
       "path": "../../installing/dedupe/types"
-    },
-    {
-      "path": "../../installing/render-peer-issues"
     },
     {
       "path": "../meta"

@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/installing.render-peer-issues",
+  "name": "@pnpm/deps.inspection.peers-issues-renderer",
   "version": "1100.0.0",
   "description": "Visualizes peer dependency issues",
   "keywords": [
@@ -8,8 +8,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/installing/render-peer-issues",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/installing/render-peer-issues#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/deps/inspection/peers-issues-renderer",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/deps/inspection/peers-issues-renderer#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -36,7 +36,7 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/installing.render-peer-issues": "workspace:*"
+    "@pnpm/deps.inspection.peers-issues-renderer": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

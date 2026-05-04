@@ -1,7 +1,7 @@
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import { expect, test } from '@jest/globals'
-import { renderPeerIssues } from '@pnpm/installing.render-peer-issues'
+import { renderPeerIssues } from '@pnpm/deps.inspection.peers-issues-renderer'
 
 test('renderPeerIssues() returns an empty string when there are no issues', () => {
   expect(renderPeerIssues({

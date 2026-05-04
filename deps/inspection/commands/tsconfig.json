@@ -55,9 +55,6 @@
       "path": "../../../installing/modules-yaml"
     },
     {
-      "path": "../../../installing/render-peer-issues"
-    },
-    {
       "path": "../../../lockfile/fs"
     },
     {
@@ -92,6 +89,9 @@
     },
     {
       "path": "../peers-checker"
+    },
+    {
+      "path": "../peers-issues-renderer"
     }
   ]
 }
