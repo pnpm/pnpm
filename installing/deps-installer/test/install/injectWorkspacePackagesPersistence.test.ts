@@ -218,9 +218,10 @@ test('peer-resolved workspace packages should keep their file: protocol after si
       'is-negative': '1.0.0',
     },
   }
-  const projectBManifest = {
+  const projectBManifest: { name: string, version: string, dependencies: Record<string, string>, peerDependencies: Record<string, string> } = {
     name: 'b',
     version: '1.0.0',
+    dependencies: {},
     peerDependencies: {
       'is-positive': '>=1.0.0',
     },
