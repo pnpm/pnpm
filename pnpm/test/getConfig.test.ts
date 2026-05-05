@@ -94,11 +94,24 @@ describe('calcPnpmfilePathsOfPluginDeps', () => {
     }
   })
 
-  test('skips plugins whose pnpmfile is not on disk (e.g. config dep install failed)', () => {
+  test('skips plugins whose directory is missing (e.g. config dep install never ran)', () => {
     const tmpDir = fs.mkdtempSync(path.join(import.meta.dirname, '.tmp-'))
     try {
       const paths = [...calcPnpmfilePathsOfPluginDeps(tmpDir, { 'pnpm-plugin-foo': '1.0.0' })]
       expect(paths).toEqual([])
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true })
+    }
+  })
+
+  test('yields pnpmfile.cjs path even if missing when the plugin directory exists (so requireHooks reports the misconfig)', () => {
+    const tmpDir = fs.mkdtempSync(path.join(import.meta.dirname, '.tmp-'))
+    try {
+      const pluginDir = path.join(tmpDir, 'pnpm-plugin-foo')
+      fs.mkdirSync(pluginDir, { recursive: true })
+
+      const paths = [...calcPnpmfilePathsOfPluginDeps(tmpDir, { 'pnpm-plugin-foo': '1.0.0' })]
+      expect(paths).toEqual([path.join(pluginDir, 'pnpmfile.cjs')])
     } finally {
       fs.rmSync(tmpDir, { recursive: true })
     }

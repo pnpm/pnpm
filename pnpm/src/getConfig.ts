@@ -101,15 +101,18 @@ export async function installConfigDepsAndLoadHooks (
 export function * calcPnpmfilePathsOfPluginDeps (configModulesDir: string, configDependencies: ConfigDependencies): Generator<string> {
   for (const configDepName of Object.keys(configDependencies).sort(lexCompare)) {
     if (isPluginName(configDepName)) {
-      const mjsPath = path.join(configModulesDir, configDepName, 'pnpmfile.mjs')
+      const pluginDir = path.join(configModulesDir, configDepName)
+      // If the plugin directory itself is missing, the install didn't run
+      // (or hasn't run yet) — skip silently. If the plugin directory exists
+      // but contains no pnpmfile, fall through to yield the .cjs path so
+      // requireHooks surfaces PNPMFILE_NOT_FOUND for the misconfigured plugin.
+      if (!fs.existsSync(pluginDir)) continue
+      const mjsPath = path.join(pluginDir, 'pnpmfile.mjs')
       if (fs.existsSync(mjsPath)) {
         yield mjsPath
         continue
       }
-      const cjsPath = path.join(configModulesDir, configDepName, 'pnpmfile.cjs')
-      if (fs.existsSync(cjsPath)) {
-        yield cjsPath
-      }
+      yield path.join(pluginDir, 'pnpmfile.cjs')
     }
   }
 }
