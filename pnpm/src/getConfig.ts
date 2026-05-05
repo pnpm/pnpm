@@ -82,12 +82,6 @@ export async function installConfigDepsAndLoadHooks (
     config.tryLoadDefaultPnpmfile = config.pnpmfile == null
     const pnpmfiles = config.pnpmfile == null ? [] : Array.isArray(config.pnpmfile) ? config.pnpmfile : [config.pnpmfile]
     if (config.configDependencies) {
-      // Check each pnpmfile path for existence on disk rather than gating on
-      // whether the current install succeeded. Config deps from a previous run
-      // may still be on disk even if a subsequent install fails transiently
-      // (e.g. auth not yet written), and we don't want to silently skip those
-      // hooks. Conversely, if the deps were never installed, the paths won't
-      // exist and we mustn't prepend them or `requireHooks` would throw.
       const configModulesDir = path.join(config.lockfileDir ?? context.rootProjectManifestDir, 'node_modules/.pnpm-config')
       pnpmfiles.unshift(...calcPnpmfilePathsOfPluginDeps(configModulesDir, config.configDependencies))
     }
