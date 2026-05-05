@@ -252,11 +252,12 @@ function validateSbomSpecVersion (value: string | undefined, format: SbomFormat)
       'The --sbom-spec-version option is only supported with --sbom-format cyclonedx.'
     )
   }
-  if (!SUPPORTED_CYCLONEDX_SPEC_VERSIONS.includes(value)) {
+  const normalized = value.trim()
+  if (!SUPPORTED_CYCLONEDX_SPEC_VERSIONS.includes(normalized)) {
     throw new PnpmError(
       'SBOM_INVALID_SPEC_VERSION',
       `Invalid CycloneDX spec version "${value}". Supported versions: ${SUPPORTED_CYCLONEDX_SPEC_VERSIONS.join(', ')}.`
     )
   }
-  return value
+  return normalized
 }
