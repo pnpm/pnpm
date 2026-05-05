@@ -259,8 +259,16 @@ test('recursive publish writes publish summary', async () => {
   }, [])
 
   {
-    const publishSummary = loadJsonFileSync('pnpm-publish-summary.json')
-    expect(publishSummary).toMatchSnapshot()
+    const publishSummary = loadJsonFileSync<{ publishedPackages: Array<{ name: string, version: string }> }>('pnpm-publish-summary.json')
+    // Each entry is now a full PublishSummary; assert by name/version pair to avoid coupling to
+    // hash/size values that vary per pnpm version.
+    const namesAndVersions = publishSummary.publishedPackages
+      .map(({ name, version }) => ({ name, version }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+    expect(namesAndVersions).toEqual([
+      { name: '@pnpmtest/test-recursive-publish-project-3', version: '1.0.0' },
+      { name: '@pnpmtest/test-recursive-publish-project-4', version: '1.0.0' },
+    ])
     fs.unlinkSync('pnpm-publish-summary.json')
   }
 
@@ -312,13 +320,11 @@ test('recursive publish summary uses manifest from publishConfig.directory', asy
     reportSummary: true,
   }, [])
 
-  expect(loadJsonFileSync('pnpm-publish-summary.json')).toStrictEqual({
-    publishedPackages: [
-      {
-        name: pkgName,
-        version: '2.0.0',
-      },
-    ],
+  const summary = loadJsonFileSync<{ publishedPackages: Array<{ name: string, version: string }> }>('pnpm-publish-summary.json')
+  expect(summary.publishedPackages).toHaveLength(1)
+  expect(summary.publishedPackages[0]).toMatchObject({
+    name: pkgName,
+    version: '2.0.0',
   })
 })
 
@@ -353,4 +359,63 @@ test('errors on fake registry', async () => {
   //       simple so we just let the internal functions throw error for now.
   await expect(promise).rejects.toHaveProperty(['code'], 'ENOTFOUND')
   await expect(promise).rejects.toHaveProperty(['hostname'], '__fake_npm_registry__.com')
+})
+
+test('recursive publish --json: writes per-package summary array to stdout', async () => {
+  const SUFFIX = Date.now()
+  const pkg1 = { name: `@pnpmtest/test-publish-r-json-1-${SUFFIX}`, version: '1.0.0' }
+  const pkg2 = { name: `@pnpmtest/test-publish-r-json-2-${SUFFIX}`, version: '1.0.0' }
+  preparePackages([pkg1, pkg2])
+
+  const result = await publish.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    configByUri: CONFIG_BY_URI,
+    dir: process.cwd(),
+    json: true,
+    recursive: true,
+  }, [])
+
+  expect(result?.output).toBeDefined()
+  const summaries = JSON.parse(result!.output!) as Array<Record<string, unknown>>
+  expect(Array.isArray(summaries)).toBe(true)
+  expect(summaries).toHaveLength(2)
+  expect(summaries.map((s) => s.name).sort()).toEqual([pkg1.name, pkg2.name].sort())
+  for (const s of summaries) {
+    expect(s).toMatchObject({ version: '1.0.0', bundled: [] })
+    expect(s.id).toBe(`${s.name as string}@${s.version as string}`)
+    expect(s.size).toEqual(expect.any(Number))
+    expect(s.shasum).toMatch(/^[0-9a-f]{40}$/)
+    expect(s.integrity).toMatch(/^sha512-/)
+  }
+})
+
+test('recursive publish --report-summary: file entries use per-package summary shape', async () => {
+  const SUFFIX = Date.now()
+  const pkg = { name: `@pnpmtest/test-publish-r-report-summary-${SUFFIX}`, version: '1.0.0' }
+  preparePackages([pkg])
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    configByUri: CONFIG_BY_URI,
+    dir: process.cwd(),
+    recursive: true,
+    reportSummary: true,
+  }, [])
+
+  const summary = loadJsonFileSync<{ publishedPackages: Array<Record<string, unknown>> }>('pnpm-publish-summary.json')
+  expect(summary.publishedPackages).toHaveLength(1)
+  const entry = summary.publishedPackages[0]
+  expect(entry).toMatchObject({
+    id: `${pkg.name}@1.0.0`,
+    name: pkg.name,
+    version: '1.0.0',
+    bundled: [],
+  })
+  expect(entry.shasum).toMatch(/^[0-9a-f]{40}$/)
+  expect(entry.integrity).toMatch(/^sha512-/)
+  expect(entry.size).toEqual(expect.any(Number))
+  expect(entry.unpackedSize).toEqual(expect.any(Number))
+  fs.unlinkSync('pnpm-publish-summary.json')
 })

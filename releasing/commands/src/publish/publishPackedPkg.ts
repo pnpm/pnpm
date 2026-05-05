@@ -1,4 +1,6 @@
+import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
+import path from 'node:path'
 
 import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
@@ -36,26 +38,81 @@ export type PublishPackedPkgOptions = Pick<Config,
   provenanceFile?: string // NOTE: This field is currently not supported
 }
 
+/**
+ * Per-package summary describing a successful publish, modeled after `npm publish --json`.
+ * Returned to callers and serialized to stdout when `pnpm publish --json` is used.
+ */
+export interface PublishSummary {
+  /** Human-readable identifier `${name}@${version}`. */
+  id: string
+  name: string
+  version: string
+  /** Compressed tarball size in bytes. */
+  size: number
+  /** Total uncompressed size of all files in the tarball, in bytes. */
+  unpackedSize: number
+  /** Lowercase hex SHA-1 digest of the tarball. */
+  shasum: string
+  /** SRI-formatted SHA-512 digest of the tarball (e.g. `sha512-...`). */
+  integrity: string
+  /** Tarball file basename (e.g. `pkg-1.0.0.tgz`). */
+  filename: string
+  /** Files inside the tarball, in the same shape `pnpm pack --json` emits. */
+  files: Array<{ path: string }>
+  /** Number of files inside the tarball. */
+  entryCount: number
+  /** Names of bundled dependencies included in the tarball (typically empty). */
+  bundled: string[]
+}
+
 export async function publishPackedPkg (
-  packResult: Pick<PackResult, 'publishedManifest' | 'tarballPath'>,
+  packResult: Pick<PackResult, 'publishedManifest' | 'tarballPath' | 'contents' | 'unpackedSize'>,
   opts: PublishPackedPkgOptions
-): Promise<void> {
-  const { publishedManifest, tarballPath } = packResult
+): Promise<PublishSummary> {
+  const { publishedManifest, tarballPath, contents, unpackedSize } = packResult
   const tarballData = await fs.readFile(tarballPath)
   const publishOptions = await createPublishOptions(publishedManifest, opts)
   const { name, version } = publishedManifest
   const { registry } = publishOptions
   globalInfo(`📦 ${name}@${version} → ${registry ?? 'the default registry'}`)
+  const summary: PublishSummary = {
+    id: `${name}@${version}`,
+    name: name as string,
+    version: version as string,
+    size: tarballData.byteLength,
+    unpackedSize,
+    // SHA-1 is what `npm publish --json` reports as `shasum` for back-compat with the registry's
+    // legacy dist.shasum field; `integrity` below is the modern SRI hash.
+    shasum: createHash('sha1').update(tarballData).digest('hex'),
+    integrity: `sha512-${createHash('sha512').update(tarballData).digest('base64')}`,
+    filename: path.basename(tarballPath),
+    files: contents.map((file) => ({ path: file })),
+    entryCount: contents.length,
+    bundled: extractBundledDependencies(publishedManifest),
+  }
   if (opts.dryRun) {
     globalWarn(`Skip publishing ${name}@${version} (dry run)`)
-    return
+    return summary
   }
   const response = await publishWithOtpHandling({ manifest: publishedManifest, tarballData, publishOptions })
   if (response.ok) {
     globalInfo(`✅ Published package ${name}@${version}`)
-    return
+    return summary
   }
   throw await createFailedToPublishError(packResult, response)
+}
+
+/**
+ * npm accepts both `bundledDependencies` and `bundleDependencies` in package.json and normalizes
+ * to a list of dependency names. We mirror that normalization so consumers see a consistent array.
+ */
+function extractBundledDependencies (manifest: ExportedManifest): string[] {
+  const raw = manifest.bundledDependencies ?? manifest.bundleDependencies
+  if (!raw) return []
+  if (Array.isArray(raw)) return raw
+  // `true` means "bundle every dependency" per npm's semantics; expand it to the dependency names.
+  if (raw === true) return Object.keys(manifest.dependencies ?? {})
+  return []
 }
 
 async function createPublishOptions (manifest: ExportedManifest, options: PublishPackedPkgOptions): Promise<PublishOptions> {
