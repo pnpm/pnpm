@@ -46,7 +46,7 @@ export async function installConfigDepsAndLoadHooks (
   config: Config,
   context: ConfigContext,
   opts?: {
-    catchConfigDependenciesErrors?: boolean
+    tolerateConfigDependenciesErrors?: boolean
   }
 ): Promise<{ config: Config, context: ConfigContext }> {
   if (config.configDependencies) {
@@ -65,7 +65,7 @@ export async function installConfigDepsAndLoadHooks (
           frozenLockfile: config.frozenLockfile,
         })
       } catch (err: unknown) {
-        if (!opts?.catchConfigDependenciesErrors) {
+        if (!opts?.tolerateConfigDependenciesErrors) {
           throw err
         }
         const errorMessage = util.types.isNativeError(err) ? err.message : String(err)

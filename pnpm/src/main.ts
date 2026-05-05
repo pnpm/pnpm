@@ -130,7 +130,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     // `cmd === 'config'` at this layer, so list them explicitly — users can
     // hit the #10684 crash via any of these three entry points.
     ;({ config, context } = await installConfigDepsAndLoadHooks(config, context, {
-      catchConfigDependenciesErrors: cmd === 'config' || cmd === 'set' || cmd === 'get',
+      tolerateConfigDependenciesErrors: cmd === 'config' || cmd === 'set' || cmd === 'get',
     }) as { config: typeof config, context: ConfigContext })
     if (isDlxOrCreateCommand || cmd === 'sbom' || cmd === 'with') {
       config.useStderr = true

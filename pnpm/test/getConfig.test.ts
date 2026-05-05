@@ -133,7 +133,7 @@ describe('installConfigDepsAndLoadHooks', () => {
     expect(loggerMock.debug).not.toHaveBeenCalled()
   })
 
-  test('does not throw when install fails and catchConfigDependenciesErrors is true', async () => {
+  test('does not throw when install fails and tolerateConfigDependenciesErrors is true', async () => {
     prepare()
 
     const simulatedError = new Error('401 Unauthorized: missing auth token')
@@ -142,7 +142,7 @@ describe('installConfigDepsAndLoadHooks', () => {
     const { config, context } = buildBaseConfig()
 
     const result = await installConfigDepsAndLoadHooks(config, context, {
-      catchConfigDependenciesErrors: true,
+      tolerateConfigDependenciesErrors: true,
     })
 
     expect(result).toBeDefined()
@@ -155,7 +155,7 @@ describe('installConfigDepsAndLoadHooks', () => {
     )
   })
 
-  test('throws when install fails and catchConfigDependenciesErrors is not set (default behaviour)', async () => {
+  test('throws when install fails and tolerateConfigDependenciesErrors is not set (default behaviour)', async () => {
     prepare()
 
     const simulatedError = new Error('401 Unauthorized: missing auth token')
@@ -170,7 +170,7 @@ describe('installConfigDepsAndLoadHooks', () => {
     expect(resolveAndInstallConfigDeps).toHaveBeenCalledTimes(1)
   })
 
-  test('does not swallow store creation errors even when catchConfigDependenciesErrors is true', async () => {
+  test('does not swallow store creation errors even when tolerateConfigDependenciesErrors is true', async () => {
     prepare()
 
     const storeError = new Error('EACCES: permission denied opening store dir')
@@ -179,14 +179,14 @@ describe('installConfigDepsAndLoadHooks', () => {
     const { config, context } = buildBaseConfig()
 
     await expect(
-      installConfigDepsAndLoadHooks(config, context, { catchConfigDependenciesErrors: true })
+      installConfigDepsAndLoadHooks(config, context, { tolerateConfigDependenciesErrors: true })
     ).rejects.toThrow('EACCES: permission denied opening store dir')
 
     expect(resolveAndInstallConfigDeps).not.toHaveBeenCalled()
     expect(loggerMock.debug).not.toHaveBeenCalled()
   })
 
-  test('does not swallow store close errors even when catchConfigDependenciesErrors is true', async () => {
+  test('does not swallow store close errors even when tolerateConfigDependenciesErrors is true', async () => {
     prepare()
 
     jest.mocked(resolveAndInstallConfigDeps).mockResolvedValueOnce(undefined as never)
@@ -195,7 +195,7 @@ describe('installConfigDepsAndLoadHooks', () => {
     const { config, context } = buildBaseConfig()
 
     await expect(
-      installConfigDepsAndLoadHooks(config, context, { catchConfigDependenciesErrors: true })
+      installConfigDepsAndLoadHooks(config, context, { tolerateConfigDependenciesErrors: true })
     ).rejects.toThrow('store close failed')
 
     expect(resolveAndInstallConfigDeps).toHaveBeenCalledTimes(1)
