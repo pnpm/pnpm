@@ -1687,6 +1687,41 @@ describe('global config.yaml', () => {
     expect(config.dangerouslyAllowAllBuilds).toBeDefined()
   })
 
+  test('warns when global config.yaml contains settings that are not allowed in the global config', async () => {
+    prepareEmpty()
+
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', {
+      dangerouslyAllowAllBuilds: true,
+      nodeLinker: 'hoisted',
+      hoistPattern: ['*eslint*'],
+    })
+
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    // Allowed setting is still applied.
+    expect(config.dangerouslyAllowAllBuilds).toBe(true)
+    // Ignored settings do not leak into the config.
+    expect(config.nodeLinker).not.toBe('hoisted')
+    expect(config.hoistPattern).toEqual(['*'])
+
+    const warning = warnings.find((w) => w.includes('global config file'))
+    expect(warning).toBeDefined()
+    expect(warning).toContain('"nodeLinker"')
+    expect(warning).toContain('"hoistPattern"')
+    expect(warning).not.toContain('"dangerouslyAllowAllBuilds"')
+    expect(warning).toContain(path.join(process.env.XDG_CONFIG_HOME!, 'pnpm', 'config.yaml'))
+  })
+
   test('reads proxy settings from global config.yaml', async () => {
     prepareEmpty()
 

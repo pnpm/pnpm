@@ -290,10 +290,16 @@ export async function getConfig (opts: {
   // Reuse the global config.yaml already read for npmrcAuthFile
   const globalYamlConfig = globalYamlConfigForNpmrcAuthFile
   if (globalYamlConfig) {
+    const ignoredKeys: string[] = []
     for (const key in globalYamlConfig) {
       if (!isConfigFileKey(kebabCase(key))) {
+        ignoredKeys.push(key)
         delete globalYamlConfig[key as keyof typeof globalYamlConfig]
       }
+    }
+    if (ignoredKeys.length > 0) {
+      const globalYamlConfigPath = path.join(configDir, GLOBAL_CONFIG_YAML_FILENAME)
+      warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${ignoredKeys.map(k => `"${k}"`).join(', ')}. Move them to a project-level pnpm-workspace.yaml or .npmrc.`)
     }
     addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
       configFromCliOpts,
