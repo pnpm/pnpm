@@ -938,3 +938,56 @@ test('pruneSharedLockfile: remove one redundant package', () => {
     },
   })
 })
+
+test('pruneSharedLockfile: handles inline {specifier, version} importer entries', () => {
+  expect(pruneSharedLockfile({
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        specifiers: {
+          foo: '^1.0.0',
+        },
+        dependencies: {
+          foo: {
+            specifier: '^1.0.0',
+            version: '1.0.0',
+          },
+        },
+      },
+    },
+    packages: {
+      ['foo@1.0.0' as DepPath]: {
+        resolution: {
+          integrity: 'sha512-placeholder',
+        },
+      },
+      ['unused@1.0.0' as DepPath]: {
+        resolution: {
+          integrity: 'sha512-placeholder',
+        },
+      },
+    },
+  } as unknown as Parameters<typeof pruneSharedLockfile>[0], DEFAULT_OPTS)).toStrictEqual({
+    lockfileVersion: '9.0',
+    importers: {
+      '.': {
+        specifiers: {
+          foo: '^1.0.0',
+        },
+        dependencies: {
+          foo: {
+            specifier: '^1.0.0',
+            version: '1.0.0',
+          },
+        },
+      },
+    },
+    packages: {
+      'foo@1.0.0': {
+        resolution: {
+          integrity: 'sha512-placeholder',
+        },
+      },
+    },
+  })
+})

@@ -5,6 +5,7 @@ import type {
   PackageSnapshots,
   ProjectSnapshot,
   ResolvedDependencies,
+  SpecifierAndResolution,
 } from '@pnpm/lockfile.types'
 import type { DepPath, PackageManifest, ProjectId } from '@pnpm/types'
 import { difference, isEmpty, unnest } from 'ramda'
@@ -13,8 +14,7 @@ export * from '@pnpm/lockfile.types'
 
 // cannot import DependenciesGraph from @pnpm/installing.deps-resolver due to circular dependency
 type DependenciesGraph = Record<DepPath, { optional?: boolean }>
-type InlineSpecifierAndResolution = { specifier?: string, version: string }
-type DependencyReference = string | InlineSpecifierAndResolution
+type DependencyReference = string | SpecifierAndResolution
 type ResolvedDependenciesWithInlineSpecifiers = Record<string, DependencyReference>
 
 export function pruneSharedLockfile (
@@ -167,8 +167,8 @@ function copyPackageSnapshots (
   return copiedSnapshots
 }
 
-function resolvedDepsToDepPaths (deps: ResolvedDependencies): DepPath[] {
-  return Object.entries(deps as ResolvedDependenciesWithInlineSpecifiers)
+function resolvedDepsToDepPaths (deps: ResolvedDependenciesWithInlineSpecifiers): DepPath[] {
+  return Object.entries(deps)
     .map(([alias, ref]) => refToRelative(getDependencyReference(ref), alias))
     .filter((depPath) => depPath !== null) as DepPath[]
 }
