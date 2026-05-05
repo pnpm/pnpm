@@ -8,6 +8,7 @@
 import { execSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
+import url from 'node:url'
 
 import glob from 'fast-glob'
 
@@ -62,12 +63,17 @@ export function listChangesetIds (changesetDir: string): string[] {
 
 export function hideReleased (changesetDir: string, released: Set<string>): HiddenFile[] {
   const hidden: HiddenFile[] = []
-  for (const id of released) {
-    const from = path.join(changesetDir, `${id}.md`)
-    if (!fs.existsSync(from)) continue
-    const to = path.join(changesetDir, `${id}.md.released`)
-    fs.renameSync(from, to)
-    hidden.push({ id, from, to })
+  try {
+    for (const id of listChangesetIds(changesetDir)) {
+      if (!released.has(id)) continue
+      const from = path.join(changesetDir, `${id}.md`)
+      const to = path.join(changesetDir, `${id}.md.released`)
+      fs.renameSync(from, to)
+      hidden.push({ id, from, to })
+    }
+  } catch (err) {
+    restoreHidden(hidden)
+    throw err
   }
   return hidden
 }
@@ -122,19 +128,29 @@ function main (): void {
     if (!success) restoreHidden(hidden)
   }
 
-  const after = new Set(listChangesetIds(changesetDir))
-  const newlyConsumed = before.filter(id => !after.has(id))
-  if (newlyConsumed.length > 0) {
-    console.log(`Recording newly-released: ${newlyConsumed.join(', ')}`)
-    appendReleased(releasedDir, branch, newlyConsumed)
+  try {
+    const after = new Set(listChangesetIds(changesetDir))
+    const newlyConsumed = before.filter(id => !after.has(id))
+    if (newlyConsumed.length > 0) {
+      console.log(`Recording newly-released: ${newlyConsumed.join(', ')}`)
+      appendReleased(releasedDir, branch, newlyConsumed)
+    }
+  } finally {
+    // Stale (cherry-picked, already released elsewhere) changesets get dropped
+    // from the working tree — the released-list already prevents re-application.
+    deleteHidden(hidden)
   }
-
-  // Stale (cherry-picked, already released elsewhere) changesets get dropped
-  // from the working tree — the released-list already prevents re-application.
-  deleteHidden(hidden)
 }
 
-const isDirectInvocation = import.meta.url === `file://${process.argv[1]}`
-if (isDirectInvocation) {
+function isDirectInvocation (): boolean {
+  if (process.argv[1] === undefined) return false
+  try {
+    return import.meta.url === url.pathToFileURL(fs.realpathSync(process.argv[1])).href
+  } catch {
+    return false
+  }
+}
+
+if (isDirectInvocation()) {
   main()
 }

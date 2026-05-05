@@ -124,6 +124,22 @@ describe('hideReleased / restoreHidden / deleteHidden', () => {
     expect(fs.existsSync(path.join(dir, 'foo.md'))).toBe(false)
     expect(fs.existsSync(path.join(dir, 'foo.md.released'))).toBe(false)
   })
+
+  test('rolls back already-renamed files when a later rename fails', () => {
+    fs.writeFileSync(path.join(dir, 'bar.md'), 'bar')
+    fs.writeFileSync(path.join(dir, 'foo.md'), 'foo')
+    // Pre-create a non-empty directory at the would-be rename target so the
+    // foo.md → foo.md.released rename throws (EISDIR / ENOTEMPTY).
+    fs.mkdirSync(path.join(dir, 'foo.md.released'))
+    fs.writeFileSync(path.join(dir, 'foo.md.released', 'sentinel'), 'x')
+
+    expect(() => hideReleased(dir, new Set(['bar', 'foo']))).toThrow()
+
+    // bar.md was renamed first; on the failure it must be restored.
+    expect(fs.existsSync(path.join(dir, 'bar.md'))).toBe(true)
+    expect(fs.existsSync(path.join(dir, 'bar.md.released'))).toBe(false)
+    expect(fs.existsSync(path.join(dir, 'foo.md'))).toBe(true)
+  })
 })
 
 describe('listChangesetIds', () => {
