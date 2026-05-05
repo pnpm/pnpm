@@ -1,6 +1,7 @@
 /// <reference path="../../../../../__typings__/index.d.ts" />
 import path from 'node:path'
 
+import { describe, expect, test } from '@jest/globals'
 import { licenses } from '@pnpm/deps.compliance.commands'
 import { tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
