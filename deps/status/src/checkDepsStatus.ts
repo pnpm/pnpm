@@ -145,7 +145,12 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
         }
       }
     }
-    if (workspaceState.settings.allowBuilds == null && opts.allowBuilds != null && !isEmpty(opts.allowBuilds)) {
+    if (
+      !ignoredSettings.has('allowBuilds') &&
+      workspaceState.settings.allowBuilds == null &&
+      opts.allowBuilds != null &&
+      !isEmpty(opts.allowBuilds)
+    ) {
       return {
         upToDate: false,
         issue: 'The value of the allowBuilds setting has changed',
