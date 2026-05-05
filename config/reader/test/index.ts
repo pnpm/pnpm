@@ -1159,6 +1159,24 @@ test('getConfig() reads userconfig from PNPM_CONFIG_NPMRC_AUTH_FILE env var', as
   expect(config.userConfig).toEqual({ registry: 'https://registry.example.test' })
 })
 
+test('getConfig() reads userconfig from pnpm_config_npmrc_auth_file env var', async () => {
+  prepareEmpty()
+  fs.mkdirSync('user-home')
+  fs.writeFileSync(path.resolve('user-home', '.npmrc'), 'registry = https://registry.example.test', 'utf-8')
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config_npmrc_auth_file: path.resolve('user-home', '.npmrc'),
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config.userConfig).toEqual({ registry: 'https://registry.example.test' })
+})
+
 test('getConfig() sets sideEffectsCacheRead and sideEffectsCacheWrite when side-effects-cache is set', async () => {
   const { config } = await getConfig({
     cliOptions: {
