@@ -163,6 +163,41 @@ test('prune lockfile with inline dependency specifiers', () => {
   })
 })
 
+test('keep inline {specifier, version: "link:..."} importer entries', () => {
+  expect(pruneLockfile({
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: {
+          foo: {
+            specifier: 'workspace:*',
+            version: 'link:../foo',
+          },
+        },
+      },
+    },
+    packages: {},
+  } as unknown as Parameters<typeof pruneLockfile>[0], {
+    name: 'fixture',
+    version: '1.0.0',
+    dependencies: {
+      foo: 'workspace:*',
+    },
+  }, '.' as ProjectId, DEFAULT_OPTS)).toStrictEqual({
+    importers: {
+      '.': {
+        dependencies: {
+          foo: 'link:../foo',
+        },
+        specifiers: {
+          foo: 'workspace:*',
+        },
+      },
+    },
+    lockfileVersion: '9.0',
+  })
+})
+
 test('remove redundant linked package', () => {
   expect(pruneLockfile({
     importers: {
