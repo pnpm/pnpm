@@ -11,7 +11,7 @@ import type {
   FetchOptions,
   FetchResult,
 } from '@pnpm/fetching.fetcher-base'
-import { pickFetcher } from '@pnpm/fetching.pick-fetcher'
+import { isGitHostedPkgUrl, pickFetcher } from '@pnpm/fetching.pick-fetcher'
 import gfs from '@pnpm/fs.graceful-fs'
 import type { CustomFetcher } from '@pnpm/hooks.types'
 import { logger } from '@pnpm/logger'
@@ -345,7 +345,13 @@ function getFilesIndexFilePath (
 ): GetFilesIndexFilePathResult {
   const targetRelative = depPathToFilename(opts.pkg.id, ctx.virtualStoreDirMaxLength)
   const target = path.join(ctx.storeDir, targetRelative)
-  if ((opts.pkg.resolution as TarballResolution).integrity) {
+  // Git-hosted tarballs are post-processed (preparePackage / packlist), so the
+  // stored content can differ from the raw tarball that the integrity hashes.
+  // Keep them keyed by gitHostedStoreIndexKey even after we start pinning the
+  // integrity in the lockfile, so a subsequent install reuses the same store
+  // entry instead of refetching at a new key.
+  const tarballUrl = (opts.pkg.resolution as TarballResolution).tarball
+  if ((opts.pkg.resolution as TarballResolution).integrity && !(tarballUrl != null && isGitHostedPkgUrl(tarballUrl))) {
     return {
       target,
       filesIndexFile: storeIndexKey((opts.pkg.resolution as TarballResolution).integrity!, opts.pkg.id),
