@@ -120,20 +120,6 @@ test('hoist: false removes hoistPattern', async () => {
 })
 
 describe('installConfigDepsAndLoadHooks', () => {
-  function buildBaseConfig (): { config: Config, context: ConfigContext } {
-    const dir = process.cwd()
-    const config = {
-      ignorePnpmfile: true,
-      configDependencies: { 'some-helper-pkg': '1.0.0+sha512-abc' },
-      dir,
-      lockfileDir: dir,
-    } as unknown as Config
-    const context = {
-      rootProjectManifestDir: dir,
-    } as unknown as ConfigContext
-    return { config, context }
-  }
-
   test('proceeds normally when configDependencies install succeeds', async () => {
     prepare()
 
@@ -215,4 +201,18 @@ describe('installConfigDepsAndLoadHooks', () => {
     expect(resolveAndInstallConfigDeps).toHaveBeenCalledTimes(1)
     expect(loggerMock.debug).not.toHaveBeenCalled()
   })
+
+  function buildBaseConfig (): { config: Config, context: ConfigContext } {
+    const dir = process.cwd()
+    const config = {
+      ignorePnpmfile: true,
+      configDependencies: { 'some-helper-pkg': '1.0.0+sha512-abc' },
+      dir,
+      lockfileDir: dir,
+    } as unknown as Config
+    const context = {
+      rootProjectManifestDir: dir,
+    } as unknown as ConfigContext
+    return { config, context }
+  }
 })
