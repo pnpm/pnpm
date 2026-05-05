@@ -22,6 +22,7 @@ export type LicensesCommandOptions = {
   Config,
 | 'dev'
 | 'dir'
+| 'licenses'
 | 'lockfileDir'
 | 'publicHoistPattern'
 | 'shamefullyHoist'
@@ -38,12 +39,11 @@ export type LicensesCommandOptions = {
 | 'pnpmHomeDir'
 | 'supportedArchitectures'
 | 'virtualStoreDirMaxLength'
+| 'workspaceDir'
 > & Pick<ConfigContext,
 | 'selectedProjectsGraph'
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
-| 'licenses'
-| 'workspaceDir'
 > &
 Partial<Pick<Config, 'userConfig'>>
 
