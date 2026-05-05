@@ -2,7 +2,7 @@
   "name": "monorepo-root",
   "private": true,
   "scripts": {
-    "bump": "changeset version && pn update-manifests",
+    "bump": "node __utils__/scripts/src/bump.ts && pn update-manifests",
     "changeset": "changeset",
     "prepare": "husky",
     "pretest": "pn compile-only && pn prepare-fixtures",
