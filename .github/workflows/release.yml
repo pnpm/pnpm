@@ -27,7 +27,7 @@ jobs:
         with:
           standalone: true
       - name: Setup Node
-        run: pn runtime -g set node 25.6.1
+        run: pn runtime -g set node 26.0.0
         timeout-minutes: 2
       - name: pnpm install
         run: pn install

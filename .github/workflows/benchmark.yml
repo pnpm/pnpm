@@ -52,7 +52,7 @@ jobs:
         standalone: true
 
     - name: Setup Node
-      run: pnpm runtime -g set node 25.7.0
+      run: pnpm runtime -g set node 26.0.0
       timeout-minutes: 2
 
     - name: Install hyperfine
