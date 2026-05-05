@@ -24,7 +24,7 @@ const narrowTargets = ['win32-x64', 'linux-x64']
 // Could equivalently live under `pnpm.app.runtime` in package.json; kept here
 // next to the host-conditional target narrowing so the whole build matrix is
 // visible in one place.
-const EMBEDDED_RUNTIME = 'node@25.9.0'
+const EMBEDDED_RUNTIME = 'node@26.0.0'
 
 const packAppArgs = ['pack-app', '--runtime', EMBEDDED_RUNTIME]
 if (!buildFullMatrix) {
