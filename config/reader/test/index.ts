@@ -1720,6 +1720,9 @@ describe('global config.yaml', () => {
     expect(warning).toContain('"hoistPattern"')
     expect(warning).not.toContain('"dangerouslyAllowAllBuilds"')
     expect(warning).toContain(path.join(process.env.XDG_CONFIG_HOME!, 'pnpm', 'config.yaml'))
+    expect(warning).toContain('pnpm-workspace.yaml')
+    expect(warning).toContain('https://pnpm.io/11.x/config-dependencies')
+    expect(warning).not.toContain('.npmrc')
   })
 
   test('reads proxy settings from global config.yaml', async () => {

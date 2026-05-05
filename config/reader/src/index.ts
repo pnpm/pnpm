@@ -299,7 +299,7 @@ export async function getConfig (opts: {
     }
     if (ignoredKeys.length > 0) {
       const globalYamlConfigPath = path.join(configDir, GLOBAL_CONFIG_YAML_FILENAME)
-      warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${ignoredKeys.map(k => `"${k}"`).join(', ')}. Move them to a project-level pnpm-workspace.yaml or .npmrc.`)
+      warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${ignoredKeys.map(k => `"${k}"`).join(', ')}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies`)
     }
     addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
       configFromCliOpts,
