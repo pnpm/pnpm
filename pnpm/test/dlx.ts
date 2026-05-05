@@ -185,7 +185,6 @@ describe('catalogs from pnpm-workspace.yaml', () => {
     })
 
     execPnpmSync([
-      '--config.registry=https://registry.npmjs.org/',
       'dlx', 'shx@catalog:', 'echo', 'hi',
     ], { expectSuccess: true, omitEnvDefaults: ['pnpm_config_minimum_release_age'] })
   })
@@ -197,7 +196,6 @@ describe('catalogs from pnpm-workspace.yaml', () => {
     })
 
     const result = execPnpmSync([
-      '--config.registry=https://registry.npmjs.org/',
       'dlx', 'shx@catalog:', 'echo', 'hi',
     ], { omitEnvDefaults: ['pnpm_config_minimum_release_age'] })
 
@@ -216,7 +214,6 @@ describe('catalogs from pnpm-workspace.yaml', () => {
     })
 
     execPnpmSync([
-      '--config.registry=https://registry.npmjs.org/',
       'dlx', 'shx@catalog:shx034', 'echo', 'hi',
     ], { expectSuccess: true, omitEnvDefaults: ['pnpm_config_minimum_release_age'] })
   })
@@ -230,7 +227,6 @@ describe('catalogs from pnpm-workspace.yaml', () => {
     })
 
     const result = execPnpmSync([
-      '--config.registry=https://registry.npmjs.org/',
       'dlx', 'shx@catalog:shx034', 'echo', 'hi',
     ], { omitEnvDefaults: ['pnpm_config_minimum_release_age'] })
 
