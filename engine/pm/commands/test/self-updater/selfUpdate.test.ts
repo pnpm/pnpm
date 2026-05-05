@@ -169,6 +169,50 @@ test('self-update', async () => {
   expect(stdout.toString().trim()).toBe('9.1.0')
 })
 
+test('self-update refreshes legacy v10 bootstrap shim at pnpmHomeDir', async () => {
+  // pnpm v10 setup added pnpmHomeDir (not pnpmHomeDir/bin) to PATH and wrote
+  // a `pnpm` bootstrap shim there. After upgrading to v11, that shim still
+  // points into the old `.tools/<version>` install, so PATH continues to
+  // resolve to the pre-update pnpm. Self-update on v11 must refresh the
+  // legacy shim so the upgrade actually takes effect for users still on the
+  // v10 PATH layout. See pnpm/pnpm#11464.
+  const opts = prepare()
+  // Simulate a leftover v10 bootstrap shim. Content is irrelevant — the
+  // detector only cares about file presence, and linkBins will overwrite it.
+  fs.writeFileSync(path.join(opts.pnpmHomeDir, 'pnpm'), '#!/bin/sh\necho stale\n', { mode: 0o755 })
+  if (process.platform === 'win32') {
+    fs.writeFileSync(path.join(opts.pnpmHomeDir, 'pnpm.cmd'), '@echo stale\n')
+  }
+  mockRegistryForUpdate(opts.registries.default, '9.1.0', createMetadata('9.1.0', opts.registries.default))
+
+  await selfUpdate.handler(opts, [])
+
+  // Invoking pnpm via pnpmHomeDir (the v10 PATH layout, NOT pnpmHomeDir/bin)
+  // must now resolve to the freshly installed version.
+  const pnpmEnv = prependDirsToPath([opts.pnpmHomeDir])
+  const { status, stdout } = spawn.sync('pnpm', ['-v'], {
+    env: {
+      ...process.env,
+      [pnpmEnv.name]: pnpmEnv.value,
+    },
+  })
+  expect(status).toBe(0)
+  expect(stdout.toString().trim()).toBe('9.1.0')
+})
+
+test('self-update does not write shims to pnpmHomeDir on a clean v11 layout', async () => {
+  // Mirror image of the previous test: when there is no v10-style shim at
+  // pnpmHomeDir, self-update must NOT start writing bins there. Otherwise we
+  // would clutter pnpmHomeDir on every fresh-v11 self-update.
+  const opts = prepare()
+  mockRegistryForUpdate(opts.registries.default, '9.1.0', createMetadata('9.1.0', opts.registries.default))
+
+  await selfUpdate.handler(opts, [])
+
+  expect(fs.existsSync(path.join(opts.pnpmHomeDir, 'pnpm'))).toBe(false)
+  expect(fs.existsSync(path.join(opts.pnpmHomeDir, 'pnpm.cmd'))).toBe(false)
+})
+
 test('self-update by exact version', async () => {
   const opts = prepare()
   const metadata = createMetadata('9.2.0', opts.registries.default, ['9.1.0'])

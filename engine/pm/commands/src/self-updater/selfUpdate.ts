@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { linkBins } from '@pnpm/bins.linker'
@@ -206,10 +207,37 @@ export async function handler (
   // Link bins to pnpmHomeDir/bin so the updated pnpm is the active global binary
   await linkBins(path.join(baseDir, 'node_modules'), path.join(opts.pnpmHomeDir, 'bin'), { warn: globalWarn })
 
+  // pnpm v10 setup linked bins directly into pnpmHomeDir and added that
+  // directory to PATH (instead of pnpmHomeDir/bin as v11 does). When a v10
+  // user upgrades to v11 the legacy shims at pnpmHomeDir keep pointing into
+  // the old `.tools/<version>` install — so PATH still resolves `pnpm` to the
+  // pre-update version. Detect that case and refresh the legacy shims so the
+  // upgrade actually takes effect, then warn the user to run `pnpm setup`
+  // for a clean migration to the v11 layout. See pnpm/pnpm#11464.
+  if (hasLegacyHomeDirShim(opts.pnpmHomeDir)) {
+    await linkBins(path.join(baseDir, 'node_modules'), opts.pnpmHomeDir, { warn: globalWarn })
+    globalWarn(
+      'Detected a pnpm v10 installation layout at PNPM_HOME. The pnpm shims ' +
+      'at PNPM_HOME have been refreshed so the new version is active, but ' +
+      'pnpm v11 expects bins in PNPM_HOME/bin. Run "pnpm setup" to migrate ' +
+      'your PATH to the v11 layout.'
+    )
+  }
+
   if (alreadyExisted) {
     return `The ${bareSpecifier} version, v${resolution.manifest.version}, is already present on the system. It was activated by linking it from ${baseDir}.`
   }
   return `Successfully updated pnpm to v${resolution.manifest.version}`
+}
+
+// A fresh v11 setup never writes a `pnpm` shim at pnpmHomeDir itself — only
+// under pnpmHomeDir/bin. The presence of a `pnpm` (or `pnpm.cmd`) file
+// directly at pnpmHomeDir is therefore a reliable v10-layout marker.
+function hasLegacyHomeDirShim (pnpmHomeDir: string): boolean {
+  for (const name of ['pnpm', 'pnpm.cmd']) {
+    if (fs.existsSync(path.join(pnpmHomeDir, name))) return true
+  }
+  return false
 }
 
 /**
