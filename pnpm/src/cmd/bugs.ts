@@ -50,14 +50,23 @@ export async function handler (
   } else {
     const getBugsUrlFromRegistry = async (pkgName: string): Promise<string> => {
       const registry = opts.registries?.default ?? 'https://registry.npmjs.org'
-      const url = `${registry.replace(/\/$/, '')}/${pkgName}`
+      const encodedName = pkgName.startsWith('@')
+        ? `@${encodeURIComponent(pkgName.slice(1))}`
+        : pkgName
+      const url = `${registry.replace(/\/$/, '')}/${encodedName}`
       const response = await fetch(url, {
         headers: {
           'accept': 'application/json',
         },
       })
       if (!response.ok) {
-        throw new PnpmError('PACKAGE_NOT_FOUND', `Could not fetch package "${pkgName}" from registry: ${response.status} ${response.statusText}`)
+        if (response.status === 404) {
+          throw new PnpmError('PACKAGE_NOT_FOUND', `Could not find package "${pkgName}" in registry`)
+        }
+        if (response.status === 401 || response.status === 403) {
+          throw new PnpmError('UNAUTHORIZED', `Could not fetch package "${pkgName}" from registry due to authorization failure: ${response.status} ${response.statusText}`)
+        }
+        throw new PnpmError('REGISTRY_ERROR', `Could not fetch package "${pkgName}" from registry: ${response.status} ${response.statusText}`)
       }
       const data: Record<string, unknown> = await response.json()
       const bugsUrl = getBugsUrlFromManifest(data as PackageManifest)
@@ -77,6 +86,14 @@ type PackageManifest = {
   repository?: { url?: string } | string
 } | null
 
+function normalizeRepositoryUrl (url: string): string {
+  let normalized = url.replace(/^git\+/, '')
+  if (normalized.startsWith('git://')) {
+    normalized = 'https://' + normalized.slice(6)
+  }
+  return normalized.replace(/\.git$/, '')
+}
+
 function getBugsUrlFromManifest (manifest: PackageManifest): string | undefined {
   if (manifest?.bugs && typeof manifest.bugs !== 'string' && manifest.bugs.url) {
     return manifest.bugs.url
@@ -85,11 +102,10 @@ function getBugsUrlFromManifest (manifest: PackageManifest): string | undefined 
     return manifest.bugs
   }
   if (typeof manifest?.repository === 'object' && manifest.repository.url) {
-    return `${manifest.repository.url.replace(/\.git$/, '')}/issues`
+    return `${normalizeRepositoryUrl(manifest.repository.url)}/issues`
   }
   if (typeof manifest?.repository === 'string') {
-    const repoUrl = manifest.repository.replace(/\.git$/, '')
-    return `${repoUrl}/issues`
+    return `${normalizeRepositoryUrl(manifest.repository)}/issues`
   }
   return undefined
 }
@@ -128,10 +144,17 @@ async function openUrl (url: string): Promise<void> {
   }
 
   const { execFile } = await import('node:child_process')
-  await new Promise<void>((resolve) => {
+  await new Promise<void>((resolve, reject) => {
     execFile(cmd, args, (err) => {
-      if (err) resolve()
-      else resolve()
+      if (err) {
+        const errorDetails = [err.code, err.message].filter(Boolean).join(': ')
+        reject(new PnpmError(
+          'OPEN_BUGS_URL_FAILED',
+          `Failed to open bugs URL "${canonicalUrl}" with "${cmd}"${errorDetails ? ` (${errorDetails})` : ''}`
+        ))
+        return
+      }
+      resolve()
     })
   })
 }
