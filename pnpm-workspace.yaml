@@ -151,6 +151,7 @@ catalog:
   '@zkochan/rimraf': ^4.0.0
   '@zkochan/table': ^2.0.1
   adm-zip: ^0.5.16
+  amaro: ^1.1.9
   ansi-diff: ^1.2.0
   archy: ^1.0.0
   better-path-resolve: 2.0.0

@@ -448,6 +448,9 @@ catalogs:
     adm-zip:
       specifier: ^0.5.16
       version: 0.5.17
+    amaro:
+      specifier: ^1.1.9
+      version: 1.1.9
     ansi-diff:
       specifier: ^1.2.0
       version: 1.2.0
@@ -1303,6 +1306,9 @@ importers:
       '@pnpm/worker':
         specifier: workspace:*
         version: link:../../worker
+      amaro:
+        specifier: 'catalog:'
+        version: 1.1.9
       get-port:
         specifier: 'catalog:'
         version: 7.2.0
@@ -12289,6 +12295,10 @@ packages:
   ajv@8.20.0:
     resolution: {integrity: sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA==}
 
+  amaro@1.1.9:
+    resolution: {integrity: sha512-Qx5+iHi3mKWz95XNx/WPFl8yRMZEGNoRZDaOkoej72kxAo20FbDVx7jALcvyOn/N3+h+GboKip49yba7xqLlKA==}
+    engines: {node: '>=22'}
+
   anonymous-npm-registry-client@0.3.2:
     resolution: {integrity: sha512-Cw96dHAq3W/xVBNkPwLiTZnIbLgNXbmIxFAh63x8LjeaRVEGjMnZ6X/u7xSuqRqbig5jrYWJp5UTgRoXKUotVQ==}
 
@@ -20533,6 +20543,8 @@ snapshots:
       fast-uri: 3.1.0
       json-schema-traverse: 1.0.0
       require-from-string: 2.0.2
+
+  amaro@1.1.9: {}
 
   anonymous-npm-registry-client@0.3.2:
     dependencies:
