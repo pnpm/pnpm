@@ -60,7 +60,7 @@ test('silent dlx prints the output of the child process only', async () => {
   expect(result.stdout.toString().trim()).toBe('hi')
 })
 
-test('dlx ignores configuration in pnpm-workspace.yaml', async () => {
+test('dlx ignores patchedDependencies in pnpm-workspace.yaml', async () => {
   prepare()
   // Write a pnpm-workspace.yaml with a patchedDependencies that doesn't exist
   // dlx should ignore this and succeed
