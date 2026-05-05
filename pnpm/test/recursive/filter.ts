@@ -94,7 +94,9 @@ test('pnpm --recursive --filter "!<pkg>" run should still exclude the workspace 
 
   const stdout = result.stdout.toString()
   expect(stdout).toContain('b which$')
-  expect(stdout).not.toContain('root which$')
+  // The `--stream` reporter prefixes lines with the project's relative directory,
+  // so the workspace root (cwd === wsDir) would appear as `. which$` if included.
+  expect(stdout).not.toContain('. which$')
   expect(stdout).not.toContain('a which$')
 })
 
