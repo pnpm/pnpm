@@ -123,22 +123,6 @@ Added a new setting `blockExoticSubdeps` that prevents the resolution of exotic 
 - **minor**: New features, settings, or commands that should be documented (anything users should know about)
 - **major**: Breaking changes
 
-#### Cross-branch release tracking
-
-Because we cherry-pick fixes between `main` and `release/*` branches, the same changeset file can end up on both branches. After the release branch consumes its copy and is merged back into `main`, the cherry-picked copy on `main` would otherwise be applied a second time.
-
-To prevent that, `pnpm bump` is a wrapper around `changeset version` that maintains a per-branch ledger of consumed changeset IDs at `.changeset/.released/<branch>.txt` (one ID per line, branch name with `/` replaced by `-`). The wrapper:
-
-1. Reads the union of IDs across every `.changeset/.released/*.txt` file (so consumption records merged in from other branches are honoured).
-2. Hides any `.changeset/<id>.md` whose ID is already in that union by renaming it to `<id>.md.released`, so `changeset version` does not see it.
-3. Runs `changeset version`, which consumes and deletes the remaining `.md` files.
-4. Appends the IDs of those newly-deleted files to `.changeset/.released/<current-branch>.txt`.
-5. Deletes the hidden `.md.released` files (their consumption is already recorded elsewhere; keeping them around is just clutter).
-
-If `changeset version` fails, the hidden files are restored to their original `.md` names so the working tree is left clean. The current branch is detected from `git rev-parse --abbrev-ref HEAD` and can be overridden with the `RELEASE_BRANCH` environment variable.
-
-The one workflow requirement is that release branches are merged back into `main` between releases, so that `main` sees their `.released/release-X.Y.txt` before its own next release runs.
-
 ### Commit Messages
 
 Follow the [Conventional Commits](https://www.conventionalcommits.org/) specification.

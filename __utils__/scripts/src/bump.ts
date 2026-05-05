@@ -1,3 +1,10 @@
+// Wrapper around `changeset version` that prevents cherry-picked changesets
+// from being applied twice when a release branch is merged back into main.
+// Maintains a per-branch ledger at .changeset/.released/<branch>.txt of
+// consumed changeset ids; before running `changeset version` it hides any
+// changeset whose id is already in the union of those files. See
+// .changeset/.released/README.md for the full explanation.
+
 import { execSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
