@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { readProjectManifestOnly } from '@pnpm/cli.utils'
-import type { Config } from '@pnpm/config.reader'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   checkLicenseCompliance,
@@ -22,6 +22,7 @@ export type LicensesCheckOptions = Pick<
   Config,
 | 'dev'
 | 'dir'
+| 'licenses'
 | 'lockfileDir'
 | 'registries'
 | 'optional'
@@ -30,13 +31,13 @@ export type LicensesCheckOptions = Pick<
 | 'virtualStoreDir'
 | 'modulesDir'
 | 'pnpmHomeDir'
+| 'supportedArchitectures'
+| 'virtualStoreDirMaxLength'
+| 'workspaceDir'
+> & Pick<ConfigContext,
 | 'selectedProjectsGraph'
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
-| 'supportedArchitectures'
-| 'virtualStoreDirMaxLength'
-| 'licenses'
-| 'workspaceDir'
 > &
 Partial<Pick<Config, 'userConfig'>> & {
   json?: boolean
