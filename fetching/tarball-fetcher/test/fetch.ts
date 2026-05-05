@@ -519,7 +519,9 @@ test('verify integrity of git-hosted tarball against the resolution', async () =
 
   const resolution = {
     tarball: 'https://codeload.github.com/pnpm-e2e/pkg-with-ignored-files/tar.gz/958d6d487217512bb154d02836e9b5b922a600d8',
-    integrity: 'sha512-deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef==',
+    // A well-formed sha512 SRI that doesn't match the actual tarball — should
+    // surface as TarballIntegrityError when the buffer is verified.
+    integrity: 'sha512-MRqvs50psUtGELoeBcJwDUi7lT6RUXBzTHsU3U701V/DIouBQSZo+tx5xSXDJLEcItepyZPjIncx8Xy4qPFlKw==',
   }
 
   await expect(fetch.gitHostedTarball(cafs, resolution, {
