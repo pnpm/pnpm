@@ -1687,6 +1687,55 @@ describe('global config.yaml', () => {
     expect(config.dangerouslyAllowAllBuilds).toBeDefined()
   })
 
+  test('reads user-level preference settings from global config.yaml', async () => {
+    prepareEmpty()
+
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', {
+      scriptShell: '/usr/local/bin/bash',
+      shellEmulator: true,
+      updateNotifier: false,
+      stateDir: '/custom/state',
+      trustPolicy: 'no-downgrade',
+      trustPolicyExclude: ['legacy-pkg'],
+      registrySupportsTimeField: true,
+      sideEffectsCache: false,
+      strictDepBuilds: true,
+      useStderr: true,
+      verifyDepsBeforeRun: 'error',
+      verifyStoreIntegrity: false,
+      virtualStoreDir: '/custom/.pnpm',
+      virtualStoreDirMaxLength: 80,
+    })
+
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scriptShell).toBe('/usr/local/bin/bash')
+    expect(config.shellEmulator).toBe(true)
+    expect(config.updateNotifier).toBe(false)
+    expect(config.stateDir).toBe('/custom/state')
+    expect(config.trustPolicy).toBe('no-downgrade')
+    expect(config.trustPolicyExclude).toEqual(['legacy-pkg'])
+    expect(config.registrySupportsTimeField).toBe(true)
+    expect(config.sideEffectsCache).toBe(false)
+    expect(config.strictDepBuilds).toBe(true)
+    expect(config.useStderr).toBe(true)
+    expect(config.verifyDepsBeforeRun).toBe('error')
+    expect(config.verifyStoreIntegrity).toBe(false)
+    expect(config.virtualStoreDir).toBe('/custom/.pnpm')
+    expect(config.virtualStoreDirMaxLength).toBe(80)
+    expect(warnings.find((w) => w.includes('global config file'))).toBeUndefined()
+  })
+
   test('warns when global config.yaml contains settings that are not allowed in the global config', async () => {
     prepareEmpty()
 
