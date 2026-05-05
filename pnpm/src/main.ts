@@ -249,7 +249,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     if (config.workspaceRoot) {
       filters.push({ filter: `{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length) })
     } else if (
-      filters.length === 0 &&
+      !filters.some(({ filter }) => !filter.startsWith('!')) &&
       workspaceDir &&
       config.workspacePackagePatterns &&
       !isRootOnlyPatterns(config.workspacePackagePatterns) &&
