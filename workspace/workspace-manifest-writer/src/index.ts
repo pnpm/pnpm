@@ -111,7 +111,7 @@ export async function updateWorkspaceManifest (dir: string, opts: {
   manifest = reorderRecursive(originalKeyOrder, manifest) as Partial<WorkspaceManifest>
 
   patchDocument(document, manifest)
-  propagateBlankLinesToNewPairs(document, new Set(originalKeyOrder?.keys ?? []))
+  propagateBlankLinesToNewPairs(document, originalKeyOrder?.keys ?? [])
 
   await writeManifestFile(dir, fileName, document)
 }
@@ -337,21 +337,45 @@ function isPlainObject (value: unknown): value is Record<string, unknown> {
 
 // New top-level pairs are inserted without `spaceBefore`, which glues them to
 // the preceding pair even when the document otherwise uses blank-line
-// separators between fields. Propagate the style from neighboring existing
-// pairs so the inserted entries match the surrounding layout.
+// separators between fields. Detect that style and propagate it to inserted
+// entries (including reordering-induced changes such as a new key sorting to
+// the front, which demotes the previously-first existing pair to a position
+// that should now have a blank before it).
 //
 // The yaml library reads `spaceBefore` from the pair's key node when rendering
 // block collections, not from the pair itself.
-function propagateBlankLinesToNewPairs (document: yaml.Document, originalTopLevelKeys: Set<string>): void {
+function propagateBlankLinesToNewPairs (document: yaml.Document, originalTopLevelKeys: readonly string[]): void {
   if (!yaml.isMap(document.contents)) return
   const items = document.contents.items
   const keyOf = (pair: yaml.Pair): yaml.Scalar<string> | null =>
     yaml.isScalar(pair.key) && typeof pair.key.value === 'string'
       ? pair.key as yaml.Scalar<string>
       : null
-  for (let i = 0; i < items.length; i++) {
+
+  const originalKeySet = new Set(originalTopLevelKeys)
+  // The originally-first pair never had `spaceBefore` set even in a
+  // blank-line-separated document — exclude it when judging the document's
+  // style so we still detect the style when that pair has been moved.
+  const originalFirstKey = originalTopLevelKeys[0] ?? null
+  let originalNonFirstCount = 0
+  let originalNonFirstWithBlank = 0
+  for (const item of items) {
+    const k = keyOf(item)
+    if (k == null || !originalKeySet.has(k.value) || k.value === originalFirstKey) continue
+    originalNonFirstCount++
+    if (k.spaceBefore) originalNonFirstWithBlank++
+  }
+  const usesBlankLineStyle =
+    originalNonFirstCount > 0 && originalNonFirstWithBlank === originalNonFirstCount
+
+  for (let i = 1; i < items.length; i++) {
     const key = keyOf(items[i])
-    if (key == null || originalTopLevelKeys.has(key.value)) continue
+    if (key == null || key.spaceBefore) continue
+    if (usesBlankLineStyle) {
+      key.spaceBefore = true
+      continue
+    }
+    if (originalKeySet.has(key.value)) continue
     const nextKey = items[i + 1] ? keyOf(items[i + 1]) : null
     const prevKey = items[i - 1] ? keyOf(items[i - 1]) : null
     if (nextKey?.spaceBefore || (nextKey == null && prevKey?.spaceBefore)) {

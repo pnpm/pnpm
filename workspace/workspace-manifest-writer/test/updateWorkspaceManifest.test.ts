@@ -317,6 +317,41 @@ allowBuilds:
   expect(fs.readFileSync(filePath).toString()).toStrictEqual(expected)
 })
 
+test('updateWorkspaceManifest preserves blank lines when a new key sorts to the front', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+
+  // Sorted-alphabetical layout (no `packages` first). Inserting `allowBuilds`
+  // sorts it to the front, demoting `catalog` to the second position. The
+  // blank-line style of the original document should still be applied.
+  const manifest = `\
+catalog:
+  bar: '1.0.0'
+
+overrides:
+  foo: '2.0.0'
+`
+
+  const expected = `\
+allowBuilds:
+  baz: true
+
+catalog:
+  bar: '1.0.0'
+
+overrides:
+  foo: '2.0.0'
+`
+
+  fs.writeFileSync(filePath, manifest)
+
+  await updateWorkspaceManifest(dir, {
+    updatedFields: { allowBuilds: { baz: true } },
+  })
+
+  expect(fs.readFileSync(filePath).toString()).toStrictEqual(expected)
+})
+
 test('updateWorkspaceManifest does not add blank lines when the original layout has none', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
