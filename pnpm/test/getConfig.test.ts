@@ -104,7 +104,7 @@ describe('calcPnpmfilePathsOfPluginDeps', () => {
     }
   })
 
-  test('yields pnpmfile.cjs path even if missing when the plugin directory exists (so requireHooks reports the misconfig)', () => {
+  test('yields pnpmfile.cjs path even if missing when the plugin directory exists (so requireHooks reports the misconfiguration)', () => {
     const tmpDir = fs.mkdtempSync(path.join(import.meta.dirname, '.tmp-'))
     try {
       const pluginDir = path.join(tmpDir, 'pnpm-plugin-foo')
