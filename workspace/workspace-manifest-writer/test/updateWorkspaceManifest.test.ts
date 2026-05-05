@@ -309,7 +309,7 @@ mango:
   fs.writeFileSync(filePath, manifest)
 
   await updateWorkspaceManifest(dir, {
-    updatedFields: { mango: { v: 3 } as never },
+    updatedFields: { mango: { v: 3 } } as never,
   })
 
   expect(fs.readFileSync(filePath).toString()).toStrictEqual(expected)
