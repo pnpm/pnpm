@@ -62,7 +62,7 @@ export async function updateWorkspaceManifest (dir: string, opts: {
   validateWorkspaceManifest(manifest)
   manifest ??= {}
 
-  const originalManifest = structuredClone(manifest)
+  const originalKeyOrder = captureKeyOrder(manifest)
 
   let shouldBeUpdated = opts.updatedCatalogs != null && addCatalogs(manifest, opts.updatedCatalogs)
   if (opts.cleanupUnusedCatalogs) {
@@ -107,10 +107,10 @@ export async function updateWorkspaceManifest (dir: string, opts: {
     return
   }
 
-  manifest = reorderRecursive(originalManifest, manifest) as Partial<WorkspaceManifest>
+  manifest = reorderRecursive(originalKeyOrder, manifest) as Partial<WorkspaceManifest>
 
   patchDocument(document, manifest)
-  propagateBlankLinesToNewPairs(document, originalManifest)
+  propagateBlankLinesToNewPairs(document, new Set(originalKeyOrder?.keys ?? []))
 
   await writeManifestFile(dir, fileName, document)
 }
@@ -254,8 +254,29 @@ function addPackageReference (packageReferences: Record<string, Set<string>>, pk
   packageReferences[pkgName].add(version)
 }
 
-// Reorders the keys of `current` based on how the keys of `original` were
-// arranged. Two "sorted" layouts are recognized:
+interface KeyOrderNode {
+  keys: string[]
+  children: Record<string, KeyOrderNode>
+}
+
+// Captures only the key order at each nested level of a plain-object value,
+// without duplicating the values themselves. Used as a lightweight snapshot of
+// the original manifest layout so `reorderRecursive` can decide where to place
+// new keys without holding a structural clone of the entire manifest.
+function captureKeyOrder (value: unknown): KeyOrderNode | null {
+  if (!isPlainObject(value)) return null
+  const children: Record<string, KeyOrderNode> = {}
+  for (const [key, child] of Object.entries(value)) {
+    const childOrder = captureKeyOrder(child)
+    if (childOrder != null) {
+      children[key] = childOrder
+    }
+  }
+  return { keys: Object.keys(value), children }
+}
+
+// Reorders the keys of `current` based on how the keys were arranged in the
+// original manifest. Two "sorted" layouts are recognized:
 //
 //   1. fully alphabetical
 //   2. a leading "packages" key followed by alphabetical
@@ -265,13 +286,13 @@ function addPackageReference (packageReferences: Record<string, Set<string>>, pk
 // Otherwise the existing order is preserved and new keys are appended at the
 // end. New manifests (no original keys) default to layout (2) to match the
 // pnpm convention of placing "packages" first.
-function reorderRecursive (original: unknown, current: unknown): unknown {
+function reorderRecursive (originalOrder: KeyOrderNode | null, current: unknown): unknown {
   if (!isPlainObject(current)) return current
 
-  const originalRecord = isPlainObject(original) ? original : {}
-  const originalKeys = Object.keys(originalRecord)
+  const originalKeys = originalOrder?.keys ?? []
+  const originalKeySet = new Set(originalKeys)
   const survivingOriginal = originalKeys.filter((key) => Object.hasOwn(current, key))
-  const newKeys = Object.keys(current).filter((key) => !Object.hasOwn(originalRecord, key))
+  const newKeys = Object.keys(current).filter((key) => !originalKeySet.has(key))
 
   let orderedKeys: string[]
   if (newKeys.length === 0) {
@@ -285,7 +306,7 @@ function reorderRecursive (original: unknown, current: unknown): unknown {
 
   const result: Record<string, unknown> = {}
   for (const key of orderedKeys) {
-    result[key] = reorderRecursive(originalRecord[key], current[key])
+    result[key] = reorderRecursive(originalOrder?.children[key] ?? null, current[key])
   }
   return result
 }
@@ -320,7 +341,7 @@ function isPlainObject (value: unknown): value is Record<string, unknown> {
 //
 // The yaml library reads `spaceBefore` from the pair's key node when rendering
 // block collections, not from the pair itself.
-function propagateBlankLinesToNewPairs (document: yaml.Document, originalManifest: Record<string, unknown>): void {
+function propagateBlankLinesToNewPairs (document: yaml.Document, originalTopLevelKeys: Set<string>): void {
   if (!yaml.isMap(document.contents)) return
   const items = document.contents.items
   const keyOf = (pair: yaml.Pair): yaml.Scalar<string> | null =>
@@ -329,7 +350,7 @@ function propagateBlankLinesToNewPairs (document: yaml.Document, originalManifes
       : null
   for (let i = 0; i < items.length; i++) {
     const key = keyOf(items[i])
-    if (key == null || Object.hasOwn(originalManifest, key.value)) continue
+    if (key == null || originalTopLevelKeys.has(key.value)) continue
     const nextKey = items[i + 1] ? keyOf(items[i + 1]) : null
     const prevKey = items[i - 1] ? keyOf(items[i - 1]) : null
     if (nextKey?.spaceBefore || (nextKey == null && prevKey?.spaceBefore)) {

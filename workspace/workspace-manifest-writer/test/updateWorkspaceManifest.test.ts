@@ -287,29 +287,31 @@ test('updateWorkspaceManifest preserves blank lines when appending a new field a
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
 
+  // overrides before catalog is not alphabetical, so the layout is "unordered"
+  // and new keys are appended at the end rather than sorted in.
   const manifest = `\
-zebra:
-  v: 1
+overrides:
+  foo: '1.0.0'
 
-apple:
-  v: 2
+catalog:
+  bar: '2.0.0'
 `
 
   const expected = `\
-zebra:
-  v: 1
+overrides:
+  foo: '1.0.0'
 
-apple:
-  v: 2
+catalog:
+  bar: '2.0.0'
 
-mango:
-  v: 3
+allowBuilds:
+  baz: true
 `
 
   fs.writeFileSync(filePath, manifest)
 
   await updateWorkspaceManifest(dir, {
-    updatedFields: { mango: { v: 3 } } as never,
+    updatedFields: { allowBuilds: { baz: true } },
   })
 
   expect(fs.readFileSync(filePath).toString()).toStrictEqual(expected)
