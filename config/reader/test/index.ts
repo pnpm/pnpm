@@ -1699,6 +1699,13 @@ describe('global config.yaml', () => {
       trustPolicy: 'no-downgrade',
       trustPolicyExclude: ['legacy-pkg'],
       registrySupportsTimeField: true,
+      sideEffectsCache: false,
+      strictDepBuilds: true,
+      useStderr: true,
+      verifyDepsBeforeRun: 'error',
+      verifyStoreIntegrity: false,
+      virtualStoreDir: '/custom/.pnpm',
+      virtualStoreDirMaxLength: 80,
     })
 
     process.env.XDG_CONFIG_HOME = path.resolve('.config')
@@ -1719,6 +1726,13 @@ describe('global config.yaml', () => {
     expect(config.trustPolicy).toBe('no-downgrade')
     expect(config.trustPolicyExclude).toEqual(['legacy-pkg'])
     expect(config.registrySupportsTimeField).toBe(true)
+    expect(config.sideEffectsCache).toBe(false)
+    expect(config.strictDepBuilds).toBe(true)
+    expect(config.useStderr).toBe(true)
+    expect(config.verifyDepsBeforeRun).toBe('error')
+    expect(config.verifyStoreIntegrity).toBe(false)
+    expect(config.virtualStoreDir).toBe('/custom/.pnpm')
+    expect(config.virtualStoreDirMaxLength).toBe(80)
     expect(warnings.find((w) => w.includes('global config file'))).toBeUndefined()
   })
 
