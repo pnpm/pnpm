@@ -9781,12 +9781,12 @@ importers:
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
-      '@pnpm/object.key-sorting':
-        specifier: workspace:*
-        version: link:../../object/key-sorting
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
+      '@pnpm/util.lex-comparator':
+        specifier: 'catalog:'
+        version: 3.0.2
       '@pnpm/workspace.workspace-manifest-reader':
         specifier: workspace:*
         version: link:../workspace-manifest-reader

@@ -9,6 +9,7 @@ import type { ResolvedCatalogEntry } from '@pnpm/lockfile.types'
 import type {
   Project,
 } from '@pnpm/types'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import { validateWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { patchDocument } from '@pnpm/yaml.document-sync'
 import { equals } from 'ramda'
@@ -318,16 +319,16 @@ function detectKeyLayout (keys: string[]): KeyLayout {
   const packagesFirst = keys[0] === 'packages'
   const start = packagesFirst ? 1 : 0
   for (let i = start + 1; i < keys.length; i++) {
-    if (keys[i - 1] > keys[i]) return 'unordered'
+    if (lexCompare(keys[i - 1], keys[i]) > 0) return 'unordered'
   }
   return packagesFirst ? 'packages-first' : 'alphabetical'
 }
 
 function sortKeys (keys: string[], layout: 'alphabetical' | 'packages-first'): string[] {
   if (layout === 'packages-first' && keys.includes('packages')) {
-    return ['packages', ...keys.filter((key) => key !== 'packages').sort()]
+    return ['packages', ...keys.filter((key) => key !== 'packages').sort(lexCompare)]
   }
-  return [...keys].sort()
+  return [...keys].sort(lexCompare)
 }
 
 function isPlainObject (value: unknown): value is Record<string, unknown> {
