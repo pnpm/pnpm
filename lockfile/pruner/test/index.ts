@@ -68,6 +68,101 @@ test('remove one redundant package', () => {
   })
 })
 
+test('prune lockfile with inline dependency specifiers', () => {
+  expect(pruneLockfile({
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: {
+          foo: {
+            specifier: '^1.0.0',
+            version: '1.0.0',
+          },
+        },
+        devDependencies: {
+          bar: {
+            specifier: '^2.0.0',
+            version: '2.0.0',
+          },
+        },
+        optionalDependencies: {
+          qar: {
+            specifier: '^3.0.0',
+            version: '3.0.0',
+          },
+        },
+      },
+    },
+    packages: {
+      ['bar@2.0.0' as DepPath]: {
+        resolution: {
+          integrity: 'sha512-placeholder',
+        },
+      },
+      ['foo@1.0.0' as DepPath]: {
+        resolution: {
+          integrity: 'sha512-placeholder',
+        },
+      },
+      ['qar@3.0.0' as DepPath]: {
+        resolution: {
+          integrity: 'sha512-placeholder',
+        },
+      },
+    },
+  } as unknown as Parameters<typeof pruneLockfile>[0], {
+    name: 'fixture',
+    version: '1.0.0',
+    dependencies: {
+      foo: '^1.0.0',
+    },
+    devDependencies: {
+      bar: '^2.0.0',
+    },
+    optionalDependencies: {
+      qar: '^3.0.0',
+    },
+  }, '.' as ProjectId, DEFAULT_OPTS)).toStrictEqual({
+    importers: {
+      '.': {
+        dependencies: {
+          foo: '1.0.0',
+        },
+        devDependencies: {
+          bar: '2.0.0',
+        },
+        optionalDependencies: {
+          qar: '3.0.0',
+        },
+        specifiers: {
+          bar: '^2.0.0',
+          foo: '^1.0.0',
+          qar: '^3.0.0',
+        },
+      },
+    },
+    lockfileVersion: '9.0',
+    packages: {
+      'bar@2.0.0': {
+        resolution: {
+          integrity: 'sha512-placeholder',
+        },
+      },
+      'foo@1.0.0': {
+        resolution: {
+          integrity: 'sha512-placeholder',
+        },
+      },
+      'qar@3.0.0': {
+        optional: true,
+        resolution: {
+          integrity: 'sha512-placeholder',
+        },
+      },
+    },
+  })
+})
+
 test('remove redundant linked package', () => {
   expect(pruneLockfile({
     importers: {

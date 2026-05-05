@@ -13,6 +13,9 @@ export * from '@pnpm/lockfile.types'
 
 // cannot import DependenciesGraph from @pnpm/installing.deps-resolver due to circular dependency
 type DependenciesGraph = Record<DepPath, { optional?: boolean }>
+type InlineSpecifierAndResolution = { specifier?: string, version: string }
+type DependencyReference = string | InlineSpecifierAndResolution
+type ResolvedDependenciesWithInlineSpecifiers = Record<string, DependencyReference>
 
 export function pruneSharedLockfile (
   lockfile: LockfileObject,
@@ -65,26 +68,39 @@ export function pruneLockfile (
   const lockfileOptionalDependencies: ResolvedDependencies = {}
   const lockfileDevDependencies: ResolvedDependencies = {}
 
-  for (const depName in lockfileSpecs) {
+  const lockfileDepNames = new Set([
+    ...Object.keys(lockfileSpecs),
+    ...Object.keys(importer.dependencies ?? {}),
+    ...Object.keys(importer.optionalDependencies ?? {}),
+    ...Object.keys(importer.devDependencies ?? {}),
+  ])
+  for (const depName of lockfileDepNames) {
     if (!allDeps.has(depName)) continue
-    specifiers[depName] = lockfileSpecs[depName]
+    const specifier = lockfileSpecs[depName] ?? getDependencySpecifier(importer.dependencies?.[depName])
+      ?? getDependencySpecifier(importer.optionalDependencies?.[depName])
+      ?? getDependencySpecifier(importer.devDependencies?.[depName])
+    if (specifier != null) {
+      specifiers[depName] = specifier
+    }
     if (importer.dependencies?.[depName]) {
-      lockfileDependencies[depName] = importer.dependencies[depName]
+      lockfileDependencies[depName] = getDependencyReference(importer.dependencies[depName])
     } else if (importer.optionalDependencies?.[depName]) {
-      lockfileOptionalDependencies[depName] = importer.optionalDependencies[depName]
+      lockfileOptionalDependencies[depName] = getDependencyReference(importer.optionalDependencies[depName])
     } else if (importer.devDependencies?.[depName]) {
-      lockfileDevDependencies[depName] = importer.devDependencies[depName]
+      lockfileDevDependencies[depName] = getDependencyReference(importer.devDependencies[depName])
     }
   }
   if (importer.dependencies != null) {
-    for (const [alias, dep] of Object.entries(importer.dependencies)) {
+    for (const [alias, dep] of Object.entries(importer.dependencies) as Array<[string, DependencyReference]>) {
+      const reference = getDependencyReference(dep)
+      const specifier = lockfileSpecs[alias] ?? getDependencySpecifier(dep)
       if (
-        !lockfileDependencies[alias] && dep.startsWith('link:') &&
+        !lockfileDependencies[alias] && reference.startsWith('link:') &&
         // If the linked dependency was removed from package.json
         // then it is removed from pnpm-lock.yaml as well
-        !(lockfileSpecs[alias] && !allDeps.has(alias))
+        !(specifier && !allDeps.has(alias))
       ) {
-        lockfileDependencies[alias] = dep
+        lockfileDependencies[alias] = reference
       }
     }
   }
@@ -152,9 +168,17 @@ function copyPackageSnapshots (
 }
 
 function resolvedDepsToDepPaths (deps: ResolvedDependencies): DepPath[] {
-  return Object.entries(deps)
-    .map(([alias, ref]) => refToRelative(ref, alias))
+  return Object.entries(deps as ResolvedDependenciesWithInlineSpecifiers)
+    .map(([alias, ref]) => refToRelative(getDependencyReference(ref), alias))
     .filter((depPath) => depPath !== null) as DepPath[]
+}
+
+function getDependencyReference (dependency: DependencyReference): string {
+  return typeof dependency === 'string' ? dependency : dependency.version
+}
+
+function getDependencySpecifier (dependency: DependencyReference | undefined): string | undefined {
+  return typeof dependency === 'string' ? undefined : dependency?.specifier
 }
 
 function copyDependencySubGraph (
