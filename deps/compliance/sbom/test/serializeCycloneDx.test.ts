@@ -57,6 +57,14 @@ describe('serializeCycloneDx', () => {
     expect(parsed.serialNumber).toMatch(/^urn:uuid:[0-9a-f-]+$/)
   })
 
+  it('should honor specVersion option in $schema and specVersion fields', () => {
+    const result = makeSbomResult()
+    const parsed = JSON.parse(serializeCycloneDx(result, { specVersion: '1.6' }))
+
+    expect(parsed.$schema).toBe('http://cyclonedx.org/schema/bom-1.6.schema.json')
+    expect(parsed.specVersion).toBe('1.6')
+  })
+
   it('should include timestamp in metadata', () => {
     const before = new Date().toISOString()
     const result = makeSbomResult()

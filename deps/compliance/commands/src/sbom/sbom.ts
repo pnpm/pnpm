@@ -85,7 +85,7 @@ export function help (): string {
             name: '--sbom-type <library|application>',
           },
           {
-            description: 'The SBOM specification version (e.g., 1.6 or 1.7 for CycloneDX)',
+            description: 'The CycloneDX specification version (1.5, 1.6, or 1.7; default: 1.7)',
             name: '--sbom-spec-version <version>',
           },
           {
@@ -149,6 +149,7 @@ export async function handler (
   }
 
   const sbomType = validateSbomType(opts.sbomType)
+  const sbomSpecVersion = validateSbomSpecVersion(opts.sbomSpecVersion, format)
 
   const lockfile = await readWantedLockfile(opts.lockfileDir ?? opts.dir, {
     ignoreIncompatible: true,
@@ -223,7 +224,7 @@ export async function handler (
       lockfileOnly: opts.lockfileOnly,
       sbomAuthors: opts.sbomAuthors?.split(',').map((s) => s.trim()).filter(Boolean),
       sbomSupplier: opts.sbomSupplier,
-      specVersion: opts.sbomSpecVersion,
+      specVersion: sbomSpecVersion,
     })
     : serializeSpdx(result)
 
@@ -237,4 +238,25 @@ function validateSbomType (value: string | undefined): SbomComponentType {
     'SBOM_INVALID_TYPE',
     `Invalid SBOM type "${value}". Use "library" or "application".`
   )
+}
+
+// Versions whose schema is fully covered by what we currently emit
+// (e.g. metadata.lifecycles requires CycloneDX 1.5+).
+const SUPPORTED_CYCLONEDX_SPEC_VERSIONS = ['1.5', '1.6', '1.7']
+
+function validateSbomSpecVersion (value: string | undefined, format: SbomFormat): string | undefined {
+  if (value == null) return undefined
+  if (format !== 'cyclonedx') {
+    throw new PnpmError(
+      'SBOM_SPEC_VERSION_UNSUPPORTED_FORMAT',
+      'The --sbom-spec-version option is only supported with --sbom-format cyclonedx.'
+    )
+  }
+  if (!SUPPORTED_CYCLONEDX_SPEC_VERSIONS.includes(value)) {
+    throw new PnpmError(
+      'SBOM_INVALID_SPEC_VERSION',
+      `Invalid CycloneDX spec version "${value}". Supported versions: ${SUPPORTED_CYCLONEDX_SPEC_VERSIONS.join(', ')}.`
+    )
+  }
+  return value
 }
