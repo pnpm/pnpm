@@ -18,8 +18,8 @@ import { temporaryDirectory } from 'tempy'
 import { extractManifestFromPacked, isTarballPath } from './extractManifestFromPacked.js'
 import { optionsWithOtpEnv } from './otpEnv.js'
 import * as pack from './pack.js'
-import { publishPackedPkg } from './publishPackedPkg.js'
-import { type PublishRecursiveOpts, recursivePublish } from './recursivePublish.js'
+import { publishPackedPkg, type PublishSummary } from './publishPackedPkg.js'
+import { type PublishRecursiveOpts, recursivePublish, type RecursivePublishedPackage } from './recursivePublish.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
@@ -121,13 +121,24 @@ export async function handler (
       original: string[]
     }
     engineStrict?: boolean
+    json?: boolean
     recursive?: boolean
     workspaceDir?: string
   } & Pick<Config, 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme'>
   & Pick<ConfigContext, 'allProjects'>,
   params: string[]
-): Promise<{ exitCode?: number } | undefined> {
+): Promise<{ exitCode?: number, output?: string } | undefined> {
   const result = await publish(opts, params)
+  // Emit per-package summaries on stdout when --json is set: single object for a single-package
+  // publish, array for recursive publish. Mirrors `pnpm pack --json`'s shape choice.
+  if (opts.json) {
+    if (result?.publishSummary) {
+      return { output: JSON.stringify(result.publishSummary, null, 2), exitCode: 0 }
+    }
+    if (result?.publishedPackages) {
+      return { output: JSON.stringify(result.publishedPackages, null, 2), exitCode: result.exitCode ?? 0 }
+    }
+  }
   if (result?.manifest) return
   return result
 }
@@ -136,6 +147,10 @@ export interface PublishResult {
   exitCode?: number
   manifest?: ProjectManifest
   publishedManifest?: ExportedManifest
+  /** Per-package summary in the npm-CLI `--json` shape; only populated for single-package publish. */
+  publishSummary?: PublishSummary
+  /** Per-package summaries collected by recursive publish. */
+  publishedPackages?: RecursivePublishedPackage[]
 }
 
 export async function publish (
@@ -188,12 +203,12 @@ Do you want to continue?`,
     }
   }
   if (opts.recursive && (opts.selectedProjectsGraph != null)) {
-    const { exitCode } = await recursivePublish({
+    const { exitCode, publishedPackages } = await recursivePublish({
       ...opts,
       selectedProjectsGraph: opts.selectedProjectsGraph,
       workspaceDir: opts.workspaceDir ?? process.cwd(),
     })
-    return { exitCode }
+    return { exitCode, publishedPackages }
   }
 
   opts = optionsWithOtpEnv(opts, process.env)
@@ -203,11 +218,15 @@ Do you want to continue?`,
   if (dirInParams != null && isTarballPath(dirInParams)) {
     const tarballPath = dirInParams
     const publishedManifest = await extractManifestFromPacked(tarballPath)
-    await publishPackedPkg({
+    // Publishing a pre-built tarball bypasses `pack.api()`, so we don't have the file listing
+    // or unpacked size — those summary fields are reported as empty/zero.
+    const publishSummary = await publishPackedPkg({
       tarballPath,
       publishedManifest,
+      contents: [],
+      unpackedSize: 0,
     }, opts)
-    return { exitCode: 0 }
+    return { exitCode: 0, publishSummary }
   }
 
   const dir = dirInParams ?? opts.dir ?? process.cwd()
@@ -237,6 +256,7 @@ Do you want to continue?`,
   // that was generated and packed to the tarball.
   const packDestination = temporaryDirectory()
   let publishedManifest: ExportedManifest | undefined
+  let publishSummary: PublishSummary | undefined
   try {
     const packResult = await pack.api({
       ...opts,
@@ -244,7 +264,7 @@ Do you want to continue?`,
       packDestination,
       dryRun: false,
     })
-    await publishPackedPkg(packResult, opts)
+    publishSummary = await publishPackedPkg(packResult, opts)
     publishedManifest = packResult.publishedManifest
   } finally {
     await rimraf(packDestination)
@@ -256,7 +276,7 @@ Do you want to continue?`,
       'postpublish',
     ], manifest)
   }
-  return { manifest, publishedManifest }
+  return { manifest, publishedManifest, publishSummary }
 }
 
 export async function runScriptsIfPresent (

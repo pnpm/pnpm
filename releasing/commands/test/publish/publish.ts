@@ -1004,3 +1004,36 @@ test('publish from a tarball', async () => {
 
   await checkPkgExists(pkg.name, pkg.version)
 })
+
+test('publish --json: writes per-package summary to stdout', async () => {
+  const pkgName = `test-publish-json-${Date.now()}`
+  prepare({ name: pkgName, version: '0.0.0' })
+
+  const result = await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', '--json'] },
+    configByUri: CONFIG_BY_URI,
+    dir: process.cwd(),
+    json: true,
+  }, [])
+
+  expect(result?.output).toBeDefined()
+  const summary = JSON.parse(result!.output!) as Record<string, unknown>
+  expect(summary).toMatchObject({
+    id: `${pkgName}@0.0.0`,
+    name: pkgName,
+    version: '0.0.0',
+    filename: `${pkgName}-0.0.0.tgz`,
+    bundled: [],
+  })
+  expect(summary.size).toEqual(expect.any(Number))
+  expect(summary.size as number).toBeGreaterThan(0)
+  expect(summary.unpackedSize).toEqual(expect.any(Number))
+  expect(summary.unpackedSize as number).toBeGreaterThan(0)
+  expect(summary.shasum).toMatch(/^[0-9a-f]{40}$/)
+  expect(summary.integrity).toMatch(/^sha512-/)
+  expect(Array.isArray(summary.files)).toBe(true)
+  expect(summary.entryCount).toBe((summary.files as unknown[]).length)
+
+  await checkPkgExists(pkgName, '0.0.0')
+})
