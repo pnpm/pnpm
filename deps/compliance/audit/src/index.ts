@@ -96,10 +96,7 @@ export async function audit (
 
   if (res.status === 410) {
     throw new PnpmError('AUDIT_BAD_RESPONSE', errorMessage, {
-      hint: `This endpoint has been retired by the registry. Upgrade to pnpm v11, or run:
-  pnpm dlx pnpm@11.0.0-rc.1 audit --config.manage-package-manager-versions=false
-On Node.js <22.13, run instead:
-  pnpm dlx --package=@pnpm/exe@11.0.0-rc.1 pnpm audit --config.manage-package-manager-versions=false`
+      hint: `This endpoint has been retired by the registry. Upgrade to pnpm v11, which uses a new endpoint.`
     })
   }
 
