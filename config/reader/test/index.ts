@@ -1105,6 +1105,60 @@ test('getConfig() returns the userconfig even when overridden locally', async ()
   expect(config.userConfig).toEqual({ registry: 'https://registry.example.test' })
 })
 
+test('getConfig() reads userconfig from PNPM_CONFIG_USERCONFIG env var', async () => {
+  prepareEmpty()
+  fs.mkdirSync('user-home')
+  fs.writeFileSync(path.resolve('user-home', '.npmrc'), 'registry = https://registry.example.test', 'utf-8')
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      PNPM_CONFIG_USERCONFIG: path.resolve('user-home', '.npmrc'),
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config.userConfig).toEqual({ registry: 'https://registry.example.test' })
+})
+
+test('getConfig() reads userconfig from pnpm_config_userconfig env var', async () => {
+  prepareEmpty()
+  fs.mkdirSync('user-home')
+  fs.writeFileSync(path.resolve('user-home', '.npmrc'), 'registry = https://registry.example.test', 'utf-8')
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config_userconfig: path.resolve('user-home', '.npmrc'),
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config.userConfig).toEqual({ registry: 'https://registry.example.test' })
+})
+
+test('getConfig() reads userconfig from PNPM_CONFIG_NPMRC_AUTH_FILE env var', async () => {
+  prepareEmpty()
+  fs.mkdirSync('user-home')
+  fs.writeFileSync(path.resolve('user-home', '.npmrc'), 'registry = https://registry.example.test', 'utf-8')
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      PNPM_CONFIG_NPMRC_AUTH_FILE: path.resolve('user-home', '.npmrc'),
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config.userConfig).toEqual({ registry: 'https://registry.example.test' })
+})
+
 test('getConfig() sets sideEffectsCacheRead and sideEffectsCacheWrite when side-effects-cache is set', async () => {
   const { config } = await getConfig({
     cliOptions: {

@@ -215,10 +215,16 @@ export async function getConfig (opts: {
 
   const configDir = getConfigDir(process)
 
-  // Read npmrcAuthFile early from global config.yaml (before loading .npmrc files)
+  // Read npmrcAuthFile early from global config.yaml (before loading .npmrc files).
+  // The general env var loop runs later (after .npmrc files are loaded), so we
+  // also have to peek at the relevant env vars here in order for
+  // PNPM_CONFIG_NPMRC_AUTH_FILE / PNPM_CONFIG_USERCONFIG (and their lowercase
+  // equivalents) to actually decide which user-level .npmrc gets read.
   const globalYamlConfigForNpmrcAuthFile = await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
   const npmrcAuthFile = cliOptions['npmrc-auth-file'] as string | undefined
     ?? cliOptions.userconfig as string | undefined
+    ?? readEnvVar(env, 'npmrc_auth_file')
+    ?? readEnvVar(env, 'userconfig')
     ?? globalYamlConfigForNpmrcAuthFile?.npmrcAuthFile
 
   const npmrcResult = loadNpmrcConfig({
@@ -672,6 +678,15 @@ function getProcessEnv (env: string): string | undefined {
   return process.env[env] ??
     process.env[env.toUpperCase()] ??
     process.env[env.toLowerCase()]
+}
+
+// Look up a `pnpm_config_<key>` env var, accepting both lowercase and
+// uppercase forms. Used for env vars that need to be read before the
+// general parseEnvVars pass, such as those that affect which .npmrc file
+// is loaded.
+function readEnvVar (env: NodeJS.ProcessEnv, key: string): string | undefined {
+  const value = env[`pnpm_config_${key}`] ?? env[`PNPM_CONFIG_${key.toUpperCase()}`]
+  return value !== '' ? value : undefined
 }
 
 function getWantedPackageManager (manifest: ProjectManifest): { pm?: WantedPackageManager, warnings: string[] } {
