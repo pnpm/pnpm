@@ -1177,6 +1177,27 @@ test('getConfig() reads userconfig from pnpm_config_npmrc_auth_file env var', as
   expect(config.userConfig).toEqual({ registry: 'https://registry.example.test' })
 })
 
+// Locks in the precedence so future refactors don't accidentally flip it.
+test('getConfig() prefers pnpm_config_userconfig over PNPM_CONFIG_USERCONFIG when both are set', async () => {
+  prepareEmpty()
+  fs.mkdirSync('user-home')
+  fs.writeFileSync(path.resolve('user-home', 'upper.npmrc'), 'registry = https://upper.example.test', 'utf-8')
+  fs.writeFileSync(path.resolve('user-home', 'lower.npmrc'), 'registry = https://lower.example.test', 'utf-8')
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      PNPM_CONFIG_USERCONFIG: path.resolve('user-home', 'upper.npmrc'),
+      pnpm_config_userconfig: path.resolve('user-home', 'lower.npmrc'),
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config.userConfig).toEqual({ registry: 'https://lower.example.test' })
+})
+
 test('getConfig() sets sideEffectsCacheRead and sideEffectsCacheWrite when side-effects-cache is set', async () => {
   const { config } = await getConfig({
     cliOptions: {
