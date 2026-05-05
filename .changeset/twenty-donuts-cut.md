@@ -1,5 +1,5 @@
 ---
-"@pnpm/config.reader": minor
+"@pnpm/config.reader": patch
 "pnpm": patch
 ---
 

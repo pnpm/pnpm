@@ -175,7 +175,7 @@ skipOnWindows('pnpm create respects minimumReleaseAge from pnpm-workspace.yaml',
   expect(result.stderr.toString()).toMatch(/does not meet the minimumReleaseAge constraint/)
 })
 
-describe('catalogs from pnpm-workspace.yaml', () => {
+describe('catalogs inherited from pnpm-workspace.yaml', () => {
   test('dlx succeeds when in default catalog', () => {
     prepare()
     writeYamlFileSync('pnpm-workspace.yaml', {
