@@ -90,6 +90,16 @@ describe('calcPnpmfilePathsOfPluginDeps', () => {
       fs.rmSync(tmpDir, { recursive: true })
     }
   })
+
+  test('skips plugins whose pnpmfile is not on disk (e.g. config dep install failed)', () => {
+    const tmpDir = fs.mkdtempSync(path.join(import.meta.dirname, '.tmp-'))
+    try {
+      const paths = [...calcPnpmfilePathsOfPluginDeps(tmpDir, { 'pnpm-plugin-foo': '1.0.0' })]
+      expect(paths).toEqual([])
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true })
+    }
+  })
 })
 
 test('hoist: false removes hoistPattern', async () => {

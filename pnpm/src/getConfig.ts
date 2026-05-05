@@ -49,7 +49,6 @@ export async function installConfigDepsAndLoadHooks (
     catchConfigDependenciesErrors?: boolean
   }
 ): Promise<{ config: Config, context: ConfigContext }> {
-  let configDepsInstalled = false
   if (config.configDependencies) {
     try {
       const store = await createStoreController({ ...config, ...context })
@@ -62,7 +61,6 @@ export async function installConfigDepsAndLoadHooks (
           rootDir: config.lockfileDir ?? context.rootProjectManifestDir,
           frozenLockfile: config.frozenLockfile,
         })
-        configDepsInstalled = true
       } finally {
         await store.ctrl.close()
       }
@@ -80,7 +78,13 @@ export async function installConfigDepsAndLoadHooks (
   if (!config.ignorePnpmfile) {
     config.tryLoadDefaultPnpmfile = config.pnpmfile == null
     const pnpmfiles = config.pnpmfile == null ? [] : Array.isArray(config.pnpmfile) ? config.pnpmfile : [config.pnpmfile]
-    if (config.configDependencies && configDepsInstalled) {
+    if (config.configDependencies) {
+      // Check each pnpmfile path for existence on disk rather than gating on
+      // whether the current install succeeded. Config deps from a previous run
+      // may still be on disk even if a subsequent install fails transiently
+      // (e.g. auth not yet written), and we don't want to silently skip those
+      // hooks. Conversely, if the deps were never installed, the paths won't
+      // exist and we mustn't prepend them or `requireHooks` would throw.
       const configModulesDir = path.join(config.lockfileDir ?? context.rootProjectManifestDir, 'node_modules/.pnpm-config')
       pnpmfiles.unshift(...calcPnpmfilePathsOfPluginDeps(configModulesDir, config.configDependencies))
     }
@@ -108,8 +112,11 @@ export function * calcPnpmfilePathsOfPluginDeps (configModulesDir: string, confi
       const mjsPath = path.join(configModulesDir, configDepName, 'pnpmfile.mjs')
       if (fs.existsSync(mjsPath)) {
         yield mjsPath
-      } else {
-        yield path.join(configModulesDir, configDepName, 'pnpmfile.cjs')
+        continue
+      }
+      const cjsPath = path.join(configModulesDir, configDepName, 'pnpmfile.cjs')
+      if (fs.existsSync(cjsPath)) {
+        yield cjsPath
       }
     }
   }

@@ -220,10 +220,10 @@ test('installing a new configurational dependency', async () => {
 // the install errors out fast; the real-world scenario is a 401 from the
 // private registry.
 //
-// All three entry points are tested: `pnpm config set/get`, `pnpm set`, and
-// `pnpm get`. The latter two are shortcuts that delegate to the config handler
-// internally but are separate top-level commands, so they need their own
-// coverage at the main.ts guard level.
+// All four entry points are tested: `pnpm config set`, `pnpm config get`,
+// `pnpm set`, and `pnpm get`. The latter two are shortcuts that delegate to
+// the config handler internally but are separate top-level commands, so they
+// need their own coverage at the main.ts guard level.
 function writeFailingConfigDep () {
   // Clean specifier for a version that does not exist on the mock registry.
   // fetchRetries: 0 keeps the failure fast so the test does not time out.
@@ -245,6 +245,16 @@ test('pnpm config set succeeds even when configDependencies fail to install', as
 
   const npmrc = fs.readFileSync('.npmrc', 'utf8')
   expect(npmrc).toContain(`${authKey}=my-secret-token`)
+})
+
+test('pnpm config get succeeds even when configDependencies fail to install', async () => {
+  prepare()
+  writeFailingConfigDep()
+  const authKey = '//example.com/:_authToken'
+  fs.writeFileSync('.npmrc', `${authKey}=my-secret-token\n`, 'utf8')
+
+  const result = execPnpmSync(['config', 'get', '--location=project', authKey], { expectSuccess: true })
+  expect(result.stdout.toString()).toContain('my-secret-token')
 })
 
 test('pnpm set succeeds even when configDependencies fail to install', async () => {
