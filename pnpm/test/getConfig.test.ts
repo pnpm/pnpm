@@ -11,12 +11,7 @@ jest.unstable_mockModule('@pnpm/installing.env-installer', () => ({
 }))
 
 jest.unstable_mockModule('@pnpm/store.connection-manager', () => ({
-  createStoreController: jest.fn().mockImplementation(async () => ({
-    ctrl: {
-      close: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
-    },
-    dir: '/tmp/store',
-  })),
+  createStoreController: jest.fn(),
 }))
 
 const loggerMock = {
@@ -34,12 +29,20 @@ jest.unstable_mockModule('@pnpm/logger', () => ({
 
 const { resolveAndInstallConfigDeps } = await import('@pnpm/installing.env-installer')
 const { logger } = await import('@pnpm/logger')
+const { createStoreController } = await import('@pnpm/store.connection-manager')
 const { calcPnpmfilePathsOfPluginDeps, getConfig, installConfigDepsAndLoadHooks } = await import('../src/getConfig.js')
+
+const storeCloseMock = jest.fn<() => Promise<void>>()
 
 beforeEach(() => {
   jest.spyOn(console, 'warn')
   loggerMock.debug.mockClear()
   jest.mocked(resolveAndInstallConfigDeps).mockReset()
+  storeCloseMock.mockReset().mockResolvedValue(undefined)
+  jest.mocked(createStoreController).mockReset().mockResolvedValue({
+    ctrl: { close: storeCloseMock },
+    dir: '/tmp/store',
+  } as unknown as Awaited<ReturnType<typeof createStoreController>>)
 })
 
 afterEach(() => {
@@ -179,5 +182,37 @@ describe('installConfigDepsAndLoadHooks', () => {
     ).rejects.toThrow('401 Unauthorized: missing auth token')
 
     expect(resolveAndInstallConfigDeps).toHaveBeenCalledTimes(1)
+  })
+
+  test('does not swallow store creation errors even when catchConfigDependenciesErrors is true', async () => {
+    prepare()
+
+    const storeError = new Error('EACCES: permission denied opening store dir')
+    jest.mocked(createStoreController).mockRejectedValueOnce(storeError)
+
+    const { config, context } = buildBaseConfig()
+
+    await expect(
+      installConfigDepsAndLoadHooks(config, context, { catchConfigDependenciesErrors: true })
+    ).rejects.toThrow('EACCES: permission denied opening store dir')
+
+    expect(resolveAndInstallConfigDeps).not.toHaveBeenCalled()
+    expect(loggerMock.debug).not.toHaveBeenCalled()
+  })
+
+  test('does not swallow store close errors even when catchConfigDependenciesErrors is true', async () => {
+    prepare()
+
+    jest.mocked(resolveAndInstallConfigDeps).mockResolvedValueOnce(undefined as never)
+    storeCloseMock.mockReset().mockRejectedValueOnce(new Error('store close failed'))
+
+    const { config, context } = buildBaseConfig()
+
+    await expect(
+      installConfigDepsAndLoadHooks(config, context, { catchConfigDependenciesErrors: true })
+    ).rejects.toThrow('store close failed')
+
+    expect(resolveAndInstallConfigDeps).toHaveBeenCalledTimes(1)
+    expect(loggerMock.debug).not.toHaveBeenCalled()
   })
 })

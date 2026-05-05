@@ -50,8 +50,11 @@ export async function installConfigDepsAndLoadHooks (
   }
 ): Promise<{ config: Config, context: ConfigContext }> {
   if (config.configDependencies) {
+    // Wrap only the install call in the catch so that errors from
+    // createStoreController() and store.ctrl.close() are not silently
+    // mislabeled as "Failed to install configDependencies".
+    const store = await createStoreController({ ...config, ...context })
     try {
-      const store = await createStoreController({ ...config, ...context })
       try {
         await resolveAndInstallConfigDeps(config.configDependencies, {
           ...config,
@@ -61,18 +64,18 @@ export async function installConfigDepsAndLoadHooks (
           rootDir: config.lockfileDir ?? context.rootProjectManifestDir,
           frozenLockfile: config.frozenLockfile,
         })
-      } finally {
-        await store.ctrl.close()
+      } catch (err: unknown) {
+        if (!opts?.catchConfigDependenciesErrors) {
+          throw err
+        }
+        const errorMessage = util.types.isNativeError(err) ? err.message : String(err)
+        logger.debug({
+          message: `Failed to install configDependencies. This is expected if authentication is not yet configured. Proceeding. Error: ${errorMessage}`,
+          err,
+        })
       }
-    } catch (err: unknown) {
-      if (!opts?.catchConfigDependenciesErrors) {
-        throw err
-      }
-      const errorMessage = util.types.isNativeError(err) ? err.message : String(err)
-      logger.debug({
-        message: `Failed to install configDependencies. This is expected if authentication is not yet configured. Proceeding. Error: ${errorMessage}`,
-        err,
-      })
+    } finally {
+      await store.ctrl.close()
     }
   }
   if (!config.ignorePnpmfile) {
