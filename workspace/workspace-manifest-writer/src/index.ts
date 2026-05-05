@@ -6,7 +6,6 @@ import type { Catalogs } from '@pnpm/catalogs.types'
 import { parsePkgAndParentSelector } from '@pnpm/config.parse-overrides'
 import { type GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import type { ResolvedCatalogEntry } from '@pnpm/lockfile.types'
-import { sortKeysByPriority } from '@pnpm/object.key-sorting'
 import type {
   Project,
 } from '@pnpm/types'
@@ -63,6 +62,8 @@ export async function updateWorkspaceManifest (dir: string, opts: {
   validateWorkspaceManifest(manifest)
   manifest ??= {}
 
+  const originalManifest = structuredClone(manifest)
+
   let shouldBeUpdated = opts.updatedCatalogs != null && addCatalogs(manifest, opts.updatedCatalogs)
   if (opts.cleanupUnusedCatalogs) {
     shouldBeUpdated = removePackagesFromWorkspaceCatalog(manifest, opts.allProjects ?? []) || shouldBeUpdated
@@ -106,12 +107,10 @@ export async function updateWorkspaceManifest (dir: string, opts: {
     return
   }
 
-  manifest = sortKeysByPriority({
-    priority: { packages: 0 },
-    deep: true,
-  }, manifest)
+  manifest = reorderRecursive(originalManifest, manifest) as Partial<WorkspaceManifest>
 
   patchDocument(document, manifest)
+  propagateBlankLinesToNewPairs(document, originalManifest)
 
   await writeManifestFile(dir, fileName, document)
 }
@@ -253,4 +252,88 @@ function addPackageReference (packageReferences: Record<string, Set<string>>, pk
     packageReferences[pkgName] = new Set()
   }
   packageReferences[pkgName].add(version)
+}
+
+// Reorders the keys of `current` based on how the keys of `original` were
+// arranged. Two "sorted" layouts are recognized:
+//
+//   1. fully alphabetical
+//   2. a leading "packages" key followed by alphabetical
+//
+// When the original matches one of those layouts, new keys are inserted in
+// alphabetical position (preserving the leading "packages" if applicable).
+// Otherwise the existing order is preserved and new keys are appended at the
+// end. New manifests (no original keys) default to layout (2) to match the
+// pnpm convention of placing "packages" first.
+function reorderRecursive (original: unknown, current: unknown): unknown {
+  if (!isPlainObject(current)) return current
+
+  const originalRecord = isPlainObject(original) ? original : {}
+  const originalKeys = Object.keys(originalRecord)
+  const survivingOriginal = originalKeys.filter((key) => Object.hasOwn(current, key))
+  const newKeys = Object.keys(current).filter((key) => !Object.hasOwn(originalRecord, key))
+
+  let orderedKeys: string[]
+  if (newKeys.length === 0) {
+    orderedKeys = survivingOriginal
+  } else {
+    const layout = detectKeyLayout(originalKeys)
+    orderedKeys = layout === 'unordered'
+      ? [...survivingOriginal, ...newKeys]
+      : sortKeys([...survivingOriginal, ...newKeys], layout)
+  }
+
+  const result: Record<string, unknown> = {}
+  for (const key of orderedKeys) {
+    result[key] = reorderRecursive(originalRecord[key], current[key])
+  }
+  return result
+}
+
+type KeyLayout = 'unordered' | 'alphabetical' | 'packages-first'
+
+function detectKeyLayout (keys: string[]): KeyLayout {
+  if (keys.length === 0) return 'packages-first'
+  const packagesFirst = keys[0] === 'packages'
+  const start = packagesFirst ? 1 : 0
+  for (let i = start + 1; i < keys.length; i++) {
+    if (keys[i - 1] > keys[i]) return 'unordered'
+  }
+  return packagesFirst ? 'packages-first' : 'alphabetical'
+}
+
+function sortKeys (keys: string[], layout: 'alphabetical' | 'packages-first'): string[] {
+  if (layout === 'packages-first' && keys.includes('packages')) {
+    return ['packages', ...keys.filter((key) => key !== 'packages').sort()]
+  }
+  return [...keys].sort()
+}
+
+function isPlainObject (value: unknown): value is Record<string, unknown> {
+  return value != null && typeof value === 'object' && !Array.isArray(value)
+}
+
+// New top-level pairs are inserted without `spaceBefore`, which glues them to
+// the preceding pair even when the document otherwise uses blank-line
+// separators between fields. Propagate the style from neighboring existing
+// pairs so the inserted entries match the surrounding layout.
+//
+// The yaml library reads `spaceBefore` from the pair's key node when rendering
+// block collections, not from the pair itself.
+function propagateBlankLinesToNewPairs (document: yaml.Document, originalManifest: Record<string, unknown>): void {
+  if (!yaml.isMap(document.contents)) return
+  const items = document.contents.items
+  const keyOf = (pair: yaml.Pair): yaml.Scalar<string> | null =>
+    yaml.isScalar(pair.key) && typeof pair.key.value === 'string'
+      ? pair.key as yaml.Scalar<string>
+      : null
+  for (let i = 0; i < items.length; i++) {
+    const key = keyOf(items[i])
+    if (key == null || Object.hasOwn(originalManifest, key.value)) continue
+    const nextKey = items[i + 1] ? keyOf(items[i + 1]) : null
+    const prevKey = items[i - 1] ? keyOf(items[i - 1]) : null
+    if (nextKey?.spaceBefore || (nextKey == null && prevKey?.spaceBefore)) {
+      key.spaceBefore = true
+    }
+  }
 }
