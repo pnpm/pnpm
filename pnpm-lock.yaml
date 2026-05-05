@@ -1390,6 +1390,12 @@ importers:
         specifier: 'catalog:'
         version: 0.2.16
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
+      '@pnpm/jest-config':
+        specifier: workspace:*
+        version: link:../jest-config
       '@pnpm/logger':
         specifier: 'catalog:'
         version: 1001.0.1
@@ -1402,6 +1408,9 @@ importers:
       '@types/tar':
         specifier: 'catalog:'
         version: 7.0.87
+      cross-env:
+        specifier: 'catalog:'
+        version: 10.1.0
 
   __utils__/test-fixtures:
     dependencies:

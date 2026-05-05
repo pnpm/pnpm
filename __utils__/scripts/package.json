@@ -3,6 +3,10 @@
   "version": "1100.0.5",
   "private": true,
   "type": "module",
+  "scripts": {
+    "test": "pn .test",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
   "dependencies": {
     "@pnpm/workspace.projects-reader": "workspace:*",
     "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
@@ -14,10 +18,16 @@
     "tinyglobby": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/jest-config": "workspace:*",
     "@pnpm/logger": "catalog:",
     "@pnpm/scripts": "workspace:*",
     "@types/normalize-path": "catalog:",
-    "@types/tar": "catalog:"
+    "@types/tar": "catalog:",
+    "cross-env": "catalog:"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   },
   "keywords": [
     "pnpm",
