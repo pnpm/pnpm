@@ -908,6 +908,54 @@ describe('linkExePlatformBinary', () => {
     const result = fs.readFileSync(path.join(exeDir, executable), 'utf8')
     expect(result).toBe(fakeBinaryContent)
   })
+
+  // Regression coverage for https://github.com/pnpm/pnpm/issues/11486 — the
+  // `pn` / `pnpx` / `pnx` aliases were broken in MSYS2 / Git Bash on Windows.
+  // Root cause: linkExePlatformBinary pointed those bin entries at .cmd files,
+  // and @zkochan/cmd-shim's Bash shim for a .cmd source bounces through
+  // `exec cmd /C "...target.cmd" "$@"`. MSYS2's argument-conversion runtime
+  // mangles the lone `/C` switch into a Windows path before cmd.exe sees it,
+  // so cmd.exe finds no /C or /K and falls into interactive mode (printing its
+  // banner instead of running the alias). Routing the aliases through .exe
+  // hardlinks of the SEA binary takes cmd.exe out of the chain entirely.
+  const winOnlyTest = platform === 'win32' ? test : test.skip
+  winOnlyTest('rewrites bin to .exe entries and hardlinks pn/pnpx/pnx aliases to pnpm.exe (issue #11486)', () => {
+    const dir = tempDir(false)
+    const exeDir = path.join(dir, 'node_modules', '@pnpm', 'exe')
+    const platformDir = path.join(dir, 'node_modules', '@pnpm', platformPkgName)
+
+    fs.mkdirSync(exeDir, { recursive: true })
+    fs.mkdirSync(platformDir, { recursive: true })
+
+    fs.writeFileSync(path.join(exeDir, executable), 'This file intentionally left blank')
+    // Match the published bin field from pnpm/artifacts/exe/package.json
+    fs.writeFileSync(path.join(exeDir, 'package.json'), JSON.stringify({
+      bin: { pnpm: 'pnpm', pn: 'pn', pnpx: 'pnpx', pnx: 'pnx' },
+    }))
+
+    // The platform binary needs to be a real file so fs.linkSync can hardlink
+    // it. Content doesn't matter.
+    fs.writeFileSync(path.join(platformDir, executable), 'fake-pnpm-exe')
+
+    linkExePlatformBinary(dir)
+
+    const rewritten = JSON.parse(fs.readFileSync(path.join(exeDir, 'package.json'), 'utf8'))
+    expect(rewritten.bin).toEqual({
+      pnpm: 'pnpm.exe',
+      pn: 'pn.exe',
+      pnpx: 'pnpx.exe',
+      pnx: 'pnx.exe',
+    })
+
+    const pnpmIno = fs.statSync(path.join(exeDir, 'pnpm.exe')).ino
+    for (const name of ['pn', 'pnpx', 'pnx']) {
+      const aliasPath = path.join(exeDir, `${name}.exe`)
+      expect(fs.existsSync(aliasPath)).toBe(true)
+      // Hardlinked to pnpm.exe, so the SEA's argv[0] basename detection can
+      // tell `pnpx` apart from `pnpm` and inject `dlx` accordingly.
+      expect(fs.statSync(aliasPath).ino).toBe(pnpmIno)
+    }
+  })
 })
 
 describe('exePlatformPkgDirName', () => {

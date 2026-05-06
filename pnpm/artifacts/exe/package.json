@@ -30,7 +30,9 @@
   "scripts": {
     "preinstall": "node setup.js",
     "prepare": "node prepare.js",
-    "build-artifacts": "pn --filter=pnpm prepublishOnly && node ./scripts/build-artifacts.ts"
+    "build-artifacts": "pn --filter=pnpm prepublishOnly && node ./scripts/build-artifacts.ts",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest",
+    "test": "pn .test"
   },
   "dependencies": {
     "@reflink/reflink": "catalog:",
@@ -49,6 +51,7 @@
     "@jest/globals": "catalog:",
     "@pnpm/exe": "workspace:*",
     "@pnpm/jest-config": "workspace:*",
+    "@zkochan/cmd-shim": "catalog:",
     "execa": "catalog:"
   },
   "pnpm": {
