@@ -81,7 +81,7 @@ describe('appendReleased', () => {
   })
 
   test('creates the released directory if missing', () => {
-    const nested = path.join(dir, 'nested', '.released')
+    const nested = path.join(dir, 'nested', 'released')
     appendReleased(nested, 'main', ['foo'])
     expect(fs.readFileSync(path.join(nested, 'main.txt'), 'utf8')).toBe('foo\n')
   })

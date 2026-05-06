@@ -1,9 +1,13 @@
 // Wrapper around `changeset version` that prevents cherry-picked changesets
 // from being applied twice when a release branch is merged back into main.
-// Maintains a per-branch ledger at .changeset/.released/<branch>.txt of
+// Maintains a per-branch ledger at .changeset-released/<branch>.txt of
 // consumed changeset ids; before running `changeset version` it hides any
 // changeset whose id is already in the union of those files. See
-// .changeset/.released/README.md for the full explanation.
+// .changeset-released/README.md for the full explanation.
+//
+// The ledger lives outside `.changeset/` because `@changesets/read` treats
+// every directory inside `.changeset/` as a legacy v1 changeset and tries to
+// read `changes.md` from it.
 
 import { execSync } from 'node:child_process'
 import fs from 'node:fs'
@@ -105,7 +109,7 @@ function detectCurrentBranch (cwd: string): string {
 function main (): void {
   const repoRoot = path.resolve(import.meta.dirname, '../../..')
   const changesetDir = path.join(repoRoot, '.changeset')
-  const releasedDir = path.join(changesetDir, '.released')
+  const releasedDir = path.join(repoRoot, '.changeset-released')
   const branch = detectCurrentBranch(repoRoot)
 
   console.log(`Branch: ${branch}`)

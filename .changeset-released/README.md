@@ -8,6 +8,8 @@ Fixes are cherry-picked between `main` and `release/*` branches, so the same cha
 
 The ledger prevents that double-application. Each branch only writes to its own file, so cross-branch merges are conflict-free; the wrapper around `changeset version` reads the union of every file when deciding what to skip.
 
+The directory lives at the repo root (sibling of `.changeset/`) rather than inside `.changeset/` because `@changesets/read` treats every directory inside `.changeset/` as a legacy v1 changeset and tries to read `changes.md` from it.
+
 ## How it gets updated
 
 `pnpm bump` runs the wrapper at `__utils__/scripts/src/bump.ts`, which:
