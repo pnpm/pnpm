@@ -43,6 +43,9 @@
       "path": "../../exec/lifecycle"
     },
     {
+      "path": "../../fetching/pick-fetcher"
+    },
+    {
       "path": "../../installing/context"
     },
     {

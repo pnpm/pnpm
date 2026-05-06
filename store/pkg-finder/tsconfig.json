@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../../deps/path"
+      "path": "../../fetching/directory-fetcher"
     },
     {
-      "path": "../../fetching/directory-fetcher"
+      "path": "../../fetching/pick-fetcher"
     },
     {
       "path": "../../resolving/resolver-base"
