@@ -526,22 +526,22 @@ function fetchToStore (
       // Once v12 forces lockfile regeneration, every store keyed by the new
       // pnpm will already have the integrity-keyed entry and this lookup is
       // dead code.
+      //
+      // Cheap string checks (URL prefix, integrity present) gate the SQLite
+      // existence lookup so we only probe storeIndex for git-hosted packages.
+      const tarballUrl = (opts.pkg.resolution as TarballResolution).tarball
       if (
         !opts.force &&
         ctx.storeIndex != null &&
+        tarballUrl != null &&
+        (opts.pkg.resolution as TarballResolution).integrity &&
+        isGitHostedPkgUrl(tarballUrl) &&
         !ctx.storeIndex.has(filesIndexFile)
       ) {
-        const tarballUrl = (opts.pkg.resolution as TarballResolution).tarball
-        if (
-          tarballUrl != null &&
-          isGitHostedPkgUrl(tarballUrl) &&
-          (opts.pkg.resolution as TarballResolution).integrity
-        ) {
-          const legacyKey = gitHostedStoreIndexKey(opts.pkg.id, { built: !opts.ignoreScripts })
-          const legacyData = ctx.storeIndex.getRaw(legacyKey)
-          if (legacyData) {
-            ctx.storeIndex.setRawMany([{ key: filesIndexFile, buffer: legacyData }])
-          }
+        const legacyKey = gitHostedStoreIndexKey(opts.pkg.id, { built: !opts.ignoreScripts })
+        const legacyData = ctx.storeIndex.getRaw(legacyKey)
+        if (legacyData) {
+          ctx.storeIndex.setRawMany([{ key: filesIndexFile, buffer: legacyData }])
         }
       }
 
