@@ -80,6 +80,17 @@ test('bugs: trims trailing slash from repository URL before appending /issues', 
   expect(mockOpen).toHaveBeenCalledWith('https://github.com/test/pkg/issues')
 })
 
+test('bugs: handles repository URL ending with .git/ (trailing slash after .git)', async () => {
+  mockOpen.mockClear()
+  const dir = tempDir()
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({
+    name: 'test-pkg',
+    repository: { url: 'git+https://github.com/test/pkg.git/' },
+  }))
+  await bugs.handler({ ...BASE_OPTIONS, dir }, [])
+  expect(mockOpen).toHaveBeenCalledWith('https://github.com/test/pkg/issues')
+})
+
 test('bugs: strips fragment/query from repository URL before appending /issues', async () => {
   mockOpen.mockClear()
   const dir = tempDir()

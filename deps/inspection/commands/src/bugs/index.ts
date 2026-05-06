@@ -98,7 +98,7 @@ function repositoryToIssuesUrl (rawUrl: string): string | undefined {
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined
   parsed.search = ''
   parsed.hash = ''
-  parsed.pathname = parsed.pathname.replace(/\.git$/, '').replace(/\/+$/, '') + '/issues'
+  parsed.pathname = parsed.pathname.replace(/\/+$/, '').replace(/\.git$/, '') + '/issues'
   return parsed.toString()
 }
 
