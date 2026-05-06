@@ -22,6 +22,16 @@ const EXPERIMENTAL_PKGS = new Set([
   'pnpm-agent',
 ])
 
+// Files that must be packed with mode 0755 in both `pnpm` and `@pnpm/exe`.
+// `@pnpm/exe` ships the same `dist/` tree as `pnpm`, so the two manifests'
+// `publishConfig.executableFiles` lists must stay identical — otherwise the
+// shims end up packed at 0644 in one of the tarballs (see #11483).
+const PUBLISH_EXECUTABLE_FILES = [
+  './dist/node-gyp-bin/node-gyp',
+  './dist/node-gyp-bin/node-gyp.cmd',
+  './dist/node_modules/node-gyp/bin/node-gyp.js',
+]
+
 // Packages whose tests spawn the local pnpm CLI binary (pnpm/bin/pnpm.mjs)
 // and therefore need the CLI bundle (pnpm/dist/pnpm.mjs) to be built first.
 const PKGS_NEEDING_CLI_COMPILE = new Set([
@@ -137,6 +147,8 @@ export default async (workspaceDir: string) => { // eslint-disable-line
           ]) {
             manifest.optionalDependencies![depName] = 'workspace:*'
           }
+          manifest.publishConfig ??= {}
+          manifest.publishConfig.executableFiles = [...PUBLISH_EXECUTABLE_FILES]
         }
         return sortKeysInManifest(manifest)
       }
@@ -337,6 +349,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   delete scripts._compile
   if (manifest.name === CLI_PKG_NAME) {
     manifest.publishConfig!.tag = nextTag
+    manifest.publishConfig!.executableFiles = [...PUBLISH_EXECUTABLE_FILES]
   }
   if (scripts['.test']) {
     if (scripts.pretest) {
