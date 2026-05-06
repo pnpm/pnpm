@@ -6954,9 +6954,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
-      '@pnpm/fetching.pick-fetcher':
-        specifier: workspace:*
-        version: link:../../fetching/pick-fetcher
       '@pnpm/hooks.types':
         specifier: workspace:*
         version: link:../../hooks/types
@@ -9159,9 +9156,6 @@ importers:
 
   store/pkg-finder:
     dependencies:
-      '@pnpm/deps.path':
-        specifier: workspace:*
-        version: link:../../deps/path
       '@pnpm/fetching.directory-fetcher':
         specifier: workspace:*
         version: link:../../fetching/directory-fetcher

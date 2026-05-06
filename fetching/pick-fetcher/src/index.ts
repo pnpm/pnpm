@@ -40,7 +40,12 @@ export async function pickFetcher (
     if ('tarball' in resolution && resolution.tarball) {
       if (resolution.tarball.startsWith('file:')) {
         fetcherType = 'localTarball'
-      } else if (isGitHostedPkgUrl(resolution.tarball)) {
+      } else if (
+        ('gitHosted' in resolution && resolution.gitHosted === true) ||
+        // URL fallback for resolutions that didn't go through the resolver or
+        // the lockfile loader (e.g., constructed ad-hoc).
+        isGitHostedPkgUrl(resolution.tarball)
+      ) {
         fetcherType = 'gitHostedTarball'
       } else {
         fetcherType = 'remoteTarball'

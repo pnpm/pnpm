@@ -506,6 +506,29 @@ test('take only the files included in the package, when fetching a git-hosted pa
     'dist/index.js',
     'package.json',
   ])
+  // The fetcher must surface the integrity of the downloaded git tarball so
+  // that the lockfile can pin it (CVE: malicious codeload.github.com responses).
+  expect(result.integrity).toMatch(/^sha512-/)
+})
+
+test('verify integrity of git-hosted tarball against the resolution', async () => {
+  // Enable network for this test
+  mockAgent.enableNetConnect(/codeload\.github\.com/)
+
+  process.chdir(temporaryDirectory())
+
+  const resolution = {
+    tarball: 'https://codeload.github.com/pnpm-e2e/pkg-with-ignored-files/tar.gz/958d6d487217512bb154d02836e9b5b922a600d8',
+    // A well-formed sha512 SRI that doesn't match the actual tarball — should
+    // surface as TarballIntegrityError when the buffer is verified.
+    integrity: 'sha512-MRqvs50psUtGELoeBcJwDUi7lT6RUXBzTHsU3U701V/DIouBQSZo+tx5xSXDJLEcItepyZPjIncx8Xy4qPFlKw==',
+  }
+
+  await expect(fetch.gitHostedTarball(cafs, resolution, {
+    filesIndexFile,
+    lockfileDir: process.cwd(),
+    pkg,
+  })).rejects.toThrow(TarballIntegrityError)
 })
 
 test('fail when extracting a broken tarball', async () => {

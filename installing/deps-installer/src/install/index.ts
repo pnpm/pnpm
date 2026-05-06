@@ -2181,7 +2181,11 @@ async function installFromPnpmRegistry (
         await fileDownloads
         const resolution = fetchOpts.pkg.resolution
         const integrity = resolution?.integrity
-        if (integrity) {
+        // Fall through to the regular store controller for git-hosted tarballs.
+        // Their cached entry lives under gitHostedStoreIndexKey (preserves the
+        // built/not-built dimension), not the integrity-keyed path the agent
+        // uses for npm tarballs. See @pnpm/store.pkg-finder for the rationale.
+        if (integrity && !resolution?.gitHosted) {
           const filesIndexFile = _storeIndexKey(integrity, fetchOpts.pkg.id)
           const result = await readPkgFromCafs(
             { storeDir: opts.storeDir, verifyStoreIntegrity: false },
