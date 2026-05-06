@@ -1,11 +1,14 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals'
 import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 
-// `getIdToken` checks `ciInfo.GITLAB || ciInfo.GITHUB_ACTIONS` first; we mock the module so
-// the test environment looks like GitLab CI regardless of where it actually runs. With
-// `process.env.NPM_ID_TOKEN` set, `getIdToken` then short-circuits to that value without
-// hitting GitHub Actions' request-token endpoint, so all remaining HTTP traffic goes
-// straight to the npm registry — which is what we intercept with undici's MockAgent.
+// `getIdToken` only attempts OIDC in CI environments it explicitly recognizes — today
+// that's `ciInfo.GITHUB_ACTIONS || ciInfo.GITLAB` (mirroring npm CLI). Other providers
+// like CircleCI also expose OIDC tokens (e.g. CIRCLE_OIDC_TOKEN_V2) but aren't gated in
+// yet; that's worth a follow-up but out of scope for this PR. We mock the module here so
+// the test claims GitLab regardless of where it runs. With `process.env.NPM_ID_TOKEN`
+// set, `getIdToken` then short-circuits to that value without hitting GitHub Actions'
+// request-token endpoint, so all remaining HTTP traffic goes straight to the npm
+// registry — which is what we intercept with undici's MockAgent.
 const ciInfoModule = await import('ci-info')
 const ciInfoOriginal = (ciInfoModule as { default?: Record<string, unknown> }).default ?? ciInfoModule
 jest.unstable_mockModule('ci-info', () => ({
