@@ -31,14 +31,36 @@ jobs:
         timeout-minutes: 2
       - name: pnpm install
         run: pn install
-      - name: Publish Packages
+      # The publish phase is split into three sequential steps to control which packages
+      # use trusted publishing (OIDC) vs. a static token. `pnpm publish` currently bails
+      # out of OIDC as soon as a static `_authToken` is configured, so the only way to
+      # force trusted publishing for a given package today is to run its publish in a
+      # step that doesn't have NPM_TOKEN set. See https://github.com/pnpm/pnpm/pull/11495
+      # for the longer-term fix that lets OIDC override a configured token.
+      - name: Publish @pnpm/exe (trusted publishing)
+        # No NPM_TOKEN: pnpm has no static token to short-circuit on, so it will perform
+        # the OIDC token exchange against npm's trusted-publishing config for `@pnpm/exe`.
+        # The exe artifacts must be built before the publish, so they're built here too.
+        run: |
+          pn --filter=@pnpm/exe run build-artifacts
+          pn --filter=@pnpm/exe publish --tag=next-11 --access=public --provenance
+      - name: Publish internal workspace packages (static token)
+        # The other workspace packages don't have trusted publishing configured on npm,
+        # so we still need a static token here. The token is removed from pnpm's config
+        # at the end of the step so it can't leak into the trusted-publishing step that
+        # follows (where its presence would silently downgrade `pnpm` to token publishing).
         env:
-          # setting the "npm_config_//registry.npmjs.org/:_authToken" env variable directly doesn't work.
-          # probably "pnpm release" doesn't pass auth tokens to child processes
+          # Setting the "npm_config_//registry.npmjs.org/:_authToken" env variable directly
+          # doesn't work — pnpm doesn't appear to pass auth tokens to child processes.
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           pn config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
-          pn release
+          pn publish --filter=!pnpm --filter=!@pnpm/exe --access=public --provenance
+          pn config delete "//registry.npmjs.org/:_authToken"
+      - name: Publish pnpm CLI (trusted publishing)
+        # No NPM_TOKEN — same rationale as the @pnpm/exe step above. This must come after
+        # the previous step has cleared its NPM_TOKEN from pnpm's config.
+        run: pn publish --filter=pnpm --tag=next-11 --access=public --provenance
       - name: Copy Artifacts
         run: pn copy-artifacts
       - name: Attest build provenance
