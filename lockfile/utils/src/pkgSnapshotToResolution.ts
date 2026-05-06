@@ -3,7 +3,6 @@ import { type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile.typ
 import { type Resolution } from '@pnpm/resolver-base'
 import { type Registries } from '@pnpm/types'
 import getNpmTarballUrl from 'get-npm-tarball-url'
-import { isGitHostedPkgUrl } from '@pnpm/pick-fetcher'
 import { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot.js'
 
 export function pkgSnapshotToResolution (
@@ -14,7 +13,7 @@ export function pkgSnapshotToResolution (
   if (
     Boolean((pkgSnapshot.resolution as TarballResolution).type) ||
     (pkgSnapshot.resolution as TarballResolution).tarball?.startsWith('file:') ||
-    isGitHostedPkgUrl((pkgSnapshot.resolution as TarballResolution).tarball ?? '')
+    (pkgSnapshot.resolution as TarballResolution).gitHosted === true
   ) {
     return pkgSnapshot.resolution as Resolution
   }

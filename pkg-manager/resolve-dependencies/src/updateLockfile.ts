@@ -5,7 +5,7 @@ import {
   type PackageSnapshot,
   pruneSharedLockfile,
 } from '@pnpm/lockfile.pruner'
-import { type Resolution } from '@pnpm/resolver-base'
+import { type Resolution, type TarballResolution } from '@pnpm/resolver-base'
 import { type DepPath, type Registries } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
@@ -189,11 +189,27 @@ function toLockfileResolution (
   if (resolution.type !== undefined || !resolution['integrity']) {
     return resolution as LockfileResolution
   }
+  const tarball = resolution['tarball'] as string | undefined
+  // Honor the resolver-supplied flag, with a URL fallback for resolutions
+  // that didn't go through the git resolver (e.g. legacy lockfiles read by
+  // callers that don't enrich the field).
+  const gitHosted = (resolution as TarballResolution).gitHosted === true ||
+    (tarball != null && isGitHostedTarballUrl(tarball))
   if (lockfileIncludeTarballUrl) {
-    return {
+    return preservingGitHosted({
       integrity: resolution['integrity'],
-      tarball: resolution['tarball'],
-    }
+      tarball,
+    }, gitHosted)
+  }
+  // Tarball URLs that cannot be reconstructed from the package name, version,
+  // and registry must always stay in the lockfile, otherwise the package can
+  // no longer be re-fetched. This covers tarballs served by git providers
+  // (GitHub, GitLab, Bitbucket).
+  if (tarball != null && gitHosted) {
+    return preservingGitHosted({
+      integrity: resolution['integrity'],
+      tarball,
+    }, gitHosted)
   }
   // Sometimes packages are hosted under non-standard tarball URLs.
   // For instance, when they are hosted on npm Enterprise. See https://github.com/pnpm/pnpm/issues/867
@@ -209,6 +225,24 @@ function toLockfileResolution (
   return {
     integrity: resolution['integrity'],
   }
+}
+
+function preservingGitHosted<T extends { tarball?: string, integrity: string }> (
+  resolution: T,
+  gitHosted: boolean
+): T & { gitHosted?: boolean } {
+  return gitHosted ? { ...resolution, gitHosted: true } : resolution
+}
+
+// Inlined to avoid pulling @pnpm/pick-fetcher into this dep graph.
+// Used as a fallback when callers haven't pre-set the `gitHosted` field
+// on TarballResolution.
+function isGitHostedTarballUrl (url: string): boolean {
+  return (
+    url.startsWith('https://codeload.github.com/') ||
+    url.startsWith('https://bitbucket.org/') ||
+    url.startsWith('https://gitlab.com/')
+  ) && url.includes('tar.gz')
 }
 
 function removeProtocol (url: string): string {

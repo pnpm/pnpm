@@ -9,6 +9,7 @@ import {
   type LockfileFileProjectResolvedDependencies,
   type LockfilePackageInfo,
   type PackageSnapshots,
+  type TarballResolution,
 } from '@pnpm/lockfile.types'
 import { type DepPath, DEPENDENCIES_FIELDS } from '@pnpm/types'
 import isEmpty from 'ramda/src/isEmpty'
@@ -17,6 +18,19 @@ import omit from 'ramda/src/omit'
 import pickBy from 'ramda/src/pickBy'
 import pick from 'ramda/src/pick'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
+
+// Minimal duplicate of `isGitHostedPkgUrl` from `@pnpm/fetching.pick-fetcher`,
+// inlined to avoid pulling the fetcher dep into the lockfile I/O layer. Used
+// to enrich entries written by older pnpm versions (which didn't record the
+// `gitHosted` field on TarballResolution) so every downstream reader can rely
+// on the field directly.
+function isGitHostedTarballUrl (url: string): boolean {
+  return (
+    url.startsWith('https://codeload.github.com/') ||
+    url.startsWith('https://bitbucket.org/') ||
+    url.startsWith('https://gitlab.com/')
+  ) && url.includes('tar.gz')
+}
 
 export function convertToLockfileFile (lockfile: LockfileObject): LockfileFile {
   const packages: Record<string, LockfilePackageInfo> = {}
@@ -151,11 +165,24 @@ export function convertToLockfileObject (lockfile: LockfileFile): LockfileObject
   for (const [depPath, pkg] of Object.entries(lockfile.snapshots ?? {})) {
     const pkgId = removeSuffix(depPath)
     packages[depPath as DepPath] = Object.assign(pkg, lockfile.packages?.[pkgId])
+    enrichGitHostedFlag(packages[depPath as DepPath]?.resolution as TarballResolution | undefined)
   }
   return {
     ...omit(['snapshots'], rest),
     packages,
     importers: mapValues(importers ?? {}, revertProjectSnapshot),
+  }
+}
+
+// Backfill the `gitHosted` flag for tarball resolutions written by older
+// pnpm versions. Doing it once at load time lets every downstream reader
+// rely on the typed field instead of repeating URL prefix matches.
+function enrichGitHostedFlag (resolution: TarballResolution | undefined): void {
+  if (resolution == null) return
+  if (resolution.type !== undefined) return
+  if (resolution.gitHosted != null) return
+  if (resolution.tarball != null && isGitHostedTarballUrl(resolution.tarball)) {
+    resolution.gitHosted = true
   }
 }
 

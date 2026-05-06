@@ -39,17 +39,19 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
     .filter(([depPath]) => !skipped.has(depPath))
     .map(([depPath, pkgSnapshot]) => {
       const id = packageIdFromSnapshot(depPath, pkgSnapshot)
+      const resolution = pkgSnapshot.resolution as TarballResolution
       return {
         depPath,
         id,
-        integrity: (pkgSnapshot.resolution as TarballResolution).integrity,
+        integrity: resolution.integrity,
+        gitHosted: resolution.gitHosted === true,
         pkgPath: depPath,
         ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),
       }
     })
 
-  const modified = await pFilter(pkgs, async ({ id, integrity, depPath, name }) => {
-    const pkgIndexFilePath = integrity
+  const modified = await pFilter(pkgs, async ({ id, integrity, gitHosted, depPath, name }) => {
+    const pkgIndexFilePath = !gitHosted && integrity
       ? getIndexFilePathInCafs(storeDir, integrity, id)
       : path.join(storeDir, dp.depPathToFilename(id, maybeOpts.virtualStoreDirMaxLength), 'integrity.json')
     const { files } = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)

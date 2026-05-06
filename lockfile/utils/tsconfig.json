@@ -10,9 +10,6 @@
   ],
   "references": [
     {
-      "path": "../../fetching/pick-fetcher"
-    },
-    {
       "path": "../../packages/dependency-path"
     },
     {

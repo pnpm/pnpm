@@ -401,25 +401,27 @@ function getFilesIndexFilePath (
 ): GetFilesIndexFilePathResult {
   const targetRelative = depPathToFilename(opts.pkg.id, ctx.virtualStoreDirMaxLength)
   const target = path.join(ctx.storeDir, targetRelative)
-  if ((opts.pkg.resolution as TarballResolution).integrity) {
-    return {
-      target,
-      filesIndexFile: ctx.getIndexFilePathInCafs((opts.pkg.resolution as TarballResolution).integrity!, opts.pkg.id),
-      resolution: opts.pkg.resolution as AtomicResolution,
-    }
-  }
-  let resolution!: AtomicResolution
+  let resolution: AtomicResolution
   if (opts.pkg.resolution.type === 'variations') {
     resolution = findResolution(opts.pkg.resolution.variants, opts.supportedArchitectures)
-    if ((resolution as TarballResolution).integrity) {
-      return {
-        target,
-        filesIndexFile: ctx.getIndexFilePathInCafs((resolution as TarballResolution).integrity!, opts.pkg.id),
-        resolution,
-      }
-    }
   } else {
-    resolution = opts.pkg.resolution
+    resolution = opts.pkg.resolution as AtomicResolution
+  }
+  // Git-hosted tarballs are post-processed (preparePackage / packlist) on
+  // extraction, and their cached content depends on whether build scripts
+  // ran, so they must stay on the per-package store path keyed by built/
+  // not-built — never on the integrity-based cafs key, even though
+  // integrity is now pinned in the lockfile for tamper detection.
+  if ((resolution as TarballResolution).gitHosted === true) {
+    const filesIndexFile = path.join(target, opts.ignoreScripts ? 'integrity-not-built.json' : 'integrity.json')
+    return { filesIndexFile, target, resolution }
+  }
+  if ((resolution as TarballResolution).integrity) {
+    return {
+      target,
+      filesIndexFile: ctx.getIndexFilePathInCafs((resolution as TarballResolution).integrity!, opts.pkg.id),
+      resolution,
+    }
   }
   const filesIndexFile = path.join(target, opts.ignoreScripts ? 'integrity-not-built.json' : 'integrity.json')
   return { filesIndexFile, target, resolution }

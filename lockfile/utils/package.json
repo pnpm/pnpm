@@ -35,7 +35,6 @@
   "dependencies": {
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
-    "@pnpm/pick-fetcher": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
     "get-npm-tarball-url": "catalog:",
