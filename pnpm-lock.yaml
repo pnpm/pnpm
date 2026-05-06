@@ -5593,6 +5593,9 @@ importers:
       '@pnpm/exec.lifecycle':
         specifier: workspace:*
         version: link:../../exec/lifecycle
+      '@pnpm/fetching.pick-fetcher':
+        specifier: workspace:*
+        version: link:../../fetching/pick-fetcher
       '@pnpm/fs.read-modules-dir':
         specifier: workspace:*
         version: link:../../fs/read-modules-dir
@@ -8817,6 +8820,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
+      '@pnpm/fetching.pick-fetcher':
+        specifier: workspace:*
+        version: link:../../fetching/pick-fetcher
       '@pnpm/fs.graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs

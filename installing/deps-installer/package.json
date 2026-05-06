@@ -77,6 +77,7 @@
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.lifecycle": "workspace:*",
+    "@pnpm/fetching.pick-fetcher": "workspace:*",
     "@pnpm/fs.read-modules-dir": "workspace:*",
     "@pnpm/fs.symlink-dependency": "workspace:*",
     "@pnpm/hooks.read-package-hook": "workspace:*",

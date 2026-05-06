@@ -38,6 +38,7 @@
     "@pnpm/crypto.integrity": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/fetching.pick-fetcher": "workspace:*",
     "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/global.packages": "workspace:*",
     "@pnpm/installing.client": "workspace:*",

@@ -1,6 +1,11 @@
 ---
+"@pnpm/building.after-install": patch
 "@pnpm/fetching.tarball-fetcher": patch
+"@pnpm/installing.deps-installer": patch
 "@pnpm/installing.package-requester": patch
+"@pnpm/modules-mounter.daemon": patch
+"@pnpm/store.commands": patch
+"@pnpm/store.pkg-finder": patch
 "pnpm": patch
 ---
 

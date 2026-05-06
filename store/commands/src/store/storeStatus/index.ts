@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import { formatIntegrity } from '@pnpm/crypto.integrity'
 import * as dp from '@pnpm/deps.path'
+import { isGitHostedPkgUrl } from '@pnpm/fetching.pick-fetcher'
 import { getContextForSingleImporter } from '@pnpm/installing.context'
 import {
   nameVerFromPkgSnapshot,
@@ -43,10 +44,15 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
     .filter(([depPath]) => !skipped.has(depPath))
     .map(([depPath, pkgSnapshot]) => {
       const id = packageIdFromSnapshot(depPath, pkgSnapshot)
+      const resolution = pkgSnapshot.resolution as TarballResolution
       return {
         depPath,
         id,
-        integrity: (pkgSnapshot.resolution as TarballResolution).integrity,
+        integrity: resolution.integrity,
+        // Git-hosted tarballs are addressed by gitHostedStoreIndexKey to
+        // preserve the built/not-built dimension even when the lockfile pins
+        // their integrity for security. See @pnpm/store.pkg-finder.
+        isGitHostedTarball: resolution.tarball != null && isGitHostedPkgUrl(resolution.tarball),
         pkgPath: depPath,
         ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),
       }
@@ -54,10 +60,12 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
 
   const storeIndex = new StoreIndex(storeDir)
   try {
-    const modified = await pFilter(pkgs, async ({ id, integrity, depPath, name }) => {
-      const pkgIndexFilePath = integrity
-        ? storeIndexKey(integrity, id)
-        : gitHostedStoreIndexKey(id, { built: true })
+    const modified = await pFilter(pkgs, async ({ id, integrity, isGitHostedTarball, depPath, name }) => {
+      const pkgIndexFilePath = isGitHostedTarball
+        ? gitHostedStoreIndexKey(id, { built: true })
+        : (integrity
+          ? storeIndexKey(integrity, id)
+          : gitHostedStoreIndexKey(id, { built: true }))
       const pkgFilesIndex = storeIndex.get(pkgIndexFilePath) as PackageFilesIndex | undefined
       if (!pkgFilesIndex) {
         return false

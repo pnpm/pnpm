@@ -17,10 +17,18 @@ export interface ReadPackageFileMapOptions {
  * Reads the file index for a package and returns a `Map<string, string>`
  * mapping filenames to absolute paths on disk.
  *
- * Handles three types of package resolutions:
- * - Directory packages: fetches the file list from the local directory
- * - Packages with integrity: looks up the index file in the CAFS by integrity hash
- * - Tarball packages: looks up the index file by package directory name
+ * Picks the store key by resolution shape:
+ * - Directory packages: fetches the file list from the local directory.
+ * - Git-hosted tarballs (codeload.github.com / gitlab.com / bitbucket.org):
+ *   keyed by `gitHostedStoreIndexKey(packageId, { built: true })`. The
+ *   lockfile pins their integrity for security, but the cached payload
+ *   depends on whether build scripts ran during fetch (preparePackage), so
+ *   the `built` dimension is part of the key. Folding them under the
+ *   integrity-only key would collapse that distinction.
+ * - npm-registry tarballs with integrity: keyed by
+ *   `storeIndexKey(integrity, packageId)`.
+ * - Other tarball / git resolutions without integrity: keyed by
+ *   `gitHostedStoreIndexKey(packageId, { built: true })`.
  *
  * For CAFS packages, the content-addressed digests are resolved to file
  * paths upfront, so callers get a uniform map regardless of resolution type.
