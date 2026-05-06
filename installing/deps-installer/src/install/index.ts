@@ -1602,6 +1602,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
           pendingBuilds: ctx.pendingBuilds,
           publicHoistPattern: ctx.publicHoistPattern,
+          virtualStoreOnly: opts.virtualStoreOnly,
           prunedAt: opts.pruneVirtualStore || ctx.modulesFile == null
             ? new Date().toUTCString()
             : ctx.modulesFile.prunedAt,

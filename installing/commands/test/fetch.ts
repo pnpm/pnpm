@@ -258,12 +258,15 @@ test('install after fetch completes linking without recreating node_modules', as
     storeDir,
   })
 
+  const modulesYamlPath = path.resolve(project.dir(), 'node_modules/.modules.yaml')
   const virtualStoreDir = path.resolve(project.dir(), 'node_modules/.pnpm')
   const virtualStoreInodeBefore = fs.statSync(virtualStoreDir).ino
   // fetch only populates the virtual store — no importer symlink and no
   // hoisting yet.
   expect(fs.existsSync(path.resolve(project.dir(), 'node_modules/@pnpm.e2e/pkg-with-1-dep'))).toBeFalsy()
   expect(fs.existsSync(path.resolve(virtualStoreDir, 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBeFalsy()
+  // fetch records the marker that opts the next install out of hoist-pattern checks.
+  expect(JSON.parse(fs.readFileSync(modulesYamlPath, 'utf8')).virtualStoreOnly).toBe(true)
 
   await install.handler({
     ...DEFAULT_OPTIONS,
@@ -284,6 +287,9 @@ test('install after fetch completes linking without recreating node_modules', as
   // The transitive dep must be hoisted under the virtual store
   // (default hoistPattern is ['*']).
   expect(fs.existsSync(path.resolve(virtualStoreDir, 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBeTruthy()
+  // The marker must be cleared once the install completes the linking,
+  // otherwise a later install would keep skipping hoist-pattern checks.
+  expect(JSON.parse(fs.readFileSync(modulesYamlPath, 'utf8')).virtualStoreOnly).toBeUndefined()
 })
 
 test('fetch applies patches to dependencies when patchedDependencies key is bare package name', async () => {
