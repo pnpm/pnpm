@@ -1,6 +1,6 @@
 {
   "name": "pnpm-agent",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "pnpm agent server for server-side resolution and store-aware downloads",
   "keywords": [
     "pnpm",

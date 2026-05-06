@@ -1,5 +1,21 @@
 # @pnpm/resolve-dependencies
 
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+  - @pnpm/fetching.pick-fetcher@1100.0.5
+  - @pnpm/lockfile.types@1100.0.4
+  - @pnpm/lockfile.utils@1100.0.5
+  - @pnpm/resolving.resolver-base@1100.1.2
+  - @pnpm/deps.graph-hasher@1100.1.3
+  - @pnpm/hooks.types@1100.0.5
+  - @pnpm/lockfile.pruner@1100.0.4
+  - @pnpm/lockfile.preferred-versions@1100.0.6
+  - @pnpm/resolving.npm-resolver@1101.0.2
+  - @pnpm/store.controller-types@1100.0.5
+
 ## 1100.0.5
 
 ### Patch Changes

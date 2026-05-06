@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-config
 
+## 1100.0.10
+
+### Patch Changes
+
+- 3e2df55: `pnpm config get @<scope>:registry` now reports the same URL that `pnpm publish` and the resolvers actually use. Previously, `config get` only consulted `.npmrc`, while `publish`/install used the merged map that includes `pnpm-workspace.yaml`'s `registries` block — so the two could diverge silently and a publish could go to the wrong registry [#11492](https://github.com/pnpm/pnpm/issues/11492).
+- Updated dependencies [707a879]
+  - @pnpm/config.reader@1101.2.1
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.6
+
 ## 1100.0.9
 
 ### Patch Changes

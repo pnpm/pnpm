@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-patching
 
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [12313f1]
+- Updated dependencies [27425d7]
+- Updated dependencies [707a879]
+  - @pnpm/installing.modules-yaml@1100.0.3
+  - @pnpm/fetching.pick-fetcher@1100.0.5
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/lockfile.utils@1100.0.5
+  - @pnpm/config.reader@1101.2.1
+  - @pnpm/installing.commands@1100.1.10
+  - @pnpm/store.connection-manager@1100.0.11
+  - @pnpm/config.writer@1100.0.6
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/patching.apply-patch@1100.0.0
+
 ## 1100.0.11
 
 ### Patch Changes

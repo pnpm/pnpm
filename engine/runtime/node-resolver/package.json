@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/engine.runtime.node-resolver",
-  "version": "1101.0.4",
+  "version": "1101.0.5",
   "description": "Resolves a Node.js version specifier to an exact Node.js version",
   "keywords": [
     "pnpm",

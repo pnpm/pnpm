@@ -1,5 +1,28 @@
 # @pnpm/headless
 
+## 1101.0.6
+
+### Patch Changes
+
+- 12313f1: Fix `pnpm install` recreating `node_modules` after `pnpm fetch`. `pnpm fetch` records empty `hoistPattern` and `publicHoistPattern` in `.modules.yaml`; since v11 removed the explicit-config gate, the follow-up install treated those as a hoist-pattern change and purged the modules directory. The fetch step now flags the modules manifest with `virtualStoreOnly: true` so the next install skips the hoist-pattern comparison and completes the missing post-import linking in place [#11488](https://github.com/pnpm/pnpm/issues/11488).
+- Updated dependencies [12313f1]
+- Updated dependencies [27425d7]
+  - @pnpm/installing.modules-yaml@1100.0.3
+  - @pnpm/installing.package-requester@1101.0.3
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/lockfile.utils@1100.0.5
+  - @pnpm/deps.graph-builder@1100.0.6
+  - @pnpm/installing.linking.real-hoist@1100.0.5
+  - @pnpm/lockfile.to-pnp@1100.0.5
+  - @pnpm/deps.graph-hasher@1100.1.3
+  - @pnpm/installing.linking.modules-cleaner@1100.0.6
+  - @pnpm/lockfile.filtering@1100.0.6
+  - @pnpm/store.controller-types@1100.0.5
+  - @pnpm/building.during-install@1101.0.5
+  - @pnpm/exec.lifecycle@1100.0.6
+  - @pnpm/fs.symlink-dependency@1100.0.2
+  - @pnpm/worker@1100.1.2
+
 ## 1101.0.5
 
 ### Patch Changes

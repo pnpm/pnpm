@@ -1,0 +1,10 @@
+exe-node-gyp-executable
+exe-windows-aliases
+fetch-install-no-recreate
+git-tarball-integrity
+global-yaml-user-prefs
+oidc-precedence-over-static-token
+pm-on-fail-survives-help-version
+recursive-filter-root-exclusion
+restore-publish-json-stdout
+scoped-registry-config-get-publish

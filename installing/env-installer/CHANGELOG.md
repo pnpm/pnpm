@@ -1,5 +1,22 @@
 # @pnpm/config.deps-installer
 
+## 1101.0.5
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/lockfile.types@1100.0.4
+  - @pnpm/lockfile.utils@1100.0.5
+  - @pnpm/installing.deps-resolver@1100.0.6
+  - @pnpm/store.controller@1101.0.3
+  - @pnpm/deps.graph-hasher@1100.1.3
+  - @pnpm/lockfile.pruner@1100.0.4
+  - @pnpm/resolving.npm-resolver@1101.0.2
+  - @pnpm/store.controller-types@1100.0.5
+  - @pnpm/config.writer@1100.0.6
+  - @pnpm/worker@1100.1.2
+
 ## 1101.0.4
 
 ### Patch Changes

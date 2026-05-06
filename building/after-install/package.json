@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/building.after-install",
-  "version": "1101.0.6",
+  "version": "1101.0.7",
   "description": "Rebuild packages that are already installed by running their lifecycle scripts",
   "keywords": [
     "pnpm",

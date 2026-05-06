@@ -1,5 +1,11 @@
 # @pnpm/workspace.pkgs-graph
 
+## 1100.0.5
+
+### Patch Changes
+
+- @pnpm/resolving.npm-resolver@1101.0.2
+
 ## 1100.0.4
 
 ### Patch Changes

@@ -1,5 +1,25 @@
 # @pnpm/engine.pm.commands
 
+## 1101.1.7
+
+### Patch Changes
+
+- d0982fc: Fixed the `pn`, `pnpx`, and `pnx` aliases failing in Git Bash / MSYS2 on Windows when pnpm was installed via `@pnpm/exe` (or after `pnpm self-update`) [#11486](https://github.com/pnpm/pnpm/issues/11486). Running `pnpx` (or `pnx`) printed the cmd.exe banner and dropped the user into an interactive command prompt instead of running `pnpm dlx`. The `bin` field rewrite on Windows was pointing those aliases at `.cmd` files; cmd-shim's Bash shim for a `.cmd` target wraps it in `exec cmd /C ...`, and MSYS2 mangles `/C` into a Windows path before cmd.exe sees it. The aliases are now `.exe` hardlinks of the SEA binary, which detects which name it was launched as via `process.execPath` and prepends `dlx` for `pnpx` / `pnx`.
+- Updated dependencies [12313f1]
+- Updated dependencies [27425d7]
+- Updated dependencies [707a879]
+  - @pnpm/installing.deps-restorer@1101.0.6
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/lockfile.types@1100.0.4
+  - @pnpm/config.reader@1101.2.1
+  - @pnpm/global.commands@1100.0.12
+  - @pnpm/installing.client@1100.0.10
+  - @pnpm/store.controller@1101.0.3
+  - @pnpm/installing.env-installer@1101.0.5
+  - @pnpm/deps.graph-hasher@1100.1.3
+  - @pnpm/resolving.npm-resolver@1101.0.2
+  - @pnpm/store.connection-manager@1100.0.11
+
 ## 1101.1.6
 
 ### Patch Changes

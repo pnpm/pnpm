@@ -1,5 +1,17 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [12313f1]
+- Updated dependencies [27425d7]
+  - @pnpm/installing.modules-yaml@1100.0.3
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/lockfile.utils@1100.0.5
+  - @pnpm/lockfile.detect-dep-types@1100.0.4
+  - @pnpm/store.cafs@1100.1.2
+
 ## 1100.0.4
 
 ### Patch Changes

@@ -1,5 +1,20 @@
 # @pnpm/package-store
 
+## 1101.0.3
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+  - @pnpm/installing.package-requester@1101.0.3
+  - @pnpm/resolving.resolver-base@1100.1.2
+  - @pnpm/hooks.types@1100.0.5
+  - @pnpm/fetching.fetcher-base@1100.1.2
+  - @pnpm/store.controller-types@1100.0.5
+  - @pnpm/store.cafs@1100.1.2
+  - @pnpm/store.create-cafs-store@1100.0.5
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/worker@1100.1.2
+
 ## 1101.0.2
 
 ### Patch Changes

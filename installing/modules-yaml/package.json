@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.modules-yaml",
-  "version": "1100.0.2",
+  "version": "1100.0.3",
   "description": "Reads/writes `node_modules/.modules.yaml`",
   "keywords": [
     "pnpm",

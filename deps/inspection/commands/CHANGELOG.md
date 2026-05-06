@@ -1,5 +1,22 @@
 # @pnpm/deps.inspection.commands
 
+## 1100.1.11
+
+### Patch Changes
+
+- Updated dependencies [12313f1]
+- Updated dependencies [27425d7]
+- Updated dependencies [707a879]
+  - @pnpm/installing.modules-yaml@1100.0.3
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/config.reader@1101.2.1
+  - @pnpm/global.commands@1100.0.12
+  - @pnpm/resolving.default-resolver@1100.0.10
+  - @pnpm/deps.inspection.list@1100.0.6
+  - @pnpm/deps.inspection.outdated@1100.0.10
+  - @pnpm/deps.inspection.peers-checker@1100.0.5
+  - @pnpm/resolving.npm-resolver@1101.0.2
+
 ## 1100.1.10
 
 ### Patch Changes

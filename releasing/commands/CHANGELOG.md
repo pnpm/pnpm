@@ -1,5 +1,35 @@
 # @pnpm/releasing.commands
 
+## 1100.2.9
+
+### Patch Changes
+
+- 90e215f: Make trusted publishing (OIDC) take precedence over a configured static `_authToken` in `pnpm publish`, mirroring the npm CLI's behavior. When OIDC succeeds, the OIDC-derived token overrides any pre-configured `_authToken`; when OIDC is not applicable (no CI environment, exchange fails, registry has no trusted publisher configured), the static token is used as a fallback. This applies on every package during recursive publish, so each workspace package independently attempts trusted publishing.
+
+  Additionally, the `NPM_ID_TOKEN` env var is now honored as a CI-agnostic injection point for an OIDC ID token. Previously OIDC was only attempted on GitHub Actions or GitLab; now any CI provider that exposes its own OIDC mechanism (e.g. CircleCI's `CIRCLE_OIDC_TOKEN_V2`, Buildkite, etc.) can forward its token via `NPM_ID_TOKEN` and trusted publishing will work without pnpm needing to recognize the provider explicitly.
+
+- 5607279: Restore npm-CLI-compatible `--json` stdout output for `pnpm publish` ([#11476](https://github.com/pnpm/pnpm/issues/11476)). pnpm 11 reimplemented publish natively ([#10591](https://github.com/pnpm/pnpm/pull/10591)) and inadvertently dropped the per-package JSON object that pnpm 10 emitted transitively via the npm CLI, silently breaking downstream tooling — most notably `nx release publish`, which parses stdout JSON to confirm success ([nrwl/nx#35575](https://github.com/nrwl/nx/issues/35575)). On success, the output is now:
+
+  - `pnpm publish --json` → single object `{ id, name, version, size, unpackedSize, shasum, integrity, filename, files, entryCount, bundled }`, mirroring `npm publish --json`.
+  - `pnpm publish -r --json` → array of those objects, mirroring `pnpm pack --json`'s shape choice.
+  - `pnpm publish -r --report-summary` → existing `pnpm-publish-summary.json` envelope `{ publishedPackages: [...] }` is preserved, but each entry is upgraded to the same per-package shape (additive — `name` and `version` are still present).
+
+- Updated dependencies [27425d7]
+- Updated dependencies [707a879]
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/lockfile.types@1100.0.4
+  - @pnpm/resolving.resolver-base@1100.1.2
+  - @pnpm/config.reader@1101.2.1
+  - @pnpm/installing.commands@1100.1.10
+  - @pnpm/installing.client@1100.0.10
+  - @pnpm/engine.runtime.node-resolver@1101.0.5
+  - @pnpm/fetching.directory-fetcher@1100.0.6
+  - @pnpm/engine.runtime.commands@1100.0.11
+  - @pnpm/releasing.exportable-manifest@1100.0.3
+  - @pnpm/exec.lifecycle@1100.0.6
+  - @pnpm/fs.indexed-pkg-importer@1100.0.5
+  - @pnpm/workspace.projects-filter@1100.0.8
+
 ## 1100.2.8
 
 ### Patch Changes

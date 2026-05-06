@@ -1,5 +1,18 @@
 # pnpm-agent
 
+## 0.0.9
+
+### Patch Changes
+
+- Updated dependencies [12313f1]
+- Updated dependencies [27425d7]
+  - @pnpm/installing.deps-installer@1101.0.7
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/lockfile.types@1100.0.4
+  - @pnpm/installing.client@1100.0.10
+  - @pnpm/store.controller@1101.0.3
+  - @pnpm/store.cafs@1100.1.2
+
 ## 0.0.8
 
 ### Patch Changes

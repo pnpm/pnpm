@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetching.pick-fetcher",
-  "version": "1100.0.4",
+  "version": "1100.0.5",
   "description": "Pick a package fetcher by type",
   "keywords": [
     "pnpm",
