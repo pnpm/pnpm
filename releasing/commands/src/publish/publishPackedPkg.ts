@@ -172,8 +172,14 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
   }
 
   if (registry) {
-    const oidcTokenProvenance = await fetchTokenAndProvenanceByOidcIfApplicable(publishOptions, manifest.name, registry, options)
-    publishOptions.token ??= oidcTokenProvenance?.authToken
+    // OIDC takes precedence over a configured static `_authToken`, mirroring the npm CLI's
+    // behavior (see https://github.com/npm/cli/blob/7d900c46/lib/utils/oidc.js). Trusted
+    // publishing wins whenever the registry has it configured for the package; the static
+    // token is used only as a fallback when OIDC is not applicable.
+    const oidcTokenProvenance = await fetchTokenAndProvenanceByOidc(manifest.name, registry, options)
+    if (oidcTokenProvenance?.authToken) {
+      publishOptions.token = oidcTokenProvenance.authToken
+    }
     publishOptions.provenance ??= oidcTokenProvenance?.provenance
     appendAuthOptionsForRegistry(publishOptions, registry)
   }
@@ -267,20 +273,24 @@ interface OidcTokenProvenanceResult {
 }
 
 /**
- * If authentication information doesn't already set in {@link targetPublishOptions},
- * try fetching an authentication token and provenance by OpenID Connect and return it.
+ * Try fetching an authentication token and provenance by OpenID Connect.
+ *
+ * The result, when defined, is intended to take precedence over any statically configured
+ * authentication. This mirrors the npm CLI's OIDC flow, which always attempts the exchange
+ * in supported CI environments and overwrites a configured `_authToken` on success.
+ *
+ * @returns the OIDC-derived authToken (and provenance flag) on success, or `undefined` when
+ *   OIDC is not applicable / not configured on the registry — in which case callers should
+ *   fall back to whatever static authentication they already have.
+ *
+ * @internal Exported for unit testing of the precedence rules. Not part of the package's
+ *   public API.
  */
-async function fetchTokenAndProvenanceByOidcIfApplicable (
-  targetPublishOptions: PublishOptions,
+export async function fetchTokenAndProvenanceByOidc (
   packageName: string,
   registry: string,
   options: PublishPackedPkgOptions
 ): Promise<OidcTokenProvenanceResult | undefined> {
-  if (
-    targetPublishOptions.token != null ||
-    (targetPublishOptions.username && targetPublishOptions.password)
-  ) return undefined
-
   let idToken: string | undefined
   try {
     idToken = await getIdToken({
@@ -296,7 +306,11 @@ async function fetchTokenAndProvenanceByOidcIfApplicable (
     throw error
   }
   if (!idToken) {
-    globalWarn('Skipped OIDC: idToken is not available')
+    // OIDC is simply not applicable here — either we're outside of CI, or we're in a CI
+    // that doesn't natively drive OIDC and the user hasn't forwarded a token via
+    // `NPM_ID_TOKEN`. This is the common case for local publishes, so it must stay
+    // silent — only configuration *errors* in a supported CI environment surface as
+    // warnings, and those come back as `IdTokenError` and are handled above.
     return undefined
   }
 
@@ -335,8 +349,11 @@ async function fetchTokenAndProvenanceByOidcIfApplicable (
     })
   } catch (error) {
     if (error instanceof ProvenanceError) {
+      // Don't lose the OIDC-derived authToken just because we couldn't determine the
+      // provenance flag — the publish itself can still go through, and that's what
+      // the npm CLI does too.
       globalWarn(`Skipped setting provenance: ${displayError(error)}`)
-      return undefined
+      return { authToken }
     }
 
     throw error
