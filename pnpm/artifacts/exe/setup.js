@@ -71,12 +71,26 @@ if (platform === 'win32') {
   // be the real binary so the shim can execute it.
   linkSync(bin, path.resolve(ownDir, 'pnpm'))
 
+  // Aliases (pn / pnpx / pnx) need to be .exe hardlinks of the SEA binary,
+  // not the .cmd / .ps1 wrappers we ship in the tarball. Reason: in MSYS2 /
+  // Git Bash, cmd-shim's Bash shim for a .cmd target does
+  //   exec cmd /C "...target.cmd" "$@"
+  // and MSYS2 mangles the lone `/C` switch into a Windows path before
+  // cmd.exe sees it — cmd.exe then finds no /C or /K and falls into
+  // interactive mode, printing its banner instead of the alias. .exe
+  // sources sidestep cmd-shim's wrapper. The SEA binary detects which name
+  // it was launched as via process.execPath and prepends `dlx` for
+  // pnpx / pnx. See https://github.com/pnpm/pnpm/issues/11486.
+  for (const alias of ['pn', 'pnpx', 'pnx']) {
+    linkSync(bin, path.resolve(ownDir, `${alias}.exe`))
+  }
+
   const pkgJsonPath = path.resolve(ownDir, 'package.json')
   const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
   pkg.bin.pnpm = 'pnpm.exe'
-  pkg.bin.pn = 'pn.cmd'
-  pkg.bin.pnpx = 'pnpx.cmd'
-  pkg.bin.pnx = 'pnx.cmd'
+  pkg.bin.pn = 'pn.exe'
+  pkg.bin.pnpx = 'pnpx.exe'
+  pkg.bin.pnx = 'pnx.exe'
   fs.writeFileSync(pkgJsonPath, JSON.stringify(pkg, null, 2))
 }
 
