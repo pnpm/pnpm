@@ -78,6 +78,11 @@
       "pn": "pn",
       "pnpx": "pnpx",
       "pnx": "pnx"
-    }
+    },
+    "executableFiles": [
+      "./dist/node-gyp-bin/node-gyp",
+      "./dist/node-gyp-bin/node-gyp.cmd",
+      "./dist/node_modules/node-gyp/bin/node-gyp.js"
+    ]
   }
 }
