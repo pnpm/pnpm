@@ -170,12 +170,15 @@ function buildWinSetupSandbox (): string {
   // hardlinks it again into the sandbox @pnpm/exe dir; downstream tests can
   // invoke the resulting `pnpx.exe` (etc.) and assert the alias actually ran.
   fs.linkSync(process.execPath, path.join(platformDir, 'pnpm.exe'))
-  // platform-pkg-name.js calls into detect-libc on Linux; symlink the real
-  // package so the resolver finds it from the sandbox.
+  // platform-pkg-name.js calls into detect-libc; make the package resolvable
+  // from the sandbox. On Windows, use a junction — non-junction directory
+  // symlinks require Developer Mode or admin privileges, which Windows CI and
+  // most local Windows dev setups don't have. (See the failure-path tests
+  // higher in this file: they skip on Windows for the same reason.)
   fs.symlinkSync(
     path.join(exeDir, 'node_modules', 'detect-libc'),
     path.join(sandbox, 'node_modules', 'detect-libc'),
-    'dir'
+    isWindows ? 'junction' : 'dir'
   )
 
   execFileSync(process.execPath, [path.join(sandbox, 'prepare.js')], { cwd: sandbox })
@@ -210,7 +213,18 @@ winSetupTest('setup.js (Windows) rewrites bin to .exe entries and hardlinks pn/p
   }
 })
 
-winSetupTest('aliases run from Bash (Git Bash / MSYS2) without dropping into interactive cmd.exe (issue #11486)', async () => {
+// The Bash-shim end-to-end repro depends on Git Bash / MSYS2. CI runners
+// (windows-latest) ship Git Bash on PATH, but local Windows dev machines
+// often don't, so probe before running and skip the test cleanly otherwise
+// (rather than spawning bash and getting an opaque ENOENT).
+const bashAvailable = (() => {
+  if (!isWindows) return false
+  const probe = spawnSync('bash', ['--version'], { encoding: 'utf8', timeout: 5_000 })
+  return probe.status === 0
+})()
+const winBashTest = bashAvailable ? test : test.skip
+
+winBashTest('aliases run from Bash (Git Bash / MSYS2) without dropping into interactive cmd.exe (issue #11486)', async () => {
   const sandbox = buildWinSetupSandbox()
   const pkg = JSON.parse(fs.readFileSync(path.join(sandbox, 'package.json'), 'utf8'))
 
@@ -239,9 +253,16 @@ winSetupTest('aliases run from Bash (Git Bash / MSYS2) without dropping into int
     // `exec cmd /C ...`. MSYS2 mangles `/C` into a Windows path before
     // cmd.exe sees it; cmd.exe finds no /C or /K and falls into interactive
     // mode, printing its banner instead of running the alias.
-    expect({ alias, banner: /Microsoft Windows/.test(result.stdout + result.stderr) })
-      .toEqual({ alias, banner: false })
-    expect({ alias, stdout: result.stdout })
-      .toEqual({ alias, stdout: `${alias}_OK` })
+    expect({
+      alias,
+      status: result.status,
+      banner: /Microsoft Windows/.test(result.stdout + result.stderr),
+      stdout: result.stdout,
+    }).toEqual({
+      alias,
+      status: 0,
+      banner: false,
+      stdout: `${alias}_OK`,
+    })
   }
 })
