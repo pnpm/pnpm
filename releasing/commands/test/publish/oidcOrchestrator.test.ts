@@ -1,14 +1,17 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, test } from '@jest/globals'
 import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 
-// `getIdToken` only attempts OIDC in CI environments it explicitly recognizes — today
-// that's `ciInfo.GITHUB_ACTIONS || ciInfo.GITLAB` (mirroring npm CLI). Other providers
-// like CircleCI also expose OIDC tokens (e.g. CIRCLE_OIDC_TOKEN_V2) but aren't gated in
-// yet; that's worth a follow-up but out of scope for this PR. We mock the module here so
-// the test claims GitLab regardless of where it runs. With `process.env.NPM_ID_TOKEN`
-// set, `getIdToken` then short-circuits to that value without hitting GitHub Actions'
-// request-token endpoint, so all remaining HTTP traffic goes straight to the npm
-// registry — which is what we intercept with undici's MockAgent.
+// `getIdToken` honors `NPM_ID_TOKEN` from env regardless of which CI we're in (or none),
+// so setting that env var is enough to drive an idToken into the orchestrator. The
+// ci-info mock below is *only* needed for the happy-path test that asserts
+// `provenance: true`: `determineProvenance` still gates the visibility check on
+// `GITHUB_ACTIONS || (GITLAB && SIGSTORE_ID_TOKEN)`, since visibility is read from
+// CI-specific JWT claims (`repository_visibility` / `project_visibility`). Without one
+// of those flags being true, the visibility branch can't fire.
+//
+// All registry HTTP traffic — token exchange, visibility check — goes through
+// `@pnpm/network.fetch`, which wraps `undici.fetch`. We intercept at the undici layer
+// with `MockAgent` so the wrapper's retry/response-handling code runs for real.
 const ciInfoModule = await import('ci-info')
 const ciInfoOriginal = (ciInfoModule as { default?: Record<string, unknown> }).default ?? ciInfoModule
 jest.unstable_mockModule('ci-info', () => ({
