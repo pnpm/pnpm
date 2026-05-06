@@ -80,6 +80,17 @@ test('bugs: trims trailing slash from repository URL before appending /issues', 
   expect(mockOpen).toHaveBeenCalledWith('https://github.com/test/pkg/issues')
 })
 
+test('bugs: strips fragment/query from repository URL before appending /issues', async () => {
+  mockOpen.mockClear()
+  const dir = tempDir()
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({
+    name: 'test-pkg',
+    repository: { url: 'git+https://github.com/test/pkg.git#main' },
+  }))
+  await bugs.handler({ ...BASE_OPTIONS, dir }, [])
+  expect(mockOpen).toHaveBeenCalledWith('https://github.com/test/pkg/issues')
+})
+
 test('bugs: throws when no bugs URL can be derived', async () => {
   const dir = tempDir()
   fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({
@@ -94,7 +105,7 @@ test('bugs: throws when no package.json exists', async () => {
   const dir = tempDir()
   await expect(
     bugs.handler({ ...BASE_OPTIONS, dir }, [])
-  ).rejects.toMatchObject({ code: 'ERR_PNPM_NO_MANIFEST_FOUND' })
+  ).rejects.toMatchObject({ code: 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND' })
 })
 
 test('bugs: looks up package on registry by name', async () => {

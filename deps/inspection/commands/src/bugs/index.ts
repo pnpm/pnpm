@@ -1,4 +1,4 @@
-import { docsUrl, tryReadProjectManifest } from '@pnpm/cli.utils'
+import { docsUrl, readProjectManifestOnly } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import open from 'open'
@@ -30,7 +30,7 @@ export async function handler (
   params: string[]
 ): Promise<void> {
   const urls = params.length === 0
-    ? [await getBugsUrlFromCurrentProject(opts.dir)]
+    ? [await getBugsUrlFromCurrentProject(opts)]
     : await Promise.all(params.map((spec) => getBugsUrlFromRegistry(opts, spec)))
   for (const url of urls) {
     // eslint-disable-next-line no-await-in-loop
@@ -38,16 +38,19 @@ export async function handler (
   }
 }
 
-async function getBugsUrlFromCurrentProject (dir: string): Promise<string> {
-  const { manifest } = await tryReadProjectManifest(dir, {})
-  if (manifest == null) {
-    throw new PnpmError('NO_MANIFEST_FOUND', `No package.json was found in "${dir}"`)
-  }
+async function getBugsUrlFromCurrentProject (
+  opts: Pick<Config, 'dir' | 'engineStrict' | 'nodeVersion' | 'supportedArchitectures'>
+): Promise<string> {
+  const manifest = await readProjectManifestOnly(opts.dir, {
+    engineStrict: opts.engineStrict,
+    nodeVersion: opts.nodeVersion,
+    supportedArchitectures: opts.supportedArchitectures,
+  })
   const url = pickBugsUrl({ bugs: manifest.bugs, repository: manifest.repository })
   if (!url) {
     throw new PnpmError(
       'NO_BUGS_URL',
-      'The package.json does not have a bug tracker URL. Add a "bugs" or "repository" field to your package.json.'
+      'The current project does not have a bug tracker URL. Add a "bugs" or "repository" field to its manifest.'
     )
   }
   return url
@@ -74,22 +77,29 @@ function pickBugsUrl (
   }
   if (manifest.repository) {
     const repoUrl = typeof manifest.repository === 'string' ? manifest.repository : manifest.repository.url
-    if (repoUrl) {
-      const normalized = normalizeRepositoryUrl(repoUrl)
-      if (normalized && isHttpUrl(normalized)) return `${normalized}/issues`
-    }
+    if (repoUrl) return repositoryToIssuesUrl(repoUrl)
   }
   return undefined
 }
 
-function normalizeRepositoryUrl (url: string): string | undefined {
-  let normalized = url.replace(/^git\+/, '').replace(/\.git$/, '').replace(/\/+$/, '')
+function repositoryToIssuesUrl (rawUrl: string): string | undefined {
+  let normalized = rawUrl.replace(/^git\+/, '')
   if (normalized.startsWith('git://')) {
     normalized = `https://${normalized.slice('git://'.length)}`
   } else if (normalized.startsWith('git@github.com:')) {
     normalized = `https://github.com/${normalized.slice('git@github.com:'.length)}`
   }
-  return normalized
+  let parsed: URL
+  try {
+    parsed = new URL(normalized)
+  } catch {
+    return undefined
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined
+  parsed.search = ''
+  parsed.hash = ''
+  parsed.pathname = parsed.pathname.replace(/\.git$/, '').replace(/\/+$/, '') + '/issues'
+  return parsed.toString()
 }
 
 function isHttpUrl (value: string): boolean {
