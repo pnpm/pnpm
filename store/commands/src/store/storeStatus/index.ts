@@ -11,7 +11,7 @@ import {
 import { streamParser } from '@pnpm/logger'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import type { TarballResolution } from '@pnpm/store.controller-types'
-import { gitHostedStoreIndexKey, storeIndexKey } from '@pnpm/store.index'
+import { pickStoreIndexKey } from '@pnpm/store.index'
 import { StoreIndex } from '@pnpm/store.index'
 import type { DepPath } from '@pnpm/types'
 import dint from 'dint'
@@ -47,11 +47,7 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
       return {
         depPath,
         id,
-        integrity: resolution.integrity,
-        // Git-hosted tarballs are addressed by gitHostedStoreIndexKey to
-        // preserve the built/not-built dimension even when the lockfile pins
-        // their integrity for security. See @pnpm/store.pkg-finder.
-        gitHosted: resolution.gitHosted === true,
+        resolution,
         pkgPath: depPath,
         ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),
       }
@@ -59,12 +55,8 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
 
   const storeIndex = new StoreIndex(storeDir)
   try {
-    const modified = await pFilter(pkgs, async ({ id, integrity, gitHosted, depPath, name }) => {
-      const pkgIndexFilePath = gitHosted
-        ? gitHostedStoreIndexKey(id, { built: true })
-        : (integrity
-          ? storeIndexKey(integrity, id)
-          : gitHostedStoreIndexKey(id, { built: true }))
+    const modified = await pFilter(pkgs, async ({ id, resolution, depPath, name }) => {
+      const pkgIndexFilePath = pickStoreIndexKey(resolution, id, { built: true })
       const pkgFilesIndex = storeIndex.get(pkgIndexFilePath) as PackageFilesIndex | undefined
       if (!pkgFilesIndex) {
         return false

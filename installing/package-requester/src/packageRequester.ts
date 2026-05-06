@@ -43,7 +43,7 @@ import type {
   RequestPackageOptions,
   WantedDependency,
 } from '@pnpm/store.controller-types'
-import { gitHostedStoreIndexKey, storeIndexKey } from '@pnpm/store.index'
+import { pickStoreIndexKey } from '@pnpm/store.index'
 import type { DependencyManifest, SupportedArchitectures } from '@pnpm/types'
 import {
   calcMaxWorkers,
@@ -345,34 +345,18 @@ function getFilesIndexFilePath (
 ): GetFilesIndexFilePathResult {
   const targetRelative = depPathToFilename(opts.pkg.id, ctx.virtualStoreDirMaxLength)
   const target = path.join(ctx.storeDir, targetRelative)
-  // Git-hosted tarballs are post-processed (preparePackage / packlist) and
-  // the resulting cached content depends on whether build scripts ran, so
-  // they need a `built` dimension in the store key. The integrity-only key
-  // form would collapse that distinction. Keep them on
-  // gitHostedStoreIndexKey regardless of integrity — the lockfile still pins
-  // integrity for security, and the fetcher still validates it on download.
-  if (!(opts.pkg.resolution as TarballResolution).gitHosted && (opts.pkg.resolution as TarballResolution).integrity) {
-    return {
-      target,
-      filesIndexFile: storeIndexKey((opts.pkg.resolution as TarballResolution).integrity!, opts.pkg.id),
-      resolution: opts.pkg.resolution as AtomicResolution,
-    }
-  }
-  let resolution!: AtomicResolution
+  const built = !opts.ignoreScripts
+  let resolution: AtomicResolution
   if (opts.pkg.resolution.type === 'variations') {
     resolution = findResolution(opts.pkg.resolution.variants, opts.supportedArchitectures)
-    if (!(resolution as TarballResolution).gitHosted && (resolution as TarballResolution).integrity) {
-      return {
-        target,
-        filesIndexFile: storeIndexKey((resolution as TarballResolution).integrity!, opts.pkg.id),
-        resolution,
-      }
-    }
   } else {
     resolution = opts.pkg.resolution
   }
-  const filesIndexFile = gitHostedStoreIndexKey(opts.pkg.id, { built: !opts.ignoreScripts })
-  return { filesIndexFile, target, resolution }
+  return {
+    target,
+    filesIndexFile: pickStoreIndexKey(resolution as TarballResolution, opts.pkg.id, { built }),
+    resolution,
+  }
 }
 
 function findResolution (resolutionVariants: PlatformAssetResolution[], supportedArchitectures?: SupportedArchitectures): AtomicResolution {

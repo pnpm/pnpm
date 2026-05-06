@@ -33,7 +33,7 @@ import npa from '@pnpm/npm-package-arg'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { createStoreController } from '@pnpm/store.connection-manager'
-import { gitHostedStoreIndexKey, StoreIndex, storeIndexKey } from '@pnpm/store.index'
+import { pickStoreIndexKey, StoreIndex } from '@pnpm/store.index'
 import type {
   DepPath,
   IgnoredBuilds,
@@ -362,12 +362,8 @@ async function _rebuild (
         // @pnpm/installing.package-requester: that's the tarball URL for
         // git-hosted packages (nonSemverVersion) and `name@version` otherwise.
         const pkgId = pkgInfo.nonSemverVersion ?? `${pkgInfo.name}@${pkgInfo.version}`
-        // Git-hosted tarballs are keyed by gitHostedStoreIndexKey to preserve
-        // the built/not-built dimension; npm tarballs use the integrity key.
         if (opts.skipIfHasSideEffectsCache && (resolution.gitHosted || resolution.integrity)) {
-          const filesIndexFile = resolution.gitHosted
-            ? gitHostedStoreIndexKey(pkgId, { built: true })
-            : storeIndexKey(resolution.integrity!.toString(), pkgId)
+          const filesIndexFile = pickStoreIndexKey(resolution, pkgId, { built: true })
           const pkgFilesIndex = storeIndex!.get(filesIndexFile) as PackageFilesIndex | undefined
           if (pkgFilesIndex) {
             sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
@@ -402,9 +398,7 @@ async function _rebuild (
         })
         if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && (resolution.gitHosted || resolution.integrity)) {
           builtDepPaths.add(depPath)
-          const filesIndexFile = resolution.gitHosted
-            ? gitHostedStoreIndexKey(pkgId, { built: true })
-            : storeIndexKey(resolution.integrity!.toString(), pkgId)
+          const filesIndexFile = pickStoreIndexKey(resolution, pkgId, { built: true })
           try {
             if (!sideEffectsCacheKey) {
               sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {

@@ -6,7 +6,7 @@ import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
 import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
-import { gitHostedStoreIndexKey, StoreIndex, storeIndexKey } from '@pnpm/store.index'
+import { pickStoreIndexKey, StoreIndex } from '@pnpm/store.index'
 import type { DepPath } from '@pnpm/types'
 import Fuse from 'fuse-native'
 import schemas from 'hyperdrive-schemas'
@@ -178,12 +178,7 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
       const nameVer = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
       const resolution = pkgSnapshot.resolution as TarballResolution
       const pkgId = nameVer.nonSemverVersion ?? `${nameVer.name}@${nameVer.version}`
-      // Git-hosted tarballs are keyed by gitHostedStoreIndexKey to preserve
-      // the built/not-built dimension (see @pnpm/store.pkg-finder for the
-      // rationale). For npm tarballs the integrity-based key is canonical.
-      const pkgIndexFilePath = resolution.gitHosted
-        ? gitHostedStoreIndexKey(pkgId, { built: true })
-        : storeIndexKey(resolution.integrity!, pkgId)
+      const pkgIndexFilePath = pickStoreIndexKey(resolution, pkgId, { built: true })
       const pkgIndex = storeIndex.get(pkgIndexFilePath) as PackageFilesIndex
       pkgSnapshotCache.set(depPath, {
         ...nameVer,

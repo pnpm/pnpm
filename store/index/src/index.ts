@@ -66,6 +66,33 @@ export function gitHostedStoreIndexKey (pkgId: string, opts: { built: boolean })
   return storeIndexKey(pkgId, opts.built ? 'built' : 'not-built')
 }
 
+/**
+ * Pick the store index key for a tarball-shaped resolution.
+ *
+ * Git-hosted tarballs (`resolution.gitHosted === true`) are addressed by
+ * `gitHostedStoreIndexKey(pkgId, { built })` — their cached content depends
+ * on whether build scripts ran during fetch (`preparePackage`), so the
+ * `built` dimension is part of the key. The integrity-only key would
+ * collapse the built/not-built variants into one slot.
+ *
+ * Tarballs with integrity that aren't git-hosted are addressed by
+ * `storeIndexKey(integrity, pkgId)`.
+ *
+ * Resolutions that have neither flag fall through to
+ * `gitHostedStoreIndexKey` — these are typically lockfile entries written
+ * by older pnpm versions that lacked integrity.
+ */
+export function pickStoreIndexKey (
+  resolution: { gitHosted?: boolean, integrity?: string },
+  pkgId: string,
+  opts: { built: boolean }
+): string {
+  if (resolution.gitHosted || !resolution.integrity) {
+    return gitHostedStoreIndexKey(pkgId, opts)
+  }
+  return storeIndexKey(resolution.integrity, pkgId)
+}
+
 const openInstances = new Set<StoreIndex>()
 
 /**
