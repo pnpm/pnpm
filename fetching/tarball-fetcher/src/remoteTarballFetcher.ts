@@ -120,6 +120,10 @@ export function createDownloader (
       try {
         const res = await fetchFromRegistry(url, {
           authHeaderValue,
+          // Tarballs are already compressed; ask the server not to apply an additional
+          // Content-Encoding so Content-Length matches the body we receive and we don't
+          // waste CPU on round-trip re-compression. See https://github.com/pnpm/pnpm/issues/11506
+          headers: { 'accept-encoding': 'identity' },
           // The fetch library can retry requests on bad HTTP responses.
           // However, it is not enough to retry on bad HTTP responses only.
           // Requests should also be retried when the tarball's integrity check fails.
