@@ -8265,7 +8265,7 @@ importers:
         version: 7.5.13
       undici:
         specifier: 'catalog:'
-        version: 7.25.0
+        version: 7.24.8
 
   releasing/exportable-manifest:
     dependencies:
