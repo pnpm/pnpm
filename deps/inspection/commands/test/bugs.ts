@@ -69,6 +69,17 @@ test('bugs: normalizes git+https repository URL with .git suffix', async () => {
   expect(mockOpen).toHaveBeenCalledWith('https://github.com/test/pkg/issues')
 })
 
+test('bugs: trims trailing slash from repository URL before appending /issues', async () => {
+  mockOpen.mockClear()
+  const dir = tempDir()
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({
+    name: 'test-pkg',
+    repository: 'https://github.com/test/pkg/',
+  }))
+  await bugs.handler({ ...BASE_OPTIONS, dir }, [])
+  expect(mockOpen).toHaveBeenCalledWith('https://github.com/test/pkg/issues')
+})
+
 test('bugs: throws when no bugs URL can be derived', async () => {
   const dir = tempDir()
   fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({

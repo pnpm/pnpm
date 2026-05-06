@@ -83,7 +83,7 @@ function pickBugsUrl (
 }
 
 function normalizeRepositoryUrl (url: string): string | undefined {
-  let normalized = url.replace(/^git\+/, '').replace(/\.git$/, '')
+  let normalized = url.replace(/^git\+/, '').replace(/\.git$/, '').replace(/\/+$/, '')
   if (normalized.startsWith('git://')) {
     normalized = `https://${normalized.slice('git://'.length)}`
   } else if (normalized.startsWith('git@github.com:')) {
