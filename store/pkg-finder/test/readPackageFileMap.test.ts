@@ -64,6 +64,29 @@ describe('readPackageFileMap', () => {
     expect(result!.has('index.js')).toBe(true)
   })
 
+  it('should resolve git-hosted tarball packages with integrity', async () => {
+    // After we started pinning integrity for git-hosted tarballs, the
+    // packageId here is the URL alone (tryGetPackageId strips the `name@`
+    // because the URL contains `:`). The reader must therefore key by the
+    // URL — the same key the writer used.
+    const integrity = 'sha512-abc123gitHosted'
+    const pkgId = 'https://codeload.github.com/stevemao/left-pad/tar.gz/cafe1234'
+    const key = storeIndexKey(integrity, pkgId)
+
+    storeIndex.set(key, createFilesIndex())
+
+    const resolution: TarballResolution = {
+      integrity,
+      tarball: pkgId,
+    }
+
+    const result = await readPackageFileMap(resolution, pkgId, defaultOpts())
+
+    expect(result).toBeDefined()
+    expect(result!.has('package.json')).toBe(true)
+    expect(result!.has('index.js')).toBe(true)
+  })
+
   it('should resolve git-hosted tarball packages (no type, has tarball)', async () => {
     const pkgId = 'left-pad@https://codeload.github.com/stevemao/left-pad/tar.gz/abc123'
     const key = gitHostedStoreIndexKey(pkgId, { built: true })

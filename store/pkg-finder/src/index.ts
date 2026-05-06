@@ -1,6 +1,5 @@
 import path from 'node:path'
 
-import { parse } from '@pnpm/deps.path'
 import { fetchFromDir } from '@pnpm/fetching.directory-fetcher'
 import type { Resolution } from '@pnpm/resolving.resolver-base'
 import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
@@ -48,10 +47,12 @@ export async function readPackageFileMap (
 
   let pkgIndexFilePath: string
   if (isPackageWithIntegrity) {
-    const parsedId = parse(packageId)
+    // The writer in @pnpm/installing.package-requester keys the index file by
+    // the resolution id (`name@version` for npm tarballs, the tarball URL for
+    // git-hosted ones), so we must use the same key here.
     pkgIndexFilePath = storeIndexKey(
       packageResolution.integrity as string,
-      parsedId.nonSemverVersion ?? `${parsedId.name}@${parsedId.version}`
+      packageId
     )
   } else if (!packageResolution.type && 'tarball' in packageResolution && packageResolution.tarball) {
     pkgIndexFilePath = gitHostedStoreIndexKey(packageId, { built: true })

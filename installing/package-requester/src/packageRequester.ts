@@ -554,6 +554,7 @@ function fetchToStore (
         {
           allowBuild: opts.allowBuild,
           filesIndexFile,
+          pkgId: opts.pkg.id,
           lockfileDir: opts.lockfileDir,
           readManifest: opts.fetchRawManifest,
           onProgress: (downloaded) => {

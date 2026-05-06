@@ -358,7 +358,10 @@ async function _rebuild (
         }
         const resolution = (pkgSnapshot.resolution as TarballResolution)
         let sideEffectsCacheKey: string | undefined
-        const pkgId = `${pkgInfo.name}@${pkgInfo.version}`
+        // Match the resolver-supplied pkg.id used by the writer in
+        // @pnpm/installing.package-requester: that's the tarball URL for
+        // git-hosted packages (nonSemverVersion) and `name@version` otherwise.
+        const pkgId = pkgInfo.nonSemverVersion ?? `${pkgInfo.name}@${pkgInfo.version}`
         if (opts.skipIfHasSideEffectsCache && resolution.integrity) {
           const filesIndexFile = storeIndexKey(resolution.integrity!.toString(), pkgId)
           const pkgFilesIndex = storeIndex!.get(filesIndexFile) as PackageFilesIndex | undefined

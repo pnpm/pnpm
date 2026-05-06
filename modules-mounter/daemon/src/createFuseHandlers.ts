@@ -176,7 +176,13 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
       const pkgSnapshot = lockfile.packages?.[depPath as DepPath]
       if (pkgSnapshot == null) return undefined
       const nameVer = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-      const pkgIndexFilePath = storeIndexKey((pkgSnapshot.resolution as TarballResolution).integrity!, `${nameVer.name}@${nameVer.version}`)
+      // Match the resolver-supplied pkg.id used by the writer in
+      // @pnpm/installing.package-requester: that's the tarball URL for
+      // git-hosted packages (nonSemverVersion) and `name@version` otherwise.
+      const pkgIndexFilePath = storeIndexKey(
+        (pkgSnapshot.resolution as TarballResolution).integrity!,
+        nameVer.nonSemverVersion ?? `${nameVer.name}@${nameVer.version}`
+      )
       const pkgIndex = storeIndex.get(pkgIndexFilePath) as PackageFilesIndex
       pkgSnapshotCache.set(depPath, {
         ...nameVer,
