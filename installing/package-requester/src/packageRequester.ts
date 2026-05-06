@@ -11,7 +11,7 @@ import type {
   FetchOptions,
   FetchResult,
 } from '@pnpm/fetching.fetcher-base'
-import { pickFetcher } from '@pnpm/fetching.pick-fetcher'
+import { isGitHostedPkgUrl, pickFetcher } from '@pnpm/fetching.pick-fetcher'
 import gfs from '@pnpm/fs.graceful-fs'
 import type { CustomFetcher } from '@pnpm/hooks.types'
 import { logger } from '@pnpm/logger'
@@ -43,7 +43,7 @@ import type {
   RequestPackageOptions,
   WantedDependency,
 } from '@pnpm/store.controller-types'
-import { gitHostedStoreIndexKey, storeIndexKey } from '@pnpm/store.index'
+import { gitHostedStoreIndexKey, type StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import type { DependencyManifest, SupportedArchitectures } from '@pnpm/types'
 import {
   calcMaxWorkers,
@@ -82,6 +82,7 @@ export function createPackageRequester (
     ignoreFile?: (filename: string) => boolean
     networkConcurrency?: number
     storeDir: string
+    storeIndex?: StoreIndex
     verifyStoreIntegrity: boolean
     virtualStoreDirMaxLength: number
     strictStorePkgContentCheck?: boolean
@@ -114,6 +115,7 @@ export function createPackageRequester (
       concurrency: networkConcurrency,
     }),
     storeDir: opts.storeDir,
+    storeIndex: opts.storeIndex,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     strictStorePkgContentCheck: opts.strictStorePkgContentCheck,
   })
@@ -401,6 +403,7 @@ function fetchToStore (
       concurrency: number
     }
     storeDir: string
+    storeIndex?: StoreIndex
     virtualStoreDirMaxLength: number
     strictStorePkgContentCheck?: boolean
   },
@@ -511,6 +514,36 @@ function fetchToStore (
     try {
       const isLocalTarballDep = opts.pkg.id.startsWith('file:')
       const isLocalPkg = resolution.type === 'directory'
+
+      // TODO(v12): drop this migration block.
+      //
+      // Upgrade-path migration: a lockfile committed by a newer pnpm carries
+      // integrity for git-hosted tarballs and we now key the index by
+      // storeIndexKey(integrity, pkgId). An older local store may still have
+      // the entry only at gitHostedStoreIndexKey(pkgId, …). Without this copy
+      // we'd refetch the tarball — which fails outright in offline mode
+      // (NO_OFFLINE_TARBALL) — even though the package is already on disk.
+      // Once v12 forces lockfile regeneration, every store keyed by the new
+      // pnpm will already have the integrity-keyed entry and this lookup is
+      // dead code.
+      if (
+        !opts.force &&
+        ctx.storeIndex != null &&
+        !ctx.storeIndex.has(filesIndexFile)
+      ) {
+        const tarballUrl = (opts.pkg.resolution as TarballResolution).tarball
+        if (
+          tarballUrl != null &&
+          isGitHostedPkgUrl(tarballUrl) &&
+          (opts.pkg.resolution as TarballResolution).integrity
+        ) {
+          const legacyKey = gitHostedStoreIndexKey(opts.pkg.id, { built: !opts.ignoreScripts })
+          const legacyData = ctx.storeIndex.getRaw(legacyKey)
+          if (legacyData) {
+            ctx.storeIndex.setRawMany([{ key: filesIndexFile, buffer: legacyData }])
+          }
+        }
+      }
 
       if (
         !opts.force &&

@@ -6,7 +6,7 @@ import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
 import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
-import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
+import { gitHostedStoreIndexKey, StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import type { DepPath } from '@pnpm/types'
 import Fuse from 'fuse-native'
 import schemas from 'hyperdrive-schemas'
@@ -179,10 +179,14 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
       // Match the resolver-supplied pkg.id used by the writer in
       // @pnpm/installing.package-requester: that's the tarball URL for
       // git-hosted packages (nonSemverVersion) and `name@version` otherwise.
-      const pkgIndexFilePath = storeIndexKey(
-        (pkgSnapshot.resolution as TarballResolution).integrity!,
-        nameVer.nonSemverVersion ?? `${nameVer.name}@${nameVer.version}`
-      )
+      const integrity = (pkgSnapshot.resolution as TarballResolution).integrity
+      const pkgId = nameVer.nonSemverVersion ?? `${nameVer.name}@${nameVer.version}`
+      // TODO(v12): once lockfile regeneration is forced, every git-hosted
+      // tarball will carry integrity; drop the gitHostedStoreIndexKey fallback
+      // and inline storeIndexKey(integrity, pkgId).
+      const pkgIndexFilePath = integrity
+        ? storeIndexKey(integrity, pkgId)
+        : gitHostedStoreIndexKey(pkgId, { built: true })
       const pkgIndex = storeIndex.get(pkgIndexFilePath) as PackageFilesIndex
       pkgSnapshotCache.set(depPath, {
         ...nameVer,

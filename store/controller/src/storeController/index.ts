@@ -61,6 +61,7 @@ export function createPackageStore (
     ignoreFile: initOpts.ignoreFile,
     networkConcurrency: initOpts.networkConcurrency,
     storeDir: initOpts.storeDir,
+    storeIndex: initOpts.storeIndex,
     verifyStoreIntegrity: initOpts.verifyStoreIntegrity,
     virtualStoreDirMaxLength: initOpts.virtualStoreDirMaxLength,
     strictStorePkgContentCheck: initOpts.strictStorePkgContentCheck,
