@@ -12,7 +12,6 @@ const NOT_IMPLEMENTED_COMMANDS = [
   'profile',
   'pkg',
   'repo',
-  'set-script',
   'team',
   'token',
   'xmas',

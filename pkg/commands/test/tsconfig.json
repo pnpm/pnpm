@@ -1,0 +1,13 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "../../__typecheck__/pkg/commands/test",
+    "rootDir": "."
+  },
+  "include": [
+    "**/*.ts",
+    "../src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": []
+}
