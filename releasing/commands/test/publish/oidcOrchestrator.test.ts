@@ -31,8 +31,10 @@ const REGISTRY = `${REGISTRY_ORIGIN}/`
 const PACKAGE_NAME = '@scope/pkg'
 // Build the URL-escaped form dynamically rather than hardcoding it, both because that's
 // what the source uses (via `npa(...).escapedName`, lowercase percent-encoding) and to
-// avoid spell-checking complaints about the synthesized substring.
-const ESCAPED_PACKAGE_NAME = PACKAGE_NAME.replace('/', '%2f')
+// avoid spell-checking complaints about the synthesized substring. The global regex
+// keeps CodeQL happy too — npm package names only ever have one `/` (scope separator),
+// but pattern-matching on `replace('/', ...)` would still flag this line.
+const ESCAPED_PACKAGE_NAME = PACKAGE_NAME.replace(/\//g, '%2f')
 const TOKEN_EXCHANGE_PATH = `/-/npm/v1/oidc/token/exchange/package/${ESCAPED_PACKAGE_NAME}`
 const VISIBILITY_PATH = `/-/package/${ESCAPED_PACKAGE_NAME}/visibility`
 
