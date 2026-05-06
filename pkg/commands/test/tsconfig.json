@@ -1,13 +1,18 @@
 {
-  "extends": "@pnpm/tsconfig",
+  "extends": "../tsconfig.json",
   "compilerOptions": {
-    "outDir": "../../__typecheck__/pkg/commands/test",
-    "rootDir": "."
+    "noEmit": false,
+    "outDir": "../node_modules/.test.lib",
+    "rootDir": "..",
+    "isolatedModules": true
   },
   "include": [
     "**/*.ts",
-    "../src/**/*.ts",
-    "../../__typings__/**/*.d.ts"
+    "../../../__typings__/**/*.d.ts"
   ],
-  "references": []
+  "references": [
+    {
+      "path": ".."
+    }
+  ]
 }
