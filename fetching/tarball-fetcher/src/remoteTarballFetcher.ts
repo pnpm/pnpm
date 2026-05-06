@@ -140,8 +140,7 @@ export function createDownloader (
         // When Content-Encoding is present, Content-Length refers to the encoded form
         // of the data, not the decoded bytes that the fetch implementation yields.
         // See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Encoding
-        const contentEncoding = res.headers.get('content-encoding')
-        const isEncoded = contentEncoding != null && contentEncoding !== '' && contentEncoding.toLowerCase() !== 'identity'
+        const isEncoded = isContentEncoded(res.headers.get('content-encoding'))
         const contentLength = !isEncoded && res.headers.has('content-length') && res.headers.get('content-length')
         const parsedLength = typeof contentLength === 'string' ? parseInt(contentLength, 10) : NaN
         const size = Number.isFinite(parsedLength) && parsedLength >= 0 ? parsedLength : null
@@ -221,4 +220,15 @@ export function createDownloader (
       })
     }
   }
+}
+
+// Per RFC 9110 §8.4, Content-Encoding is a comma-separated list of codings.
+// The response is encoded unless every coding is `identity` (case-insensitive,
+// surrounding whitespace ignored).
+function isContentEncoded (header: string | null): boolean {
+  if (header == null) return false
+  return header
+    .split(',')
+    .map(coding => coding.trim().toLowerCase())
+    .some(coding => coding !== '' && coding !== 'identity')
 }

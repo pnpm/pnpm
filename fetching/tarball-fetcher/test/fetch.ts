@@ -143,17 +143,25 @@ test('request tarballs with Accept-Encoding: identity', async () => {
   expect(observedAcceptEncoding).toBe('identity')
 })
 
-test("don't fail on content-length mismatch when Content-Encoding is set", async () => {
+test.each([
+  ['gzip'],
+  ['GZIP'],
+  ['identity, gzip'],
+  ['gzip, identity'],
+  [' gzip '],
+])("don't fail on content-length mismatch when Content-Encoding is %j", async (contentEncoding) => {
   // Defense in depth: a misbehaving server may stamp Content-Encoding on the response
   // even when the client sent Accept-Encoding: identity. In that case undici decodes
   // the body and Content-Length (encoded form) no longer matches the bytes we read.
+  // Per RFC 9110 §8.4, Content-Encoding is a comma-separated, case-insensitive list,
+  // so the parser must handle whitespace, casing, and mixed codings.
   const tarballContent = fs.readFileSync(tarballPath)
   const mockPool = mockAgent.get(registry)
 
   mockPool.intercept({ path: '/foo.tgz', method: 'GET' }).reply(200, tarballContent, {
     headers: {
       'Content-Length': (tarballSize + 100).toString(),
-      'Content-Encoding': 'gzip',
+      'Content-Encoding': contentEncoding,
     },
   })
 
@@ -168,6 +176,38 @@ test("don't fail on content-length mismatch when Content-Encoding is set", async
   })
 
   expect(result.filesMap).toBeTruthy()
+})
+
+test('still enforce content-length when Content-Encoding is identity', async () => {
+  // identity (alone, with whitespace, or with mixed casing) means "no transformation";
+  // Content-Length still reflects the bytes on the wire and the strict check applies.
+  const tarballContent = fs.readFileSync(tarballPath)
+  const mockPool = mockAgent.get(registry)
+
+  mockPool.intercept({ path: '/foo.tgz', method: 'GET' }).reply(200, tarballContent, {
+    headers: {
+      'Content-Length': (1024 * 1024).toString(),
+      'Content-Encoding': ' Identity ',
+    },
+  })
+  mockPool.intercept({ path: '/foo.tgz', method: 'GET' }).reply(200, tarballContent, {
+    headers: {
+      'Content-Length': (1024 * 1024).toString(),
+      'Content-Encoding': ' Identity ',
+    },
+  })
+
+  process.chdir(temporaryDirectory())
+
+  const resolution = { tarball: `${registry}/foo.tgz` }
+
+  await expect(
+    fetch.remoteTarball(cafs, resolution, {
+      filesIndexFile,
+      lockfileDir: process.cwd(),
+      pkg,
+    })
+  ).rejects.toThrow(BadTarballError)
 })
 
 test('retry when tarball size does not match content-length', async () => {
