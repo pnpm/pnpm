@@ -290,8 +290,14 @@ async function resolveAndFetch (
         manifest = loadedManifest as unknown as DependencyManifest
       }
     }
-    // Add integrity to resolution if it was computed during fetching (only for TarballResolution)
-    if (fetchedResult.integrity && !resolution.type && !(resolution as TarballResolution).integrity) {
+    // Add integrity to resolution if it was computed during fetching.
+    // Applies to TarballResolution variants (type === undefined for npm,
+    // type === 'git-tarball' for git-hosted).
+    if (
+      fetchedResult.integrity &&
+      (resolution.type === undefined || resolution.type === 'git-tarball') &&
+      !(resolution as TarballResolution).integrity
+    ) {
       (resolution as TarballResolution).integrity = fetchedResult.integrity
     }
   }

@@ -35,17 +35,16 @@ export async function pickFetcher (
   let fetcherType: keyof Fetchers | undefined
 
   // Determine the fetcher type based on resolution
-  if (resolution.type == null) {
-    // Tarball resolution without explicit type
+  if (resolution.type === 'git-tarball') {
+    fetcherType = 'gitHostedTarball'
+  } else if (resolution.type == null) {
+    // Tarball resolution without explicit type — npm-registry shape.
     if ('tarball' in resolution && resolution.tarball) {
       if (resolution.tarball.startsWith('file:')) {
         fetcherType = 'localTarball'
-      } else if (
-        ('gitHosted' in resolution && resolution.gitHosted === true) ||
+      } else if (isGitHostedPkgUrl(resolution.tarball)) {
         // URL fallback for resolutions that didn't go through the resolver or
         // the lockfile loader (e.g., constructed ad-hoc).
-        isGitHostedPkgUrl(resolution.tarball)
-      ) {
         fetcherType = 'gitHostedTarball'
       } else {
         fetcherType = 'remoteTarball'

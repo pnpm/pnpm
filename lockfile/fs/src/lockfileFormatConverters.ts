@@ -1,6 +1,7 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { refToRelative, removeSuffix } from '@pnpm/deps.path'
 import type {
+  GitHostedTarballResolution,
   LockfileFile,
   LockfileFileProjectResolvedDependencies,
   LockfileFileProjectSnapshot,
@@ -10,16 +11,15 @@ import type {
   PackageSnapshots,
   ProjectSnapshot,
   ResolvedDependencies,
-  TarballResolution,
 } from '@pnpm/lockfile.types'
 import { DEPENDENCIES_FIELDS, type DepPath } from '@pnpm/types'
 import { isEmpty, map as _mapValues, omit, pick, pickBy } from 'ramda'
 
 // Minimal duplicate of `isGitHostedPkgUrl` from `@pnpm/fetching.pick-fetcher`,
 // inlined to avoid pulling the fetcher dep into the lockfile I/O layer. Used
-// to enrich entries written by older pnpm versions (which didn't record the
-// `gitHosted` field on TarballResolution) so every downstream reader can rely
-// on the field directly.
+// to promote tarball resolutions written by older pnpm versions (which didn't
+// carry the `git-tarball` type discriminator) so every downstream reader can
+// rely on the typed field directly.
 function isGitHostedTarballUrl (url: string): boolean {
   return (
     url.startsWith('https://codeload.github.com/') ||
@@ -145,7 +145,7 @@ export function convertToLockfileObject (lockfile: LockfileFile): LockfileObject
   for (const [depPath, pkg] of Object.entries(lockfile.snapshots ?? {})) {
     const pkgId = removeSuffix(depPath)
     packages[depPath as DepPath] = Object.assign(pkg, lockfile.packages?.[pkgId])
-    enrichGitHostedFlag(packages[depPath as DepPath]?.resolution as TarballResolution | undefined)
+    enrichGitHostedFlag(packages[depPath as DepPath]?.resolution as { type?: string, tarball?: string } | undefined)
   }
   return {
     ...omit(['snapshots'], rest),
@@ -155,15 +155,15 @@ export function convertToLockfileObject (lockfile: LockfileFile): LockfileObject
   }
 }
 
-// Backfill the `gitHosted` flag for tarball resolutions written by older
-// pnpm versions. Doing it once at load time lets every downstream reader
-// rely on the typed field instead of repeating URL prefix matches.
-function enrichGitHostedFlag (resolution: TarballResolution | undefined): void {
+// Promote tarball resolutions written by older pnpm versions to the
+// `git-tarball` discriminated type when the URL points at a known git
+// host. Doing it once at load time lets every downstream consumer rely
+// on the typed `type` field instead of repeating URL prefix matches.
+function enrichGitHostedFlag (resolution: { type?: string, tarball?: string } | undefined): void {
   if (resolution == null) return
   if (resolution.type !== undefined) return
-  if (resolution.gitHosted != null) return
   if (resolution.tarball != null && isGitHostedTarballUrl(resolution.tarball)) {
-    resolution.gitHosted = true
+    (resolution as GitHostedTarballResolution).type = 'git-tarball'
   }
 }
 

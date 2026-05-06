@@ -36,7 +36,7 @@ test('resolveFromGit() with commit', async () => {
     normalizedBareSpecifier: 'github:zkochan/is-negative#163360a8d3ae6bee9524541043197ff356f8ed99',
     resolution: {
       tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99',
-      gitHosted: true,
+      type: 'git-tarball',
     },
     resolvedVia: 'git-repository',
   })
@@ -54,7 +54,7 @@ test('resolveFromGit() with no commit', async () => {
       normalizedBareSpecifier: 'github:zkochan/is-negative',
       resolution: {
         tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c',
-        gitHosted: true,
+        type: 'git-tarball',
       },
       resolvedVia: 'git-repository',
     })
@@ -68,7 +68,7 @@ test('resolveFromGit() with no commit, when main branch is not master', async ()
     normalizedBareSpecifier: 'github:zoli-forks/cmd-shim',
     resolution: {
       tarball: 'https://codeload.github.com/zoli-forks/cmd-shim/tar.gz/a00a83a1593edb6e395d3ce41f2ef70edf7e2cf5',
-      gitHosted: true,
+      type: 'git-tarball',
     },
     resolvedVia: 'git-repository',
   })
@@ -81,7 +81,7 @@ test('resolveFromGit() with partial commit', async () => {
     normalizedBareSpecifier: 'github:zoli-forks/cmd-shim#a00a83a',
     resolution: {
       tarball: 'https://codeload.github.com/zoli-forks/cmd-shim/tar.gz/a00a83a1593edb6e395d3ce41f2ef70edf7e2cf5',
-      gitHosted: true,
+      type: 'git-tarball',
     },
     resolvedVia: 'git-repository',
   })
@@ -100,7 +100,7 @@ test('resolveFromGit() with branch', async () => {
     normalizedBareSpecifier: 'github:zkochan/is-negative#canary',
     resolution: {
       tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/4c39fbc124cd4944ee51cb082ad49320fab58121',
-      gitHosted: true,
+      type: 'git-tarball',
     },
     resolvedVia: 'git-repository',
   })
@@ -113,7 +113,7 @@ test('resolveFromGit() with branch relative to refs', async () => {
     normalizedBareSpecifier: 'github:zkochan/is-negative#heads/canary',
     resolution: {
       tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/4c39fbc124cd4944ee51cb082ad49320fab58121',
-      gitHosted: true,
+      type: 'git-tarball',
     },
     resolvedVia: 'git-repository',
   })
@@ -126,7 +126,7 @@ test('resolveFromGit() with tag', async () => {
     normalizedBareSpecifier: 'github:zkochan/is-negative#2.0.1',
     resolution: {
       tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/6dcce91c268805d456b8a575b67d7febc7ae2933',
-      gitHosted: true,
+      type: 'git-tarball',
     },
     resolvedVia: 'git-repository',
   })
@@ -139,7 +139,7 @@ test.skip('resolveFromGit() with tag (v-prefixed tag)', async () => {
     normalizedBareSpecifier: 'github:andreineculau/npm-publish-git#v0.0.7',
     resolution: {
       tarball: 'https://codeload.github.com/andreineculau/npm-publish-git/tar.gz/a2f8d94562884e9529cb12c0818312ac87ab7f0b',
-      gitHosted: true,
+      type: 'git-tarball',
     },
     resolvedVia: 'git-repository',
   })
@@ -152,7 +152,7 @@ test('resolveFromGit() with strict semver', async () => {
     normalizedBareSpecifier: 'github:zkochan/is-negative#semver:1.0.0',
     resolution: {
       tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99',
-      gitHosted: true,
+      type: 'git-tarball',
     },
     resolvedVia: 'git-repository',
   })
@@ -165,7 +165,7 @@ test.skip('resolveFromGit() with strict semver (v-prefixed tag)', async () => {
     normalizedBareSpecifier: 'github:andreineculau/npm-publish-git#semver:v0.0.7',
     resolution: {
       tarball: 'https://codeload.github.com/andreineculau/npm-publish-git/tar.gz/a2f8d94562884e9529cb12c0818312ac87ab7f0b',
-      gitHosted: true,
+      type: 'git-tarball',
     },
     resolvedVia: 'git-repository',
   })
@@ -178,7 +178,7 @@ test('resolveFromGit() with range semver', async () => {
     normalizedBareSpecifier: 'github:zkochan/is-negative#semver:^1.0.0',
     resolution: {
       tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/f7dec4d66a5a56719e49b9f94a24d73f924ddeb3',
-      gitHosted: true,
+      type: 'git-tarball',
     },
     resolvedVia: 'git-repository',
   })
@@ -191,7 +191,7 @@ test.skip('resolveFromGit() with range semver (v-prefixed tag)', async () => {
     normalizedBareSpecifier: 'github:andreineculau/npm-publish-git#semver:<=v0.0.7',
     resolution: {
       tarball: 'https://codeload.github.com/andreineculau/npm-publish-git/tar.gz/a2f8d94562884e9529cb12c0818312ac87ab7f0b',
-      gitHosted: true,
+      type: 'git-tarball',
     },
     resolvedVia: 'git-repository',
   })
@@ -215,7 +215,7 @@ test('resolveFromGit() with sub folder', async () => {
     resolution: {
       tarball: `https://codeload.github.com/RexSkz/test-git-subfolder-fetch/tar.gz/${headCommit}`,
       path: '/packages/simple-react-app',
-      gitHosted: true,
+      type: 'git-tarball',
     },
     resolvedVia: 'git-repository',
   })
@@ -239,7 +239,7 @@ test('resolveFromGit() with both sub folder and branch', async () => {
     resolution: {
       tarball: `https://codeload.github.com/RexSkz/test-git-subfolder-fetch/tar.gz/${betaCommit}`,
       path: '/packages/simple-react-app',
-      gitHosted: true,
+      type: 'git-tarball',
     },
     resolvedVia: 'git-repository',
   })
@@ -306,7 +306,7 @@ test.skip('resolveFromGit() bitbucket with commit', async () => {
     normalizedBareSpecifier: 'bitbucket:pnpmjs/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc',
     resolution: {
       tarball: 'https://bitbucket.org/pnpmjs/git-resolver/get/988c61e11dc8d9ca0b5580cb15291951812549dc.tar.gz',
-      gitHosted: true,
+      type: 'git-tarball',
     },
     resolvedVia: 'git-repository',
   })
@@ -350,7 +350,7 @@ test.skip('resolveFromGit() bitbucket with tag', async () => {
     normalizedBareSpecifier: 'bitbucket:pnpmjs/git-resolver#0.3.4',
     resolution: {
       tarball: 'https://bitbucket.org/pnpmjs/git-resolver/get/87cf6a67064d2ce56e8cd20624769a5512b83ff9.tar.gz',
-      gitHosted: true,
+      type: 'git-tarball',
     },
     resolvedVia: 'git-repository',
   })
@@ -378,7 +378,7 @@ test.skip('resolveFromGit() gitlab with commit', async () => {
     normalizedBareSpecifier: 'gitlab:pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc',
     resolution: {
       tarball: 'https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?ref=988c61e11dc8d9ca0b5580cb15291951812549dc',
-      gitHosted: true,
+      type: 'git-tarball',
     },
     resolvedVia: 'git-repository',
   })
@@ -422,7 +422,7 @@ test.skip('resolveFromGit() gitlab with tag', async () => {
     normalizedBareSpecifier: 'gitlab:pnpm/git-resolver#0.3.4',
     resolution: {
       tarball: 'https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?ref=87cf6a67064d2ce56e8cd20624769a5512b83ff9',
-      gitHosted: true,
+      type: 'git-tarball',
     },
     resolvedVia: 'git-repository',
   })
@@ -435,7 +435,7 @@ test('resolveFromGit() normalizes full url', async () => {
     normalizedBareSpecifier: 'github:zkochan/is-negative#2.0.1',
     resolution: {
       tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/6dcce91c268805d456b8a575b67d7febc7ae2933',
-      gitHosted: true,
+      type: 'git-tarball',
     },
     resolvedVia: 'git-repository',
   })
@@ -448,7 +448,7 @@ test('resolveFromGit() normalizes full url with port', async () => {
     normalizedBareSpecifier: 'github:zkochan/is-negative#2.0.1',
     resolution: {
       tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/6dcce91c268805d456b8a575b67d7febc7ae2933',
-      gitHosted: true,
+      type: 'git-tarball',
     },
     resolvedVia: 'git-repository',
   })
@@ -461,7 +461,7 @@ test('resolveFromGit() normalizes full url (alternative form)', async () => {
     normalizedBareSpecifier: 'github:zkochan/is-negative#2.0.1',
     resolution: {
       tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/6dcce91c268805d456b8a575b67d7febc7ae2933',
-      gitHosted: true,
+      type: 'git-tarball',
     },
     resolvedVia: 'git-repository',
   })
@@ -474,7 +474,7 @@ test('resolveFromGit() normalizes full url (alternative form 2)', async () => {
     normalizedBareSpecifier: 'github:zkochan/is-negative#2.0.1',
     resolution: {
       tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/6dcce91c268805d456b8a575b67d7febc7ae2933',
-      gitHosted: true,
+      type: 'git-tarball',
     },
     resolvedVia: 'git-repository',
   })

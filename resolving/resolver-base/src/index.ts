@@ -11,22 +11,29 @@ import type {
 export { type PkgResolutionId }
 
 /**
- * tarball hosted remotely
+ * Tarball hosted on the npm registry (or a registry-shaped endpoint).
  */
-export interface TarballResolution {
+export interface NpmTarballResolution {
   type?: undefined
   tarball: string
   integrity?: string
   path?: string
-  /**
-   * True for tarballs sourced from a git host (codeload.github.com /
-   * gitlab.com / bitbucket.org). Such tarballs need preparation
-   * (preparePackage / packlist) on extraction, and their cached content
-   * depends on whether build scripts ran, so they're addressed by
-   * gitHostedStoreIndexKey rather than the integrity-based key.
-   */
-  gitHosted?: boolean
 }
+
+/**
+ * Tarball sourced from a git host. Needs preparation on extraction;
+ * cached content depends on whether build scripts ran, so it's
+ * addressed by gitHostedStoreIndexKey rather than the integrity-based
+ * key.
+ */
+export interface GitHostedTarballResolution {
+  type: 'git-tarball'
+  tarball: string
+  integrity?: string
+  path?: string
+}
+
+export type TarballResolution = NpmTarballResolution | GitHostedTarballResolution
 
 export interface BinaryResolution {
   type: 'binary'

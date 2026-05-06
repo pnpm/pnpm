@@ -1,5 +1,5 @@
 import type { LockfileResolution } from '@pnpm/lockfile.types'
-import type { Resolution, TarballResolution } from '@pnpm/resolving.resolver-base'
+import type { Resolution } from '@pnpm/resolving.resolver-base'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 
 export function toLockfileResolution (
@@ -11,35 +11,32 @@ export function toLockfileResolution (
   registry: string,
   lockfileIncludeTarballUrl?: boolean
 ): LockfileResolution {
+  // Defensive promotion for resolutions that didn't go through the git
+  // resolver (config-dep migrations, legacy paths). The git resolver and
+  // the lockfile loader normally set this already.
+  if (
+    resolution.type === undefined &&
+    resolution['integrity'] != null &&
+    resolution['tarball'] != null &&
+    isGitHostedTarballUrl(resolution['tarball'] as string)
+  ) {
+    resolution = { ...resolution, type: 'git-tarball' } as Resolution
+  }
   if (resolution.type !== undefined || !resolution['integrity']) {
     return resolution as LockfileResolution
   }
+  // Past this point: npm-registry tarball with integrity.
   const tarball = resolution['tarball'] as string | undefined
-  // Honor the resolver-supplied flag, with a URL fallback for resolutions
-  // that didn't go through the git resolver (e.g. config-dep migrations or
-  // legacy lockfiles read by callers that don't enrich the field).
-  const gitHosted = (resolution as TarballResolution).gitHosted === true ||
-    (tarball != null && isGitHostedTarballUrl(tarball))
   if (lockfileIncludeTarballUrl) {
-    return preservingGitHosted({
-      integrity: resolution['integrity'],
-      tarball,
-    }, gitHosted)
+    return { integrity: resolution['integrity'], tarball }
   }
-  // Tarball URLs that cannot be reconstructed from the package name, version,
-  // and registry must always stay in the lockfile, otherwise the package can
-  // no longer be re-fetched. This covers local `file:` tarballs and tarballs
-  // served by git providers (GitHub, GitLab, Bitbucket).
-  if (tarball != null && (tarball.startsWith('file:') || gitHosted)) {
-    return preservingGitHosted({
-      integrity: resolution['integrity'],
-      tarball,
-    }, gitHosted)
+  // Local `file:` tarballs can't be reconstructed from the package
+  // name/version + registry, so the URL must stay.
+  if (tarball != null && tarball.startsWith('file:')) {
+    return { integrity: resolution['integrity'], tarball }
   }
   if (lockfileIncludeTarballUrl === false) {
-    return {
-      integrity: resolution['integrity'],
-    }
+    return { integrity: resolution['integrity'] }
   }
   // Sometimes packages are hosted under non-standard tarball URLs.
   // For instance, when they are hosted on npm Enterprise. See https://github.com/pnpm/pnpm/issues/867
@@ -47,26 +44,14 @@ export function toLockfileResolution (
   const expectedTarball = getNpmTarballUrl(pkg.name, pkg.version, { registry })
   const actualTarball = tarball!.replaceAll('%2f', '/')
   if (removeProtocol(expectedTarball) !== removeProtocol(actualTarball)) {
-    return preservingGitHosted({
-      integrity: resolution['integrity'],
-      tarball,
-    }, gitHosted)
+    return { integrity: resolution['integrity'], tarball }
   }
-  return {
-    integrity: resolution['integrity'],
-  }
-}
-
-function preservingGitHosted<T extends { tarball?: string, integrity: string }> (
-  resolution: T,
-  gitHosted: boolean
-): T & { gitHosted?: boolean } {
-  return gitHosted ? { ...resolution, gitHosted: true } : resolution
+  return { integrity: resolution['integrity'] }
 }
 
 // Inlined to avoid pulling @pnpm/fetching.pick-fetcher into the lockfile-utils
-// dep graph. Used as a fallback when callers haven't pre-set the
-// `gitHosted` field on TarballResolution.
+// dep graph. Used as a fallback for resolutions handed to this function
+// without the `git-tarball` type discriminator.
 function isGitHostedTarballUrl (url: string): boolean {
   return (
     url.startsWith('https://codeload.github.com/') ||

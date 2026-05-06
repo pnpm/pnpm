@@ -54,7 +54,8 @@ export async function readPackageFileMap (
   let pkgIndexFilePath: string
   if (
     (!packageResolution.type && 'tarball' in packageResolution && packageResolution.tarball) ||
-    packageResolution.type === 'git'
+    packageResolution.type === 'git' ||
+    packageResolution.type === 'git-tarball'
   ) {
     pkgIndexFilePath = pickStoreIndexKey(
       packageResolution as TarballResolution,

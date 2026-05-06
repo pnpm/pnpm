@@ -77,7 +77,7 @@ describe('readPackageFileMap', () => {
     const resolution: TarballResolution = {
       integrity: 'sha512-abc123gitHosted',
       tarball: pkgId,
-      gitHosted: true,
+      type: 'git-tarball',
     }
 
     const result = await readPackageFileMap(resolution, pkgId, defaultOpts())

@@ -84,27 +84,38 @@ export interface PackageSnapshots {
 }
 
 /**
- * tarball hosted remotely
+ * Tarball hosted on the npm registry (or a registry-shaped endpoint).
+ * The cached content is the tarball itself — no preparation step.
  */
-export interface TarballResolution {
+export interface NpmTarballResolution {
   type?: undefined
   tarball: string
   integrity?: string
   path?: string
-  /**
-   * True for tarballs sourced from a git host (codeload.github.com /
-   * gitlab.com / bitbucket.org). Such tarballs need preparation
-   * (preparePackage / packlist) on extraction, and their cached content
-   * depends on whether build scripts ran, so they're addressed by
-   * gitHostedStoreIndexKey rather than the integrity-based key.
-   *
-   * The git resolver sets this when it produces the resolution; the
-   * lockfile loader sets it on entries whose URL matches a known git host
-   * for backward compatibility with lockfiles written before this field
-   * existed.
-   */
-  gitHosted?: boolean
 }
+
+/**
+ * Tarball sourced from a git host (codeload.github.com / gitlab.com /
+ * bitbucket.org). Needs preparation (preparePackage / packlist) on
+ * extraction; the cached content depends on whether build scripts ran,
+ * so it's addressed by gitHostedStoreIndexKey rather than the
+ * integrity-based key. The git resolver sets this type when it produces
+ * the resolution; the lockfile loader sets it on legacy entries whose
+ * URL matches a known git host.
+ */
+export interface GitHostedTarballResolution {
+  type: 'git-tarball'
+  tarball: string
+  integrity?: string
+  path?: string
+}
+
+/**
+ * Discriminated union of tarball-shaped resolutions. `type === undefined`
+ * is the npm-registry tarball; `type === 'git-tarball'` is the
+ * git-hosted variant.
+ */
+export type TarballResolution = NpmTarballResolution | GitHostedTarballResolution
 
 /**
  * directory on a file system

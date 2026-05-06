@@ -362,7 +362,7 @@ async function _rebuild (
         // @pnpm/installing.package-requester: that's the tarball URL for
         // git-hosted packages (nonSemverVersion) and `name@version` otherwise.
         const pkgId = pkgInfo.nonSemverVersion ?? `${pkgInfo.name}@${pkgInfo.version}`
-        if (opts.skipIfHasSideEffectsCache && (resolution.gitHosted || resolution.integrity)) {
+        if (opts.skipIfHasSideEffectsCache && (resolution.type === 'git-tarball' || resolution.integrity)) {
           const filesIndexFile = pickStoreIndexKey(resolution, pkgId, { built: true })
           const pkgFilesIndex = storeIndex!.get(filesIndexFile) as PackageFilesIndex | undefined
           if (pkgFilesIndex) {
@@ -396,7 +396,7 @@ async function _rebuild (
           unsafePerm: opts.unsafePerm || false,
           userAgent: opts.userAgent,
         })
-        if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && (resolution.gitHosted || resolution.integrity)) {
+        if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && (resolution.type === 'git-tarball' || resolution.integrity)) {
           builtDepPaths.add(depPath)
           const filesIndexFile = pickStoreIndexKey(resolution, pkgId, { built: true })
           try {
