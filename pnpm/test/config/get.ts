@@ -27,14 +27,16 @@ test('pnpm config get reads npm options but ignores other settings from .npmrc',
     'packages[]=qux',
   ].join('\n'))
 
+  // `config get @<scope>:registry` reports the merged (normalized) URL —
+  // the same one `pnpm publish` and the resolvers use — see #11492.
   {
     const { stdout } = execPnpmSync(['config', 'get', '@my-org:registry'], { expectSuccess: true })
-    expect(stdout.toString().trim()).toBe('https://my-org.registry.example.com')
+    expect(stdout.toString().trim()).toBe('https://my-org.registry.example.com/')
   }
 
   {
     const { stdout } = execPnpmSync(['config', 'get', '@jsr:registry'], { expectSuccess: true })
-    expect(stdout.toString().trim()).toBe('https://not-actually-jsr.example.com')
+    expect(stdout.toString().trim()).toBe('https://not-actually-jsr.example.com/')
   }
 
   {

@@ -561,6 +561,25 @@ test('registries in current directory\'s .npmrc have bigger priority then global
   })
 })
 
+test('pnpm-workspace.yaml registries override the same scope from .npmrc (#11492)', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('.npmrc', '@my-org:registry=https://from-npmrc.example.com/', 'utf8')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: {
+      '@my-org': 'https://from-workspace-yaml.example.com/',
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.registries['@my-org']).toBe('https://from-workspace-yaml.example.com/')
+})
+
 test('auth tokens from pnpm auth file override ~/.npmrc', async () => {
   prepareEmpty()
 
