@@ -49,6 +49,7 @@
     "@jest/globals": "catalog:",
     "@pnpm/exe": "workspace:*",
     "@pnpm/jest-config": "workspace:*",
+    "@zkochan/cmd-shim": "catalog:",
     "execa": "catalog:"
   },
   "pnpm": {

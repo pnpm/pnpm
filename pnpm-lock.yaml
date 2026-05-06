@@ -7909,6 +7909,9 @@ importers:
       '@pnpm/jest-config':
         specifier: workspace:*
         version: link:../../../__utils__/jest-config
+      '@zkochan/cmd-shim':
+        specifier: 'catalog:'
+        version: 9.0.2
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.3.0
