@@ -1,6 +1,7 @@
 // cspell:ignore ents
 import fs from 'node:fs'
 
+import { isGitHostedPkgUrl } from '@pnpm/fetching.pick-fetcher'
 import { type LockfileObject, type PackageSnapshot, readWantedLockfile, type TarballResolution } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
@@ -176,17 +177,16 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
       const pkgSnapshot = lockfile.packages?.[depPath as DepPath]
       if (pkgSnapshot == null) return undefined
       const nameVer = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-      // Match the resolver-supplied pkg.id used by the writer in
-      // @pnpm/installing.package-requester: that's the tarball URL for
-      // git-hosted packages (nonSemverVersion) and `name@version` otherwise.
-      const integrity = (pkgSnapshot.resolution as TarballResolution).integrity
+      const resolution = pkgSnapshot.resolution as TarballResolution
+      const tarballUrl = resolution.tarball
+      const isGitHostedTarball = tarballUrl != null && isGitHostedPkgUrl(tarballUrl)
       const pkgId = nameVer.nonSemverVersion ?? `${nameVer.name}@${nameVer.version}`
-      // TODO(v12): once lockfile regeneration is forced, every git-hosted
-      // tarball will carry integrity; drop the gitHostedStoreIndexKey fallback
-      // and inline storeIndexKey(integrity, pkgId).
-      const pkgIndexFilePath = integrity
-        ? storeIndexKey(integrity, pkgId)
-        : gitHostedStoreIndexKey(pkgId, { built: true })
+      // Git-hosted tarballs are keyed by gitHostedStoreIndexKey to preserve
+      // the built/not-built dimension (see @pnpm/store.pkg-finder for the
+      // rationale). For npm tarballs the integrity-based key is canonical.
+      const pkgIndexFilePath = isGitHostedTarball
+        ? gitHostedStoreIndexKey(pkgId, { built: true })
+        : storeIndexKey(resolution.integrity!, pkgId)
       const pkgIndex = storeIndex.get(pkgIndexFilePath) as PackageFilesIndex
       pkgSnapshotCache.set(depPath, {
         ...nameVer,

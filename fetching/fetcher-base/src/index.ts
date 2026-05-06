@@ -15,13 +15,6 @@ export interface PkgNameVersion {
 export interface FetchOptions {
   allowBuild?: AllowBuild
   filesIndexFile: string
-  /**
-   * Resolution id of the package being fetched. The git-hosted tarball fetcher
-   * uses this to register a second store index entry under
-   * `storeIndexKey(integrity, pkgId)` once the integrity has been computed,
-   * so subsequent integrity-based lookups can find the package.
-   */
-  pkgId?: string
   lockfileDir: string
   onStart?: (totalSize: number | null, attempt: number) => void
   onProgress?: (downloaded: number) => void

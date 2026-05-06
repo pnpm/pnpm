@@ -1,7 +1,8 @@
 import path from 'node:path'
 
 import { fetchFromDir } from '@pnpm/fetching.directory-fetcher'
-import type { Resolution } from '@pnpm/resolving.resolver-base'
+import { isGitHostedPkgUrl } from '@pnpm/fetching.pick-fetcher'
+import type { Resolution, TarballResolution } from '@pnpm/resolving.resolver-base'
 import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { gitHostedStoreIndexKey, type StoreIndex, storeIndexKey } from '@pnpm/store.index'
 
@@ -43,13 +44,23 @@ export async function readPackageFileMap (
     return localInfo.filesMap
   }
 
+  const tarballUrl = (packageResolution as TarballResolution).tarball
+  const isGitHostedTarball = tarballUrl != null && isGitHostedPkgUrl(tarballUrl)
   const isPackageWithIntegrity = 'integrity' in packageResolution
 
   let pkgIndexFilePath: string
-  if (isPackageWithIntegrity) {
+  // Git-hosted tarballs are keyed by gitHostedStoreIndexKey regardless of
+  // integrity. Their cached content depends on whether build scripts ran
+  // (preparePackage during fetch), so the `built` dimension must be part of
+  // the key. Folding them under the integrity-only key would let a not-built
+  // entry serve a request that expects the built variant. The lockfile still
+  // pins integrity for security and the fetcher validates it on download.
+  if (isGitHostedTarball) {
+    pkgIndexFilePath = gitHostedStoreIndexKey(packageId, { built: true })
+  } else if (isPackageWithIntegrity) {
     // The writer in @pnpm/installing.package-requester keys the index file by
-    // the resolution id (`name@version` for npm tarballs, the tarball URL for
-    // git-hosted ones), so we must use the same key here.
+    // the resolution id (`name@version` for npm tarballs), so we must use the
+    // same key here.
     pkgIndexFilePath = storeIndexKey(
       packageResolution.integrity as string,
       packageId

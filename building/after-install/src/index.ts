@@ -18,6 +18,7 @@ import {
   runLifecycleHooksConcurrently,
   runPostinstallHooks,
 } from '@pnpm/exec.lifecycle'
+import { isGitHostedPkgUrl } from '@pnpm/fetching.pick-fetcher'
 import { getContext, type PnpmContext } from '@pnpm/installing.context'
 import { writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import type { TarballResolution } from '@pnpm/lockfile.types'
@@ -33,7 +34,7 @@ import npa from '@pnpm/npm-package-arg'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { createStoreController } from '@pnpm/store.connection-manager'
-import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
+import { gitHostedStoreIndexKey, StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import type {
   DepPath,
   IgnoredBuilds,
@@ -362,8 +363,13 @@ async function _rebuild (
         // @pnpm/installing.package-requester: that's the tarball URL for
         // git-hosted packages (nonSemverVersion) and `name@version` otherwise.
         const pkgId = pkgInfo.nonSemverVersion ?? `${pkgInfo.name}@${pkgInfo.version}`
-        if (opts.skipIfHasSideEffectsCache && resolution.integrity) {
-          const filesIndexFile = storeIndexKey(resolution.integrity!.toString(), pkgId)
+        // Git-hosted tarballs are keyed by gitHostedStoreIndexKey to preserve
+        // the built/not-built dimension; npm tarballs use the integrity key.
+        const isGitHostedTarball = resolution.tarball != null && isGitHostedPkgUrl(resolution.tarball)
+        if (opts.skipIfHasSideEffectsCache && (isGitHostedTarball || resolution.integrity)) {
+          const filesIndexFile = isGitHostedTarball
+            ? gitHostedStoreIndexKey(pkgId, { built: true })
+            : storeIndexKey(resolution.integrity!.toString(), pkgId)
           const pkgFilesIndex = storeIndex!.get(filesIndexFile) as PackageFilesIndex | undefined
           if (pkgFilesIndex) {
             sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
@@ -396,9 +402,11 @@ async function _rebuild (
           unsafePerm: opts.unsafePerm || false,
           userAgent: opts.userAgent,
         })
-        if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && resolution.integrity) {
+        if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && (isGitHostedTarball || resolution.integrity)) {
           builtDepPaths.add(depPath)
-          const filesIndexFile = storeIndexKey(resolution.integrity!.toString(), pkgId)
+          const filesIndexFile = isGitHostedTarball
+            ? gitHostedStoreIndexKey(pkgId, { built: true })
+            : storeIndexKey(resolution.integrity!.toString(), pkgId)
           try {
             if (!sideEffectsCacheKey) {
               sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {

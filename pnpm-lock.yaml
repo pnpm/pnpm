@@ -1742,6 +1742,9 @@ importers:
       '@pnpm/exec.lifecycle':
         specifier: workspace:*
         version: link:../../exec/lifecycle
+      '@pnpm/fetching.pick-fetcher':
+        specifier: workspace:*
+        version: link:../../fetching/pick-fetcher
       '@pnpm/installing.context':
         specifier: workspace:*
         version: link:../../installing/context
@@ -7108,6 +7111,9 @@ importers:
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../../deps/path
+      '@pnpm/fetching.pick-fetcher':
+        specifier: workspace:*
+        version: link:../../fetching/pick-fetcher
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../lockfile/fs
@@ -9175,12 +9181,12 @@ importers:
 
   store/pkg-finder:
     dependencies:
-      '@pnpm/deps.path':
-        specifier: workspace:*
-        version: link:../../deps/path
       '@pnpm/fetching.directory-fetcher':
         specifier: workspace:*
         version: link:../../fetching/directory-fetcher
+      '@pnpm/fetching.pick-fetcher':
+        specifier: workspace:*
+        version: link:../../fetching/pick-fetcher
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base

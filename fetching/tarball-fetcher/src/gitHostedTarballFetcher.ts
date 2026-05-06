@@ -6,7 +6,7 @@ import type { FetchFunction, FetchOptions } from '@pnpm/fetching.fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
 import type { Cafs, FilesMap } from '@pnpm/store.cafs-types'
-import { type StoreIndex, storeIndexKey } from '@pnpm/store.index'
+import type { StoreIndex } from '@pnpm/store.index'
 import type { BundledManifest } from '@pnpm/types'
 import { addFilesFromDir } from '@pnpm/worker'
 
@@ -37,22 +37,6 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
       const prepareResult = await prepareGitHostedPkg(filesMap, cafs, rawFilesIndexFile, opts.filesIndexFile, fetcherOpts, opts, resolution)
       if (prepareResult.ignoredBuild) {
         globalWarn(`The git-hosted package fetched from "${resolution.tarball}" has to be built but the build scripts were ignored.`)
-      }
-      // Register a second index entry under storeIndexKey(integrity, pkgId).
-      // The original filesIndexFile is gitHostedStoreIndexKey-derived (the
-      // resolver doesn't know the integrity yet on a first install), but every
-      // post-fetch reader (pkg-finder, store status, FUSE mounter,
-      // skipIfHasSideEffectsCache in building/after-install) looks the package
-      // up under the integrity key once the lockfile carries integrity. Without
-      // this duplicate, those readers raise ENOENT immediately after install.
-      if (integrity && opts.pkgId) {
-        const integrityKey = storeIndexKey(integrity, opts.pkgId)
-        if (integrityKey !== opts.filesIndexFile) {
-          const data = fetcherOpts.storeIndex.get(opts.filesIndexFile)
-          if (data) {
-            fetcherOpts.storeIndex.set(integrityKey, data)
-          }
-        }
       }
       return {
         filesMap: prepareResult.filesMap,

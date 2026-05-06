@@ -11,7 +11,7 @@ import type {
   FetchOptions,
   FetchResult,
 } from '@pnpm/fetching.fetcher-base'
-import { pickFetcher } from '@pnpm/fetching.pick-fetcher'
+import { isGitHostedPkgUrl, pickFetcher } from '@pnpm/fetching.pick-fetcher'
 import gfs from '@pnpm/fs.graceful-fs'
 import type { CustomFetcher } from '@pnpm/hooks.types'
 import { logger } from '@pnpm/logger'
@@ -345,7 +345,16 @@ function getFilesIndexFilePath (
 ): GetFilesIndexFilePathResult {
   const targetRelative = depPathToFilename(opts.pkg.id, ctx.virtualStoreDirMaxLength)
   const target = path.join(ctx.storeDir, targetRelative)
-  if ((opts.pkg.resolution as TarballResolution).integrity) {
+  // Git-hosted tarballs are post-processed (preparePackage / packlist) and the
+  // resulting cached content depends on whether build scripts ran, so they
+  // need a `built` dimension in the store key. The integrity-only key form
+  // collapses that distinction and would let a not-built entry be served when
+  // the user expects the built variant (and vice versa). Keep them on
+  // gitHostedStoreIndexKey regardless of integrity. The lockfile still pins
+  // integrity for security, and the fetcher still validates it on download.
+  const tarballUrl = (opts.pkg.resolution as TarballResolution).tarball
+  const isGitHosted = tarballUrl != null && isGitHostedPkgUrl(tarballUrl)
+  if (!isGitHosted && (opts.pkg.resolution as TarballResolution).integrity) {
     return {
       target,
       filesIndexFile: storeIndexKey((opts.pkg.resolution as TarballResolution).integrity!, opts.pkg.id),
@@ -355,7 +364,9 @@ function getFilesIndexFilePath (
   let resolution!: AtomicResolution
   if (opts.pkg.resolution.type === 'variations') {
     resolution = findResolution(opts.pkg.resolution.variants, opts.supportedArchitectures)
-    if ((resolution as TarballResolution).integrity) {
+    const variantTarball = (resolution as TarballResolution).tarball
+    const variantIsGitHosted = variantTarball != null && isGitHostedPkgUrl(variantTarball)
+    if (!variantIsGitHosted && (resolution as TarballResolution).integrity) {
       return {
         target,
         filesIndexFile: storeIndexKey((resolution as TarballResolution).integrity!, opts.pkg.id),
@@ -554,7 +565,6 @@ function fetchToStore (
         {
           allowBuild: opts.allowBuild,
           filesIndexFile,
-          pkgId: opts.pkg.id,
           lockfileDir: opts.lockfileDir,
           readManifest: opts.fetchRawManifest,
           onProgress: (downloaded) => {
