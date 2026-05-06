@@ -284,6 +284,8 @@ export type InstallCommandOptions = Pick<Config,
 | 'frozenLockfile'
 | 'global'
 | 'globalPnpmfile'
+| 'hoistPattern'
+| 'publicHoistPattern'
 | 'ignorePnpmfile'
 | 'ignoreScripts'
 | 'injectWorkspacePackages'
