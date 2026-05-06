@@ -1,7 +1,6 @@
 // cspell:ignore ents
 import fs from 'node:fs'
 
-import { isGitHostedPkgUrl } from '@pnpm/fetching.pick-fetcher'
 import { type LockfileObject, type PackageSnapshot, readWantedLockfile, type TarballResolution } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
@@ -178,13 +177,11 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
       if (pkgSnapshot == null) return undefined
       const nameVer = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
       const resolution = pkgSnapshot.resolution as TarballResolution
-      const tarballUrl = resolution.tarball
-      const isGitHostedTarball = tarballUrl != null && isGitHostedPkgUrl(tarballUrl)
       const pkgId = nameVer.nonSemverVersion ?? `${nameVer.name}@${nameVer.version}`
       // Git-hosted tarballs are keyed by gitHostedStoreIndexKey to preserve
       // the built/not-built dimension (see @pnpm/store.pkg-finder for the
       // rationale). For npm tarballs the integrity-based key is canonical.
-      const pkgIndexFilePath = isGitHostedTarball
+      const pkgIndexFilePath = resolution.gitHosted
         ? gitHostedStoreIndexKey(pkgId, { built: true })
         : storeIndexKey(resolution.integrity!, pkgId)
       const pkgIndex = storeIndex.get(pkgIndexFilePath) as PackageFilesIndex

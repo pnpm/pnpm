@@ -18,7 +18,6 @@ import {
   runLifecycleHooksConcurrently,
   runPostinstallHooks,
 } from '@pnpm/exec.lifecycle'
-import { isGitHostedPkgUrl } from '@pnpm/fetching.pick-fetcher'
 import { getContext, type PnpmContext } from '@pnpm/installing.context'
 import { writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import type { TarballResolution } from '@pnpm/lockfile.types'
@@ -365,9 +364,8 @@ async function _rebuild (
         const pkgId = pkgInfo.nonSemverVersion ?? `${pkgInfo.name}@${pkgInfo.version}`
         // Git-hosted tarballs are keyed by gitHostedStoreIndexKey to preserve
         // the built/not-built dimension; npm tarballs use the integrity key.
-        const isGitHostedTarball = resolution.tarball != null && isGitHostedPkgUrl(resolution.tarball)
-        if (opts.skipIfHasSideEffectsCache && (isGitHostedTarball || resolution.integrity)) {
-          const filesIndexFile = isGitHostedTarball
+        if (opts.skipIfHasSideEffectsCache && (resolution.gitHosted || resolution.integrity)) {
+          const filesIndexFile = resolution.gitHosted
             ? gitHostedStoreIndexKey(pkgId, { built: true })
             : storeIndexKey(resolution.integrity!.toString(), pkgId)
           const pkgFilesIndex = storeIndex!.get(filesIndexFile) as PackageFilesIndex | undefined
@@ -402,9 +400,9 @@ async function _rebuild (
           unsafePerm: opts.unsafePerm || false,
           userAgent: opts.userAgent,
         })
-        if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && (isGitHostedTarball || resolution.integrity)) {
+        if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && (resolution.gitHosted || resolution.integrity)) {
           builtDepPaths.add(depPath)
-          const filesIndexFile = isGitHostedTarball
+          const filesIndexFile = resolution.gitHosted
             ? gitHostedStoreIndexKey(pkgId, { built: true })
             : storeIndexKey(resolution.integrity!.toString(), pkgId)
           try {

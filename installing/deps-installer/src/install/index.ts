@@ -2176,7 +2176,6 @@ async function installFromPnpmRegistry (
     //    are guaranteed correct (server verified, no rehashing needed)
     const { readPkgFromCafs } = await import('@pnpm/worker')
     const { storeIndexKey: _storeIndexKey } = await import('@pnpm/store.index')
-    const { isGitHostedPkgUrl: _isGitHostedPkgUrl } = await import('@pnpm/fetching.pick-fetcher')
     const wrappedStoreController = {
       ...opts.storeController,
       fetchPackage: async (fetchOpts: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -2187,8 +2186,7 @@ async function installFromPnpmRegistry (
         // Their cached entry lives under gitHostedStoreIndexKey (preserves the
         // built/not-built dimension), not the integrity-keyed path the agent
         // uses for npm tarballs. See @pnpm/store.pkg-finder for the rationale.
-        const isGitHostedTarball = resolution?.tarball != null && _isGitHostedPkgUrl(resolution.tarball)
-        if (integrity && !isGitHostedTarball) {
+        if (integrity && !resolution?.gitHosted) {
           const filesIndexFile = _storeIndexKey(integrity, fetchOpts.pkg.id)
           const result = await readPkgFromCafs(
             { storeDir: opts.storeDir, verifyStoreIntegrity: false },

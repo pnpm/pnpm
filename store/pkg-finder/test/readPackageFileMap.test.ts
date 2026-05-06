@@ -67,8 +67,8 @@ describe('readPackageFileMap', () => {
   it('should resolve git-hosted tarball packages with integrity by gitHostedStoreIndexKey', async () => {
     // Git-hosted tarballs are keyed by gitHostedStoreIndexKey to preserve the
     // built/not-built dimension that the integrity-only key would collapse.
-    // The lockfile still pins integrity for security; the lookup itself is
-    // unchanged whether or not the resolution carries integrity.
+    // The lockfile still pins integrity for security; the routing is driven
+    // by the `gitHosted` field set by the resolver / lockfile loader.
     const pkgId = 'https://codeload.github.com/stevemao/left-pad/tar.gz/cafe1234'
     const key = gitHostedStoreIndexKey(pkgId, { built: true })
 
@@ -77,6 +77,7 @@ describe('readPackageFileMap', () => {
     const resolution: TarballResolution = {
       integrity: 'sha512-abc123gitHosted',
       tarball: pkgId,
+      gitHosted: true,
     }
 
     const result = await readPackageFileMap(resolution, pkgId, defaultOpts())

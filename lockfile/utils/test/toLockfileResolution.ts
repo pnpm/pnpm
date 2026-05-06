@@ -81,5 +81,19 @@ test('keeps git-hosted tarballs when lockfileIncludeTarballUrl is false', () => 
   )).toEqual({
     integrity: 'sha512-AAAA',
     tarball: 'https://codeload.github.com/foo/bar/tar.gz/abcdef',
+    gitHosted: true,
+  })
+})
+
+test('records gitHosted on the lockfile entry when set on the resolution', () => {
+  expect(toLockfileResolution(
+    { name: 'foo', version: '1.0.0' },
+    { integrity: 'sha512-AAAA', tarball: 'https://codeload.github.com/foo/bar/tar.gz/abcdef', gitHosted: true },
+    REGISTRY,
+    true
+  )).toEqual({
+    integrity: 'sha512-AAAA',
+    tarball: 'https://codeload.github.com/foo/bar/tar.gz/abcdef',
+    gitHosted: true,
   })
 })

@@ -2,7 +2,6 @@ import path from 'node:path'
 
 import { formatIntegrity } from '@pnpm/crypto.integrity'
 import * as dp from '@pnpm/deps.path'
-import { isGitHostedPkgUrl } from '@pnpm/fetching.pick-fetcher'
 import { getContextForSingleImporter } from '@pnpm/installing.context'
 import {
   nameVerFromPkgSnapshot,
@@ -52,7 +51,7 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
         // Git-hosted tarballs are addressed by gitHostedStoreIndexKey to
         // preserve the built/not-built dimension even when the lockfile pins
         // their integrity for security. See @pnpm/store.pkg-finder.
-        isGitHostedTarball: resolution.tarball != null && isGitHostedPkgUrl(resolution.tarball),
+        gitHosted: resolution.gitHosted === true,
         pkgPath: depPath,
         ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),
       }
@@ -60,8 +59,8 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
 
   const storeIndex = new StoreIndex(storeDir)
   try {
-    const modified = await pFilter(pkgs, async ({ id, integrity, isGitHostedTarball, depPath, name }) => {
-      const pkgIndexFilePath = isGitHostedTarball
+    const modified = await pFilter(pkgs, async ({ id, integrity, gitHosted, depPath, name }) => {
+      const pkgIndexFilePath = gitHosted
         ? gitHostedStoreIndexKey(id, { built: true })
         : (integrity
           ? storeIndexKey(integrity, id)

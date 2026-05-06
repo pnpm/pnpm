@@ -32,7 +32,6 @@
   },
   "dependencies": {
     "@pnpm/fetching.directory-fetcher": "workspace:*",
-    "@pnpm/fetching.pick-fetcher": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.index": "workspace:*"

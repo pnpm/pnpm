@@ -11,7 +11,7 @@ import type {
   FetchOptions,
   FetchResult,
 } from '@pnpm/fetching.fetcher-base'
-import { isGitHostedPkgUrl, pickFetcher } from '@pnpm/fetching.pick-fetcher'
+import { pickFetcher } from '@pnpm/fetching.pick-fetcher'
 import gfs from '@pnpm/fs.graceful-fs'
 import type { CustomFetcher } from '@pnpm/hooks.types'
 import { logger } from '@pnpm/logger'
@@ -345,16 +345,13 @@ function getFilesIndexFilePath (
 ): GetFilesIndexFilePathResult {
   const targetRelative = depPathToFilename(opts.pkg.id, ctx.virtualStoreDirMaxLength)
   const target = path.join(ctx.storeDir, targetRelative)
-  // Git-hosted tarballs are post-processed (preparePackage / packlist) and the
-  // resulting cached content depends on whether build scripts ran, so they
-  // need a `built` dimension in the store key. The integrity-only key form
-  // collapses that distinction and would let a not-built entry be served when
-  // the user expects the built variant (and vice versa). Keep them on
-  // gitHostedStoreIndexKey regardless of integrity. The lockfile still pins
+  // Git-hosted tarballs are post-processed (preparePackage / packlist) and
+  // the resulting cached content depends on whether build scripts ran, so
+  // they need a `built` dimension in the store key. The integrity-only key
+  // form would collapse that distinction. Keep them on
+  // gitHostedStoreIndexKey regardless of integrity — the lockfile still pins
   // integrity for security, and the fetcher still validates it on download.
-  const tarballUrl = (opts.pkg.resolution as TarballResolution).tarball
-  const isGitHosted = tarballUrl != null && isGitHostedPkgUrl(tarballUrl)
-  if (!isGitHosted && (opts.pkg.resolution as TarballResolution).integrity) {
+  if (!(opts.pkg.resolution as TarballResolution).gitHosted && (opts.pkg.resolution as TarballResolution).integrity) {
     return {
       target,
       filesIndexFile: storeIndexKey((opts.pkg.resolution as TarballResolution).integrity!, opts.pkg.id),
@@ -364,9 +361,7 @@ function getFilesIndexFilePath (
   let resolution!: AtomicResolution
   if (opts.pkg.resolution.type === 'variations') {
     resolution = findResolution(opts.pkg.resolution.variants, opts.supportedArchitectures)
-    const variantTarball = (resolution as TarballResolution).tarball
-    const variantIsGitHosted = variantTarball != null && isGitHostedPkgUrl(variantTarball)
-    if (!variantIsGitHosted && (resolution as TarballResolution).integrity) {
+    if (!(resolution as TarballResolution).gitHosted && (resolution as TarballResolution).integrity) {
       return {
         target,
         filesIndexFile: storeIndexKey((resolution as TarballResolution).integrity!, opts.pkg.id),
