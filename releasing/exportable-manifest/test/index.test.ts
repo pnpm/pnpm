@@ -82,6 +82,66 @@ test('publish lifecycle scripts are removed', async () => {
   })
 })
 
+test('all manifest fields are preserved when preserveManifestFields is enabled', async () => {
+  const manifest: ProjectManifest & { pnpm?: Record<string, unknown> } = {
+    name: 'foo',
+    version: '1.0.0',
+    packageManager: 'pnpm@10.0.0',
+    pnpm: {
+      testField: true,
+    },
+    scripts: {
+      prepublishOnly: 'echo',
+      postinstall: 'echo hello',
+    },
+  }
+
+  expect(await createExportableManifest(process.cwd(), manifest, {
+    ...defaultOpts,
+    preserveManifestFields: true,
+  })).toStrictEqual({
+    name: 'foo',
+    version: '1.0.0',
+    packageManager: 'pnpm@10.0.0',
+    pnpm: {
+      testField: true,
+    },
+    scripts: {
+      prepublishOnly: 'echo',
+      postinstall: 'echo hello',
+    },
+  })
+})
+
+test('preserveManifestFields does not mutate the original manifest', async () => {
+  const manifest: ProjectManifest = {
+    name: 'foo',
+    version: '1.0.0',
+    publishConfig: {
+      main: './dist/index.js',
+    },
+  }
+
+  expect(await createExportableManifest(process.cwd(), manifest, {
+    ...defaultOpts,
+    preserveManifestFields: true,
+    readmeFile: 'readme content',
+  })).toStrictEqual({
+    name: 'foo',
+    version: '1.0.0',
+    main: './dist/index.js',
+    readme: 'readme content',
+  })
+
+  expect(manifest).toStrictEqual({
+    name: 'foo',
+    version: '1.0.0',
+    publishConfig: {
+      main: './dist/index.js',
+    },
+  })
+})
+
 test('readme added to published manifest', async () => {
   expect(await createExportableManifest(process.cwd(), {
     name: 'foo',

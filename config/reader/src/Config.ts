@@ -210,6 +210,7 @@ export interface Config extends OptionsFromRootManifest {
   modulesCacheMaxAge: number
   dlxCacheMaxAge: number
   embedReadme?: boolean
+  preserveManifestFields?: boolean
   gitShallowHosts?: string[]
   legacyDirFiltering?: boolean
   allowBuilds?: Record<string, boolean | string>

@@ -26,6 +26,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'access',
     'git-checks',
     'ignore-scripts',
+    'preserve-manifest-fields',
     'provenance',
     'npm-path',
     'otp',
@@ -88,6 +89,10 @@ export function help (): string {
             name: '--ignore-scripts',
           },
           {
+            description: 'Preserve all original manifest fields in the packed manifest instead of stripping fields like scripts, packageManager, and pnpm.',
+            name: '--preserve-manifest-fields',
+          },
+          {
             description: 'Packages are proceeded to be published even if their current version is already in the registry. This is useful when a "prepublishOnly" script bumps the version of the package before it is published',
             name: '--force',
           },
@@ -124,7 +129,7 @@ export async function handler (
     json?: boolean
     recursive?: boolean
     workspaceDir?: string
-  } & Pick<Config, 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme'>
+  } & Pick<Config, 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme' | 'preserveManifestFields'>
   & Pick<ConfigContext, 'allProjects'>,
   params: string[]
 ): Promise<{ exitCode?: number, output?: string } | undefined> {
@@ -161,7 +166,7 @@ export async function publish (
     engineStrict?: boolean
     recursive?: boolean
     workspaceDir?: string
-  } & Pick<Config, 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme' | 'packGzipLevel'>
+  } & Pick<Config, 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme' | 'packGzipLevel' | 'preserveManifestFields'>
   & Pick<ConfigContext, 'allProjects'>,
   params: string[]
 ): Promise<PublishResult> {
