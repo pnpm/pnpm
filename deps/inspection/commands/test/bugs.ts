@@ -80,6 +80,61 @@ test('bugs: trims trailing slash from repository URL before appending /issues', 
   expect(mockOpen).toHaveBeenCalledWith('https://github.com/test/pkg/issues')
 })
 
+test('bugs: resolves repository shorthand (owner/repo)', async () => {
+  mockOpen.mockClear()
+  const dir = tempDir()
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({
+    name: 'test-pkg',
+    repository: 'test/pkg',
+  }))
+  await bugs.handler({ ...BASE_OPTIONS, dir }, [])
+  expect(mockOpen).toHaveBeenCalledWith('https://github.com/test/pkg/issues')
+})
+
+test('bugs: resolves github: shorthand', async () => {
+  mockOpen.mockClear()
+  const dir = tempDir()
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({
+    name: 'test-pkg',
+    repository: { url: 'github:test/pkg' },
+  }))
+  await bugs.handler({ ...BASE_OPTIONS, dir }, [])
+  expect(mockOpen).toHaveBeenCalledWith('https://github.com/test/pkg/issues')
+})
+
+test('bugs: resolves git+ssh:// repository URL', async () => {
+  mockOpen.mockClear()
+  const dir = tempDir()
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({
+    name: 'test-pkg',
+    repository: { url: 'git+ssh://git@github.com/test/pkg.git' },
+  }))
+  await bugs.handler({ ...BASE_OPTIONS, dir }, [])
+  expect(mockOpen).toHaveBeenCalledWith('https://github.com/test/pkg/issues')
+})
+
+test('bugs: resolves gitlab: shorthand', async () => {
+  mockOpen.mockClear()
+  const dir = tempDir()
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({
+    name: 'test-pkg',
+    repository: 'gitlab:test/pkg',
+  }))
+  await bugs.handler({ ...BASE_OPTIONS, dir }, [])
+  expect(mockOpen).toHaveBeenCalledWith('https://gitlab.com/test/pkg/issues')
+})
+
+test('bugs: falls back to URL parsing for self-hosted git servers', async () => {
+  mockOpen.mockClear()
+  const dir = tempDir()
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({
+    name: 'test-pkg',
+    repository: { url: 'git+https://git.example.com/test/pkg.git' },
+  }))
+  await bugs.handler({ ...BASE_OPTIONS, dir }, [])
+  expect(mockOpen).toHaveBeenCalledWith('https://git.example.com/test/pkg/issues')
+})
+
 test('bugs: handles repository URL ending with .git/ (trailing slash after .git)', async () => {
   mockOpen.mockClear()
   const dir = tempDir()

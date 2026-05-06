@@ -3423,6 +3423,9 @@ importers:
       chalk:
         specifier: 'catalog:'
         version: 5.6.2
+      hosted-git-info:
+        specifier: 'catalog:'
+        version: '@pnpm/hosted-git-info@1.0.0'
       open:
         specifier: 'catalog:'
         version: 7.4.2
@@ -3460,6 +3463,9 @@ importers:
       '@pnpm/workspace.projects-filter':
         specifier: workspace:*
         version: link:../../../workspace/projects-filter
+      '@types/hosted-git-info':
+        specifier: 'catalog:'
+        version: 3.0.5
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.31.1

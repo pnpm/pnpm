@@ -58,6 +58,7 @@
     "@pnpm/types": "workspace:*",
     "@zkochan/table": "catalog:",
     "chalk": "catalog:",
+    "hosted-git-info": "catalog:",
     "open": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:"
@@ -75,6 +76,7 @@
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/testing.command-defaults": "workspace:*",
     "@pnpm/workspace.projects-filter": "workspace:*",
+    "@types/hosted-git-info": "catalog:",
     "@types/ramda": "catalog:",
     "@types/zkochan__table": "catalog:",
     "execa": "catalog:",

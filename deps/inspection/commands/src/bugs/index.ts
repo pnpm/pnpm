@@ -1,6 +1,7 @@
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
+import HostedGit from 'hosted-git-info'
 import open from 'open'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -83,15 +84,18 @@ function pickBugsUrl (
 }
 
 function repositoryToIssuesUrl (rawUrl: string): string | undefined {
-  let normalized = rawUrl.replace(/^git\+/, '')
-  if (normalized.startsWith('git://')) {
-    normalized = `https://${normalized.slice('git://'.length)}`
-  } else if (normalized.startsWith('git@github.com:')) {
-    normalized = `https://github.com/${normalized.slice('git@github.com:'.length)}`
+  // hosted-git-info handles GitHub/GitLab/Bitbucket/etc. shorthand and SSH forms
+  // (`owner/repo`, `github:owner/repo`, `git+ssh://git@github.com/owner/repo.git`,
+  // `git@github.com:owner/repo.git`, …) and yields the canonical bugs URL directly.
+  const hosted = HostedGit.fromUrl(rawUrl)
+  if (hosted != null) {
+    const url = hosted.bugs()
+    if (url && isHttpUrl(url)) return url
   }
+  // Fallback for self-hosted git servers that hosted-git-info doesn't recognize.
   let parsed: URL
   try {
-    parsed = new URL(normalized)
+    parsed = new URL(rawUrl.replace(/^git\+/, ''))
   } catch {
     return undefined
   }
