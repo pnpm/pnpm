@@ -172,11 +172,10 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
   }
 
   if (registry) {
-    // OIDC takes precedence over a configured static token, mirroring the npm CLI's behavior
-    // (see https://github.com/npm/cli/blob/7d900c46/lib/utils/oidc.js). This ensures that
-    // workflows which still set `_authToken` from a legacy NPM_TOKEN secret will still use
-    // trusted publishing when it is configured on the registry, falling back to the static
-    // token only when OIDC is not applicable.
+    // OIDC takes precedence over a configured static `_authToken`, mirroring the npm CLI's
+    // behavior (see https://github.com/npm/cli/blob/7d900c46/lib/utils/oidc.js). Trusted
+    // publishing wins whenever the registry has it configured for the package; the static
+    // token is used only as a fallback when OIDC is not applicable.
     const oidcTokenProvenance = await fetchTokenAndProvenanceByOidc(manifest.name, registry, options)
     if (oidcTokenProvenance?.authToken) {
       publishOptions.token = oidcTokenProvenance.authToken
