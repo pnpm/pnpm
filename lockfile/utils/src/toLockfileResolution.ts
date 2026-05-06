@@ -1,5 +1,5 @@
-import type { LockfileResolution, TarballResolution } from '@pnpm/lockfile.types'
-import type { Resolution } from '@pnpm/resolving.resolver-base'
+import type { LockfileResolution } from '@pnpm/lockfile.types'
+import type { Resolution, TarballResolution } from '@pnpm/resolving.resolver-base'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 
 export function toLockfileResolution (
