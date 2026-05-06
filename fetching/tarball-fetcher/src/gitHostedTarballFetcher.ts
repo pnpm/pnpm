@@ -27,7 +27,7 @@ export interface CreateGitHostedTarballFetcher {
 export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction, fetcherOpts: CreateGitHostedTarballFetcher): FetchFunction {
   const fetch = async (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
     const tempIndexFile = pathTemp(opts.filesIndexFile)
-    const { filesIndex, manifest, requiresBuild } = await fetchRemoteTarball(cafs, resolution, {
+    const { filesIndex, manifest, requiresBuild, integrity } = await fetchRemoteTarball(cafs, resolution, {
       ...opts,
       filesIndexFile: tempIndexFile,
     })
@@ -40,6 +40,9 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
         filesIndex: prepareResult.filesIndex,
         manifest: prepareResult.manifest ?? manifest,
         requiresBuild,
+        // Propagate the raw tarball integrity so the lockfile pins it and
+        // future installs detect a tampered tarball from the git host.
+        integrity,
       }
     } catch (err: unknown) {
       assert(util.types.isNativeError(err))

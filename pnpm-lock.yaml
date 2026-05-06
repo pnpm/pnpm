@@ -4053,9 +4053,6 @@ importers:
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../types
-      '@pnpm/pick-fetcher':
-        specifier: workspace:*
-        version: link:../../fetching/pick-fetcher
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base

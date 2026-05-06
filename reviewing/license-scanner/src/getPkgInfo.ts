@@ -15,7 +15,7 @@ import {
 import loadJsonFile from 'load-json-file'
 import { PnpmError } from '@pnpm/error'
 import { type LicensePackage } from './licenses.js'
-import { type DirectoryResolution, type PackageSnapshot, pkgSnapshotToResolution, type Resolution } from '@pnpm/lockfile.utils'
+import { type DirectoryResolution, type PackageSnapshot, pkgSnapshotToResolution, type Resolution, type TarballResolution } from '@pnpm/lockfile.utils'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 
 const limitPkgReads = pLimit(4)
@@ -250,7 +250,11 @@ export async function readPackageIndexFile (
     }
   }
 
-  const isPackageWithIntegrity = 'integrity' in packageResolution
+  // Git-hosted resolutions are post-processed (preparePackage / packlist)
+  // on extraction, so their index file lives in the per-package store path
+  // even though integrity is now pinned in the lockfile.
+  const isGitHosted = !packageResolution.type && (packageResolution as TarballResolution).gitHosted === true
+  const isPackageWithIntegrity = !isGitHosted && 'integrity' in packageResolution
 
   let pkgIndexFilePath
   if (isPackageWithIntegrity) {

@@ -351,9 +351,12 @@ async function _rebuild (
         }
         const resolution = (pkgSnapshot.resolution as TarballResolution)
         let sideEffectsCacheKey: string | undefined
-        const pkgId = `${pkgInfo.name}@${pkgInfo.version}`
-        if (opts.skipIfHasSideEffectsCache && resolution.integrity) {
-          const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, resolution.integrity!.toString(), pkgId)
+        // Match the resolver-supplied pkg.id used by package-requester: the
+        // tarball URL for git-hosted packages (nonSemverVersion) and
+        // `name@version` for npm-hosted ones.
+        const pkgId = pkgInfo.nonSemverVersion ?? `${pkgInfo.name}@${pkgInfo.version}`
+        if (opts.skipIfHasSideEffectsCache && (resolution.gitHosted === true || resolution.integrity)) {
+          const filesIndexFile = pickRebuildIndexFilePath(opts.storeDir, resolution, pkgId, opts.virtualStoreDirMaxLength)
           let pkgFilesIndex: PackageFilesIndex | undefined
           try {
             pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
@@ -388,9 +391,9 @@ async function _rebuild (
           shellEmulator: opts.shellEmulator,
           unsafePerm: opts.unsafePerm || false,
         })
-        if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && resolution.integrity) {
+        if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && (resolution.gitHosted === true || resolution.integrity)) {
           builtDepPaths.add(depPath)
-          const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, resolution.integrity!.toString(), pkgId)
+          const filesIndexFile = pickRebuildIndexFilePath(opts.storeDir, resolution, pkgId, opts.virtualStoreDirMaxLength)
           try {
             if (!sideEffectsCacheKey) {
               sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
@@ -469,6 +472,22 @@ async function _rebuild (
   }
 
   return { pkgsThatWereRebuilt, ignoredPkgs }
+}
+
+// Git-hosted resolutions are post-processed (preparePackage / packlist) on
+// extraction, so their index file lives in the per-package store path
+// keyed by built/not-built — not in the integrity-based cafs key, even
+// though integrity is now pinned in the lockfile for tamper detection.
+function pickRebuildIndexFilePath (
+  storeDir: string,
+  resolution: TarballResolution,
+  pkgId: string,
+  virtualStoreDirMaxLength: number
+): string {
+  if (resolution.gitHosted === true) {
+    return path.join(storeDir, dp.depPathToFilename(pkgId, virtualStoreDirMaxLength), 'integrity.json')
+  }
+  return getIndexFilePathInCafs(storeDir, resolution.integrity!.toString(), pkgId)
 }
 
 function binDirsInAllParentDirs (pkgRoot: string, lockfileDir: string): string[] {
