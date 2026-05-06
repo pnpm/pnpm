@@ -22,14 +22,10 @@ export default async () => {
   server.on('error', (err) => {
     console.log(err)
   })
-  let forceExit = false
-  process.on('SIGTERM', () => {
-    forceExit = true
-  })
-
   server.on('close', () => {
-    if (!killed && !forceExit) {
-      console.log('Warning: The registry server was killed unexpectedly')
+    if (!killed) {
+      console.log('Error: The registry server was killed!')
+      process.exit(1)
     }
   })
   global.killServer = () => {

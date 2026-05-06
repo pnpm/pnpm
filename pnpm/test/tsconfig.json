@@ -4,8 +4,7 @@
     "noEmit": false,
     "outDir": "../node_modules/.test.lib",
     "rootDir": "..",
-    "isolatedModules": true,
-    "types": ["jest"]
+    "isolatedModules": true
   },
   "include": [
     "**/*.ts",
