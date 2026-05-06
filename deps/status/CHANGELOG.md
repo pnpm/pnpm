@@ -1,5 +1,19 @@
 # @pnpm/deps.status
 
+## 1003.0.38
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/lockfile.fs@1001.1.33
+  - @pnpm/resolver-base@1005.4.2
+  - @pnpm/get-context@1001.2.9
+  - @pnpm/lockfile.settings-checker@1001.1.1
+  - @pnpm/lockfile.verification@1001.2.25
+  - @pnpm/config@1004.11.1
+  - @pnpm/workspace.state@1002.1.7
+  - @pnpm/workspace.find-packages@1000.0.66
+
 ## 1003.0.37
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/git-fetcher
 
+## 1006.0.7
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1001.2.3
+- @pnpm/prepare-package@1001.0.8
+- @pnpm/worker@1000.6.8
+
 ## 1006.0.6
 
 ### Patch Changes

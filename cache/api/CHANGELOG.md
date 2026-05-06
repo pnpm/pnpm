@@ -1,5 +1,13 @@
 # @pnpm/cache.api
 
+## 1000.0.55
+
+### Patch Changes
+
+- @pnpm/npm-resolver@1005.2.4
+- @pnpm/config@1004.11.1
+- @pnpm/store.cafs@1000.1.5
+
 ## 1000.0.54
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/audit
 
+## 1002.0.27
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/lockfile.types@1002.1.1
+  - @pnpm/lockfile.utils@1004.0.4
+  - @pnpm/lockfile.detect-dep-types@1001.0.27
+  - @pnpm/lockfile.walker@1001.0.27
+
 ## 1002.0.26
 
 ### Patch Changes

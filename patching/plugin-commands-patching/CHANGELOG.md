@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.3.47
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/lockfile.fs@1001.1.33
+  - @pnpm/lockfile.utils@1004.0.4
+  - @pnpm/pick-fetcher@1001.0.1
+  - @pnpm/plugin-commands-installation@1004.9.16
+  - @pnpm/cli-utils@1001.3.11
+  - @pnpm/config@1004.11.1
+  - @pnpm/config.config-writer@1000.1.4
+  - @pnpm/store-connection-manager@1002.3.20
+  - @pnpm/crypto.hash@1000.2.2
+  - @pnpm/patching.apply-patch@1000.0.8
+
 ## 1000.3.46
 
 ### Patch Changes

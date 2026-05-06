@@ -1,5 +1,17 @@
 # @pnpm/build-modules
 
+## 1007.0.12
+
+### Patch Changes
+
+- @pnpm/calc-dep-state@1003.0.4
+- @pnpm/store-controller-types@1004.5.2
+- @pnpm/config@1004.11.1
+- @pnpm/lifecycle@1001.0.38
+- @pnpm/fs.hard-link-dir@1000.0.6
+- @pnpm/patching.apply-patch@1000.0.8
+- @pnpm/worker@1000.6.8
+
 ## 1007.0.11
 
 ### Patch Changes

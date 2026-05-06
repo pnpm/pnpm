@@ -1,5 +1,15 @@
 # @pnpm/get-context
 
+## 1001.2.9
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/lockfile.fs@1001.1.33
+  - @pnpm/resolver-base@1005.4.2
+  - @pnpm/read-projects-context@1000.0.37
+  - @pnpm/package-store@1007.1.7
+
 ## 1001.2.8
 
 ### Patch Changes

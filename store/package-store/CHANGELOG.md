@@ -1,5 +1,19 @@
 # @pnpm/package-store
 
+## 1007.1.7
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/package-requester@1011.2.5
+  - @pnpm/resolver-base@1005.4.2
+  - @pnpm/fetcher-base@1001.2.3
+  - @pnpm/store-controller-types@1004.5.2
+  - @pnpm/store.cafs@1000.1.5
+  - @pnpm/create-cafs-store@1000.0.34
+  - @pnpm/crypto.hash@1000.2.2
+  - @pnpm/worker@1000.6.8
+
 ## 1007.1.6
 
 ### Patch Changes

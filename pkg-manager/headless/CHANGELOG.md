@@ -1,5 +1,25 @@
 # @pnpm/headless
 
+## 1010.1.11
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/lockfile.fs@1001.1.33
+  - @pnpm/lockfile.utils@1004.0.4
+  - @pnpm/package-requester@1011.2.5
+  - @pnpm/deps.graph-builder@1002.3.14
+  - @pnpm/lockfile-to-pnp@1001.0.35
+  - @pnpm/real-hoist@1001.0.31
+  - @pnpm/lockfile.filtering@1001.0.32
+  - @pnpm/calc-dep-state@1003.0.4
+  - @pnpm/modules-cleaner@1001.0.36
+  - @pnpm/store-controller-types@1004.5.2
+  - @pnpm/build-modules@1007.0.12
+  - @pnpm/lifecycle@1001.0.38
+  - @pnpm/symlink-dependency@1000.0.17
+  - @pnpm/worker@1000.6.8
+
 ## 1010.1.10
 
 ### Patch Changes

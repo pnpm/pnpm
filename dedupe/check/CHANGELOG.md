@@ -1,5 +1,12 @@
 # @pnpm/dedupe.check
 
+## 1001.0.22
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/lockfile.types@1002.1.1
+
 ## 1001.0.21
 
 ### Patch Changes

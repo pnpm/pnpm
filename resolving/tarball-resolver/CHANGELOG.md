@@ -1,5 +1,12 @@
 # @pnpm/tarball-resolver
 
+## 1002.2.2
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/resolver-base@1005.4.2
+
 ## 1002.2.1
 
 ### Patch Changes

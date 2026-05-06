@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-licenses
 
+## 1000.0.68
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/license-scanner@1001.0.41
+  - @pnpm/lockfile.fs@1001.1.33
+  - @pnpm/cli-utils@1001.3.11
+  - @pnpm/config@1004.11.1
+
 ## 1000.0.67
 
 ### Patch Changes

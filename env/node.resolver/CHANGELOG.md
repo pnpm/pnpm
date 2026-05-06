@@ -1,5 +1,13 @@
 # @pnpm/node.resolver
 
+## 1001.0.24
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/resolver-base@1005.4.2
+  - @pnpm/config@1004.11.1
+
 ## 1001.0.23
 
 ### Patch Changes

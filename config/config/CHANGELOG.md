@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 1004.11.1
+
+### Patch Changes
+
+- @pnpm/pnpmfile@1002.1.14
+
 ## 1004.11.0
 
 ### Minor Changes

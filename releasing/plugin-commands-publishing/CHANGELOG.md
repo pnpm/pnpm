@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-publishing
 
+## 1000.3.17
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/resolver-base@1005.4.2
+  - @pnpm/client@1001.1.25
+  - @pnpm/cli-utils@1001.3.11
+  - @pnpm/config@1004.11.1
+  - @pnpm/exportable-manifest@1000.4.2
+  - @pnpm/plugin-commands-env@1000.0.67
+  - @pnpm/lifecycle@1001.0.38
+
 ## 1000.3.16
 
 ### Patch Changes

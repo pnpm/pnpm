@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-audit
 
+## 1002.2.10
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/lockfile.fs@1001.1.33
+  - @pnpm/audit@1002.0.27
+  - @pnpm/cli-utils@1001.3.11
+  - @pnpm/config@1004.11.1
+  - @pnpm/config.config-writer@1000.1.4
+
 ## 1002.2.9
 
 ### Patch Changes

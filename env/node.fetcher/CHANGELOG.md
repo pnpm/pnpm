@@ -1,5 +1,15 @@
 # @pnpm/node.fetcher
 
+## 1001.0.28
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/tarball-fetcher@1006.0.7
+  - @pnpm/node.resolver@1001.0.24
+  - @pnpm/fetching.binary-fetcher@1005.0.5
+  - @pnpm/create-cafs-store@1000.0.34
+
 ## 1001.0.27
 
 ### Patch Changes

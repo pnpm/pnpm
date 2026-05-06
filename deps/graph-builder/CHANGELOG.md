@@ -1,5 +1,15 @@
 # @pnpm/deps.graph-builder
 
+## 1002.3.14
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/lockfile.fs@1001.1.33
+  - @pnpm/lockfile.utils@1004.0.4
+  - @pnpm/calc-dep-state@1003.0.4
+  - @pnpm/store-controller-types@1004.5.2
+
 ## 1002.3.13
 
 ### Patch Changes

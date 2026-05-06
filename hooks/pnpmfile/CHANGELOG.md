@@ -1,5 +1,15 @@
 # @pnpm/pnpmfile
 
+## 1002.1.14
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/lockfile.types@1002.1.1
+  - @pnpm/hooks.types@1001.0.21
+  - @pnpm/store-controller-types@1004.5.2
+  - @pnpm/crypto.hash@1000.2.2
+
 ## 1002.1.13
 
 ### Patch Changes

@@ -1,5 +1,32 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.9.16
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/lockfile.types@1002.1.1
+  - @pnpm/plugin-commands-rebuild@1008.0.14
+  - @pnpm/resolver-base@1005.4.2
+  - @pnpm/deps.status@1003.0.38
+  - @pnpm/core@1016.3.1
+  - @pnpm/get-context@1001.2.9
+  - @pnpm/outdated@1001.1.22
+  - @pnpm/dedupe.check@1001.0.22
+  - @pnpm/pnpmfile@1002.1.14
+  - @pnpm/workspace.manifest-writer@1001.3.2
+  - @pnpm/package-store@1007.1.7
+  - @pnpm/cli-utils@1001.3.11
+  - @pnpm/config@1004.11.1
+  - @pnpm/config.config-writer@1000.1.4
+  - @pnpm/config.deps-installer@1000.1.6
+  - @pnpm/store-connection-manager@1002.3.20
+  - @pnpm/plugin-commands-env@1000.0.67
+  - @pnpm/workspace.pkgs-graph@1000.0.40
+  - @pnpm/workspace.state@1002.1.7
+  - @pnpm/workspace.find-packages@1000.0.66
+  - @pnpm/filter-workspace-packages@1000.1.7
+
 ## 1004.9.15
 
 ### Patch Changes

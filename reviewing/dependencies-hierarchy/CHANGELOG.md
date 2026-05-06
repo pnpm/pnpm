@@ -1,5 +1,15 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 1001.3.5
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/lockfile.fs@1001.1.33
+  - @pnpm/lockfile.utils@1004.0.4
+  - @pnpm/lockfile.detect-dep-types@1001.0.27
+  - @pnpm/store.cafs@1000.1.5
+
 ## 1001.3.4
 
 ### Patch Changes

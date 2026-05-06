@@ -1,5 +1,14 @@
 # @pnpm/exec.build-commands
 
+## 1002.1.3
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/plugin-commands-rebuild@1008.0.14
+  - @pnpm/config@1004.11.1
+  - @pnpm/config.config-writer@1000.1.4
+
 ## 1002.1.2
 
 ### Patch Changes

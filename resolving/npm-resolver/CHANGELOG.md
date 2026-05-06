@@ -1,5 +1,13 @@
 # @pnpm/npm-resolver
 
+## 1005.2.4
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/resolver-base@1005.4.2
+  - @pnpm/crypto.hash@1000.2.2
+
 ## 1005.2.3
 
 ### Patch Changes

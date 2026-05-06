@@ -1,5 +1,12 @@
 # @pnpm/workspace.injected-deps-syncer
 
+## 1000.0.40
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@1000.1.25
+- @pnpm/workspace.find-packages@1000.0.66
+
 ## 1000.0.39
 
 ### Patch Changes

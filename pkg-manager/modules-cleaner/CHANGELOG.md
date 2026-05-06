@@ -1,5 +1,15 @@
 # @pnpm/modules-cleaner
 
+## 1001.0.36
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/lockfile.types@1002.1.1
+  - @pnpm/lockfile.utils@1004.0.4
+  - @pnpm/lockfile.filtering@1001.0.32
+  - @pnpm/store-controller-types@1004.5.2
+
 ## 1001.0.35
 
 ### Patch Changes

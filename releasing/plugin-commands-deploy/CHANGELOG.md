@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-deploy
 
+## 1002.0.40
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/lockfile.fs@1001.1.33
+  - @pnpm/lockfile.types@1002.1.1
+  - @pnpm/plugin-commands-installation@1004.9.16
+  - @pnpm/directory-fetcher@1000.1.25
+  - @pnpm/cli-utils@1001.3.11
+  - @pnpm/config@1004.11.1
+  - @pnpm/fs.indexed-pkg-importer@1000.1.27
+
 ## 1002.0.39
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/hooks.types
 
+## 1001.0.21
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/lockfile.types@1002.1.1
+
 ## 1001.0.20
 
 ### Patch Changes

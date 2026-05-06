@@ -1,5 +1,15 @@
 # @pnpm/outdated
 
+## 1001.1.22
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/lockfile.fs@1001.1.33
+  - @pnpm/lockfile.utils@1004.0.4
+  - @pnpm/client@1001.1.25
+  - @pnpm/npm-resolver@1005.2.4
+
 ## 1001.1.21
 
 ### Patch Changes

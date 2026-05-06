@@ -1,5 +1,12 @@
 # @pnpm/read-projects-context
 
+## 1000.0.37
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/lockfile.fs@1001.1.33
+
 ## 1000.0.36
 
 ### Patch Changes

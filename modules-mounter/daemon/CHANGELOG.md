@@ -1,5 +1,15 @@
 # @pnpm/mount-modules
 
+## 1001.0.54
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/lockfile.fs@1001.1.33
+  - @pnpm/lockfile.utils@1004.0.4
+  - @pnpm/config@1004.11.1
+  - @pnpm/store.cafs@1000.1.5
+
 ## 1001.0.53
 
 ### Patch Changes

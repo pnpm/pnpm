@@ -1,5 +1,13 @@
 # @pnpm/config.deps-installer
 
+## 1000.1.6
+
+### Patch Changes
+
+- @pnpm/package-store@1007.1.7
+- @pnpm/npm-resolver@1005.2.4
+- @pnpm/config.config-writer@1000.1.4
+
 ## 1000.1.5
 
 ### Patch Changes

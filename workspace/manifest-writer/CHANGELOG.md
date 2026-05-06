@@ -1,5 +1,12 @@
 # @pnpm/workspace.manifest-writer
 
+## 1001.3.2
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/lockfile.types@1002.1.1
+
 ## 1001.3.1
 
 ### Patch Changes

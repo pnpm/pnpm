@@ -1,5 +1,13 @@
 # @pnpm/assert-project
 
+## 1000.0.17
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/lockfile.types@1002.1.1
+  - @pnpm/assert-store@1000.0.14
+
 ## 1000.0.16
 
 ### Patch Changes

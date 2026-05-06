@@ -1,5 +1,13 @@
 # @pnpm/calc-dep-state
 
+## 1003.0.4
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/lockfile.types@1002.1.1
+  - @pnpm/lockfile.utils@1004.0.4
+
 ## 1003.0.3
 
 ### Patch Changes

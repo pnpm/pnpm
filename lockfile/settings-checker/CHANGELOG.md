@@ -1,5 +1,14 @@
 # @pnpm/lockfile.settings-checker
 
+## 1001.1.1
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/lockfile.types@1002.1.1
+  - @pnpm/lockfile.verification@1001.2.25
+  - @pnpm/crypto.hash@1000.2.2
+
 ## 1001.1.0
 
 ### Minor Changes

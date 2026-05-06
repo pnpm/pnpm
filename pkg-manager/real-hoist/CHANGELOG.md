@@ -1,5 +1,12 @@
 # @pnpm/real-hoist
 
+## 1001.0.31
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/lockfile.utils@1004.0.4
+
 ## 1001.0.30
 
 ### Patch Changes

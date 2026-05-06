@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-outdated
 
+## 1000.0.69
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/lockfile.fs@1001.1.33
+  - @pnpm/default-resolver@1002.3.9
+  - @pnpm/outdated@1001.1.22
+  - @pnpm/cli-utils@1001.3.11
+  - @pnpm/config@1004.11.1
+
 ## 1000.0.68
 
 ### Patch Changes

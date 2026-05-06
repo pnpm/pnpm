@@ -1,5 +1,18 @@
 # @pnpm/client
 
+## 1001.1.25
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/resolver-base@1005.4.2
+  - @pnpm/tarball-fetcher@1006.0.7
+  - @pnpm/default-resolver@1002.3.9
+  - @pnpm/directory-fetcher@1000.1.25
+  - @pnpm/node.fetcher@1001.0.28
+  - @pnpm/fetching.binary-fetcher@1005.0.5
+  - @pnpm/git-fetcher@1006.0.7
+
 ## 1001.1.24
 
 ### Patch Changes

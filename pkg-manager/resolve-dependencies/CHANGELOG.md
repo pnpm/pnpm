@@ -1,5 +1,24 @@
 # @pnpm/resolve-dependencies
 
+## 1008.8.1
+
+### Patch Changes
+
+- edbe2a7: Pin the integrity of git-hosted tarballs (codeload.github.com, gitlab.com, bitbucket.org) in the lockfile so that subsequent installs detect a tampered or substituted tarball and refuse to install it. Previously the lockfile only stored the tarball URL for git dependencies, so a compromised git host or a man-in-the-middle could serve arbitrary code on later installs without lockfile changes.
+
+  A new `gitHosted: true` field is recorded on git-hosted tarball resolutions in the lockfile, letting every reader/writer route them by a single typed check instead of pattern-matching the tarball URL in each call site. Lockfiles written by older pnpm versions are enriched on load (URL fallback) so the field can be relied on uniformly across the codebase.
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/lockfile.types@1002.1.1
+  - @pnpm/lockfile.utils@1004.0.4
+  - @pnpm/pick-fetcher@1001.0.1
+  - @pnpm/resolver-base@1005.4.2
+  - @pnpm/lockfile.pruner@1001.0.28
+  - @pnpm/calc-dep-state@1003.0.4
+  - @pnpm/lockfile.preferred-versions@1000.0.33
+  - @pnpm/npm-resolver@1005.2.4
+  - @pnpm/store-controller-types@1004.5.2
+
 ## 1008.8.0
 
 ### Minor Changes

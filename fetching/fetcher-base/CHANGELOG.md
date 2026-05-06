@@ -1,5 +1,12 @@
 # @pnpm/fetcher-base
 
+## 1001.2.3
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/resolver-base@1005.4.2
+
 ## 1001.2.2
 
 ### Patch Changes

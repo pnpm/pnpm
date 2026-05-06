@@ -1,5 +1,16 @@
 # @pnpm/lockfile.verification
 
+## 1001.2.25
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/lockfile.types@1002.1.1
+  - @pnpm/lockfile.utils@1004.0.4
+  - @pnpm/resolver-base@1005.4.2
+  - @pnpm/get-context@1001.2.9
+  - @pnpm/crypto.hash@1000.2.2
+
 ## 1001.2.24
 
 ### Patch Changes

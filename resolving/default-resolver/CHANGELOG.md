@@ -1,5 +1,19 @@
 # @pnpm/default-resolver
 
+## 1002.3.9
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/git-resolver@1001.2.3
+  - @pnpm/resolver-base@1005.4.2
+  - @pnpm/node.resolver@1001.0.24
+  - @pnpm/resolving.bun-resolver@1005.0.12
+  - @pnpm/resolving.deno-resolver@1005.0.12
+  - @pnpm/local-resolver@1002.1.14
+  - @pnpm/npm-resolver@1005.2.4
+  - @pnpm/tarball-resolver@1002.2.2
+
 ## 1002.3.8
 
 ### Patch Changes

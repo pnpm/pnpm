@@ -1,5 +1,12 @@
 # @pnpm/prune-lockfile
 
+## 1001.0.28
+
+### Patch Changes
+
+- Updated dependencies [edbe2a7]
+  - @pnpm/lockfile.types@1002.1.1
+
 ## 1001.0.27
 
 ### Patch Changes
