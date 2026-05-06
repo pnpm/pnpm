@@ -230,6 +230,52 @@ test('fetch populates global virtual store links/', async () => {
   expect(entries.length).toBeGreaterThan(0)
 })
 
+// Regression test for https://github.com/pnpm/pnpm/issues/11488
+// A subsequent install must not purge node_modules just because fetch
+// recorded forced-empty hoist patterns in .modules.yaml.
+test('install after fetch does not recreate node_modules', async () => {
+  const project = prepare({
+    dependencies: { 'is-positive': '1.0.0' },
+  })
+  const storeDir = path.resolve('store')
+
+  // Generate the lockfile only — no need for a full install
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    linkWorkspacePackages: true,
+    lockfileOnly: true,
+    storeDir,
+  })
+
+  await fetch.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    storeDir,
+  })
+
+  const virtualStoreDir = path.resolve(project.dir(), 'node_modules/.pnpm')
+  const virtualStoreInodeBefore = fs.statSync(virtualStoreDir).ino
+
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    frozenLockfile: true,
+    linkWorkspacePackages: true,
+    storeDir,
+    preferOffline: true,
+  })
+
+  // If the modules dir had been purged, the directory's inode would change
+  // (rimraf + remake creates a new directory).
+  expect(fs.statSync(virtualStoreDir).ino).toBe(virtualStoreInodeBefore)
+  // The package symlink must be present after install completes the linking.
+  expect(fs.existsSync(path.resolve(project.dir(), 'node_modules/is-positive'))).toBeTruthy()
+})
+
 test('fetch applies patches to dependencies when patchedDependencies key is bare package name', async () => {
   const f = fixtures(import.meta.dirname)
   const project = prepare({
