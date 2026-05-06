@@ -218,6 +218,31 @@ test('command-specific options do NOT leak through the --help short-circuit', as
   expect(options).not.toHaveProperty(['frozen-lockfile'])
 })
 
+// renamedOptions (e.g. pnpm's --prefix → dir) must be applied in the
+// short-circuit too, otherwise consumers downstream receive inconsistent
+// keys depending on whether --help/--version was the entry path.
+test('renamedOptions are applied to picked universal options in --help short-circuit', async () => {
+  const { cmd, options } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    universalOptionsTypes: { prefix: String },
+    renamedOptions: { prefix: 'dir' },
+  }, ['install', '--prefix=/foo', '--help'])
+  expect(cmd).toBe('help')
+  expect(options).toMatchObject({ dir: '/foo' })
+  expect(options).not.toHaveProperty(['prefix'])
+})
+
+test('renamedOptions are applied to picked universal options in --version short-circuit', async () => {
+  const { cmd, options } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    universalOptionsTypes: { prefix: String },
+    renamedOptions: { prefix: 'dir' },
+  }, ['--prefix=/foo', '--version'])
+  expect(cmd).toBeNull()
+  expect(options).toMatchObject({ version: true, dir: '/foo' })
+  expect(options).not.toHaveProperty(['prefix'])
+})
+
 test('use command-specific shorthands', async () => {
   const { options } = await parseCliArgs({
     ...DEFAULT_OPTS,

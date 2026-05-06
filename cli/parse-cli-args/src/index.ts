@@ -100,14 +100,17 @@ export async function parseCliArgs (
   // alongside them — most importantly --pm-on-fail, which gates the
   // packageManager / devEngines.packageManager check (#11487). Universal
   // options were already typed and parsed by the exploratory nopt call,
-  // so we just pluck them back out. Command-specific options are
-  // intentionally dropped; they belong to a command we are not running.
+  // so we just pluck them back out and apply the same renamedOptions
+  // mapping the regular parse path uses (e.g. --prefix → dir), so
+  // consumers see consistent option names regardless of which path
+  // produced the result. Command-specific options are intentionally
+  // dropped; they belong to a command we are not running.
   function pickUniversalOptions (): Record<string, unknown> {
     const result: Record<string, unknown> = {}
     for (const key of Object.keys(opts.universalOptionsTypes)) {
-      if (key in noptExploratoryResults) {
-        result[key] = (noptExploratoryResults as Record<string, unknown>)[key]
-      }
+      if (!(key in noptExploratoryResults)) continue
+      const renamed = opts.renamedOptions?.[key] ?? key
+      result[renamed] = (noptExploratoryResults as Record<string, unknown>)[key]
     }
     return result
   }
