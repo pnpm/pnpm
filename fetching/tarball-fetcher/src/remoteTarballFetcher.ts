@@ -133,7 +133,12 @@ export function createDownloader (
           throw new FetchError({ url, authHeaderValue }, res)
         }
 
-        const contentLength = res.headers.has('content-length') && res.headers.get('content-length')
+        // When Content-Encoding is present, Content-Length refers to the encoded form
+        // of the data, not the decoded bytes that the fetch implementation yields.
+        // See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Encoding
+        const contentEncoding = res.headers.get('content-encoding')
+        const isEncoded = contentEncoding != null && contentEncoding !== '' && contentEncoding.toLowerCase() !== 'identity'
+        const contentLength = !isEncoded && res.headers.has('content-length') && res.headers.get('content-length')
         const parsedLength = typeof contentLength === 'string' ? parseInt(contentLength, 10) : NaN
         const size = Number.isFinite(parsedLength) && parsedLength >= 0 ? parsedLength : null
         if (opts.onStart != null) {

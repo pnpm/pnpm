@@ -116,6 +116,33 @@ test('fail when tarball size does not match content-length', async () => {
   )
 })
 
+test("don't fail on content-length mismatch when Content-Encoding is set", async () => {
+  // When a server applies an end-to-end encoding (e.g. gzip), Content-Length refers to the
+  // encoded form, but undici fetch yields decoded bytes — so the size check would be wrong.
+  // See: https://github.com/pnpm/pnpm/issues/11506
+  const tarballContent = fs.readFileSync(tarballPath)
+  const mockPool = mockAgent.get(registry)
+
+  mockPool.intercept({ path: '/foo.tgz', method: 'GET' }).reply(200, tarballContent, {
+    headers: {
+      'Content-Length': (tarballSize + 100).toString(),
+      'Content-Encoding': 'gzip',
+    },
+  })
+
+  process.chdir(temporaryDirectory())
+
+  const resolution = { tarball: `${registry}/foo.tgz` }
+
+  const result = await fetch.remoteTarball(cafs, resolution, {
+    filesIndexFile,
+    lockfileDir: process.cwd(),
+    pkg,
+  })
+
+  expect(result.filesMap).toBeTruthy()
+})
+
 test('retry when tarball size does not match content-length', async () => {
   const tarballContent = fs.readFileSync(tarballPath)
   const mockPool = mockAgent.get(registry)
