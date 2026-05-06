@@ -73,6 +73,7 @@ export async function parseCliArgs (
         argv: noptExploratoryResults.argv,
         cmd: null,
         options: {
+          ...pickUniversalOptions(),
           version: true,
         },
         params: noptExploratoryResults.argv.remain,
@@ -87,11 +88,28 @@ export async function parseCliArgs (
     return {
       argv: noptExploratoryResults.argv,
       cmd: 'help',
-      options: {},
+      options: pickUniversalOptions(),
       params: noptExploratoryResults.argv.remain,
       unknownOptions: new Map(),
       fallbackCommandUsed: false,
     }
+  }
+
+  // The --help and --version short-circuits skip the per-command nopt
+  // parse, so we still need to surface universal options the user typed
+  // alongside them — most importantly --pm-on-fail, which gates the
+  // packageManager / devEngines.packageManager check (#11487). Universal
+  // options were already typed and parsed by the exploratory nopt call,
+  // so we just pluck them back out. Command-specific options are
+  // intentionally dropped; they belong to a command we are not running.
+  function pickUniversalOptions (): Record<string, unknown> {
+    const result: Record<string, unknown> = {}
+    for (const key of Object.keys(opts.universalOptionsTypes)) {
+      if (key in noptExploratoryResults) {
+        result[key] = (noptExploratoryResults as Record<string, unknown>)[key]
+      }
+    }
+    return result
   }
 
   const types = {

@@ -185,6 +185,39 @@ test('no command', async () => {
   expect(cmd).toBeNull()
 })
 
+// Regression for #11487 — --pm-on-fail must reach the consumer even when
+// short-circuited by --help, otherwise users can't bypass the
+// packageManager check just to read help text for a stale-pinned project.
+test('universal options typed in the exploratory parse survive the --help short-circuit', async () => {
+  const { cmd, options } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    universalOptionsTypes: { 'pm-on-fail': ['ignore', 'warn', 'error'] },
+  }, ['install', '--pm-on-fail=ignore', '--help'])
+  expect(cmd).toBe('help')
+  expect(options).toMatchObject({ 'pm-on-fail': 'ignore' })
+})
+
+test('universal options typed in the exploratory parse survive the --version short-circuit', async () => {
+  const { cmd, options } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    universalOptionsTypes: { 'pm-on-fail': ['ignore', 'warn', 'error'] },
+  }, ['--pm-on-fail=ignore', '--version'])
+  expect(cmd).toBeNull()
+  expect(options).toMatchObject({ version: true, 'pm-on-fail': 'ignore' })
+})
+
+test('command-specific options do NOT leak through the --help short-circuit', async () => {
+  // We're not executing the command, so its options shouldn't appear in
+  // cliOptions and accidentally influence config (e.g. --frozen-lockfile
+  // shouldn't bleed into the help path).
+  const { cmd, options } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: (name) => name === 'install' ? { 'frozen-lockfile': Boolean } : {},
+  }, ['install', '--frozen-lockfile', '--help'])
+  expect(cmd).toBe('help')
+  expect(options).not.toHaveProperty(['frozen-lockfile'])
+})
+
 test('use command-specific shorthands', async () => {
   const { options } = await parseCliArgs({
     ...DEFAULT_OPTS,

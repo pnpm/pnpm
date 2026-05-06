@@ -407,3 +407,31 @@ test('pmOnFail=ignore set in pnpm-workspace.yaml bypasses the devEngines.package
   expect(status).toBe(0)
   expect(stderr.toString()).not.toContain('0.0.1')
 })
+
+// Regression for #11487. The --version and --help short-circuits in
+// parse-cli-args used to drop every parsed option, so `--pm-on-fail=ignore`
+// silently disappeared whenever it was combined with `--version` or
+// `--help` — leaving users with no way to opt out of the strict
+// packageManager check just to read help or check the running version.
+test.each([
+  [['--pm-on-fail=ignore', '--version']],
+  [['--version', '--pm-on-fail=ignore']],
+  [['audit', '--pm-on-fail=ignore', '--help']],
+  [['audit', '--help', '--pm-on-fail=ignore']],
+])('--pm-on-fail=ignore is honored when combined with --version/--help: %p', (args) => {
+  prepare({
+    packageManager: 'pnpm@0.0.1',
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '0.0.1',
+        onFail: 'error',
+      },
+    },
+  })
+
+  const { status, stderr } = execPnpmSync(args)
+
+  expect(status).toBe(0)
+  expect(stderr.toString()).not.toContain('configured to use 0.0.1')
+})
