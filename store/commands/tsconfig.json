@@ -46,9 +46,6 @@
       "path": "../../exec/commands"
     },
     {
-      "path": "../../fetching/pick-fetcher"
-    },
-    {
       "path": "../../fs/graceful-fs"
     },
     {

@@ -19,9 +19,6 @@
       "path": "../../deps/path"
     },
     {
-      "path": "../../fetching/pick-fetcher"
-    },
-    {
       "path": "../../hooks/types"
     },
     {

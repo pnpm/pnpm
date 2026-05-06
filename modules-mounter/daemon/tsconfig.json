@@ -25,9 +25,6 @@
       "path": "../../deps/path"
     },
     {
-      "path": "../../fetching/pick-fetcher"
-    },
-    {
       "path": "../../lockfile/fs"
     },
     {

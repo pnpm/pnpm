@@ -94,9 +94,6 @@
       "path": "../../exec/lifecycle"
     },
     {
-      "path": "../../fetching/pick-fetcher"
-    },
-    {
       "path": "../../fs/read-modules-dir"
     },
     {
