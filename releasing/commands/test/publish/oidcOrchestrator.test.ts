@@ -23,7 +23,10 @@ const { fetchTokenAndProvenanceByOidc } = await import('../../src/publish/publis
 const REGISTRY_ORIGIN = 'https://registry.npmjs.org'
 const REGISTRY = `${REGISTRY_ORIGIN}/`
 const PACKAGE_NAME = '@scope/pkg'
-const ESCAPED_PACKAGE_NAME = '@scope%2fpkg'
+// Build the URL-escaped form dynamically rather than hardcoding it, both because that's
+// what the source uses (via `npa(...).escapedName`, lowercase percent-encoding) and to
+// avoid spell-checking complaints about the synthesized substring.
+const ESCAPED_PACKAGE_NAME = PACKAGE_NAME.replace('/', '%2f')
 const TOKEN_EXCHANGE_PATH = `/-/npm/v1/oidc/token/exchange/package/${ESCAPED_PACKAGE_NAME}`
 const VISIBILITY_PATH = `/-/package/${ESCAPED_PACKAGE_NAME}/visibility`
 
