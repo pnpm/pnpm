@@ -446,25 +446,6 @@ export async function getConfig (opts: {
   // The workspace manifest may have set pnpmConfig.registries via addSettingsFromWorkspaceManifestToConfig,
   // but we need to ensure 'default' is always set and all URLs are normalized.
   const workspaceRegistries = pnpmConfig.registries as Record<string, string> | undefined
-  // The same registry can be defined in both .npmrc and pnpm-workspace.yaml.
-  // pnpm-workspace.yaml wins, but if the values disagree we warn so the user
-  // doesn't silently publish to (or install from) the wrong place — see #11492.
-  if (workspaceRegistries) {
-    for (const [scope, rawWsUrl] of Object.entries(workspaceRegistries)) {
-      if (typeof rawWsUrl !== 'string') continue
-      // For 'default', only flag when the .npmrc actually set `registry` —
-      // registriesFromNpmrc.default has a normalized fallback otherwise.
-      const npmrcUrl = scope === 'default'
-        ? (typeof pnpmConfig.authConfig.registry === 'string' ? registriesFromNpmrc.default : undefined)
-        : (registriesFromNpmrc as Record<string, string>)[scope]
-      if (npmrcUrl == null) continue
-      const wsUrl = normalizeRegistryUrl(rawWsUrl)
-      if (npmrcUrl === wsUrl) continue
-      const npmrcKey = scope === 'default' ? 'registry' : `${scope}:registry`
-      const wsKey = scope === 'default' ? 'registries.default' : `registries["${scope}"]`
-      warnings.push(`The ${scope === 'default' ? 'default' : scope} registry is set in both .npmrc (${npmrcKey}=${npmrcUrl}) and pnpm-workspace.yaml (${wsKey}=${wsUrl}). The pnpm-workspace.yaml value will be used; the .npmrc value is ignored.`)
-    }
-  }
   pnpmConfig.registries = {
     ...registriesFromNpmrc,
     ...workspaceRegistries,
