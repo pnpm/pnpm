@@ -307,7 +307,11 @@ export async function fetchTokenAndProvenanceByOidc (
     throw error
   }
   if (!idToken) {
-    globalWarn('Skipped OIDC: idToken is not available')
+    // OIDC is simply not applicable here (e.g. we're running outside of GitHub Actions /
+    // GitLab, or we're in GitLab but no NPM_ID_TOKEN was provided). This is the common
+    // case for local publishes, so it must stay silent — only configuration *errors* in
+    // a supported CI environment surface as warnings, and those come back as IdTokenError
+    // and are handled above.
     return undefined
   }
 
