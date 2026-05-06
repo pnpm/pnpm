@@ -561,6 +561,95 @@ test('registries in current directory\'s .npmrc have bigger priority then global
   })
 })
 
+describe('scoped registry conflicts between .npmrc and pnpm-workspace.yaml (#11492)', () => {
+  test('warns and uses pnpm-workspace.yaml value when both define the same scope', async () => {
+    prepareEmpty()
+
+    fs.writeFileSync('.npmrc', '@my-org:registry=https://from-npmrc.example.com/', 'utf8')
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      registries: {
+        '@my-org': 'https://from-workspace-yaml.example.com/',
+      },
+    })
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.registries['@my-org']).toBe('https://from-workspace-yaml.example.com/')
+    expect(warnings).toContainEqual(expect.stringContaining('@my-org'))
+    expect(warnings.find((w) => w.includes('@my-org'))).toMatch(/from-npmrc.example.com/)
+    expect(warnings.find((w) => w.includes('@my-org'))).toMatch(/from-workspace-yaml.example.com/)
+  })
+
+  test('warns and uses pnpm-workspace.yaml value when default registry differs', async () => {
+    prepareEmpty()
+
+    fs.writeFileSync('.npmrc', 'registry=https://from-npmrc.example.com/', 'utf8')
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      registries: {
+        default: 'https://from-workspace-yaml.example.com/',
+      },
+    })
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.registries.default).toBe('https://from-workspace-yaml.example.com/')
+    const defaultWarning = warnings.find((w) => w.includes('default registry'))
+    expect(defaultWarning).toBeDefined()
+    expect(defaultWarning).toMatch(/from-npmrc.example.com/)
+    expect(defaultWarning).toMatch(/from-workspace-yaml.example.com/)
+  })
+
+  test('does not warn when only one source defines the scope', async () => {
+    prepareEmpty()
+
+    fs.writeFileSync('.npmrc', '@my-org:registry=https://from-npmrc.example.com/', 'utf8')
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      registries: {
+        '@other': 'https://other.example.com/',
+      },
+    })
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.registries['@my-org']).toBe('https://from-npmrc.example.com/')
+    expect(config.registries['@other']).toBe('https://other.example.com/')
+    expect(warnings.find((w) => w.includes('registry is set in both'))).toBeUndefined()
+  })
+
+  test('does not warn when both sources agree (after normalization)', async () => {
+    prepareEmpty()
+
+    // .npmrc value lacks trailing slash; normalizeRegistryUrl adds one,
+    // so the two sources end up equivalent and there is no real conflict.
+    fs.writeFileSync('.npmrc', '@my-org:registry=https://same.example.com', 'utf8')
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      registries: {
+        '@my-org': 'https://same.example.com/',
+      },
+    })
+
+    const { warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(warnings.find((w) => w.includes('registry is set in both'))).toBeUndefined()
+  })
+})
+
 test('auth tokens from pnpm auth file override ~/.npmrc', async () => {
   prepareEmpty()
 
