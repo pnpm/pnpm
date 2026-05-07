@@ -52,7 +52,7 @@ test('overrides are added for vulnerable dependencies', async () => {
   expect(manifest.minimumReleaseAgeExclude).not.toContain('timespan@0.0.0')
 })
 
-test('minimumReleaseAgeExclude entries are not added when minimumReleaseAgeBypass is false', async () => {
+test('minimumReleaseAgeExclude entries are not added when bypassMinimumReleaseAge is false', async () => {
   const tmp = f.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))

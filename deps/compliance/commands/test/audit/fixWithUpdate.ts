@@ -862,7 +862,7 @@ The fixed vulnerabilities are:
     expect(workspaceManifest.minimumReleaseAgeExclude).toBeUndefined()
   })
 
-  test('vulnerability is NOT fixed when minimumReleaseAgeBypass is false', async () => {
+  test('vulnerability is NOT fixed when bypassMinimumReleaseAge is false', async () => {
     const tmp = f.prepare('update-workspace-pinned')
 
     const advisoryResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
@@ -881,7 +881,7 @@ The fixed vulnerabilities are:
       prefix: tmp,
     })
 
-    await expect(() => audit.handler({
+    await expect(audit.handler({
       ...MOCK_REGISTRY_OPTS,
       dir: tmp,
       workspaceDir: tmp,
