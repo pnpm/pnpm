@@ -2,6 +2,7 @@
 "@pnpm/installing.commands": minor
 "@pnpm/exec.commands": minor
 "@pnpm/cli.parse-cli-args": patch
+"@pnpm/cli.common-cli-options-help": patch
 "pnpm": minor
 ---
 
