@@ -227,6 +227,31 @@ test('pack a package without package version', async () => {
   })).rejects.toThrow('Package version is not defined in the package.json.')
 })
 
+test('pack: strips semver build metadata from the version', async () => {
+  prepare({
+    name: 'test-strip-build-metadata',
+    version: '1.0.0-canary.0+abc1234',
+  })
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    packDestination: process.cwd(),
+  })
+
+  expect(fs.existsSync('test-strip-build-metadata-1.0.0-canary.0.tgz')).toBeTruthy()
+  expect(fs.existsSync('test-strip-build-metadata-1.0.0-canary.0+abc1234.tgz')).toBeFalsy()
+
+  await tar.x({ file: 'test-strip-build-metadata-1.0.0-canary.0.tgz' })
+
+  expect((await import(path.resolve('package/package.json'))).default).toEqual({
+    name: 'test-strip-build-metadata',
+    version: '1.0.0-canary.0',
+  })
+})
+
 test('pack: runs prepack, prepare, and postpack', async () => {
   prepare({
     name: 'test-publish-package.json',

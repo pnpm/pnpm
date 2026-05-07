@@ -223,21 +223,6 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   if (!manifest.version) {
     throw new PnpmError('PACKAGE_VERSION_NOT_FOUND', `Package version is not defined in the ${manifestFileName}.`)
   }
-  let tarballName: string
-  let packDestination: string | undefined
-  const normalizedName = manifest.name.replace('@', '').replace('/', '-')
-  if (opts.out) {
-    if (opts.packDestination) {
-      throw new PnpmError('INVALID_OPTION', 'Cannot use --pack-destination and --out together')
-    }
-    const preparedOut = opts.out.replaceAll('%s', normalizedName).replaceAll('%v', manifest.version)
-    const parsedOut = path.parse(preparedOut)
-    packDestination = parsedOut.dir ? parsedOut.dir : opts.packDestination
-    tarballName = parsedOut.base
-  } else {
-    tarballName = `${normalizedName}-${manifest.version}.tgz`
-    packDestination = opts.packDestination
-  }
   const publishManifest = await createPublishManifest({
     projectDir: dir,
     modulesDir: path.join(opts.dir, 'node_modules'),
@@ -246,6 +231,28 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     catalogs: opts.catalogs ?? {},
     hooks: opts.hooks,
   })
+  // Strip semver build metadata (the `+<build>` segment) from the published version so that
+  // the tarball, the manifest packed inside it, and the metadata sent to the registry all agree.
+  // libnpmpublish runs `semver.clean()` on `manifest.version` before computing the provenance
+  // subject, which removes build metadata. Leaving it in here would mismatch the version embedded
+  // in the tarball's package.json and cause the registry to reject the publish with a 422 when
+  // verifying the sigstore provenance bundle. See https://github.com/pnpm/pnpm/issues/11518.
+  publishManifest.version = stripBuildMetadata(publishManifest.version!)
+  let tarballName: string
+  let packDestination: string | undefined
+  const normalizedName = manifest.name.replace('@', '').replace('/', '-')
+  if (opts.out) {
+    if (opts.packDestination) {
+      throw new PnpmError('INVALID_OPTION', 'Cannot use --pack-destination and --out together')
+    }
+    const preparedOut = opts.out.replaceAll('%s', normalizedName).replaceAll('%v', publishManifest.version)
+    const parsedOut = path.parse(preparedOut)
+    packDestination = parsedOut.dir ? parsedOut.dir : opts.packDestination
+    tarballName = parsedOut.base
+  } else {
+    tarballName = `${normalizedName}-${publishManifest.version}.tgz`
+    packDestination = opts.packDestination
+  }
   const files = await packlist(dir, {
     manifest: publishManifest as Record<string, unknown>,
   })
@@ -318,6 +325,11 @@ export interface PackResult {
   tarballPath: string
   /** Total uncompressed size of all files in the tarball, in bytes. */
   unpackedSize: number
+}
+
+function stripBuildMetadata (version: string): string {
+  const plusIndex = version.indexOf('+')
+  return plusIndex === -1 ? version : version.slice(0, plusIndex)
 }
 
 function preventBundledDependenciesWithoutHoistedNodeLinker (nodeLinker: Config['nodeLinker'], manifest: ProjectManifest): void {
