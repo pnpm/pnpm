@@ -29,7 +29,9 @@ export async function runCli (argv: readonly string[]): Promise<void> {
 
   // initDefaultReporter registers its 'data' listener via setTimeout(0); wait
   // a tick so events emitted from the readline loop below aren't dropped.
-  await new Promise<void>((resolve) => { setTimeout(resolve, 0) })
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, 0)
+  })
 
   try {
     const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity })
