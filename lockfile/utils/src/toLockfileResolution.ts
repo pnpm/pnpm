@@ -14,12 +14,18 @@ export function toLockfileResolution (
   if (resolution.type !== undefined || !resolution['integrity']) {
     return resolution as LockfileResolution
   }
+  // Tarball-typed resolutions are guaranteed to carry a tarball URL by the
+  // resolver, but guard for unexpected inputs (e.g. resolutions deserialized
+  // from external state) so we don't blow up on a missing field.
   const tarball = resolution['tarball'] as string | undefined
+  if (tarball == null) {
+    return { integrity: resolution['integrity'] }
+  }
   // Honor the resolver-supplied flag, with a URL fallback for resolutions
   // that didn't go through the git resolver (e.g. config-dep migrations or
   // legacy lockfiles read by callers that don't enrich the field).
   const gitHosted = (resolution as TarballResolution).gitHosted === true ||
-    (tarball != null && isGitHostedTarballUrl(tarball))
+    isGitHostedTarballUrl(tarball)
   if (lockfileIncludeTarballUrl) {
     return preservingGitHosted({
       integrity: resolution['integrity'],
@@ -30,22 +36,23 @@ export function toLockfileResolution (
   // and registry must always stay in the lockfile, otherwise the package can
   // no longer be re-fetched. This covers local `file:` tarballs and tarballs
   // served by git providers (GitHub, GitLab, Bitbucket).
-  if (tarball != null && (tarball.startsWith('file:') || gitHosted)) {
+  if (tarball.startsWith('file:') || gitHosted) {
     return preservingGitHosted({
       integrity: resolution['integrity'],
       tarball,
     }, gitHosted)
   }
-  if (lockfileIncludeTarballUrl === false) {
-    return {
-      integrity: resolution['integrity'],
-    }
-  }
   // Sometimes packages are hosted under non-standard tarball URLs.
   // For instance, when they are hosted on npm Enterprise. See https://github.com/pnpm/pnpm/issues/867
-  // Or in other weird cases, like https://github.com/pnpm/pnpm/issues/1072
+  // Or in other weird cases, like https://github.com/pnpm/pnpm/issues/1072.
+  // Even when the user explicitly sets `lockfileIncludeTarballUrl: false`, we
+  // must preserve such URLs — otherwise the package cannot be re-fetched on a
+  // frozen-lockfile install (e.g. GitHub Packages tarballs at
+  // `https://npm.pkg.github.com/download/<scope>/<name>/<version>/<hash>`).
+  // `lockfileIncludeTarballUrl` only controls whether URLs that *can* be
+  // derived from name+version+registry are written.
   const expectedTarball = getNpmTarballUrl(pkg.name, pkg.version, { registry })
-  const actualTarball = tarball!.replaceAll('%2f', '/')
+  const actualTarball = tarball.replaceAll('%2f', '/')
   if (removeProtocol(expectedTarball) !== removeProtocol(actualTarball)) {
     return preservingGitHosted({
       integrity: resolution['integrity'],

@@ -1464,7 +1464,11 @@ test('exclude tarball URL when lockfileIncludeTarballUrl is false', async () => 
     .toBeUndefined()
 })
 
-test('exclude non-standard tarball URL when lockfileIncludeTarballUrl is false', async () => {
+test('keep non-standard tarball URL when lockfileIncludeTarballUrl is false', async () => {
+  // Tarball URLs that cannot be reconstructed from name+version+registry must
+  // remain in the lockfile even when `lockfileIncludeTarballUrl: false`,
+  // otherwise `--frozen-lockfile` installs from an empty store will 404.
+  // See https://github.com/pnpm/pnpm/issues/11276.
   const project = prepareEmpty()
 
   await addDependenciesToPackage({}, ['esprima-fb@3001.1.0-dev-harmony-fb'], testDefaults({ fastUnpack: false, lockfileIncludeTarballUrl: false }))
@@ -1472,7 +1476,7 @@ test('exclude non-standard tarball URL when lockfileIncludeTarballUrl is false',
   const lockfile = project.readLockfile()
 
   expect((lockfile.packages['esprima-fb@3001.1.0-dev-harmony-fb'].resolution as TarballResolution).tarball)
-    .toBeUndefined()
+    .toBe(`http://localhost:${REGISTRY_MOCK_PORT}/esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz`)
 })
 
 test('lockfile v6', async () => {

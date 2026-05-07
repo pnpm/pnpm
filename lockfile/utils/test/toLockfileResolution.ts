@@ -36,7 +36,11 @@ test('drops the tarball for standard registry URLs when lockfileIncludeTarballUr
   })
 })
 
-test('drops the tarball for non-standard registry URLs when lockfileIncludeTarballUrl is false', () => {
+test('keeps the tarball for non-standard registry URLs when lockfileIncludeTarballUrl is false', () => {
+  // A tarball URL whose host doesn't match the configured registry cannot be
+  // reconstructed from name+version+registry, so dropping it would break
+  // re-fetching on `--frozen-lockfile`. `lockfileIncludeTarballUrl: false`
+  // only suppresses URLs that *can* be reconstructed.
   expect(toLockfileResolution(
     { name: 'esprima-fb', version: '3001.1.0-dev-harmony-fb' },
     { integrity: 'sha512-AAAA', tarball: 'https://example.com/esprima-fb/-/esprima-fb-3001.1.0-dev-harmony-fb.tgz' },
@@ -44,6 +48,22 @@ test('drops the tarball for non-standard registry URLs when lockfileIncludeTarba
     false
   )).toEqual({
     integrity: 'sha512-AAAA',
+    tarball: 'https://example.com/esprima-fb/-/esprima-fb-3001.1.0-dev-harmony-fb.tgz',
+  })
+})
+
+test('keeps GitHub Packages /download/ tarball URLs when lockfileIncludeTarballUrl is false', () => {
+  // GitHub Packages serves tarballs at /download/<scope>/<name>/<version>/<hash>,
+  // which cannot be derived from name+version+registry. See
+  // https://github.com/pnpm/pnpm/issues/11276.
+  expect(toLockfileResolution(
+    { name: '@example/private', version: '1.2.3' },
+    { integrity: 'sha512-AAAA', tarball: 'https://npm.pkg.github.com/download/@example/private/1.2.3/0123456789abcdef0123456789abcdef01234567' },
+    'https://npm.pkg.github.com/',
+    false
+  )).toEqual({
+    integrity: 'sha512-AAAA',
+    tarball: 'https://npm.pkg.github.com/download/@example/private/1.2.3/0123456789abcdef0123456789abcdef01234567',
   })
 })
 
