@@ -196,6 +196,7 @@ test('install respects --minimum-release-age passed as a CLI option', async () =
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     minimumReleaseAge,
+    minimumReleaseAgeStrict: true,
   })).rejects.toThrow(/does not meet the minimumReleaseAge constraint/)
 })
 
@@ -216,6 +217,7 @@ test('install respects --minimum-release-age-exclude passed as a CLI option', as
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     minimumReleaseAge,
+    minimumReleaseAgeStrict: true,
     minimumReleaseAgeExclude: ['is-odd'],
   })
 

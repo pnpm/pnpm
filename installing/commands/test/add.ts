@@ -395,6 +395,7 @@ test('minimumReleaseAgeExclude allows bypassing minimumReleaseAge for specific p
     ...DEFAULT_OPTIONS,
     dir: path.resolve('project'),
     minimumReleaseAge,
+    minimumReleaseAgeStrict: true,
     minimumReleaseAgeExclude: ['is-odd'],
     linkWorkspacePackages: false,
   }, ['is-odd@0.1.1'])
