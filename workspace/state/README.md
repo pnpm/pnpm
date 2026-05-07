@@ -3,7 +3,7 @@
 > Track the list of actual paths of workspace packages in a cache.
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/workspace.state.svg)](https://www.npmjs.com/package/@pnpm/workspace.state)
+[![npm version](https://img.shields.io/npm/v/@pnpm/workspace.state.svg)](https://npmx.dev/package/@pnpm/workspace.state)
 <!--/@-->
 
 ## Installation

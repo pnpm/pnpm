@@ -76,7 +76,7 @@ export interface IdTokenParams {
 export async function getIdToken ({
   context: {
     Date,
-    ciInfo: { GITHUB_ACTIONS, GITLAB },
+    ciInfo: { GITHUB_ACTIONS },
     fetch,
     globalInfo,
     process: { env },
@@ -84,10 +84,15 @@ export async function getIdToken ({
   options,
   registry,
 }: IdTokenParams): Promise<string | undefined> {
-  if (!GITHUB_ACTIONS && !GITLAB) return undefined
-
+  // `NPM_ID_TOKEN` is the canonical CI-agnostic injection point for an OIDC ID token.
+  // Any CI provider with its own OIDC mechanism (GitLab natively, CircleCI's
+  // `CIRCLE_OIDC_TOKEN_V2`, Buildkite, etc.) can forward its token here and trusted
+  // publishing will work — we don't need to recognize the provider ourselves.
   if (env?.NPM_ID_TOKEN) return env.NPM_ID_TOKEN
 
+  // Without an explicit token, the only flow we can drive ourselves is GitHub Actions'
+  // request-token endpoint. Anywhere else (other CIs without `NPM_ID_TOKEN`, local dev)
+  // falls through silently and the publish caller falls back to a static `_authToken`.
   if (!GITHUB_ACTIONS) return undefined
 
   if (!env?.ACTIONS_ID_TOKEN_REQUEST_TOKEN || !env?.ACTIONS_ID_TOKEN_REQUEST_URL) {

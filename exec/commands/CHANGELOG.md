@@ -1,5 +1,125 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1100.1.3
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.11
+- @pnpm/building.commands@1100.0.13
+- @pnpm/installing.commands@1100.1.11
+- @pnpm/deps.status@1100.0.11
+
+## 1100.1.2
+
+### Patch Changes
+
+- Updated dependencies [707a879]
+  - @pnpm/config.reader@1101.2.1
+  - @pnpm/building.commands@1100.0.12
+  - @pnpm/installing.commands@1100.1.10
+  - @pnpm/workspace.injected-deps-syncer@1100.0.7
+  - @pnpm/installing.client@1100.0.10
+  - @pnpm/deps.status@1100.0.10
+  - @pnpm/engine.runtime.commands@1100.0.11
+  - @pnpm/exec.lifecycle@1100.0.6
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.1.1
+
+### Patch Changes
+
+- Updated dependencies [8fdd9a9]
+- Updated dependencies [5f34a8d]
+- Updated dependencies [c969392]
+- Updated dependencies [ab6c42d]
+- Updated dependencies [817b1b4]
+- Updated dependencies [c969392]
+- Updated dependencies [2de318b]
+  - @pnpm/config.reader@1101.2.0
+  - @pnpm/deps.status@1100.0.9
+  - @pnpm/building.commands@1100.0.11
+  - @pnpm/engine.runtime.commands@1100.0.10
+  - @pnpm/installing.commands@1100.1.9
+  - @pnpm/installing.client@1100.0.9
+
+## 1100.1.0
+
+### Minor Changes
+
+- f6bc1db: `pnpm dlx` (and `pnpx`/`pnx`/`pnpm create`) now runs the same interactive `approve-builds` prompt as `pnpm add -g` when the package being launched depends on transitive packages with install scripts. Previously, the v11 `strictDepBuilds` default made dlx fail with `ERR_PNPM_IGNORED_BUILDS` and required users to re-run with `--allow-build=<pkg>` for every offending dependency. dlx also now removes the partially-populated cache directory when the install fails, so a subsequent run starts clean instead of reusing a broken install whose builds were silently skipped [#11444](https://github.com/pnpm/pnpm/issues/11444).
+
+### Patch Changes
+
+- Updated dependencies [f6bc1db]
+  - @pnpm/building.commands@1100.0.10
+  - @pnpm/installing.commands@1100.1.8
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+  - @pnpm/deps.status@1100.0.8
+  - @pnpm/engine.runtime.commands@1100.0.9
+  - @pnpm/installing.commands@1100.1.7
+  - @pnpm/installing.client@1100.0.8
+
+## 1100.0.8
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/resolving.parse-wanted-dependency@1100.0.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.3
+  - @pnpm/cli.common-cli-options-help@1100.0.1
+  - @pnpm/installing.commands@1100.1.6
+  - @pnpm/pkg-manifest.reader@1100.0.2
+  - @pnpm/installing.client@1100.0.7
+  - @pnpm/exec.lifecycle@1100.0.5
+  - @pnpm/bins.resolver@1100.0.2
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/cli.command@1100.0.1
+  - @pnpm/shell.path@1100.0.1
+  - @pnpm/store.path@1100.0.1
+  - @pnpm/cli.utils@1101.0.2
+  - @pnpm/deps.status@1100.0.7
+  - @pnpm/workspace.injected-deps-syncer@1100.0.6
+  - @pnpm/config.version-policy@1100.0.2
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/engine.runtime.commands@1100.0.8
+
+## 1100.0.7
+
+### Patch Changes
+
+- @pnpm/cli.utils@1101.0.1
+- @pnpm/installing.commands@1100.1.5
+- @pnpm/engine.runtime.commands@1100.0.7
+- @pnpm/deps.status@1100.0.6
+- @pnpm/workspace.injected-deps-syncer@1100.0.5
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [0fbcf74]
+  - @pnpm/config.reader@1101.1.2
+  - @pnpm/deps.status@1100.0.5
+  - @pnpm/engine.runtime.commands@1100.0.6
+  - @pnpm/installing.commands@1100.1.4
+  - @pnpm/installing.client@1100.0.6
+
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [9b23098]
+  - @pnpm/engine.runtime.commands@1100.0.5
+  - @pnpm/installing.client@1100.0.5
+  - @pnpm/installing.commands@1100.1.3
+
 ## 1100.0.4
 
 ### Patch Changes

@@ -2,7 +2,7 @@
 
 > Commands for controlling the cache
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/cache.commands.svg)](https://www.npmjs.com/package/@pnpm/cache.commands)
+[![npm version](https://img.shields.io/npm/v/@pnpm/cache.commands.svg)](https://npmx.dev/package/@pnpm/cache.commands)
 
 ## Installation
 

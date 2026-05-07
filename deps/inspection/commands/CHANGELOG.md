@@ -1,5 +1,118 @@
 # @pnpm/deps.inspection.commands
 
+## 1100.1.12
+
+### Patch Changes
+
+- @pnpm/deps.inspection.outdated@1100.0.11
+- @pnpm/lockfile.fs@1100.0.6
+- @pnpm/resolving.default-resolver@1100.0.10
+- @pnpm/deps.inspection.list@1100.0.7
+- @pnpm/global.commands@1100.0.13
+- @pnpm/deps.inspection.peers-checker@1100.0.6
+
+## 1100.1.11
+
+### Patch Changes
+
+- Updated dependencies [12313f1]
+- Updated dependencies [27425d7]
+- Updated dependencies [707a879]
+  - @pnpm/installing.modules-yaml@1100.0.3
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/config.reader@1101.2.1
+  - @pnpm/global.commands@1100.0.12
+  - @pnpm/resolving.default-resolver@1100.0.10
+  - @pnpm/deps.inspection.list@1100.0.6
+  - @pnpm/deps.inspection.outdated@1100.0.10
+  - @pnpm/deps.inspection.peers-checker@1100.0.5
+  - @pnpm/resolving.npm-resolver@1101.0.2
+
+## 1100.1.10
+
+### Patch Changes
+
+- Updated dependencies [8fdd9a9]
+- Updated dependencies [5f34a8d]
+- Updated dependencies [c969392]
+- Updated dependencies [817b1b4]
+- Updated dependencies [c969392]
+- Updated dependencies [2de318b]
+  - @pnpm/config.reader@1101.2.0
+  - @pnpm/global.commands@1100.0.11
+  - @pnpm/resolving.default-resolver@1100.0.9
+  - @pnpm/deps.inspection.outdated@1100.0.9
+
+## 1100.1.9
+
+### Patch Changes
+
+- 0b2f86e: When `strictPeerDependencies` is `true`, the `ERR_PNPM_PEER_DEP_ISSUES` error once again renders the peer dependency issues inline using the same format as `pnpm peers check`, so users (and CI tools like Renovate) can see what failed without running `pnpm peers check` separately [#11439](https://github.com/pnpm/pnpm/issues/11439).
+- Updated dependencies [72629fc]
+- Updated dependencies [0b2f86e]
+  - @pnpm/global.commands@1100.0.10
+  - @pnpm/deps.inspection.peers-issues-renderer@1100.0.0
+
+## 1100.1.8
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+  - @pnpm/global.commands@1100.0.9
+  - @pnpm/resolving.default-resolver@1100.0.8
+  - @pnpm/deps.inspection.outdated@1100.0.8
+
+## 1100.1.7
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/config.pick-registry-for-package@1100.0.2
+  - @pnpm/cli.common-cli-options-help@1100.0.1
+  - @pnpm/resolving.default-resolver@1100.0.7
+  - @pnpm/deps.inspection.outdated@1100.0.7
+  - @pnpm/resolving.registry.types@1100.0.2
+  - @pnpm/installing.modules-yaml@1100.0.2
+  - @pnpm/resolving.npm-resolver@1101.0.1
+  - @pnpm/deps.inspection.list@1100.0.5
+  - @pnpm/config.matcher@1100.0.1
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/network.fetch@1100.0.2
+  - @pnpm/cli.command@1100.0.1
+  - @pnpm/store.path@1100.0.1
+  - @pnpm/cli.utils@1101.0.2
+  - @pnpm/global.commands@1100.0.8
+  - @pnpm/deps.inspection.peers-checker@1100.0.4
+  - @pnpm/global.packages@1100.0.2
+  - @pnpm/lockfile.fs@1100.0.4
+
+## 1100.1.6
+
+### Patch Changes
+
+- Updated dependencies [685a369]
+  - @pnpm/global.commands@1100.0.7
+  - @pnpm/cli.utils@1101.0.1
+
+## 1100.1.5
+
+### Patch Changes
+
+- Updated dependencies [0fbcf74]
+  - @pnpm/config.reader@1101.1.2
+  - @pnpm/global.commands@1100.0.6
+  - @pnpm/resolving.default-resolver@1100.0.6
+  - @pnpm/deps.inspection.outdated@1100.0.6
+
+## 1100.1.4
+
+### Patch Changes
+
+- @pnpm/global.commands@1100.0.5
+- @pnpm/resolving.default-resolver@1100.0.5
+- @pnpm/deps.inspection.outdated@1100.0.5
+
 ## 1100.1.3
 
 ### Patch Changes

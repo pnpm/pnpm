@@ -3,7 +3,7 @@ import path from 'node:path'
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { buildSelectedPkgs } from '@pnpm/building.after-install'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/building.during-install'
-import { createAllowBuildFunction } from '@pnpm/building.policy'
+import { createAllowBuildFunction, isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { type CatalogResultMatcher, matchCatalogResolveResult, resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
@@ -681,7 +681,9 @@ export async function mutateModules (
     >
 
     async function installSome (project: InstallSomeProject) {
-      const currentBareSpecifiers = opts.ignoreCurrentSpecifiers ? {} : getAllDependenciesFromManifest(project.manifest)
+      const currentBareSpecifiers = opts.ignoreCurrentSpecifiers
+        ? {}
+        : getAllDependenciesFromManifest(project.manifest, { autoInstallPeers: opts.autoInstallPeers })
       const optionalDependencies = project.targetDependenciesField ? {} : project.manifest.optionalDependencies ?? {}
       const devDependencies = project.targetDependenciesField ? {} : project.manifest.devDependencies ?? {}
       if (preferredSpecs == null) {
@@ -1313,6 +1315,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       preferredVersions,
       preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
       registries: ctx.registries,
+      namedRegistries: opts.namedRegistries,
       resolutionMode: opts.resolutionMode,
       saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       storeController: opts.storeController,
@@ -1492,7 +1495,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         if (ctx.modulesFile?.ignoredBuilds?.size) {
           ignoredBuilds ??= new Set()
           for (const ignoredBuild of ctx.modulesFile.ignoredBuilds.values()) {
-            if (result.currentLockfile.packages?.[ignoredBuild]) {
+            if (result.currentLockfile.packages?.[ignoredBuild] && !isBuildExplicitlyDisallowed(ignoredBuild, opts.allowBuild)) {
               ignoredBuilds.add(ignoredBuild)
             }
           }
@@ -1599,6 +1602,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
           pendingBuilds: ctx.pendingBuilds,
           publicHoistPattern: ctx.publicHoistPattern,
+          virtualStoreOnly: opts.virtualStoreOnly,
           prunedAt: opts.pruneVirtualStore || ctx.modulesFile == null
             ? new Date().toUTCString()
             : ctx.modulesFile.prunedAt,
@@ -2179,7 +2183,11 @@ async function installFromPnpmRegistry (
         await fileDownloads
         const resolution = fetchOpts.pkg.resolution
         const integrity = resolution?.integrity
-        if (integrity) {
+        // Fall through to the regular store controller for git-hosted tarballs.
+        // Their cached entry lives under gitHostedStoreIndexKey (preserves the
+        // built/not-built dimension), not the integrity-keyed path the agent
+        // uses for npm tarballs. See @pnpm/store.pkg-finder for the rationale.
+        if (integrity && !resolution?.gitHosted) {
           const filesIndexFile = _storeIndexKey(integrity, fetchOpts.pkg.id)
           const result = await readPkgFromCafs(
             { storeDir: opts.storeDir, verifyStoreIntegrity: false },

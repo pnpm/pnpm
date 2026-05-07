@@ -181,6 +181,38 @@ describe('serializeSpdx', () => {
     expect(dependsOn).toHaveLength(1)
   })
 
+  it('should use tarballUrl as downloadLocation for registry packages', () => {
+    const result = makeSbomResult()
+    result.components[0].tarballUrl = 'https://registry.npmjs.org/lodash/-/lodash-4.17.21.tgz'
+    const parsed = JSON.parse(serializeSpdx(result))
+
+    expect(parsed.packages[1].downloadLocation).toBe('https://registry.npmjs.org/lodash/-/lodash-4.17.21.tgz')
+  })
+
+  it('should use git URL as downloadLocation for git dependencies', () => {
+    const result = makeSbomResult()
+    result.components[0].tarballUrl = 'git+https://github.com/stevemao/left-pad.git#2fca6157'
+    const parsed = JSON.parse(serializeSpdx(result))
+
+    expect(parsed.packages[1].downloadLocation).toBe('git+https://github.com/stevemao/left-pad.git#2fca6157')
+  })
+
+  it('should preserve SCP-style SSH URLs without git+ prefix', () => {
+    const result = makeSbomResult()
+    result.components[0].tarballUrl = 'git@github.com:user/repo.git#abc123'
+    const parsed = JSON.parse(serializeSpdx(result))
+
+    expect(parsed.packages[1].downloadLocation).toBe('git@github.com:user/repo.git#abc123')
+  })
+
+  it('should use NOASSERTION when no downloadLocation is available', () => {
+    const result = makeSbomResult()
+    result.components[0].tarballUrl = undefined
+    const parsed = JSON.parse(serializeSpdx(result))
+
+    expect(parsed.packages[1].downloadLocation).toBe('NOASSERTION')
+  })
+
   it('should use APPLICATION for application root type', () => {
     const result = makeSbomResult()
     result.rootComponent.type = 'application'

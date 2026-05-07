@@ -1,5 +1,6 @@
 import { expect, it } from '@jest/globals'
-import { createAllowBuildFunction } from '@pnpm/building.policy'
+import { createAllowBuildFunction, isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
+import type { DepPath } from '@pnpm/types'
 
 it('should allowBuilds with true value', () => {
   const allowBuild = createAllowBuildFunction({
@@ -41,4 +42,22 @@ it('should allow everything when dangerouslyAllowAllBuilds is true', () => {
   })
   expect(typeof allowBuild).toBe('function')
   expect(allowBuild!('foo', '1.0.0')).toBeTruthy()
+})
+
+it('isBuildExplicitlyDisallowed() flags only builds the policy explicitly forbids', () => {
+  const allowBuild = createAllowBuildFunction({
+    allowBuilds: { foo: false, bar: true },
+  })
+  expect(isBuildExplicitlyDisallowed('foo@1.0.0' as DepPath, allowBuild)).toBe(true)
+  expect(isBuildExplicitlyDisallowed('bar@1.0.0' as DepPath, allowBuild)).toBe(false)
+  expect(isBuildExplicitlyDisallowed('baz@1.0.0' as DepPath, allowBuild)).toBe(false)
+})
+
+it('isBuildExplicitlyDisallowed() returns false when no policy is set', () => {
+  expect(isBuildExplicitlyDisallowed('foo@1.0.0' as DepPath, undefined)).toBe(false)
+})
+
+it('isBuildExplicitlyDisallowed() returns false for unparsable depPaths', () => {
+  const allowBuild = createAllowBuildFunction({ allowBuilds: { foo: false } })
+  expect(isBuildExplicitlyDisallowed('not-a-valid-dep-path' as DepPath, allowBuild)).toBe(false)
 })

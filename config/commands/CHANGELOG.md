@@ -1,5 +1,61 @@
 # @pnpm/plugin-commands-config
 
+## 1100.0.10
+
+### Patch Changes
+
+- 3e2df55: `pnpm config get @<scope>:registry` now reports the same URL that `pnpm publish` and the resolvers actually use. Previously, `config get` only consulted `.npmrc`, while `publish`/install used the merged map that includes `pnpm-workspace.yaml`'s `registries` block — so the two could diverge silently and a publish could go to the wrong registry [#11492](https://github.com/pnpm/pnpm/issues/11492).
+- Updated dependencies [707a879]
+  - @pnpm/config.reader@1101.2.1
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.6
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [8fdd9a9]
+- Updated dependencies [5f34a8d]
+- Updated dependencies [c969392]
+- Updated dependencies [0d791f3]
+- Updated dependencies [817b1b4]
+- Updated dependencies [c969392]
+- Updated dependencies [2de318b]
+  - @pnpm/config.reader@1101.2.0
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.5
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+
+## 1100.0.7
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/text.naming-cases@1100.0.1
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/cli.utils@1101.0.2
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.4
+
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/cli.utils@1101.0.1
+- @pnpm/workspace.workspace-manifest-writer@1100.0.3
+
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [0fbcf74]
+  - @pnpm/config.reader@1101.1.2
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.3
+
 ## 1100.0.4
 
 ### Patch Changes

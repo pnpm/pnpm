@@ -5,6 +5,7 @@ import { PnpmError } from '@pnpm/error'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
 import type { PatchGroupRecord } from '@pnpm/patching.config'
+import { BUILTIN_NAMED_REGISTRIES } from '@pnpm/resolving.npm-resolver'
 import type { PreferredVersions, Resolution, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type {
@@ -122,6 +123,7 @@ export interface ResolveDependenciesOptions {
   }
   nodeVersion?: string
   registries: Registries
+  namedRegistries?: Record<string, string>
   patchedDependencies?: PatchGroupRecord
   pnpmVersion: string
   preferredVersions?: PreferredVersions
@@ -193,6 +195,12 @@ export async function resolveDependencyTree<T> (
     preferWorkspacePackages: opts.preferWorkspacePackages,
     readPackageHook: opts.hooks.readPackage,
     registries: opts.registries,
+    namedRegistryPrefixes: Array.from(
+      new Set([
+        ...Object.keys(BUILTIN_NAMED_REGISTRIES),
+        ...Object.keys(opts.namedRegistries ?? {}),
+      ])
+    ).map((alias) => `${alias}:`),
     resolvedPkgsById: {} as ResolvedPkgsById,
     resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     resolutionMode: opts.resolutionMode,

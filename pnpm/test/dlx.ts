@@ -60,7 +60,7 @@ test('silent dlx prints the output of the child process only', async () => {
   expect(result.stdout.toString().trim()).toBe('hi')
 })
 
-test('dlx ignores configuration in pnpm-workspace.yaml', async () => {
+test('dlx ignores patchedDependencies in pnpm-workspace.yaml', async () => {
   prepare()
   // Write a pnpm-workspace.yaml with a patchedDependencies that doesn't exist
   // dlx should ignore this and succeed
@@ -173,6 +173,66 @@ skipOnWindows('pnpm create respects minimumReleaseAge from pnpm-workspace.yaml',
 
   expect(result.status).toBe(1)
   expect(result.stderr.toString()).toMatch(/does not meet the minimumReleaseAge constraint/)
+})
+
+describe('catalogs inherited from pnpm-workspace.yaml', () => {
+  test('dlx succeeds when in default catalog', () => {
+    prepare()
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      catalog: {
+        shx: '0.3.4',
+      },
+    })
+
+    execPnpmSync([
+      'dlx', 'shx@catalog:', 'echo', 'hi',
+    ], { expectSuccess: true, omitEnvDefaults: ['pnpm_config_minimum_release_age'] })
+  })
+
+  test('dlx fails when not in default catalog', () => {
+    prepare()
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      catalog: {},
+    })
+
+    const result = execPnpmSync([
+      'dlx', 'shx@catalog:', 'echo', 'hi',
+    ], { omitEnvDefaults: ['pnpm_config_minimum_release_age'] })
+
+    expect(result.status).toBe(1)
+    expect(result.stderr.toString()).toMatch(/No catalog entry 'shx' was found for catalog 'default'/)
+  })
+
+  test('dlx succeeds when in named catalog', () => {
+    prepare()
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      catalogs: {
+        shx034: {
+          shx: '0.3.4',
+        },
+      },
+    })
+
+    execPnpmSync([
+      'dlx', 'shx@catalog:shx034', 'echo', 'hi',
+    ], { expectSuccess: true, omitEnvDefaults: ['pnpm_config_minimum_release_age'] })
+  })
+
+  test('dlx fails when not in named catalog', () => {
+    prepare()
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      catalogs: {
+        shx034: {},
+      },
+    })
+
+    const result = execPnpmSync([
+      'dlx', 'shx@catalog:shx034', 'echo', 'hi',
+    ], { omitEnvDefaults: ['pnpm_config_minimum_release_age'] })
+
+    expect(result.status).toBe(1)
+    expect(result.stderr.toString()).toMatch(/No catalog entry 'shx' was found for catalog 'shx034'/)
+  })
 })
 
 test('dlx should work with pnpm_config_save_dev env variable', async () => {

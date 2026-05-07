@@ -1,15 +1,15 @@
-# @pnpm/tarball-resolver
+# @pnpm/resolving.tarball-resolver
 
 > Resolver for tarball dependencies
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/tarball-resolver.svg)](https://www.npmjs.com/package/@pnpm/tarball-resolver)
+[![npm version](https://img.shields.io/npm/v/@pnpm/resolving.tarball-resolver.svg)](https://npmx.dev/package/@pnpm/resolving.tarball-resolver)
 <!--/@-->
 
 ## Installation
 
 ```sh
-pnpm add @pnpm/tarball-resolver
+pnpm add @pnpm/resolving.tarball-resolver
 ```
 
 ## Usage
@@ -17,7 +17,7 @@ pnpm add @pnpm/tarball-resolver
 <!--@example('./example.js')-->
 ```js
 'use strict'
-const resolveFromTarball = require('@pnpm/tarball-resolver').default
+const resolveFromTarball = require('@pnpm/resolving.tarball-resolver').default
 
 resolveFromTarball({bareSpecifier: 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'})
   .then(resolveResult => console.log(JSON.stringify(resolveResult, null, 2)))

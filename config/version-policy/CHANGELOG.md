@@ -1,5 +1,12 @@
 # @pnpm/config.version-policy
 
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/config.matcher@1100.0.1
+
 ## 1100.0.1
 
 ### Patch Changes

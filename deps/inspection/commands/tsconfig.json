@@ -89,6 +89,9 @@
     },
     {
       "path": "../peers-checker"
+    },
+    {
+      "path": "../peers-issues-renderer"
     }
   ]
 }

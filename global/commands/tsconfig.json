@@ -37,6 +37,9 @@
       "path": "../../core/types"
     },
     {
+      "path": "../../deps/inspection/list"
+    },
+    {
       "path": "../../installing/deps-installer"
     },
     {

@@ -1,5 +1,55 @@
 # @pnpm/plugin-commands-init
 
+## 1100.1.8
+
+### Patch Changes
+
+- Updated dependencies [707a879]
+  - @pnpm/config.reader@1101.2.1
+
+## 1100.1.7
+
+### Patch Changes
+
+- Updated dependencies [8fdd9a9]
+- Updated dependencies [5f34a8d]
+- Updated dependencies [c969392]
+- Updated dependencies [817b1b4]
+- Updated dependencies [c969392]
+- Updated dependencies [2de318b]
+  - @pnpm/config.reader@1101.2.0
+
+## 1100.1.6
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+
+## 1100.1.5
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/workspace.project-manifest-writer@1100.0.2
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/cli.utils@1101.0.2
+  - @pnpm/cli.meta@1100.0.2
+
+## 1100.1.4
+
+### Patch Changes
+
+- @pnpm/cli.utils@1101.0.1
+
+## 1100.1.3
+
+### Patch Changes
+
+- Updated dependencies [0fbcf74]
+  - @pnpm/config.reader@1101.1.2
+
 ## 1100.1.2
 
 ### Patch Changes

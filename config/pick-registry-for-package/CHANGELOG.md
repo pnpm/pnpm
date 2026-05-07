@@ -1,5 +1,11 @@
 # @pnpm/pick-registry-for-package
 
+## 1100.0.2
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+
 ## 1100.0.1
 
 ### Patch Changes

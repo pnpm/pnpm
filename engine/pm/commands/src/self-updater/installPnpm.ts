@@ -397,12 +397,24 @@ export function linkExePlatformBinary (installDir: string): void {
   forceLink(src, dest)
 
   if (platform === 'win32') {
+    // Aliases (pn / pnpx / pnx) need to be .exe hardlinks of the SEA binary,
+    // not the .cmd wrappers we ship in the tarball. cmd-shim's Bash shim for
+    // a .cmd target wraps it in `exec cmd /C ...`, and MSYS2 / Git Bash
+    // mangles `/C` into a Windows path — cmd.exe then falls into interactive
+    // mode and prints its banner instead of running the alias. .exe sources
+    // sidestep cmd-shim's wrapper. The SEA binary detects which name it was
+    // launched as via process.execPath and prepends `dlx` for pnpx / pnx.
+    // See https://github.com/pnpm/pnpm/issues/11486.
+    for (const alias of ['pn', 'pnpx', 'pnx']) {
+      forceLink(src, path.join(exePkgDir, `${alias}.exe`))
+    }
+
     const exePkgJsonPath = path.join(exePkgDir, 'package.json')
     const exePkg = JSON.parse(fs.readFileSync(exePkgJsonPath, 'utf8'))
     exePkg.bin.pnpm = 'pnpm.exe'
-    exePkg.bin.pn = 'pn.cmd'
-    exePkg.bin.pnpx = 'pnpx.cmd'
-    exePkg.bin.pnx = 'pnx.cmd'
+    exePkg.bin.pn = 'pn.exe'
+    exePkg.bin.pnpx = 'pnpx.exe'
+    exePkg.bin.pnx = 'pnx.exe'
     fs.writeFileSync(exePkgJsonPath, JSON.stringify(exePkg, null, 2))
   }
 }

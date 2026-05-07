@@ -1,5 +1,47 @@
 # @pnpm/package-requester
 
+## 1101.0.3
+
+### Patch Changes
+
+- 27425d7: Pin the integrity of git-hosted tarballs (codeload.github.com, gitlab.com, bitbucket.org) in the lockfile so that subsequent installs detect a tampered or substituted tarball and refuse to install it. Previously the lockfile only stored the tarball URL for git dependencies, so a compromised git host or a man-in-the-middle could serve arbitrary code on later installs without lockfile changes.
+
+  A new `gitHosted: true` field is recorded on git-hosted tarball resolutions in the lockfile, letting every reader/writer route them by a single typed check instead of pattern-matching the tarball URL in each call site. Lockfiles written by older pnpm versions are enriched on load (URL fallback) so the field can be relied on uniformly across the codebase.
+
+- Updated dependencies [27425d7]
+  - @pnpm/fetching.pick-fetcher@1100.0.5
+  - @pnpm/resolving.resolver-base@1100.1.2
+  - @pnpm/hooks.types@1100.0.5
+  - @pnpm/fetching.fetcher-base@1100.1.2
+  - @pnpm/store.controller-types@1100.0.5
+  - @pnpm/store.cafs@1100.1.2
+  - @pnpm/worker@1100.1.2
+
+## 1101.0.2
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+- Updated dependencies [5a901e7]
+  - @pnpm/config.package-is-installable@1100.0.3
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/store.controller-types@1100.0.4
+  - @pnpm/fetching.fetcher-base@1100.1.1
+  - @pnpm/fetching.pick-fetcher@1100.0.4
+  - @pnpm/fs.graceful-fs@1100.1.0
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/worker@1100.1.1
+  - @pnpm/hooks.types@1100.0.4
+  - @pnpm/store.cafs@1100.1.1
+
+## 1101.0.1
+
+### Patch Changes
+
+- Updated dependencies [d96a1bf]
+  - @pnpm/config.package-is-installable@1100.0.2
+
 ## 1101.0.0
 
 ### Patch Changes

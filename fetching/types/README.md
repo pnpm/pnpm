@@ -1,4 +1,4 @@
-# @pnpm/fetching-types
+# @pnpm/fetching.types
 
 > Types for the fetching
 

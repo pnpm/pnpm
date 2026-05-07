@@ -2,7 +2,7 @@
 
 > Resolves a Node.js version specifier to an exact Node.js version
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/engine.runtime.node-resolver.svg)](https://www.npmjs.com/package/@pnpm/engine.runtime.node-resolver)
+[![npm version](https://img.shields.io/npm/v/@pnpm/engine.runtime.node-resolver.svg)](https://npmx.dev/package/@pnpm/engine.runtime.node-resolver)
 
 ## Installation
 

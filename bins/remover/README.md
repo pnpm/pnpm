@@ -1,11 +1,11 @@
-# @pnpm/remove-bins
+# @pnpm/bins.remover
 
 > Remove bins from ./bin
 
 ## Install
 
 ```
-pnpm install @pnpm/remove-bins
+pnpm install @pnpm/bins.remover
 ```
 
 ## API

@@ -1,5 +1,190 @@
 # @pnpm/plugin-commands-installation
 
+## 1100.1.11
+
+### Patch Changes
+
+- @pnpm/building.after-install@1101.0.8
+- @pnpm/deps.inspection.outdated@1100.0.11
+- @pnpm/installing.deps-installer@1101.0.8
+- @pnpm/installing.env-installer@1101.0.6
+- @pnpm/global.commands@1100.0.13
+- @pnpm/deps.status@1100.0.11
+- @pnpm/installing.context@1100.0.7
+- @pnpm/store.connection-manager@1100.0.12
+- @pnpm/store.controller@1101.0.3
+
+## 1100.1.10
+
+### Patch Changes
+
+- Updated dependencies [12313f1]
+- Updated dependencies [27425d7]
+- Updated dependencies [707a879]
+  - @pnpm/installing.deps-installer@1101.0.7
+  - @pnpm/building.after-install@1101.0.7
+  - @pnpm/lockfile.types@1100.0.4
+  - @pnpm/resolving.resolver-base@1100.1.2
+  - @pnpm/config.reader@1101.2.1
+  - @pnpm/installing.context@1100.0.6
+  - @pnpm/global.commands@1100.0.12
+  - @pnpm/store.controller@1101.0.3
+  - @pnpm/deps.inspection.outdated@1100.0.10
+  - @pnpm/deps.status@1100.0.10
+  - @pnpm/installing.env-installer@1101.0.5
+  - @pnpm/hooks.pnpmfile@1100.0.6
+  - @pnpm/installing.dedupe.check@1100.0.4
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.6
+  - @pnpm/store.connection-manager@1100.0.11
+  - @pnpm/workspace.state@1100.0.9
+  - @pnpm/config.writer@1100.0.6
+  - @pnpm/workspace.projects-graph@1100.0.5
+  - @pnpm/workspace.projects-filter@1100.0.8
+
+## 1100.1.9
+
+### Patch Changes
+
+- Updated dependencies [8fdd9a9]
+- Updated dependencies [5f34a8d]
+- Updated dependencies [8131d7c]
+- Updated dependencies [c969392]
+- Updated dependencies [0d791f3]
+- Updated dependencies [ab6c42d]
+- Updated dependencies [817b1b4]
+- Updated dependencies [c969392]
+- Updated dependencies [2de318b]
+  - @pnpm/config.reader@1101.2.0
+  - @pnpm/hooks.pnpmfile@1100.0.5
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.5
+  - @pnpm/installing.deps-installer@1101.0.6
+  - @pnpm/deps.status@1100.0.9
+  - @pnpm/workspace.state@1100.0.8
+  - @pnpm/building.after-install@1101.0.6
+  - @pnpm/global.commands@1100.0.11
+  - @pnpm/store.connection-manager@1100.0.10
+  - @pnpm/config.writer@1100.0.5
+  - @pnpm/installing.env-installer@1101.0.4
+  - @pnpm/deps.inspection.outdated@1100.0.9
+  - @pnpm/store.controller@1101.0.2
+
+## 1100.1.8
+
+### Patch Changes
+
+- f6bc1db: `pnpm dlx` (and `pnpx`/`pnx`/`pnpm create`) now runs the same interactive `approve-builds` prompt as `pnpm add -g` when the package being launched depends on transitive packages with install scripts. Previously, the v11 `strictDepBuilds` default made dlx fail with `ERR_PNPM_IGNORED_BUILDS` and required users to re-run with `--allow-build=<pkg>` for every offending dependency. dlx also now removes the partially-populated cache directory when the install fails, so a subsequent run starts clean instead of reusing a broken install whose builds were silently skipped [#11444](https://github.com/pnpm/pnpm/issues/11444).
+- Updated dependencies [72629fc]
+  - @pnpm/global.commands@1100.0.10
+
+## 1100.1.7
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+  - @pnpm/building.after-install@1101.0.5
+  - @pnpm/deps.status@1100.0.8
+  - @pnpm/global.commands@1100.0.9
+  - @pnpm/store.connection-manager@1100.0.9
+  - @pnpm/workspace.state@1100.0.7
+  - @pnpm/installing.deps-installer@1101.0.5
+  - @pnpm/deps.inspection.outdated@1100.0.8
+  - @pnpm/store.controller@1101.0.2
+  - @pnpm/installing.env-installer@1101.0.3
+
+## 1100.1.6
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+- Updated dependencies [5a901e7]
+  - @pnpm/resolving.parse-wanted-dependency@1100.0.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.3
+  - @pnpm/workspace.project-manifest-writer@1100.0.2
+  - @pnpm/config.pick-registry-for-package@1100.0.2
+  - @pnpm/cli.common-cli-options-help@1100.0.1
+  - @pnpm/installing.deps-installer@1101.0.4
+  - @pnpm/workspace.projects-filter@1100.0.7
+  - @pnpm/workspace.projects-reader@1101.0.2
+  - @pnpm/deps.inspection.outdated@1100.0.7
+  - @pnpm/store.connection-manager@1100.0.8
+  - @pnpm/installing.dedupe.check@1100.0.3
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/workspace.root-finder@1100.0.1
+  - @pnpm/fs.read-modules-dir@1100.0.1
+  - @pnpm/pkg-manifest.reader@1100.0.2
+  - @pnpm/installing.context@1100.0.5
+  - @pnpm/pkg-manifest.utils@1100.1.1
+  - @pnpm/store.controller@1101.0.2
+  - @pnpm/config.matcher@1100.0.1
+  - @pnpm/fs.graceful-fs@1100.1.0
+  - @pnpm/hooks.pnpmfile@1100.0.4
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/config.writer@1100.0.4
+  - @pnpm/cli.command@1100.0.1
+  - @pnpm/cli.utils@1101.0.2
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/installing.env-installer@1101.0.3
+  - @pnpm/deps.status@1100.0.7
+  - @pnpm/building.after-install@1101.0.4
+  - @pnpm/global.commands@1100.0.8
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.4
+  - @pnpm/workspace.projects-graph@1100.0.4
+  - @pnpm/lockfile.types@1100.0.3
+  - @pnpm/workspace.state@1100.0.6
+
+## 1100.1.5
+
+### Patch Changes
+
+- Updated dependencies [685a369]
+  - @pnpm/global.commands@1100.0.7
+  - @pnpm/cli.utils@1101.0.1
+  - @pnpm/installing.deps-installer@1101.0.3
+  - @pnpm/installing.context@1100.0.4
+  - @pnpm/workspace.projects-reader@1101.0.1
+  - @pnpm/store.controller@1101.0.1
+  - @pnpm/building.after-install@1101.0.3
+  - @pnpm/deps.status@1100.0.6
+  - @pnpm/workspace.projects-filter@1100.0.6
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.3
+  - @pnpm/installing.env-installer@1101.0.2
+  - @pnpm/store.connection-manager@1100.0.7
+
+## 1100.1.4
+
+### Patch Changes
+
+- Updated dependencies [0fbcf74]
+  - @pnpm/config.reader@1101.1.2
+  - @pnpm/deps.status@1100.0.5
+  - @pnpm/workspace.projects-filter@1100.0.5
+  - @pnpm/workspace.projects-reader@1101.0.0
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.3
+  - @pnpm/building.after-install@1101.0.2
+  - @pnpm/global.commands@1100.0.6
+  - @pnpm/store.connection-manager@1100.0.6
+  - @pnpm/workspace.state@1100.0.5
+  - @pnpm/config.writer@1100.0.3
+  - @pnpm/installing.deps-installer@1101.0.2
+  - @pnpm/installing.env-installer@1101.0.1
+  - @pnpm/deps.inspection.outdated@1100.0.6
+  - @pnpm/store.controller@1101.0.0
+
+## 1100.1.3
+
+### Patch Changes
+
+- Updated dependencies [005eeb7]
+  - @pnpm/installing.deps-installer@1101.0.1
+  - @pnpm/global.commands@1100.0.5
+  - @pnpm/deps.inspection.outdated@1100.0.5
+  - @pnpm/store.connection-manager@1100.0.5
+  - @pnpm/store.controller@1101.0.0
+  - @pnpm/building.after-install@1101.0.1
+  - @pnpm/installing.env-installer@1101.0.0
+
 ## 1100.1.2
 
 ### Patch Changes

@@ -14,6 +14,7 @@ import {
 } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
 import enquirer from 'enquirer'
+import { pathAbsolute } from 'path-absolute'
 import { equals } from 'ramda'
 
 import { checkCompatibility } from './checkCompatibility/index.js'
@@ -61,7 +62,10 @@ export async function validateModules (
       ' Run "pnpm install" to recreate the modules directory.'
     )
   }
+  // virtualStoreOnly installs (e.g. `pnpm fetch`) force empty hoist patterns
+  // into .modules.yaml; the follow-up install must complete linking, not purge.
   if (
+    !modules.virtualStoreOnly &&
     !equals(modules.publicHoistPattern ?? [], opts.publicHoistPattern ?? [])
   ) {
     if (opts.forceNewModules && (rootProject != null)) {
@@ -77,7 +81,7 @@ export async function validateModules (
 
   const importersToPurge: ImporterToPurge[] = []
 
-  if (rootProject != null) {
+  if (!modules.virtualStoreOnly && rootProject != null) {
     try {
       if (!equals(opts.currentHoistPattern ?? [], opts.hoistPattern ?? [])) {
         throw new PnpmError(
@@ -115,7 +119,7 @@ export async function validateModules (
   }
   if (importersToPurge.length > 0 && (rootProject == null)) {
     importersToPurge.push({
-      modulesDir: path.join(opts.lockfileDir, opts.modulesDir),
+      modulesDir: pathAbsolute(opts.modulesDir, opts.lockfileDir),
       rootDir: opts.lockfileDir as ProjectRootDir,
     })
   }

@@ -6,7 +6,7 @@ import { createCompletionServer, generateCompletion } from '@pnpm/cli.commands'
 import { config, getCommand, setCommand } from '@pnpm/config.commands'
 import { types as allTypes } from '@pnpm/config.reader'
 import { audit, licenses, sbom } from '@pnpm/deps.compliance.commands'
-import { docs, list, ll, outdated, peers, view, why } from '@pnpm/deps.inspection.commands'
+import { bugs, docs, list, ll, outdated, peers, view, why } from '@pnpm/deps.inspection.commands'
 import { selfUpdate, setup, withCmd } from '@pnpm/engine.pm.commands'
 import { env, runtime } from '@pnpm/engine.runtime.commands'
 import {
@@ -18,7 +18,7 @@ import {
 } from '@pnpm/exec.commands'
 import { add, dedupe, fetch, importCommand, install, link, prune, remove, unlink, update } from '@pnpm/installing.commands'
 import { patch, patchCommit, patchRemove } from '@pnpm/patching.commands'
-import { deprecate, distTag, ping, search, star, stars, undeprecate, unpublish, unstar, whoami } from '@pnpm/registry-access.commands'
+import { deprecate, distTag, owner, ping, search, star, stars, undeprecate, unpublish, unstar, whoami } from '@pnpm/registry-access.commands'
 import { deploy, pack, packApp, publish, version } from '@pnpm/releasing.commands'
 import { catFile, catIndex, findHash, store } from '@pnpm/store.commands'
 import { init } from '@pnpm/workspace.commands'
@@ -125,6 +125,7 @@ const commands: CommandDefinition[] = [
   approveBuilds,
   audit,
   bin,
+  bugs,
   cache,
   ci,
   clean,
@@ -136,6 +137,7 @@ const commands: CommandDefinition[] = [
   deprecate,
   deploy,
   distTag,
+  owner,
   dlx,
   docs,
   env,

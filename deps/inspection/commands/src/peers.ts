@@ -2,8 +2,8 @@ import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { checkPeerDependencies } from '@pnpm/deps.inspection.peers-checker'
+import { renderPeerIssues } from '@pnpm/deps.inspection.peers-issues-renderer'
 import type { PeerDependencyIssuesByProjects } from '@pnpm/types'
-import chalk from 'chalk'
 import { isEmpty, pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
@@ -117,7 +117,7 @@ async function checkCmd (
   }
 
   return {
-    output: renderPeerIssuesFlat(issues),
+    output: `Issues with peer dependencies found\n\n${renderPeerIssues(issues)}`,
     exitCode: 1,
   }
 }
@@ -128,56 +128,4 @@ function hasNoIssues (issues: PeerDependencyIssuesByProjects): boolean {
       isEmpty(projectIssues.bad) &&
       isEmpty(projectIssues.missing)
   )
-}
-
-function renderPeerIssuesFlat (issuesByProjects: PeerDependencyIssuesByProjects): string {
-  const sections: string[] = []
-
-  for (const [, { bad, missing, conflicts, intersections }] of Object.entries(issuesByProjects)) {
-    for (const [peerName, issues] of Object.entries(bad)) {
-      const foundVersion = issues[0].foundVersion
-      const header = `${chalk.yellowBright('✕ unmet peer')} ${chalk.bold(peerName)}`
-      const installed = `  ${chalk.cyan('Installed:')} ${chalk.dim(foundVersion)}`
-      sections.push(`${header}\n${installed}\n${formatRequiredBy(issues)}`)
-    }
-
-    for (const [peerName, issues] of Object.entries(missing)) {
-      if (!intersections[peerName] && !conflicts.includes(peerName)) continue
-      const conflict = conflicts.includes(peerName)
-      const header = conflict
-        ? `${chalk.red('✕ conflicting peer')} ${chalk.bold(peerName)}`
-        : `${chalk.red('✕ missing peer')} ${chalk.bold(peerName)}`
-      sections.push(`${header}\n${formatRequiredBy(issues)}`)
-    }
-  }
-
-  if (sections.length === 0) return ''
-  return `Issues with peer dependencies found\n\n${sections.join('\n\n')}`
-}
-
-function formatRequiredBy (issues: Array<{ parents: Array<{ name: string, version: string }>, wantedRange: string }>): string {
-  const byRange = new Map<string, Set<string>>()
-  for (const issue of issues) {
-    const declaring = issue.parents[issue.parents.length - 1]
-    const pkg = `${declaring.name}@${declaring.version}`
-    if (!byRange.has(issue.wantedRange)) {
-      byRange.set(issue.wantedRange, new Set())
-    }
-    byRange.get(issue.wantedRange)!.add(pkg)
-  }
-  const lines: string[] = [`  ${chalk.cyan('Wanted:')}`]
-  for (const [range, pkgs] of byRange) {
-    lines.push(`    ${chalk.cyanBright(formatRange(range))}${chalk.cyan(':')}`)
-    for (const pkg of pkgs) {
-      lines.push(`      ${chalk.dim(pkg)}`)
-    }
-  }
-  return lines.join('\n')
-}
-
-function formatRange (range: string): string {
-  if (range.includes(' ') || range === '*') {
-    return `"${range}"`
-  }
-  return range
 }

@@ -1,5 +1,14 @@
 # @pnpm/global.packages
 
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/pkg-manifest.reader@1100.0.2
+  - @pnpm/bins.resolver@1100.0.2
+  - @pnpm/crypto.hash@1100.0.1
+
 ## 1100.0.1
 
 ### Patch Changes

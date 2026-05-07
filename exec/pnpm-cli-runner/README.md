@@ -2,7 +2,7 @@
 
 > Runs pnpm CLI
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/exec.pnpm-cli-runner.svg)](https://www.npmjs.com/package/@pnpm/exec.pnpm-cli-runner)
+[![npm version](https://img.shields.io/npm/v/@pnpm/exec.pnpm-cli-runner.svg)](https://npmx.dev/package/@pnpm/exec.pnpm-cli-runner)
 
 ## Installation
 

@@ -57,6 +57,14 @@ describe('serializeCycloneDx', () => {
     expect(parsed.serialNumber).toMatch(/^urn:uuid:[0-9a-f-]+$/)
   })
 
+  it('should honor specVersion option in $schema and specVersion fields', () => {
+    const result = makeSbomResult()
+    const parsed = JSON.parse(serializeCycloneDx(result, { specVersion: '1.6' }))
+
+    expect(parsed.$schema).toBe('http://cyclonedx.org/schema/bom-1.6.schema.json')
+    expect(parsed.specVersion).toBe('1.6')
+  })
+
   it('should include timestamp in metadata', () => {
     const before = new Date().toISOString()
     const result = makeSbomResult()
@@ -176,6 +184,33 @@ describe('serializeCycloneDx', () => {
     expect(distRef.hashes.length).toBeGreaterThan(0)
     expect(distRef.hashes[0].alg).toBeDefined()
     expect(distRef.hashes[0].content).toBeDefined()
+  })
+
+  it('should include distribution ref with git URL for git dependencies', () => {
+    const result = makeSbomResult()
+    result.components[0].tarballUrl = 'git+https://github.com/lodash/lodash.git#abc123'
+    result.components[0].integrity = undefined
+    const parsed = JSON.parse(serializeCycloneDx(result))
+
+    const lodash = parsed.components[0]
+    const distRef = lodash.externalReferences.find(
+      (r: { type: string }) => r.type === 'distribution'
+    )
+    expect(distRef).toBeDefined()
+    expect(distRef.url).toBe('git+https://github.com/lodash/lodash.git#abc123')
+    expect(distRef.hashes).toBeUndefined()
+  })
+
+  it('should omit distribution ref when tarballUrl is absent', () => {
+    const result = makeSbomResult()
+    result.components[0].tarballUrl = undefined
+    const parsed = JSON.parse(serializeCycloneDx(result))
+
+    const lodash = parsed.components[0]
+    const distRef = lodash.externalReferences?.find(
+      (r: { type: string }) => r.type === 'distribution'
+    )
+    expect(distRef).toBeUndefined()
   })
 
   it('should use license.id for known SPDX identifiers', () => {

@@ -1,13 +1,13 @@
-# @pnpm/plugin-commands-installation
+# @pnpm/installing.commands
 
 > Commands for installation
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/plugin-commands-installation.svg)](https://www.npmjs.com/package/@pnpm/plugin-commands-installation)
+[![npm version](https://img.shields.io/npm/v/@pnpm/installing.commands.svg)](https://npmx.dev/package/@pnpm/installing.commands)
 
 ## Installation
 
 ```sh
-pnpm add @pnpm/plugin-commands-installation
+pnpm add @pnpm/installing.commands
 ```
 
 ## License

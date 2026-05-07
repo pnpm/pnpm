@@ -189,6 +189,17 @@ try {
 }
 ```
 
+## Working with GitHub PRs, Issues, and Comments
+
+-   **Keep PR titles and descriptions current.** When pushing new changes to a PR, review the title and description and update them if they no longer accurately reflect what the PR does.
+-   **Reply to and resolve review conversations.** Once a review comment has been addressed, reply to the thread with a description of the resolution including the commit hash that fixed it, then mark the conversation as resolved.
+-   **Sign all agent-authored content.** When posting a comment, creating an issue, or opening a PR, append a footer to the message indicating that it was written by an agent. The footer must include the name of the agent and the name of the model used. Example:
+
+    ```markdown
+    ---
+    Written by an agent (Claude Code, claude-opus-4-7).
+    ```
+
 ## Resolving Conflicts in GitHub PRs
 
 Use `shell/resolve-pr-conflicts.sh` to resolve PR conflicts:

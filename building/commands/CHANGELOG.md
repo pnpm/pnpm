@@ -1,5 +1,105 @@
 # @pnpm/building.commands
 
+## 1100.0.13
+
+### Patch Changes
+
+- @pnpm/building.after-install@1101.0.8
+- @pnpm/installing.commands@1100.1.11
+- @pnpm/store.connection-manager@1100.0.12
+
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [12313f1]
+- Updated dependencies [27425d7]
+- Updated dependencies [707a879]
+  - @pnpm/installing.modules-yaml@1100.0.3
+  - @pnpm/building.after-install@1101.0.7
+  - @pnpm/config.reader@1101.2.1
+  - @pnpm/installing.commands@1100.1.10
+  - @pnpm/store.connection-manager@1100.0.11
+  - @pnpm/config.writer@1100.0.6
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [8fdd9a9]
+- Updated dependencies [5f34a8d]
+- Updated dependencies [c969392]
+- Updated dependencies [817b1b4]
+- Updated dependencies [c969392]
+- Updated dependencies [2de318b]
+  - @pnpm/config.reader@1101.2.0
+  - @pnpm/building.after-install@1101.0.6
+  - @pnpm/installing.commands@1100.1.9
+  - @pnpm/store.connection-manager@1100.0.10
+  - @pnpm/config.writer@1100.0.5
+
+## 1100.0.10
+
+### Patch Changes
+
+- f6bc1db: `pnpm dlx` (and `pnpx`/`pnx`/`pnpm create`) now runs the same interactive `approve-builds` prompt as `pnpm add -g` when the package being launched depends on transitive packages with install scripts. Previously, the v11 `strictDepBuilds` default made dlx fail with `ERR_PNPM_IGNORED_BUILDS` and required users to re-run with `--allow-build=<pkg>` for every offending dependency. dlx also now removes the partially-populated cache directory when the install fails, so a subsequent run starts clean instead of reusing a broken install whose builds were silently skipped [#11444](https://github.com/pnpm/pnpm/issues/11444).
+- Updated dependencies [f6bc1db]
+  - @pnpm/installing.commands@1100.1.8
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+  - @pnpm/building.after-install@1101.0.5
+  - @pnpm/installing.commands@1100.1.7
+  - @pnpm/store.connection-manager@1100.0.9
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/cli.common-cli-options-help@1100.0.1
+  - @pnpm/store.connection-manager@1100.0.8
+  - @pnpm/installing.modules-yaml@1100.0.2
+  - @pnpm/installing.commands@1100.1.6
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/config.writer@1100.0.4
+  - @pnpm/cli.command@1100.0.1
+  - @pnpm/cli.utils@1101.0.2
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/building.after-install@1101.0.4
+
+## 1100.0.7
+
+### Patch Changes
+
+- @pnpm/cli.utils@1101.0.1
+- @pnpm/installing.commands@1100.1.5
+- @pnpm/building.after-install@1101.0.3
+- @pnpm/store.connection-manager@1100.0.7
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [0fbcf74]
+  - @pnpm/config.reader@1101.1.2
+  - @pnpm/building.after-install@1101.0.2
+  - @pnpm/installing.commands@1100.1.4
+  - @pnpm/store.connection-manager@1100.0.6
+  - @pnpm/config.writer@1100.0.3
+
+## 1100.0.5
+
+### Patch Changes
+
+- @pnpm/installing.commands@1100.1.3
+- @pnpm/store.connection-manager@1100.0.5
+- @pnpm/building.after-install@1101.0.1
+
 ## 1100.0.4
 
 ### Patch Changes

@@ -1,5 +1,6 @@
 import type { Config } from '@pnpm/config.reader'
 import type { Log } from '@pnpm/core-loggers'
+import { renderPeerIssues } from '@pnpm/deps.inspection.peers-issues-renderer'
 import type { PnpmError } from '@pnpm/error'
 import { renderDedupeCheckIssues } from '@pnpm/installing.dedupe.issues-renderer'
 import type { DedupeCheckIssues } from '@pnpm/installing.dedupe.types'
@@ -303,7 +304,7 @@ function formatGenericError (errorMessage: string, stack: object): ErrorInfo {
 }
 
 function formatErrorSummary (message: string, code?: string): string {
-  return `${chalk.bgRed.black(`\u2009${code ?? 'ERROR'}\u2009`)} ${chalk.red(message)}`
+  return `${chalk.bgRed.red('[')}${chalk.bgRed.black(code ?? 'ERROR')}${chalk.bgRed.red(']')} ${chalk.red(message)}`
 }
 
 function reportModifiedDependency (msg: { modified: string[] }): ErrorInfo {
@@ -461,9 +462,7 @@ function reportPeerDependencyIssuesError (
   msg: { issuesByProjects: PeerDependencyIssuesByProjects }
 ): ErrorInfo {
   const hasMissingPeers = getHasMissingPeers(msg.issuesByProjects)
-  const hints: string[] = [
-    'Run "pnpm peers check" to list the peer dependency issues.',
-  ]
+  const hints: string[] = []
   if (hasMissingPeers) {
     hints.push(`To auto-install peer dependencies, add the following to "pnpm-workspace.yaml" in your project root:
 
@@ -471,11 +470,12 @@ function reportPeerDependencyIssuesError (
   }
   hints.push(`To disable failing on peer dependency issues, add the following to pnpm-workspace.yaml in your project root:
 
-  strictPeerDependencies: false
-`)
+  strictPeerDependencies: false`)
+  const formattedHints = hints.map((hint) => `hint: ${hint}`).join('\n')
+  const rendered = renderPeerIssues(msg.issuesByProjects)
   return {
     title: err.message,
-    body: hints.map((hint) => `hint: ${hint}`).join('\n'),
+    body: rendered ? `${rendered}\n${formattedHints}` : formattedHints,
   }
 }
 

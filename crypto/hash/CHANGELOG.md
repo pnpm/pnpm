@@ -1,5 +1,13 @@
 # @pnpm/crypto.hash
 
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+- Updated dependencies [5a901e7]
+  - @pnpm/fs.graceful-fs@1100.1.0
+
 ## 1001.0.0
 
 ### Major Changes

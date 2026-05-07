@@ -24,7 +24,8 @@ const pnpmDistDir = path.join(repoRoot, 'pnpm/dist')
   await createArtifactTarball('linux-x64-musl', 'pnpm')
   await createArtifactTarball('linux-arm64', 'pnpm')
   await createArtifactTarball('linux-arm64-musl', 'pnpm')
-  await createArtifactTarball('darwin-x64', 'pnpm')
+  // darwin-x64 is intentionally absent: Node.js SEA injection produces a
+  // binary that segfaults on Intel Mac (pnpm/pnpm#11423, nodejs/node#62893).
   await createArtifactTarball('darwin-arm64', 'pnpm')
   await createArtifactTarball('win32-x64', 'pnpm.exe')
   await createArtifactTarball('win32-arm64', 'pnpm.exe')
@@ -48,7 +49,7 @@ async function createArtifactTarball (target: string, binaryName: string): Promi
     // createSourceMapsArchive(), which reads from the original pnpmDistDir.
     const distDest = path.join(artifactDir, 'dist')
     fs.rmSync(distDest, { recursive: true, force: true })
-    fs.cpSync(pnpmDistDir, distDest, { recursive: true })
+    fs.cpSync(pnpmDistDir, distDest, { recursive: true, verbatimSymlinks: true })
     stripReflinkPackages(distDest, getReflinkKeepPackages(target))
     for (const mapFile of await glob('**/*.map', { cwd: distDest })) {
       fs.rmSync(path.join(distDest, mapFile))

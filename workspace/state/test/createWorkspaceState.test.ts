@@ -38,6 +38,9 @@ test('createWorkspaceState() saves lockfile-affecting settings', () => {
     pnpmfiles: [],
     filteredInstall: false,
     settings: {
+      allowBuilds: {
+        '@pnpm.e2e/pre-and-postinstall-scripts-example': false,
+      },
       autoInstallPeers: true,
       dedupeDirectDeps: true,
       excludeLinksFromLockfile: false,
@@ -58,6 +61,9 @@ test('createWorkspaceState() saves lockfile-affecting settings', () => {
     },
   })
 
+  expect(state.settings.allowBuilds).toStrictEqual({
+    '@pnpm.e2e/pre-and-postinstall-scripts-example': false,
+  })
   expect(state.settings.overrides).toStrictEqual({ foo: '1.0.0' })
   expect(state.settings.packageExtensions).toStrictEqual({
     bar: { dependencies: { baz: '2.0.0' } },

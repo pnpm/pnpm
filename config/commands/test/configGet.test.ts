@@ -234,6 +234,27 @@ test('config get with scoped registry key (global: true)', async () => {
   expect(getOutputString(getResult)).toBe('https://custom-registry.example.com/')
 })
 
+test('config get with scoped registry returns the merged value from pnpm-workspace.yaml (#11492)', async () => {
+  // .npmrc set the scope to one URL, but pnpm-workspace.yaml's `registries`
+  // block overrides it. `pnpm config get` must report the URL that
+  // resolvers/publish actually use, not the raw .npmrc value.
+  const getResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: false,
+    authConfig: {
+      '@scope:registry': 'https://from-npmrc.example.com/',
+    },
+    registries: {
+      default: 'https://registry.npmjs.org/',
+      '@scope': 'https://from-workspace-yaml.example.com/',
+    },
+  }), ['get', '@scope:registry'])
+
+  expect(getOutputString(getResult)).toBe('https://from-workspace-yaml.example.com/')
+})
+
 test('config get with scoped registry key that does not exist', async () => {
   const getResult = await config.handler(createConfigCommandOpts({
     dir: process.cwd(),

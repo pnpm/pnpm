@@ -295,7 +295,11 @@ test('re-adding a git repo with a different tag', async () => {
   expect(lockfile.packages).toEqual(
     {
       'is-negative@https://codeload.github.com/kevva/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99': {
-        resolution: { tarball: 'https://codeload.github.com/kevva/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99' },
+        resolution: {
+          tarball: 'https://codeload.github.com/kevva/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99',
+          integrity: expect.stringMatching(/^sha512-/),
+          gitHosted: true,
+        },
         version: '1.0.0',
         engines: { node: '>=0.10.0' },
       },
@@ -312,7 +316,11 @@ test('re-adding a git repo with a different tag', async () => {
   expect(lockfile.packages).toEqual(
     {
       'is-negative@https://codeload.github.com/kevva/is-negative/tar.gz/f7dec4d66a5a56719e49b9f94a24d73f924ddeb3': {
-        resolution: { tarball: 'https://codeload.github.com/kevva/is-negative/tar.gz/f7dec4d66a5a56719e49b9f94a24d73f924ddeb3' },
+        resolution: {
+          tarball: 'https://codeload.github.com/kevva/is-negative/tar.gz/f7dec4d66a5a56719e49b9f94a24d73f924ddeb3',
+          integrity: expect.stringMatching(/^sha512-/),
+          gitHosted: true,
+        },
         version: '1.0.1',
         engines: { node: '>=0.10.0' },
       },

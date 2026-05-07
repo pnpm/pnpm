@@ -1,5 +1,23 @@
 # @pnpm/git-fetcher
 
+## 1101.0.2
+
+### Patch Changes
+
+- @pnpm/fetching.fetcher-base@1100.1.2
+- @pnpm/exec.prepare-package@1100.0.6
+- @pnpm/worker@1100.1.2
+
+## 1101.0.1
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/fetching.fetcher-base@1100.1.1
+  - @pnpm/exec.prepare-package@1100.0.5
+  - @pnpm/worker@1100.1.1
+
 ## 1101.0.0
 
 ### Patch Changes

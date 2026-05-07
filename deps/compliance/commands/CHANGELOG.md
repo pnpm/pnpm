@@ -1,5 +1,112 @@
 # @pnpm/deps.compliance.commands
 
+## 1101.1.10
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+  - @pnpm/deps.compliance.audit@1101.0.5
+  - @pnpm/deps.compliance.license-scanner@1100.0.8
+  - @pnpm/deps.compliance.sbom@1100.0.8
+  - @pnpm/lockfile.fs@1100.0.6
+  - @pnpm/installing.commands@1100.1.11
+
+## 1101.1.9
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+- Updated dependencies [707a879]
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/lockfile.types@1100.0.4
+  - @pnpm/lockfile.utils@1100.0.5
+  - @pnpm/config.reader@1101.2.1
+  - @pnpm/installing.commands@1100.1.10
+  - @pnpm/deps.compliance.audit@1101.0.4
+  - @pnpm/deps.compliance.license-scanner@1100.0.7
+  - @pnpm/deps.compliance.sbom@1100.0.7
+  - @pnpm/lockfile.walker@1100.0.4
+  - @pnpm/config.writer@1100.0.6
+
+## 1101.1.8
+
+### Patch Changes
+
+- Updated dependencies [8fdd9a9]
+- Updated dependencies [5f34a8d]
+- Updated dependencies [c969392]
+- Updated dependencies [817b1b4]
+- Updated dependencies [c969392]
+- Updated dependencies [2de318b]
+  - @pnpm/config.reader@1101.2.0
+  - @pnpm/installing.commands@1100.1.9
+  - @pnpm/config.writer@1100.0.5
+
+## 1101.1.7
+
+### Patch Changes
+
+- Updated dependencies [f6bc1db]
+  - @pnpm/installing.commands@1100.1.8
+
+## 1101.1.6
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+  - @pnpm/installing.commands@1100.1.7
+
+## 1101.1.5
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+- Updated dependencies [6b891a5]
+  - @pnpm/workspace.project-manifest-reader@1100.0.3
+  - @pnpm/deps.compliance.license-scanner@1100.0.6
+  - @pnpm/cli.common-cli-options-help@1100.0.1
+  - @pnpm/deps.compliance.audit@1101.0.3
+  - @pnpm/installing.commands@1100.1.6
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/config.writer@1100.0.4
+  - @pnpm/cli.command@1100.0.1
+  - @pnpm/store.path@1100.0.1
+  - @pnpm/cli.utils@1101.0.2
+  - @pnpm/cli.meta@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.4
+  - @pnpm/deps.compliance.sbom@1100.0.6
+  - @pnpm/lockfile.types@1100.0.3
+  - @pnpm/lockfile.fs@1100.0.4
+  - @pnpm/lockfile.walker@1100.0.3
+
+## 1101.1.4
+
+### Patch Changes
+
+- @pnpm/cli.utils@1101.0.1
+- @pnpm/deps.compliance.license-scanner@1100.0.5
+- @pnpm/installing.commands@1100.1.5
+
+## 1101.1.3
+
+### Patch Changes
+
+- 5e11362: Sort the keys of the overrides object returned by `pnpm audit --fix` so that the log output order matches the order written to `pnpm-workspace.yaml`.
+- Updated dependencies [f9afe81]
+- Updated dependencies [0fbcf74]
+  - @pnpm/deps.compliance.sbom@1100.0.5
+  - @pnpm/config.reader@1101.1.2
+  - @pnpm/installing.commands@1100.1.4
+  - @pnpm/config.writer@1100.0.3
+
+## 1101.1.2
+
+### Patch Changes
+
+- @pnpm/installing.commands@1100.1.3
+
 ## 1101.1.1
 
 ### Patch Changes

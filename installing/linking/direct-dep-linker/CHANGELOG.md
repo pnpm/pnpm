@@ -1,5 +1,14 @@
 # @pnpm/pkg-manager.direct-dep-linker
 
+## 1100.0.2
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/fs.symlink-dependency@1100.0.2
+  - @pnpm/fs.read-modules-dir@1100.0.1
+
 ## 1100.0.1
 
 ### Patch Changes

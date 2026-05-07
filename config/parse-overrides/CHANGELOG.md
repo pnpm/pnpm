@@ -1,5 +1,13 @@
 # @pnpm/parse-overrides
 
+## 1100.0.1
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/resolving.parse-wanted-dependency@1100.0.1
+
 ## 1002.0.0
 
 ### Major Changes

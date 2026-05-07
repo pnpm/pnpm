@@ -92,5 +92,5 @@ test('should print error summary when some packages fail with --no-bail', async 
   const output = stdout.toString()
   expect(output).toContain('ERR_PNPM_RECURSIVE_FAIL')
   expect(output).toContain('Summary: 1 fails, 2 passes')
-  expect(output).toContain('ERROR  project-2@1.0.0 build: `exit 1`')
+  expect(output).toContain('[ERROR] project-2@1.0.0 build: `exit 1`')
 })

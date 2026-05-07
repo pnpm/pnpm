@@ -1,5 +1,25 @@
 # @pnpm/directory-fetcher
 
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+  - @pnpm/resolving.resolver-base@1100.1.2
+  - @pnpm/fetching.fetcher-base@1100.1.2
+
+## 1100.0.5
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/workspace.project-manifest-reader@1100.0.3
+  - @pnpm/building.pkg-requires-build@1100.0.2
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/fetching.fetcher-base@1100.1.1
+  - @pnpm/store.cafs-types@1100.0.1
+
 ## 1100.0.4
 
 ### Patch Changes

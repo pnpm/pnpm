@@ -1,21 +1,21 @@
-# @pnpm/lifecycle
+# @pnpm/exec.lifecycle
 
 > Package lifecycle hook runner
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/lifecycle.svg)](https://www.npmjs.com/package/@pnpm/lifecycle)
+[![npm version](https://img.shields.io/npm/v/@pnpm/exec.lifecycle.svg)](https://npmx.dev/package/@pnpm/exec.lifecycle)
 <!--/@-->
 
 ## Installation
 
 ```sh
-pnpm add @pnpm/logger @pnpm/lifecycle
+pnpm add @pnpm/logger @pnpm/exec.lifecycle
 ```
 
 ## Usage
 
 ```ts
-import runLifecycleHook, {runPostinstallHooks} from '@pnpm/lifecycle'
+import runLifecycleHook, {runPostinstallHooks} from '@pnpm/exec.lifecycle'
 
 const targetPkgRoot = path.resolve('node_modules/target-pkg')
 const pkg = require(path.join(targetPkgRoot, 'package.json'))

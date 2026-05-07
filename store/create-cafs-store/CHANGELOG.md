@@ -1,5 +1,26 @@
 # @pnpm/create-cafs-store
 
+## 1100.0.5
+
+### Patch Changes
+
+- @pnpm/fetching.fetcher-base@1100.1.2
+- @pnpm/store.controller-types@1100.0.5
+- @pnpm/store.cafs@1100.1.2
+- @pnpm/fs.indexed-pkg-importer@1100.0.5
+
+## 1100.0.4
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/building.pkg-requires-build@1100.0.2
+  - @pnpm/fs.indexed-pkg-importer@1100.0.4
+  - @pnpm/store.controller-types@1100.0.4
+  - @pnpm/fetching.fetcher-base@1100.1.1
+  - @pnpm/store.cafs@1100.1.1
+
 ## 1100.0.3
 
 ### Patch Changes

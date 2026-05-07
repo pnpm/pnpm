@@ -1,5 +1,40 @@
 # @pnpm/audit
 
+## 1101.0.5
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+  - @pnpm/lockfile.fs@1100.0.6
+
+## 1101.0.4
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/lockfile.types@1100.0.4
+  - @pnpm/lockfile.utils@1100.0.5
+  - @pnpm/lockfile.detect-dep-types@1100.0.4
+  - @pnpm/lockfile.walker@1100.0.4
+
+## 1101.0.3
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+- Updated dependencies [6b891a5]
+  - @pnpm/fetching.types@1100.0.1
+  - @pnpm/network.fetch@1100.0.2
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.4
+  - @pnpm/lockfile.types@1100.0.3
+  - @pnpm/lockfile.fs@1100.0.4
+  - @pnpm/lockfile.detect-dep-types@1100.0.3
+  - @pnpm/lockfile.walker@1100.0.3
+
 ## 1101.0.2
 
 ### Patch Changes

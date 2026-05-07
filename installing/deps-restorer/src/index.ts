@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { buildModules } from '@pnpm/building.during-install'
-import { createAllowBuildFunction } from '@pnpm/building.policy'
+import { createAllowBuildFunction, isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
 import {
   LAYOUT_VERSION,
   WANTED_LOCKFILE,
@@ -216,11 +216,15 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   }
 
   const depsStateCache: DepsStateCache = {}
-  const relativeModulesDir = opts.modulesDir ?? 'node_modules'
-  const rootModulesDir = await realpathMissing(path.join(lockfileDir, relativeModulesDir))
+  // `modulesDir` is conventionally a path relative to `lockfileDir`, but
+  // some callers pass it as an absolute path. Resolve via `pathAbsolute`
+  // so both forms work — `path.join` on Windows would otherwise produce a
+  // doubled prefix when the second argument is also absolute.
+  const modulesDir = opts.modulesDir ?? 'node_modules'
+  const rootModulesDir = await realpathMissing(pathAbsolute(modulesDir, lockfileDir))
   const internalPnpmDir = path.join(rootModulesDir, '.pnpm')
   const currentLockfile = opts.currentLockfile ?? await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
-  const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(relativeModulesDir, '.pnpm'), lockfileDir)
+  const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(modulesDir, '.pnpm'), lockfileDir)
   const hoistedModulesDir = path.join(
     opts.enableGlobalVirtualStore ? internalPnpmDir : virtualStoreDir,
     'node_modules'
@@ -590,7 +594,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     if (opts.modulesFile?.ignoredBuilds?.size) {
       ignoredBuilds ??= new Set()
       for (const ignoredBuild of opts.modulesFile.ignoredBuilds.values()) {
-        if (filteredLockfile.packages?.[ignoredBuild]) {
+        if (filteredLockfile.packages?.[ignoredBuild] && !isBuildExplicitlyDisallowed(ignoredBuild, allowBuild)) {
           ignoredBuilds.add(ignoredBuild)
         }
       }
@@ -672,6 +676,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       virtualStoreDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       allowBuilds: opts.allowBuilds,
+      virtualStoreOnly: opts.virtualStoreOnly,
     })
     const currentLockfileDir = path.join(rootModulesDir, '.pnpm')
     if (opts.useLockfile) {

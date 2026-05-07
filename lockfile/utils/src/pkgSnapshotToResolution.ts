@@ -1,6 +1,6 @@
 import url from 'node:url'
 
-import { isGitHostedPkgUrl } from '@pnpm/fetching.pick-fetcher'
+import * as dp from '@pnpm/deps.path'
 import type { PackageSnapshot, TarballResolution } from '@pnpm/lockfile.types'
 import type { Resolution } from '@pnpm/resolving.resolver-base'
 import type { Registries } from '@pnpm/types'
@@ -16,9 +16,19 @@ export function pkgSnapshotToResolution (
   if (
     Boolean((pkgSnapshot.resolution as TarballResolution).type) ||
     (pkgSnapshot.resolution as TarballResolution).tarball?.startsWith('file:') ||
-    isGitHostedPkgUrl((pkgSnapshot.resolution as TarballResolution).tarball ?? '')
+    (pkgSnapshot.resolution as TarballResolution).gitHosted === true
   ) {
     return pkgSnapshot.resolution as Resolution
+  }
+  // Recover the tarball field for `file:` snapshots whose resolution lost
+  // its tarball (e.g. lockfiles written by an earlier pnpm 11 version that
+  // dropped the tarball under `lockfile-include-tarball-url=false`).
+  const nonSemverVersion = dp.parse(depPath).nonSemverVersion
+  if (nonSemverVersion?.startsWith('file:')) {
+    return {
+      ...pkgSnapshot.resolution,
+      tarball: nonSemverVersion,
+    } as Resolution
   }
   const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
   let registry: string = ''

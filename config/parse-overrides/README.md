@@ -1,17 +1,17 @@
-# @pnpm/parse-overrides
+# @pnpm/config.parse-overrides
 
 > Parse overrides
 
 ## Installation
 
 ```
-pnpm add @pnpm/parse-overrides
+pnpm add @pnpm/config.parse-overrides
 ```
 
 ## Usage
 
 ```ts
-import { parseOverrides } from '@pnpm/parse-overrides'
+import { parseOverrides } from '@pnpm/config.parse-overrides'
 
 parseOverrides({
   'foo': '^1.0.0',
