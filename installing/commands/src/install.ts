@@ -222,14 +222,8 @@ by any dependencies, so it is an emulation of a flat node_modules',
             description: 'Ignore trust downgrades for packages published more than specified minutes ago',
             name: '--trust-policy-ignore-after <minutes>',
           },
-          {
-            description: 'Reject packages published within the specified number of minutes. Overrides the minimumReleaseAge config setting',
-            name: '--minimum-release-age <minutes>',
-          },
-          {
-            description: 'Exclude specific packages from the minimum release age check',
-            name: '--minimum-release-age-exclude <package-spec>',
-          },
+          OPTIONS.minimumReleaseAge,
+          OPTIONS.minimumReleaseAgeExclude,
           {
             description: 'Clones/hardlinks or copies packages. The selected method depends from the file system',
             name: '--package-import-method auto',

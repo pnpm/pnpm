@@ -7,7 +7,7 @@ import {
   type CatalogResolver,
   resolveFromCatalog,
 } from '@pnpm/catalogs.resolver'
-import { OUTPUT_OPTIONS } from '@pnpm/cli.common-cli-options-help'
+import { OPTIONS, OUTPUT_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli.utils'
 import { type Config, types } from '@pnpm/config.reader'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
@@ -73,14 +73,8 @@ export function help (): string {
             name: '--shell-mode',
             shortAlias: '-c',
           },
-          {
-            description: 'Reject packages published within the specified number of minutes',
-            name: '--minimum-release-age <minutes>',
-          },
-          {
-            description: 'Exclude specific packages from the minimum release age check',
-            name: '--minimum-release-age-exclude <package-spec>',
-          },
+          OPTIONS.minimumReleaseAge,
+          OPTIONS.minimumReleaseAgeExclude,
         ],
       },
       OUTPUT_OPTIONS,
