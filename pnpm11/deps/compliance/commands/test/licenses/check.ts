@@ -213,6 +213,19 @@ describe('pnpm licenses check', () => {
     ).rejects.toThrow('Unknown environment')
   })
 
+  test('rejects extra positional arguments', async () => {
+    const { dir, storeDir } = await setupProject('simple-licenses')
+
+    await expect(
+      licenses.handler({
+        ...DEFAULT_OPTS,
+        dir,
+        pnpmHomeDir: '',
+        storeDir,
+      }, ['check', 'prod', 'extra'])
+    ).rejects.toThrow('Too many arguments')
+  })
+
   test('depth shallow with workspace selectedProjectsGraph', async () => {
     // workspace-licenses has:
     //   bar/ depends on is-positive (MIT) — direct dep
