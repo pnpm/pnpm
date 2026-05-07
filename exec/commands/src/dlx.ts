@@ -8,6 +8,7 @@ import {
   type CatalogResolver,
   resolveFromCatalog,
 } from '@pnpm/catalogs.resolver'
+import type { CommandHandlerMap } from '@pnpm/cli.command'
 import { OPTIONS, OUTPUT_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli.utils'
 import { type Config, types } from '@pnpm/config.reader'
