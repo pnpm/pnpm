@@ -174,7 +174,10 @@ export async function handler (
 }
 
 function renderSkipEnvPathOutput (pnpmHomeDir: string, binDir: string): string {
-  return `Skipped updating shell configuration files.
+  const target = process.platform === 'win32'
+    ? 'the Windows environment variables'
+    : 'shell configuration files'
+  return `Skipped updating ${target}.
 
 To start using pnpm, ensure the following are set in your environment:
 
