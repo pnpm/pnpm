@@ -1,6 +1,5 @@
 import path from 'node:path'
 
-import { readProjectManifestOnly } from '@pnpm/cli.utils'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
@@ -61,7 +60,11 @@ export async function licensesCheck (
 
   const include = resolveInclude(config.environment ?? 'all', opts)
 
-  const manifest = await readProjectManifestOnly(opts.dir)
+  // Rootless workspaces have no manifest at the workspace root; the scanner
+  // walks the lockfile + store and only uses the root manifest for shallow
+  // filtering, where workspace package manifests in selectedProjectsGraph
+  // already cover direct deps.
+  const manifest = opts.rootProjectManifest ?? {}
 
   const includedImporterIds = opts.selectedProjectsGraph
     ? Object.keys(opts.selectedProjectsGraph)

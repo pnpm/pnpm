@@ -7,6 +7,7 @@ import { add, remove } from '@pnpm/installing.commands'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { Project, ProjectManifest, ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { loadJsonFile } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
 
@@ -490,5 +491,39 @@ describe('license compliance after add', () => {
     }, ['is-positive@1.0.0'])
 
     project.has('is-positive')
+  })
+
+  // Regression test for the post-install license check on rootless workspaces.
+  // preparePackages creates the workspace root without a package.json; recursive
+  // add must not require the root manifest to scan licenses.
+  test('recursive pnpm add succeeds on a rootless workspace with licenses.mode set', async () => {
+    const projects = preparePackages([
+      {
+        name: 'project-1',
+        version: '1.0.0',
+      },
+      {
+        name: 'project-2',
+        version: '1.0.0',
+      },
+    ])
+
+    const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+
+    await add.handler({
+      ...DEFAULT_OPTIONS,
+      allProjects,
+      dir: process.cwd(),
+      linkWorkspacePackages: false,
+      recursive: true,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+      licenses: {
+        mode: 'loose',
+      },
+    }, ['is-positive@1.0.0'])
+
+    projects['project-1'].has('is-positive')
+    projects['project-2'].has('is-positive')
   })
 })

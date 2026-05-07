@@ -17,8 +17,15 @@ export function matchLicenseAgainstPolicy (
   license: string,
   opts: MatchPolicyOptions
 ): LicenseMatchResult {
+  // In strict mode, we only reject as unknown-license when an allowed list is
+  // actually configured. Strict + disallowed-only is a valid configuration
+  // (block specific licenses, allow everything else) and must not flip
+  // unrecognized licenses into violations on its own — see evaluateLicenseNode
+  // where the same rule applies to the SPDX-parsable path.
+  const hasAllowedList = !!(opts.allowed && opts.allowed.size > 0)
+
   if (!license || license === 'Unknown') {
-    return opts.mode === 'strict'
+    return opts.mode === 'strict' && hasAllowedList
       ? { allowed: false, reason: 'unknown-license' }
       : { allowed: true, reason: 'allowed-by-default' }
   }
@@ -32,7 +39,7 @@ export function matchLicenseAgainstPolicy (
     if (rawResult.reason !== 'allowed-by-default') {
       return rawResult
     }
-    return opts.mode === 'strict'
+    return opts.mode === 'strict' && hasAllowedList
       ? { allowed: false, reason: 'unknown-license' }
       : { allowed: true, reason: 'allowed-by-default' }
   }
