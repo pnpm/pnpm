@@ -1,5 +1,15 @@
 # @pnpm/store.commands
 
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+  - @pnpm/installing.client@1100.0.11
+  - @pnpm/installing.context@1100.0.7
+  - @pnpm/store.connection-manager@1100.0.12
+
 ## 1100.0.11
 
 ### Patch Changes

@@ -1,5 +1,21 @@
 # @pnpm/headless
 
+## 1101.0.7
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+  - @pnpm/deps.graph-builder@1100.0.7
+  - @pnpm/deps.graph-hasher@1100.1.4
+  - @pnpm/installing.linking.modules-cleaner@1100.0.7
+  - @pnpm/installing.linking.real-hoist@1100.0.6
+  - @pnpm/lockfile.filtering@1100.0.7
+  - @pnpm/lockfile.fs@1100.0.6
+  - @pnpm/lockfile.to-pnp@1100.0.6
+  - @pnpm/building.during-install@1101.0.6
+  - @pnpm/installing.package-requester@1101.0.3
+
 ## 1101.0.6
 
 ### Patch Changes

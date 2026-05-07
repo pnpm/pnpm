@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-patching
 
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+  - @pnpm/lockfile.fs@1100.0.6
+  - @pnpm/fetching.pick-fetcher@1100.0.5
+  - @pnpm/installing.commands@1100.1.11
+  - @pnpm/store.connection-manager@1100.0.12
+
 ## 1100.0.12
 
 ### Patch Changes

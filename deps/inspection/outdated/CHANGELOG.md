@@ -1,5 +1,14 @@
 # @pnpm/outdated
 
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+  - @pnpm/lockfile.fs@1100.0.6
+  - @pnpm/installing.client@1100.0.11
+
 ## 1100.0.10
 
 ### Patch Changes

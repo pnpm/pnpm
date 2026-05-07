@@ -1,5 +1,11 @@
 # @pnpm/building.during-install
 
+## 1101.0.6
+
+### Patch Changes
+
+- @pnpm/deps.graph-hasher@1100.1.4
+
 ## 1101.0.5
 
 ### Patch Changes

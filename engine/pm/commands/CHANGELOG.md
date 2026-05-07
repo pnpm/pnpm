@@ -1,5 +1,18 @@
 # @pnpm/engine.pm.commands
 
+## 1101.1.8
+
+### Patch Changes
+
+- @pnpm/deps.graph-hasher@1100.1.4
+- @pnpm/installing.deps-restorer@1101.0.7
+- @pnpm/installing.env-installer@1101.0.6
+- @pnpm/lockfile.fs@1100.0.6
+- @pnpm/installing.client@1100.0.11
+- @pnpm/global.commands@1100.0.13
+- @pnpm/store.connection-manager@1100.0.12
+- @pnpm/store.controller@1101.0.3
+
 ## 1101.1.7
 
 ### Patch Changes

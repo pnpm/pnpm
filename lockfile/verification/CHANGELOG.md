@@ -1,5 +1,13 @@
 # @pnpm/lockfile.verification
 
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+  - @pnpm/installing.context@1100.0.7
+
 ## 1100.0.6
 
 ### Patch Changes

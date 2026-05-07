@@ -1,5 +1,14 @@
 # @pnpm/releasing.commands
 
+## 1100.2.10
+
+### Patch Changes
+
+- ce474cc: Run `preversion`, `version`, and `postversion` lifecycle scripts for `pnpm version`.
+  - @pnpm/lockfile.fs@1100.0.6
+  - @pnpm/installing.client@1100.0.11
+  - @pnpm/installing.commands@1100.1.11
+
 ## 1100.2.9
 
 ### Patch Changes

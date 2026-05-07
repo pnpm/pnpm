@@ -1,5 +1,14 @@
 # @pnpm/deps.graph-builder
 
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+  - @pnpm/deps.graph-hasher@1100.1.4
+  - @pnpm/lockfile.fs@1100.0.6
+
 ## 1100.0.6
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # @pnpm/deps.compliance.commands
 
+## 1101.1.10
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+  - @pnpm/deps.compliance.audit@1101.0.5
+  - @pnpm/deps.compliance.license-scanner@1100.0.8
+  - @pnpm/deps.compliance.sbom@1100.0.8
+  - @pnpm/lockfile.fs@1100.0.6
+  - @pnpm/installing.commands@1100.1.11
+
 ## 1101.1.9
 
 ### Patch Changes

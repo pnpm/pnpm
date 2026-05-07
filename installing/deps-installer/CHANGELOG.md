@@ -1,5 +1,26 @@
 # @pnpm/core
 
+## 1101.0.8
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+  - @pnpm/building.after-install@1101.0.8
+  - @pnpm/deps.graph-hasher@1100.1.4
+  - @pnpm/installing.deps-resolver@1100.0.7
+  - @pnpm/installing.deps-restorer@1101.0.7
+  - @pnpm/installing.linking.modules-cleaner@1100.0.7
+  - @pnpm/lockfile.filtering@1100.0.7
+  - @pnpm/lockfile.fs@1100.0.6
+  - @pnpm/lockfile.preferred-versions@1100.0.7
+  - @pnpm/lockfile.to-pnp@1100.0.6
+  - @pnpm/lockfile.verification@1100.0.7
+  - @pnpm/building.during-install@1101.0.6
+  - @pnpm/installing.context@1100.0.7
+  - @pnpm/lockfile.settings-checker@1100.0.7
+  - @pnpm/installing.package-requester@1101.0.3
+
 ## 1101.0.7
 
 ### Patch Changes

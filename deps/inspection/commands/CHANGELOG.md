@@ -1,5 +1,16 @@
 # @pnpm/deps.inspection.commands
 
+## 1100.1.12
+
+### Patch Changes
+
+- @pnpm/deps.inspection.outdated@1100.0.11
+- @pnpm/lockfile.fs@1100.0.6
+- @pnpm/resolving.default-resolver@1100.0.10
+- @pnpm/deps.inspection.list@1100.0.7
+- @pnpm/global.commands@1100.0.13
+- @pnpm/deps.inspection.peers-checker@1100.0.6
+
 ## 1100.1.11
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/resolve-dependencies
 
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+  - @pnpm/deps.graph-hasher@1100.1.4
+  - @pnpm/lockfile.preferred-versions@1100.0.7
+  - @pnpm/fetching.pick-fetcher@1100.0.5
+
 ## 1100.0.6
 
 ### Patch Changes

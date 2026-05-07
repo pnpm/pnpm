@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.deps-installer",
-  "version": "1101.0.7",
+  "version": "1101.0.8",
   "description": "Fast, disk space efficient installation engine",
   "keywords": [
     "pnpm",

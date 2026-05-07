@@ -1,5 +1,13 @@
 # pnpm
 
+## 11.0.8
+
+### Patch Changes
+
+- Restored the heuristic that preserves tarball URLs in `pnpm-lock.yaml` when they cannot be derived from name+version+registry, even with the default `lockfileIncludeTarballUrl: false`. Without this, `pnpm install --frozen-lockfile` from an empty store fails with `ERR_PNPM_FETCH_404` for packages on registries that serve tarballs from a non-standard path — most notably GitHub Packages (`https://npm.pkg.github.com/download/<scope>/<name>/<version>/<hash>`) and JSR. `lockfileIncludeTarballUrl: true` continues to force the URL into the lockfile for every package [#11276](https://github.com/pnpm/pnpm/issues/11276).
+- Run `preversion`, `version`, and `postversion` lifecycle scripts for `pnpm version`.
+- Fixed `ERR_PNPM_BAD_TARBALL_SIZE` when a registry serves tarballs with an end-to-end `Content-Encoding` (e.g. `gzip`). Tarballs are already compressed, so the fetcher now requests them with `Accept-Encoding: identity` (matching pnpm v10's effective behavior) and, as defense in depth against misbehaving servers, no longer enforces the strict `Content-Length` check when the response declares a `Content-Encoding` — `Content-Length` in that case refers to the encoded payload, not the decoded bytes the fetch implementation yields [#11506](https://github.com/pnpm/pnpm/issues/11506).
+
 ## 11.0.7
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/config.deps-installer
 
+## 1101.0.6
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+  - @pnpm/deps.graph-hasher@1100.1.4
+  - @pnpm/installing.deps-resolver@1100.0.7
+  - @pnpm/lockfile.fs@1100.0.6
+  - @pnpm/store.controller@1101.0.3
+
 ## 1101.0.5
 
 ### Patch Changes

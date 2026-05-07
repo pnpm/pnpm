@@ -1,5 +1,13 @@
 # @pnpm/mount-modules
 
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+  - @pnpm/lockfile.fs@1100.0.6
+
 ## 1100.0.9
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/calc-dep-state
 
+## 1100.1.4
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+
 ## 1100.1.3
 
 ### Patch Changes
