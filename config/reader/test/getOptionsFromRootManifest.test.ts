@@ -106,6 +106,15 @@ test('getOptionsFromPnpmSettings() rejects array patchedDependencies', () => {
   }))
 })
 
+test('getOptionsFromPnpmSettings() rejects null patchedDependencies', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    patchedDependencies: null as unknown as Record<string, string>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_PATCHED_DEPENDENCY',
+    message: 'The patchedDependencies field should be an object, but got null',
+  }))
+})
+
 test('getOptionsFromPnpmSettings() rejects string patchedDependencies', () => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     patchedDependencies: 'foo' as unknown as Record<string, string>,
