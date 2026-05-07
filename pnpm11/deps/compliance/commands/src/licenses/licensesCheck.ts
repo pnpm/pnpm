@@ -122,7 +122,13 @@ function resolveConfig (
     config.mode = 'loose'
   }
   // Allow overriding environment via positional parameter
-  if (params.length > 0) {
+  if (params.length > 1) {
+    throw new PnpmError(
+      'LICENSES_CHECK_TOO_MANY_ARGS',
+      `Too many arguments: expected at most one environment, got "${params.join(' ')}"`
+    )
+  }
+  if (params.length === 1) {
     const env = params[0]
     if (env === 'prod' || env === 'dev' || env === 'all') {
       config.environment = env
