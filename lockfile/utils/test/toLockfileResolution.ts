@@ -54,16 +54,16 @@ test('keeps the tarball for non-standard registry URLs when lockfileIncludeTarba
 
 test('keeps GitHub Packages /download/ tarball URLs when lockfileIncludeTarballUrl is false', () => {
   // GitHub Packages serves tarballs at /download/<scope>/<name>/<version>/<hash>,
-  // which cannot be reconstructed from name+version+registry. See
+  // which cannot be derived from name+version+registry. See
   // https://github.com/pnpm/pnpm/issues/11276.
   expect(toLockfileResolution(
-    { name: '@myorg/mypkg', version: '1.2.3' },
-    { integrity: 'sha512-AAAA', tarball: 'https://npm.pkg.github.com/download/@myorg/mypkg/1.2.3/0123456789abcdef0123456789abcdef01234567' },
+    { name: '@example/private', version: '1.2.3' },
+    { integrity: 'sha512-AAAA', tarball: 'https://npm.pkg.github.com/download/@example/private/1.2.3/0123456789abcdef0123456789abcdef01234567' },
     'https://npm.pkg.github.com/',
     false
   )).toEqual({
     integrity: 'sha512-AAAA',
-    tarball: 'https://npm.pkg.github.com/download/@myorg/mypkg/1.2.3/0123456789abcdef0123456789abcdef01234567',
+    tarball: 'https://npm.pkg.github.com/download/@example/private/1.2.3/0123456789abcdef0123456789abcdef01234567',
   })
 })
 

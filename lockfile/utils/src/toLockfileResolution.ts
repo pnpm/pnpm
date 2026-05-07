@@ -43,8 +43,8 @@ export function toLockfileResolution (
   // must preserve such URLs — otherwise the package cannot be re-fetched on a
   // frozen-lockfile install (e.g. GitHub Packages tarballs at
   // `https://npm.pkg.github.com/download/<scope>/<name>/<version>/<hash>`).
-  // `lockfileIncludeTarballUrl` only controls whether *reconstructable* URLs
-  // are written.
+  // `lockfileIncludeTarballUrl` only controls whether URLs that *can* be
+  // derived from name+version+registry are written.
   const expectedTarball = getNpmTarballUrl(pkg.name, pkg.version, { registry })
   const actualTarball = tarball!.replaceAll('%2f', '/')
   if (removeProtocol(expectedTarball) !== removeProtocol(actualTarball)) {
