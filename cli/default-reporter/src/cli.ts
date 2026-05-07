@@ -22,9 +22,9 @@ export async function runCli (argv: readonly string[]): Promise<void> {
   const close = initDefaultReporter({
     streamParser,
     context: { argv: [cmd] },
-    // No progress throttling: when rendering a recorded NDJSON stream we
-    // close as soon as stdin EOFs, so a trailing throttle window would
-    // drop the final progress value.
+    reportingOptions: {
+      throttleProgress: 200,
+    },
   })
 
   // initDefaultReporter registers its 'data' listener via setTimeout(0); wait
