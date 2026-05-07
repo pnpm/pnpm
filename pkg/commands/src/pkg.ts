@@ -139,7 +139,6 @@ async function handleWorkspaceCommand (
 
 async function get (opts: { dir: string }, args: string[]): Promise<string> {
   const manifest = readPackageJsonFromDirRawSync(opts.dir) as unknown as Record<string, unknown>
-  const manifestPath = path.join(opts.dir, 'package.json')
 
   if (args.length === 0) {
     return JSON.stringify(manifest, undefined, 2)
