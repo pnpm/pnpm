@@ -661,6 +661,69 @@ test('workspace .npmrc overrides pnpm auth file', async () => {
   }
 })
 
+describe('unresolved ${VAR} placeholders in .npmrc auth values', () => {
+  // Regression suite for https://github.com/pnpm/pnpm/issues/11513: actions/setup-node
+  // writes `_authToken=${NODE_AUTH_TOKEN}` to .npmrc, and when the user relies on OIDC
+  // trusted publishing without setting NODE_AUTH_TOKEN, the literal placeholder must not
+  // surface as a bearer token — otherwise the registry sees `Bearer ${NODE_AUTH_TOKEN}`
+  // and rejects the publish.
+  let originalXdg: string | undefined
+  let configHome: string
+
+  beforeEach(() => {
+    prepareEmpty()
+    fs.writeFileSync('.npmrc', '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}\n', 'utf8')
+    fs.mkdirSync('user-home')
+    fs.writeFileSync(path.resolve('user-home', '.npmrc'), '', 'utf8')
+    // Isolate from the developer's real ~/.config/pnpm/auth.ini, which on a maintainer's
+    // machine often contains a working npm token that would otherwise satisfy the assertion.
+    configHome = path.resolve('xdg-config')
+    fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
+    originalXdg = process.env.XDG_CONFIG_HOME
+    process.env.XDG_CONFIG_HOME = configHome
+  })
+
+  afterEach(() => {
+    if (originalXdg != null) {
+      process.env.XDG_CONFIG_HOME = originalXdg
+    } else {
+      delete process.env.XDG_CONFIG_HOME
+    }
+  })
+
+  test('drops the placeholder when the env var is unset', async () => {
+    const { config } = await getConfig({
+      cliOptions: {
+        userconfig: path.resolve('user-home', '.npmrc'),
+      },
+      env: { ...env, XDG_CONFIG_HOME: configHome }, // NODE_AUTH_TOKEN intentionally unset
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.authConfig['//registry.npmjs.org/:_authToken']).toBe('')
+  })
+
+  test('substitutes normally when the env var is set', async () => {
+    const { config } = await getConfig({
+      cliOptions: {
+        userconfig: path.resolve('user-home', '.npmrc'),
+      },
+      env: { ...env, XDG_CONFIG_HOME: configHome, NODE_AUTH_TOKEN: 'real-token' },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.authConfig['//registry.npmjs.org/:_authToken']).toBe('real-token')
+  })
+})
+
 test('throw error if --save-prod is used with --save-peer', async () => {
   await expect(getConfig({
     cliOptions: {

@@ -158,7 +158,14 @@ function substituteEnv (value: string, env: Record<string, string | undefined>, 
     return envReplace(value, env)
   } catch (err) {
     warnings.push(err instanceof Error ? err.message : String(err))
-    return value
+    // env-replace throws when an env var is undefined and there is no `${VAR-default}`
+    // fallback. Returning the literal `${VAR}` would later be sent verbatim — most
+    // damagingly as a bearer auth token when `actions/setup-node` writes
+    // `_authToken=${NODE_AUTH_TOKEN}` and the user relies on OIDC trusted publishing
+    // instead of `NODE_AUTH_TOKEN` (https://github.com/pnpm/pnpm/issues/11513). Drop
+    // unresolved placeholders so the value reads as empty and downstream auth code
+    // falls through to OIDC rather than authenticating with a literal placeholder.
+    return value.replace(/(?<!\\)\$\{[^${}]+\}/g, '')
   }
 }
 

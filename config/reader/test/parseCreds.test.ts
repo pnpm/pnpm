@@ -20,6 +20,12 @@ describe('parseCreds', () => {
     } as Creds)
   })
 
+  test('empty authToken is treated as absent', () => {
+    // Reachable path via loadNpmrcFiles when an unresolved `${VAR}` placeholder
+    // is dropped to empty. Must not surface as a usable token.
+    expect(parseCreds({ authToken: '' })).toBeUndefined()
+  })
+
   test('authPairBase64', () => {
     expect(parseCreds({
       authPairBase64: btoa('foo:bar'),
