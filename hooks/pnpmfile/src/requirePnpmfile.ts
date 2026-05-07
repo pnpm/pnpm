@@ -75,9 +75,9 @@ export async function requirePnpmfile (pnpmFilePath: string, prefix: string): Pr
         if (!newPkg) {
           throw new BadReadPackageHookError(pnpmFilePath, 'readPackage hook did not return a package manifest object.')
         }
-        const dependencies = ['dependencies', 'optionalDependencies', 'peerDependencies']
+        const dependencies = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const
         for (const dep of dependencies) {
-          if (newPkg[dep] && typeof newPkg[dep] !== 'object') {
+          if (newPkg[dep] != null && (typeof newPkg[dep] !== 'object' || Array.isArray(newPkg[dep]))) {
             throw new BadReadPackageHookError(pnpmFilePath, `readPackage hook returned package manifest object's property '${dep}' must be an object.`)
           }
         }

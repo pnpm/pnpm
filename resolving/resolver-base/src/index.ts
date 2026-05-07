@@ -18,6 +18,14 @@ export interface TarballResolution {
   tarball: string
   integrity?: string
   path?: string
+  /**
+   * True for tarballs sourced from a git host (codeload.github.com /
+   * gitlab.com / bitbucket.org). Such tarballs need preparation
+   * (preparePackage / packlist) on extraction, and their cached content
+   * depends on whether build scripts ran, so they're addressed by
+   * gitHostedStoreIndexKey rather than the integrity-based key.
+   */
+  gitHosted?: boolean
 }
 
 export interface BinaryResolution {

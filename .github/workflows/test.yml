@@ -31,7 +31,7 @@ jobs:
     - name: Checkout Commit
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - name: Install pnpm
-      uses: pnpm/action-setup@6e7bdbda5fe05107efc88b23b7ed00aa05f84ca0
+      uses: pnpm/action-setup@e578e19d19d31b011b841ba2aca34731a5f706a5
       with:
         standalone: true
     - name: Setup Node

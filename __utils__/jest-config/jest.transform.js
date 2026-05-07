@@ -1,24 +1,27 @@
-import { stripTypeScriptTypes } from 'node:module'
+import { Buffer } from 'node:buffer'
 import { fileURLToPath } from 'node:url'
 import { transformSync } from '@babel/core'
+import { transformSync as stripTypes } from 'amaro'
 
 // This file was created referencing:
 // https://github.com/jestjs/jest/issues/15443
 
 export default {
   process(sourceText, sourcePath) {
-    const code = stripTypeScriptTypes(sourceText, {
-      // The stripTypeScriptTypes function supports a lightweight 'strip' mode.
-      // Unfortunately 'strip' doesn't support source map generation. Use
-      // 'transform' instead to generate inline source maps.
-      //
-      // Source maps are important for enabling interactive debuggers to match
-      // type-stripped test files to their location on disk. For details, see:
-      // https://github.com/pnpm/pnpm/pull/11024
+    // Node.js v26 removed the `transform` mode and `sourceMap` option from
+    // `module.stripTypeScriptTypes`, so we call into `amaro` (the same
+    // wasm-backed transformer Node.js uses internally) directly. `transform`
+    // mode is required to keep inline source maps — without them, interactive
+    // debuggers can't map type-stripped test files back to their on-disk
+    // location. For background, see https://github.com/pnpm/pnpm/pull/11024.
+    const { code: stripped, map } = stripTypes(sourceText, {
       mode: 'transform',
       sourceMap: true,
-      sourceUrl: sourcePath
+      filename: sourcePath,
     })
+    const code = map
+      ? `${stripped}\n//# sourceMappingURL=data:application/json;base64,${Buffer.from(map).toString('base64')}\n`
+      : stripped
 
     // Using the presence of the DisposableStack global to feature detect
     // whether the current Node.js runtime supports explicit resource

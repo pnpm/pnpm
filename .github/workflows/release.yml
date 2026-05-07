@@ -10,35 +10,63 @@ jobs:
     permissions:
       id-token: write  # Required for OIDC
       contents: write  # for softprops/action-gh-release to create GitHub release
-    # Runs on macOS so darwin artifacts are signed with native `codesign`.
-    # Cross-signing on Linux with `ldid` produces ad-hoc signatures whose
-    # page hashes don't match the post-postject Mach-O layout for Node.js 25's
-    # chained fixups, leaving fixups unapplied and crashing the binary at
-    # startup (EXC_BAD_ACCESS in __cxx_global_var_init).
+      attestations: write  # for actions/attest-build-provenance
+    # Runs on macOS so the darwin artifacts can be ad-hoc signed with native
+    # `codesign` (no need to build/install `ldid` on the runner) and so
+    # `verify-binary.mjs` can smoke-test the darwin-arm64 SEA in place — a
+    # macos-latest runner is Apple Silicon and can execute the arm64 binary.
+    # Note: this does NOT fix the darwin-x64 crash (nodejs/node#62893) — that's
+    # an upstream Node.js SEA bug independent of signing; see pack-app docs.
     runs-on: macos-latest
     environment: release
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install pnpm
-        uses: pnpm/action-setup@6e7bdbda5fe05107efc88b23b7ed00aa05f84ca0
+        uses: pnpm/action-setup@e578e19d19d31b011b841ba2aca34731a5f706a5
         with:
           standalone: true
       - name: Setup Node
-        run: pn runtime -g set node 25.6.1
+        run: pn runtime -g set node 26.0.0
         timeout-minutes: 2
       - name: pnpm install
         run: pn install
-      - name: Publish Packages
+      # The publish phase is split into three sequential steps to control which packages
+      # use trusted publishing (OIDC) vs. a static token. `pnpm publish` currently bails
+      # out of OIDC as soon as a static `_authToken` is configured, so the only way to
+      # force trusted publishing for a given package today is to run its publish in a
+      # step that doesn't have NPM_TOKEN set. See https://github.com/pnpm/pnpm/pull/11495
+      # for the longer-term fix that lets OIDC override a configured token.
+      - name: Publish @pnpm/exe (trusted publishing)
+        # No NPM_TOKEN: pnpm has no static token to short-circuit on, so it will perform
+        # the OIDC token exchange against npm's trusted-publishing config for `@pnpm/exe`.
+        # The exe artifacts must be built before the publish, so they're built here too.
+        run: |
+          pn --filter=@pnpm/exe run build-artifacts
+          pn --filter=@pnpm/exe publish --tag=next-11 --access=public --provenance
+      - name: Publish internal workspace packages (static token)
+        # The other workspace packages don't have trusted publishing configured on npm,
+        # so we still need a static token here. The token is removed from pnpm's config
+        # at the end of the step so it can't leak into the trusted-publishing step that
+        # follows (where its presence would silently downgrade `pnpm` to token publishing).
         env:
-          # setting the "npm_config_//registry.npmjs.org/:_authToken" env variable directly doesn't work.
-          # probably "pnpm release" doesn't pass auth tokens to child processes
+          # Setting the "npm_config_//registry.npmjs.org/:_authToken" env variable directly
+          # doesn't work — pnpm doesn't appear to pass auth tokens to child processes.
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           pn config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
-          pn release
+          pn publish --filter=!pnpm --filter=!@pnpm/exe --access=public --provenance
+          pn config delete "//registry.npmjs.org/:_authToken"
+      - name: Publish pnpm CLI (trusted publishing)
+        # No NPM_TOKEN — same rationale as the @pnpm/exe step above. This must come after
+        # the previous step has cleared its NPM_TOKEN from pnpm's config.
+        run: pn publish --filter=pnpm --tag=next-11 --access=public --provenance
       - name: Copy Artifacts
         run: pn copy-artifacts
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-path: 'dist/*'
       - name: Generate release description
         run: pn make-release-description
       - name: Release

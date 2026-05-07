@@ -1,5 +1,36 @@
 # @pnpm/outdated
 
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+  - @pnpm/lockfile.fs@1100.0.6
+  - @pnpm/installing.client@1100.0.11
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/lockfile.utils@1100.0.5
+  - @pnpm/installing.client@1100.0.10
+  - @pnpm/resolving.npm-resolver@1101.0.2
+
+## 1100.0.9
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.9
+
+## 1100.0.8
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.8
+
 ## 1100.0.7
 
 ### Patch Changes

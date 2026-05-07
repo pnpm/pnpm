@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cli.default-reporter",
-  "version": "1100.0.6",
+  "version": "1100.0.10",
   "description": "The default reporter of pnpm",
   "keywords": [
     "pnpm",
@@ -36,6 +36,7 @@
     "@pnpm/cli.meta": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/deps.inspection.peers-issues-renderer": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/installing.dedupe.issues-renderer": "workspace:*",
     "@pnpm/installing.dedupe.types": "workspace:*",

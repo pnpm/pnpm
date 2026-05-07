@@ -10,9 +10,6 @@
   ],
   "references": [
     {
-      "path": "../../deps/path"
-    },
-    {
       "path": "../../fetching/directory-fetcher"
     },
     {

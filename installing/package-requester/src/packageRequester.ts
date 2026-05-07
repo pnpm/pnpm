@@ -43,7 +43,7 @@ import type {
   RequestPackageOptions,
   WantedDependency,
 } from '@pnpm/store.controller-types'
-import { gitHostedStoreIndexKey, storeIndexKey } from '@pnpm/store.index'
+import { pickStoreIndexKey } from '@pnpm/store.index'
 import type { DependencyManifest, SupportedArchitectures } from '@pnpm/types'
 import {
   calcMaxWorkers,
@@ -345,28 +345,18 @@ function getFilesIndexFilePath (
 ): GetFilesIndexFilePathResult {
   const targetRelative = depPathToFilename(opts.pkg.id, ctx.virtualStoreDirMaxLength)
   const target = path.join(ctx.storeDir, targetRelative)
-  if ((opts.pkg.resolution as TarballResolution).integrity) {
-    return {
-      target,
-      filesIndexFile: storeIndexKey((opts.pkg.resolution as TarballResolution).integrity!, opts.pkg.id),
-      resolution: opts.pkg.resolution as AtomicResolution,
-    }
-  }
-  let resolution!: AtomicResolution
+  const built = !opts.ignoreScripts
+  let resolution: AtomicResolution
   if (opts.pkg.resolution.type === 'variations') {
     resolution = findResolution(opts.pkg.resolution.variants, opts.supportedArchitectures)
-    if ((resolution as TarballResolution).integrity) {
-      return {
-        target,
-        filesIndexFile: storeIndexKey((resolution as TarballResolution).integrity!, opts.pkg.id),
-        resolution,
-      }
-    }
   } else {
     resolution = opts.pkg.resolution
   }
-  const filesIndexFile = gitHostedStoreIndexKey(opts.pkg.id, { built: !opts.ignoreScripts })
-  return { filesIndexFile, target, resolution }
+  return {
+    target,
+    filesIndexFile: pickStoreIndexKey(resolution as TarballResolution, opts.pkg.id, { built }),
+    resolution,
+  }
 }
 
 function findResolution (resolutionVariants: PlatformAssetResolution[], supportedArchitectures?: SupportedArchitectures): AtomicResolution {

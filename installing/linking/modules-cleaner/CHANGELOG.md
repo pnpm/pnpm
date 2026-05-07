@@ -1,5 +1,23 @@
 # @pnpm/modules-cleaner
 
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+  - @pnpm/lockfile.filtering@1100.0.7
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+  - @pnpm/lockfile.types@1100.0.4
+  - @pnpm/lockfile.utils@1100.0.5
+  - @pnpm/lockfile.filtering@1100.0.6
+  - @pnpm/store.controller-types@1100.0.5
+
 ## 1100.0.5
 
 ### Patch Changes

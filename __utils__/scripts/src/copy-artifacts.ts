@@ -24,7 +24,8 @@ const pnpmDistDir = path.join(repoRoot, 'pnpm/dist')
   await createArtifactTarball('linux-x64-musl', 'pnpm')
   await createArtifactTarball('linux-arm64', 'pnpm')
   await createArtifactTarball('linux-arm64-musl', 'pnpm')
-  await createArtifactTarball('darwin-x64', 'pnpm')
+  // darwin-x64 is intentionally absent: Node.js SEA injection produces a
+  // binary that segfaults on Intel Mac (pnpm/pnpm#11423, nodejs/node#62893).
   await createArtifactTarball('darwin-arm64', 'pnpm')
   await createArtifactTarball('win32-x64', 'pnpm.exe')
   await createArtifactTarball('win32-arm64', 'pnpm.exe')

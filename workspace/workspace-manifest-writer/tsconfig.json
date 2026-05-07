@@ -31,9 +31,6 @@
       "path": "../../lockfile/types"
     },
     {
-      "path": "../../object/key-sorting"
-    },
-    {
       "path": "../../yaml/document-sync"
     },
     {

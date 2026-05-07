@@ -19,7 +19,7 @@ jobs:
     - name: Checkout Commit
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - name: Install pnpm
-      uses: pnpm/action-setup@6e7bdbda5fe05107efc88b23b7ed00aa05f84ca0
+      uses: pnpm/action-setup@e578e19d19d31b011b841ba2aca34731a5f706a5
       with:
         standalone: true
     - name: Setup Node
@@ -55,7 +55,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['22.13.0', '24.0.0', '25.0.0']
+        node: ['22.13.0', '24.0.0', '26.0.0']
         platform: [ubuntu-latest, windows-latest]
         exclude:
           - node: '24.0.0'
@@ -64,7 +64,7 @@ jobs:
           # Exception: main and release branches (release/x, release/x.x) run the full matrix.
           - node: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && 'none' || '24.0.0' }}
             platform: windows-latest
-          - node: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && 'none' || '25.0.0' }}
+          - node: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && 'none' || '26.0.0' }}
             platform: windows-latest
     uses: ./.github/workflows/test.yml
     with:

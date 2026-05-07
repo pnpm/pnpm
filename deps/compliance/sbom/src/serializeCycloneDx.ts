@@ -10,6 +10,7 @@ export interface CycloneDxOptions {
   lockfileOnly?: boolean
   sbomAuthors?: string[]
   sbomSupplier?: string
+  specVersion?: string
 }
 
 export function serializeCycloneDx (result: SbomResult, opts?: CycloneDxOptions): string {
@@ -155,10 +156,12 @@ export function serializeCycloneDx (result: SbomResult, opts?: CycloneDxOptions)
     metadata.supplier = { name: opts.sbomSupplier }
   }
 
+  const version = opts?.specVersion || '1.7'
+
   const bom: Record<string, unknown> = {
-    $schema: 'http://cyclonedx.org/schema/bom-1.7.schema.json',
+    $schema: `http://cyclonedx.org/schema/bom-${version}.schema.json`,
     bomFormat: 'CycloneDX',
-    specVersion: '1.7',
+    specVersion: version,
     serialNumber: `urn:uuid:${crypto.randomUUID()}`,
     version: 1,
     metadata,

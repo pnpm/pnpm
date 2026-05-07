@@ -1,5 +1,41 @@
 # @pnpm/client
 
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [36b4c83]
+  - @pnpm/fetching.tarball-fetcher@1101.0.3
+  - @pnpm/resolving.default-resolver@1100.0.10
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+  - @pnpm/fetching.tarball-fetcher@1101.0.2
+  - @pnpm/resolving.resolver-base@1100.1.2
+  - @pnpm/resolving.default-resolver@1100.0.10
+  - @pnpm/hooks.types@1100.0.5
+  - @pnpm/engine.runtime.node-resolver@1101.0.5
+  - @pnpm/fetching.directory-fetcher@1100.0.6
+  - @pnpm/fetching.binary-fetcher@1101.0.3
+  - @pnpm/fetching.git-fetcher@1101.0.2
+
+## 1100.0.9
+
+### Patch Changes
+
+- @pnpm/engine.runtime.node-resolver@1101.0.4
+- @pnpm/resolving.default-resolver@1100.0.9
+
+## 1100.0.8
+
+### Patch Changes
+
+- @pnpm/engine.runtime.node-resolver@1101.0.3
+- @pnpm/resolving.default-resolver@1100.0.8
+
 ## 1100.0.7
 
 ### Patch Changes

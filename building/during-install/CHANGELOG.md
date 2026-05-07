@@ -1,5 +1,43 @@
 # @pnpm/building.during-install
 
+## 1101.0.6
+
+### Patch Changes
+
+- @pnpm/deps.graph-hasher@1100.1.4
+
+## 1101.0.5
+
+### Patch Changes
+
+- Updated dependencies [707a879]
+  - @pnpm/config.reader@1101.2.1
+  - @pnpm/deps.graph-hasher@1100.1.3
+  - @pnpm/store.controller-types@1100.0.5
+  - @pnpm/exec.lifecycle@1100.0.6
+  - @pnpm/fs.hard-link-dir@1100.0.1
+  - @pnpm/patching.apply-patch@1100.0.0
+  - @pnpm/worker@1100.1.2
+
+## 1101.0.4
+
+### Patch Changes
+
+- Updated dependencies [8fdd9a9]
+- Updated dependencies [5f34a8d]
+- Updated dependencies [c969392]
+- Updated dependencies [817b1b4]
+- Updated dependencies [c969392]
+- Updated dependencies [2de318b]
+  - @pnpm/config.reader@1101.2.0
+
+## 1101.0.3
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+
 ## 1101.0.2
 
 ### Patch Changes

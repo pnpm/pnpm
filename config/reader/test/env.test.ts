@@ -209,16 +209,18 @@ test('parseEnvVars skips npm_config_*', () => {
   }))).toStrictEqual({})
 })
 
-test('parseEnvVars only reads lower snake case keys', () => {
+test('parseEnvVars reads fully lowercase or fully uppercase snake_case keys', () => {
   expect(pairsToObject(parseEnvVars(alwaysSchema(String), {
     PNPM_CONFIG_UPPER_SNAKE_CASE_KEY: 'whole key in upper snake case',
     pnpmConfigCamelCaseKey: 'whole key in snake case',
     'pnpm-config-kebab-case': 'whole key in kebab case',
-    pnpm_config_UPPER_SNAKE_CASE_SUFFIX: 'suffix in upper snake case',
+    pnpm_config_UPPER_SNAKE_CASE_SUFFIX: 'mixed case suffix',
+    PNPM_CONFIG_lower_snake_case_suffix: 'mixed case suffix',
     pnpm_config_camelCaseSuffix: 'suffix in camel case',
     'pnpm_config_kebab-case-suffix': 'suffix in kebab case',
     pnpm_config_lower_snake_case_key: 'whole key in lower snake case',
   }))).toStrictEqual({
+    upperSnakeCaseKey: 'whole key in upper snake case',
     lowerSnakeCaseKey: 'whole key in lower snake case',
   })
 })

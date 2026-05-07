@@ -1,5 +1,80 @@
 # @pnpm/engine.pm.commands
 
+## 1101.1.8
+
+### Patch Changes
+
+- @pnpm/deps.graph-hasher@1100.1.4
+- @pnpm/installing.deps-restorer@1101.0.7
+- @pnpm/installing.env-installer@1101.0.6
+- @pnpm/lockfile.fs@1100.0.6
+- @pnpm/installing.client@1100.0.11
+- @pnpm/global.commands@1100.0.13
+- @pnpm/store.connection-manager@1100.0.12
+- @pnpm/store.controller@1101.0.3
+
+## 1101.1.7
+
+### Patch Changes
+
+- d0982fc: Fixed the `pn`, `pnpx`, and `pnx` aliases failing in Git Bash / MSYS2 on Windows when pnpm was installed via `@pnpm/exe` (or after `pnpm self-update`) [#11486](https://github.com/pnpm/pnpm/issues/11486). Running `pnpx` (or `pnx`) printed the cmd.exe banner and dropped the user into an interactive command prompt instead of running `pnpm dlx`. The `bin` field rewrite on Windows was pointing those aliases at `.cmd` files; cmd-shim's Bash shim for a `.cmd` target wraps it in `exec cmd /C ...`, and MSYS2 mangles `/C` into a Windows path before cmd.exe sees it. The aliases are now `.exe` hardlinks of the SEA binary, which detects which name it was launched as via `process.execPath` and prepends `dlx` for `pnpx` / `pnx`.
+- Updated dependencies [12313f1]
+- Updated dependencies [27425d7]
+- Updated dependencies [707a879]
+  - @pnpm/installing.deps-restorer@1101.0.6
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/lockfile.types@1100.0.4
+  - @pnpm/config.reader@1101.2.1
+  - @pnpm/global.commands@1100.0.12
+  - @pnpm/installing.client@1100.0.10
+  - @pnpm/store.controller@1101.0.3
+  - @pnpm/installing.env-installer@1101.0.5
+  - @pnpm/deps.graph-hasher@1100.1.3
+  - @pnpm/resolving.npm-resolver@1101.0.2
+  - @pnpm/store.connection-manager@1100.0.11
+
+## 1101.1.6
+
+### Patch Changes
+
+- 0219ab2: Fixed `pnpm self-update` on installations originally set up by pnpm v10. v10 added `PNPM_HOME` directly to PATH and wrote a `pnpm` bootstrap shim there. v11 setup writes shims under `PNPM_HOME/bin` instead, so when a v10 user upgrades to v11 the legacy shim at `PNPM_HOME` keeps pointing into the old `.tools/<version>` install — `pnpm --version` continues to report the pre-update version even though the new version was installed under `global/v11`. Self-update now detects this layout, refreshes the legacy shims so the upgrade actually takes effect, and prints a hint suggesting `pnpm setup` to migrate PATH to the v11 layout. [#11464](https://github.com/pnpm/pnpm/issues/11464).
+- Updated dependencies [8fdd9a9]
+- Updated dependencies [5f34a8d]
+- Updated dependencies [c969392]
+- Updated dependencies [ab6c42d]
+- Updated dependencies [817b1b4]
+- Updated dependencies [c969392]
+- Updated dependencies [2de318b]
+  - @pnpm/config.reader@1101.2.0
+  - @pnpm/building.policy@1100.0.3
+  - @pnpm/installing.deps-restorer@1101.0.5
+  - @pnpm/global.commands@1100.0.11
+  - @pnpm/store.connection-manager@1100.0.10
+  - @pnpm/installing.client@1100.0.9
+  - @pnpm/installing.env-installer@1101.0.4
+  - @pnpm/store.controller@1101.0.2
+
+## 1101.1.5
+
+### Patch Changes
+
+- Updated dependencies [72629fc]
+  - @pnpm/global.commands@1100.0.10
+
+## 1101.1.4
+
+### Patch Changes
+
+- c1d29d2: `pnpm self-update` (with no version argument) no longer downgrades pnpm when the registry's `latest` dist-tag points to an older release than the currently active version. Run `pnpm self-update latest` to force a downgrade [#11418](https://github.com/pnpm/pnpm/issues/11418).
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+  - @pnpm/global.commands@1100.0.9
+  - @pnpm/store.connection-manager@1100.0.9
+  - @pnpm/installing.deps-restorer@1101.0.4
+  - @pnpm/installing.client@1100.0.8
+  - @pnpm/store.controller@1101.0.2
+  - @pnpm/installing.env-installer@1101.0.3
+
 ## 1101.1.3
 
 ### Patch Changes

@@ -125,7 +125,13 @@ export async function main (inputArgv: string[]): Promise<void> {
         }
       }
     }
-    ;({ config, context } = await installConfigDepsAndLoadHooks(config, context) as { config: typeof config, context: ConfigContext })
+    // `pnpm set` / `pnpm get` are separate top-level commands whose handlers
+    // delegate to the `config` command internally. They are not rewritten to
+    // `cmd === 'config'` at this layer, so list them explicitly — users can
+    // hit the #10684 crash via any of these three entry points.
+    ;({ config, context } = await installConfigDepsAndLoadHooks(config, context, {
+      tolerateConfigDependenciesErrors: cmd === 'config' || cmd === 'set' || cmd === 'get',
+    }) as { config: typeof config, context: ConfigContext })
     if (isDlxOrCreateCommand || cmd === 'sbom' || cmd === 'with') {
       config.useStderr = true
     }
@@ -243,7 +249,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     if (config.workspaceRoot) {
       filters.push({ filter: `{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length) })
     } else if (
-      filters.length === 0 &&
+      !filters.some(({ filter }) => !filter.startsWith('!')) &&
       workspaceDir &&
       config.workspacePackagePatterns &&
       !isRootOnlyPatterns(config.workspacePackagePatterns) &&
@@ -374,7 +380,7 @@ export async function main (inputArgv: string[]): Promise<void> {
 }
 
 function printError (message: string, hint?: string): void {
-  const ERROR = chalk.bgRed.black('\u2009ERROR\u2009')
+  const ERROR = chalk.bgRed.red('[') + chalk.bgRed.black('ERROR') + chalk.bgRed.red(']')
   console.error(`${message.startsWith(ERROR) ? '' : ERROR + ' '}${chalk.red(message)}`)
   if (hint) {
     console.error(hint)

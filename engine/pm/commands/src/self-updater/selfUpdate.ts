@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { linkBins } from '@pnpm/bins.linker'
@@ -7,6 +8,7 @@ import { type Config, type ConfigContext, parsePackageManager, types as allTypes
 import { PnpmError } from '@pnpm/error'
 import { createResolver } from '@pnpm/installing.client'
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
+import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { whichVersionIsPinned } from '@pnpm/resolving.npm-resolver'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
@@ -75,6 +77,12 @@ export async function handler (
   globalInfo('Checking for updates...')
   const { resolve } = createResolver({ ...opts, configByUri: opts.configByUri })
   const pkgName = 'pnpm'
+  // `pnpm self-update` (no args) defaults to the `latest` dist-tag, but we
+  // refuse to downgrade in that case — `latest` on the registry can lag the
+  // installed version when a new major has shipped without being tagged.
+  // `pnpm self-update latest` (explicit) bypasses the guard so users can
+  // still force a downgrade when they want one.
+  const isImplicitLatest = params.length === 0
   const bareSpecifier = params[0] ?? 'latest'
   const resolution = await resolve({ alias: pkgName, bareSpecifier }, {
     lockfileDir: opts.lockfileDir ?? opts.dir,
@@ -111,6 +119,15 @@ export async function handler (
 
   if (opts.wantedPackageManager?.name === packageManager.name) {
     if (opts.wantedPackageManager?.version !== resolution.manifest.version) {
+      if (isImplicitLatest) {
+        // Prefer the lockfile-pinned version when available — for range
+        // specs like `>=8.0.0`, the spec's lower bound understates the
+        // version that was actually installed (see #11418 review).
+        const projectCurrentVersion = await readProjectPinnedPnpmVersion(opts.rootProjectManifestDir, opts.wantedPackageManager?.version)
+        if (projectCurrentVersion != null && semver.lt(resolution.manifest.version, projectCurrentVersion)) {
+          return `The current project is set to use pnpm v${projectCurrentVersion}, which is newer than the "latest" version on the registry (v${resolution.manifest.version}). No update performed. Run "pnpm self-update latest" to downgrade.`
+        }
+      }
       const { manifest, writeProjectManifest } = await readProjectManifest(opts.rootProjectManifestDir)
       if (manifest.devEngines?.packageManager) {
         let manifestChanged = false
@@ -165,6 +182,10 @@ export async function handler (
     return `The currently active ${packageManager.name} v${packageManager.version} is already "${bareSpecifier}" and doesn't need an update`
   }
 
+  if (isImplicitLatest && semver.lt(resolution.manifest.version, packageManager.version)) {
+    return `The currently active ${packageManager.name} v${packageManager.version} is newer than the "latest" version on the registry (v${resolution.manifest.version}). No update performed. Run "pnpm self-update latest" to downgrade.`
+  }
+
   globalInfo(`Updating pnpm from v${packageManager.version} to v${resolution.manifest.version}...`)
   const store = await createStoreController(opts)
 
@@ -186,10 +207,37 @@ export async function handler (
   // Link bins to pnpmHomeDir/bin so the updated pnpm is the active global binary
   await linkBins(path.join(baseDir, 'node_modules'), path.join(opts.pnpmHomeDir, 'bin'), { warn: globalWarn })
 
+  // pnpm v10 setup linked bins directly into pnpmHomeDir and added that
+  // directory to PATH (instead of pnpmHomeDir/bin as v11 does). When a v10
+  // user upgrades to v11 the legacy shims at pnpmHomeDir keep pointing into
+  // the old `.tools/<version>` install — so PATH still resolves `pnpm` to the
+  // pre-update version. Detect that case and refresh the legacy shims so the
+  // upgrade actually takes effect, then warn the user to run `pnpm setup`
+  // for a clean migration to the v11 layout. See pnpm/pnpm#11464.
+  if (hasLegacyHomeDirShim(opts.pnpmHomeDir)) {
+    await linkBins(path.join(baseDir, 'node_modules'), opts.pnpmHomeDir, { warn: globalWarn })
+    globalWarn(
+      'Detected a pnpm v10 installation layout at PNPM_HOME. The pnpm shims ' +
+      'at PNPM_HOME have been refreshed so the new version is active, but ' +
+      'pnpm v11 expects bins in PNPM_HOME/bin. Run "pnpm setup" to migrate ' +
+      'your PATH to the v11 layout.'
+    )
+  }
+
   if (alreadyExisted) {
     return `The ${bareSpecifier} version, v${resolution.manifest.version}, is already present on the system. It was activated by linking it from ${baseDir}.`
   }
   return `Successfully updated pnpm to v${resolution.manifest.version}`
+}
+
+// A fresh v11 setup never writes a `pnpm` shim at pnpmHomeDir itself — only
+// under pnpmHomeDir/bin. The presence of a `pnpm` (or `pnpm.cmd`) file
+// directly at pnpmHomeDir is therefore a reliable v10-layout marker.
+function hasLegacyHomeDirShim (pnpmHomeDir: string): boolean {
+  for (const name of ['pnpm', 'pnpm.cmd']) {
+    if (fs.existsSync(path.join(pnpmHomeDir, name))) return true
+  }
+  return false
 }
 
 /**
@@ -221,4 +269,31 @@ function versionSpecFromPinned (version: string, pinnedVersion: PinnedVersion): 
     case 'minor': return `~${version}`
     case 'patch': return version
   }
+}
+
+async function readProjectPinnedPnpmVersion (rootProjectManifestDir: string, spec: string | undefined): Promise<string | undefined> {
+  // The env lockfile is the most accurate source for the actually-installed
+  // pnpm version when the spec is a range. Fall back to the spec's minimum
+  // version when there's no lockfile entry (e.g. exact `packageManager` pins
+  // below v12 don't write to the lockfile). Take the max of the two so we
+  // pick whichever signal is more restrictive.
+  let lockfilePinned: string | undefined
+  try {
+    const envLockfile = await readEnvLockfile(rootProjectManifestDir)
+    lockfilePinned = envLockfile?.importers['.'].packageManagerDependencies?.pnpm?.version
+  } catch {
+    // ignore — fall through to spec min version
+  }
+  let specMin: string | undefined
+  if (spec != null) {
+    try {
+      specMin = semver.minVersion(spec)?.version
+    } catch {
+      // invalid range — ignore
+    }
+  }
+  if (lockfilePinned != null && specMin != null) {
+    return semver.gt(lockfilePinned, specMin) ? lockfilePinned : specMin
+  }
+  return lockfilePinned ?? specMin
 }

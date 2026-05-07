@@ -1,5 +1,13 @@
 import { expandPackageVersionSpecs } from '@pnpm/config.version-policy'
-import type { AllowBuild } from '@pnpm/types'
+import * as dp from '@pnpm/deps.path'
+import type { AllowBuild, DepPath } from '@pnpm/types'
+
+export function isBuildExplicitlyDisallowed (depPath: DepPath, allowBuild?: AllowBuild): boolean {
+  if (!allowBuild) return false
+  const { name, version } = dp.parse(depPath)
+  if (!name || !version) return false
+  return allowBuild(name, version) === false
+}
 
 export function createAllowBuildFunction (
   opts: {

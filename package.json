@@ -2,7 +2,7 @@
   "name": "monorepo-root",
   "private": true,
   "scripts": {
-    "bump": "changeset version && pn update-manifests",
+    "bump": "node __utils__/scripts/src/bump.ts && pn update-manifests",
     "changeset": "changeset",
     "prepare": "husky",
     "pretest": "pn compile-only && pn prepare-fixtures",
@@ -57,11 +57,11 @@
     "typescript": "catalog:",
     "verdaccio": "catalog:"
   },
-  "packageManager": "pnpm@11.0.3",
+  "packageManager": "pnpm@11.0.7",
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "11.0.3",
+      "version": "11.0.7",
       "onFail": "download"
     }
   }

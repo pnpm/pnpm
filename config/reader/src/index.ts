@@ -52,6 +52,7 @@ import { types } from './types.js'
 export { types }
 
 export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
+export { getDefaultCreds, getNetworkConfigs, type NetworkConfigs } from './getNetworkConfigs.js'
 export { getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
 export type { Creds } from './parseCreds.js'
 export {
@@ -215,10 +216,16 @@ export async function getConfig (opts: {
 
   const configDir = getConfigDir(process)
 
-  // Read npmrcAuthFile early from global config.yaml (before loading .npmrc files)
+  // Read npmrcAuthFile early from global config.yaml (before loading .npmrc files).
+  // The general env var loop runs later (after .npmrc files are loaded), so we
+  // also have to peek at the relevant env vars here in order for
+  // PNPM_CONFIG_NPMRC_AUTH_FILE / PNPM_CONFIG_USERCONFIG (and their lowercase
+  // equivalents) to actually decide which user-level .npmrc gets read.
   const globalYamlConfigForNpmrcAuthFile = await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
   const npmrcAuthFile = cliOptions['npmrc-auth-file'] as string | undefined
     ?? cliOptions.userconfig as string | undefined
+    ?? readEnvVar(env, 'npmrc_auth_file')
+    ?? readEnvVar(env, 'userconfig')
     ?? globalYamlConfigForNpmrcAuthFile?.npmrcAuthFile
 
   const npmrcResult = loadNpmrcConfig({
@@ -284,10 +291,16 @@ export async function getConfig (opts: {
   // Reuse the global config.yaml already read for npmrcAuthFile
   const globalYamlConfig = globalYamlConfigForNpmrcAuthFile
   if (globalYamlConfig) {
+    const ignoredKeys: string[] = []
     for (const key in globalYamlConfig) {
       if (!isConfigFileKey(kebabCase(key))) {
+        ignoredKeys.push(key)
         delete globalYamlConfig[key as keyof typeof globalYamlConfig]
       }
+    }
+    if (ignoredKeys.length > 0) {
+      const globalYamlConfigPath = path.join(configDir, GLOBAL_CONFIG_YAML_FILENAME)
+      warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${ignoredKeys.map(k => `"${k}"`).join(', ')}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies`)
     }
     addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
       configFromCliOpts,
@@ -470,6 +483,20 @@ export async function getConfig (opts: {
       }
       pnpmConfig.registries.default = normalizeRegistryUrl(value)
     }
+  }
+
+  // When the user explicitly sets `minimumReleaseAge`, treat it as strict by
+  // default. Without this, a user-set value would silently fall back to
+  // installing an immature version when no mature version satisfies the
+  // requested range — making the setting look like it had no effect.
+  // The built-in default for `minimumReleaseAge` is intentionally non-strict
+  // for backward compatibility. This must run after env var parsing so
+  // pnpm_config_minimum_release_age also enables strict mode.
+  if (
+    pnpmConfig.explicitlySetKeys.has('minimumReleaseAge') &&
+    pnpmConfig.minimumReleaseAgeStrict == null
+  ) {
+    pnpmConfig.minimumReleaseAgeStrict = true
   }
 
   overrideSupportedArchitecturesWithCLI(pnpmConfig, cliOptions)
@@ -658,6 +685,15 @@ function getProcessEnv (env: string): string | undefined {
   return process.env[env] ??
     process.env[env.toUpperCase()] ??
     process.env[env.toLowerCase()]
+}
+
+// Look up a `pnpm_config_<key>` env var, accepting both lowercase and
+// uppercase forms. Used for env vars that need to be read before the
+// general parseEnvVars pass, such as those that affect which .npmrc file
+// is loaded.
+function readEnvVar (env: NodeJS.ProcessEnv, key: string): string | undefined {
+  const value = env[`pnpm_config_${key}`] ?? env[`PNPM_CONFIG_${key.toUpperCase()}`]
+  return value !== '' ? value : undefined
 }
 
 function getWantedPackageManager (manifest: ProjectManifest): { pm?: WantedPackageManager, warnings: string[] } {

@@ -304,6 +304,28 @@ test('publish: package with all possible fields in publishConfig', async () => {
   })
 })
 
+test('publish: package with publishConfig.registry overrides the default registry', async () => {
+  const pkgName = `test-publish-config-registry-${Date.now()}`
+  prepare({
+    name: pkgName,
+    version: '1.0.0',
+
+    publishConfig: {
+      registry: `http://localhost:${REGISTRY_MOCK_PORT}`,
+    },
+  })
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish'] },
+    configByUri: CONFIG_BY_URI,
+    dir: process.cwd(),
+    registries: { default: 'https://__fake_npm_registry__.com' },
+  }, [])
+
+  await checkPkgExists(pkgName, '1.0.0')
+})
+
 test('publish: package with publishConfig.directory', async () => {
   const packages = preparePackages([
     {
@@ -981,4 +1003,37 @@ test('publish from a tarball', async () => {
   }, [tarballName])
 
   await checkPkgExists(pkg.name, pkg.version)
+})
+
+test('publish --json: writes per-package summary to stdout', async () => {
+  const pkgName = `test-publish-json-${Date.now()}`
+  prepare({ name: pkgName, version: '0.0.0' })
+
+  const result = await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', '--json'] },
+    configByUri: CONFIG_BY_URI,
+    dir: process.cwd(),
+    json: true,
+  }, [])
+
+  expect(result?.output).toBeDefined()
+  const summary = JSON.parse(result!.output!) as Record<string, unknown>
+  expect(summary).toMatchObject({
+    id: `${pkgName}@0.0.0`,
+    name: pkgName,
+    version: '0.0.0',
+    filename: `${pkgName}-0.0.0.tgz`,
+    bundled: [],
+  })
+  expect(summary.size).toEqual(expect.any(Number))
+  expect(summary.size as number).toBeGreaterThan(0)
+  expect(summary.unpackedSize).toEqual(expect.any(Number))
+  expect(summary.unpackedSize as number).toBeGreaterThan(0)
+  expect(summary.shasum).toMatch(/^[0-9a-f]{40}$/)
+  expect(summary.integrity).toMatch(/^sha512-/)
+  expect(Array.isArray(summary.files)).toBe(true)
+  expect(summary.entryCount).toBe((summary.files as unknown[]).length)
+
+  await checkPkgExists(pkgName, '0.0.0')
 })

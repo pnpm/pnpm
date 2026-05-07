@@ -70,6 +70,20 @@ test('pnpm clean preserves lockfile by default', () => {
   expect(fs.existsSync('pnpm-lock.yaml')).toBe(true)
 })
 
+test('pnpm clean preserves lockfile when pnpm-workspace.yaml sets lockfile', () => {
+  tempDir()
+  fs.writeFileSync('package.json', '{}', 'utf8')
+  writeYamlFileSync('pnpm-workspace.yaml', { lockfile: true })
+  fs.writeFileSync('pnpm-lock.yaml', 'lockfileVersion: 9')
+  fs.mkdirSync('node_modules/.pnpm', { recursive: true })
+
+  const result = execPnpmSync(['clean'])
+  expect(result.status).toBe(0)
+
+  expect(fs.existsSync('node_modules/.pnpm')).toBe(false)
+  expect(fs.existsSync('pnpm-lock.yaml')).toBe(true)
+})
+
 test('pnpm clean --lockfile removes lockfile', () => {
   tempDir()
   fs.writeFileSync('package.json', '{}', 'utf8')

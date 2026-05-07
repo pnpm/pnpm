@@ -316,6 +316,89 @@ test('.npmrc does not load pnpm settings', async () => {
   expect(config.authConfig.packages).toBeUndefined()
 })
 
+describe('minimumReleaseAgeStrict default', () => {
+  test('defaults to true when minimumReleaseAge is set in pnpm-workspace.yaml', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: 60,
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.minimumReleaseAge).toBe(60)
+    expect(config.minimumReleaseAgeStrict).toBe(true)
+  })
+
+  test('defaults to true when minimumReleaseAge is set on the CLI', async () => {
+    prepareEmpty()
+
+    const { config } = await getConfig({
+      cliOptions: {
+        'minimum-release-age': 60,
+      },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.minimumReleaseAge).toBe(60)
+    expect(config.minimumReleaseAgeStrict).toBe(true)
+  })
+
+  test('defaults to true when minimumReleaseAge is set via pnpm_config_* env var', async () => {
+    prepareEmpty()
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      env: {
+        pnpm_config_minimum_release_age: '60',
+      },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.minimumReleaseAge).toBe(60)
+    expect(config.minimumReleaseAgeStrict).toBe(true)
+  })
+
+  test('respects an explicit minimumReleaseAgeStrict=false from pnpm-workspace.yaml', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: 60,
+      minimumReleaseAgeStrict: false,
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.minimumReleaseAge).toBe(60)
+    expect(config.minimumReleaseAgeStrict).toBe(false)
+  })
+
+  test('does not become strict when only the built-in default for minimumReleaseAge applies', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {})
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.minimumReleaseAge).toBe(1440)
+    expect(config.minimumReleaseAgeStrict).toBeUndefined()
+  })
+})
+
 test('camelCase settings from pnpm-workspace.yaml are read into typed Config properties', async () => {
   prepareEmpty()
 
@@ -476,6 +559,25 @@ test('registries in current directory\'s .npmrc have bigger priority then global
     '@bar': 'https://bar.com/',
     '@qar': 'https://qar.com/qar',
   })
+})
+
+test('pnpm-workspace.yaml registries override the same scope from .npmrc (#11492)', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('.npmrc', '@my-org:registry=https://from-npmrc.example.com/', 'utf8')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: {
+      '@my-org': 'https://from-workspace-yaml.example.com/',
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.registries['@my-org']).toBe('https://from-workspace-yaml.example.com/')
 })
 
 test('auth tokens from pnpm auth file override ~/.npmrc', async () => {
@@ -1022,6 +1124,99 @@ test('getConfig() returns the userconfig even when overridden locally', async ()
   expect(config.userConfig).toEqual({ registry: 'https://registry.example.test' })
 })
 
+test('getConfig() reads userconfig from PNPM_CONFIG_USERCONFIG env var', async () => {
+  prepareEmpty()
+  fs.mkdirSync('user-home')
+  fs.writeFileSync(path.resolve('user-home', '.npmrc'), 'registry = https://registry.example.test', 'utf-8')
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      PNPM_CONFIG_USERCONFIG: path.resolve('user-home', '.npmrc'),
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config.userConfig).toEqual({ registry: 'https://registry.example.test' })
+})
+
+test('getConfig() reads userconfig from pnpm_config_userconfig env var', async () => {
+  prepareEmpty()
+  fs.mkdirSync('user-home')
+  fs.writeFileSync(path.resolve('user-home', '.npmrc'), 'registry = https://registry.example.test', 'utf-8')
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config_userconfig: path.resolve('user-home', '.npmrc'),
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config.userConfig).toEqual({ registry: 'https://registry.example.test' })
+})
+
+test('getConfig() reads userconfig from PNPM_CONFIG_NPMRC_AUTH_FILE env var', async () => {
+  prepareEmpty()
+  fs.mkdirSync('user-home')
+  fs.writeFileSync(path.resolve('user-home', '.npmrc'), 'registry = https://registry.example.test', 'utf-8')
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      PNPM_CONFIG_NPMRC_AUTH_FILE: path.resolve('user-home', '.npmrc'),
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config.userConfig).toEqual({ registry: 'https://registry.example.test' })
+})
+
+test('getConfig() reads userconfig from pnpm_config_npmrc_auth_file env var', async () => {
+  prepareEmpty()
+  fs.mkdirSync('user-home')
+  fs.writeFileSync(path.resolve('user-home', '.npmrc'), 'registry = https://registry.example.test', 'utf-8')
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config_npmrc_auth_file: path.resolve('user-home', '.npmrc'),
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config.userConfig).toEqual({ registry: 'https://registry.example.test' })
+})
+
+// Locks in the precedence so future refactors don't accidentally flip it.
+test('getConfig() prefers pnpm_config_userconfig over PNPM_CONFIG_USERCONFIG when both are set', async () => {
+  prepareEmpty()
+  fs.mkdirSync('user-home')
+  fs.writeFileSync(path.resolve('user-home', 'upper.npmrc'), 'registry = https://upper.example.test', 'utf-8')
+  fs.writeFileSync(path.resolve('user-home', 'lower.npmrc'), 'registry = https://lower.example.test', 'utf-8')
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      PNPM_CONFIG_USERCONFIG: path.resolve('user-home', 'upper.npmrc'),
+      pnpm_config_userconfig: path.resolve('user-home', 'lower.npmrc'),
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config.userConfig).toEqual({ registry: 'https://lower.example.test' })
+})
+
 test('getConfig() sets sideEffectsCacheRead and sideEffectsCacheWrite when side-effects-cache is set', async () => {
   const { config } = await getConfig({
     cliOptions: {
@@ -1509,6 +1704,93 @@ describe('global config.yaml', () => {
 
     // NOTE: the field may appear kebab-case here, but only internally,
     expect(config.dangerouslyAllowAllBuilds).toBeDefined()
+  })
+
+  test('reads user-level preference settings from global config.yaml', async () => {
+    prepareEmpty()
+
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', {
+      scriptShell: '/usr/local/bin/bash',
+      shellEmulator: true,
+      updateNotifier: false,
+      stateDir: '/custom/state',
+      trustPolicy: 'no-downgrade',
+      trustPolicyExclude: ['legacy-pkg'],
+      registrySupportsTimeField: true,
+      sideEffectsCache: false,
+      strictDepBuilds: true,
+      useStderr: true,
+      verifyDepsBeforeRun: 'error',
+      verifyStoreIntegrity: false,
+      virtualStoreDir: '/custom/.pnpm',
+      virtualStoreDirMaxLength: 80,
+    })
+
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scriptShell).toBe('/usr/local/bin/bash')
+    expect(config.shellEmulator).toBe(true)
+    expect(config.updateNotifier).toBe(false)
+    expect(config.stateDir).toBe('/custom/state')
+    expect(config.trustPolicy).toBe('no-downgrade')
+    expect(config.trustPolicyExclude).toEqual(['legacy-pkg'])
+    expect(config.registrySupportsTimeField).toBe(true)
+    expect(config.sideEffectsCache).toBe(false)
+    expect(config.strictDepBuilds).toBe(true)
+    expect(config.useStderr).toBe(true)
+    expect(config.verifyDepsBeforeRun).toBe('error')
+    expect(config.verifyStoreIntegrity).toBe(false)
+    expect(config.virtualStoreDir).toBe('/custom/.pnpm')
+    expect(config.virtualStoreDirMaxLength).toBe(80)
+    expect(warnings.find((w) => w.includes('global config file'))).toBeUndefined()
+  })
+
+  test('warns when global config.yaml contains settings that are not allowed in the global config', async () => {
+    prepareEmpty()
+
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', {
+      dangerouslyAllowAllBuilds: true,
+      nodeLinker: 'hoisted',
+      hoistPattern: ['*eslint*'],
+    })
+
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    // Allowed setting is still applied.
+    expect(config.dangerouslyAllowAllBuilds).toBe(true)
+    // Ignored settings do not leak into the config.
+    expect(config.nodeLinker).not.toBe('hoisted')
+    expect(config.hoistPattern).toEqual(['*'])
+
+    const warning = warnings.find((w) => w.includes('global config file'))
+    expect(warning).toBeDefined()
+    expect(warning).toContain('"nodeLinker"')
+    expect(warning).toContain('"hoistPattern"')
+    expect(warning).not.toContain('"dangerouslyAllowAllBuilds"')
+    expect(warning).toContain(path.join(process.env.XDG_CONFIG_HOME!, 'pnpm', 'config.yaml'))
+    expect(warning).toContain('pnpm-workspace.yaml')
+    expect(warning).toContain('https://pnpm.io/11.x/config-dependencies')
+    expect(warning).not.toContain('.npmrc')
   })
 
   test('reads proxy settings from global config.yaml', async () => {

@@ -46,19 +46,24 @@ const AUTH_CFG_KEYS = [
 ] satisfies Array<keyof Config>
 
 /**
- * Security policy config keys.
+ * Config key categories inherited by `pnpm dlx`.
  *
  * ## Principle
  *
  * `pnpm dlx` runs packages in isolation from the current project. It must not
  * read project-structural settings (hoisting, linking, workspace layout, etc.)
- * from local config. However, two categories of local settings DO apply:
+ * from local config. However, several categories of local settings DO apply:
  *
  * 1. **Registry & auth:** needed to reach the same package sources
  *    (registries, tokens, certificates).
  * 2. **Security & trust policy:** these reflect the user's or organization's
  *    security posture and must apply regardless of how a package is installed.
  *    A setting that answers "what am I allowed to download?" belongs here.
+ * 3. **Catalogs:** the `catalog:` protocol resolves package versions through
+ *    workspace catalog entries; without them, `pnpm dlx pkg@catalog:...` cannot
+ *    look up the requested version.
+ * 4. **Fetch retry/timeout:** governs how the client talks to the registry.
+ *    These reflect the same network environment as a regular install.
  *
  * Other settings are intentionally excluded. These are the ones that control
  * how downloaded packages are arranged in `node_modules` (hoisting, linking,
@@ -70,6 +75,8 @@ const AUTH_CFG_KEYS = [
  * |--------------------------------|--------------------|--------------------------------------------------|
  * | Registry & auth                | Yes                | registry, _authToken, ca                         |
  * | Security & trust policy        | Yes                | minimumReleaseAge, trustPolicy                   |
+ * | Catalogs                       | Yes                | catalogs                                         |
+ * | Fetch retry/timeout            | Yes                | fetchRetries, fetchTimeout                       |
  * | Installation structure         | No                 | shamefully-hoist, node-linker, hoist-pattern      |
  * | Workspace settings             | No                 | link-workspace-packages, shared-workspace-lockfile|
  * | Resolution strategy            | No                 | resolution-mode, dedupe-peers                     |
@@ -82,6 +89,18 @@ const SECURITY_POLICY_CFG_KEYS = [
   'trustPolicy',
   'trustPolicyExclude',
   'trustPolicyIgnoreAfter',
+] satisfies Array<keyof Config>
+
+const CATALOGS_CFG_KEYS = [
+  'catalogs',
+] satisfies Array<keyof Config>
+
+const FETCH_CFG_KEYS = [
+  'fetchRetryFactor',
+  'fetchRetryMaxtimeout',
+  'fetchRetryMintimeout',
+  'fetchRetries',
+  'fetchTimeout',
 ] satisfies Array<keyof Config>
 
 const NPM_AUTH_SETTINGS = [
@@ -108,6 +127,14 @@ function isSecurityPolicyCfgKey (cfgKey: keyof Config): cfgKey is typeof SECURIT
   return (SECURITY_POLICY_CFG_KEYS as Array<keyof Config>).includes(cfgKey)
 }
 
+function isCatalogsCfgKey (cfgKey: keyof Config): cfgKey is typeof CATALOGS_CFG_KEYS[number] {
+  return (CATALOGS_CFG_KEYS as Array<keyof Config>).includes(cfgKey)
+}
+
+function isFetchCfgKey (cfgKey: keyof Config): cfgKey is typeof FETCH_CFG_KEYS[number] {
+  return (FETCH_CFG_KEYS as Array<keyof Config>).includes(cfgKey)
+}
+
 function pickRawAuthConfig<RawLocalCfg extends Record<string, unknown>> (rawLocalCfg: RawLocalCfg): Partial<RawLocalCfg> {
   const result: Partial<RawLocalCfg> = {}
   for (const key in rawLocalCfg) {
@@ -131,7 +158,7 @@ function pickAuthConfig (localCfg: Partial<Config>): Partial<Config> {
 function pickDlxConfig (localCfg: Partial<Config>): Partial<Config> {
   const result: Record<string, unknown> = {}
   for (const key in localCfg) {
-    if (isAuthCfgKey(key as keyof Config) || isSecurityPolicyCfgKey(key as keyof Config)) {
+    if (isAuthCfgKey(key as keyof Config) || isSecurityPolicyCfgKey(key as keyof Config) || isCatalogsCfgKey(key as keyof Config) || isFetchCfgKey(key as keyof Config)) {
       result[key] = localCfg[key as keyof Config]
     }
   }
@@ -143,12 +170,14 @@ export function inheritAuthConfig (target: InheritableConfigPair, src: Inheritab
 }
 
 /**
- * Inherits both auth/registry settings and security/trust policy settings
- * from a local config source into the target config.
+ * Inherits the categories listed above (auth/registry, security & trust
+ * policy, catalogs, and fetch retry/timeout) from a local config source
+ * into the target config.
  *
  * Used by `pnpm dlx` and `pnpm create` so that these commands respect
- * the local project's registry authentication and security policies
- * while ignoring project-structural settings.
+ * the local project's registry authentication, security policies,
+ * catalog definitions, and fetch behavior, while ignoring
+ * project-structural settings.
  */
 export function inheritDlxConfig (target: InheritableConfigPair, src: InheritableConfigPair): void {
   inheritPickedConfig(target, src, pickDlxConfig, pickRawAuthConfig)

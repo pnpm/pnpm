@@ -1,5 +1,11 @@
 # @pnpm/building.policy
 
+## 1100.0.3
+
+### Patch Changes
+
+- ab6c42d: Treat `allowBuilds` as an install-state input and clear previously ignored builds when they are explicitly disallowed.
+
 ## 1100.0.2
 
 ### Patch Changes

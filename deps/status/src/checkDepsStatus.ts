@@ -134,12 +134,27 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     ignoredSettings.add('catalogs') // 'catalogs' is always ignored
     for (const [settingName, settingValue] of Object.entries(workspaceState.settings)) {
       if (ignoredSettings.has(settingName as keyof WorkspaceStateSettings)) continue
-      if (!equals(settingValue, opts[settingName as keyof WorkspaceStateSettings])) {
+      const currentSettingValue = settingName === 'allowBuilds'
+        ? opts.allowBuilds ?? {}
+        : opts[settingName as keyof WorkspaceStateSettings]
+      if (!equals(settingValue, currentSettingValue)) {
         return {
           upToDate: false,
           issue: `The value of the ${settingName} setting has changed`,
           workspaceState,
         }
+      }
+    }
+    if (
+      !ignoredSettings.has('allowBuilds') &&
+      workspaceState.settings.allowBuilds == null &&
+      opts.allowBuilds != null &&
+      !isEmpty(opts.allowBuilds)
+    ) {
+      return {
+        upToDate: false,
+        issue: 'The value of the allowBuilds setting has changed',
+        workspaceState,
       }
     }
   }

@@ -230,6 +230,68 @@ test('fetch populates global virtual store links/', async () => {
   expect(entries.length).toBeGreaterThan(0)
 })
 
+// Regression test for https://github.com/pnpm/pnpm/issues/11488
+// A subsequent install must not purge node_modules just because fetch
+// recorded forced-empty hoist patterns in .modules.yaml. The follow-up
+// install must also complete the post-import linking that fetch skipped:
+// importer symlinks at the project root and hoisting under .pnpm/node_modules.
+test('install after fetch completes linking without recreating node_modules', async () => {
+  const project = prepare({
+    dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' },
+  })
+  const storeDir = path.resolve('store')
+
+  // Generate the lockfile only — no need for a full install
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    linkWorkspacePackages: true,
+    lockfileOnly: true,
+    storeDir,
+  })
+
+  await fetch.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    storeDir,
+  })
+
+  const modulesYamlPath = path.resolve(project.dir(), 'node_modules/.modules.yaml')
+  const virtualStoreDir = path.resolve(project.dir(), 'node_modules/.pnpm')
+  const virtualStoreInodeBefore = fs.statSync(virtualStoreDir).ino
+  // fetch only populates the virtual store — no importer symlink and no
+  // hoisting yet.
+  expect(fs.existsSync(path.resolve(project.dir(), 'node_modules/@pnpm.e2e/pkg-with-1-dep'))).toBeFalsy()
+  expect(fs.existsSync(path.resolve(virtualStoreDir, 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBeFalsy()
+  // fetch records the marker that opts the next install out of hoist-pattern checks.
+  expect(JSON.parse(fs.readFileSync(modulesYamlPath, 'utf8')).virtualStoreOnly).toBe(true)
+
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    frozenLockfile: true,
+    hoistPattern: ['*'],
+    linkWorkspacePackages: true,
+    storeDir,
+    preferOffline: true,
+  })
+
+  // If the modules dir had been purged, the directory's inode would change
+  // (rimraf + remake creates a new directory).
+  expect(fs.statSync(virtualStoreDir).ino).toBe(virtualStoreInodeBefore)
+  // The direct dep must be symlinked at the project root.
+  expect(fs.existsSync(path.resolve(project.dir(), 'node_modules/@pnpm.e2e/pkg-with-1-dep'))).toBeTruthy()
+  // The transitive dep must be hoisted under the virtual store
+  // (default hoistPattern is ['*']).
+  expect(fs.existsSync(path.resolve(virtualStoreDir, 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBeTruthy()
+  // The marker must be cleared once the install completes the linking,
+  // otherwise a later install would keep skipping hoist-pattern checks.
+  expect(JSON.parse(fs.readFileSync(modulesYamlPath, 'utf8')).virtualStoreOnly).toBeUndefined()
+})
+
 test('fetch applies patches to dependencies when patchedDependencies key is bare package name', async () => {
   const f = fixtures(import.meta.dirname)
   const project = prepare({

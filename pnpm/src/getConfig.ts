@@ -1,11 +1,13 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { formatWarn } from '@pnpm/cli.default-reporter'
 import { packageManager } from '@pnpm/cli.meta'
 import { type CliOptions, type Config, type ConfigContext, getConfig as _getConfig } from '@pnpm/config.reader'
 import { requireHooks } from '@pnpm/hooks.pnpmfile'
 import { resolveAndInstallConfigDeps } from '@pnpm/installing.env-installer'
+import { logger } from '@pnpm/logger'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import type { ConfigDependencies } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
@@ -42,7 +44,10 @@ export async function getConfig (
 
 export async function installConfigDepsAndLoadHooks (
   config: Config,
-  context: ConfigContext
+  context: ConfigContext,
+  opts?: {
+    tolerateConfigDependenciesErrors?: boolean
+  }
 ): Promise<{ config: Config, context: ConfigContext }> {
   if (config.configDependencies) {
     const store = await createStoreController({ ...config, ...context })
@@ -54,6 +59,15 @@ export async function installConfigDepsAndLoadHooks (
         storeDir: store.dir,
         rootDir: config.lockfileDir ?? context.rootProjectManifestDir,
         frozenLockfile: config.frozenLockfile,
+      })
+    } catch (err: unknown) {
+      if (!opts?.tolerateConfigDependenciesErrors) {
+        throw err
+      }
+      const errorMessage = util.types.isNativeError(err) ? err.message : String(err)
+      logger.debug({
+        message: `Failed to install configDependencies. This is expected if authentication is not yet configured. Proceeding. Error: ${errorMessage}`,
+        err,
       })
     } finally {
       await store.ctrl.close()
@@ -87,12 +101,18 @@ export async function installConfigDepsAndLoadHooks (
 export function * calcPnpmfilePathsOfPluginDeps (configModulesDir: string, configDependencies: ConfigDependencies): Generator<string> {
   for (const configDepName of Object.keys(configDependencies).sort(lexCompare)) {
     if (isPluginName(configDepName)) {
-      const mjsPath = path.join(configModulesDir, configDepName, 'pnpmfile.mjs')
+      const pluginDir = path.join(configModulesDir, configDepName)
+      // If the plugin directory itself is missing, the install didn't run
+      // (or hasn't run yet) — skip silently. If the plugin directory exists
+      // but contains no pnpmfile, fall through to yield the .cjs path so
+      // requireHooks surfaces PNPMFILE_NOT_FOUND for the misconfigured plugin.
+      if (!fs.existsSync(pluginDir)) continue
+      const mjsPath = path.join(pluginDir, 'pnpmfile.mjs')
       if (fs.existsSync(mjsPath)) {
         yield mjsPath
-      } else {
-        yield path.join(configModulesDir, configDepName, 'pnpmfile.cjs')
+        continue
       }
+      yield path.join(pluginDir, 'pnpmfile.cjs')
     }
   }
 }

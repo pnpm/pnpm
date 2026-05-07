@@ -1,5 +1,63 @@
 # @pnpm/deps.compliance.commands
 
+## 1101.1.10
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+  - @pnpm/deps.compliance.audit@1101.0.5
+  - @pnpm/deps.compliance.license-scanner@1100.0.8
+  - @pnpm/deps.compliance.sbom@1100.0.8
+  - @pnpm/lockfile.fs@1100.0.6
+  - @pnpm/installing.commands@1100.1.11
+
+## 1101.1.9
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+- Updated dependencies [707a879]
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/lockfile.types@1100.0.4
+  - @pnpm/lockfile.utils@1100.0.5
+  - @pnpm/config.reader@1101.2.1
+  - @pnpm/installing.commands@1100.1.10
+  - @pnpm/deps.compliance.audit@1101.0.4
+  - @pnpm/deps.compliance.license-scanner@1100.0.7
+  - @pnpm/deps.compliance.sbom@1100.0.7
+  - @pnpm/lockfile.walker@1100.0.4
+  - @pnpm/config.writer@1100.0.6
+
+## 1101.1.8
+
+### Patch Changes
+
+- Updated dependencies [8fdd9a9]
+- Updated dependencies [5f34a8d]
+- Updated dependencies [c969392]
+- Updated dependencies [817b1b4]
+- Updated dependencies [c969392]
+- Updated dependencies [2de318b]
+  - @pnpm/config.reader@1101.2.0
+  - @pnpm/installing.commands@1100.1.9
+  - @pnpm/config.writer@1100.0.5
+
+## 1101.1.7
+
+### Patch Changes
+
+- Updated dependencies [f6bc1db]
+  - @pnpm/installing.commands@1100.1.8
+
+## 1101.1.6
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+  - @pnpm/installing.commands@1100.1.7
+
 ## 1101.1.5
 
 ### Patch Changes

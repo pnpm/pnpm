@@ -212,3 +212,68 @@ test('installing a new configurational dependency', async () => {
     getIntegrity('@pnpm.e2e/foo', '100.0.0')
   )
 })
+
+// Regression tests for https://github.com/pnpm/pnpm/issues/10684 — if the user
+// has a configDependency stored in a registry that needs auth, the config
+// commands must not crash when pnpm tries to fetch the configDependency before
+// the new setting is written. We reference a non-existent package version so
+// the install errors out fast; the real-world scenario is a 401 from the
+// private registry.
+//
+// All four entry points are tested: `pnpm config set`, `pnpm config get`,
+// `pnpm set`, and `pnpm get`. The latter two are shortcuts that delegate to
+// the config handler internally but are separate top-level commands, so they
+// need their own coverage at the main.ts guard level.
+function writeFailingConfigDep () {
+  // Clean specifier for a version that does not exist on the mock registry.
+  // fetchRetries: 0 keeps the failure fast so the test does not time out.
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    configDependencies: {
+      '@pnpm.e2e/foo': '999.999.999',
+    },
+    fetchRetries: 0,
+  })
+}
+
+test('pnpm config set succeeds even when configDependencies fail to install', async () => {
+  prepare()
+  writeFailingConfigDep()
+
+  // Use an auth-style key so the setting lands in ./.npmrc (project scope).
+  const authKey = '//example.com/:_authToken'
+  await execPnpm(['config', 'set', '--location=project', authKey, 'my-secret-token'])
+
+  const npmrc = fs.readFileSync('.npmrc', 'utf8')
+  expect(npmrc).toContain(`${authKey}=my-secret-token`)
+})
+
+test('pnpm config get succeeds even when configDependencies fail to install', async () => {
+  prepare()
+  writeFailingConfigDep()
+  const authKey = '//example.com/:_authToken'
+  fs.writeFileSync('.npmrc', `${authKey}=my-secret-token\n`, 'utf8')
+
+  const result = execPnpmSync(['config', 'get', '--location=project', authKey], { expectSuccess: true })
+  expect(result.stdout.toString()).toContain('my-secret-token')
+})
+
+test('pnpm set succeeds even when configDependencies fail to install', async () => {
+  prepare()
+  writeFailingConfigDep()
+
+  const authKey = '//example.com/:_authToken'
+  await execPnpm(['set', '--location=project', authKey, 'my-secret-token'])
+
+  const npmrc = fs.readFileSync('.npmrc', 'utf8')
+  expect(npmrc).toContain(`${authKey}=my-secret-token`)
+})
+
+test('pnpm get succeeds even when configDependencies fail to install', async () => {
+  prepare()
+  writeFailingConfigDep()
+  const authKey = '//example.com/:_authToken'
+  fs.writeFileSync('.npmrc', `${authKey}=my-secret-token\n`, 'utf8')
+
+  const result = execPnpmSync(['get', '--location=project', authKey], { expectSuccess: true })
+  expect(result.stdout.toString()).toContain('my-secret-token')
+})
