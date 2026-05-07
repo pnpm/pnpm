@@ -1,4 +1,3 @@
-import { readProjectManifestOnly } from '@pnpm/cli.utils'
 import { checkLicensesAfterInstall, shouldRunLicenseCheck } from '@pnpm/deps.compliance.license-checker'
 
 import type { InstallCommandOptions } from './install.js'
@@ -12,7 +11,11 @@ export async function runLicenseCheck (opts: InstallCommandOptions): Promise<voi
   if (opts.lockfileOnly) {
     return
   }
-  const manifest = await readProjectManifestOnly(opts.dir, opts)
+  // Rootless workspaces have no manifest at the workspace root; the scanner
+  // walks the lockfile + store and only uses the root manifest for shallow
+  // filtering, where workspace package manifests in selectedProjectsGraph
+  // already cover direct deps.
+  const manifest = opts.rootProjectManifest ?? {}
   await checkLicensesAfterInstall({
     licenses: opts.licenses,
     dir: opts.dir,

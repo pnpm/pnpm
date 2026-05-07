@@ -1,16 +1,6 @@
 import { describe, expect, it } from '@jest/globals'
 import { checkLicenseCompliance, type LicensePackageInfo } from '@pnpm/deps.compliance.license-checker'
 
-function pkg (overrides: Partial<LicensePackageInfo> = {}): LicensePackageInfo {
-  return {
-    name: 'test-pkg',
-    version: '1.0.0',
-    license: 'MIT',
-    belongsTo: 'dependencies',
-    ...overrides,
-  }
-}
-
 describe('checkLicenseCompliance', () => {
   it('returns empty result for mode none', () => {
     const result = checkLicenseCompliance(
@@ -172,3 +162,13 @@ describe('checkLicenseCompliance', () => {
     })
   })
 })
+
+function pkg (overrides: Partial<LicensePackageInfo> = {}): LicensePackageInfo {
+  return {
+    name: 'test-pkg',
+    version: '1.0.0',
+    license: 'MIT',
+    belongsTo: 'dependencies',
+    ...overrides,
+  }
+}
