@@ -22,8 +22,12 @@
   },
   "files": [
     "lib",
-    "!*.map"
+    "!*.map",
+    "bin"
   ],
+  "bin": {
+    "pnpm-render": "bin/pnpm-render.mjs"
+  },
   "scripts": {
     "start": "tsgo --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
