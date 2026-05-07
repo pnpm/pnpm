@@ -332,12 +332,53 @@ describe('matchLicenseAgainstPolicy', () => {
       expect(result.reason).toBe('allowed-by-default')
     })
 
-    it('treats unmatched non-SPDX string as unknown in strict mode with no allowed list', () => {
+    it('allows unmatched non-SPDX string in strict mode when no allowed list is configured', () => {
+      // Strict + disallowed-only is a valid configuration: block listed
+      // licenses, allow everything else (including unrecognized strings).
       const result = matchLicenseAgainstPolicy('SEE LICENSE IN LICENSE', {
+        disallowed: new Set(['GPL-3.0-only']),
+        mode: 'strict',
+      })
+      expect(result.allowed).toBe(true)
+      expect(result.reason).toBe('allowed-by-default')
+    })
+
+    it('allows unmatched non-SPDX string in strict mode with empty allowed list', () => {
+      const result = matchLicenseAgainstPolicy('SEE LICENSE IN LICENSE', {
+        allowed: new Set(),
+        mode: 'strict',
+      })
+      expect(result.allowed).toBe(true)
+      expect(result.reason).toBe('allowed-by-default')
+    })
+  })
+
+  describe('strict mode without allowed list', () => {
+    it('allows unknown license when no allowed list is configured', () => {
+      const result = matchLicenseAgainstPolicy('Unknown', {
+        disallowed: new Set(['GPL-3.0-only']),
+        mode: 'strict',
+      })
+      expect(result.allowed).toBe(true)
+      expect(result.reason).toBe('allowed-by-default')
+    })
+
+    it('allows empty license when no allowed list is configured', () => {
+      const result = matchLicenseAgainstPolicy('', {
+        disallowed: new Set(['GPL-3.0-only']),
+        mode: 'strict',
+      })
+      expect(result.allowed).toBe(true)
+      expect(result.reason).toBe('allowed-by-default')
+    })
+
+    it('still blocks explicitly disallowed licenses', () => {
+      const result = matchLicenseAgainstPolicy('GPL-3.0-only', {
+        disallowed: new Set(['GPL-3.0-only']),
         mode: 'strict',
       })
       expect(result.allowed).toBe(false)
-      expect(result.reason).toBe('unknown-license')
+      expect(result.reason).toBe('explicitly-disallowed')
     })
   })
 })
