@@ -116,6 +116,100 @@ test('fail when tarball size does not match content-length', async () => {
   )
 })
 
+test('request tarballs with Accept-Encoding: identity', async () => {
+  // Tarballs are already gzipped. Asking the server for an additional Content-Encoding
+  // wastes CPU and (when servers misbehave per RFC 7230 §3.3.2) breaks the size check
+  // because Content-Length refers to the encoded payload but undici yields decoded bytes.
+  // See: https://github.com/pnpm/pnpm/issues/11506
+  const tarballContent = fs.readFileSync(tarballPath)
+  const mockPool = mockAgent.get(registry)
+
+  let observedAcceptEncoding: string | string[] | undefined
+  mockPool.intercept({ path: '/foo.tgz', method: 'GET' }).reply(({ headers }) => {
+    observedAcceptEncoding = (headers as Record<string, string | string[]>)['accept-encoding']
+    return { statusCode: 200, data: tarballContent }
+  })
+
+  process.chdir(temporaryDirectory())
+
+  const resolution = { tarball: `${registry}/foo.tgz` }
+
+  await fetch.remoteTarball(cafs, resolution, {
+    filesIndexFile,
+    lockfileDir: process.cwd(),
+    pkg,
+  })
+
+  expect(observedAcceptEncoding).toBe('identity')
+})
+
+test.each([
+  ['gzip'],
+  ['GZIP'],
+  ['identity, gzip'],
+  ['gzip, identity'],
+  [' gzip '],
+])("don't fail on content-length mismatch when Content-Encoding is %j", async (contentEncoding) => {
+  // Defense in depth: a misbehaving server may stamp Content-Encoding on the response
+  // even when the client sent Accept-Encoding: identity. In that case undici decodes
+  // the body and Content-Length (encoded form) no longer matches the bytes we read.
+  // Per RFC 9110 §8.4, Content-Encoding is a comma-separated, case-insensitive list,
+  // so the parser must handle whitespace, casing, and mixed codings.
+  const tarballContent = fs.readFileSync(tarballPath)
+  const mockPool = mockAgent.get(registry)
+
+  mockPool.intercept({ path: '/foo.tgz', method: 'GET' }).reply(200, tarballContent, {
+    headers: {
+      'Content-Length': (tarballSize + 100).toString(),
+      'Content-Encoding': contentEncoding,
+    },
+  })
+
+  process.chdir(temporaryDirectory())
+
+  const resolution = { tarball: `${registry}/foo.tgz` }
+
+  const result = await fetch.remoteTarball(cafs, resolution, {
+    filesIndexFile,
+    lockfileDir: process.cwd(),
+    pkg,
+  })
+
+  expect(result.filesMap).toBeTruthy()
+})
+
+test('still enforce content-length when Content-Encoding is identity', async () => {
+  // identity (alone, with whitespace, or with mixed casing) means "no transformation";
+  // Content-Length still reflects the bytes on the wire and the strict check applies.
+  const tarballContent = fs.readFileSync(tarballPath)
+  const mockPool = mockAgent.get(registry)
+
+  mockPool.intercept({ path: '/foo.tgz', method: 'GET' }).reply(200, tarballContent, {
+    headers: {
+      'Content-Length': (1024 * 1024).toString(),
+      'Content-Encoding': ' Identity ',
+    },
+  })
+  mockPool.intercept({ path: '/foo.tgz', method: 'GET' }).reply(200, tarballContent, {
+    headers: {
+      'Content-Length': (1024 * 1024).toString(),
+      'Content-Encoding': ' Identity ',
+    },
+  })
+
+  process.chdir(temporaryDirectory())
+
+  const resolution = { tarball: `${registry}/foo.tgz` }
+
+  await expect(
+    fetch.remoteTarball(cafs, resolution, {
+      filesIndexFile,
+      lockfileDir: process.cwd(),
+      pkg,
+    })
+  ).rejects.toThrow(BadTarballError)
+})
+
 test('retry when tarball size does not match content-length', async () => {
   const tarballContent = fs.readFileSync(tarballPath)
   const mockPool = mockAgent.get(registry)
