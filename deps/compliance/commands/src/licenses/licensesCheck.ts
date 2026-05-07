@@ -104,7 +104,7 @@ export async function licensesCheck (
 
   if (result.violations.length === 0 && result.warnings.length === 0) {
     return {
-      output: `All ${result.checkedCount} packages passed the license check`,
+      output: `All ${result.checkedCount} ${result.checkedCount === 1 ? 'package' : 'packages'} passed the license check`,
       exitCode: 0,
     }
   }
@@ -177,7 +177,7 @@ function renderCheckTable (
   }
 
   lines.push('')
-  lines.push(`Checked ${checkedCount} packages`)
+  lines.push(`Checked ${checkedCount} ${checkedCount === 1 ? 'package' : 'packages'}`)
 
   return {
     output: lines.join('\n'),
