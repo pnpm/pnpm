@@ -33,6 +33,7 @@ packages:
   - installing/*
   - installing/linking/*
   - pkg-manifest/*
+  - pkg/*
   - patching/*
   - pnpm
   - pnpm/dev

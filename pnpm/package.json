@@ -129,6 +129,7 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/worker": "workspace:*",
+    "@pnpm/pkg.commands": "workspace:*",
     "@pnpm/workspace.commands": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@pnpm/workspace.project-manifest-writer": "workspace:*",
