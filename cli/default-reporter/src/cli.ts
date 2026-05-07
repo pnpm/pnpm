@@ -22,9 +22,9 @@ export async function runCli (argv: readonly string[]): Promise<void> {
   const close = initDefaultReporter({
     streamParser,
     context: { argv: [cmd] },
-    reportingOptions: {
-      throttleProgress: 200,
-    },
+    // No progress throttling: when rendering a recorded NDJSON stream we
+    // close as soon as stdin EOFs, so a trailing throttle window would
+    // drop the final progress value.
   })
 
   // initDefaultReporter registers its 'data' listener via setTimeout(0); wait
@@ -37,13 +37,16 @@ export async function runCli (argv: readonly string[]): Promise<void> {
     const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity })
     for await (const line of rl) {
       if (!line) continue
-      let log: Log
+      let parsed: unknown
       try {
-        log = JSON.parse(line) as Log
+        parsed = JSON.parse(line)
       } catch {
         continue
       }
-      emitter.emit('data', log)
+      // Guard against valid JSON that isn't a log object (e.g. `null`,
+      // numbers, strings) — the reporter dispatches on `log.name`.
+      if (parsed == null || typeof parsed !== 'object') continue
+      emitter.emit('data', parsed as Log)
     }
   } finally {
     close()
