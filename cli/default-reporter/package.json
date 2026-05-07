@@ -26,7 +26,7 @@
     "bin"
   ],
   "bin": {
-    "default-reporter": "bin/default-reporter.mjs"
+    "pnpm-render": "bin/pnpm-render.mjs"
   },
   "scripts": {
     "start": "tsgo --watch",
