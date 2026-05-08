@@ -221,12 +221,18 @@ export async function getConfig (opts: {
   // also have to peek at the relevant env vars here in order for
   // PNPM_CONFIG_NPMRC_AUTH_FILE / PNPM_CONFIG_USERCONFIG (and their lowercase
   // equivalents) to actually decide which user-level .npmrc gets read.
+  // npm_config_userconfig is honored as a low-priority compatibility fallback
+  // so that environments that point npm at a custom .npmrc (e.g. actions/setup-node
+  // writing to ${runner.temp}/.npmrc) keep working without requiring users to
+  // rename the env var to its PNPM_CONFIG_* equivalent.
   const globalYamlConfigForNpmrcAuthFile = await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
   const npmrcAuthFile = cliOptions['npmrc-auth-file'] as string | undefined
     ?? cliOptions.userconfig as string | undefined
     ?? readEnvVar(env, 'npmrc_auth_file')
     ?? readEnvVar(env, 'userconfig')
     ?? globalYamlConfigForNpmrcAuthFile?.npmrcAuthFile
+    ?? env.npm_config_userconfig
+    ?? env.NPM_CONFIG_USERCONFIG
 
   const npmrcResult = loadNpmrcConfig({
     cliOptions,
