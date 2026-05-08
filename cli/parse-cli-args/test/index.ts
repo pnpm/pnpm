@@ -1,4 +1,6 @@
+import fs from 'node:fs'
 import os from 'node:os'
+import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { parseCliArgs } from '@pnpm/cli.parse-cli-args'
@@ -396,6 +398,61 @@ test('--workspace-root fails if used outside of a workspace', async () => {
   }
   expect(err).toBeTruthy()
   expect(err.code).toBe('ERR_PNPM_NOT_IN_WORKSPACE')
+})
+
+// Regression for #11535. The renamed option (`--prefix` → `dir`) must be
+// considered when locating the workspace root; otherwise running pnpm from
+// a directory outside the project (e.g. `pnpm --prefix=child install` from
+// the parent dir) misses the workspace manifest in the prefix dir, and
+// settings declared there (e.g. allowBuilds) are silently overwritten.
+function setupParentWithChildWorkspace (): { parent: string, child: string } {
+  const parent = temporaryDirectory()
+  const child = path.join(parent, 'child')
+  fs.mkdirSync(child)
+  fs.writeFileSync(path.join(child, 'pnpm-workspace.yaml'), '')
+  process.chdir(parent)
+  return { parent, child }
+}
+
+test('workspaceDir resolves from --prefix when prefix is renamed to dir', async () => {
+  const { child } = setupParentWithChildWorkspace()
+  const { workspaceDir } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    universalOptionsTypes: { prefix: String },
+  }, ['install', '--prefix=child'])
+  expect(workspaceDir && fs.realpathSync.native(workspaceDir)).toBe(fs.realpathSync.native(child))
+})
+
+test('workspaceDir resolves from --prefix on the --help short-circuit', async () => {
+  const { child } = setupParentWithChildWorkspace()
+  const { cmd, workspaceDir } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    universalOptionsTypes: { prefix: String, help: Boolean },
+  }, ['install', '--prefix=child', '--help'])
+  expect(cmd).toBe('help')
+  expect(workspaceDir && fs.realpathSync.native(workspaceDir)).toBe(fs.realpathSync.native(child))
+})
+
+test('workspaceDir resolves from --prefix on the --version short-circuit', async () => {
+  const { child } = setupParentWithChildWorkspace()
+  const { cmd, workspaceDir } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    universalOptionsTypes: { prefix: String, version: Boolean },
+  }, ['--prefix=child', '--version'])
+  expect(cmd).toBeNull()
+  expect(workspaceDir && fs.realpathSync.native(workspaceDir)).toBe(fs.realpathSync.native(child))
+})
+
+// When both the alias and the canonical option are supplied, the canonical
+// value must win and the alias must be dropped — otherwise --prefix could
+// silently overwrite an explicit --dir.
+test('canonical option wins when both --prefix and --dir are passed', async () => {
+  const { options } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    universalOptionsTypes: { prefix: String, dir: String },
+  }, ['install', '--prefix=fromPrefix', '--dir=fromDir'])
+  expect(options.dir).toBe('fromDir')
+  expect(options).not.toHaveProperty(['prefix'])
 })
 
 test('everything after an escape arg is a parameter', async () => {
