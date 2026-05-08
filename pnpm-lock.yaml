@@ -239,8 +239,8 @@ catalogs:
       specifier: ^1.0.0
       version: 1.0.0
     '@pnpm/colorize-semver-diff':
-      specifier: ^1.0.1
-      version: 1.0.1
+      specifier: ^2.0.0
+      version: 2.0.0
     '@pnpm/config.env-replace':
       specifier: ^3.0.2
       version: 3.0.2
@@ -278,8 +278,8 @@ catalogs:
       specifier: 6.0.0
       version: 6.0.0
     '@pnpm/semver-diff':
-      specifier: ^1.1.0
-      version: 1.1.0
+      specifier: ^2.0.0
+      version: 2.0.0
     '@pnpm/tabtab':
       specifier: ^0.5.4
       version: 0.5.4
@@ -3350,7 +3350,7 @@ importers:
         version: link:../../../cli/utils
       '@pnpm/colorize-semver-diff':
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 2.0.0
       '@pnpm/config.matcher':
         specifier: workspace:*
         version: link:../../../config/matcher
@@ -3410,7 +3410,7 @@ importers:
         version: link:../../../resolving/registry/types
       '@pnpm/semver-diff':
         specifier: 'catalog:'
-        version: 1.1.0
+        version: 2.0.0
       '@pnpm/store.path':
         specifier: workspace:*
         version: link:../../../store/path
@@ -5201,7 +5201,7 @@ importers:
         version: link:../../cli/utils
       '@pnpm/colorize-semver-diff':
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 2.0.0
       '@pnpm/config.matcher':
         specifier: workspace:*
         version: link:../../config/matcher
@@ -5270,7 +5270,7 @@ importers:
         version: link:../../resolving/resolver-base
       '@pnpm/semver-diff':
         specifier: 'catalog:'
-        version: 1.1.0
+        version: 2.0.0
       '@pnpm/store.connection-manager':
         specifier: workspace:*
         version: link:../../store/connection-manager
@@ -11017,9 +11017,9 @@ packages:
     resolution: {integrity: sha512-2UNrokmnXaD2dxQ4R0VzWJ4NjfTgJnIW2BhE7QLB5rgo/hyO5EUiZkDdCgJoxa38S0QxHJDKRRHHCkO/Pa+Etg==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/colorize-semver-diff@1.0.1':
-    resolution: {integrity: sha512-qP4E7mzmCBhB4so6szszeIdVDrcKGTTCxBazCKoiPUG34xLha6r57zJuFBkTmD65i3TB7++lf3BwpQruUwf/BQ==}
-    engines: {node: '>=10'}
+  '@pnpm/colorize-semver-diff@2.0.0':
+    resolution: {integrity: sha512-rdzxBK0DRDWKXNrkNL+jvzKm5BGuNqQOGYe/1QpJQhaBd6tmXwkQmbcKm18CJI9qQJFrPH2KZ/99cNhpwYPqvg==}
+    engines: {node: '>=22.13'}
 
   '@pnpm/config.config-writer@1000.1.3':
     resolution: {integrity: sha512-9W82H0iHWDDX6Jx6gk+4dghOzwcN6NLKh53lxN0n23dMnJyXreHWPAEQ2i0j2w3oSKJcg5GfdoyvuNn2YQvC0w==}
@@ -11454,9 +11454,9 @@ packages:
     engines: {node: '>=4'}
     hasBin: true
 
-  '@pnpm/semver-diff@1.1.0':
-    resolution: {integrity: sha512-qQDQqPlveM7+Q0PMc21t1gfrCXMBe054HCdqJn3Hbo2WTDAlQjAShvTNDXaqVe/wx2JOnhA9GkQR4lk/zDrT4Q==}
-    engines: {node: '>=8.15'}
+  '@pnpm/semver-diff@2.0.0':
+    resolution: {integrity: sha512-BeJTTAegvEHqgldGtJuZMCC0IfC/mVyxR1parznqCTtPwQSYrjft4tDvKd+oBMJQjcl7sp70G8rPR89ecpeicg==}
+    engines: {node: '>=22.13'}
 
   '@pnpm/semver.peer-range@1000.0.0':
     resolution: {integrity: sha512-r6VzkrdH7ZKjPmAogTNvxuV/UyS/xwHNme+ZuEFiG0UthZgqudDftYtKmG20fcfrjG1lgJbbWICA8KvZy7mmbw==}
@@ -18777,9 +18777,9 @@ snapshots:
       - supports-color
       - typanion
 
-  '@pnpm/colorize-semver-diff@1.0.1':
+  '@pnpm/colorize-semver-diff@2.0.0':
     dependencies:
-      chalk: 4.1.2
+      chalk: 5.6.2
 
   '@pnpm/config.config-writer@1000.1.3(@pnpm/logger@1001.0.1)':
     dependencies:
@@ -19643,7 +19643,7 @@ snapshots:
 
   '@pnpm/self-installer@2.2.1': {}
 
-  '@pnpm/semver-diff@1.1.0': {}
+  '@pnpm/semver-diff@2.0.0': {}
 
   '@pnpm/semver.peer-range@1000.0.0':
     dependencies:

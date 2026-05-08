@@ -1,8 +1,8 @@
 import { stripVTControlCharacters } from 'node:util'
 
-import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
+import { colorizeSemverDiff } from '@pnpm/colorize-semver-diff'
 import type { OutdatedPackage } from '@pnpm/deps.inspection.outdated'
-import semverDiff from '@pnpm/semver-diff'
+import { semverDiff } from '@pnpm/semver-diff'
 import { getBorderCharacters, table } from '@zkochan/table'
 import { and, groupBy, isEmpty, pickBy, pipe, pluck, uniqBy } from 'ramda'
 
@@ -97,27 +97,25 @@ interface RawChoice {
 }
 
 function buildPkgChoice (outdatedPkg: OutdatedPackage, workspacesEnabled: boolean): RawChoice {
-  const sdiff = semverDiff.default(outdatedPkg.wanted, outdatedPkg.latestManifest!.version)
+  const sdiff = semverDiff(outdatedPkg.wanted, outdatedPkg.latestManifest!.version)
   const nextVersion = sdiff.change === null
     ? outdatedPkg.latestManifest!.version
-    : colorizeSemverDiff.default(sdiff as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+    : colorizeSemverDiff(sdiff as any) // eslint-disable-line @typescript-eslint/no-explicit-any
   const label = outdatedPkg.packageName
 
-  const lineParts = {
+  const raw: string[] = [
     label,
-    current: outdatedPkg.current,
-    arrow: '❯',
+    outdatedPkg.current ?? '',
+    '❯',
     nextVersion,
-    workspace: outdatedPkg.workspace,
-    url: getPkgUrl(outdatedPkg),
+  ]
+  if (workspacesEnabled) {
+    raw.push(outdatedPkg.workspace ?? '')
   }
-
-  if (!workspacesEnabled) {
-    delete lineParts.workspace
-  }
+  raw.push(getPkgUrl(outdatedPkg))
 
   return {
-    raw: Object.values(lineParts),
+    raw,
     name: outdatedPkg.packageName,
   }
 }
