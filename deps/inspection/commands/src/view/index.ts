@@ -219,6 +219,10 @@ function getPublishedInfo (info: ExtendedPackageInfo): string | null {
   }
   const now = new Date()
   const diffMs = now.getTime() - publishedDate.getTime()
+  // Handle clock skew: if diffMs is negative (future date), skip the line
+  if (diffMs < 0) {
+    return null
+  }
   const diffSec = Math.floor(diffMs / 1000)
   const diffMin = Math.floor(diffSec / 60)
   const diffHour = Math.floor(diffMin / 60)
@@ -237,7 +241,7 @@ function getPublishedInfo (info: ExtendedPackageInfo): string | null {
   } else if (diffMin > 0) {
     timeAgo = diffMin === 1 ? '1 minute' : `${diffMin} minutes`
   } else {
-    timeAgo = 'few seconds'
+    timeAgo = 'a few seconds'
   }
 
   const publisher = getPublisher(info)
@@ -247,6 +251,11 @@ function getPublishedInfo (info: ExtendedPackageInfo): string | null {
   return `published ${timeAgo} ago`
 }
 
+/**
+ * Retrieves the publisher name from package metadata.
+ * Checks fields in order: _npmUser, maintainers, author.
+ * Returns null if no publisher information is available.
+ */
 function getPublisher (info: ExtendedPackageInfo): string | null {
   if (info._npmUser?.name) {
     const email = info._npmUser.email
@@ -262,11 +271,7 @@ function getPublisher (info: ExtendedPackageInfo): string | null {
     return `${name} et al.`
   }
   if (info.author) {
-    const author = info.author as { name?: string; email?: string }
-    if (author.email) {
-      return `${author.name ?? 'unknown'} <${author.email}>`
-    }
-    return author.name ?? String(info.author)
+    return String(info.author)
   }
   return null
 }
