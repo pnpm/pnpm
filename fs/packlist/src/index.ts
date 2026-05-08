@@ -1,4 +1,4 @@
-import fs from 'node:fs/promises'
+import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
@@ -22,13 +22,13 @@ interface TreeNode {
 export async function packlist (pkgDir: string, opts?: {
   manifest?: Record<string, unknown>
 }): Promise<string[]> {
-  const pkg = opts?.manifest ?? await readPackageJson(pkgDir)
-  const tree = await buildRootTree(pkgDir, pkg)
+  const pkg = opts?.manifest ?? readPackageJson(pkgDir)
+  const tree = buildRootTree(pkgDir, pkg)
   const files = await npmPacklist(tree)
   return files.map((file) => file.replace(/^\.[/\\]/, ''))
 }
 
-async function buildRootTree (pkgDir: string, pkg: Record<string, unknown>): Promise<TreeNode> {
+function buildRootTree (pkgDir: string, pkg: Record<string, unknown>): TreeNode {
   const bundledDeps = getRootBundledDeps(pkg)
   // npm-packlist's gatherBundles() iterates package.bundleDependencies directly,
   // so the field must be an array. Normalize true/undefined to an explicit list.
@@ -37,28 +37,25 @@ async function buildRootTree (pkgDir: string, pkg: Record<string, unknown>): Pro
   delete normalizedPkg.bundledDependencies
   const root = makeNode(pkgDir, normalizedPkg, true)
   const seen = new Map<string, TreeNode>([[pkgDir, root]])
-  await populateEdges(root, bundledDeps, seen)
+  populateEdges(root, bundledDeps, seen)
   return root
 }
 
-async function buildBundledTree (pkgDir: string, seen: Map<string, TreeNode>): Promise<TreeNode> {
+function buildBundledTree (pkgDir: string, seen: Map<string, TreeNode>): TreeNode {
   const cached = seen.get(pkgDir)
   if (cached) return cached
-  const pkg = await readPackageJson(pkgDir)
+  const pkg = readPackageJson(pkgDir)
   const node = makeNode(pkgDir, normalizePackage(pkg), false)
   seen.set(pkgDir, node)
-  await populateEdges(node, getNestedBundledDeps(pkg), seen)
+  populateEdges(node, getNestedBundledDeps(pkg), seen)
   return node
 }
 
-async function populateEdges (node: TreeNode, deps: string[], seen: Map<string, TreeNode>): Promise<void> {
-  // Sequential to keep the shared `seen` map deduplication race-free.
+function populateEdges (node: TreeNode, deps: string[], seen: Map<string, TreeNode>): void {
   for (const dep of deps) {
-    // eslint-disable-next-line no-await-in-loop
-    const depDir = await resolveDependency(dep, node.path)
+    const depDir = resolveDependency(dep, node.path)
     if (!depDir) continue
-    // eslint-disable-next-line no-await-in-loop
-    const depNode = await buildBundledTree(depDir, seen)
+    const depNode = buildBundledTree(depDir, seen)
     node.edgesOut.set(dep, { to: depNode, peer: false, dev: false })
   }
 }
@@ -90,13 +87,12 @@ function getNestedBundledDeps (pkg: Record<string, unknown>): string[] {
   return [...Object.keys(dependencies), ...Object.keys(optionalDependencies)]
 }
 
-async function resolveDependency (depName: string, fromDir: string): Promise<string | undefined> {
+function resolveDependency (depName: string, fromDir: string): string | undefined {
   let currentDir = fromDir
   while (true) {
     const candidate = path.join(currentDir, 'node_modules', depName)
     try {
-      // eslint-disable-next-line no-await-in-loop
-      const stat = await fs.stat(path.join(candidate, 'package.json'))
+      const stat = fs.statSync(path.join(candidate, 'package.json'))
       if (stat.isFile()) return candidate
     } catch (err: unknown) {
       if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
@@ -109,9 +105,9 @@ async function resolveDependency (depName: string, fromDir: string): Promise<str
   }
 }
 
-async function readPackageJson (dir: string): Promise<Record<string, unknown>> {
+function readPackageJson (dir: string): Record<string, unknown> {
   try {
-    return JSON.parse(await fs.readFile(path.join(dir, 'package.json'), 'utf8'))
+    return JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       return {}
