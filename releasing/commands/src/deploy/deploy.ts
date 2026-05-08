@@ -211,8 +211,8 @@ async function deployFromSharedLockfile (
   deployDir: string
 ): Promise<string | undefined> {
   if (!opts.injectWorkspacePackages) {
-    throw new PnpmError('DEPLOY_NONINJECTED_WORKSPACE', 'By default, starting from pnpm v10, we only deploy from workspaces that have "inject-workspace-packages=true" set', {
-      hint: 'If you want to deploy without using injected dependencies, run "pnpm deploy" with the "--legacy" flag or set "force-legacy-deploy" to true',
+    throw new PnpmError('DEPLOY_NONINJECTED_WORKSPACE', 'By default, starting from pnpm v11, we only deploy from workspaces that have "injectWorkspacePackages: true" set in pnpm-workspace.yaml', {
+      hint: 'If you want to deploy without using injected dependencies, run "pnpm deploy" with the "--legacy" flag or set "forceLegacyDeploy: true" in your configuration.',
     })
   }
   const {
