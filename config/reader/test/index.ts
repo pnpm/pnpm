@@ -1275,6 +1275,33 @@ test('getConfig() prefers PNPM_CONFIG_USERCONFIG over NPM_CONFIG_USERCONFIG when
   expect(config.userConfig).toEqual({ registry: 'https://pnpm.example.test' })
 })
 
+// An empty NPM_CONFIG_USERCONFIG (e.g. `export NPM_CONFIG_USERCONFIG=`) must be
+// treated as unset. Otherwise it short-circuits the fallback chain and resolves
+// to the cwd, returning an empty/invalid auth config instead of ~/.npmrc.
+test('getConfig() ignores an empty NPM_CONFIG_USERCONFIG and falls back to ~/.npmrc', async () => {
+  prepareEmpty()
+  const homedirSpy = jest.spyOn(os, 'homedir').mockReturnValue(path.resolve('user-home'))
+  try {
+    fs.mkdirSync('user-home')
+    fs.writeFileSync(path.resolve('user-home', '.npmrc'), 'registry = https://home.example.test', 'utf-8')
+    const { config } = await getConfig({
+      cliOptions: {},
+      env: {
+        ...env,
+        NPM_CONFIG_USERCONFIG: '',
+        npm_config_userconfig: '',
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+    expect(config.userConfig).toEqual({ registry: 'https://home.example.test' })
+  } finally {
+    homedirSpy.mockRestore()
+  }
+})
+
 test('getConfig() sets sideEffectsCacheRead and sideEffectsCacheWrite when side-effects-cache is set', async () => {
   const { config } = await getConfig({
     cliOptions: {

@@ -231,8 +231,7 @@ export async function getConfig (opts: {
     ?? readEnvVar(env, 'npmrc_auth_file')
     ?? readEnvVar(env, 'userconfig')
     ?? globalYamlConfigForNpmrcAuthFile?.npmrcAuthFile
-    ?? env.npm_config_userconfig
-    ?? env.NPM_CONFIG_USERCONFIG
+    ?? readNpmEnvVar(env, 'userconfig')
 
   const npmrcResult = loadNpmrcConfig({
     cliOptions,
@@ -699,6 +698,14 @@ function getProcessEnv (env: string): string | undefined {
 // is loaded.
 function readEnvVar (env: NodeJS.ProcessEnv, key: string): string | undefined {
   const value = env[`pnpm_config_${key}`] ?? env[`PNPM_CONFIG_${key.toUpperCase()}`]
+  return value !== '' ? value : undefined
+}
+
+// Same shape as readEnvVar but for the `npm_config_<key>` family. Used as a
+// low-priority compatibility shim so that npm-style env vars (e.g.
+// NPM_CONFIG_USERCONFIG written by actions/setup-node) keep working.
+function readNpmEnvVar (env: NodeJS.ProcessEnv, key: string): string | undefined {
+  const value = env[`npm_config_${key}`] ?? env[`NPM_CONFIG_${key.toUpperCase()}`]
   return value !== '' ? value : undefined
 }
 
