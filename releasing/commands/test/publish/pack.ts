@@ -99,6 +99,97 @@ test('pack: with dry-run', async () => {
   expect(fs.existsSync('package.json')).toBeTruthy()
 })
 
+test('pack: bundles dependencies listed in bundleDependencies', async () => {
+  prepare({
+    name: 'pkg-with-bundle-deps',
+    version: '0.0.0',
+    bundleDependencies: ['bundled-dep'],
+  })
+
+  fs.mkdirSync('node_modules/bundled-dep', { recursive: true })
+  fs.writeFileSync('node_modules/bundled-dep/package.json', JSON.stringify({ name: 'bundled-dep', version: '1.0.0' }), 'utf8')
+  fs.writeFileSync('node_modules/bundled-dep/index.js', 'module.exports = 42', 'utf8')
+  fs.mkdirSync('node_modules/not-bundled', { recursive: true })
+  fs.writeFileSync('node_modules/not-bundled/package.json', JSON.stringify({ name: 'not-bundled', version: '1.0.0' }), 'utf8')
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    nodeLinker: 'hoisted',
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    packDestination: process.cwd(),
+  })
+
+  await tar.x({ file: 'pkg-with-bundle-deps-0.0.0.tgz' })
+  expect(fs.existsSync('package/node_modules/bundled-dep/package.json')).toBeTruthy()
+  expect(fs.existsSync('package/node_modules/bundled-dep/index.js')).toBeTruthy()
+  expect(fs.existsSync('package/node_modules/not-bundled/package.json')).toBeFalsy()
+})
+
+test('pack: bundles every dependency when bundleDependencies is true', async () => {
+  prepare({
+    name: 'pkg-with-bundle-deps-true',
+    version: '0.0.0',
+    dependencies: {
+      'bundled-dep': '1.0.0',
+    },
+    bundleDependencies: true,
+  })
+
+  fs.mkdirSync('node_modules/bundled-dep', { recursive: true })
+  fs.writeFileSync('node_modules/bundled-dep/package.json', JSON.stringify({ name: 'bundled-dep', version: '1.0.0' }), 'utf8')
+  fs.writeFileSync('node_modules/bundled-dep/index.js', 'module.exports = 42', 'utf8')
+  fs.mkdirSync('node_modules/not-a-dep', { recursive: true })
+  fs.writeFileSync('node_modules/not-a-dep/package.json', JSON.stringify({ name: 'not-a-dep', version: '1.0.0' }), 'utf8')
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    nodeLinker: 'hoisted',
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    packDestination: process.cwd(),
+  })
+
+  await tar.x({ file: 'pkg-with-bundle-deps-true-0.0.0.tgz' })
+  expect(fs.existsSync('package/node_modules/bundled-dep/index.js')).toBeTruthy()
+  expect(fs.existsSync('package/node_modules/bundled-dep/package.json')).toBeTruthy()
+  expect(fs.existsSync('package/node_modules/not-a-dep/package.json')).toBeFalsy()
+})
+
+test('pack: bundles transitive dependencies of bundled dependencies (hoisted)', async () => {
+  prepare({
+    name: 'pkg-with-transitive-bundle-deps',
+    version: '0.0.0',
+    bundledDependencies: ['top'],
+  })
+
+  fs.mkdirSync('node_modules/top', { recursive: true })
+  fs.writeFileSync(
+    'node_modules/top/package.json',
+    JSON.stringify({ name: 'top', version: '1.0.0', dependencies: { nested: '1.0.0' } }),
+    'utf8'
+  )
+  fs.writeFileSync('node_modules/top/index.js', 'top', 'utf8')
+  fs.mkdirSync('node_modules/nested', { recursive: true })
+  fs.writeFileSync('node_modules/nested/package.json', JSON.stringify({ name: 'nested', version: '1.0.0' }), 'utf8')
+  fs.writeFileSync('node_modules/nested/index.js', 'nested', 'utf8')
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    nodeLinker: 'hoisted',
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    packDestination: process.cwd(),
+  })
+
+  await tar.x({ file: 'pkg-with-transitive-bundle-deps-0.0.0.tgz' })
+  expect(fs.existsSync('package/node_modules/top/index.js')).toBeTruthy()
+  expect(fs.existsSync('package/node_modules/nested/index.js')).toBeTruthy()
+})
+
 test('pack when there is bundledDependencies but without node-linker=hoisted', async () => {
   prepare({
     name: 'bundled-deps-without-node-linker-hoisted',
