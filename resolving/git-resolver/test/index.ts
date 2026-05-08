@@ -370,6 +370,27 @@ test('resolveFromGit() gitlab with colon in the URL', async () => {
   })
 })
 
+// Regression test for #11533: the tarball URL must not contain `%2F`,
+// otherwise GitLab returns 406 and Node refuses to import the package
+// (the encoded slash ends up in the virtual store directory name).
+test('resolveFromGit() gitlab tarball uses /-/archive/ URL without encoded slash', async () => {
+  const headCommit = '988c61e11dc8d9ca0b5580cb15291951812549dc'
+  jest.mocked(fetchWithDispatcher).mockImplementation(async (_url, _opts) => {
+    return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+  })
+  jest.mocked(git).mockImplementation(async () => ({ stdout: `${headCommit}\tHEAD` }))
+  const resolveResult = await resolveFromGit({ bareSpecifier: 'https://gitlab.com/pnpmjs/git-resolver' })
+  expect(resolveResult).toStrictEqual({
+    id: `https://gitlab.com/pnpmjs/git-resolver/-/archive/${headCommit}/git-resolver-${headCommit}.tar.gz`,
+    normalizedBareSpecifier: 'gitlab:pnpmjs/git-resolver',
+    resolution: {
+      tarball: `https://gitlab.com/pnpmjs/git-resolver/-/archive/${headCommit}/git-resolver-${headCommit}.tar.gz`,
+      gitHosted: true,
+    },
+    resolvedVia: 'git-repository',
+  })
+})
+
 // This test stopped working. Probably an environmental issue.
 test.skip('resolveFromGit() gitlab with commit', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'gitlab:pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc' })
