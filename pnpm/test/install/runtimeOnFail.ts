@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
@@ -44,4 +45,33 @@ test('runtimeOnFail=ignore prevents Node.js download even when manifest sets onF
 
   const lockfile = project.readLockfile()
   expect(lockfile.importers['.'].devDependencies).toBeUndefined()
+})
+
+test('--no-runtime keeps the runtime entry in the lockfile but skips installing the binary', async () => {
+  const project = prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '24.0.0',
+        onFail: 'download',
+      },
+    },
+  })
+
+  await execPnpm(['install'])
+  project.isExecutable('.bin/node')
+  const lockfileBefore = project.readLockfile()
+  expect(lockfileBefore.importers['.'].devDependencies).toStrictEqual({
+    node: { specifier: 'runtime:24.0.0', version: 'runtime:24.0.0' },
+  })
+
+  fs.rmSync('node_modules', { recursive: true, force: true })
+  await execPnpm(['install', '--frozen-lockfile', '--no-runtime'])
+
+  const lockfileAfter = project.readLockfile()
+  expect(lockfileAfter.importers['.'].devDependencies).toStrictEqual({
+    node: { specifier: 'runtime:24.0.0', version: 'runtime:24.0.0' },
+  })
+  const nodeBin = path.join('node_modules', '.bin', process.platform === 'win32' ? 'node.cmd' : 'node')
+  expect(fs.existsSync(nodeBin)).toBe(false)
 })

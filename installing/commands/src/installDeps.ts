@@ -84,6 +84,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'production'
 | 'preferWorkspacePackages'
 | 'registries'
+| 'runtime'
 | 'runtimeOnFail'
 | 'save'
 | 'saveDev'
@@ -275,6 +276,7 @@ export async function installDeps (
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
     sideEffectsCacheRead: opts.sideEffectsCache ?? opts.sideEffectsCacheReadonly,
     sideEffectsCacheWrite: opts.sideEffectsCache,
+    skipRuntimes: opts.runtime === false,
     storeController: store.ctrl,
     storeDir: store.dir,
     workspacePackages,

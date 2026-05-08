@@ -176,6 +176,7 @@ export interface HeadlessOptions {
   pendingBuilds: string[]
   resolveSymlinksInInjectedDirs?: boolean
   skipped: Set<DepPath>
+  skipRuntimes?: boolean
   enableModulesDir?: boolean
   virtualStoreOnly?: boolean
   nodeLinker?: 'isolated' | 'hoisted' | 'pnp'
@@ -259,6 +260,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     include: opts.include,
     registries: opts.registries,
     skipped,
+    skipRuntimes: opts.skipRuntimes,
     currentEngine: opts.currentEngine,
     engineStrict: opts.engineStrict,
     failOnMissingDependencies: true,

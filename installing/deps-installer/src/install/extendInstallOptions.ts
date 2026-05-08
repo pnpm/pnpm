@@ -165,6 +165,7 @@ export interface StrictInstallOptions {
    */
   disableRelinkLocalDirDeps: boolean
 
+  skipRuntimes: boolean
   supportedArchitectures?: SupportedArchitectures
   hoistWorkspacePackages?: boolean
   virtualStoreDirMaxLength: number
@@ -279,6 +280,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     ignoreWorkspaceCycles: false,
     disallowWorkspaceCycles: false,
     excludeLinksFromLockfile: false,
+    skipRuntimes: false,
     virtualStoreDirMaxLength: 120,
     peersSuffixMaxLength: 1000,
     blockExoticSubdeps: false,

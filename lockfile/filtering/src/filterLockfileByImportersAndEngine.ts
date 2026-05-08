@@ -39,6 +39,7 @@ export interface FilterLockfileOptions {
   failOnMissingDependencies: boolean
   lockfileDir: string
   skipped: Set<string>
+  skipRuntimes?: boolean
   supportedArchitectures?: SupportedArchitectures
 }
 
@@ -52,6 +53,7 @@ export function filterLockfileByImportersAndEngine (
   const directDepPaths = toImporterDepPaths(lockfile, importerIds, {
     include: opts.include,
     importerIdSet,
+    skipRuntimes: opts.skipRuntimes,
   })
 
   const packages =
@@ -65,12 +67,13 @@ export function filterLockfileByImportersAndEngine (
             opts.includeIncompatiblePackages === true,
         lockfileDir: opts.lockfileDir,
         skipped: opts.skipped,
+        skipRuntimes: opts.skipRuntimes,
         supportedArchitectures: opts.supportedArchitectures,
       })
       : {}
 
   const importers = mapValues((importer) => {
-    const newImporter = filterImporter(importer, opts.include)
+    const newImporter = filterImporter(importer, opts.include, { skipRuntimes: opts.skipRuntimes })
     if (newImporter.optionalDependencies != null) {
       newImporter.optionalDependencies = pickBy((ref, depName) => {
         const depPath = dp.refToRelative(ref, depName)
@@ -105,6 +108,7 @@ function pickPkgsWithAllDeps (
     includeIncompatiblePackages: boolean
     lockfileDir: string
     skipped: Set<string>
+    skipRuntimes?: boolean
     supportedArchitectures?: SupportedArchitectures
   }
 ): PackageSnapshots {
@@ -132,6 +136,7 @@ function pkgAllDeps (
     includeIncompatiblePackages: boolean
     lockfileDir: string
     skipped: Set<string>
+    skipRuntimes?: boolean
     supportedArchitectures?: SupportedArchitectures
   }
 ) {
@@ -189,6 +194,7 @@ function pkgAllDeps (
       ...toImporterDepPaths(ctx.lockfile, additionalImporterIds, {
         include: opts.include,
         importerIdSet: ctx.importerIdSet,
+        skipRuntimes: opts.skipRuntimes,
       })
     )
     pkgAllDeps(ctx, nextRelDepPaths, installable, opts)
@@ -201,6 +207,7 @@ function toImporterDepPaths (
   opts: {
     include: { [dependenciesField in DependenciesField]: boolean }
     importerIdSet: Set<ProjectId>
+    skipRuntimes?: boolean
   }
 ): DepPath[] {
   const importerDeps = importerIds
@@ -213,6 +220,7 @@ function toImporterDepPaths (
         : {}),
     }))
     .map(Object.entries)
+    .map(entries => opts.skipRuntimes ? entries.filter(([, ref]) => !ref.startsWith('runtime:')) : entries)
 
   let { depPaths, importerIds: nextImporterIds } = parseDepRefs(unnest(importerDeps), lockfile)
 

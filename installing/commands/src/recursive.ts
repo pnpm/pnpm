@@ -73,6 +73,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'agent'
 | 'allowBuilds'
 | 'registries'
+| 'runtime'
 | 'save'
 | 'saveCatalogName'
 | 'saveDev'
@@ -160,6 +161,7 @@ export async function recursive (
       (((opts.ignoredPackages == null) || opts.ignoredPackages.size === 0) &&
         pkgs.length === allProjects.length),
     saveCatalogName: opts.saveCatalogName,
+    skipRuntimes: opts.runtime === false,
     storeController: store.ctrl,
     storeDir: store.dir,
     targetDependenciesField,

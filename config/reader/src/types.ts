@@ -98,6 +98,7 @@ export const pnpmTypes = {
   reporter: String,
   'resolution-mode': ['highest', 'time-based', 'lowest-direct'],
   'resolve-peers-from-workspace-root': Boolean,
+  runtime: Boolean,
   'runtime-on-fail': ['ignore', 'warn', 'error', 'download'],
   'aggregate-output': Boolean,
   'reporter-hide-prefix': Boolean,
