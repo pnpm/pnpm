@@ -72,8 +72,7 @@ test('--no-runtime keeps the runtime entry in the lockfile but skips installing 
   expect(lockfileAfter.importers['.'].devDependencies).toStrictEqual({
     node: { specifier: 'runtime:24.0.0', version: 'runtime:24.0.0' },
   })
-  const nodeBin = path.join('node_modules', '.bin', process.platform === 'win32' ? 'node.cmd' : 'node')
-  expect(fs.existsSync(nodeBin)).toBe(false)
+  expectNoNodeBin()
 })
 
 test('--no-runtime works on a fresh checkout with no lockfile (non-frozen path)', async () => {
@@ -93,6 +92,12 @@ test('--no-runtime works on a fresh checkout with no lockfile (non-frozen path)'
   expect(lockfile.importers['.'].devDependencies).toStrictEqual({
     node: { specifier: 'runtime:24.0.0', version: 'runtime:24.0.0' },
   })
-  const nodeBin = path.join('node_modules', '.bin', process.platform === 'win32' ? 'node.cmd' : 'node')
-  expect(fs.existsSync(nodeBin)).toBe(false)
+  expectNoNodeBin()
 })
+
+function expectNoNodeBin (): void {
+  const binDir = path.join('node_modules', '.bin')
+  for (const name of ['node', 'node.exe', 'node.cmd', 'node.ps1']) {
+    expect(fs.existsSync(path.join(binDir, name))).toBe(false)
+  }
+}
