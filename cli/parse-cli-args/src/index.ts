@@ -190,10 +190,15 @@ export async function parseCliArgs (
   // (renamed to `dir`) participates in finding the workspace root.
   // Otherwise getWorkspaceDir falls back to process.cwd() and the
   // workspace manifest at the prefix dir is missed (#11535).
+  // The canonical option wins if both are supplied (e.g. `--prefix=foo
+  // --dir=bar` keeps `dir=bar`); the alias is always dropped.
   if (opts.renamedOptions != null) {
     for (const [cliOption, optionValue] of Object.entries(options)) {
-      if (opts.renamedOptions[cliOption]) {
-        options[opts.renamedOptions[cliOption]] = optionValue
+      const target = opts.renamedOptions[cliOption]
+      if (target) {
+        if (!(target in options)) {
+          options[target] = optionValue
+        }
         delete options[cliOption]
       }
     }
