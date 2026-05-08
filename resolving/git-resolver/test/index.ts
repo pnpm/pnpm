@@ -379,12 +379,12 @@ test('resolveFromGit() gitlab tarball uses /-/archive/ URL without encoded slash
     return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any
   })
   jest.mocked(git).mockImplementation(async () => ({ stdout: `${headCommit}\tHEAD` }))
-  const resolveResult = await resolveFromGit({ bareSpecifier: 'https://gitlab.com/pasosdejesus/m' })
+  const resolveResult = await resolveFromGit({ bareSpecifier: 'https://gitlab.com/pnpmjs/git-resolver' })
   expect(resolveResult).toStrictEqual({
-    id: `https://gitlab.com/pasosdejesus/m/-/archive/${headCommit}/m-${headCommit}.tar.gz`,
-    normalizedBareSpecifier: 'gitlab:pasosdejesus/m',
+    id: `https://gitlab.com/pnpmjs/git-resolver/-/archive/${headCommit}/git-resolver-${headCommit}.tar.gz`,
+    normalizedBareSpecifier: 'gitlab:pnpmjs/git-resolver',
     resolution: {
-      tarball: `https://gitlab.com/pasosdejesus/m/-/archive/${headCommit}/m-${headCommit}.tar.gz`,
+      tarball: `https://gitlab.com/pnpmjs/git-resolver/-/archive/${headCommit}/git-resolver-${headCommit}.tar.gz`,
       gitHosted: true,
     },
     resolvedVia: 'git-repository',
