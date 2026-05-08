@@ -1,5 +1,18 @@
 # @pnpm/building.after-install
 
+## 1101.0.9
+
+### Patch Changes
+
+- Updated dependencies [0c67cb5]
+- Updated dependencies [e9e876c]
+  - @pnpm/store.index@1100.1.0
+  - @pnpm/config.reader@1101.2.2
+  - @pnpm/store.connection-manager@1100.0.13
+  - @pnpm/worker@1100.1.3
+  - @pnpm/installing.context@1100.0.8
+  - @pnpm/exec.lifecycle@1100.0.7
+
 ## 1101.0.8
 
 ### Patch Changes

@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-patching
 
+## 1100.0.14
+
+### Patch Changes
+
+- Updated dependencies [e9e876c]
+- Updated dependencies [dd8d5d7]
+- Updated dependencies [15e9e35]
+  - @pnpm/config.reader@1101.2.2
+  - @pnpm/fs.packlist@1100.0.1
+  - @pnpm/installing.commands@1100.1.12
+  - @pnpm/fetching.pick-fetcher@1100.0.5
+  - @pnpm/store.connection-manager@1100.0.13
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/patching.apply-patch@1100.0.0
+
 ## 1100.0.13
 
 ### Patch Changes

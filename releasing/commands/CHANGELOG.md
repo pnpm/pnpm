@@ -1,5 +1,25 @@
 # @pnpm/releasing.commands
 
+## 1100.2.11
+
+### Patch Changes
+
+- 80ef69b: Fixed `pnpm publish --provenance` failing with a 422 from the registry when the package version contained semver build metadata (e.g. `1.0.0-canary.0+abc1234`). The `+<build>` segment is now stripped before packing so that the version embedded in the tarball, the metadata sent to the registry, and the sigstore provenance subject all agree [#11518](https://github.com/pnpm/pnpm/issues/11518).
+- Updated dependencies [e9e876c]
+- Updated dependencies [dd8d5d7]
+- Updated dependencies [15e9e35]
+  - @pnpm/config.reader@1101.2.2
+  - @pnpm/fs.packlist@1100.0.1
+  - @pnpm/installing.commands@1100.1.12
+  - @pnpm/installing.client@1100.0.12
+  - @pnpm/engine.runtime.commands@1100.0.12
+  - @pnpm/engine.runtime.node-resolver@1101.0.6
+  - @pnpm/fetching.directory-fetcher@1100.0.7
+  - @pnpm/exec.lifecycle@1100.0.7
+  - @pnpm/workspace.projects-filter@1100.0.9
+  - @pnpm/fs.indexed-pkg-importer@1100.0.5
+  - @pnpm/releasing.exportable-manifest@1100.0.3
+
 ## 1100.2.10
 
 ### Patch Changes

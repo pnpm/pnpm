@@ -1,5 +1,11 @@
 # @pnpm/get-context
 
+## 1100.0.8
+
+### Patch Changes
+
+- @pnpm/store.controller@1101.0.4
+
 ## 1100.0.7
 
 ### Patch Changes

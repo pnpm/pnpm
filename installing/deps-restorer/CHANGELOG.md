@@ -1,5 +1,15 @@
 # @pnpm/headless
 
+## 1101.0.8
+
+### Patch Changes
+
+- @pnpm/installing.package-requester@1101.0.4
+- @pnpm/worker@1100.1.3
+- @pnpm/building.during-install@1101.0.7
+- @pnpm/exec.lifecycle@1100.0.7
+- @pnpm/fs.symlink-dependency@1100.0.2
+
 ## 1101.0.7
 
 ### Patch Changes

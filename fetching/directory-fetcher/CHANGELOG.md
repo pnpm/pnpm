@@ -1,5 +1,12 @@
 # @pnpm/directory-fetcher
 
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [dd8d5d7]
+  - @pnpm/fs.packlist@1100.0.1
+
 ## 1100.0.6
 
 ### Patch Changes

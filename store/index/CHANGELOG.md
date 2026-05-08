@@ -1,5 +1,15 @@
 # @pnpm/store.index
 
+## 1100.1.0
+
+### Minor Changes
+
+- 0c67cb5: Export `pickStoreIndexKey(resolution, pkgId, { built })` — picks the appropriate store-index key for a resolution:
+  git-hosted entries route through `gitHostedStoreIndexKey(pkgId, { built })`, everything else through
+  `storeIndexKey(resolution.integrity, pkgId)`. Centralizes the routing for `installing.package-requester`,
+  `building.after-install`, `store.pkg-finder`, and `modules-mounter.daemon` so each consumer reads
+  `resolution.gitHosted` once via a single typed call.
+
 ## 1000.0.0
 
 ### Minor Changes

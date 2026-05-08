@@ -1,5 +1,16 @@
 # @pnpm/building.during-install
 
+## 1101.0.7
+
+### Patch Changes
+
+- Updated dependencies [e9e876c]
+  - @pnpm/config.reader@1101.2.2
+  - @pnpm/worker@1100.1.3
+  - @pnpm/exec.lifecycle@1100.0.7
+  - @pnpm/fs.hard-link-dir@1100.0.1
+  - @pnpm/patching.apply-patch@1100.0.0
+
 ## 1101.0.6
 
 ### Patch Changes

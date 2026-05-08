@@ -1,5 +1,18 @@
 # @pnpm/client
 
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [0c67cb5]
+  - @pnpm/store.index@1100.1.0
+  - @pnpm/resolving.default-resolver@1100.0.11
+  - @pnpm/fetching.binary-fetcher@1101.0.4
+  - @pnpm/fetching.git-fetcher@1101.0.3
+  - @pnpm/fetching.tarball-fetcher@1101.0.4
+  - @pnpm/engine.runtime.node-resolver@1101.0.6
+  - @pnpm/fetching.directory-fetcher@1100.0.7
+
 ## 1100.0.11
 
 ### Patch Changes

@@ -1,5 +1,20 @@
 # @pnpm/engine.pm.commands
 
+## 1101.1.9
+
+### Patch Changes
+
+- Updated dependencies [e9e876c]
+- Updated dependencies [15e9e35]
+  - @pnpm/config.reader@1101.2.2
+  - @pnpm/resolving.npm-resolver@1101.0.3
+  - @pnpm/installing.client@1100.0.12
+  - @pnpm/installing.deps-restorer@1101.0.8
+  - @pnpm/store.connection-manager@1100.0.13
+  - @pnpm/store.controller@1101.0.4
+  - @pnpm/global.commands@1100.0.14
+  - @pnpm/installing.env-installer@1101.0.7
+
 ## 1101.1.8
 
 ### Patch Changes

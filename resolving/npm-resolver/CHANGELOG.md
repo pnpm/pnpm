@@ -1,5 +1,15 @@
 # @pnpm/npm-resolver
 
+## 1101.0.3
+
+### Patch Changes
+
+- 15e9e35: Upgrade `@pnpm/semver-diff`, `@pnpm/colorize-semver-diff`, `@pnpm/exec`, and `parse-npm-tarball-url` to versions that expose their helpers as named exports instead of CommonJS default exports. This eliminates the `.default` property accesses that broke under Node.js ESM interop in tests and could fail at runtime in some module loaders.
+- Updated dependencies [0c67cb5]
+  - @pnpm/store.index@1100.1.0
+  - @pnpm/worker@1100.1.3
+  - @pnpm/crypto.hash@1100.0.1
+
 ## 1101.0.2
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/config.deps-installer
 
+## 1101.0.7
+
+### Patch Changes
+
+- Updated dependencies [15e9e35]
+  - @pnpm/resolving.npm-resolver@1101.0.3
+  - @pnpm/store.controller@1101.0.4
+  - @pnpm/worker@1100.1.3
+  - @pnpm/installing.deps-resolver@1100.0.8
+
 ## 1101.0.6
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/deps.compliance.commands
 
+## 1101.1.11
+
+### Patch Changes
+
+- Updated dependencies [e9e876c]
+- Updated dependencies [15e9e35]
+  - @pnpm/config.reader@1101.2.2
+  - @pnpm/installing.commands@1100.1.12
+  - @pnpm/deps.compliance.license-scanner@1100.0.9
+  - @pnpm/deps.compliance.sbom@1100.0.9
+
 ## 1101.1.10
 
 ### Patch Changes

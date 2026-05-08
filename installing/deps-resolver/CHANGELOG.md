@@ -1,5 +1,13 @@
 # @pnpm/resolve-dependencies
 
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [15e9e35]
+  - @pnpm/resolving.npm-resolver@1101.0.3
+  - @pnpm/fetching.pick-fetcher@1100.0.5
+
 ## 1100.0.7
 
 ### Patch Changes

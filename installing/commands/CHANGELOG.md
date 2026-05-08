@@ -1,5 +1,26 @@
 # @pnpm/plugin-commands-installation
 
+## 1100.1.12
+
+### Patch Changes
+
+- 15e9e35: Upgrade `@pnpm/semver-diff`, `@pnpm/colorize-semver-diff`, `@pnpm/exec`, and `parse-npm-tarball-url` to versions that expose their helpers as named exports instead of CommonJS default exports. This eliminates the `.default` property accesses that broke under Node.js ESM interop in tests and could fail at runtime in some module loaders.
+- Updated dependencies [e9e876c]
+  - @pnpm/config.reader@1101.2.2
+  - @pnpm/building.after-install@1101.0.9
+  - @pnpm/installing.deps-installer@1101.0.9
+  - @pnpm/store.connection-manager@1100.0.13
+  - @pnpm/store.controller@1101.0.4
+  - @pnpm/deps.status@1100.0.12
+  - @pnpm/global.commands@1100.0.14
+  - @pnpm/workspace.state@1100.0.10
+  - @pnpm/deps.inspection.outdated@1100.0.12
+  - @pnpm/installing.env-installer@1101.0.7
+  - @pnpm/workspace.projects-graph@1100.0.6
+  - @pnpm/installing.context@1100.0.8
+  - @pnpm/workspace.projects-filter@1100.0.9
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.6
+
 ## 1100.1.11
 
 ### Patch Changes

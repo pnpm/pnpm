@@ -1,5 +1,17 @@
 # @pnpm/store.commands
 
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [0c67cb5]
+- Updated dependencies [e9e876c]
+  - @pnpm/store.index@1100.1.0
+  - @pnpm/config.reader@1101.2.2
+  - @pnpm/installing.client@1100.0.12
+  - @pnpm/store.connection-manager@1100.0.13
+  - @pnpm/installing.context@1100.0.8
+
 ## 1100.0.12
 
 ### Patch Changes

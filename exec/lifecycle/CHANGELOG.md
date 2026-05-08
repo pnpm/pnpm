@@ -1,5 +1,11 @@
 # @pnpm/lifecycle
 
+## 1100.0.7
+
+### Patch Changes
+
+- @pnpm/fetching.directory-fetcher@1100.0.7
+
 ## 1100.0.6
 
 ### Patch Changes

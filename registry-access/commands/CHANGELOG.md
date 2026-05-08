@@ -1,5 +1,12 @@
 # @pnpm/registry-access.commands
 
+## 1100.2.9
+
+### Patch Changes
+
+- Updated dependencies [e9e876c]
+  - @pnpm/config.reader@1101.2.2
+
 ## 1100.2.8
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/assert-store
 
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [0c67cb5]
+  - @pnpm/store.index@1100.1.0
+
 ## 1100.0.5
 
 ### Patch Changes

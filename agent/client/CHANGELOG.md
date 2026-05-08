@@ -1,5 +1,13 @@
 # @pnpm/agent.client
 
+## 1.0.3
+
+### Patch Changes
+
+- Updated dependencies [0c67cb5]
+  - @pnpm/store.index@1100.1.0
+  - @pnpm/worker@1100.1.3
+
 ## 1.0.2
 
 ### Patch Changes

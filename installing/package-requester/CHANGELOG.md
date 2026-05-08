@@ -1,5 +1,14 @@
 # @pnpm/package-requester
 
+## 1101.0.4
+
+### Patch Changes
+
+- Updated dependencies [0c67cb5]
+  - @pnpm/store.index@1100.1.0
+  - @pnpm/fetching.pick-fetcher@1100.0.5
+  - @pnpm/worker@1100.1.3
+
 ## 1101.0.3
 
 ### Patch Changes

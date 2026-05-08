@@ -1,5 +1,16 @@
 # pnpm
 
+## 11.0.9
+
+### Patch Changes
+
+- Fixed installation of GitLab-hosted dependencies. pnpm now downloads the tarball from `https://gitlab.com/<user>/<project>/-/archive/<sha>/<project>-<sha>.tar.gz` instead of the GitLab API endpoint that contained an encoded slash (`%2F`) between user and project. The encoded slash both triggered `406 Not Acceptable` responses from GitLab and produced virtual store directory names that Node refused to import (`ERR_INVALID_MODULE_SPECIFIER`) [#11533](https://github.com/pnpm/pnpm/issues/11533).
+- Honor `NPM_CONFIG_USERCONFIG` (and its lowercase `npm_config_userconfig` form) as a low-priority fallback when locating the user-level `.npmrc`. This restores compatibility with environments that point npm at a custom auth file via that env var — most notably `actions/setup-node`, which writes registry credentials to `${runner.temp}/.npmrc` and exports `NPM_CONFIG_USERCONFIG` to reference it. Without this, GitHub Actions workflows using `actions/setup-node` to authenticate to private registries broke after upgrading to pnpm v11. PNPM-prefixed env vars and `npmrcAuthFile` from the global `config.yaml` continue to take precedence [#11539](https://github.com/pnpm/pnpm/issues/11539).
+- Fix `pnpm pack` not bundling dependencies listed in `bundleDependencies` (or `bundledDependencies`). The npm-packlist upgrade in pnpm 11 changed its API to require the caller to pre-populate the dependency tree, which the wrapper was not doing — `bundleDependencies` were silently dropped from the tarball [#11519](https://github.com/pnpm/pnpm/issues/11519).
+- Fixed the pnpm CLI crashing with a confusing `SyntaxError: Invalid regular expression flags` instead of printing a clear "requires Node.js v22.13" error when launched on an unsupported Node.js version. The Node.js version check in `bin/pnpm.mjs` was effectively dead code because the static `import` of the bundled `dist/pnpm.mjs` was hoisted by the ES module loader and parsed before the check could run [#11546](https://github.com/pnpm/pnpm/issues/11546).
+- Fixed `pnpm --prefix=<dir> install` overwriting the existing `pnpm-workspace.yaml` in `<dir>` with `set this to true or false` placeholders. The renamed `--prefix` option (which maps to `dir`) was not honored when locating the workspace root, so the workspace manifest's `allowBuilds` settings were not loaded into config and got clobbered when ignored builds were auto-populated [#11535](https://github.com/pnpm/pnpm/issues/11535).
+- Fixed `pnpm publish --provenance` failing with a 422 from the registry when the package version contained semver build metadata (e.g. `1.0.0-canary.0+abc1234`). The `+<build>` segment is now stripped before packing so that the version embedded in the tarball, the metadata sent to the registry, and the sigstore provenance subject all agree [#11518](https://github.com/pnpm/pnpm/issues/11518).
+
 ## 11.0.8
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/fs.packlist
 
+## 1100.0.1
+
+### Patch Changes
+
+- dd8d5d7: Fix `pnpm pack` not bundling dependencies listed in `bundleDependencies` (or `bundledDependencies`). The npm-packlist upgrade in pnpm 11 changed its API to require the caller to pre-populate the dependency tree, which the wrapper was not doing — `bundleDependencies` were silently dropped from the tarball [#11519](https://github.com/pnpm/pnpm/issues/11519).
+
 ## 1001.0.0
 
 ### Major Changes
