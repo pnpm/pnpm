@@ -731,7 +731,7 @@ test('filterByImportersAndEngine(): skipRuntimes drops runtime: entries from imp
     }
   )
 
-  expect(filteredLockfile.lockfile.importers['.']).toStrictEqual({
+  expect(filteredLockfile.lockfile.importers['.' as ProjectId]).toStrictEqual({
     dependencies: {
       'regular-dep': '1.0.0',
     },
