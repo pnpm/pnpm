@@ -1,5 +1,6 @@
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
+import chalk from 'chalk'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
@@ -95,21 +96,21 @@ export async function handler (
   const headerParts: string[] = []
 
   if (info.name && info.version) {
-    headerParts.push(`${info.name}@${info.version}`)
+    headerParts.push(chalk.cyan(`${info.name}@${info.version}`))
   }
 
   if (info.license) {
-    headerParts.push(info.license)
+    headerParts.push(chalk.green(info.license))
   }
 
   if (info.depsCount !== undefined) {
-    headerParts.push(`deps: ${info.depsCount}`)
+    headerParts.push(`deps: ${chalk.cyan(info.depsCount)}`)
   } else {
     headerParts.push('deps: none')
   }
 
   if (info.versionsCount !== undefined) {
-    headerParts.push(`versions: ${info.versionsCount}`)
+    headerParts.push(`versions: ${chalk.cyan(info.versionsCount)}`)
   }
 
   const lines = [headerParts.join(' | ')]
@@ -119,36 +120,36 @@ export async function handler (
   }
 
   if (info.homepage) {
-    lines.push(info.homepage)
+    lines.push(chalk.underline.blue(info.homepage))
   }
 
   if (info.keywords && info.keywords.length > 0) {
     lines.push('')
-    lines.push(`keywords: ${info.keywords.join(', ')}`)
+    lines.push(`keywords: ${chalk.cyan(info.keywords.join(', '))}`)
+  }
+
+  if (info.dist) {
+    lines.push('')
+    lines.push(chalk.bold('dist'))
+    if (info.dist.tarball) {
+      lines.push(`.tarball: ${chalk.underline.blue(info.dist.tarball)}`)
+    }
+    if (info.dist.shasum) {
+      lines.push(`.shasum: ${chalk.green(info.dist.shasum)}`)
+    }
+    if (info.dist.integrity) {
+      lines.push(`.integrity: ${chalk.green(info.dist.integrity)}`)
+    }
+    if (info.dist.unpackedSize != null) {
+      lines.push(`.unpackedSize: ${chalk.blue(formatBytes(info.dist.unpackedSize))}`)
+    }
   }
 
   if (info.dependencies && Object.keys(info.dependencies).length > 0) {
     lines.push('')
     lines.push('dependencies:')
-    const depEntries = Object.entries(info.dependencies).map(([name, version]) => `${name}: ${version}`)
+    const depEntries = Object.entries(info.dependencies).map(([name, version]) => `${chalk.blue(name)}: ${version}`)
     lines.push(depEntries.join(', '))
-  }
-
-  if (info.dist) {
-    lines.push('')
-    lines.push('dist')
-    if (info.dist.tarball) {
-      lines.push(`.tarball: ${info.dist.tarball}`)
-    }
-    if (info.dist.shasum) {
-      lines.push(`.shasum: ${info.dist.shasum}`)
-    }
-    if (info.dist.integrity) {
-      lines.push(`.integrity: ${info.dist.integrity}`)
-    }
-    if (info.dist.unpackedSize != null) {
-      lines.push(`.unpackedSize: ${formatBytes(info.dist.unpackedSize)}`)
-    }
   }
 
   if (info.maintainers && info.maintainers.length > 0) {
@@ -156,16 +157,16 @@ export async function handler (
     lines.push('maintainers:')
     for (const maintainer of info.maintainers) {
       const email = maintainer.email
-      const name = email ? `${maintainer.name} <${email}>` : maintainer.name
+      const name = email ? `${chalk.blue(maintainer.name)} <${chalk.dim(email)}>` : chalk.blue(maintainer.name)
       lines.push(`- ${name}`)
     }
   }
 
   if (info.distTags && Object.keys(info.distTags).length > 0) {
     lines.push('')
-    lines.push('dist-tags:')
+    lines.push(chalk.bold('dist-tags:'))
     for (const [tag, tagVersion] of Object.entries(info.distTags)) {
-      lines.push(`${tag}: ${tagVersion}`)
+      lines.push(`${chalk.blue(tag)}: ${tagVersion}`)
     }
   }
 
@@ -244,11 +245,13 @@ function getPublishedInfo (info: ExtendedPackageInfo): string | null {
     timeAgo = 'a few seconds'
   }
 
+  timeAgo = chalk.cyan(`${timeAgo} ago`)
+
   const publisher = getPublisher(info)
   if (publisher) {
-    return `published ${timeAgo} ago by ${publisher}`
+    return `published ${timeAgo} by ${publisher}`
   }
-  return `published ${timeAgo} ago`
+  return `published ${timeAgo}`
 }
 
 /**
@@ -259,12 +262,12 @@ function getPublishedInfo (info: ExtendedPackageInfo): string | null {
 function getPublisher (info: ExtendedPackageInfo): string | null {
   if (info._npmUser?.name) {
     const email = info._npmUser.email
-    return email ? `${info._npmUser.name} <${email}>` : info._npmUser.name
+    return email ? `${chalk.blue(info._npmUser.name)} <${chalk.dim(email)}>` : chalk.blue(info._npmUser.name)
   }
   if (info.maintainers && info.maintainers.length > 0) {
     const first = info.maintainers[0]
     const email = first.email
-    const name = email ? `${first.name} <${email}>` : first.name
+    const name = email ? `${chalk.blue(first.name)} <${chalk.dim(email)}>` : chalk.blue(first.name)
     if (info.maintainers.length === 1) {
       return name
     }
