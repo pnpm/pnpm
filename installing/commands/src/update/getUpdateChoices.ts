@@ -1,8 +1,8 @@
 import { stripVTControlCharacters } from 'node:util'
 
-import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
+import { colorizeSemverDiff } from '@pnpm/colorize-semver-diff'
 import type { OutdatedPackage } from '@pnpm/deps.inspection.outdated'
-import semverDiff from '@pnpm/semver-diff'
+import { semverDiff } from '@pnpm/semver-diff'
 import { getBorderCharacters, table } from '@zkochan/table'
 import { and, groupBy, isEmpty, pickBy, pipe, pluck, uniqBy } from 'ramda'
 
@@ -51,9 +51,10 @@ export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], wor
     if (choiceRows.length === 0) continue
     const rawChoices: RawChoice[] = []
     for (const choice of choiceRows) {
-      // The list of outdated dependencies also contains deprecated packages.
-      // But we only want to show those dependencies that have newer versions.
-      if (choice.latestManifest?.version !== choice.current) {
+      // The list of outdated dependencies also contains deprecated packages
+      // and entries from registries we cannot resolve against (no manifest).
+      // We only want to show those dependencies that have a known newer version.
+      if (choice.latestManifest != null && choice.latestManifest.version !== choice.current) {
         rawChoices.push(buildPkgChoice(choice, workspacesEnabled))
       }
     }
@@ -97,27 +98,25 @@ interface RawChoice {
 }
 
 function buildPkgChoice (outdatedPkg: OutdatedPackage, workspacesEnabled: boolean): RawChoice {
-  const sdiff = semverDiff.default(outdatedPkg.wanted, outdatedPkg.latestManifest!.version)
+  const sdiff = semverDiff(outdatedPkg.wanted, outdatedPkg.latestManifest!.version)
   const nextVersion = sdiff.change === null
     ? outdatedPkg.latestManifest!.version
-    : colorizeSemverDiff.default(sdiff as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+    : colorizeSemverDiff(sdiff as any) // eslint-disable-line @typescript-eslint/no-explicit-any
   const label = outdatedPkg.packageName
 
-  const lineParts = {
+  const raw: string[] = [
     label,
-    current: outdatedPkg.current,
-    arrow: '❯',
+    outdatedPkg.current ?? '',
+    '❯',
     nextVersion,
-    workspace: outdatedPkg.workspace,
-    url: getPkgUrl(outdatedPkg),
+  ]
+  if (workspacesEnabled) {
+    raw.push(outdatedPkg.workspace ?? '')
   }
-
-  if (!workspacesEnabled) {
-    delete lineParts.workspace
-  }
+  raw.push(getPkgUrl(outdatedPkg))
 
   return {
-    raw: Object.values(lineParts),
+    raw,
     name: outdatedPkg.packageName,
   }
 }

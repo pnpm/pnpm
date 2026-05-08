@@ -80,10 +80,10 @@ catalog:
   '@jest/globals': 30.3.0
   '@npm/types': ^2.1.0
   '@pnpm/byline': ^1.0.0
-  '@pnpm/colorize-semver-diff': ^1.0.1
+  '@pnpm/colorize-semver-diff': ^2.0.0
   '@pnpm/config.env-replace': ^3.0.2
   '@pnpm/config.nerf-dart': ^1.0.1
-  '@pnpm/exec': ^2.0.0
+  '@pnpm/exec': ^4.0.0
   '@pnpm/log.group': 3.0.2
   '@pnpm/logger': '^1001.0.1'
   '@pnpm/meta-updater': 2.0.6
@@ -93,7 +93,7 @@ catalog:
   '@pnpm/os.env.path-extender': ^3.0.0
   '@pnpm/patch-package': 0.0.1
   '@pnpm/registry-mock': 6.0.0
-  '@pnpm/semver-diff': ^1.1.0
+  '@pnpm/semver-diff': ^2.0.0
   '@pnpm/tabtab': ^0.5.4
   '@pnpm/tgz-fixtures': 0.0.0
   '@pnpm/util.lex-comparator': ^3.0.2
@@ -248,7 +248,7 @@ catalog:
   p-memoize: 8.0.0
   p-queue: ^9.2.0
   parse-json: ^8.3.0
-  parse-npm-tarball-url: ^4.0.0
+  parse-npm-tarball-url: ^5.0.0
   path-absolute: ^2.0.0
   path-exists: ^5.0.0
   path-name: ^1.0.0
@@ -362,7 +362,7 @@ minimumReleaseAgeExclude:
   - make-empty-dir
   - normalize-registry-url
   - p-map-values
-  - parse-npm-tarball-url@4.0.0
+  - parse-npm-tarball-url@5.0.0
   - path-absolute
   - path-temp
   - pnpm

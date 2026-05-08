@@ -1,5 +1,5 @@
 import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
-import parseNpmTarballUrl from 'parse-npm-tarball-url'
+import { parseNpmTarballUrl } from 'parse-npm-tarball-url'
 import getVersionSelectorType from 'version-selector-type'
 
 export interface RegistryPackageSpec {
@@ -38,7 +38,7 @@ export function parseBareSpecifier (
     }
   }
   if (bareSpecifier.startsWith(registry)) {
-    const pkg = parseNpmTarballUrl.default(bareSpecifier)
+    const pkg = parseNpmTarballUrl(bareSpecifier)
     if (pkg != null) {
       return {
         fetchSpec: pkg.version,

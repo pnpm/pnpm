@@ -17,8 +17,7 @@ import { readProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader
 import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import { sequenceGraph } from '@pnpm/workspace.projects-sorter'
 import * as structUtils from '@yarnpkg/core/structUtils'
-import type { LockFileObject } from '@yarnpkg/lockfile'
-import yarnLockfileLib from '@yarnpkg/lockfile'
+import { type LockFileObject, parse as parseYarnLockfile } from '@yarnpkg/lockfile'
 import { parseSyml } from '@yarnpkg/parsers'
 import { rimraf } from '@zkochan/rimraf'
 import { loadJsonFile } from 'load-json-file'
@@ -196,7 +195,7 @@ async function readYarnLockFile (dir: string): Promise<LockFileObject> {
     const yarnLockFile = await gfs.readFile(path.join(dir, 'yarn.lock'), 'utf8')
     const yarnLockFileType = getYarnLockfileType(yarnLockFile)
     if (yarnLockFileType === YarnLockType.yarn) {
-      const lockJsonFile = yarnLockfileLib.parse(yarnLockFile)
+      const lockJsonFile = parseYarnLockfile(yarnLockFile)
       if (lockJsonFile.type === 'success') {
         return lockJsonFile.object
       } else {
