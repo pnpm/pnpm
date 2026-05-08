@@ -51,9 +51,10 @@ export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], wor
     if (choiceRows.length === 0) continue
     const rawChoices: RawChoice[] = []
     for (const choice of choiceRows) {
-      // The list of outdated dependencies also contains deprecated packages.
-      // But we only want to show those dependencies that have newer versions.
-      if (choice.latestManifest?.version !== choice.current) {
+      // The list of outdated dependencies also contains deprecated packages
+      // and entries from registries we cannot resolve against (no manifest).
+      // We only want to show those dependencies that have a known newer version.
+      if (choice.latestManifest != null && choice.latestManifest.version !== choice.current) {
         rawChoices.push(buildPkgChoice(choice, workspacesEnabled))
       }
     }
