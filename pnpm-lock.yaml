@@ -248,8 +248,8 @@ catalogs:
       specifier: ^1.0.0
       version: 1.0.1
     '@pnpm/exec':
-      specifier: ^2.0.0
-      version: 2.0.0
+      specifier: ^4.0.0
+      version: 4.0.0
     '@pnpm/log.group':
       specifier: 3.0.2
       version: 3.0.2
@@ -6758,7 +6758,7 @@ importers:
         version: link:../../core/error
       '@pnpm/exec':
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 4.0.0
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../fs
@@ -11123,9 +11123,9 @@ packages:
     resolution: {integrity: sha512-IF1hAWdq61gCIbaCpy01SmoL5GLfJRC5/+qd0ZwBFdBeWEcEETCcuBYFFss71Q9OdjdTxNrNsz9apE3DPx1Tsg==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/exec@2.0.0':
-    resolution: {integrity: sha512-b5ALfWEOFQprWKntN7MF8XWCyslBk2c8u20GEDcDDQOs6c0HyHlWxX5lig8riQKdS000U6YyS4L4b32NOleXAQ==}
-    engines: {node: '>=10'}
+  '@pnpm/exec@4.0.0':
+    resolution: {integrity: sha512-iy8nX/dE+QqDtRRni1Qwt83uMuiWqbLfh7oECm4KbwnZrjOMj0RDEawoNOPdGE5snB4ChrhcEBI1F+61u3vT3w==}
+    engines: {node: '>=22.13'}
 
   '@pnpm/fetch@1001.0.0':
     resolution: {integrity: sha512-b5S29O4WaqxlFDpmyy1NWkvB3X+pz5kM2Se1ENSY7Rx+uKEIcRE1CzpRxpILDFf3uWHAOt90bBNywCeh6LQkKQ==}
@@ -11448,11 +11448,6 @@ packages:
   '@pnpm/resolving.jsr-specifier-parser@1000.0.4':
     resolution: {integrity: sha512-oxf+Y5lumvfNx9Igss/dvDb0t4iWtE0wjrmdDPFkVrXTlQbdWLujnyYSp3Obim/65K+r5RspoizJgjWJRe69nw==}
     engines: {node: '>=18.12'}
-
-  '@pnpm/self-installer@2.2.1':
-    resolution: {integrity: sha512-aefLe96wAWghkx6q1PwbVS1Iz1iGE+HKwkTmtzWLFXeGhbknaIdG2voMwaBGIYGCSxm8sDKR1uLO4aRRAYuc+Q==}
-    engines: {node: '>=4'}
-    hasBin: true
 
   '@pnpm/semver-diff@2.0.0':
     resolution: {integrity: sha512-BeJTTAegvEHqgldGtJuZMCC0IfC/mVyxR1parznqCTtPwQSYrjft4tDvKd+oBMJQjcl7sp70G8rPR89ecpeicg==}
@@ -15827,6 +15822,11 @@ packages:
     resolution: {integrity: sha512-NPE8TDbzl/3YQYY7CSS228s3g2ollTFnc+Qi3tqmqJp9Vg2ovUpixcJEo2HJScN2Ez+kEaal6y70c0ehqJBJeA==}
     engines: {node: '>=10'}
 
+  pnpm@11.0.8:
+    resolution: {integrity: sha512-TECX4d0tQjcsTn+lp5H/KPx1pITHrBkuZLHfD97xdZS6mC+bT+2a37PHV4RvVlt5mydj+zcz0d4by4LPRmhJEg==}
+    engines: {node: '>=22.13'}
+    hasBin: true
+
   possible-typed-array-names@1.1.0:
     resolution: {integrity: sha512-/+5VFTchJDoVj3bhoqi6UeymcD00DAwb1nJwamzPvHEszJ4FpF6SNNbUbOS8yI56qHzdV8eK0qEfOSiodkTdxg==}
     engines: {node: '>= 0.4'}
@@ -18982,11 +18982,11 @@ snapshots:
     dependencies:
       '@pnpm/types': 1001.3.0
 
-  '@pnpm/exec@2.0.0':
+  '@pnpm/exec@4.0.0':
     dependencies:
-      '@pnpm/self-installer': 2.2.1
       command-exists: 1.2.9
       cross-spawn: 7.0.6
+      pnpm: 11.0.8
 
   '@pnpm/fetch@1001.0.0(@pnpm/logger@1001.0.1)':
     dependencies:
@@ -19644,8 +19644,6 @@ snapshots:
   '@pnpm/resolving.jsr-specifier-parser@1000.0.4':
     dependencies:
       '@pnpm/error': 1000.1.0
-
-  '@pnpm/self-installer@2.2.1': {}
 
   '@pnpm/semver-diff@2.0.0': {}
 
@@ -24900,6 +24898,8 @@ snapshots:
   pkg-dir@5.0.0:
     dependencies:
       find-up: 5.0.0
+
+  pnpm@11.0.8: {}
 
   possible-typed-array-names@1.1.0: {}
 
