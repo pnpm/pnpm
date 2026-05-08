@@ -1,0 +1,111 @@
+{"etag":"\"fedf396a4ba96c54077df64661629ef3\"","modified":"2022-06-19T02:48:25.175Z"}
+{
+  "name": "is-positive",
+  "dist-tags": {
+    "latest": "3.1.0"
+  },
+  "versions": {
+    "1.0.0": {
+      "name": "is-positive",
+      "version": "1.0.0",
+      "description": "Test if a number is positive",
+      "dist": {
+        "shasum": "88009856b64a2f1eb7d8bb0179418424ae0452cb",
+        "tarball": "http://localhost:62248/is-positive/-/is-positive-1.0.0.tgz",
+        "integrity": "sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==",
+        "signatures": [
+          {
+            "keyid": "SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA",
+            "sig": "MEUCIQCCnuVReXbQNRBego5aNfGutL/ItJYXnooQ9CEq6ljxnAIgMllY2D/q5V/1hjaB5jKRVF10jIzABAg5OyRu7bvyZT8="
+          }
+        ]
+      },
+      "engines": {
+        "node": ">=0.10.0"
+      },
+      "devDependencies": {
+        "ava": "^0.0.4"
+      },
+      "hasInstallScript": false
+    },
+    "2.0.0": {
+      "name": "is-positive",
+      "version": "2.0.0",
+      "description": "Test if a number is positive",
+      "dist": {
+        "shasum": "b14f06bd2db810ae6c8b12741d136bfaef0d87bd",
+        "tarball": "http://localhost:62248/is-positive/-/is-positive-2.0.0.tgz",
+        "integrity": "sha512-uJQLtRnc7RP/Xo8tjkK9MJsWdnuKhiD5e8x+idmkUqr2p0R+n/ZdDFG1LEt98WwoRzWhSefhPnyLBleKZhg/Lg==",
+        "signatures": [
+          {
+            "keyid": "SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA",
+            "sig": "MEYCIQDlX8HwFc/xNNRwPSPfOBOkwoYvFKpUjHFUnarz5rygUAIhAJc3SKbTjYkKQtrV8Mj14RsbwiBSP+ALTvNFeoqQhM1a"
+          }
+        ]
+      },
+      "engines": {
+        "node": ">=0.10.0"
+      },
+      "devDependencies": {
+        "ava": "^0.0.4"
+      },
+      "hasInstallScript": false
+    },
+    "3.0.0": {
+      "name": "is-positive",
+      "version": "3.0.0",
+      "description": "Check if something is a positive number",
+      "dist": {
+        "shasum": "8ef0ee22f7ce24f7633f8908030ec48b62acf4a3",
+        "tarball": "http://localhost:62248/is-positive/-/is-positive-3.0.0.tgz",
+        "integrity": "sha512-JDkaKp5jWv24ZaFuYDKTcBrC/wBOHdjhzLDkgrrkJD/j7KqqXsGcAkex336qHoOFEajMy7bYqUgm0KH9/MzQvw==",
+        "signatures": [
+          {
+            "keyid": "SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA",
+            "sig": "MEUCIAyHn80HicTGdoRTeppKC1LtQUC2Z9YvHbCCGlmGJ0SNAiEA1xkSMlXzLLUspk2peRMbj9sEG3xELwyOXFH7x4tWNdI="
+          }
+        ]
+      },
+      "engines": {
+        "node": ">=0.10.0"
+      },
+      "devDependencies": {
+        "ava": "^0.0.4"
+      },
+      "hasInstallScript": false
+    },
+    "3.1.0": {
+      "name": "is-positive",
+      "version": "3.1.0",
+      "description": "Check if something is a positive number",
+      "dist": {
+        "shasum": "857db584a1ba5d1cb2980527fc3b6c435d37b0fd",
+        "tarball": "http://localhost:62248/is-positive/-/is-positive-3.1.0.tgz",
+        "integrity": "sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==",
+        "signatures": [
+          {
+            "keyid": "SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA",
+            "sig": "MEUCIHbjwraJQ1ltYq/oog0NS74HzUvFbm+/411fkI4kcgVZAiEA9uA5KhJpbUdq4rylXUC748INm8Y8aTgbNpjuf0PUOAg="
+          }
+        ]
+      },
+      "engines": {
+        "node": ">=0.10.0"
+      },
+      "devDependencies": {
+        "ava": "*",
+        "xo": "*"
+      },
+      "hasInstallScript": false
+    }
+  },
+  "modified": "2022-06-19T02:48:25.175Z",
+  "time": {
+    "modified": "2022-06-19T02:48:25.175Z",
+    "created": "2015-06-02T12:03:51.069Z",
+    "1.0.0": "2015-06-02T12:03:51.069Z",
+    "2.0.0": "2015-06-17T15:07:34.034Z",
+    "3.0.0": "2015-07-10T09:34:13.029Z",
+    "3.1.0": "2016-01-11T14:34:31.892Z"
+  }
+}

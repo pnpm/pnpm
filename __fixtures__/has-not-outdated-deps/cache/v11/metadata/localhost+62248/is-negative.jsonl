@@ -1,0 +1,162 @@
+{"etag":"\"a1caefee159dfbc45a3c4bbdd300dc8d\"","modified":"2022-06-19T02:46:05.243Z"}
+{
+  "name": "is-negative",
+  "dist-tags": {
+    "latest": "2.1.0"
+  },
+  "versions": {
+    "1.0.0": {
+      "name": "is-negative",
+      "version": "1.0.0",
+      "description": "Test if a number is negative",
+      "dist": {
+        "shasum": "7259877a83c800ac3191dd7b9d9fbcd0f752d4fe",
+        "tarball": "http://localhost:62248/is-negative/-/is-negative-1.0.0.tgz",
+        "integrity": "sha512-1aKMsFUc7vYQGzt//8zhkjRWPoYkajY/I5MJEvrc0pDoHXrW7n5ri8DYxhy3rR+Dk0QFl7GjHHsZU1sppQrWtw==",
+        "signatures": [
+          {
+            "keyid": "SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA",
+            "sig": "MEQCIBzMD2unDmha6E5KtxdURLvRbSYlHuWaC69ZVRnbr3fLAiBpCu8ORol+XhZGCMCPbbDOgJtNh9HNuw1eeNbz4I4B9A=="
+          }
+        ]
+      },
+      "engines": {
+        "node": ">=0.10.0"
+      },
+      "devDependencies": {
+        "ava": "^0.0.4"
+      },
+      "hasInstallScript": false
+    },
+    "1.0.1": {
+      "name": "is-negative",
+      "version": "1.0.1",
+      "description": "Test if a number is negative",
+      "dist": {
+        "shasum": "dc6b8728eebd03c75bf876087edcd50e9cb56994",
+        "tarball": "http://localhost:62248/is-negative/-/is-negative-1.0.1.tgz",
+        "integrity": "sha512-gmv+xZIqPGWfqTf195S+I8tw4h/VswI30Eu21e1r8qUVNHIiVdAVtpzoZBGQqrTNC+YjSwCNl33SXU7kuNwMzA==",
+        "signatures": [
+          {
+            "keyid": "SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA",
+            "sig": "MEYCIQCqAhUcJYO/4FEGrAM/ONdlJX0yt4Gahj6bMmFJ5kGrXwIhALDQLFMh4SknI4n3WejKmwZMFgfehbnBEHnv+nMQRdaC"
+          }
+        ]
+      },
+      "engines": {
+        "node": ">=0.10.0"
+      },
+      "devDependencies": {
+        "ava": "^0.0.4"
+      },
+      "hasInstallScript": false
+    },
+    "2.0.0": {
+      "name": "is-negative",
+      "version": "2.0.0",
+      "description": "Test if a number is negative",
+      "dist": {
+        "shasum": "09f4cb20dd1bddff37cb6630c618a9bc57915fd6",
+        "tarball": "http://localhost:62248/is-negative/-/is-negative-2.0.0.tgz",
+        "integrity": "sha512-eqkP7UFhpupOHF4UR+rgMNNPfkSFSL571xUngS5QFTYhKburnIsQQYJBXomDdZpf2ysFZaIc2LCC0mHvjXNCRA==",
+        "signatures": [
+          {
+            "keyid": "SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA",
+            "sig": "MEQCIGgn3erHm74VgQCiVqAlnUOHSSEXIPy4Hka654f6b2zWAiB+WDOpYq++TL6t7Jr06hk2E6WI3cU1Rhe5ipnhB0PfmQ=="
+          }
+        ]
+      },
+      "engines": {
+        "node": ">=0.10.0"
+      },
+      "dependencies": {
+        "is-positive": "^3.0.0"
+      },
+      "devDependencies": {
+        "ava": "^0.0.4"
+      },
+      "hasInstallScript": false
+    },
+    "2.0.1": {
+      "name": "is-negative",
+      "version": "2.0.1",
+      "description": "Test if a number is negative",
+      "dist": {
+        "shasum": "020361d3c8433ab34c9f2b413d79835412a9b9c6",
+        "tarball": "http://localhost:62248/is-negative/-/is-negative-2.0.1.tgz",
+        "integrity": "sha512-lFgLTeijlQMWwuHHsJWx2yF4uotI564EAji540J7YYT1OfaMmNARAAU/QlWkaNhUZoMu0u4ZKuBtXJU9OK0eng==",
+        "signatures": [
+          {
+            "keyid": "SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA",
+            "sig": "MEQCIA/6O2+c0HpHGvrr1BNQfddT2FFPRzT+ZCEXsAmAYbkeAiBcfAis2+2Zjl4WCN91Z92QCCsUN29d/rnsLuWG4sszDw=="
+          }
+        ]
+      },
+      "engines": {
+        "node": ">=0.10.0"
+      },
+      "devDependencies": {
+        "ava": "^0.0.4"
+      },
+      "hasInstallScript": false
+    },
+    "2.0.2": {
+      "name": "is-negative",
+      "version": "2.0.2",
+      "description": "Check if something is a positive number",
+      "dist": {
+        "shasum": "f5c315f718d93746b8766d625dbfeb96c5eaad94",
+        "tarball": "http://localhost:62248/is-negative/-/is-negative-2.0.2.tgz",
+        "integrity": "sha512-mwZAQFgAaxDbVEnjNHUGx18CYeVC2y7Me1gBP91P5gXVy1YGPFnOAmOyKUWi55LBAzLNefdOdv7zTvrCiWa3bQ==",
+        "signatures": [
+          {
+            "keyid": "SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA",
+            "sig": "MEUCIBRQmbLjC78SHcGto5SMdptWu3Y4B215glxZe3dpoG/uAiEAya/JE8jCMCrYSFqJmrunWY+5cSUR02wi7vQTy7a8Itw="
+          }
+        ]
+      },
+      "engines": {
+        "node": ">=0.10.0"
+      },
+      "devDependencies": {
+        "ava": "^0.0.4"
+      },
+      "hasInstallScript": false
+    },
+    "2.1.0": {
+      "name": "is-negative",
+      "version": "2.1.0",
+      "description": "Check if something is a negative number",
+      "dist": {
+        "shasum": "f0d86377aa15a64c34961f38ac2a9be2b40a1187",
+        "tarball": "http://localhost:62248/is-negative/-/is-negative-2.1.0.tgz",
+        "integrity": "sha512-+iCKT4ZcvjRnjkHnQjZ8/qfciLLGD8BFKS0GNR5VjDU6jEiwh899R0GSMkaYcuTNd7fEKXb3Qib0webe6HczNw==",
+        "signatures": [
+          {
+            "keyid": "SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA",
+            "sig": "MEUCIFGq5yUsbhC61OCcGjDpyI1aNTBAshuqs3J2MWDoxvu+AiEA3WB4x7OOYvOxWriJIolDbfTqBWqHf7DDqxB8JN03KAg="
+          }
+        ]
+      },
+      "engines": {
+        "node": ">=0.10.0"
+      },
+      "devDependencies": {
+        "ava": "*",
+        "xo": "*"
+      },
+      "hasInstallScript": false
+    }
+  },
+  "modified": "2022-06-19T02:46:05.243Z",
+  "time": {
+    "modified": "2022-06-19T02:46:05.243Z",
+    "created": "2015-06-02T12:07:34.331Z",
+    "1.0.0": "2015-06-02T12:07:34.331Z",
+    "1.0.1": "2015-06-02T13:24:08.883Z",
+    "2.0.0": "2015-07-10T12:48:40.225Z",
+    "2.0.1": "2015-07-11T11:43:45.550Z",
+    "2.0.2": "2015-07-11T12:15:27.354Z",
+    "2.1.0": "2016-01-11T15:24:33.768Z"
+  }
+}

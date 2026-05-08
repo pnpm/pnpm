@@ -3,7 +3,7 @@ import { PnpmError } from '@pnpm/error'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
-import { fetchPackageInfo } from '../fetchPackageInfo.js'
+import { type ExtendedPackageInfo, fetchPackageInfo } from '../fetchPackageInfo.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick(['registry'], allTypes)
@@ -155,7 +155,9 @@ export async function handler (
     lines.push('')
     lines.push('maintainers:')
     for (const maintainer of info.maintainers) {
-      lines.push(`- ${maintainer.name}`)
+      const email = maintainer.email
+      const name = email ? `${maintainer.name} <${email}>` : maintainer.name
+      lines.push(`- ${name}`)
     }
   }
 
@@ -165,6 +167,12 @@ export async function handler (
     for (const [tag, tagVersion] of Object.entries(info.distTags)) {
       lines.push(`${tag}: ${tagVersion}`)
     }
+  }
+
+  const publishedInfo = getPublishedInfo(info)
+  if (publishedInfo) {
+    lines.push('')
+    lines.push(publishedInfo)
   }
 
   return lines.join('\n')
@@ -195,4 +203,70 @@ function formatFieldValue (value: unknown): string {
     return JSON.stringify(value, null, 2)
   }
   return String(value)
+}
+
+function getPublishedInfo (info: ExtendedPackageInfo): string | null {
+  if (!info.version || !info.time) {
+    return null
+  }
+  const publishedTime = info.time[info.version]
+  if (!publishedTime) {
+    return null
+  }
+  const publishedDate = new Date(publishedTime)
+  if (isNaN(publishedDate.getTime())) {
+    return null
+  }
+  const now = new Date()
+  const diffMs = now.getTime() - publishedDate.getTime()
+  const diffSec = Math.floor(diffMs / 1000)
+  const diffMin = Math.floor(diffSec / 60)
+  const diffHour = Math.floor(diffMin / 60)
+  const diffDay = Math.floor(diffHour / 24)
+  const diffMonth = Math.floor(diffDay / 30)
+  const diffYear = Math.floor(diffDay / 365)
+  let timeAgo: string
+  if (diffYear > 0) {
+    timeAgo = diffYear === 1 ? '1 year' : `${diffYear} years`
+  } else if (diffMonth > 0) {
+    timeAgo = diffMonth === 1 ? '1 month' : `${diffMonth} months`
+  } else if (diffDay > 0) {
+    timeAgo = diffDay === 1 ? '1 day' : `${diffDay} days`
+  } else if (diffHour > 0) {
+    timeAgo = diffHour === 1 ? '1 hour' : `${diffHour} hours`
+  } else if (diffMin > 0) {
+    timeAgo = diffMin === 1 ? '1 minute' : `${diffMin} minutes`
+  } else {
+    timeAgo = 'few seconds'
+  }
+
+  const publisher = getPublisher(info)
+  if (publisher) {
+    return `published ${timeAgo} ago by ${publisher}`
+  }
+  return `published ${timeAgo} ago`
+}
+
+function getPublisher (info: ExtendedPackageInfo): string | null {
+  if (info._npmUser?.name) {
+    const email = info._npmUser.email
+    return email ? `${info._npmUser.name} <${email}>` : info._npmUser.name
+  }
+  if (info.maintainers && info.maintainers.length > 0) {
+    const first = info.maintainers[0]
+    const email = first.email
+    const name = email ? `${first.name} <${email}>` : first.name
+    if (info.maintainers.length === 1) {
+      return name
+    }
+    return `${name} et al.`
+  }
+  if (info.author) {
+    const author = info.author as { name?: string; email?: string }
+    if (author.email) {
+      return `${author.name ?? 'unknown'} <${author.email}>`
+    }
+    return author.name ?? String(info.author)
+  }
+  return null
 }

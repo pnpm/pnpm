@@ -209,3 +209,13 @@ test('view: time field returns publish timestamps', async () => {
   expect(typeof parsed).toBe('object')
   expect(parsed['1.0.0']).toBeDefined()
 })
+
+test('view: published info includes publisher with email', async () => {
+  const result = await view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, ['is-negative@1.0.0']) as string
+  expect(result).toMatch(/published .* ago/)
+})
+
+test('view: published info shows publisher when available', async () => {
+  const result = await view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, ['@pnpm.e2e/pkg-with-1-dep@100.0.0']) as string
+  expect(result).toMatch(/published .* ago/)
+})
