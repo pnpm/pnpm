@@ -13,12 +13,12 @@ import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects
 import type { diff as DiffFn } from 'jest-diff'
 import { readYamlFileSync } from 'read-yaml-file'
 
+import { DEFAULT_OPTS } from './utils/index.js'
+
 // jest-diff's ESM entry re-exports off `import cjsModule from './index.js'`,
 // which resolves to undefined under Jest's experimental VM modules. Load it
 // through CJS to bypass the broken bridge.
 const { diff } = createRequire(import.meta.url)('jest-diff') as { diff: typeof DiffFn }
-
-import { DEFAULT_OPTS } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
 
