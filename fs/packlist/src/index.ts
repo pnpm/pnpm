@@ -23,61 +23,68 @@ export async function packlist (pkgDir: string, opts?: {
   manifest?: Record<string, unknown>
 }): Promise<string[]> {
   const pkg = opts?.manifest ?? await readPackageJson(pkgDir)
-  const tree = await buildTree(pkgDir, pkg, true, new Map())
+  const tree = await buildRootTree(pkgDir, pkg)
   const files = await npmPacklist(tree)
   return files.map((file) => file.replace(/^\.[/\\]/, ''))
 }
 
-async function buildTree (
-  pkgDir: string,
-  pkg: Record<string, unknown>,
-  isProjectRoot: boolean,
-  seen: Map<string, TreeNode>
-): Promise<TreeNode> {
+async function buildRootTree (pkgDir: string, pkg: Record<string, unknown>): Promise<TreeNode> {
+  const bundledDeps = getRootBundledDeps(pkg)
+  // npm-packlist's gatherBundles() iterates package.bundleDependencies directly,
+  // so the field must be an array. Normalize true/undefined to an explicit list.
+  const normalizedPkg = normalizePackage(pkg)
+  normalizedPkg.bundleDependencies = bundledDeps
+  delete normalizedPkg.bundledDependencies
+  const root = makeNode(pkgDir, normalizedPkg, true)
+  const seen = new Map<string, TreeNode>([[pkgDir, root]])
+  await populateEdges(root, bundledDeps, seen)
+  return root
+}
+
+async function buildBundledTree (pkgDir: string, seen: Map<string, TreeNode>): Promise<TreeNode> {
   const cached = seen.get(pkgDir)
   if (cached) return cached
-  const depsToBundle = getDepsToBundle(pkg, isProjectRoot)
-  // npm-packlist's gatherBundles() reads bundleDependencies from the package directly
-  // and does `for (const dep of bundleDependencies)`, so it must be an iterable.
-  // Normalize true/undefined to an explicit array.
-  const normalizedPkg = normalizePackage(pkg)
-  if (isProjectRoot) {
-    normalizedPkg.bundleDependencies = depsToBundle
-    delete normalizedPkg.bundledDependencies
+  const pkg = await readPackageJson(pkgDir)
+  const node = makeNode(pkgDir, normalizePackage(pkg), false)
+  seen.set(pkgDir, node)
+  await populateEdges(node, getNestedBundledDeps(pkg), seen)
+  return node
+}
+
+async function populateEdges (node: TreeNode, deps: string[], seen: Map<string, TreeNode>): Promise<void> {
+  // Sequential to keep the shared `seen` map deduplication race-free.
+  for (const dep of deps) {
+    // eslint-disable-next-line no-await-in-loop
+    const depDir = await resolveDependency(dep, node.path)
+    if (!depDir) continue
+    // eslint-disable-next-line no-await-in-loop
+    const depNode = await buildBundledTree(depDir, seen)
+    node.edgesOut.set(dep, { to: depNode, peer: false, dev: false })
   }
+}
+
+function makeNode (pkgDir: string, pkg: Record<string, unknown>, isProjectRoot: boolean): TreeNode {
   const node = {
     path: pkgDir,
-    package: normalizedPkg,
+    package: pkg,
     isProjectRoot,
     isLink: false,
     edgesOut: new Map<string, Edge>(),
   } as TreeNode
   node.target = node
-  seen.set(pkgDir, node)
-  // Sequential to keep the shared `seen` map deduplication race-free.
-  for (const dep of depsToBundle) {
-    // eslint-disable-next-line no-await-in-loop
-    const depDir = await resolveDependency(dep, pkgDir)
-    if (!depDir) continue
-    // eslint-disable-next-line no-await-in-loop
-    const depPkg = await readPackageJson(depDir)
-    // eslint-disable-next-line no-await-in-loop
-    const depNode = await buildTree(depDir, depPkg, false, seen)
-    node.edgesOut.set(dep, { to: depNode, peer: false, dev: false })
-  }
   return node
 }
 
-function getDepsToBundle (pkg: Record<string, unknown>, isProjectRoot: boolean): string[] {
-  if (isProjectRoot) {
-    const bundle = pkg.bundleDependencies ?? pkg.bundledDependencies
-    if (Array.isArray(bundle)) return bundle as string[]
-    if (bundle === true) {
-      const dependencies = (pkg.dependencies ?? {}) as Record<string, string>
-      return Object.keys(dependencies)
-    }
-    return []
+function getRootBundledDeps (pkg: Record<string, unknown>): string[] {
+  const bundle = pkg.bundleDependencies ?? pkg.bundledDependencies
+  if (Array.isArray(bundle)) return bundle as string[]
+  if (bundle === true) {
+    return Object.keys((pkg.dependencies ?? {}) as Record<string, string>)
   }
+  return []
+}
+
+function getNestedBundledDeps (pkg: Record<string, unknown>): string[] {
   const dependencies = (pkg.dependencies ?? {}) as Record<string, string>
   const optionalDependencies = (pkg.optionalDependencies ?? {}) as Record<string, string>
   return [...Object.keys(dependencies), ...Object.keys(optionalDependencies)]
