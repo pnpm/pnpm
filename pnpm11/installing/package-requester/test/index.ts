@@ -272,7 +272,7 @@ test('refetch local tarball if its integrity has changed', async () => {
     const { files, bundledManifest } = await response.fetching()
 
     expect(response.body.updated).toBeFalsy()
-    expect(files.resolvedFrom).toBe('remote')
+    expect(files.resolvedFrom).toBe('local-dir')
     expect(bundledManifest).toBeTruthy()
   }
 
@@ -302,7 +302,7 @@ test('refetch local tarball if its integrity has changed', async () => {
     const { files, bundledManifest } = await response.fetching!()
 
     expect(response.body.updated).toBeTruthy()
-    expect(files.resolvedFrom).toBe('remote')
+    expect(files.resolvedFrom).toBe('local-dir')
     expect(bundledManifest).toBeTruthy()
   }
 
@@ -400,7 +400,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
     const { files, bundledManifest } = await response.fetching()
 
     expect(response.body.updated).toBeTruthy()
-    expect(files.resolvedFrom).toBe('remote')
+    expect(files.resolvedFrom).toBe('local-dir')
     expect(bundledManifest).toBeTruthy()
   }
 
@@ -423,7 +423,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
     const { files, bundledManifest } = await response.fetching()
 
     expect(response.body.updated).toBeTruthy()
-    expect(files.resolvedFrom).toBe('remote')
+    expect(files.resolvedFrom).toBe('local-dir')
     expect(bundledManifest).toBeTruthy()
   }
 
