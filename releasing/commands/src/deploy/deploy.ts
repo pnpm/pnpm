@@ -240,6 +240,7 @@ async function deployFromSharedLockfile (
     lockfile,
     lockfileDir,
     patchedDependencies: opts.patchedDependencies,
+    rootProjectManifest: opts.rootProjectManifest,
     selectedProjectManifest: selectedProject.manifest,
     projectId,
     rootProjectManifestDir,

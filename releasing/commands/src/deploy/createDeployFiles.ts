@@ -29,6 +29,7 @@ export interface CreateDeployFilesOptions {
   lockfile: LockfileObject
   lockfileDir: string
   patchedDependencies?: PnpmSettings['patchedDependencies']
+  rootProjectManifest?: Pick<ProjectManifest, 'packageManager'>
   selectedProjectManifest: ProjectManifest
   projectId: ProjectId
   rootProjectManifestDir: string
@@ -52,6 +53,7 @@ export function createDeployFiles ({
   lockfile,
   lockfileDir,
   patchedDependencies,
+  rootProjectManifest,
   selectedProjectManifest,
   projectId,
   rootProjectManifestDir,
@@ -145,6 +147,7 @@ export function createDeployFiles ({
       dependencies: targetSnapshot.dependencies,
       devDependencies: targetSnapshot.devDependencies,
       optionalDependencies: targetSnapshot.optionalDependencies,
+      packageManager: rootProjectManifest?.packageManager ?? selectedProjectManifest.packageManager,
     },
   }
 
