@@ -22,9 +22,6 @@ jobs:
       uses: pnpm/action-setup@e578e19d19d31b011b841ba2aca34731a5f706a5
       with:
         standalone: true
-    - name: Setup Node
-      run: pn runtime -g set node 24.6.0
-      timeout-minutes: 2
     - name: pnpm install
       run: pn install
       timeout-minutes: 3
