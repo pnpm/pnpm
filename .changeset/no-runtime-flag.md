@@ -1,5 +1,6 @@
 ---
 "@pnpm/lockfile.filtering": minor
+"@pnpm/installing.linking.modules-cleaner": minor
 "@pnpm/installing.deps-restorer": minor
 "@pnpm/installing.deps-installer": minor
 "@pnpm/installing.commands": minor

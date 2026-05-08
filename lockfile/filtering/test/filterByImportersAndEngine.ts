@@ -741,9 +741,7 @@ test('filterByImportersAndEngine(): skipRuntimes drops runtime: entries from imp
     optionalDependencies: {},
     specifiers: {
       'regular-dep': '^1.0.0',
-      node: 'runtime:22.13.0',
       'dev-dep': '^1.0.0',
-      bun: 'runtime:1.1.0',
     },
   })
   expect(Object.keys(filteredLockfile.lockfile.packages ?? {}).sort()).toStrictEqual([

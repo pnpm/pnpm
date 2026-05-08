@@ -68,6 +68,7 @@ export interface LinkPackagesOptions {
   sideEffectsCacheRead: boolean
   symlink: boolean
   skipped: Set<DepPath>
+  skipRuntimes?: boolean
   storeController: StoreController
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
@@ -120,6 +121,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
     pruneVirtualStore: opts.pruneVirtualStore,
     publicHoistedModulesDir: (opts.publicHoistPattern != null) ? opts.rootModulesDir : undefined,
     skipped: opts.skipped,
+    skipRuntimes: opts.skipRuntimes,
     storeController: opts.storeController,
     virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
@@ -136,6 +138,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
     include: opts.include,
     registries: opts.registries,
     skipped: opts.skipped,
+    skipRuntimes: opts.skipRuntimes,
   }
   const newCurrentLockfile = filterLockfileByImporters(opts.wantedLockfile, projectIds, {
     ...filterOpts,

@@ -11,7 +11,7 @@ export function filterImporter (
     dependencies: !include.dependencies ? {} : pickNonRuntime(importer.dependencies, skipRuntimes),
     devDependencies: !include.devDependencies ? {} : pickNonRuntime(importer.devDependencies, skipRuntimes),
     optionalDependencies: !include.optionalDependencies ? {} : pickNonRuntime(importer.optionalDependencies, skipRuntimes),
-    specifiers: importer.specifiers,
+    specifiers: pickNonRuntime(importer.specifiers, skipRuntimes),
   }
 }
 

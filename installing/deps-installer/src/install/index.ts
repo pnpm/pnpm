@@ -1423,6 +1423,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         sideEffectsCacheRead: opts.sideEffectsCacheRead,
         symlink: opts.symlink,
         skipped: ctx.skipped,
+        skipRuntimes: opts.skipRuntimes,
         storeController: opts.storeController,
         virtualStoreDir: ctx.virtualStoreDir,
         virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
