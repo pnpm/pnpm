@@ -370,14 +370,35 @@ test('resolveFromGit() gitlab with colon in the URL', async () => {
   })
 })
 
+// Regression test for #11533: the tarball URL must not contain `%2F`,
+// otherwise GitLab returns 406 and Node refuses to import the package
+// (the encoded slash ends up in the virtual store directory name).
+test('resolveFromGit() gitlab tarball uses /-/archive/ URL without encoded slash', async () => {
+  const headCommit = '988c61e11dc8d9ca0b5580cb15291951812549dc'
+  jest.mocked(fetchWithDispatcher).mockImplementation(async (_url, _opts) => {
+    return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+  })
+  jest.mocked(git).mockImplementation(async () => ({ stdout: `${headCommit}\tHEAD` }))
+  const resolveResult = await resolveFromGit({ bareSpecifier: 'https://gitlab.com/pasosdejesus/m' })
+  expect(resolveResult).toStrictEqual({
+    id: `https://gitlab.com/pasosdejesus/m/-/archive/${headCommit}/m-${headCommit}.tar.gz`,
+    normalizedBareSpecifier: 'gitlab:pasosdejesus/m',
+    resolution: {
+      tarball: `https://gitlab.com/pasosdejesus/m/-/archive/${headCommit}/m-${headCommit}.tar.gz`,
+      gitHosted: true,
+    },
+    resolvedVia: 'git-repository',
+  })
+})
+
 // This test stopped working. Probably an environmental issue.
 test.skip('resolveFromGit() gitlab with commit', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'gitlab:pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc' })
   expect(resolveResult).toStrictEqual({
-    id: 'https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?ref=988c61e11dc8d9ca0b5580cb15291951812549dc',
+    id: 'https://gitlab.com/pnpm/git-resolver/-/archive/988c61e11dc8d9ca0b5580cb15291951812549dc/git-resolver-988c61e11dc8d9ca0b5580cb15291951812549dc.tar.gz',
     normalizedBareSpecifier: 'gitlab:pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc',
     resolution: {
-      tarball: 'https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?ref=988c61e11dc8d9ca0b5580cb15291951812549dc',
+      tarball: 'https://gitlab.com/pnpm/git-resolver/-/archive/988c61e11dc8d9ca0b5580cb15291951812549dc/git-resolver-988c61e11dc8d9ca0b5580cb15291951812549dc.tar.gz',
       gitHosted: true,
     },
     resolvedVia: 'git-repository',
@@ -390,10 +411,10 @@ test.skip('resolveFromGit() gitlab with no commit', async () => {
   const result = await git(['ls-remote', '--refs', 'https://gitlab.com/pnpm/git-resolver.git', 'master'], { retries: 0 })
   const hash: string = result.stdout.trim().split('\t')[0]
   expect(resolveResult).toStrictEqual({
-    id: `https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?ref=${hash}`,
+    id: `https://gitlab.com/pnpm/git-resolver/-/archive/${hash}/git-resolver-${hash}.tar.gz`,
     normalizedBareSpecifier: 'gitlab:pnpm/git-resolver',
     resolution: {
-      tarball: `https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?ref=${hash}`,
+      tarball: `https://gitlab.com/pnpm/git-resolver/-/archive/${hash}/git-resolver-${hash}.tar.gz`,
     },
     resolvedVia: 'git-repository',
   })
@@ -405,10 +426,10 @@ test.skip('resolveFromGit() gitlab with branch', async () => {
   const result = await git(['ls-remote', '--refs', 'https://gitlab.com/pnpm/git-resolver.git', 'master'], { retries: 0 })
   const hash: string = result.stdout.trim().split('\t')[0]
   expect(resolveResult).toStrictEqual({
-    id: `https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?ref=${hash}`,
+    id: `https://gitlab.com/pnpm/git-resolver/-/archive/${hash}/git-resolver-${hash}.tar.gz`,
     normalizedBareSpecifier: 'gitlab:pnpm/git-resolver#master',
     resolution: {
-      tarball: `https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?ref=${hash}`,
+      tarball: `https://gitlab.com/pnpm/git-resolver/-/archive/${hash}/git-resolver-${hash}.tar.gz`,
     },
     resolvedVia: 'git-repository',
   })
@@ -418,10 +439,10 @@ test.skip('resolveFromGit() gitlab with branch', async () => {
 test.skip('resolveFromGit() gitlab with tag', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'gitlab:pnpm/git-resolver#0.3.4' })
   expect(resolveResult).toStrictEqual({
-    id: 'https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?ref=87cf6a67064d2ce56e8cd20624769a5512b83ff9',
+    id: 'https://gitlab.com/pnpm/git-resolver/-/archive/87cf6a67064d2ce56e8cd20624769a5512b83ff9/git-resolver-87cf6a67064d2ce56e8cd20624769a5512b83ff9.tar.gz',
     normalizedBareSpecifier: 'gitlab:pnpm/git-resolver#0.3.4',
     resolution: {
-      tarball: 'https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?ref=87cf6a67064d2ce56e8cd20624769a5512b83ff9',
+      tarball: 'https://gitlab.com/pnpm/git-resolver/-/archive/87cf6a67064d2ce56e8cd20624769a5512b83ff9/git-resolver-87cf6a67064d2ce56e8cd20624769a5512b83ff9.tar.gz',
       gitHosted: true,
     },
     resolvedVia: 'git-repository',
