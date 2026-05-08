@@ -221,12 +221,17 @@ export async function getConfig (opts: {
   // also have to peek at the relevant env vars here in order for
   // PNPM_CONFIG_NPMRC_AUTH_FILE / PNPM_CONFIG_USERCONFIG (and their lowercase
   // equivalents) to actually decide which user-level .npmrc gets read.
+  // npm_config_userconfig is honored as a low-priority compatibility fallback
+  // so that environments that point npm at a custom .npmrc (e.g. actions/setup-node
+  // writing to ${runner.temp}/.npmrc) keep working without requiring users to
+  // rename the env var to its PNPM_CONFIG_* equivalent.
   const globalYamlConfigForNpmrcAuthFile = await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
   const npmrcAuthFile = cliOptions['npmrc-auth-file'] as string | undefined
     ?? cliOptions.userconfig as string | undefined
     ?? readEnvVar(env, 'npmrc_auth_file')
     ?? readEnvVar(env, 'userconfig')
     ?? globalYamlConfigForNpmrcAuthFile?.npmrcAuthFile
+    ?? readNpmEnvVar(env, 'userconfig')
 
   const npmrcResult = loadNpmrcConfig({
     cliOptions,
@@ -693,6 +698,14 @@ function getProcessEnv (env: string): string | undefined {
 // is loaded.
 function readEnvVar (env: NodeJS.ProcessEnv, key: string): string | undefined {
   const value = env[`pnpm_config_${key}`] ?? env[`PNPM_CONFIG_${key.toUpperCase()}`]
+  return value !== '' ? value : undefined
+}
+
+// Same shape as readEnvVar but for the `npm_config_<key>` family. Used as a
+// low-priority compatibility shim so that npm-style env vars (e.g.
+// NPM_CONFIG_USERCONFIG written by actions/setup-node) keep working.
+function readNpmEnvVar (env: NodeJS.ProcessEnv, key: string): string | undefined {
+  const value = env[`npm_config_${key}`] ?? env[`NPM_CONFIG_${key.toUpperCase()}`]
   return value !== '' ? value : undefined
 }
 

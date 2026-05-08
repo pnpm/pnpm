@@ -1217,6 +1217,91 @@ test('getConfig() prefers pnpm_config_userconfig over PNPM_CONFIG_USERCONFIG whe
   expect(config.userConfig).toEqual({ registry: 'https://lower.example.test' })
 })
 
+// actions/setup-node writes auth to ${runner.temp}/.npmrc and sets NPM_CONFIG_USERCONFIG;
+// pnpm honors it as a low-priority compatibility fallback for that flow.
+test('getConfig() reads userconfig from NPM_CONFIG_USERCONFIG env var', async () => {
+  prepareEmpty()
+  fs.mkdirSync('user-home')
+  fs.writeFileSync(path.resolve('user-home', '.npmrc'), 'registry = https://registry.example.test', 'utf-8')
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      NPM_CONFIG_USERCONFIG: path.resolve('user-home', '.npmrc'),
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config.userConfig).toEqual({ registry: 'https://registry.example.test' })
+})
+
+test('getConfig() reads userconfig from npm_config_userconfig env var', async () => {
+  prepareEmpty()
+  fs.mkdirSync('user-home')
+  fs.writeFileSync(path.resolve('user-home', '.npmrc'), 'registry = https://registry.example.test', 'utf-8')
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      npm_config_userconfig: path.resolve('user-home', '.npmrc'),
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config.userConfig).toEqual({ registry: 'https://registry.example.test' })
+})
+
+test('getConfig() prefers PNPM_CONFIG_USERCONFIG over NPM_CONFIG_USERCONFIG when both are set', async () => {
+  prepareEmpty()
+  fs.mkdirSync('user-home')
+  fs.writeFileSync(path.resolve('user-home', 'pnpm.npmrc'), 'registry = https://pnpm.example.test', 'utf-8')
+  fs.writeFileSync(path.resolve('user-home', 'npm.npmrc'), 'registry = https://npm.example.test', 'utf-8')
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      PNPM_CONFIG_USERCONFIG: path.resolve('user-home', 'pnpm.npmrc'),
+      NPM_CONFIG_USERCONFIG: path.resolve('user-home', 'npm.npmrc'),
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config.userConfig).toEqual({ registry: 'https://pnpm.example.test' })
+})
+
+// An empty NPM_CONFIG_USERCONFIG (e.g. `export NPM_CONFIG_USERCONFIG=`) must be
+// treated as unset. Otherwise it short-circuits the fallback chain and resolves
+// to the cwd, returning an empty/invalid auth config instead of ~/.npmrc.
+test('getConfig() ignores an empty NPM_CONFIG_USERCONFIG and falls back to ~/.npmrc', async () => {
+  prepareEmpty()
+  const homedirSpy = jest.spyOn(os, 'homedir').mockReturnValue(path.resolve('user-home'))
+  try {
+    fs.mkdirSync('user-home')
+    fs.writeFileSync(path.resolve('user-home', '.npmrc'), 'registry = https://home.example.test', 'utf-8')
+    const { config } = await getConfig({
+      cliOptions: {},
+      env: {
+        ...env,
+        NPM_CONFIG_USERCONFIG: '',
+        npm_config_userconfig: '',
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+    expect(config.userConfig).toEqual({ registry: 'https://home.example.test' })
+  } finally {
+    homedirSpy.mockRestore()
+  }
+})
+
 test('getConfig() sets sideEffectsCacheRead and sideEffectsCacheWrite when side-effects-cache is set', async () => {
   const { config } = await getConfig({
     cliOptions: {
@@ -1868,6 +1953,37 @@ describe('global config.yaml', () => {
     })
 
     expect(config.httpsProxy).toBe('http://cli-proxy.example.com:7070')
+  })
+
+  // npmrcAuthFile in global config.yaml is a deliberate pnpm-native setting and should
+  // not be silently overridden by an ambient NPM_CONFIG_USERCONFIG (e.g. from a CI runner).
+  test('npmrcAuthFile from global config.yaml takes precedence over NPM_CONFIG_USERCONFIG', async () => {
+    prepareEmpty()
+    fs.mkdirSync('user-home')
+    fs.writeFileSync(path.resolve('user-home', 'yaml.npmrc'), 'registry = https://yaml.example.test', 'utf-8')
+    fs.writeFileSync(path.resolve('user-home', 'npm.npmrc'), 'registry = https://npm.example.test', 'utf-8')
+
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', {
+      npmrcAuthFile: path.resolve('user-home', 'yaml.npmrc'),
+    })
+
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      env: {
+        ...env,
+        NPM_CONFIG_USERCONFIG: path.resolve('user-home', 'npm.npmrc'),
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.userConfig).toEqual({ registry: 'https://yaml.example.test' })
   })
 })
 
