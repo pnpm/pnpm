@@ -186,7 +186,7 @@ export async function handler (
     return `The currently active ${packageManager.name} v${packageManager.version} is newer than the "latest" version on the registry (v${resolution.manifest.version}). No update performed. Run "pnpm self-update latest" to downgrade.`
   }
 
-  globalInfo(`Updating pnpm from v${packageManager.version} to v${resolution.manifest.version}...`)
+  globalInfo(`Switching pnpm from v${packageManager.version} to v${resolution.manifest.version}...`)
   const store = await createStoreController(opts)
 
   // Resolve integrities and write env lockfile to pnpm-lock.yaml
