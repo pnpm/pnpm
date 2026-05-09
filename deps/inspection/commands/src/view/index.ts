@@ -1,5 +1,6 @@
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
+import { formatTimeAgo } from '@pnpm/resolving.npm-resolver'
 import chalk from 'chalk'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -218,40 +219,16 @@ function getPublishedInfo (info: ExtendedPackageInfo): string | null {
   if (isNaN(publishedDate.getTime())) {
     return null
   }
-  const now = new Date()
-  const diffMs = now.getTime() - publishedDate.getTime()
-  // Handle clock skew: if diffMs is negative (future date), skip the line
-  if (diffMs < 0) {
+  const timeAgo = formatTimeAgo(publishedDate)
+  if (timeAgo == null) {
     return null
   }
-  const diffSec = Math.floor(diffMs / 1000)
-  const diffMin = Math.floor(diffSec / 60)
-  const diffHour = Math.floor(diffMin / 60)
-  const diffDay = Math.floor(diffHour / 24)
-  const diffMonth = Math.floor(diffDay / 30)
-  const diffYear = Math.floor(diffDay / 365)
-  let timeAgo: string
-  if (diffYear > 0) {
-    timeAgo = diffYear === 1 ? '1 year' : `${diffYear} years`
-  } else if (diffMonth > 0) {
-    timeAgo = diffMonth === 1 ? '1 month' : `${diffMonth} months`
-  } else if (diffDay > 0) {
-    timeAgo = diffDay === 1 ? '1 day' : `${diffDay} days`
-  } else if (diffHour > 0) {
-    timeAgo = diffHour === 1 ? '1 hour' : `${diffHour} hours`
-  } else if (diffMin > 0) {
-    timeAgo = diffMin === 1 ? '1 minute' : `${diffMin} minutes`
-  } else {
-    timeAgo = 'a few seconds'
-  }
-
-  timeAgo = chalk.cyan(`${timeAgo} ago`)
 
   const publisher = getPublisher(info)
   if (publisher) {
-    return `published ${timeAgo} by ${publisher}`
+    return `published ${chalk.cyan(timeAgo)} by ${publisher}`
   }
-  return `published ${timeAgo}`
+  return `published ${chalk.cyan(timeAgo)}`
 }
 
 /**

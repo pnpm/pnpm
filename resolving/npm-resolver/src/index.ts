@@ -76,7 +76,7 @@ export class NoMatchingVersionError extends PnpmError {
     let errorMessage: string
     if (opts.publishedBy && opts.immatureVersion && opts.packageMeta.time) {
       const time = new Date(opts.packageMeta.time[opts.immatureVersion])
-      const releaseAgeText = formatTimeAgo(time)
+      const releaseAgeText = formatTimeAgo(time) ?? 'just now'
       const pkgName = opts.wantedDependency.alias ?? opts.packageMeta.name
       errorMessage = `Version ${opts.immatureVersion} (released ${releaseAgeText}) of ${pkgName} does not meet the minimumReleaseAge constraint`
     } else {
@@ -88,26 +88,28 @@ export class NoMatchingVersionError extends PnpmError {
   }
 }
 
-function formatTimeAgo (date: Date): string {
+export function formatTimeAgo (date: Date): string | null {
   const now = Date.now()
   const diffMs = now - date.getTime()
 
-  // Handle clock skew (future dates) and very recent releases (< 1 minute)
-  if (diffMs < 60 * 1000) {
-    return 'just now'
+  // Handle clock skew (future dates)
+  if (diffMs < 0) {
+    return null
   }
 
-  const diffMinutes = Math.floor(diffMs / (60 * 1000))
-  const diffHours = Math.floor(diffMs / (60 * 60 * 1000))
-  const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000))
+  const diffSec = Math.floor(diffMs / 1000)
+  const diffMin = Math.floor(diffSec / 60)
+  const diffHour = Math.floor(diffMin / 60)
+  const diffDay = Math.floor(diffHour / 24)
+  const diffMonth = Math.floor(diffDay / 30)
+  const diffYear = Math.floor(diffDay / 365)
 
-  if (diffHours >= 48) {
-    return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`
-  }
-  if (diffMinutes >= 90) {
-    return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`
-  }
-  return `${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`
+  if (diffYear > 0) return `${diffYear} year${diffYear === 1 ? '' : 's'} ago`
+  if (diffMonth > 0) return `${diffMonth} month${diffMonth === 1 ? '' : 's'} ago`
+  if (diffDay > 0) return `${diffDay} day${diffDay === 1 ? '' : 's'} ago`
+  if (diffHour > 0) return `${diffHour} hour${diffHour === 1 ? '' : 's'} ago`
+  if (diffMin > 0) return `${diffMin} minute${diffMin === 1 ? '' : 's'} ago`
+  return 'a few seconds ago'
 }
 
 export {
