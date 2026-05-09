@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm } from '../utils/index.js'
 
@@ -84,6 +85,30 @@ test('--no-runtime works on a fresh checkout with no lockfile (non-frozen path)'
         onFail: 'download',
       },
     },
+  })
+
+  await execPnpm(['install', '--no-runtime'])
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers['.'].devDependencies).toStrictEqual({
+    node: { specifier: 'runtime:24.0.0', version: 'runtime:24.0.0' },
+  })
+  expectNoNodeBin()
+})
+
+test('--no-runtime works with enableGlobalVirtualStore=true', async () => {
+  const project = prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '24.0.0',
+        onFail: 'download',
+      },
+    },
+  })
+  writeYamlFileSync(path.resolve('pnpm-workspace.yaml'), {
+    enableGlobalVirtualStore: true,
+    storeDir: path.resolve('store'),
   })
 
   await execPnpm(['install', '--no-runtime'])
