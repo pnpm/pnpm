@@ -1371,6 +1371,20 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
     }
   }
+  if (opts.skipRuntimes) {
+    // The lockfile filter (filterImporter) handles wantedLockfile-driven linking,
+    // but the direct bin-linking path at the end of _installInContext iterates
+    // dependenciesByProjectId and only filters by ctx.skipped. Add runtime
+    // depPaths there so that path skips them too.
+    for (const id of Object.keys(dependenciesByProjectId) as ProjectId[]) {
+      for (const [alias, depPath] of dependenciesByProjectId[id].entries()) {
+        if (depPath.includes('@runtime:')) {
+          ctx.skipped.add(depPath)
+          dependenciesByProjectId[id].delete(alias)
+        }
+      }
+    }
+  }
 
   stageLogger.debug({
     prefix: ctx.lockfileDir,

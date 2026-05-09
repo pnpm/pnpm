@@ -123,6 +123,15 @@ test('--no-runtime works with enableGlobalVirtualStore=true', async () => {
 function expectNoNodeBin (): void {
   const binDir = path.join('node_modules', '.bin')
   for (const name of ['node', 'node.exe', 'node.cmd', 'node.ps1']) {
-    expect(fs.existsSync(path.join(binDir, name))).toBe(false)
+    const p = path.join(binDir, name)
+    // lstatSync (vs existsSync) catches dangling symlinks too — existsSync
+    // follows symlinks and would return false for a symlink whose target was
+    // never created, hiding a real bug.
+    let exists = false
+    try {
+      fs.lstatSync(p)
+      exists = true
+    } catch {}
+    expect(exists).toBe(false)
   }
 }
