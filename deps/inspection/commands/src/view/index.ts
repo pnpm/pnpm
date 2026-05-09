@@ -219,10 +219,7 @@ function getPublishedInfo (info: ExtendedPackageInfo): string | null {
   if (isNaN(publishedDate.getTime())) {
     return null
   }
-  const timeAgo = formatTimeAgo(publishedDate)
-  if (timeAgo == null) {
-    return null
-  }
+  const timeAgo = formatTimeAgo(publishedDate) ?? 'just now'
 
   const publisher = getPublisher(info)
   if (publisher) {

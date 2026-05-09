@@ -89,8 +89,12 @@ export class NoMatchingVersionError extends PnpmError {
 }
 
 export function formatTimeAgo (date: Date): string | null {
+  const ts = date.getTime()
+  if (isNaN(ts)) {
+    return null
+  }
   const now = Date.now()
-  const diffMs = now - date.getTime()
+  const diffMs = now - ts
 
   // Handle clock skew (future dates)
   if (diffMs < 0) {
