@@ -711,8 +711,9 @@ export async function mutateModules (
       })
 
       if (opts.catalogMode !== 'manual') {
-        const catalogBareSpecifier = `catalog:${opts.saveCatalogName == null || opts.saveCatalogName === 'default' ? '' : opts.saveCatalogName}`
         for (const wantedDep of wantedDeps) {
+          const perDepCatalogName = getPerDepCatalogName(wantedDep, opts.saveCatalogName)
+          const catalogBareSpecifier = `catalog:${perDepCatalogName === 'default' ? '' : perDepCatalogName}`
           const catalog = resolveFromCatalog(opts.catalogs, { ...wantedDep, bareSpecifier: catalogBareSpecifier })
           const catalogDepSpecifier = matchCatalogResolveResult(catalog, pickCatalogSpecifier)
 
@@ -723,7 +724,7 @@ export async function mutateModules (
             semver.validRange(catalogDepSpecifier) &&
             semver.eq(wantedDep.bareSpecifier, catalogDepSpecifier)
           ) {
-            wantedDep.saveCatalogName = opts.saveCatalogName ?? 'default'
+            wantedDep.saveCatalogName = perDepCatalogName
             continue
           }
 
@@ -1095,6 +1096,27 @@ function isWantedDepBareSpecifierSame (
   const nextCatalogEntrySpec = catalogsConfig?.[catalogName]?.[alias]
 
   return prevCatalogEntrySpec === nextCatalogEntrySpec
+}
+
+/**
+ * Determines the catalog name for a dependency during installSome.
+ *
+ * If the dependency's previous specifier already uses a named catalog
+ * (e.g. "catalog:foo"), that catalog name takes priority over the global
+ * saveCatalogName option. This ensures that interactive updates and
+ * `--latest` upgrades preserve the per-dependency catalog group.
+ */
+function getPerDepCatalogName (
+  wantedDep: { prevSpecifier?: string },
+  globalSaveCatalogName: string | undefined
+): string {
+  if (wantedDep.prevSpecifier) {
+    const catalogFromPrev = parseCatalogProtocol(wantedDep.prevSpecifier)
+    if (catalogFromPrev != null) {
+      return catalogFromPrev
+    }
+  }
+  return globalSaveCatalogName ?? 'default'
 }
 
 export async function addDependenciesToPackage (

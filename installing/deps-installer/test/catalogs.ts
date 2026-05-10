@@ -1755,6 +1755,119 @@ describe('update', () => {
     expect(Object.keys(readLockfile().snapshots)).toEqual(['@pnpm.e2e/foo@100.1.0'])
   })
 
+  test('update --latest works on named catalog dependency', async () => {
+    await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:foo',
+      },
+    }])
+
+    const catalogs = {
+      foo: { '@pnpm.e2e/foo': '1.0.0' },
+    }
+
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    expect(readLockfile().catalogs.foo).toEqual({
+      '@pnpm.e2e/foo': { specifier: '1.0.0', version: '1.0.0' },
+    })
+
+    const { updatedCatalogs, updatedManifest } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['@pnpm.e2e/foo'],
+      {
+        ...mutateOpts,
+        dir: path.join(process.cwd(), 'project1'),
+        allowNew: false,
+        update: true,
+        updateToLatest: true,
+      })
+
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:foo',
+      },
+    })
+    expect(updatedCatalogs).toEqual({
+      foo: {
+        '@pnpm.e2e/foo': '100.1.0',
+      },
+    })
+
+    const lockfile = readLockfile()
+    expect(lockfile.catalogs).toEqual({
+      foo: { '@pnpm.e2e/foo': { specifier: '100.1.0', version: '100.1.0' } },
+    })
+    expect(Object.keys(lockfile.snapshots)).toEqual(['@pnpm.e2e/foo@100.1.0'])
+  })
+
+  test('update --latest works on named catalog dependency with catalogMode=prefer', async () => {
+    await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:foo',
+      },
+    }])
+
+    const catalogs = {
+      foo: { '@pnpm.e2e/foo': '1.0.0' },
+    }
+
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    expect(readLockfile().catalogs.foo).toEqual({
+      '@pnpm.e2e/foo': { specifier: '1.0.0', version: '1.0.0' },
+    })
+
+    const { updatedCatalogs, updatedManifest } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['@pnpm.e2e/foo'],
+      {
+        ...mutateOpts,
+        catalogMode: 'prefer',
+        dir: path.join(process.cwd(), 'project1'),
+        allowNew: false,
+        update: true,
+        updateToLatest: true,
+      })
+
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:foo',
+      },
+    })
+    expect(updatedCatalogs).toEqual({
+      foo: {
+        '@pnpm.e2e/foo': '100.1.0',
+      },
+    })
+
+    const lockfile = readLockfile()
+    expect(lockfile.catalogs).toEqual({
+      foo: { '@pnpm.e2e/foo': { specifier: '100.1.0', version: '100.1.0' } },
+    })
+    expect(Object.keys(lockfile.snapshots)).toEqual(['@pnpm.e2e/foo@100.1.0'])
+  })
+
   // This test will update @pnpm.e2e/bar, but make sure @pnpm.e2e/foo is
   // untouched. On the registry-mock, the versions for @pnpm.e2e/bar are:
   //
