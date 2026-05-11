@@ -5,7 +5,7 @@ import path from 'node:path'
 import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
-import { createDispatchedFetch, type DispatcherOptions, extractTlsConfigs } from '@pnpm/network.fetch'
+import { createDispatchedFetch } from '@pnpm/network.fetch'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import type { Creds, RegistryConfig } from '@pnpm/types'
 import type { PublishOptions } from 'libnpmpublish'
@@ -109,7 +109,7 @@ export async function publishPackedPkg (
     ...SHARED_CONTEXT,
     // Route the doneUrl polling fetch through the same proxy / TLS settings as
     // the initial publish request (see https://github.com/pnpm/pnpm/issues/11561).
-    fetch: createDispatchedFetch(buildDispatcherOptions(opts)),
+    fetch: createDispatchedFetch({ ...opts, timeout: opts.fetchTimeout }),
   }
   const response = await publishWithOtpHandling({
     context,
@@ -122,14 +122,6 @@ export async function publishPackedPkg (
     return summary
   }
   throw await createFailedToPublishError(packResult, response)
-}
-
-function buildDispatcherOptions (opts: PublishPackedPkgOptions): DispatcherOptions {
-  return {
-    ...opts,
-    timeout: opts.fetchTimeout,
-    clientCertificates: extractTlsConfigs(opts.configByUri),
-  }
 }
 
 /**
