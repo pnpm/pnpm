@@ -39,6 +39,7 @@
     "@pnpm/cli.utils": "workspace:*",
     "@pnpm/config.matcher": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
+    "@pnpm/core-loggers": "workspace:*",
     "@pnpm/deps.inspection.list": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/global.packages": "workspace:*",

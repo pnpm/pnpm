@@ -180,6 +180,13 @@ export interface StrictInstallOptions {
   trustPolicyIgnoreAfter?: number
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
   blockExoticSubdeps?: boolean
+  /**
+   * If true, `mutateModules` does not emit the per-install `summary` log
+   * event. Used by `pnpm add -g` when it runs multiple isolated installs
+   * inside a single command and wants to emit a single consolidated
+   * summary at the very end instead of one summary per install.
+   */
+  omitSummaryLog: boolean
   /** URL of a pnpm agent server. See the pnpm-agent README. */
   agent?: string
 }
@@ -284,6 +291,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     virtualStoreDirMaxLength: 120,
     peersSuffixMaxLength: 1000,
     blockExoticSubdeps: false,
+    omitSummaryLog: false,
   } as StrictInstallOptions
 }
 

@@ -4,6 +4,7 @@ import path from 'node:path'
 import { linkBinsOfPackages } from '@pnpm/bins.linker'
 import { removeBin } from '@pnpm/bins.remover'
 import type { CommandHandlerMap } from '@pnpm/cli.command'
+import { summaryLogger } from '@pnpm/core-loggers'
 import {
   cleanOrphanedInstallDirs,
   createGlobalCacheKey,
@@ -65,6 +66,14 @@ export async function handleGlobalAdd (
     // eslint-disable-next-line no-await-in-loop
     await installGroup({ opts, globalDir, globalBinDir, allowBuilds, params: group }, commands)
   }
+
+  // The per-group `mutateModulesInSingleProject` calls run with
+  // `omitSummaryLog: true` so the default-reporter's summary block only
+  // appears once at the end, with every installed package listed under a
+  // single "global:" heading. Without this, the reporter would print
+  // group 1's summary and then ignore later groups, because its summary
+  // pipeline takes only the first `summary` log event.
+  summaryLogger.debug({ prefix: globalDir })
 }
 
 interface InstallGroupContext {
@@ -112,6 +121,7 @@ async function installGroup (
     include,
     includeDirect: include,
     allowBuilds,
+    omitSummaryLog: true,
   }
 
   const ignoredBuilds = await installGlobalPackages(installOpts, params)

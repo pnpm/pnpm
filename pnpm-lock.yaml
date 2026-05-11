@@ -4941,6 +4941,9 @@ importers:
       '@pnpm/config.reader':
         specifier: workspace:*
         version: link:../../config/reader
+      '@pnpm/core-loggers':
+        specifier: workspace:*
+        version: link:../../core/core-loggers
       '@pnpm/deps.inspection.list':
         specifier: workspace:*
         version: link:../../deps/inspection/list
