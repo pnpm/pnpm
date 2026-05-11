@@ -669,3 +669,36 @@ test('global add bundles comma-separated packages into a single group', async ()
   // peer-c is in a different install dir.
   expect(peerC!.installDir).not.toBe(positive!.installDir)
 })
+
+test('global add does not treat commas inside a local path selector as a group separator', () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(pnpmHome, { recursive: true })
+
+  // Create a local package whose directory name contains a comma.
+  const pkgDir = path.resolve('..', 'tool,with,comma')
+  fs.mkdirSync(pkgDir, { recursive: true })
+  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({
+    name: 'tool-comma',
+    version: '1.0.0',
+    bin: { 'tool-comma-bin': './index.js' },
+  }))
+  fs.writeFileSync(path.join(pkgDir, 'index.js'), '#!/usr/bin/env node\nconsole.log("ok")\n')
+
+  const env = {
+    [PATH_NAME]: path.join(pnpmHome, 'bin'),
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+    pnpm_config_store_dir: path.resolve('..', 'store'),
+  }
+
+  // The path contains commas but must be treated as one selector, not split.
+  execPnpmSync(['add', '-g', pkgDir], { env, expectSuccess: true })
+  expect(findGlobalPkg(globalPkgDir(pnpmHome), 'tool-comma')).toBeTruthy()
+  expect(fs.existsSync(path.join(pnpmHome, 'bin', 'tool-comma-bin'))).toBeTruthy()
+
+  // Same path via file: protocol should also be preserved.
+  execPnpmSync(['add', '-g', `file:${pkgDir}`], { env, expectSuccess: true })
+  expect(findGlobalPkg(globalPkgDir(pnpmHome), 'tool-comma')).toBeTruthy()
+})

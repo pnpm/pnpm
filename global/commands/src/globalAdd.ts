@@ -55,11 +55,10 @@ export async function handleGlobalAdd (
   // Each space-separated CLI param becomes its own isolated install group.
   // A param containing commas is split into multiple selectors that share a
   // single group, so `pnpm add -g foo,bar qar` installs foo+bar together
-  // and qar separately. Comma splitting only applies when the param itself
-  // contains a comma — protocols like `file:` or `link:` resolve via
-  // resolveLocalParam afterwards.
+  // and qar separately. Local paths and URLs that legitimately contain
+  // commas are detected and kept whole.
   const groups = params
-    .map((param) => splitCommaSeparated(param).map((token) => resolveLocalParam(token, opts.dir)))
+    .map((param) => splitCommaSeparated(param, opts.dir).map((token) => resolveLocalParam(token, opts.dir)))
     .filter((group) => group.length > 0)
 
   for (const group of groups) {
@@ -160,9 +159,39 @@ async function installGroup (
   await linkBinsOfPackages(pkgs, globalBinDir, { excludeBins: binsToSkip })
 }
 
-function splitCommaSeparated (param: string): string[] {
+function splitCommaSeparated (param: string, baseDir: string): string[] {
   if (!param.includes(',')) return [param]
+  // URLs may contain commas and are never a group of selectors.
+  if (param.includes('://')) return [param]
+  // For path-like specs (relative/absolute paths, file:, link:), the
+  // commas could either be part of a single path that legitimately
+  // contains commas, or be separators between multiple distinct paths.
+  // Resolve the ambiguity by checking whether the whole param actually
+  // refers to an existing local path on disk.
+  if (refersToExistingLocalPath(param, baseDir)) return [param]
   return param.split(',').map((token) => token.trim()).filter(Boolean)
+}
+
+function refersToExistingLocalPath (param: string, baseDir: string): boolean {
+  let pathPart: string
+  if (param.startsWith('file:')) {
+    pathPart = param.slice('file:'.length)
+  } else if (param.startsWith('link:')) {
+    pathPart = param.slice('link:'.length)
+  } else if (param[0] === '.' || param[0] === '/' || param[0] === '~') {
+    pathPart = param
+  } else if (/^[a-z]:[/\\]/i.test(param)) {
+    pathPart = param
+  } else {
+    return false
+  }
+  const resolved = path.isAbsolute(pathPart) ? pathPart : path.resolve(baseDir, pathPart)
+  try {
+    fs.statSync(resolved)
+    return true
+  } catch {
+    return false
+  }
 }
 
 function resolveLocalParam (param: string, baseDir: string): string {
