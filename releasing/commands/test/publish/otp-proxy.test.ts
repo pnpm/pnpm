@@ -7,7 +7,7 @@ import type { OtpContext, OtpPublishResponse } from '../../src/publish/otp.js'
 // request is routed through it when dispatcherOptions are supplied. This is the
 // wiring that fixes https://github.com/pnpm/pnpm/issues/11561 - without it the
 // doneUrl polling would bypass the proxy that the initial publish request used.
-const fetchWithDispatcherMock = jest.fn()
+const fetchWithDispatcherMock = jest.fn<(url: string, opts: { dispatcherOptions: unknown }) => Promise<WebAuthFetchResponse>>()
 const fetchMock = jest.fn()
 jest.unstable_mockModule('@pnpm/network.fetch', () => ({
   fetch: fetchMock,
@@ -48,10 +48,12 @@ describe('publishWithOtpHandling with dispatcherOptions', () => {
       json: async () => ({ token: 'web-tok' }),
       ok: true,
       status: 200,
-    } as WebAuthFetchResponse)
+    })
+    let publishCallCount = 0
     const context = createMockContext({
-      publish: jest.fn()
-        .mockImplementationOnce(async () => {
+      publish: async () => {
+        publishCallCount++
+        if (publishCallCount === 1) {
           throw Object.assign(new Error('otp'), {
             code: 'EOTP',
             body: {
@@ -59,8 +61,9 @@ describe('publishWithOtpHandling with dispatcherOptions', () => {
               doneUrl: 'https://registry.npmjs.org/auth/abc/done',
             },
           })
-        })
-        .mockImplementationOnce(async () => createOkResponse()) as OtpContext['publish'],
+        }
+        return createOkResponse()
+      },
     })
     const result = await publishWithOtpHandling({
       context,
@@ -70,9 +73,10 @@ describe('publishWithOtpHandling with dispatcherOptions', () => {
       tarballData,
     })
     expect(result.ok).toBe(true)
+    expect(publishCallCount).toBe(2)
     expect(fetchWithDispatcherMock).toHaveBeenCalledTimes(1)
     const callArgs = fetchWithDispatcherMock.mock.calls[0]
     expect(callArgs[0]).toBe('https://registry.npmjs.org/auth/abc/done')
-    expect((callArgs[1] as { dispatcherOptions: unknown }).dispatcherOptions).toBe(dispatcherOptions)
+    expect(callArgs[1].dispatcherOptions).toBe(dispatcherOptions)
   })
 })
