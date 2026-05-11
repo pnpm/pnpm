@@ -146,7 +146,7 @@ catalog:
   '@yarnpkg/nm': 4.0.7
   '@yarnpkg/parsers': 3.0.3
   '@yarnpkg/pnp': ^4.0.8
-  '@zkochan/cmd-shim': ^9.0.2
+  '@zkochan/cmd-shim': ^9.0.3
   '@zkochan/retry': ^0.2.0
   '@zkochan/rimraf': ^4.0.0
   '@zkochan/table': ^2.0.1
@@ -344,7 +344,7 @@ minimumReleaseAgeExclude:
   - '@pnpm/*'
   - '@rushstack/worker-pool@0.7.7'
   - '@zkochan/*'
-  - '@zkochan/cmd-shim@9.0.2'
+  - '@zkochan/cmd-shim@9.0.3'
   - better-path-resolve
   - body-parser@2.2.1
   - can-link

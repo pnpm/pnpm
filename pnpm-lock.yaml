@@ -434,8 +434,8 @@ catalogs:
       specifier: ^4.0.8
       version: 4.1.5
     '@zkochan/cmd-shim':
-      specifier: ^9.0.2
-      version: 9.0.2
+      specifier: ^9.0.3
+      version: 9.0.3
     '@zkochan/retry':
       specifier: ^0.2.0
       version: 0.2.0
@@ -1591,7 +1591,7 @@ importers:
         version: link:../../workspace/project-manifest-reader
       '@zkochan/cmd-shim':
         specifier: 'catalog:'
-        version: 9.0.2
+        version: 9.0.3
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 4.0.0
@@ -7914,7 +7914,7 @@ importers:
         version: link:../../../__utils__/jest-config
       '@zkochan/cmd-shim':
         specifier: 'catalog:'
-        version: 9.0.2
+        version: 9.0.3
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.3.0
@@ -12282,8 +12282,8 @@ packages:
     resolution: {integrity: sha512-E5mgrRS8Kk80n19Xxmrx5qO9UG03FyZd8Me5gxYi++VPZsOv8+OsclA+0Fth4KTDCrQ/FkJryNFKJ6/642lo4g==}
     engines: {node: '>=18.12'}
 
-  '@zkochan/cmd-shim@9.0.2':
-    resolution: {integrity: sha512-l4x1ZcuZKS7nVVLrCzl4t0Q54mADMO6NtZFVMwoaOY/Emf62CbxMWh192nfiiwOhHmBcCR3iHrbEzwQXqCob1Q==}
+  '@zkochan/cmd-shim@9.0.3':
+    resolution: {integrity: sha512-u2kKE7N/UapZ0RyAQTNcnSQ9SYbvtcgwzfXl3WHcoJvja69T15Dou//ZU6Bsk3p0M6fFWD5ip+uwkJy61TvaMA==}
     engines: {node: '>=22.13'}
 
   '@zkochan/diable@1.0.2':
@@ -20725,7 +20725,7 @@ snapshots:
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
       is-windows: 1.0.2
 
-  '@zkochan/cmd-shim@9.0.2':
+  '@zkochan/cmd-shim@9.0.3':
     dependencies:
       cmd-extension: 1.0.2
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
