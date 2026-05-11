@@ -1,4 +1,5 @@
 ---
+"@pnpm/network.fetch": patch
 "@pnpm/releasing.commands": patch
 "pnpm": patch
 ---
