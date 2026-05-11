@@ -176,6 +176,34 @@ test('devEngines.packageManager with a different PM name should fail with onFail
   expect(stderr.toString()).toContain('This project is configured to use yarn')
 })
 
+test('pnpm --version exits promptly when devEngines.packageManager matches the running pnpm', async () => {
+  // Regression test: main.ts's `--version` short-circuit returned before
+  // the command-handler `finally` that calls finishWorkers(), and
+  // switchCliVersion had already spawned workers during integrity
+  // resolution. The worker pool then kept the Node event loop alive long
+  // past the version print.
+  const versionProcess = execPnpmSync(['--version'])
+  const pnpmVersion = versionProcess.stdout.toString().trim()
+
+  prepare({
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: pnpmVersion,
+        onFail: 'download',
+      },
+    },
+  })
+
+  // 30 s is comfortably above the post-fix exit time (~3 s) and far below
+  // the pre-fix hang. If the regression returns, spawnSync's timeout kicks
+  // in and execPnpmSync throws from its `error`/`signal` checks.
+  const { status, stdout } = execPnpmSync(['--version'], { timeout: 30_000 })
+
+  expect(status).toBe(0)
+  expect(stdout.toString().trim()).toBe(pnpmVersion)
+})
+
 test('devEngines.packageManager array selects the pnpm entry', async () => {
   prepare({
     devEngines: {
