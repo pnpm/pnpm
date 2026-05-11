@@ -35,9 +35,9 @@ test('verify-deps-before-run does not emit unsupported engine warnings for works
 
   await execPnpm(['install'])
 
-  const { stdout } = execPnpmSync(['--config.verify-deps-before-run=install', 'start'], {
+  const { stdout, stderr } = execPnpmSync(['--config.verify-deps-before-run=install', 'start'], {
     expectSuccess: true,
   })
   expect(stdout.toString()).toContain('hello from root')
-  expect(stdout.toString()).not.toContain('Unsupported engine')
+  expect(stdout.toString() + stderr.toString()).not.toContain('Unsupported engine')
 })
