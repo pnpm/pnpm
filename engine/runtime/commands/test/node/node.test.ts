@@ -4,7 +4,7 @@ import path from 'node:path'
 import { beforeEach, expect, jest, test } from '@jest/globals'
 import { tempDir } from '@pnpm/prepare-temp-dir'
 
-const mockSync = jest.fn(() => ({ status: 0, signal: null }))
+const mockSync = jest.fn<(cmd: string, args: string[]) => { status: number, signal: NodeJS.Signals | null }>(() => ({ status: 0, signal: null }))
 jest.unstable_mockModule('cross-spawn', () => ({
   default: { sync: mockSync },
 }))
