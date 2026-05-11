@@ -1,6 +1,6 @@
 ---
-"@pnpm/global.commands": minor
-"pnpm": minor
+"@pnpm/global.commands": patch
+"pnpm": patch
 ---
 
 `pnpm add -g` now installs each space-separated package into its own isolated directory by default. To bundle multiple packages into the same isolated install (so that they share dependencies and are removed together), pass them as a comma-separated list. For example:
