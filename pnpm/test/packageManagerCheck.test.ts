@@ -1,5 +1,5 @@
 import { expect, test } from '@jest/globals'
-import { prepare } from '@pnpm/prepare'
+import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpmSync } from './utils/index.js'
@@ -182,6 +182,10 @@ test('pnpm --version exits promptly when devEngines.packageManager matches the r
   // switchCliVersion had already spawned workers during integrity
   // resolution. The worker pool then kept the Node event loop alive long
   // past the version print.
+  // Read the running pnpm version from a fresh empty dir — the previous
+  // test's prepare() leaves cwd in a manifest with a failing pm check, and
+  // checkPackageManager runs before the --version short-circuit.
+  prepareEmpty()
   const versionProcess = execPnpmSync(['--version'])
   const pnpmVersion = versionProcess.stdout.toString().trim()
 
