@@ -119,15 +119,8 @@ export async function publishPackedPkg (
 
 function buildDispatcherOptions (opts: PublishPackedPkgOptions): DispatcherOptions {
   return {
-    ca: opts.ca,
-    cert: opts.cert,
-    key: opts.key,
-    localAddress: opts.localAddress,
-    strictSsl: opts.strictSsl,
+    ...opts,
     timeout: opts.fetchTimeout,
-    httpProxy: opts.httpProxy,
-    httpsProxy: opts.httpsProxy,
-    noProxy: opts.noProxy,
     clientCertificates: extractTlsConfigs(opts.configByUri),
   }
 }
