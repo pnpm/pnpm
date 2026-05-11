@@ -94,6 +94,7 @@ import {
 } from './extendInstallOptions.js'
 import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
+import { revalidateLockfileAgainstMinimumReleaseAge } from './revalidateLockfileMinimumReleaseAge.js'
 import { validateModules } from './validateModules.js'
 
 class LockfileConfigMismatchError extends PnpmError {
@@ -904,6 +905,43 @@ Note that in CI environments, this setting is enabled by default.`,
     } else {
       logger.info({ message: 'Lockfile is up to date, resolution step is skipped', prefix: opts.lockfileDir })
     }
+
+    // The resolution-skip optimization above bypasses the minimumReleaseAge check
+    // that normally runs during resolution. Re-apply it against the lockfile so a
+    // freshly-published version cannot slip past the policy via a manually-edited
+    // or locally-bypassed lockfile (see issue #10438).
+    if (opts.minimumReleaseAge && !maybeOpts.ignorePackageManifest) {
+      // Passing `publishedBy` to requestPackage triggers the existing
+      // abbreviated→full metadata escalation in
+      // resolving/npm-resolver/src/pickPackage.ts so that `meta.time` (and
+      // therefore `publishedAt`) is reliably populated when the package was
+      // modified after the cutoff. For packages last modified before the cutoff
+      // all versions are guaranteed mature, the lookup returns undefined, and
+      // the revalidation function correctly treats that entry as a no-op.
+      const publishedBy = new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000)
+      await revalidateLockfileAgainstMinimumReleaseAge(
+        ctx.wantedLockfile,
+        async (name, version) => {
+          const response = await opts.storeController.requestPackage(
+            { alias: name, bareSpecifier: version },
+            {
+              downloadPriority: 0,
+              lockfileDir: opts.lockfileDir,
+              projectDir: opts.lockfileDir,
+              preferredVersions: {},
+              skipFetch: true,
+              publishedBy,
+            }
+          )
+          return response.body.publishedAt ? new Date(response.body.publishedAt) : undefined
+        },
+        {
+          minimumReleaseAge: opts.minimumReleaseAge,
+          minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
+        }
+      )
+    }
+
     try {
       const { stats, ignoredBuilds } = await headlessInstall({
         ...ctx,

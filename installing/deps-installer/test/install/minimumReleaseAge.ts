@@ -1,5 +1,5 @@
 import { expect, test } from '@jest/globals'
-import { addDependenciesToPackage } from '@pnpm/installing.deps-installer'
+import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
 import { readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 
@@ -123,4 +123,36 @@ test('throws error when semver range is used in minimumReleaseAgeExclude', async
     })
     await addDependenciesToPackage({}, ['is-odd@0.1'], opts)
   }).rejects.toThrow(/Invalid versions union/)
+})
+
+test('minimumReleaseAge is enforced on an existing lockfile entry that does not meet the cutoff', async () => {
+  prepareEmpty()
+
+  // Generate a lockfile without minimumReleaseAge — picks the latest 0.1.x (= 0.1.2),
+  // which is immature relative to isOdd011ReleaseDate.
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1.2'], testDefaults())
+  expect(manifest.dependencies!['is-odd']).toBe('0.1.2')
+
+  // Subsequent install enables minimumReleaseAge. The lockfile already has 0.1.2 so
+  // resolution is normally skipped; the new policy revalidation pass must catch this.
+  await expect(
+    install(manifest, testDefaults({ minimumReleaseAge }))
+  ).rejects.toThrow(/minimumReleaseAge/)
+})
+
+test('minimumReleaseAge revalidation respects minimumReleaseAgeExclude on an existing lockfile entry', async () => {
+  prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1.2'], testDefaults())
+  expect(manifest.dependencies!['is-odd']).toBe('0.1.2')
+
+  // is-odd@0.1.2 brings in is-buffer and kind-of as transitive deps; both were
+  // published after the cutoff in this test, so all three must be excluded for
+  // the install to succeed.
+  await expect(
+    install(manifest, testDefaults({
+      minimumReleaseAge,
+      minimumReleaseAgeExclude: ['is-odd@0.1.2', 'is-buffer', 'kind-of'],
+    }))
+  ).resolves.toBeDefined()
 })
