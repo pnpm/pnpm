@@ -19,7 +19,7 @@ jobs:
     - name: Checkout Commit
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - name: Install pnpm
-      uses: pnpm/action-setup@e578e19d19d31b011b841ba2aca34731a5f706a5
+      uses: pnpm/action-setup@551b42e879e37e74d986effdd2a1647d2b02d464
       with:
         standalone: true
     - name: Setup Node
@@ -35,7 +35,7 @@ jobs:
     - name: Package compiled artifacts
       run: tar -czf compiled.tar.gz --exclude='node_modules' $(find . -type d -name lib -not -path '*/node_modules/*') $(find . -name 'tsconfig.tsbuildinfo' -not -path '*/node_modules/*') pnpm/dist
     - name: Upload compiled artifacts
-      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: compiled-packages
         path: compiled.tar.gz
