@@ -105,14 +105,8 @@ export async function publishPackedPkg (
     globalWarn(`Skip publishing ${name}@${version} (dry run)`)
     return summary
   }
-  const context: OtpContext = {
-    ...SHARED_CONTEXT,
-    // Route the doneUrl polling fetch through the same proxy / TLS settings as
-    // the initial publish request (see https://github.com/pnpm/pnpm/issues/11561).
-    fetch: createDispatchedFetch({ ...opts, timeout: opts.fetchTimeout }),
-  }
   const response = await publishWithOtpHandling({
-    context,
+    context: createPublishContext(opts),
     manifest: publishedManifest,
     publishOptions,
     tarballData,
@@ -122,6 +116,20 @@ export async function publishPackedPkg (
     return summary
   }
   throw await createFailedToPublishError(packResult, response)
+}
+
+/**
+ * Builds the {@link OtpContext} used to drive the publish. The default fetch
+ * is replaced by one that respects proxy / TLS / local-address settings, so
+ * the `doneUrl` polling in the web-based authentication flow goes through
+ * the same network configuration as the initial publish request (see
+ * https://github.com/pnpm/pnpm/issues/11561).
+ */
+export function createPublishContext (opts: PublishPackedPkgOptions): OtpContext {
+  return {
+    ...SHARED_CONTEXT,
+    fetch: createDispatchedFetch({ ...opts, timeout: opts.fetchTimeout }),
+  }
 }
 
 /**
