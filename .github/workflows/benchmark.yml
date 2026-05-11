@@ -47,7 +47,7 @@ jobs:
         echo "Checked out PR #$PR_NUMBER at $(git rev-parse --short HEAD)"
 
     - name: Install pnpm and Node
-      uses: pnpm/setup@v0
+      uses: pnpm/setup@auto-no-runtime
       with:
         runtime: node@26.0.0
 

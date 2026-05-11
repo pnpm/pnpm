@@ -24,7 +24,7 @@ jobs:
     # `--lockfile-only`, so the up-front install is wasted work — accepted for
     # now since this is a daily job.
     - name: Install pnpm and Node
-      uses: pnpm/setup@v0
+      uses: pnpm/setup@auto-no-runtime
       with:
         runtime: node@24.6.0
 

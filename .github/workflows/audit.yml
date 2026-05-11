@@ -14,6 +14,6 @@ jobs:
     - name: Checkout Commit
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - name: Install pnpm
-      uses: pnpm/setup@v0
+      uses: pnpm/setup@auto-no-runtime
     - name: Audit
       run: pn audit
