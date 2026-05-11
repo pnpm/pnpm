@@ -1,5 +1,6 @@
 ---
 "@pnpm/global.commands": patch
+"@pnpm/installing.deps-installer": patch
 "pnpm": patch
 ---
 
