@@ -32,7 +32,7 @@ import type {
   ProjectId,
   ProjectManifest,
 } from '@pnpm/types'
-import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
+import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
 import { loadWorkspaceState, updateWorkspaceState, type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { equals, filter, isEmpty, once } from 'ramda'
@@ -353,9 +353,8 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     const workspaceRoot = workspaceDir ?? rootProjectManifestDir
     const workspaceManifest = await readWorkspaceManifest(workspaceRoot)
     if (workspaceManifest ?? workspaceDir) {
-      const allProjects = await findWorkspaceProjects(rootProjectManifestDir, {
+      const allProjects = await findWorkspaceProjectsNoCheck(rootProjectManifestDir, {
         patterns: workspaceManifest?.packages,
-        sharedWorkspaceLockfile,
       })
       return checkDepsStatus({
         ...opts,
