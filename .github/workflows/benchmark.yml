@@ -46,23 +46,15 @@ jobs:
         git checkout "origin/pr-${PR_NUMBER}"
         echo "Checked out PR #$PR_NUMBER at $(git rev-parse --short HEAD)"
 
-    - name: Install pnpm
-      uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093
+    - name: Install pnpm and Node
+      uses: pnpm/setup@init-action
       with:
-        standalone: true
-
-    - name: Setup Node
-      run: pnpm runtime -g set node 26.0.0
-      timeout-minutes: 2
+        runtime: node@26.0.0
 
     - name: Install hyperfine
       run: |
         wget -q https://github.com/sharkdp/hyperfine/releases/download/v1.18.0/hyperfine_1.18.0_amd64.deb
         sudo dpkg -i hyperfine_1.18.0_amd64.deb
-
-    - name: Install dependencies
-      run: pnpm install
-      timeout-minutes: 5
 
     - name: Compile
       run: pnpm run compile

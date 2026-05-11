@@ -22,15 +22,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Install pnpm
-        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093
+      - name: Install pnpm and Node
+        uses: pnpm/setup@init-action
         with:
-          standalone: true
-      - name: Setup Node
-        run: pn runtime -g set node 26.0.0
-        timeout-minutes: 2
-      - name: pnpm install
-        run: pn install
+          runtime: node@26.0.0
       # The publish phase is split into three sequential steps to control which packages
       # use trusted publishing (OIDC) vs. a static token. `pnpm publish` currently bails
       # out of OIDC as soon as a static `_authToken` is configured, so the only way to

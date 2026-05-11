@@ -19,14 +19,14 @@ jobs:
       with:
         token: ${{ secrets.UPDATE_LOCKFILE_TOKEN }}
 
-    - name: Install pnpm
-      uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093
+    # NOTE: pnpm/setup auto-runs `pnpm install` when package.json is present.
+    # This job then deletes the lockfile and regenerates it with
+    # `--lockfile-only`, so the up-front install is wasted work — accepted for
+    # now since this is a daily job.
+    - name: Install pnpm and Node
+      uses: pnpm/setup@init-action
       with:
-        standalone: true
-
-    - name: Setup Node
-      run: pnpm runtime -g set node 24.6.0
-      timeout-minutes: 2
+        runtime: node@24.6.0
 
     - name: Update lockfile
       run: |
