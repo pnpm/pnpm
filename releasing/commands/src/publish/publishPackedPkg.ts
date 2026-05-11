@@ -5,6 +5,7 @@ import path from 'node:path'
 import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
+import { type DispatcherOptions, extractTlsConfigs } from '@pnpm/network.fetch'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import type { Creds, RegistryConfig } from '@pnpm/types'
 import type { PublishOptions } from 'libnpmpublish'
@@ -30,7 +31,16 @@ export type PublishPackedPkgOptions = Pick<Config,
 | 'registries'
 | 'tag'
 | 'userAgent'
-> & {
+> & Partial<Pick<Config,
+| 'ca'
+| 'cert'
+| 'httpProxy'
+| 'httpsProxy'
+| 'key'
+| 'localAddress'
+| 'noProxy'
+| 'strictSsl'
+>> & {
   access?: 'public' | 'restricted'
   ci?: boolean
   otp?: string // NOTE: There is no existing test for the One-time Password feature
@@ -94,12 +104,32 @@ export async function publishPackedPkg (
     globalWarn(`Skip publishing ${name}@${version} (dry run)`)
     return summary
   }
-  const response = await publishWithOtpHandling({ manifest: publishedManifest, tarballData, publishOptions })
+  const response = await publishWithOtpHandling({
+    dispatcherOptions: buildDispatcherOptions(opts),
+    manifest: publishedManifest,
+    publishOptions,
+    tarballData,
+  })
   if (response.ok) {
     globalInfo(`✅ Published package ${name}@${version}`)
     return summary
   }
   throw await createFailedToPublishError(packResult, response)
+}
+
+function buildDispatcherOptions (opts: PublishPackedPkgOptions): DispatcherOptions {
+  return {
+    ca: opts.ca,
+    cert: opts.cert,
+    key: opts.key,
+    localAddress: opts.localAddress,
+    strictSsl: opts.strictSsl,
+    timeout: opts.fetchTimeout,
+    httpProxy: opts.httpProxy,
+    httpsProxy: opts.httpsProxy,
+    noProxy: opts.noProxy,
+    clientCertificates: extractTlsConfigs(opts.configByUri),
+  }
 }
 
 /**

@@ -1,6 +1,8 @@
+import { type DispatcherOptions, fetchWithDispatcher } from '@pnpm/network.fetch'
 import {
   type OtpContext as BaseOtpContext,
   type WebAuthFetchOptions,
+  type WebAuthFetchResponse,
   withOtpHandling,
 } from '@pnpm/network.web-auth'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
@@ -27,6 +29,13 @@ export interface OtpContext extends BaseOtpContext {
 
 export interface OtpParams {
   context?: OtpContext
+  /**
+   * Dispatcher options applied to the `doneUrl` polling request during the
+   * web-based authentication flow. Required so that polling honors the same
+   * proxy / TLS / local-address settings as the initial publish request (see
+   * https://github.com/pnpm/pnpm/issues/11561).
+   */
+  dispatcherOptions?: DispatcherOptions
   manifest: ExportedManifest
   publishOptions: PublishOptions
   tarballData: Buffer
@@ -42,6 +51,7 @@ export interface OtpParams {
  */
 export async function publishWithOtpHandling ({
   context = SHARED_CONTEXT,
+  dispatcherOptions,
   manifest,
   publishOptions,
   tarballData,
@@ -59,8 +69,12 @@ export async function publishWithOtpHandling ({
     timeout: publishOptions.timeout,
   }
 
+  const effectiveContext = dispatcherOptions
+    ? { ...context, fetch: makeProxyAwareFetch(dispatcherOptions) }
+    : context
+
   return withOtpHandling({
-    context,
+    context: effectiveContext,
     fetchOptions,
     // When otp is undefined (first attempt), { ...publishOptions, otp } adds
     // otp: undefined to the options. This is safe because libnpmpublish treats
@@ -68,4 +82,16 @@ export async function publishWithOtpHandling ({
     // coerced to the string "undefined").
     operation: otp => publish(manifest, tarballData, { ...publishOptions, otp }),
   })
+}
+
+function makeProxyAwareFetch (dispatcherOptions: DispatcherOptions): OtpContext['fetch'] {
+  return async (url, options) => {
+    const response = await fetchWithDispatcher(url, {
+      method: options.method,
+      retry: options.retry,
+      timeout: options.timeout,
+      dispatcherOptions,
+    })
+    return response as unknown as WebAuthFetchResponse
+  }
 }

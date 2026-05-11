@@ -126,7 +126,7 @@ function getHeaders (
   return headers
 }
 
-function extractTlsConfigs (configByUri?: Record<string, RegistryConfig>): ClientCertificates | undefined {
+export function extractTlsConfigs (configByUri?: Record<string, RegistryConfig>): ClientCertificates | undefined {
   if (!configByUri) return undefined
   let result: ClientCertificates | undefined
   for (const [uri, config] of Object.entries(configByUri)) {
