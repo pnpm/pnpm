@@ -8,7 +8,7 @@ import { types as allTypes } from '@pnpm/config.reader'
 import { audit, licenses, sbom } from '@pnpm/deps.compliance.commands'
 import { bugs, docs, list, ll, outdated, peers, view, why } from '@pnpm/deps.inspection.commands'
 import { selfUpdate, setup, withCmd } from '@pnpm/engine.pm.commands'
-import { env, runtime } from '@pnpm/engine.runtime.commands'
+import { env, node, runtime } from '@pnpm/engine.runtime.commands'
 import {
   create,
   dlx,
@@ -142,6 +142,7 @@ const commands: CommandDefinition[] = [
   docs,
   env,
   exec,
+  node,
   runtime,
   fetch,
   generateCompletion,

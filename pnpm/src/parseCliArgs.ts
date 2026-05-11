@@ -23,7 +23,7 @@ export async function parseCliArgs (inputArgv: string[]): Promise<ParsedCliArgsW
   }
   const libOpts = {
     fallbackCommand: 'run',
-    escapeArgs: ['create', 'exec', 'test'],
+    escapeArgs: ['create', 'exec', 'node', 'test'],
     getCommandLongName: getCommandFullName,
     getTypesByCommandName: getCliOptionsTypes,
     renamedOptions: RENAMED_OPTIONS,
