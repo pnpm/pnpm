@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { clearDispatcherCache, createFetchFromRegistry } from '@pnpm/network.fetch'
+import { clearDispatcherCache, createDispatchedFetch, createFetchFromRegistry } from '@pnpm/network.fetch'
 import { ProxyServer } from 'https-proxy-server-express'
 import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 
@@ -288,6 +288,23 @@ test('redirect without location header throws error', async () => {
     await expect(fetchFromRegistry(
       'http://registry.pnpm.io/missing-location'
     )).rejects.toThrow(/Redirect location header missing/)
+  } finally {
+    await teardownMockAgent()
+  }
+})
+
+test('createDispatchedFetch returns a fetch bound to the given dispatcher options', async () => {
+  setupMockAgent()
+  try {
+    const mockPool = getMockAgent().get('http://registry.pnpm.io')
+    mockPool.intercept({ path: '/ping', method: 'GET' }).reply(200, 'pong')
+
+    // MockAgent intercepts the global dispatcher; passing empty dispatcher
+    // options means getDispatcher returns undefined and fetch falls back to it.
+    const dispatchedFetch = createDispatchedFetch({})
+    const res = await dispatchedFetch('http://registry.pnpm.io/ping')
+    expect(res.status).toBe(200)
+    await expect(res.text()).resolves.toBe('pong')
   } finally {
     await teardownMockAgent()
   }

@@ -5,7 +5,7 @@ import path from 'node:path'
 import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
-import { type DispatcherOptions, extractTlsConfigs } from '@pnpm/network.fetch'
+import { createDispatchedFetch, type DispatcherOptions, extractTlsConfigs } from '@pnpm/network.fetch'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import type { Creds, RegistryConfig } from '@pnpm/types'
 import type { PublishOptions } from 'libnpmpublish'
@@ -16,9 +16,10 @@ import { createFailedToPublishError } from './FailedToPublishError.js'
 import { AuthTokenError, fetchAuthToken } from './oidc/authToken.js'
 import { getIdToken, IdTokenError } from './oidc/idToken.js'
 import { determineProvenance, ProvenanceError } from './oidc/provenance.js'
-import { publishWithOtpHandling } from './otp.js'
+import { type OtpContext, publishWithOtpHandling } from './otp.js'
 import type { PackResult } from './pack.js'
 import { allRegistryConfigKeys, type NormalizedRegistryUrl, parseSupportedRegistryUrl } from './registryConfigKeys.js'
+import { SHARED_CONTEXT } from './utils/shared-context.js'
 
 export type PublishPackedPkgOptions = Pick<Config,
 | 'configByUri'
@@ -104,8 +105,14 @@ export async function publishPackedPkg (
     globalWarn(`Skip publishing ${name}@${version} (dry run)`)
     return summary
   }
+  const context: OtpContext = {
+    ...SHARED_CONTEXT,
+    // Route the doneUrl polling fetch through the same proxy / TLS settings as
+    // the initial publish request (see https://github.com/pnpm/pnpm/issues/11561).
+    fetch: createDispatchedFetch(buildDispatcherOptions(opts)),
+  }
   const response = await publishWithOtpHandling({
-    dispatcherOptions: buildDispatcherOptions(opts),
+    context,
     manifest: publishedManifest,
     publishOptions,
     tarballData,

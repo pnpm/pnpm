@@ -31,6 +31,15 @@ export function fetchWithDispatcher (url: string | URL, opts: FetchWithDispatche
   })
 }
 
+/**
+ * Returns a {@link fetch} pre-bound to the given dispatcher options, so callers
+ * that need a fetch function (rather than a one-shot call) can route their
+ * requests through the configured proxy / TLS / local-address settings.
+ */
+export function createDispatchedFetch (dispatcherOptions: DispatcherOptions): (url: string | URL, opts?: RequestInit) => Promise<Response> {
+  return (url, opts) => fetchWithDispatcher(url, { ...opts, dispatcherOptions })
+}
+
 export type { DispatcherOptions }
 
 export interface CreateFetchFromRegistryOptions extends DispatcherOptions {
