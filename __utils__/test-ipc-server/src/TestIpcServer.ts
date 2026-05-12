@@ -153,17 +153,20 @@ export const createTestIpcServer = TestIpcServer.listen
  * Wrap an argument for inclusion in a shell command. The argument must contain
  * only a restricted set of characters known to be safe in both POSIX and
  * Windows command interpreters when surrounded by double quotes (alphanumerics
- * plus `_ - . / \\ : space + = ,`).
+ * plus `_ - . / \\ : @ space + = ,`). A trailing backslash is rejected because
+ * under both shells `\\"` consumes the closing quote, which would break the
+ * command line.
  *
  * Throws when the argument contains a character outside this allowlist. All
  * arguments produced internally (helper-script paths, the listen-path computed
- * from `os.tmpdir()`/a named-pipe prefix, and randomly-generated test messages)
- * satisfy this constraint by construction.
+ * from `os.tmpdir()`/a named-pipe prefix, and test messages) satisfy this
+ * constraint by construction.
  */
 function quoteShellArg (arg: string): string {
-  // Allowlist anchored on both ends — CodeQL recognizes this as a sanitization
-  // barrier for shell-injection sinks.
-  if (!/^[\w\-./\\: +=,]+$/.test(arg)) {
+  // Anchored allowlist — CodeQL recognizes this as a sanitization barrier for
+  // shell-injection sinks. The `endsWith('\\')` check rules out the one
+  // remaining ambiguous case the allowlist allows.
+  if (arg.length === 0 || !/^[\w\-./\\:@ +=,]+$/.test(arg) || arg.endsWith('\\')) {
     throw new Error(`Unsupported character in shell argument: ${JSON.stringify(arg)}`)
   }
   return `"${arg}"`
