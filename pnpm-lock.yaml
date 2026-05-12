@@ -5259,6 +5259,9 @@ importers:
       '@pnpm/installing.env-installer':
         specifier: workspace:*
         version: link:../env-installer
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types

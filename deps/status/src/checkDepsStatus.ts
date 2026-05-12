@@ -13,6 +13,7 @@ import {
   type LockfileObject,
   readCurrentLockfile,
   readWantedLockfile,
+  wantedLockfileHasMergeConflicts,
 } from '@pnpm/lockfile.fs'
 import {
   calcPatchHashes,
@@ -47,6 +48,7 @@ export type CheckDepsStatusOptions = Pick<Config,
 | 'excludeLinksFromLockfile'
 | 'injectWorkspacePackages'
 | 'linkWorkspacePackages'
+| 'lockfileDir'
 | 'nodeLinker'
 | 'patchedDependencies'
 | 'peersSuffixMaxLength'
@@ -112,6 +114,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     catalogs,
     excludeLinksFromLockfile,
     linkWorkspacePackages,
+    lockfileDir,
     nodeLinker,
     patchedDependencies,
     rootProjectManifest,
@@ -162,6 +165,21 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     return {
       upToDate: false,
       issue: 'Configuration dependencies are not up to date',
+      workspaceState,
+    }
+  }
+
+  const conflictedLockfileDir = await findConflictedLockfileDir(getWantedLockfileDirs({
+    allProjects,
+    lockfileDir,
+    rootProjectManifestDir,
+    sharedWorkspaceLockfile,
+    workspaceDir,
+  }))
+  if (conflictedLockfileDir != null) {
+    return {
+      upToDate: false,
+      issue: `The lockfile in ${conflictedLockfileDir} has merge conflicts`,
       workspaceState,
     }
   }
@@ -231,16 +249,6 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       }
     }
 
-    const modifiedProjects = allManifestStats.filter(
-      ({ manifestStats }) =>
-        manifestStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp
-    )
-
-    if (modifiedProjects.length === 0) {
-      logger.debug({ msg: 'No manifest files were modified since the last validation. Exiting check.' })
-      return { upToDate: true, workspaceState }
-    }
-
     const issue = await patchesOrHooksAreModified({
       patchedDependencies,
       rootDir: rootProjectManifestDir,
@@ -250,6 +258,16 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     })
     if (issue) {
       return { upToDate: false, issue, workspaceState }
+    }
+
+    const modifiedProjects = allManifestStats.filter(
+      ({ manifestStats }) =>
+        manifestStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp
+    )
+
+    if (modifiedProjects.length === 0) {
+      logger.debug({ msg: 'No manifest files were modified since the last validation. Exiting check.' })
+      return { upToDate: true, workspaceState }
     }
 
     logger.debug({ msg: 'Some manifest files were modified since the last validation. Continuing check.' })
@@ -553,6 +571,27 @@ function throwLockfileNotFound (wantedLockfileDir: string): never {
   throw new PnpmError('RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND', `Cannot find a lockfile in ${wantedLockfileDir}`, {
     hint: 'Run `pnpm install` to create the lockfile',
   })
+}
+
+function getWantedLockfileDirs (opts: {
+  allProjects: Project[] | undefined
+  lockfileDir: string | undefined
+  rootProjectManifestDir: string
+  sharedWorkspaceLockfile: boolean | undefined
+  workspaceDir: string | undefined
+}): string[] {
+  if (opts.allProjects && opts.workspaceDir && opts.sharedWorkspaceLockfile === false) {
+    return [...new Set(opts.allProjects.map(({ rootDir }) => rootDir))]
+  }
+  return [opts.lockfileDir ?? opts.workspaceDir ?? opts.rootProjectManifestDir]
+}
+
+async function findConflictedLockfileDir (lockfileDirs: string[]): Promise<string | undefined> {
+  const lockfileConflictStatuses = await Promise.all(lockfileDirs.map(async lockfileDir => ({
+    lockfileDir,
+    hasMergeConflicts: await wantedLockfileHasMergeConflicts(lockfileDir),
+  })))
+  return lockfileConflictStatuses.find(({ hasMergeConflicts }) => hasMergeConflicts)?.lockfileDir
 }
 
 async function patchesOrHooksAreModified (opts: {
