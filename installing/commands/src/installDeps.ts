@@ -163,7 +163,11 @@ export async function installDeps (
   opts: InstallDepsOptions,
   params: string[]
 ): Promise<void> {
-  if (!opts.update && !opts.dedupe && params.length === 0 && opts.optimisticRepeatInstall) {
+  // The optimistic-repeat fast path declares the install "up to date" based on
+  // lockfile vs node_modules state alone and never reaches the install function.
+  // When minimumReleaseAge is configured we need the lockfile revalidation pass
+  // inside tryFrozenInstall to run, so skip the fast path.
+  if (!opts.update && !opts.dedupe && params.length === 0 && opts.optimisticRepeatInstall && !opts.minimumReleaseAge) {
     const { upToDate } = await checkDepsStatus({
       ...opts,
       ignoreFilteredInstallCache: true,

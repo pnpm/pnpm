@@ -5,7 +5,12 @@ import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import type { DepPath, PackageVersionPolicy } from '@pnpm/types'
 import semver from 'semver'
 
-export type PublishedAtLookup = (name: string, version: string) => Promise<Date | undefined>
+export type ManifestLookupResult =
+  | { status: 'ok', publishedAt: Date }
+  | { status: 'manifest-unavailable', reason?: string }
+  | { status: 'version-not-in-manifest' }
+
+export type ManifestLookup = (name: string, version: string) => Promise<ManifestLookupResult>
 
 export interface RevalidateLockfileMinimumReleaseAgeOptions {
   minimumReleaseAge: number
@@ -15,19 +20,30 @@ export interface RevalidateLockfileMinimumReleaseAgeOptions {
 
 interface Violation {
   pkgId: string
-  publishedAt: Date
+  reason: string
 }
 
 /**
- * Re-applies the `minimumReleaseAge` policy to every npm-registry-resolved entry
- * in an existing lockfile. Used when the install path skips resolution (because
- * the lockfile is up-to-date) — without this pass, a freshly-published version
- * that was added to the lockfile while the policy was bypassed locally would be
- * installed by other consumers and CI without being checked.
+ * Re-applies the `minimumReleaseAge` policy to every npm-registry-resolved
+ * entry in an existing lockfile. The resolution-time filter inside
+ * `pickPackage` only fires when pnpm is choosing a version for the first
+ * time; once a version is pinned in `pnpm-lock.yaml` (e.g. by a developer
+ * who bypassed the policy locally), the install paths that skip resolution
+ * never re-check it — defeating the supply-chain protection the setting is
+ * meant to provide. This gate runs *after* resolution decisions are settled
+ * and before any tarball is fetched, so a poisoned lockfile cannot reach the
+ * filesystem.
+ *
+ * Designed for fail-closed semantics: if a manifest can't be loaded or the
+ * pinned version is missing from the manifest, that itself is reported as a
+ * violation rather than silently skipped — otherwise a registry hiccup or an
+ * unpublished version would re-open the same bypass this gate is meant to
+ * close. This mirrors the approach taken in bun's
+ * `enforceLockfileAgeFilter` (oven-sh/bun#30526).
  */
 export async function revalidateLockfileAgainstMinimumReleaseAge (
   lockfile: LockfileObject,
-  lookupPublishedAt: PublishedAtLookup,
+  lookupManifest: ManifestLookup,
   opts: RevalidateLockfileMinimumReleaseAgeOptions
 ): Promise<void> {
   if (!lockfile.packages) return
@@ -52,44 +68,75 @@ export async function revalidateLockfileAgainstMinimumReleaseAge (
     candidates.set(`${name}@${version}`, { name, version })
   }
 
-  const lookups = await Promise.all(
-    Array.from(candidates.values(), async ({ name, version }) => ({
-      name,
-      version,
-      publishedAt: await lookupPublishedAt(name, version),
-    }))
-  )
-
   const violations: Violation[] = []
-  for (const { name, version, publishedAt } of lookups) {
-    if (!publishedAt) continue
-    const ts = publishedAt.getTime()
-    if (Number.isNaN(ts)) continue
-    if (ts > cutoff) {
-      violations.push({ pkgId: `${name}@${version}`, publishedAt })
-    }
-  }
+  await Promise.all(
+    Array.from(candidates.values(), async ({ name, version }) => {
+      const pkgId = `${name}@${version}`
+      let result: ManifestLookupResult
+      try {
+        result = await lookupManifest(name, version)
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err)
+        violations.push({
+          pkgId,
+          reason: `could not be checked against minimumReleaseAge (${reason})`,
+        })
+        return
+      }
+      switch (result.status) {
+        case 'ok': {
+          const ts = result.publishedAt.getTime()
+          if (Number.isNaN(ts)) {
+            violations.push({
+              pkgId,
+              reason: 'publish timestamp is not a valid date',
+            })
+            return
+          }
+          if (ts > cutoff) {
+            violations.push({
+              pkgId,
+              reason: `was published at ${result.publishedAt.toISOString()}, within the minimumReleaseAge cutoff (${new Date(cutoff).toISOString()})`,
+            })
+          }
+          return
+        }
+        case 'manifest-unavailable':
+          violations.push({
+            pkgId,
+            reason: `could not be checked against minimumReleaseAge (manifest unavailable${result.reason ? `: ${result.reason}` : ''})`,
+          })
+          return
+        case 'version-not-in-manifest':
+          violations.push({
+            pkgId,
+            reason: 'could not be checked against minimumReleaseAge (version not present in registry manifest)',
+          })
+      }
+    })
+  )
 
   if (violations.length === 0) return
 
-  const details = violations
-    .map((v) => `  ${v.pkgId} (published ${v.publishedAt.toISOString()})`)
-    .join('\n')
+  // Stable order so the error output is deterministic.
+  violations.sort((a, b) => a.pkgId.localeCompare(b.pkgId))
+  const details = violations.map((v) => `  ${v.pkgId} ${v.reason}`).join('\n')
   throw new PnpmError(
     'MINIMUM_RELEASE_AGE_LOCKFILE_VIOLATION',
-    `The lockfile contains versions that do not meet the minimumReleaseAge constraint:\n${details}`,
+    `The lockfile contains entries that do not satisfy the minimumReleaseAge policy:\n${details}`,
     {
-      hint: 'These versions were published more recently than the minimumReleaseAge cutoff. ' +
-        'Either re-run resolution with "pnpm install --no-frozen-lockfile" to pick mature versions, ' +
-        'or add them to minimumReleaseAgeExclude.',
+      hint: 'To unblock the install you can:\n' +
+        '  1. Remove the offending versions from pnpm-lock.yaml and re-run install so they get re-resolved.\n' +
+        '  2. Lower the minimumReleaseAge value so the locked versions fall within the cutoff.\n' +
+        '  3. Add the affected packages to minimumReleaseAgeExclude if they are explicitly trusted.',
     }
   )
 }
 
 function createExcludePolicy (patterns: string[]): PackageVersionPolicy {
-  // Match the wrapping done by the full-resolution path
-  // (installing/deps-resolver/src/resolveDependencyTree.ts) so the error code is
-  // identical regardless of which path surfaced the invalid pattern.
+  // Mirror the wrapping done by the full-resolution path
+  // (installing/deps-resolver/src/resolveDependencyTree.ts) so the error code
+  // is identical regardless of which path surfaced the invalid pattern.
   try {
     return createPackageVersionPolicy(patterns)
   } catch (err) {

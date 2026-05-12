@@ -87,6 +87,7 @@ import { parseWantedDependencies } from '../parseWantedDependencies.js'
 import { removeDeps } from '../uninstall/removeDeps.js'
 import { CatalogVersionMismatchError } from './checkCompatibility/CatalogVersionMismatchError.js'
 import { checkCustomResolverForceResolve } from './checkCustomResolverForceResolve.js'
+import { createFullMetadataLookup } from './createFullMetadataLookup.js'
 import {
   extendOptions,
   type InstallOptions,
@@ -910,31 +911,20 @@ Note that in CI environments, this setting is enabled by default.`,
     // that normally runs during resolution. Re-apply it against the lockfile so a
     // freshly-published version cannot slip past the policy via a manually-edited
     // or locally-bypassed lockfile (see issue #10438).
+    //
+    // Mirrors the post-resolution gate that bun added for the same shape of
+    // problem in oven-sh/bun#30526: a dedicated lookup that forces full
+    // registry metadata for every locked npm entry, then compares each pinned
+    // version's publish timestamp to the cutoff. We deliberately do not reuse
+    // `storeController.requestPackage` here because that path can hit the
+    // `peekManifestFromStore` fast-path or return abbreviated metadata (no
+    // `time` field) and silently report `publishedAt: undefined`, which would
+    // re-open the bypass this gate is meant to close.
     if (opts.minimumReleaseAge && !maybeOpts.ignorePackageManifest) {
-      // Passing `publishedBy` to requestPackage triggers the existing
-      // abbreviated→full metadata escalation in
-      // resolving/npm-resolver/src/pickPackage.ts so that `meta.time` (and
-      // therefore `publishedAt`) is reliably populated when the package was
-      // modified after the cutoff. For packages last modified before the cutoff
-      // all versions are guaranteed mature, the lookup returns undefined, and
-      // the revalidation function correctly treats that entry as a no-op.
-      const publishedBy = new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000)
+      const lookupManifest = createFullMetadataLookup(opts)
       await revalidateLockfileAgainstMinimumReleaseAge(
         ctx.wantedLockfile,
-        async (name, version) => {
-          const response = await opts.storeController.requestPackage(
-            { alias: name, bareSpecifier: version },
-            {
-              downloadPriority: 0,
-              lockfileDir: opts.lockfileDir,
-              projectDir: opts.lockfileDir,
-              preferredVersions: {},
-              skipFetch: true,
-              publishedBy,
-            }
-          )
-          return response.body.publishedAt ? new Date(response.body.publishedAt) : undefined
-        },
+        lookupManifest,
         {
           minimumReleaseAge: opts.minimumReleaseAge,
           minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
