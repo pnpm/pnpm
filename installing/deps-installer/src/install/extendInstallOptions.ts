@@ -72,15 +72,6 @@ export interface StrictInstallOptions {
   shellEmulator: boolean
   storeController: StoreController
   storeDir: string
-  /**
-   * The directory pnpm uses for cached package metadata.
-   * Required by the lockfile minimumReleaseAge revalidation pass to spin up a
-   * dedicated full-metadata fetcher; in practice every install caller (CLI,
-   * test harness, programmatic API) already supplies this value, so it's
-   * declared optional here to avoid breaking callers that haven't yet plumbed
-   * the field into their `InstallOptions` type.
-   */
-  cacheDir?: string
   reporter: ReporterFunction
   force: boolean
   depth: number
@@ -185,6 +176,17 @@ export interface StrictInstallOptions {
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
   minimumReleaseAgeStrict?: boolean
+  /**
+   * Network-retry/timeout settings forwarded into the lockfile
+   * minimumReleaseAge revalidation fetcher so it inherits the same retry
+   * envelope the rest of the install uses; transient registry failures would
+   * otherwise become fail-closed lockfile violations.
+   */
+  fetchRetries?: number
+  fetchRetryFactor?: number
+  fetchRetryMaxtimeout?: number
+  fetchRetryMintimeout?: number
+  fetchTimeout?: number
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number

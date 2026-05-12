@@ -2,7 +2,7 @@ import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type DispatcherOptions } from '@pnpm/network.fetch'
-import { fetchMetadataFromFromRegistry, type PackageMeta } from '@pnpm/resolving.npm-resolver'
+import { fetchMetadataFromFromRegistry } from '@pnpm/resolving.npm-resolver'
 import type { Registries, RegistryConfig } from '@pnpm/types'
 
 import type { ManifestLookup, ManifestLookupResult } from './revalidateLockfileMinimumReleaseAge.js'
@@ -11,8 +11,8 @@ export interface CreateFullMetadataLookupOptions extends DispatcherOptions {
   registries: Registries
   /**
    * Registries reached via the named-registry resolver chain (e.g. `gh:` →
-   * GitHub Packages). When a lockfile entry's tarball URL lives under one of
-   * these, route the manifest fetch to that registry instead of the
+   * GitHub Packages). When a lockfile entry's tarball URL falls under one of
+   * these registry base URLs, route the manifest fetch there instead of the
    * scope-derived default.
    */
   namedRegistries?: Record<string, string>
@@ -20,6 +20,11 @@ export interface CreateFullMetadataLookupOptions extends DispatcherOptions {
   userAgent?: string
   retry?: Parameters<typeof fetchMetadataFromFromRegistry>[0]['retry']
   timeout?: number
+  /**
+   * Warn when a single manifest fetch takes longer than this many milliseconds.
+   * Defaults to the same 10s threshold the regular resolver uses.
+   */
+  fetchWarnTimeoutMs?: number
 }
 
 /**
@@ -43,23 +48,22 @@ export function createFullMetadataLookup (opts: CreateFullMetadataLookupOptions)
     fetch: fetchFromRegistry,
     retry: opts.retry ?? {},
     timeout: opts.timeout ?? 60_000,
-    fetchWarnTimeoutMs: 10_000,
+    fetchWarnTimeoutMs: opts.fetchWarnTimeoutMs ?? 10_000,
   }
-  // Pre-compute the (origin → registry URL) lookup once. Named-registry
-  // entries are absolute URLs; their tarballs always live under that origin.
-  // We use this to recover the right registry for non-scope-routed packages
-  // when the lockfile tells us where the tarball came from.
-  const namedRegistryOrigins = new Map<string, string>()
-  for (const url of Object.values(opts.namedRegistries ?? {})) {
-    try {
-      namedRegistryOrigins.set(new URL(url).origin, url)
-    } catch {
-      // Malformed URL — pickRegistryForPackage will surface its own error if
-      // it actually gets used.
-    }
-  }
-  const inflight = new Map<string, Promise<PackageMeta>>()
-  const fetchMeta = async (registry: string, name: string): Promise<PackageMeta> => {
+  // Pre-normalize named-registry URLs and sort by length so that when several
+  // registries share a hostname (e.g. `https://npm.example.com/team-a/` vs
+  // `https://npm.example.com/team-b/`) the lookup picks the longest matching
+  // prefix — matching only `origin` would silently route to the wrong one.
+  const namedRegistryPrefixes = Object.values(opts.namedRegistries ?? {})
+    .map(normalizeRegistryUrl)
+    .filter((value): value is string => value != null)
+    .sort((a, b) => b.length - a.length)
+  // Cache only the publish-time map we actually need. The full PackageMeta is
+  // typically a few MB per popular package (every version, every dist-tag,
+  // every signature attestation) and the lockfile can pin hundreds of them —
+  // retaining the full document for the whole install is wasteful.
+  const inflight = new Map<string, Promise<Record<string, string | undefined> | undefined>>()
+  const fetchTimeMap = async (registry: string, name: string): Promise<Record<string, string | undefined> | undefined> => {
     const cacheKey = `${registry}\x00${name}`
     const cached = inflight.get(cacheKey)
     if (cached) return cached
@@ -75,53 +79,74 @@ export function createFullMetadataLookup (opts: CreateFullMetadataLookupOptions)
           `Registry returned 304 for ${name} without an existing cache to refresh.`
         )
       }
-      return result.meta
+      return result.meta.time
     })()
     inflight.set(cacheKey, promise)
     return promise
   }
 
   return async (name: string, version: string, tarballUrl?: string): Promise<ManifestLookupResult> => {
-    const registry = pickRegistryForVersion(opts, namedRegistryOrigins, name, tarballUrl)
-    let meta: PackageMeta
+    const registry = pickRegistryForVersion(opts, namedRegistryPrefixes, name, tarballUrl)
+    let time: Record<string, string | undefined> | undefined
     try {
-      meta = await fetchMeta(registry, name)
+      time = await fetchTimeMap(registry, name)
     } catch (err) {
       return {
         status: 'manifest-unavailable',
         reason: err instanceof Error ? err.message : String(err),
       }
     }
-    const time = meta.time?.[version]
-    if (!time) {
+    const published = time?.[version]
+    if (!published) {
       // For full metadata this means the version was removed from the manifest
       // (typically a deliberate unpublish) or the registry doesn't expose
       // per-version timestamps for it. Either way the release-age cannot be
       // verified, so report it as a violation rather than silently passing.
       return { status: 'version-not-in-manifest' }
     }
-    return { status: 'ok', publishedAt: new Date(time) }
+    return { status: 'ok', publishedAt: new Date(published) }
   }
 }
 
 function pickRegistryForVersion (
   opts: CreateFullMetadataLookupOptions,
-  namedRegistryOrigins: Map<string, string>,
+  namedRegistryPrefixes: string[],
   name: string,
   tarballUrl: string | undefined
 ): string {
   // If the lockfile records where the tarball lives, prefer that — scope
   // routing (`@scope:registry`) only covers scoped packages, but named
   // registries (`gh:`, `jsr:` aliases, custom) ship un-scoped packages whose
-  // origin we'd otherwise miss.
+  // origin we'd otherwise miss. Match the longest matching prefix so that two
+  // named registries sharing a host but differing by path don't collide.
   if (tarballUrl) {
-    try {
-      const origin = new URL(tarballUrl).origin
-      const matched = namedRegistryOrigins.get(origin)
-      if (matched) return matched
-    } catch {
-      // Fall through to scope routing.
+    const normalized = normalizeTarballUrl(tarballUrl)
+    if (normalized) {
+      for (const prefix of namedRegistryPrefixes) {
+        if (normalized.startsWith(prefix)) return prefix
+      }
     }
   }
   return pickRegistryForPackage(opts.registries, name)
+}
+
+function normalizeRegistryUrl (url: string): string | null {
+  try {
+    const parsed = new URL(url)
+    // Ensure trailing slash so prefix matching against tarball URLs (which
+    // always include the package path under the registry root) does not
+    // accidentally match a sibling registry whose URL shares a prefix string.
+    const pathname = parsed.pathname.endsWith('/') ? parsed.pathname : `${parsed.pathname}/`
+    return `${parsed.origin}${pathname}`
+  } catch {
+    return null
+  }
+}
+
+function normalizeTarballUrl (url: string): string | null {
+  try {
+    return new URL(url).toString()
+  } catch {
+    return null
+  }
 }

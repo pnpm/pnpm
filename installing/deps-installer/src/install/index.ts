@@ -932,7 +932,18 @@ Note that in CI environments, this setting is enabled by default.`,
     // ("I configured it, therefore I want it enforced") while keeping the
     // existing non-strict default behavior untouched.
     if (opts.minimumReleaseAge && opts.minimumReleaseAgeStrict) {
-      const lookupManifest = createFullMetadataLookup(opts)
+      const lookupManifest = createFullMetadataLookup({
+        ...opts,
+        // Reuse the same retry/timeout envelope the rest of the install uses so
+        // a transient 503 doesn't turn into a fail-closed lockfile violation.
+        retry: {
+          factor: opts.fetchRetryFactor,
+          maxTimeout: opts.fetchRetryMaxtimeout,
+          minTimeout: opts.fetchRetryMintimeout,
+          retries: opts.fetchRetries,
+        },
+        timeout: opts.fetchTimeout,
+      })
       await revalidateLockfileAgainstMinimumReleaseAge(
         ctx.wantedLockfile,
         lookupManifest,
