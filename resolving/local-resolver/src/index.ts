@@ -35,10 +35,14 @@ export async function resolveFromLocal (
       resolution: DirectoryResolution | TarballResolution | Resolution
     }
     update?: false | 'compatible' | 'latest'
+    protocolsOnly?: boolean
   }
 ): Promise<LocalResolveResult | null> {
   const preserveAbsolutePaths = ctx.preserveAbsolutePaths ?? false
-  const spec = parseBareSpecifier(wantedDependency, opts.projectDir, opts.lockfileDir ?? opts.projectDir, { preserveAbsolutePaths })
+  const spec = parseBareSpecifier(wantedDependency, opts.projectDir, opts.lockfileDir ?? opts.projectDir, {
+    preserveAbsolutePaths,
+    protocolsOnly: opts.protocolsOnly,
+  })
   if (spec == null) return null
 
   if (spec.type === 'file') {

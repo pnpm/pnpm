@@ -111,21 +111,17 @@ export function createResolver (
         await resolveFromJsr(wantedDependency, opts as ResolveFromNpmOptions) ??
         (wantedDependency.bareSpecifier && (
           await resolveFromGit(wantedDependency as { bareSpecifier: string }, opts) ??
-          await resolveFromTarball(fetchFromRegistry, wantedDependency as { bareSpecifier: string })
+          await resolveFromTarball(fetchFromRegistry, wantedDependency as { bareSpecifier: string }) ??
+          // Explicit local protocols (`file:`, `link:`, `workspace:`, `path:`)
+          // claim before named-registry, even if the user defined a colliding alias.
+          await _resolveFromLocal(wantedDependency as { bareSpecifier: string }, { ...opts, protocolsOnly: true })
         )) ??
         await _resolveNodeRuntime(wantedDependency, opts) ??
         await _resolveDenoRuntime(wantedDependency, opts) ??
         await _resolveBunRuntime(wantedDependency, opts) ??
-        // Named-registry resolution runs before the local resolver so that
-        // `<alias>:@scope/pkg` specifiers (which contain a `/` and would
-        // otherwise be claimed by the local resolver as a directory) are
-        // routed to the configured registry. Built-in schemes (`npm:`,
-        // `jsr:`, `git:`/`github:`/`gitlab:`/…, tarball URLs, etc.) are
-        // claimed by their dedicated resolver above, so a user-configured
-        // alias cannot shadow them. `file:` and `link:` are matched by the
-        // local resolver below; an alias collision there would still be
-        // claimed as a named registry, so the merge step should reject
-        // those reserved names.
+        // Named-registry resolution runs before the heuristic local-path match
+        // so that `<alias>:@scope/pkg` specifiers (which include a `/`) reach
+        // the configured registry instead of being claimed as a directory.
         await resolveFromNamedRegistry(wantedDependency, opts as ResolveFromNpmOptions) ??
         (wantedDependency.bareSpecifier
           ? await _resolveFromLocal(wantedDependency as { bareSpecifier: string }, opts)

@@ -1,4 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { afterEach, beforeEach, expect, test } from '@jest/globals'
@@ -8,8 +9,6 @@ import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.m
 import { loadJsonFileSync } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
 
-// Re-use the GitHub Packages metadata fixture shipped with the npm-resolver
-// tests. It's the same shape the named-registry resolver consumes.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const ghAcmePrivateMeta = loadJsonFileSync<any>(
   path.join(import.meta.dirname, '../../npm-resolver/test/fixtures/gh-acme-private.json')
@@ -40,9 +39,6 @@ function interceptAcmePrivate (registry: string): void {
   pool.intercept({ path: `/@acme${slash}private`, method: 'GET' }).reply(200, ghAcmePrivateMeta)
 }
 
-// Regression: before the fix, the local resolver claimed any spec containing
-// `/` (e.g. `gh:@acme/private`) as a directory and emitted a "non-existent
-// directory" warning. The named-registry resolver must run first.
 test('createResolver() routes <alias>:@scope/pkg through the named-registry resolver instead of the local resolver', async () => {
   interceptAcmePrivate(GH_REGISTRY)
 
@@ -80,4 +76,33 @@ test('createResolver() routes a user-configured named registry alias through the
 
   expect(result.resolvedVia).toBe('named-registry')
   expect(result.id).toBe('@acme/private@2.1.0')
+})
+
+test.each([
+  ['link:./pkg', 'link'],
+  ['workspace:./pkg', 'workspace'],
+  ['file:./pkg', 'file'],
+])('createResolver() lets the explicit local protocol %s win over a colliding named-registry alias', async (bareSpecifier, alias) => {
+  const projectDir = temporaryDirectory()
+  fs.mkdirSync(path.join(projectDir, 'pkg'))
+  fs.writeFileSync(
+    path.join(projectDir, 'pkg', 'package.json'),
+    JSON.stringify({ name: 'pkg', version: '1.0.0' })
+  )
+
+  const { resolve } = createResolver(fetch, () => undefined, {
+    cacheDir: temporaryDirectory(),
+    storeDir: temporaryDirectory(),
+    registries,
+    namedRegistries: {
+      [alias]: ENTERPRISE_REGISTRY,
+    },
+  })
+
+  const result = await resolve(
+    { bareSpecifier },
+    { lockfileDir: projectDir, projectDir, preferredVersions: {} }
+  )
+
+  expect(result.resolvedVia).toBe('local-filesystem')
 })
