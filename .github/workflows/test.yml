@@ -31,7 +31,7 @@ jobs:
     - name: Checkout Commit
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - name: Install pnpm and Node
-      uses: pnpm/setup@auto-no-runtime
+      uses: pnpm/setup@c4ced000cdec5aba00543598109cc3f2437e4e4e
       with:
         runtime: node@${{ inputs.node }}
     # npm is needed for preparing git-hosted dependencies (e.g. in dlx tests).
