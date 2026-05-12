@@ -10,6 +10,7 @@ import {
   createGlobalCacheKey,
   createInstallDir,
   findGlobalPackage,
+  getGlobalPackageDetails,
   getHashLink,
   getInstalledBinNames,
 } from '@pnpm/global.packages'
@@ -93,7 +94,7 @@ async function installGroup (
   // Install into a new directory first, then read the resolved aliases
   // from the resulting package.json. This is more reliable than parsing
   // aliases from CLI params (which may be tarballs, git URLs, etc.).
-  const installDir = createInstallDir(globalDir)
+  let installDir = createInstallDir(globalDir)
 
   const include = {
     dependencies: true,
@@ -102,13 +103,13 @@ async function installGroup (
   }
   const fetchFullMetadata = opts.supportedArchitectures?.libc != null && true
 
-  const installOpts = {
+  const makeInstallOpts = (dir: string) => ({
     ...opts,
     global: false,
-    bin: path.join(installDir, 'node_modules/.bin'),
-    dir: installDir,
-    lockfileDir: installDir,
-    rootProjectManifestDir: installDir,
+    bin: path.join(dir, 'node_modules/.bin'),
+    dir,
+    lockfileDir: dir,
+    rootProjectManifestDir: dir,
     rootProjectManifest: undefined,
     saveProd: true,
     saveDev: false,
@@ -122,9 +123,24 @@ async function installGroup (
     includeDirect: include,
     allowBuilds,
     omitSummaryLog: true,
-  }
+  })
 
-  const ignoredBuilds = await installGlobalPackages(installOpts, params)
+  let ignoredBuilds = await installGlobalPackages(makeInstallOpts(installDir), params)
+  let aliases = Object.keys(readPackageJsonFromDirRawSync(installDir).dependencies ?? {})
+
+  // If a re-added alias belongs to an existing isolated group with other
+  // members, redo the install with those members carried over at their current
+  // versions. The group's composition is preserved with only the requested
+  // package(s) updated, instead of the rest being silently dropped when the
+  // old install dir is replaced.
+  const carryOver = await collectCarryOver(globalDir, aliases)
+  if (carryOver.length > 0) {
+    await fs.promises.rm(installDir, { recursive: true, force: true })
+    installDir = createInstallDir(globalDir)
+    const mergedParams = [...params, ...carryOver.map(({ alias, version }) => `${alias}@${version}`)]
+    ignoredBuilds = await installGlobalPackages(makeInstallOpts(installDir), mergedParams)
+    aliases = Object.keys(readPackageJsonFromDirRawSync(installDir).dependencies ?? {})
+  }
 
   await promptApproveGlobalBuilds({
     globalPkgDir: globalDir,
@@ -133,10 +149,6 @@ async function installGroup (
     allowBuilds,
     inheritedOpts: opts,
   }, commands)
-
-  // Read resolved aliases from the installed package.json
-  const pkgJson = readPackageJsonFromDirRawSync(installDir)
-  const aliases = Object.keys(pkgJson.dependencies ?? {})
 
   // Check for bin name conflicts with other global packages
   // (must happen before removeExistingGlobalInstalls so we don't lose existing packages on failure)
@@ -218,6 +230,25 @@ function resolveLocalParam (param: string, baseDir: string): string {
     return path.resolve(baseDir, param)
   }
   return param
+}
+
+async function collectCarryOver (
+  globalDir: string,
+  reAddedAliases: string[]
+): Promise<Array<{ alias: string, version: string }>> {
+  const reAddedSet = new Set(reAddedAliases)
+  const seenGroups = new Set<string>()
+  const carryOver: Array<{ alias: string, version: string }> = []
+  for (const alias of reAddedAliases) {
+    const existing = findGlobalPackage(globalDir, alias)
+    if (!existing || seenGroups.has(existing.hash)) continue
+    seenGroups.add(existing.hash)
+    const details = await getGlobalPackageDetails(existing) // eslint-disable-line no-await-in-loop
+    for (const { alias: a, version } of details) {
+      if (!reAddedSet.has(a)) carryOver.push({ alias: a, version })
+    }
+  }
+  return carryOver
 }
 
 async function removeExistingGlobalInstalls (

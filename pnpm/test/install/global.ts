@@ -670,6 +670,22 @@ test('global add bundles comma-separated packages into a single group', async ()
   expect(peerC!.installDir).not.toBe(positive!.installDir)
 })
 
+test('global add preserves the rest of a comma-grouped install when one member is re-added', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(pnpmHome, { recursive: true })
+
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+
+  await execPnpm(['add', '-g', 'is-positive@1.0.0,is-negative@1.0.0,@pnpm.e2e/peer-c@1'], { env })
+  await execPnpm(['add', '-g', 'is-positive@1.0.0'], { env })
+
+  expect(findGlobalPkg(globalPkgDir(pnpmHome), 'is-positive')).toBeTruthy()
+  expect(findGlobalPkg(globalPkgDir(pnpmHome), 'is-negative')).toBeTruthy()
+  expect(findGlobalPkg(globalPkgDir(pnpmHome), '@pnpm.e2e/peer-c')).toBeTruthy()
+})
+
 test('global add does not treat commas inside a local path selector as a group separator', () => {
   prepare()
   const global = path.resolve('..', 'global')
