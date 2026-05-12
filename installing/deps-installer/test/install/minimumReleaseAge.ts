@@ -167,8 +167,9 @@ test('the lockfile minimumReleaseAge gate is inert when strict mode is off (defa
   expect(manifest.dependencies!['is-odd']).toBe('0.1.2')
 
   // Without explicit strict mode — the same shape as the CLI built-in default
-  // (1-day cooldown without `minimumReleaseAge` being set in .npmrc) — the
-  // revalidation pass stays inert and the locked version installs cleanly.
+  // (1-day release-age window applied without `minimumReleaseAge` being set in
+  // .npmrc) — the revalidation pass stays inert and the locked version
+  // installs cleanly.
   await expect(
     install(manifest, testDefaults({ minimumReleaseAge }))
   ).resolves.toBeDefined()
