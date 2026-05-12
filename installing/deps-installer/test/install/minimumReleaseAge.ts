@@ -133,10 +133,12 @@ test('minimumReleaseAge is enforced on an existing lockfile entry that does not 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1.2'], testDefaults())
   expect(manifest.dependencies!['is-odd']).toBe('0.1.2')
 
-  // Subsequent install enables minimumReleaseAge. The lockfile already has 0.1.2 so
-  // resolution is normally skipped; the new policy revalidation pass must catch this.
+  // Subsequent install enables minimumReleaseAge in strict mode. The lockfile
+  // already has 0.1.2 so resolution is normally skipped; the revalidation pass
+  // must catch this. `minimumReleaseAgeStrict` mirrors the CLI config reader's
+  // auto-true behavior when the user explicitly sets `minimumReleaseAge`.
   await expect(
-    install(manifest, testDefaults({ minimumReleaseAge }))
+    install(manifest, testDefaults({ minimumReleaseAge, minimumReleaseAgeStrict: true }))
   ).rejects.toThrow(/minimumReleaseAge/)
 })
 
@@ -152,7 +154,22 @@ test('minimumReleaseAge revalidation respects minimumReleaseAgeExclude on an exi
   await expect(
     install(manifest, testDefaults({
       minimumReleaseAge,
+      minimumReleaseAgeStrict: true,
       minimumReleaseAgeExclude: ['is-odd@0.1.2', 'is-buffer', 'kind-of'],
     }))
+  ).resolves.toBeDefined()
+})
+
+test('the lockfile minimumReleaseAge gate is inert when strict mode is off (default-value semantics)', async () => {
+  prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1.2'], testDefaults())
+  expect(manifest.dependencies!['is-odd']).toBe('0.1.2')
+
+  // Without explicit strict mode — the same shape as the CLI built-in default
+  // (1-day cooldown without `minimumReleaseAge` being set in .npmrc) — the
+  // revalidation pass stays inert and the locked version installs cleanly.
+  await expect(
+    install(manifest, testDefaults({ minimumReleaseAge }))
   ).resolves.toBeDefined()
 })

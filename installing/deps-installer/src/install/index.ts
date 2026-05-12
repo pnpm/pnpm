@@ -924,7 +924,14 @@ Note that in CI environments, this setting is enabled by default.`,
     // The check runs even when `ignorePackageManifest` is set (e.g. `pnpm
     // fetch`): that path installs straight from the lockfile and is exactly
     // the surface a poisoned lockfile would target.
-    if (opts.minimumReleaseAge) {
+    //
+    // Gated on `minimumReleaseAgeStrict` so the built-in default (1 day) does
+    // not silently turn this gate on for everyone. The config reader
+    // auto-enables strict mode the moment a user explicitly sets
+    // `minimumReleaseAge`, so this preserves the intuitive opt-in semantics
+    // ("I configured it, therefore I want it enforced") while keeping the
+    // existing non-strict default behavior untouched.
+    if (opts.minimumReleaseAge && opts.minimumReleaseAgeStrict) {
       const lookupManifest = createFullMetadataLookup(opts)
       await revalidateLockfileAgainstMinimumReleaseAge(
         ctx.wantedLockfile,
