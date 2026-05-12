@@ -1,9 +1,8 @@
 import { globalWarn } from '@pnpm/logger'
-import {
-  type DependenciesField,
-  type EngineDependency,
-  isProtoPollutionKey,
-  type ProjectManifest,
+import type {
+  DependenciesField,
+  EngineDependency,
+  ProjectManifest,
 } from '@pnpm/types'
 
 const RUNTIME_NAMES = ['node', 'deno', 'bun'] as const
@@ -30,10 +29,12 @@ export function convertEnginesRuntimeToDependencies (
     if ('webcontainer' in process.versions) {
       globalWarn(`Installation of ${runtimeName} versions is not supported in WebContainer`)
     } else {
-      // The barrier is unreachable for the current `RUNTIME_NAMES`, but it keeps
-      // the assignment safe (and CodeQL js/prototype-polluting-assignment quiet)
-      // if a future entry is added to that list.
-      if (isProtoPollutionKey(runtimeName)) continue
+      // Inline barrier — CodeQL js/prototype-polluting-assignment recognizes
+      // the literal equality checks but not the equivalent helper call on this
+      // code path. Unreachable for the current RUNTIME_NAMES, but keeps the
+      // dynamic assignment safe if a future entry is added.
+      const key: string = runtimeName
+      if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue
       const deps = (manifest[dependenciesFieldName] ??= {})
       deps[runtimeName] = `runtime:${runtime.version}`
     }
