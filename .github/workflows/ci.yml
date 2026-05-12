@@ -19,7 +19,7 @@ jobs:
     - name: Checkout Commit
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - name: Install pnpm
-      uses: pnpm/action-setup@551b42e879e37e74d986effdd2a1647d2b02d464
+      uses: pnpm/action-setup@4f29a020220876da9288d2e46daba34980c57487
       with:
         standalone: true
     - name: pnpm install
@@ -39,12 +39,12 @@ jobs:
         retention-days: 1
 
   test-smoke:
-    name: ubuntu-latest / Node.js 24
+    name: windows-latest / Node.js 22.13.0
     needs: compile-and-lint
     uses: ./.github/workflows/test.yml
     with:
-      node: '24.0.0'
-      platform: ubuntu-latest
+      node: '22.13.0'
+      platform: windows-latest
 
   test:
     name: ${{ matrix.platform }} / Node.js ${{ matrix.node }}
@@ -55,10 +55,11 @@ jobs:
         node: ['22.13.0', '24.0.0', '26.0.0']
         platform: [ubuntu-latest, windows-latest]
         exclude:
-          - node: '24.0.0'
-            platform: ubuntu-latest
-          # On branches, only run Windows with the lowest supported Node.js.
-          # Exception: main and release branches (release/x, release/x.x) run the full matrix.
+          - node: '22.13.0'
+            platform: windows-latest
+          # On branches, skip the remaining Windows configs (the smoke
+          # already covers Windows). Exception: main and release branches
+          # (release/x, release/x.x) run the full matrix.
           - node: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && 'none' || '24.0.0' }}
             platform: windows-latest
           - node: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && 'none' || '26.0.0' }}
