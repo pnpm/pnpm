@@ -125,16 +125,26 @@ export class TestIpcServer implements AsyncDisposable {
   }
 
   /**
-   * Generates a shell script that can used as a package manifest "scripts"
+   * Generates a shell script that can be used as a package manifest "scripts"
    * entry. Exits after sending the message.
+   *
+   * Throws if `message` contains characters outside the allowlist enforced by
+   * `quoteShellArg` (alphanumerics plus ``_ - . / \\ : @ space + = ,``). All
+   * existing call sites pass short ASCII identifiers, so the constraint is
+   * satisfied by construction.
    */
   public sendLineScript (message: string): string {
     return `node ${quoteShellArg(this.lineHelperPath)} ${quoteShellArg(this.listenPath)} ${quoteShellArg(message)}`
   }
 
   /**
-   * Generates a shell script that can used as a package manifest "scripts"
+   * Generates a shell script that can be used as a package manifest "scripts"
    * entry. This script consumes its stdin and sends it to the server.
+   *
+   * Throws if the server's `listenPath` contains characters outside the
+   * allowlist enforced by `quoteShellArg`. The path is computed from
+   * `os.tmpdir()` (or a Windows named-pipe prefix) and a random UUID, so the
+   * constraint is satisfied by construction.
    */
   public generateSendStdinScript (): string {
     return `node ${quoteShellArg(this.stdinHelperPath)} ${quoteShellArg(this.listenPath)}`

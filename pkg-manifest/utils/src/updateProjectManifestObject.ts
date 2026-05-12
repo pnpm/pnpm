@@ -5,6 +5,7 @@ import {
   DEPENDENCIES_OR_PEER_FIELDS,
   type DependenciesField,
   type DependenciesOrPeersField,
+  isProtoPollutionKey,
   type PinnedVersion,
   type ProjectManifest,
 } from '@pnpm/types'
@@ -96,8 +97,4 @@ function findSpec (alias: string, manifest: ProjectManifest): string | undefined
 export function guessDependencyType (alias: string, manifest: ProjectManifest): DependenciesOrPeersField | undefined {
   return DEPENDENCIES_OR_PEER_FIELDS
     .find((depField) => manifest[depField]?.[alias] === '' || Boolean(manifest[depField]?.[alias]))
-}
-
-function isProtoPollutionKey (key: string): boolean {
-  return key === '__proto__' || key === 'constructor' || key === 'prototype'
 }

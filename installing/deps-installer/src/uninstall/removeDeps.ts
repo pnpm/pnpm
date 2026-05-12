@@ -2,6 +2,7 @@ import { packageManifestLogger } from '@pnpm/core-loggers'
 import {
   DEPENDENCIES_FIELDS,
   type DependenciesField,
+  isProtoPollutionKey,
   type ProjectManifest,
 } from '@pnpm/types'
 
@@ -61,8 +62,4 @@ export async function removeDeps (
     updated: packageManifest,
   })
   return packageManifest
-}
-
-function isProtoPollutionKey (key: string): boolean {
-  return key === '__proto__' || key === 'constructor' || key === 'prototype'
 }

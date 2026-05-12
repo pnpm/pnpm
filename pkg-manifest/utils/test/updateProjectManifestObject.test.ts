@@ -139,6 +139,25 @@ test('peer dependencies keep prerelease resolved version without prefix', async 
   })
 })
 
+test('skips prototype-polluting aliases without mutating Object.prototype', async () => {
+  const protoSnapshotBefore = Object.getOwnPropertyNames(Object.prototype).sort()
+
+  const manifest = await updateProjectManifestObject('/project', {}, [
+    { alias: '__proto__', bareSpecifier: '1.0.0', saveType: 'dependencies' },
+    { alias: 'constructor', bareSpecifier: '1.0.0', saveType: 'dependencies' },
+    { alias: 'prototype', bareSpecifier: '1.0.0', saveType: 'dependencies' },
+    { alias: 'real-pkg', bareSpecifier: '2.0.0', saveType: 'dependencies' },
+  ])
+
+  expect(manifest.dependencies).toStrictEqual({ 'real-pkg': '2.0.0' })
+  expect(Object.hasOwn(manifest.dependencies!, '__proto__')).toBe(false)
+  expect(Object.hasOwn(manifest.dependencies!, 'constructor')).toBe(false)
+  expect(Object.hasOwn(manifest.dependencies!, 'prototype')).toBe(false)
+
+  // Object.prototype hasn't grown a new property.
+  expect(Object.getOwnPropertyNames(Object.prototype).sort()).toStrictEqual(protoSnapshotBefore)
+})
+
 test('peer dependencies respect pinned version "patch" and "none"', async () => {
   const cases = [
     { pinnedVersion: 'patch' as const, expected: '3.2.1' },

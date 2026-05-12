@@ -14,6 +14,16 @@ export const DEPENDENCIES_OR_PEER_FIELDS: DependenciesOrPeersField[] = [
   'peerDependencies',
 ]
 
+/**
+ * Returns `true` if the given string is a JavaScript property name that, when
+ * used as a dynamic key, could mutate `Object.prototype`. Use this as a guard
+ * before any `obj[userKey] = value` or `delete obj[userKey]` where `userKey`
+ * is not a typed literal.
+ */
+export function isProtoPollutionKey (key: string): boolean {
+  return key === '__proto__' || key === 'constructor' || key === 'prototype'
+}
+
 export interface Registries {
   default: string
   [scope: string]: string
