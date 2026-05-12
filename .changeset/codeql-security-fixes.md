@@ -1,5 +1,4 @@
 ---
-"@pnpm/types": patch
 "@pnpm/pkg-manifest.utils": patch
 "@pnpm/installing.deps-installer": patch
 "@pnpm/resolving.npm-resolver": patch
