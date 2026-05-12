@@ -34,8 +34,20 @@ jobs:
       uses: pnpm/setup@fb0036364f5a7e8d2e55f157adf7ad14617a222d
       with:
         runtime: node@${{ inputs.node }}
+    # `--no-runtime` keeps the node version installed by pnpm/setup; without
+    # it, devEngines.runtime in package.json would swap node to its declared
+    # version and the matrix `inputs.node` selection would be silently lost.
     - name: Install dependencies
-      run: pn install
+      run: pn install --no-runtime
+    - name: Verify Node version
+      shell: bash
+      run: |
+        actual=$(pn node -v)
+        expected="v${{ inputs.node }}"
+        if [ "$actual" != "$expected" ]; then
+          echo "Expected Node version $expected but got $actual"
+          exit 1
+        fi
     # npm is needed for preparing git-hosted dependencies (e.g. in dlx tests).
     # `pnpm runtime set node` does not extract npm; the runner image's
     # pre-installed Node toolchain provides it on PATH.
