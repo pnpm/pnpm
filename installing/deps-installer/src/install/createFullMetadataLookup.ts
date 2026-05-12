@@ -78,7 +78,7 @@ export function createFullMetadataLookup (opts: CreateFullMetadataLookupOptions)
     if (!time) {
       // For full metadata this means the version was removed from the manifest
       // (typically a deliberate unpublish) or the registry doesn't expose
-      // per-version timestamps for it. Either way the cooldown can't be
+      // per-version timestamps for it. Either way the release-age cannot be
       // verified, so report it as a violation rather than silently passing.
       return { status: 'version-not-in-manifest' }
     }

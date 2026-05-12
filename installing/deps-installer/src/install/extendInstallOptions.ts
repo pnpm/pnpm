@@ -75,7 +75,7 @@ export interface StrictInstallOptions {
   /**
    * The directory pnpm uses for cached package metadata.
    * Required by the lockfile minimumReleaseAge revalidation pass to spin up a
-   * dedicated full-metadata fetcher; in practice every install callsite (CLI,
+   * dedicated full-metadata fetcher; in practice every install caller (CLI,
    * test harness, programmatic API) already supplies this value, so it's
    * declared optional here to avoid breaking callers that haven't yet plumbed
    * the field into their `InstallOptions` type.
