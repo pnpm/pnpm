@@ -18,10 +18,8 @@ jobs:
     steps:
     - name: Checkout Commit
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-    - name: Install pnpm and Node
+    - name: Install pnpm
       uses: pnpm/setup@fb0036364f5a7e8d2e55f157adf7ad14617a222d
-      with:
-        runtime: node@24.6.0
     - name: Install dependencies
       run: pn install
     - name: Compile TypeScript

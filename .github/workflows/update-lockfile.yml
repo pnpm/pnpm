@@ -19,10 +19,8 @@ jobs:
       with:
         token: ${{ secrets.UPDATE_LOCKFILE_TOKEN }}
 
-    - name: Install pnpm and Node
+    - name: Install pnpm
       uses: pnpm/setup@fb0036364f5a7e8d2e55f157adf7ad14617a222d
-      with:
-        runtime: node@24.6.0
 
     - name: Update lockfile
       run: |
