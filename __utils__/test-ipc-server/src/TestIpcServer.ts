@@ -111,10 +111,10 @@ export const createTestIpcServer = TestIpcServer.listen
 
 /**
  * Wrap a JavaScript source snippet so it can be executed via `node -e` from a
- * shell script. The snippet is escaped for an outer double-quoted shell argument
- * (both POSIX sh and Windows MSVCRT honor `\\` and `\"` inside double quotes),
- * so callers must pass values that were embedded via `JSON.stringify` rather
- * than ad-hoc string concatenation.
+ * shell script. The snippet is escaped for an outer double-quoted shell
+ * argument (both POSIX sh and the Windows command-line parser honor `\\` and
+ * `\"` inside double quotes), so callers must pass values that were embedded
+ * via `JSON.stringify` rather than ad-hoc string concatenation.
  */
 function wrapNodeEval (jsSource: string): string {
   const shellEscaped = jsSource.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
