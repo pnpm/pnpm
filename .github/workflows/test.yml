@@ -31,14 +31,9 @@ jobs:
     - name: Checkout Commit
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - name: Install pnpm and Node
-      uses: pnpm/setup@fb0036364f5a7e8d2e55f157adf7ad14617a222d
+      uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
       with:
         runtime: node@${{ inputs.node }}
-    # `--no-runtime` keeps the node version installed by pnpm/setup; without
-    # it, devEngines.runtime in package.json would swap node to its declared
-    # version and the matrix `inputs.node` selection would be silently lost.
-    - name: Install dependencies
-      run: pn install --no-runtime
     - name: Verify Node version
       shell: bash
       run: |

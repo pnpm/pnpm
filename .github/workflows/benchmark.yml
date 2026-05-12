@@ -47,12 +47,9 @@ jobs:
         echo "Checked out PR #$PR_NUMBER at $(git rev-parse --short HEAD)"
 
     - name: Install pnpm and Node
-      uses: pnpm/setup@fb0036364f5a7e8d2e55f157adf7ad14617a222d
+      uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
       with:
         runtime: node@26.0.0
-
-    - name: Install dependencies
-      run: pn install
 
     - name: Install hyperfine
       run: |

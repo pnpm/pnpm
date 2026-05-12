@@ -19,9 +19,7 @@ jobs:
     - name: Checkout Commit
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - name: Install pnpm
-      uses: pnpm/setup@fb0036364f5a7e8d2e55f157adf7ad14617a222d
-    - name: Install dependencies
-      run: pn install
+      uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
     - name: Compile TypeScript
       run: pn compile-only
     - name: Lint
