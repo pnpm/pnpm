@@ -43,6 +43,9 @@
       "path": "../../store/cafs-types"
     },
     {
+      "path": "../../testing/mock-agent"
+    },
+    {
       "path": "../git-resolver"
     },
     {
