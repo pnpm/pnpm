@@ -1,4 +1,7 @@
+import fs from 'node:fs'
 import net from 'node:net'
+import os from 'node:os'
+import path from 'node:path'
 import { promisify, stripVTControlCharacters } from 'node:util'
 
 import { computeHandlePath } from './computeHandlePath.js'
@@ -13,6 +16,24 @@ if (Symbol.dispose === undefined) {
   (Symbol as { dispose?: symbol }).dispose = Symbol('Symbol.dispose')
 }
 
+// The helper scripts only ever invoke node with arguments passed via argv, so
+// the IPC path never has to be embedded into JavaScript source or shell
+// metacharacters. The script source is therefore completely static.
+const STDIN_HELPER_SOURCE = `const net = require('node:net')
+const target = process.argv[2]
+const c = net.connect(target, () => {
+  process.stdin.pipe(c).on('end', () => { c.destroy() })
+})
+`
+const LINE_HELPER_SOURCE = `const net = require('node:net')
+const target = process.argv[2]
+const message = process.argv[3]
+const c = net.connect(target, () => {
+  c.write(message + '\\n')
+  c.end()
+})
+`
+
 /**
  * A simple Inter-Process Communication (IPC) server written specifically for
  * usage in pnpm tests.
@@ -22,13 +43,23 @@ if (Symbol.dispose === undefined) {
  */
 export class TestIpcServer implements AsyncDisposable {
   private readonly server: net.Server
+  private readonly helperDir: string
+  private readonly stdinHelperPath: string
+  private readonly lineHelperPath: string
   private buffer = ''
 
   public readonly listenPath: string
 
-  constructor (server: net.Server, listenPath: string) {
+  constructor (
+    server: net.Server,
+    listenPath: string,
+    helpers: { dir: string, stdinHelperPath: string, lineHelperPath: string }
+  ) {
     this.server = server
     this.listenPath = listenPath
+    this.helperDir = helpers.dir
+    this.stdinHelperPath = helpers.stdinHelperPath
+    this.lineHelperPath = helpers.lineHelperPath
 
     server.on('connection', (client) => {
       client.on('data', data => {
@@ -47,7 +78,18 @@ export class TestIpcServer implements AsyncDisposable {
   public static async listen (handle?: string): Promise<TestIpcServer> {
     const listenPath = computeHandlePath(handle)
     const server = net.createServer()
-    const testIpcServer = new TestIpcServer(server, listenPath)
+    const helperDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-test-ipc-'))
+    const stdinHelperPath = path.join(helperDir, 'stdin.cjs')
+    const lineHelperPath = path.join(helperDir, 'line.cjs')
+    await Promise.all([
+      fs.promises.writeFile(stdinHelperPath, STDIN_HELPER_SOURCE),
+      fs.promises.writeFile(lineHelperPath, LINE_HELPER_SOURCE),
+    ])
+    const testIpcServer = new TestIpcServer(server, listenPath, {
+      dir: helperDir,
+      stdinHelperPath,
+      lineHelperPath,
+    })
 
     return new Promise((resolve, reject) => {
       server.once('error', reject)
@@ -87,9 +129,7 @@ export class TestIpcServer implements AsyncDisposable {
    * entry. Exits after sending the message.
    */
   public sendLineScript (message: string): string {
-    const pathLiteral = JSON.stringify(this.listenPath)
-    const messageLiteral = JSON.stringify(`${message}\n`)
-    return wrapNodeEval(`const c = require('net').connect(${pathLiteral}, () => { c.write(${messageLiteral}); c.end(); })`)
+    return `node ${quoteShellArg(this.lineHelperPath)} ${quoteShellArg(this.listenPath)} ${quoteShellArg(message)}`
   }
 
   /**
@@ -97,26 +137,34 @@ export class TestIpcServer implements AsyncDisposable {
    * entry. This script consumes its stdin and sends it to the server.
    */
   public generateSendStdinScript (): string {
-    const pathLiteral = JSON.stringify(this.listenPath)
-    return wrapNodeEval(`const c = require('net').connect(${pathLiteral}, () => { process.stdin.pipe(c).on('end', () => { c.destroy(); }); })`)
+    return `node ${quoteShellArg(this.stdinHelperPath)} ${quoteShellArg(this.listenPath)}`
   }
 
   public [Symbol.asyncDispose] = async (): Promise<void> => {
     const close = promisify(this.server.close).bind(this.server)
     await close()
+    await fs.promises.rm(this.helperDir, { recursive: true, force: true })
   }
 }
 
 export const createTestIpcServer = TestIpcServer.listen
 
 /**
- * Wrap a JavaScript source snippet so it can be executed via `node -e` from a
- * shell script. The snippet is escaped for an outer double-quoted shell
- * argument (both POSIX sh and the Windows command-line parser honor `\\` and
- * `\"` inside double quotes), so callers must pass values that were embedded
- * via `JSON.stringify` rather than ad-hoc string concatenation.
+ * Wrap an argument for inclusion in a shell command. The argument must contain
+ * only a restricted set of characters known to be safe in both POSIX and
+ * Windows command interpreters when surrounded by double quotes (alphanumerics
+ * plus `_ - . / \\ : space + = ,`).
+ *
+ * Throws when the argument contains a character outside this allowlist. All
+ * arguments produced internally (helper-script paths, the listen-path computed
+ * from `os.tmpdir()`/a named-pipe prefix, and randomly-generated test messages)
+ * satisfy this constraint by construction.
  */
-function wrapNodeEval (jsSource: string): string {
-  const shellEscaped = jsSource.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
-  return `node -e "${shellEscaped}"`
+function quoteShellArg (arg: string): string {
+  // Allowlist anchored on both ends — CodeQL recognises this as a sanitisation
+  // barrier for shell-injection sinks.
+  if (!/^[\w\-./\\: +=,]+$/.test(arg)) {
+    throw new Error(`Unsupported character in shell argument: ${JSON.stringify(arg)}`)
+  }
+  return `"${arg}"`
 }

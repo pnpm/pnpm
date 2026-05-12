@@ -17,29 +17,42 @@ export async function removeDeps (
   // These are never valid npm package names.
   const safeRemovedPackages = removedPackages.filter((dep) => !isProtoPollutionKey(dep))
   if (opts.saveType) {
+    // `Object.hasOwn` rules out `__proto__`, `constructor`, etc. on `opts.saveType`
+    // so the dynamic read can never land on `Object.prototype`.
+    if (!Object.hasOwn(packageManifest, opts.saveType)) return packageManifest
     const targetDeps = packageManifest[opts.saveType]
     if (targetDeps == null) return packageManifest
 
     for (const dependency of safeRemovedPackages) {
-      delete targetDeps[dependency]
+      if (Object.hasOwn(targetDeps, dependency)) {
+        delete targetDeps[dependency]
+      }
     }
   } else {
     for (const depField of DEPENDENCIES_FIELDS) {
       const fieldDeps = packageManifest[depField]
       if (!fieldDeps) continue
       for (const dependency of safeRemovedPackages) {
-        delete fieldDeps[dependency]
+        if (Object.hasOwn(fieldDeps, dependency)) {
+          delete fieldDeps[dependency]
+        }
       }
     }
   }
   if (packageManifest.peerDependencies != null) {
+    const peerDeps = packageManifest.peerDependencies
     for (const removedDependency of safeRemovedPackages) {
-      delete packageManifest.peerDependencies[removedDependency]
+      if (Object.hasOwn(peerDeps, removedDependency)) {
+        delete peerDeps[removedDependency]
+      }
     }
   }
   if (packageManifest.dependenciesMeta != null) {
+    const depsMeta = packageManifest.dependenciesMeta
     for (const removedDependency of safeRemovedPackages) {
-      delete packageManifest.dependenciesMeta[removedDependency]
+      if (Object.hasOwn(depsMeta, removedDependency)) {
+        delete depsMeta[removedDependency]
+      }
     }
   }
 
