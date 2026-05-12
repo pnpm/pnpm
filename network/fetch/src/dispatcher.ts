@@ -13,6 +13,37 @@ const DEFAULT_MAX_SOCKETS = 50
 const KEEP_ALIVE_TIMEOUT = 30_000 // 30 seconds
 const KEEP_ALIVE_MAX_TIMEOUT = 600_000 // 10 minutes
 
+// undici's fetch() automatically adds sec-fetch-* headers (e.g. sec-fetch-mode: cors)
+// per the Fetch spec. Some registries like Azure DevOps Artifacts interpret these as
+// browser requests and reject them with HTTP 400. Since pnpm is a CLI tool, these
+// headers serve no purpose and must be stripped.
+// See https://github.com/pnpm/pnpm/issues/11572
+function stripSecFetchHeaders (dispatch: Dispatcher['dispatch']): Dispatcher['dispatch'] {
+  return (opts, handler) => {
+    if (opts.headers) {
+      if (Array.isArray(opts.headers)) {
+        // Flat array format: [key1, val1, key2, val2, ...]
+        const filtered: string[] = []
+        for (let i = 0; i < opts.headers.length; i += 2) {
+          if (!opts.headers[i].toLowerCase().startsWith('sec-fetch-')) {
+            filtered.push(opts.headers[i], opts.headers[i + 1])
+          }
+        }
+        opts = { ...opts, headers: filtered }
+      } else if (typeof opts.headers === 'object') {
+        const headers: Record<string, string> = {}
+        for (const [key, value] of Object.entries(opts.headers as Record<string, string>)) {
+          if (!key.toLowerCase().startsWith('sec-fetch-')) {
+            headers[key] = value
+          }
+        }
+        opts = { ...opts, headers }
+      }
+    }
+    return dispatch(opts, handler)
+  }
+}
+
 // Set an optimized global dispatcher so that requests without custom options
 // (no proxy, no custom certs) still benefit from better keep-alive and Happy Eyeballs.
 //
@@ -27,7 +58,7 @@ setGlobalDispatcher(new Agent({
   connect: {
     autoSelectFamily: true,
   },
-}))
+}).compose(stripSecFetchHeaders))
 
 const DISPATCHER_CACHE = new LRUCache<string, Dispatcher>({
   max: 50,
@@ -165,6 +196,7 @@ function getProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispatche
     dispatcher = createHttpProxyDispatcher(proxyUrl, isHttps, opts, { ca, cert, key: certKey })
   }
 
+  dispatcher = dispatcher.compose(stripSecFetchHeaders)
   DISPATCHER_CACHE.set(key, dispatcher)
   return dispatcher
 }
@@ -301,8 +333,9 @@ function getNonProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispat
       },
   })
 
-  DISPATCHER_CACHE.set(key, agent)
-  return agent
+  const dispatcher = agent.compose(stripSecFetchHeaders)
+  DISPATCHER_CACHE.set(key, dispatcher)
+  return dispatcher
 }
 
 function checkNoProxy (parsedUri: URL, opts: { noProxy?: boolean | string }): boolean {

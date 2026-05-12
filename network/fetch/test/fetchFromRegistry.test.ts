@@ -1,5 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'node:fs'
+import http from 'node:http'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
@@ -308,4 +309,26 @@ test('createDispatchedFetch returns a fetch bound to the given dispatcher option
   } finally {
     await teardownMockAgent()
   }
+})
+
+test('sec-fetch-* headers are stripped from requests', async () => {
+  const receivedHeaders = await new Promise<http.IncomingHttpHeaders>((resolve, reject) => {
+    const server = http.createServer((_req, res) => {
+      resolve(_req.headers)
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end('{"ok":true}')
+    })
+    server.listen(0, () => {
+      const { port } = server.address() as { port: number }
+      const fetchFromRegistry = createFetchFromRegistry({})
+      fetchFromRegistry(`http://127.0.0.1:${port}/test`).then(
+        (res) => res.text().then(() => server.close()),
+        (err) => {
+          server.close(); reject(err)
+        }
+      )
+    })
+  })
+  const secFetchHeaders = Object.keys(receivedHeaders).filter(h => h.startsWith('sec-fetch-'))
+  expect(secFetchHeaders).toEqual([])
 })
