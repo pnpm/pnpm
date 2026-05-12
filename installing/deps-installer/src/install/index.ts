@@ -920,7 +920,11 @@ Note that in CI environments, this setting is enabled by default.`,
     // `peekManifestFromStore` fast-path or return abbreviated metadata (no
     // `time` field) and silently report `publishedAt: undefined`, which would
     // re-open the bypass this gate is meant to close.
-    if (opts.minimumReleaseAge && !maybeOpts.ignorePackageManifest) {
+    //
+    // The check runs even when `ignorePackageManifest` is set (e.g. `pnpm
+    // fetch`): that path installs straight from the lockfile and is exactly
+    // the surface a poisoned lockfile would target.
+    if (opts.minimumReleaseAge) {
       const lookupManifest = createFullMetadataLookup(opts)
       await revalidateLockfileAgainstMinimumReleaseAge(
         ctx.wantedLockfile,

@@ -1,14 +1,21 @@
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
-import { createFetchFromRegistry } from '@pnpm/network.fetch'
+import { createFetchFromRegistry, type DispatcherOptions } from '@pnpm/network.fetch'
 import { fetchMetadataFromFromRegistry, type PackageMeta } from '@pnpm/resolving.npm-resolver'
 import type { Registries, RegistryConfig } from '@pnpm/types'
 
 import type { ManifestLookup, ManifestLookupResult } from './revalidateLockfileMinimumReleaseAge.js'
 
-export interface CreateFullMetadataLookupOptions {
+export interface CreateFullMetadataLookupOptions extends DispatcherOptions {
   registries: Registries
+  /**
+   * Registries reached via the named-registry resolver chain (e.g. `gh:` →
+   * GitHub Packages). When a lockfile entry's tarball URL lives under one of
+   * these, route the manifest fetch to that registry instead of the
+   * scope-derived default.
+   */
+  namedRegistries?: Record<string, string>
   configByUri?: Record<string, RegistryConfig>
   userAgent?: string
   retry?: Parameters<typeof fetchMetadataFromFromRegistry>[0]['retry']
@@ -26,10 +33,11 @@ export interface CreateFullMetadataLookupOptions {
  * fetch decoupled from the regular resolver pipeline (oven-sh/bun#30526).
  */
 export function createFullMetadataLookup (opts: CreateFullMetadataLookupOptions): ManifestLookup {
-  const fetchFromRegistry = createFetchFromRegistry({
-    userAgent: opts.userAgent,
-    configByUri: opts.configByUri,
-  })
+  // Forward every dispatcher option (proxy / CA / strictSsl / maxSockets /
+  // localAddress / etc.) so the revalidation fetcher behaves the same way as
+  // the regular store-controller fetch chain. Dropping them would break CI
+  // environments behind a proxy or with custom TLS material.
+  const fetchFromRegistry = createFetchFromRegistry(opts)
   const getAuthHeaderValueByURI = createGetAuthHeaderByURI(opts.configByUri ?? {}, opts.registries.default)
   const fetchOpts = {
     fetch: fetchFromRegistry,
@@ -37,9 +45,19 @@ export function createFullMetadataLookup (opts: CreateFullMetadataLookupOptions)
     timeout: opts.timeout ?? 60_000,
     fetchWarnTimeoutMs: 10_000,
   }
-  // Cache identical (registry, pkgName) fetches across the run; the lockfile
-  // can pin many versions of the same package and the metadata document is the
-  // same for all of them.
+  // Pre-compute the (origin → registry URL) lookup once. Named-registry
+  // entries are absolute URLs; their tarballs always live under that origin.
+  // We use this to recover the right registry for non-scope-routed packages
+  // when the lockfile tells us where the tarball came from.
+  const namedRegistryOrigins = new Map<string, string>()
+  for (const url of Object.values(opts.namedRegistries ?? {})) {
+    try {
+      namedRegistryOrigins.set(new URL(url).origin, url)
+    } catch {
+      // Malformed URL — pickRegistryForPackage will surface its own error if
+      // it actually gets used.
+    }
+  }
   const inflight = new Map<string, Promise<PackageMeta>>()
   const fetchMeta = async (registry: string, name: string): Promise<PackageMeta> => {
     const cacheKey = `${registry}\x00${name}`
@@ -63,8 +81,8 @@ export function createFullMetadataLookup (opts: CreateFullMetadataLookupOptions)
     return promise
   }
 
-  return async (name: string, version: string): Promise<ManifestLookupResult> => {
-    const registry = pickRegistryForPackage(opts.registries, name)
+  return async (name: string, version: string, tarballUrl?: string): Promise<ManifestLookupResult> => {
+    const registry = pickRegistryForVersion(opts, namedRegistryOrigins, name, tarballUrl)
     let meta: PackageMeta
     try {
       meta = await fetchMeta(registry, name)
@@ -84,4 +102,26 @@ export function createFullMetadataLookup (opts: CreateFullMetadataLookupOptions)
     }
     return { status: 'ok', publishedAt: new Date(time) }
   }
+}
+
+function pickRegistryForVersion (
+  opts: CreateFullMetadataLookupOptions,
+  namedRegistryOrigins: Map<string, string>,
+  name: string,
+  tarballUrl: string | undefined
+): string {
+  // If the lockfile records where the tarball lives, prefer that — scope
+  // routing (`@scope:registry`) only covers scoped packages, but named
+  // registries (`gh:`, `jsr:` aliases, custom) ship un-scoped packages whose
+  // origin we'd otherwise miss.
+  if (tarballUrl) {
+    try {
+      const origin = new URL(tarballUrl).origin
+      const matched = namedRegistryOrigins.get(origin)
+      if (matched) return matched
+    } catch {
+      // Fall through to scope routing.
+    }
+  }
+  return pickRegistryForPackage(opts.registries, name)
 }

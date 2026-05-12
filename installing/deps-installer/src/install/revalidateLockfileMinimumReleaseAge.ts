@@ -3,6 +3,7 @@ import { PnpmError } from '@pnpm/error'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import type { DepPath, PackageVersionPolicy } from '@pnpm/types'
+import pLimit from 'p-limit'
 import semver from 'semver'
 
 export type ManifestLookupResult =
@@ -10,11 +11,16 @@ export type ManifestLookupResult =
   | { status: 'manifest-unavailable', reason?: string }
   | { status: 'version-not-in-manifest' }
 
-export type ManifestLookup = (name: string, version: string) => Promise<ManifestLookupResult>
+export type ManifestLookup = (name: string, version: string, tarballUrl?: string) => Promise<ManifestLookupResult>
 
 export interface RevalidateLockfileMinimumReleaseAgeOptions {
   minimumReleaseAge: number
   minimumReleaseAgeExclude?: string[]
+  /** Caps concurrent manifest lookups so a large lockfile doesn't queue
+   * thousands of inflight registry fetches behind the host's dispatcher
+   * connection pool. Defaults to 16, which matches the floor pnpm uses for
+   * its package-requester queue. */
+  concurrency?: number
   now?: number
 }
 
@@ -22,6 +28,8 @@ interface Violation {
   pkgId: string
   reason: string
 }
+
+const MAX_VIOLATIONS_TO_PRINT = 20
 
 /**
  * Re-applies the `minimumReleaseAge` policy to every npm-registry-resolved
@@ -56,7 +64,7 @@ export async function revalidateLockfileAgainstMinimumReleaseAge (
   // `react@18.0.0(peer)(patch_hash=…)`); the same (name, version) pair may
   // therefore appear multiple times. Dedupe so we issue at most one lookup
   // per package version.
-  const candidates = new Map<string, { name: string, version: string }>()
+  const candidates = new Map<string, { name: string, version: string, tarballUrl?: string }>()
   for (const [depPath, snapshot] of Object.entries(lockfile.packages)) {
     if (!isNpmRegistryResolution(snapshot.resolution)) continue
     const { name, version, nonSemverVersion } = nameVerFromPkgSnapshot(depPath as DepPath, snapshot)
@@ -65,16 +73,18 @@ export async function revalidateLockfileAgainstMinimumReleaseAge (
     // policy doesn't apply and a registry lookup would 404.
     if (!name || !version || nonSemverVersion || !semver.valid(version)) continue
     if (isExcluded(excludePolicy, name, version)) continue
-    candidates.set(`${name}@${version}`, { name, version })
+    const tarballUrl = (snapshot.resolution as { tarball?: string } | null | undefined)?.tarball
+    candidates.set(`${name}@${version}`, { name, version, tarballUrl })
   }
 
   const violations: Violation[] = []
+  const limit = pLimit(opts.concurrency ?? 16)
   await Promise.all(
-    Array.from(candidates.values(), async ({ name, version }) => {
+    Array.from(candidates.values(), ({ name, version, tarballUrl }) => limit(async () => {
       const pkgId = `${name}@${version}`
       let result: ManifestLookupResult
       try {
-        result = await lookupManifest(name, version)
+        result = await lookupManifest(name, version, tarballUrl)
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err)
         violations.push({
@@ -113,20 +123,28 @@ export async function revalidateLockfileAgainstMinimumReleaseAge (
             reason: 'could not be checked against minimumReleaseAge (version not present in registry manifest)',
           })
       }
-    })
+    }))
   )
 
   if (violations.length === 0) return
 
   // Stable order so the error output is deterministic.
   violations.sort((a, b) => a.pkgId.localeCompare(b.pkgId))
-  const details = violations.map((v) => `  ${v.pkgId} ${v.reason}`).join('\n')
+  // Cap the per-entry breakdown so a poisoned lockfile with hundreds of fresh
+  // versions doesn't flood the terminal / CI log; the full count is in the
+  // header and the remainder is summarized at the end.
+  const visible = violations.slice(0, MAX_VIOLATIONS_TO_PRINT)
+  const omitted = violations.length - visible.length
+  const breakdown = visible.map((v) => `  ${v.pkgId} ${v.reason}`).join('\n')
+  const details = omitted > 0
+    ? `${breakdown}\n  …and ${omitted} more`
+    : breakdown
   throw new PnpmError(
     'MINIMUM_RELEASE_AGE_LOCKFILE_VIOLATION',
-    `The lockfile contains entries that do not satisfy the minimumReleaseAge policy:\n${details}`,
+    `${violations.length} lockfile entries do not satisfy the minimumReleaseAge policy:\n${details}`,
     {
       hint: 'To unblock the install you can:\n' +
-        '  1. Remove the offending versions from pnpm-lock.yaml and re-run install so they get re-resolved.\n' +
+        '  1. Remove the offending entries from pnpm-lock.yaml and re-run "pnpm install --no-frozen-lockfile" so they get re-resolved against the policy.\n' +
         '  2. Lower the minimumReleaseAge value so the locked versions fall within the cutoff.\n' +
         '  3. Add the affected packages to minimumReleaseAgeExclude if they are explicitly trusted.',
     }
