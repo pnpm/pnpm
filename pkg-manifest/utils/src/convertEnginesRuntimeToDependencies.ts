@@ -29,8 +29,14 @@ export function convertEnginesRuntimeToDependencies (
     if ('webcontainer' in process.versions) {
       globalWarn(`Installation of ${runtimeName} versions is not supported in WebContainer`)
     } else {
-      manifest[dependenciesFieldName] ??= {}
-      manifest[dependenciesFieldName]![runtimeName] = `runtime:${runtime.version}`
+      const deps = (manifest[dependenciesFieldName] ??= {})
+      const value = `runtime:${runtime.version}`
+      // Use literal keys here to avoid CodeQL js/prototype-polluting-assignment.
+      switch (runtimeName) {
+        case 'node': deps.node = value; break
+        case 'deno': deps.deno = value; break
+        case 'bun': deps.bun = value; break
+      }
     }
   }
 }

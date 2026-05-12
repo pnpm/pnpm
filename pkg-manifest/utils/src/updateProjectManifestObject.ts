@@ -50,6 +50,9 @@ export async function updateProjectManifestObject (
   packageSpecs: PackageSpecObject[]
 ): Promise<ProjectManifest> {
   for (const packageSpec of packageSpecs) {
+    // Reject names that could lead to prototype pollution. These are never valid
+    // npm package names anyway.
+    if (isProtoPollutionKey(packageSpec.alias)) continue
     if (packageSpec.saveType) {
       const spec = packageSpec.bareSpecifier ?? findSpec(packageSpec.alias, packageManifest)
       if (spec) {
@@ -93,4 +96,8 @@ function findSpec (alias: string, manifest: ProjectManifest): string | undefined
 export function guessDependencyType (alias: string, manifest: ProjectManifest): DependenciesOrPeersField | undefined {
   return DEPENDENCIES_OR_PEER_FIELDS
     .find((depField) => manifest[depField]?.[alias] === '' || Boolean(manifest[depField]?.[alias]))
+}
+
+function isProtoPollutionKey (key: string): boolean {
+  return key === '__proto__' || key === 'constructor' || key === 'prototype'
 }

@@ -87,7 +87,9 @@ export class TestIpcServer implements AsyncDisposable {
    * entry. Exits after sending the message.
    */
   public sendLineScript (message: string): string {
-    return `node -e "const c = require('net').connect('${JSON.stringify(this.listenPath).slice(1, -1)}', () => { c.write('${message}\\n'); c.end(); })"`
+    const pathLiteral = JSON.stringify(this.listenPath)
+    const messageLiteral = JSON.stringify(`${message}\n`)
+    return wrapNodeEval(`const c = require('net').connect(${pathLiteral}, () => { c.write(${messageLiteral}); c.end(); })`)
   }
 
   /**
@@ -95,7 +97,8 @@ export class TestIpcServer implements AsyncDisposable {
    * entry. This script consumes its stdin and sends it to the server.
    */
   public generateSendStdinScript (): string {
-    return `node -e "const c = require('net').connect('${JSON.stringify(this.listenPath).slice(1, -1)}', () => { process.stdin.pipe(c).on('end', () => { c.destroy(); }); })"`
+    const pathLiteral = JSON.stringify(this.listenPath)
+    return wrapNodeEval(`const c = require('net').connect(${pathLiteral}, () => { process.stdin.pipe(c).on('end', () => { c.destroy(); }); })`)
   }
 
   public [Symbol.asyncDispose] = async (): Promise<void> => {
@@ -105,3 +108,15 @@ export class TestIpcServer implements AsyncDisposable {
 }
 
 export const createTestIpcServer = TestIpcServer.listen
+
+/**
+ * Wrap a JavaScript source snippet so it can be executed via `node -e` from a
+ * shell script. The snippet is escaped for an outer double-quoted shell argument
+ * (both POSIX sh and Windows MSVCRT honor `\\` and `\"` inside double quotes),
+ * so callers must pass values that were embedded via `JSON.stringify` rather
+ * than ad-hoc string concatenation.
+ */
+function wrapNodeEval (jsSource: string): string {
+  const shellEscaped = jsSource.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+  return `node -e "${shellEscaped}"`
+}
