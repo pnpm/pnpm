@@ -13,6 +13,22 @@ const DEFAULT_MAX_SOCKETS = 50
 const KEEP_ALIVE_TIMEOUT = 30_000 // 30 seconds
 const KEEP_ALIVE_MAX_TIMEOUT = 600_000 // 10 minutes
 
+// Set an optimized global dispatcher so that requests without custom options
+// (no proxy, no custom certs) still benefit from better keep-alive and Happy Eyeballs.
+//
+// Note: we intentionally do NOT enable HTTP/2 (allowH2) or HTTP/1.1 pipelining here.
+// With HTTP/2, undici multiplexes many streams over 1-2 TCP connections sharing a single
+// congestion window. In benchmarks this was slower than opening ~50 independent HTTP/1.1
+// connections that each get their own congestion window and can saturate bandwidth in parallel.
+setGlobalDispatcher(new Agent({
+  connections: DEFAULT_MAX_SOCKETS,
+  keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
+  keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
+  connect: {
+    autoSelectFamily: true,
+  },
+}).compose(stripSecFetchHeaders))
+
 // undici's fetch() automatically adds sec-fetch-* headers (e.g. sec-fetch-mode: cors)
 // per the Fetch spec. Some registries like Azure DevOps Artifacts interpret these as
 // browser requests and reject them with HTTP 400. Since pnpm is a CLI tool, these
@@ -31,8 +47,8 @@ function stripSecFetchHeaders (dispatch: Dispatcher['dispatch']): Dispatcher['di
         }
         opts = { ...opts, headers: filtered }
       } else if (typeof opts.headers === 'object') {
-        const headers: Record<string, string> = {}
-        for (const [key, value] of Object.entries(opts.headers as Record<string, string>)) {
+        const headers: Record<string, string | string[] | undefined> = {}
+        for (const [key, value] of Object.entries(opts.headers as Record<string, string | string[] | undefined>)) {
           if (!key.toLowerCase().startsWith('sec-fetch-')) {
             headers[key] = value
           }
@@ -43,22 +59,6 @@ function stripSecFetchHeaders (dispatch: Dispatcher['dispatch']): Dispatcher['di
     return dispatch(opts, handler)
   }
 }
-
-// Set an optimized global dispatcher so that requests without custom options
-// (no proxy, no custom certs) still benefit from better keep-alive and Happy Eyeballs.
-//
-// Note: we intentionally do NOT enable HTTP/2 (allowH2) or HTTP/1.1 pipelining here.
-// With HTTP/2, undici multiplexes many streams over 1-2 TCP connections sharing a single
-// congestion window. In benchmarks this was slower than opening ~50 independent HTTP/1.1
-// connections that each get their own congestion window and can saturate bandwidth in parallel.
-setGlobalDispatcher(new Agent({
-  connections: DEFAULT_MAX_SOCKETS,
-  keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
-  keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
-  connect: {
-    autoSelectFamily: true,
-  },
-}).compose(stripSecFetchHeaders))
 
 const DISPATCHER_CACHE = new LRUCache<string, Dispatcher>({
   max: 50,
