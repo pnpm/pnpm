@@ -22,6 +22,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Install pnpm and Node
         uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
         with:
@@ -65,7 +67,9 @@ jobs:
       - name: Generate release description
         run: pn make-release-description
       - name: Release
-        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
+        # `gh release create` could replace this, but the release pipeline is
+        # sensitive and softprops/action-gh-release is widely battle-tested.
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0 # zizmor: ignore[superfluous-actions]
         with:
           draft: true
           files: dist/*

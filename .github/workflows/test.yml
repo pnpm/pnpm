@@ -30,15 +30,19 @@ jobs:
         git config --global user.email "x@y.z"
     - name: Checkout Commit
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        persist-credentials: false
     - name: Install pnpm and Node
       uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
       with:
         runtime: node@${{ inputs.node }}
     - name: Verify Node version
       shell: bash
+      env:
+        NODE_VERSION: ${{ inputs.node }}
       run: |
         actual=$(pn node -v)
-        expected="v${{ inputs.node }}"
+        expected="v${NODE_VERSION}"
         if [ "$actual" != "$expected" ]; then
           echo "Expected Node version $expected but got $actual"
           exit 1
@@ -57,8 +61,10 @@ jobs:
     - name: Determine test scope
       id: test-scope
       shell: bash
+      env:
+        REF_NAME: ${{ github.ref_name }}
       run: |
-        if [[ "${{ github.ref_name }}" == "main" || "${{ github.ref_name }}" == "chore/update-lockfile" || "${{ github.ref_name }}" == release/* ]]; then
+        if [[ "$REF_NAME" == "main" || "$REF_NAME" == "chore/update-lockfile" || "$REF_NAME" == release/* ]]; then
           echo "script=ci:test-all" >> "$GITHUB_OUTPUT"
           echo "scope=all" >> "$GITHUB_OUTPUT"
         else
@@ -73,6 +79,7 @@ jobs:
         fi
     - name: Run tests (${{ steps.test-scope.outputs.scope }})
       timeout-minutes: 70
-      run: pn run ${{ steps.test-scope.outputs.script }}
       env:
         PNPM_WORKERS: 3
+        TEST_SCRIPT: ${{ steps.test-scope.outputs.script }}
+      run: pn run "$TEST_SCRIPT"

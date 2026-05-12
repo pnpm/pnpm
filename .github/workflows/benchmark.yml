@@ -34,13 +34,14 @@ jobs:
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         fetch-depth: 0
+        persist-credentials: false
 
     - name: Checkout PR head
       if: inputs.pr_number != ''
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        PR_NUMBER: ${{ inputs.pr_number }}
       run: |
-        PR_NUMBER="${{ inputs.pr_number }}"
         echo "Fetching PR #$PR_NUMBER head..."
         git fetch origin "refs/pull/${PR_NUMBER}/head:refs/remotes/origin/pr-${PR_NUMBER}"
         git checkout "origin/pr-${PR_NUMBER}"
@@ -75,8 +76,15 @@ jobs:
       if: steps.bench.outputs.bench_dir != ''
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        BENCH_DIR: ${{ steps.bench.outputs.bench_dir }}
+        INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+        REF_NAME: ${{ github.ref_name }}
+        RUN_ID: ${{ github.run_id }}
+        SERVER_URL: ${{ github.server_url }}
+        REPO: ${{ github.repository }}
+        RUNS: ${{ inputs.runs }}
+        ACTOR: ${{ github.actor }}
       run: |
-        BENCH_DIR="${{ steps.bench.outputs.bench_dir }}"
         RESULTS_FILE="$BENCH_DIR/results.md"
 
         if [ ! -f "$RESULTS_FILE" ]; then
@@ -88,14 +96,14 @@ jobs:
         cat "$RESULTS_FILE"
         echo "-------------------------"
 
-        if [ -n "${{ inputs.pr_number }}" ]; then
-          PR_NUMBER="${{ inputs.pr_number }}"
+        if [ -n "$INPUT_PR_NUMBER" ]; then
+          PR_NUMBER="$INPUT_PR_NUMBER"
         else
-          PR_NUMBER=$(gh pr list --head "${{ github.ref_name }}" --json number --jq '.[0].number' 2>/dev/null || echo "")
+          PR_NUMBER=$(gh pr list --head "$REF_NAME" --json number --jq '.[0].number' 2>/dev/null || echo "")
         fi
 
         if [ -z "$PR_NUMBER" ]; then
-          echo "::notice::No open PR found for branch ${{ github.ref_name }}. Results printed above."
+          echo "::notice::No open PR found for branch $REF_NAME. Results printed above."
           exit 0
         fi
 
@@ -104,15 +112,15 @@ jobs:
           echo "$MARKER"
           cat "$RESULTS_FILE"
           echo ""
-          echo "_Run [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) · ${{ inputs.runs }} runs per scenario · triggered by @${{ github.actor }}_"
+          echo "_Run [${RUN_ID}](${SERVER_URL}/${REPO}/actions/runs/${RUN_ID}) · ${RUNS} runs per scenario · triggered by @${ACTOR}_"
         } > /tmp/comment-body.md
 
-        COMMENT_ID=$(gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+        COMMENT_ID=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" \
           --jq "[.[] | select(.body | startswith(\"$MARKER\"))] | .[0].id // empty" 2>/dev/null || echo "")
 
         if [ -n "$COMMENT_ID" ]; then
           echo "Updating existing benchmark comment $COMMENT_ID on PR #$PR_NUMBER"
-          gh api "repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" \
+          gh api "repos/${REPO}/issues/comments/${COMMENT_ID}" \
             -X PATCH \
             -F "body=@/tmp/comment-body.md"
         else

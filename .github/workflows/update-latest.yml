@@ -23,11 +23,13 @@ jobs:
     - name: Update tag
       env:
         "npm_config_//registry.npmjs.org/:_authToken": ${{ secrets.NPM_TOKEN }}
+        VERSION: ${{ github.event.inputs.version }}
+        TAG: ${{ github.event.inputs.tag }}
       run: |
-        npm dist-tag add pnpm@${{ github.event.inputs.version }} latest-11
-        npm dist-tag add pnpm@${{ github.event.inputs.version }} ${{ github.event.inputs.tag }}
-        npm dist-tag add @pnpm/exe@${{ github.event.inputs.version }} latest-11
-        npm dist-tag add @pnpm/exe@${{ github.event.inputs.version }} ${{ github.event.inputs.tag }}
+        npm dist-tag add "pnpm@${VERSION}" latest-11
+        npm dist-tag add "pnpm@${VERSION}" "${TAG}"
+        npm dist-tag add "@pnpm/exe@${VERSION}" latest-11
+        npm dist-tag add "@pnpm/exe@${VERSION}" "${TAG}"
 
   publish-to-winget:
     runs-on: ubuntu-latest
@@ -46,7 +48,7 @@ jobs:
     environment: release
     needs: tag-in-registry
     steps:
-      - uses: bluwy/release-for-reddit-action@b4ee0e0d64da893e0428912aac5cda675082bd85 # v2.0.0
+      - uses: bluwy/release-for-reddit-action@b4ee0e0d64da893e0428912aac5cda675082bd85 # v2
         with:
           username: ${{ secrets.REDDIT_USERNAME }}
           password: ${{ secrets.REDDIT_PASSWORD }}
