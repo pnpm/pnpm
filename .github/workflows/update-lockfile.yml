@@ -20,7 +20,7 @@ jobs:
         token: ${{ secrets.UPDATE_LOCKFILE_TOKEN }}
 
     - name: Install pnpm
-      uses: pnpm/action-setup@b2823a890048d209e1ec048942a39d5fd54a8f77
+      uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093
       with:
         standalone: true
 
