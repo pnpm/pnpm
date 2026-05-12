@@ -78,6 +78,9 @@ export async function revalidateLockfileAgainstMinimumReleaseAge (
   }
 
   const violations: Violation[] = []
+  // 16 mirrors the floor of pnpm's package-requester network-concurrency
+  // (Math.min(64, Math.max(workers*3, 16))); keep them aligned so the
+  // revalidation pass doesn't push past what the rest of the install respects.
   const limit = pLimit(opts.concurrency ?? 16)
   await Promise.all(
     Array.from(candidates.values(), ({ name, version, tarballUrl }) => limit(async () => {
