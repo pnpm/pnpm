@@ -5,7 +5,7 @@ import { PnpmError } from '@pnpm/error'
 import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
 import { checkCustomResolverCanResolve, type CustomResolver } from '@pnpm/hooks.types'
 import { createGitResolver, type GitResolveResult } from '@pnpm/resolving.git-resolver'
-import { type LocalResolveResult, resolveFromLocal } from '@pnpm/resolving.local-resolver'
+import { type LocalResolveResult, resolveFromLocalPath, resolveFromLocalScheme } from '@pnpm/resolving.local-resolver'
 import {
   createNpmResolver,
   type JsrResolveResult,
@@ -95,9 +95,9 @@ export function createResolver (
 ): { resolve: DefaultResolver, clearCache: () => void } {
   const { resolveFromNpm, resolveFromJsr, resolveFromNamedRegistry, clearCache } = createNpmResolver(fetchFromRegistry, getAuthHeader, pnpmOpts)
   const resolveFromGit = createGitResolver(pnpmOpts)
-  const _resolveFromLocal = resolveFromLocal.bind(null, {
-    preserveAbsolutePaths: pnpmOpts.preserveAbsolutePaths,
-  })
+  const localCtx = { preserveAbsolutePaths: pnpmOpts.preserveAbsolutePaths }
+  const _resolveFromLocalScheme = resolveFromLocalScheme.bind(null, localCtx)
+  const _resolveFromLocalPath = resolveFromLocalPath.bind(null, localCtx)
   const _resolveNodeRuntime = resolveNodeRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, nodeDownloadMirrors: pnpmOpts.nodeDownloadMirrors })
   const _resolveDenoRuntime = resolveDenoRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, resolveFromNpm })
   const _resolveBunRuntime = resolveBunRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, resolveFromNpm })
@@ -112,19 +112,18 @@ export function createResolver (
         (wantedDependency.bareSpecifier && (
           await resolveFromGit(wantedDependency as { bareSpecifier: string }, opts) ??
           await resolveFromTarball(fetchFromRegistry, wantedDependency as { bareSpecifier: string }) ??
-          // Explicit local protocols (`file:`, `link:`, `workspace:`, `path:`)
-          // claim before named-registry, even if the user defined a colliding alias.
-          await _resolveFromLocal(wantedDependency as { bareSpecifier: string }, { ...opts, protocolsOnly: true })
+          await _resolveFromLocalScheme(wantedDependency as { bareSpecifier: string }, opts)
         )) ??
         await _resolveNodeRuntime(wantedDependency, opts) ??
         await _resolveDenoRuntime(wantedDependency, opts) ??
         await _resolveBunRuntime(wantedDependency, opts) ??
-        // Named-registry resolution runs before the heuristic local-path match
-        // so that `<alias>:@scope/pkg` specifiers (which include a `/`) reach
-        // the configured registry instead of being claimed as a directory.
+        // Named-registry runs between the explicit local schemes above and the
+        // path-shape match below, so `<alias>:@scope/pkg` reaches the configured
+        // registry while a colliding `file:`/`link:`/`workspace:` alias cannot
+        // hijack the built-in protocols.
         await resolveFromNamedRegistry(wantedDependency, opts as ResolveFromNpmOptions) ??
         (wantedDependency.bareSpecifier
-          ? await _resolveFromLocal(wantedDependency as { bareSpecifier: string }, opts)
+          ? await _resolveFromLocalPath(wantedDependency as { bareSpecifier: string }, opts)
           : null)
       if (!resolution) {
         let specifier = `${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.bareSpecifier ?? ''}`

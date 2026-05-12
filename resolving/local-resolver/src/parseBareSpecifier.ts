@@ -35,11 +35,11 @@ class PathIsUnsupportedProtocolError extends PnpmError {
   }
 }
 
-export function parseBareSpecifier (
+export function parseLocalScheme (
   wd: WantedLocalDependency,
   projectDir: string,
   lockfileDir: string,
-  opts: { preserveAbsolutePaths: boolean, protocolsOnly?: boolean }
+  opts: { preserveAbsolutePaths: boolean }
 ): LocalPackageSpec | null {
   if (wd.bareSpecifier.startsWith('link:') || wd.bareSpecifier.startsWith('workspace:')) {
     return fromLocal(wd, projectDir, lockfileDir, 'directory', opts)
@@ -51,7 +51,15 @@ export function parseBareSpecifier (
   if (wd.bareSpecifier.startsWith('path:')) {
     throw new PathIsUnsupportedProtocolError(wd.bareSpecifier, 'path:')
   }
-  if (opts.protocolsOnly) return null
+  return null
+}
+
+export function parseLocalPath (
+  wd: WantedLocalDependency,
+  projectDir: string,
+  lockfileDir: string,
+  opts: { preserveAbsolutePaths: boolean }
+): LocalPackageSpec | null {
   if (wd.bareSpecifier.endsWith('.tgz') ||
     wd.bareSpecifier.endsWith('.tar.gz') ||
     wd.bareSpecifier.endsWith('.tar') ||
