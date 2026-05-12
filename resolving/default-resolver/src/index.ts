@@ -111,17 +111,25 @@ export function createResolver (
         await resolveFromJsr(wantedDependency, opts as ResolveFromNpmOptions) ??
         (wantedDependency.bareSpecifier && (
           await resolveFromGit(wantedDependency as { bareSpecifier: string }, opts) ??
-          await resolveFromTarball(fetchFromRegistry, wantedDependency as { bareSpecifier: string }) ??
-          await _resolveFromLocal(wantedDependency as { bareSpecifier: string }, opts)
+          await resolveFromTarball(fetchFromRegistry, wantedDependency as { bareSpecifier: string })
         )) ??
         await _resolveNodeRuntime(wantedDependency, opts) ??
         await _resolveDenoRuntime(wantedDependency, opts) ??
         await _resolveBunRuntime(wantedDependency, opts) ??
-        // Named-registry resolution runs last so that built-in schemes
-        // (`npm:`, `jsr:`, `git:`/`github:`/`gitlab:`/…, `file:`, `link:`,
-        // tarball URLs, etc.) are always claimed by their dedicated resolver
-        // before a user-configured alias gets a chance to shadow them.
-        await resolveFromNamedRegistry(wantedDependency, opts as ResolveFromNpmOptions)
+        // Named-registry resolution runs before the local resolver so that
+        // `<alias>:@scope/pkg` specifiers (which contain a `/` and would
+        // otherwise be claimed by the local resolver as a directory) are
+        // routed to the configured registry. Built-in schemes (`npm:`,
+        // `jsr:`, `git:`/`github:`/`gitlab:`/…, tarball URLs, etc.) are
+        // claimed by their dedicated resolver above, so a user-configured
+        // alias cannot shadow them. `file:` and `link:` are matched by the
+        // local resolver below; an alias collision there would still be
+        // claimed as a named registry, so the merge step should reject
+        // those reserved names.
+        await resolveFromNamedRegistry(wantedDependency, opts as ResolveFromNpmOptions) ??
+        (wantedDependency.bareSpecifier
+          ? await _resolveFromLocal(wantedDependency as { bareSpecifier: string }, opts)
+          : null)
       if (!resolution) {
         let specifier = `${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.bareSpecifier ?? ''}`
         if (specifier !== '') {

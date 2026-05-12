@@ -8422,6 +8422,15 @@ importers:
       '@pnpm/store.cafs-types':
         specifier: workspace:*
         version: link:../../store/cafs-types
+      '@pnpm/testing.mock-agent':
+        specifier: workspace:*
+        version: link:../../testing/mock-agent
+      load-json-file:
+        specifier: 'catalog:'
+        version: 7.0.1
+      tempy:
+        specifier: 'catalog:'
+        version: 3.0.0
 
   resolving/git-resolver:
     dependencies:

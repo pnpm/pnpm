@@ -52,7 +52,10 @@
     "@pnpm/fetching.tarball-fetcher": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
     "@pnpm/resolving.default-resolver": "workspace:*",
-    "@pnpm/store.cafs-types": "workspace:*"
+    "@pnpm/store.cafs-types": "workspace:*",
+    "@pnpm/testing.mock-agent": "workspace:*",
+    "load-json-file": "catalog:",
+    "tempy": "catalog:"
   },
   "engines": {
     "node": ">=22.13"
