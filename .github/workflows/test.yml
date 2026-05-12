@@ -31,9 +31,11 @@ jobs:
     - name: Checkout Commit
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - name: Install pnpm and Node
-      uses: pnpm/setup@c4ced000cdec5aba00543598109cc3f2437e4e4e
+      uses: pnpm/setup@fb0036364f5a7e8d2e55f157adf7ad14617a222d
       with:
         runtime: node@${{ inputs.node }}
+    - name: Install dependencies
+      run: pn install
     # npm is needed for preparing git-hosted dependencies (e.g. in dlx tests).
     # `pnpm runtime set node` does not extract npm; the runner image's
     # pre-installed Node toolchain provides it on PATH.
