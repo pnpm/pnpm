@@ -181,6 +181,7 @@ async function resolveAndFetch (
         name: options.currentPkg.name,
         version: options.currentPkg.version,
         resolution: options.currentPkg.resolution,
+        publishedAt: options.currentPkg.publishedAt,
       }
       : undefined,
   }), { priority: options.downloadPriority })

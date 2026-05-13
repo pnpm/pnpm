@@ -213,6 +213,7 @@ export interface ResolveOptions {
     name?: string
     version?: string
     resolution: Resolution
+    publishedAt?: string
   }
 }
 

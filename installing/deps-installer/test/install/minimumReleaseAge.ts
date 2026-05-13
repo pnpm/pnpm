@@ -1,5 +1,6 @@
 import { expect, test } from '@jest/globals'
 import { addDependenciesToPackage } from '@pnpm/installing.deps-installer'
+import { readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 
 import { testDefaults } from '../utils/index.js'
@@ -86,6 +87,30 @@ test('minimumReleaseAge throws when no mature version satisfies the range and st
     )
     await addDependenciesToPackage({}, ['is-odd@0.1'], opts)
   }).rejects.toThrow(/does not meet the minimumReleaseAge constraint/)
+})
+
+test('time-based resolution repopulates missing lockfile time entries on re-install', async () => {
+  // Regression test: when the npm-resolver fast path (peekManifestFromStore) is
+  // taken on a re-install, it must surface publishedAt from the lockfile rather
+  // than returning undefined — otherwise lockfiles whose `time:` block is missing
+  // entries can never recover them, which breaks downstream time-based filtering
+  // for packages with version-pinned optional/platform deps.
+  prepareEmpty()
+  const opts = testDefaults({ minimumReleaseAge: 1, resolutionMode: 'time-based' })
+
+  const { updatedManifest } = await addDependenciesToPackage({}, ['is-positive@1.0.0'], opts)
+
+  const lockfileAfterFirstInstall = (await readWantedLockfile('.', { ignoreIncompatible: false }))!
+  expect(Object.keys(lockfileAfterFirstInstall.time ?? {}).length).toBeGreaterThan(0)
+
+  // Simulate a lockfile whose time entries were dropped (e.g. produced by an
+  // older pnpm, or hand-edited).
+  await writeWantedLockfile('.', { ...lockfileAfterFirstInstall, time: {} })
+
+  await addDependenciesToPackage(updatedManifest, ['is-positive@1.0.0'], opts)
+
+  const lockfileAfterReinstall = (await readWantedLockfile('.', { ignoreIncompatible: false }))!
+  expect(lockfileAfterReinstall.time).toEqual(lockfileAfterFirstInstall.time)
 })
 
 test('throws error when semver range is used in minimumReleaseAgeExclude', async () => {

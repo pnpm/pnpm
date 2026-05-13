@@ -1332,6 +1332,7 @@ async function resolveDependency (
           name: currentPkg.name,
           resolution: currentPkg.resolution,
           version: currentPkg.version,
+          publishedAt: currentPkg.pkgId ? ctx.wantedLockfile.time?.[currentPkg.pkgId] : undefined,
         }
         : undefined,
       expectedPkg: currentPkg,

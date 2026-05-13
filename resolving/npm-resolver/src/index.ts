@@ -319,6 +319,7 @@ async function resolveNpm (
       name?: string
       version?: string
       resolution: TarballResolution
+      publishedAt?: string
     }
   }
 ): Promise<NpmResolveResult | WorkspaceResolveResult | null> {
@@ -353,7 +354,15 @@ async function resolveNpm (
   // Fast path: if we have a current resolution with integrity, try to peek the manifest from the store.
   // This avoids the expensive metadata fetch from the registry.
   // We do this AFTER ensuring the spec is valid for this resolver to avoids hijacking other resolvers.
-  if (ctx.peekManifestFromStore && opts.currentPkg?.resolution && !opts.update) {
+  // If publishedBy is set (resolutionMode=time-based or minimumReleaseAge is configured), we only take
+  // the fast path when publishedAt is already known from the lockfile's `time:` block; otherwise we
+  // fall through to a registry fetch so the cutoff isn't computed from missing data.
+  if (
+    ctx.peekManifestFromStore &&
+    opts.currentPkg?.resolution &&
+    !opts.update &&
+    (opts.publishedBy == null || opts.currentPkg.publishedAt != null)
+  ) {
     const currentResolution = opts.currentPkg.resolution
     // Only use this optimization for tarball resolutions with integrity (npm packages)
     if ('tarball' in currentResolution && currentResolution.integrity) {
@@ -373,7 +382,7 @@ async function resolveNpm (
             manifest,
             resolution: currentResolution as TarballResolution,
             resolvedVia: 'npm-registry',
-            publishedAt: undefined, // Don't have this without metadata
+            publishedAt: opts.currentPkg.publishedAt,
           }
         }
       }

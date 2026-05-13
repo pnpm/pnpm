@@ -101,6 +101,7 @@ export interface RequestPackageOptions {
     name?: string
     resolution?: Resolution
     version?: string
+    publishedAt?: string
   }
   /**
    * Expected package is the package name and version that are found in the lockfile.
