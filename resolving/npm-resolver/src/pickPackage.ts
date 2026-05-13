@@ -255,8 +255,14 @@ export async function pickPackage (
               pickedPackage,
             }
           }
-        } catch (err) {
-          if (ctx.strictPublishedByCheck) {
+        } catch (err: unknown) {
+          // Don't rethrow ERR_PNPM_MISSING_TIME from cached abbreviated metadata —
+          // let the code fall through to the network fetch path which will get full metadata.
+          // Matches the sibling block below (the mtime-gated cache path).
+          if (
+            ctx.strictPublishedByCheck &&
+            !(isMissingTimeError(err))
+          ) {
             throw err
           }
         }

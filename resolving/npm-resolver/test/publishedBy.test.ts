@@ -320,6 +320,63 @@ test('ignoreMissingTimeField=true skips maturity check from disk-cached metadata
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
 })
 
+test('strictPublishedByCheck=true does not rethrow ERR_PNPM_MISSING_TIME from the version-spec cache path', async () => {
+  // Regression test for the bug where the version-spec cache fast path
+  // (`!opts.includeLatestTag && spec.type === 'version'`) in pickPackage
+  // would rethrow ERR_PNPM_MISSING_TIME under strictPublishedByCheck, instead
+  // of falling through to the registry-fetch path like the adjacent mtime-gated
+  // cache block does. The fix makes the two catch blocks consistent.
+  //
+  // Setup: cache abbreviated metadata (no per-version `time` field) for the
+  // package, then request an exact-version pin that IS present in the cached
+  // meta.versions. The version-spec fast path will try pickMatchingVersionFast
+  // against the cached meta, which throws MISSING_TIME because the abbreviated
+  // form lacks `time`. Before the fix this would rethrow. After the fix it
+  // falls through to the registry fetch, which returns full metadata with time,
+  // and resolution succeeds.
+  const cacheDir = temporaryDirectory()
+  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
+  fs.mkdirSync(abbrevCacheDir, { recursive: true })
+  const cachePath = path.join(abbrevCacheDir, 'is-positive.jsonl')
+  // Strip `time` from the cached abbreviated metadata to simulate the
+  // real-world "registry returned abbreviated form without per-version times" case.
+  // Set `modified` to something recent so the mtime-gated block above doesn't
+  // short-circuit the resolution before we hit the version-spec cache path.
+  const { time: _time, ...abbreviatedWithoutTime } = isPositiveAbbreviatedMeta
+  const cachedMeta = {
+    ...abbreviatedWithoutTime,
+    modified: new Date().toISOString(),
+  }
+  fs.writeFileSync(
+    cachePath,
+    `${JSON.stringify({ modified: cachedMeta.modified })}\n${JSON.stringify(cachedMeta)}`,
+    'utf8'
+  )
+
+  // Mock the network fetch (the path the fix lets us fall through to). Returns
+  // full metadata with the `time` field present.
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registries,
+    strictPublishedByCheck: true,
+    ignoreMissingTimeField: true,
+  })
+
+  // Exact-version bareSpecifier → spec.type === 'version' → hits the cache path
+  // we are testing.
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '3.1.0' }, {
+    publishedBy: new Date('2015-08-17T19:26:00.508Z'),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+})
+
 test('use cached metadata based on file mtime when publishedBy is set', async () => {
   const cacheDir = temporaryDirectory()
   // Write abbreviated metadata to the abbreviated cache dir
