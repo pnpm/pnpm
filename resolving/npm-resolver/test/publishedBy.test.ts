@@ -10,7 +10,7 @@ import type { Registries } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
 
-import { getMockAgent, setupMockAgent, teardownMockAgent } from './utils/index.js'
+import { getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
 
@@ -375,6 +375,68 @@ test('strictPublishedByCheck=true does not rethrow ERR_PNPM_MISSING_TIME from th
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
+})
+
+test('upgrades cached abbreviated metadata to full when 304 Not Modified and publishedBy is set', async () => {
+  // Regression test for the misleading "missing the time field" warning.
+  //
+  // When pnpm has abbreviated metadata in its disk cache and the registry
+  // returns 304 Not Modified on the conditional fetch, pnpm reuses the
+  // cached abbreviated metadata. Abbreviated metadata has no per-version
+  // `time` field by registry spec, so the minimumReleaseAge check would
+  // fall back to its warn-and-skip path — silently bypassing the maturity
+  // guarantee even though the registry HAS the time data in full metadata.
+  //
+  // The fix: after a 304, if the cached metadata is abbreviated and the
+  // package was recently modified, re-fetch with `fullMetadata: true` to
+  // get per-version times and run the check properly.
+  const cacheDir = temporaryDirectory()
+  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
+  fs.mkdirSync(abbrevCacheDir, { recursive: true })
+  const cachePath = path.join(abbrevCacheDir, 'is-positive.jsonl')
+
+  // Cache abbreviated metadata: no `time`, recent `modified` (so the upgrade
+  // condition triggers), with an etag so the conditional fetch returns 304.
+  const { time: _time, ...abbreviatedWithoutTime } = isPositiveAbbreviatedMeta
+  const cachedMeta = {
+    ...abbreviatedWithoutTime,
+    modified: '2015-06-10T00:00:00.000Z',
+  }
+  const cacheHeaders = JSON.stringify({ etag: '"abc123"', modified: cachedMeta.modified })
+  fs.writeFileSync(cachePath, `${cacheHeaders}\n${JSON.stringify(cachedMeta)}`, 'utf8')
+
+  // First fetch: conditional request with the cached etag → 304 Not Modified.
+  // Second fetch: upgrade request with `fullMetadata: true` → 200 with time-bearing full metadata.
+  const agent = getMockAgent().get(registries.default.replace(/\/$/, ''))
+  agent.intercept({
+    path: '/is-positive',
+    method: 'GET',
+    headers: { 'if-none-match': '"abc123"' },
+  }).reply(304, '')
+  agent.intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registries,
+  })
+  // publishedBy is 2015-06-05, cached meta `modified` is 2015-06-10 → upgrade triggers.
+  // is-positive@1.0.0 (2015-06-02) is mature; @3.1.0 (2015-08-21) is not.
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^1.0.0' }, {
+    publishedBy: new Date('2015-06-05T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  // The maturity check ran properly thanks to the upgrade — picked 1.0.0, not 3.x.
+  expect(resolveResult!.id).toBe('is-positive@1.0.0')
+
+  // The upgraded full metadata should be persisted to disk so the next
+  // install doesn't re-trigger the upgrade fetch.
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const persistedMeta = await retryLoadJsonFile<any>(cachePath)
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+  expect(persistedMeta?.time).toBeDefined()
 })
 
 test('use cached metadata based on file mtime when publishedBy is set', async () => {

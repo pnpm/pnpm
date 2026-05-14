@@ -169,6 +169,57 @@ function pickMatchingVersionFinal (
   }
 }
 
+// When `minimumReleaseAge` is active and we have abbreviated metadata (which
+// the npm registry serves by default and which omits per-version `time`),
+// the maturity check can't run on the data we have. If the package has been
+// modified since the maturity cutoff, re-fetch with `fullMetadata: true` so
+// `time` is populated and the check can proceed properly. Without this,
+// `pickMatchingVersionFinal` would fall back to its warn-and-skip path,
+// silently bypassing the minimumReleaseAge guarantee for affected packages.
+//
+// Returns the original meta when no upgrade is needed. When an upgrade
+// happens, returns both the upgraded meta and the underlying fetch result
+// so callers can persist it to disk and avoid re-fetching on next install.
+async function maybeUpgradeAbbreviatedMetaForReleaseAge (
+  ctx: {
+    fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean, etag?: string, modified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
+    offline?: boolean
+  },
+  spec: RegistryPackageSpec,
+  opts: {
+    publishedBy?: Date
+    publishedByExclude?: PickPackageFromMetaOptions['publishedByExclude']
+    authHeaderValue?: string
+    registry: string
+  },
+  meta: PackageMeta
+): Promise<{ meta: PackageMeta, upgradedFrom?: FetchMetadataResult }> {
+  if (
+    ctx.offline === true ||
+    !opts.publishedBy ||
+    meta.time != null ||
+    opts.publishedByExclude?.(spec.name) === true
+  ) {
+    return { meta }
+  }
+  const modifiedDate = meta.modified ? new Date(meta.modified) : null
+  const isModifiedValid = modifiedDate != null && !Number.isNaN(modifiedDate.getTime())
+  if (isModifiedValid && modifiedDate < opts.publishedBy) {
+    // The package was last modified before the maturity cutoff. No individual
+    // version can be newer than the cutoff, so the abbreviated form is fine.
+    return { meta }
+  }
+  const fullFetchResult = await ctx.fetch(spec.name, {
+    authHeaderValue: opts.authHeaderValue,
+    fullMetadata: true,
+    registry: opts.registry,
+  })
+  if (fullFetchResult.notModified) {
+    return { meta }
+  }
+  return { meta: fullFetchResult.meta, upgradedFrom: fullFetchResult }
+}
+
 export async function pickPackage (
   ctx: {
     fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean, etag?: string, modified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
@@ -315,6 +366,33 @@ export async function pickPackage (
       if (fetchResult.notModified) {
         metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
         if (metaCachedInStore != null) {
+          // The cached metadata may be abbreviated (no per-version `time`).
+          // When minimumReleaseAge is active we need `time` for the maturity check,
+          // so upgrade to full metadata via a follow-up fetch when warranted.
+          // Without this, repeat installs of recently-modified packages would
+          // silently bypass the maturity check via the warn-and-skip fallback.
+          const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(
+            ctx, spec, opts, metaCachedInStore
+          )
+          metaCachedInStore = upgrade.meta
+          // Persist the upgraded full metadata to disk so subsequent installs
+          // skip this upgrade fetch entirely (the cached meta will then have
+          // `time` populated, so the upgrade condition won't trigger).
+          if (upgrade.upgradedFrom != null && !opts.dryRun) {
+            if (ctx.filterMetadata) {
+              metaCachedInStore = clearMeta(metaCachedInStore)
+            }
+            const jsonForDisk = ctx.filterMetadata
+              ? prepareJsonForDisk(metaCachedInStore, upgrade.upgradedFrom.etag)
+              : prepareJsonForDisk(upgrade.upgradedFrom.meta, upgrade.upgradedFrom.etag, upgrade.upgradedFrom.jsonText)
+            runLimited(pkgMirror, (l) => l(async () => {
+              try {
+                await saveMeta(pkgMirror, jsonForDisk)
+              } catch (err: any) { // eslint-disable-line
+                // We don't care if this file was not written to the cache
+              }
+            }))
+          }
           ctx.metaCache.set(cacheKey, metaCachedInStore)
           return {
             meta: metaCachedInStore,
