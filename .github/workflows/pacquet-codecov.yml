@@ -43,9 +43,7 @@ jobs:
       - name: Install pnpm (for compatibility check)
         uses: pnpm/action-setup@v6
         with:
-          # Pacquet needs a pnpm that writes lockfile v9. Stable pnpm 11 isn't released yet,
-          # so pin the latest RC; switch to `11` once stable ships.
-          version: 11.0.0-rc.5
+          # Version comes from `packageManager` in the root package.json.
           run_install: false
           standalone: true
 

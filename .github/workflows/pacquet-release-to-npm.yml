@@ -142,10 +142,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v6
         with:
-          # Match the version pinned in CI; bump together. Pacquet needs a
-          # pnpm that writes lockfile v9, so pin the latest 11.x RC until
-          # stable ships.
-          version: 11.0.0-rc.5
+          # Version comes from `packageManager` in the root package.json.
           standalone: true
 
       - name: Setup Node
