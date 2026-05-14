@@ -7,7 +7,7 @@ import * as fs from "node:fs";
 const BIN_NAME = "pacquet";
 const PACQUET_ROOT = resolve(fileURLToPath(import.meta.url), "../..");
 const PACKAGES_ROOT = resolve(PACQUET_ROOT, "..");
-const REPO_ROOT = resolve(PACKAGES_ROOT, "..");
+const REPO_ROOT = resolve(PACKAGES_ROOT, "../..");
 const MANIFEST_PATH = resolve(PACQUET_ROOT, "package.json");
 
 const rootManifest = JSON.parse(

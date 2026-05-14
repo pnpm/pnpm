@@ -1,7 +1,7 @@
-name: Integrated-Benchmark Comment
+name: Pacquet Integrated-Benchmark Comment
 
-# Stage 2 of the benchmark pipeline. `integrated-benchmark.yml` runs the
-# benchmark on `pull_request` (read-only token on fork PRs) and uploads
+# Stage 2 of the benchmark pipeline. `pacquet-integrated-benchmark.yml` runs
+# the benchmark on `pull_request` (read-only token on fork PRs) and uploads
 # the report as an artifact. This workflow runs on `workflow_run`, which
 # fires in the base repository's privilege context, so it can post the
 # comment back to the PR even when the PR is from a fork. See
@@ -10,7 +10,7 @@ name: Integrated-Benchmark Comment
 
 on:
   workflow_run:
-    workflows: ["Integrated-Benchmark"]
+    workflows: ["Pacquet Integrated-Benchmark"]
     types: [completed]
 
 permissions:

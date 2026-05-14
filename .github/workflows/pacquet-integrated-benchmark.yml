@@ -1,21 +1,23 @@
-name: Integrated-Benchmark
+name: Pacquet Integrated-Benchmark
 
 on:
   workflow_dispatch:
   pull_request:
     types: [opened, synchronize]
     paths:
-      - '**/*.rs'
-      - '**/Cargo.toml'
+      - 'pacquet/**/*.rs'
+      - 'pacquet/**/Cargo.toml'
+      - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
       - 'justfile'
-      - 'tasks/registry-mock/package.json'
-      - 'tasks/registry-mock/pnpm-lock.yaml'
-      - 'tasks/registry-mock/pnpm-workspace.yaml'
-      - 'tasks/integrated-benchmark/src/fixtures/**'
-      - '.github/actions/**'
-      - '.github/workflows/integrated-benchmark.yml'
+      - 'pacquet/tasks/registry-mock/package.json'
+      - 'pacquet/tasks/registry-mock/pnpm-lock.yaml'
+      - 'pacquet/tasks/registry-mock/pnpm-workspace.yaml'
+      - 'pacquet/tasks/integrated-benchmark/src/fixtures/**'
+      - '.github/actions/rustup/**'
+      - '.github/actions/binstall/**'
+      - '.github/workflows/pacquet-integrated-benchmark.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
@@ -67,7 +69,7 @@ jobs:
       - name: Cache verdaccio
         uses: actions/cache@v5
         with:
-          key: integrated-benchmark-verdaccio-${{ hashFiles('tasks/integrated-benchmark/src/fixtures/pnpm-lock.yaml') }}
+          key: integrated-benchmark-verdaccio-${{ hashFiles('pacquet/tasks/integrated-benchmark/src/fixtures/pnpm-lock.yaml') }}
           restore-keys: |
             integrated-benchmark-verdaccio-
           path: |
@@ -109,7 +111,7 @@ jobs:
       - name: Cache pnpm
         uses: actions/cache@v5
         with:
-          key: integrated-benchmark-pnpm-v11-${{ hashFiles('tasks/registry-mock/pnpm-lock.yaml') }}
+          key: integrated-benchmark-pnpm-v11-${{ hashFiles('pacquet/tasks/registry-mock/pnpm-lock.yaml') }}
           restore-keys: |
             integrated-benchmark-pnpm-v11-
           path: |

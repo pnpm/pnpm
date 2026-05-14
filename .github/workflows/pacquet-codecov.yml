@@ -1,18 +1,18 @@
 # Run cargo-llvm-cov and upload to codecov.io
 
-name: Code Coverage
+name: Pacquet Code Coverage
 
 on:
   workflow_dispatch:
   pull_request:
     types: [opened, synchronize]
     paths:
-      - '**.rs'
+      - 'pacquet/**/*.rs'
   push:
     branches:
       - main
     paths:
-      - '**.rs'
+      - 'pacquet/**/*.rs'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

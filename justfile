@@ -15,9 +15,9 @@ init:
   cargo binstall cargo-nextest cargo-watch cargo-insta typos-cli taplo-cli wasm-pack cargo-llvm-cov -y
   just install-hooks
 
-# Point git at .githooks/ so the tracked pre-push format check runs on `git push`.
+# Point git at pacquet/.githooks/ so the tracked pre-push format check runs on `git push`.
 install-hooks:
-  git config core.hooksPath .githooks
+  git config core.hooksPath pacquet/.githooks
 
 # When ready, run the same CI commands
 ready:
@@ -35,7 +35,7 @@ update:
 
 # Install necessary dependencies
 install:
-  cd tasks/registry-mock/ && pnpm install --frozen-lockfile --prefer-offline
+  cd pacquet/tasks/registry-mock/ && pnpm install --frozen-lockfile --prefer-offline
 
 # Run `cargo watch`
 # --no-vcs-ignores: cargo-watch has a bug loading all .gitignores, including the ones listed in .gitignore

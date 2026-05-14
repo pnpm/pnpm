@@ -1,7 +1,7 @@
 # Run `cargo-unused-features` for finding out unused features
 # NOTE: this is broken for now, see https://github.com/TimonPost/cargo-unused-features/pull/10
 
-name: Cargo Unused Features
+name: Pacquet Cargo Unused Features
 
 on:
   workflow_dispatch:

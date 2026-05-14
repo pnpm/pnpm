@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members  = ["crates/*", "tasks/*"]
+members  = ["pacquet/crates/*", "pacquet/tasks/*"]
 
 [workspace.package]
 authors     = ["Yagiz Nizipli <yagiz@nizipli.com"]
@@ -13,31 +13,31 @@ repository  = "https://github.com/pnpm/pacquet"
 
 [workspace.dependencies]
 # Crates
-pacquet-cli                    = { path = "crates/cli" }
-pacquet-cmd-shim               = { path = "crates/cmd-shim" }
-pacquet-fs                     = { path = "crates/fs" }
-pacquet-registry               = { path = "crates/registry" }
-pacquet-tarball                = { path = "crates/tarball" }
-pacquet-testing-utils          = { path = "crates/testing-utils" }
-pacquet-package-manifest       = { path = "crates/package-manifest" }
-pacquet-package-manager        = { path = "crates/package-manager" }
-pacquet-package-is-installable = { path = "crates/package-is-installable" }
-pacquet-lockfile               = { path = "crates/lockfile" }
-pacquet-modules-yaml           = { path = "crates/modules-yaml" }
-pacquet-network                = { path = "crates/network" }
-pacquet-config                 = { path = "crates/config" }
-pacquet-executor               = { path = "crates/executor" }
-pacquet-git-fetcher            = { path = "crates/git-fetcher" }
-pacquet-diagnostics            = { path = "crates/diagnostics" }
-pacquet-graph-hasher           = { path = "crates/graph-hasher" }
-pacquet-store-dir              = { path = "crates/store-dir" }
-pacquet-reporter               = { path = "crates/reporter" }
-pacquet-patching               = { path = "crates/patching" }
-pacquet-real-hoist             = { path = "crates/real-hoist" }
-pacquet-workspace              = { path = "crates/workspace" }
+pacquet-cli                    = { path = "pacquet/crates/cli" }
+pacquet-cmd-shim               = { path = "pacquet/crates/cmd-shim" }
+pacquet-fs                     = { path = "pacquet/crates/fs" }
+pacquet-registry               = { path = "pacquet/crates/registry" }
+pacquet-tarball                = { path = "pacquet/crates/tarball" }
+pacquet-testing-utils          = { path = "pacquet/crates/testing-utils" }
+pacquet-package-manifest       = { path = "pacquet/crates/package-manifest" }
+pacquet-package-manager        = { path = "pacquet/crates/package-manager" }
+pacquet-package-is-installable = { path = "pacquet/crates/package-is-installable" }
+pacquet-lockfile               = { path = "pacquet/crates/lockfile" }
+pacquet-modules-yaml           = { path = "pacquet/crates/modules-yaml" }
+pacquet-network                = { path = "pacquet/crates/network" }
+pacquet-config                 = { path = "pacquet/crates/config" }
+pacquet-executor               = { path = "pacquet/crates/executor" }
+pacquet-git-fetcher            = { path = "pacquet/crates/git-fetcher" }
+pacquet-diagnostics            = { path = "pacquet/crates/diagnostics" }
+pacquet-graph-hasher           = { path = "pacquet/crates/graph-hasher" }
+pacquet-store-dir              = { path = "pacquet/crates/store-dir" }
+pacquet-reporter               = { path = "pacquet/crates/reporter" }
+pacquet-patching               = { path = "pacquet/crates/patching" }
+pacquet-real-hoist             = { path = "pacquet/crates/real-hoist" }
+pacquet-workspace              = { path = "pacquet/crates/workspace" }
 
 # Tasks
-pacquet-registry-mock = { path = "tasks/registry-mock" }
+pacquet-registry-mock = { path = "pacquet/tasks/registry-mock" }
 
 # Dependencies
 async-recursion = { version = "1.1.1" }

@@ -1,13 +1,13 @@
 name: Release Pacquet
 
-# When main is pushed and npm/pacquet/package.json has been changed,
+# When main is pushed and pacquet/npm/pacquet/package.json has been changed,
 # trigger the jobs after the ci workflow has been passed.
 on:
   push:
     branches:
       - main
     paths:
-      - npm/pacquet/package.json # Please only commit this file, so we don't need to wait for test CI to pass.
+      - pacquet/npm/pacquet/package.json # Please only commit this file, so we don't need to wait for test CI to pass.
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -29,7 +29,7 @@ jobs:
         with:
           static-checking: localIsNew
           file-url: https://unpkg.com/pacquet@latest/package.json
-          file-name: npm/pacquet/package.json
+          file-name: pacquet/npm/pacquet/package.json
 
       - name: Set version name
         if: steps.version.outputs.changed == 'true'
@@ -168,9 +168,9 @@ jobs:
 
       - name: Generate npm packages
         run: |
-          node npm/pacquet/scripts/generate-packages.mjs
-          cat npm/pacquet/package.json
-          for package in npm/pacquet*; do cat $package/package.json ; echo ; done
+          node pacquet/npm/pacquet/scripts/generate-packages.mjs
+          cat pacquet/npm/pacquet/package.json
+          for package in pacquet/npm/pacquet*; do cat $package/package.json ; echo ; done
 
       - name: Publish npm packages as latest
         # Auth is via npm's trusted publishing: `id-token: write` above grants
@@ -179,7 +179,7 @@ jobs:
         # token to a provenance attestation on each tarball.
         # The trailing slash on $package/ changes it to publishing the directory.
         run: |
-          for package in npm/pacquet*; do
+          for package in pacquet/npm/pacquet*; do
             pnpm publish "$package/" --tag latest --access public --provenance --no-git-checks
           done
 

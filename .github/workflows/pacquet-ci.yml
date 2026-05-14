@@ -1,16 +1,42 @@
-name: CI
+name: Pacquet CI
 
 on:
   workflow_dispatch:
   pull_request:
     types: [opened, synchronize]
-    paths-ignore:
-      - '**/*.md'
+    paths:
+      - 'pacquet/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - 'rustfmt.toml'
+      - 'deny.toml'
+      - 'dylint.toml'
+      - '.taplo.toml'
+      - '.typos.toml'
+      - 'justfile'
+      - '.cargo/**'
+      - '.github/actions/rustup/**'
+      - '.github/actions/binstall/**'
+      - '.github/workflows/pacquet-ci.yml'
   push:
     branches:
       - main
-    paths-ignore:
-      - '**/*.md'
+    paths:
+      - 'pacquet/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - 'rustfmt.toml'
+      - 'deny.toml'
+      - 'dylint.toml'
+      - '.taplo.toml'
+      - '.typos.toml'
+      - 'justfile'
+      - '.cargo/**'
+      - '.github/actions/rustup/**'
+      - '.github/actions/binstall/**'
+      - '.github/workflows/pacquet-ci.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
@@ -105,7 +131,7 @@ jobs:
 
       - uses: crate-ci/typos@v1.46.1
         with:
-          files: .
+          files: pacquet
 
   deny:
     name: Cargo Deny
