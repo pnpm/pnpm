@@ -169,98 +169,6 @@ function pickMatchingVersionFinal (
   }
 }
 
-// When `minimumReleaseAge` is active and we have abbreviated metadata (which
-// the npm registry serves by default and which omits per-version `time`),
-// the maturity check can't run on the data we have. If the package has been
-// modified since the maturity cutoff, re-fetch with `fullMetadata: true` so
-// `time` is populated and the check can proceed properly. Without this,
-// `pickMatchingVersionFinal` would fall back to its warn-and-skip path,
-// silently bypassing the minimumReleaseAge guarantee for affected packages.
-//
-// Returns the original meta when no upgrade is needed. When an upgrade
-// happens, returns both the upgraded meta and the underlying fetch result
-// so callers can persist it to disk and avoid re-fetching on next install.
-async function maybeUpgradeAbbreviatedMetaForReleaseAge (
-  ctx: {
-    fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean, etag?: string, modified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
-    offline?: boolean
-  },
-  spec: RegistryPackageSpec,
-  opts: {
-    publishedBy?: Date
-    publishedByExclude?: PickPackageFromMetaOptions['publishedByExclude']
-    authHeaderValue?: string
-    registry: string
-  },
-  meta: PackageMeta
-): Promise<{ meta: PackageMeta, upgradedFrom?: FetchMetadataResult }> {
-  if (
-    ctx.offline === true ||
-    !opts.publishedBy ||
-    meta.time != null ||
-    opts.publishedByExclude?.(spec.name) === true
-  ) {
-    return { meta }
-  }
-  const modifiedDate = meta.modified ? new Date(meta.modified) : null
-  const isModifiedValid = modifiedDate != null && !Number.isNaN(modifiedDate.getTime())
-  if (isModifiedValid && modifiedDate < opts.publishedBy) {
-    // The package was last modified before the maturity cutoff. No individual
-    // version can be newer than the cutoff, so the abbreviated form is fine.
-    return { meta }
-  }
-  // When `modified` is missing or malformed we fall through to the upgrade
-  // fetch: prefer correctness (run the maturity check on real `time` data)
-  // over saving a network call when our cached freshness signal is unusable.
-  // Forward etag/modified so the registry can answer 304 if the upgraded
-  // representation hasn't actually changed (rare on the npm registry where
-  // full and abbreviated have distinct etags, but cheap to support).
-  const fullFetchResult = await ctx.fetch(spec.name, {
-    authHeaderValue: opts.authHeaderValue,
-    fullMetadata: true,
-    etag: meta.etag,
-    modified: meta.modified,
-    registry: opts.registry,
-  })
-  if (fullFetchResult.notModified) {
-    // Upgrade fetch came back 304: keep the abbreviated meta. The downstream
-    // `pickMatchingVersionFinal` will fall through to its warn-and-skip path.
-    return { meta }
-  }
-  return { meta: fullFetchResult.meta, upgradedFrom: fullFetchResult }
-}
-
-// Returns true when a fast-path cache catch should rethrow under
-// strictPublishedByCheck. ERR_PNPM_MISSING_TIME is excluded so callers fall
-// through to the network fetch path, which can upgrade abbreviated cached
-// metadata to full and run the maturity check on real `time` data.
-function shouldRethrowFromFastPathCache (err: unknown, strictPublishedByCheck: boolean | undefined): boolean {
-  return strictPublishedByCheck === true && !isMissingTimeError(err)
-}
-
-// Persists upgraded full metadata to the on-disk cache mirror and returns
-// the meta to store in the in-memory cache. When `filterMetadata` is on, the
-// in-memory and on-disk forms are both stripped via `clearMeta`; otherwise
-// the original raw response body is written and the unstripped meta is kept.
-function persistUpgradedMeta (
-  ctx: { filterMetadata?: boolean },
-  pkgMirror: string,
-  upgradedFrom: FetchMetadataResult
-): PackageMeta {
-  const metaForCache = ctx.filterMetadata ? clearMeta(upgradedFrom.meta) : upgradedFrom.meta
-  const jsonForDisk = ctx.filterMetadata
-    ? prepareJsonForDisk(metaForCache, upgradedFrom.etag)
-    : prepareJsonForDisk(upgradedFrom.meta, upgradedFrom.etag, upgradedFrom.jsonText)
-  runLimited(pkgMirror, (l) => l(async () => {
-    try {
-      await saveMeta(pkgMirror, jsonForDisk)
-    } catch (err: any) { // eslint-disable-line
-      // We don't care if this file was not written to the cache
-    }
-  }))
-  return metaForCache
-}
-
 export async function pickPackage (
   ctx: {
     fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean, etag?: string, modified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
@@ -525,6 +433,98 @@ export async function pickPackage (
       }
     }
   })
+}
+
+// When `minimumReleaseAge` is active and we have abbreviated metadata (which
+// the npm registry serves by default and which omits per-version `time`),
+// the maturity check can't run on the data we have. If the package has been
+// modified since the maturity cutoff, re-fetch with `fullMetadata: true` so
+// `time` is populated and the check can proceed properly. Without this,
+// `pickMatchingVersionFinal` would fall back to its warn-and-skip path,
+// silently bypassing the minimumReleaseAge guarantee for affected packages.
+//
+// Returns the original meta when no upgrade is needed. When an upgrade
+// happens, returns both the upgraded meta and the underlying fetch result
+// so callers can persist it to disk and avoid re-fetching on next install.
+async function maybeUpgradeAbbreviatedMetaForReleaseAge (
+  ctx: {
+    fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean, etag?: string, modified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
+    offline?: boolean
+  },
+  spec: RegistryPackageSpec,
+  opts: {
+    publishedBy?: Date
+    publishedByExclude?: PickPackageFromMetaOptions['publishedByExclude']
+    authHeaderValue?: string
+    registry: string
+  },
+  meta: PackageMeta
+): Promise<{ meta: PackageMeta, upgradedFrom?: FetchMetadataResult }> {
+  if (
+    ctx.offline === true ||
+    !opts.publishedBy ||
+    meta.time != null ||
+    opts.publishedByExclude?.(spec.name) === true
+  ) {
+    return { meta }
+  }
+  const modifiedDate = meta.modified ? new Date(meta.modified) : null
+  const isModifiedValid = modifiedDate != null && !Number.isNaN(modifiedDate.getTime())
+  if (isModifiedValid && modifiedDate < opts.publishedBy) {
+    // The package was last modified before the maturity cutoff. No individual
+    // version can be newer than the cutoff, so the abbreviated form is fine.
+    return { meta }
+  }
+  // When `modified` is missing or malformed we fall through to the upgrade
+  // fetch: prefer correctness (run the maturity check on real `time` data)
+  // over saving a network call when our cached freshness signal is unusable.
+  // Forward etag/modified so the registry can answer 304 if the upgraded
+  // representation hasn't actually changed (rare on the npm registry where
+  // full and abbreviated have distinct etags, but cheap to support).
+  const fullFetchResult = await ctx.fetch(spec.name, {
+    authHeaderValue: opts.authHeaderValue,
+    fullMetadata: true,
+    etag: meta.etag,
+    modified: meta.modified,
+    registry: opts.registry,
+  })
+  if (fullFetchResult.notModified) {
+    // Upgrade fetch came back 304: keep the abbreviated meta. The downstream
+    // `pickMatchingVersionFinal` will fall through to its warn-and-skip path.
+    return { meta }
+  }
+  return { meta: fullFetchResult.meta, upgradedFrom: fullFetchResult }
+}
+
+// Returns true when a fast-path cache catch should rethrow under
+// strictPublishedByCheck. ERR_PNPM_MISSING_TIME is excluded so callers fall
+// through to the network fetch path, which can upgrade abbreviated cached
+// metadata to full and run the maturity check on real `time` data.
+function shouldRethrowFromFastPathCache (err: unknown, strictPublishedByCheck: boolean | undefined): boolean {
+  return strictPublishedByCheck === true && !isMissingTimeError(err)
+}
+
+// Persists upgraded full metadata to the on-disk cache mirror and returns
+// the meta to store in the in-memory cache. When `filterMetadata` is on, the
+// in-memory and on-disk forms are both stripped via `clearMeta`; otherwise
+// the original raw response body is written and the unstripped meta is kept.
+function persistUpgradedMeta (
+  ctx: { filterMetadata?: boolean },
+  pkgMirror: string,
+  upgradedFrom: FetchMetadataResult
+): PackageMeta {
+  const metaForCache = ctx.filterMetadata ? clearMeta(upgradedFrom.meta) : upgradedFrom.meta
+  const jsonForDisk = ctx.filterMetadata
+    ? prepareJsonForDisk(metaForCache, upgradedFrom.etag)
+    : prepareJsonForDisk(upgradedFrom.meta, upgradedFrom.etag, upgradedFrom.jsonText)
+  runLimited(pkgMirror, (l) => l(async () => {
+    try {
+      await saveMeta(pkgMirror, jsonForDisk)
+    } catch (err: any) { // eslint-disable-line
+      // We don't care if this file was not written to the cache
+    }
+  }))
+  return metaForCache
 }
 
 function clearMeta (pkg: PackageMeta): PackageMeta {
