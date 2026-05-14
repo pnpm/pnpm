@@ -298,6 +298,9 @@ Pacquet-specific notes:
 - Check whether the workspace already depends on something suitable (see
   `[workspace.dependencies]` in the root `Cargo.toml`) before adding a new
   dependency.
+- **Keep dependencies at the right level.** Add a new dependency to the
+  specific crate that needs it, not to the workspace root or to a shared
+  crate unless multiple crates actually depend on it.
 
 ## Errors and diagnostics
 
