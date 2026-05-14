@@ -259,9 +259,17 @@ export async function pickPackage (
   const cacheKey = fullMetadata ? `${spec.name}:full` : spec.name
   const cachedMeta = ctx.metaCache.get(cacheKey)
   if (cachedMeta != null) {
+    // The in-memory cache may hold abbreviated metadata from an earlier call
+    // that didn't need `time` (no publishedBy then). If this call has
+    // publishedBy and the package was modified recently, upgrade to full
+    // metadata so the maturity check runs properly.
+    const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, spec, opts, cachedMeta)
+    if (upgrade.upgradedFrom != null) {
+      ctx.metaCache.set(cacheKey, upgrade.meta)
+    }
     return {
-      meta: cachedMeta,
-      pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, cachedMeta),
+      meta: upgrade.meta,
+      pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, upgrade.meta),
     }
   }
 
@@ -283,6 +291,13 @@ export async function pickPackage (
       }
 
       if (metaCachedInStore != null) {
+        // Disk-cached meta may be abbreviated; upgrade for the maturity check
+        // before letting pickMatchingVersionFinal warn-and-skip on missing time.
+        const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, spec, opts, metaCachedInStore)
+        metaCachedInStore = upgrade.meta
+        if (upgrade.upgradedFrom != null) {
+          ctx.metaCache.set(cacheKey, metaCachedInStore)
+        }
         const pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, metaCachedInStore)
         if (pickedPackage) {
           return {
