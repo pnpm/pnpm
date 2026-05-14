@@ -17,7 +17,7 @@ When you change one side, do the equivalent change on the other in the same PR i
 
 "User-visible" means anything that affects the CLI surface or the on-disk contract: command-line flags and defaults, environment-variable handling, lockfile/manifest/state-file format, error codes and messages, log emissions parsed by `@pnpm/cli.default-reporter`, store layout, hook semantics. Pure internal refactors, perf wins, and TS-only test cleanups don't need mirroring.
 
-The pacquet-side obligation — pacquet must follow pnpm's `main`, never the other way around — is spelled out in detail at [`pacquet/AGENTS.md`](./pacquet/AGENTS.md#the-cardinal-rule).
+The pacquet-side obligation — pnpm is the source of truth, pacquet ports from it, never the other way around — is spelled out at [`pacquet/AGENTS.md`](./pacquet/AGENTS.md#the-cardinal-rule).
 
 ## Repository Structure
 

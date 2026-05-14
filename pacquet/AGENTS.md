@@ -13,37 +13,27 @@ are meant to match pnpm exactly.
 
 ## The cardinal rule
 
-**Any change in this repo must match how the same feature is implemented in
-`pnpm/pnpm` on the latest `main` branch.** The inverse obligation —
-user-visible changes to the TypeScript pnpm CLI must also land in pacquet —
-lives in [`../AGENTS.md`](../AGENTS.md#keep-pnpm-and-pacquet-in-sync).
+**Any change in pacquet must match how the same feature is implemented in
+the TypeScript pnpm CLI (the workspaces outside `pacquet/`).** The inverse
+obligation — user-visible changes to the TypeScript pnpm CLI must also land
+in pacquet — lives in [`../AGENTS.md`](../AGENTS.md#keep-pnpm-and-pacquet-in-sync).
 
 Before writing code for a feature, bug fix, or behavior change:
 
-1. Find the equivalent code in `pnpm/pnpm` on `main`
-   (https://github.com/pnpm/pnpm). The TypeScript source lives under `pnpm/`
-   (workspaces such as `pnpm/lockfile/`, `pnpm/store/`, `pnpm/cli/`, etc.).
-   **Always confirm you are looking at the latest, most up-to-date version
-   of `main` before reading.** Local clones drift, and an outdated checkout
-   leads to porting decisions based on stale upstream behavior. If you have
-   a local clone, run `git fetch origin && git log -1 origin/main` and
-   compare the SHA against
-   `git ls-remote https://github.com/pnpm/pnpm.git refs/heads/main`
-   (or fetch the latest before reading). If you are reading on GitHub,
-   open the file from
-   `https://github.com/pnpm/pnpm/blob/main/...` (which always resolves to
-   the tip of `main`) rather than from a permalinked SHA you happened to
-   have on hand. The permalink rule below applies when *citing* upstream
-   code; while *researching* it, you want the freshest `main`.
-2. Read the upstream implementation — logic, edge cases, config resolution,
+1. Find the equivalent code in the TypeScript pnpm workspaces. They live
+   at the repo root — `pnpm/` (CLI entry), `pkg-manager/`, `resolving/`,
+   `lockfile/`, `store/`, `fetching/`, `config/`, `hooks/`, and so on.
+   See the repo-structure section in
+   [`../AGENTS.md`](../AGENTS.md#repository-structure) for the full list.
+2. Read the pnpm implementation — logic, edge cases, config resolution,
    error messages, file/lockfile formats, and existing tests.
 3. Port the behavior faithfully. Prefer structural similarity (same function
    decomposition, same names where reasonable) so future cross-referencing
    stays cheap.
 4. Do not invent behavior that pnpm does not have. Do not "fix" pnpm quirks
-   unless the same fix has landed upstream.
-5. If pnpm's `main` and this repo disagree, pnpm's `main` is the source of
-   truth — reconcile toward upstream, not away from it.
+   unless the same fix has landed in pnpm.
+5. If pnpm and pacquet disagree, pnpm is the source of truth — reconcile
+   toward pnpm, not away from it.
 6. **Log emissions are part of "match pnpm".** When porting a function
    that fires `pnpm:<channel>` events through `globalLogger` /
    `logger.debug(...)` / `streamParser.write(...)`, mirror the call
@@ -53,23 +43,24 @@ Before writing code for a feature, bug fix, or behavior change:
    in the style guide for the convention (channel mapping, threading
    `R: Reporter`, emit-site placement, recording-fake tests).
 
-If the upstream behavior is unclear or looks wrong, stop and ask the user
+If the pnpm behavior is unclear or looks wrong, stop and ask the user
 rather than guessing.
 
-When citing upstream code anywhere — code comments, doc comments, Markdown
-docs, PR descriptions, or commit messages — link to a specific commit SHA, not
+When citing code anywhere — code comments, doc comments, Markdown docs,
+PR descriptions, or commit messages — link to a specific commit SHA, not
 a branch name. Branch links such as `github.com/<owner>/<repo>/blob/main/...`
 or `.../tree/master/...` are *impermanent*: their target drifts as the branch
 moves and may eventually 404 if the file is renamed or deleted. Permanent
 links pin the commit (`github.com/<owner>/<repo>/blob/<sha>/...`) so the
-reference stays meaningful long after upstream changes. Use the **first 10
+reference stays meaningful long after the code changes. Use the **first 10
 hex characters** of the SHA — full 40-character SHAs make URLs unwieldy on
 narrow displays and in commit logs, and 10 characters is more than enough to
 disambiguate a commit in any real-world repository. Resolve the SHA with
-`git ls-remote https://github.com/<owner>/<repo>.git refs/heads/<branch>`
-(then take the first 10 characters) or by clicking "Copy permalink" (`y`) on
-GitHub and trimming the SHA segment. This rule applies to every GitHub
-repository, not only `pnpm/pnpm`.
+`git log -1 --format=%h` for an in-repo file, or `git ls-remote
+https://github.com/<owner>/<repo>.git refs/heads/<branch>` for an external
+repo (then take the first 10 characters), or by clicking "Copy permalink"
+(`y`) on GitHub and trimming the SHA segment. The rule applies to every
+GitHub repository, including this one.
 
 ## Porting branded string types
 
