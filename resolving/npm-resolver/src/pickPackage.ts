@@ -209,7 +209,7 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
     // version can be newer than the cutoff, so the abbreviated form is fine.
     return { meta }
   }
-  // When `modified` is missing or unparseable we fall through to the upgrade
+  // When `modified` is missing or malformed we fall through to the upgrade
   // fetch: prefer correctness (run the maturity check on real `time` data)
   // over saving a network call when our cached freshness signal is unusable.
   // Forward etag/modified so the registry can answer 304 if the upgraded
