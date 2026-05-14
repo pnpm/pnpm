@@ -47,6 +47,10 @@ jobs:
       uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
       with:
         runtime: node@${{ inputs.node }}
+      with:
+        install: false
+    - name: pacquet install
+      run: pnx --config.minimum-release-age=0 pacquet install --frozen-lockfile
     - name: Verify Node version
       shell: bash
       env:
