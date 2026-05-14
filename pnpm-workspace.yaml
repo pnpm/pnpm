@@ -484,4 +484,4 @@ trustPolicyExclude:
 
 trustPolicyIgnoreAfter: 10080 # 1 week
 
-verifyDepsBeforeRun: install
+verifyDepsBeforeRun: false
