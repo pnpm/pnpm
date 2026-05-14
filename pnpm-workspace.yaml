@@ -49,6 +49,7 @@ packages:
   - text/*
   - workspace/*
   - yaml/*
+  - pacquet/tasks/registry-mock
   - '!**/example/**'
   - '!**/test/**'
   - '!resolving/local-resolver/example-package/**'

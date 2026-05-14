@@ -1,5 +1,7 @@
 {
-	"devDependencies": {
-		"@pnpm/registry-mock": "^6.0.0"
-	}
+  "name": "@pnpm-private/pacquet-registry-mock-launcher",
+  "private": true,
+  "devDependencies": {
+    "@pnpm/registry-mock": "catalog:"
+  }
 }

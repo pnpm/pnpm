@@ -10,12 +10,12 @@
     "email": "yagiz@nizipli.com"
   },
   "license": "MIT",
-  "homepage": "https://github.com/pnpm/pacquet",
-  "bugs": "https://github.com/pnpm/pacquet/issues",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pacquet",
+  "bugs": "https://github.com/pnpm/pnpm/issues",
   "repository": {
     "type": "git",
-    "url": "https://github.com/pnpm/pacquet",
-    "directory": "npm/pacquet"
+    "url": "https://github.com/pnpm/pnpm",
+    "directory": "pacquet/npm/pacquet"
   },
   "bin": "bin/pacquet",
   "engines": {

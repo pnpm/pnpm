@@ -7306,6 +7306,12 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  pacquet/tasks/registry-mock:
+    devDependencies:
+      '@pnpm/registry-mock':
+        specifier: 'catalog:'
+        version: 6.0.0(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+
   patching/apply-patch:
     dependencies:
       '@pnpm/error':

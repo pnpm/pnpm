@@ -41,7 +41,7 @@ function generateNativePackage(platform, arch) {
     cpu: [arch],
     repository: {
       type: "git",
-      url: "https://github.com/pnpm/pacquet",
+      url: "https://github.com/pnpm/pnpm",
     },
     publishConfig: {
       executableFiles: [`./${BIN_NAME}${ext}`],

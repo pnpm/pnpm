@@ -12,8 +12,8 @@ on:
       - 'rust-toolchain.toml'
       - 'justfile'
       - 'pacquet/tasks/registry-mock/package.json'
-      - 'pacquet/tasks/registry-mock/pnpm-lock.yaml'
-      - 'pacquet/tasks/registry-mock/pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
       - 'pacquet/tasks/integrated-benchmark/src/fixtures/**'
       - '.github/actions/rustup/**'
       - '.github/actions/binstall/**'
@@ -108,7 +108,7 @@ jobs:
       - name: Cache pnpm
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          key: integrated-benchmark-pnpm-v11-${{ hashFiles('pacquet/tasks/registry-mock/pnpm-lock.yaml') }}
+          key: integrated-benchmark-pnpm-v11-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
             integrated-benchmark-pnpm-v11-
           path: |
