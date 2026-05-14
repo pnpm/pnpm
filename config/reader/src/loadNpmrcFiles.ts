@@ -139,11 +139,15 @@ function readAndFilterNpmrc (
 
   const result: Record<string, unknown> = {}
   for (const [rawKey, rawValue] of Object.entries(raw)) {
-    // Apply ${VAR} substitution to both keys and values
+    // Apply ${VAR} substitution to both keys and values.
+    // If substitution fails (env var unset), skip the entry so that
+    // lower-priority config sources can provide the value.
     const key = substituteEnv(rawKey, env, warnings)
+    if (key == null) continue
     const value = typeof rawValue === 'string'
       ? substituteEnv(rawValue, env, warnings)
       : rawValue
+    if (value == null) continue
 
     // Only keep auth/registry related keys
     if (isNpmrcReadableKey(key)) {
@@ -153,12 +157,12 @@ function readAndFilterNpmrc (
   return result
 }
 
-function substituteEnv (value: string, env: Record<string, string | undefined>, warnings: string[]): string {
+function substituteEnv (value: string, env: Record<string, string | undefined>, warnings: string[]): string | undefined {
   try {
     return envReplace(value, env)
   } catch (err) {
     warnings.push(err instanceof Error ? err.message : String(err))
-    return value
+    return undefined
   }
 }
 

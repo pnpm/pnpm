@@ -661,6 +661,152 @@ test('workspace .npmrc overrides pnpm auth file', async () => {
   }
 })
 
+test('unresolved env var in workspace .npmrc falls back to auth.ini token', async () => {
+  prepareEmpty()
+
+  // Workspace .npmrc references an env var that is NOT set
+  fs.writeFileSync('.npmrc', '//registry.example.com/:_authToken=${UNSET_TOKEN_VAR_11614}', 'utf8')
+
+  // auth.ini has a valid fallback token (from pnpm login)
+  const configHome = path.resolve('xdg-config')
+  fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
+  fs.writeFileSync(
+    path.join(configHome, 'pnpm', 'auth.ini'),
+    '//registry.example.com/:_authToken=fallback-token'
+  )
+
+  const originalXdg = process.env.XDG_CONFIG_HOME
+  process.env.XDG_CONFIG_HOME = configHome
+  // Ensure the env var is NOT set
+  delete process.env.UNSET_TOKEN_VAR_11614
+  try {
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      env: {
+        ...env,
+        XDG_CONFIG_HOME: configHome,
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    // Should fall back to auth.ini token
+    expect(config.authConfig['//registry.example.com/:_authToken']).toBe('fallback-token')
+    // Should still emit the warning
+    expect(warnings).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Failed to replace env in config: ${UNSET_TOKEN_VAR_11614}'),
+      ])
+    )
+  } finally {
+    if (originalXdg != null) {
+      process.env.XDG_CONFIG_HOME = originalXdg
+    } else {
+      delete process.env.XDG_CONFIG_HOME
+    }
+  }
+})
+
+test('resolved env var in workspace .npmrc overrides auth.ini token', async () => {
+  prepareEmpty()
+
+  // Workspace .npmrc references an env var that IS set
+  fs.writeFileSync('.npmrc', '//registry.example.com/:_authToken=${RESOLVED_TOKEN_VAR_11614}', 'utf8')
+
+  // auth.ini has a different token
+  const configHome = path.resolve('xdg-config')
+  fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
+  fs.writeFileSync(
+    path.join(configHome, 'pnpm', 'auth.ini'),
+    '//registry.example.com/:_authToken=auth-ini-token'
+  )
+
+  const originalXdg = process.env.XDG_CONFIG_HOME
+  process.env.XDG_CONFIG_HOME = configHome
+  process.env.RESOLVED_TOKEN_VAR_11614 = 'workspace-env-token'
+  try {
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      env: {
+        ...env,
+        XDG_CONFIG_HOME: configHome,
+        RESOLVED_TOKEN_VAR_11614: 'workspace-env-token',
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    // Workspace .npmrc (with resolved env var) should override auth.ini
+    expect(config.authConfig['//registry.example.com/:_authToken']).toBe('workspace-env-token')
+    // No env var warning expected
+    expect(warnings).not.toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('RESOLVED_TOKEN_VAR_11614'),
+      ])
+    )
+  } finally {
+    delete process.env.RESOLVED_TOKEN_VAR_11614
+    if (originalXdg != null) {
+      process.env.XDG_CONFIG_HOME = originalXdg
+    } else {
+      delete process.env.XDG_CONFIG_HOME
+    }
+  }
+})
+
+test('empty env var in workspace .npmrc is kept (not treated as unset)', async () => {
+  prepareEmpty()
+
+  // Workspace .npmrc references an env var that IS set but to an empty string
+  fs.writeFileSync('.npmrc', '//registry.example.com/:_authToken=${EMPTY_TOKEN_VAR_11614}', 'utf8')
+
+  // auth.ini has a fallback token
+  const configHome = path.resolve('xdg-config')
+  fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
+  fs.writeFileSync(
+    path.join(configHome, 'pnpm', 'auth.ini'),
+    '//registry.example.com/:_authToken=auth-ini-token'
+  )
+
+  const originalXdg = process.env.XDG_CONFIG_HOME
+  process.env.XDG_CONFIG_HOME = configHome
+  process.env.EMPTY_TOKEN_VAR_11614 = ''
+  try {
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      env: {
+        ...env,
+        XDG_CONFIG_HOME: configHome,
+        EMPTY_TOKEN_VAR_11614: '',
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    // Empty string is an explicit value — should NOT fall back to auth.ini
+    expect(config.authConfig['//registry.example.com/:_authToken']).toBe('')
+    // No env var warning expected
+    expect(warnings).not.toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('EMPTY_TOKEN_VAR_11614'),
+      ])
+    )
+  } finally {
+    delete process.env.EMPTY_TOKEN_VAR_11614
+    if (originalXdg != null) {
+      process.env.XDG_CONFIG_HOME = originalXdg
+    } else {
+      delete process.env.XDG_CONFIG_HOME
+    }
+  }
+})
+
 test('throw error if --save-prod is used with --save-peer', async () => {
   await expect(getConfig({
     cliOptions: {
