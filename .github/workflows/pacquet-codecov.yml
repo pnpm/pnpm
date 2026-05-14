@@ -93,7 +93,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Download coverage file
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v8.0.1
         with:
           name: codecov
 

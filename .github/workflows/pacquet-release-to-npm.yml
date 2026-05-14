@@ -146,7 +146,7 @@ jobs:
           install: false
 
       - name: Download Artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v8.0.1
         with:
           pattern: binaries-*
           merge-multiple: true
@@ -177,7 +177,7 @@ jobs:
           done
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@v3.0.0
         with:
           name: pacquet v${{ needs.build.outputs.version }}
           tag_name: v${{ needs.build.outputs.version }}

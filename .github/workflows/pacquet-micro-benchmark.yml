@@ -81,12 +81,12 @@ jobs:
 
     steps:
       - name: Install critcmp
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@v2.77.1
         with:
           tool: critcmp
 
       - name: Linux | Download PR benchmark results
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v8.0.1
         with:
           name: benchmark-results-ubuntu-latest
           path: ./target/criterion

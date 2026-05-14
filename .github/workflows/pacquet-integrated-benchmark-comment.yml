@@ -95,7 +95,7 @@ jobs:
       - name: Download benchmark report
         # `run-id` + `github-token` lets v8 pull artifacts from a different
         # workflow run, which is exactly the workflow_run pattern.
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v8.0.1
         with:
           name: integrated-benchmark-report-ubuntu-latest
           path: benchmark-artifact

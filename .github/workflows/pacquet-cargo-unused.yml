@@ -25,7 +25,7 @@ jobs:
         uses: ./.github/actions/rustup
 
       - name: Install cargo-unused-features
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@v2.77.1
         with:
           tool: cargo-unused-features
 
