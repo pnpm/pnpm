@@ -313,8 +313,8 @@ test('createDispatchedFetch returns a fetch bound to the given dispatcher option
 
 test('sec-fetch-* headers are stripped from requests', async () => {
   const receivedHeaders = await new Promise<http.IncomingHttpHeaders>((resolve, reject) => {
-    const server = http.createServer((_req, res) => {
-      resolve(_req.headers)
+    const server = http.createServer((req, res) => {
+      resolve(req.headers)
       res.writeHead(200, { 'content-type': 'application/json' })
       res.end('{"ok":true}')
     })

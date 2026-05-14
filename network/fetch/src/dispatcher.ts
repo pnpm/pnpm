@@ -47,8 +47,14 @@ function stripSecFetchHeaders (dispatch: Dispatcher['dispatch']): Dispatcher['di
         }
         opts = { ...opts, headers: filtered }
       } else if (typeof opts.headers === 'object') {
+        // undici also accepts an iterable of [key, value] pairs (e.g. a Map or
+        // web Headers). Use that iterator when present; otherwise fall back to
+        // Object.entries for plain IncomingHttpHeaders objects.
+        const entries = Symbol.iterator in opts.headers
+          ? (opts.headers as Iterable<[string, string | string[] | undefined]>)
+          : Object.entries(opts.headers as Record<string, string | string[] | undefined>)
         const headers: Record<string, string | string[] | undefined> = {}
-        for (const [key, value] of Object.entries(opts.headers as Record<string, string | string[] | undefined>)) {
+        for (const [key, value] of entries) {
           if (!key.toLowerCase().startsWith('sec-fetch-')) {
             headers[key] = value
           }
