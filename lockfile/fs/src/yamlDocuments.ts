@@ -6,6 +6,7 @@ import stripBom from 'strip-bom'
 export const YAML_DOCUMENT_SEPARATOR = '\n---\n'
 export const YAML_DOCUMENT_START = '---\n'
 
+
 /**
  * Reads the first YAML document from a multi-document YAML file using streaming.
  * The file must start with "---\n" to indicate it contains an env lockfile document.
@@ -23,9 +24,10 @@ export async function streamReadFirstYamlDocument (filePath: string): Promise<st
       if (buffer.length === 0) {
         // Strip BOM from the first chunk. Safe because the stream uses utf8 encoding,
         // so the 3-byte BOM is decoded into a single \uFEFF character in the first chunk.
-        buffer = stripBom(chunk.value as string)
+        // Normalize CRLF line endings (Windows) to LF before processing
+        buffer = stripBom(chunk.value as string).replace(/\r\n/g, '\n');
       } else {
-        buffer += chunk.value
+        buffer = (buffer + chunk.value).replace(/\r\n/g, '\n')
       }
       if (buffer.length >= YAML_DOCUMENT_START.length) break
     }
@@ -42,7 +44,9 @@ export async function streamReadFirstYamlDocument (filePath: string): Promise<st
       }
       const chunk = await chunks.next() // eslint-disable-line no-await-in-loop
       if (chunk.done) break
-      buffer += chunk.value
+
+      // Normalize CRLF line endings (Windows) to LF before processing
+      buffer = (buffer + chunk.value).replace(/\r\n/g, '\n')
     }
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
@@ -61,6 +65,7 @@ export async function streamReadFirstYamlDocument (filePath: string): Promise<st
  * Otherwise returns the entire content (no env document present).
  */
 export function extractMainDocument (content: string): string {
+  content = content.replace(/\r\n/g, '\n');
   if (!content.startsWith(YAML_DOCUMENT_START)) return content
   const sep = content.indexOf(YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START.length)
   if (sep === -1) return ''
