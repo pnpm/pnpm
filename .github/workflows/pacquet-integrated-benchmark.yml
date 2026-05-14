@@ -100,11 +100,9 @@ jobs:
           save-cache: false # it's insufficient
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
         with:
-          # Version comes from `packageManager` in the root package.json.
-          run_install: false
-          standalone: true
+          install: false
 
       - name: Cache pnpm
         uses: actions/cache@v5

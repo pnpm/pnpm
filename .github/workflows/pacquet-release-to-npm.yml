@@ -139,15 +139,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v6
+      - name: Install pnpm and Node
+        uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
         with:
-          # Version comes from `packageManager` in the root package.json.
-          standalone: true
-
-      - name: Setup Node
-        run: pnpm runtime -g set node 22
-        timeout-minutes: 2
+          runtime: node@22
+          install: false
 
       - name: Download Artifacts
         uses: actions/download-artifact@v8
