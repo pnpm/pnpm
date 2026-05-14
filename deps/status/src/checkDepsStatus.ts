@@ -175,7 +175,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     rootProjectManifestDir,
     sharedWorkspaceLockfile,
     workspaceDir,
-  }))
+  }), workspaceState.lastValidatedTimestamp)
   if (conflictedLockfileDir != null) {
     return {
       upToDate: false,
@@ -586,11 +586,19 @@ function getWantedLockfileDirs (opts: {
   return [opts.lockfileDir ?? opts.workspaceDir ?? opts.rootProjectManifestDir]
 }
 
-async function findConflictedLockfileDir (lockfileDirs: string[]): Promise<string | undefined> {
-  const lockfileConflictStatuses = await Promise.all(lockfileDirs.map(async lockfileDir => ({
-    lockfileDir,
-    hasMergeConflicts: await wantedLockfileHasMergeConflicts(lockfileDir),
-  })))
+async function findConflictedLockfileDir (lockfileDirs: string[], lastValidatedTimestamp: number): Promise<string | undefined> {
+  const lockfileConflictStatuses = await Promise.all(lockfileDirs.map(async lockfileDir => {
+    // If the lockfile hasn't been modified since the last successful install, it can't have
+    // grown conflict markers — skip the read to preserve the optimistic fast-path.
+    const lockfileStats = await safeStat(path.join(lockfileDir, WANTED_LOCKFILE))
+    if (lockfileStats == null || lockfileStats.mtime.valueOf() <= lastValidatedTimestamp) {
+      return { lockfileDir, hasMergeConflicts: false }
+    }
+    return {
+      lockfileDir,
+      hasMergeConflicts: await wantedLockfileHasMergeConflicts(lockfileDir),
+    }
+  }))
   return lockfileConflictStatuses.find(({ hasMergeConflicts }) => hasMergeConflicts)?.lockfileDir
 }
 

@@ -17,7 +17,6 @@ import {
   type UpdateMatchingFunction,
   type WorkspacePackages,
 } from '@pnpm/installing.deps-installer'
-import { wantedLockfileHasMergeConflicts } from '@pnpm/lockfile.fs'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalInfo, logger } from '@pnpm/logger'
 import { applyRuntimeOnFailOverride, filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
@@ -164,7 +163,7 @@ export async function installDeps (
   opts: InstallDepsOptions,
   params: string[]
 ): Promise<void> {
-  if (!opts.update && !opts.dedupe && params.length === 0 && opts.optimisticRepeatInstall && !await wantedLockfileHasMergeConflicts(opts.lockfileDir ?? opts.workspaceDir ?? opts.dir)) {
+  if (!opts.update && !opts.dedupe && params.length === 0 && opts.optimisticRepeatInstall) {
     const { upToDate } = await checkDepsStatus({
       ...opts,
       ignoreFilteredInstallCache: true,
