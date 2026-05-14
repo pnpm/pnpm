@@ -450,7 +450,6 @@ describe('checkDepsStatus - lockfile conflicts', () => {
           excludeLinksFromLockfile: false,
           linkWorkspacePackages: true,
           preferWorkspacePackages: true,
-          sharedWorkspaceLockfile: false,
         },
         projects: {
           [projectRootDir]: {
@@ -477,6 +476,7 @@ describe('checkDepsStatus - lockfile conflicts', () => {
         rootProjectManifest: {},
         rootProjectManifestDir: workspaceDir,
         pnpmfile: [],
+        sharedWorkspaceLockfile: false,
         ...mockWorkspaceState.settings,
       }
       const result = await checkDepsStatus(opts)
