@@ -59,7 +59,7 @@ function parseBasicAuth ({
   authPassword,
 }: Pick<RawCreds, 'authPairBase64' | 'authUsername' | 'authPassword'>): BasicAuth | undefined {
   if (authPairBase64) {
-    const pair = atob(authPairBase64)
+    const pair = parseBase64Credential(authPairBase64, '_auth')
     const colonIndex = pair.indexOf(':')
     if (colonIndex < 0) {
       throw new AuthMissingSeparatorError()
@@ -70,10 +70,18 @@ function parseBasicAuth ({
   }
 
   if (authUsername && authPassword) {
-    return { username: authUsername, password: atob(authPassword) }
+    return { username: authUsername, password: parseBase64Credential(authPassword, '_password') }
   }
 
   return undefined
+}
+
+function parseBase64Credential (value: string, field: '_auth' | '_password'): string {
+  try {
+    return atob(value)
+  } catch (err) {
+    throw new InvalidAuthConfigError(field, value, err)
+  }
 }
 
 export class AuthMissingSeparatorError extends PnpmError {
@@ -81,6 +89,16 @@ export class AuthMissingSeparatorError extends PnpmError {
     super('AUTH_MISSING_SEPARATOR', 'No separator found in the decoded form of _auth', {
       hint: '_auth is a base64 encoded form of <username>:<password> where the colon (:) serves as the separator',
     })
+  }
+}
+
+export class InvalidAuthConfigError extends PnpmError {
+  constructor (field: '_auth' | '_password', value: string, cause: unknown) {
+    const hint = value.includes('${')
+      ? `The ${field} value still contains an unresolved env placeholder. Make sure the referenced env var is set in the config source that defines this credential before running pnpm.`
+      : `The ${field} value must be valid base64 in the parsed auth config.`
+    super('INVALID_AUTH_CONFIG', `Failed to parse auth config: invalid ${field} value`, { hint })
+    this.cause = cause
   }
 }
 

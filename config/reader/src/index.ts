@@ -93,7 +93,17 @@ export async function getConfig (opts: {
   env?: Record<string, string | undefined>
   onlyInheritDlxSettingsFromLocal?: boolean
   ignoreLocalSettings?: boolean
+  /**
+   * Optional warning sink owned by the caller.
+   *
+   * Callers may pass their own array when they need access to warnings even if
+   * config loading later throws, for example to print collected warnings in a
+   * finally block before rethrowing the original error.
+   */
+  warnings?: string[]
 }): Promise<{ config: Config, context: ConfigContext, warnings: string[] }> {
+  const warnings = opts.warnings = opts.warnings ?? []
+
   if (opts.onlyInheritDlxSettingsFromLocal) {
     const { onlyInheritDlxSettingsFromLocal: _, ...localOpts } = opts
     const globalCfgOpts: typeof localOpts = {
@@ -106,7 +116,6 @@ export async function getConfig (opts: {
     }
     const [final, localSrc] = await Promise.all([getConfig(globalCfgOpts), getConfig(localOpts)])
     inheritDlxConfig(final, localSrc)
-    final.warnings.push(...localSrc.warnings)
     return final
   }
 
@@ -243,7 +252,7 @@ export async function getConfig (opts: {
     moduleDirname: import.meta.dirname,
     env: opts.env,
   })
-  const warnings = npmrcResult.warnings
+  warnings.push(...npmrcResult.warnings)
 
   const configFromCliOpts = Object.fromEntries(Object.entries(cliOptions)
     .filter(([_, value]) => typeof value !== 'undefined')
@@ -829,4 +838,3 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   }
   pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
 }
-

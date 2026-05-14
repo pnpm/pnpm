@@ -46,6 +46,21 @@ describe('parseCreds', () => {
     })).toThrow(new AuthMissingSeparatorError())
   })
 
+  test('authPairBase64 throws a descriptive error when value is not valid base64', () => {
+    try {
+      parseCreds({
+        authPairBase64: '${ENV_VAR_123}',
+      })
+      throw new Error('expected parseCreds to throw')
+    } catch (err: any) { // eslint-disable-line
+      expect(err).toMatchObject({
+        code: 'ERR_PNPM_INVALID_AUTH_CONFIG',
+        message: 'Failed to parse auth config: invalid _auth value',
+        hint: 'The _auth value still contains an unresolved env placeholder. Make sure the referenced env var is set in the config source that defines this credential before running pnpm.',
+      })
+    }
+  })
+
   test('authUsername and authPassword', () => {
     expect(parseCreds({
       authUsername: 'foo',
@@ -64,6 +79,22 @@ describe('parseCreds', () => {
     expect(parseCreds({
       authPassword: 'bar',
     })).toBeUndefined()
+  })
+
+  test('authPassword throws a descriptive error when value is not valid base64', () => {
+    try {
+      parseCreds({
+        authUsername: 'foo',
+        authPassword: '${ENV_VAR_123}',
+      })
+      throw new Error('expected parseCreds to throw')
+    } catch (err: any) { // eslint-disable-line
+      expect(err).toMatchObject({
+        code: 'ERR_PNPM_INVALID_AUTH_CONFIG',
+        message: 'Failed to parse auth config: invalid _password value',
+        hint: 'The _password value still contains an unresolved env placeholder. Make sure the referenced env var is set in the config source that defines this credential before running pnpm.',
+      })
+    }
   })
 
   test('tokenHelper', () => {
