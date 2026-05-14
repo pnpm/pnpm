@@ -3,6 +3,9 @@
 
 name: Pacquet Cargo Unused Features
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
 

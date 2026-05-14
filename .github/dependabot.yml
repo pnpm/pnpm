@@ -19,3 +19,5 @@ updates:
       interval: weekly
     commit-message:
       prefix: "chore(cargo)"
+    cooldown:
+      default-days: 7
