@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*.*.*"
+  # Manual trigger for publishing whatever versions are currently in each
+  # package.json on the selected ref (typically `main`). Useful after a
+  # version-bump commit that hasn't been tagged yet. Versions already on
+  # npm are rejected by the registry, so re-running on an already-released
+  # tree is a no-op rather than a corruption.
+  workflow_dispatch:
 
 jobs:
   release:
