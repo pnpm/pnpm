@@ -33,5 +33,6 @@ pub fn workspace_root() -> &'static Path {
 
 pub fn registry_mock() -> &'static Path {
     static REGISTRY_MOCK: OnceLock<PathBuf> = OnceLock::new();
-    REGISTRY_MOCK.get_or_init(|| workspace_root().join("tasks").join("registry-mock"))
+    REGISTRY_MOCK
+        .get_or_init(|| workspace_root().join("pacquet").join("tasks").join("registry-mock"))
 }

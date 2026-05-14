@@ -68,7 +68,7 @@ pub fn main() -> Result<(), String> {
     let mut server = mockito::Server::new();
     let CliArgs { save_baseline } = CliArgs::parse();
     let root = get_project_root().unwrap();
-    let fixtures_folder = root.join("tasks/micro-benchmark/fixtures");
+    let fixtures_folder = root.join("pacquet/tasks/micro-benchmark/fixtures");
 
     let mut criterion = Criterion::default().without_plots();
     if let Some(baseline) = save_baseline {
