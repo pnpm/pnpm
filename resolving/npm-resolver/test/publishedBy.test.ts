@@ -368,13 +368,53 @@ test('strictPublishedByCheck=true does not rethrow ERR_PNPM_MISSING_TIME from th
   })
 
   // Exact-version bareSpecifier → spec.type === 'version' → hits the cache path
-  // we are testing.
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '3.1.0' }, {
+  // we are testing. 3.0.0 was published 2015-07-10, mature relative to publishedBy.
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '3.0.0' }, {
     publishedBy: new Date('2015-08-17T19:26:00.508Z'),
   })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
-  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+  expect(resolveResult!.id).toBe('is-positive@3.0.0')
+})
+
+test('strictPublishedByCheck=true with default ignoreMissingTimeField does not rethrow ERR_PNPM_MISSING_TIME from the version-spec cache path', async () => {
+  // Companion to the test above: same scenario but with the default
+  // ignoreMissingTimeField (false). The catch-block fix must hold regardless
+  // of the ignore flag — MISSING_TIME from cached abbreviated meta should
+  // never escape the catch under strict mode, so resolution falls through to
+  // the registry fetch and succeeds with full (time-bearing) metadata.
+  const cacheDir = temporaryDirectory()
+  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
+  fs.mkdirSync(abbrevCacheDir, { recursive: true })
+  const cachePath = path.join(abbrevCacheDir, 'is-positive.jsonl')
+  const { time: _time, ...abbreviatedWithoutTime } = isPositiveAbbreviatedMeta
+  const cachedMeta = {
+    ...abbreviatedWithoutTime,
+    modified: new Date().toISOString(),
+  }
+  fs.writeFileSync(
+    cachePath,
+    `${JSON.stringify({ modified: cachedMeta.modified })}\n${JSON.stringify(cachedMeta)}`,
+    'utf8'
+  )
+
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registries,
+    strictPublishedByCheck: true,
+  })
+
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '3.0.0' }, {
+    publishedBy: new Date('2015-08-17T19:26:00.508Z'),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@3.0.0')
 })
 
 test('upgrades cached abbreviated metadata to full when 304 Not Modified and publishedBy is set', async () => {
