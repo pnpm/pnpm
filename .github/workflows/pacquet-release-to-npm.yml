@@ -1,63 +1,30 @@
 name: Release Pacquet
 
-# When main is pushed and pacquet/npm/pacquet/package.json has been changed,
-# trigger the jobs after the ci workflow has been passed.
+# Manual-trigger only. Type the version to publish — the workflow patches
+# pacquet/npm/pacquet/package.json with it before generating per-platform
+# packages and publishing. No git tag is created and no GitHub release
+# asset is uploaded; npm is the authoritative artifact store.
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - pacquet/npm/pacquet/package.json # Please only commit this file, so we don't need to wait for test CI to pass.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g. 0.2.3 or 0.2.3-rc.1)'
+        required: true
+        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
-  check:
-    name: Check version
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    outputs:
-      version: ${{ env.version }}
-      version_changed: ${{ steps.version.outputs.changed }}
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-
-      - name: Check version changes
-        uses: EndBug/version-check@095362f3cd50f690c8fa0e6afeea81834bd8d320 # v3.0.0
-        id: version
-        with:
-          static-checking: localIsNew
-          file-url: https://unpkg.com/pacquet@latest/package.json
-          file-name: pacquet/npm/pacquet/package.json
-
-      - name: Set version name
-        if: steps.version.outputs.changed == 'true'
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-          VERSION_TYPE: ${{ steps.version.outputs.version_type }}
-        run: |
-          echo "Version change found! New version: $VERSION ($VERSION_TYPE)"
-          echo "version=$VERSION" >> "$GITHUB_ENV"
-
   build:
-    needs: check
-    if: needs.check.outputs.version_changed == 'true'
     permissions:
       contents: read
       id-token: write # needed for actions/attest-build-provenance
       attestations: write
-    env:
-      version: ${{ needs.check.outputs.version }}
-    outputs:
-      version: ${{ env.version }}
     strategy:
       matrix:
         include:
@@ -146,14 +113,34 @@ jobs:
     permissions:
       # Required for npm provenance attestations via OIDC.
       id-token: write
-      # Required for softprops/action-gh-release to create the release below.
-      contents: write
     needs:
       - build
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
+
+      - name: Validate version input
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Invalid version: '$VERSION' (expected semver like 0.2.3 or 0.2.3-rc.1)"
+            exit 1
+          fi
+
+      - name: Inject version into pacquet/npm/pacquet/package.json
+        # The committed package.json has no `version` field; the version comes
+        # from the workflow_dispatch input. Patching it here means
+        # generate-packages.mjs (which copies the version into each
+        # per-platform manifest) and `pnpm publish` (which reads from
+        # package.json) both see the right value.
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          jq --arg v "$VERSION" '.version = $v' pacquet/npm/pacquet/package.json > pacquet/npm/pacquet/package.json.tmp
+          mv pacquet/npm/pacquet/package.json.tmp pacquet/npm/pacquet/package.json
+          cat pacquet/npm/pacquet/package.json
 
       - name: Install pnpm and Node
         uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
@@ -191,16 +178,3 @@ jobs:
           for package in pacquet/npm/pacquet*; do
             pnpm publish "$package/" --tag latest --access public --provenance --no-git-checks
           done
-
-      - name: Create GitHub Release
-        # `gh release create` could replace this, but the release pipeline is
-        # sensitive and softprops/action-gh-release is widely battle-tested
-        # (matches release.yml).
-        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0 # zizmor: ignore[superfluous-actions]
-        with:
-          name: pacquet v${{ needs.build.outputs.version }}
-          tag_name: v${{ needs.build.outputs.version }}
-          draft: true
-          files: pacquet-*
-          fail_on_unmatched_files: true
-          generate_release_notes: true

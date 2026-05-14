@@ -1,6 +1,5 @@
 {
   "name": "pacquet",
-  "version": "0.2.2-6",
   "description": "The official pnpm rewrite in Rust (preview, not production-ready)",
   "keywords": [
     "pnpm"
