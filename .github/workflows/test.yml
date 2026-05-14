@@ -90,6 +90,7 @@ jobs:
         fi
     - name: Run tests (${{ steps.test-scope.outputs.scope }})
       timeout-minutes: 70
+      shell: bash
       env:
         PNPM_WORKERS: 3
         TEST_SCRIPT: ${{ steps.test-scope.outputs.script }}
