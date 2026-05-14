@@ -129,7 +129,7 @@ export class TestIpcServer implements AsyncDisposable {
    * entry. Exits after sending the message.
    *
    * Throws if `message` contains characters outside the allowlist enforced by
-   * `quoteShellArg` (alphanumerics plus ``_ - . / \\ : @ space + = ,``). All
+   * `quoteShellArg` (alphanumerics plus ``_ - . / \\ : @ space + = , ~``). All
    * existing call sites pass short ASCII identifiers, so the constraint is
    * satisfied by construction.
    */
@@ -163,9 +163,12 @@ export const createTestIpcServer = TestIpcServer.listen
  * Wrap an argument for inclusion in a shell command. The argument must contain
  * only a restricted set of characters known to be safe in both POSIX and
  * Windows command interpreters when surrounded by double quotes (alphanumerics
- * plus `_ - . / \\ : @ space + = ,`). A trailing backslash is rejected because
- * under both shells `\\"` consumes the closing quote, which would break the
- * command line.
+ * plus `_ - . / \\ : @ space + = , ~`). The tilde is included because Windows
+ * 8.3 short-name temp paths (e.g. `C:\Users\RUNNER~1\AppData\Local\Temp`) flow
+ * through `os.tmpdir()` on GitHub's Windows runners; both shells treat `~` as a
+ * literal inside double quotes, so it is safe to allow. A trailing backslash is
+ * rejected because under both shells `\\"` consumes the closing quote, which
+ * would break the command line.
  *
  * Throws when the argument contains a character outside this allowlist. All
  * arguments produced internally (helper-script paths, the listen-path computed
@@ -176,7 +179,7 @@ function quoteShellArg (arg: string): string {
   // Anchored allowlist — CodeQL recognizes this as a sanitization barrier for
   // shell-injection sinks. The `endsWith('\\')` check rules out the one
   // remaining ambiguous case the allowlist allows.
-  if (arg.length === 0 || !/^[\w\-./\\:@ +=,]+$/.test(arg) || arg.endsWith('\\')) {
+  if (arg.length === 0 || !/^[\w\-./\\:@ +=,~]+$/.test(arg) || arg.endsWith('\\')) {
     throw new Error(`Unsupported character in shell argument: ${JSON.stringify(arg)}`)
   }
   return `"${arg}"`
