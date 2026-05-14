@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
+import util from 'util'
 import { ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR } from '@pnpm/constants'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
@@ -135,16 +136,25 @@ export async function pickPackage (
     : ABBREVIATED_META_DIR
   // Cache key includes fullMetadata to avoid returning abbreviated metadata when full metadata is requested.
   const cacheKey = fullMetadata ? `${spec.name}:full` : spec.name
-  const cachedMeta = ctx.metaCache.get(cacheKey)
-  if (cachedMeta != null) {
-    return {
-      meta: cachedMeta,
-      pickedPackage: _pickPackageFromMeta(cachedMeta),
-    }
-  }
-
   const registryName = getRegistryName(opts.registry)
   const pkgMirror = path.join(ctx.cacheDir, metaDir, registryName, `${encodePkgName(spec.name)}.json`)
+  const cachedMeta = ctx.metaCache.get(cacheKey)
+  if (cachedMeta != null) {
+    // The in-memory cache may hold abbreviated metadata from an earlier call
+    // that didn't need `time` (no publishedBy then). If this call has
+    // publishedBy, upgrade to full metadata so the maturity check can run on
+    // real time data instead of throwing ERR_PNPM_MISSING_TIME.
+    const upgraded = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, spec, opts, cachedMeta)
+    let metaForCache = upgraded.meta
+    if (upgraded.upgraded) {
+      metaForCache = persistUpgradedMeta(ctx, pkgMirror, metaForCache, opts.dryRun)
+      ctx.metaCache.set(cacheKey, metaForCache)
+    }
+    return {
+      meta: metaForCache,
+      pickedPackage: _pickPackageFromMeta(metaForCache),
+    }
+  }
 
   return runLimited(pkgMirror, async (limit) => {
     let metaCachedInStore: PackageMeta | null | undefined
@@ -161,6 +171,14 @@ export async function pickPackage (
       }
 
       if (metaCachedInStore != null) {
+        // Disk-cached meta may be abbreviated; upgrade for the maturity check
+        // instead of letting the picker throw ERR_PNPM_MISSING_TIME.
+        const upgraded = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, spec, opts, metaCachedInStore)
+        metaCachedInStore = upgraded.meta
+        if (upgraded.upgraded) {
+          metaCachedInStore = persistUpgradedMeta(ctx, pkgMirror, metaCachedInStore, opts.dryRun)
+          ctx.metaCache.set(cacheKey, metaCachedInStore)
+        }
         const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
         if (pickedPackage) {
           return {
@@ -184,8 +202,12 @@ export async function pickPackage (
               pickedPackage,
             }
           }
-        } catch (err) {
-          if (ctx.strictPublishedByCheck) {
+        } catch (err: unknown) {
+          // MISSING_TIME from cached abbreviated metadata should fall through
+          // to the network fetch path even under strictPublishedByCheck —
+          // the fetch will upgrade to full metadata and run the maturity check
+          // on real `time` data.
+          if (shouldRethrowFromFastPathCache(err, ctx.strictPublishedByCheck)) {
             throw err
           }
         }
@@ -202,8 +224,8 @@ export async function pickPackage (
               pickedPackage,
             }
           }
-        } catch (err) {
-          if (ctx.strictPublishedByCheck) {
+        } catch (err: unknown) {
+          if (shouldRethrowFromFastPathCache(err, ctx.strictPublishedByCheck)) {
             throw err
           }
         }
@@ -216,6 +238,22 @@ export async function pickPackage (
         fullMetadata,
         registry: opts.registry,
       })
+      // When publishedBy is active but the registry returned abbreviated
+      // metadata (no per-version `time`), re-fetch with `fullMetadata: true`
+      // so the maturity check can run properly. Without this, abbreviated
+      // metadata + publishedBy would throw ERR_PNPM_MISSING_TIME.
+      if (
+        opts.publishedBy &&
+        !fullMetadata &&
+        meta.time == null &&
+        opts.publishedByExclude?.(spec.name) !== true
+      ) {
+        meta = await ctx.fetch(spec.name, {
+          authHeaderValue: opts.authHeaderValue,
+          fullMetadata: true,
+          registry: opts.registry,
+        })
+      }
       if (ctx.filterMetadata) {
         meta = clearMeta(meta)
       }
@@ -250,6 +288,80 @@ export async function pickPackage (
       }
     }
   })
+}
+
+// When `publishedBy` is active and the cached metadata is abbreviated (no
+// per-version `time`), the maturity check can't run on the data we have and
+// `pickPackageFromMeta` will throw ERR_PNPM_MISSING_TIME. Upgrade to full
+// metadata via a follow-up fetch so the check can proceed on real `time` data.
+async function maybeUpgradeAbbreviatedMetaForReleaseAge (
+  ctx: {
+    fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean }) => Promise<PackageMeta>
+    offline?: boolean
+  },
+  spec: RegistryPackageSpec,
+  opts: {
+    publishedBy?: Date
+    publishedByExclude?: PickPackageFromMetaOptions['publishedByExclude']
+    authHeaderValue?: string
+    registry: string
+  },
+  meta: PackageMeta
+): Promise<{ meta: PackageMeta, upgraded: boolean }> {
+  if (
+    ctx.offline === true ||
+    !opts.publishedBy ||
+    meta.time != null ||
+    opts.publishedByExclude?.(spec.name) === true
+  ) {
+    return { meta, upgraded: false }
+  }
+  const fullMeta = await ctx.fetch(spec.name, {
+    authHeaderValue: opts.authHeaderValue,
+    fullMetadata: true,
+    registry: opts.registry,
+  })
+  return { meta: fullMeta, upgraded: true }
+}
+
+// Returns true when a fast-path cache catch should rethrow. MISSING_TIME is
+// excluded so callers fall through to the network fetch path, which can
+// upgrade abbreviated cached metadata to full and run the maturity check on
+// real `time` data.
+function shouldRethrowFromFastPathCache (err: unknown, strictPublishedByCheck: boolean | undefined): boolean {
+  if (isMissingTimeError(err)) return false
+  return strictPublishedByCheck === true
+}
+
+function isMissingTimeError (err: unknown): boolean {
+  return util.types.isNativeError(err) && 'code' in err && err.code === 'ERR_PNPM_MISSING_TIME'
+}
+
+// Persists upgraded full metadata to the on-disk cache mirror and returns the
+// meta to store in the in-memory cache. When `filterMetadata` is on the
+// returned meta is stripped via `clearMeta`. Without persisting here, a fresh
+// process would re-trigger the upgrade fetch on its next install since the
+// on-disk cache still holds the abbreviated form.
+function persistUpgradedMeta (
+  ctx: { filterMetadata?: boolean },
+  pkgMirror: string,
+  meta: PackageMeta,
+  dryRun: boolean
+): PackageMeta {
+  const metaForCache = ctx.filterMetadata ? clearMeta(meta) : meta
+  metaForCache.cachedAt = Date.now()
+  if (!dryRun) {
+    const stringifiedMeta = JSON.stringify(metaForCache)
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+    runLimited(pkgMirror, (l) => l(async () => {
+      try {
+        await saveMeta(pkgMirror, stringifiedMeta)
+      } catch (err: any) { // eslint-disable-line
+        // We don't care if this file was not written to the cache
+      }
+    }))
+  }
+  return metaForCache
 }
 
 function clearMeta (pkg: PackageMeta): PackageMeta {

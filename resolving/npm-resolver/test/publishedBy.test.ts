@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { FULL_FILTERED_META_DIR } from '@pnpm/constants'
+import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR } from '@pnpm/constants'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import { createNpmResolver } from '@pnpm/npm-resolver'
 import { type Registries } from '@pnpm/types'
@@ -18,6 +18,7 @@ const registries: Registries = {
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const badDatesMeta = loadJsonFile.sync<any>(f.find('bad-dates.json'))
 const isPositiveMeta = loadJsonFile.sync<any>(f.find('is-positive-full.json'))
+const isPositiveAbbreviatedMeta = loadJsonFile.sync<any>(f.find('is-positive.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const fetch = createFetchFromRegistry({})
@@ -146,4 +147,98 @@ test('should skip time field validation for excluded packages', async () => {
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.manifest.version).toBe('3.1.0')
+})
+
+test('re-fetch full metadata when registry returns abbreviated metadata and publishedBy is set', async () => {
+  // The npm registry returns abbreviated metadata by default (no per-version `time` field).
+  // When publishedBy is set, pnpm needs `time` for the maturity check, so it should
+  // automatically re-fetch the full metadata document.
+  nock(registries.default)
+    .get('/is-positive')
+    .reply(200, isPositiveAbbreviatedMeta)
+  nock(registries.default)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const cacheDir = tempy.directory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    cacheDir,
+    registries,
+  })
+  // 3.0.0 was published 2015-07-10 (mature relative to publishedBy 2016-01-01);
+  // 3.1.0 was published 2016-01-11 (not yet mature). So resolution must pick 3.0.0.
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
+    publishedBy: new Date('2016-01-01T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@3.0.0')
+})
+
+test('upgrade disk-cached abbreviated metadata to full when publishedBy is set', async () => {
+  // The disk cache holds abbreviated metadata (no per-version `time`). When a
+  // later install uses publishedBy, pnpm needs to upgrade to full metadata so
+  // the maturity check has real `time` data.
+  const cacheDir = tempy.directory()
+  fs.mkdirSync(path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`), { recursive: true })
+  fs.writeFileSync(
+    path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org/is-positive.json`),
+    JSON.stringify(isPositiveAbbreviatedMeta),
+    'utf8'
+  )
+
+  // The upgrade fetch goes to the registry asking for full metadata.
+  nock(registries.default)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    cacheDir,
+    registries,
+    preferOffline: true,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
+    publishedBy: new Date('2016-01-01T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@3.0.0')
+})
+
+test('strictPublishedByCheck=true does not rethrow ERR_PNPM_MISSING_TIME from the version-spec cache path', async () => {
+  // Regression test: the version-spec fast path
+  // (`!opts.updateToLatest && spec.type === 'version'`) in pickPackage used to
+  // rethrow ERR_PNPM_MISSING_TIME under strictPublishedByCheck, instead of
+  // falling through to the registry-fetch path. The fix lets MISSING_TIME from
+  // cached abbreviated meta fall through so the fetch can upgrade to full
+  // metadata and run the maturity check on real `time` data.
+  const cacheDir = tempy.directory()
+  fs.mkdirSync(path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`), { recursive: true })
+  // Stash abbreviated meta on disk so the version-spec fast path loads it and
+  // pickPackageFromMeta throws MISSING_TIME on the maturity check.
+  fs.writeFileSync(
+    path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org/is-positive.json`),
+    JSON.stringify(isPositiveAbbreviatedMeta),
+    'utf8'
+  )
+
+  // The fall-through fetch returns full metadata with `time`.
+  nock(registries.default)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    cacheDir,
+    registries,
+    strictPublishedByCheck: true,
+  })
+
+  // Exact-version specifier hits the version-spec cache path. 3.0.0 was
+  // published 2015-07-10, mature relative to publishedBy 2015-08-17.
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '3.0.0' }, {
+    publishedBy: new Date('2015-08-17T19:26:00.508Z'),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@3.0.0')
 })
