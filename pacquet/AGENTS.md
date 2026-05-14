@@ -1,6 +1,8 @@
-# AGENTS.md
+# AGENTS.md (pacquet)
 
-Guidance for AI coding agents working in this repository.
+Guidance for AI coding agents working in `pacquet/`.
+
+**Read [`../AGENTS.md`](../AGENTS.md) first.** It covers the conventions that apply across the whole monorepo — GitHub PR workflow, signing agent-authored content, conventional commit messages, code-reuse philosophy, "never ignore test failures," and the PR-conflict resolution script. This file specializes those rules for pacquet's Rust code and adds pacquet-only ones.
 
 ## What this project is
 
@@ -132,7 +134,7 @@ Rules when porting code that uses a branded string type:
 1. Follow the contributing guide in [`CONTRIBUTING.md`](./CONTRIBUTING.md), and **ALWAYS** double-check before committing. It covers commit message format, writing style, setup, and the automated checks to run before committing.
 2. Follow the code style guide in [`CODE_STYLE_GUIDE.md`](./CODE_STYLE_GUIDE.md), and **ALWAYS** double-check before committing. It covers code-level conventions not enforced by tooling: imports, modules, naming, ownership and borrowing, parameter type selection, trait bounds, pattern matching, `pipe-trait`, error handling, test layout, logging during tests, and cloning of `Arc` and `Rc`.
 
-## Repo layout
+## Repo layout (inside `pacquet/`)
 
 - `crates/` — library and binary crates that make up pacquet.
   - `cli`, `package-manager`, `package-manifest`, `lockfile`, `store-dir`,
@@ -147,7 +149,10 @@ Rules when porting code that uses a branded string type:
   and borrowing, trait bounds, pattern matching, `pipe-trait`, error
   handling, test layout, and `Arc`/`Rc` cloning. Read it before submitting
   code.
-- `justfile` — canonical commands (see below).
+
+The Rust workspace (`Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`,
+`justfile`, `.cargo/`, `.taplo.toml`, etc.) lives at the **repo root**, not
+inside `pacquet/`. Run `cargo` and `just` from the repo root.
 
 ## Commands
 
@@ -209,11 +214,6 @@ cargo nextest run -p pacquet-lockfile --test <file_stem>
 ```
 
 Run `just ready` (full suite) before handing the PR off.
-
-**Never ignore a test failure.** Do not dismiss a failing test as "pre-existing"
-or "unrelated to my change." Investigate every failure. If a test was already
-broken on `main`, fix it as part of your work rather than silently skipping it
-or treating the red as acceptable.
 
 ## Style
 
@@ -284,27 +284,18 @@ commit message, or the PR description so a reviewer can confirm the rewrite
 was warranted. If the rewrite is purely stylistic, raise it with the user as
 its own change rather than including it in an unrelated edit.
 
-## Code reuse and avoiding duplication
+## Code reuse (pacquet specifics)
 
-This is a small workspace, but it is still a workspace — duplication is still
-a risk, especially between crates that touch the filesystem, the store, or
-package manifests.
+The general "search before you write / extract shared code / prefer mature
+crates / keep deps at the right level" rules from
+[`../AGENTS.md`](../AGENTS.md#code-reuse-and-avoiding-duplication) apply.
+Pacquet-specific notes:
 
-- **Search before you write.** Before implementing any non-trivial helper,
-  grep the workspace for existing functions or utilities that do the same
-  or a similar thing. Shared helpers tend to live in `crates/fs`,
-  `crates/testing-utils`, and `crates/diagnostics`.
-- **Extract shared code.** If logic you need already exists in another crate
-  but isn't exported, refactor it into a shared crate (or move it to one of
-  the utility crates above) rather than copy-pasting.
-- **Prefer well-maintained crates over custom implementations.** Don't
-  reimplement what a mature crate already provides. Check whether the
-  workspace already depends on something suitable (see
+- Shared helpers tend to live in `crates/fs`, `crates/testing-utils`, and
+  `crates/diagnostics` — check there first.
+- Check whether the workspace already depends on something suitable (see
   `[workspace.dependencies]` in the root `Cargo.toml`) before adding a new
   dependency.
-- **Keep dependencies at the right level.** Add a new dependency to the
-  specific crate that needs it, not to the workspace root or to a shared
-  crate unless multiple crates actually depend on it.
 
 ## Errors and diagnostics
 
@@ -325,18 +316,13 @@ are part of the public contract, not implementation detail. See
 
 ### Commit messages
 
-Follow [Conventional Commits](https://www.conventionalcommits.org/). Use a
-scope that names the crate or area being touched, matching the existing
-history (`git log --oneline` for examples). Common types:
+Conventional Commits applies (see
+[`../AGENTS.md`](../AGENTS.md#commit-messages) for the full type list). Use
+a scope that names the crate or area being touched, matching the existing
+history (`git log --oneline` for examples). Pacquet adds one type beyond the
+standard list:
 
-- `feat`: a new feature
-- `fix`: a bug fix
-- `perf`: a performance improvement
-- `refactor`: code change that neither fixes a bug nor adds a feature
-- `test`: adding or adjusting tests
-- `docs`: documentation only
-- `chore`: build tooling, CI, or auxiliary changes
-- `bench`: benchmark-only changes
+- `bench`: benchmark-only changes.
 
 Examples (from this repo's history):
 
@@ -345,25 +331,6 @@ fix(network): set explicit timeouts on default reqwest client
 feat(lockfile): support npm-alias dependencies in snapshots
 perf(store-dir): share one read-only StoreIndex across cache lookups
 ```
-
-## Working with GitHub PRs, issues, and comments
-
-- **Keep PR titles and descriptions current.** When pushing new changes to a
-  PR, review the title and description and update them if they no longer
-  accurately reflect what the PR does.
-- **Reply to and resolve review conversations.** Once a review comment has
-  been addressed, reply to the thread with a description of the resolution
-  including the commit hash that fixed it, then mark the conversation as
-  resolved.
-- **Sign all agent-authored content.** When posting a comment, creating an
-  issue, or opening a PR, append a footer to the message indicating that it
-  was written by an agent. The footer must include the name of the agent and
-  the name of the model used. Example:
-
-  ```markdown
-  ---
-  Written by an agent (Claude Code, claude-opus-4-7).
-  ```
 
 ## Things not to do
 

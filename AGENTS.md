@@ -2,6 +2,13 @@
 
 This document provides context and instructions for AI agents working on the pnpm codebase.
 
+The repository contains two stacks:
+
+- The **TypeScript pnpm CLI** — everything outside `pacquet/`.
+- The **Rust pacquet port** — `pacquet/`. See [`pacquet/AGENTS.md`](./pacquet/AGENTS.md) for pacquet-specific rules; it adds to (and never contradicts) the conventions below.
+
+Sections below marked "(TypeScript only)" do not apply to pacquet. Everything else applies to both stacks.
+
 ## Repository Structure
 
 The pnpm codebase is a monorepo managed by pnpm itself. The root contains functional directories organized by domain:
@@ -40,7 +47,11 @@ The pnpm codebase is a monorepo managed by pnpm itself. The root contains functi
 -   `crypto/`: Cryptographic utilities.
 -   `text/`: Text processing utilities.
 
-## Setup & Build
+### Rust Port
+
+-   `pacquet/`: The pnpm CLI ported to Rust. Self-contained sub-project with its own crates, tests, and tooling — see [`pacquet/AGENTS.md`](./pacquet/AGENTS.md).
+
+## Setup & Build (TypeScript only)
 
 To set up the environment and build the project:
 
@@ -63,7 +74,7 @@ pnpm --filter pnpm run compile
 
 This runs `tsgo --build`, linting, and `pnpm run bundle` (which bundles all packages into `pnpm/dist/pnpm.mjs`). Without this step, e2e tests will use a stale bundle and your changes won't be tested.
 
-## Testing
+## Testing (TypeScript only)
 
 Never run all tests in the repository as it takes a lot of time.
 
@@ -89,9 +100,7 @@ Or a specific test case in a specific file:
 pnpm --filter <package_name> test <file_path> -t <test_name_pattern>
 ```
 
-**Never ignore test failures.** Do not dismiss a failing test as a "pre-existing" failure that is unrelated to your changes. Every test failure must be investigated and fixed. If a test was already broken before your changes, fix it as part of your work — do not silently skip it or treat it as acceptable.
-
-## Linting
+## Linting (TypeScript only)
 
 To run all linting checks:
 
@@ -99,9 +108,33 @@ To run all linting checks:
 pnpm run lint
 ```
 
-## Contribution Workflow
+## Never ignore test failures
 
-### Changesets
+Do not dismiss a failing test as a "pre-existing" failure that is unrelated to your changes. Every test failure must be investigated and fixed. If a test was already broken before your changes, fix it as part of your work — do not silently skip it or treat it as acceptable.
+
+## Code Reuse and Avoiding Duplication
+
+**Before writing new code, always analyze the existing codebase for similar functionality.** This is a large monorepo with many shared utilities — duplication is a real risk.
+
+-   **Search before you write.** Before implementing any non-trivial logic, search the codebase for existing functions, utilities, or patterns that do the same or similar thing. Check `packages/`, `fs/`, `crypto/`, `text/`, and other shared directories first.
+-   **Extract shared code.** If you find that the logic you need already exists in another package but is not exported or reusable, refactor it into a shared package rather than duplicating it. If you are adding new code that is similar to code that already exists elsewhere in the repo, move the common parts into a shared package that both locations can use.
+-   **Prefer open source packages over custom implementations.** Do not reimplement functionality that is already available as a well-maintained open source package. Use established libraries for common tasks (e.g., path manipulation, string utilities, data structures, schema validation). Only write custom code when no suitable package exists or when the existing packages are too heavy or unmaintained.
+-   **Keep the dependency on the right level.** When adding a new open source dependency, add it to the most specific package that needs it, not to the root or to a shared package unless multiple packages depend on it.
+
+## Commit Messages
+
+Follow the [Conventional Commits](https://www.conventionalcommits.org/) specification.
+
+-   `feat`: a new feature
+-   `fix`: a bug fix
+-   `docs`: documentation only changes
+-   `style`: formatting, missing semi-colons, etc.
+-   `refactor`: code change that neither fixes a bug nor adds a feature
+-   `perf`: a code change that improves performance
+-   `test`: adding missing tests
+-   `chore`: changes to build process or auxiliary tools
+
+## Changesets (TypeScript only)
 
 If your changes affect published packages, you MUST create a changeset file in the `.changeset` directory. The changeset file should describe the change and specify the packages that are affected with the pending version bump types: patch, minor, or major.
 
@@ -123,28 +156,7 @@ Added a new setting `blockExoticSubdeps` that prevents the resolution of exotic 
 - **minor**: New features, settings, or commands that should be documented (anything users should know about)
 - **major**: Breaking changes
 
-### Commit Messages
-
-Follow the [Conventional Commits](https://www.conventionalcommits.org/) specification.
-    -   `feat`: a new feature
-    -   `fix`: a bug fix
-    -   `docs`: documentation only changes
-    -   `style`: formatting, missing semi-colons, etc.
-    -   `refactor`: code change that neither fixes a bug nor adds a feature
-    -   `perf`: a code change that improves performance
-    -   `test`: adding missing tests
-    -   `chore`: changes to build process or auxiliary tools
-
-## Code Reuse and Avoiding Duplication
-
-**Before writing new code, always analyze the existing codebase for similar functionality.** This is a large monorepo with many shared utilities — duplication is a real risk.
-
--   **Search before you write.** Before implementing any non-trivial logic, search the codebase for existing functions, utilities, or patterns that do the same or similar thing. Check `packages/`, `fs/`, `crypto/`, `text/`, and other shared directories first.
--   **Extract shared code.** If you find that the logic you need already exists in another package but is not exported or reusable, refactor it into a shared package rather than duplicating it. If you are adding new code that is similar to code that already exists elsewhere in the repo, move the common parts into a shared package that both locations can use.
--   **Prefer open source packages over custom implementations.** Do not reimplement functionality that is already available as a well-maintained open source package. Use established libraries for common tasks (e.g., path manipulation, string utilities, data structures, schema validation). Only write custom code when no suitable package exists or when the existing packages are too heavy or unmaintained.
--   **Keep the dependency on the right level.** When adding a new open source dependency, add it to the most specific package that needs it, not to the root or to a shared package unless multiple packages depend on it.
-
-## Code Style
+## Code Style (TypeScript only)
 
 This repository uses [Standard Style](https://github.com/standard/standard) with a few modifications:
 -   **Trailing commas** are used.
@@ -164,7 +176,7 @@ pnpm run lint
 
 ## Common Gotchas
 
-### Error Type Checking in Jest
+### Error Type Checking in Jest (TypeScript only)
 
 When checking if a caught error is an `Error` object, **do not use `instanceof Error`**. Jest runs tests in a VM context where `instanceof` checks can fail across realms.
 
