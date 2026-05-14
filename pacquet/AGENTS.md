@@ -14,7 +14,9 @@ are meant to match pnpm exactly.
 ## The cardinal rule
 
 **Any change in this repo must match how the same feature is implemented in
-`pnpm/pnpm` on the latest `main` branch.**
+`pnpm/pnpm` on the latest `main` branch.** The inverse obligation —
+user-visible changes to the TypeScript pnpm CLI must also land in pacquet —
+lives in [`../AGENTS.md`](../AGENTS.md#keep-pnpm-and-pacquet-in-sync).
 
 Before writing code for a feature, bug fix, or behavior change:
 

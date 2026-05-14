@@ -9,6 +9,16 @@ The repository contains two stacks:
 
 Sections below marked "(TypeScript only)" do not apply to pacquet. Everything else applies to both stacks.
 
+## Keep pnpm and pacquet in sync
+
+The two stacks are parallel implementations of the same CLI — pacquet is a Rust port of pnpm whose behavior, flags, defaults, error codes, file formats, and lockfile shape are meant to match pnpm exactly. **Any user-visible change has to land in both.**
+
+When you change one side, do the equivalent change on the other in the same PR if you can. If you can't (different expertise, scope too large, or pacquet hasn't ported the surrounding feature yet), open a tracking issue describing what needs porting and linking the originating PR — never leave one side silently ahead of the other.
+
+"User-visible" means anything that affects the CLI surface or the on-disk contract: command-line flags and defaults, environment-variable handling, lockfile/manifest/state-file format, error codes and messages, log emissions parsed by `@pnpm/cli.default-reporter`, store layout, hook semantics. Pure internal refactors, perf wins, and TS-only test cleanups don't need mirroring.
+
+The pacquet-side obligation — pacquet must follow pnpm's `main`, never the other way around — is spelled out in detail at [`pacquet/AGENTS.md`](./pacquet/AGENTS.md#the-cardinal-rule).
+
 ## Repository Structure
 
 The pnpm codebase is a monorepo managed by pnpm itself. The root contains functional directories organized by domain:
