@@ -9,6 +9,14 @@ name: Pacquet Integrated-Benchmark Comment
 # for the security rationale.
 
 on:
+  # zizmor: ignore[dangerous-triggers]
+  # `workflow_run` is intentional and required: this workflow runs in the
+  # base-repo privilege context so it can comment on fork PRs (the build
+  # workflow itself runs with a read-only token on fork PRs). The job-level
+  # `if` only proceeds on `success`, the PR number is resolved from the
+  # trusted `workflow_run` event payload (not from the fork-controlled
+  # artifact), and the artifact body is treated as untrusted markdown.
+  # See https://securitylab.github.com/research/github-actions-preventing-pwn-requests/.
   workflow_run:
     workflows: ["Pacquet Integrated-Benchmark"]
     types: [completed]
@@ -95,7 +103,7 @@ jobs:
       - name: Download benchmark report
         # `run-id` + `github-token` lets v8 pull artifacts from a different
         # workflow run, which is exactly the workflow_run pattern.
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           name: integrated-benchmark-report-ubuntu-latest
           path: benchmark-artifact
@@ -109,7 +117,7 @@ jobs:
         # to keep this matcher in sync, otherwise duplicate comments
         # accrue across runs. Today the matrix only runs on Linux, so
         # there is one fixed string to track.
-        uses: peter-evans/find-comment@v4
+        uses: peter-evans/find-comment@b30e6a3c0ed37e7c023ccd3f1db5c6c0b0c23aad # v4.0.0
         id: fc
         with:
           issue-number: ${{ steps.meta.outputs.pr }}
@@ -117,7 +125,7 @@ jobs:
           body-includes: 'Integrated-Benchmark Report (Linux)'
 
       - name: Create or update comment
-        uses: peter-evans/create-or-update-comment@v5
+        uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5.0.0
         with:
           issue-number: ${{ steps.meta.outputs.pr }}
           edit-mode: replace

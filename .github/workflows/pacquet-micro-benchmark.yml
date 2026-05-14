@@ -20,8 +20,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  issues: write
-  pull-requests: write
+  contents: read
 
 jobs:
   benchmark:
@@ -32,9 +31,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Main Branch
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: main # Checkout main first because the cache is warm
+          persist-credentials: false
 
       - name: Install Rust Toolchain
         uses: ./.github/actions/rustup
@@ -52,10 +52,11 @@ jobs:
         run: cargo run --bin=micro-benchmark --release -- --save-baseline main
 
       - name: Checkout PR Branch
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           clean: false
           ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
 
       - name: Compile
         run: cargo build --release --bin=micro-benchmark
@@ -68,7 +69,7 @@ jobs:
         run: cargo run --bin=micro-benchmark --release -- --save-baseline pr
 
       - name: Upload benchmark results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: benchmark-results-${{ matrix.os }}
           path: ./target/criterion
@@ -78,15 +79,19 @@ jobs:
     name: Compare Benchmarks
     needs:
       - benchmark
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
 
     steps:
       - name: Install critcmp
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@e1c4cd42111751368541a7cb5db3522bd1f846a4 # v2.78.0
         with:
           tool: critcmp
 
       - name: Linux | Download PR benchmark results
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           name: benchmark-results-ubuntu-latest
           path: ./target/criterion
@@ -107,7 +112,7 @@ jobs:
       - name: Find Comment
         # Check if the event is not triggered by a fork
         if: github.event.pull_request.head.repo.full_name == github.repository
-        uses: peter-evans/find-comment@v4
+        uses: peter-evans/find-comment@b30e6a3c0ed37e7c023ccd3f1db5c6c0b0c23aad # v4.0.0
         id: fc
         with:
           issue-number: ${{ github.event.pull_request.number }}
@@ -117,7 +122,7 @@ jobs:
       - name: Create or update comment
         # Check if the event is not triggered by a fork
         if: github.event.pull_request.head.repo.full_name == github.repository
-        uses: peter-evans/create-or-update-comment@v5
+        uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5.0.0
         with:
           issue-number: ${{ github.event.pull_request.number }}
           edit-mode: replace

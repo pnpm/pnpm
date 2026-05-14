@@ -40,9 +40,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Make main branch visible
         shell: bash
@@ -67,7 +68,7 @@ jobs:
           git branch
 
       - name: Cache verdaccio
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           key: integrated-benchmark-verdaccio-${{ hashFiles('pacquet/tasks/integrated-benchmark/src/fixtures/pnpm-lock.yaml') }}
           restore-keys: |
@@ -78,7 +79,7 @@ jobs:
         continue-on-error: true
 
       - name: Cache Rust builds
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           key: integrated-benchmark-builds-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock', 'rust-toolchain.toml') }}-${{ github.run_id }}
           restore-keys: |
@@ -105,7 +106,7 @@ jobs:
           install: false
 
       - name: Cache pnpm
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           key: integrated-benchmark-pnpm-v11-${{ hashFiles('pacquet/tasks/registry-mock/pnpm-lock.yaml') }}
           restore-keys: |
@@ -121,7 +122,9 @@ jobs:
           packages: hyperfine@1.18.0
 
       - name: Install just
-        uses: taiki-e/install-action@just
+        uses: taiki-e/install-action@e1c4cd42111751368541a7cb5db3522bd1f846a4 # v2.78.0
+        with:
+          tool: just
 
       - name: Install dependencies
         run: just install
@@ -221,7 +224,7 @@ jobs:
           cp bench-work-env/SUMMARY.md benchmark-artifact/SUMMARY.md
 
       - name: Upload benchmark report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: integrated-benchmark-report-${{ matrix.os }}
           path: benchmark-artifact/

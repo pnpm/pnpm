@@ -34,12 +34,18 @@ runs:
   steps:
     - name: Print Inputs
       shell: bash
+      env:
+        CLIPPY: ${{ inputs.clippy }}
+        FMT: ${{ inputs.fmt }}
+        DOCS: ${{ inputs.docs }}
+        RESTORE_CACHE: ${{ inputs.restore-cache }}
+        SAVE_CACHE: ${{ inputs.save-cache }}
       run: |
-        echo 'clippy: ${{ inputs.clippy }}'
-        echo 'fmt: ${{ inputs.fmt }}'
-        echo 'docs: ${{ inputs.docs }}'
-        echo 'restore-cache: ${{ inputs.restore-cache }}'
-        echo 'save-cache: ${{ inputs.save-cache }}'
+        echo "clippy: $CLIPPY"
+        echo "fmt: $FMT"
+        echo "docs: $DOCS"
+        echo "restore-cache: $RESTORE_CACHE"
+        echo "save-cache: $SAVE_CACHE"
 
     - name: Remove `profile` line on MacOS
       shell: bash
@@ -77,7 +83,7 @@ runs:
         git restore .
 
     - name: Cache on ${{ github.ref_name }}
-      uses: Swatinem/rust-cache@v2
+      uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2.9.1
       if: ${{ inputs.restore-cache == 'true' }}
       with:
         shared-key: ${{ inputs.shared-key }}

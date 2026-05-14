@@ -57,7 +57,9 @@ jobs:
           - os: macos-latest
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Install Rust Toolchain
         uses: ./.github/actions/rustup
@@ -71,7 +73,7 @@ jobs:
           install: false
 
       - name: Cache pnpm
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           key: ci-pnpm-v11-${{ matrix.os }}
           path: |
@@ -84,13 +86,17 @@ jobs:
         run: cargo clippy --locked -- -D warnings
 
       - name: Install just
-        uses: taiki-e/install-action@just
+        uses: taiki-e/install-action@e1c4cd42111751368541a7cb5db3522bd1f846a4 # v2.78.0
+        with:
+          tool: just
 
       - name: Install dependencies
         run: just install
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@cargo-nextest
+        uses: taiki-e/install-action@e1c4cd42111751368541a7cb5db3522bd1f846a4 # v2.78.0
+        with:
+          tool: cargo-nextest
 
       - name: Test
         shell: bash
@@ -110,7 +116,9 @@ jobs:
     name: Doc
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Install Rust Toolchain
         uses: ./.github/actions/rustup
@@ -126,9 +134,11 @@ jobs:
     name: Spell Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
-      - uses: crate-ci/typos@v1.46.1
+      - uses: crate-ci/typos@5374cbf686e897b15713110e233094e2874de7ef # v1.46.1
         with:
           files: pacquet
 
@@ -136,9 +146,11 @@ jobs:
     name: Cargo Deny
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
-      - uses: dorny/paths-filter@v4
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
         id: filter
         with:
           filters: |
@@ -148,7 +160,9 @@ jobs:
 
       - name: Install cargo-deny
         if: steps.filter.outputs.src == 'true'
-        uses: taiki-e/install-action@cargo-deny
+        uses: taiki-e/install-action@e1c4cd42111751368541a7cb5db3522bd1f846a4 # v2.78.0
+        with:
+          tool: cargo-deny
 
       - if: steps.filter.outputs.src == 'true'
         run: cargo deny check
@@ -157,7 +171,9 @@ jobs:
     name: Format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Install Rust
         uses: ./.github/actions/rustup
@@ -178,7 +194,9 @@ jobs:
     name: Dylint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       # Two caches with disjoint scopes:
       #
@@ -204,7 +222,7 @@ jobs:
       # dylint-library cache can never be restored from a mismatched
       # `dylint.toml`.
       - name: Cache workspace artifacts
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         timeout-minutes: 2
         continue-on-error: true
         with:
@@ -219,7 +237,7 @@ jobs:
             ${{ github.job }}-workspace-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-
 
       - name: Cache dylint lint library
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         timeout-minutes: 2
         continue-on-error: true
         with:
