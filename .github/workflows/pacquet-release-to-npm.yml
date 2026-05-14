@@ -98,7 +98,7 @@ jobs:
           tool: cross
 
       - name: Cache
-        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2.9.1
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           shared-key: release-${{ matrix.target }}
 
@@ -168,7 +168,7 @@ jobs:
           merge-multiple: true
 
       - name: Unzip
-        uses: montudor/action-zip@a8e75c9faefcd80fac3baf53ef40b9b119d5b702 # v1.0.0
+        uses: montudor/action-zip@0852c26906e00f8a315c704958823928d8018b28 # v1.0.0
         with:
           args: unzip -qq *.zip -d .
 
