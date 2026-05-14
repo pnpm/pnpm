@@ -24,6 +24,9 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
+      - uses: garnet-org/action@9e819143e63d6dda04bca2e90ac85e3cf0e5289d # v2
+        with:
+          api_token: ${{ secrets.GARNET_API_TOKEN }}
       - name: Install pnpm and Node
         uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
         with:

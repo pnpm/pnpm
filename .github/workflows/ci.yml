@@ -42,6 +42,9 @@ jobs:
     with:
       node: '24.0.0'
       platform: ubuntu-latest
+      garnet: true
+    secrets:
+      GARNET_API_TOKEN: ${{ secrets.GARNET_API_TOKEN }}
 
   test:
     name: ${{ matrix.platform }} / Node.js ${{ matrix.node }}
