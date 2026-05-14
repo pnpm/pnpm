@@ -13,7 +13,7 @@ import {
   type LockfileObject,
   readCurrentLockfile,
   readWantedLockfile,
-  wantedLockfileHasMergeConflicts,
+  wantedLockfileHasMergeConflictsSync,
 } from '@pnpm/lockfile.fs'
 import {
   calcPatchHashes,
@@ -169,7 +169,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     }
   }
 
-  const conflictedLockfileDir = await findConflictedLockfileDir(getWantedLockfileDirs({
+  const conflictedLockfileDir = findConflictedLockfileDir(getWantedLockfileDirs({
     allProjects,
     lockfileDir,
     rootProjectManifestDir,
@@ -586,20 +586,21 @@ function getWantedLockfileDirs (opts: {
   return [opts.lockfileDir ?? opts.workspaceDir ?? opts.rootProjectManifestDir]
 }
 
-async function findConflictedLockfileDir (lockfileDirs: string[], lastValidatedTimestamp: number): Promise<string | undefined> {
-  const lockfileConflictStatuses = await Promise.all(lockfileDirs.map(async lockfileDir => {
+function findConflictedLockfileDir (lockfileDirs: string[], lastValidatedTimestamp: number): string | undefined {
+  for (const lockfileDir of lockfileDirs) {
+    let mtime: number
+    try {
+      mtime = fs.statSync(path.join(lockfileDir, WANTED_LOCKFILE)).mtime.valueOf()
+    } catch (err: unknown) {
+      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') continue
+      throw err
+    }
     // If the lockfile hasn't been modified since the last successful install, it can't have
     // grown conflict markers — skip the read to preserve the optimistic fast-path.
-    const lockfileStats = await safeStat(path.join(lockfileDir, WANTED_LOCKFILE))
-    if (lockfileStats == null || lockfileStats.mtime.valueOf() <= lastValidatedTimestamp) {
-      return { lockfileDir, hasMergeConflicts: false }
-    }
-    return {
-      lockfileDir,
-      hasMergeConflicts: await wantedLockfileHasMergeConflicts(lockfileDir),
-    }
-  }))
-  return lockfileConflictStatuses.find(({ hasMergeConflicts }) => hasMergeConflicts)?.lockfileDir
+    if (mtime <= lastValidatedTimestamp) continue
+    if (wantedLockfileHasMergeConflictsSync(lockfileDir)) return lockfileDir
+  }
+  return undefined
 }
 
 async function patchesOrHooksAreModified (opts: {
