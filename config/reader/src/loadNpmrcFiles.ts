@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { envReplace } from '@pnpm/config.env-replace'
+import { envReplaceLossy } from '@pnpm/config.env-replace'
 import { readIniFileSync } from 'read-ini-file'
 
 import { isNpmrcReadableKey } from './localConfig.js'
@@ -153,46 +153,18 @@ function readAndFilterNpmrc (
   return result
 }
 
+// Use the lossy variant so unresolved `${VAR}` placeholders become '' (each
+// recorded as a warning) instead of throwing. Critical for the OIDC case in
+// https://github.com/pnpm/pnpm/issues/11513 — leaving the literal `${VAR}` in
+// an auth value would be sent verbatim as a bearer token. Resolvable
+// placeholders and `${VAR-default}` / `${VAR:-default}` fallbacks elsewhere
+// in the same string still expand normally.
 function substituteEnv (value: string, env: Record<string, string | undefined>, warnings: string[]): string {
-  try {
-    return envReplace(value, env)
-  } catch (err) {
-    warnings.push(err instanceof Error ? err.message : String(err))
-    // env-replace throws when any `${VAR}` placeholder in `value` is undefined and
-    // has no `${VAR-default}` / `${VAR:-default}` fallback. Returning the literal
-    // `${VAR}` would later be sent verbatim — most damagingly as a bearer auth token
-    // when `actions/setup-node` writes `_authToken=${NODE_AUTH_TOKEN}` and the user
-    // relies on OIDC trusted publishing instead of `NODE_AUTH_TOKEN`
-    // (https://github.com/pnpm/pnpm/issues/11513). Re-run the substitution per
-    // placeholder, dropping only the unresolved ones to '' so resolvable
-    // placeholders and `${VAR-default}` fallbacks elsewhere in the same string
-    // are preserved.
-    return value.replace(/(?<!\\)(\\*)\$\{([^${}]+)\}/g, (orig: string, escape: string, name: string): string => {
-      if (escape.length % 2) return orig.slice((escape.length + 1) / 2)
-      return `${escape.slice(escape.length / 2)}${resolveEnvValue(env, name) ?? ''}`
-    })
+  const { value: substituted, unresolved } = envReplaceLossy(value, env)
+  for (const placeholder of unresolved) {
+    warnings.push(`Failed to replace env in config: ${placeholder}`)
   }
-}
-
-// Mirrors `getEnvValue` in `@pnpm/config.env-replace`'s strict path, but
-// returns `undefined` (instead of throwing) when a `${VAR}` placeholder has
-// no value and no default. Caller substitutes `undefined` with '' so
-// unresolved auth tokens never reach the registry as literal `${...}` strings.
-//
-// `undefined` is treated as "unset" rather than "explicitly empty", matching
-// the `Record<string, string | undefined>` contract: callers that construct
-// the env object directly (notably tests) routinely include `KEY: undefined`
-// to model an unset variable, and `${KEY-default}` must use the fallback in
-// that case. This diverges from env-replace's `hasOwnProperty` check, which
-// can't tell those two cases apart because `process.env` never holds
-// `undefined` values in practice.
-function resolveEnvValue (env: Record<string, string | undefined>, name: string): string | undefined {
-  const match = /([^:-]+)(:?)-(.+)/.exec(name)
-  if (!match) return env[name]
-  const [, varName, colon, fallback] = match
-  const v = env[varName]
-  if (v === undefined) return fallback
-  return !v && colon ? fallback : v
+  return substituted
 }
 
 function normalizePath (p: string | undefined): string | undefined {
