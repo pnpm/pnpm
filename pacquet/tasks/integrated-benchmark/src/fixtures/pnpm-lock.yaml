@@ -232,7 +232,7 @@ importers:
         version: 15.6.3
       react-dnd:
         specifier: ^16.0.1
-        version: 16.0.1(@types/node@25.7.0)(react@18.3.1)
+        version: 16.0.1(@types/node@25.8.0)(react@18.3.1)
       react-dnd-html5-backend:
         specifier: ^16.0.1
         version: 16.0.1
@@ -601,8 +601,8 @@ packages:
   '@types/node@25.6.0':
     resolution: {integrity: sha512-+qIYRKdNYJwY3vRCZMdJbPLJAtGjQBudzZzdzwQYkEPQd+PJGixUL5QfvCLDaULoLv+RhT3LDkwEfKaAkgSmNQ==}
 
-  '@types/node@25.7.0':
-    resolution: {integrity: sha512-z+pdZyxE+RTQE9AcboAZCb4otwcrvgHD+GlBpPgn0emDVt0ohrTMhAwlr2Wd9nZ+nihhYFxO2pThz3C5qSu2Eg==}
+  '@types/node@25.8.0':
+    resolution: {integrity: sha512-TCFSk8IZh+iLX1xtksoBVtdmgL+1IX0fC9BeU4QqFSuNdN/K+HUlhqOzEmSYYpZUVsLYcPqc9KX+60iDuninSQ==}
 
   '@types/resize-observer-browser@0.1.11':
     resolution: {integrity: sha512-cNw5iH8JkMkb3QkCoe7DaZiawbDQEUX8t7iuQaRTyLOyQCR2h+ibBD4GJt7p5yhUHrlOeL7ZtbxNHeipqNsBzQ==}
@@ -5408,8 +5408,8 @@ packages:
   undici-types@7.19.2:
     resolution: {integrity: sha512-qYVnV5OEm2AW8cJMCpdV20CDyaN3g0AjDlOGf1OW4iaDEx8MwdtChUp4zu4H0VP3nDRF/8RKWH+IPp9uW0YGZg==}
 
-  undici-types@7.21.0:
-    resolution: {integrity: sha512-w9IMgQrz4O0YN1LtB7K5P63vhlIOvC7opSmouCJ+ZywlPAlO9gIkJ+otk6LvGpAs2wg4econaCz3TvQ9xPoyuQ==}
+  undici-types@7.24.6:
+    resolution: {integrity: sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg==}
 
   union-value@1.0.1:
     resolution: {integrity: sha512-tJfXmxMeWYnczCVs7XAEvIV7ieppALdyepWMkHkwciRpZraG/xwT+s2JN8+pr1+8jCRf80FFzvr+MpQeeoF4Xg==}
@@ -5967,9 +5967,9 @@ snapshots:
     dependencies:
       undici-types: 7.19.2
 
-  '@types/node@25.7.0':
+  '@types/node@25.8.0':
     dependencies:
-      undici-types: 7.21.0
+      undici-types: 7.24.6
 
   '@types/resize-observer-browser@0.1.11': {}
 
@@ -9250,7 +9250,7 @@ snapshots:
 
   jest-worker@27.5.1:
     dependencies:
-      '@types/node': 25.7.0
+      '@types/node': 25.8.0
       merge-stream: 2.0.0
       supports-color: 8.1.1
 
@@ -10546,7 +10546,7 @@ snapshots:
     dependencies:
       dnd-core: 16.0.1
 
-  react-dnd@16.0.1(@types/node@25.7.0)(react@18.3.1):
+  react-dnd@16.0.1(@types/node@25.8.0)(react@18.3.1):
     dependencies:
       '@react-dnd/invariant': 4.0.2
       '@react-dnd/shallowequal': 4.0.2
@@ -10555,7 +10555,7 @@ snapshots:
       hoist-non-react-statics: 3.3.2
       react: 18.3.1
     optionalDependencies:
-      '@types/node': 25.7.0
+      '@types/node': 25.8.0
 
   react-dom@18.3.1(react@18.3.1):
     dependencies:
@@ -11724,7 +11724,7 @@ snapshots:
 
   undici-types@7.19.2: {}
 
-  undici-types@7.21.0: {}
+  undici-types@7.24.6: {}
 
   union-value@1.0.1:
     dependencies:
