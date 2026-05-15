@@ -2019,9 +2019,10 @@ test('injected local packages are deduped', async () => {
 // `ENOENT: copyfile '...node_modules/.bin/<tool>'`. `runLifecycleHooksConcurrently`
 // scanned the existing injected node_modules and added absolute paths under
 // it to the filesMap; the importer's fast path then wiped the target before
-// reading from those paths. Fixed by passing `keepModulesDir: true` and
-// letting `importIndexedDir` move-or-merge node_modules across the staging
-// dir.
+// reading from those paths. Fixed by skipping the importPackage round-trip:
+// fetchFromDir lists the source tree (already excludes node_modules) and
+// mirrorFilesIntoTarget overlays it into each injected target, leaving the
+// target's existing node_modules — and its bin symlinks — untouched.
 test('inject local package with prepare script + bin-having dep does not crash on re-import', async () => {
   const project1Manifest = {
     name: 'project-1',
