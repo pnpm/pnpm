@@ -141,15 +141,40 @@ fn env_replace_substitutes_token() {
 }
 
 #[test]
-fn env_replace_failure_warns_and_keeps_raw_value() {
+fn env_replace_failure_warns_and_drops_unresolved_to_empty() {
+    // Mirrors pnpm's `substituteEnv` lossy fallback: unresolved `${VAR}` becomes
+    // "" so a downstream `Authorization: Bearer …` header is never sent with a
+    // literal placeholder. See https://github.com/pnpm/pnpm/issues/11513.
     let ini = "//reg.com/:_authToken=${MISSING}\n";
     let auth = NpmrcAuth::from_ini::<NoEnv>(ini);
     assert_eq!(
         auth.creds_by_uri.get("//reg.com/").map(|creds| creds.auth_token.as_deref()),
-        Some(Some("${MISSING}")),
+        Some(Some("")),
     );
     assert_eq!(auth.warnings.len(), 1);
     assert!(auth.warnings[0].contains("${MISSING}"));
+}
+
+#[test]
+fn env_replace_failure_preserves_resolved_and_default_placeholders() {
+    // Mixed value with one resolvable placeholder, one unresolved bare placeholder,
+    // and one with a `:-default` fallback. Only the bare unresolved one becomes "";
+    // the others must still expand. Guards against an earlier implementation that
+    // stripped every `${...}` on any substitution failure.
+    struct EnvWithSet;
+    impl EnvVar for EnvWithSet {
+        fn var(name: &str) -> Option<String> {
+            (name == "SET").then(|| "AAA".to_owned())
+        }
+    }
+    let ini = "//reg.com/:_authToken=${SET}-${UNSET}-${DEFAULTED:-fallback}\n";
+    let auth = NpmrcAuth::from_ini::<EnvWithSet>(ini);
+    assert_eq!(
+        auth.creds_by_uri.get("//reg.com/").map(|creds| creds.auth_token.as_deref()),
+        Some(Some("AAA--fallback")),
+    );
+    assert_eq!(auth.warnings.len(), 1);
+    assert!(auth.warnings[0].contains("${UNSET}"));
 }
 
 #[test]
@@ -193,16 +218,17 @@ fn ini_section_headers_are_dropped_silently() {
 }
 
 /// When a `${VAR}` placeholder appears in the *key* and cannot be
-/// resolved, the parser keeps the raw key verbatim and pushes a
-/// warning. Mirrors `substituteEnv` in pnpm's `loadNpmrcFiles.ts`.
+/// resolved, the parser substitutes it with "" and pushes a warning.
+/// Mirrors `substituteEnv` in pnpm's `loadNpmrcFiles.ts`.
 #[test]
-fn env_replace_failure_on_key_warns_and_keeps_raw_key() {
-    // `${MISSING}_authToken` resolves to a literal key, so it lands
-    // in `default_creds` rather than being recognised as the typed
-    // `_authToken` field. The point of this test is to exercise the
-    // warning + raw-key branch at the top of `from_ini`.
+fn env_replace_failure_on_key_warns_and_drops_unresolved_to_empty() {
+    // `${MISSING}_authToken` resolves to the literal key `_authToken` (the
+    // unresolved placeholder becomes ""), so it lands on `default_creds` as
+    // the typed `_authToken` field. The point of this test is to exercise
+    // the warning + lossy-substitution branch at the top of `from_ini`.
     let ini = "${MISSING}_authToken=abc\n";
     let auth = NpmrcAuth::from_ini::<NoEnv>(ini);
+    assert_eq!(auth.default_creds.auth_token.as_deref(), Some("abc"));
     assert!(auth.warnings.iter().any(|warning| warning.contains("${MISSING}")));
 }
 
