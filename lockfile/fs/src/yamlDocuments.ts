@@ -6,7 +6,6 @@ import stripBom from 'strip-bom'
 export const YAML_DOCUMENT_SEPARATOR = '\n---\n'
 export const YAML_DOCUMENT_START = '---\n'
 
-
 /**
  * Reads the first YAML document from a multi-document YAML file using streaming.
  * The file must start with "---\n" to indicate it contains an env lockfile document.
@@ -24,11 +23,12 @@ export async function streamReadFirstYamlDocument (filePath: string): Promise<st
       if (buffer.length === 0) {
         // Strip BOM from the first chunk. Safe because the stream uses utf8 encoding,
         // so the 3-byte BOM is decoded into a single \uFEFF character in the first chunk.
-        // Normalize CRLF line endings (Windows) to LF before processing
-        buffer = stripBom(chunk.value as string).replace(/\r\n/g, '\n');
+        buffer = stripBom(chunk.value as string)
       } else {
-        buffer = (buffer + chunk.value).replace(/\r\n/g, '\n')
+        buffer += chunk.value
       }
+      // Normalize CRLF (Windows) to LF so document separator detection works.
+      buffer = buffer.replace(/\r\n/g, '\n')
       if (buffer.length >= YAML_DOCUMENT_START.length) break
     }
     if (!buffer.startsWith(YAML_DOCUMENT_START)) {
@@ -44,8 +44,7 @@ export async function streamReadFirstYamlDocument (filePath: string): Promise<st
       }
       const chunk = await chunks.next() // eslint-disable-line no-await-in-loop
       if (chunk.done) break
-
-      // Normalize CRLF line endings (Windows) to LF before processing
+      // Normalize CRLF (Windows) to LF so the separator search matches on Windows-checked-out files.
       buffer = (buffer + chunk.value).replace(/\r\n/g, '\n')
     }
   } catch (err: unknown) {
@@ -65,7 +64,7 @@ export async function streamReadFirstYamlDocument (filePath: string): Promise<st
  * Otherwise returns the entire content (no env document present).
  */
 export function extractMainDocument (content: string): string {
-  content = content.replace(/\r\n/g, '\n');
+  content = content.replace(/\r\n/g, '\n')
   if (!content.startsWith(YAML_DOCUMENT_START)) return content
   const sep = content.indexOf(YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START.length)
   if (sep === -1) return ''
