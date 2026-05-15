@@ -1,0 +1,45 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+  injectWorkspacePackages: true
+
+importers:
+
+  .:
+    dependencies:
+      pkg-a:
+        specifier: workspace:*
+        version: 'file:packages/pkg-a(peer@1.0.0)'
+
+  packages/peer: {}
+
+  packages/pkg-a:
+    peerDependencies:
+      peer:
+        specifier: 1.0.0
+        version: 1.0.0
+
+packages:
+
+  # Base entry — has `resolution` describing the workspace directory.
+  'pkg-a@file:packages/pkg-a':
+    resolution: { directory: packages/pkg-a, type: directory }
+
+  # Peer-variant entry — inherits resolution from the base, intentionally
+  # omits its own `resolution`. This shape is what pnpm itself writes for a
+  # workspace dep with peer dependencies that resolve differently per
+  # consumer. Before the fix it crashed `lockfileToDepGraph` with
+  # `TypeError: Cannot use 'in' operator to search for 'directory' in undefined`.
+  'pkg-a@file:packages/pkg-a(peer@1.0.0)':
+    dependencies:
+      peer: 1.0.0
+
+snapshots:
+
+  'pkg-a@file:packages/pkg-a': {}
+
+  'pkg-a@file:packages/pkg-a(peer@1.0.0)':
+    dependencies:
+      peer: 1.0.0
