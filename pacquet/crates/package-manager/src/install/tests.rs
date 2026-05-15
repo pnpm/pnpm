@@ -13,6 +13,9 @@ use pacquet_reporter::{
     StageLog, StatsLog, StatsMessage, SummaryLog,
 };
 use pacquet_testing_utils::fs::{get_all_folders, is_symlink_or_junction};
+use pacquet_workspace_state::{
+    self as workspace_state, NodeLinker as WorkspaceStateNodeLinker, load_workspace_state,
+};
 use pipe_trait::Pipe;
 use std::{path::PathBuf, sync::Mutex};
 use tempfile::tempdir;
@@ -676,6 +679,118 @@ async fn install_writes_modules_yaml() {
         package_manager.starts_with("pacquet@"),
         "expected `pacquet@<version>`, got {package_manager:?}",
     );
+
+    drop(dir);
+}
+
+/// `pnpm run`'s `verifyDepsBeforeRun` gate at
+/// <https://github.com/pnpm/pnpm/blob/7ff112bac6/deps/status/src/checkDepsStatus.ts#L80-L86>
+/// bails to "outdated" the moment
+/// `<workspaceDir>/node_modules/.pnpm-workspace-state-v1.json` is
+/// missing. Pacquet must write it on every install so pnpm can fast-path
+/// the check after pacquet has materialized the modules tree — that's
+/// the gap behind the
+/// [`pnpm_config_verify_deps_before_run: false`](https://github.com/pnpm/pnpm/commit/7ff112bac6)
+/// workaround in pnpm's own CI.
+#[tokio::test]
+async fn install_writes_workspace_state() {
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = dir.path().join("package.json");
+    let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+
+    let mut config = Config::new();
+    config.lockfile = false;
+    config.store_dir = store_dir.clone().into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir.clone();
+    let config = config.leak();
+
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies: {}"
+        "packages: {}"
+        "snapshots: {}"
+    })
+    .expect("parse minimal v9 lockfile");
+
+    Install {
+        tarball_mem_cache: &Default::default(),
+        http_client: &Default::default(),
+        config,
+        manifest: &manifest,
+        lockfile: Some(&lockfile),
+        // Same `included` shape as `install_writes_modules_yaml` so the
+        // dev/optional/production assertions below line up with the
+        // dispatched groups.
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
+        frozen_lockfile: true,
+        skip_runtimes: false,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        resolved_packages: &Default::default(),
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("frozen-lockfile install should succeed");
+
+    let state = load_workspace_state(dir.path())
+        .expect("read workspace state")
+        .expect("workspace state file exists after install");
+
+    assert!(
+        state.last_validated_timestamp > 0,
+        "lastValidatedTimestamp should be populated, got {}",
+        state.last_validated_timestamp,
+    );
+
+    // The state must record the project that pacquet just installed
+    // so pnpm's `allProjects.length !== Object.keys(projects).length`
+    // check passes. Single-project install → exactly one entry, keyed
+    // on the workspace dir.
+    assert_eq!(state.projects.len(), 1);
+    let project_key = dir.path().to_string_lossy().into_owned();
+    let project = state
+        .projects
+        .get(&project_key)
+        .unwrap_or_else(|| panic!("project entry for {project_key:?} should exist"));
+    assert_eq!(
+        project,
+        &workspace_state::ProjectEntry {
+            // `PackageManifest::create_if_needed` seeds `name` from the
+            // parent dir's basename and `version` from `"1.0.0"`. The
+            // test pins the round-trip of both fields so a regression
+            // that loses them (e.g. switching to a non-string serde
+            // shape) trips here.
+            name: Some(
+                dir.path()
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .expect("tmpdir has a UTF-8 basename")
+                    .to_string()
+            ),
+            version: Some("1.0.0".to_string()),
+        },
+    );
+
+    assert!(!state.filtered_install);
+    assert!(state.pnpmfiles.is_empty());
+
+    let settings = &state.settings;
+    assert_eq!(settings.node_linker, Some(WorkspaceStateNodeLinker::Isolated));
+    assert_eq!(settings.dev, Some(false));
+    assert_eq!(settings.optional, Some(true));
+    assert_eq!(settings.production, Some(true));
+    assert_eq!(settings.auto_install_peers, Some(true));
+    assert_eq!(settings.dedupe_peer_dependents, Some(true));
+    assert_eq!(settings.hoist_workspace_packages, Some(true));
+    assert_eq!(settings.hoist_pattern.as_deref(), Some(&["*".to_string()][..]));
 
     drop(dir);
 }

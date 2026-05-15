@@ -35,6 +35,7 @@ pacquet-reporter               = { path = "pacquet/crates/reporter" }
 pacquet-patching               = { path = "pacquet/crates/patching" }
 pacquet-real-hoist             = { path = "pacquet/crates/real-hoist" }
 pacquet-workspace              = { path = "pacquet/crates/workspace" }
+pacquet-workspace-state        = { path = "pacquet/crates/workspace-state" }
 
 # Tasks
 pacquet-registry-mock = { path = "pacquet/tasks/registry-mock" }

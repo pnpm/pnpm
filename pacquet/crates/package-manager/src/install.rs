@@ -21,6 +21,10 @@ use pacquet_reporter::{
     StageLog, SummaryLog,
 };
 use pacquet_tarball::MemCache;
+use pacquet_workspace_state::{
+    NodeLinker as WorkspaceStateNodeLinker, ProjectEntry, UpdateWorkspaceStateError,
+    WorkspaceState, WorkspaceStateSettings, now_millis, update_workspace_state,
+};
 
 /// This subroutine does everything `pacquet install` is supposed to do.
 #[must_use]
@@ -140,6 +144,15 @@ pub enum InstallError {
 
     #[diagnostic(transparent)]
     FindWorkspaceDir(#[error(source)] pacquet_workspace::FindWorkspaceDirError),
+
+    /// Surfaces a failure to persist `.pnpm-workspace-state-v1.json`.
+    /// Missing or unreadable state forces `pnpm run`'s
+    /// `verifyDepsBeforeRun` check to fall back to "outdated", which
+    /// is exactly the regression CI hits when pacquet runs the
+    /// install — fail the install rather than letting a silent write
+    /// error compound into spurious reinstalls.
+    #[diagnostic(transparent)]
+    WriteWorkspaceState(#[error(source)] UpdateWorkspaceStateError),
 }
 
 impl<'a, DependencyGroupList> Install<'a, DependencyGroupList>
@@ -504,6 +517,22 @@ where
                 .map_err(InstallError::SaveCurrentLockfile)?;
         }
 
+        // Write `node_modules/.pnpm-workspace-state-v1.json`. Mirrors
+        // upstream's `updateWorkspaceState` call at
+        // <https://github.com/pnpm/pnpm/blob/7ff112bac6/installing/commands/src/installDeps.ts#L447-L454>.
+        // pnpm's `verifyDepsBeforeRun` gate at
+        // <https://github.com/pnpm/pnpm/blob/7ff112bac6/deps/status/src/checkDepsStatus.ts#L80-L86>
+        // bails to "outdated" the moment this file is missing,
+        // forcing `pnpm install` to rerun. Writing it after both the
+        // `.modules.yaml` and the current lockfile succeed mirrors
+        // pnpm's ordering and keeps the file pointing at a fully
+        // committed install.
+        update_workspace_state(
+            &workspace_root,
+            &build_workspace_state(config, node_linker, included, manifest, lockfile),
+        )
+        .map_err(InstallError::WriteWorkspaceState)?;
+
         // `pnpm:summary` closes the install and lets the reporter render
         // the accumulated `pnpm:root` events as a "+N -M" block. Must
         // come after `importing_done`, matching pnpm's ordering at
@@ -600,6 +629,135 @@ fn build_modules_manifest(
         virtual_store_dir: config.virtual_store_dir.to_string_lossy().into_owned(),
         virtual_store_dir_max_length: DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH,
         ..Default::default()
+    }
+}
+
+/// Translate pacquet's `Config::node_linker` into the on-disk variant
+/// shared with the workspace-state writer. Same three-way set as
+/// [`map_node_linker`] but targeting [`WorkspaceStateNodeLinker`].
+fn map_workspace_state_node_linker(linker: &NodeLinker) -> WorkspaceStateNodeLinker {
+    match linker {
+        NodeLinker::Isolated => WorkspaceStateNodeLinker::Isolated,
+        NodeLinker::Hoisted => WorkspaceStateNodeLinker::Hoisted,
+        NodeLinker::Pnp => WorkspaceStateNodeLinker::Pnp,
+    }
+}
+
+/// Read a string field off a project manifest, returning `None` when
+/// the field is missing or not a JSON string. Pnpm tolerates either
+/// shape — `name`/`version` are advisory metadata in this context, so
+/// pacquet matches by silently dropping non-string values.
+fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Option<String> {
+    manifest.value().get(key).and_then(|v| v.as_str()).map(ToString::to_string)
+}
+
+/// Build the `projects` map for [`WorkspaceState`]. Mirrors upstream's
+/// `Object.fromEntries(opts.allProjects.map(...))` at
+/// <https://github.com/pnpm/pnpm/blob/7ff112bac6/workspace/state/src/createWorkspaceState.ts>.
+///
+/// For workspace installs (frozen-lockfile with sub-importers), pacquet
+/// reads each sub-importer's `package.json` to capture `name` / `version`
+/// the same way pnpm's `find_workspace_projects` does. The root
+/// importer (`.`) reuses the already-loaded `manifest` — re-reading it
+/// would double the I/O for no behavior change. A missing or unreadable
+/// sub-manifest is logged and skipped: pnpm would already correctly
+/// re-run install in that case (the project count won't match), so a
+/// best-effort entry beats failing the install over a transient read.
+fn build_projects_map(
+    workspace_root: &std::path::Path,
+    manifest: &PackageManifest,
+    lockfile: Option<&Lockfile>,
+) -> BTreeMap<String, ProjectEntry> {
+    let mut projects: BTreeMap<String, ProjectEntry> = BTreeMap::new();
+    let root_entry = ProjectEntry {
+        name: manifest_string_field(manifest, "name"),
+        version: manifest_string_field(manifest, "version"),
+    };
+    let importer_ids: Vec<String> = match lockfile {
+        Some(lf) => lf.importers.keys().cloned().collect(),
+        None => vec![Lockfile::ROOT_IMPORTER_KEY.to_string()],
+    };
+    for importer_id in importer_ids {
+        let project_dir =
+            crate::symlink_direct_dependencies::importer_root_dir(workspace_root, &importer_id);
+        let entry = if importer_id == Lockfile::ROOT_IMPORTER_KEY {
+            root_entry.clone()
+        } else {
+            match PackageManifest::from_path(project_dir.join("package.json")) {
+                Ok(sub_manifest) => ProjectEntry {
+                    name: manifest_string_field(&sub_manifest, "name"),
+                    version: manifest_string_field(&sub_manifest, "version"),
+                },
+                Err(error) => {
+                    tracing::warn!(
+                        target: "pacquet::install",
+                        ?error,
+                        importer_id = %importer_id,
+                        "Failed to read sub-importer manifest while recording workspace state",
+                    );
+                    ProjectEntry::default()
+                }
+            }
+        };
+        projects.insert(project_dir.to_string_lossy().into_owned(), entry);
+    }
+    projects
+}
+
+/// Assemble the [`WorkspaceState`] payload for [`update_workspace_state`].
+///
+/// Records the projects pacquet just materialized plus the resolved
+/// settings the install used. Mirrors upstream's `createWorkspaceState`
+/// at <https://github.com/pnpm/pnpm/blob/7ff112bac6/workspace/state/src/createWorkspaceState.ts>.
+/// Settings pacquet does not track yet (e.g. `dedupeDirectDeps`,
+/// `peersSuffixMaxLength`, `overrides`) are omitted; pnpm's
+/// `checkDepsStatus` only iterates fields present in the serialized
+/// object, so an absent key is silently skipped rather than treated as
+/// a drift.
+fn build_workspace_state(
+    config: &Config,
+    node_linker: NodeLinker,
+    included: IncludedDependencies,
+    manifest: &PackageManifest,
+    lockfile: Option<&Lockfile>,
+) -> WorkspaceState {
+    let manifest_dir = manifest.path().parent().expect("manifest path always has a parent dir");
+    let workspace_root = pacquet_workspace::find_workspace_dir(manifest_dir)
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| manifest_dir.to_path_buf());
+
+    let allow_builds = (!config.allow_builds.is_empty()).then(|| {
+        config.allow_builds.iter().map(|(k, v)| (k.clone(), serde_json::Value::Bool(*v))).collect()
+    });
+
+    WorkspaceState {
+        last_validated_timestamp: now_millis(),
+        projects: build_projects_map(&workspace_root, manifest, lockfile),
+        // Pacquet doesn't run pnpmfiles yet; record the empty list so
+        // pnpm's `patchesOrHooksAreModified` doesn't trip on a missing
+        // field.
+        pnpmfiles: Vec::new(),
+        // Pacquet has no `--filter` yet (issue #299 stage 2). Hard-code
+        // `false` so pnpm doesn't treat the install as partial and
+        // skip the cache.
+        filtered_install: false,
+        config_dependencies: None,
+        settings: WorkspaceStateSettings {
+            allow_builds,
+            auto_install_peers: Some(config.auto_install_peers),
+            dedupe_peer_dependents: Some(config.dedupe_peer_dependents),
+            dev: Some(included.dev_dependencies),
+            hoist_pattern: config.hoist_pattern.clone(),
+            hoist_workspace_packages: Some(config.hoist_workspace_packages),
+            ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
+            node_linker: Some(map_workspace_state_node_linker(&node_linker)),
+            optional: Some(included.optional_dependencies),
+            patched_dependencies: config.patched_dependencies.clone(),
+            production: Some(included.dependencies),
+            public_hoist_pattern: config.public_hoist_pattern.clone(),
+            ..Default::default()
+        },
     }
 }
 

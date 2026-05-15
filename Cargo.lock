@@ -2262,6 +2262,7 @@ dependencies = [
  "pacquet-tarball",
  "pacquet-testing-utils",
  "pacquet-workspace",
+ "pacquet-workspace-state",
  "pipe-trait",
  "pretty_assertions",
  "rayon",
@@ -2443,6 +2444,19 @@ dependencies = [
  "serde-saphyr",
  "tempfile",
  "wax",
+]
+
+[[package]]
+name = "pacquet-workspace-state"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "indexmap",
+ "pacquet-diagnostics",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]
