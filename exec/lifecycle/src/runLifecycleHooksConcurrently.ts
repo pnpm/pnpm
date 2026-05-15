@@ -73,27 +73,29 @@ export async function runLifecycleHooksConcurrently (
           }
         }
         if (targetDirs == null || targetDirs.length === 0 || !isBuilt) return
+        // After the workspace package's prepare/postinstall script runs in
+        // its source dir, mirror the post-script source tree into each of
+        // its injected target dirs so consumers see the freshly-built dist/.
+        //
+        // We do this with a plain directory-mirror (file-by-file overlay)
+        // instead of routing through storeController.importPackage:
+        //
+        //   - The old `scanDir → filesMap` + fast-path-import flow (#4299)
+        //     broke when #11088 made the makeEmptyDir fast path default,
+        //     because the scanned source paths lived inside the very dir
+        //     about to be wiped — ENOENT on `.bin/<tool>` symlinks.
+        //   - Routing through `keepModulesDir: true` (staging path) avoids
+        //     the wipe but its `moveOrMergeModulesDirs` step trips over
+        //     `.bin/<tool>` symlinks under cross-device EXDEV fallbacks on
+        //     virtualized filesystems (e.g. CI pod overlays).
+        //
+        // A direct overlay is both simpler and more robust: we never touch
+        // the target's existing `node_modules` (the bin links + transitive
+        // deps set up by the initial install stay intact), and we never go
+        // through a tmp-dir swap that has to dance around symlinks.
         const filesResponse = await fetchFromDir(rootDir, { resolveSymlinks: opts.resolveSymlinksInInjectedDirs })
         await Promise.all(
-          targetDirs.map(async (targetDir) => {
-            const targetModulesDir = path.join(targetDir, 'node_modules')
-            const newFilesMap: FilesMap = new Map(filesResponse.filesMap)
-            if (fs.existsSync(targetModulesDir)) {
-              // If the target directory contains a node_modules directory
-              // (it may happen when the hoisted node linker is used)
-              // then we need to preserve this node_modules.
-              // So we scan this node_modules directory and  pass it as part of the new package.
-              await scanDir('node_modules', targetModulesDir, targetModulesDir, newFilesMap)
-            }
-            return opts.storeController.importPackage(targetDir, {
-              filesResponse: {
-                resolvedFrom: 'local-dir',
-                ...filesResponse,
-                filesMap: newFilesMap,
-              },
-              force: false,
-            })
-          })
+          targetDirs.map(async (targetDir) => mirrorFilesIntoTarget(filesResponse.filesMap, targetDir))
         )
       }
     )
@@ -101,17 +103,40 @@ export async function runLifecycleHooksConcurrently (
   await runGroups(childConcurrency, groups)
 }
 
-async function scanDir (prefix: string, rootDir: string, currentDir: string, index: FilesMap): Promise<void> {
-  const files = await fs.promises.readdir(currentDir)
-  await Promise.all(files.map(async (file) => {
-    const fullPath = path.join(currentDir, file)
-    const stat = await fs.promises.stat(fullPath)
-    if (stat.isDirectory()) {
-      return scanDir(prefix, rootDir, fullPath, index)
+// Mirror each file in filesMap from its source path into targetDir, creating
+// parent directories as needed. Source paths come from `fetchFromDir`, which
+// already excludes the source's `node_modules/` subtree — so this never
+// touches the target's existing `node_modules/` (its bin links and installed
+// deps stay intact).
+//
+// Implementation notes:
+//   - We use `fs.copyFileSync` with the source path as-is. `fetchFromDir`
+//     records symlink paths verbatim (resolveSymlinks defaults to false),
+//     so a broken symlink in the source would surface as ENOENT here just
+//     like it would in a regular `pnpm install`. That's the correct
+//     behavior — the bug we're fixing was distinct (re-importing into a
+//     tmp dir then renaming, which tripped over `.bin/` symlinks).
+//   - We `unlinkSync` existing destinations first to guarantee an
+//     overwrite. Without this, `copyFileSync` would error on existing
+//     symlinks (since the kernel-level copy can't replace a symlink atomically).
+function mirrorFilesIntoTarget (filesMap: FilesMap, targetDir: string): void {
+  const dirsToCreate = new Set<string>()
+  for (const relPath of filesMap.keys()) {
+    const dir = path.dirname(relPath)
+    if (dir !== '.') dirsToCreate.add(dir)
+  }
+  for (const dir of Array.from(dirsToCreate).sort((a, b) => a.length - b.length)) {
+    fs.mkdirSync(path.join(targetDir, dir), { recursive: true })
+  }
+  for (const [relPath, srcAbs] of filesMap) {
+    const destAbs = path.join(targetDir, relPath)
+    try {
+      fs.unlinkSync(destAbs)
+    } catch (err: unknown) {
+      // Missing dest is fine — we're about to create it. Anything else
+      // (EISDIR, EACCES, etc.) we want to surface.
+      if (!(err instanceof Error) || !('code' in err) || err.code !== 'ENOENT') throw err
     }
-    if (stat.isFile()) {
-      const relativePath = path.relative(rootDir, fullPath)
-      index.set(path.join(prefix, relativePath), fullPath)
-    }
-  }))
+    fs.copyFileSync(srcAbs, destAbs)
+  }
 }
