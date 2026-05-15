@@ -2,6 +2,8 @@ import * as dp from '@pnpm/deps.path'
 import type { PackageSnapshot, PackageSnapshots } from '@pnpm/lockfile.types'
 import type { DepPath } from '@pnpm/types'
 
+import { refIsLocalDirectory } from './refIsLocalTarball.js'
+
 /**
  * Normalize a package snapshot so its `resolution` field is always populated.
  *
@@ -23,16 +25,27 @@ import type { DepPath } from '@pnpm/types'
  *   1. **Inherit from base.** Strip the peer-variant suffix from `depPath` and
  *      look up the base entry. If it has a `resolution`, clone it onto the
  *      variant.
- *   2. **Synthesize from `file:` depPath.** If the base entry has been pruned
- *      (e.g. `turbo prune --docker` only keeps the variant referenced by the
- *      consumer), synthesize a directory resolution from the `file:` prefix
- *      in the depPath. This matches what pnpm's writer would have produced
- *      for the base entry: workspace deps with peer-resolution variants live
- *      under `packages/<name>` and serialize as `{ directory, type: 'directory' }`.
- *      Do not widen this to other `file:` shapes (`file:./local-tarball.tgz`
- *      etc.) — those reach a different code path.
+ *   2. **Synthesize from a local-directory `file:` depPath.** If the base
+ *      entry has been pruned (e.g. `turbo prune --docker` only keeps the
+ *      variant referenced by the consumer), synthesize a directory resolution
+ *      from the `file:` prefix. This matches what pnpm's writer would have
+ *      produced for the base entry of a workspace dep with peer-resolution
+ *      variants (`packages/<name>` → `{ directory, type: 'directory' }`).
+ *
+ *      Gated on `refIsLocalDirectory` so we don't misclassify local-tarball
+ *      `file:` refs (`file:...tgz`, `file:...tar.gz`, `file:...tar`) — those
+ *      reach a different code path in pnpm and must not get a `type: 'directory'`
+ *      resolution synthesized for them.
  *   3. **Give up.** Return the input untouched. Callers can decide whether
  *      to throw, skip, or treat as a "broken lockfile" condition.
+ *
+ * **Usage contract:** every site that iterates `lockfile.packages` and
+ * dereferences `pkgSnapshot.resolution` (directly or via `pkgSnapshotToResolution`,
+ * `convertPackageSnapshot`, etc.) must route the raw snapshot through this
+ * helper before doing so. Downstream utilities — including `pkgSnapshotToResolution`
+ * — assume their input is already normalized; calling them with a raw
+ * `lockfile.packages[depPath]` entry re-opens the original peer-variant
+ * crash class.
  */
 export function inheritOrSynthesizeResolution (
   depPath: string,
@@ -46,7 +59,7 @@ export function inheritOrSynthesizeResolution (
     return { ...pkgSnapshot, resolution: baseSnapshot.resolution }
   }
   const nonSemverVersion = dp.parse(depPath).nonSemverVersion
-  if (nonSemverVersion?.startsWith('file:')) {
+  if (nonSemverVersion != null && refIsLocalDirectory(nonSemverVersion)) {
     return {
       ...pkgSnapshot,
       resolution: { directory: nonSemverVersion.slice('file:'.length), type: 'directory' },
