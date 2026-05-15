@@ -24,8 +24,12 @@ jobs:
       uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
     - name: Compile TypeScript
       run: pn compile-only
+      env:
+        pnpm_config_verify_deps_before_run: false
     - name: Lint
       run: pn lint
+      env:
+        pnpm_config_verify_deps_before_run: false
     - name: Package compiled artifacts
       run: tar -czf compiled.tar.gz --exclude='node_modules' $(find . -type d -name lib -not -path '*/node_modules/*') $(find . -name 'tsconfig.tsbuildinfo' -not -path '*/node_modules/*') pnpm/dist
     - name: Upload compiled artifacts
