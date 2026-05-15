@@ -934,10 +934,10 @@ test('headlessInstall: peer-variant snapshot without `resolution` does not crash
     path.join(workspaceFixture, 'packages', 'peer'),
   ]
 
-  await expect(
-    headlessInstall(await testDefaults({
-      lockfileDir: workspaceFixture,
-      projects,
-    }))
-  ).resolves.not.toThrow()
+  // The bug surfaces as a rejection from `headlessInstall`, so awaiting it
+  // is enough — jest fails the test on an unhandled rejection.
+  await headlessInstall(await testDefaults({
+    lockfileDir: workspaceFixture,
+    projects,
+  }))
 })
