@@ -36,6 +36,7 @@
     "@pnpm/cli.meta": "workspace:*",
     "@pnpm/cli.utils": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
+    "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/deps.graph-hasher": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/global.commands": "workspace:*",
