@@ -214,7 +214,11 @@ async function buildGraphFromPackages (
         return
       }
 
-      const isDirectoryDep = 'directory' in pkgSnapshot.resolution && pkgSnapshot.resolution.directory != null
+      // Peer-dep variant snapshots (e.g. `pkg@1.0.0(peer@2.0.0)`) inherit
+      // their resolution from the base entry and may omit `resolution`
+      // themselves. Guard so the `'directory' in …` check doesn't crash
+      // with `Cannot use 'in' operator to search for 'directory' in undefined`.
+      const isDirectoryDep = pkgSnapshot.resolution != null && 'directory' in pkgSnapshot.resolution && pkgSnapshot.resolution.directory != null
       if (isDirectoryDep && opts.ignoreLocalPackages) {
         logger.info({
           message: `Skipping local dependency ${pkgName}@${pkgVersion} (file: protocol)`,
