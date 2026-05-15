@@ -62,7 +62,7 @@ num_cpus = { version = "1.17.0" }
 os_display = { version = "0.1.4" }
 reflink-copy = { version = "0.1.29" }
 junction = { version = "2.0.0" }
-libc = { version = "0.2.185" }
+libc = { version = "0.2.186" }
 reqwest = { version = "0.13", default-features = false, features = [
   "hickory-dns",
   "json",
