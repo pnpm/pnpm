@@ -71,7 +71,26 @@ export function createDeployFiles ({
   const targetPackageSnapshots: PackageSnapshots = {}
   for (const name in lockfile.packages) {
     const inputDepPath = name as DepPath
-    const inputSnapshot = lockfile.packages[inputDepPath]
+    let inputSnapshot = lockfile.packages[inputDepPath]
+    // Peer-dep variant snapshots (e.g. `pkg@1.0.0(peer@2.0.0)`) inherit their
+    // resolution from the base entry. Inherit it here so convertPackageSnapshot
+    // sees a fully-formed snapshot. If the base entry was pruned (turbo prune
+    // can drop it), synthesize a directory resolution from the depPath.
+    if (inputSnapshot.resolution == null) {
+      const basePath = dp.removeSuffix(inputDepPath) as DepPath
+      const baseSnapshot = lockfile.packages[basePath]
+      if (baseSnapshot?.resolution != null) {
+        inputSnapshot = { ...inputSnapshot, resolution: baseSnapshot.resolution }
+      } else {
+        const nonSemverVersion = dp.parse(inputDepPath).nonSemverVersion
+        if (nonSemverVersion?.startsWith('file:')) {
+          inputSnapshot = {
+            ...inputSnapshot,
+            resolution: { directory: nonSemverVersion.slice('file:'.length), type: 'directory' },
+          }
+        }
+      }
+    }
     const resolveResult = resolveLinkOrFile(inputDepPath, {
       lockfileDir,
       projectRootDirRealPath: rootProjectManifestDir,
