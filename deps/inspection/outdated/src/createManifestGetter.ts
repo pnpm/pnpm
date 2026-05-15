@@ -1,4 +1,4 @@
-import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
+import { getPublishedByPolicy } from '@pnpm/config.version-policy'
 import {
   type ClientOptions,
   createResolver,
@@ -23,9 +23,7 @@ export type ManifestGetterOptions = Omit<ClientOptions, 'configByUri' | 'minimum
 export function createManifestGetter (
   opts: ManifestGetterOptions
 ): (packageName: string, bareSpecifier: string) => Promise<DependencyManifest | null> {
-  const publishedByExclude = opts.minimumReleaseAgeExclude
-    ? createPackageVersionPolicy(opts.minimumReleaseAgeExclude)
-    : undefined
+  const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
 
   const { resolve } = createResolver({
     ...opts,
@@ -34,10 +32,6 @@ export function createManifestGetter (
     strictPublishedByCheck: Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true,
     ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime,
   })
-
-  const publishedBy = opts.minimumReleaseAge
-    ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000)
-    : undefined
 
   return getManifest.bind(null, {
     ...opts,

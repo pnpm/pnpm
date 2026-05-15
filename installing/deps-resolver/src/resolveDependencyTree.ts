@@ -1,7 +1,6 @@
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
-import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
-import { PnpmError } from '@pnpm/error'
+import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
 import type { PatchGroupRecord } from '@pnpm/patching.config'
@@ -11,7 +10,6 @@ import type { StoreController } from '@pnpm/store.controller-types'
 import type {
   AllowBuild,
   AllowedDeprecatedVersions,
-  PackageVersionPolicy,
   PinnedVersion,
   PkgResolutionId,
   ProjectId,
@@ -169,6 +167,7 @@ export async function resolveDependencyTree<T> (
 ): Promise<ResolveDependencyTreeResult> {
   const wantedToBeSkippedPackageIds = new Set<PkgResolutionId>()
   const autoInstallPeers = opts.autoInstallPeers === true
+  const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
   const ctx: ResolutionContext = {
     allowBuild: opts.allowBuild,
     autoInstallPeers,
@@ -215,21 +214,12 @@ export async function resolveDependencyTree<T> (
     missingPeersOfChildrenByPkgId: {},
     hoistPeers: autoInstallPeers || opts.dedupePeerDependents,
     allPeerDepNames: new Set(),
-    maximumPublishedBy: opts.minimumReleaseAge ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000) : undefined,
-    publishedByExclude: opts.minimumReleaseAgeExclude ? createPackageVersionPolicyByExclude(opts.minimumReleaseAgeExclude, 'minimumReleaseAgeExclude') : undefined,
+    maximumPublishedBy: publishedBy,
+    publishedByExclude,
     trustPolicy: opts.trustPolicy,
-    trustPolicyExclude: opts.trustPolicyExclude ? createPackageVersionPolicyByExclude(opts.trustPolicyExclude, 'trustPolicyExclude') : undefined,
+    trustPolicyExclude: opts.trustPolicyExclude ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude') : undefined,
     trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
     blockExoticSubdeps: opts.blockExoticSubdeps,
-  }
-
-  function createPackageVersionPolicyByExclude (patterns: string[], key: string): PackageVersionPolicy {
-    try {
-      return createPackageVersionPolicy(patterns)
-    } catch (err) {
-      if (!err || typeof err !== 'object' || !('message' in err)) throw err
-      throw new PnpmError(`INVALID_${key.replace(/([A-Z])/g, '_$1').toUpperCase()}`, `Invalid value in ${key}: ${err.message as string}`)
-    }
   }
 
   const resolveArgs: ImporterToResolve[] = importers.map((importer) => {
