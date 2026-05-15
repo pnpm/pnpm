@@ -36,3 +36,21 @@ test('returns the input untouched when resolution cannot be inherited or synthes
   const input = {} as PackageSnapshot
   expect(inheritOrSynthesizeResolution('foo@1.0.0', input, undefined)).toBe(input)
 })
+
+test('does not synthesize a directory resolution for local-tarball file: refs', () => {
+  // `file:foo.tgz`, `file:foo.tar.gz`, `file:foo.tar` are local-tarball refs
+  // (refIsLocalTarball) — they must NOT be turned into `{ type: 'directory' }`.
+  // Without a base to inherit from, the synthesis branch must skip them and
+  // return the input untouched so downstream code can flag the broken lockfile
+  // instead of silently routing through the wrong code path.
+  for (const tarballPath of [
+    'foo@file:foo.tgz' as DepPath,
+    'foo@file:foo.tar.gz' as DepPath,
+    'foo@file:foo.tar' as DepPath,
+  ]) {
+    const input = {} as PackageSnapshot
+    const out = inheritOrSynthesizeResolution(tarballPath, input, undefined)
+    expect(out).toBe(input)
+    expect(out.resolution).toBeUndefined()
+  }
+})
