@@ -36,6 +36,14 @@ packages:
     dependencies:
       peer: 1.0.0
 
+  # Peer dep resolved to the workspace `packages/peer/` directory. This
+  # entry is required for `filterLockfileByImportersAndEngine` to walk
+  # the graph past the variant entry — otherwise it throws
+  # `LockfileMissingDependencyError` once the graph-builder no longer
+  # crashes early on the missing `resolution`.
+  'peer@1.0.0':
+    resolution: { directory: packages/peer, type: directory }
+
 snapshots:
 
   'pkg-a@file:packages/pkg-a': {}
@@ -43,3 +51,5 @@ snapshots:
   'pkg-a@file:packages/pkg-a(peer@1.0.0)':
     dependencies:
       peer: 1.0.0
+
+  'peer@1.0.0': {}
