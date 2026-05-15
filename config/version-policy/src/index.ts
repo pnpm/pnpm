@@ -42,7 +42,7 @@ export interface PublishedByPolicy {
 /**
  * Derives the resolver's `publishedBy` cutoff date and `publishedByExclude`
  * policy from the user's `minimumReleaseAge` / `minimumReleaseAgeExclude`
- * config. Centralized so every callsite computes the cutoff at the same
+ * config. Centralized so every call site computes the cutoff at the same
  * instant and surfaces invalid exclude patterns under the same error code.
  */
 export function getPublishedByPolicy (opts: PublishedByPolicyOptions): PublishedByPolicy {
