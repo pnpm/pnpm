@@ -13,10 +13,10 @@ repository.workspace  = true
 [dependencies]
 pacquet-diagnostics = { workspace = true }
 
-derive_more  = { workspace = true }
-indexmap     = { workspace = true }
-serde        = { workspace = true }
-serde_json   = { workspace = true }
+derive_more = { workspace = true }
+indexmap    = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }
