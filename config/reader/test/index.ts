@@ -722,6 +722,32 @@ describe('unresolved ${VAR} placeholders in .npmrc auth values', () => {
 
     expect(config.authConfig['//registry.npmjs.org/:_authToken']).toBe('real-token')
   })
+
+  test('only drops the unresolved placeholder, preserving resolved ones and defaults', async () => {
+    // Same value contains one resolvable placeholder, one unresolved bare placeholder,
+    // and one placeholder with a `-default` fallback. The unresolved one becomes ''
+    // but the other two must still expand. Guards against the original implementation
+    // that stripped every `${...}` on any substitution failure.
+    fs.writeFileSync(
+      '.npmrc',
+      '//registry.test/:_authToken=${SET}-${UNSET}-${DEFAULTED-fallback}\n',
+      'utf8'
+    )
+
+    const { config } = await getConfig({
+      cliOptions: {
+        userconfig: path.resolve('user-home', '.npmrc'),
+      },
+      env: { ...env, XDG_CONFIG_HOME: configHome, SET: 'AAA' }, // UNSET, DEFAULTED unset
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.authConfig['//registry.test/:_authToken']).toBe('AAA--fallback')
+  })
 })
 
 test('throw error if --save-prod is used with --save-peer', async () => {

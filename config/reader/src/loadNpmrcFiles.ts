@@ -158,15 +158,33 @@ function substituteEnv (value: string, env: Record<string, string | undefined>, 
     return envReplace(value, env)
   } catch (err) {
     warnings.push(err instanceof Error ? err.message : String(err))
-    // env-replace throws when an env var is undefined and there is no `${VAR-default}`
-    // fallback. Returning the literal `${VAR}` would later be sent verbatim — most
-    // damagingly as a bearer auth token when `actions/setup-node` writes
-    // `_authToken=${NODE_AUTH_TOKEN}` and the user relies on OIDC trusted publishing
-    // instead of `NODE_AUTH_TOKEN` (https://github.com/pnpm/pnpm/issues/11513). Drop
-    // unresolved placeholders so the value reads as empty and downstream auth code
-    // falls through to OIDC rather than authenticating with a literal placeholder.
-    return value.replace(/(?<!\\)\$\{[^${}]+\}/g, '')
+    // env-replace throws when any `${VAR}` placeholder in `value` is undefined and
+    // has no `${VAR-default}` / `${VAR:-default}` fallback. Returning the literal
+    // `${VAR}` would later be sent verbatim — most damagingly as a bearer auth token
+    // when `actions/setup-node` writes `_authToken=${NODE_AUTH_TOKEN}` and the user
+    // relies on OIDC trusted publishing instead of `NODE_AUTH_TOKEN`
+    // (https://github.com/pnpm/pnpm/issues/11513). Re-run the substitution per
+    // placeholder, dropping only the unresolved ones to '' so resolvable
+    // placeholders and `${VAR-default}` fallbacks elsewhere in the same string
+    // are preserved.
+    return value.replace(/(?<!\\)(\\*)\$\{([^${}]+)\}/g, (orig: string, escape: string, name: string): string => {
+      if (escape.length % 2) return orig.slice((escape.length + 1) / 2)
+      return `${escape.slice(escape.length / 2)}${resolveEnvValue(env, name) ?? ''}`
+    })
   }
+}
+
+// Mirrors `getEnvValue` in `@pnpm/config.env-replace`'s strict path, but returns
+// `undefined` (instead of throwing) when a `${VAR}` placeholder has no value and
+// no default. Caller substitutes `undefined` with '' so unresolved auth tokens
+// never reach the registry as literal `${...}` strings.
+function resolveEnvValue (env: Record<string, string | undefined>, name: string): string | undefined {
+  const match = /([^:-]+)(:?)-(.+)/.exec(name)
+  if (!match) return env[name]
+  const [, varName, colon, fallback] = match
+  if (!Object.prototype.hasOwnProperty.call(env, varName)) return fallback
+  const v = env[varName]
+  return !v && colon ? fallback : v
 }
 
 function normalizePath (p: string | undefined): string | undefined {
