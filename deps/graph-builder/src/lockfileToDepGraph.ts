@@ -10,6 +10,7 @@ import * as dp from '@pnpm/deps.path'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject, LockfileResolution } from '@pnpm/lockfile.fs'
 import {
+  inheritOrSynthesizeResolution,
   packageIdFromSnapshot,
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile.utils'
@@ -194,29 +195,10 @@ async function buildGraphFromPackages (
       let { pkgSnapshot } = pkgMeta
       if (opts.skipped.has(depPath)) return
 
-      // Peer-dep variant snapshots (e.g. `pkg@1.0.0(peer@2.0.0)`) inherit
-      // their resolution from the base entry — pnpm's lockfile writer leaves
-      // `resolution` unset on variants to avoid duplication. Inherit it here
-      // so downstream accesses see a fully-formed snapshot. If the base
-      // entry has been pruned (e.g. turbo prune --docker keeps only the
-      // variant referenced by the consumer), synthesize a directory
-      // resolution from the depPath so we don't fall through to the
-      // tarball-fetch path.
-      if (pkgSnapshot.resolution == null) {
-        const basePath = dp.removeSuffix(depPath) as DepPath
-        const baseSnapshot = lockfile.packages?.[basePath]
-        if (baseSnapshot?.resolution != null) {
-          pkgSnapshot = { ...pkgSnapshot, resolution: baseSnapshot.resolution }
-        } else {
-          const nonSemverVersion = dp.parse(depPath).nonSemverVersion
-          if (nonSemverVersion?.startsWith('file:')) {
-            pkgSnapshot = {
-              ...pkgSnapshot,
-              resolution: { directory: nonSemverVersion.slice('file:'.length), type: 'directory' },
-            }
-          }
-        }
-      }
+      // Peer-dep variant snapshots inherit `resolution` from the base entry;
+      // pnpm's writer omits it on variants. Normalize here so downstream
+      // accesses see a fully-formed snapshot.
+      pkgSnapshot = inheritOrSynthesizeResolution(depPath, pkgSnapshot, lockfile.packages)
 
       const pkg = {
         name: pkgName,

@@ -11,6 +11,7 @@ import type {
   ProjectSnapshot,
   ResolvedDependencies,
 } from '@pnpm/lockfile.types'
+import { inheritOrSynthesizeResolution } from '@pnpm/lockfile.utils'
 import type {
   DependenciesField,
   DepPath,
@@ -71,26 +72,13 @@ export function createDeployFiles ({
   const targetPackageSnapshots: PackageSnapshots = {}
   for (const name in lockfile.packages) {
     const inputDepPath = name as DepPath
-    let inputSnapshot = lockfile.packages[inputDepPath]
-    // Peer-dep variant snapshots (e.g. `pkg@1.0.0(peer@2.0.0)`) inherit their
-    // resolution from the base entry. Inherit it here so convertPackageSnapshot
-    // sees a fully-formed snapshot. If the base entry was pruned (turbo prune
-    // can drop it), synthesize a directory resolution from the depPath.
-    if (inputSnapshot.resolution == null) {
-      const basePath = dp.removeSuffix(inputDepPath) as DepPath
-      const baseSnapshot = lockfile.packages[basePath]
-      if (baseSnapshot?.resolution != null) {
-        inputSnapshot = { ...inputSnapshot, resolution: baseSnapshot.resolution }
-      } else {
-        const nonSemverVersion = dp.parse(inputDepPath).nonSemverVersion
-        if (nonSemverVersion?.startsWith('file:')) {
-          inputSnapshot = {
-            ...inputSnapshot,
-            resolution: { directory: nonSemverVersion.slice('file:'.length), type: 'directory' },
-          }
-        }
-      }
-    }
+    // Peer-dep variant snapshots inherit `resolution` from the base entry;
+    // normalize before convertPackageSnapshot dereferences `.integrity` etc.
+    const inputSnapshot = inheritOrSynthesizeResolution(
+      inputDepPath,
+      lockfile.packages[inputDepPath],
+      lockfile.packages
+    )
     const resolveResult = resolveLinkOrFile(inputDepPath, {
       lockfileDir,
       projectRootDirRealPath: rootProjectManifestDir,

@@ -53,6 +53,7 @@
     "@pnpm/installing.commands": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
     "@pnpm/network.git-utils": "workspace:*",
     "@pnpm/network.web-auth": "workspace:*",
