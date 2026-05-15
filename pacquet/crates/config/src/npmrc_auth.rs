@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use pacquet_network::{AuthHeaders, NoProxySetting, PerRegistryTls, RegistryTls, base64_encode};
 
-use crate::{Config, api::EnvVar, env_replace::env_replace};
+use crate::{Config, api::EnvVar, env_replace::env_replace_lossy};
 
 /// Subset of `.npmrc` keys pacquet honours for registry / auth setup.
 ///
@@ -26,9 +26,10 @@ use crate::{Config, api::EnvVar, env_replace::env_replace};
 ///   Applied via [`NpmrcAuth::apply_tls_and_local_address`].
 ///
 /// Values pass through `${VAR}` substitution before being stored,
-/// matching pnpm's `loadNpmrcFiles.ts` flow. Substitution failures are
-/// recorded as warnings and the offending value is left verbatim, again
-/// matching pnpm.
+/// matching pnpm's `loadNpmrcFiles.ts` flow. Unresolved placeholders are
+/// substituted with `""` and recorded as warnings so the literal `${VAR}`
+/// never reaches downstream auth code (critical for OIDC trusted publishing
+/// — see <https://github.com/pnpm/pnpm/issues/11513>), again matching pnpm.
 ///
 /// Other `.npmrc` knobs (scoped `@scope:registry`, per-registry TLS
 /// like `//host:cafile=`, etc.) remain unparsed for now. See the
@@ -129,10 +130,14 @@ impl RawCreds {
 
 impl NpmrcAuth {
     /// Parse an `.npmrc` file's contents and pick out the auth/network keys.
-    /// Unknown keys are silently dropped. `${VAR}` placeholders inside
-    /// values are resolved via the [`EnvVar`] capability; placeholders
-    /// that cannot be resolved leave the value verbatim and emit a
-    /// warning.
+    /// Unknown keys are silently dropped. `${VAR}` placeholders inside keys
+    /// and values are resolved via the [`EnvVar`] capability; unresolved
+    /// placeholders (no env value and no `${VAR:-default}` fallback) are
+    /// substituted with `""` and surfaced as warnings, matching pnpm's
+    /// `substituteEnv` in `loadNpmrcFiles.ts`. Leaving the literal `${VAR}`
+    /// in an auth value would otherwise be sent verbatim — most damagingly
+    /// as a bearer auth token under OIDC trusted publishing
+    /// (<https://github.com/pnpm/pnpm/issues/11513>).
     ///
     /// The `.npmrc` format is a tiny ini dialect: one `key=value` per line,
     /// plus comments starting with `;` or `#`. We hand-parse rather than
@@ -153,20 +158,12 @@ impl NpmrcAuth {
 
             // Apply ${VAR} substitution to both the key and the value,
             // matching `readAndFilterNpmrc` in pnpm's `loadNpmrcFiles.ts`.
-            let key = match env_replace::<Api>(raw_key) {
-                Ok(value) => value,
-                Err(error) => {
-                    auth.warnings.push(error.to_string());
-                    raw_key.to_owned()
-                }
-            };
-            let value = match env_replace::<Api>(raw_value) {
-                Ok(value) => value,
-                Err(error) => {
-                    auth.warnings.push(error.to_string());
-                    raw_value.to_owned()
-                }
-            };
+            // Unresolved placeholders become "" and are recorded as warnings.
+            let (key, key_unresolved) = env_replace_lossy::<Api>(raw_key);
+            let (value, value_unresolved) = env_replace_lossy::<Api>(raw_value);
+            for placeholder in key_unresolved.into_iter().chain(value_unresolved) {
+                auth.warnings.push(format!("Failed to replace env in config: {placeholder}"));
+            }
 
             if key == "registry" {
                 auth.registry = Some(value);

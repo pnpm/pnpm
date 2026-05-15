@@ -83,7 +83,7 @@ catalog:
   '@npm/types': ^2.1.0
   '@pnpm/byline': ^1.0.0
   '@pnpm/colorize-semver-diff': ^2.0.0
-  '@pnpm/config.env-replace': ^3.0.2
+  '@pnpm/config.env-replace': ^4.1.0
   '@pnpm/config.nerf-dart': ^1.0.0
   '@pnpm/exec': ^4.0.0
   '@pnpm/log.group': 3.0.2

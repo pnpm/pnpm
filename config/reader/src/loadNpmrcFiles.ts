@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { envReplace } from '@pnpm/config.env-replace'
+import { envReplaceLossy } from '@pnpm/config.env-replace'
 import { readIniFileSync } from 'read-ini-file'
 
 import { isNpmrcReadableKey } from './localConfig.js'
@@ -153,13 +153,18 @@ function readAndFilterNpmrc (
   return result
 }
 
+// Use the lossy variant so unresolved `${VAR}` placeholders become '' (each
+// recorded as a warning) instead of throwing. Critical for the OIDC case in
+// https://github.com/pnpm/pnpm/issues/11513 — leaving the literal `${VAR}` in
+// an auth value would be sent verbatim as a bearer token. Resolvable
+// placeholders and `${VAR-default}` / `${VAR:-default}` fallbacks elsewhere
+// in the same string still expand normally.
 function substituteEnv (value: string, env: Record<string, string | undefined>, warnings: string[]): string {
-  try {
-    return envReplace(value, env)
-  } catch (err) {
-    warnings.push(err instanceof Error ? err.message : String(err))
-    return value
+  const { value: substituted, unresolved } = envReplaceLossy(value, env)
+  for (const placeholder of unresolved) {
+    warnings.push(`Failed to replace env in config: ${placeholder}`)
   }
+  return substituted
 }
 
 function normalizePath (p: string | undefined): string | undefined {

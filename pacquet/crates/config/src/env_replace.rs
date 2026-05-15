@@ -13,10 +13,11 @@
 //!   half of the backslashes are kept (one literal `\\` per pair).
 //! * odd-number-of-backslashes prefix: the placeholder is left literal
 //!   and one backslash is consumed.
-//! * unset variable + no default: the call returns an
-//!   [`EnvReplaceError`] rather than substituting an empty string.
-//!   Pacquet surfaces the same condition as a warning, matching
-//!   `loadNpmrcFiles.ts`'s `substituteEnv`.
+//! * unset variable + no default: the placeholder is substituted with `""`
+//!   and recorded in the returned `Vec` so the caller can surface it as a
+//!   warning, matching `loadNpmrcFiles.ts`'s `substituteEnv` lossy fallback
+//!   (critical for OIDC trusted publishing — see
+//!   <https://github.com/pnpm/pnpm/issues/11513>).
 //! * empty variable + default present: the default wins; this is
 //!   pnpm's behaviour even though plain shell `${VAR:-default}` would
 //!   also use the default for the empty case.
@@ -26,39 +27,27 @@
 //! own per-test unit struct, per the DI pattern from
 //! [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339).
 
-use std::fmt;
-
 use crate::api::EnvVar;
 
-/// A single missing variable surfaced from [`env_replace`].
+/// Replace every `${VAR}` (or `${VAR:-default}`) placeholder in `text` with
+/// the value [`Api::var`] returns. Placeholders that have no value and no
+/// default become `""` (the literal `${...}` never reaches the caller) and
+/// are recorded in the returned `Vec` so the caller can surface each one as
+/// a warning.
 ///
-/// Mirrors the `Failed to replace env in config: ${...}` message pnpm
-/// produces in `loadNpmrcFiles.ts`'s `substituteEnv`. Callers typically
-/// downgrade this to a warning and keep the original value verbatim.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct EnvReplaceError {
-    /// The placeholder that could not be resolved, including its
-    /// surrounding `${...}` so the message lines up with pnpm's.
-    pub placeholder: String,
-}
-
-impl fmt::Display for EnvReplaceError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Failed to replace env in config: {}", self.placeholder)
-    }
-}
-
-impl std::error::Error for EnvReplaceError {}
-
-/// Replace every `${VAR}` (or `${VAR:-default}`) placeholder in `text`
-/// with the value [`Api::var`] returns. Returns an error on the first
-/// unresolvable placeholder so the caller can warn and skip the line,
-/// matching pnpm's `substituteEnv`.
+/// Mirrors pnpm's `substituteEnv` fallback in
+/// `config/reader/src/loadNpmrcFiles.ts`: leaving an unresolved `${VAR}` in
+/// an auth value would later be sent as a literal bearer token, notably
+/// under OIDC trusted publishing (<https://github.com/pnpm/pnpm/issues/11513>).
+/// Resolvable placeholders and `${VAR:-default}` fallbacks elsewhere in the
+/// same string still expand normally — only the unresolved bare ones are
+/// dropped to `""`.
 ///
 /// [`Api::var`]: EnvVar::var
-pub(crate) fn env_replace<Api: EnvVar>(text: &str) -> Result<String, EnvReplaceError> {
+pub(crate) fn env_replace_lossy<Api: EnvVar>(text: &str) -> (String, Vec<String>) {
     let bytes = text.as_bytes();
     let mut output = String::with_capacity(text.len());
+    let mut unresolved = Vec::new();
     let mut index = 0;
     while index < bytes.len() {
         let char = bytes[index];
@@ -107,14 +96,12 @@ pub(crate) fn env_replace<Api: EnvVar>(text: &str) -> Result<String, EnvReplaceE
             match (value, default) {
                 (Some(value), _) => output.push_str(&value),
                 (None, Some(default)) => output.push_str(default),
-                (None, None) => {
-                    return Err(EnvReplaceError { placeholder: placeholder.to_owned() });
-                }
+                (None, None) => unresolved.push(placeholder.to_owned()),
             }
         }
         index = end + 1;
     }
-    Ok(output)
+    (output, unresolved)
 }
 
 /// Return the index of the closing `}` for a `${...}` starting at `start`.
@@ -139,7 +126,7 @@ fn find_placeholder_end(bytes: &[u8], start: usize) -> Option<usize> {
 
 #[cfg(test)]
 mod tests {
-    use super::{EnvVar, env_replace};
+    use super::{EnvVar, env_replace_lossy};
     use pretty_assertions::assert_eq;
 
     /// Empty env: no variable is ever set. Used by tests that only
@@ -151,6 +138,14 @@ mod tests {
         }
     }
 
+    /// Run [`env_replace_lossy`] and assert no placeholder went unresolved.
+    /// Used by tests that exercise paths where every placeholder must expand.
+    fn replace_clean<Api: EnvVar>(text: &str) -> String {
+        let (value, unresolved) = env_replace_lossy::<Api>(text);
+        assert_eq!(unresolved, Vec::<String>::new(), "unexpected unresolved placeholders");
+        value
+    }
+
     #[test]
     fn substitutes_simple_placeholder() {
         struct EnvWithToken;
@@ -159,19 +154,19 @@ mod tests {
                 (name == "TOKEN").then(|| "abc123".to_owned())
             }
         }
-        assert_eq!(env_replace::<EnvWithToken>("Bearer ${TOKEN}").unwrap(), "Bearer abc123");
+        assert_eq!(replace_clean::<EnvWithToken>("Bearer ${TOKEN}"), "Bearer abc123");
     }
 
     #[test]
-    fn returns_error_on_missing_variable() {
-        let result = env_replace::<NoEnv>("${MISSING}").unwrap_err();
-        assert_eq!(result.placeholder, "${MISSING}");
-        assert_eq!(result.to_string(), "Failed to replace env in config: ${MISSING}");
+    fn unresolved_drops_to_empty_and_collects_placeholder() {
+        let (value, unresolved) = env_replace_lossy::<NoEnv>("//reg/:_authToken=${MISSING}");
+        assert_eq!(value, "//reg/:_authToken=");
+        assert_eq!(unresolved, vec!["${MISSING}".to_owned()]);
     }
 
     #[test]
     fn uses_default_when_variable_unset() {
-        assert_eq!(env_replace::<NoEnv>("${MISSING:-fallback}").unwrap(), "fallback");
+        assert_eq!(replace_clean::<NoEnv>("${MISSING:-fallback}"), "fallback");
     }
 
     #[test]
@@ -182,7 +177,7 @@ mod tests {
                 (name == "EMPTY").then(String::new)
             }
         }
-        assert_eq!(env_replace::<EmptyEnv>("${EMPTY:-fallback}").unwrap(), "fallback");
+        assert_eq!(replace_clean::<EmptyEnv>("${EMPTY:-fallback}"), "fallback");
     }
 
     #[test]
@@ -193,17 +188,17 @@ mod tests {
                 (name == "PORT").then(|| "8080".to_owned())
             }
         }
-        assert_eq!(env_replace::<EnvWithPort>("${PORT:-3000}").unwrap(), "8080");
+        assert_eq!(replace_clean::<EnvWithPort>("${PORT:-3000}"), "8080");
     }
 
     #[test]
     fn passthrough_when_no_placeholder() {
-        assert_eq!(env_replace::<NoEnv>("plain string").unwrap(), "plain string");
+        assert_eq!(replace_clean::<NoEnv>("plain string"), "plain string");
     }
 
     #[test]
     fn lone_dollar_is_left_alone() {
-        assert_eq!(env_replace::<NoEnv>("$ price").unwrap(), "$ price");
+        assert_eq!(replace_clean::<NoEnv>("$ price"), "$ price");
     }
 
     /// Hits the early-`None` branch of `bytes.get(start + 1)?` inside
@@ -211,8 +206,8 @@ mod tests {
     /// to peek at.
     #[test]
     fn trailing_dollar_with_no_byte_after_is_passthrough() {
-        assert_eq!(env_replace::<NoEnv>("$").unwrap(), "$");
-        assert_eq!(env_replace::<NoEnv>("foo$").unwrap(), "foo$");
+        assert_eq!(replace_clean::<NoEnv>("$"), "$");
+        assert_eq!(replace_clean::<NoEnv>("foo$"), "foo$");
     }
 
     /// A nested `$` or `{` inside a placeholder body, or an unclosed
@@ -222,8 +217,8 @@ mod tests {
     /// be a no-op.
     #[test]
     fn malformed_placeholder_is_left_alone() {
-        assert_eq!(env_replace::<NoEnv>("${OPEN").unwrap(), "${OPEN");
-        assert_eq!(env_replace::<NoEnv>("${A$B}").unwrap(), "${A$B}");
+        assert_eq!(replace_clean::<NoEnv>("${OPEN"), "${OPEN");
+        assert_eq!(replace_clean::<NoEnv>("${A$B}"), "${A$B}");
     }
 
     /// One literal backslash escapes the placeholder; the parser
@@ -231,7 +226,7 @@ mod tests {
     /// because the lookup never runs in this branch.
     #[test]
     fn odd_backslash_count_escapes_placeholder() {
-        assert_eq!(env_replace::<NoEnv>(r"\${X}").unwrap(), "${X}");
+        assert_eq!(replace_clean::<NoEnv>(r"\${X}"), "${X}");
     }
 
     #[test]
@@ -243,7 +238,7 @@ mod tests {
                 (name == "X").then(|| "y".to_owned())
             }
         }
-        assert_eq!(env_replace::<EnvWithX>(r"\\${X}").unwrap(), r"\y");
+        assert_eq!(replace_clean::<EnvWithX>(r"\\${X}"), r"\y");
     }
 
     #[test]
@@ -260,7 +255,7 @@ mod tests {
                 ENV.iter().find(|(key, _)| *key == name).map(|(_, value)| (*value).to_owned())
             }
         }
-        assert_eq!(env_replace::<StaticEnv>("${A}-${B}-${A}").unwrap(), "1-2-1");
+        assert_eq!(replace_clean::<StaticEnv>("${A}-${B}-${A}"), "1-2-1");
     }
 
     /// The source-backslash count must come from the original input,
@@ -286,7 +281,7 @@ mod tests {
             }
         }
         // Single literal `\` between `${A}` and `${B}`. Must escape `${B}`.
-        assert_eq!(env_replace::<Env>(r"${A}\${B}").unwrap(), r"x\${B}");
+        assert_eq!(replace_clean::<Env>(r"${A}\${B}"), r"x\${B}");
     }
 
     #[test]
@@ -299,8 +294,31 @@ mod tests {
             }
         }
         assert_eq!(
-            env_replace::<EnvWithToken>("//registry.npmjs.org/:_authToken=${NPM_TOKEN}").unwrap(),
+            replace_clean::<EnvWithToken>("//registry.npmjs.org/:_authToken=${NPM_TOKEN}"),
             "//registry.npmjs.org/:_authToken=secret",
         );
+    }
+
+    #[test]
+    fn preserves_resolved_and_default_placeholders_alongside_unresolved() {
+        // One resolvable, one unresolved bare, one with a `:-default` fallback.
+        // Only the bare unresolved one becomes ""; the other two still expand.
+        struct EnvWithSet;
+        impl EnvVar for EnvWithSet {
+            fn var(name: &str) -> Option<String> {
+                (name == "SET").then(|| "AAA".to_owned())
+            }
+        }
+        let (value, unresolved) =
+            env_replace_lossy::<EnvWithSet>("${SET}-${UNSET}-${DEFAULTED:-fallback}");
+        assert_eq!(value, "AAA--fallback");
+        assert_eq!(unresolved, vec!["${UNSET}".to_owned()]);
+    }
+
+    #[test]
+    fn collects_every_unresolved_placeholder_occurrence() {
+        let (value, unresolved) = env_replace_lossy::<NoEnv>("${A}-${B}-${A}");
+        assert_eq!(value, "--");
+        assert_eq!(unresolved, vec!["${A}".to_owned(), "${B}".to_owned(), "${A}".to_owned()],);
     }
 }

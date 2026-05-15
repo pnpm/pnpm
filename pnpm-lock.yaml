@@ -242,8 +242,8 @@ catalogs:
       specifier: ^2.0.0
       version: 2.0.0
     '@pnpm/config.env-replace':
-      specifier: ^3.0.2
-      version: 3.0.2
+      specifier: ^4.1.0
+      version: 4.1.0
     '@pnpm/config.nerf-dart':
       specifier: ^1.0.0
       version: 1.0.1
@@ -2605,7 +2605,7 @@ importers:
         version: link:../../catalogs/types
       '@pnpm/config.env-replace':
         specifier: 'catalog:'
-        version: 3.0.2
+        version: 4.1.0
       '@pnpm/config.matcher':
         specifier: workspace:*
         version: link:../matcher
@@ -11066,6 +11066,10 @@ packages:
     resolution: {integrity: sha512-GD6nKLyKF+ev15Tj3pS8y6cTVPIuAqTyhPrUFMfmodFvhEDdYKN/gdGimkc9GJLfHVC/SuCVFg49YNJyoW7niA==}
     engines: {node: '>=18.12'}
 
+  '@pnpm/config.env-replace@4.1.0':
+    resolution: {integrity: sha512-5sirJgdwgE8YU8RMSOZVkluCxCdVRV5a9vRbiLMJ7HBlEluG7jYRvLfLtZ/K3RCI8dckX7Lfpkz0VKpCLp9nug==}
+    engines: {node: '>=22.13'}
+
   '@pnpm/config.nerf-dart@1.0.1':
     resolution: {integrity: sha512-03d2l21gAyzGVr9SR6rS5pvCTnZ4HaNdi8jB2Y/UGvszzrNbA+AJVObVw6SulNQ1Eah3SHB9wCezJwtP+jYIcA==}
     engines: {node: '>=18.12'}
@@ -18956,6 +18960,8 @@ snapshots:
   '@pnpm/config.env-replace@1.1.0': {}
 
   '@pnpm/config.env-replace@3.0.2': {}
+
+  '@pnpm/config.env-replace@4.1.0': {}
 
   '@pnpm/config.nerf-dart@1.0.1': {}
 
