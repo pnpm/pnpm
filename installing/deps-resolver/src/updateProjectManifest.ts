@@ -19,9 +19,16 @@ export async function updateProjectManifest (
     throw new Error('Cannot save because no package.json found')
   }
   const specsToUpsert: PackageSpecObject[] = opts.directDependencies
-    .filter((rdd, index) => importer.wantedDependencies[index]?.updateSpec)
-    .map((rdd, index) => {
-      const wantedDep = importer.wantedDependencies[index]!
+    .filter((rdd) => importer.wantedDependencies.some((wd) => wd.alias === rdd.alias && wd.updateSpec))
+    .map((rdd) => {
+      // NOTE: directDependencies and wantedDependencies are not aligned by index
+      // because linked dependencies (e.g. workspace:*) are excluded from
+      // directDependencies. Use rdd.alias to find the correct wantedDependency
+      // instead of relying on array indices.
+      // This fixes a bug where catalog: references were replaced with resolved
+      // version numbers due to index misalignment.
+      // See: https://github.com/pnpm/pnpm/issues/11658
+      const wantedDep = importer.wantedDependencies.find((wd) => wd.alias === rdd.alias)!
       return {
         alias: rdd.alias,
         peer: importer.peer,
