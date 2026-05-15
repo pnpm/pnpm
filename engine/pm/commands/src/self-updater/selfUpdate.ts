@@ -5,7 +5,7 @@ import { linkBins } from '@pnpm/bins.linker'
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, parsePackageManager, types as allTypes } from '@pnpm/config.reader'
-import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
+import { getPublishedByPolicy } from '@pnpm/config.version-policy'
 import { PnpmError } from '@pnpm/error'
 import { createResolver } from '@pnpm/installing.client'
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
@@ -87,12 +87,7 @@ export async function handler (
     ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime,
   })
   const pkgName = 'pnpm'
-  const publishedBy = opts.minimumReleaseAge
-    ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000)
-    : undefined
-  const publishedByExclude = opts.minimumReleaseAgeExclude
-    ? createPackageVersionPolicyByExclude(opts.minimumReleaseAgeExclude)
-    : undefined
+  const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
   // `pnpm self-update` (no args) defaults to the `latest` dist-tag, but we
   // refuse to downgrade in that case — `latest` on the registry can lag the
   // installed version when a new major has shipped without being tagged.
@@ -316,11 +311,3 @@ async function readProjectPinnedPnpmVersion (rootProjectManifestDir: string, spe
   return lockfilePinned ?? specMin
 }
 
-function createPackageVersionPolicyByExclude (patterns: string[]) {
-  try {
-    return createPackageVersionPolicy(patterns)
-  } catch (err) {
-    if (!err || typeof err !== 'object' || !('message' in err)) throw err
-    throw new PnpmError('INVALID_MINIMUM_RELEASE_AGE_EXCLUDE', `Invalid value in minimumReleaseAgeExclude: ${err.message as string}`)
-  }
-}
