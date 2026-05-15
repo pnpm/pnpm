@@ -120,6 +120,11 @@ export async function runLifecycleHooksConcurrently (
 //     overwrite. Without this, `copyFileSync` would error on existing
 //     symlinks (since the kernel-level copy can't replace a symlink atomically).
 function mirrorFilesIntoTarget (filesMap: FilesMap, targetDir: string): void {
+  // Ensure the target dir itself exists — sub-dir mkdirSyncs below cover
+  // files with relPaths like `dist/index.js`, but a top-level file like
+  // `main.js` would have `path.dirname(relPath) === '.'` and skip the
+  // sub-dir loop, leaving targetDir uncreated.
+  fs.mkdirSync(targetDir, { recursive: true })
   const dirsToCreate = new Set<string>()
   for (const relPath of filesMap.keys()) {
     const dir = path.dirname(relPath)
@@ -132,10 +137,13 @@ function mirrorFilesIntoTarget (filesMap: FilesMap, targetDir: string): void {
     const destAbs = path.join(targetDir, relPath)
     try {
       fs.unlinkSync(destAbs)
-    } catch (err: unknown) {
+    } catch (err: unknown) { // eslint-disable-line @typescript-eslint/no-explicit-any
       // Missing dest is fine — we're about to create it. Anything else
-      // (EISDIR, EACCES, etc.) we want to surface.
-      if (!(err instanceof Error) || !('code' in err) || err.code !== 'ENOENT') throw err
+      // (EISDIR, EACCES, etc.) we want to surface. Match other pnpm
+      // call sites (bins.linker, modules-yaml) and access `.code` via
+      // NodeJS.ErrnoException cast — `instanceof Error` is unreliable
+      // across bundler/realm boundaries on some platforms.
+      if ((err as NodeJS.ErrnoException | null)?.code !== 'ENOENT') throw err
     }
     fs.copyFileSync(srcAbs, destAbs)
   }

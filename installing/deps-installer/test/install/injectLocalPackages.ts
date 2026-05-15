@@ -2034,7 +2034,10 @@ test('inject local package with prepare script + bin-having dep does not crash o
       '@pnpm.e2e/hello-world-js-bin': '1.0.0',
     },
     scripts: {
-      prepublishOnly: 'node -e "require(\'node:fs\').writeFileSync(\'built.txt\',\'ok\')"',
+      // `prepare` (not `prepublishOnly`) is the script that pnpm runs during
+      // install — it's the lifecycle stage that triggered the original
+      // re-import crash on bin-having injected deps.
+      prepare: 'node -e "require(\'node:fs\').writeFileSync(\'built.txt\',\'ok\')"',
     },
   }
   const project2Manifest = {
@@ -2090,7 +2093,7 @@ test('inject local package with prepare script + bin-having dep does not crash o
     allProjects,
   }))
 
-  // prepublishOnly ran in project-1.
+  // prepare ran in project-1.
   expect(fs.existsSync(path.resolve('project-1/built.txt'))).toBeTruthy()
   // The re-import succeeded — project-2's injected copy has both the bin
   // symlink from the original injection AND the built.txt from prepare.
