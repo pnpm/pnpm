@@ -319,6 +319,6 @@ mod tests {
     fn collects_every_unresolved_placeholder_occurrence() {
         let (value, unresolved) = env_replace_lossy::<NoEnv>("${A}-${B}-${A}");
         assert_eq!(value, "--");
-        assert_eq!(unresolved, vec!["${A}".to_owned(), "${B}".to_owned(), "${A}".to_owned()],);
+        assert_eq!(unresolved, vec!["${A}".to_owned(), "${B}".to_owned(), "${A}".to_owned()]);
     }
 }
