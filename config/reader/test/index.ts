@@ -748,6 +748,31 @@ describe('unresolved ${VAR} placeholders in .npmrc auth values', () => {
 
     expect(config.authConfig['//registry.test/:_authToken']).toBe('AAA--fallback')
   })
+
+  test('explicit `undefined` value in env is treated as unset for `${VAR-default}` fallbacks', async () => {
+    // Callers that construct the env object directly (notably tests) commonly use
+    // `{ KEY: undefined }` to model an unset variable. `${VAR-default}` must then
+    // resolve to `default`, matching the `Record<string, string | undefined>` contract.
+    fs.writeFileSync(
+      '.npmrc',
+      '//registry.test/:_authToken=${EXPLICIT_UNDEF-fallback}\n',
+      'utf8'
+    )
+
+    const { config } = await getConfig({
+      cliOptions: {
+        userconfig: path.resolve('user-home', '.npmrc'),
+      },
+      env: { ...env, XDG_CONFIG_HOME: configHome, EXPLICIT_UNDEF: undefined },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.authConfig['//registry.test/:_authToken']).toBe('fallback')
+  })
 })
 
 test('throw error if --save-prod is used with --save-peer', async () => {

@@ -174,16 +174,24 @@ function substituteEnv (value: string, env: Record<string, string | undefined>, 
   }
 }
 
-// Mirrors `getEnvValue` in `@pnpm/config.env-replace`'s strict path, but returns
-// `undefined` (instead of throwing) when a `${VAR}` placeholder has no value and
-// no default. Caller substitutes `undefined` with '' so unresolved auth tokens
-// never reach the registry as literal `${...}` strings.
+// Mirrors `getEnvValue` in `@pnpm/config.env-replace`'s strict path, but
+// returns `undefined` (instead of throwing) when a `${VAR}` placeholder has
+// no value and no default. Caller substitutes `undefined` with '' so
+// unresolved auth tokens never reach the registry as literal `${...}` strings.
+//
+// `undefined` is treated as "unset" rather than "explicitly empty", matching
+// the `Record<string, string | undefined>` contract: callers that construct
+// the env object directly (notably tests) routinely include `KEY: undefined`
+// to model an unset variable, and `${KEY-default}` must use the fallback in
+// that case. This diverges from env-replace's `hasOwnProperty` check, which
+// can't tell those two cases apart because `process.env` never holds
+// `undefined` values in practice.
 function resolveEnvValue (env: Record<string, string | undefined>, name: string): string | undefined {
   const match = /([^:-]+)(:?)-(.+)/.exec(name)
   if (!match) return env[name]
   const [, varName, colon, fallback] = match
-  if (!Object.prototype.hasOwnProperty.call(env, varName)) return fallback
   const v = env[varName]
+  if (v === undefined) return fallback
   return !v && colon ? fallback : v
 }
 
