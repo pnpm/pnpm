@@ -143,7 +143,7 @@ fn env_replace_substitutes_token() {
 #[test]
 fn env_replace_failure_warns_and_drops_unresolved_to_empty() {
     // Mirrors pnpm's `substituteEnv` lossy fallback: unresolved `${VAR}` becomes
-    // "" so a downstream `Authorization: Bearer …` header is never sent with a
+    // "" so a downstream `Authorization: Bearer ...` header is never sent with a
     // literal placeholder. See https://github.com/pnpm/pnpm/issues/11513.
     let ini = "//reg.com/:_authToken=${MISSING}\n";
     let auth = NpmrcAuth::from_ini::<NoEnv>(ini);
