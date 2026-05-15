@@ -807,6 +807,53 @@ test('empty env var in workspace .npmrc is kept (not treated as unset)', async (
   }
 })
 
+test('unresolved env var in workspace .npmrc _auth does not crash and falls back to auth.ini', async () => {
+  prepareEmpty()
+
+  // Workspace .npmrc references an env var that is NOT set, used in _auth.
+  // Without the fallback fix, the literal '${UNSET_AUTH_VAR_11298}' would
+  // reach parseBasicAuth and crash atob() with "Invalid character".
+  fs.writeFileSync('.npmrc', '//registry.example.com/:_auth=${UNSET_AUTH_VAR_11298}', 'utf8')
+
+  // auth.ini has a valid base64-encoded `username:password` pair.
+  const configHome = path.resolve('xdg-config')
+  fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
+  fs.writeFileSync(
+    path.join(configHome, 'pnpm', 'auth.ini'),
+    '//registry.example.com/:_auth=dXNlcjpwYXNz'
+  )
+
+  const originalXdg = process.env.XDG_CONFIG_HOME
+  process.env.XDG_CONFIG_HOME = configHome
+  delete process.env.UNSET_AUTH_VAR_11298
+  try {
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      env: {
+        ...env,
+        XDG_CONFIG_HOME: configHome,
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(config.authConfig['//registry.example.com/:_auth']).toBe('dXNlcjpwYXNz')
+    expect(warnings).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Failed to replace env in config: ${UNSET_AUTH_VAR_11298}'),
+      ])
+    )
+  } finally {
+    if (originalXdg != null) {
+      process.env.XDG_CONFIG_HOME = originalXdg
+    } else {
+      delete process.env.XDG_CONFIG_HOME
+    }
+  }
+})
+
 test('throw error if --save-prod is used with --save-peer', async () => {
   await expect(getConfig({
     cliOptions: {
