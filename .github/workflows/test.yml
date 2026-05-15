@@ -29,6 +29,9 @@ jobs:
 
     runs-on: ${{ inputs.platform }}
 
+    env:
+      pnpm_config_verify_deps_before_run: false
+
     steps:
     - name: Configure Git
       run: |
@@ -46,7 +49,10 @@ jobs:
     - name: Install pnpm and Node
       uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
       with:
+        install: false
         runtime: node@${{ inputs.node }}
+    - name: pacquet install
+      run: pnx --config.minimum-release-age=0 pacquet install --frozen-lockfile --no-runtime
     - name: Verify Node version
       shell: bash
       env:
