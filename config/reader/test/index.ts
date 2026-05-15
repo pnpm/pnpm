@@ -676,6 +676,7 @@ test('unresolved env var in workspace .npmrc falls back to auth.ini token', asyn
   )
 
   const originalXdg = process.env.XDG_CONFIG_HOME
+  const originalUnsetToken = process.env.UNSET_TOKEN_VAR_11614
   process.env.XDG_CONFIG_HOME = configHome
   // Ensure the env var is NOT set
   delete process.env.UNSET_TOKEN_VAR_11614
@@ -701,6 +702,11 @@ test('unresolved env var in workspace .npmrc falls back to auth.ini token', asyn
       ])
     )
   } finally {
+    if (originalUnsetToken != null) {
+      process.env.UNSET_TOKEN_VAR_11614 = originalUnsetToken
+    } else {
+      delete process.env.UNSET_TOKEN_VAR_11614
+    }
     if (originalXdg != null) {
       process.env.XDG_CONFIG_HOME = originalXdg
     } else {
@@ -724,6 +730,7 @@ test('resolved env var in workspace .npmrc overrides auth.ini token', async () =
   )
 
   const originalXdg = process.env.XDG_CONFIG_HOME
+  const originalResolvedToken = process.env.RESOLVED_TOKEN_VAR_11614
   process.env.XDG_CONFIG_HOME = configHome
   process.env.RESOLVED_TOKEN_VAR_11614 = 'workspace-env-token'
   try {
@@ -749,7 +756,11 @@ test('resolved env var in workspace .npmrc overrides auth.ini token', async () =
       ])
     )
   } finally {
-    delete process.env.RESOLVED_TOKEN_VAR_11614
+    if (originalResolvedToken != null) {
+      process.env.RESOLVED_TOKEN_VAR_11614 = originalResolvedToken
+    } else {
+      delete process.env.RESOLVED_TOKEN_VAR_11614
+    }
     if (originalXdg != null) {
       process.env.XDG_CONFIG_HOME = originalXdg
     } else {
@@ -773,6 +784,7 @@ test('empty env var in workspace .npmrc is kept (not treated as unset)', async (
   )
 
   const originalXdg = process.env.XDG_CONFIG_HOME
+  const originalEmptyToken = process.env.EMPTY_TOKEN_VAR_11614
   process.env.XDG_CONFIG_HOME = configHome
   process.env.EMPTY_TOKEN_VAR_11614 = ''
   try {
@@ -798,7 +810,11 @@ test('empty env var in workspace .npmrc is kept (not treated as unset)', async (
       ])
     )
   } finally {
-    delete process.env.EMPTY_TOKEN_VAR_11614
+    if (originalEmptyToken != null) {
+      process.env.EMPTY_TOKEN_VAR_11614 = originalEmptyToken
+    } else {
+      delete process.env.EMPTY_TOKEN_VAR_11614
+    }
     if (originalXdg != null) {
       process.env.XDG_CONFIG_HOME = originalXdg
     } else {
@@ -824,6 +840,7 @@ test('unresolved env var in workspace .npmrc _auth does not crash and falls back
   )
 
   const originalXdg = process.env.XDG_CONFIG_HOME
+  const originalUnsetAuth = process.env.UNSET_AUTH_VAR_11298
   process.env.XDG_CONFIG_HOME = configHome
   delete process.env.UNSET_AUTH_VAR_11298
   try {
@@ -846,6 +863,11 @@ test('unresolved env var in workspace .npmrc _auth does not crash and falls back
       ])
     )
   } finally {
+    if (originalUnsetAuth != null) {
+      process.env.UNSET_AUTH_VAR_11298 = originalUnsetAuth
+    } else {
+      delete process.env.UNSET_AUTH_VAR_11298
+    }
     if (originalXdg != null) {
       process.env.XDG_CONFIG_HOME = originalXdg
     } else {
