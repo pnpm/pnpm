@@ -10,7 +10,7 @@ use tempfile::tempdir;
 #[test]
 fn file_path_matches_upstream() {
     let dir = std::path::Path::new("/tmp/example");
-    assert_eq!(get_file_path(dir), dir.join("node_modules").join(".pnpm-workspace-state-v1.json"),);
+    assert_eq!(get_file_path(dir), dir.join("node_modules").join(".pnpm-workspace-state-v1.json"));
 }
 
 #[test]
