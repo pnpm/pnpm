@@ -1,6 +1,10 @@
 import { expect, test } from '@jest/globals'
 import type { PackageSnapshot, PackageSnapshots } from '@pnpm/lockfile.utils'
 import { inheritOrSynthesizeResolution } from '@pnpm/lockfile.utils'
+import type { DepPath } from '@pnpm/types'
+
+const BASE_PATH = 'foo@file:packages/foo' as DepPath
+const VARIANT_PATH = 'foo@file:packages/foo(peer@2.0.0)' as DepPath
 
 test('returns the snapshot untouched when resolution is already populated', () => {
   const input = { resolution: { integrity: 'AAAA' } } as PackageSnapshot
@@ -10,11 +14,11 @@ test('returns the snapshot untouched when resolution is already populated', () =
 test('inherits resolution from the base entry for peer-variant snapshots', () => {
   const baseResolution = { directory: 'packages/foo', type: 'directory' as const }
   const packages: PackageSnapshots = {
-    'foo@file:packages/foo': { resolution: baseResolution } as PackageSnapshot,
-    'foo@file:packages/foo(peer@2.0.0)': {} as PackageSnapshot,
+    [BASE_PATH]: { resolution: baseResolution } as PackageSnapshot,
+    [VARIANT_PATH]: {} as PackageSnapshot,
   }
-  const variant = packages['foo@file:packages/foo(peer@2.0.0)']
-  const out = inheritOrSynthesizeResolution('foo@file:packages/foo(peer@2.0.0)', variant, packages)
+  const variant = packages[VARIANT_PATH]
+  const out = inheritOrSynthesizeResolution(VARIANT_PATH, variant, packages)
   expect(out).not.toBe(variant)
   expect(out.resolution).toEqual(baseResolution)
 })
@@ -22,8 +26,8 @@ test('inherits resolution from the base entry for peer-variant snapshots', () =>
 test('synthesizes a directory resolution from a file: depPath when base is pruned', () => {
   // Mimics `turbo prune --docker` keeping only the variant entry.
   const variant = {} as PackageSnapshot
-  const packages: PackageSnapshots = { 'foo@file:packages/foo(peer@2.0.0)': variant }
-  const out = inheritOrSynthesizeResolution('foo@file:packages/foo(peer@2.0.0)', variant, packages)
+  const packages: PackageSnapshots = { [VARIANT_PATH]: variant }
+  const out = inheritOrSynthesizeResolution(VARIANT_PATH, variant, packages)
   expect(out.resolution).toEqual({ directory: 'packages/foo', type: 'directory' })
 })
 
