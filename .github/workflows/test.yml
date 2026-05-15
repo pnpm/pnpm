@@ -29,6 +29,9 @@ jobs:
 
     runs-on: ${{ inputs.platform }}
 
+    env:
+      pnpm_config_verify_deps_before_run: false
+
     steps:
     - name: Configure Git
       run: |
@@ -97,5 +100,4 @@ jobs:
       env:
         PNPM_WORKERS: 3
         TEST_SCRIPT: ${{ steps.test-scope.outputs.script }}
-        pnpm_config_verify_deps_before_run: false
       run: pn run "$TEST_SCRIPT"
