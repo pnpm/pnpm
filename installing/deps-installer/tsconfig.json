@@ -61,12 +61,6 @@
       "path": "../../config/parse-overrides"
     },
     {
-      "path": "../../config/pick-registry-for-package"
-    },
-    {
-      "path": "../../config/version-policy"
-    },
-    {
       "path": "../../core/constants"
     },
     {
@@ -142,12 +136,6 @@
       "path": "../../lockfile/walker"
     },
     {
-      "path": "../../network/auth-header"
-    },
-    {
-      "path": "../../network/fetch"
-    },
-    {
       "path": "../../network/git-utils"
     },
     {
@@ -158,9 +146,6 @@
     },
     {
       "path": "../../pkg-manifest/utils"
-    },
-    {
-      "path": "../../resolving/npm-resolver"
     },
     {
       "path": "../../resolving/parse-wanted-dependency"

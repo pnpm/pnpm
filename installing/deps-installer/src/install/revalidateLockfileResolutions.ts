@@ -83,9 +83,10 @@ export async function revalidateLockfileResolutions (
     violations[0].code,
     `${violations.length} lockfile entries failed verification:\n${details}`,
     {
-      hint: 'To unblock the install you can:\n' +
-        '  1. Remove the offending entries from pnpm-lock.yaml and re-run "pnpm install --no-frozen-lockfile" so they get re-resolved against the active policies.\n' +
-        '  2. Relax the policy that caused the failure (e.g. lower minimumReleaseAge, add to its exclude list).',
+      hint: 'Either re-resolve the offending entries with "pnpm update <name>" ' +
+        '(or "pnpm install --force" for a full re-resolve) so the resolver ' +
+        'replaces them with values that satisfy the active policies, or relax ' +
+        'the policy that flagged them.',
     }
   )
 }
