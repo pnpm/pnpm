@@ -31,6 +31,12 @@ const CACHE_FILE_NAME = 'lockfile-verified.jsonl'
 // thousand distinct lockfiles is far past steady state.
 const MAX_CACHE_ENTRIES = 1000
 
+// Records cluster around 250–400 bytes; budget 1 KiB per entry as a
+// conservative upper bound. The compaction check uses `stat().size` to
+// decide whether to read+rewrite, so we never parse the file unless it
+// has actually grown past the cap.
+const COMPACT_TRIGGER_BYTES = MAX_CACHE_ENTRIES * 1024 * 3 / 2
+
 interface CacheRecord {
   lockfilePath: string
   /** sha256 hex of the lockfile content, normalized to LF. */
@@ -248,6 +254,22 @@ async function appendRecord (cacheDir: string, record: CacheRecord): Promise<voi
 
 async function maybeCompactCache (cacheDir: string): Promise<void> {
   const cacheFilePath = path.join(cacheDir, CACHE_FILE_NAME)
+  // Decide whether to compact from the file size alone — avoids reading
+  // and parsing the file on every successful install. Records cluster
+  // around a few hundred bytes; the byte budget translates directly to
+  // the entry cap with generous slack so we don't trigger a rewrite on
+  // every append once we cross the line.
+  let size: number
+  try {
+    const stat = await fs.promises.stat(cacheFilePath)
+    size = stat.size
+  } catch (err: unknown) {
+    if (isNodeError(err) && err.code === 'ENOENT') return
+    logger.debug({ msg: 'lockfile-verified cache: stat for compaction failed', err })
+    return
+  }
+  if (size <= COMPACT_TRIGGER_BYTES) return
+
   let contents: string
   try {
     contents = await fs.promises.readFile(cacheFilePath, 'utf8')
@@ -257,9 +279,6 @@ async function maybeCompactCache (cacheDir: string): Promise<void> {
     return
   }
   const lines = contents.split('\n').filter(Boolean)
-  // 1.5x cap gives us slack so we don't rewrite the file on every append
-  // once we cross the cap; the file stays bounded but writes stay cheap.
-  if (lines.length <= MAX_CACHE_ENTRIES + (MAX_CACHE_ENTRIES >> 1)) return
 
   // Last record per path wins (JSONL semantics). Dedupe in reverse so we
   // keep insertion order of the surviving entries; then keep the tail.
