@@ -11,7 +11,7 @@ import type { ProjectOptions } from '@pnpm/installing.context'
 import type { HoistingLimits } from '@pnpm/installing.deps-restorer'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
-import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
+import type { ResolutionVerifier, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type {
   AllowedDeprecatedVersions,
@@ -175,6 +175,15 @@ export interface StrictInstallOptions {
   ci?: boolean
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
+  /**
+   * Optional verifier that re-checks each lockfile-pinned resolution
+   * against policies configured upstream (today: minimumReleaseAge strict
+   * mode). Constructed by `createClient` and surfaced via the
+   * `createStoreController` return; mutateModules invokes it once, right
+   * after the lockfile is loaded from disk. When omitted, no revalidation
+   * runs.
+   */
+  verifyResolution?: ResolutionVerifier
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number

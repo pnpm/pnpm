@@ -129,6 +129,7 @@ export {
   RegistryResponseError,
   workspacePrefToNpm,
 }
+export { createNpmResolutionVerifier, type CreateNpmResolutionVerifierOptions } from './createNpmResolutionVerifier.js'
 export { whichVersionIsPinned } from './whichVersionIsPinned.js'
 
 export interface ResolverFactoryOptions {

@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs'
 import { packageManager } from '@pnpm/cli.meta'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { type ClientOptions, createClient } from '@pnpm/installing.client'
+import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import { type CafsLocker, createPackageStore, type StoreController } from '@pnpm/store.controller'
 import { StoreIndex } from '@pnpm/store.index'
 
@@ -34,6 +35,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'localAddress'
 | 'maxSockets'
 | 'minimumReleaseAge'
+| 'minimumReleaseAgeExclude'
 | 'minimumReleaseAgeIgnoreMissingTime'
 | 'minimumReleaseAgeStrict'
 | 'networkConcurrency'
@@ -61,7 +63,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 
 export async function createNewStoreController (
   opts: CreateNewStoreControllerOptions
-): Promise<{ ctrl: StoreController, dir: string }> {
+): Promise<{ ctrl: StoreController, dir: string, verifyResolution?: ResolutionVerifier }> {
   const fullMetadata = opts.fetchFullMetadata ?? (
     (
       opts.resolutionMode === 'time-based' ||
@@ -70,7 +72,7 @@ export async function createNewStoreController (
   )
   await fs.mkdir(opts.storeDir, { recursive: true })
   const storeIndex = new StoreIndex(opts.storeDir)
-  const { resolve, fetchers, clearResolutionCache } = createClient({
+  const { resolve, fetchers, clearResolutionCache, verifyResolution } = createClient({
     customResolvers: opts.hooks?.customResolvers,
     customFetchers: opts.hooks?.customFetchers,
     unsafePerm: opts.unsafePerm,
@@ -115,6 +117,9 @@ export async function createNewStoreController (
     preserveAbsolutePaths: opts.preserveAbsolutePaths,
     strictPublishedByCheck: Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true,
     ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime,
+    minimumReleaseAge: opts.minimumReleaseAge,
+    minimumReleaseAgeStrict: opts.minimumReleaseAgeStrict,
+    minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
     storeIndex,
   })
   return {
@@ -140,5 +145,6 @@ export async function createNewStoreController (
       storeIndex,
     }),
     dir: opts.storeDir,
+    verifyResolution,
   }
 }

@@ -82,6 +82,31 @@ export interface VariationsResolution {
 
 export type Resolution = AtomicResolution | VariationsResolution
 
+/**
+ * Outcome of asking a `ResolutionVerifier` whether a (name, version,
+ * resolution) entry from a lockfile is acceptable under whatever policies
+ * the resolver chain has been configured with. Resolvers that don't have
+ * an opinion on a given resolution should return `{ ok: true }`.
+ */
+export type ResolutionVerification =
+  | { ok: true }
+  | { ok: false, code: string, reason: string }
+
+/**
+ * Optional companion to a resolver factory. Lets each resolver enforce
+ * policies (e.g. minimumReleaseAge for npm) against an already-resolved
+ * entry from a lockfile without re-doing resolution.
+ *
+ * The verifier inspects the `resolution` shape to decide whether the entry
+ * is within its protocol; for entries outside its protocol it should
+ * return `{ ok: true }`. Combined verifiers (in default-resolver) dispatch
+ * across underlying resolver-specific verifiers.
+ */
+export type ResolutionVerifier = (
+  resolution: Resolution,
+  ctx: { name: string, version: string }
+) => Promise<ResolutionVerification>
+
 /** Concrete platform selector used when picking a variant from a VariationsResolution. */
 export interface PlatformSelector {
   os: string

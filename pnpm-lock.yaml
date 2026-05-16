@@ -8400,6 +8400,9 @@ importers:
       '@pnpm/hooks.types':
         specifier: workspace:*
         version: link:../../hooks/types
+      '@pnpm/network.auth-header':
+        specifier: workspace:*
+        version: link:../../network/auth-header
       '@pnpm/resolving.git-resolver':
         specifier: workspace:*
         version: link:../git-resolver
@@ -8539,6 +8542,9 @@ importers:
       '@pnpm/config.pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package
+      '@pnpm/config.version-policy':
+        specifier: workspace:*
+        version: link:../../config/version-policy
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants
@@ -8633,9 +8639,6 @@ importers:
       '@jest/globals':
         specifier: 'catalog:'
         version: 30.3.0
-      '@pnpm/config.version-policy':
-        specifier: workspace:*
-        version: link:../../config/version-policy
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
@@ -8986,6 +8989,9 @@ importers:
       '@pnpm/installing.client':
         specifier: workspace:*
         version: link:../../installing/client
+      '@pnpm/resolving.resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
       '@pnpm/store.controller':
         specifier: workspace:*
         version: link:../controller
@@ -9271,6 +9277,9 @@ importers:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 6.0.0(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+      '@pnpm/resolving.resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
       '@pnpm/store.controller':
         specifier: workspace:*
         version: link:../../store/controller

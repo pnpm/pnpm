@@ -95,6 +95,7 @@ import {
 import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
 import { validateModules } from './validateModules.js'
+import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 
 class LockfileConfigMismatchError extends PnpmError {
   constructor (outdatedLockfileSettingName: string) {
@@ -274,6 +275,11 @@ export async function mutateModules (
   maybeOpts: MutateModulesOptions
 ): Promise<MutateModulesResult> {
   const reporter = maybeOpts?.reporter
+  const detachReporter = (reporter != null) && typeof reporter === 'function'
+    ? () => {
+      streamParser.removeListener('data', reporter)
+    }
+    : () => {}
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
@@ -326,6 +332,26 @@ export async function mutateModules (
     if (purged) {
       ctx = await getContext(opts)
     }
+  }
+
+  // Re-validate every entry in the lockfile against the policies the
+  // resolver chain was built with (today: minimumReleaseAge in strict mode
+  // via the npm verifier; the abstraction supports other resolvers
+  // attaching their own verifiers). The threat model is a lockfile that
+  // someone else resolved — committed to the repo, restored from a CI
+  // cache, etc. — bypassing the local resolver's policy filters; the local
+  // resolver's own filters already cover fresh resolution. We run this
+  // exactly once, right after the lockfile is loaded from disk, before any
+  // path branches.
+  try {
+    await verifyLockfileResolutions(ctx.wantedLockfile, opts.verifyResolution)
+  } catch (err) {
+    // verifyLockfileResolutions is the one throw site in this function
+    // that's part of normal user-facing operation (a rejected lockfile);
+    // other throws here are unexpected. Detach the reporter listener so
+    // long-lived processes don't leak it on every rejected install.
+    detachReporter()
+    throw err
   }
 
   if (opts.hooks.preResolution) {
@@ -415,9 +441,7 @@ export async function mutateModules (
     packageNames: ignoredBuilds ? dedupePackageNamesFromIgnoredBuilds(ignoredBuilds) : [],
   })
 
-  if ((reporter != null) && typeof reporter === 'function') {
-    streamParser.removeListener('data', reporter)
-  }
+  detachReporter()
 
   return {
     updatedCatalogs: result.updatedCatalogs,

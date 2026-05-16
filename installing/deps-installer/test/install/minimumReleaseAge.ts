@@ -1,5 +1,5 @@
 import { expect, test } from '@jest/globals'
-import { addDependenciesToPackage } from '@pnpm/installing.deps-installer'
+import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
 import { readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 
@@ -123,4 +123,74 @@ test('throws error when semver range is used in minimumReleaseAgeExclude', async
     })
     await addDependenciesToPackage({}, ['is-odd@0.1'], opts)
   }).rejects.toThrow(/Invalid versions union/)
+})
+
+test('minimumReleaseAge is enforced on an existing lockfile entry that does not meet the cutoff', async () => {
+  prepareEmpty()
+
+  // Generate a lockfile without minimumReleaseAge — picks the latest 0.1.x (= 0.1.2),
+  // which is immature relative to isOdd011ReleaseDate.
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1.2'], testDefaults())
+  expect(manifest.dependencies!['is-odd']).toBe('0.1.2')
+
+  // Subsequent install enables minimumReleaseAge in strict mode. The lockfile
+  // already has 0.1.2 so resolution is normally skipped; the revalidation pass
+  // must catch this. `minimumReleaseAgeStrict` mirrors the CLI config reader's
+  // auto-true behavior when the user explicitly sets `minimumReleaseAge`.
+  await expect(
+    install(manifest, testDefaults({ minimumReleaseAge, minimumReleaseAgeStrict: true }))
+  ).rejects.toThrow(/minimumReleaseAge/)
+})
+
+test('minimumReleaseAge revalidation respects minimumReleaseAgeExclude on an existing lockfile entry', async () => {
+  prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1.2'], testDefaults())
+  expect(manifest.dependencies!['is-odd']).toBe('0.1.2')
+
+  // is-odd@0.1.2 brings in is-buffer and kind-of as transitive deps; both were
+  // published after the cutoff in this test, so all three must be excluded for
+  // the install to succeed.
+  await expect(
+    install(manifest, testDefaults({
+      minimumReleaseAge,
+      minimumReleaseAgeStrict: true,
+      minimumReleaseAgeExclude: ['is-odd@0.1.2', 'is-buffer', 'kind-of'],
+    }))
+  ).resolves.toBeDefined()
+})
+
+test('minimumReleaseAge is enforced on pre-existing lockfile entries during pnpm add', async () => {
+  prepareEmpty()
+
+  // Populate the lockfile with an immature entry without the policy.
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1.2'], testDefaults())
+  expect(manifest.dependencies!['is-odd']).toBe('0.1.2')
+
+  // Subsequent `pnpm add` for an unrelated package would normally let
+  // is-odd@0.1.2 survive resolution as-is via the resolver's
+  // peekManifestFromStore fast path, bypassing the policy. The post-resolution
+  // gate must catch it.
+  await expect(
+    addDependenciesToPackage(
+      manifest,
+      ['is-positive@1.0.0'],
+      testDefaults({ minimumReleaseAge, minimumReleaseAgeStrict: true })
+    )
+  ).rejects.toThrow(/minimumReleaseAge/)
+})
+
+test('the lockfile minimumReleaseAge gate is inert when strict mode is off (default-value semantics)', async () => {
+  prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1.2'], testDefaults())
+  expect(manifest.dependencies!['is-odd']).toBe('0.1.2')
+
+  // Without explicit strict mode — the same shape as the CLI built-in default
+  // (1-day release-age window applied without `minimumReleaseAge` being set in
+  // .npmrc) — the revalidation pass stays inert and the locked version
+  // installs cleanly.
+  await expect(
+    install(manifest, testDefaults({ minimumReleaseAge }))
+  ).resolves.toBeDefined()
 })

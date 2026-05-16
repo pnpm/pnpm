@@ -9,14 +9,17 @@ import type { CustomFetcher, CustomResolver } from '@pnpm/hooks.types'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type DispatcherOptions } from '@pnpm/network.fetch'
 import {
+  createResolutionVerifier,
   createResolver as _createResolver,
+  type ResolutionVerifierFactoryOptions,
   type ResolveFunction,
   type ResolverFactoryOptions,
 } from '@pnpm/resolving.default-resolver'
+import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import type { StoreIndex } from '@pnpm/store.index'
 import type { RegistryConfig } from '@pnpm/types'
 
-export type { ResolveFunction }
+export type { ResolutionVerifier, ResolveFunction }
 
 export type ClientOptions = {
   configByUri: Record<string, RegistryConfig>
@@ -35,11 +38,19 @@ export type ClientOptions = {
   preserveAbsolutePaths?: boolean
   fetchMinSpeedKiBps?: number
 } & ResolverFactoryOptions & DispatcherOptions
+  & Pick<ResolutionVerifierFactoryOptions, 'minimumReleaseAge' | 'minimumReleaseAgeStrict' | 'minimumReleaseAgeExclude'>
 
 export interface Client {
   fetchers: Fetchers
   resolve: ResolveFunction
   clearResolutionCache: () => void
+  /**
+   * Combined verifier across the resolver chain. `undefined` when no
+   * resolver-level policy is active (today: minimumReleaseAge strict mode).
+   * Used by the install layer to re-validate an already-resolved lockfile
+   * entry without re-doing resolution.
+   */
+  verifyResolution?: ResolutionVerifier
 }
 
 export function createClient (opts: ClientOptions): Client {
@@ -47,10 +58,12 @@ export function createClient (opts: ClientOptions): Client {
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri, opts.registries?.default)
 
   const { resolve, clearCache: clearResolutionCache } = _createResolver(fetchFromRegistry, getAuthHeader, { ...opts, customResolvers: opts.customResolvers })
+  const verifyResolution = createResolutionVerifier(fetchFromRegistry, opts)
   return {
     fetchers: createFetchers(fetchFromRegistry, getAuthHeader, opts),
     resolve,
     clearResolutionCache,
+    verifyResolution,
   }
 }
 
