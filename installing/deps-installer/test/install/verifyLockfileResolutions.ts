@@ -138,6 +138,14 @@ test('uses the first violation\'s code when multiple verifiers fire', async () =
   })
 })
 
+function exampleVerifier (current: number) {
+  return {
+    key: 'test.policy',
+    policy: current,
+    satisfies: (cached: unknown) => typeof cached === 'number' && cached >= current,
+  }
+}
+
 test('skips the verifier when the cache holds an unchanged lockfile + matching policy', async () => {
   const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-vlr-'))
   try {
@@ -156,13 +164,13 @@ test('skips the verifier when the cache holds an unchanged lockfile + matching p
 
     // First call has no cache record yet — verifier runs.
     await verifyLockfileResolutions(lockfile, counting, {
-      cache: { cacheDir, lockfilePath, minimumReleaseAge: 60 },
+      cache: { cacheDir, lockfilePath, verifiers: [exampleVerifier(60)] },
     })
     expect(calls).toBe(1)
 
     // Second call against the same lockfile + policy — cache short-circuit.
     await verifyLockfileResolutions(lockfile, counting, {
-      cache: { cacheDir, lockfilePath, minimumReleaseAge: 60 },
+      cache: { cacheDir, lockfilePath, verifiers: [exampleVerifier(60)] },
     })
     expect(calls).toBe(1)
   } finally {
@@ -188,13 +196,45 @@ test('does not write a cache record when verification rejects', async () => {
 
     await expect(
       verifyLockfileResolutions(lockfile, rejecting, {
-        cache: { cacheDir, lockfilePath, minimumReleaseAge: 60 },
+        cache: { cacheDir, lockfilePath, verifiers: [exampleVerifier(60)] },
       })
     ).rejects.toThrow()
 
     // No record was written — a rejecting verification must rerun next install.
-    const cacheFile = path.join(cacheDir, 'minimum-release-age-verified.jsonl')
+    const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
     await expect(fs.promises.access(cacheFile)).rejects.toThrow()
+  } finally {
+    await fs.promises.rm(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('does not short-circuit when the active verifier list is empty', async () => {
+  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-vlr-'))
+  try {
+    const cacheDir = path.join(tmpDir, 'cache')
+    const lockfilePath = path.join(tmpDir, 'pnpm-lock.yaml')
+    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
+    const lockfile = makeLockfile({
+      'a@1.0.0': { resolution: tarballResolution('sha512-a') },
+    })
+
+    let calls = 0
+    const counting: ResolutionVerifier = async () => {
+      calls++
+      return { ok: true }
+    }
+
+    // First call: no verifiers means nothing to cache; the verifier still runs.
+    await verifyLockfileResolutions(lockfile, counting, {
+      cache: { cacheDir, lockfilePath, verifiers: [] },
+    })
+    expect(calls).toBe(1)
+
+    // Second call: still no cache record because we never wrote one.
+    await verifyLockfileResolutions(lockfile, counting, {
+      cache: { cacheDir, lockfilePath, verifiers: [] },
+    })
+    expect(calls).toBe(2)
   } finally {
     await fs.promises.rm(tmpDir, { recursive: true, force: true })
   }

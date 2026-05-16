@@ -14,9 +14,13 @@ import { logger } from '@pnpm/logger'
  * record per path wins on read. Appends of a single line are atomic on
  * POSIX and NTFS, so parallel pnpm processes (monorepo installs, CI
  * matrices sharing a cache) can write without coordination.
+ *
+ * Policy-neutral. Each {@link ActiveVerifier} contributes its own slot
+ * under `verifiers[key]`; future verifiers add their own keys without
+ * touching the cache layer.
  */
 
-const CACHE_FILE_NAME = 'minimum-release-age-verified.jsonl'
+const CACHE_FILE_NAME = 'lockfile-verified.jsonl'
 
 // Cap the file before it grows large enough to slow down reads. When the
 // cap is exceeded we rewrite the file keeping the N most recently verified
@@ -28,12 +32,6 @@ interface CacheRecord {
   lockfilePath: string
   /** sha256 hex of the lockfile content, normalized to LF. */
   lockfileHash: string
-  /**
-   * Minimum release age (in minutes) the cached verification was run with.
-   * A future install with a stricter (larger) cutoff cannot reuse this
-   * record — its set of below-cutoff versions may have grown.
-   */
-  minimumReleaseAge: number
   /** ISO-8601 timestamp of when the verification ran. */
   verifiedAt: string
   /** Lockfile size in bytes — same machine fast path. */
@@ -46,12 +44,42 @@ interface CacheRecord {
    */
   lockfileMtimeNs: string
   lockfileInode: number
+  /**
+   * Verifier-keyed policy snapshots that were satisfied when the
+   * verification ran. Each {@link ActiveVerifier} owns its own slot and
+   * decides — via its `satisfies` comparator — whether today's policy can
+   * reuse the cached snapshot. Unknown keys are ignored on read.
+   */
+  verifiers: Record<string, unknown>
+}
+
+export interface ActiveVerifier {
+  /**
+   * Stable, namespaced identifier (e.g. `npm.minimumReleaseAge`). Must be
+   * unique across all verifiers ever shipped — renaming a key invalidates
+   * cached entries that used the old name.
+   */
+  key: string
+  /**
+   * Today's policy snapshot, serialized verbatim into the cache record.
+   * Opaque to the cache layer; the verifier owns the shape.
+   */
+  policy: unknown
+  /**
+   * Returns true when a previous verification under `cachedPolicy` is at
+   * least as strict as today's — i.e. the cached run already covers what
+   * the current policy demands. A loosened policy can reuse a stricter
+   * cached run; a tightened policy cannot.
+   *
+   * Called with the cached slot's raw value; the verifier is responsible
+   * for shape-validating it (a value from an older pnpm or a renamed
+   * field may have a different shape, in which case return false).
+   */
+  satisfies: (cachedPolicy: unknown) => boolean
 }
 
 interface CacheLookupResult {
   hit: boolean
-  /** Carried forward when we hit via hash so the caller can refresh stat fields. */
-  record?: CacheRecord
 }
 
 interface LockfileStat {
@@ -60,9 +88,9 @@ interface LockfileStat {
   inode: number
 }
 
-interface VerificationKey {
+export interface LockfileVerificationCacheKey {
   lockfilePath: string
-  minimumReleaseAge: number
+  verifiers: ActiveVerifier[]
 }
 
 /**
@@ -83,15 +111,27 @@ async function readCache (cacheDir: string): Promise<Map<string, CacheRecord>> {
   for (const line of contents.split('\n')) {
     if (!line) continue
     try {
-      const parsed = JSON.parse(line) as CacheRecord
+      const parsed = JSON.parse(line) as Partial<CacheRecord>
       if (typeof parsed?.lockfilePath !== 'string') continue
       // Later records overwrite earlier ones — JSONL semantics.
-      records.set(parsed.lockfilePath, parsed)
+      records.set(parsed.lockfilePath, normalizeRecord(parsed))
     } catch {
       // Skip malformed lines; the next clean append will still work.
     }
   }
   return records
+}
+
+function normalizeRecord (parsed: Partial<CacheRecord>): CacheRecord {
+  return {
+    lockfilePath: parsed.lockfilePath ?? '',
+    lockfileHash: parsed.lockfileHash ?? '',
+    verifiedAt: parsed.verifiedAt ?? '',
+    lockfileFileSize: parsed.lockfileFileSize ?? -1,
+    lockfileMtimeNs: parsed.lockfileMtimeNs ?? '',
+    lockfileInode: parsed.lockfileInode ?? -1,
+    verifiers: parsed.verifiers && typeof parsed.verifiers === 'object' ? parsed.verifiers : {},
+  }
 }
 
 async function statLockfile (lockfilePath: string): Promise<LockfileStat | null> {
@@ -110,17 +150,21 @@ async function statLockfile (lockfilePath: string): Promise<LockfileStat | null>
 
 /**
  * Try to confirm a cached verification covers the lockfile as it currently
- * sits on disk. Returns `{ hit: true }` to skip the gate; `{ hit: false }`
- * means the caller should run the verifier and persist the result with
- * {@link recordVerification}.
+ * sits on disk and the policies currently in effect. Returns `{ hit: true }`
+ * to skip the gate; `{ hit: false }` means the caller should run the
+ * verifier and persist the result with {@link recordVerification}.
  *
  * The fast path is stat-only (size + mtime + inode) — zero file reads on
  * unchanged repos. The slow path hashes the lockfile only when stat alone
  * can't decide (typically a CI checkout where mtime/inode got reset).
+ *
+ * Every active verifier must agree the cached snapshot still satisfies its
+ * current policy; if any verifier rejects (or its slot is missing), the
+ * full gate runs.
  */
 export async function tryLockfileVerificationCache (
   cacheDir: string,
-  key: VerificationKey
+  key: LockfileVerificationCacheKey
 ): Promise<CacheLookupResult> {
   let cache: Map<string, CacheRecord>
   try {
@@ -128,21 +172,19 @@ export async function tryLockfileVerificationCache (
   } catch (err: unknown) {
     // A corrupt cache file should never block the install; fall through to
     // verification so the gate still runs.
-    logger.debug({ msg: 'minimumReleaseAge cache read failed', err })
+    logger.debug({ msg: 'lockfile-verified cache: read failed', err })
     return { hit: false }
   }
   const record = cache.get(key.lockfilePath)
   if (!record) return { hit: false }
-  // Reusing a record for a weaker cutoff is unsafe: the previously verified
-  // set may include versions that no longer meet the stricter policy.
-  if (key.minimumReleaseAge > record.minimumReleaseAge) return { hit: false }
+  if (!everyVerifierSatisfied(record, key.verifiers)) return { hit: false }
 
   const stat = await statLockfile(key.lockfilePath)
   if (!stat) return { hit: false }
   // Size mismatch is guaranteed-different content; skip the hash entirely.
   if (stat.size !== record.lockfileFileSize) return { hit: false }
   if (stat.mtimeNs === record.lockfileMtimeNs && stat.inode === record.lockfileInode) {
-    return { hit: true, record }
+    return { hit: true }
   }
   // Stat fields drift (CI checkout, file copy, editor write-through);
   // confirm via content hash, which is portable across machines.
@@ -150,7 +192,7 @@ export async function tryLockfileVerificationCache (
   try {
     hash = await createHexHashFromFile(key.lockfilePath)
   } catch (err: unknown) {
-    logger.debug({ msg: 'minimumReleaseAge cache: lockfile hash failed', err })
+    logger.debug({ msg: 'lockfile-verified cache: lockfile hash failed', err })
     return { hit: false }
   }
   if (hash !== record.lockfileHash) return { hit: false }
@@ -162,7 +204,17 @@ export async function tryLockfileVerificationCache (
     lockfileMtimeNs: stat.mtimeNs,
     lockfileInode: stat.inode,
   })
-  return { hit: true, record }
+  return { hit: true }
+}
+
+function everyVerifierSatisfied (record: CacheRecord, verifiers: ActiveVerifier[]): boolean {
+  for (const verifier of verifiers) {
+    // Missing slot is treated as "not satisfied" — the cached run didn't
+    // cover this verifier so we must rerun the gate.
+    if (!(verifier.key in record.verifiers)) return false
+    if (!verifier.satisfies(record.verifiers[verifier.key])) return false
+  }
+  return true
 }
 
 /**
@@ -173,7 +225,7 @@ export async function tryLockfileVerificationCache (
  */
 export async function recordVerification (
   cacheDir: string,
-  key: VerificationKey
+  key: LockfileVerificationCacheKey
 ): Promise<void> {
   let stat: LockfileStat | null
   let hash: string
@@ -184,17 +236,21 @@ export async function recordVerification (
   } catch (err: unknown) {
     // The gate has already passed; if we can't record the cache entry we
     // just won't get the speedup next time. Not a reason to fail install.
-    logger.debug({ msg: 'minimumReleaseAge cache: could not record verification', err })
+    logger.debug({ msg: 'lockfile-verified cache: could not record verification', err })
     return
+  }
+  const verifierSlots: Record<string, unknown> = {}
+  for (const verifier of key.verifiers) {
+    verifierSlots[verifier.key] = verifier.policy
   }
   const record: CacheRecord = {
     lockfilePath: key.lockfilePath,
     lockfileHash: hash,
-    minimumReleaseAge: key.minimumReleaseAge,
     verifiedAt: new Date().toISOString(),
     lockfileFileSize: stat.size,
     lockfileMtimeNs: stat.mtimeNs,
     lockfileInode: stat.inode,
+    verifiers: verifierSlots,
   }
   await appendRecord(cacheDir, record)
 }
@@ -206,12 +262,9 @@ async function appendRecord (cacheDir: string, record: CacheRecord): Promise<voi
     await fs.promises.mkdir(cacheDir, { recursive: true })
     await fs.promises.appendFile(cacheFilePath, line)
   } catch (err: unknown) {
-    logger.debug({ msg: 'minimumReleaseAge cache: append failed', err })
+    logger.debug({ msg: 'lockfile-verified cache: append failed', err })
     return
   }
-  // Cheap line-count check using the in-memory size estimate: the file may
-  // have grown past the cap. Only rewrite when we exceed by a comfortable
-  // margin so the rewrite doesn't run on every append.
   await maybeCompactCache(cacheDir)
 }
 
@@ -222,7 +275,7 @@ async function maybeCompactCache (cacheDir: string): Promise<void> {
     contents = await fs.promises.readFile(cacheFilePath, 'utf8')
   } catch (err: unknown) {
     if (isNodeError(err) && err.code === 'ENOENT') return
-    logger.debug({ msg: 'minimumReleaseAge cache: read for compaction failed', err })
+    logger.debug({ msg: 'lockfile-verified cache: read for compaction failed', err })
     return
   }
   const lines = contents.split('\n').filter(Boolean)
@@ -237,7 +290,7 @@ async function maybeCompactCache (cacheDir: string): Promise<void> {
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i]
     try {
-      const parsed = JSON.parse(line) as CacheRecord
+      const parsed = JSON.parse(line) as Partial<CacheRecord>
       if (typeof parsed?.lockfilePath !== 'string') continue
       if (seen.has(parsed.lockfilePath)) continue
       seen.add(parsed.lockfilePath)
@@ -255,7 +308,7 @@ async function maybeCompactCache (cacheDir: string): Promise<void> {
     await fs.promises.writeFile(tmpPath, kept.map((line) => `${line}\n`).join(''))
     await fs.promises.rename(tmpPath, cacheFilePath)
   } catch (err: unknown) {
-    logger.debug({ msg: 'minimumReleaseAge cache: compaction failed', err })
+    logger.debug({ msg: 'lockfile-verified cache: compaction failed', err })
   }
 }
 

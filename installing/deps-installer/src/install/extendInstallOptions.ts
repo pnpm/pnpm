@@ -187,8 +187,10 @@ export interface StrictInstallOptions {
   /**
    * pnpm's on-disk cache directory. When set together with
    * `verifyResolution`, the lockfile verification result is memoized in
-   * `<cacheDir>/minimum-release-age-verified.jsonl` so repeat installs
-   * against an unchanged lockfile skip the per-package registry round trip.
+   * `<cacheDir>/lockfile-verified.jsonl` so repeat installs against an
+   * unchanged lockfile skip the per-package registry round trip. The
+   * record is policy-neutral; each active resolver-side verifier writes
+   * its own slot under `verifiers[<key>]`.
    */
   cacheDir?: string
   trustPolicy?: TrustPolicy

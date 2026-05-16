@@ -5,7 +5,11 @@ import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import type { DepPath } from '@pnpm/types'
 import pLimit from 'p-limit'
 
-import { recordVerification, tryLockfileVerificationCache } from './verifyLockfileResolutionsCache.js'
+import {
+  type ActiveVerifier,
+  recordVerification,
+  tryLockfileVerificationCache,
+} from './verifyLockfileResolutionsCache.js'
 
 interface Violation {
   pkgId: string
@@ -29,11 +33,13 @@ export interface VerifyLockfileResolutionsCacheOptions {
   /** Absolute path of the lockfile being verified — the cache key. */
   lockfilePath: string
   /**
-   * Current minimum release age (in minutes). The cache only short-circuits
-   * when the cached verification ran with a cutoff ≥ today's, so tightening
-   * the policy invalidates the entry without churning the cache file.
+   * Policy snapshots for every verifier whose result this lookup/record
+   * covers. Each verifier owns a stable key (e.g. `npm.minimumReleaseAge`)
+   * and a `satisfies` comparator that decides whether a cached snapshot
+   * still meets today's policy. The cache only short-circuits when **all**
+   * active verifiers agree the cached run is still valid.
    */
-  minimumReleaseAge: number
+  verifiers: ActiveVerifier[]
 }
 
 /**
@@ -66,11 +72,12 @@ export async function verifyLockfileResolutions (
   if (!lockfile.packages) return
 
   // Cache lookup runs before any registry I/O — the fast path is a single
-  // stat() of the lockfile when the previous install already verified it.
-  if (options?.cache) {
+  // stat() of the lockfile when the previous install already verified it
+  // under a policy that's at least as strict as today's.
+  if (options?.cache && options.cache.verifiers.length > 0) {
     const { hit } = await tryLockfileVerificationCache(options.cache.cacheDir, {
       lockfilePath: options.cache.lockfilePath,
-      minimumReleaseAge: options.cache.minimumReleaseAge,
+      verifiers: options.cache.verifiers,
     })
     if (hit) return
   }
@@ -100,10 +107,10 @@ export async function verifyLockfileResolutions (
 
   if (violations.length === 0) {
     // Persist the success so the next install can stat-only the lockfile.
-    if (options?.cache) {
+    if (options?.cache && options.cache.verifiers.length > 0) {
       await recordVerification(options.cache.cacheDir, {
         lockfilePath: options.cache.lockfilePath,
-        minimumReleaseAge: options.cache.minimumReleaseAge,
+        verifiers: options.cache.verifiers,
       })
     }
     return
