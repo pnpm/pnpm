@@ -329,6 +329,17 @@ export async function mutateModules (
     }
   }
 
+  // Re-validate every entry in the lockfile against the policies the
+  // resolver chain was built with (today: minimumReleaseAge in strict mode
+  // via the npm verifier; the abstraction supports other resolvers
+  // attaching their own verifiers). The threat model is a lockfile that
+  // someone else resolved — committed to the repo, restored from a CI
+  // cache, etc. — bypassing the local resolver's policy filters; the local
+  // resolver's own filters already cover fresh resolution. We run this
+  // exactly once, right after the lockfile is loaded from disk, before any
+  // path branches.
+  await revalidateLockfileResolutions(ctx.wantedLockfile, opts.verifyResolution)
+
   if (opts.hooks.preResolution) {
     for (const preResolution of opts.hooks.preResolution) {
       // eslint-disable-next-line no-await-in-loop
@@ -906,8 +917,6 @@ Note that in CI environments, this setting is enabled by default.`,
       logger.info({ message: 'Lockfile is up to date, resolution step is skipped', prefix: opts.lockfileDir })
     }
 
-    await revalidateLockfileResolutions(ctx.wantedLockfile, opts.verifyResolution)
-
     try {
       const { stats, ignoredBuilds } = await headlessInstall({
         ...ctx,
@@ -1416,8 +1425,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     prefix: ctx.lockfileDir,
     stage: 'resolution_done',
   })
-
-  await revalidateLockfileResolutions(newLockfile, opts.verifyResolution)
 
   newLockfile = ((opts.hooks?.afterAllResolved) != null)
     ? await pipeWith(async (f, res) => f(await res), opts.hooks.afterAllResolved as any)(newLockfile) as LockfileObject // eslint-disable-line

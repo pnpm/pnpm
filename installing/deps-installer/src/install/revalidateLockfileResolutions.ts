@@ -23,9 +23,12 @@ const DEFAULT_CONCURRENCY = 16
 
 /**
  * Policy-neutral pass that asks each resolver-supplied {@link ResolutionVerifier}
- * to re-check every entry in an already-resolved lockfile. Iteration runs
- * after resolution decisions are settled and before any tarball is fetched,
- * so a poisoned lockfile cannot reach the filesystem.
+ * to re-check every entry in a lockfile loaded from disk. Iteration runs
+ * before resolution decisions are touched and before any tarball is
+ * fetched, so a lockfile whose entries were resolved elsewhere (committed
+ * to the repo, restored from a cache, etc.) under a weaker or absent
+ * policy cannot reach the filesystem. Fresh local resolution is covered
+ * by the resolver's own per-version filter.
  *
  * Designed for fail-closed semantics at the verifier level: a verifier that
  * can't confirm a resolution is expected to return `{ ok: false }` rather

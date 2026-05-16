@@ -175,13 +175,12 @@ export interface StrictInstallOptions {
   ci?: boolean
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
-  minimumReleaseAgeStrict?: boolean
   /**
    * Optional verifier that re-checks each lockfile-pinned resolution
    * against policies configured upstream (today: minimumReleaseAge strict
    * mode). Constructed by `createClient` and surfaced via the
-   * `createStoreController` return; mutateModules invokes it at the two
-   * points just before tarballs hit disk. When omitted, no revalidation
+   * `createStoreController` return; mutateModules invokes it once, right
+   * after the lockfile is loaded from disk. When omitted, no revalidation
    * runs.
    */
   verifyResolution?: ResolutionVerifier
