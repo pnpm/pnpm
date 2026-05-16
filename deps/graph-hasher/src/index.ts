@@ -1,6 +1,6 @@
-import { ENGINE_NAME } from '@pnpm/constants'
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/deps.path'
+import { engineName } from '@pnpm/engine.runtime.system-node-version'
 import type { LockfileObject, LockfileResolution, PackageSnapshot } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { resolvePlatformSelector, selectPlatformVariant } from '@pnpm/resolving.resolver-base'
@@ -32,7 +32,7 @@ export function calcDepState<T extends string> (
     supportedArchitectures?: SupportedArchitectures
   }
 ): string {
-  let result = ENGINE_NAME
+  let result = engineName()
   if (opts.includeDepGraphHash) {
     const depGraphHash = calcDepGraphHash(depsGraph, cache, new Set(), depPath, opts.supportedArchitectures)
     result += `;deps=${depGraphHash}`
@@ -140,7 +140,7 @@ export function calcGraphNodeHash<T extends PkgMeta> (
   // so they survive Node.js upgrades and architecture changes.
   const includeEngine = builtDepPaths === undefined ||
     transitivelyRequiresBuild(graph, builtDepPaths, buildRequiredCache ??= {}, depPath, new Set())
-  const engine = includeEngine ? ENGINE_NAME : null
+  const engine = includeEngine ? engineName() : null
   const deps = calcDepGraphHash(graph, cache, new Set(), depPath, supportedArchitectures)
   const hexDigest = hashObjectWithoutSorting({ engine, deps }, { encoding: 'hex' })
   return formatGlobalVirtualStorePath(name, version, hexDigest)

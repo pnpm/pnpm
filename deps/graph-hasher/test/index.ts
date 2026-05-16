@@ -1,8 +1,14 @@
 import { describe, expect, test } from '@jest/globals'
-import { ENGINE_NAME } from '@pnpm/constants'
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 import { calcDepState, calcGraphNodeHash } from '@pnpm/deps.graph-hasher'
+import { engineName } from '@pnpm/engine.runtime.system-node-version'
 import type { DepPath, PkgIdWithPatchHash } from '@pnpm/types'
+
+// Match the function the production code uses (see
+// `deps/graph-hasher/src/index.ts`). In non-SEA test contexts this
+// equals `process.version`-derived ENGINE_NAME, so existing assertions
+// keep working; in SEA contexts it tracks the script-runner Node.
+const ENGINE_NAME = engineName()
 
 const depsGraph = {
   'foo@1.0.0': {
