@@ -83,6 +83,34 @@ fn walk_all_files_on_empty_directory_returns_empty_map() {
 
 #[cfg(unix)]
 #[test]
+fn walk_all_files_terminates_on_symlink_cycle() {
+    use std::os::unix::fs::symlink;
+
+    // A `loop -> .` symlink would, without the cycle guard, sink the
+    // walker into infinite recursion until either ENAMETOOLONG fires
+    // or the Rust stack runs out. The visited-set guard keys off
+    // `fs::canonicalize`, so `root/loop` canonicalises to `root` and
+    // the second recursion bails before reading any further. The
+    // direct children of `root` (incl. `real.txt`) still land in the
+    // output; nothing under `loop/` does, because the recursive call
+    // returns immediately on the cycle.
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "real.txt");
+    symlink(root, root.join("loop")).unwrap();
+
+    let out = walk_all_files(root, false).unwrap();
+    let rels: BTreeMap<_, _> = collect_rels(root, out);
+
+    assert!(rels.contains_key("real.txt"), "direct children must still be walked: {rels:?}");
+    assert!(
+        rels.keys().all(|k| !k.starts_with("loop/")),
+        "cycle guard must short-circuit before any `loop/` descendant is recorded: {rels:?}",
+    );
+}
+
+#[cfg(unix)]
+#[test]
 fn walk_all_files_skips_broken_symlink_without_resolve_symlinks() {
     use std::os::unix::fs::symlink;
 

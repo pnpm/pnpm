@@ -16,7 +16,7 @@
 use crate::error::DirectoryFetcherError;
 use pacquet_package_manifest::safe_read_package_json_from_dir;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs::{self, Metadata},
     io,
     path::{Path, PathBuf},
@@ -39,7 +39,8 @@ pub(crate) fn walk_all_files(
     resolve_symlinks: bool,
 ) -> Result<FilesMap, DirectoryFetcherError> {
     let mut out = FilesMap::new();
-    walk_all_inner(dir, "", resolve_symlinks, &mut out)?;
+    let mut visited = HashSet::new();
+    walk_all_inner(dir, "", resolve_symlinks, &mut visited, &mut out)?;
     Ok(out)
 }
 
@@ -47,8 +48,31 @@ fn walk_all_inner(
     dir: &Path,
     rel_prefix: &str,
     resolve_symlinks: bool,
+    visited: &mut HashSet<PathBuf>,
     out: &mut FilesMap,
 ) -> Result<(), DirectoryFetcherError> {
+    // Symlink-cycle guard. Pnpm's directory-fetcher recurses without
+    // a visited-set so a `foo -> .` (or any ancestor-pointing
+    // symlink) sinks the whole walk into infinite recursion until the
+    // path exceeds OS limits and `read_dir` finally errors with
+    // ENAMETOOLONG. Stack overflow is also reachable on platforms
+    // where the path-too-long error has a higher ceiling than the
+    // default Rust stack. Skip-on-revisit instead, matching the
+    // pattern `pacquet_git_fetcher::packlist` already uses for
+    // `bundleDependencies` cycles. The check is keyed off
+    // `fs::canonicalize` so an unresolved symlink and its target
+    // share one entry; canonicalisation failure (permission denied,
+    // for example) falls back to the raw path so the guard still
+    // catches identity loops.
+    let canonical = fs::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf());
+    if !visited.insert(canonical) {
+        tracing::warn!(
+            target: "pacquet::directory_fetcher",
+            dir = %dir.display(),
+            "symlink cycle: directory already visited at this canonical path; skipping",
+        );
+        return Ok(());
+    }
     let entries = fs::read_dir(dir)
         .map_err(|source| DirectoryFetcherError::Io { dir: dir.display().to_string(), source })?;
     for entry in entries {
@@ -78,7 +102,7 @@ fn walk_all_inner(
             format!("{rel_prefix}/{file_name_str}")
         };
         if resolved.metadata.is_dir() {
-            walk_all_inner(&resolved.path, &rel, resolve_symlinks, out)?;
+            walk_all_inner(&resolved.path, &rel, resolve_symlinks, visited, out)?;
         } else {
             out.insert(rel, resolved.path);
         }

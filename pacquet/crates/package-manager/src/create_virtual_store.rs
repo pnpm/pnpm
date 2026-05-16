@@ -368,12 +368,31 @@ impl<'a> CreateVirtualStore<'a> {
                 let Some(current_snapshot) = current_snapshots.get(*snapshot_key) else {
                     return true;
                 };
+                let wanted_metadata = packages.get(&snapshot_key.without_peer());
+                // Directory-typed snapshots carry mutable local
+                // source: the user can edit `file:./local-pkg` files
+                // between installs and pacquet must re-walk them on
+                // every install, otherwise the slot drifts. Mirrors
+                // upstream's `!isDirectoryDep` clause in `depIsPresent`
+                // at
+                // <https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-builder/src/lockfileToDepGraph.ts#L226-L228>
+                // — pnpm forces directory snapshots through the cold
+                // path for the same reason. Without this carve-out
+                // both `current` and `wanted` resolutions report
+                // `integrity() == None`, `integrity_equal` returns
+                // true, the slot directory check passes, and the
+                // directory-fetcher never runs on the second install.
+                if matches!(
+                    wanted_metadata.map(|m| &m.resolution),
+                    Some(LockfileResolution::Directory(_))
+                ) {
+                    return true;
+                }
                 if !snapshot_deps_equal(current_snapshot, snapshot) {
                     return true;
                 }
                 let current_metadata =
                     current_packages.and_then(|p| p.get(&snapshot_key.without_peer()));
-                let wanted_metadata = packages.get(&snapshot_key.without_peer());
                 if !integrity_equal(current_metadata, wanted_metadata) {
                     return true;
                 }
@@ -1028,6 +1047,11 @@ fn integrity_equal(current: Option<&PackageMetadata>, wanted: Option<&PackageMet
 /// - `GitFetch` — `git` CLI clone / checkout / preparePackage /
 ///   packlist / CAS import. Equivalent to upstream's git-fetcher
 ///   inside the same `fetchPackage` dispatch.
+/// - `DirectoryFetch` — local-directory walk / manifest read /
+///   packlist for injected workspace deps. Equivalent to upstream's
+///   directory-fetcher inside the same `fetchPackage` dispatch; pnpm
+///   swallows the throw for optional snapshots uniformly with the
+///   tarball / git paths.
 ///
 /// Excluded (propagate even for optional snapshots, matching
 /// upstream's post-`fetching()` `linkPkg` path that sits outside
@@ -1042,7 +1066,8 @@ fn is_fetch_side_failure(err: &InstallPackageBySnapshotError) -> bool {
     matches!(
         err,
         InstallPackageBySnapshotError::DownloadTarball(_)
-            | InstallPackageBySnapshotError::GitFetch(_),
+            | InstallPackageBySnapshotError::GitFetch(_)
+            | InstallPackageBySnapshotError::DirectoryFetch(_),
     )
 }
 
