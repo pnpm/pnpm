@@ -5,6 +5,8 @@ import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import type { DepPath } from '@pnpm/types'
 import pLimit from 'p-limit'
 
+import { recordVerification, tryLockfileVerificationCache } from './verifyLockfileResolutionsCache.js'
+
 interface Violation {
   pkgId: string
   code: string
@@ -21,6 +23,19 @@ const MAX_VIOLATIONS_TO_PRINT = 20
 // verification pass doesn't push past what the rest of the install respects.
 const DEFAULT_CONCURRENCY = 16
 
+export interface VerifyLockfileResolutionsCacheOptions {
+  /** pnpm's on-disk cache directory. The lockfile-verification cache file lives directly under it. */
+  cacheDir: string
+  /** Absolute path of the lockfile being verified — the cache key. */
+  lockfilePath: string
+  /**
+   * Current minimum release age (in minutes). The cache only short-circuits
+   * when the cached verification ran with a cutoff ≥ today's, so tightening
+   * the policy invalidates the entry without churning the cache file.
+   */
+  minimumReleaseAge: number
+}
+
 /**
  * Policy-neutral pass that asks each resolver-supplied {@link ResolutionVerifier}
  * to check every entry in a lockfile loaded from disk. Iteration runs
@@ -36,14 +51,29 @@ const DEFAULT_CONCURRENCY = 16
  * version would re-open the bypass.
  *
  * No-op when `verifyResolution` is undefined (no active policies).
+ *
+ * When `options.cache` is provided, an unchanged lockfile that has already
+ * been verified under the same (or stricter) policy short-circuits the
+ * registry round-trip entirely — see {@link tryLockfileVerificationCache}
+ * for the lookup logic.
  */
 export async function verifyLockfileResolutions (
   lockfile: LockfileObject,
   verifyResolution: ResolutionVerifier | undefined,
-  options?: { concurrency?: number }
+  options?: { concurrency?: number, cache?: VerifyLockfileResolutionsCacheOptions }
 ): Promise<void> {
   if (verifyResolution == null) return
   if (!lockfile.packages) return
+
+  // Cache lookup runs before any registry I/O — the fast path is a single
+  // stat() of the lockfile when the previous install already verified it.
+  if (options?.cache) {
+    const { hit } = await tryLockfileVerificationCache(options.cache.cacheDir, {
+      lockfilePath: options.cache.lockfilePath,
+      minimumReleaseAge: options.cache.minimumReleaseAge,
+    })
+    if (hit) return
+  }
 
   // depPath can include peer-dependency and patch_hash suffixes (e.g.
   // `react@18.0.0(peer)(patch_hash=…)`); the same (name, version) pair may
@@ -68,7 +98,16 @@ export async function verifyLockfileResolutions (
     }))
   )
 
-  if (violations.length === 0) return
+  if (violations.length === 0) {
+    // Persist the success so the next install can stat-only the lockfile.
+    if (options?.cache) {
+      await recordVerification(options.cache.cacheDir, {
+        lockfilePath: options.cache.lockfilePath,
+        minimumReleaseAge: options.cache.minimumReleaseAge,
+      })
+    }
+    return
+  }
 
   // Stable order so the error output is deterministic.
   violations.sort((a, b) => a.pkgId.localeCompare(b.pkgId))

@@ -1,3 +1,7 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import { expect, test } from '@jest/globals'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
@@ -132,4 +136,66 @@ test('uses the first violation\'s code when multiple verifiers fire', async () =
   await expect(verifyLockfileResolutions(lockfile, verifier)).rejects.toMatchObject({
     code: 'ERR_PNPM_POLICY_A',
   })
+})
+
+test('skips the verifier when the cache holds an unchanged lockfile + matching policy', async () => {
+  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-vlr-'))
+  try {
+    const cacheDir = path.join(tmpDir, 'cache')
+    const lockfilePath = path.join(tmpDir, 'pnpm-lock.yaml')
+    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
+    const lockfile = makeLockfile({
+      'a@1.0.0': { resolution: tarballResolution('sha512-a') },
+    })
+
+    let calls = 0
+    const counting: ResolutionVerifier = async () => {
+      calls++
+      return { ok: true }
+    }
+
+    // First call has no cache record yet — verifier runs.
+    await verifyLockfileResolutions(lockfile, counting, {
+      cache: { cacheDir, lockfilePath, minimumReleaseAge: 60 },
+    })
+    expect(calls).toBe(1)
+
+    // Second call against the same lockfile + policy — cache short-circuit.
+    await verifyLockfileResolutions(lockfile, counting, {
+      cache: { cacheDir, lockfilePath, minimumReleaseAge: 60 },
+    })
+    expect(calls).toBe(1)
+  } finally {
+    await fs.promises.rm(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('does not write a cache record when verification rejects', async () => {
+  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-vlr-'))
+  try {
+    const cacheDir = path.join(tmpDir, 'cache')
+    const lockfilePath = path.join(tmpDir, 'pnpm-lock.yaml')
+    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
+    const lockfile = makeLockfile({
+      'a@1.0.0': { resolution: tarballResolution('sha512-a') },
+    })
+
+    const rejecting: ResolutionVerifier = async () => ({
+      ok: false,
+      code: 'POLICY_X',
+      reason: 'failed',
+    })
+
+    await expect(
+      verifyLockfileResolutions(lockfile, rejecting, {
+        cache: { cacheDir, lockfilePath, minimumReleaseAge: 60 },
+      })
+    ).rejects.toThrow()
+
+    // No record was written — a rejecting verification must rerun next install.
+    const cacheFile = path.join(cacheDir, 'minimum-release-age-verified.jsonl')
+    await expect(fs.promises.access(cacheFile)).rejects.toThrow()
+  } finally {
+    await fs.promises.rm(tmpDir, { recursive: true, force: true })
+  }
 })

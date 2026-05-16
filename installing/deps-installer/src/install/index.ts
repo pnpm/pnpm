@@ -344,7 +344,20 @@ export async function mutateModules (
   // exactly once, right after the lockfile is loaded from disk, before any
   // path branches.
   try {
-    await verifyLockfileResolutions(ctx.wantedLockfile, opts.verifyResolution)
+    await verifyLockfileResolutions(ctx.wantedLockfile, opts.verifyResolution, {
+      // The cache short-circuits the per-package registry round trip when
+      // the lockfile and policy haven't moved since the last successful
+      // verification. Only wire it when both the cache dir and the policy
+      // value are present; without the policy value we can't tell if the
+      // cached entry's cutoff was as strict.
+      cache: opts.cacheDir && opts.minimumReleaseAge != null
+        ? {
+          cacheDir: opts.cacheDir,
+          lockfilePath: path.resolve(ctx.lockfileDir, WANTED_LOCKFILE),
+          minimumReleaseAge: opts.minimumReleaseAge,
+        }
+        : undefined,
+    })
   } catch (err) {
     // verifyLockfileResolutions is the one throw site in this function
     // that's part of normal user-facing operation (a rejected lockfile);
