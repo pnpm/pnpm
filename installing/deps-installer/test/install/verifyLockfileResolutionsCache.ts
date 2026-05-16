@@ -5,9 +5,9 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from '@jest/globals'
 
 import {
-  type ActiveVerifier,
   recordVerification,
   tryLockfileVerificationCache,
+  type VerifierCacheIdentity,
 } from '../../src/install/verifyLockfileResolutionsCache.js'
 
 let tmpDir!: string
@@ -27,7 +27,7 @@ afterEach(async () => {
 // Helpers — most tests use the npm.minimumReleaseAge verifier as a
 // concrete stand-in. The cache layer is policy-neutral, so this could be
 // any verifier shape.
-function mraVerifier (current: number): ActiveVerifier {
+function mraVerifier (current: number): VerifierCacheIdentity {
   return {
     key: 'npm.minimumReleaseAge',
     policy: current,
@@ -148,7 +148,7 @@ describe('tryLockfileVerificationCache', () => {
 
     // A new verifier has joined since the record was written. The cache
     // can't tell us anything about it, so we must rerun the gate.
-    const newVerifier: ActiveVerifier = {
+    const newVerifier: VerifierCacheIdentity = {
       key: 'jsr.trustedPublishers',
       policy: ['foo-org'],
       satisfies: () => true,
@@ -162,7 +162,7 @@ describe('tryLockfileVerificationCache', () => {
 
   test('hit when all active verifiers are satisfied', async () => {
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
-    const verifiers: ActiveVerifier[] = [
+    const verifiers: VerifierCacheIdentity[] = [
       mraVerifier(60),
       {
         key: 'example.fixed',

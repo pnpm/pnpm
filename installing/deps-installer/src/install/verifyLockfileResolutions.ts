@@ -67,15 +67,15 @@ export async function verifyLockfileResolutions (
   if (verifiers.length === 0) return
   if (!lockfile.packages) return
 
-  const activeVerifiers = verifiers.map((v) => v.activeVerifier)
-
   // Cache lookup runs before any registry I/O — the fast path is a single
   // stat() of the lockfile when the previous install already verified it
-  // under a policy that's at least as strict as today's.
+  // under a policy that's at least as strict as today's. The cache layer
+  // only reads `key`, `policy`, and `satisfies`; passing the full
+  // ResolutionVerifier list is fine (the extra `verify` field is ignored).
   if (options?.cache) {
     const { hit } = await tryLockfileVerificationCache(options.cache.cacheDir, {
       lockfilePath: options.cache.lockfilePath,
-      verifiers: activeVerifiers,
+      verifiers,
     })
     if (hit) return
   }
@@ -121,7 +121,7 @@ export async function verifyLockfileResolutions (
     if (options?.cache) {
       await recordVerification(options.cache.cacheDir, {
         lockfilePath: options.cache.lockfilePath,
-        verifiers: activeVerifiers,
+        verifiers,
       })
     }
     return

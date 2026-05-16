@@ -2,7 +2,6 @@ import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import { PnpmError } from '@pnpm/error'
 import type {
-  ActiveVerifier,
   Resolution,
   ResolutionVerifier,
 } from '@pnpm/resolving.resolver-base'
@@ -110,17 +109,6 @@ export function createNpmResolutionVerifier (
   }
 
   const minimumReleaseAge = opts.minimumReleaseAge
-  const activeVerifier: ActiveVerifier = {
-    key: 'npm.minimumReleaseAge',
-    policy: minimumReleaseAge,
-    // A previously cached run under a larger cutoff (stricter window)
-    // covers a smaller current one — its set of accepted versions is a
-    // subset of today's. The reverse — tightening the cutoff — invalidates
-    // the cached run: versions that passed before may now be in-window.
-    // Non-number cached values come from an older record shape and are
-    // treated as unsatisfying.
-    satisfies: (cached) => typeof cached === 'number' && cached >= minimumReleaseAge,
-  }
 
   const verify: ResolutionVerifier['verify'] = async (resolution, { name, version }) => {
     if (!isNpmRegistryResolution(resolution)) return { ok: true }
@@ -171,7 +159,18 @@ export function createNpmResolutionVerifier (
     }
     return { ok: true }
   }
-  return { verify, activeVerifier }
+  return {
+    key: 'npm.minimumReleaseAge',
+    verify,
+    policy: minimumReleaseAge,
+    // A previously cached run under a larger cutoff (stricter window)
+    // covers a smaller current one — its set of accepted versions is a
+    // subset of today's. The reverse — tightening the cutoff —
+    // invalidates the cached run: versions that passed before may now
+    // be in-window. Non-number cached values come from an older record
+    // shape and are treated as unsatisfying.
+    satisfies: (cached) => typeof cached === 'number' && cached >= minimumReleaseAge,
+  }
 }
 
 function pickRegistryForVersion (

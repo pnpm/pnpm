@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
-import type { ActiveVerifier, ResolutionVerifier } from '@pnpm/resolving.resolver-base'
+import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 
 import { verifyLockfileResolutions } from '../../src/install/verifyLockfileResolutions.js'
 
@@ -18,17 +18,17 @@ function makeLockfile (packages: Record<string, { resolution: unknown, version?:
 
 const tarballResolution = (integrity: string = 'sha512-deadbeef') => ({ integrity, tarball: '' })
 
-const noopSlot: ActiveVerifier = {
+const NOOP_SLOT = {
   key: 'test.noop',
   policy: 1,
-  satisfies: (cached) => cached === 1,
+  satisfies: (cached: unknown) => cached === 1,
 }
 
 function wrap (
   verify: ResolutionVerifier['verify'],
-  slot: ActiveVerifier = noopSlot
+  slot: Omit<ResolutionVerifier, 'verify'> = NOOP_SLOT
 ): ResolutionVerifier {
-  return { verify, activeVerifier: slot }
+  return { ...slot, verify }
 }
 
 const okVerifier = wrap(async () => ({ ok: true }))
@@ -159,11 +159,11 @@ test('runs every active verifier per entry and stops at the first failure', asyn
   const firstOk = wrap(async () => {
     calls.push('first')
     return { ok: true }
-  }, { ...noopSlot, key: 'test.first' })
+  }, { ...NOOP_SLOT, key: 'test.first' })
   const secondFail = wrap(async () => {
     calls.push('second')
     return { ok: false, code: 'SECOND_POLICY', reason: 'nope' }
-  }, { ...noopSlot, key: 'test.second' })
+  }, { ...NOOP_SLOT, key: 'test.second' })
 
   await expect(verifyLockfileResolutions(lockfile, [firstOk, secondFail]))
     .rejects.toMatchObject({ code: 'ERR_PNPM_SECOND_POLICY' })
@@ -171,7 +171,7 @@ test('runs every active verifier per entry and stops at the first failure', asyn
   expect(calls).toEqual(['first', 'second'])
 })
 
-function exampleSlot (current: number): ActiveVerifier {
+function exampleSlot (current: number): Omit<ResolutionVerifier, 'verify'> {
   return {
     key: 'test.policy',
     policy: current,

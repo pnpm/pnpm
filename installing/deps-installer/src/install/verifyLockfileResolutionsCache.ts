@@ -4,9 +4,15 @@ import util from 'node:util'
 
 import { createHexHashFromFile } from '@pnpm/crypto.hash'
 import { logger } from '@pnpm/logger'
-import type { ActiveVerifier } from '@pnpm/resolving.resolver-base'
+import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 
-export type { ActiveVerifier }
+/**
+ * Subset of {@link ResolutionVerifier} the cache layer needs: the slot
+ * identity (`key`, `policy`) plus the `satisfies` comparator. `verify`
+ * is intentionally absent — the cache never runs verifiers, it just
+ * decides whether a previous run still applies.
+ */
+export type VerifierCacheIdentity = Pick<ResolutionVerifier, 'key' | 'policy' | 'satisfies'>
 
 /**
  * On-disk cache of verifyLockfileResolutions results, keyed by absolute
@@ -18,7 +24,7 @@ export type { ActiveVerifier }
  * POSIX and NTFS, so parallel pnpm processes (monorepo installs, CI
  * matrices sharing a cache) can write without coordination.
  *
- * Policy-neutral. Each {@link ActiveVerifier} contributes its own slot
+ * Policy-neutral. Each {@link VerifierCacheIdentity} contributes its own slot
  * under `verifiers[key]`; future verifiers add their own keys without
  * touching the cache layer.
  */
@@ -55,7 +61,7 @@ interface CacheRecord {
   lockfileInode: number
   /**
    * Verifier-keyed policy snapshots that were satisfied when the
-   * verification ran. Each {@link ActiveVerifier} owns its own slot and
+   * verification ran. Each {@link VerifierCacheIdentity} owns its own slot and
    * decides — via its `satisfies` comparator — whether today's policy can
    * reuse the cached snapshot. Unknown keys are ignored on read.
    */
@@ -74,7 +80,7 @@ interface LockfileStat {
 
 export interface LockfileVerificationCacheKey {
   lockfilePath: string
-  verifiers: readonly ActiveVerifier[]
+  verifiers: readonly VerifierCacheIdentity[]
 }
 
 /**
@@ -191,7 +197,7 @@ export async function tryLockfileVerificationCache (
   return { hit: true }
 }
 
-function everyVerifierSatisfied (record: CacheRecord, verifiers: readonly ActiveVerifier[]): boolean {
+function everyVerifierSatisfied (record: CacheRecord, verifiers: readonly VerifierCacheIdentity[]): boolean {
   for (const verifier of verifiers) {
     // Missing slot is treated as "not satisfied" — the cached run didn't
     // cover this verifier so we must rerun the gate.

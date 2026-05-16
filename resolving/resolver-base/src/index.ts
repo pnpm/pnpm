@@ -93,25 +93,28 @@ export type ResolutionVerification =
   | { ok: false, code: string, reason: string }
 
 /**
- * Identity + policy snapshot for one resolver-side verifier. Lives
- * alongside the runtime {@link ResolutionVerifier} so the install-side
- * verification cache (`@pnpm/installing.deps-installer`) can store one
- * slot per active verifier and decide on the next install whether the
- * cached run still covers today's policy — without re-issuing the
- * registry round-trips that `verify` would.
+ * Optional companion to a resolver factory. Lets each resolver enforce
+ * policies (e.g. minimumReleaseAge for npm) against an already-resolved
+ * entry from a lockfile without re-doing resolution.
  *
- * Each verifier owns a stable namespaced `key` (e.g. `npm.minimumReleaseAge`),
- * its current `policy` snapshot (serialized verbatim into the cache), and
- * a `satisfies` comparator that decides whether a previously cached
- * snapshot still meets the verifier's current policy.
+ * `verify` inspects the `resolution` shape to decide whether the entry is
+ * within its protocol; for entries outside its protocol it should return
+ * `{ ok: true }`. The install side fans out across the verifier list
+ * rather than asking a combinator to dispatch.
+ *
+ * `key`, `policy`, and `satisfies` describe the verifier's cache
+ * identity — the install-side verification cache reads them to decide
+ * if a previous run on the same lockfile still covers today's policy
+ * without re-issuing the registry round-trips that `verify` would.
  */
-export interface ActiveVerifier {
+export interface ResolutionVerifier {
   /**
-   * Stable, namespaced identifier. Must be unique across all verifiers
-   * ever shipped — renaming a key invalidates cached entries that used
-   * the old name.
+   * Stable, namespaced identifier (e.g. `npm.minimumReleaseAge`). Must
+   * be unique across all verifiers ever shipped — renaming a key
+   * invalidates cached entries that used the old name.
    */
   key: string
+  verify: (resolution: Resolution, ctx: { name: string, version: string }) => Promise<ResolutionVerification>
   /**
    * Today's policy snapshot, written verbatim into the cache. Opaque to
    * the cache layer; the verifier owns the shape.
@@ -125,26 +128,6 @@ export interface ActiveVerifier {
    * an older record shape) should return false.
    */
   satisfies: (cachedPolicy: unknown) => boolean
-}
-
-/**
- * Optional companion to a resolver factory. Lets each resolver enforce
- * policies (e.g. minimumReleaseAge for npm) against an already-resolved
- * entry from a lockfile without re-doing resolution.
- *
- * `verify` inspects the `resolution` shape to decide whether the entry is
- * within its protocol; for entries outside its protocol it should return
- * `{ ok: true }`. The install side fans out across the active verifier
- * list rather than asking a combinator to dispatch.
- *
- * `activeVerifier` carries the cache slot identity — the install-side
- * verification cache reads it to decide if a previous run on the same
- * lockfile still covers today's policy without re-issuing the registry
- * round-trips that `verify` would.
- */
-export interface ResolutionVerifier {
-  verify: (resolution: Resolution, ctx: { name: string, version: string }) => Promise<ResolutionVerification>
-  activeVerifier: ActiveVerifier
 }
 
 /** Concrete platform selector used when picking a variant from a VariationsResolution. */
