@@ -72,7 +72,7 @@ export function createNpmResolutionVerifier (
   // `https://npm/team-b/`) route to the longest matching prefix — matching
   // only `origin` would silently send lookups to the wrong one. Built-in
   // aliases (`gh:` → npm.pkg.github.com, etc.) are merged in alongside the
-  // user-defined ones so the verifier recognises the same set of named
+  // user-defined ones so the verifier recognizes the same set of named
   // registries the resolver does; otherwise a package resolved via `gh:`
   // would land in the lockfile with a tarball URL the verifier can't route.
   const namedRegistryPrefixes = Object.values({
