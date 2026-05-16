@@ -21,10 +21,8 @@ const IMMATURE_FOR_EVERYTHING = 60 * 24 * 365 * 27
 // dlx.ts uses for its minimumReleaseAge tests.
 const omitMinReleaseAgeEnv = { omitEnvDefaults: ['pnpm_config_minimum_release_age'] as const }
 
-const skipOnWindows = process.platform === 'win32' ? test.skip : test
-
 describe('lockfile minimumReleaseAge verification', () => {
-  skipOnWindows('install rejects a lockfile entry that does not satisfy the policy in strict mode', async () => {
+  test('install rejects a lockfile entry that does not satisfy the policy in strict mode', async () => {
     // Step 1: populate a lockfile under no policy. The resolver picks
     // is-odd@0.1.2 (latest 0.1.x) without applying any maturity filter.
     prepare({
@@ -55,7 +53,7 @@ describe('lockfile minimumReleaseAge verification', () => {
     expect(output).toContain('pnpm clean --lockfile')
   })
 
-  skipOnWindows('install respects minimumReleaseAgeExclude during lockfile verification', () => {
+  test('install respects minimumReleaseAgeExclude during lockfile verification', () => {
     prepare({
       dependencies: { 'is-odd': '0.1.2' },
     })
@@ -75,7 +73,7 @@ describe('lockfile minimumReleaseAge verification', () => {
     )
   })
 
-  skipOnWindows('install is unaffected by minimumReleaseAge when strict mode is explicitly off', () => {
+  test('install is unaffected by minimumReleaseAge when strict mode is explicitly off', () => {
     // The config reader auto-enables strict mode the moment a user
     // explicitly sets `minimumReleaseAge`, so opting out requires an
     // explicit `minimumReleaseAgeStrict: false`. With that, the verifier
