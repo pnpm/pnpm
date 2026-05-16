@@ -404,6 +404,10 @@ export async function getConfig (opts: {
       if (pnpmConfig.rootProjectManifest.workspaces?.length && !pnpmConfig.workspaceDir) {
         warnings.push('The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead.')
       }
+      const ignoredPnpmFieldKeys = getIgnoredPnpmFieldKeys(pnpmConfig.rootProjectManifest)
+      if (ignoredPnpmFieldKeys.length > 0) {
+        warnings.push(`The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: ${ignoredPnpmFieldKeys.map(k => `"pnpm.${k}"`).join(', ')}. See https://pnpm.io/settings for the new home of each setting.`)
+      }
       const wantedPmResult = getWantedPackageManager(pnpmConfig.rootProjectManifest)
       if (wantedPmResult.pm) {
         pnpmConfig.wantedPackageManager = wantedPmResult.pm
@@ -748,6 +752,18 @@ function getWantedPackageManager (manifest: ProjectManifest): { pm?: WantedPacka
     return { pm, warnings }
   }
   return { warnings }
+}
+
+// Only `pnpm.app` (consumed by `pnpm pack-app`) is still read from package.json.
+// Every other key under `pnpm` was either migrated to pnpm-workspace.yaml or removed in v11.
+const ACTIVELY_READ_PNPM_FIELD_KEYS = new Set<string>(['app'])
+
+function getIgnoredPnpmFieldKeys (manifest: ProjectManifest): string[] {
+  const legacyField = (manifest as { pnpm?: unknown }).pnpm
+  if (legacyField == null || typeof legacyField !== 'object' || Array.isArray(legacyField)) {
+    return []
+  }
+  return Object.keys(legacyField as Record<string, unknown>).filter(k => !ACTIVELY_READ_PNPM_FIELD_KEYS.has(k))
 }
 
 export function parsePackageManager (packageManager: string): { name: string, version: string | undefined } {

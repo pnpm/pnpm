@@ -1668,6 +1668,34 @@ test('do not return a warning if a package.json has workspaces field and there i
   expect(warnings).toStrictEqual([])
 })
 
+test('return a warning if a package.json has a legacy "pnpm" field with ignored settings', async () => {
+  const prefix = f.find('pkg-with-legacy-pnpm-field')
+  const { warnings } = await getConfig({
+    cliOptions: { dir: prefix },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(warnings).toStrictEqual([
+    'The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: "pnpm.overrides", "pnpm.patchedDependencies". See https://pnpm.io/settings for the new home of each setting.',
+  ])
+})
+
+test('do not return a warning if a package.json "pnpm" field only contains keys that are still actively read (e.g. "pnpm.app")', async () => {
+  const prefix = f.find('pkg-with-pnpm-app-field')
+  const { warnings } = await getConfig({
+    cliOptions: { dir: prefix },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(warnings).toStrictEqual([])
+})
+
 test('read PNPM_HOME defined in environment variables', async () => {
   const oldEnv = process.env
   const homeDir = './specified-dir'
