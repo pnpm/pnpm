@@ -19,7 +19,7 @@ const IMMATURE_FOR_EVERYTHING = 60 * 24 * 365 * 27
 // which overrides anything in pnpm-workspace.yaml. Tests that need the
 // yaml policy to take effect must omit this default — same workaround
 // dlx.ts uses for its minimumReleaseAge tests.
-const omitMinReleaseAgeEnv = { omitEnvDefaults: ['pnpm_config_minimum_release_age'] as const }
+const omitMinReleaseAgeEnv = { omitEnvDefaults: ['pnpm_config_minimum_release_age' as const] }
 
 describe('lockfile minimumReleaseAge verification', () => {
   test('install rejects a lockfile entry that does not satisfy the policy in strict mode', async () => {
