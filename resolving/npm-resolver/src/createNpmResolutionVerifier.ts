@@ -10,6 +10,7 @@ import semver from 'semver'
 
 import type { FetchMetadataFromFromRegistryOptions } from './fetch.js'
 import { fetchFullMetadataCached, type FetchFullMetadataCachedOptions } from './fetchFullMetadataCached.js'
+import { BUILTIN_NAMED_REGISTRIES } from './parseBareSpecifier.js'
 
 export interface CreateNpmResolutionVerifierOptions {
   /**
@@ -69,8 +70,15 @@ export function createNpmResolutionVerifier (
   // Pre-normalize named-registry URLs and sort by length so two registries
   // that share a hostname but differ by path (e.g. `https://npm/team-a/` vs
   // `https://npm/team-b/`) route to the longest matching prefix — matching
-  // only `origin` would silently send lookups to the wrong one.
-  const namedRegistryPrefixes = Object.values(opts.namedRegistries ?? {})
+  // only `origin` would silently send lookups to the wrong one. Built-in
+  // aliases (`gh:` → npm.pkg.github.com, etc.) are merged in alongside the
+  // user-defined ones so the verifier recognises the same set of named
+  // registries the resolver does; otherwise a package resolved via `gh:`
+  // would land in the lockfile with a tarball URL the verifier can't route.
+  const namedRegistryPrefixes = Object.values({
+    ...BUILTIN_NAMED_REGISTRIES,
+    ...(opts.namedRegistries ?? {}),
+  })
     .map((url) => {
       const parsed = tryParseUrl(url)
       if (!parsed) return null

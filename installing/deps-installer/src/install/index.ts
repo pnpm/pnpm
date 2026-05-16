@@ -275,6 +275,11 @@ export async function mutateModules (
   maybeOpts: MutateModulesOptions
 ): Promise<MutateModulesResult> {
   const reporter = maybeOpts?.reporter
+  const detachReporter = (reporter != null) && typeof reporter === 'function'
+    ? () => {
+      streamParser.removeListener('data', reporter)
+    }
+    : () => {}
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
@@ -338,7 +343,16 @@ export async function mutateModules (
   // resolver's own filters already cover fresh resolution. We run this
   // exactly once, right after the lockfile is loaded from disk, before any
   // path branches.
-  await verifyLockfileResolutions(ctx.wantedLockfile, opts.verifyResolution)
+  try {
+    await verifyLockfileResolutions(ctx.wantedLockfile, opts.verifyResolution)
+  } catch (err) {
+    // verifyLockfileResolutions is the one throw site in this function
+    // that's part of normal user-facing operation (a rejected lockfile);
+    // other throws here are unexpected. Detach the reporter listener so
+    // long-lived processes don't leak it on every rejected install.
+    detachReporter()
+    throw err
+  }
 
   if (opts.hooks.preResolution) {
     for (const preResolution of opts.hooks.preResolution) {
@@ -427,9 +441,7 @@ export async function mutateModules (
     packageNames: ignoredBuilds ? dedupePackageNamesFromIgnoredBuilds(ignoredBuilds) : [],
   })
 
-  if ((reporter != null) && typeof reporter === 'function') {
-    streamParser.removeListener('data', reporter)
-  }
+  detachReporter()
 
   return {
     updatedCatalogs: result.updatedCatalogs,
