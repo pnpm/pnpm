@@ -4,9 +4,12 @@ import { type NodeRuntimeResolveResult, resolveNodeRuntime } from '@pnpm/engine.
 import { PnpmError } from '@pnpm/error'
 import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
 import { checkCustomResolverCanResolve, type CustomResolver } from '@pnpm/hooks.types'
+import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createGitResolver, type GitResolveResult } from '@pnpm/resolving.git-resolver'
 import { type LocalResolveResult, resolveFromLocalPath, resolveFromLocalScheme } from '@pnpm/resolving.local-resolver'
 import {
+  createNpmResolutionVerifier,
+  type CreateNpmResolutionVerifierOptions,
   createNpmResolver,
   type JsrResolveResult,
   type NamedRegistryResolveResult,
@@ -18,12 +21,14 @@ import {
   type WorkspaceResolveResult,
 } from '@pnpm/resolving.npm-resolver'
 import type {
+  ResolutionVerifier,
   ResolveFunction,
   ResolveOptions,
   ResolveResult,
   WantedDependency,
 } from '@pnpm/resolving.resolver-base'
 import { resolveFromTarball, type TarballResolveResult } from '@pnpm/resolving.tarball-resolver'
+import type { RegistryConfig } from '@pnpm/types'
 
 export type {
   PackageMeta,
@@ -138,4 +143,50 @@ export function createResolver (
     },
     clearCache,
   }
+}
+
+export type ResolutionVerifierFactoryOptions =
+  & Pick<ResolverFactoryOptions, 'cacheDir' | 'registries' | 'namedRegistries' | 'retry' | 'timeout' | 'fetchWarnTimeoutMs'>
+  & Pick<CreateNpmResolutionVerifierOptions,
+  | 'minimumReleaseAge'
+  | 'minimumReleaseAgeStrict'
+  | 'minimumReleaseAgeExclude'
+  | 'now'
+  > & {
+    configByUri?: Record<string, RegistryConfig>
+  }
+
+/**
+ * Companion to {@link createResolver}. Combines the resolver-specific
+ * verifier factories (today: npm) into a single {@link ResolutionVerifier},
+ * dispatching by resolution shape. Returns `undefined` when none of the
+ * underlying resolvers have any active policy — letting callers cheaply
+ * decide whether to iterate at all.
+ */
+export function createResolutionVerifier (
+  fetchFromRegistry: FetchFromRegistry,
+  opts: ResolutionVerifierFactoryOptions
+): ResolutionVerifier | undefined {
+  const fetchOpts = {
+    fetch: fetchFromRegistry,
+    retry: opts.retry ?? {},
+    timeout: opts.timeout ?? 60_000,
+    fetchWarnTimeoutMs: opts.fetchWarnTimeoutMs ?? 10_000,
+  }
+  const getAuthHeaderValueByURI = createGetAuthHeaderByURI(opts.configByUri ?? {}, opts.registries.default)
+  const npmVerifier = createNpmResolutionVerifier({
+    minimumReleaseAge: opts.minimumReleaseAge,
+    minimumReleaseAgeStrict: opts.minimumReleaseAgeStrict,
+    minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
+    registries: opts.registries,
+    namedRegistries: opts.namedRegistries,
+    fetchOpts,
+    getAuthHeaderValueByURI,
+    cacheDir: opts.cacheDir,
+    now: opts.now,
+  })
+  // Future protocols (jsr, git, etc.) plug in here. When every sub-verifier
+  // is undefined, the combined verifier is too — caller short-circuits.
+  if (!npmVerifier) return undefined
+  return async (resolution, ctx) => npmVerifier(resolution, ctx)
 }

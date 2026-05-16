@@ -1,7 +1,12 @@
 ---
+"@pnpm/resolving.resolver-base": minor
 "@pnpm/resolving.npm-resolver": minor
-"@pnpm/installing.deps-installer": patch
+"@pnpm/resolving.default-resolver": minor
+"@pnpm/installing.client": minor
+"@pnpm/store.connection-manager": minor
+"@pnpm/testing.temp-store": minor
+"@pnpm/installing.deps-installer": minor
 "pnpm": patch
 ---
 
-Reuse the on-disk full-metadata cache during the `minimumReleaseAge` lockfile revalidation gate. The gate now issues conditional GETs against pnpm's existing metadata mirror — a 304 Not Modified response serves the body from disk instead of refetching the full registry document, so steady-state installs only pay a headers-only round-trip per locked package instead of downloading the full manifest every time [#11675](https://github.com/pnpm/pnpm/issues/11675).
+Restructured the `minimumReleaseAge` lockfile revalidation gate around a generic `ResolutionVerifier` interface. Each resolver may now export a sibling verifier factory (today: `createNpmResolutionVerifier`) that re-checks an already-resolved lockfile entry against its policies; `createResolver`'s companion `createResolutionVerifier` combines them and the `Client` exposes the combined `verifyResolution` for the install layer to consume. The npm verifier reuses the same on-disk metadata mirror the resolver writes to, so steady-state installs pay only a headers-only conditional GET per locked package [#11675](https://github.com/pnpm/pnpm/issues/11675).

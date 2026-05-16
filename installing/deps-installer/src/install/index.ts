@@ -87,7 +87,6 @@ import { parseWantedDependencies } from '../parseWantedDependencies.js'
 import { removeDeps } from '../uninstall/removeDeps.js'
 import { CatalogVersionMismatchError } from './checkCompatibility/CatalogVersionMismatchError.js'
 import { checkCustomResolverForceResolve } from './checkCustomResolverForceResolve.js'
-import { createFullMetadataLookup, type CreateFullMetadataLookupOptions } from './createFullMetadataLookup.js'
 import {
   extendOptions,
   type InstallOptions,
@@ -95,7 +94,7 @@ import {
 } from './extendInstallOptions.js'
 import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
-import { revalidateLockfileAgainstMinimumReleaseAge } from './revalidateLockfileMinimumReleaseAge.js'
+import { revalidateLockfileResolutions } from './revalidateLockfileResolutions.js'
 import { validateModules } from './validateModules.js'
 
 class LockfileConfigMismatchError extends PnpmError {
@@ -112,58 +111,6 @@ const BROKEN_LOCKFILE_INTEGRITY_ERRORS = new Set([
   'ERR_PNPM_TARBALL_INTEGRITY',
 ])
 
-type LockfileMinimumReleaseAgeGateOpts =
-  & CreateFullMetadataLookupOptions
-  & Pick<StrictInstallOptions,
-  | 'minimumReleaseAge'
-  | 'minimumReleaseAgeStrict'
-  | 'minimumReleaseAgeExclude'
-  | 'cacheDir'
-  | 'fetchRetries'
-  | 'fetchRetryFactor'
-  | 'fetchRetryMintimeout'
-  | 'fetchRetryMaxtimeout'
-  | 'fetchTimeout'
-  >
-
-/**
- * Re-applies the `minimumReleaseAge` policy to every npm-registry-resolved
- * entry in a lockfile. Gated on `minimumReleaseAgeStrict` so the built-in
- * default (1 day) does not silently turn this on for everyone — the config
- * reader auto-enables strict mode the moment a user explicitly sets
- * `minimumReleaseAge`, preserving the intuitive opt-in semantics ("I
- * configured it, therefore I want it enforced").
- *
- * Mirrors the post-resolution gate bun added for the same shape of bug in
- * oven-sh/bun#30526: a dedicated lookup that forces full registry metadata
- * for every locked npm entry, decoupled from the resolver pipeline. We
- * deliberately do not reuse `storeController.requestPackage` because that
- * path can hit `peekManifestFromStore` or return abbreviated metadata (no
- * `time` field) and silently report `publishedAt: undefined`, which would
- * re-open the bypass this gate is meant to close.
- */
-async function runLockfileMinimumReleaseAgeGate (
-  lockfile: LockfileObject,
-  opts: LockfileMinimumReleaseAgeGateOpts
-): Promise<void> {
-  if (!opts.minimumReleaseAge || !opts.minimumReleaseAgeStrict) return
-  const lookupManifest = createFullMetadataLookup({
-    ...opts,
-    // Reuse the same retry/timeout envelope the rest of the install uses so
-    // a transient 503 doesn't turn into a fail-closed lockfile violation.
-    retry: {
-      factor: opts.fetchRetryFactor,
-      maxTimeout: opts.fetchRetryMaxtimeout,
-      minTimeout: opts.fetchRetryMintimeout,
-      retries: opts.fetchRetries,
-    },
-    timeout: opts.fetchTimeout,
-  })
-  await revalidateLockfileAgainstMinimumReleaseAge(lockfile, lookupManifest, {
-    minimumReleaseAge: opts.minimumReleaseAge,
-    minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
-  })
-}
 
 const DEV_PREINSTALL = 'pnpm:devPreinstall'
 
@@ -960,13 +907,14 @@ Note that in CI environments, this setting is enabled by default.`,
       logger.info({ message: 'Lockfile is up to date, resolution step is skipped', prefix: opts.lockfileDir })
     }
 
-    // The resolution-skip optimization above bypasses the minimumReleaseAge
-    // check that normally runs during resolution. Re-apply it against the
-    // lockfile so a freshly-published version cannot slip past the policy via
-    // a manually-edited or locally-bypassed lockfile (see issue #10438). The
-    // gate also runs in the non-frozen path inside `_installInContext` after
-    // resolution converges, so `pnpm add` / `pnpm update` are covered too.
-    await runLockfileMinimumReleaseAgeGate(ctx.wantedLockfile, opts)
+    // The resolution-skip optimization above bypasses any resolver-side
+    // policy filters (today: minimumReleaseAge). Re-apply them against the
+    // lockfile via the resolver-supplied verifier so a freshly-published
+    // version cannot slip past via a manually-edited or locally-bypassed
+    // lockfile (issue #10438). The non-frozen path runs the same verifier
+    // inside `_installInContext` after resolution converges, so `pnpm add`
+    // / `pnpm update` are covered too.
+    await revalidateLockfileResolutions(ctx.wantedLockfile, opts.verifyResolution)
 
     try {
       const { stats, ignoredBuilds } = await headlessInstall({
@@ -1477,16 +1425,15 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     stage: 'resolution_done',
   })
 
-  // Catch immature locked versions that resolution preserved as-is. The
-  // resolver's `peekManifestFromStore` fast path returns the existing
-  // resolution without re-applying the minimumReleaseAge filter whenever
-  // `publishedAt` is already recorded in the lockfile's `time:` block, so
-  // pre-existing fresh entries can survive a `pnpm add` / `pnpm update` /
-  // partial-resolution install untouched. Gate against the post-resolution
-  // `newLockfile` (not the on-disk one) so legitimately updated versions get
-  // re-validated against their new publish timestamps rather than the stale
-  // pre-resolution ones.
-  await runLockfileMinimumReleaseAgeGate(newLockfile, opts)
+  // Catch entries that resolution preserved as-is. The resolver's
+  // `peekManifestFromStore` fast path returns a locked resolution without
+  // re-applying maturity filters whenever `publishedAt` is already recorded
+  // in the lockfile's `time:` block, so pre-existing fresh entries can
+  // survive a `pnpm add` / `pnpm update` / partial-resolution install
+  // untouched. Verify against the post-resolution `newLockfile` (not the
+  // on-disk one) so legitimately updated versions get re-validated against
+  // their new state rather than the stale pre-resolution one.
+  await revalidateLockfileResolutions(newLockfile, opts.verifyResolution)
 
   newLockfile = ((opts.hooks?.afterAllResolved) != null)
     ? await pipeWith(async (f, res) => f(await res), opts.hooks.afterAllResolved as any)(newLockfile) as LockfileObject // eslint-disable-line

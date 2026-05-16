@@ -11,7 +11,7 @@ import type { ProjectOptions } from '@pnpm/installing.context'
 import type { HoistingLimits } from '@pnpm/installing.deps-restorer'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
-import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
+import type { ResolutionVerifier, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type {
   AllowedDeprecatedVersions,
@@ -177,24 +177,14 @@ export interface StrictInstallOptions {
   minimumReleaseAgeExclude?: string[]
   minimumReleaseAgeStrict?: boolean
   /**
-   * Path to pnpm's on-disk cache directory. Forwarded into the lockfile
-   * minimumReleaseAge revalidation fetcher so it can issue conditional GETs
-   * against the same metadata mirror the resolver uses; without it, every
-   * locked entry would round-trip the full registry document on every
-   * install.
+   * Optional verifier that re-checks each lockfile-pinned resolution
+   * against policies configured upstream (today: minimumReleaseAge strict
+   * mode). Constructed by `createClient` and surfaced via the
+   * `createStoreController` return; mutateModules invokes it at the two
+   * points just before tarballs hit disk. When omitted, no revalidation
+   * runs.
    */
-  cacheDir?: string
-  /**
-   * Network-retry/timeout settings forwarded into the lockfile
-   * minimumReleaseAge revalidation fetcher so it inherits the same retry
-   * envelope the rest of the install uses; transient registry failures would
-   * otherwise become fail-closed lockfile violations.
-   */
-  fetchRetries?: number
-  fetchRetryFactor?: number
-  fetchRetryMaxtimeout?: number
-  fetchRetryMintimeout?: number
-  fetchTimeout?: number
+  verifyResolution?: ResolutionVerifier
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number

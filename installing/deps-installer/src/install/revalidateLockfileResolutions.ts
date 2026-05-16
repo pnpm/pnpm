@@ -1,0 +1,91 @@
+import { PnpmError } from '@pnpm/error'
+import type { LockfileObject } from '@pnpm/lockfile.fs'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
+import type { DepPath } from '@pnpm/types'
+import pLimit from 'p-limit'
+
+interface Violation {
+  pkgId: string
+  code: string
+  reason: string
+}
+
+// Cap the per-entry breakdown so a verifier rejecting hundreds of entries
+// (e.g. a poisoned lockfile) doesn't flood the terminal / CI log; the full
+// count is in the header and the remainder is summarized at the end.
+const MAX_VIOLATIONS_TO_PRINT = 20
+
+// 16 mirrors the floor of pnpm's package-requester network-concurrency
+// (Math.min(64, Math.max(workers*3, 16))); keep them aligned so the
+// revalidation pass doesn't push past what the rest of the install respects.
+const DEFAULT_CONCURRENCY = 16
+
+/**
+ * Policy-neutral pass that asks each resolver-supplied {@link ResolutionVerifier}
+ * to re-check every entry in an already-resolved lockfile. Iteration runs
+ * after resolution decisions are settled and before any tarball is fetched,
+ * so a poisoned lockfile cannot reach the filesystem.
+ *
+ * Designed for fail-closed semantics at the verifier level: a verifier that
+ * can't confirm a resolution is expected to return `{ ok: false }` rather
+ * than passing silently — otherwise a registry hiccup or an unpublished
+ * version would re-open the bypass.
+ *
+ * No-op when `verifyResolution` is undefined (no active policies).
+ */
+export async function revalidateLockfileResolutions (
+  lockfile: LockfileObject,
+  verifyResolution: ResolutionVerifier | undefined,
+  options?: { concurrency?: number }
+): Promise<void> {
+  if (verifyResolution == null) return
+  if (!lockfile.packages) return
+
+  // depPath can include peer-dependency and patch_hash suffixes (e.g.
+  // `react@18.0.0(peer)(patch_hash=…)`); the same (name, version) pair may
+  // therefore appear multiple times. Dedupe so we issue at most one
+  // verification per package version.
+  const candidates = new Map<string, { name: string, version: string, resolution: unknown }>()
+  for (const [depPath, snapshot] of Object.entries(lockfile.packages)) {
+    const { name, version } = nameVerFromPkgSnapshot(depPath as DepPath, snapshot)
+    if (!name || !version) continue
+    candidates.set(`${name}@${version}`, { name, version, resolution: snapshot.resolution })
+  }
+
+  const violations: Violation[] = []
+  const limit = pLimit(options?.concurrency ?? DEFAULT_CONCURRENCY)
+  await Promise.all(
+    Array.from(candidates.values(), ({ name, version, resolution }) => limit(async () => {
+      const pkgId = `${name}@${version}`
+      const result = await verifyResolution(resolution as Parameters<ResolutionVerifier>[0], { name, version })
+      if (!result.ok) {
+        violations.push({ pkgId, code: result.code, reason: result.reason })
+      }
+    }))
+  )
+
+  if (violations.length === 0) return
+
+  // Stable order so the error output is deterministic.
+  violations.sort((a, b) => a.pkgId.localeCompare(b.pkgId))
+  const visible = violations.slice(0, MAX_VIOLATIONS_TO_PRINT)
+  const omitted = violations.length - visible.length
+  const breakdown = visible.map((v) => `  ${v.pkgId} ${v.reason}`).join('\n')
+  const details = omitted > 0
+    ? `${breakdown}\n  …and ${omitted} more`
+    : breakdown
+  // Use the code of the first violation — all of today's violations are the
+  // same shape (one verifier, one code). If multiple verifiers fire later
+  // with mixed codes, switch to a generic LOCKFILE_RESOLUTION_REVALIDATION
+  // code and list per-entry codes in the breakdown.
+  throw new PnpmError(
+    violations[0].code,
+    `${violations.length} lockfile entries failed verification:\n${details}`,
+    {
+      hint: 'To unblock the install you can:\n' +
+        '  1. Remove the offending entries from pnpm-lock.yaml and re-run "pnpm install --no-frozen-lockfile" so they get re-resolved against the active policies.\n' +
+        '  2. Relax the policy that caused the failure (e.g. lower minimumReleaseAge, add to its exclude list).',
+    }
+  )
+}

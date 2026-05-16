@@ -32,6 +32,7 @@ import {
 import { logger } from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
 import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
+import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { StoreController } from '@pnpm/store.controller'
 import type {
@@ -114,6 +115,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   storeControllerAndDir?: {
     ctrl: StoreController
     dir: string
+    verifyResolution?: ResolutionVerifier
   }
   pnpmfile: string[]
 } & Partial<
@@ -165,6 +167,7 @@ export async function recursive (
     storeController: store.ctrl,
     storeDir: store.dir,
     targetDependenciesField,
+    verifyResolution: store.verifyResolution,
     workspacePackages,
   }) as InstallOptions
 
@@ -296,6 +299,7 @@ export async function recursive (
     } = await mutateModules(mutatedImporters, {
       ...installOpts,
       storeController: store.ctrl,
+      verifyResolution: store.verifyResolution,
     })
     if (opts.save !== false) {
       const promises: Array<Promise<void>> = mutatedPkgs.map(async ({ originalManifest, manifest, rootDir }) => {
@@ -414,6 +418,7 @@ export async function recursive (
             }),
             configByUri: installOpts.configByUri,
             storeController: store.ctrl,
+            verifyResolution: store.verifyResolution,
           }
         )
         if (opts.save !== false) {
