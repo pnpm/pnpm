@@ -96,7 +96,6 @@ import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
 import { validateModules } from './validateModules.js'
 import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
-import type { ActiveVerifier } from './verifyLockfileResolutionsCache.js'
 
 class LockfileConfigMismatchError extends PnpmError {
   constructor (outdatedLockfileSettingName: string) {
@@ -113,30 +112,6 @@ const BROKEN_LOCKFILE_INTEGRITY_ERRORS = new Set([
 ])
 
 const DEV_PREINSTALL = 'pnpm:devPreinstall'
-
-/**
- * Build the list of {@link ActiveVerifier} slots for the lockfile-verified
- * cache. Each verifier owns a stable key + a `satisfies` comparator that
- * decides whether a previously cached snapshot still covers today's
- * policy. Add a new entry here when a new resolver-side verifier ships.
- */
-function buildActiveVerifiers (opts: { minimumReleaseAge?: number }): ActiveVerifier[] {
-  const verifiers: ActiveVerifier[] = []
-  if (opts.minimumReleaseAge != null) {
-    const current = opts.minimumReleaseAge
-    verifiers.push({
-      key: 'npm.minimumReleaseAge',
-      policy: current,
-      // A cached run under a larger cutoff covers a smaller one — the
-      // previously verified set is a superset of today's. A tightened
-      // cutoff invalidates: versions that passed the older policy may
-      // now be in-window. Non-number cached values come from an older
-      // record shape and are treated as unsatisfying.
-      satisfies: (cachedPolicy) => typeof cachedPolicy === 'number' && cachedPolicy >= current,
-    })
-  }
-  return verifiers
-}
 
 interface InstallMutationOptions {
   update?: boolean
@@ -371,16 +346,16 @@ export async function mutateModules (
   try {
     await verifyLockfileResolutions(ctx.wantedLockfile, opts.verifyResolution, {
       // The cache short-circuits the per-package registry round trip when
-      // the lockfile and every active verifier's policy haven't moved since
-      // the last successful verification. The verifier list is built here
-      // (where the install-side knows each policy's shape) rather than in
-      // the cache layer; future verifiers register a slot by appending to
-      // this list with their own key / policy / satisfies comparator.
-      cache: opts.cacheDir
+      // the lockfile and every active verifier's policy haven't moved
+      // since the last successful verification. Verifier slots come from
+      // the verifier itself (each resolver-side verifier factory declares
+      // its own slot on `.activeVerifiers`); future verifiers plug in
+      // there without touching the install side.
+      cache: opts.cacheDir && opts.verifyResolution
         ? {
           cacheDir: opts.cacheDir,
           lockfilePath: path.resolve(ctx.lockfileDir, WANTED_LOCKFILE),
-          verifiers: buildActiveVerifiers(opts),
+          verifiers: opts.verifyResolution.activeVerifiers,
         }
         : undefined,
     })

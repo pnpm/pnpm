@@ -21,6 +21,8 @@ import {
   type WorkspaceResolveResult,
 } from '@pnpm/resolving.npm-resolver'
 import type {
+  Resolution,
+  ResolutionVerification,
   ResolutionVerifier,
   ResolveFunction,
   ResolveOptions,
@@ -196,5 +198,12 @@ export function createResolutionVerifier (
   // (resolution.type / tarball / gitHosted / integrity); reconcile both
   // call sites onto one classifier rather than re-deriving it per verifier.
   if (!npmVerifier) return undefined
-  return async (resolution, ctx) => npmVerifier(resolution, ctx)
+  const verify: (resolution: Resolution, ctx: { name: string, version: string }) => Promise<ResolutionVerification> = async (resolution, ctx) => npmVerifier(resolution, ctx)
+  return Object.assign(verify, {
+    // Flatten every active sub-verifier's slots — today there's only the
+    // npm verifier, but the install-side cache can already deal with
+    // multiple slots per record, so future verifiers plug in here without
+    // touching the install side.
+    activeVerifiers: [...npmVerifier.activeVerifiers],
+  })
 }

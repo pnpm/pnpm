@@ -93,19 +93,63 @@ export type ResolutionVerification =
   | { ok: false, code: string, reason: string }
 
 /**
+ * Identity + policy snapshot for one resolver-side verifier. Lives
+ * alongside the runtime {@link ResolutionVerifier} so the install-side
+ * verification cache (`@pnpm/installing.deps-installer`) can store one
+ * slot per active verifier and decide on the next install whether the
+ * cached run still covers today's policy — without re-issuing the
+ * registry round-trips that `verify` would.
+ *
+ * Each verifier owns a stable namespaced `key` (e.g. `npm.minimumReleaseAge`),
+ * its current `policy` snapshot (serialized verbatim into the cache), and
+ * a `satisfies` comparator that decides whether a previously cached
+ * snapshot still meets the verifier's current policy.
+ */
+export interface ActiveVerifier {
+  /**
+   * Stable, namespaced identifier. Must be unique across all verifiers
+   * ever shipped — renaming a key invalidates cached entries that used
+   * the old name.
+   */
+  key: string
+  /**
+   * Today's policy snapshot, written verbatim into the cache. Opaque to
+   * the cache layer; the verifier owns the shape.
+   */
+  policy: unknown
+  /**
+   * Returns true when a cached run under `cachedPolicy` is at least as
+   * strict as today's — i.e. the cached snapshot already covers the
+   * current policy's requirements. A loosened policy can reuse a stricter
+   * cached run; a tightened policy cannot. Non-conforming values (e.g.
+   * an older record shape) should return false.
+   */
+  satisfies: (cachedPolicy: unknown) => boolean
+}
+
+/**
  * Optional companion to a resolver factory. Lets each resolver enforce
  * policies (e.g. minimumReleaseAge for npm) against an already-resolved
  * entry from a lockfile without re-doing resolution.
  *
- * The verifier inspects the `resolution` shape to decide whether the entry
- * is within its protocol; for entries outside its protocol it should
- * return `{ ok: true }`. Combined verifiers (in default-resolver) dispatch
- * across underlying resolver-specific verifiers.
+ * The verifier is callable: it inspects the `resolution` shape to decide
+ * whether the entry is within its protocol; for entries outside its
+ * protocol it should return `{ ok: true }`. Combined verifiers (in
+ * default-resolver) dispatch across underlying resolver-specific
+ * verifiers.
+ *
+ * The verifier also exposes its {@link ActiveVerifier} slot(s) on
+ * `activeVerifiers`. The install-side verification cache reads this to
+ * decide if a previous run on the same lockfile still covers today's
+ * policy — short-circuiting the per-package registry round trips on
+ * unchanged repos. Resolvers that combine multiple sub-verifiers (today:
+ * `@pnpm/resolving.default-resolver`) flatten the sub-verifiers' slots
+ * here.
  */
-export type ResolutionVerifier = (
-  resolution: Resolution,
-  ctx: { name: string, version: string }
-) => Promise<ResolutionVerification>
+export interface ResolutionVerifier {
+  (resolution: Resolution, ctx: { name: string, version: string }): Promise<ResolutionVerification>
+  activeVerifiers: readonly ActiveVerifier[]
+}
 
 /** Concrete platform selector used when picking a variant from a VariationsResolution. */
 export interface PlatformSelector {

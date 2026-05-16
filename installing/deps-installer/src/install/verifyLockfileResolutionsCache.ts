@@ -4,6 +4,9 @@ import util from 'node:util'
 
 import { createHexHashFromFile } from '@pnpm/crypto.hash'
 import { logger } from '@pnpm/logger'
+import type { ActiveVerifier } from '@pnpm/resolving.resolver-base'
+
+export type { ActiveVerifier }
 
 /**
  * On-disk cache of verifyLockfileResolutions results, keyed by absolute
@@ -53,31 +56,6 @@ interface CacheRecord {
   verifiers: Record<string, unknown>
 }
 
-export interface ActiveVerifier {
-  /**
-   * Stable, namespaced identifier (e.g. `npm.minimumReleaseAge`). Must be
-   * unique across all verifiers ever shipped — renaming a key invalidates
-   * cached entries that used the old name.
-   */
-  key: string
-  /**
-   * Today's policy snapshot, serialized verbatim into the cache record.
-   * Opaque to the cache layer; the verifier owns the shape.
-   */
-  policy: unknown
-  /**
-   * Returns true when a previous verification under `cachedPolicy` is at
-   * least as strict as today's — i.e. the cached run already covers what
-   * the current policy demands. A loosened policy can reuse a stricter
-   * cached run; a tightened policy cannot.
-   *
-   * Called with the cached slot's raw value; the verifier is responsible
-   * for shape-validating it (a value from an older pnpm or a renamed
-   * field may have a different shape, in which case return false).
-   */
-  satisfies: (cachedPolicy: unknown) => boolean
-}
-
 interface CacheLookupResult {
   hit: boolean
 }
@@ -90,7 +68,7 @@ interface LockfileStat {
 
 export interface LockfileVerificationCacheKey {
   lockfilePath: string
-  verifiers: ActiveVerifier[]
+  verifiers: readonly ActiveVerifier[]
 }
 
 /**
@@ -207,7 +185,7 @@ export async function tryLockfileVerificationCache (
   return { hit: true }
 }
 
-function everyVerifierSatisfied (record: CacheRecord, verifiers: ActiveVerifier[]): boolean {
+function everyVerifierSatisfied (record: CacheRecord, verifiers: readonly ActiveVerifier[]): boolean {
   for (const verifier of verifiers) {
     // Missing slot is treated as "not satisfied" — the cached run didn't
     // cover this verifier so we must rerun the gate.

@@ -1,12 +1,11 @@
 import { PnpmError } from '@pnpm/error'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
-import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
+import type { ActiveVerifier, ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import type { DepPath } from '@pnpm/types'
 import pLimit from 'p-limit'
 
 import {
-  type ActiveVerifier,
   recordVerification,
   tryLockfileVerificationCache,
 } from './verifyLockfileResolutionsCache.js'
@@ -39,7 +38,7 @@ export interface VerifyLockfileResolutionsCacheOptions {
    * still meets today's policy. The cache only short-circuits when **all**
    * active verifiers agree the cached run is still valid.
    */
-  verifiers: ActiveVerifier[]
+  verifiers: readonly ActiveVerifier[]
 }
 
 /**
