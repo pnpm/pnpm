@@ -200,17 +200,23 @@ pub struct Config {
     ///
     /// When [`enable_global_virtual_store`] is `true` and the user has not
     /// explicitly set this field, [`Config::current`] re-points it at
-    /// `<store_dir>/links` to mirror upstream's
-    /// [`extendInstallOptions.ts:343-355`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/src/install/extendInstallOptions.ts#L343-L355).
+    /// `<store_dir>/v11/links` to mirror upstream's
+    /// [`extendInstallOptions.ts:350-358`](https://github.com/pnpm/pnpm/blob/29a42efc3b/installing/deps-installer/src/install/extendInstallOptions.ts#L350-L358).
+    /// The `v11/` segment comes from pnpm's [`getStorePath`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L39-L42),
+    /// which appends `STORE_VERSION` to the configured `storeDir`
+    /// before `extendInstallOptions` runs its `path.join(storeDir,
+    /// 'links')` — so the join lands one level deeper than the
+    /// configured root.
     ///
     /// [`enable_global_virtual_store`]: Self::enable_global_virtual_store
     #[default(_code = "default_virtual_store_dir()")]
     pub virtual_store_dir: PathBuf,
 
     /// When `true`, the virtual store is shared across every project on
-    /// the machine: packages live under `<store_dir>/links/...` and each
-    /// project registers itself at `<store_dir>/projects/<short-hash>`.
-    /// When `false`, each project keeps its own virtual store at
+    /// the machine: packages live under `<store_dir>/v11/links/...` and
+    /// each project registers itself at
+    /// `<store_dir>/v11/projects/<short-hash>`. When `false`, each
+    /// project keeps its own virtual store at
     /// `<project>/node_modules/.pnpm`.
     ///
     /// Default `false` — matches pnpm v11's effective default for
@@ -227,8 +233,8 @@ pub struct Config {
     /// The shared global-virtual-store directory. When
     /// [`enable_global_virtual_store`] is `true` this is the same path as
     /// [`virtual_store_dir`]; when `false`, it is still computed as
-    /// `<store_dir>/links` (matching upstream's unconditional assignment
-    /// at [`extendInstallOptions.ts:354-355`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/src/install/extendInstallOptions.ts#L354-L355))
+    /// `<store_dir>/v11/links` (matching upstream's unconditional
+    /// assignment at [`extendInstallOptions.ts:356-358`](https://github.com/pnpm/pnpm/blob/29a42efc3b/installing/deps-installer/src/install/extendInstallOptions.ts#L356-L358))
     /// even though no install path consults it in that mode today.
     ///
     /// Populated by [`Config::current`] after yaml has been applied; the
