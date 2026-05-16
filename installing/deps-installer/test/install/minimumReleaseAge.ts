@@ -160,6 +160,26 @@ test('minimumReleaseAge revalidation respects minimumReleaseAgeExclude on an exi
   ).resolves.toBeDefined()
 })
 
+test('minimumReleaseAge is enforced on pre-existing lockfile entries during pnpm add', async () => {
+  prepareEmpty()
+
+  // Populate the lockfile with an immature entry without the policy.
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1.2'], testDefaults())
+  expect(manifest.dependencies!['is-odd']).toBe('0.1.2')
+
+  // Subsequent `pnpm add` for an unrelated package would normally let
+  // is-odd@0.1.2 survive resolution as-is via the resolver's
+  // peekManifestFromStore fast path, bypassing the policy. The post-resolution
+  // gate must catch it.
+  await expect(
+    addDependenciesToPackage(
+      manifest,
+      ['is-positive@1.0.0'],
+      testDefaults({ minimumReleaseAge, minimumReleaseAgeStrict: true })
+    )
+  ).rejects.toThrow(/minimumReleaseAge/)
+})
+
 test('the lockfile minimumReleaseAge gate is inert when strict mode is off (default-value semantics)', async () => {
   prepareEmpty()
 
