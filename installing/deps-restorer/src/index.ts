@@ -23,6 +23,7 @@ import {
   type LockfileToDepGraphOptions,
 } from '@pnpm/deps.graph-builder'
 import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
+import { findRuntimeNodeVersion } from '@pnpm/engine.runtime.system-node-version'
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import {
@@ -909,6 +910,11 @@ async function linkAllPkgs (
     needsBuildMarkerSrc = path.join(opts.storeDir, '.pnpm-needs-build-marker')
     await fs.writeFile(needsBuildMarkerSrc, '')
   }
+  // Resolved `engines.runtime` Node version (when present) anchors
+  // the side-effects-cache key prefix to the script-runner Node, not
+  // pnpm's own `process.version`. Computed once — the graph is
+  // closed-over by every per-node call below.
+  const nodeVersion = findRuntimeNodeVersion(Object.keys(opts.depGraph))
   await Promise.all(
     depNodes.map(async (depNode) => {
       if (!depNode.fetching) return
@@ -928,6 +934,7 @@ async function linkAllPkgs (
             includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
             patchFileHash: depNode.patch?.hash,
             supportedArchitectures: opts.supportedArchitectures,
+            nodeVersion,
           })
         }
       }

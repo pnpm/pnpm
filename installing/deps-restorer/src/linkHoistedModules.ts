@@ -11,6 +11,7 @@ import type {
   DepHierarchy,
 } from '@pnpm/deps.graph-builder'
 import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
+import { findRuntimeNodeVersion } from '@pnpm/engine.runtime.system-node-version'
 import { logger } from '@pnpm/logger'
 import type {
   PackageFilesResponse,
@@ -102,6 +103,14 @@ async function linkAllPkgsInOrder (
     warn: (message: string) => void
   }
 ): Promise<void> {
+  // Pin the side-effects-cache key to the project's
+  // `engines.runtime`-resolved Node version when one is present in
+  // the graph. Otherwise the key partitions by `process.version`
+  // (pnpm's runner), and a SEA-bundled pnpm reading a cache
+  // populated by an npm-bundled pnpm would miss every entry.
+  // Computed once and shared across the recursion — the graph
+  // doesn't change while a single linker is running.
+  const nodeVersion = findRuntimeNodeVersion(Object.keys(graph))
   await Promise.all(
     Object.entries(hierarchy).map(async ([dir, deps]) => {
       const depNode = graph[dir]
@@ -122,6 +131,7 @@ async function linkAllPkgsInOrder (
               includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
               patchFileHash: depNode.patch?.hash,
               supportedArchitectures: opts.supportedArchitectures,
+              nodeVersion,
             })
           }
         }

@@ -7,6 +7,7 @@ import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { getWorkspaceConcurrency } from '@pnpm/config.reader'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
+import { findRuntimeNodeVersion } from '@pnpm/engine.runtime.system-node-version'
 import { PnpmError } from '@pnpm/error'
 import { runPostinstallHooks } from '@pnpm/exec.lifecycle'
 import { logger } from '@pnpm/logger'
@@ -61,9 +62,15 @@ export async function buildModules<T extends string> (
   }
   // postinstall hooks
 
+  // Resolved `engines.runtime` Node version (when the project pins
+  // one) so each per-snapshot side-effects-cache key reflects the
+  // script-runner Node. Computed once over the install-wide graph
+  // and threaded into [`buildDependency`] via [`buildDepOpts`].
+  const nodeVersion = findRuntimeNodeVersion(Object.keys(depGraph))
   const buildDepOpts = {
     ...opts,
     builtHoistedDeps: opts.hoistedLocations ? {} : undefined,
+    nodeVersion,
     warn,
   }
   const chunks = buildSequence<T>(depGraph, rootDepPaths)
@@ -151,6 +158,8 @@ async function buildDependency<T extends string> (
     hoistedLocations?: Record<string, string[]>
     builtHoistedDeps?: Record<string, DeferredPromise<void>>
     enableGlobalVirtualStore?: boolean
+    /** Resolved `engines.runtime` Node version — see [`buildModules`]. */
+    nodeVersion?: string
     warn: (message: string) => void
   }
 ): Promise<void> {
@@ -200,6 +209,7 @@ async function buildDependency<T extends string> (
         const sideEffectsCacheKey = calcDepState(depGraph, opts.depsStateCache, depPath, {
           patchFileHash: depNode.patch?.hash,
           includeDepGraphHash: hasSideEffects,
+          nodeVersion: opts.nodeVersion,
         })
         await opts.storeController.upload(depNode.dir, {
           sideEffectsCacheKey,

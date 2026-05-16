@@ -6,6 +6,7 @@ import {
 } from '@pnpm/core-loggers'
 import { iterateHashedGraphNodes } from '@pnpm/deps.graph-hasher'
 import { isRuntimeDepPath } from '@pnpm/deps.path'
+import { findRuntimeNodeVersion } from '@pnpm/engine.runtime.system-node-version'
 import type {
   LockfileObject,
   ProjectSnapshot,
@@ -494,7 +495,15 @@ function extendGraph (
   const pkgMetaIter = iterateGraphPkgMetaEntries(graph, !opts.enableGlobalVirtualStore)
   // Only use allowBuild for engine-agnostic hash optimization when GVS is on
   const allowBuild = opts.enableGlobalVirtualStore ? opts.allowBuild : undefined
-  for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, pkgMetaIter, allowBuild, opts.supportedArchitectures)) {
+  // Anchor every snapshot's engine hash to the project-pinned Node
+  // version (from `engines.runtime` / `devEngines.runtime`) when the
+  // resolver produced one — the graph carries it as a
+  // `node@runtime:<version>` key. Without this, GVS slots for
+  // approved-build packages would hash under the runner's
+  // `process.version` instead of the script-runner Node, splitting
+  // the cache between pinned and non-pinned installs on the same host.
+  const nodeVersion = findRuntimeNodeVersion(Object.keys(graph))
+  for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, pkgMetaIter, allowBuild, opts.supportedArchitectures, nodeVersion)) {
     const modules = path.join(opts.globalVirtualStoreDir, hash, 'node_modules')
     const node = graph[depPath]
     Object.assign(node, {

@@ -39,6 +39,7 @@
     "@pnpm/deps.graph-hasher": "workspace:*",
     "@pnpm/deps.graph-sequencer": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
+    "@pnpm/engine.runtime.system-node-version": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.lifecycle": "workspace:*",
     "@pnpm/fs.hard-link-dir": "workspace:*",

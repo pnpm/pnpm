@@ -15,7 +15,7 @@ use miette::Diagnostic;
 use pacquet_cmd_shim::LinkBinsError;
 use pacquet_config::{Config, NodeLinker, matcher::create_matcher};
 use pacquet_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
-use pacquet_lockfile::{Lockfile, PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry};
+use pacquet_lockfile::{Lockfile, PackageKey, PackageMetadata, Prefix, ProjectSnapshot, SnapshotEntry};
 use pacquet_modules_yaml::{RealApi, read_modules_manifest};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::DependencyGroup;
@@ -508,33 +508,51 @@ where
         //   `VirtualStoreLayout` is built with `None` here, which
         //   is fine because GVS is off and the layout ignores the
         //   field in that path.
+        // Honour `engines.runtime` / `devEngines.runtime` pin (if
+        // one reached the lockfile): pnpm's runtime resolver writes
+        // the chosen Node as a `node@runtime:<version>` snapshot
+        // (see
+        // [`engine/runtime/node-resolver`](https://github.com/pnpm/pnpm/blob/29a42efc3b/engine/runtime/node-resolver/src/index.ts)),
+        // and pnpm's `engineName` helper anchors the GVS hash and the
+        // side-effects-cache key prefix to that pinned Node. Mirror
+        // it here — otherwise pacquet hashes under whatever
+        // `node --version` returns from the shell, splitting the
+        // shared store between pinned and non-pinned installs on the
+        // same host.
+        let runtime_pinned_major = find_runtime_node_major(snapshots);
         let (initial_engine_name, deferred_engine_handle): (
             Option<String>,
             Option<tokio::task::JoinHandle<Option<String>>>,
-        ) = match &host_node {
-            Some((true, ver)) => (
-                parse_major_from_version(ver)
-                    .map(|major| pacquet_graph_hasher::engine_name(major, None, None)),
-                None,
-            ),
-            Some((false, _)) => (None, None),
-            None if config.enable_global_virtual_store => (
-                tokio::task::spawn_blocking(|| {
-                    pacquet_graph_hasher::detect_node_major()
-                        .map(|major| pacquet_graph_hasher::engine_name(major, None, None))
-                })
-                .await
-                .ok()
-                .flatten(),
-                None,
-            ),
-            None => (
-                None,
-                Some(tokio::task::spawn_blocking(|| {
-                    pacquet_graph_hasher::detect_node_major()
-                        .map(|major| pacquet_graph_hasher::engine_name(major, None, None))
-                })),
-            ),
+        ) = if let Some(major) = runtime_pinned_major {
+            // Lockfile-driven major wins outright; skip the host
+            // probe / `node --version` spawn entirely.
+            (Some(pacquet_graph_hasher::engine_name(major, None, None)), None)
+        } else {
+            match &host_node {
+                Some((true, ver)) => (
+                    parse_major_from_version(ver)
+                        .map(|major| pacquet_graph_hasher::engine_name(major, None, None)),
+                    None,
+                ),
+                Some((false, _)) => (None, None),
+                None if config.enable_global_virtual_store => (
+                    tokio::task::spawn_blocking(|| {
+                        pacquet_graph_hasher::detect_node_major()
+                            .map(|major| pacquet_graph_hasher::engine_name(major, None, None))
+                    })
+                    .await
+                    .ok()
+                    .flatten(),
+                    None,
+                ),
+                None => (
+                    None,
+                    Some(tokio::task::spawn_blocking(|| {
+                        pacquet_graph_hasher::detect_node_major()
+                            .map(|major| pacquet_graph_hasher::engine_name(major, None, None))
+                    })),
+                ),
+            }
         };
         let engine_name = initial_engine_name;
 
@@ -1243,4 +1261,47 @@ struct HoistedLinkerOutput {
 fn parse_major_from_version(version: &str) -> Option<u32> {
     let after_v = version.strip_prefix('v').unwrap_or(version);
     after_v.split('.').next()?.parse().ok()
+}
+
+/// Pull the `node@runtime:<version>` major out of a lockfile's
+/// `snapshots:` map, if the project pinned a runtime Node.
+///
+/// Pnpm v11's runtime resolver writes the pinned Node into the
+/// lockfile as a snapshot with key `node@runtime:<version>` (see
+/// [`engine/runtime/node-resolver`](https://github.com/pnpm/pnpm/blob/29a42efc3b/engine/runtime/node-resolver/src/index.ts#L67)).
+/// Pnpm's
+/// [`engineName(nodeVersion)`](https://github.com/pnpm/pnpm/blob/HEAD/engine/runtime/system-node-version/src/index.ts)
+/// anchors the GVS hash and the side-effects-cache key prefix to
+/// that pinned major instead of pnpm's own `process.version`. The
+/// helper here is pacquet's mirror — same snapshot-scan, same
+/// "first hit wins" semantics (the resolver rejects workspaces with
+/// conflicting pins before they reach the lockfile).
+///
+/// Returns `None` when no importer pinned a runtime — callers should
+/// then fall through to the host probe (`node --version` or the
+/// cached `host_node`).
+fn find_runtime_node_major(
+    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+) -> Option<u32> {
+    let snapshots = snapshots?;
+    for key in snapshots.keys() {
+        if key.suffix.prefix() != Prefix::Runtime {
+            continue;
+        }
+        // Pnpm currently emits `node@runtime:` only — `bun@runtime:`
+        // and `deno@runtime:` exist as separate runtime kinds but
+        // don't feed the Node-shaped engine string. Match the
+        // upstream helper which scans for `node@runtime:` exclusively.
+        if key.name.scope.is_some() || key.name.bare != "node" {
+            continue;
+        }
+        // `Version::major` is `u64`; pnpm's major is small (<=99 in
+        // practice), so the cast is lossless. The downstream
+        // `engine_name` argument is `u32`, matching upstream's
+        // `process.version.split('.')[0].substring(1)`-derived
+        // integer.
+        let major = key.suffix.version().major;
+        return Some(major as u32);
+    }
+    None
 }
