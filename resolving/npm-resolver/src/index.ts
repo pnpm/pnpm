@@ -130,7 +130,6 @@ export {
   workspacePrefToNpm,
 }
 export { createNpmResolutionVerifier, type CreateNpmResolutionVerifierOptions } from './createNpmResolutionVerifier.js'
-export { fetchFullMetadataCached, type FetchFullMetadataCachedOptions } from './fetchFullMetadataCached.js'
 export { whichVersionIsPinned } from './whichVersionIsPinned.js'
 
 export interface ResolverFactoryOptions {
