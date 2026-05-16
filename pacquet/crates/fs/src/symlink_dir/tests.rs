@@ -84,7 +84,7 @@ fn force_symlink_dir_retargets_a_stale_symlink() {
     force_symlink_dir(&stale_target, &link).expect("seed stale link");
     let outcome =
         force_symlink_dir(&fresh_target, &link).expect("force-overwrite to the fresh target");
-    assert!(!outcome.reused, "the link pointed at the wrong target, so this should be a rewrite",);
+    assert!(!outcome.reused, "the link pointed at the wrong target, so this should be a rewrite");
 
     // The new link must resolve to the fresh target. Use the
     // canonical paths to dodge `/private/tmp` vs `/tmp` aliasing.
@@ -107,8 +107,8 @@ fn force_symlink_dir_moves_non_symlink_occupant_to_ignored_name() {
     fs::write(&link, b"squatting on the link slot").expect("seed occupant file");
 
     let outcome = force_symlink_dir(&target, &link).expect("force_symlink_dir succeeds");
-    assert!(!outcome.reused, "we wrote a fresh link over an occupant — not a reuse",);
-    assert!(outcome.warning.is_some(), "warning must be set when an occupant was moved aside",);
+    assert!(!outcome.reused, "we wrote a fresh link over an occupant — not a reuse");
+    assert!(outcome.warning.is_some(), "warning must be set when an occupant was moved aside");
     let warning = outcome.warning.unwrap();
     assert!(
         warning.contains(".ignored_link"),
@@ -121,7 +121,7 @@ fn force_symlink_dir_moves_non_symlink_occupant_to_ignored_name() {
     assert_eq!(resolved_link, resolved_target);
     // The displaced file must live at the .ignored_<basename> path.
     let ignored_path = root.path().join(".ignored_link");
-    assert!(ignored_path.is_file(), "displaced occupant must live at {ignored_path:?}",);
+    assert!(ignored_path.is_file(), "displaced occupant must live at {ignored_path:?}");
 }
 
 /// When the link's parent directory doesn't exist yet,
@@ -135,7 +135,7 @@ fn force_symlink_dir_creates_missing_parent_directories() {
     let target = root.path().join("target");
     let link = root.path().join("deeply").join("nested").join("modules").join("link");
     fs::create_dir_all(&target).expect("create target");
-    assert!(!link.parent().unwrap().exists(), "parent chain must be missing before the call",);
+    assert!(!link.parent().unwrap().exists(), "parent chain must be missing before the call");
 
     let outcome =
         force_symlink_dir(&target, &link).expect("force_symlink_dir creates parents and link");
