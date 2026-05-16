@@ -906,13 +906,6 @@ Note that in CI environments, this setting is enabled by default.`,
       logger.info({ message: 'Lockfile is up to date, resolution step is skipped', prefix: opts.lockfileDir })
     }
 
-    // The resolution-skip optimization above bypasses any resolver-side
-    // policy filters (today: minimumReleaseAge). Re-apply them against the
-    // lockfile via the resolver-supplied verifier so a freshly-published
-    // version cannot slip past via a manually-edited or locally-bypassed
-    // lockfile (issue #10438). The non-frozen path runs the same verifier
-    // inside `_installInContext` after resolution converges, so `pnpm add`
-    // / `pnpm update` are covered too.
     await revalidateLockfileResolutions(ctx.wantedLockfile, opts.verifyResolution)
 
     try {
@@ -1424,14 +1417,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     stage: 'resolution_done',
   })
 
-  // Catch entries that resolution preserved as-is. The resolver's
-  // `peekManifestFromStore` fast path returns a locked resolution without
-  // re-applying maturity filters whenever `publishedAt` is already recorded
-  // in the lockfile's `time:` block, so pre-existing fresh entries can
-  // survive a `pnpm add` / `pnpm update` / partial-resolution install
-  // untouched. Verify against the post-resolution `newLockfile` (not the
-  // on-disk one) so legitimately updated versions get re-validated against
-  // their new state rather than the stale pre-resolution one.
   await revalidateLockfileResolutions(newLockfile, opts.verifyResolution)
 
   newLockfile = ((opts.hooks?.afterAllResolved) != null)

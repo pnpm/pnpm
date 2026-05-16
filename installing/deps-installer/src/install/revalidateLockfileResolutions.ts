@@ -83,10 +83,13 @@ export async function revalidateLockfileResolutions (
     violations[0].code,
     `${violations.length} lockfile entries failed verification:\n${details}`,
     {
-      hint: 'Either re-resolve the offending entries with "pnpm update <name>" ' +
-        '(or "pnpm install --force" for a full re-resolve) so the resolver ' +
-        'replaces them with values that satisfy the active policies, or relax ' +
-        'the policy that flagged them.',
+      hint: 'The lockfile contains entries that the active policies reject. ' +
+        'This can mean the lockfile is stale, or that someone committed a ' +
+        'lockfile that bypassed the policy locally — inspect recent changes ' +
+        'to pnpm-lock.yaml before trusting it. If the changes look expected, ' +
+        'run "pnpm clean --lockfile" and then "pnpm install" to rebuild from ' +
+        'a fresh resolution. Alternatively, relax the policy that flagged ' +
+        'them.',
     }
   )
 }
