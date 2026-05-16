@@ -5,6 +5,7 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::{Config, NodeLinker};
+use pacquet_directory_fetcher::DirectoryFetcherError;
 use pacquet_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
 use pacquet_git_fetcher::{GitFetchOutput, GitFetcher, GitFetcherError, GitHostedTarballFetcher};
 use pacquet_graph_hasher::{host_arch, host_libc, host_platform};
@@ -26,7 +27,7 @@ use pipe_trait::Pipe;
 use std::{
     borrow::Cow,
     collections::HashMap,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, atomic::AtomicU8},
 };
 
@@ -68,6 +69,14 @@ pub struct InstallPackageBySnapshot<'a> {
     /// [`crate::InstallFrozenLockfile::run`] and threaded through
     /// [`crate::CreateVirtualStore`].
     pub allow_build_policy: &'a AllowBuildPolicy,
+    /// Workspace / lockfile root used to resolve directory-typed
+    /// resolutions (`LockfileResolution::Directory`) against. Pnpm's
+    /// directory-fetcher computes the source dir as
+    /// `path.resolve(opts.lockfileDir, resolution.directory)`; pacquet
+    /// threads the same value through so the resolved source matches
+    /// upstream byte-for-byte even for relative resolutions like
+    /// `../local-pkg`.
+    pub workspace_root: &'a Path,
     /// Snapshots whose slots were not materialized on this host —
     /// threaded into [`CreateVirtualDirBySnapshot`] so the per-slot
     /// `create_symlink_layout` step can skip optional siblings whose
@@ -120,6 +129,15 @@ pub enum InstallPackageBySnapshotError {
     /// every fetcher path that exits through `pacquet-git-fetcher`.
     #[diagnostic(transparent)]
     GitFetch(#[error(source)] GitFetcherError),
+
+    /// Failure from the directory fetcher: walking the source
+    /// directory of an injected workspace dep, reading its manifest,
+    /// or running the npm-packlist filter for
+    /// `includeOnlyPackageFiles` mode. Mirrors the failure surface
+    /// of pnpm's `directory-fetcher` at
+    /// <https://github.com/pnpm/pnpm/blob/85ceff2383/fetching/directory-fetcher/src/index.ts>.
+    #[diagnostic(transparent)]
+    DirectoryFetch(#[error(source)] DirectoryFetcherError),
 
     /// No variant in a [`LockfileResolution::Variations`] matches the
     /// host triple `(os, cpu, libc?)`. Surfaces with the host triple
@@ -208,6 +226,7 @@ impl<'a> InstallPackageBySnapshot<'a> {
             snapshot,
             allow_build_policy,
             skipped,
+            workspace_root,
             node_linker,
         } = self;
 
@@ -304,11 +323,37 @@ impl<'a> InstallPackageBySnapshot<'a> {
                     raw_cas_paths
                 }
             }
-            LockfileResolution::Directory(_) => {
-                return Err(InstallPackageBySnapshotError::UnsupportedResolution {
-                    package_key: package_key.to_string(),
-                    resolution_kind: "directory",
-                });
+            LockfileResolution::Directory(dir_resolution) => {
+                // Injected workspace dep (`file:./local-pkg` with
+                // `dependenciesMeta[*].injected = true`). Upstream's
+                // [`directory-fetcher`](https://github.com/pnpm/pnpm/blob/85ceff2383/fetching/directory-fetcher/src/index.ts#L26-L32)
+                // resolves the source dir as
+                // `path.resolve(opts.lockfileDir, resolution.directory)`
+                // and returns `local: true` with a `filesMap` that
+                // points directly at the source files (no CAFS write).
+                // Pacquet does the same: the `files_map` keys are the
+                // forward-slash relative paths, the values are the
+                // source paths, and downstream `link_file` /
+                // `import_indexed_dir` hardlink-or-copy from those
+                // source paths into the slot / hoisted directory just
+                // like they would from a CAS-resident entry.
+                //
+                // `include_only_package_files = false` /
+                // `resolve_symlinks = false` match upstream's defaults
+                // in [`extendInstallOptions.ts:41`](https://github.com/pnpm/pnpm/blob/85ceff2383/installing/deps-installer/src/install/extendInstallOptions.ts#L41).
+                // Wiring those through pacquet's config surface is a
+                // follow-up; see the `resolveSymlinksInInjectedDirs`
+                // / `includeOnlyPackageFiles` plumbing tracked in the
+                // directory-fetcher PR description.
+                let directory = workspace_root.join(&dir_resolution.directory);
+                let output = pacquet_directory_fetcher::DirectoryFetcher {
+                    directory,
+                    include_only_package_files: false,
+                    resolve_symlinks: false,
+                }
+                .run()
+                .map_err(InstallPackageBySnapshotError::DirectoryFetch)?;
+                output.files_map
             }
             // Slice A of #437 wires the lockfile types; the install
             // dispatch for `Binary` / `Variations` lands in Slice D.

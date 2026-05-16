@@ -12,6 +12,7 @@ repository.workspace  = true
 
 [dependencies]
 pacquet-cmd-shim               = { workspace = true }
+pacquet-directory-fetcher      = { workspace = true }
 pacquet-executor               = { workspace = true }
 pacquet-fs                     = { workspace = true }
 pacquet-git-fetcher            = { workspace = true }

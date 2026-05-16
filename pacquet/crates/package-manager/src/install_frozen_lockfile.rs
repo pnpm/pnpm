@@ -573,6 +573,7 @@ where
             store_index_writer: &store_index_writer,
             allow_build_policy: &allow_build_policy,
             skipped: &skipped,
+            workspace_root,
             node_linker,
         }
         .run::<R>()

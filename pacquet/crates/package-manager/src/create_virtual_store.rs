@@ -23,7 +23,7 @@ use pacquet_tarball::{PrefetchResult, prefetch_cas_paths};
 use pipe_trait::Pipe;
 use std::{
     collections::{HashMap, HashSet},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::atomic::AtomicU8,
 };
 
@@ -139,6 +139,12 @@ pub struct CreateVirtualStore<'a> {
     /// behavior of materializing only non-skipped snapshots in the
     /// graph passed to the build phase.
     pub skipped: &'a SkippedSnapshots,
+    /// Lockfile / workspace root — `lockfileDir` in upstream's
+    /// install options. Threaded into the per-snapshot
+    /// [`InstallPackageBySnapshot`] so the directory fetcher can
+    /// resolve `LockfileResolution::Directory` entries (e.g.
+    /// `directory: "../local-pkg"`) against the same base pnpm uses.
+    pub workspace_root: &'a Path,
     /// Selects between the isolated and hoisted install layouts.
     /// Under [`NodeLinker::Isolated`] the warm and cold batches
     /// populate per-snapshot virtual-store slot directories. Under
@@ -192,6 +198,7 @@ impl<'a> CreateVirtualStore<'a> {
             store_index_writer,
             allow_build_policy,
             skipped,
+            workspace_root,
             node_linker,
         } = self;
 
@@ -361,12 +368,31 @@ impl<'a> CreateVirtualStore<'a> {
                 let Some(current_snapshot) = current_snapshots.get(*snapshot_key) else {
                     return true;
                 };
+                let wanted_metadata = packages.get(&snapshot_key.without_peer());
+                // Directory-typed snapshots carry mutable local
+                // source: the user can edit `file:./local-pkg` files
+                // between installs and pacquet must re-walk them on
+                // every install, otherwise the slot drifts. Mirrors
+                // upstream's `!isDirectoryDep` clause in `depIsPresent`
+                // at
+                // <https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-builder/src/lockfileToDepGraph.ts#L226-L228>
+                // — pnpm forces directory snapshots through the cold
+                // path for the same reason. Without this carve-out
+                // both `current` and `wanted` resolutions report
+                // `integrity() == None`, `integrity_equal` returns
+                // true, the slot directory check passes, and the
+                // directory-fetcher never runs on the second install.
+                if matches!(
+                    wanted_metadata.map(|m| &m.resolution),
+                    Some(LockfileResolution::Directory(_)),
+                ) {
+                    return true;
+                }
                 if !snapshot_deps_equal(current_snapshot, snapshot) {
                     return true;
                 }
                 let current_metadata =
                     current_packages.and_then(|p| p.get(&snapshot_key.without_peer()));
-                let wanted_metadata = packages.get(&snapshot_key.without_peer());
                 if !integrity_equal(current_metadata, wanted_metadata) {
                     return true;
                 }
@@ -727,6 +753,7 @@ impl<'a> CreateVirtualStore<'a> {
                         snapshot,
                         allow_build_policy,
                         skipped,
+                        workspace_root,
                         node_linker,
                     }
                     .run::<R>()
@@ -896,12 +923,18 @@ fn snapshot_cache_key(
         LockfileResolution::Registry(r) => {
             Ok(Some(store_index_key(&r.integrity.to_string(), &pkg_id)))
         }
-        LockfileResolution::Directory(_) => Err(CreateVirtualStoreError::InstallPackageBySnapshot(
-            InstallPackageBySnapshotError::UnsupportedResolution {
-                package_key: snapshot_key.to_string(),
-                resolution_kind: "directory",
-            },
-        )),
+        LockfileResolution::Directory(_) => {
+            // Directory resolutions are injected workspace deps and
+            // bypass the CAFS entirely (the directory-fetcher returns
+            // source-path entries; no `write_cas_file` happens, no
+            // `PackageFilesIndex` row is written). There is therefore
+            // no warm-cache key to recover the install from — every
+            // install re-walks the source dir, matching upstream's
+            // behavior (the source may have changed since the last
+            // install). Returning `Ok(None)` routes the snapshot
+            // through the cold path which runs the fetcher.
+            Ok(None)
+        }
         LockfileResolution::Git(_) => {
             // `Git` resolutions land in CAS via
             // `pacquet_git_fetcher::GitFetcher`, which writes the
@@ -1014,6 +1047,11 @@ fn integrity_equal(current: Option<&PackageMetadata>, wanted: Option<&PackageMet
 /// - `GitFetch` — `git` CLI clone / checkout / preparePackage /
 ///   packlist / CAS import. Equivalent to upstream's git-fetcher
 ///   inside the same `fetchPackage` dispatch.
+/// - `DirectoryFetch` — local-directory walk / manifest read /
+///   packlist for injected workspace deps. Equivalent to upstream's
+///   directory-fetcher inside the same `fetchPackage` dispatch; pnpm
+///   swallows the throw for optional snapshots uniformly with the
+///   tarball / git paths.
 ///
 /// Excluded (propagate even for optional snapshots, matching
 /// upstream's post-`fetching()` `linkPkg` path that sits outside
@@ -1028,7 +1066,8 @@ fn is_fetch_side_failure(err: &InstallPackageBySnapshotError) -> bool {
     matches!(
         err,
         InstallPackageBySnapshotError::DownloadTarball(_)
-            | InstallPackageBySnapshotError::GitFetch(_),
+            | InstallPackageBySnapshotError::GitFetch(_)
+            | InstallPackageBySnapshotError::DirectoryFetch(_),
     )
 }
 
