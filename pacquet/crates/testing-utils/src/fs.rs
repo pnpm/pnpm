@@ -51,14 +51,11 @@ pub fn is_symlink_or_junction(path: &Path) -> io::Result<bool> {
         // `junction::exists` only matches `IO_REPARSE_TAG_MOUNT_POINT`,
         // so combine it with `Path::is_symlink` to cover both reparse
         // tags `pacquet_fs::symlink_dir` can produce.
-        if junction::exists(path)? {
-            return Ok(true);
-        }
-        return Ok(path.is_symlink());
+        Ok(junction::exists(path)? || path.is_symlink())
     }
 
     #[cfg(not(windows))]
-    return Ok(path.is_symlink());
+    Ok(path.is_symlink())
 }
 
 /// Check if a file is executable.
