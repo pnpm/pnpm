@@ -340,7 +340,23 @@ fn same_global_virtual_store_layout_pure_js() {
 /// skipped scripts while pacquet ran them the slot trees would
 /// diverge on the script-generated `generated-by-*.js` files even
 /// though the hash itself agreed.
+///
+/// **Ignored until a pnpm release ships the engine-name fix from
+/// commit 8f05529c11.** This test requires pnpm and pacquet to agree
+/// on the `<platform>;<arch>;node<major>` triple used in the
+/// engine-included hash branch. Pre-fix pnpm anchored the value to
+/// `process.version` — the Node embedded in the `@pnpm/exe` SEA
+/// bundle on Linux/macOS CI runners, currently Node 26 — while
+/// pacquet (and any non-SEA caller) detects the `node` on `PATH`,
+/// which on GHA's standard runners is Node 24. The hash digests
+/// therefore land at different majors and the slot paths diverge.
+/// The pnpm-side fix in this PR resolves `engineName()` via
+/// `getSystemNodeVersion()` which prefers the shell `node`, so once
+/// a published pnpm version with that fix reaches
+/// [`pnpm/setup`](https://github.com/pnpm/setup) the test will pass
+/// without modification — re-enable it then.
 #[test]
+#[ignore = "depends on a published pnpm version that includes commit 8f05529c11; see test doc comment"]
 fn same_global_virtual_store_layout_with_approved_postinstall() {
     let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info } =
         CommandTempCwd::init().add_mocked_registry();

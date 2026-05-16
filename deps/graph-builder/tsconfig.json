@@ -25,6 +25,9 @@
       "path": "../../core/types"
     },
     {
+      "path": "../../engine/runtime/system-node-version"
+    },
+    {
       "path": "../../hooks/types"
     },
     {
