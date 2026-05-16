@@ -8,7 +8,6 @@ use pacquet_store_dir::{SharedVerifiedFilesCache, StoreDir};
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 use std::{
-    fs,
     path::Path,
     sync::{Mutex, atomic::AtomicU8},
 };
@@ -114,8 +113,16 @@ pub async fn should_find_package_version_from_registry() {
     );
     assert!(virtual_store_path.is_dir());
 
-    // Make sure the symlink is resolving to the correct path
-    assert_eq!(fs::read_link(modules_dir.path().join(&package.name)).unwrap(), virtual_store_path);
+    // Make sure the symlink resolves to the correct path. pacquet
+    // writes the contents as a path relative to the link's parent
+    // (matching upstream `symlink-dir`), so canonicalize via the
+    // link itself rather than comparing `read_link` output against
+    // the absolute store path.
+    let symlink_path = modules_dir.path().join(&package.name);
+    assert_eq!(
+        dunce::canonicalize(&symlink_path).expect("canonicalize symlink"),
+        dunce::canonicalize(&virtual_store_path).expect("canonicalize virtual store path"),
+    );
 }
 
 /// `InstallPackageFromRegistry::run` (the no-lockfile path) emits

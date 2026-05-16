@@ -1,9 +1,8 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_fs::symlink_dir;
+use pacquet_fs::force_symlink_dir;
 use std::{
-    fs,
-    io::{self, ErrorKind},
+    fs, io,
     path::{Path, PathBuf},
 };
 
@@ -26,34 +25,40 @@ pub enum SymlinkPackageError {
     },
 }
 
-/// Create symlink for a package.
+/// Create a `node_modules/<name>` symlink for a direct dependency.
 ///
-/// * If ancestors of `symlink_path` don't exist, they will be created recursively.
-/// * If `symlink_path` already exists, skip.
-/// * If `symlink_path` doesn't exist, a symlink pointing to `symlink_target` will be created.
+/// Wraps [`pacquet_fs::force_symlink_dir`] so the call site mirrors
+/// pnpm's `symlinkDependency` (which calls `symlinkDir(target, link)`
+/// with the library's default `{ overwrite: true }`). That means:
+///
+/// * Missing parent directories are created with `create_dir_all`.
+/// * An existing symlink already pointing at `symlink_target` is
+///   reused (no-op).
+/// * An existing symlink pointing elsewhere is replaced.
+/// * A regular file or non-empty directory squatting at
+///   `symlink_path` is renamed to
+///   `<parent>/.ignored_<basename>` and the symlink is created.
+///
+/// The pre-port version silently swallowed `AlreadyExists` from
+/// `pacquet_fs::symlink_dir`, which left stale symlinks in place
+/// across re-installs that retargeted a dependency — a divergence
+/// from upstream's overwrite-by-default behavior.
 pub fn symlink_package(
     symlink_target: &Path,
     symlink_path: &Path,
 ) -> Result<(), SymlinkPackageError> {
-    // NOTE: symlink target in pacquet is absolute yet in pnpm is relative
-    // TODO: change symlink target to relative
     if let Some(parent) = symlink_path.parent() {
         fs::create_dir_all(parent).map_err(|error| SymlinkPackageError::CreateParentDir {
             dir: parent.to_path_buf(),
             error,
         })?;
     }
-    if let Err(error) = symlink_dir(symlink_target, symlink_path) {
-        match error.kind() {
-            ErrorKind::AlreadyExists => {}
-            _ => {
-                return Err(SymlinkPackageError::SymlinkDir {
-                    symlink_target: symlink_target.to_path_buf(),
-                    symlink_path: symlink_path.to_path_buf(),
-                    error,
-                });
-            }
+    force_symlink_dir(symlink_target, symlink_path).map_err(|error| {
+        SymlinkPackageError::SymlinkDir {
+            symlink_target: symlink_target.to_path_buf(),
+            symlink_path: symlink_path.to_path_buf(),
+            error,
         }
-    }
+    })?;
     Ok(())
 }

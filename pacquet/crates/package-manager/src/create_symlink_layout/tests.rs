@@ -24,8 +24,13 @@ fn assert_symlink_shape(
     let symlink_path = virtual_node_modules_dir.join(alias);
     let read = fs::read_link(&symlink_path)
         .unwrap_or_else(|err| panic!("read_link {symlink_path:?}: {err}"));
-    let expected =
+    let target_path =
         layout.slot_dir(target_key).join("node_modules").join(target_key.name.to_string());
+    // pacquet writes the symlink contents as a path relative to the
+    // link's parent dir, matching upstream `symlink-dir`. The
+    // expected on-disk contents are the same relative form.
+    let expected = pathdiff::diff_paths(&target_path, virtual_node_modules_dir)
+        .expect("compute relative target");
     assert_eq!(read, expected);
 }
 
@@ -221,9 +226,13 @@ fn alias_dep_links_under_alias_but_resolves_via_target() {
 
     let symlink_path = virtual_node_modules_dir.join("string-width-cjs");
     let read = fs::read_link(&symlink_path).expect("read_link");
-    let expected = layout
+    let target_path = layout
         .slot_dir(&"string-width@4.2.3".parse().unwrap())
         .join("node_modules")
         .join("string-width");
+    // The on-disk contents are the path from the link's parent dir
+    // to the slot dir (relative encoding, matching `symlink-dir`).
+    let expected = pathdiff::diff_paths(&target_path, &virtual_node_modules_dir)
+        .expect("compute relative target");
     assert_eq!(read, expected);
 }

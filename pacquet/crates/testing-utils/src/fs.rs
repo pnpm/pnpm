@@ -44,10 +44,18 @@ pub fn get_all_files(root: &Path) -> Vec<String> {
 // Helper function to check if a path is a symlink or junction
 pub fn is_symlink_or_junction(path: &Path) -> io::Result<bool> {
     #[cfg(windows)]
-    return junction::exists(path);
+    {
+        // True symlinks land here when the process has the
+        // `SeCreateSymbolicLinkPrivilege` (Developer Mode or admin),
+        // which is the case on GitHub Actions Windows runners.
+        // `junction::exists` only matches `IO_REPARSE_TAG_MOUNT_POINT`,
+        // so combine it with `Path::is_symlink` to cover both reparse
+        // tags `pacquet_fs::symlink_dir` can produce.
+        Ok(junction::exists(path)? || path.is_symlink())
+    }
 
     #[cfg(not(windows))]
-    return Ok(path.is_symlink());
+    Ok(path.is_symlink())
 }
 
 /// Check if a file is executable.
