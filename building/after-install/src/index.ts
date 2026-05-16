@@ -11,9 +11,9 @@ import {
 } from '@pnpm/constants'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { calcDepState, type DepsStateCache, lockfileToDepGraph } from '@pnpm/deps.graph-hasher'
-import { findRuntimeNodeVersion } from '@pnpm/engine.runtime.system-node-version'
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import * as dp from '@pnpm/deps.path'
+import { findRuntimeNodeVersion } from '@pnpm/engine.runtime.system-node-version'
 import { PnpmError } from '@pnpm/error'
 import {
   runLifecycleHooksConcurrently,
