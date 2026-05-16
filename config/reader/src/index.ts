@@ -657,9 +657,11 @@ export async function getConfig (opts: {
 
   // The `pmOnFail` config setting overrides whatever onFail the
   // wantedPackageManager carried, so users (and internal callers) can force
-  // a specific behavior without editing the manifest. Otherwise, the legacy
-  // `packageManager` field defaults to `download` — `devEngines.packageManager`
-  // already has onFail set during parsing.
+  // a specific behavior without editing the manifest. Otherwise, both the
+  // legacy `packageManager` field and singular `devEngines.packageManager`
+  // fall through to `download` (the documented default for `pmOnFail`); the
+  // array form of `devEngines.packageManager` already has its own per-element
+  // defaults applied during parsing.
   if (pnpmConfig.wantedPackageManager) {
     if (pnpmConfig.pmOnFail) {
       pnpmConfig.wantedPackageManager.onFail = pnpmConfig.pmOnFail
@@ -764,7 +766,7 @@ export function parsePackageManager (packageManager: string): { name: string, ve
 function parseDevEnginesPackageManager (devEngines?: DevEngines): EngineDependency | undefined {
   if (!devEngines?.packageManager) return undefined
   let pmEngine: EngineDependency | undefined
-  let onFail: 'ignore' | 'warn' | 'error' | 'download'
+  let onFail: 'ignore' | 'warn' | 'error' | 'download' | undefined
   if (Array.isArray(devEngines.packageManager)) {
     const engines = devEngines.packageManager
     if (engines.length === 0) return undefined
@@ -781,7 +783,11 @@ function parseDevEnginesPackageManager (devEngines?: DevEngines): EngineDependen
     }
   } else {
     pmEngine = devEngines.packageManager
-    onFail = pmEngine.onFail ?? 'error'
+    // Singular form: leave onFail undefined when the user did not set it, so
+    // the central pmOnFail default ('download') applies. The array form keeps
+    // its own per-element defaults ('error' for the last entry, 'ignore' for
+    // the rest) because those reflect explicit prioritisation by the user.
+    onFail = pmEngine.onFail
   }
   if (!pmEngine?.name) return undefined
   return {

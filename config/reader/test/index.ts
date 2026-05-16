@@ -166,6 +166,47 @@ test('runtimeOnFail=ignore overrides an existing onFail=download and removes nod
   expect(context.rootProjectManifest?.devDependencies?.node).toBeUndefined()
 })
 
+test('devEngines.packageManager without onFail resolves to the documented pmOnFail default "download" (#11676)', async () => {
+  prepare({
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '11.0.0',
+      },
+    },
+  })
+
+  const { context } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '11.0.0' },
+  })
+
+  expect(context.wantedPackageManager).toMatchObject({
+    name: 'pnpm',
+    version: '11.0.0',
+    onFail: 'download',
+  })
+})
+
+test('devEngines.packageManager with explicit onFail is respected (regression guard for #11676)', async () => {
+  prepare({
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '11.0.0',
+        onFail: 'error',
+      },
+    },
+  })
+
+  const { context } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '11.0.0' },
+  })
+
+  expect(context.wantedPackageManager?.onFail).toBe('error')
+})
+
 test('throw error if --link-workspace-packages is used with --global', async () => {
   await expect(getConfig({
     cliOptions: {

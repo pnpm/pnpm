@@ -143,7 +143,7 @@ test('devEngines.packageManager with onFail=ignore should not check version', as
   expect(stderr.toString()).not.toContain('0.0.1')
 })
 
-test('devEngines.packageManager defaults to onFail=error', async () => {
+test('devEngines.packageManager defaults to onFail=download (#11676)', async () => {
   prepare({
     devEngines: {
       packageManager: {
@@ -153,10 +153,19 @@ test('devEngines.packageManager defaults to onFail=error', async () => {
     },
   })
 
-  const { status, stderr } = execPnpmSync(['install'])
+  // The documented `pmOnFail` default is `download`. Run under COREPACK_ROOT
+  // to short-circuit the actual version switch (corepack owns version
+  // selection there), so the test exercises the resolved default without a
+  // network round-trip. Pre-fix, devEngines.packageManager defaulted to
+  // `error` and the corepack-specific download-fallthrough hint did NOT
+  // appear. Asserting on that hint pins the new behavior.
+  const { status, stderr } = execPnpmSync(['install'], {
+    env: { COREPACK_ROOT: '/fake/corepack' },
+  })
 
   expect(status).toBe(1)
   expect(stderr.toString()).toContain('This project is configured to use 0.0.1 of pnpm')
+  expect(stderr.toString()).toContain('does not switch versions when running under corepack')
 })
 
 test('devEngines.packageManager with a different PM name should fail with onFail=error', async () => {
