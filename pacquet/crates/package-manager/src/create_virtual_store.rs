@@ -384,7 +384,7 @@ impl<'a> CreateVirtualStore<'a> {
                 // directory-fetcher never runs on the second install.
                 if matches!(
                     wanted_metadata.map(|m| &m.resolution),
-                    Some(LockfileResolution::Directory(_))
+                    Some(LockfileResolution::Directory(_)),
                 ) {
                     return true;
                 }
