@@ -76,21 +76,23 @@ pub fn should_symlink_correctly() {
     assert!(virtual_store_dir.exists());
 
     eprintln!("Make sure the symlinks are correct");
+    // pacquet writes the symlink target as a path relative to the
+    // link's parent (matching upstream `symlink-dir`), so
+    // canonicalize the symlink itself rather than comparing
+    // `read_link`'s relative output against an absolute path.
+    let symlink_path = virtual_store_dir
+        .join("@pnpm.e2e+hello-world-js-bin-parent@1.0.0")
+        .join("node_modules")
+        .join("@pnpm.e2e")
+        .join("hello-world-js-bin");
+    let target_path = virtual_store_dir
+        .join("@pnpm.e2e+hello-world-js-bin@1.0.0")
+        .join("node_modules")
+        .join("@pnpm.e2e")
+        .join("hello-world-js-bin");
     assert_eq!(
-        virtual_store_dir
-            .join("@pnpm.e2e+hello-world-js-bin-parent@1.0.0")
-            .join("node_modules")
-            .join("@pnpm.e2e")
-            .join("hello-world-js-bin")
-            .pipe(fs::read_link)
-            .expect("read link"),
-        virtual_store_dir
-            .join("@pnpm.e2e+hello-world-js-bin@1.0.0")
-            .join("node_modules")
-            .join("@pnpm.e2e")
-            .join("hello-world-js-bin")
-            .pipe(fs::canonicalize)
-            .expect("canonicalize link target"),
+        symlink_path.pipe(fs::canonicalize).expect("canonicalize symlink"),
+        target_path.pipe(fs::canonicalize).expect("canonicalize link target"),
     );
 
     drop((root, anchor)); // cleanup

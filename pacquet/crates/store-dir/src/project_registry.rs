@@ -438,9 +438,11 @@ mod tests {
         let mut entries: Vec<_> = fs::read_dir(&registry_dir).unwrap().collect();
         assert_eq!(entries.len(), 1, "exactly one entry per project");
         let entry = entries.pop().unwrap().unwrap();
-        let target = fs::read_link(entry.path()).expect("entry is a symlink");
+        // `symlink_dir` writes a path relative to the link's parent
+        // (matching upstream `symlink-dir`), so canonicalize via the
+        // entry path itself rather than the raw `read_link` output.
         assert_eq!(
-            dunce::canonicalize(&target).unwrap(),
+            dunce::canonicalize(entry.path()).unwrap(),
             dunce::canonicalize(project.path()).unwrap(),
             "symlink resolves back to the project dir",
         );
