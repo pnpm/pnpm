@@ -163,15 +163,7 @@ export async function installDeps (
   opts: InstallDepsOptions,
   params: string[]
 ): Promise<void> {
-  // The optimistic-repeat fast path declares the install "up to date" based on
-  // lockfile vs node_modules state alone and never reaches the install
-  // function. When the lockfile minimumReleaseAge gate is active (strict
-  // mode) we need the revalidation pass inside mutateModules to run, so skip
-  // the fast path. Gated on strict mode so the built-in default (non-strict,
-  // 1 day) keeps the optimisticRepeatInstall optimization intact for everyone
-  // who hasn't explicitly opted in.
-  const minimumReleaseAgeGateActive = Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true
-  if (!opts.update && !opts.dedupe && params.length === 0 && opts.optimisticRepeatInstall && !minimumReleaseAgeGateActive) {
+  if (!opts.update && !opts.dedupe && params.length === 0 && opts.optimisticRepeatInstall) {
     const { upToDate } = await checkDepsStatus({
       ...opts,
       ignoreFilteredInstallCache: true,
