@@ -42,7 +42,6 @@ pub fn symlink_dir(original: &Path, link: &Path) -> io::Result<()> {
 /// absolute `original` so the kernel still gets a valid path. This
 /// matches upstream's behavior when `path.relative` returns an
 /// absolute path because the two arguments share no common root.
-#[cfg(any(unix, test))]
 fn relative_target_for(original: &Path, link: &Path) -> PathBuf {
     let parent = link.parent().unwrap_or_else(|| Path::new(""));
     pathdiff::diff_paths(original, parent).unwrap_or_else(|| original.to_path_buf())
@@ -299,10 +298,21 @@ mod windows {
 
     pub fn create(original: &Path, link: &Path) -> io::Result<()> {
         match MODE.load(Ordering::Relaxed) {
-            USE_SYMLINK => std::os::windows::fs::symlink_dir(original, link),
+            USE_SYMLINK => create_true_symlink(original, link),
             USE_JUNCTION => junction::create(original, link),
             _ => probe_and_cache(original, link),
         }
+    }
+
+    /// True symlinks on Windows take a relative target — pnpm's
+    /// `resolveSrcOnTrueSymlink` (shared between Unix and Windows in
+    /// upstream `symlink-dir`) is `path.relative(dirname(dest), src)`.
+    /// Junctions take the absolute path with a trailing backslash, but
+    /// the `junction` crate handles that internally so we pass
+    /// `original` through unchanged for the junction branch.
+    fn create_true_symlink(original: &Path, link: &Path) -> io::Result<()> {
+        let rel = super::relative_target_for(original, link);
+        std::os::windows::fs::symlink_dir(&rel, link)
     }
 
     fn probe_and_cache(original: &Path, link: &Path) -> io::Result<()> {
@@ -313,7 +323,7 @@ mod windows {
         // `ERROR_PRIVILEGE_NOT_HELD` (`PermissionDenied`) when the
         // process can't create symlinks; junctions don't carry that
         // constraint, so fall back to those.
-        match std::os::windows::fs::symlink_dir(original, link) {
+        match create_true_symlink(original, link) {
             Ok(()) => {
                 MODE.store(USE_SYMLINK, Ordering::Relaxed);
                 Ok(())
