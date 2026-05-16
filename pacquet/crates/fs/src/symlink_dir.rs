@@ -160,7 +160,7 @@ fn force_symlink_inner(
                         format!(
                             "Error while trying to symlink {target:?} to {link:?}. \
                              The error happened while trying to create the parent directory \
-                             for the symlink target. Details: {mkdir_err}"
+                             for the symlink target. Details: {mkdir_err}",
                         ),
                     )
                 })?;
@@ -268,7 +268,7 @@ fn rename_overwrite(src: &Path, dst: &Path) -> io::Result<()> {
                 error.kind(),
                 io::ErrorKind::AlreadyExists
                     | io::ErrorKind::DirectoryNotEmpty
-                    | io::ErrorKind::PermissionDenied
+                    | io::ErrorKind::PermissionDenied,
             );
             if !occupied {
                 return Err(error);
