@@ -1,8 +1,13 @@
 import { describe, expect, it } from '@jest/globals'
-import { ENGINE_NAME } from '@pnpm/constants'
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 import { calcGraphNodeHash, type DepsGraph, type DepsStateCache, type PkgMeta } from '@pnpm/deps.graph-hasher'
+import { engineName } from '@pnpm/engine.runtime.system-node-version'
 import type { DepPath, PkgIdWithPatchHash } from '@pnpm/types'
+
+// Track the same script-runner-Node value the production code uses
+// instead of importing the legacy `ENGINE_NAME` const from
+// `@pnpm/constants`. Identical in non-SEA test runs; correct in SEA.
+const ENGINE_NAME = engineName()
 
 describe('calcGraphNodeHash', () => {
   it('should return correct hash format for unscoped package', () => {

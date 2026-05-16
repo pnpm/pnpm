@@ -8,22 +8,30 @@ use crate::{
 };
 use serde_json::{Value, json};
 use std::{
-    fs::{
-        create_dir_all, metadata, read as read_file, read_to_string, remove_file,
-        write as write_file,
-    },
+    fs::{create_dir_all, metadata, read as read_file, read_to_string, write as write_file},
     iter::{Empty, empty},
     path::{Path, PathBuf},
     sync::Arc,
 };
+// `remove_file` is only used by the Windows-only upgrade-recovery
+// test below; importing it unconditionally trips the
+// `unused-imports` dylint on Unix builds.
+#[cfg(windows)]
+use std::fs::remove_file;
 use tempfile::tempdir;
 
-/// All three shim flavors (`.sh` / no-extension, `.cmd`, `.ps1`) must
-/// be written for every linked bin so a project installed on Linux
-/// remains usable on Windows after a `git clone`. Mirrors pnpm's
-/// always-write-all-flavors behavior.
+/// On Windows pacquet writes all three shim flavors (the canonical
+/// no-extension shim, `.cmd`, `.ps1`) per linked bin. On Unix only
+/// the canonical shim lands — mirrors pnpm's
+/// [`@zkochan/cmd-shim` `createCmdFile: isWindows`](https://github.com/pnpm/cmd-shim/blob/0d79ca9534/src/index.ts#L32)
+/// default and `bins.linker`'s
+/// [`POWER_SHELL_IS_SUPPORTED = IS_WINDOWS`](https://github.com/pnpm/pnpm/blob/29a42efc3b/bins/linker/src/index.ts#L28)
+/// gate on the `createPwshFile` opt. The previous "always write all
+/// three" behavior produced extra `.cmd` / `.ps1` files in every GVS
+/// slot on Unix, splitting the file list between the two tools (see
+/// the `same_global_virtual_store_layout_*` parity tests).
 #[test]
-fn writes_all_three_shim_flavors_per_bin() {
+fn writes_shim_flavors_matching_host_platform() {
     let tmp = tempdir().unwrap();
     let pkg_dir = tmp.path().join("node_modules/foo");
     create_dir_all(&pkg_dir).unwrap();
@@ -46,17 +54,26 @@ fn writes_all_three_shim_flavors_per_bin() {
     let sh = bins_dir.join("foo");
     let cmd = bins_dir.join("foo.cmd");
     let ps1 = bins_dir.join("foo.ps1");
-    assert!(sh.exists(), "missing .sh shim");
-    assert!(cmd.exists(), "missing .cmd shim");
-    assert!(ps1.exists(), "missing .ps1 shim");
+    assert!(sh.exists(), "missing canonical shim");
 
-    let cmd_body = read_to_string(&cmd).unwrap();
-    assert!(cmd_body.starts_with("@SETLOCAL\r\n"), "cmd shim must use CRLF SETLOCAL");
-    assert!(cmd_body.contains("\"%~dp0\\..\\foo\\cli.js\""), "cmd target should be windows-style");
+    if cfg!(windows) {
+        assert!(cmd.exists(), "missing .cmd shim on Windows");
+        assert!(ps1.exists(), "missing .ps1 shim on Windows");
 
-    let ps1_body = read_to_string(&ps1).unwrap();
-    assert!(ps1_body.starts_with("#!/usr/bin/env pwsh\n"));
-    assert!(ps1_body.contains("\"$basedir/../foo/cli.js\""));
+        let cmd_body = read_to_string(&cmd).unwrap();
+        assert!(cmd_body.starts_with("@SETLOCAL\r\n"), "cmd shim must use CRLF SETLOCAL");
+        assert!(
+            cmd_body.contains("\"%~dp0\\..\\foo\\cli.js\""),
+            "cmd target should be windows-style",
+        );
+
+        let ps1_body = read_to_string(&ps1).unwrap();
+        assert!(ps1_body.starts_with("#!/usr/bin/env pwsh\n"));
+        assert!(ps1_body.contains("\"$basedir/../foo/cli.js\""));
+    } else {
+        assert!(!cmd.exists(), ".cmd shim must not be written on Unix (pnpm parity)");
+        assert!(!ps1.exists(), ".ps1 shim must not be written on Unix (pnpm parity)");
+    }
 }
 
 /// End-to-end exercise: a package with a `bin` field has a shim written
@@ -254,14 +271,21 @@ fn link_bins_skips_existing_shim_with_matching_marker() {
     assert_eq!(read_to_string(bins.join("foo")).unwrap(), sentinel);
 }
 
-/// [`link_bins`] must NOT skip when only the canonical `.sh` shim exists.
+/// [`link_bins`] must NOT skip when only the canonical shim exists.
 /// The `.cmd` and `.ps1` siblings could be missing because an older
-/// pacquet wrote `.sh`-only or because a partial-write crash interrupted
-/// the writer mid-batch. Gating on the `.sh` marker alone (an earlier
-/// version of [`super::write_shim`]) caused those upgrade paths to leave
-/// the missing siblings permanently absent.
+/// pacquet wrote the canonical shim only or because a partial-write
+/// crash interrupted the writer mid-batch. Gating on the canonical
+/// shim's marker alone (an earlier version of [`super::write_shim`])
+/// caused those upgrade paths to leave the missing siblings
+/// permanently absent.
+///
+/// Windows-only: on Unix `.cmd` and `.ps1` are not written in the
+/// first place (matches pnpm — see
+/// [`writes_shim_flavors_matching_host_platform`]), so there's
+/// nothing to recover.
+#[cfg(windows)]
 #[test]
-fn link_bins_rewrites_when_only_sh_flavor_exists() {
+fn link_bins_rewrites_when_only_canonical_flavor_exists() {
     let tmp = tempdir().unwrap();
     let modules = tmp.path().join("node_modules");
     create_dir_all(modules.join("foo")).unwrap();
@@ -273,14 +297,14 @@ fn link_bins_rewrites_when_only_sh_flavor_exists() {
     link_bins::<RealApi>(&modules, &bins).unwrap();
 
     // Simulate the partial-write / older-pacquet state: delete the
-    // .cmd and .ps1 siblings, leaving only the `.sh` shim with its
+    // .cmd and .ps1 siblings, leaving only the canonical shim with its
     // (still correct) target marker.
     remove_file(bins.join("foo.cmd")).unwrap();
     remove_file(bins.join("foo.ps1")).unwrap();
 
     link_bins::<RealApi>(&modules, &bins).unwrap();
 
-    assert!(bins.join("foo").exists(), ".sh shim must remain");
+    assert!(bins.join("foo").exists(), "canonical shim must remain");
     assert!(bins.join("foo.cmd").exists(), ".cmd sibling must be re-created on second pass");
     assert!(bins.join("foo.ps1").exists(), ".ps1 sibling must be re-created on second pass");
 }

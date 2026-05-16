@@ -40,6 +40,7 @@
     "@pnpm/deps.graph-hasher": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/deps.peer-range": "workspace:*",
+    "@pnpm/engine.runtime.system-node-version": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching.pick-fetcher": "workspace:*",
     "@pnpm/hooks.types": "workspace:*",

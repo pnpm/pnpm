@@ -205,3 +205,230 @@ fn pnpm_reads_pacquet_written_rows() {
 
     drop((root, mock_instance)); // cleanup
 }
+
+/// Filter a full store-dir listing down to the GVS slot subtree.
+///
+/// pnpm writes GVS slots under `v11/links/<scope>/<name>/<version>/<hash>/...`
+/// because [`getStorePath`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L39-L42)
+/// appends `STORE_VERSION` (`"v11"`) to the user-configured `storeDir`.
+/// Pacquet's [`StoreDir::links`](../../../../store-dir/src/store_dir.rs)
+/// puts them at `links/<scope>/<name>/<version>/<hash>/...` — one level
+/// shallower. Both prefixes pass through unmodified, so when the two
+/// path sets are diffed in `assert_eq!` the prefix divergence shows up
+/// alongside any inner-shape disagreement instead of being silently
+/// normalized away.
+fn gvs_paths_only(files: Vec<String>) -> Vec<String> {
+    files.into_iter().filter(|p| p.starts_with("links/") || p.starts_with("v11/links/")).collect()
+}
+
+/// Append GVS opt-in (and any extra fields) to the `pnpm-workspace.yaml`
+/// that [`CommandTempCwd::add_mocked_registry`] already populated with
+/// `storeDir` / `cacheDir`. `enableGlobalVirtualStore: true` is the
+/// switch that flips both pnpm and pacquet to the shared-store layout.
+fn enable_gvs_in_workspace_yaml(workspace: &std::path::Path, extra_yaml: &str) {
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    // Guarantee a newline before the appended keys. If the helper
+    // that wrote the file ever drops the trailing newline, naive
+    // concatenation would merge its last key with
+    // `enableGlobalVirtualStore` and produce invalid YAML — flagged
+    // by CodeRabbit on PR #11689.
+    if !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    yaml.push_str("enableGlobalVirtualStore: true\n");
+    yaml.push_str(extra_yaml);
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+}
+
+/// Run pnpm-then-pacquet against a shared workspace and compare the
+/// GVS slot trees they each materialize. Pnpm runs first so the
+/// lockfile exists before pacquet starts — pacquet's GVS write path
+/// is gated on `frozen_lockfile && enable_global_virtual_store` (see
+/// `package-manager/src/install.rs:299` and the
+/// [`VirtualStoreLayout::legacy`](../../../../package-manager/src/virtual_store_layout.rs)
+/// docstring), so a fresh install with no lockfile would silently fall
+/// through to the project-local layout and the test would pass for the
+/// wrong reason.
+///
+/// Caller passes `pnpm_extra_args` so individual tests can add things
+/// like `--ignore-scripts` without hard-coding it here. The store and
+/// `node_modules` are wiped between the two installs so pacquet writes
+/// the slot tree from scratch rather than reading pnpm's leftovers.
+fn install_then_compare_gvs(
+    pnpm: std::process::Command,
+    pacquet: std::process::Command,
+    store_dir: &std::path::Path,
+    modules_dir: &std::path::Path,
+    pnpm_extra_args: &[&str],
+) {
+    let mut pnpm_args = vec!["install"];
+    pnpm_args.extend_from_slice(pnpm_extra_args);
+    eprintln!("Installing with pnpm (writes lockfile + pnpm-side GVS slots)...");
+    pnpm.with_args(pnpm_args).assert().success();
+    let pnpm_gvs_paths = gvs_paths_only(get_all_files(store_dir));
+    assert!(
+        !pnpm_gvs_paths.is_empty(),
+        "pnpm must have written GVS slots; got nothing matching v11/links/ or links/",
+    );
+
+    eprintln!("Wiping store + node_modules (keeping lockfile so pacquet runs in frozen mode)...");
+    fs::remove_dir_all(store_dir).expect("delete store dir");
+    fs::remove_dir_all(modules_dir).expect("delete node_modules");
+
+    eprintln!("Installing with pacquet --frozen-lockfile (writes pacquet-side GVS slots)...");
+    pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
+    let pacquet_gvs_paths = gvs_paths_only(get_all_files(store_dir));
+
+    eprintln!("Comparing GVS layouts (pnpm on the right, pacquet on the left)...");
+    assert_eq!(&pacquet_gvs_paths, &pnpm_gvs_paths);
+}
+
+/// Pure-JS GVS parity: a package with one transitive dep, no install
+/// scripts. With `allowBuilds` left at the GVS default of `{}` —
+/// upstream's
+/// [`extendInstallOptions.ts:354`](https://github.com/pnpm/pnpm/blob/29a42efc3b/installing/deps-installer/src/install/extendInstallOptions.ts#L354)
+/// applies `??= {}` whenever `enableGlobalVirtualStore` is on — every
+/// snapshot hashes with `engine = null`, so the GVS slot tree is
+/// engine-agnostic and the comparison is independent of the host
+/// Node.js / OS / arch the test runs on.
+#[test]
+fn same_global_virtual_store_layout_pure_js() {
+    let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    enable_gvs_in_workspace_yaml(&workspace, "");
+
+    eprintln!("Creating package.json...");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    install_then_compare_gvs(
+        pnpm,
+        pacquet,
+        &store_dir,
+        &workspace.join("node_modules"),
+        &["--ignore-scripts"],
+    );
+
+    drop((root, mock_instance)); // cleanup
+}
+
+/// Engine-included GVS parity: `pre-and-postinstall-scripts-example`
+/// has install scripts and is explicitly approved via `allowBuilds`,
+/// so it lands in upstream's `builtDepPaths` set and its GVS hash
+/// includes the `ENGINE_NAME` string (see
+/// [`calcGraphNodeHash`](https://github.com/pnpm/pnpm/blob/29a42efc3b/deps/graph-hasher/src/index.ts#L140-L146)).
+/// Pacquet's
+/// [`calc_graph_node_hash`](../../../../graph-hasher/src/global_virtual_store_path.rs)
+/// must produce the same engine-included digest, or pnpm and pacquet
+/// would split the same approved-build package across two slot
+/// directories.
+///
+/// Scripts run on both sides (neither install uses `--ignore-scripts`)
+/// because pacquet doesn't expose `--ignore-scripts` yet
+/// (pacquet/crates/cli/README.md lists it as a TODO) — if pnpm
+/// skipped scripts while pacquet ran them the slot trees would
+/// diverge on the script-generated `generated-by-*.js` files even
+/// though the hash itself agreed.
+///
+/// **Ignored until a pnpm release ships the engine-name fix from
+/// commit 8f05529c11.** This test requires pnpm and pacquet to agree
+/// on the `<platform>;<arch>;node<major>` triple used in the
+/// engine-included hash branch. Pre-fix pnpm anchored the value to
+/// `process.version` — the Node embedded in the `@pnpm/exe` SEA
+/// bundle on Linux/macOS CI runners, currently Node 26 — while
+/// pacquet (and any non-SEA caller) detects the `node` on `PATH`,
+/// which on GHA's standard runners is Node 24. The hash digests
+/// therefore land at different majors and the slot paths diverge.
+/// The pnpm-side fix in this PR resolves `engineName()` via
+/// `getSystemNodeVersion()` which prefers the shell `node`, so once
+/// a published pnpm version with that fix reaches
+/// [`pnpm/setup`](https://github.com/pnpm/setup) the test will pass
+/// without modification — re-enable it then.
+#[test]
+#[ignore = "depends on a published pnpm version that includes commit 8f05529c11; see test doc comment"]
+fn same_global_virtual_store_layout_with_approved_postinstall() {
+    let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    enable_gvs_in_workspace_yaml(
+        &workspace,
+        "allowBuilds:\n  '@pnpm.e2e/pre-and-postinstall-scripts-example': true\n",
+    );
+
+    eprintln!("Creating package.json...");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    install_then_compare_gvs(
+        pnpm,
+        pacquet,
+        &store_dir,
+        &workspace.join("node_modules"),
+        &[], // scripts must run on both sides; see fn doc above
+    );
+
+    drop((root, mock_instance)); // cleanup
+}
+
+/// Diamond GVS parity: the root depends on both `pkg-with-1-dep` and
+/// `parent-of-pkg-with-1-dep`, and `parent-of-pkg-with-1-dep` itself
+/// depends on `pkg-with-1-dep`. So `pkg-with-1-dep` is reachable
+/// through two paths from the root, and `calc_dep_graph_hash` must
+/// hit its memoization cache on the second visit — if the cache key
+/// or the hash payload disagreed between pnpm and pacquet, the
+/// `pkg-with-1-dep` slot would land at one path on pnpm and another
+/// on pacquet. Mirrors the cache-correctness guarantee that the unit
+/// test [`diamond_graph_resolves_consistently`](../../../../graph-hasher/src/dep_state.rs)
+/// already covers in isolation, here exercised through the full
+/// install pipeline.
+#[test]
+fn same_global_virtual_store_layout_diamond() {
+    let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    enable_gvs_in_workspace_yaml(&workspace, "");
+
+    eprintln!("Creating package.json...");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+                "@pnpm.e2e/parent-of-pkg-with-1-dep": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    install_then_compare_gvs(
+        pnpm,
+        pacquet,
+        &store_dir,
+        &workspace.join("node_modules"),
+        &["--ignore-scripts"],
+    );
+
+    drop((root, mock_instance)); // cleanup
+}

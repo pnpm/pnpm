@@ -1748,6 +1748,9 @@ importers:
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../../deps/path
+      '@pnpm/engine.runtime.system-node-version':
+        specifier: workspace:*
+        version: link:../../engine/runtime/system-node-version
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
@@ -1960,6 +1963,9 @@ importers:
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../../deps/path
+      '@pnpm/engine.runtime.system-node-version':
+        specifier: workspace:*
+        version: link:../../engine/runtime/system-node-version
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
@@ -3256,6 +3262,9 @@ importers:
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../path
+      '@pnpm/engine.runtime.system-node-version':
+        specifier: workspace:*
+        version: link:../../engine/runtime/system-node-version
       '@pnpm/hooks.types':
         specifier: workspace:*
         version: link:../../hooks/types
@@ -3299,15 +3308,15 @@ importers:
 
   deps/graph-hasher:
     dependencies:
-      '@pnpm/constants':
-        specifier: workspace:*
-        version: link:../../core/constants
       '@pnpm/crypto.object-hasher':
         specifier: workspace:*
         version: link:../../crypto/object-hasher
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../path
+      '@pnpm/engine.runtime.system-node-version':
+        specifier: workspace:*
+        version: link:../../engine/runtime/system-node-version
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
@@ -5608,6 +5617,9 @@ importers:
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../../deps/path
+      '@pnpm/engine.runtime.system-node-version':
+        specifier: workspace:*
+        version: link:../../engine/runtime/system-node-version
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
@@ -5882,6 +5894,9 @@ importers:
       '@pnpm/deps.peer-range':
         specifier: workspace:*
         version: link:../../deps/peer-range
+      '@pnpm/engine.runtime.system-node-version':
+        specifier: workspace:*
+        version: link:../../engine/runtime/system-node-version
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
@@ -6024,6 +6039,9 @@ importers:
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../../deps/path
+      '@pnpm/engine.runtime.system-node-version':
+        specifier: workspace:*
+        version: link:../../engine/runtime/system-node-version
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error

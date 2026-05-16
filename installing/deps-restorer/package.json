@@ -48,6 +48,7 @@
     "@pnpm/deps.graph-builder": "workspace:*",
     "@pnpm/deps.graph-hasher": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
+    "@pnpm/engine.runtime.system-node-version": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.lifecycle": "workspace:*",
     "@pnpm/fs.symlink-dependency": "workspace:*",

@@ -1513,14 +1513,14 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
     .await
     .expect("frozen-lockfile install under GVS should succeed");
 
-    // `register_project` wrote `<store_dir>/projects/<short-hash>`
+    // `register_project` wrote `<store_dir>/v11/projects/<short-hash>`
     // pointing back at the project dir. Canonicalize the *entry
     // path* (not `read_link`'s output) so the kernel follows the
     // symlink — pacquet, like upstream pnpm, writes the target as
     // a path relative to the link's parent, so canonicalizing the
     // raw `read_link` string from the CWD would never resolve.
-    let projects_dir = store_dir.join("projects");
-    assert!(projects_dir.is_dir(), "GVS-on install must create <store_dir>/projects/");
+    let projects_dir = store_dir.join("v11/projects");
+    assert!(projects_dir.is_dir(), "GVS-on install must create <store_dir>/v11/projects/");
     let entries: Vec<_> =
         std::fs::read_dir(&projects_dir).unwrap().collect::<Result<_, _>>().unwrap();
     assert_eq!(entries.len(), 1, "exactly one project entry per `Install::run` invocation");
@@ -1586,7 +1586,7 @@ async fn frozen_lockfile_with_gvs_off_skips_project_registry() {
     .expect("frozen-lockfile install with GVS off should succeed");
 
     assert!(
-        !store_dir.join("projects").exists(),
+        !store_dir.join("v11/projects").exists(),
         "GVS-off install must NOT create the project-registry directory",
     );
 
@@ -1665,8 +1665,11 @@ async fn frozen_lockfile_under_gvs_registers_each_workspace_importer() {
 
     // Exactly two registry entries — one per importer. Resolve the
     // symlink targets and confirm both project roots are present.
-    let projects_dir = store_dir.join("projects");
-    assert!(projects_dir.is_dir(), "GVS-on workspace install must create <store_dir>/projects/");
+    let projects_dir = store_dir.join("v11/projects");
+    assert!(
+        projects_dir.is_dir(),
+        "GVS-on workspace install must create <store_dir>/v11/projects/",
+    );
     let mut targets: Vec<PathBuf> = std::fs::read_dir(&projects_dir)
         .unwrap()
         .map(|entry| {

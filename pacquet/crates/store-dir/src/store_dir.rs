@@ -112,23 +112,32 @@ impl StoreDir {
     }
 
     /// Path to the shared global-virtual-store directory inside the
-    /// store. Matches pnpm's [`extendInstallOptions.ts:343-355`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/src/install/extendInstallOptions.ts#L343-L355):
-    /// when `enableGlobalVirtualStore` is on and the user hasn't
-    /// pinned `virtualStoreDir`, packages live under `<store>/links`.
-    /// Note: this directory sits next to (not inside) `<store>/v11/`,
-    /// matching upstream's layout — sharing the `<store>/links` path
-    /// across pnpm and pacquet is the whole point.
+    /// store. Matches pnpm's
+    /// [`extendInstallOptions.ts:350-358`](https://github.com/pnpm/pnpm/blob/29a42efc3b/installing/deps-installer/src/install/extendInstallOptions.ts#L350-L358):
+    /// `globalVirtualStoreDir = path.join(extendedOpts.storeDir, 'links')`.
+    /// `extendedOpts.storeDir` has already been routed through
+    /// [`getStorePath`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L39-L42)
+    /// by the time that join runs, and `getStorePath` appends
+    /// `STORE_VERSION` (`"v11"`) to whatever the user configured. So
+    /// the resulting on-disk location is `<root>/v11/links`, not
+    /// `<root>/links` — the latter would put pacquet one level
+    /// shallower than pnpm and split slot caches across the two
+    /// tools. Sharing the path across pnpm and pacquet is the whole
+    /// point, so anchor under [`Self::v11`].
     pub fn links(&self) -> PathBuf {
-        self.root.join("links")
+        self.v11().join("links")
     }
 
     /// Path to the per-store projects registry — a flat directory of
-    /// symlinks (`<store>/projects/<short-hash>` → project dir) the
-    /// global-virtual-store prune sweep walks when deciding which
-    /// `<store>/links/...` slots are still referenced. Mirrors
-    /// pnpm's [`getProjectsRegistryDir`](https://github.com/pnpm/pnpm/blob/94240bc046/store/controller/src/storeController/projectRegistry.ts).
+    /// symlinks (`<store>/v11/projects/<short-hash>` → project dir)
+    /// the global-virtual-store prune sweep walks when deciding which
+    /// `<store>/v11/links/...` slots are still referenced. Mirrors
+    /// pnpm 11's
+    /// [`{storeDir}/v11/projects/` layout](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/controller/CHANGELOG.md#L136)
+    /// — same `getStorePath`-driven `v11` reasoning as
+    /// [`Self::links`].
     pub fn projects(&self) -> PathBuf {
-        self.root.join("projects")
+        self.v11().join("projects")
     }
 
     /// Borrow the raw store-root path. Most code should prefer the

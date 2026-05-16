@@ -11,6 +11,7 @@ import type {
   DepHierarchy,
 } from '@pnpm/deps.graph-builder'
 import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
+import { findRuntimeNodeVersion } from '@pnpm/engine.runtime.system-node-version'
 import { logger } from '@pnpm/logger'
 import type {
   PackageFilesResponse,
@@ -52,6 +53,15 @@ export async function linkHoistedModules (
   // We should avoid removing unnecessary directories while simultaneously adding new ones.
   // Doing so can sometimes lead to a race condition when linking commands to `node_modules/.bin`.
   await Promise.all(dirsToRemove.map((dir) => tryRemoveDir(dir)))
+  // Resolve the project's pinned runtime Node version once, before
+  // the recursive walk. The graph is keyed by install directory in
+  // this module, so scanning `Object.keys(graph)` would miss every
+  // `node@runtime:<version>` entry — pull the depPath off each
+  // node instead. Threading it down via `opts` also avoids a
+  // re-scan at every recursion level.
+  const nodeVersion = findRuntimeNodeVersion(
+    Object.values(graph).map((node) => node.depPath)
+  )
   await Promise.all(
     Object.entries(hierarchy)
       .map(([parentDir, depsHierarchy]) => {
@@ -63,6 +73,7 @@ export async function linkHoistedModules (
         }
         return linkAllPkgsInOrder(storeController, graph, depsHierarchy, parentDir, {
           ...opts,
+          nodeVersion,
           warn,
         })
       })
@@ -99,6 +110,14 @@ async function linkAllPkgsInOrder (
     preferSymlinkedExecutables?: boolean
     sideEffectsCacheRead: boolean
     supportedArchitectures?: SupportedArchitectures
+    /**
+     * Resolved `engines.runtime` Node version, computed once by
+     * [`linkHoistedModules`] before the recursion. Threaded into
+     * each [`calcDepState`] call so the side-effects-cache key
+     * prefix tracks the script-runner Node rather than pnpm's own
+     * `process.version`.
+     */
+    nodeVersion?: string
     warn: (message: string) => void
   }
 ): Promise<void> {
@@ -122,6 +141,7 @@ async function linkAllPkgsInOrder (
               includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
               patchFileHash: depNode.patch?.hash,
               supportedArchitectures: opts.supportedArchitectures,
+              nodeVersion: opts.nodeVersion,
             })
           }
         }

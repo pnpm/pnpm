@@ -1,6 +1,6 @@
-import { ENGINE_NAME } from '@pnpm/constants'
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/deps.path'
+import { engineName } from '@pnpm/engine.runtime.system-node-version'
 import type { LockfileObject, LockfileResolution, PackageSnapshot } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { resolvePlatformSelector, selectPlatformVariant } from '@pnpm/resolving.resolver-base'
@@ -30,9 +30,19 @@ export function calcDepState<T extends string> (
     patchFileHash?: string
     includeDepGraphHash: boolean
     supportedArchitectures?: SupportedArchitectures
+    /**
+     * Resolved `engines.runtime` / `devEngines.runtime` Node version
+     * for the project being installed (e.g. `"22.11.0"`). When set,
+     * the side-effects-cache key reflects this script-runner Node
+     * rather than the Node that pnpm itself is running on — see
+     * {@link engineName} for the full resolution order. Typically
+     * computed once per install via {@link findRuntimeNodeVersion}
+     * over the lockfile's snapshot keys.
+     */
+    nodeVersion?: string
   }
 ): string {
-  let result = ENGINE_NAME
+  let result = engineName(opts.nodeVersion)
   if (opts.includeDepGraphHash) {
     const depGraphHash = calcDepGraphHash(depsGraph, cache, new Set(), depPath, opts.supportedArchitectures)
     result += `;deps=${depGraphHash}`
@@ -96,7 +106,18 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
   graph: DepsGraph<DepPath>,
   pkgMetaIterator: PkgMetaIterator<T>,
   allowBuild?: AllowBuild,
-  supportedArchitectures?: SupportedArchitectures
+  supportedArchitectures?: SupportedArchitectures,
+  /**
+   * Resolved `engines.runtime` / `devEngines.runtime` Node version
+   * for the project being installed. Forwarded as-is into each
+   * snapshot's [`calcGraphNodeHash`] call so the engine portion of
+   * the GVS hash reflects the Node that will actually run lifecycle
+   * scripts — typically obtained via [`findRuntimeNodeVersion`]
+   * over the lockfile's snapshot keys. `undefined` falls back to
+   * [`engineName`]'s default (system `node --version`, with
+   * `process.version` as a last resort).
+   */
+  nodeVersion?: string
 ): IterableIterator<HashedDepPath<T>> {
   let builtDepPaths: Set<DepPath> | undefined
   let entries: Iterable<T>
@@ -113,6 +134,7 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
     builtDepPaths,
     buildRequiredCache: builtDepPaths !== undefined ? {} : undefined,
     supportedArchitectures,
+    nodeVersion,
   }
   for (const pkgMeta of entries) {
     yield {
@@ -123,12 +145,14 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
 }
 
 export function calcGraphNodeHash<T extends PkgMeta> (
-  { graph, cache, builtDepPaths, buildRequiredCache, supportedArchitectures }: {
+  { graph, cache, builtDepPaths, buildRequiredCache, supportedArchitectures, nodeVersion }: {
     graph: DepsGraph<DepPath>
     cache: DepsStateCache
     builtDepPaths?: Set<DepPath>
     buildRequiredCache?: Record<string, boolean>
     supportedArchitectures?: SupportedArchitectures
+    /** See [`iterateHashedGraphNodes`]'s `nodeVersion` parameter. */
+    nodeVersion?: string
   },
   pkgMeta: T
 ): string {
@@ -140,7 +164,7 @@ export function calcGraphNodeHash<T extends PkgMeta> (
   // so they survive Node.js upgrades and architecture changes.
   const includeEngine = builtDepPaths === undefined ||
     transitivelyRequiresBuild(graph, builtDepPaths, buildRequiredCache ??= {}, depPath, new Set())
-  const engine = includeEngine ? ENGINE_NAME : null
+  const engine = includeEngine ? engineName(nodeVersion) : null
   const deps = calcDepGraphHash(graph, cache, new Set(), depPath, supportedArchitectures)
   const hexDigest = hashObjectWithoutSorting({ engine, deps }, { encoding: 'hex' })
   return formatGlobalVirtualStorePath(name, version, hexDigest)
