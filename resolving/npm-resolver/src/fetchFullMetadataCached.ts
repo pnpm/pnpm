@@ -12,8 +12,8 @@ export interface FetchFullMetadataCachedOptions {
    * pnpm's on-disk cache directory. When set, the call issues a conditional
    * GET against the same `FULL_META_DIR` mirror the resolver populates: a
    * 304 Not Modified response serves the body from disk, a 200 writes the
-   * new body back. Omit to disable caching — every call refetches the full
-   * manifest.
+   * new body back. Omit to disable caching — every call re-fetches the
+   * full manifest.
    */
   cacheDir?: string
 }
