@@ -31,7 +31,7 @@ interface CacheRecord {
   /**
    * Minimum release age (in minutes) the cached verification was run with.
    * A future install with a stricter (larger) cutoff cannot reuse this
-   * record — its set of in-cooldown versions may have grown.
+   * record — its set of below-cutoff versions may have grown.
    */
   minimumReleaseAge: number
   /** ISO-8601 timestamp of when the verification ran. */
