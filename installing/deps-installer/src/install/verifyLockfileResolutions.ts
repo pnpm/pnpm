@@ -18,12 +18,12 @@ const MAX_VIOLATIONS_TO_PRINT = 20
 
 // 16 mirrors the floor of pnpm's package-requester network-concurrency
 // (Math.min(64, Math.max(workers*3, 16))); keep them aligned so the
-// revalidation pass doesn't push past what the rest of the install respects.
+// verification pass doesn't push past what the rest of the install respects.
 const DEFAULT_CONCURRENCY = 16
 
 /**
  * Policy-neutral pass that asks each resolver-supplied {@link ResolutionVerifier}
- * to re-check every entry in a lockfile loaded from disk. Iteration runs
+ * to check every entry in a lockfile loaded from disk. Iteration runs
  * before resolution decisions are touched and before any tarball is
  * fetched, so a lockfile whose entries were resolved elsewhere (committed
  * to the repo, restored from a cache, etc.) under a weaker or absent
@@ -37,7 +37,7 @@ const DEFAULT_CONCURRENCY = 16
  *
  * No-op when `verifyResolution` is undefined (no active policies).
  */
-export async function revalidateLockfileResolutions (
+export async function verifyLockfileResolutions (
   lockfile: LockfileObject,
   verifyResolution: ResolutionVerifier | undefined,
   options?: { concurrency?: number }
@@ -80,7 +80,7 @@ export async function revalidateLockfileResolutions (
     : breakdown
   // Use the code of the first violation — all of today's violations are the
   // same shape (one verifier, one code). If multiple verifiers fire later
-  // with mixed codes, switch to a generic LOCKFILE_RESOLUTION_REVALIDATION
+  // with mixed codes, switch to a generic LOCKFILE_RESOLUTION_VERIFICATION
   // code and list per-entry codes in the breakdown.
   throw new PnpmError(
     violations[0].code,

@@ -94,8 +94,8 @@ import {
 } from './extendInstallOptions.js'
 import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
-import { revalidateLockfileResolutions } from './revalidateLockfileResolutions.js'
 import { validateModules } from './validateModules.js'
+import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 
 class LockfileConfigMismatchError extends PnpmError {
   constructor (outdatedLockfileSettingName: string) {
@@ -338,7 +338,7 @@ export async function mutateModules (
   // resolver's own filters already cover fresh resolution. We run this
   // exactly once, right after the lockfile is loaded from disk, before any
   // path branches.
-  await revalidateLockfileResolutions(ctx.wantedLockfile, opts.verifyResolution)
+  await verifyLockfileResolutions(ctx.wantedLockfile, opts.verifyResolution)
 
   if (opts.hooks.preResolution) {
     for (const preResolution of opts.hooks.preResolution) {
@@ -916,7 +916,6 @@ Note that in CI environments, this setting is enabled by default.`,
     } else {
       logger.info({ message: 'Lockfile is up to date, resolution step is skipped', prefix: opts.lockfileDir })
     }
-
     try {
       const { stats, ignoredBuilds } = await headlessInstall({
         ...ctx,

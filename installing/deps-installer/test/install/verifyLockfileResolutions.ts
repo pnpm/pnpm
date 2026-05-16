@@ -2,7 +2,7 @@ import { expect, test } from '@jest/globals'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 
-import { revalidateLockfileResolutions } from '../../src/install/revalidateLockfileResolutions.js'
+import { verifyLockfileResolutions } from '../../src/install/verifyLockfileResolutions.js'
 
 function makeLockfile (packages: Record<string, { resolution: unknown, version?: string }>): LockfileObject {
   return {
@@ -20,12 +20,12 @@ test('no-op when verifyResolution is undefined', async () => {
   const lockfile = makeLockfile({
     'fresh@1.0.0': { resolution: tarballResolution() },
   })
-  await expect(revalidateLockfileResolutions(lockfile, undefined)).resolves.toBeUndefined()
+  await expect(verifyLockfileResolutions(lockfile, undefined)).resolves.toBeUndefined()
 })
 
 test('no-op when lockfile has no packages', async () => {
   const lockfile = makeLockfile({})
-  await expect(revalidateLockfileResolutions(lockfile, okVerifier)).resolves.toBeUndefined()
+  await expect(verifyLockfileResolutions(lockfile, okVerifier)).resolves.toBeUndefined()
 })
 
 test('passes when every entry is verified ok', async () => {
@@ -33,7 +33,7 @@ test('passes when every entry is verified ok', async () => {
     'lodash@4.17.21': { resolution: tarballResolution() },
     'is-odd@0.1.0': { resolution: tarballResolution() },
   })
-  await expect(revalidateLockfileResolutions(lockfile, okVerifier)).resolves.toBeUndefined()
+  await expect(verifyLockfileResolutions(lockfile, okVerifier)).resolves.toBeUndefined()
 })
 
 test('throws with the verifier-supplied code and reason on a single failure', async () => {
@@ -46,7 +46,7 @@ test('throws with the verifier-supplied code and reason on a single failure', as
     reason: 'was published yesterday',
   })
 
-  await expect(revalidateLockfileResolutions(lockfile, verifier)).rejects.toMatchObject({
+  await expect(verifyLockfileResolutions(lockfile, verifier)).rejects.toMatchObject({
     code: 'ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION',
     message: expect.stringMatching(/is-odd@0\.1\.2 was published yesterday/),
   })
@@ -63,7 +63,7 @@ test('lists violations in stable order across multiple failures', async () => {
     reason: `${name}@${version} failed`,
   })
 
-  await expect(revalidateLockfileResolutions(lockfile, verifier))
+  await expect(verifyLockfileResolutions(lockfile, verifier))
     .rejects.toThrow(/fresh-a@1\.0\.0[\s\S]*fresh-b@2\.0\.0/)
 })
 
@@ -81,7 +81,7 @@ test('caps printed violations at 20 with an "…and N more" summary', async () =
     reason: `${name}@${version}`,
   })
 
-  await expect(revalidateLockfileResolutions(lockfile, verifier))
+  await expect(verifyLockfileResolutions(lockfile, verifier))
     .rejects.toThrow(/25 lockfile entries failed verification[\s\S]*…and 5 more/)
 })
 
@@ -97,7 +97,7 @@ test('dedupes peer/patch-suffix variants and invokes the verifier once per (name
     return { ok: true }
   }
 
-  await revalidateLockfileResolutions(lockfile, verifier)
+  await verifyLockfileResolutions(lockfile, verifier)
   expect(seen).toEqual([{ name: 'react', version: '18.0.0' }])
 })
 
@@ -114,7 +114,7 @@ test('the verifier sees the resolution shape verbatim', async () => {
     return { ok: true }
   }
 
-  await revalidateLockfileResolutions(lockfile, verifier)
+  await verifyLockfileResolutions(lockfile, verifier)
   expect(received).toEqual(expect.arrayContaining([npmResolution, gitResolution]))
 })
 
@@ -129,7 +129,7 @@ test('uses the first violation\'s code when multiple verifiers fire', async () =
     reason: 'failed',
   })
 
-  await expect(revalidateLockfileResolutions(lockfile, verifier)).rejects.toMatchObject({
+  await expect(verifyLockfileResolutions(lockfile, verifier)).rejects.toMatchObject({
     code: 'ERR_PNPM_POLICY_A',
   })
 })
