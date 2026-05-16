@@ -118,6 +118,7 @@ type LockfileMinimumReleaseAgeGateOpts =
   | 'minimumReleaseAge'
   | 'minimumReleaseAgeStrict'
   | 'minimumReleaseAgeExclude'
+  | 'cacheDir'
   | 'fetchRetries'
   | 'fetchRetryFactor'
   | 'fetchRetryMintimeout'

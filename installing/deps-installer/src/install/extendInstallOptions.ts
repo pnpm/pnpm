@@ -177,6 +177,14 @@ export interface StrictInstallOptions {
   minimumReleaseAgeExclude?: string[]
   minimumReleaseAgeStrict?: boolean
   /**
+   * Path to pnpm's on-disk cache directory. Forwarded into the lockfile
+   * minimumReleaseAge revalidation fetcher so it can issue conditional GETs
+   * against the same metadata mirror the resolver uses; without it, every
+   * locked entry would round-trip the full registry document on every
+   * install.
+   */
+  cacheDir?: string
+  /**
    * Network-retry/timeout settings forwarded into the lockfile
    * minimumReleaseAge revalidation fetcher so it inherits the same retry
    * envelope the rest of the install uses; transient registry failures would

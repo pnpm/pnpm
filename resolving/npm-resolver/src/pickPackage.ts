@@ -564,7 +564,7 @@ function clearMeta (pkg: PackageMeta): PackageMeta {
   }
 }
 
-function encodePkgName (pkgName: string): string {
+export function encodePkgName (pkgName: string): string {
   if (pkgName !== pkgName.toLowerCase()) {
     return `${pkgName}_${createHexHash(pkgName)}`
   }
@@ -576,7 +576,7 @@ function encodePkgName (pkgName: string): string {
  *   Line 1: cache headers (etag, modified) — small, fast to read
  *   Line 2: the full registry metadata JSON — unchanged from the registry response
  */
-function prepareJsonForDisk (meta: PackageMeta, etag: string | undefined, jsonText?: string): string {
+export function prepareJsonForDisk (meta: PackageMeta, etag: string | undefined, jsonText?: string): string {
   const modified = meta.modified ?? meta.time?.modified
   const headers = JSON.stringify({ etag, modified })
   const body = jsonText ?? JSON.stringify(meta)
@@ -628,7 +628,7 @@ interface MetaHeaders {
  * parsing the full metadata (which can be megabytes for popular packages)
  * when we only need conditional-request headers.
  */
-async function loadMetaHeaders (pkgMirror: string): Promise<MetaHeaders | null> {
+export async function loadMetaHeaders (pkgMirror: string): Promise<MetaHeaders | null> {
   let fh: fs.FileHandle | undefined
   try {
     fh = await fs.open(pkgMirror, 'r')
@@ -652,7 +652,7 @@ async function loadMetaHeaders (pkgMirror: string): Promise<MetaHeaders | null> 
  * Line 1: cache headers (etag, modified)
  * Line 2: registry metadata JSON
  */
-async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
+export async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
   try {
     const data = await gfs.readFile(pkgMirror, 'utf8')
     const newlineIdx = data.indexOf('\n')
@@ -668,7 +668,7 @@ async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
 
 const createdDirs = new Set<string>()
 
-async function saveMeta (pkgMirror: string, json: string): Promise<void> {
+export async function saveMeta (pkgMirror: string, json: string): Promise<void> {
   const dir = path.dirname(pkgMirror)
   if (!createdDirs.has(dir)) {
     await fs.mkdir(dir, { recursive: true })

@@ -49,9 +49,14 @@ import {
   type RegistryPackageSpec,
 } from './parseBareSpecifier.js'
 import {
+  encodePkgName,
+  loadMeta,
+  loadMetaHeaders,
   type PackageMetaCache,
   pickPackage,
   type PickPackageOptions,
+  prepareJsonForDisk,
+  saveMeta,
 } from './pickPackage.js'
 import { pickPackageFromMeta, pickVersionByVersionRange } from './pickPackageFromMeta.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
@@ -118,15 +123,20 @@ export function formatTimeAgo (date: Date): string | null {
 
 export {
   BUILTIN_NAMED_REGISTRIES,
+  encodePkgName,
   fetchMetadataFromFromRegistry,
   type FetchMetadataFromFromRegistryOptions,
+  loadMeta,
+  loadMetaHeaders,
   type PackageMeta,
   type PackageMetaCache,
   parseBareSpecifier,
   pickPackageFromMeta,
   pickVersionByVersionRange,
+  prepareJsonForDisk,
   type RegistryPackageSpec,
   RegistryResponseError,
+  saveMeta,
   workspacePrefToNpm,
 }
 export { whichVersionIsPinned } from './whichVersionIsPinned.js'
