@@ -2052,6 +2052,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-directory-fetcher"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "pacquet-diagnostics",
+ "pacquet-git-fetcher",
+ "pacquet-package-manifest",
+ "pacquet-store-dir",
+ "pacquet-testing-utils",
+ "pretty_assertions",
+ "serde_json",
+ "tempfile",
+ "tracing",
+]
+
+[[package]]
 name = "pacquet-executor"
 version = "0.0.1"
 dependencies = [
@@ -2224,6 +2241,7 @@ dependencies = [
  "node-semver",
  "pacquet-cmd-shim",
  "pacquet-config",
+ "pacquet-directory-fetcher",
  "pacquet-executor",
  "pacquet-fs",
  "pacquet-git-fetcher",

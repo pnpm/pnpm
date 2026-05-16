@@ -23,7 +23,7 @@ use pacquet_tarball::{PrefetchResult, prefetch_cas_paths};
 use pipe_trait::Pipe;
 use std::{
     collections::{HashMap, HashSet},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::atomic::AtomicU8,
 };
 
@@ -139,6 +139,12 @@ pub struct CreateVirtualStore<'a> {
     /// behavior of materializing only non-skipped snapshots in the
     /// graph passed to the build phase.
     pub skipped: &'a SkippedSnapshots,
+    /// Lockfile / workspace root — `lockfileDir` in upstream's
+    /// install options. Threaded into the per-snapshot
+    /// [`InstallPackageBySnapshot`] so the directory fetcher can
+    /// resolve `LockfileResolution::Directory` entries (e.g.
+    /// `directory: "../local-pkg"`) against the same base pnpm uses.
+    pub workspace_root: &'a Path,
     /// Selects between the isolated and hoisted install layouts.
     /// Under [`NodeLinker::Isolated`] the warm and cold batches
     /// populate per-snapshot virtual-store slot directories. Under
@@ -192,6 +198,7 @@ impl<'a> CreateVirtualStore<'a> {
             store_index_writer,
             allow_build_policy,
             skipped,
+            workspace_root,
             node_linker,
         } = self;
 
@@ -727,6 +734,7 @@ impl<'a> CreateVirtualStore<'a> {
                         snapshot,
                         allow_build_policy,
                         skipped,
+                        workspace_root,
                         node_linker,
                     }
                     .run::<R>()
@@ -896,12 +904,18 @@ fn snapshot_cache_key(
         LockfileResolution::Registry(r) => {
             Ok(Some(store_index_key(&r.integrity.to_string(), &pkg_id)))
         }
-        LockfileResolution::Directory(_) => Err(CreateVirtualStoreError::InstallPackageBySnapshot(
-            InstallPackageBySnapshotError::UnsupportedResolution {
-                package_key: snapshot_key.to_string(),
-                resolution_kind: "directory",
-            },
-        )),
+        LockfileResolution::Directory(_) => {
+            // Directory resolutions are injected workspace deps and
+            // bypass the CAFS entirely (the directory-fetcher returns
+            // source-path entries; no `write_cas_file` happens, no
+            // `PackageFilesIndex` row is written). There is therefore
+            // no warm-cache key to recover the install from — every
+            // install re-walks the source dir, matching upstream's
+            // behavior (the source may have changed since the last
+            // install). Returning `Ok(None)` routes the snapshot
+            // through the cold path which runs the fetcher.
+            Ok(None)
+        }
         LockfileResolution::Git(_) => {
             // `Git` resolutions land in CAS via
             // `pacquet_git_fetcher::GitFetcher`, which writes the
