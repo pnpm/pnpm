@@ -218,10 +218,7 @@ fn pnpm_reads_pacquet_written_rows() {
 /// alongside any inner-shape disagreement instead of being silently
 /// normalized away.
 fn gvs_paths_only(files: Vec<String>) -> Vec<String> {
-    files
-        .into_iter()
-        .filter(|p| p.starts_with("links/") || p.starts_with("v11/links/"))
-        .collect()
+    files.into_iter().filter(|p| p.starts_with("links/") || p.starts_with("v11/links/")).collect()
 }
 
 /// Append GVS opt-in (and any extra fields) to the `pnpm-workspace.yaml`
@@ -230,9 +227,18 @@ fn gvs_paths_only(files: Vec<String>) -> Vec<String> {
 /// switch that flips both pnpm and pacquet to the shared-store layout.
 fn enable_gvs_in_workspace_yaml(workspace: &std::path::Path, extra_yaml: &str) {
     let yaml_path = workspace.join("pnpm-workspace.yaml");
-    let existing = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
-    let extended = format!("{existing}enableGlobalVirtualStore: true\n{extra_yaml}");
-    fs::write(&yaml_path, extended).expect("write pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    // Guarantee a newline before the appended keys. If the helper
+    // that wrote the file ever drops the trailing newline, naive
+    // concatenation would merge its last key with
+    // `enableGlobalVirtualStore` and produce invalid YAML — flagged
+    // by CodeRabbit on PR #11689.
+    if !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    yaml.push_str("enableGlobalVirtualStore: true\n");
+    yaml.push_str(extra_yaml);
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 }
 
 /// Run pnpm-then-pacquet against a shared workspace and compare the

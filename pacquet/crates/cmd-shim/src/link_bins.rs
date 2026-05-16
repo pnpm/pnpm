@@ -459,12 +459,10 @@ where
         Api::write(shim_path, sh_body.as_bytes())
             .map_err(|error| LinkBinsError::WriteShim { path: shim_path.to_path_buf(), error })?;
         if let Some((cmd_path, cmd_body, ps1_path, ps1_body)) = &windows_shims {
-            Api::write(cmd_path, cmd_body.as_bytes()).map_err(|error| {
-                LinkBinsError::WriteShim { path: cmd_path.clone(), error }
-            })?;
-            Api::write(ps1_path, ps1_body.as_bytes()).map_err(|error| {
-                LinkBinsError::WriteShim { path: ps1_path.clone(), error }
-            })?;
+            Api::write(cmd_path, cmd_body.as_bytes())
+                .map_err(|error| LinkBinsError::WriteShim { path: cmd_path.clone(), error })?;
+            Api::write(ps1_path, ps1_body.as_bytes())
+                .map_err(|error| LinkBinsError::WriteShim { path: ps1_path.clone(), error })?;
         }
     }
 

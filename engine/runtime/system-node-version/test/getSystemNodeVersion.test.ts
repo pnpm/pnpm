@@ -64,7 +64,7 @@ test('findRuntimeNodeVersion() pulls the pinned major from a node@runtime: snaps
   // agree on the version-extraction rule or the two tools would
   // hash GVS slots under different engine majors for the same
   // project. The peer-suffixed form must reduce to the same bare
-  // version as the unsuffixed form.
+  // version as the form without a peer suffix.
   expect(
     findRuntimeNodeVersion(['leftpad@1.3.0', 'node@runtime:22.11.0'])
   ).toBe('22.11.0')

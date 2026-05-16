@@ -912,9 +912,12 @@ async function linkAllPkgs (
   }
   // Resolved `engines.runtime` Node version (when present) anchors
   // the side-effects-cache key prefix to the script-runner Node, not
-  // pnpm's own `process.version`. Computed once — the graph is
-  // closed-over by every per-node call below.
-  const nodeVersion = findRuntimeNodeVersion(Object.keys(opts.depGraph))
+  // pnpm's own `process.version`. The restorer's `depGraph` is keyed
+  // by install directory, so scanning `Object.keys(opts.depGraph)`
+  // would never see a `node@runtime:<version>` entry — pull the
+  // depPath off each node instead. Computed once outside the
+  // per-node loop.
+  const nodeVersion = findRuntimeNodeVersion(depNodes.map((node) => node.depPath))
   await Promise.all(
     depNodes.map(async (depNode) => {
       if (!depNode.fetching) return

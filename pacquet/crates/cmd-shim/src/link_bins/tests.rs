@@ -8,14 +8,16 @@ use crate::{
 };
 use serde_json::{Value, json};
 use std::{
-    fs::{
-        create_dir_all, metadata, read as read_file, read_to_string, remove_file,
-        write as write_file,
-    },
+    fs::{create_dir_all, metadata, read as read_file, read_to_string, write as write_file},
     iter::{Empty, empty},
     path::{Path, PathBuf},
     sync::Arc,
 };
+// `remove_file` is only used by the Windows-only upgrade-recovery
+// test below; importing it unconditionally trips the
+// `unused-imports` dylint on Unix builds.
+#[cfg(windows)]
+use std::fs::remove_file;
 use tempfile::tempdir;
 
 /// On Windows pacquet writes all three shim flavors (the canonical

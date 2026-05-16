@@ -20,7 +20,7 @@ export const getSystemNodeVersion = mem(getSystemNodeVersionNonCached)
  * The `<platform>;<arch>;node<major>` string used as the side-effects
  * cache-key prefix and the engine portion of the global-virtual-store
  * hash. Identifies the runtime environment that built (or will build)
- * a package's lifecycle scripts — so two installs that materialise the
+ * a package's lifecycle scripts — so two installs that materialize the
  * same package on the same host produce the same key.
  *
  * The Node version is resolved in this order:

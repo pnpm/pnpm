@@ -15,7 +15,9 @@ use miette::Diagnostic;
 use pacquet_cmd_shim::LinkBinsError;
 use pacquet_config::{Config, NodeLinker, matcher::create_matcher};
 use pacquet_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
-use pacquet_lockfile::{Lockfile, PackageKey, PackageMetadata, Prefix, ProjectSnapshot, SnapshotEntry};
+use pacquet_lockfile::{
+    Lockfile, PackageKey, PackageMetadata, Prefix, ProjectSnapshot, SnapshotEntry,
+};
 use pacquet_modules_yaml::{RealApi, read_modules_manifest};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::DependencyGroup;
@@ -1280,9 +1282,7 @@ fn parse_major_from_version(version: &str) -> Option<u32> {
 /// Returns `None` when no importer pinned a runtime — callers should
 /// then fall through to the host probe (`node --version` or the
 /// cached `host_node`).
-fn find_runtime_node_major(
-    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
-) -> Option<u32> {
+fn find_runtime_node_major(snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>) -> Option<u32> {
     let snapshots = snapshots?;
     for key in snapshots.keys() {
         if key.suffix.prefix() != Prefix::Runtime {

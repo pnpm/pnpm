@@ -53,6 +53,15 @@ export async function linkHoistedModules (
   // We should avoid removing unnecessary directories while simultaneously adding new ones.
   // Doing so can sometimes lead to a race condition when linking commands to `node_modules/.bin`.
   await Promise.all(dirsToRemove.map((dir) => tryRemoveDir(dir)))
+  // Resolve the project's pinned runtime Node version once, before
+  // the recursive walk. The graph is keyed by install directory in
+  // this module, so scanning `Object.keys(graph)` would miss every
+  // `node@runtime:<version>` entry — pull the depPath off each
+  // node instead. Threading it down via `opts` also avoids a
+  // re-scan at every recursion level.
+  const nodeVersion = findRuntimeNodeVersion(
+    Object.values(graph).map((node) => node.depPath)
+  )
   await Promise.all(
     Object.entries(hierarchy)
       .map(([parentDir, depsHierarchy]) => {
@@ -64,6 +73,7 @@ export async function linkHoistedModules (
         }
         return linkAllPkgsInOrder(storeController, graph, depsHierarchy, parentDir, {
           ...opts,
+          nodeVersion,
           warn,
         })
       })
@@ -100,17 +110,17 @@ async function linkAllPkgsInOrder (
     preferSymlinkedExecutables?: boolean
     sideEffectsCacheRead: boolean
     supportedArchitectures?: SupportedArchitectures
+    /**
+     * Resolved `engines.runtime` Node version, computed once by
+     * [`linkHoistedModules`] before the recursion. Threaded into
+     * each [`calcDepState`] call so the side-effects-cache key
+     * prefix tracks the script-runner Node rather than pnpm's own
+     * `process.version`.
+     */
+    nodeVersion?: string
     warn: (message: string) => void
   }
 ): Promise<void> {
-  // Pin the side-effects-cache key to the project's
-  // `engines.runtime`-resolved Node version when one is present in
-  // the graph. Otherwise the key partitions by `process.version`
-  // (pnpm's runner), and a SEA-bundled pnpm reading a cache
-  // populated by an npm-bundled pnpm would miss every entry.
-  // Computed once and shared across the recursion — the graph
-  // doesn't change while a single linker is running.
-  const nodeVersion = findRuntimeNodeVersion(Object.keys(graph))
   await Promise.all(
     Object.entries(hierarchy).map(async ([dir, deps]) => {
       const depNode = graph[dir]
@@ -131,7 +141,7 @@ async function linkAllPkgsInOrder (
               includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
               patchFileHash: depNode.patch?.hash,
               supportedArchitectures: opts.supportedArchitectures,
-              nodeVersion,
+              nodeVersion: opts.nodeVersion,
             })
           }
         }

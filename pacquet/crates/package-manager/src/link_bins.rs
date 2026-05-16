@@ -482,10 +482,7 @@ where
         // fallback is the same `read_package` used elsewhere.
         if self_has_bin {
             if let Some(manifest) = package_manifests.get(&self_metadata_key) {
-                bin_sources.push(PackageBinSource::new(
-                    self_pkg_dir.clone(),
-                    Arc::clone(manifest),
-                ));
+                bin_sources.push(PackageBinSource::new(self_pkg_dir.clone(), Arc::clone(manifest)));
             } else {
                 match read_package::<Api>(&self_pkg_dir) {
                     Ok(Some(pkg)) => bin_sources.push(pkg),
