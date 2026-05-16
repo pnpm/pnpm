@@ -366,17 +366,29 @@ fn pick_winner(
     }
 }
 
-/// Write all three shim flavors for `target_path` (the canonical `.sh`
-/// at `shim_path`, plus the `.cmd` and `.ps1` siblings) and chmod them
-/// executable. Idempotent on warm reinstalls via [`is_shim_pointing_at`].
+/// Write the canonical bin shim for `target_path` at `shim_path`,
+/// plus the `.cmd` and `.ps1` Windows-style siblings *when the host
+/// is Windows*. Idempotent on warm reinstalls via
+/// [`is_shim_pointing_at`].
 ///
-/// Pnpm always emits all three flavors per bin (independent of host
-/// platform), so a project installed on Linux stays usable when the
-/// same `node_modules` is reused from Windows via a network share or
-/// a `git clone` of a checked-in install. Pacquet matches that
-/// contract here: `generate_sh_shim`, `generate_cmd_shim`, and
-/// `generate_pwsh_shim` are unconditional, and the writer emits all
-/// three.
+/// Platform gating mirrors pnpm:
+///
+/// - `@zkochan/cmd-shim` defaults `createCmdFile: isWindows`
+///   ([index.js#L32](https://github.com/pnpm/cmd-shim/blob/0d79ca9534/src/index.ts#L32)),
+///   so `.cmd` only lands on Windows.
+/// - pnpm's `bins.linker` overrides `createPwshFile` per call as
+///   `POWER_SHELL_IS_SUPPORTED && manifest.name !== 'pnpm'`, where
+///   [`POWER_SHELL_IS_SUPPORTED = IS_WINDOWS`](https://github.com/pnpm/pnpm/blob/29a42efc3b/bins/linker/src/index.ts#L28).
+///   So `.ps1` also only lands on Windows.
+///
+/// Earlier versions of pacquet emitted all three flavors
+/// unconditionally on the theory that a Linux-installed
+/// `node_modules` should stay usable when carried to Windows via
+/// network share or git clone. That doesn't match pnpm — pnpm's
+/// Windows install rebuilds the shims on extraction — and produced
+/// extra `.cmd`/`.ps1` files in every slot on Unix, splitting the
+/// GVS file lists between the two tools (see the
+/// `same_global_virtual_store_layout_*` parity tests).
 ///
 /// The chmod step (`set_executable` for the canonical shim and
 /// `ensure_executable_bits` for the target binary, matching pnpm's
@@ -395,26 +407,28 @@ where
     })?;
 
     let sh_body = generate_sh_shim(target_path, shim_path, runtime.as_ref());
-    let cmd_path = with_extension_appended(shim_path, "cmd");
-    let ps1_path = with_extension_appended(shim_path, "ps1");
-    let cmd_body = generate_cmd_shim(target_path, &cmd_path, runtime.as_ref());
-    let ps1_body = generate_pwsh_shim(target_path, &ps1_path, runtime.as_ref());
+    // Windows siblings are off on Unix to match pnpm. The bodies
+    // themselves still get computed inside the `cfg!(windows)` branch
+    // below — moving the `generate_*` calls there keeps Unix builds
+    // off the `relative_target_windows` allocation path entirely.
+    let windows_shims = if cfg!(windows) {
+        let cmd_path = with_extension_appended(shim_path, "cmd");
+        let ps1_path = with_extension_appended(shim_path, "ps1");
+        let cmd_body = generate_cmd_shim(target_path, &cmd_path, runtime.as_ref());
+        let ps1_body = generate_pwsh_shim(target_path, &ps1_path, runtime.as_ref());
+        Some((cmd_path, cmd_body, ps1_path, ps1_body))
+    } else {
+        None
+    };
 
-    // Idempotent skip only fires when all three flavors are already
-    // present *and pointing at the right target*. Gating on the `.sh`
-    // flavor alone (an earlier version of this code) left the upgrade
-    // path broken: a previous install (e.g. older pacquet,
-    // partial-write crash) might have written `.sh` correctly but
-    // never written `.cmd`/`.ps1`, in which case the marker check
-    // would short-circuit and the missing siblings would never be
-    // repaired.
-    //
-    // The `.sh` flavor carries a `# cmd-shim-target=<path>` trailer
-    // that [`is_shim_pointing_at`] reads; the `.cmd` and `.ps1`
-    // flavors don't, so we compare them byte-for-byte against the
-    // freshly generated body. That catches stale/corrupted siblings
-    // that an existence-only check would let slip through (Copilot
-    // flagged this on
+    // Idempotent skip fires only when every flavor that *should* be
+    // present is present and pointing at the right target. The `.sh`
+    // flavor carries a `# cmd-shim-target=<path>` trailer that
+    // [`is_shim_pointing_at`] reads; the `.cmd` and `.ps1` flavors
+    // don't, so we compare them byte-for-byte against the freshly
+    // generated body. That catches stale/corrupted siblings that an
+    // existence-only check would let slip through (Copilot flagged
+    // this on
     // <https://github.com/pnpm/pacquet/pull/333#discussion_r3222744353>):
     // a manually-edited `.cmd` pointing at a stale target, or an
     // earlier pacquet write with a different relative path, would
@@ -425,23 +439,33 @@ where
         Api::read_to_string(shim_path),
         Ok(existing) if is_shim_pointing_at(&existing, target_path),
     );
-    let cmd_ok = matches!(
-        Api::read_to_string(&cmd_path),
-        Ok(existing) if existing == cmd_body,
-    );
-    let ps1_ok = matches!(
-        Api::read_to_string(&ps1_path),
-        Ok(existing) if existing == ps1_body,
-    );
-    let already_correct = sh_marker_ok && cmd_ok && ps1_ok;
+    let windows_ok = match &windows_shims {
+        None => true,
+        Some((cmd_path, cmd_body, ps1_path, ps1_body)) => {
+            let cmd_ok = matches!(
+                Api::read_to_string(cmd_path),
+                Ok(existing) if &existing == cmd_body,
+            );
+            let ps1_ok = matches!(
+                Api::read_to_string(ps1_path),
+                Ok(existing) if &existing == ps1_body,
+            );
+            cmd_ok && ps1_ok
+        }
+    };
+    let already_correct = sh_marker_ok && windows_ok;
 
     if !already_correct {
         Api::write(shim_path, sh_body.as_bytes())
             .map_err(|error| LinkBinsError::WriteShim { path: shim_path.to_path_buf(), error })?;
-        Api::write(&cmd_path, cmd_body.as_bytes())
-            .map_err(|error| LinkBinsError::WriteShim { path: cmd_path.clone(), error })?;
-        Api::write(&ps1_path, ps1_body.as_bytes())
-            .map_err(|error| LinkBinsError::WriteShim { path: ps1_path.clone(), error })?;
+        if let Some((cmd_path, cmd_body, ps1_path, ps1_body)) = &windows_shims {
+            Api::write(cmd_path, cmd_body.as_bytes()).map_err(|error| {
+                LinkBinsError::WriteShim { path: cmd_path.clone(), error }
+            })?;
+            Api::write(ps1_path, ps1_body.as_bytes()).map_err(|error| {
+                LinkBinsError::WriteShim { path: ps1_path.clone(), error }
+            })?;
+        }
     }
 
     Api::set_executable(shim_path)
