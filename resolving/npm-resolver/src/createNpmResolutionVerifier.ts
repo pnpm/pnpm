@@ -160,7 +160,7 @@ export function createNpmResolutionVerifier (
     return { ok: true }
   }
   return {
-    key: 'npm.minimumReleaseAge',
+    resolver: 'npm',
     verify,
     policy: minimumReleaseAge,
     // A previously cached run under a larger cutoff (stricter window)

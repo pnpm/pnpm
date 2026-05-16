@@ -29,7 +29,7 @@ afterEach(async () => {
 // any verifier shape.
 function mraVerifier (current: number): VerifierCacheIdentity {
   return {
-    key: 'npm.minimumReleaseAge',
+    resolver: 'npm',
     policy: current,
     satisfies: (cached) => typeof cached === 'number' && cached >= current,
   }
@@ -149,7 +149,7 @@ describe('tryLockfileVerificationCache', () => {
     // A new verifier has joined since the record was written. The cache
     // can't tell us anything about it, so we must rerun the gate.
     const newVerifier: VerifierCacheIdentity = {
-      key: 'jsr.trustedPublishers',
+      resolver: 'jsr',
       policy: ['foo-org'],
       satisfies: () => true,
     }
@@ -165,7 +165,7 @@ describe('tryLockfileVerificationCache', () => {
     const verifiers: VerifierCacheIdentity[] = [
       mraVerifier(60),
       {
-        key: 'example.fixed',
+        resolver: 'example',
         policy: 'x',
         satisfies: (cached) => cached === 'x',
       },
@@ -231,7 +231,7 @@ describe('recordVerification', () => {
     const record = JSON.parse(lines[0]) as Record<string, unknown>
     expect(record).toMatchObject({
       lockfilePath,
-      verifiers: { 'npm.minimumReleaseAge': 60 },
+      verifiers: { npm: 60 },
     })
     expect(typeof record.lockfileHash).toBe('string')
     expect(typeof record.verifiedAt).toBe('string')
@@ -240,14 +240,14 @@ describe('recordVerification', () => {
     expect(typeof record.lockfileInode).toBe('number')
   })
 
-  test('records every active verifier slot, keyed by verifier id', async () => {
+  test('records every active verifier slot, keyed by resolver id', async () => {
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
     await recordVerification(cacheDir, {
       lockfilePath,
       verifiers: [
         mraVerifier(60),
         {
-          key: 'jsr.trustedPublishers',
+          resolver: 'jsr',
           policy: ['foo-org', 'pnpm'],
           satisfies: () => true,
         },
@@ -258,8 +258,8 @@ describe('recordVerification', () => {
     const raw = await fs.promises.readFile(cacheFile, 'utf8')
     const record = JSON.parse(raw.trim()) as { verifiers: Record<string, unknown> }
     expect(record.verifiers).toEqual({
-      'npm.minimumReleaseAge': 60,
-      'jsr.trustedPublishers': ['foo-org', 'pnpm'],
+      npm: 60,
+      jsr: ['foo-org', 'pnpm'],
     })
   })
 

@@ -93,39 +93,44 @@ export type ResolutionVerification =
   | { ok: false, code: string, reason: string }
 
 /**
- * Optional companion to a resolver factory. Lets each resolver enforce
- * policies (e.g. minimumReleaseAge for npm) against an already-resolved
- * entry from a lockfile without re-doing resolution.
+ * Optional companion to a resolver factory. Each resolver owns at most
+ * one verifier — a resolver that needs to enforce multiple policies
+ * (e.g. minimumReleaseAge plus a future attestation check) bundles them
+ * into a single `policy` object and `satisfies` comparator. The cache
+ * slot is keyed by the resolver itself, so there's no further
+ * discriminator to keep in sync.
  *
  * `verify` inspects the `resolution` shape to decide whether the entry is
  * within its protocol; for entries outside its protocol it should return
  * `{ ok: true }`. The install side fans out across the verifier list
  * rather than asking a combinator to dispatch.
  *
- * `key`, `policy`, and `satisfies` describe the verifier's cache
+ * `resolver`, `policy`, and `satisfies` describe the verifier's cache
  * identity — the install-side verification cache reads them to decide
  * if a previous run on the same lockfile still covers today's policy
  * without re-issuing the registry round-trips that `verify` would.
  */
 export interface ResolutionVerifier {
   /**
-   * Stable, namespaced identifier (e.g. `npm.minimumReleaseAge`). Must
-   * be unique across all verifiers ever shipped — renaming a key
-   * invalidates cached entries that used the old name.
+   * Stable identifier for the resolver that produced this verifier
+   * (e.g. `npm`). Doubles as the cache slot key; renaming it
+   * invalidates cached entries written under the old name.
    */
-  key: string
+  resolver: string
   verify: (resolution: Resolution, ctx: { name: string, version: string }) => Promise<ResolutionVerification>
   /**
    * Today's policy snapshot, written verbatim into the cache. Opaque to
-   * the cache layer; the verifier owns the shape.
+   * the cache layer; the verifier owns the shape. When a resolver
+   * enforces multiple policies, this is an object aggregating all of
+   * them.
    */
   policy: unknown
   /**
    * Returns true when a cached run under `cachedPolicy` is at least as
    * strict as today's — i.e. the cached snapshot already covers the
-   * current policy's requirements. A loosened policy can reuse a stricter
-   * cached run; a tightened policy cannot. Non-conforming values (e.g.
-   * an older record shape) should return false.
+   * current policy's requirements. A loosened policy can reuse a
+   * stricter cached run; a tightened policy cannot. Non-conforming
+   * values (e.g. an older record shape) should return false.
    */
   satisfies: (cachedPolicy: unknown) => boolean
 }

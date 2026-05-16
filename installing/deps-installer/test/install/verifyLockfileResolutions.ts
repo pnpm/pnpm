@@ -19,7 +19,7 @@ function makeLockfile (packages: Record<string, { resolution: unknown, version?:
 const tarballResolution = (integrity: string = 'sha512-deadbeef') => ({ integrity, tarball: '' })
 
 const NOOP_SLOT = {
-  key: 'test.noop',
+  resolver: 'test-noop',
   policy: 1,
   satisfies: (cached: unknown) => cached === 1,
 }
@@ -159,11 +159,11 @@ test('runs every active verifier per entry and stops at the first failure', asyn
   const firstOk = wrap(async () => {
     calls.push('first')
     return { ok: true }
-  }, { ...NOOP_SLOT, key: 'test.first' })
+  }, { ...NOOP_SLOT, resolver: 'test-first' })
   const secondFail = wrap(async () => {
     calls.push('second')
     return { ok: false, code: 'SECOND_POLICY', reason: 'nope' }
-  }, { ...NOOP_SLOT, key: 'test.second' })
+  }, { ...NOOP_SLOT, resolver: 'test-second' })
 
   await expect(verifyLockfileResolutions(lockfile, [firstOk, secondFail]))
     .rejects.toMatchObject({ code: 'ERR_PNPM_SECOND_POLICY' })
@@ -173,7 +173,7 @@ test('runs every active verifier per entry and stops at the first failure', asyn
 
 function exampleSlot (current: number): Omit<ResolutionVerifier, 'verify'> {
   return {
-    key: 'test.policy',
+    resolver: 'test-policy',
     policy: current,
     satisfies: (cached: unknown) => typeof cached === 'number' && cached >= current,
   }

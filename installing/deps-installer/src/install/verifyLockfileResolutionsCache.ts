@@ -8,11 +8,11 @@ import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 
 /**
  * Subset of {@link ResolutionVerifier} the cache layer needs: the slot
- * identity (`key`, `policy`) plus the `satisfies` comparator. `verify`
- * is intentionally absent — the cache never runs verifiers, it just
- * decides whether a previous run still applies.
+ * identity (`resolver`, `policy`) plus the `satisfies` comparator.
+ * `verify` is intentionally absent — the cache never runs verifiers,
+ * it just decides whether a previous run still applies.
  */
-export type VerifierCacheIdentity = Pick<ResolutionVerifier, 'key' | 'policy' | 'satisfies'>
+export type VerifierCacheIdentity = Pick<ResolutionVerifier, 'resolver' | 'policy' | 'satisfies'>
 
 /**
  * On-disk cache of verifyLockfileResolutions results, keyed by absolute
@@ -24,9 +24,9 @@ export type VerifierCacheIdentity = Pick<ResolutionVerifier, 'key' | 'policy' | 
  * POSIX and NTFS, so parallel pnpm processes (monorepo installs, CI
  * matrices sharing a cache) can write without coordination.
  *
- * Policy-neutral. Each {@link VerifierCacheIdentity} contributes its own slot
- * under `verifiers[key]`; future verifiers add their own keys without
- * touching the cache layer.
+ * Policy-neutral. Each {@link VerifierCacheIdentity} contributes its own
+ * slot under `verifiers[resolver]`; future resolvers add their own slot
+ * without touching the cache layer.
  */
 
 const CACHE_FILE_NAME = 'lockfile-verified.jsonl'
@@ -200,9 +200,9 @@ export async function tryLockfileVerificationCache (
 function everyVerifierSatisfied (record: CacheRecord, verifiers: readonly VerifierCacheIdentity[]): boolean {
   for (const verifier of verifiers) {
     // Missing slot is treated as "not satisfied" — the cached run didn't
-    // cover this verifier so we must rerun the gate.
-    if (!(verifier.key in record.verifiers)) return false
-    if (!verifier.satisfies(record.verifiers[verifier.key])) return false
+    // cover this resolver's verifier so we must rerun the gate.
+    if (!(verifier.resolver in record.verifiers)) return false
+    if (!verifier.satisfies(record.verifiers[verifier.resolver])) return false
   }
   return true
 }
@@ -231,7 +231,7 @@ export async function recordVerification (
   }
   const verifierSlots: Record<string, unknown> = {}
   for (const verifier of key.verifiers) {
-    verifierSlots[verifier.key] = verifier.policy
+    verifierSlots[verifier.resolver] = verifier.policy
   }
   const record: CacheRecord = {
     lockfilePath: key.lockfilePath,
