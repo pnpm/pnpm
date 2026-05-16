@@ -39,7 +39,11 @@ export function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
   // to the host-detected Node.
   const nodeVersion = findRuntimeNodeVersion(Object.keys(lockfile.packages ?? {}))
   if (opts.enableGlobalVirtualStore) {
-    for (const { hash, pkgMeta } of hashDependencyPaths(lockfile, opts.allowBuild, opts.supportedArchitectures, nodeVersion)) {
+    for (const { hash, pkgMeta } of hashDependencyPaths(lockfile, {
+      allowBuild: opts.allowBuild,
+      supportedArchitectures: opts.supportedArchitectures,
+      nodeVersion,
+    })) {
       yield {
         dirInVirtualStore: path.join(opts.globalVirtualStoreDir, hash),
         pkgMeta,
@@ -83,9 +87,15 @@ export function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
 
 function hashDependencyPaths (
   lockfile: LockfileObject,
-  allowBuild?: AllowBuild,
-  supportedArchitectures?: SupportedArchitectures,
-  nodeVersion?: string
+  {
+    allowBuild,
+    supportedArchitectures,
+    nodeVersion,
+  }: {
+    allowBuild?: AllowBuild
+    supportedArchitectures?: SupportedArchitectures
+    nodeVersion?: string
+  }
 ): IterableIterator<HashedDepPath<PkgMetaAndSnapshot>> {
   const graph = lockfileToDepGraph(lockfile, supportedArchitectures)
   return iterateHashedGraphNodes(graph, iteratePkgMeta(lockfile, graph), allowBuild, supportedArchitectures, nodeVersion)
