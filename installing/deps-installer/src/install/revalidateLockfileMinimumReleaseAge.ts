@@ -89,21 +89,14 @@ export async function revalidateLockfileAgainstMinimumReleaseAge (
       try {
         result = await lookupManifest(name, version, tarballUrl)
       } catch (err) {
-        const reason = err instanceof Error ? err.message : String(err)
-        violations.push({
-          pkgId,
-          reason: `could not be checked against minimumReleaseAge (${reason})`,
-        })
+        violations.push({ pkgId, reason: uncheckable(err instanceof Error ? err.message : String(err)) })
         return
       }
       switch (result.status) {
         case 'ok': {
           const ts = result.publishedAt.getTime()
           if (Number.isNaN(ts)) {
-            violations.push({
-              pkgId,
-              reason: 'publish timestamp is not a valid date',
-            })
+            violations.push({ pkgId, reason: 'publish timestamp is not a valid date' })
             return
           }
           if (ts > cutoff) {
@@ -117,14 +110,11 @@ export async function revalidateLockfileAgainstMinimumReleaseAge (
         case 'manifest-unavailable':
           violations.push({
             pkgId,
-            reason: `could not be checked against minimumReleaseAge (manifest unavailable${result.reason ? `: ${result.reason}` : ''})`,
+            reason: uncheckable(`manifest unavailable${result.reason ? `: ${result.reason}` : ''}`),
           })
           return
         case 'version-not-in-manifest':
-          violations.push({
-            pkgId,
-            reason: 'could not be checked against minimumReleaseAge (version not present in registry manifest)',
-          })
+          violations.push({ pkgId, reason: uncheckable('version not present in registry manifest') })
       }
     }))
   )
@@ -152,6 +142,10 @@ export async function revalidateLockfileAgainstMinimumReleaseAge (
         '  3. Add the affected packages to minimumReleaseAgeExclude if they are explicitly trusted.',
     }
   )
+}
+
+function uncheckable (why: string): string {
+  return `could not be checked against minimumReleaseAge (${why})`
 }
 
 function createExcludePolicy (patterns: string[]): PackageVersionPolicy {

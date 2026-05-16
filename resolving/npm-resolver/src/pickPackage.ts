@@ -206,8 +206,7 @@ export async function pickPackage (
     : ABBREVIATED_META_DIR
   // Cache key includes fullMetadata to avoid returning abbreviated metadata when full metadata is requested.
   const cacheKey = fullMetadata ? `${spec.name}:full` : spec.name
-  const registryName = getRegistryName(opts.registry)
-  const pkgMirror = path.join(ctx.cacheDir, metaDir, registryName, `${encodePkgName(spec.name)}.jsonl`)
+  const pkgMirror = getPkgMirrorPath(ctx.cacheDir, metaDir, opts.registry, spec.name)
   const cachedMeta = ctx.metaCache.get(cacheKey)
   if (cachedMeta != null) {
     // The in-memory cache may hold abbreviated metadata from an earlier call
@@ -569,6 +568,14 @@ export function encodePkgName (pkgName: string): string {
     return `${pkgName}_${createHexHash(pkgName)}`
   }
   return pkgName
+}
+
+/**
+ * Path of the on-disk JSONL document where pnpm mirrors a package's registry
+ * metadata. `metaDir` selects between abbreviated and full caches.
+ */
+export function getPkgMirrorPath (cacheDir: string, metaDir: string, registry: string, pkgName: string): string {
+  return path.join(cacheDir, metaDir, getRegistryName(registry), `${encodePkgName(pkgName)}.jsonl`)
 }
 
 /**

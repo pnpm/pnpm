@@ -1,12 +1,9 @@
-import path from 'node:path'
-
 import { FULL_META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
-import getRegistryName from 'encode-registry'
 
 import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOptions } from './fetch.js'
-import { encodePkgName, loadMeta, loadMetaHeaders, prepareJsonForDisk, saveMeta } from './pickPackage.js'
+import { getPkgMirrorPath, loadMeta, loadMetaHeaders, prepareJsonForDisk, saveMeta } from './pickPackage.js'
 
 export interface FetchFullMetadataCachedOptions {
   registry: string
@@ -35,7 +32,7 @@ export async function fetchFullMetadataCached (
   opts: FetchFullMetadataCachedOptions
 ): Promise<PackageMeta> {
   const pkgMirror = opts.cacheDir != null
-    ? path.join(opts.cacheDir, FULL_META_DIR, getRegistryName(opts.registry), `${encodePkgName(pkgName)}.jsonl`)
+    ? getPkgMirrorPath(opts.cacheDir, FULL_META_DIR, opts.registry, pkgName)
     : null
   const cacheHeaders = pkgMirror != null ? await loadMetaHeaders(pkgMirror) : null
   const result = await fetchMetadataFromFromRegistry(fetchOpts, pkgName, {

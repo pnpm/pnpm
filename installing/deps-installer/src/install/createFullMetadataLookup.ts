@@ -61,7 +61,15 @@ export function createFullMetadataLookup (opts: CreateFullMetadataLookupOptions)
   // `https://npm.example.com/team-b/`) the lookup picks the longest matching
   // prefix — matching only `origin` would silently route to the wrong one.
   const namedRegistryPrefixes = Object.values(opts.namedRegistries ?? {})
-    .map(normalizeRegistryUrl)
+    .map((url) => {
+      const parsed = tryParseUrl(url)
+      if (!parsed) return null
+      // Ensure trailing slash so prefix matching against tarball URLs (which
+      // always include the package path under the registry root) does not
+      // accidentally match a sibling registry whose URL shares a prefix string.
+      const pathname = parsed.pathname.endsWith('/') ? parsed.pathname : `${parsed.pathname}/`
+      return `${parsed.origin}${pathname}`
+    })
     .filter((value): value is string => value != null)
     .sort((a, b) => b.length - a.length)
   // In-memory dedup of the `time` map per (registry, name) for this install
@@ -117,7 +125,7 @@ function pickRegistryForVersion (
   // origin we'd otherwise miss. Match the longest matching prefix so that two
   // named registries sharing a host but differing by path don't collide.
   if (tarballUrl) {
-    const normalized = normalizeTarballUrl(tarballUrl)
+    const normalized = tryParseUrl(tarballUrl)?.toString()
     if (normalized) {
       for (const prefix of namedRegistryPrefixes) {
         if (normalized.startsWith(prefix)) return prefix
@@ -127,22 +135,9 @@ function pickRegistryForVersion (
   return pickRegistryForPackage(opts.registries, name)
 }
 
-function normalizeRegistryUrl (url: string): string | null {
+function tryParseUrl (url: string): URL | null {
   try {
-    const parsed = new URL(url)
-    // Ensure trailing slash so prefix matching against tarball URLs (which
-    // always include the package path under the registry root) does not
-    // accidentally match a sibling registry whose URL shares a prefix string.
-    const pathname = parsed.pathname.endsWith('/') ? parsed.pathname : `${parsed.pathname}/`
-    return `${parsed.origin}${pathname}`
-  } catch {
-    return null
-  }
-}
-
-function normalizeTarballUrl (url: string): string | null {
-  try {
-    return new URL(url).toString()
+    return new URL(url)
   } catch {
     return null
   }
