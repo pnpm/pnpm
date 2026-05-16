@@ -2,17 +2,23 @@ import path from 'node:path'
 
 import { sync as execSync } from 'execa'
 
-export function runPnpmCli (command: string[], { cwd }: { cwd: string }): void {
+export interface RunPnpmCliOptions {
+  cwd: string
+  silent?: boolean
+}
+
+export function runPnpmCli (command: string[], { cwd, silent }: RunPnpmCliOptions): void {
   const execOpts = {
     cwd,
-    stdio: 'inherit' as const,
+    stdio: silent ? ['inherit', 'ignore', 'inherit'] as const : 'inherit' as const,
   }
+  const cliCommand = silent ? [...command, '--reporter=silent'] : command
   const execFileName = path.basename(process.execPath).toLowerCase()
   if (execFileName === 'pnpm' || execFileName === 'pnpm.exe') {
-    execSync(process.execPath, command, execOpts)
+    execSync(process.execPath, cliCommand, execOpts)
   } else if (path.basename(process.argv[1]) === 'pnpm.mjs') {
-    execSync(process.execPath, [process.argv[1], ...command], execOpts)
+    execSync(process.execPath, [process.argv[1], ...cliCommand], execOpts)
   } else {
-    execSync('pnpm', command, execOpts)
+    execSync('pnpm', cliCommand, execOpts)
   }
 }

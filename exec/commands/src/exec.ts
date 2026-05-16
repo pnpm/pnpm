@@ -156,6 +156,7 @@ export type ExecOpts = Required<Pick<ConfigContext, 'selectedProjectsGraph'>> & 
 | 'nodeOptions'
 | 'pnpmHomeDir'
 | 'recursive'
+| 'reporter'
 | 'reporterHidePrefix'
 | 'userAgent'
 | 'verifyDepsBeforeRun'

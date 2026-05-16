@@ -1,4 +1,4 @@
-import type { VerifyDepsBeforeRun } from '@pnpm/config.reader'
+import type { Config, VerifyDepsBeforeRun } from '@pnpm/config.reader'
 import { checkDepsStatus, type CheckDepsStatusOptions, type WorkspaceStateSettings } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import { runPnpmCli } from '@pnpm/exec.pnpm-cli-runner'
@@ -7,6 +7,7 @@ import enquirer from 'enquirer'
 
 export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions {
   dir: string
+  reporter?: Config['reporter']
   verifyDepsBeforeRun?: VerifyDepsBeforeRun
 }
 
@@ -20,7 +21,7 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
   if (upToDate) return
 
   const command = ['install', ...createInstallArgs(workspaceState?.settings)]
-  const install = runPnpmCli.bind(null, command, { cwd: opts.dir })
+  const install = runPnpmCli.bind(null, command, { cwd: opts.dir, silent: opts.reporter === 'silent' })
 
   switch (opts.verifyDepsBeforeRun) {
     case 'install':
