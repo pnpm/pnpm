@@ -279,7 +279,7 @@ export async function installDeps (
     skipRuntimes: opts.runtime === false,
     storeController: store.ctrl,
     storeDir: store.dir,
-    verifyResolution: store.verifyResolution,
+    resolutionVerifiers: store.resolutionVerifiers,
     workspacePackages,
     preferredVersions: opts.packageVulnerabilityAudit ? preferNonvulnerablePackageVersions(opts.packageVulnerabilityAudit) : undefined,
   }

@@ -344,18 +344,16 @@ export async function mutateModules (
   // exactly once, right after the lockfile is loaded from disk, before any
   // path branches.
   try {
-    await verifyLockfileResolutions(ctx.wantedLockfile, opts.verifyResolution, {
+    await verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
       // The cache short-circuits the per-package registry round trip when
       // the lockfile and every active verifier's policy haven't moved
-      // since the last successful verification. Verifier slots come from
-      // the verifier itself (each resolver-side verifier factory declares
-      // its own slot on `.activeVerifiers`); future verifiers plug in
-      // there without touching the install side.
-      cache: opts.cacheDir && opts.verifyResolution
+      // since the last successful verification. Cache slots come from
+      // each verifier's own `activeVerifier` — `verifyLockfileResolutions`
+      // pulls them out; we only have to pass the lockfile path + cacheDir.
+      cache: opts.cacheDir
         ? {
           cacheDir: opts.cacheDir,
           lockfilePath: path.resolve(ctx.lockfileDir, WANTED_LOCKFILE),
-          verifiers: opts.verifyResolution.activeVerifiers,
         }
         : undefined,
     })

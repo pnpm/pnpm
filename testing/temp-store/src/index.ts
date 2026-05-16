@@ -13,7 +13,7 @@ export interface CreateTempStoreResult {
   storeController: StoreController
   storeDir: string
   cacheDir: string
-  verifyResolution?: ResolutionVerifier
+  resolutionVerifiers: ResolutionVerifier[]
 }
 
 export function createTempStore (opts?: {
@@ -26,7 +26,7 @@ export function createTempStore (opts?: {
   const cacheDir = path.resolve('cache')
   const storeDir = opts?.storeDir ?? path.resolve('.store')
   const storeIndex = new StoreIndex(storeDir)
-  const { resolve, fetchers, clearResolutionCache, verifyResolution } = createClient({
+  const { resolve, fetchers, clearResolutionCache, resolutionVerifiers } = createClient({
     configByUri,
     retry: {
       retries: 4,
@@ -60,6 +60,6 @@ export function createTempStore (opts?: {
     storeController,
     storeDir,
     cacheDir,
-    verifyResolution,
+    resolutionVerifiers,
   }
 }

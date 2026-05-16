@@ -132,23 +132,19 @@ export interface ActiveVerifier {
  * policies (e.g. minimumReleaseAge for npm) against an already-resolved
  * entry from a lockfile without re-doing resolution.
  *
- * The verifier is callable: it inspects the `resolution` shape to decide
- * whether the entry is within its protocol; for entries outside its
- * protocol it should return `{ ok: true }`. Combined verifiers (in
- * default-resolver) dispatch across underlying resolver-specific
- * verifiers.
+ * `verify` inspects the `resolution` shape to decide whether the entry is
+ * within its protocol; for entries outside its protocol it should return
+ * `{ ok: true }`. The install side fans out across the active verifier
+ * list rather than asking a combinator to dispatch.
  *
- * The verifier also exposes its {@link ActiveVerifier} slot(s) on
- * `activeVerifiers`. The install-side verification cache reads this to
- * decide if a previous run on the same lockfile still covers today's
- * policy — short-circuiting the per-package registry round trips on
- * unchanged repos. Resolvers that combine multiple sub-verifiers (today:
- * `@pnpm/resolving.default-resolver`) flatten the sub-verifiers' slots
- * here.
+ * `activeVerifier` carries the cache slot identity — the install-side
+ * verification cache reads it to decide if a previous run on the same
+ * lockfile still covers today's policy without re-issuing the registry
+ * round-trips that `verify` would.
  */
 export interface ResolutionVerifier {
-  (resolution: Resolution, ctx: { name: string, version: string }): Promise<ResolutionVerification>
-  activeVerifiers: readonly ActiveVerifier[]
+  verify: (resolution: Resolution, ctx: { name: string, version: string }) => Promise<ResolutionVerification>
+  activeVerifier: ActiveVerifier
 }
 
 /** Concrete platform selector used when picking a variant from a VariationsResolution. */

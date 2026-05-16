@@ -188,7 +188,7 @@ export async function handler (
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
     storeController: store.ctrl,
     storeDir: store.dir,
-    verifyResolution: store.verifyResolution,
+    resolutionVerifiers: store.resolutionVerifiers,
     include,
   })
   const allProjects = opts.allProjects ?? (

@@ -4,7 +4,6 @@ import { PnpmError } from '@pnpm/error'
 import type {
   ActiveVerifier,
   Resolution,
-  ResolutionVerification,
   ResolutionVerifier,
 } from '@pnpm/resolving.resolver-base'
 import type { PackageVersionPolicy, Registries } from '@pnpm/types'
@@ -111,7 +110,7 @@ export function createNpmResolutionVerifier (
   }
 
   const minimumReleaseAge = opts.minimumReleaseAge
-  const slot: ActiveVerifier = {
+  const activeVerifier: ActiveVerifier = {
     key: 'npm.minimumReleaseAge',
     policy: minimumReleaseAge,
     // A previously cached run under a larger cutoff (stricter window)
@@ -123,7 +122,7 @@ export function createNpmResolutionVerifier (
     satisfies: (cached) => typeof cached === 'number' && cached >= minimumReleaseAge,
   }
 
-  const verify: (resolution: Resolution, ctx: { name: string, version: string }) => Promise<ResolutionVerification> = async (resolution, { name, version }) => {
+  const verify: ResolutionVerifier['verify'] = async (resolution, { name, version }) => {
     if (!isNpmRegistryResolution(resolution)) return { ok: true }
     // Non-semver versions identify URL tarballs, file: refs, git refs, etc.
     // The age policy doesn't apply and a registry lookup would 404.
@@ -172,10 +171,7 @@ export function createNpmResolutionVerifier (
     }
     return { ok: true }
   }
-  // Callable function + `activeVerifiers` slot list — the install-side
-  // cache reads the slots to decide whether to skip running `verify`
-  // entirely on the next install.
-  return Object.assign(verify, { activeVerifiers: [slot] as const })
+  return { verify, activeVerifier }
 }
 
 function pickRegistryForVersion (

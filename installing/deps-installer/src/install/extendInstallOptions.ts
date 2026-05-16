@@ -176,18 +176,18 @@ export interface StrictInstallOptions {
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
   /**
-   * Optional verifier that re-checks each lockfile-pinned resolution
-   * against policies configured upstream (today: minimumReleaseAge strict
-   * mode). Constructed by `createClient` and surfaced via the
-   * `createStoreController` return; mutateModules invokes it once, right
-   * after the lockfile is loaded from disk. When omitted, no revalidation
-   * runs.
+   * Resolver-side verifiers that re-check each lockfile-pinned resolution
+   * against policies configured upstream (today: at most one,
+   * `npm.minimumReleaseAge` in strict mode). Constructed by `createClient`
+   * and surfaced via the `createStoreController` return; mutateModules
+   * fans out across the list once, right after the lockfile is loaded
+   * from disk. Empty when no policy is active.
    */
-  verifyResolution?: ResolutionVerifier
+  resolutionVerifiers: ResolutionVerifier[]
   /**
-   * pnpm's on-disk cache directory. When set together with
-   * `verifyResolution`, the lockfile verification result is memoized in
-   * `<cacheDir>/lockfile-verified.jsonl` so repeat installs against an
+   * pnpm's on-disk cache directory. When set together with non-empty
+   * `resolutionVerifiers`, the lockfile verification result is memoized
+   * in `<cacheDir>/lockfile-verified.jsonl` so repeat installs against an
    * unchanged lockfile skip the per-package registry round trip. The
    * record is policy-neutral; each active resolver-side verifier writes
    * its own slot under `verifiers[<key>]`.
@@ -310,6 +310,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     peersSuffixMaxLength: 1000,
     blockExoticSubdeps: false,
     omitSummaryLog: false,
+    resolutionVerifiers: [] as ResolutionVerifier[],
   } as StrictInstallOptions
 }
 

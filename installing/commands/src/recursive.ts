@@ -115,7 +115,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   storeControllerAndDir?: {
     ctrl: StoreController
     dir: string
-    verifyResolution?: ResolutionVerifier
+    resolutionVerifiers: ResolutionVerifier[]
   }
   pnpmfile: string[]
 } & Partial<
@@ -167,7 +167,7 @@ export async function recursive (
     storeController: store.ctrl,
     storeDir: store.dir,
     targetDependenciesField,
-    verifyResolution: store.verifyResolution,
+    resolutionVerifiers: store.resolutionVerifiers,
     workspacePackages,
   }) as InstallOptions
 
@@ -299,7 +299,7 @@ export async function recursive (
     } = await mutateModules(mutatedImporters, {
       ...installOpts,
       storeController: store.ctrl,
-      verifyResolution: store.verifyResolution,
+      resolutionVerifiers: store.resolutionVerifiers,
     })
     if (opts.save !== false) {
       const promises: Array<Promise<void>> = mutatedPkgs.map(async ({ originalManifest, manifest, rootDir }) => {
@@ -418,7 +418,7 @@ export async function recursive (
             }),
             configByUri: installOpts.configByUri,
             storeController: store.ctrl,
-            verifyResolution: store.verifyResolution,
+            resolutionVerifiers: store.resolutionVerifiers,
           }
         )
         if (opts.save !== false) {

@@ -63,7 +63,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 
 export async function createNewStoreController (
   opts: CreateNewStoreControllerOptions
-): Promise<{ ctrl: StoreController, dir: string, verifyResolution?: ResolutionVerifier }> {
+): Promise<{ ctrl: StoreController, dir: string, resolutionVerifiers: ResolutionVerifier[] }> {
   const fullMetadata = opts.fetchFullMetadata ?? (
     (
       opts.resolutionMode === 'time-based' ||
@@ -72,7 +72,7 @@ export async function createNewStoreController (
   )
   await fs.mkdir(opts.storeDir, { recursive: true })
   const storeIndex = new StoreIndex(opts.storeDir)
-  const { resolve, fetchers, clearResolutionCache, verifyResolution } = createClient({
+  const { resolve, fetchers, clearResolutionCache, resolutionVerifiers } = createClient({
     customResolvers: opts.hooks?.customResolvers,
     customFetchers: opts.hooks?.customFetchers,
     unsafePerm: opts.unsafePerm,
@@ -145,6 +145,6 @@ export async function createNewStoreController (
       storeIndex,
     }),
     dir: opts.storeDir,
-    verifyResolution,
+    resolutionVerifiers,
   }
 }

@@ -9,7 +9,7 @@ import type { CustomFetcher, CustomResolver } from '@pnpm/hooks.types'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type DispatcherOptions } from '@pnpm/network.fetch'
 import {
-  createResolutionVerifier,
+  createResolutionVerifiers,
   createResolver as _createResolver,
   type ResolutionVerifierFactoryOptions,
   type ResolveFunction,
@@ -45,12 +45,13 @@ export interface Client {
   resolve: ResolveFunction
   clearResolutionCache: () => void
   /**
-   * Combined verifier across the resolver chain. `undefined` when no
-   * resolver-level policy is active (today: minimumReleaseAge strict mode).
-   * Used by the install layer to re-validate an already-resolved lockfile
-   * entry without re-doing resolution.
+   * List of resolver-side verifiers — one entry per active policy
+   * (today: at most one, `npm.minimumReleaseAge`). Empty when no policy
+   * is active. The install layer fans out across the list to re-validate
+   * each lockfile entry; each verifier handles its own protocol
+   * short-circuit inside `verify`.
    */
-  verifyResolution?: ResolutionVerifier
+  resolutionVerifiers: ResolutionVerifier[]
 }
 
 export function createClient (opts: ClientOptions): Client {
@@ -58,12 +59,11 @@ export function createClient (opts: ClientOptions): Client {
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri, opts.registries?.default)
 
   const { resolve, clearCache: clearResolutionCache } = _createResolver(fetchFromRegistry, getAuthHeader, { ...opts, customResolvers: opts.customResolvers })
-  const verifyResolution = createResolutionVerifier(fetchFromRegistry, opts)
   return {
     fetchers: createFetchers(fetchFromRegistry, getAuthHeader, opts),
     resolve,
     clearResolutionCache,
-    verifyResolution,
+    resolutionVerifiers: createResolutionVerifiers(fetchFromRegistry, opts),
   }
 }
 
