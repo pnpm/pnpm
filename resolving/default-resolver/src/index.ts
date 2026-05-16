@@ -187,6 +187,14 @@ export function createResolutionVerifier (
   })
   // Future protocols (jsr, git, etc.) plug in here. When every sub-verifier
   // is undefined, the combined verifier is too — caller short-circuits.
+  //
+  // When a second verifier lands, this combinator needs to dispatch by
+  // resolution shape (so e.g. a git verifier doesn't run on npm-registry
+  // entries and vice versa). The classification logic should live as a
+  // shared helper in `@pnpm/resolving.resolver-base` — `pickFetcher` in
+  // `fetching/pick-fetcher` already classifies the same shape today
+  // (resolution.type / tarball / gitHosted / integrity); reconcile both
+  // call sites onto one classifier rather than re-deriving it per verifier.
   if (!npmVerifier) return undefined
   return async (resolution, ctx) => npmVerifier(resolution, ctx)
 }
