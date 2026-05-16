@@ -13,6 +13,7 @@ repository.workspace = true
 [dependencies]
 derive_more = { workspace = true }
 miette      = { workspace = true }
+pathdiff    = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
