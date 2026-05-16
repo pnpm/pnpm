@@ -786,7 +786,7 @@ function parseDevEnginesPackageManager (devEngines?: DevEngines): EngineDependen
     // Singular form: leave onFail undefined when the user did not set it, so
     // the central pmOnFail default ('download') applies. The array form keeps
     // its own per-element defaults ('error' for the last entry, 'ignore' for
-    // the rest) because those reflect explicit prioritisation by the user.
+    // the rest) because those reflect explicit prioritization by the user.
     onFail = pmEngine.onFail
   }
   if (!pmEngine?.name) return undefined
