@@ -111,7 +111,6 @@ const BROKEN_LOCKFILE_INTEGRITY_ERRORS = new Set([
   'ERR_PNPM_TARBALL_INTEGRITY',
 ])
 
-
 const DEV_PREINSTALL = 'pnpm:devPreinstall'
 
 interface InstallMutationOptions {
