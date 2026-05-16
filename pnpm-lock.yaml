@@ -5728,9 +5728,6 @@ importers:
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 4.0.0
-      encode-registry:
-        specifier: 'catalog:'
-        version: 3.0.1
       enquirer:
         specifier: 'catalog:'
         version: 2.4.1

@@ -1,21 +1,8 @@
-import path from 'node:path'
-
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
-import { FULL_META_DIR } from '@pnpm/constants'
-import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type DispatcherOptions } from '@pnpm/network.fetch'
-import {
-  encodePkgName,
-  fetchMetadataFromFromRegistry,
-  loadMeta,
-  loadMetaHeaders,
-  type PackageMeta,
-  prepareJsonForDisk,
-  saveMeta,
-} from '@pnpm/resolving.npm-resolver'
+import { fetchFullMetadataCached, fetchMetadataFromFromRegistry } from '@pnpm/resolving.npm-resolver'
 import type { Registries, RegistryConfig } from '@pnpm/types'
-import getRegistryName from 'encode-registry'
 
 import type { ManifestLookup, ManifestLookupResult } from './revalidateLockfileMinimumReleaseAge.js'
 
@@ -39,10 +26,9 @@ export interface CreateFullMetadataLookupOptions extends DispatcherOptions {
   fetchWarnTimeoutMs?: number
   /**
    * pnpm's on-disk metadata cache (same directory the resolver writes to).
-   * When set, the lookup issues conditional GETs against it: a 304 Not
-   * Modified response serves the body from disk instead of refetching the
-   * full document. On a 200, the new body is written back. Omitting it
-   * disables caching — every revalidation downloads the full manifest.
+   * Forwarded to `fetchFullMetadataCached` so the gate issues conditional
+   * GETs and reuses the resolver's mirror; omitting it disables caching and
+   * every revalidation downloads the full manifest.
    */
   cacheDir?: string
 }
@@ -78,22 +64,20 @@ export function createFullMetadataLookup (opts: CreateFullMetadataLookupOptions)
     .map(normalizeRegistryUrl)
     .filter((value): value is string => value != null)
     .sort((a, b) => b.length - a.length)
-  // In-memory dedup: the `time` map per (registry, name) for this install
-  // only. Disk caching (and the conditional-GET fast path) is handled inside
-  // fetchFullMetaTime via the resolver's shared metadata mirror at cacheDir.
+  // In-memory dedup of the `time` map per (registry, name) for this install
+  // only. The on-disk conditional-GET cache is handled inside
+  // fetchFullMetadataCached via the resolver's shared mirror at opts.cacheDir.
   const cacheDir = opts.cacheDir
   const inflight = new Map<string, Promise<Record<string, string | undefined> | undefined>>()
   const fetchTimeMap = async (registry: string, name: string): Promise<Record<string, string | undefined> | undefined> => {
     const cacheKey = `${registry}\x00${name}`
     const cached = inflight.get(cacheKey)
     if (cached) return cached
-    const promise = fetchFullMetaTime({
-      cacheDir,
-      fetchOpts,
-      authHeaderValue: getAuthHeaderValueByURI(registry),
-      name,
+    const promise = fetchFullMetadataCached(fetchOpts, name, {
       registry,
-    })
+      authHeaderValue: getAuthHeaderValueByURI(registry),
+      cacheDir,
+    }).then((meta) => meta.time)
     inflight.set(cacheKey, promise)
     return promise
   }
@@ -141,64 +125,6 @@ function pickRegistryForVersion (
     }
   }
   return pickRegistryForPackage(opts.registries, name)
-}
-
-interface FetchFullMetaTimeArgs {
-  cacheDir: string | undefined
-  fetchOpts: Parameters<typeof fetchMetadataFromFromRegistry>[0]
-  authHeaderValue: string | undefined
-  name: string
-  registry: string
-}
-
-async function fetchFullMetaTime (args: FetchFullMetaTimeArgs): Promise<Record<string, string | undefined> | undefined> {
-  const { cacheDir, fetchOpts, authHeaderValue, name, registry } = args
-  // Same on-disk path the resolver uses for its full-metadata cache, so the
-  // gate and the resolver share a single cache directory. Without this the
-  // gate would re-download every (registry, name) on every install — the
-  // performance hit raised in issue #11675.
-  const pkgMirror = cacheDir != null
-    ? path.join(cacheDir, FULL_META_DIR, getRegistryName(registry), `${encodePkgName(name)}.jsonl`)
-    : null
-  const cacheHeaders = pkgMirror != null ? await loadMetaHeaders(pkgMirror) : null
-  const result = await fetchMetadataFromFromRegistry(fetchOpts, name, {
-    registry,
-    authHeaderValue,
-    fullMetadata: true,
-    etag: cacheHeaders?.etag,
-    modified: cacheHeaders?.modified,
-  })
-  let meta: PackageMeta | null = null
-  if ('notModified' in result && result.notModified) {
-    if (pkgMirror == null) {
-      // We didn't send conditional headers (no cacheDir), but the registry
-      // returned 304 anyway. There's no body to fall back on.
-      throw new PnpmError(
-        'REVALIDATE_NOT_MODIFIED_WITHOUT_CACHE',
-        `Registry returned 304 for ${name} without an existing cache to refresh.`
-      )
-    }
-    meta = await loadMeta(pkgMirror)
-    if (meta == null) {
-      // Cache file vanished between header-load and meta-load (concurrent
-      // store cleanup, antivirus, etc.). Treat as a soft miss rather than a
-      // hard error — caller will surface this as manifest-unavailable.
-      throw new PnpmError(
-        'REVALIDATE_CACHE_MISSING_AFTER_304',
-        `Metadata cache for ${name} disappeared between headers read and full read.`
-      )
-    }
-  } else if ('meta' in result) {
-    meta = result.meta
-    if (pkgMirror != null) {
-      // Persist so the next install can do a headers-only conditional GET.
-      // Fire-and-forget — a cache-write failure isn't a reason to fail the
-      // gate; the next install just won't get the speedup.
-      const json = prepareJsonForDisk(meta, result.etag, result.jsonText)
-      saveMeta(pkgMirror, json).catch(() => {})
-    }
-  }
-  return meta?.time
 }
 
 function normalizeRegistryUrl (url: string): string | null {

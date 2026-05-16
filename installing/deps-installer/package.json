@@ -114,7 +114,6 @@
     "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@zkochan/rimraf": "catalog:",
-    "encode-registry": "catalog:",
     "enquirer": "catalog:",
     "is-inner-link": "catalog:",
     "is-subdir": "catalog:",
