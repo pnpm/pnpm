@@ -349,6 +349,9 @@ fn base64_decode_covers_every_alphabet_branch() {
     assert_eq!(base64_decode("fn5+").as_deref(), Some("~~~"));
     // `=` padding short-circuits the loop on a 2-byte input.
     assert_eq!(base64_decode("aGk=").as_deref(), Some("hi"));
+    // Redundant trailing padding is ignored, matching pnpm's tolerant
+    // credential decoder.
+    assert_eq!(base64_decode("aGk===").as_deref(), Some("hi"));
     // Invalid byte returns None so the parser keeps the raw
     // value verbatim. `*` is not in the alphabet.
     assert_eq!(base64_decode("not*base64"), None);
