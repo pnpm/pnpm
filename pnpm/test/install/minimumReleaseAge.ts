@@ -226,9 +226,10 @@ describe('lockfile minimumReleaseAge verification', () => {
     )
   })
 
-  test('recursive --no-save leaves the workspace manifest untouched even when picks are collected', () => {
-    // Mirror of the single-project --no-save test for the recursive flow:
-    // the same drain-only-when-saving gate has to hold in recursive.ts.
+  test('recursive --no-save leaves the workspace manifest untouched even when picks are collected (shared lockfile)', () => {
+    // The shared-lockfile recursive branch in recursive.ts: a single
+    // `mutateModules` call across all importers. Same drain-only-when-
+    // saving gate has to hold here.
     preparePackages([
       {
         name: 'project-a',
@@ -238,6 +239,34 @@ describe('lockfile minimumReleaseAge verification', () => {
     ])
     writeYamlFileSync('pnpm-workspace.yaml', {
       packages: ['*'],
+      minimumReleaseAge: IMMATURE_FOR_EVERYTHING,
+      minimumReleaseAgeStrict: false,
+    })
+
+    execPnpmSync(
+      [PUBLIC_REGISTRY, '-r', 'install', '--no-save'],
+      { ...omitMinReleaseAgeEnv, expectSuccess: true }
+    )
+
+    const workspaceManifest = readYamlFileSync<{ minimumReleaseAgeExclude?: string[] }>('pnpm-workspace.yaml')
+    expect(workspaceManifest.minimumReleaseAgeExclude).toBeUndefined()
+  })
+
+  test('recursive --no-save leaves the workspace manifest untouched even when picks are collected (per-project lockfiles)', () => {
+    // The other recursive branch: with sharedWorkspaceLockfile: false
+    // the per-project loop is taken instead of the single
+    // mutateModules call. The post-loop updateWorkspaceManifest at the
+    // tail of recursive.ts also has to honor --no-save.
+    preparePackages([
+      {
+        name: 'project-a',
+        version: '1.0.0',
+        dependencies: { 'is-odd': '0.1.2' },
+      },
+    ])
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      packages: ['*'],
+      sharedWorkspaceLockfile: false,
       minimumReleaseAge: IMMATURE_FOR_EVERYTHING,
       minimumReleaseAgeStrict: false,
     })

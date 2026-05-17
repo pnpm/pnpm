@@ -469,12 +469,18 @@ export async function recursive (
     })
   ))
   await handleIgnoredBuilds(opts, allIgnoredBuilds.size ? allIgnoredBuilds : undefined)
-  await updateWorkspaceManifest(opts.workspaceDir, {
-    updatedCatalogs,
-    cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
-    allProjects,
-    addedMinimumReleaseAgeExcludes: drainImmaturePicks(immaturePicks?.collector),
-  })
+  if (opts.save !== false) {
+    // Only drain when we'll actually persist. Otherwise the info log
+    // would claim entries were added that the workspace manifest never
+    // saw, mirroring the gate the shared-lockfile branch + installDeps
+    // already apply.
+    await updateWorkspaceManifest(opts.workspaceDir, {
+      updatedCatalogs,
+      cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+      allProjects,
+      addedMinimumReleaseAgeExcludes: drainImmaturePicks(immaturePicks?.collector),
+    })
+  }
 
   if (
     !opts.lockfileOnly && !opts.ignoreScripts && (
