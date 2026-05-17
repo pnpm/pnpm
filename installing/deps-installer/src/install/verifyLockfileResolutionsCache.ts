@@ -99,8 +99,17 @@ interface CacheRecord {
   policy: Record<string, unknown>
 }
 
-interface CacheLookupResult {
+export interface CacheLookupResult {
   hit: boolean
+  /**
+   * stat + hash already computed during the lookup. When the caller
+   * follows up with {@link recordVerification} after running the gate,
+   * passing these back avoids re-stat'ing and (especially) re-hashing
+   * the lockfile a second time. Fields are undefined when the lookup
+   * couldn't (or didn't need to) compute them — `recordVerification`
+   * falls back to computing what's missing.
+   */
+  precomputed: { stat?: LockfileStat, hash?: string }
 }
 
 interface LockfileStat {
@@ -229,17 +238,23 @@ export function tryLockfileVerificationCache (
     // A corrupt cache file should never block the install; fall
     // through to verification so the gate still runs.
     logger.debug({ msg: 'lockfile-verified cache: read failed', err })
-    return { hit: false }
+    return { hit: false, precomputed: {} }
   }
 
   const stat = statLockfile(key.lockfilePath)
-  if (!stat) return { hit: false }
+  if (!stat) return { hit: false, precomputed: {} }
 
   // Stat shortcut: same path + same stat means we trust the cached
   // hash without reading the file. Microseconds.
   const byPathRecord = indexes.byPath.get(key.lockfilePath)
   if (byPathRecord && statMatches(stat, byPathRecord.lockfile)) {
-    return { hit: everyVerifierTrustsCachedRun(byPathRecord, key.verifiers) }
+    return {
+      hit: everyVerifierTrustsCachedRun(byPathRecord, key.verifiers),
+      // The stat-match implies the file content is unchanged since the
+      // cached record was written, so its hash is still correct. Pass
+      // it through to skip hashing on the miss-then-record path.
+      precomputed: { stat, hash: byPathRecord.lockfile.hash },
+    }
   }
 
   // Content lookup: hash the lockfile, look up by content hash. Catches
@@ -251,17 +266,19 @@ export function tryLockfileVerificationCache (
     hash = hashLockfile(key.lockfilePath)
   } catch (err: unknown) {
     logger.debug({ msg: 'lockfile-verified cache: lockfile hash failed', err })
-    return { hit: false }
+    return { hit: false, precomputed: { stat } }
   }
   const byHashRecord = indexes.byHash.get(hash)
-  if (!byHashRecord) return { hit: false }
-  if (!everyVerifierTrustsCachedRun(byHashRecord, key.verifiers)) return { hit: false }
+  if (!byHashRecord) return { hit: false, precomputed: { stat, hash } }
+  if (!everyVerifierTrustsCachedRun(byHashRecord, key.verifiers)) {
+    return { hit: false, precomputed: { stat, hash } }
+  }
 
   appendRecord(cacheDir, {
     ...byHashRecord,
     lockfile: { ...byHashRecord.lockfile, path: key.lockfilePath, size: stat.size, mtimeNs: stat.mtimeNs, inode: stat.inode },
   })
-  return { hit: true }
+  return { hit: true, precomputed: { stat, hash } }
 }
 
 function everyVerifierTrustsCachedRun (record: CacheRecord, verifiers: readonly VerifierCacheIdentity[]): boolean {
@@ -287,17 +304,23 @@ function mergePolicies (verifiers: readonly VerifierCacheIdentity[]): Record<str
  * lockfile is hashed once and the resulting record is appended to the
  * cache file. If the file is past {@link MAX_CACHE_ENTRIES}, it is
  * rewritten keeping the most recent entries.
+ *
+ * Reuses `precomputed` values from a prior
+ * {@link tryLockfileVerificationCache} lookup so we don't re-stat or
+ * (especially) re-hash the lockfile a second time on the miss-then-
+ * record path.
  */
 export function recordVerification (
   cacheDir: string,
-  key: LockfileVerificationCacheKey
+  key: LockfileVerificationCacheKey,
+  precomputed?: { stat?: LockfileStat, hash?: string }
 ): void {
   let stat: LockfileStat | null
   let hash: string
   try {
-    stat = statLockfile(key.lockfilePath)
+    stat = precomputed?.stat ?? statLockfile(key.lockfilePath)
     if (!stat) return
-    hash = hashLockfile(key.lockfilePath)
+    hash = precomputed?.hash ?? hashLockfile(key.lockfilePath)
   } catch (err: unknown) {
     // The gate has already passed; if we can't record the cache entry we
     // just won't get the speedup next time. Not a reason to fail install.

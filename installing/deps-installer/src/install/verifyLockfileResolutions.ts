@@ -67,17 +67,23 @@ export async function verifyLockfileResolutions (
   if (verifiers.length === 0) return
   if (!lockfile.packages) return
 
-  // Cache lookup runs before any registry I/O — the fast path is a single
-  // stat() of the lockfile when the previous install already verified it
-  // under a policy that's at least as strict as today's. The cache layer
-  // only reads `resolver`, `policy`, and `canTrustPastCheck`; passing the full
-  // ResolutionVerifier list is fine (the extra `verify` field is ignored).
+  // Cache lookup runs before any registry I/O — the fast path is a
+  // single stat() of the lockfile when the previous install already
+  // verified it under a policy that's at least as strict as today's.
+  // On a miss, the lookup may have already stat'd + hashed the lockfile;
+  // carry those forward so recordVerification doesn't redo the work.
+  // The cache layer only reads `policy` and `canTrustPastCheck`; passing
+  // the full ResolutionVerifier list is fine (the extra `verify` field
+  // is ignored).
+  type Precomputed = ReturnType<typeof tryLockfileVerificationCache>['precomputed']
+  let cachePrecomputed: Precomputed | undefined
   if (options?.cache) {
-    const { hit } = tryLockfileVerificationCache(options.cache.cacheDir, {
+    const result = tryLockfileVerificationCache(options.cache.cacheDir, {
       lockfilePath: options.cache.lockfilePath,
       verifiers,
     })
-    if (hit) return
+    if (result.hit) return
+    cachePrecomputed = result.precomputed
   }
 
   // depPath can include peer-dependency and patch_hash suffixes (e.g.
@@ -130,7 +136,7 @@ export async function verifyLockfileResolutions (
       recordVerification(options.cache.cacheDir, {
         lockfilePath: options.cache.lockfilePath,
         verifiers,
-      })
+      }, cachePrecomputed)
     }
     return
   }
