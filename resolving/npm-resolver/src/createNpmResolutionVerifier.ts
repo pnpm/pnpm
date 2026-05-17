@@ -1,5 +1,6 @@
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
+import { FULL_META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import type {
   Resolution,
@@ -9,8 +10,10 @@ import type { PackageVersionPolicy, Registries } from '@pnpm/types'
 import semver from 'semver'
 
 import type { FetchMetadataFromFromRegistryOptions } from './fetch.js'
+import { fetchAttestationPublishedAt } from './fetchAttestationPublishedAt.js'
 import { fetchFullMetadataCached, type FetchFullMetadataCachedOptions } from './fetchFullMetadataCached.js'
 import { BUILTIN_NAMED_REGISTRIES } from './parseBareSpecifier.js'
+import { getPkgMirrorPath, loadMeta } from './pickPackage.js'
 
 export interface CreateNpmResolutionVerifierOptions {
   /**
@@ -91,21 +94,85 @@ export function createNpmResolutionVerifier (
     .filter((value): value is string => value != null)
     .sort((a, b) => b.length - a.length)
 
-  // In-memory dedup of the time map per (registry, name) for this verifier
-  // instance. The on-disk conditional-GET cache is handled inside
+  // Three layers of dedup keep us from re-doing work within one install:
+  //
+  // - publishedAtCache (per registry+name+version): the final answer the
+  //   verifier hands to the policy check.
+  // - localMetaCache (per registry+name): one disk read per package
+  //   regardless of how many versions we verify.
+  // - fullMetaCache (per registry+name): one full-metadata network fetch
+  //   per package when we have to fall back from attestation.
+  //
+  // The on-disk conditional-GET cache is handled inside
   // fetchFullMetadataCached via the resolver's shared mirror at opts.cacheDir.
-  const inflight = new Map<string, Promise<Record<string, string | undefined> | undefined>>()
-  const fetchTimeMap = async (registry: string, name: string): Promise<Record<string, string | undefined> | undefined> => {
-    const cacheKey = `${registry}\x00${name}`
-    const cached = inflight.get(cacheKey)
-    if (cached) return cached
-    const promise = fetchFullMetadataCached(opts.fetchOpts, name, {
-      registry,
-      authHeaderValue: opts.getAuthHeaderValueByURI(registry),
-      cacheDir: opts.cacheDir,
-    }).then((meta) => meta.time)
-    inflight.set(cacheKey, promise)
-    return promise
+  const publishedAtCache = new Map<string, Promise<string | undefined>>()
+  const localMetaCache = new Map<string, Promise<Record<string, string | undefined> | undefined>>()
+  const fullMetaCache = new Map<string, Promise<Record<string, string | undefined> | undefined>>()
+
+  const readLocalMetaTime = async (registry: string, name: string): Promise<Record<string, string | undefined> | undefined> => {
+    if (!opts.cacheDir) return undefined
+    const key = `${registry}\x00${name}`
+    let p = localMetaCache.get(key)
+    if (!p) {
+      p = (async () => {
+        const pkgMirror = getPkgMirrorPath(opts.cacheDir!, FULL_META_DIR, registry, name)
+        const cached = await loadMeta(pkgMirror)
+        return cached?.time
+      })()
+      localMetaCache.set(key, p)
+    }
+    return p
+  }
+
+  const fetchFullMetaTime = async (registry: string, name: string): Promise<Record<string, string | undefined> | undefined> => {
+    const key = `${registry}\x00${name}`
+    let p = fullMetaCache.get(key)
+    if (!p) {
+      p = fetchFullMetadataCached(opts.fetchOpts, name, {
+        registry,
+        authHeaderValue: opts.getAuthHeaderValueByURI(registry),
+        cacheDir: opts.cacheDir,
+      }).then((meta) => meta.time)
+      fullMetaCache.set(key, p)
+    }
+    return p
+  }
+
+  /**
+   * Per-(registry, name, version) lookup with a three-step fallback:
+   *
+   * 1. On-disk full-metadata mirror — cheapest. If a previous resolution
+   *    populated `FULL_META_DIR` for this package, the timestamp is
+   *    already there.
+   * 2. npm attestation endpoint — small payload, just this version's
+   *    Sigstore-anchored timestamp. Wins when the local mirror is cold
+   *    and the package was published with provenance (most popular
+   *    packages today).
+   * 3. Full metadata fetch — the fallback for unattested packages or
+   *    when attestation returns a malformed/missing timestamp. Dedup'd
+   *    per (registry, name) so verifying many versions of the same
+   *    package only triggers one full fetch.
+   */
+  const fetchPublishedAt = async (registry: string, name: string, version: string): Promise<string | undefined> => {
+    const key = `${registry}\x00${name}\x00${version}`
+    let p = publishedAtCache.get(key)
+    if (!p) {
+      p = (async () => {
+        const localTime = await readLocalMetaTime(registry, name)
+        if (localTime?.[version]) return localTime[version]
+
+        const attTime = await fetchAttestationPublishedAt(opts.fetchOpts, name, version, {
+          registry,
+          authHeaderValue: opts.getAuthHeaderValueByURI(registry),
+        })
+        if (attTime != null) return attTime
+
+        const time = await fetchFullMetaTime(registry, name)
+        return time?.[version]
+      })()
+      publishedAtCache.set(key, p)
+    }
+    return p
   }
 
   const minimumReleaseAge = opts.minimumReleaseAge
@@ -119,9 +186,9 @@ export function createNpmResolutionVerifier (
 
     const tarballUrl = (resolution as { tarball?: string }).tarball
     const registry = pickRegistryForVersion(opts.registries, namedRegistryPrefixes, name, tarballUrl)
-    let time: Record<string, string | undefined> | undefined
+    let published: string | undefined
     try {
-      time = await fetchTimeMap(registry, name)
+      published = await fetchPublishedAt(registry, name, version)
     } catch (err) {
       return {
         ok: false,
@@ -129,12 +196,11 @@ export function createNpmResolutionVerifier (
         reason: uncheckable(err instanceof Error ? err.message : String(err)),
       }
     }
-    const published = time?.[version]
     if (!published) {
-      // Full metadata is missing this version — either an unpublish or the
-      // registry doesn't expose per-version timestamps for it. Either way
-      // the release-age can't be verified, so report a violation rather
-      // than silently passing.
+      // No source — attestation, local mirror, or full metadata —
+      // surfaced a publish timestamp for this version. Either it's
+      // unpublished or the registry doesn't expose per-version
+      // timestamps. Report a violation rather than silently passing.
       return {
         ok: false,
         code: 'MINIMUM_RELEASE_AGE_VIOLATION',
