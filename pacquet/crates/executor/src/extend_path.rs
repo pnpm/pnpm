@@ -158,8 +158,8 @@ fn ancestor_node_modules_bins(wd: &Path) -> Vec<PathBuf> {
 }
 
 fn normalize_for_split(wd: &Path) -> String {
-    let s = wd.to_string_lossy().into_owned();
-    if cfg!(windows) { s.replace('\\', "/") } else { s }
+    let text = wd.to_string_lossy().into_owned();
+    if cfg!(windows) { text.replace('\\', "/") } else { text }
 }
 
 #[cfg(test)]

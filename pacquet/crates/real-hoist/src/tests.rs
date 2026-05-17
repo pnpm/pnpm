@@ -124,7 +124,7 @@ fn one_transitive_dep_hoists_to_root() {
     let mut names: Vec<&str> = root_children.iter().map(|d| d.0.name.as_str()).collect();
     names.sort();
     assert_eq!(names, ["a", "b"], "both a and b sit at root: {result:#?}");
-    let a = root_children.iter().find(|d| d.0.name == "a").unwrap().0.clone();
+    let a = Rc::clone(&root_children.iter().find(|d| d.0.name == "a").unwrap().0);
     assert!(a.dependencies.borrow().is_empty(), "a's b moved to root: {a:#?}");
 }
 
@@ -175,8 +175,8 @@ fn diamond_dep_hoists_once_to_root() {
     let mut names: Vec<&str> = root_children.iter().map(|d| d.0.name.as_str()).collect();
     names.sort();
     assert_eq!(names, ["a", "b", "c"], "diamond flattens at root: {result:#?}");
-    let a = root_children.iter().find(|d| d.0.name == "a").unwrap().0.clone();
-    let c = root_children.iter().find(|d| d.0.name == "c").unwrap().0.clone();
+    let a = Rc::clone(&root_children.iter().find(|d| d.0.name == "a").unwrap().0);
+    let c = Rc::clone(&root_children.iter().find(|d| d.0.name == "c").unwrap().0);
     assert!(a.dependencies.borrow().is_empty(), "a stripped of its b: {a:#?}");
     assert!(c.dependencies.borrow().is_empty(), "c stripped of its b: {c:#?}");
 
@@ -188,7 +188,7 @@ fn diamond_dep_hoists_once_to_root() {
     // of pointers we collect has exactly one entry.
     let mut b_ptrs: std::collections::HashSet<*const HoisterResult> =
         std::collections::HashSet::new();
-    let mut stack: Vec<Rc<HoisterResult>> = root_children.iter().map(|d| d.0.clone()).collect();
+    let mut stack: Vec<Rc<HoisterResult>> = root_children.iter().map(|d| Rc::clone(&d.0)).collect();
     let mut walked: std::collections::HashSet<*const HoisterResult> =
         std::collections::HashSet::new();
     while let Some(node) = stack.pop() {
@@ -199,7 +199,7 @@ fn diamond_dep_hoists_once_to_root() {
             b_ptrs.insert(Rc::as_ptr(&node));
         }
         for d in node.dependencies.borrow().iter() {
-            stack.push(d.0.clone());
+            stack.push(Rc::clone(&d.0));
         }
     }
     assert_eq!(b_ptrs.len(), 1, "exactly one `b` allocation across the entire result graph");
@@ -251,7 +251,7 @@ fn version_conflict_keeps_loser_at_parent() {
     let mut names: Vec<&str> = root_children.iter().map(|d| d.0.name.as_str()).collect();
     names.sort();
     assert_eq!(names, ["a", "b", "c"], "root has a, c, and one b");
-    let b_at_root = root_children.iter().find(|d| d.0.name == "b").unwrap().0.clone();
+    let b_at_root = Rc::clone(&root_children.iter().find(|d| d.0.name == "b").unwrap().0);
     // DFS visits root's direct deps in alias order (`a` then
     // `c`), so `a@1`'s `b@1.0.0` reaches root first and wins the
     // slot. Assert membership (not iteration-order-derived
@@ -262,7 +262,7 @@ fn version_conflict_keeps_loser_at_parent() {
     assert!(b_refs.contains("b@1.0.0"), "first DFS visitor wins root slot: {b_refs:?}");
     assert_eq!(b_refs.len(), 1, "no other reference accumulated yet: {b_refs:?}");
     // `c`'s `b@2` remains under `c`.
-    let c = root_children.iter().find(|d| d.0.name == "c").unwrap().0.clone();
+    let c = Rc::clone(&root_children.iter().find(|d| d.0.name == "c").unwrap().0);
     let c_kids = c.dependencies.borrow();
     assert_eq!(c_kids.len(), 1, "c kept its conflicting b@2");
     let b_under_c_refs = c_kids[0].0.references.borrow();
@@ -416,12 +416,13 @@ fn transitive_npm_alias_resolves_target_snapshot() {
     let mut names: Vec<&str> = root_children.iter().map(|d| d.0.name.as_str()).collect();
     names.sort();
     assert_eq!(names, ["aliased-name", "host"]);
-    let aliased = root_children
-        .iter()
-        .find(|d| d.0.name == "aliased-name")
-        .expect("aliased-name hoisted")
-        .0
-        .clone();
+    let aliased = Rc::clone(
+        &root_children
+            .iter()
+            .find(|d| d.0.name == "aliased-name")
+            .expect("aliased-name hoisted")
+            .0,
+    );
     assert_eq!(aliased.name, "aliased-name");
     assert_eq!(aliased.ident_name, "real-pkg");
     let refs = aliased.references.borrow();
@@ -430,7 +431,7 @@ fn transitive_npm_alias_resolves_target_snapshot() {
         "reference is the resolved snapshot key, not the alias: {refs:?}",
     );
     assert_eq!(refs.len(), 1);
-    let host = root_children.iter().find(|d| d.0.name == "host").unwrap().0.clone();
+    let host = Rc::clone(&root_children.iter().find(|d| d.0.name == "host").unwrap().0);
     assert!(host.dependencies.borrow().is_empty(), "host stripped of its aliased dep: {host:#?}");
 }
 
@@ -513,7 +514,7 @@ fn peer_constrained_node_stays_under_parent_when_root_provides_different_ident()
     names.sort();
     // Root has the two direct deps; `widget` is NOT at root.
     assert_eq!(names, ["app", "react"], "widget stays under app: {result:#?}");
-    let app = root_children.iter().find(|d| d.0.name == "app").unwrap().0.clone();
+    let app = Rc::clone(&root_children.iter().find(|d| d.0.name == "app").unwrap().0);
     let app_kids = app.dependencies.borrow();
     let app_names: Vec<&str> = app_kids.iter().map(|d| d.0.name.as_str()).collect();
     assert!(
@@ -601,14 +602,14 @@ fn peer_check_uses_post_hoist_ancestor_path_not_queue_time_path() {
         ["app", "mid", "react", "terminal"],
         "mid and terminal hoist freely: {result:#?}",
     );
-    let app = root_children.iter().find(|d| d.0.name == "app").unwrap().0.clone();
+    let app = Rc::clone(&root_children.iter().find(|d| d.0.name == "app").unwrap().0);
     let app_deps = app.dependencies.borrow();
     let app_names: Vec<&str> = app_deps.iter().map(|d| d.0.name.as_str()).collect();
     // app keeps its conflicting react@17 (parent-wins), but mid
     // has moved to root so app no longer carries it.
     assert_eq!(app_names, ["react"], "app retains conflicting react@17: {app_names:?}");
     drop(app_deps);
-    let mid = root_children.iter().find(|d| d.0.name == "mid").unwrap().0.clone();
+    let mid = Rc::clone(&root_children.iter().find(|d| d.0.name == "mid").unwrap().0);
     assert!(mid.dependencies.borrow().is_empty(), "mid stripped of terminal: {mid:#?}");
 }
 
@@ -660,7 +661,7 @@ fn peer_constrained_node_hoists_when_ancestor_and_root_agree() {
     // widget hoists to root because the peer resolves identically
     // at root and at app.
     assert_eq!(names, ["app", "react", "widget"], "widget hoists past app: {result:#?}");
-    let app = root_children.iter().find(|d| d.0.name == "app").unwrap().0.clone();
+    let app = Rc::clone(&root_children.iter().find(|d| d.0.name == "app").unwrap().0);
     assert!(
         app.dependencies.borrow().is_empty(),
         "app stripped of its hoisted widget + dedup'd react: {app:#?}",
@@ -738,7 +739,7 @@ fn multi_round_unlocks_peer_friendly_hoist_after_blocker_moves() {
         ["app", "widget", "x"],
         "widget hoists in round 2 after x clears app in round 1: {result:#?}",
     );
-    let app = root_children.iter().find(|d| d.0.name == "app").unwrap().0.clone();
+    let app = Rc::clone(&root_children.iter().find(|d| d.0.name == "app").unwrap().0);
     assert!(app.dependencies.borrow().is_empty(), "app stripped after multi-round: {app:#?}");
 }
 
@@ -786,7 +787,7 @@ fn hoisting_limits_keeps_blocked_name_at_parent() {
     let mut names: Vec<&str> = root_children.iter().map(|d| d.0.name.as_str()).collect();
     names.sort();
     assert_eq!(names, ["a"], "b stayed below the limit: {result:#?}");
-    let a = root_children.iter().find(|d| d.0.name == "a").unwrap().0.clone();
+    let a = Rc::clone(&root_children.iter().find(|d| d.0.name == "a").unwrap().0);
     let a_deps = a.dependencies.borrow();
     let a_names: Vec<&str> = a_deps.iter().map(|d| d.0.name.as_str()).collect();
     assert_eq!(a_names, ["b"], "b remains under a: {a_names:?}");
@@ -841,7 +842,7 @@ fn hoisting_limits_blocks_multiple_names() {
     // Only `a` (direct dep) and `d` (not blocked) sit at root; b
     // and c stay nested under a.
     assert_eq!(names, ["a", "d"], "blocked names stayed at a: {result:#?}");
-    let a = root_children.iter().find(|d| d.0.name == "a").unwrap().0.clone();
+    let a = Rc::clone(&root_children.iter().find(|d| d.0.name == "a").unwrap().0);
     let a_deps = a.dependencies.borrow();
     let mut a_names: Vec<&str> = a_deps.iter().map(|d| d.0.name.as_str()).collect();
     a_names.sort();
@@ -935,7 +936,7 @@ fn self_dependency_does_not_loop() {
     let root_children = result.dependencies.borrow();
     let names: Vec<&str> = root_children.iter().map(|d| d.0.name.as_str()).collect();
     assert_eq!(names, ["a"], "single a at root: {result:#?}");
-    let a = root_children.iter().find(|d| d.0.name == "a").unwrap().0.clone();
+    let a = Rc::clone(&root_children.iter().find(|d| d.0.name == "a").unwrap().0);
     // The self-edge is dedup'd by the wrapper's identity cache to
     // the same Rc as the root's `a`. During hoist, the back-edge
     // to root is skipped; the self-edge under a is dedup'd as
@@ -990,8 +991,8 @@ fn basic_cyclic_dependency_terminates() {
     let mut names: Vec<&str> = root_children.iter().map(|d| d.0.name.as_str()).collect();
     names.sort();
     assert_eq!(names, ["a", "b"], "both a and b flatten to root: {result:#?}");
-    let a = root_children.iter().find(|d| d.0.name == "a").unwrap().0.clone();
-    let b = root_children.iter().find(|d| d.0.name == "b").unwrap().0.clone();
+    let a = Rc::clone(&root_children.iter().find(|d| d.0.name == "a").unwrap().0);
+    let b = Rc::clone(&root_children.iter().find(|d| d.0.name == "b").unwrap().0);
     assert!(a.dependencies.borrow().is_empty(), "a's b hoisted away: {a:#?}");
     assert!(b.dependencies.borrow().is_empty(), "b's back-edge to a stripped: {b:#?}");
 }

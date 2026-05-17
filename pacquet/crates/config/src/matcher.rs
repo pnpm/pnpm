@@ -125,6 +125,19 @@ impl MatcherImpl {
             MatcherImpl::Single(s) => s.matches(input),
             MatcherImpl::AllInclude(patterns) => {
                 for (i, p) in patterns.iter().enumerate() {
+                    // perfectionist 0.0.0-rc.14's `macro_argument_binding`
+                    // does not treat the unary `!` operator as
+                    // side-effect-free even though its rule doc says
+                    // side-effect-free operators preserve purity. `p.is_ignore`
+                    // is a plain field access on a `bool`, so `!p.is_ignore`
+                    // is pure; the limitation lives in `take_pure_atom`
+                    // (src/rules/macro_argument_binding/purity.rs), which
+                    // only recognises `&`, `&&`, and `*` as pure prefix
+                    // operators. Upstream issue should be filed.
+                    #[cfg_attr(
+                        dylint_lib = "perfectionist",
+                        expect(perfectionist::macro_argument_binding)
+                    )]
                     debug_assert!(!p.is_ignore);
                     if p.matches(input) {
                         return Some(i);

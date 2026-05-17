@@ -225,15 +225,21 @@ fn packlist_inner(
     // does the same and emits no warning, so we stay silent too
     // (a `tracing::debug!` would be lost in install logs).
     if let Some(main) = main_path {
-        let m = normalize_field_path(main);
-        if !m.is_empty() && !should_always_exclude(&m) && pkg_dir.join(&m).is_file() {
-            out.insert(m);
+        let main_norm = normalize_field_path(main);
+        if !main_norm.is_empty()
+            && !should_always_exclude(&main_norm)
+            && pkg_dir.join(&main_norm).is_file()
+        {
+            out.insert(main_norm);
         }
     }
     for bin in &bin_paths {
-        let b = normalize_field_path(bin);
-        if !b.is_empty() && !should_always_exclude(&b) && pkg_dir.join(&b).is_file() {
-            out.insert(b);
+        let bin_norm = normalize_field_path(bin);
+        if !bin_norm.is_empty()
+            && !should_always_exclude(&bin_norm)
+            && pkg_dir.join(&bin_norm).is_file()
+        {
+            out.insert(bin_norm);
         }
     }
 

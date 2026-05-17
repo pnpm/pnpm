@@ -208,9 +208,9 @@ impl<'a> Reader<'a> {
             .ok_or(DecodeError::UnexpectedEof { offset: self.pos + offset })
     }
     fn read_u8(&mut self) -> Result<u8, DecodeError> {
-        let b = self.peek(0)?;
+        let byte = self.peek(0)?;
         self.pos += 1;
-        Ok(b)
+        Ok(byte)
     }
     fn read_bytes(&mut self, n: usize) -> Result<&'a [u8], DecodeError> {
         let end = self.pos.checked_add(n).ok_or(DecodeError::UnexpectedEof { offset: self.pos })?;
@@ -222,12 +222,12 @@ impl<'a> Reader<'a> {
         Ok(slice)
     }
     fn read_u16(&mut self) -> Result<u16, DecodeError> {
-        let b = self.read_bytes(2)?;
-        Ok(u16::from_be_bytes([b[0], b[1]]))
+        let bytes = self.read_bytes(2)?;
+        Ok(u16::from_be_bytes([bytes[0], bytes[1]]))
     }
     fn read_u32(&mut self) -> Result<u32, DecodeError> {
-        let b = self.read_bytes(4)?;
-        Ok(u32::from_be_bytes([b[0], b[1], b[2], b[3]]))
+        let bytes = self.read_bytes(4)?;
+        Ok(u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
     }
 }
 
@@ -360,16 +360,16 @@ fn transcode_value(
         0xca /* float 32 */ => {
             r.read_u8()?;
             let bits = r.read_bytes(4)?;
-            let v = f32::from_be_bytes([bits[0], bits[1], bits[2], bits[3]]);
-            maybe_narrow_float_to_uint(w, v as f64, 0xca, &[bits[0], bits[1], bits[2], bits[3]]);
+            let value = f32::from_be_bytes([bits[0], bits[1], bits[2], bits[3]]);
+            maybe_narrow_float_to_uint(w, value as f64, 0xca, &[bits[0], bits[1], bits[2], bits[3]]);
             Ok(())
         }
         0xcb /* float 64 */ => {
             r.read_u8()?;
             let bits = r.read_bytes(8)?;
             let arr = [bits[0], bits[1], bits[2], bits[3], bits[4], bits[5], bits[6], bits[7]];
-            let v = f64::from_be_bytes(arr);
-            maybe_narrow_float_to_uint(w, v, 0xcb, &arr);
+            let value = f64::from_be_bytes(arr);
+            maybe_narrow_float_to_uint(w, value, 0xcb, &arr);
             Ok(())
         }
         0xcc /* uint 8 */   => copy_n(r, w, 2),

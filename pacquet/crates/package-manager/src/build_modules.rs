@@ -871,10 +871,10 @@ fn bin_dirs_in_all_parent_dirs(pkg_root: &Path, lockfile_dir: &Path) -> Vec<Path
 /// Parse `name` and `version` from a lockfile snapshot key like
 /// `/@pnpm.e2e/install-script-example@1.0.0`.
 pub(crate) fn parse_name_version_from_key(key: &str) -> (String, String) {
-    let s = key.strip_prefix('/').unwrap_or(key);
-    match s.rfind('@') {
-        Some(idx) if idx > 0 => (s[..idx].to_string(), s[idx + 1..].to_string()),
-        _ => (s.to_string(), String::new()),
+    let stripped = key.strip_prefix('/').unwrap_or(key);
+    match stripped.rfind('@') {
+        Some(idx) if idx > 0 => (stripped[..idx].to_string(), stripped[idx + 1..].to_string()),
+        _ => (stripped.to_string(), String::new()),
     }
 }
 

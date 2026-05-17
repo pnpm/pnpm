@@ -476,10 +476,10 @@ fn diff_flat_records(
         diff.added.insert((**k).clone(), manifest_specs[*k].clone());
     }
     for k in lhs_keys.intersection(&rhs_keys) {
-        let l = &lockfile_specs[*k];
-        let r = &manifest_specs[*k];
-        if l != r {
-            diff.modified.insert((**k).clone(), (l.clone(), r.clone()));
+        let lhs_spec = &lockfile_specs[*k];
+        let rhs_spec = &manifest_specs[*k];
+        if lhs_spec != rhs_spec {
+            diff.modified.insert((**k).clone(), (lhs_spec.clone(), rhs_spec.clone()));
         }
     }
     diff

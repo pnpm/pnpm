@@ -904,7 +904,7 @@ fn would_shadow_peer(
                 .borrow()
                 .iter()
                 .find(|d| d.0.name == *peer_name)
-                .map(|d| d.0.clone());
+                .map(|d| Rc::clone(&d.0));
 
             match provider_rc {
                 Some(provider) => {

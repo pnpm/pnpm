@@ -637,8 +637,8 @@ fn archive_filter_for(package_key: &PackageKey) -> Option<Arc<IgnoreEntryFilter>
         // `Arc<dyn Fn(...) + Send + Sync>` (the trait-object type
         // `IgnoreEntryFilter` aliases). The explicit type
         // annotation drives the unsizing coercion.
-        let f: Arc<IgnoreEntryFilter> = Arc::new(node_extras_filter);
-        f
+        let inner: Arc<IgnoreEntryFilter> = Arc::new(node_extras_filter);
+        inner
     });
     Some(Arc::clone(filter))
 }

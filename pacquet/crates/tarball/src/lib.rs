@@ -61,13 +61,13 @@ fn walk_reqwest_chain(error: &reqwest::Error) -> String {
     let mut out = error.to_string();
     let mut error: &dyn std::error::Error = error;
     while let Some(src) = error.source() {
-        let s = src.to_string();
+        let frame = src.to_string();
         // Skip empty or duplicate frames — hyper occasionally repeats
         // the same message across two layers, and reqwest sometimes
         // already includes the inner string in its top-level Display.
-        if !s.is_empty() && !out.ends_with(&s) {
+        if !frame.is_empty() && !out.ends_with(&frame) {
             out.push_str(": ");
-            out.push_str(&s);
+            out.push_str(&frame);
         }
         error = src;
     }

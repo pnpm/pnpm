@@ -382,7 +382,7 @@ where
             if let Some(supp) = supported_architectures {
                 host.supported_architectures = Some(supp.clone());
             }
-            let s = compute_skipped_snapshots::<R>(
+            let skipped = compute_skipped_snapshots::<R>(
                 snapshots.expect("guarded by needs_installability_check"),
                 packages.expect("guarded by needs_installability_check"),
                 &host,
@@ -393,7 +393,7 @@ where
             // Preserve `node_detected` + `node_version` for the
             // engine-name derivation below. Dropping the rest of the
             // host struct frees the allocations early.
-            (s, Some((host.node_detected, host.node_version)))
+            (skipped, Some((host.node_detected, host.node_version)))
         } else {
             // Constraint-free lockfile: keep the seed verbatim so a
             // snapshot recorded as skipped on the previous install
