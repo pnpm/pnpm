@@ -1,22 +1,23 @@
-import { FULL_META_DIR } from '@pnpm/constants'
+import { ABBREVIATED_META_DIR, FULL_META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
 
 import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOptions } from './fetch.js'
 import { getPkgMirrorPath, loadMeta, loadMetaHeaders, prepareJsonForDisk, saveMeta } from './pickPackage.js'
 
-export interface FetchFullMetadataCachedOptions {
+export interface FetchMetadataCachedOptions {
   registry: string
   authHeaderValue?: string
   /**
    * pnpm's on-disk cache directory. When set, the call issues a conditional
-   * GET against the same `FULL_META_DIR` mirror the resolver populates: a
-   * 304 Not Modified response serves the body from disk, a 200 writes the
-   * new body back. Omit to disable caching — every call re-fetches the
-   * full manifest.
+   * GET against the matching mirror the resolver populates: a 304 Not
+   * Modified response serves the body from disk, a 200 writes the new body
+   * back. Omit to disable caching — every call re-fetches.
    */
   cacheDir?: string
 }
+
+export type FetchFullMetadataCachedOptions = FetchMetadataCachedOptions
 
 /**
  * Fetch a full registry metadata document for `pkgName`, reusing pnpm's
@@ -31,14 +32,39 @@ export async function fetchFullMetadataCached (
   pkgName: string,
   opts: FetchFullMetadataCachedOptions
 ): Promise<PackageMeta> {
+  return fetchMetadataCached(fetchOpts, pkgName, { ...opts, fullMetadata: true, metaDir: FULL_META_DIR })
+}
+
+/**
+ * Sibling of {@link fetchFullMetadataCached} that hits the abbreviated
+ * metadata endpoint (`Accept: application/vnd.npm.install-v1+json`) and
+ * caches under `ABBREVIATED_META_DIR` — the same mirror the resolver
+ * populates by default. Used by the lockfile verification gate as a
+ * cheap upper-bound check: if the package's `modified` field is older
+ * than the policy cutoff, every version in it predates the cutoff and
+ * no per-version timestamp lookup is needed.
+ */
+export async function fetchAbbreviatedMetadataCached (
+  fetchOpts: FetchMetadataFromFromRegistryOptions,
+  pkgName: string,
+  opts: FetchMetadataCachedOptions
+): Promise<PackageMeta> {
+  return fetchMetadataCached(fetchOpts, pkgName, { ...opts, fullMetadata: false, metaDir: ABBREVIATED_META_DIR })
+}
+
+async function fetchMetadataCached (
+  fetchOpts: FetchMetadataFromFromRegistryOptions,
+  pkgName: string,
+  opts: FetchMetadataCachedOptions & { fullMetadata: boolean, metaDir: string }
+): Promise<PackageMeta> {
   const pkgMirror = opts.cacheDir != null
-    ? getPkgMirrorPath(opts.cacheDir, FULL_META_DIR, opts.registry, pkgName)
+    ? getPkgMirrorPath(opts.cacheDir, opts.metaDir, opts.registry, pkgName)
     : null
   const cacheHeaders = pkgMirror != null ? await loadMetaHeaders(pkgMirror) : null
   const result = await fetchMetadataFromFromRegistry(fetchOpts, pkgName, {
     registry: opts.registry,
     authHeaderValue: opts.authHeaderValue,
-    fullMetadata: true,
+    fullMetadata: opts.fullMetadata,
     etag: cacheHeaders?.etag,
     modified: cacheHeaders?.modified,
   })

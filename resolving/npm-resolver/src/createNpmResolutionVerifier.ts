@@ -1,5 +1,6 @@
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
+import { FULL_META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import type {
   Resolution,
@@ -9,8 +10,14 @@ import type { PackageVersionPolicy, Registries } from '@pnpm/types'
 import semver from 'semver'
 
 import type { FetchMetadataFromFromRegistryOptions } from './fetch.js'
-import { fetchFullMetadataCached, type FetchFullMetadataCachedOptions } from './fetchFullMetadataCached.js'
+import { fetchAttestationPublishedAt } from './fetchAttestationPublishedAt.js'
+import {
+  fetchAbbreviatedMetadataCached,
+  fetchFullMetadataCached,
+  type FetchFullMetadataCachedOptions,
+} from './fetchFullMetadataCached.js'
 import { BUILTIN_NAMED_REGISTRIES } from './parseBareSpecifier.js'
+import { getPkgMirrorPath, loadMeta } from './pickPackage.js'
 
 export interface CreateNpmResolutionVerifierOptions {
   /**
@@ -91,21 +98,19 @@ export function createNpmResolutionVerifier (
     .filter((value): value is string => value != null)
     .sort((a, b) => b.length - a.length)
 
-  // In-memory dedup of the time map per (registry, name) for this verifier
-  // instance. The on-disk conditional-GET cache is handled inside
-  // fetchFullMetadataCached via the resolver's shared mirror at opts.cacheDir.
-  const inflight = new Map<string, Promise<Record<string, string | undefined> | undefined>>()
-  const fetchTimeMap = async (registry: string, name: string): Promise<Record<string, string | undefined> | undefined> => {
-    const cacheKey = `${registry}\x00${name}`
-    const cached = inflight.get(cacheKey)
-    if (cached) return cached
-    const promise = fetchFullMetadataCached(opts.fetchOpts, name, {
-      registry,
-      authHeaderValue: opts.getAuthHeaderValueByURI(registry),
-      cacheDir: opts.cacheDir,
-    }).then((meta) => meta.time)
-    inflight.set(cacheKey, promise)
-    return promise
+  // Per-install dedup of every network/disk fetch the verifier issues
+  // (see fetchPublishedAt for the lookup order). The on-disk
+  // conditional-GET cache is handled inside fetch{Abbreviated,Full}MetadataCached
+  // via the resolver's shared mirrors at opts.cacheDir.
+  const lookupContext: PublishedAtLookupContext = {
+    fetchOpts: opts.fetchOpts,
+    getAuthHeaderValueByURI: opts.getAuthHeaderValueByURI,
+    cacheDir: opts.cacheDir,
+    cutoffMs: cutoff,
+    abbreviatedMetaCache: new Map(),
+    publishedAtCache: new Map(),
+    localMetaCache: new Map(),
+    fullMetaCache: new Map(),
   }
 
   const minimumReleaseAge = opts.minimumReleaseAge
@@ -119,9 +124,9 @@ export function createNpmResolutionVerifier (
 
     const tarballUrl = (resolution as { tarball?: string }).tarball
     const registry = pickRegistryForVersion(opts.registries, namedRegistryPrefixes, name, tarballUrl)
-    let time: Record<string, string | undefined> | undefined
+    let published: string | undefined
     try {
-      time = await fetchTimeMap(registry, name)
+      published = await fetchPublishedAt(lookupContext, registry, name, version)
     } catch (err) {
       return {
         ok: false,
@@ -129,12 +134,11 @@ export function createNpmResolutionVerifier (
         reason: uncheckable(err instanceof Error ? err.message : String(err)),
       }
     }
-    const published = time?.[version]
     if (!published) {
-      // Full metadata is missing this version — either an unpublish or the
-      // registry doesn't expose per-version timestamps for it. Either way
-      // the release-age can't be verified, so report a violation rather
-      // than silently passing.
+      // No source — attestation, local mirror, or full metadata —
+      // surfaced a publish timestamp for this version. Either it's
+      // unpublished or the registry doesn't expose per-version
+      // timestamps. Report a violation rather than silently passing.
       return {
         ok: false,
         code: 'MINIMUM_RELEASE_AGE_VIOLATION',
@@ -173,6 +177,192 @@ export function createNpmResolutionVerifier (
       return typeof past === 'number' && past >= minimumReleaseAge
     },
   }
+}
+
+type PublishedAtTimeMap = Record<string, string | undefined>
+
+interface PublishedAtLookupContext {
+  fetchOpts: FetchMetadataFromFromRegistryOptions
+  getAuthHeaderValueByURI: (registry: string) => string | undefined
+  cacheDir?: string
+  /**
+   * The `minimumReleaseAge` cutoff converted to a unix-ms epoch. A
+   * version with a publish time strictly less than this passes the
+   * policy. Used by the abbreviated-metadata shortcut: if the
+   * package's last-modified time is older than the cutoff, every
+   * version it contains is too.
+   */
+  cutoffMs: number
+  /**
+   * Per-(registry+name) memo of the abbreviated metadata fetch.
+   * Abbreviated is what the resolver populates by default, so on a
+   * non-frozen install the conditional GET hits the disk mirror at
+   * ~zero cost. Resolves to the parsed metadata or `undefined` on
+   * failure.
+   */
+  abbreviatedMetaCache: Map<string, Promise<{ modified?: string } | undefined>>
+  /**
+   * Per-(registry+name+version) memo of the final published-at answer
+   * the verifier hands to the policy check. One install verifies each
+   * (name, version) pair at most once.
+   */
+  publishedAtCache: Map<string, Promise<string | undefined>>
+  /**
+   * Per-(registry+name) memo of the on-disk full-metadata mirror read.
+   * One disk read per package regardless of how many versions we
+   * verify of it.
+   */
+  localMetaCache: Map<string, Promise<PublishedAtTimeMap | undefined>>
+  /**
+   * Per-(registry+name) memo of the full-metadata network fetch — only
+   * issued when both the abbreviated-modified shortcut and the
+   * attestation endpoint fail to yield a timestamp.
+   */
+  fullMetaCache: Map<string, Promise<PublishedAtTimeMap | undefined>>
+}
+
+/**
+ * Per-(registry, name, version) lookup with a layered fallback:
+ *
+ * 1. **Abbreviated metadata `modified` shortcut.** This is what the
+ *    resolver already fetches by default; it's a small document with
+ *    a package-level last-modified time but no per-version timestamps.
+ *    If `modified` is older than the policy cutoff, every version in
+ *    this package was published at least that long ago — return the
+ *    `modified` timestamp as a conservative upper bound and skip the
+ *    rest of the chain. Costs one conditional GET that the resolver
+ *    has usually already paid for.
+ * 2. **On-disk full-metadata mirror.** If a previous verification
+ *    populated `FULL_META_DIR`, take the per-version timestamp from
+ *    there.
+ * 3. **npm attestation endpoint.** Small payload, just this version's
+ *    Sigstore-anchored timestamp. Wins on cold cache when the package
+ *    was published with provenance.
+ * 4. **Full metadata fetch.** Last resort — only paid when the
+ *    abbreviated shortcut can't decide, the local full mirror is
+ *    cold, and there's no attestation.
+ */
+async function fetchPublishedAt (
+  context: PublishedAtLookupContext,
+  registry: string,
+  name: string,
+  version: string
+): Promise<string | undefined> {
+  const cacheKey = `${registry}\x00${name}\x00${version}`
+  let cachedPromise = context.publishedAtCache.get(cacheKey)
+  if (cachedPromise == null) {
+    cachedPromise = resolvePublishedAt(context, registry, name, version)
+    context.publishedAtCache.set(cacheKey, cachedPromise)
+  }
+  return cachedPromise
+}
+
+async function resolvePublishedAt (
+  context: PublishedAtLookupContext,
+  registry: string,
+  name: string,
+  version: string
+): Promise<string | undefined> {
+  const abbreviatedShortcut = await tryAbbreviatedModifiedShortcut(context, registry, name)
+  if (abbreviatedShortcut != null) return abbreviatedShortcut
+
+  const localTime = await readLocalMetaTime(context, registry, name)
+  if (localTime?.[version]) return localTime[version]
+
+  const attestationTime = await fetchAttestationPublishedAt(context.fetchOpts, name, version, {
+    registry,
+    authHeaderValue: context.getAuthHeaderValueByURI(registry),
+  })
+  if (attestationTime != null) return attestationTime
+
+  const fullMetaTime = await fetchFullMetaTime(context, registry, name)
+  return fullMetaTime?.[version]
+}
+
+/**
+ * Returns the abbreviated metadata's `modified` timestamp **iff** it
+ * proves the gate would pass — i.e. modified is strictly older than
+ * the policy cutoff. In that case every version this package contains
+ * predates the cutoff, so the caller can short-circuit with `modified`
+ * as a conservative upper-bound publish time.
+ *
+ * Returns `undefined` otherwise (modified is too recent, the metadata
+ * lacks a parseable modified field, or the fetch failed) and the
+ * caller proceeds with per-version lookups.
+ */
+async function tryAbbreviatedModifiedShortcut (
+  context: PublishedAtLookupContext,
+  registry: string,
+  name: string
+): Promise<string | undefined> {
+  const meta = await fetchAbbreviatedMeta(context, registry, name)
+  const modified = meta?.modified
+  if (typeof modified !== 'string') return undefined
+  const modifiedMs = Date.parse(modified)
+  if (Number.isNaN(modifiedMs)) return undefined
+  if (modifiedMs >= context.cutoffMs) return undefined
+  return modified
+}
+
+function fetchAbbreviatedMeta (
+  context: PublishedAtLookupContext,
+  registry: string,
+  name: string
+): Promise<{ modified?: string } | undefined> {
+  const cacheKey = `${registry}\x00${name}`
+  let cachedPromise = context.abbreviatedMetaCache.get(cacheKey)
+  if (cachedPromise == null) {
+    cachedPromise = fetchAbbreviatedMetadataCached(context.fetchOpts, name, {
+      registry,
+      authHeaderValue: context.getAuthHeaderValueByURI(registry),
+      cacheDir: context.cacheDir,
+    }).catch(() => undefined)
+    context.abbreviatedMetaCache.set(cacheKey, cachedPromise)
+  }
+  return cachedPromise
+}
+
+function readLocalMetaTime (
+  context: PublishedAtLookupContext,
+  registry: string,
+  name: string
+): Promise<PublishedAtTimeMap | undefined> {
+  if (!context.cacheDir) return Promise.resolve(undefined)
+  const cacheKey = `${registry}\x00${name}`
+  let cachedPromise = context.localMetaCache.get(cacheKey)
+  if (cachedPromise == null) {
+    cachedPromise = loadLocalMetaTime(context.cacheDir, registry, name)
+    context.localMetaCache.set(cacheKey, cachedPromise)
+  }
+  return cachedPromise
+}
+
+async function loadLocalMetaTime (
+  cacheDir: string,
+  registry: string,
+  name: string
+): Promise<PublishedAtTimeMap | undefined> {
+  const pkgMirror = getPkgMirrorPath(cacheDir, FULL_META_DIR, registry, name)
+  const cached = await loadMeta(pkgMirror)
+  return cached?.time
+}
+
+function fetchFullMetaTime (
+  context: PublishedAtLookupContext,
+  registry: string,
+  name: string
+): Promise<PublishedAtTimeMap | undefined> {
+  const cacheKey = `${registry}\x00${name}`
+  let cachedPromise = context.fullMetaCache.get(cacheKey)
+  if (cachedPromise == null) {
+    cachedPromise = fetchFullMetadataCached(context.fetchOpts, name, {
+      registry,
+      authHeaderValue: context.getAuthHeaderValueByURI(registry),
+      cacheDir: context.cacheDir,
+    }).then((meta) => meta.time)
+    context.fullMetaCache.set(cacheKey, cachedPromise)
+  }
+  return cachedPromise
 }
 
 function pickRegistryForVersion (
