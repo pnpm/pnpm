@@ -39,9 +39,9 @@ export async function fetchAttestationPublishedAt (
   opts: FetchAttestationOptions
 ): Promise<string | undefined> {
   const url = `${opts.registry.replace(/\/$/, '')}/-/npm/v1/attestations/${pkgName}@${version}`
-  const op = retry.operation(fetchOpts.retry)
+  const retryOperation = retry.operation(fetchOpts.retry)
   return new Promise<string | undefined>((resolve) => {
-    op.attempt(async () => {
+    retryOperation.attempt(async () => {
       let response: Response
       try {
         response = await fetchOpts.fetch(url, {
@@ -87,8 +87,8 @@ function extractPublishedAt (body: unknown): string | undefined {
   if (!Array.isArray(attestations)) return undefined
 
   let earliestSeconds: number | undefined
-  for (const att of attestations) {
-    const seconds = readEarliestIntegratedTime(att)
+  for (const attestation of attestations) {
+    const seconds = readEarliestIntegratedTime(attestation)
     if (seconds == null) continue
     if (earliestSeconds == null || seconds < earliestSeconds) {
       earliestSeconds = seconds
@@ -98,9 +98,9 @@ function extractPublishedAt (body: unknown): string | undefined {
   return new Date(earliestSeconds * 1000).toISOString()
 }
 
-function readEarliestIntegratedTime (att: unknown): number | undefined {
-  if (!att || typeof att !== 'object') return undefined
-  const bundle = (att as { bundle?: unknown }).bundle
+function readEarliestIntegratedTime (attestation: unknown): number | undefined {
+  if (!attestation || typeof attestation !== 'object') return undefined
+  const bundle = (attestation as { bundle?: unknown }).bundle
   if (!bundle || typeof bundle !== 'object') return undefined
   const verificationMaterial = (bundle as { verificationMaterial?: unknown }).verificationMaterial
   if (!verificationMaterial || typeof verificationMaterial !== 'object') return undefined
@@ -110,12 +110,18 @@ function readEarliestIntegratedTime (att: unknown): number | undefined {
   let earliest: number | undefined
   for (const entry of tlogEntries) {
     if (!entry || typeof entry !== 'object') continue
-    const raw = (entry as { integratedTime?: unknown }).integratedTime
+    const rawIntegratedTime = (entry as { integratedTime?: unknown }).integratedTime
     // npm serializes integratedTime as a string ("1778583836") to avoid
     // JSON precision loss; accept either string or number defensively.
-    const seconds = typeof raw === 'string' ? Number(raw) : typeof raw === 'number' ? raw : NaN
-    if (!Number.isFinite(seconds) || seconds <= 0) continue
+    const seconds = parseIntegratedTimeSeconds(rawIntegratedTime)
+    if (seconds == null) continue
     if (earliest == null || seconds < earliest) earliest = seconds
   }
   return earliest
+}
+
+function parseIntegratedTimeSeconds (raw: unknown): number | undefined {
+  const seconds = typeof raw === 'string' ? Number(raw) : typeof raw === 'number' ? raw : NaN
+  if (!Number.isFinite(seconds) || seconds <= 0) return undefined
+  return seconds
 }

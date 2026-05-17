@@ -94,85 +94,17 @@ export function createNpmResolutionVerifier (
     .filter((value): value is string => value != null)
     .sort((a, b) => b.length - a.length)
 
-  // Three layers of dedup keep us from re-doing work within one install:
-  //
-  // - publishedAtCache (per registry+name+version): the final answer the
-  //   verifier hands to the policy check.
-  // - localMetaCache (per registry+name): one disk read per package
-  //   regardless of how many versions we verify.
-  // - fullMetaCache (per registry+name): one full-metadata network fetch
-  //   per package when we have to fall back from attestation.
-  //
-  // The on-disk conditional-GET cache is handled inside
-  // fetchFullMetadataCached via the resolver's shared mirror at opts.cacheDir.
-  const publishedAtCache = new Map<string, Promise<string | undefined>>()
-  const localMetaCache = new Map<string, Promise<Record<string, string | undefined> | undefined>>()
-  const fullMetaCache = new Map<string, Promise<Record<string, string | undefined> | undefined>>()
-
-  const readLocalMetaTime = async (registry: string, name: string): Promise<Record<string, string | undefined> | undefined> => {
-    if (!opts.cacheDir) return undefined
-    const key = `${registry}\x00${name}`
-    let p = localMetaCache.get(key)
-    if (!p) {
-      p = (async () => {
-        const pkgMirror = getPkgMirrorPath(opts.cacheDir!, FULL_META_DIR, registry, name)
-        const cached = await loadMeta(pkgMirror)
-        return cached?.time
-      })()
-      localMetaCache.set(key, p)
-    }
-    return p
-  }
-
-  const fetchFullMetaTime = async (registry: string, name: string): Promise<Record<string, string | undefined> | undefined> => {
-    const key = `${registry}\x00${name}`
-    let p = fullMetaCache.get(key)
-    if (!p) {
-      p = fetchFullMetadataCached(opts.fetchOpts, name, {
-        registry,
-        authHeaderValue: opts.getAuthHeaderValueByURI(registry),
-        cacheDir: opts.cacheDir,
-      }).then((meta) => meta.time)
-      fullMetaCache.set(key, p)
-    }
-    return p
-  }
-
-  /**
-   * Per-(registry, name, version) lookup with a three-step fallback:
-   *
-   * 1. On-disk full-metadata mirror — cheapest. If a previous resolution
-   *    populated `FULL_META_DIR` for this package, the timestamp is
-   *    already there.
-   * 2. npm attestation endpoint — small payload, just this version's
-   *    Sigstore-anchored timestamp. Wins when the local mirror is cold
-   *    and the package was published with provenance (most popular
-   *    packages today).
-   * 3. Full metadata fetch — the fallback for unattested packages or
-   *    when attestation returns a malformed/missing timestamp. Dedup'd
-   *    per (registry, name) so verifying many versions of the same
-   *    package only triggers one full fetch.
-   */
-  const fetchPublishedAt = async (registry: string, name: string, version: string): Promise<string | undefined> => {
-    const key = `${registry}\x00${name}\x00${version}`
-    let p = publishedAtCache.get(key)
-    if (!p) {
-      p = (async () => {
-        const localTime = await readLocalMetaTime(registry, name)
-        if (localTime?.[version]) return localTime[version]
-
-        const attTime = await fetchAttestationPublishedAt(opts.fetchOpts, name, version, {
-          registry,
-          authHeaderValue: opts.getAuthHeaderValueByURI(registry),
-        })
-        if (attTime != null) return attTime
-
-        const time = await fetchFullMetaTime(registry, name)
-        return time?.[version]
-      })()
-      publishedAtCache.set(key, p)
-    }
-    return p
+  // Three layers of dedup keep us from re-doing work within one install
+  // (see fetchPublishedAt). The on-disk conditional-GET cache is handled
+  // inside fetchFullMetadataCached via the resolver's shared mirror at
+  // opts.cacheDir.
+  const lookupContext: PublishedAtLookupContext = {
+    fetchOpts: opts.fetchOpts,
+    getAuthHeaderValueByURI: opts.getAuthHeaderValueByURI,
+    cacheDir: opts.cacheDir,
+    publishedAtCache: new Map(),
+    localMetaCache: new Map(),
+    fullMetaCache: new Map(),
   }
 
   const minimumReleaseAge = opts.minimumReleaseAge
@@ -188,7 +120,7 @@ export function createNpmResolutionVerifier (
     const registry = pickRegistryForVersion(opts.registries, namedRegistryPrefixes, name, tarballUrl)
     let published: string | undefined
     try {
-      published = await fetchPublishedAt(registry, name, version)
+      published = await fetchPublishedAt(lookupContext, registry, name, version)
     } catch (err) {
       return {
         ok: false,
@@ -239,6 +171,124 @@ export function createNpmResolutionVerifier (
       return typeof past === 'number' && past >= minimumReleaseAge
     },
   }
+}
+
+type PublishedAtTimeMap = Record<string, string | undefined>
+
+interface PublishedAtLookupContext {
+  fetchOpts: FetchMetadataFromFromRegistryOptions
+  getAuthHeaderValueByURI: (registry: string) => string | undefined
+  cacheDir?: string
+  /**
+   * Per-(registry+name+version) memo of the final published-at answer
+   * the verifier hands to the policy check. One install verifies each
+   * (name, version) pair at most once.
+   */
+  publishedAtCache: Map<string, Promise<string | undefined>>
+  /**
+   * Per-(registry+name) memo of the on-disk full-metadata mirror read.
+   * One disk read per package regardless of how many versions we
+   * verify of it.
+   */
+  localMetaCache: Map<string, Promise<PublishedAtTimeMap | undefined>>
+  /**
+   * Per-(registry+name) memo of the full-metadata network fetch — only
+   * issued when we fall through both the on-disk mirror and the
+   * attestation endpoint. Dedup'd so verifying many versions of one
+   * unattested package costs only one full fetch.
+   */
+  fullMetaCache: Map<string, Promise<PublishedAtTimeMap | undefined>>
+}
+
+/**
+ * Per-(registry, name, version) lookup with a three-step fallback:
+ *
+ * 1. On-disk full-metadata mirror — cheapest. If a previous resolution
+ *    populated `FULL_META_DIR` for this package, the timestamp is
+ *    already there.
+ * 2. npm attestation endpoint — small payload, just this version's
+ *    Sigstore-anchored timestamp. Wins when the local mirror is cold
+ *    and the package was published with provenance (most popular
+ *    packages today).
+ * 3. Full metadata fetch — the fallback for unattested packages or
+ *    when the attestation endpoint returns a malformed/missing
+ *    timestamp.
+ */
+async function fetchPublishedAt (
+  context: PublishedAtLookupContext,
+  registry: string,
+  name: string,
+  version: string
+): Promise<string | undefined> {
+  const cacheKey = `${registry}\x00${name}\x00${version}`
+  let cachedPromise = context.publishedAtCache.get(cacheKey)
+  if (cachedPromise == null) {
+    cachedPromise = resolvePublishedAt(context, registry, name, version)
+    context.publishedAtCache.set(cacheKey, cachedPromise)
+  }
+  return cachedPromise
+}
+
+async function resolvePublishedAt (
+  context: PublishedAtLookupContext,
+  registry: string,
+  name: string,
+  version: string
+): Promise<string | undefined> {
+  const localTime = await readLocalMetaTime(context, registry, name)
+  if (localTime?.[version]) return localTime[version]
+
+  const attestationTime = await fetchAttestationPublishedAt(context.fetchOpts, name, version, {
+    registry,
+    authHeaderValue: context.getAuthHeaderValueByURI(registry),
+  })
+  if (attestationTime != null) return attestationTime
+
+  const fullMetaTime = await fetchFullMetaTime(context, registry, name)
+  return fullMetaTime?.[version]
+}
+
+function readLocalMetaTime (
+  context: PublishedAtLookupContext,
+  registry: string,
+  name: string
+): Promise<PublishedAtTimeMap | undefined> {
+  if (!context.cacheDir) return Promise.resolve(undefined)
+  const cacheKey = `${registry}\x00${name}`
+  let cachedPromise = context.localMetaCache.get(cacheKey)
+  if (cachedPromise == null) {
+    cachedPromise = loadLocalMetaTime(context.cacheDir, registry, name)
+    context.localMetaCache.set(cacheKey, cachedPromise)
+  }
+  return cachedPromise
+}
+
+async function loadLocalMetaTime (
+  cacheDir: string,
+  registry: string,
+  name: string
+): Promise<PublishedAtTimeMap | undefined> {
+  const pkgMirror = getPkgMirrorPath(cacheDir, FULL_META_DIR, registry, name)
+  const cached = await loadMeta(pkgMirror)
+  return cached?.time
+}
+
+function fetchFullMetaTime (
+  context: PublishedAtLookupContext,
+  registry: string,
+  name: string
+): Promise<PublishedAtTimeMap | undefined> {
+  const cacheKey = `${registry}\x00${name}`
+  let cachedPromise = context.fullMetaCache.get(cacheKey)
+  if (cachedPromise == null) {
+    cachedPromise = fetchFullMetadataCached(context.fetchOpts, name, {
+      registry,
+      authHeaderValue: context.getAuthHeaderValueByURI(registry),
+      cacheDir: context.cacheDir,
+    }).then((meta) => meta.time)
+    context.fullMetaCache.set(cacheKey, cachedPromise)
+  }
+  return cachedPromise
 }
 
 function pickRegistryForVersion (
