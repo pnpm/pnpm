@@ -7,7 +7,7 @@ import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, parsePackageManager, types as allTypes } from '@pnpm/config.reader'
 import { getPublishedByPolicy } from '@pnpm/config.version-policy'
 import { PnpmError } from '@pnpm/error'
-import { createResolver, wrapResolverWithStrictPolicy } from '@pnpm/installing.client'
+import { createResolver, makeResolutionStrict } from '@pnpm/installing.client'
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
@@ -90,7 +90,7 @@ export async function handler (
   // surfaces as a thrown PnpmError before self-update switches to
   // the immature pnpm version.
   const strictMinReleaseAge = Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true
-  const resolve = strictMinReleaseAge ? wrapResolverWithStrictPolicy(baseResolve) : baseResolve
+  const resolve = strictMinReleaseAge ? makeResolutionStrict(baseResolve) : baseResolve
   const pkgName = 'pnpm'
   const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
   // `pnpm self-update` (no args) defaults to the `latest` dist-tag, but we

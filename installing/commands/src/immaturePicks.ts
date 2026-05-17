@@ -1,5 +1,6 @@
 import { PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
+import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
 import { isCI } from 'ci-info'
 import enquirer from 'enquirer'
 
@@ -22,7 +23,6 @@ export interface ResolverViolation {
   reason: string
 }
 
-const MINIMUM_RELEASE_AGE_CODE = 'MINIMUM_RELEASE_AGE_VIOLATION'
 
 export interface ImmaturePicksPlan {
   /**
@@ -107,7 +107,7 @@ function failOnImmature (immature: readonly ResolverViolation[]): PnpmError {
 }
 
 function filterImmatureViolations (violations: readonly ResolverViolation[]): ResolverViolation[] {
-  return violations.filter((v) => v.code === MINIMUM_RELEASE_AGE_CODE)
+  return violations.filter((v) => v.code === MINIMUM_RELEASE_AGE_VIOLATION_CODE)
 }
 
 function pickImmatureEntries (

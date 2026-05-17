@@ -16,6 +16,7 @@ import {
   type ResolveFunction,
   type ResolverFactoryOptions,
 } from '@pnpm/resolving.default-resolver'
+import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
 import type { LockfileResolutionViolation, ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import type { StoreIndex } from '@pnpm/store.index'
 import type { RegistryConfig } from '@pnpm/types'
@@ -94,7 +95,7 @@ export function createResolver (opts: Omit<ClientOptions, 'storeIndex'>): { reso
  * (today: `MINIMUM_RELEASE_AGE_VIOLATION`) get a consistent error code
  * across every strict-mode caller without each call site re-translating.
  */
-export function wrapResolverWithStrictPolicy (resolve: ResolveFunction): ResolveFunction {
+export function makeResolutionStrict (resolve: ResolveFunction): ResolveFunction {
   return (async (wantedDependency, opts) => {
     const result = await resolve(wantedDependency, opts)
     if (result?.policyViolation) {
@@ -110,7 +111,7 @@ function policyViolationToError (violation: LockfileResolutionViolation): PnpmEr
   // pre-refactor callers (and `default-reporter`) already recognize.
   // Future violation codes get their mapping added here so call sites
   // don't have to re-translate.
-  const errorCode = violation.code === 'MINIMUM_RELEASE_AGE_VIOLATION'
+  const errorCode = violation.code === MINIMUM_RELEASE_AGE_VIOLATION_CODE
     ? 'NO_MATURE_MATCHING_VERSION'
     : violation.code
   return new PnpmError(errorCode, message)

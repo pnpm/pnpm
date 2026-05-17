@@ -20,6 +20,10 @@ import {
 import { BUILTIN_NAMED_REGISTRIES } from './parseBareSpecifier.js'
 import { getPkgMirrorPath, loadMeta } from './pickPackage.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
+import {
+  MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+  TRUST_DOWNGRADE_VIOLATION_CODE,
+} from './violationCodes.js'
 
 export interface CreateNpmResolutionVerifierOptions {
   /**
@@ -250,7 +254,7 @@ async function runAgeCheck (
   } catch (err) {
     return {
       ok: false,
-      code: 'MINIMUM_RELEASE_AGE_VIOLATION',
+      code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
       reason: uncheckable('minimumReleaseAge', err instanceof Error ? err.message : String(err)),
     }
   }
@@ -261,7 +265,7 @@ async function runAgeCheck (
     // timestamps. Report a violation rather than silently passing.
     return {
       ok: false,
-      code: 'MINIMUM_RELEASE_AGE_VIOLATION',
+      code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
       reason: uncheckable('minimumReleaseAge', 'version not present in registry manifest'),
     }
   }
@@ -270,14 +274,14 @@ async function runAgeCheck (
   if (Number.isNaN(ts)) {
     return {
       ok: false,
-      code: 'MINIMUM_RELEASE_AGE_VIOLATION',
+      code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
       reason: 'publish timestamp is not a valid date',
     }
   }
   if (ts > cutoff) {
     return {
       ok: false,
-      code: 'MINIMUM_RELEASE_AGE_VIOLATION',
+      code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
       reason: `was published at ${publishedAt.toISOString()}, within the minimumReleaseAge cutoff (${new Date(cutoff).toISOString()})`,
     }
   }
@@ -315,14 +319,14 @@ async function runTrustCheck (
   } catch (err) {
     return {
       ok: false,
-      code: 'TRUST_DOWNGRADE',
+      code: TRUST_DOWNGRADE_VIOLATION_CODE,
       reason: uncheckable('trustPolicy', err instanceof Error ? err.message : String(err)),
     }
   }
   if (!meta) {
     return {
       ok: false,
-      code: 'TRUST_DOWNGRADE',
+      code: TRUST_DOWNGRADE_VIOLATION_CODE,
       reason: uncheckable('trustPolicy', 'package metadata is unavailable'),
     }
   }
@@ -332,7 +336,7 @@ async function runTrustCheck (
   } catch (err) {
     return {
       ok: false,
-      code: 'TRUST_DOWNGRADE',
+      code: TRUST_DOWNGRADE_VIOLATION_CODE,
       reason: err instanceof Error ? err.message : String(err),
     }
   }

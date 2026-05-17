@@ -44,6 +44,7 @@
     "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
     "@pnpm/resolving.default-resolver": "workspace:*",
+    "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/types": "workspace:*",

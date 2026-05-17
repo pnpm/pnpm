@@ -57,6 +57,7 @@ import {
 } from './pickPackage.js'
 import { pickPackageFromMeta, pickVersionByVersionRange } from './pickPackageFromMeta.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
+import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from './violationCodes.js'
 import { whichVersionIsPinned } from './whichVersionIsPinned.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
 
@@ -119,6 +120,10 @@ export {
   workspacePrefToNpm,
 }
 export { createNpmResolutionVerifier, type CreateNpmResolutionVerifierOptions } from './createNpmResolutionVerifier.js'
+export {
+  MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+  TRUST_DOWNGRADE_VIOLATION_CODE,
+} from './violationCodes.js'
 export { whichVersionIsPinned } from './whichVersionIsPinned.js'
 
 export interface ResolverFactoryOptions {
@@ -944,7 +949,7 @@ function detectMinReleaseAgeViolation (args: {
     name: args.name,
     version: args.version,
     resolution: args.resolution,
-    code: 'MINIMUM_RELEASE_AGE_VIOLATION',
+    code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
     reason: `was published at ${new Date(ts).toISOString()}, within the minimumReleaseAge cutoff (${args.publishedBy.toISOString()})`,
   }
 }

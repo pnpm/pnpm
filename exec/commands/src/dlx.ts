@@ -15,7 +15,7 @@ import { type Config, types } from '@pnpm/config.reader'
 import { getPublishedByPolicy } from '@pnpm/config.version-policy'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
-import { createResolver, wrapResolverWithStrictPolicy } from '@pnpm/installing.client'
+import { createResolver, makeResolutionStrict } from '@pnpm/installing.client'
 import { add } from '@pnpm/installing.commands'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
@@ -132,7 +132,7 @@ export async function handler (
   // violation surfaces as a thrown PnpmError before dlx tries to launch
   // the immature version.
   const strictMinReleaseAge = Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true
-  const resolve = strictMinReleaseAge ? wrapResolverWithStrictPolicy(baseResolve) : baseResolve
+  const resolve = strictMinReleaseAge ? makeResolutionStrict(baseResolve) : baseResolve
   const resolvedPkgAliases: string[] = []
   const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
   const resolvedPkgs = await Promise.all(pkgs.map(async (pkg) => {
