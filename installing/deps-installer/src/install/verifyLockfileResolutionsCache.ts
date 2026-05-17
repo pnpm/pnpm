@@ -2,7 +2,6 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { createHexHash } from '@pnpm/crypto.hash'
 import { logger } from '@pnpm/logger'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 
@@ -67,7 +66,13 @@ const COMPACT_TRIGGER_BYTES = MAX_CACHE_ENTRIES * 1024 * 3 / 2
 
 interface CacheRecord {
   lockfile: {
-    /** sha256 hex of the lockfile content, normalized to LF — primary cache key. */
+    /**
+     * sha256 hex of the lockfile content — primary cache key. Computed
+     * from the parsed in-memory lockfile object (not the raw file
+     * bytes); two on-disk YAML formattings that parse to the same
+     * object share a hash. Same content on disk → same parsed object →
+     * same hash, so worktrees and CI checkouts collide here.
+     */
     hash: string
     /** Absolute path the cache last saw this content at — secondary index for the stat fast path. */
     path: string
@@ -121,6 +126,14 @@ interface LockfileStat {
 export interface LockfileVerificationCacheKey {
   lockfilePath: string
   verifiers: readonly VerifierCacheIdentity[]
+  /**
+   * Lazy: returns a stable hex hash of the in-memory lockfile. The
+   * cache invokes this only when the stat shortcut doesn't apply (the
+   * lockfile is at a new path, or its stat has drifted from the
+   * cached record). When the stat shortcut hits, the in-memory hash is
+   * never computed.
+   */
+  hashLockfile: () => string
 }
 
 interface CacheIndexes {
@@ -192,13 +205,6 @@ function statLockfile (lockfilePath: string): LockfileStat | null {
   }
 }
 
-function hashLockfile (lockfilePath: string): string {
-  // Match createHexHashFromFile: read as UTF-8, normalize CRLF → LF, then
-  // hash. Sync because the cache is consulted on a non-parallel path.
-  const content = fs.readFileSync(lockfilePath, 'utf8').split('\r\n').join('\n')
-  return createHexHash(content)
-}
-
 function statMatches (stat: LockfileStat, lockfile: CacheRecord['lockfile']): boolean {
   return stat.size === lockfile.size &&
     stat.mtimeNs === lockfile.mtimeNs &&
@@ -257,13 +263,14 @@ export function tryLockfileVerificationCache (
     }
   }
 
-  // Content lookup: hash the lockfile, look up by content hash. Catches
-  // worktrees (same content, different path) and CI checkouts (same
-  // content, reset stat). On hit, refresh the path/stat entry so the
-  // next install at this path takes the stat shortcut above.
+  // Content lookup: hash the in-memory lockfile, look up by content
+  // hash. Catches worktrees (same content, different path) and CI
+  // checkouts (same content, reset stat). On hit, refresh the
+  // path/stat entry so the next install at this path takes the stat
+  // shortcut above.
   let hash: string
   try {
-    hash = hashLockfile(key.lockfilePath)
+    hash = key.hashLockfile()
   } catch (err: unknown) {
     logger.debug({ msg: 'lockfile-verified cache: lockfile hash failed', err })
     return { hit: false, precomputed: { stat } }
@@ -320,7 +327,7 @@ export function recordVerification (
   try {
     stat = precomputed?.stat ?? statLockfile(key.lockfilePath)
     if (!stat) return
-    hash = precomputed?.hash ?? hashLockfile(key.lockfilePath)
+    hash = precomputed?.hash ?? key.hashLockfile()
   } catch (err: unknown) {
     // The gate has already passed; if we can't record the cache entry we
     // just won't get the speedup next time. Not a reason to fail install.

@@ -1,3 +1,4 @@
+import { hashObject } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
@@ -70,17 +71,23 @@ export async function verifyLockfileResolutions (
   // Cache lookup runs before any registry I/O — the fast path is a
   // single stat() of the lockfile when the previous install already
   // verified it under a policy that's at least as strict as today's.
-  // On a miss, the lookup may have already stat'd + hashed the lockfile;
-  // carry those forward so recordVerification doesn't redo the work.
-  // The cache layer only reads `policy` and `canTrustPastCheck`; passing
-  // the full ResolutionVerifier list is fine (the extra `verify` field
-  // is ignored).
+  // The content key is hashed lazily from the in-memory lockfile (not
+  // the file bytes) so we never read the file a second time. On a
+  // miss the precomputed stat+hash flow to recordVerification.
   type Precomputed = ReturnType<typeof tryLockfileVerificationCache>['precomputed']
   let cachePrecomputed: Precomputed | undefined
+  // hashObject is streaming (no "Invalid string length" on huge lockfiles)
+  // and key-order-stable, which JSON.stringify is not.
+  let cachedHash: string | undefined
+  const hashLockfile = (): string => {
+    if (cachedHash == null) cachedHash = hashObject(lockfile)
+    return cachedHash
+  }
   if (options?.cache) {
     const result = tryLockfileVerificationCache(options.cache.cacheDir, {
       lockfilePath: options.cache.lockfilePath,
       verifiers,
+      hashLockfile,
     })
     if (result.hit) return
     cachePrecomputed = result.precomputed
@@ -136,6 +143,7 @@ export async function verifyLockfileResolutions (
       recordVerification(options.cache.cacheDir, {
         lockfilePath: options.cache.lockfilePath,
         verifiers,
+        hashLockfile,
       }, cachePrecomputed)
     }
     return
