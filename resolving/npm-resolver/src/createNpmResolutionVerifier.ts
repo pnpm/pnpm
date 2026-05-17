@@ -165,13 +165,16 @@ export function createNpmResolutionVerifier (
     }
     return { ok: true }
   }
-  // Snapshot the exclude list (sorted, deduped) for the cache contract:
-  // the cached run is only trustworthy under today's policy when today's
-  // exclude list is a superset of the cached one. Removing an entry could
-  // expose a violation that was previously allowed, so we must re-verify.
-  const sortedExcludes = opts.minimumReleaseAgeExclude
-    ? [...new Set(opts.minimumReleaseAgeExclude)].sort()
-    : []
+  // Snapshot the exclude list (sorted, deduped) and require an exact
+  // match in `canTrustPastCheck`: cache identity == policy identity.
+  // Any change to the exclude list — adding, removing, or substituting
+  // an entry — invalidates the cached run. This is stricter than a
+  // pure correctness check would require (adding to the list is more
+  // permissive and the cached pass would still hold), but it makes the
+  // cache contract trivial to reason about and removes a class of
+  // bypasses where a previously-approved version stays trusted after
+  // its exclude entry has been pulled.
+  const sortedExcludes = [...new Set(opts.minimumReleaseAgeExclude ?? [])].sort()
   return {
     verify,
     policy: {
@@ -188,22 +191,13 @@ export function createNpmResolutionVerifier (
       const past = cached.minimumReleaseAge
       if (typeof past !== 'number' || past < minimumReleaseAge) return false
 
-      // Symmetric check for the exclude list: a cached run trusted a
-      // superset of versions, so its result holds for today only if
-      // every entry that was on the cached list is still on today's.
-      // A removed entry could now flag — must re-verify.
-      // Older record shape (no exclude field) only trusted when today's
-      // policy doesn't introduce one either.
-      const pastExcludes = cached.minimumReleaseAgeExclude
-      if (pastExcludes == null) return sortedExcludes.length === 0
-      if (!Array.isArray(pastExcludes)) return false
-      if (sortedExcludes.length === 0) return pastExcludes.length === 0
-      const todayHas = new Set(sortedExcludes)
-      for (const entry of pastExcludes) {
-        if (typeof entry !== 'string') return false
-        if (!todayHas.has(entry)) return false
-      }
-      return true
+      // Today's sorted-deduped list must match the cached one byte for
+      // byte. Older records (no exclude field) fall back to an empty
+      // array, so they only trust today's empty policy.
+      const pastExcludes = Array.isArray(cached.minimumReleaseAgeExclude)
+        ? cached.minimumReleaseAgeExclude
+        : []
+      return JSON.stringify(pastExcludes) === JSON.stringify(sortedExcludes)
     },
   }
 }
