@@ -7,7 +7,7 @@ import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, parsePackageManager, types as allTypes } from '@pnpm/config.reader'
 import { getPublishedByPolicy } from '@pnpm/config.version-policy'
 import { PnpmError } from '@pnpm/error'
-import { createResolver } from '@pnpm/installing.client'
+import { createResolver, wrapResolverWithStrictPolicy } from '@pnpm/installing.client'
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
@@ -80,11 +80,17 @@ export async function handler (
     throw new PnpmError('CANT_SELF_UPDATE_IN_COREPACK', 'You should update pnpm with corepack')
   }
   globalInfo('Checking for updates...')
-  const { resolve } = createResolver({
+  const { resolve: baseResolve } = createResolver({
     ...opts,
     configByUri: opts.configByUri,
     ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime,
   })
+  // self-update has nowhere to "defer to" either — under strict
+  // minimumReleaseAge, wrap the resolver so any policy violation
+  // surfaces as a thrown PnpmError before self-update switches to
+  // the immature pnpm version.
+  const strictMinReleaseAge = Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true
+  const resolve = strictMinReleaseAge ? wrapResolverWithStrictPolicy(baseResolve) : baseResolve
   const pkgName = 'pnpm'
   const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
   // `pnpm self-update` (no args) defaults to the `latest` dist-tag, but we
@@ -103,17 +109,6 @@ export async function handler (
   })
   if (!resolution?.manifest) {
     throw new PnpmError('CANNOT_RESOLVE_PNPM', `Cannot find "${bareSpecifier}" version of pnpm`)
-  }
-  // self-update has nowhere to "defer to" either — under strict
-  // minimumReleaseAge, refuse to switch to an immature pnpm version
-  // and report the same shape callers used to see from
-  // `NO_MATURE_MATCHING_VERSION`.
-  const strictMinReleaseAge = Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true
-  if (strictMinReleaseAge && resolution.policyViolation?.code === 'MINIMUM_RELEASE_AGE_VIOLATION') {
-    throw new PnpmError(
-      'NO_MATURE_MATCHING_VERSION',
-      `pnpm@${resolution.policyViolation.version} ${resolution.policyViolation.reason}`
-    )
   }
 
   // Determine the "previous" pnpm version being upgraded FROM. If the

@@ -5138,6 +5138,9 @@ importers:
       '@pnpm/engine.runtime.node-resolver':
         specifier: workspace:*
         version: link:../../engine/runtime/node-resolver
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       '@pnpm/fetching.binary-fetcher':
         specifier: workspace:*
         version: link:../../fetching/binary-fetcher

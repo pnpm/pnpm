@@ -34,6 +34,7 @@
   },
   "dependencies": {
     "@pnpm/engine.runtime.node-resolver": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/fetching.binary-fetcher": "workspace:*",
     "@pnpm/fetching.directory-fetcher": "workspace:*",
     "@pnpm/fetching.git-fetcher": "workspace:*",

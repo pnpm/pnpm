@@ -15,7 +15,7 @@ import { type Config, types } from '@pnpm/config.reader'
 import { getPublishedByPolicy } from '@pnpm/config.version-policy'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
-import { createResolver } from '@pnpm/installing.client'
+import { createResolver, wrapResolverWithStrictPolicy } from '@pnpm/installing.client'
 import { add } from '@pnpm/installing.commands'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
@@ -113,7 +113,7 @@ export async function handler (
     ) && !opts.registrySupportsTimeField
   )
   const catalogResolver = resolveFromCatalog.bind(null, opts.catalogs ?? {})
-  const { resolve } = createResolver({
+  const { resolve: baseResolve } = createResolver({
     ...opts,
     configByUri: opts.configByUri,
     fullMetadata,
@@ -127,9 +127,14 @@ export async function handler (
     },
     timeout: opts.fetchTimeout,
   })
+  // dlx has nowhere to "defer to" — it runs the resolved package directly.
+  // Under strict minimumReleaseAge, wrap the resolver so any policy
+  // violation surfaces as a thrown PnpmError before dlx tries to launch
+  // the immature version.
+  const strictMinReleaseAge = Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true
+  const resolve = strictMinReleaseAge ? wrapResolverWithStrictPolicy(baseResolve) : baseResolve
   const resolvedPkgAliases: string[] = []
   const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
-  const strictMinReleaseAge = Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true
   const resolvedPkgs = await Promise.all(pkgs.map(async (pkg) => {
     const { alias, bareSpecifier } = parseWantedDependency(pkg) || {}
     if (alias == null) return pkg
@@ -144,16 +149,6 @@ export async function handler (
       publishedBy,
       publishedByExclude,
     })
-    // dlx has nowhere to "defer to" — it runs the resolved package directly.
-    // Under strict minimumReleaseAge, refuse to run an immature pick and
-    // throw with the same shape callers used to see from
-    // `NO_MATURE_MATCHING_VERSION`.
-    if (strictMinReleaseAge && resolved.policyViolation?.code === 'MINIMUM_RELEASE_AGE_VIOLATION') {
-      throw new PnpmError(
-        'NO_MATURE_MATCHING_VERSION',
-        `${resolved.policyViolation.name}@${resolved.policyViolation.version} ${resolved.policyViolation.reason}`
-      )
-    }
     return resolved.id
   }))
   let { cacheLink, cacheExists, cachedDir } = findCache({
