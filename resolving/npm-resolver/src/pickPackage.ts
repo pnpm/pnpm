@@ -71,6 +71,7 @@ export interface PickPackageOptions extends PickPackageFromMetaOptions {
   includeLatestTag?: boolean
   optional?: boolean
   onImmaturePick?: PickerOptions['onImmaturePick']
+  deferImmatureDecision?: PickerOptions['deferImmatureDecision']
 }
 
 interface PickerOptions extends PickPackageFromMetaOptions {
@@ -87,6 +88,16 @@ interface PickerOptions extends PickPackageFromMetaOptions {
    * same versions without surprise.
    */
   onImmaturePick?: (pkg: { name: string, version: string }) => void
+  /**
+   * When set, `pickRespectingMinReleaseAge` ignores `strictPublishedByCheck`
+   * and uses the lowest-version fallback even in strict mode — every
+   * immature pick is reported via `onImmaturePick`, and a higher layer
+   * decides whether to abort (e.g. an interactive prompt) before the
+   * install proceeds past peer-dep resolution. Lets the install command
+   * surface every immature transitive at once instead of throwing on the
+   * first one and forcing the user into a discover-by-loop dance.
+   */
+  deferImmatureDecision?: boolean
 }
 
 // When includeLatestTag is set, the "latest" dist-tag is added as a candidate
@@ -123,9 +134,15 @@ function pickRespectingMinReleaseAge (
   spec: RegistryPackageSpec,
   meta: PackageMeta
 ): PackageInRegistry | null {
+  // `deferImmatureDecision` makes strict mode behave like loose for the
+  // picker: a higher layer (the install command's interactive prompt) gets
+  // the full list of immature picks before deciding to proceed or abort.
+  // Without it, strict mode bails on the first immature pick and forces the
+  // discover-by-loop dance (see #10488).
+  const strictCheck = pickerOpts.strictPublishedByCheck && !pickerOpts.deferImmatureDecision
   const picked = runPicker(pickerOpts, spec, (targetSpec) => {
     const highest = pickHighest(pickerOpts, meta, targetSpec)
-    if (highest || pickerOpts.strictPublishedByCheck) return highest
+    if (highest || strictCheck) return highest
     return pickLowest({
       preferredVersionSelectors: pickerOpts.preferredVersionSelectors,
     }, meta, targetSpec)
@@ -234,6 +251,7 @@ export async function pickPackage (
     strictPublishedByCheck: ctx.strictPublishedByCheck,
     ignoreMissingTimeField: ctx.ignoreMissingTimeField,
     onImmaturePick: opts.onImmaturePick,
+    deferImmatureDecision: opts.deferImmatureDecision,
   }
 
   validatePackageName(spec.name)

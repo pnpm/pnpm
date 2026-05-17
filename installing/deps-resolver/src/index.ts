@@ -127,6 +127,15 @@ export async function resolveDependencies (
     allowUnusedPatches?: boolean
     enableGlobalVirtualStore?: boolean
     allProjectIds: string[]
+    /**
+     * Checkpoint invoked between `resolveDependencyTree` and `resolvePeers`.
+     * The install command uses it to surface every immature pick at once
+     * (interactive prompt under strict mode) and either approve or abort
+     * before the resolver does the expensive peer-dependency pass. The
+     * callback throws to abort — resolution unwinds cleanly without
+     * writing the lockfile, package.json updates, or any modules dir.
+     */
+    confirmImmaturePicks?: () => Promise<void>
   }
 ): Promise<ResolveDependenciesResult> {
   const _toResolveImporter = toResolveImporter.bind(null, {
@@ -149,6 +158,13 @@ export async function resolveDependencies (
     time,
     allPeerDepNames,
   } = await resolveDependencyTree(projectsToResolve, opts)
+
+  // Gate between main resolution and peer-dep resolution: lets the install
+  // command surface every immature pick collected by the resolver and
+  // either approve (continue) or abort (throw, lockfile/package.json
+  // untouched). Skipped silently when the install isn't using the prompt
+  // flow — loose-mode auto-collect doesn't need confirmation.
+  await opts.confirmImmaturePicks?.()
 
   opts.storeController.clearResolutionCache()
 

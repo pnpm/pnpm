@@ -312,6 +312,16 @@ export type ResolveFromNpmOptions = {
    * lockfile-pinned version without re-running the maturity check.
    */
   onImmaturePick?: (pkg: { name: string, version: string }) => void
+  /**
+   * When set, the resolver behaves as if `minimumReleaseAgeStrict: false`
+   * for picking purposes — every immature pick is reported via
+   * `onImmaturePick` and the resolver proceeds. The install command uses
+   * this to surface every immature transitive at once (interactive prompt
+   * before peer resolution) instead of throwing `NO_MATURE_MATCHING_VERSION`
+   * on the first one. Non-interactive (CI) leaves this off, preserving the
+   * fail-fast behavior.
+   */
+  deferImmatureDecision?: boolean
 } & ({
   projectDir?: string
   workspacePackages?: undefined
@@ -435,6 +445,7 @@ async function resolveNpm (
       includeLatestTag: opts.update === 'latest',
       optional: wantedDependency.optional,
       onImmaturePick: opts.onImmaturePick,
+      deferImmatureDecision: opts.deferImmatureDecision,
     })
   } catch (err: any) { // eslint-disable-line
     if ((workspacePackages != null) && opts.projectDir) {

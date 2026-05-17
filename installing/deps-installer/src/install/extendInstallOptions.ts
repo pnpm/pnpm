@@ -186,6 +186,24 @@ export interface StrictInstallOptions {
    */
   onImmaturePick?: (pkg: { name: string, version: string }) => void
   /**
+   * Forwarded to the npm resolver. When set, strict mode falls back to
+   * lowest-version picking like loose mode (and `onImmaturePick` fires for
+   * every immature selection) instead of throwing
+   * `NO_MATURE_MATCHING_VERSION` on the first one. The install command
+   * sets it together with `confirmImmaturePicks` when an interactive
+   * prompt is available, so users see every immature transitive at once
+   * (#10488) instead of looping through them one-by-one.
+   */
+  deferImmatureDecision?: boolean
+  /**
+   * Checkpoint invoked by `resolveDependencies` between the main
+   * resolution and peer-dep resolution. The install command uses this to
+   * prompt the user with the full set of immature picks and either
+   * approve (the install proceeds) or abort (throws — lockfile,
+   * package.json, and modules dir all stay untouched).
+   */
+  confirmImmaturePicks?: () => Promise<void>
+  /**
    * Resolver-side verifiers that re-check each lockfile-pinned resolution
    * against policies configured upstream (today: at most one,
    * `npm.minimumReleaseAge` in strict mode). Constructed by `createClient`

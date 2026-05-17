@@ -1383,6 +1383,8 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       minimumReleaseAge: opts.minimumReleaseAge,
       minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
       onImmaturePick: opts.onImmaturePick,
+      deferImmatureDecision: opts.deferImmatureDecision,
+      confirmImmaturePicks: opts.confirmImmaturePicks,
       trustPolicy: opts.trustPolicy,
       trustPolicyExclude: opts.trustPolicyExclude,
       trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,

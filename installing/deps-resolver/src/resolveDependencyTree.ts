@@ -148,6 +148,15 @@ export interface ResolveDependenciesOptions {
    * install layer can record bypass entries to `minimumReleaseAgeExclude`.
    */
   onImmaturePick?: (pkg: { name: string, version: string }) => void
+  /**
+   * Forwarded into the resolution context so the npm resolver knows to
+   * fall back to lowest-version picking (instead of throwing
+   * `NO_MATURE_MATCHING_VERSION`) when no mature version satisfies the
+   * range in strict mode. Pairs with `confirmImmaturePicks` on the outer
+   * `ResolveDependenciesOptions`, which prompts the user with the full
+   * list of immature picks before peer resolution runs.
+   */
+  deferImmatureDecision?: boolean
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number
@@ -223,6 +232,7 @@ export async function resolveDependencyTree<T> (
     maximumPublishedBy: publishedBy,
     publishedByExclude,
     onImmaturePick: opts.onImmaturePick,
+    deferImmatureDecision: opts.deferImmatureDecision,
     trustPolicy: opts.trustPolicy,
     trustPolicyExclude: opts.trustPolicyExclude ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude') : undefined,
     trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,

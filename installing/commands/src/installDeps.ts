@@ -40,7 +40,7 @@ import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writ
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
-import { createImmaturePickCollector, drainImmaturePicks } from './immaturePicks.js'
+import { drainImmaturePicks, setupImmaturePicks } from './immaturePicks.js'
 import {
   type CommandFullName,
   createMatcher,
@@ -268,16 +268,14 @@ export async function installDeps (
     applyRuntimeOnFailOverride(manifest, opts.runtimeOnFail)
   }
 
-  // Loose minimumReleaseAge mode (`minimumReleaseAgeStrict: false`) lets the
-  // resolver install versions newer than the cutoff. We collect those here so
-  // they can be persisted to the workspace manifest's
-  // `minimumReleaseAgeExclude` after the install succeeds; a subsequent
-  // install — including one promoted to strict mode — then accepts the same
-  // versions without prompting the user to manually exclude each one. Stays
-  // inert (no callback fired) when strict mode is on or `minimumReleaseAge`
-  // is unset, because the resolver never picks immature versions in those
-  // modes.
-  const collectedImmaturePicks = createImmaturePickCollector(opts)
+  // `setupImmaturePicks` returns a collector + the wiring needed for the
+  // resolver and the post-resolution prompt. Loose mode (`strict: false`)
+  // auto-persists immature picks silently. Strict mode + a TTY surfaces
+  // every immature transitive at once via a confirm prompt so users escape
+  // the discover-by-loop dance (#10488). Strict mode without a TTY (CI)
+  // returns `undefined` here so the resolver's existing fail-fast path
+  // stays in effect.
+  const immaturePicks = setupImmaturePicks(opts)
 
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
     ...opts,
@@ -294,7 +292,9 @@ export async function installDeps (
     resolutionVerifiers: store.resolutionVerifiers,
     workspacePackages,
     preferredVersions: opts.packageVulnerabilityAudit ? preferNonvulnerablePackageVersions(opts.packageVulnerabilityAudit) : undefined,
-    onImmaturePick: collectedImmaturePicks?.record,
+    onImmaturePick: immaturePicks?.collector.record,
+    deferImmatureDecision: immaturePicks?.deferImmatureDecision,
+    confirmImmaturePicks: immaturePicks?.confirmImmaturePicks,
   }
 
   let updateMatch: UpdateDepsMatcher | null
@@ -354,7 +354,7 @@ export async function installDeps (
       targetDependenciesField: getSaveType(opts),
     }
     const { updatedCatalogs, updatedProject, ignoredBuilds } = await mutateModulesInSingleProject(mutatedProject, installOpts)
-    const addedMinimumReleaseAgeExcludes = drainImmaturePicks(collectedImmaturePicks)
+    const addedMinimumReleaseAgeExcludes = drainImmaturePicks(immaturePicks?.collector)
     if (opts.save !== false) {
       await Promise.all([
         writeProjectManifest(updatedProject.manifest),
@@ -385,7 +385,7 @@ export async function installDeps (
     updatePackageManifest,
     updateMatching,
   })
-  const addedMinimumReleaseAgeExcludes = drainImmaturePicks(collectedImmaturePicks)
+  const addedMinimumReleaseAgeExcludes = drainImmaturePicks(immaturePicks?.collector)
   if (opts.update === true && opts.save !== false) {
     await Promise.all([
       writeProjectManifest(updatedManifest),

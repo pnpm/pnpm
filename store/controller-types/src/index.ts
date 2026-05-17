@@ -138,6 +138,15 @@ export interface RequestPackageOptions {
    * auto-populate `minimumReleaseAgeExclude` in pnpm-workspace.yaml.
    */
   onImmaturePick?: (pkg: { name: string, version: string }) => void
+  /**
+   * When set, the npm resolver picks the lowest matching version (instead
+   * of throwing `NO_MATURE_MATCHING_VERSION`) when no mature version
+   * satisfies the range in strict mode. Every immature pick fires
+   * `onImmaturePick`; the install layer enumerates the full set and decides
+   * whether to abort (e.g. an interactive prompt) before the install
+   * proceeds past peer-dep resolution.
+   */
+  deferImmatureDecision?: boolean
 }
 
 export type BundledManifestFunction = () => Promise<BundledManifest | undefined>

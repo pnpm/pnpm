@@ -271,3 +271,71 @@ test('versions excluded via minimumReleaseAgeExclude are not reported', async ()
   // entry the user just dismissed.
   expect(picks.find((p) => p.name === 'is-odd')).toBeUndefined()
 })
+
+test('deferImmatureDecision lets strict mode collect every immature pick instead of throwing on the first', async () => {
+  // Strict mode normally throws `NO_MATURE_MATCHING_VERSION` on the first
+  // immature transitive, forcing the discover-by-loop dance (#10488). With
+  // `deferImmatureDecision: true` the resolver falls back to the lowest
+  // matching version like loose mode does, and `onImmaturePick` fires once
+  // per immature pick — so the install command can surface the full set to
+  // the user in one prompt.
+  prepareEmpty()
+  const picks: Array<{ name: string, version: string }> = []
+  const opts = testDefaults(
+    { minimumReleaseAge: allImmatureMinimumReleaseAge },
+    { strictPublishedByCheck: true }
+  )
+  await addDependenciesToPackage({}, ['is-odd@0.1'], {
+    ...opts,
+    deferImmatureDecision: true,
+    onImmaturePick: (pkg) => { picks.push(pkg) },
+  })
+
+  expect(picks).toContainEqual({ name: 'is-odd', version: '0.1.0' })
+})
+
+test('confirmImmaturePicks aborts the install before the lockfile is written', async () => {
+  // Simulates the strict-mode interactive prompt rejecting the immature
+  // picks. The callback throws between main resolution and peer-dep
+  // resolution; `resolveDependencies` unwinds, which leaves the install in
+  // its pre-install state — no lockfile written, no package.json changes,
+  // no node_modules linking.
+  prepareEmpty()
+  const opts = testDefaults(
+    { minimumReleaseAge: allImmatureMinimumReleaseAge },
+    { strictPublishedByCheck: true }
+  )
+  await expect(addDependenciesToPackage({}, ['is-odd@0.1'], {
+    ...opts,
+    deferImmatureDecision: true,
+    confirmImmaturePicks: async () => {
+      throw new Error('user denied')
+    },
+  })).rejects.toThrow(/user denied/)
+
+  // The lockfile must NOT have been written — the throw fires before the
+  // resolver finishes, so no on-disk side effects.
+  await expect(readWantedLockfile('.', { ignoreIncompatible: false })).resolves.toBeNull()
+})
+
+test('confirmImmaturePicks approval lets the install proceed cleanly', async () => {
+  prepareEmpty()
+  const picks: Array<{ name: string, version: string }> = []
+  const opts = testDefaults(
+    { minimumReleaseAge: allImmatureMinimumReleaseAge },
+    { strictPublishedByCheck: true }
+  )
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1'], {
+    ...opts,
+    deferImmatureDecision: true,
+    onImmaturePick: (pkg) => { picks.push(pkg) },
+    confirmImmaturePicks: async () => {
+      // The real install command would surface the gathered set via
+      // enquirer here; in this test we simulate the user clicking
+      // "approve" by simply returning.
+    },
+  })
+
+  expect(manifest.dependencies!['is-odd']).toBe('~0.1.0')
+  expect(picks).toContainEqual({ name: 'is-odd', version: '0.1.0' })
+})

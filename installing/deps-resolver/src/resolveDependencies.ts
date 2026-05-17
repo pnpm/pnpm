@@ -196,6 +196,14 @@ export interface ResolutionContext {
    * strict mode — accept the same versions.
    */
   onImmaturePick?: (pkg: { name: string, version: string }) => void
+  /**
+   * Forwarded to the npm resolver. When true, strict mode falls back to
+   * lowest-version picking like loose mode does and reports every immature
+   * pick via `onImmaturePick`. The install layer prompts on the aggregate
+   * list before peer resolution runs — see `confirmImmaturePicks` on the
+   * outer `ResolveDependenciesOptions`.
+   */
+  deferImmatureDecision?: boolean
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
   trustPolicyIgnoreAfter?: number
@@ -1350,6 +1358,7 @@ async function resolveDependency (
       publishedBy: options.publishedBy,
       publishedByExclude: ctx.publishedByExclude,
       onImmaturePick: ctx.onImmaturePick,
+      deferImmatureDecision: ctx.deferImmatureDecision,
       pickLowestVersion: options.pickLowestVersion,
       downloadPriority: -options.currentDepth,
       lockfileDir: ctx.lockfileDir,
