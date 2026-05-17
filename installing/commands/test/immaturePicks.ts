@@ -10,6 +10,41 @@ function violation (
   return { name, version, code, reason: 'stub reason' }
 }
 
+// Swap `process.stdin.isTTY` for the duration of a test, restoring the
+// original descriptor — not just the value — so the property's
+// configurability/enumerability shape doesn't leak between tests when
+// the host process didn't define an own `isTTY` at all.
+function withStdinTTY (value: boolean | undefined, fn: () => void | Promise<void>): void | Promise<void> {
+  const originalDescriptor = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY')
+  Object.defineProperty(process.stdin, 'isTTY', { value, configurable: true, writable: true })
+  const restore = (): void => {
+    if (originalDescriptor) {
+      Object.defineProperty(process.stdin, 'isTTY', originalDescriptor)
+    } else {
+      delete (process.stdin as { isTTY?: boolean }).isTTY
+    }
+  }
+  let result: void | Promise<void>
+  try {
+    result = fn()
+  } catch (err) {
+    restore()
+    throw err
+  }
+  if (result && typeof (result as Promise<void>).then === 'function') {
+    return (result as Promise<void>).then(
+      (v) => {
+        restore(); return v
+      },
+      (err) => {
+        restore(); throw err
+      }
+    )
+  }
+  restore()
+  return result
+}
+
 test('setupImmaturePicks returns undefined when minimumReleaseAge is unset', () => {
   expect(setupImmaturePicks({})).toBeUndefined()
 })
@@ -19,23 +54,17 @@ test('setupImmaturePicks returns a plan even when strict mode is on without a TT
   // throw. Now the plan is always returned: the strict-no-TTY case throws
   // from `onAfterResolveDependencyTree` with the full violation list, not
   // just the first immature pick the resolver happened to hit.
-  const original = process.stdin.isTTY
-  Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true })
-  try {
+  withStdinTTY(false, () => {
     expect(setupImmaturePicks({
       minimumReleaseAge: 60,
       minimumReleaseAgeStrict: true,
       ci: false,
     })).toBeDefined()
-  } finally {
-    Object.defineProperty(process.stdin, 'isTTY', { value: original, configurable: true })
-  }
+  })
 })
 
 test('strict no-TTY plan throws from onAfterResolveDependencyTree with the full violation list', async () => {
-  const original = process.stdin.isTTY
-  Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true })
-  try {
+  await withStdinTTY(false, async () => {
     const plan = setupImmaturePicks({
       minimumReleaseAge: 60,
       minimumReleaseAgeStrict: true,
@@ -47,24 +76,18 @@ test('strict no-TTY plan throws from onAfterResolveDependencyTree with the full 
     ])).rejects.toMatchObject({
       code: 'ERR_PNPM_NO_MATURE_MATCHING_VERSION',
     })
-  } finally {
-    Object.defineProperty(process.stdin, 'isTTY', { value: original, configurable: true })
-  }
+  })
 })
 
 test('setupImmaturePicks returns a plan when ci=false and stdin is a TTY', () => {
-  const original = process.stdin.isTTY
-  Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true })
-  try {
+  withStdinTTY(true, () => {
     const plan = setupImmaturePicks({
       minimumReleaseAge: 60,
       minimumReleaseAgeStrict: true,
       ci: false,
     })
     expect(plan).toBeDefined()
-  } finally {
-    Object.defineProperty(process.stdin, 'isTTY', { value: original, configurable: true })
-  }
+  })
 })
 
 test('loose-mode plan returns sorted unique name@version entries and logs once', () => {

@@ -11,7 +11,7 @@ import type { ProjectOptions } from '@pnpm/installing.context'
 import type { HoistingLimits } from '@pnpm/installing.deps-restorer'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
-import type { LockfileResolutionViolation, ResolutionVerifier, WorkspacePackages } from '@pnpm/resolving.resolver-base'
+import type { ResolutionPolicyViolation, ResolutionVerifier, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type {
   AllowedDeprecatedVersions,
@@ -190,7 +190,7 @@ export interface StrictInstallOptions {
    * resolvers can plug verifiers in without touching this signature.
    */
   onAfterResolveDependencyTree?: (
-    violations: readonly LockfileResolutionViolation[]
+    violations: readonly ResolutionPolicyViolation[]
   ) => Promise<void>
   /**
    * Resolver-side verifiers that re-check each lockfile-pinned resolution

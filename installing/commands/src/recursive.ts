@@ -305,7 +305,7 @@ export async function recursive (
       updatedCatalogs,
       updatedProjects: mutatedPkgs,
       ignoredBuilds,
-      lockfileResolutionViolations,
+      resolutionPolicyViolations,
     } = await mutateModules(mutatedImporters, {
       ...installOpts,
       storeController: store.ctrl,
@@ -316,7 +316,7 @@ export async function recursive (
       // info log would claim entries were added that the workspace
       // manifest never saw, and the next install would re-prompt or
       // fail verification.
-      const addedMinimumReleaseAgeExcludes = immaturePicks?.pickEntriesToPersist(lockfileResolutionViolations)
+      const addedMinimumReleaseAgeExcludes = immaturePicks?.pickEntriesToPersist(resolutionPolicyViolations)
       const promises: Array<Promise<void>> = mutatedPkgs.map(async ({ originalManifest, manifest, rootDir }) => {
         return manifestsByPath[rootDir].writeProjectManifest(originalManifest ?? manifest)
       })
@@ -340,7 +340,7 @@ export async function recursive (
   // Each per-project install returns its own slice of lockfile-resolution
   // violations; accumulate them here so the post-loop persist step can
   // dedup and write a single batch to the workspace manifest.
-  const allLockfileResolutionViolations: ResolverViolation[] = []
+  const allResolutionPolicyViolations: ResolverViolation[] = []
   const limitInstallation = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
   await Promise.all(pkgPaths.map(async (rootDir) =>
     limitInstallation(async () => {
@@ -388,7 +388,7 @@ export async function recursive (
           updatedCatalogs?: Catalogs
           updatedManifest: ProjectManifest
           ignoredBuilds: IgnoredBuilds | undefined
-          lockfileResolutionViolations?: ResolverViolation[]
+          resolutionPolicyViolations?: ResolverViolation[]
         }
 
         type ActionFunction = (manifest: PackageManifest | ProjectManifest, opts: ActionOpts) => Promise<ActionResult>
@@ -408,7 +408,7 @@ export async function recursive (
                 updatedCatalogs: undefined, // there's no reason to add new or update catalogs on `pnpm remove`
                 updatedManifest: mutationResult.updatedProjects[0].manifest,
                 ignoredBuilds: mutationResult.ignoredBuilds,
-                lockfileResolutionViolations: mutationResult.lockfileResolutionViolations,
+                resolutionPolicyViolations: mutationResult.resolutionPolicyViolations,
               }
             }
             break
@@ -424,7 +424,7 @@ export async function recursive (
           updatedCatalogs: newCatalogsAddition,
           updatedManifest: newManifest,
           ignoredBuilds,
-          lockfileResolutionViolations,
+          resolutionPolicyViolations,
         } = await action(
           manifest,
           {
@@ -456,9 +456,9 @@ export async function recursive (
             allIgnoredBuilds.add(depPath)
           }
         }
-        if (lockfileResolutionViolations?.length) {
-          for (const violation of lockfileResolutionViolations) {
-            allLockfileResolutionViolations.push(violation)
+        if (resolutionPolicyViolations?.length) {
+          for (const violation of resolutionPolicyViolations) {
+            allResolutionPolicyViolations.push(violation)
           }
         }
         result[rootDir].status = 'passed'
@@ -490,7 +490,7 @@ export async function recursive (
       updatedCatalogs,
       cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
       allProjects,
-      addedMinimumReleaseAgeExcludes: immaturePicks?.pickEntriesToPersist(allLockfileResolutionViolations),
+      addedMinimumReleaseAgeExcludes: immaturePicks?.pickEntriesToPersist(allResolutionPolicyViolations),
     })
   }
 

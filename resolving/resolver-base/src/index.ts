@@ -141,7 +141,7 @@ export interface ResolutionVerifier {
  * deps-installer can share one shape; future resolver packages plug in
  * without needing the deps-installer dependency.
  */
-export interface LockfileResolutionViolation {
+export interface ResolutionPolicyViolation {
   name: string
   version: string
   resolution: Resolution
@@ -228,11 +228,11 @@ export interface ResolveResult {
    * can react to.
    *
    * `resolution` on the violation is the same `resolution` field
-   * above — supplied for symmetry with `LockfileResolutionViolation`
+   * above — supplied for symmetry with `ResolutionPolicyViolation`
    * entries that flow out of `verifyLockfileResolutions` for
    * lockfile-only paths.
    */
-  policyViolation?: LockfileResolutionViolation
+  policyViolation?: ResolutionPolicyViolation
 }
 
 export interface WorkspacePackage {

@@ -25,10 +25,10 @@ import { convertEnginesRuntimeToDependencies } from '@pnpm/pkg-manifest.utils'
 import {
   DIRECT_DEP_SELECTOR_WEIGHT,
   type DirectoryResolution,
-  type LockfileResolutionViolation,
   type PkgResolutionId,
   type PreferredVersions,
   type Resolution,
+  type ResolutionPolicyViolation,
   type WorkspacePackages,
 } from '@pnpm/resolving.resolver-base'
 import type {
@@ -197,7 +197,7 @@ export interface ResolutionContext {
    * (`MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`, …) is the
    * contract surface for downstream UX.
    */
-  lockfileResolutionViolations: LockfileResolutionViolation[]
+  resolutionPolicyViolations: ResolutionPolicyViolation[]
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
   trustPolicyIgnoreAfter?: number
@@ -1414,7 +1414,7 @@ async function resolveDependency (
   // can hand the full set to the install command between
   // resolveDependencyTree and resolvePeers.
   if (pkgResponse.body.policyViolation) {
-    ctx.lockfileResolutionViolations.push(pkgResponse.body.policyViolation)
+    ctx.resolutionPolicyViolations.push(pkgResponse.body.policyViolation)
   }
 
   // Check if exotic dependencies are disallowed in subdependencies

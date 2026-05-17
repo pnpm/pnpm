@@ -6,7 +6,7 @@ import enquirer from 'enquirer'
 
 /**
  * Shape returned by `installing/deps-installer`'s
- * `collectLockfileResolutionViolations`. Re-declared locally so the
+ * `collectResolutionPolicyViolations`. Re-declared locally so the
  * commands layer can react to the violations without depending on the
  * deps-installer's private install types.
  *

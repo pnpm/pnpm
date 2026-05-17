@@ -1,6 +1,6 @@
 /**
  * Violation codes the npm resolver attaches to
- * `LockfileResolutionViolation.code` when an inline policy check rejects
+ * `ResolutionPolicyViolation.code` when an inline policy check rejects
  * a pick. Exported so downstream code (the install command, the strict
  * resolver wrapper, tests) references one source of truth instead of
  * re-typing the string.

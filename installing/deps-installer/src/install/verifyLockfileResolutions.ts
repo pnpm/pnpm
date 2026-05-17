@@ -3,8 +3,8 @@ import { PnpmError } from '@pnpm/error'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import type {
-  LockfileResolutionViolation,
   Resolution,
+  ResolutionPolicyViolation,
   ResolutionVerifier,
 } from '@pnpm/resolving.resolver-base'
 import type { DepPath } from '@pnpm/types'
@@ -18,7 +18,7 @@ import {
 // Re-exported for back-compat with the existing import surface.
 // The interface itself lives in resolver-base so deps-resolver can
 // participate in the same shape; see the doc there.
-export type { LockfileResolutionViolation }
+export type { ResolutionPolicyViolation }
 
 // Cap the per-entry breakdown so a verifier rejecting hundreds of entries
 // (e.g. a poisoned lockfile) doesn't flood the terminal / CI log; the full
@@ -167,11 +167,11 @@ export async function verifyLockfileResolutions (
  * Returns an empty array when `verifiers` is empty or the lockfile has
  * no packages, so callers don't need a separate emptiness check.
  */
-export async function collectLockfileResolutionViolations (
+export async function collectResolutionPolicyViolations (
   lockfile: LockfileObject,
   verifiers: ResolutionVerifier[],
   options?: Pick<VerifyLockfileResolutionsOptions, 'concurrency'>
-): Promise<LockfileResolutionViolation[]> {
+): Promise<ResolutionPolicyViolation[]> {
   if (verifiers.length === 0) return []
   if (!lockfile.packages) return []
   return iterateLockfileViolations(lockfile, verifiers, options?.concurrency)
@@ -181,7 +181,7 @@ async function iterateLockfileViolations (
   lockfile: LockfileObject,
   verifiers: readonly ResolutionVerifier[],
   concurrency: number | undefined
-): Promise<LockfileResolutionViolation[]> {
+): Promise<ResolutionPolicyViolation[]> {
   // depPath can include peer-dependency and patch_hash suffixes (e.g.
   // `react@18.0.0(peer)(patch_hash=…)`); the same (name, version) pair may
   // therefore appear multiple times. Dedupe so we issue at most one
@@ -205,7 +205,7 @@ async function iterateLockfileViolations (
     })
   }
 
-  const violations: LockfileResolutionViolation[] = []
+  const violations: ResolutionPolicyViolation[] = []
   const limit = pLimit(concurrency ?? DEFAULT_CONCURRENCY)
   await Promise.all(
     Array.from(candidates.values(), ({ name, version, resolution }) => limit(async () => {

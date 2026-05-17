@@ -350,13 +350,13 @@ export async function installDeps (
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),
     }
-    const { updatedCatalogs, updatedProject, ignoredBuilds, lockfileResolutionViolations } = await mutateModulesInSingleProject(mutatedProject, installOpts)
+    const { updatedCatalogs, updatedProject, ignoredBuilds, resolutionPolicyViolations } = await mutateModulesInSingleProject(mutatedProject, installOpts)
     if (opts.save !== false) {
       // Only pick entries when we'll actually persist. Otherwise the
       // info log would claim we added entries the workspace manifest
       // never saw, and the next install would re-prompt or fail
       // verification.
-      const addedMinimumReleaseAgeExcludes = immaturePicks?.pickEntriesToPersist(lockfileResolutionViolations)
+      const addedMinimumReleaseAgeExcludes = immaturePicks?.pickEntriesToPersist(resolutionPolicyViolations)
       await Promise.all([
         writeProjectManifest(updatedProject.manifest),
         updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
@@ -381,7 +381,7 @@ export async function installDeps (
     return
   }
 
-  const { updatedCatalogs, updatedManifest, ignoredBuilds, lockfileResolutionViolations } = await install(manifest, {
+  const { updatedCatalogs, updatedManifest, ignoredBuilds, resolutionPolicyViolations } = await install(manifest, {
     ...installOpts,
     updatePackageManifest,
     updateMatching,
@@ -391,7 +391,7 @@ export async function installDeps (
   // Skip the pick so the info log doesn't claim entries were added that
   // were never written; the next install will resurface them.
   if (opts.save !== false) {
-    const addedMinimumReleaseAgeExcludes = immaturePicks?.pickEntriesToPersist(lockfileResolutionViolations)
+    const addedMinimumReleaseAgeExcludes = immaturePicks?.pickEntriesToPersist(resolutionPolicyViolations)
     if (opts.update === true) {
       await Promise.all([
         writeProjectManifest(updatedManifest),

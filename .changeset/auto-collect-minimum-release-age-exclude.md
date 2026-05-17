@@ -1,4 +1,5 @@
 ---
+"@pnpm/resolving.resolver-base": minor
 "@pnpm/store.controller-types": minor
 "@pnpm/resolving.npm-resolver": minor
 "@pnpm/resolving.default-resolver": minor

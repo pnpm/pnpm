@@ -17,7 +17,7 @@ import {
   type ResolverFactoryOptions,
 } from '@pnpm/resolving.default-resolver'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
-import type { LockfileResolutionViolation, ResolutionVerifier } from '@pnpm/resolving.resolver-base'
+import type { ResolutionPolicyViolation, ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import type { StoreIndex } from '@pnpm/store.index'
 import type { RegistryConfig } from '@pnpm/types'
 
@@ -105,7 +105,7 @@ export function makeResolutionStrict (resolve: ResolveFunction): ResolveFunction
   }) as ResolveFunction
 }
 
-function policyViolationToError (violation: LockfileResolutionViolation): PnpmError {
+function policyViolationToError (violation: ResolutionPolicyViolation): PnpmError {
   const message = `${violation.name}@${violation.version} ${violation.reason}`
   // Map the per-violation `code` to the user-facing PnpmError code that
   // pre-refactor callers (and `default-reporter`) already recognize.

@@ -1,6 +1,6 @@
 import type {
   DirectoryResolution,
-  LockfileResolutionViolation,
+  ResolutionPolicyViolation,
   PkgResolutionId,
   PreferredVersions,
   Resolution,
@@ -157,9 +157,9 @@ export interface PackageResponse {
      * Forwarded from the resolver's `ResolveResult.policyViolation`.
      * The caller (deps-resolver) aggregates these per-pick into a
      * single set the install command can react to — see
-     * `LockfileResolutionViolation` in `@pnpm/resolving.resolver-base`.
+     * `ResolutionPolicyViolation` in `@pnpm/resolving.resolver-base`.
      */
-    policyViolation?: LockfileResolutionViolation
+    policyViolation?: ResolutionPolicyViolation
   } & (
     {
       isLocal: true

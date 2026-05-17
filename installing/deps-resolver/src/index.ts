@@ -16,7 +16,7 @@ import {
   getAllDependenciesFromManifest,
   getSpecFromPackageManifest,
 } from '@pnpm/pkg-manifest.utils'
-import type { LockfileResolutionViolation } from '@pnpm/resolving.resolver-base'
+import type { ResolutionPolicyViolation } from '@pnpm/resolving.resolver-base'
 import {
   type AllowBuild,
   DEPENDENCIES_FIELDS,
@@ -121,7 +121,7 @@ export interface ResolveDependenciesResult {
    * the workspace manifest. Empty when no policy is active or no
    * pick violates.
    */
-  lockfileResolutionViolations: LockfileResolutionViolation[]
+  resolutionPolicyViolations: ResolutionPolicyViolation[]
 }
 
 export async function resolveDependencies (
@@ -149,7 +149,7 @@ export async function resolveDependencies (
      * codes and the hook implementer (install command) decides what
      * to do with them.
      */
-    onAfterResolveDependencyTree?: (violations: readonly LockfileResolutionViolation[]) => Promise<void>
+    onAfterResolveDependencyTree?: (violations: readonly ResolutionPolicyViolation[]) => Promise<void>
   }
 ): Promise<ResolveDependenciesResult> {
   const _toResolveImporter = toResolveImporter.bind(null, {
@@ -171,7 +171,7 @@ export async function resolveDependencies (
     appliedPatches,
     time,
     allPeerDepNames,
-    lockfileResolutionViolations,
+    resolutionPolicyViolations,
   } = await resolveDependencyTree(projectsToResolve, opts)
 
   // Resolver-policy gate between main resolution and peer-dep
@@ -182,7 +182,7 @@ export async function resolveDependencies (
   // the cost of peer resolution. Dispatch stays policy-neutral: each
   // resolver owns its violation codes, and the hook implementer
   // decides what to do with them.
-  await opts.onAfterResolveDependencyTree?.(lockfileResolutionViolations)
+  await opts.onAfterResolveDependencyTree?.(resolutionPolicyViolations)
 
   opts.storeController.clearResolutionCache()
 
@@ -392,7 +392,7 @@ export async function resolveDependencies (
     peerDependencyIssuesByProjects,
     waitTillAllFetchingsFinish,
     wantedToBeSkippedPackageIds,
-    lockfileResolutionViolations,
+    resolutionPolicyViolations,
   }
 }
 

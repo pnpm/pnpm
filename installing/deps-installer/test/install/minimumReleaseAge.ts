@@ -226,12 +226,12 @@ test('loose mode surfaces immature fresh picks in the install result', async () 
   // Every version is younger than the cutoff. With strict mode off the
   // resolver's lowest-version fallback installs the immature version,
   // and the post-resolution scan in `mutateModules` reports it back via
-  // `lockfileResolutionViolations`. The CLI command filters by code to
+  // `resolutionPolicyViolations`. The CLI command filters by code to
   // persist the entries to `minimumReleaseAgeExclude`.
   const opts = testDefaults({ minimumReleaseAge: allImmatureMinimumReleaseAge })
   const result = await addDependenciesToPackage({}, ['is-odd@0.1'], opts)
 
-  expect(result.lockfileResolutionViolations).toContainEqual(
+  expect(result.resolutionPolicyViolations).toContainEqual(
     expect.objectContaining({
       name: 'is-odd',
       version: '0.1.0',
@@ -253,7 +253,7 @@ test('versions excluded via minimumReleaseAgeExclude are not surfaced as violati
   // range) treating it as fully trusted. The verifier short-circuits on the
   // excluded entry, so it doesn't end up in the violations array — otherwise
   // every install would re-add the same exclude entry the user just dismissed.
-  expect(result.lockfileResolutionViolations.find((v) => v.name === 'is-odd')).toBeUndefined()
+  expect(result.resolutionPolicyViolations.find((v) => v.name === 'is-odd')).toBeUndefined()
 })
 
 test('onAfterResolveDependencyTree throwing aborts the install before the lockfile is written', async () => {

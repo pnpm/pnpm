@@ -10,10 +10,10 @@ import type {
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type {
   DirectoryResolution,
-  LockfileResolutionViolation,
   PkgResolutionId,
   PreferredVersions,
   Resolution,
+  ResolutionPolicyViolation,
   ResolveResult,
   TarballResolution,
   WantedDependency,
@@ -630,7 +630,7 @@ async function pickFromSimpleRegistry (
   manifest: DependencyManifest
   resolution: TarballResolution
   publishedAt?: string
-  policyViolation?: LockfileResolutionViolation
+  policyViolation?: ResolutionPolicyViolation
 }> {
   const authHeaderValue = ctx.getAuthHeaderValueByURI(registry)
   const { meta, pickedPackage } = await ctx.pickPackage(spec, {
@@ -938,7 +938,7 @@ function detectMinReleaseAgeViolation (args: {
   resolution: Resolution
   publishedBy: Date | undefined
   publishedByExclude: PackageVersionPolicy | undefined
-}): LockfileResolutionViolation | undefined {
+}): ResolutionPolicyViolation | undefined {
   if (!args.publishedBy || !args.publishedAt) return undefined
   const excludeResult = args.publishedByExclude?.(args.name)
   if (excludeResult === true) return undefined

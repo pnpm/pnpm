@@ -62,8 +62,8 @@ import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.
 import { createVersionSpecFromResolvedVersion, getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/pkg-manifest.utils'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import type {
-  LockfileResolutionViolation,
   PreferredVersions,
+  ResolutionPolicyViolation,
 } from '@pnpm/resolving.resolver-base'
 import type {
   AllowBuild,
@@ -160,8 +160,8 @@ export interface InstallResult {
   updatedCatalogs: Catalogs | undefined
   updatedManifest: ProjectManifest
   ignoredBuilds: IgnoredBuilds | undefined
-  /** Forwarded from {@link MutateModulesResult.lockfileResolutionViolations}. */
-  lockfileResolutionViolations: LockfileResolutionViolation[]
+  /** Forwarded from {@link MutateModulesResult.resolutionPolicyViolations}. */
+  resolutionPolicyViolations: ResolutionPolicyViolation[]
 }
 
 export async function install (
@@ -176,7 +176,7 @@ export async function install (
     return installFromPnpmRegistry(manifest, rootDir, opts)
   }
 
-  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, lockfileResolutionViolations } = await mutateModules(
+  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, resolutionPolicyViolations } = await mutateModules(
     [
       {
         mutation: 'install',
@@ -198,7 +198,7 @@ export async function install (
       }],
     }
   )
-  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds, lockfileResolutionViolations }
+  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds, resolutionPolicyViolations }
 }
 
 interface ProjectToBeInstalled {
@@ -222,8 +222,8 @@ export interface MutateModulesInSingleProjectResult {
   updatedCatalogs: Catalogs | undefined
   updatedProject: UpdatedProject
   ignoredBuilds: IgnoredBuilds | undefined
-  /** Forwarded from {@link MutateModulesResult.lockfileResolutionViolations}. */
-  lockfileResolutionViolations: LockfileResolutionViolation[]
+  /** Forwarded from {@link MutateModulesResult.resolutionPolicyViolations}. */
+  resolutionPolicyViolations: ResolutionPolicyViolation[]
 }
 
 export async function mutateModulesInSingleProject (
@@ -257,7 +257,7 @@ export async function mutateModulesInSingleProject (
     updatedCatalogs: result.updatedCatalogs,
     updatedProject: result.updatedProjects[0],
     ignoredBuilds: result.ignoredBuilds,
-    lockfileResolutionViolations: result.lockfileResolutionViolations,
+    resolutionPolicyViolations: result.resolutionPolicyViolations,
   }
 }
 
@@ -275,7 +275,7 @@ export interface MutateModulesResult {
    * `minimumReleaseAgeExclude`, log, etc.). Empty array when no
    * verifier reported a violation or no policy was active.
    */
-  lockfileResolutionViolations: LockfileResolutionViolation[]
+  resolutionPolicyViolations: ResolutionPolicyViolation[]
 }
 
 const pickCatalogSpecifier: CatalogResultMatcher<string | undefined> = {
@@ -467,7 +467,7 @@ export async function mutateModules (
     stats: result.stats ?? { added: 0, removed: 0, linkedToRoot: 0 },
     depsRequiringBuild: result.depsRequiringBuild,
     ignoredBuilds,
-    lockfileResolutionViolations: result.lockfileResolutionViolations ?? [],
+    resolutionPolicyViolations: result.resolutionPolicyViolations ?? [],
   }
 
   interface InnerInstallResult {
@@ -476,7 +476,7 @@ export async function mutateModules (
     readonly stats?: InstallationResultStats
     readonly depsRequiringBuild?: DepPath[]
     readonly ignoredBuilds: IgnoredBuilds | undefined
-    readonly lockfileResolutionViolations?: LockfileResolutionViolation[]
+    readonly resolutionPolicyViolations?: ResolutionPolicyViolation[]
   }
 
   async function _install (): Promise<InnerInstallResult> {
@@ -816,7 +816,7 @@ export async function mutateModules (
       stats: result.stats,
       depsRequiringBuild: result.depsRequiringBuild,
       ignoredBuilds: result.ignoredBuilds,
-      lockfileResolutionViolations: result.lockfileResolutionViolations,
+      resolutionPolicyViolations: result.resolutionPolicyViolations,
     }
   }
 
@@ -1176,7 +1176,7 @@ export async function addDependenciesToPackage (
   } & InstallMutationOptions
 ): Promise<InstallResult> {
   const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
-  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, lockfileResolutionViolations } = await mutateModules(
+  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, resolutionPolicyViolations } = await mutateModules(
     [
       {
         allowNew: opts.allowNew,
@@ -1204,7 +1204,7 @@ export async function addDependenciesToPackage (
         },
       ],
     })
-  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds, lockfileResolutionViolations }
+  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds, resolutionPolicyViolations }
 }
 
 export type ImporterToUpdate = {
@@ -1235,7 +1235,7 @@ interface InstallFunctionResult {
   stats?: InstallationResultStats
   depsRequiringBuild: DepPath[]
   ignoredBuilds?: IgnoredBuilds
-  lockfileResolutionViolations: LockfileResolutionViolation[]
+  resolutionPolicyViolations: ResolutionPolicyViolation[]
 }
 
 type InstallFunction = (
@@ -1350,7 +1350,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     peerDependencyIssuesByProjects,
     wantedToBeSkippedPackageIds,
     waitTillAllFetchingsFinish,
-    lockfileResolutionViolations,
+    resolutionPolicyViolations,
   } = await resolveDependencies(
     projects,
     {
@@ -1769,7 +1769,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     stats,
     depsRequiringBuild,
     ignoredBuilds,
-    lockfileResolutionViolations,
+    resolutionPolicyViolations,
   }
 }
 
@@ -2195,6 +2195,18 @@ async function installFromPnpmRegistry (
   opts: Opts,
   allInstallProjects?: Array<{ rootDir: ProjectRootDir, manifest: ProjectManifest }>
 ): Promise<InstallResult & { stats: InstallationResultStats, lockfile: LockfileObject }> {
+  // The agent path skips client-side resolution, so resolver-side policies
+  // can't be enforced locally. `minimumReleaseAge` is forwarded to the
+  // agent and enforced server-side. `trustPolicy` has no server-side
+  // counterpart yet, so refuse to run under it instead of silently
+  // letting through a lockfile the local verifier would reject.
+  if (opts.trustPolicy === 'no-downgrade') {
+    throw new PnpmError(
+      'TRUST_POLICY_INCOMPATIBLE_WITH_AGENT',
+      'The pnpm agent does not yet enforce `trustPolicy: no-downgrade`, so running an install through the agent under this policy would produce a lockfile that the local verifier rejects.',
+      { hint: 'Unset `trustPolicy` for this install, or disable the agent (unset `--agent` / `agent` in pnpm-workspace.yaml) so resolution runs locally and the trust check applies.' }
+    )
+  }
   const { fetchFromPnpmRegistry } = await import('@pnpm/agent.client')
   const { StoreIndex } = await import('@pnpm/store.index')
   const { setImportConcurrency } = await import('@pnpm/worker')
@@ -2342,11 +2354,12 @@ async function installFromPnpmRegistry (
       ignoredBuilds,
       stats,
       lockfile,
-      // Server-side resolution (pnpm agent) doesn't surface lockfile
-      // violations the way the local verifier fan-out does — the agent
-      // owns the policy. Keep this empty so the install command sees
-      // "no violations" and doesn't try to persist anything.
-      lockfileResolutionViolations: [],
+      // Server-side resolution (pnpm agent) enforces `minimumReleaseAge`
+      // itself — the agent picks only mature versions and the lockfile
+      // can't contain immature entries to auto-collect. `trustPolicy` is
+      // guarded above (we refuse to enter this path when it's set), so
+      // there's nothing for the install command to react to here.
+      resolutionPolicyViolations: [],
     }
   } finally {
     // Close the storeController to flush queued StoreIndex writes — the
