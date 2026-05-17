@@ -84,21 +84,32 @@ test('no-op when running pnpm does not satisfy wanted range', async () => {
   expect(resolvePackageManagerIntegrities).not.toHaveBeenCalled()
 })
 
-test('no-op when no env lockfile exists', async () => {
+test('writes packageManagerDependencies when no env lockfile exists yet (#11674)', async () => {
   const dir = tempDir()
   await syncEnvLockfile(baseConfig, makeContext(dir, {
     wantedPackageManager: { name: 'pnpm', version: packageManager.version, fromDevEngines: true },
   }))
-  expect(resolvePackageManagerIntegrities).not.toHaveBeenCalled()
+  expect(resolvePackageManagerIntegrities).toHaveBeenCalledTimes(1)
+  const updated = await readEnvLockfile(dir)
+  expect(updated).not.toBeNull()
+  expect(updated!.importers['.'].packageManagerDependencies?.['pnpm']).toEqual({
+    specifier: packageManager.version,
+    version: packageManager.version,
+  })
 })
 
-test('no-op when lockfile has no packageManagerDependencies for pnpm', async () => {
+test('writes packageManagerDependencies when env lockfile exists but lacks pnpm entry (#11674)', async () => {
   const dir = tempDir()
   writeEnvLockfileWithoutPmDeps(dir)
   await syncEnvLockfile(baseConfig, makeContext(dir, {
     wantedPackageManager: { name: 'pnpm', version: packageManager.version, fromDevEngines: true },
   }))
-  expect(resolvePackageManagerIntegrities).not.toHaveBeenCalled()
+  expect(resolvePackageManagerIntegrities).toHaveBeenCalledTimes(1)
+  const updated = await readEnvLockfile(dir)
+  expect(updated!.importers['.'].packageManagerDependencies?.['pnpm']).toEqual({
+    specifier: packageManager.version,
+    version: packageManager.version,
+  })
 })
 
 test('no-op when lockfile already records a satisfying version', async () => {
