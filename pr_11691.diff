@@ -1,0 +1,1539 @@
+diff --git a/.changeset/cache-aware-minimum-release-age-gate.md b/.changeset/cache-aware-minimum-release-age-gate.md
+index e9c39f1d419..957872248e8 100644
+--- a/.changeset/cache-aware-minimum-release-age-gate.md
++++ b/.changeset/cache-aware-minimum-release-age-gate.md
+@@ -9,4 +9,6 @@
+ "pnpm": patch
+ ---
+ 
+-Restructured the `minimumReleaseAge` lockfile revalidation gate around a generic `ResolutionVerifier` interface. Each resolver may now export a sibling verifier factory (today: `createNpmResolutionVerifier`) that re-checks an already-resolved lockfile entry against its policies; `createResolver`'s companion `createResolutionVerifier` combines them and the `Client` exposes the combined `verifyResolution` for the install layer to consume. The npm verifier reuses the same on-disk metadata mirror the resolver writes to, so steady-state installs pay only a headers-only conditional GET per locked package [#11675](https://github.com/pnpm/pnpm/issues/11675).
++Restructured the `minimumReleaseAge` lockfile revalidation gate around a generic `ResolutionVerifier` interface. Each resolver may now export a sibling verifier factory (today: `createNpmResolutionVerifier`) that re-checks an already-resolved lockfile entry against its policies; the resolver chain returns the verifier list as `resolutionVerifiers` and the install side fans out across it. A `ResolutionVerifier` carries `verify` plus `policy` and `canTrustPastCheck` — the cache contract that lets repeat installs against an unchanged lockfile skip the per-package registry round trip entirely.
++
++Verification results are memoized in JSON Lines at `<cacheDir>/lockfile-verified.jsonl`: a stat-only fast path matches on lockfile size, mtime, and inode, falling back to a content hash when those drift (typical after a CI checkout). Every active verifier's policy contribution is merged into a single `policy` bag on the record; the gate runs in full whenever the lockfile changes, any verifier rejects the cached policy, or no record exists [#11687](https://github.com/pnpm/pnpm/issues/11687).
+diff --git a/installing/client/src/index.ts b/installing/client/src/index.ts
+index cfd62c93f15..2673f51d022 100644
+--- a/installing/client/src/index.ts
++++ b/installing/client/src/index.ts
+@@ -9,7 +9,7 @@ import type { CustomFetcher, CustomResolver } from '@pnpm/hooks.types'
+ import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
+ import { createFetchFromRegistry, type DispatcherOptions } from '@pnpm/network.fetch'
+ import {
+-  createResolutionVerifier,
++  createResolutionVerifiers,
+   createResolver as _createResolver,
+   type ResolutionVerifierFactoryOptions,
+   type ResolveFunction,
+@@ -45,12 +45,13 @@ export interface Client {
+   resolve: ResolveFunction
+   clearResolutionCache: () => void
+   /**
+-   * Combined verifier across the resolver chain. `undefined` when no
+-   * resolver-level policy is active (today: minimumReleaseAge strict mode).
+-   * Used by the install layer to re-validate an already-resolved lockfile
+-   * entry without re-doing resolution.
++   * List of resolver-side verifiers — one entry per active policy
++   * (today: at most one, `npm.minimumReleaseAge`). Empty when no policy
++   * is active. The install layer fans out across the list to re-validate
++   * each lockfile entry; each verifier handles its own protocol
++   * short-circuit inside `verify`.
+    */
+-  verifyResolution?: ResolutionVerifier
++  resolutionVerifiers: ResolutionVerifier[]
+ }
+ 
+ export function createClient (opts: ClientOptions): Client {
+@@ -58,12 +59,11 @@ export function createClient (opts: ClientOptions): Client {
+   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri, opts.registries?.default)
+ 
+   const { resolve, clearCache: clearResolutionCache } = _createResolver(fetchFromRegistry, getAuthHeader, { ...opts, customResolvers: opts.customResolvers })
+-  const verifyResolution = createResolutionVerifier(fetchFromRegistry, opts)
+   return {
+     fetchers: createFetchers(fetchFromRegistry, getAuthHeader, opts),
+     resolve,
+     clearResolutionCache,
+-    verifyResolution,
++    resolutionVerifiers: createResolutionVerifiers(fetchFromRegistry, opts),
+   }
+ }
+ 
+diff --git a/installing/commands/src/fetch.ts b/installing/commands/src/fetch.ts
+index b6209e31414..fd86cc1d9d9 100644
+--- a/installing/commands/src/fetch.ts
++++ b/installing/commands/src/fetch.ts
+@@ -70,7 +70,7 @@ export async function handler (opts: FetchCommandOptions): Promise<void> {
+     pruneStore: true,
+     storeController: store.ctrl,
+     storeDir: store.dir,
+-    verifyResolution: store.verifyResolution,
++    resolutionVerifiers: store.resolutionVerifiers,
+     // Hoisting is skipped anyway,
+     // so we store these empty patterns in node_modules/.modules.yaml
+     // to let the subsequent install know that hoisting should be performed.
+diff --git a/installing/commands/src/import/index.ts b/installing/commands/src/import/index.ts
+index d249d2b738b..27cb169b9de 100644
+--- a/installing/commands/src/import/index.ts
++++ b/installing/commands/src/import/index.ts
+@@ -186,7 +186,7 @@ export async function handler (
+     preferredVersions,
+     storeController: store.ctrl,
+     storeDir: store.dir,
+-    verifyResolution: store.verifyResolution,
++    resolutionVerifiers: store.resolutionVerifiers,
+   }
+   await install(manifest, installOpts)
+ }
+diff --git a/installing/commands/src/installDeps.ts b/installing/commands/src/installDeps.ts
+index fa109f5321e..4155da7ed9f 100644
+--- a/installing/commands/src/installDeps.ts
++++ b/installing/commands/src/installDeps.ts
+@@ -279,7 +279,7 @@ export async function installDeps (
+     skipRuntimes: opts.runtime === false,
+     storeController: store.ctrl,
+     storeDir: store.dir,
+-    verifyResolution: store.verifyResolution,
++    resolutionVerifiers: store.resolutionVerifiers,
+     workspacePackages,
+     preferredVersions: opts.packageVulnerabilityAudit ? preferNonvulnerablePackageVersions(opts.packageVulnerabilityAudit) : undefined,
+   }
+diff --git a/installing/commands/src/recursive.ts b/installing/commands/src/recursive.ts
+index afeb074ecfc..44f39340215 100755
+--- a/installing/commands/src/recursive.ts
++++ b/installing/commands/src/recursive.ts
+@@ -115,7 +115,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
+   storeControllerAndDir?: {
+     ctrl: StoreController
+     dir: string
+-    verifyResolution?: ResolutionVerifier
++    resolutionVerifiers: ResolutionVerifier[]
+   }
+   pnpmfile: string[]
+ } & Partial<
+@@ -167,7 +167,7 @@ export async function recursive (
+     storeController: store.ctrl,
+     storeDir: store.dir,
+     targetDependenciesField,
+-    verifyResolution: store.verifyResolution,
++    resolutionVerifiers: store.resolutionVerifiers,
+     workspacePackages,
+   }) as InstallOptions
+ 
+@@ -299,7 +299,7 @@ export async function recursive (
+     } = await mutateModules(mutatedImporters, {
+       ...installOpts,
+       storeController: store.ctrl,
+-      verifyResolution: store.verifyResolution,
++      resolutionVerifiers: store.resolutionVerifiers,
+     })
+     if (opts.save !== false) {
+       const promises: Array<Promise<void>> = mutatedPkgs.map(async ({ originalManifest, manifest, rootDir }) => {
+@@ -418,7 +418,7 @@ export async function recursive (
+             }),
+             configByUri: installOpts.configByUri,
+             storeController: store.ctrl,
+-            verifyResolution: store.verifyResolution,
++            resolutionVerifiers: store.resolutionVerifiers,
+           }
+         )
+         if (opts.save !== false) {
+diff --git a/installing/commands/src/remove.ts b/installing/commands/src/remove.ts
+index ac7367f9fe4..6913fbb497f 100644
+--- a/installing/commands/src/remove.ts
++++ b/installing/commands/src/remove.ts
+@@ -188,7 +188,7 @@ export async function handler (
+     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
+     storeController: store.ctrl,
+     storeDir: store.dir,
+-    verifyResolution: store.verifyResolution,
++    resolutionVerifiers: store.resolutionVerifiers,
+     include,
+   })
+   const allProjects = opts.allProjects ?? (
+diff --git a/installing/deps-installer/src/install/extendInstallOptions.ts b/installing/deps-installer/src/install/extendInstallOptions.ts
+index 584c4a829f9..7cf60a611a5 100644
+--- a/installing/deps-installer/src/install/extendInstallOptions.ts
++++ b/installing/deps-installer/src/install/extendInstallOptions.ts
+@@ -176,14 +176,23 @@ export interface StrictInstallOptions {
+   minimumReleaseAge?: number
+   minimumReleaseAgeExclude?: string[]
+   /**
+-   * Optional verifier that re-checks each lockfile-pinned resolution
+-   * against policies configured upstream (today: minimumReleaseAge strict
+-   * mode). Constructed by `createClient` and surfaced via the
+-   * `createStoreController` return; mutateModules invokes it once, right
+-   * after the lockfile is loaded from disk. When omitted, no revalidation
+-   * runs.
++   * Resolver-side verifiers that re-check each lockfile-pinned resolution
++   * against policies configured upstream (today: at most one,
++   * `npm.minimumReleaseAge` in strict mode). Constructed by `createClient`
++   * and surfaced via the `createStoreController` return; mutateModules
++   * fans out across the list once, right after the lockfile is loaded
++   * from disk. Empty when no policy is active.
+    */
+-  verifyResolution?: ResolutionVerifier
++  resolutionVerifiers: ResolutionVerifier[]
++  /**
++   * pnpm's on-disk cache directory. When set together with non-empty
++   * `resolutionVerifiers`, the lockfile verification result is memoized
++   * in `<cacheDir>/lockfile-verified.jsonl` so repeat installs against an
++   * unchanged lockfile skip the per-package registry round trip. The
++   * record is policy-neutral; each active resolver-side verifier writes
++   * its own slot under `verifiers[<key>]`.
++   */
++  cacheDir?: string
+   trustPolicy?: TrustPolicy
+   trustPolicyExclude?: string[]
+   trustPolicyIgnoreAfter?: number
+@@ -301,6 +310,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
+     peersSuffixMaxLength: 1000,
+     blockExoticSubdeps: false,
+     omitSummaryLog: false,
++    resolutionVerifiers: [] as ResolutionVerifier[],
+   } as StrictInstallOptions
+ }
+ 
+diff --git a/installing/deps-installer/src/install/index.ts b/installing/deps-installer/src/install/index.ts
+index 5b4ecd7564d..bedcffc0f9f 100644
+--- a/installing/deps-installer/src/install/index.ts
++++ b/installing/deps-installer/src/install/index.ts
+@@ -344,7 +344,19 @@ export async function mutateModules (
+   // exactly once, right after the lockfile is loaded from disk, before any
+   // path branches.
+   try {
+-    await verifyLockfileResolutions(ctx.wantedLockfile, opts.verifyResolution)
++    await verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
++      // The cache short-circuits the per-package registry round trip when
++      // the lockfile and every active verifier's policy haven't moved
++      // since the last successful verification. Cache slots come from
++      // each verifier's own `activeVerifier` — `verifyLockfileResolutions`
++      // pulls them out; we only have to pass the lockfile path + cacheDir.
++      cache: opts.cacheDir
++        ? {
++          cacheDir: opts.cacheDir,
++          lockfilePath: path.resolve(ctx.lockfileDir, WANTED_LOCKFILE),
++        }
++        : undefined,
++    })
+   } catch (err) {
+     // verifyLockfileResolutions is the one throw site in this function
+     // that's part of normal user-facing operation (a rejected lockfile);
+diff --git a/installing/deps-installer/src/install/verifyLockfileResolutions.ts b/installing/deps-installer/src/install/verifyLockfileResolutions.ts
+index 1f1ad897734..d00a7de4be4 100644
+--- a/installing/deps-installer/src/install/verifyLockfileResolutions.ts
++++ b/installing/deps-installer/src/install/verifyLockfileResolutions.ts
+@@ -1,10 +1,15 @@
+ import { PnpmError } from '@pnpm/error'
+ import type { LockfileObject } from '@pnpm/lockfile.fs'
+ import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+-import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
++import type { Resolution, ResolutionVerifier } from '@pnpm/resolving.resolver-base'
+ import type { DepPath } from '@pnpm/types'
+ import pLimit from 'p-limit'
+ 
++import {
++  recordVerification,
++  tryLockfileVerificationCache,
++} from './verifyLockfileResolutionsCache.js'
++
+ interface Violation {
+   pkgId: string
+   code: string
+@@ -21,39 +26,73 @@ const MAX_VIOLATIONS_TO_PRINT = 20
+ // verification pass doesn't push past what the rest of the install respects.
+ const DEFAULT_CONCURRENCY = 16
+ 
++export interface VerifyLockfileResolutionsCacheOptions {
++  /** pnpm's on-disk cache directory. The lockfile-verification cache file lives directly under it. */
++  cacheDir: string
++  /** Absolute path of the lockfile being verified — the cache key. */
++  lockfilePath: string
++}
++
+ /**
+- * Policy-neutral pass that asks each resolver-supplied {@link ResolutionVerifier}
+- * to check every entry in a lockfile loaded from disk. Iteration runs
+- * before resolution decisions are touched and before any tarball is
+- * fetched, so a lockfile whose entries were resolved elsewhere (committed
+- * to the repo, restored from a cache, etc.) under a weaker or absent
+- * policy cannot reach the filesystem. Fresh local resolution is covered
+- * by the resolver's own per-version filter.
++ * Policy-neutral pass that asks every resolver-supplied
++ * {@link ResolutionVerifier} to check every entry in a lockfile loaded
++ * from disk. Iteration runs before resolution decisions are touched and
++ * before any tarball is fetched, so a lockfile whose entries were
++ * resolved elsewhere (committed to the repo, restored from a cache,
++ * etc.) under a weaker or absent policy cannot reach the filesystem.
++ * Fresh local resolution is covered by the resolver's own per-version
++ * filter.
++ *
++ * Each verifier handles its own protocol short-circuit inside `verify`
++ * (returning `{ ok: true }` for resolutions outside its scope), so the
++ * fan-out is policy-neutral and dispatch-free at this layer.
++ *
++ * Designed for fail-closed semantics at the verifier level: a verifier
++ * that can't confirm a resolution is expected to return `{ ok: false }`
++ * rather than passing silently — otherwise a registry hiccup or an
++ * unpublished version would re-open the bypass.
+  *
+- * Designed for fail-closed semantics at the verifier level: a verifier that
+- * can't confirm a resolution is expected to return `{ ok: false }` rather
+- * than passing silently — otherwise a registry hiccup or an unpublished
+- * version would re-open the bypass.
++ * No-op when `verifiers` is empty.
+  *
+- * No-op when `verifyResolution` is undefined (no active policies).
++ * When `options.cache` is provided, an unchanged lockfile that has
++ * already been verified under the same (or stricter) policy
++ * short-circuits the registry round-trip entirely — see
++ * {@link tryLockfileVerificationCache} for the lookup logic.
+  */
+ export async function verifyLockfileResolutions (
+   lockfile: LockfileObject,
+-  verifyResolution: ResolutionVerifier | undefined,
+-  options?: { concurrency?: number }
++  verifiers: ResolutionVerifier[],
++  options?: { concurrency?: number, cache?: VerifyLockfileResolutionsCacheOptions }
+ ): Promise<void> {
+-  if (verifyResolution == null) return
++  if (verifiers.length === 0) return
+   if (!lockfile.packages) return
+ 
++  // Cache lookup runs before any registry I/O — the fast path is a single
++  // stat() of the lockfile when the previous install already verified it
++  // under a policy that's at least as strict as today's. The cache layer
++  // only reads `resolver`, `policy`, and `canTrustPastCheck`; passing the full
++  // ResolutionVerifier list is fine (the extra `verify` field is ignored).
++  if (options?.cache) {
++    const { hit } = await tryLockfileVerificationCache(options.cache.cacheDir, {
++      lockfilePath: options.cache.lockfilePath,
++      verifiers,
++    })
++    if (hit) return
++  }
++
+   // depPath can include peer-dependency and patch_hash suffixes (e.g.
+   // `react@18.0.0(peer)(patch_hash=…)`); the same (name, version) pair may
+   // therefore appear multiple times. Dedupe so we issue at most one
+   // verification per package version.
+-  const candidates = new Map<string, { name: string, version: string, resolution: unknown }>()
++  const candidates = new Map<string, { name: string, version: string, resolution: Resolution }>()
+   for (const [depPath, snapshot] of Object.entries(lockfile.packages)) {
+     const { name, version } = nameVerFromPkgSnapshot(depPath as DepPath, snapshot)
+     if (!name || !version) continue
+-    candidates.set(`${name}@${version}`, { name, version, resolution: snapshot.resolution })
++    candidates.set(`${name}@${version}`, {
++      name,
++      version,
++      resolution: snapshot.resolution as Resolution,
++    })
+   }
+ 
+   const violations: Violation[] = []
+@@ -61,14 +100,32 @@ export async function verifyLockfileResolutions (
+   await Promise.all(
+     Array.from(candidates.values(), ({ name, version, resolution }) => limit(async () => {
+       const pkgId = `${name}@${version}`
+-      const result = await verifyResolution(resolution as Parameters<ResolutionVerifier>[0], { name, version })
+-      if (!result.ok) {
+-        violations.push({ pkgId, code: result.code, reason: result.reason })
++      // Fan out across every active verifier; each handles its own
++      // protocol short-circuit (e.g. the npm verifier returns ok:true for
++      // git resolutions). We stop at the first failure per entry so a
++      // multi-verifier setup doesn't produce duplicate violations for the
++      // same (name, version).
++      for (const verifier of verifiers) {
++        // eslint-disable-next-line no-await-in-loop
++        const result = await verifier.verify(resolution, { name, version })
++        if (!result.ok) {
++          violations.push({ pkgId, code: result.code, reason: result.reason })
++          break
++        }
+       }
+     }))
+   )
+ 
+-  if (violations.length === 0) return
++  if (violations.length === 0) {
++    // Persist the success so the next install can stat-only the lockfile.
++    if (options?.cache) {
++      await recordVerification(options.cache.cacheDir, {
++        lockfilePath: options.cache.lockfilePath,
++        verifiers,
++      })
++    }
++    return
++  }
+ 
+   // Stable order so the error output is deterministic.
+   violations.sort((a, b) => a.pkgId.localeCompare(b.pkgId))
+diff --git a/installing/deps-installer/src/install/verifyLockfileResolutionsCache.ts b/installing/deps-installer/src/install/verifyLockfileResolutionsCache.ts
+new file mode 100644
+index 00000000000..ac7f7163519
+--- /dev/null
++++ b/installing/deps-installer/src/install/verifyLockfileResolutionsCache.ts
+@@ -0,0 +1,338 @@
++import fs from 'node:fs'
++import path from 'node:path'
++import util from 'node:util'
++
++import { createHexHashFromFile } from '@pnpm/crypto.hash'
++import { logger } from '@pnpm/logger'
++import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
++
++/**
++ * Subset of {@link ResolutionVerifier} the cache layer needs: the
++ * verifier's `policy` contribution plus the `canTrustPastCheck`
++ * comparator. `verify` is intentionally absent — the cache never runs
++ * verifiers, it just decides whether a previous run is still
++ * trustworthy.
++ */
++export type VerifierCacheIdentity = Pick<ResolutionVerifier, 'policy' | 'canTrustPastCheck'>
++
++/**
++ * On-disk cache of verifyLockfileResolutions results, keyed by absolute
++ * lockfile path. Lets repeat installs against an unchanged lockfile skip
++ * the per-package registry round trips entirely.
++ *
++ * Persisted as JSON Lines: each verification appends one record, the latest
++ * record per path wins on read. Appends of a single line are atomic on
++ * POSIX and NTFS, so parallel pnpm processes (monorepo installs, CI
++ * matrices sharing a cache) can write without coordination.
++ *
++ * Policy-neutral. Every active verifier's `policy` contribution merges
++ * into a single `policy` bag on the record; verifiers sharing a logical
++ * policy (same field name) share the slot — no resolver-level
++ * namespacing.
++ */
++
++const CACHE_FILE_NAME = 'lockfile-verified.jsonl'
++
++// Cap the file before it grows large enough to slow down reads. When the
++// cap is exceeded we rewrite the file keeping the N most recently verified
++// entries. The number is generous — a developer machine that touches a
++// thousand distinct lockfiles is far past steady state.
++const MAX_CACHE_ENTRIES = 1000
++
++// Records cluster around 250–400 bytes; budget 1 KiB per entry as a
++// conservative upper bound. The compaction check uses `stat().size` to
++// decide whether to read+rewrite, so we never parse the file unless it
++// has actually grown past the cap.
++const COMPACT_TRIGGER_BYTES = MAX_CACHE_ENTRIES * 1024 * 3 / 2
++
++interface CacheRecord {
++  lockfile: {
++    /** Absolute path — the cache key. */
++    path: string
++    /** sha256 hex of the lockfile content, normalized to LF. */
++    hash: string
++    /** Lockfile size in bytes — same-machine fast path. */
++    size: number
++    /**
++     * Lockfile mtime in nanoseconds (stringified — JSON numbers lose ns
++     * precision). Cross-machine values are meaningless; on a CI runner
++     * the fresh checkout resets mtime, so we fall back to hashing. The
++     * hash is the source of truth — these stat fields are the
++     * local-dev fast path.
++     */
++    mtimeNs: string
++    inode: number
++  }
++  /** ISO-8601 timestamp of when the verification ran. */
++  verifiedAt: string
++  /**
++   * Merged policy snapshot that passed when the verification ran. Each
++   * active {@link VerifierCacheIdentity} contributes its fields here;
++   * verifiers checking the same logical policy (same field name) share
++   * the slot. On read, each verifier's `canTrustPastCheck` decides
++   * whether today's policy can still trust this snapshot.
++   */
++  policy: Record<string, unknown>
++}
++
++interface CacheLookupResult {
++  hit: boolean
++}
++
++interface LockfileStat {
++  size: number
++  mtimeNs: string
++  inode: number
++}
++
++export interface LockfileVerificationCacheKey {
++  lockfilePath: string
++  verifiers: readonly VerifierCacheIdentity[]
++}
++
++/**
++ * Read the most recent record per lockfile path. JSONL is parsed line by
++ * line so a malformed line (partial write, disk corruption) doesn't
++ * invalidate the rest of the file.
++ */
++async function readCache (cacheDir: string): Promise<Map<string, CacheRecord>> {
++  const cacheFilePath = path.join(cacheDir, CACHE_FILE_NAME)
++  let contents: string
++  try {
++    contents = await fs.promises.readFile(cacheFilePath, 'utf8')
++  } catch (err: unknown) {
++    if (isNodeError(err) && err.code === 'ENOENT') return new Map()
++    throw err
++  }
++  const records = new Map<string, CacheRecord>()
++  for (const line of contents.split('\n')) {
++    if (!line) continue
++    try {
++      const parsed = JSON.parse(line) as Partial<CacheRecord>
++      const path = parsed?.lockfile?.path
++      if (typeof path !== 'string') continue
++      // Later records overwrite earlier ones — JSONL semantics.
++      records.set(path, normalizeRecord(parsed))
++    } catch {
++      // Skip malformed lines; the next clean append will still work.
++    }
++  }
++  return records
++}
++
++function normalizeRecord (parsed: Partial<CacheRecord>): CacheRecord {
++  const lockfile: Partial<CacheRecord['lockfile']> = parsed.lockfile ?? {}
++  return {
++    lockfile: {
++      path: lockfile.path ?? '',
++      hash: lockfile.hash ?? '',
++      size: lockfile.size ?? -1,
++      mtimeNs: lockfile.mtimeNs ?? '',
++      inode: lockfile.inode ?? -1,
++    },
++    verifiedAt: parsed.verifiedAt ?? '',
++    policy: parsed.policy && typeof parsed.policy === 'object' ? parsed.policy : {},
++  }
++}
++
++async function statLockfile (lockfilePath: string): Promise<LockfileStat | null> {
++  try {
++    const stat = await fs.promises.stat(lockfilePath, { bigint: true })
++    return {
++      size: Number(stat.size),
++      mtimeNs: stat.mtimeNs.toString(),
++      inode: Number(stat.ino),
++    }
++  } catch (err: unknown) {
++    if (isNodeError(err) && err.code === 'ENOENT') return null
++    throw err
++  }
++}
++
++/**
++ * Try to confirm a cached verification covers the lockfile as it currently
++ * sits on disk and the policies currently in effect. Returns `{ hit: true }`
++ * to skip the gate; `{ hit: false }` means the caller should run the
++ * verifier and persist the result with {@link recordVerification}.
++ *
++ * The fast path is stat-only (size + mtime + inode) — zero file reads on
++ * unchanged repos. The slow path hashes the lockfile only when stat alone
++ * can't decide (typically a CI checkout where mtime/inode got reset).
++ *
++ * Every active verifier must agree the cached policy snapshot is still
++ * trustworthy under what it currently demands; if any rejects, the full
++ * gate runs.
++ */
++export async function tryLockfileVerificationCache (
++  cacheDir: string,
++  key: LockfileVerificationCacheKey
++): Promise<CacheLookupResult> {
++  let cache: Map<string, CacheRecord>
++  try {
++    cache = await readCache(cacheDir)
++  } catch (err: unknown) {
++    // A corrupt cache file should never block the install; fall through to
++    // verification so the gate still runs.
++    logger.debug({ msg: 'lockfile-verified cache: read failed', err })
++    return { hit: false }
++  }
++  const record = cache.get(key.lockfilePath)
++  if (!record) return { hit: false }
++  if (!everyVerifierTrustsCachedRun(record, key.verifiers)) return { hit: false }
++
++  const stat = await statLockfile(key.lockfilePath)
++  if (!stat) return { hit: false }
++  // Size mismatch is guaranteed-different content; skip the hash entirely.
++  if (stat.size !== record.lockfile.size) return { hit: false }
++  if (stat.mtimeNs === record.lockfile.mtimeNs && stat.inode === record.lockfile.inode) {
++    return { hit: true }
++  }
++  // Stat fields drift (CI checkout, file copy, editor write-through);
++  // confirm via content hash, which is portable across machines.
++  let hash: string
++  try {
++    hash = await createHexHashFromFile(key.lockfilePath)
++  } catch (err: unknown) {
++    logger.debug({ msg: 'lockfile-verified cache: lockfile hash failed', err })
++    return { hit: false }
++  }
++  if (hash !== record.lockfile.hash) return { hit: false }
++  // Hash matched — refresh stat fields so the next install on this machine
++  // hits the stat-only fast path.
++  await appendRecord(cacheDir, {
++    ...record,
++    lockfile: { ...record.lockfile, size: stat.size, mtimeNs: stat.mtimeNs, inode: stat.inode },
++  })
++  return { hit: true }
++}
++
++function everyVerifierTrustsCachedRun (record: CacheRecord, verifiers: readonly VerifierCacheIdentity[]): boolean {
++  for (const verifier of verifiers) {
++    if (!verifier.canTrustPastCheck(record.policy)) return false
++  }
++  return true
++}
++
++function mergePolicies (verifiers: readonly VerifierCacheIdentity[]): Record<string, unknown> {
++  // Later verifiers overwrite earlier ones on conflict — a shared field
++  // should carry the same value across verifiers by convention; mismatch
++  // is a config bug and we don't try to reconcile it here.
++  const merged: Record<string, unknown> = {}
++  for (const verifier of verifiers) {
++    Object.assign(merged, verifier.policy)
++  }
++  return merged
++}
++
++/**
++ * Persist a successful verification. Called after the gate passes; the
++ * lockfile is hashed once and the resulting record is appended to the
++ * cache file. If the file is past {@link MAX_CACHE_ENTRIES}, it is
++ * rewritten keeping the most recent entries.
++ */
++export async function recordVerification (
++  cacheDir: string,
++  key: LockfileVerificationCacheKey
++): Promise<void> {
++  let stat: LockfileStat | null
++  let hash: string
++  try {
++    stat = await statLockfile(key.lockfilePath)
++    if (!stat) return
++    hash = await createHexHashFromFile(key.lockfilePath)
++  } catch (err: unknown) {
++    // The gate has already passed; if we can't record the cache entry we
++    // just won't get the speedup next time. Not a reason to fail install.
++    logger.debug({ msg: 'lockfile-verified cache: could not record verification', err })
++    return
++  }
++  const record: CacheRecord = {
++    lockfile: {
++      path: key.lockfilePath,
++      hash,
++      size: stat.size,
++      mtimeNs: stat.mtimeNs,
++      inode: stat.inode,
++    },
++    verifiedAt: new Date().toISOString(),
++    policy: mergePolicies(key.verifiers),
++  }
++  await appendRecord(cacheDir, record)
++}
++
++async function appendRecord (cacheDir: string, record: CacheRecord): Promise<void> {
++  const cacheFilePath = path.join(cacheDir, CACHE_FILE_NAME)
++  const line = `${JSON.stringify(record)}\n`
++  try {
++    await fs.promises.mkdir(cacheDir, { recursive: true })
++    await fs.promises.appendFile(cacheFilePath, line)
++  } catch (err: unknown) {
++    logger.debug({ msg: 'lockfile-verified cache: append failed', err })
++    return
++  }
++  await maybeCompactCache(cacheDir)
++}
++
++async function maybeCompactCache (cacheDir: string): Promise<void> {
++  const cacheFilePath = path.join(cacheDir, CACHE_FILE_NAME)
++  // Decide whether to compact from the file size alone — avoids reading
++  // and parsing the file on every successful install. Records cluster
++  // around a few hundred bytes; the byte budget translates directly to
++  // the entry cap with generous slack so we don't trigger a rewrite on
++  // every append once we cross the line.
++  let size: number
++  try {
++    const stat = await fs.promises.stat(cacheFilePath)
++    size = stat.size
++  } catch (err: unknown) {
++    if (isNodeError(err) && err.code === 'ENOENT') return
++    logger.debug({ msg: 'lockfile-verified cache: stat for compaction failed', err })
++    return
++  }
++  if (size <= COMPACT_TRIGGER_BYTES) return
++
++  let contents: string
++  try {
++    contents = await fs.promises.readFile(cacheFilePath, 'utf8')
++  } catch (err: unknown) {
++    if (isNodeError(err) && err.code === 'ENOENT') return
++    logger.debug({ msg: 'lockfile-verified cache: read for compaction failed', err })
++    return
++  }
++  const lines = contents.split('\n').filter(Boolean)
++
++  // Last record per path wins (JSONL semantics). Dedupe in reverse so we
++  // keep insertion order of the surviving entries; then keep the tail.
++  const seen = new Set<string>()
++  const reversed: string[] = []
++  for (let i = lines.length - 1; i >= 0; i--) {
++    const line = lines[i]
++    try {
++      const parsed = JSON.parse(line) as Partial<CacheRecord>
++      const path = parsed?.lockfile?.path
++      if (typeof path !== 'string') continue
++      if (seen.has(path)) continue
++      seen.add(path)
++      reversed.push(line)
++    } catch {
++      // Skip malformed lines.
++    }
++  }
++  reversed.reverse()
++  const kept = reversed.slice(-MAX_CACHE_ENTRIES)
++  try {
++    // Write to a sibling tempfile + rename so a concurrent pnpm process
++    // can't observe a half-written file.
++    const tmpPath = `${cacheFilePath}.${process.pid}.tmp`
++    await fs.promises.writeFile(tmpPath, kept.map((line) => `${line}\n`).join(''))
++    await fs.promises.rename(tmpPath, cacheFilePath)
++  } catch (err: unknown) {
++    logger.debug({ msg: 'lockfile-verified cache: compaction failed', err })
++  }
++}
++
++function isNodeError (err: unknown): err is NodeJS.ErrnoException {
++  // `instanceof Error` is unreliable across realms (Jest's VM context), so
++  // route through util.types.isNativeError per the repo guideline.
++  return util.types.isNativeError(err) && 'code' in err
++}
+diff --git a/installing/deps-installer/test/install/verifyLockfileResolutions.ts b/installing/deps-installer/test/install/verifyLockfileResolutions.ts
+index 67474c906c7..68a4205771c 100644
+--- a/installing/deps-installer/test/install/verifyLockfileResolutions.ts
++++ b/installing/deps-installer/test/install/verifyLockfileResolutions.ts
+@@ -1,3 +1,7 @@
++import fs from 'node:fs'
++import os from 'node:os'
++import path from 'node:path'
++
+ import { expect, test } from '@jest/globals'
+ import type { LockfileObject } from '@pnpm/lockfile.fs'
+ import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
+@@ -14,18 +18,30 @@ function makeLockfile (packages: Record<string, { resolution: unknown, version?:
+ 
+ const tarballResolution = (integrity: string = 'sha512-deadbeef') => ({ integrity, tarball: '' })
+ 
+-const okVerifier: ResolutionVerifier = async () => ({ ok: true })
++const NOOP_SLOT = {
++  policy: {} as Record<string, unknown>,
++  canTrustPastCheck: () => true,
++}
++
++function wrap (
++  verify: ResolutionVerifier['verify'],
++  slot: Omit<ResolutionVerifier, 'verify'> = NOOP_SLOT
++): ResolutionVerifier {
++  return { ...slot, verify }
++}
++
++const okVerifier = wrap(async () => ({ ok: true }))
+ 
+-test('no-op when verifyResolution is undefined', async () => {
++test('no-op when the verifier list is empty', async () => {
+   const lockfile = makeLockfile({
+     'fresh@1.0.0': { resolution: tarballResolution() },
+   })
+-  await expect(verifyLockfileResolutions(lockfile, undefined)).resolves.toBeUndefined()
++  await expect(verifyLockfileResolutions(lockfile, [])).resolves.toBeUndefined()
+ })
+ 
+ test('no-op when lockfile has no packages', async () => {
+   const lockfile = makeLockfile({})
+-  await expect(verifyLockfileResolutions(lockfile, okVerifier)).resolves.toBeUndefined()
++  await expect(verifyLockfileResolutions(lockfile, [okVerifier])).resolves.toBeUndefined()
+ })
+ 
+ test('passes when every entry is verified ok', async () => {
+@@ -33,20 +49,20 @@ test('passes when every entry is verified ok', async () => {
+     'lodash@4.17.21': { resolution: tarballResolution() },
+     'is-odd@0.1.0': { resolution: tarballResolution() },
+   })
+-  await expect(verifyLockfileResolutions(lockfile, okVerifier)).resolves.toBeUndefined()
++  await expect(verifyLockfileResolutions(lockfile, [okVerifier])).resolves.toBeUndefined()
+ })
+ 
+ test('throws with the verifier-supplied code and reason on a single failure', async () => {
+   const lockfile = makeLockfile({
+     'is-odd@0.1.2': { resolution: tarballResolution() },
+   })
+-  const verifier: ResolutionVerifier = async () => ({
++  const verifier = wrap(async () => ({
+     ok: false,
+     code: 'MINIMUM_RELEASE_AGE_VIOLATION',
+     reason: 'was published yesterday',
+-  })
++  }))
+ 
+-  await expect(verifyLockfileResolutions(lockfile, verifier)).rejects.toMatchObject({
++  await expect(verifyLockfileResolutions(lockfile, [verifier])).rejects.toMatchObject({
+     code: 'ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION',
+     message: expect.stringMatching(/is-odd@0\.1\.2 was published yesterday/),
+   })
+@@ -57,13 +73,13 @@ test('lists violations in stable order across multiple failures', async () => {
+     'fresh-b@2.0.0': { resolution: tarballResolution('sha512-b') },
+     'fresh-a@1.0.0': { resolution: tarballResolution('sha512-a') },
+   })
+-  const verifier: ResolutionVerifier = async (_, { name, version }) => ({
++  const verifier = wrap(async (_, { name, version }) => ({
+     ok: false,
+     code: 'POLICY_X',
+     reason: `${name}@${version} failed`,
+-  })
++  }))
+ 
+-  await expect(verifyLockfileResolutions(lockfile, verifier))
++  await expect(verifyLockfileResolutions(lockfile, [verifier]))
+     .rejects.toThrow(/fresh-a@1\.0\.0[\s\S]*fresh-b@2\.0\.0/)
+ })
+ 
+@@ -75,13 +91,13 @@ test('caps printed violations at 20 with an "…and N more" summary', async () =
+     }
+   }
+   const lockfile = makeLockfile(packages)
+-  const verifier: ResolutionVerifier = async (_, { name, version }) => ({
++  const verifier = wrap(async (_, { name, version }) => ({
+     ok: false,
+     code: 'POLICY_X',
+     reason: `${name}@${version}`,
+-  })
++  }))
+ 
+-  await expect(verifyLockfileResolutions(lockfile, verifier))
++  await expect(verifyLockfileResolutions(lockfile, [verifier]))
+     .rejects.toThrow(/25 lockfile entries failed verification[\s\S]*…and 5 more/)
+ })
+ 
+@@ -92,12 +108,12 @@ test('dedupes peer/patch-suffix variants and invokes the verifier once per (name
+     'react@18.0.0(patch_hash=abc)(peer-x)': { resolution: tarballResolution('sha512-a') },
+   })
+   const seen: Array<{ name: string, version: string }> = []
+-  const verifier: ResolutionVerifier = async (_, { name, version }) => {
++  const verifier = wrap(async (_, { name, version }) => {
+     seen.push({ name, version })
+     return { ok: true }
+-  }
++  })
+ 
+-  await verifyLockfileResolutions(lockfile, verifier)
++  await verifyLockfileResolutions(lockfile, [verifier])
+   expect(seen).toEqual([{ name: 'react', version: '18.0.0' }])
+ })
+ 
+@@ -109,12 +125,12 @@ test('the verifier sees the resolution shape verbatim', async () => {
+     'git-pkg@1.0.0': { resolution: gitResolution },
+   })
+   const received: unknown[] = []
+-  const verifier: ResolutionVerifier = async (resolution) => {
++  const verifier = wrap(async (resolution) => {
+     received.push(resolution)
+     return { ok: true }
+-  }
++  })
+ 
+-  await verifyLockfileResolutions(lockfile, verifier)
++  await verifyLockfileResolutions(lockfile, [verifier])
+   expect(received).toEqual(expect.arrayContaining([npmResolution, gitResolution]))
+ })
+ 
+@@ -123,13 +139,105 @@ test('uses the first violation\'s code when multiple verifiers fire', async () =
+     'a@1.0.0': { resolution: tarballResolution('sha512-a') },
+     'b@1.0.0': { resolution: tarballResolution('sha512-b') },
+   })
+-  const verifier: ResolutionVerifier = async (_, { name }) => ({
++  const verifier = wrap(async (_, { name }) => ({
+     ok: false,
+     code: name === 'a' ? 'POLICY_A' : 'POLICY_B',
+     reason: 'failed',
+-  })
++  }))
+ 
+-  await expect(verifyLockfileResolutions(lockfile, verifier)).rejects.toMatchObject({
++  await expect(verifyLockfileResolutions(lockfile, [verifier])).rejects.toMatchObject({
+     code: 'ERR_PNPM_POLICY_A',
+   })
+ })
++
++test('runs every active verifier per entry and stops at the first failure', async () => {
++  const lockfile = makeLockfile({
++    'a@1.0.0': { resolution: tarballResolution('sha512-a') },
++  })
++  const calls: string[] = []
++  const firstOk = wrap(async () => {
++    calls.push('first')
++    return { ok: true }
++  }, NOOP_SLOT)
++  const secondFail = wrap(async () => {
++    calls.push('second')
++    return { ok: false, code: 'SECOND_POLICY', reason: 'nope' }
++  }, NOOP_SLOT)
++
++  await expect(verifyLockfileResolutions(lockfile, [firstOk, secondFail]))
++    .rejects.toMatchObject({ code: 'ERR_PNPM_SECOND_POLICY' })
++  // Both verifiers ran on the entry; ordering follows the list.
++  expect(calls).toEqual(['first', 'second'])
++})
++
++function exampleSlot (current: number): Omit<ResolutionVerifier, 'verify'> {
++  return {
++    policy: { minimumReleaseAge: current },
++    canTrustPastCheck: (cached) => {
++      const past = cached.minimumReleaseAge
++      return typeof past === 'number' && past >= current
++    },
++  }
++}
++
++test('skips the verifier when the cache holds an unchanged lockfile + matching policy', async () => {
++  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-vlr-'))
++  try {
++    const cacheDir = path.join(tmpDir, 'cache')
++    const lockfilePath = path.join(tmpDir, 'pnpm-lock.yaml')
++    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
++    const lockfile = makeLockfile({
++      'a@1.0.0': { resolution: tarballResolution('sha512-a') },
++    })
++
++    let calls = 0
++    const counting = wrap(async () => {
++      calls++
++      return { ok: true }
++    }, exampleSlot(60))
++
++    // First call has no cache record yet — verifier runs.
++    await verifyLockfileResolutions(lockfile, [counting], {
++      cache: { cacheDir, lockfilePath },
++    })
++    expect(calls).toBe(1)
++
++    // Second call against the same lockfile + policy — cache short-circuit.
++    await verifyLockfileResolutions(lockfile, [counting], {
++      cache: { cacheDir, lockfilePath },
++    })
++    expect(calls).toBe(1)
++  } finally {
++    await fs.promises.rm(tmpDir, { recursive: true, force: true })
++  }
++})
++
++test('does not write a cache record when verification rejects', async () => {
++  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-vlr-'))
++  try {
++    const cacheDir = path.join(tmpDir, 'cache')
++    const lockfilePath = path.join(tmpDir, 'pnpm-lock.yaml')
++    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
++    const lockfile = makeLockfile({
++      'a@1.0.0': { resolution: tarballResolution('sha512-a') },
++    })
++
++    const rejecting = wrap(async () => ({
++      ok: false,
++      code: 'POLICY_X',
++      reason: 'failed',
++    }), exampleSlot(60))
++
++    await expect(
++      verifyLockfileResolutions(lockfile, [rejecting], {
++        cache: { cacheDir, lockfilePath },
++      })
++    ).rejects.toThrow()
++
++    // No record was written — a rejecting verification must rerun next install.
++    const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
++    await expect(fs.promises.access(cacheFile)).rejects.toThrow()
++  } finally {
++    await fs.promises.rm(tmpDir, { recursive: true, force: true })
++  }
++})
+diff --git a/installing/deps-installer/test/install/verifyLockfileResolutionsCache.ts b/installing/deps-installer/test/install/verifyLockfileResolutionsCache.ts
+new file mode 100644
+index 00000000000..0b45c7606c4
+--- /dev/null
++++ b/installing/deps-installer/test/install/verifyLockfileResolutionsCache.ts
+@@ -0,0 +1,310 @@
++import fs from 'node:fs'
++import os from 'node:os'
++import path from 'node:path'
++
++import { afterEach, beforeEach, describe, expect, test } from '@jest/globals'
++
++import {
++  recordVerification,
++  tryLockfileVerificationCache,
++  type VerifierCacheIdentity,
++} from '../../src/install/verifyLockfileResolutionsCache.js'
++
++let tmpDir!: string
++let cacheDir!: string
++let lockfilePath!: string
++
++beforeEach(async () => {
++  tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-verify-cache-'))
++  cacheDir = path.join(tmpDir, 'cache')
++  lockfilePath = path.join(tmpDir, 'pnpm-lock.yaml')
++})
++
++afterEach(async () => {
++  await fs.promises.rm(tmpDir, { recursive: true, force: true })
++})
++
++// Helpers — most tests use a stand-in for the npm minimumReleaseAge
++// verifier. The cache layer is policy-neutral, so this could be any
++// verifier shape.
++function mraVerifier (current: number): VerifierCacheIdentity {
++  return {
++    policy: { minimumReleaseAge: current },
++    canTrustPastCheck: (cached) => {
++      const past = cached.minimumReleaseAge
++      return typeof past === 'number' && past >= current
++    },
++  }
++}
++
++describe('tryLockfileVerificationCache', () => {
++  test('miss when the cache file does not exist', async () => {
++    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
++    const result = await tryLockfileVerificationCache(cacheDir, {
++      lockfilePath,
++      verifiers: [mraVerifier(60)],
++    })
++    expect(result.hit).toBe(false)
++  })
++
++  test('miss when the lockfile path is not in the cache', async () => {
++    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
++    // Seed an unrelated record.
++    await recordVerification(cacheDir, {
++      lockfilePath: path.join(tmpDir, 'other-lockfile.yaml'),
++      verifiers: [mraVerifier(60)],
++    })
++    const result = await tryLockfileVerificationCache(cacheDir, {
++      lockfilePath,
++      verifiers: [mraVerifier(60)],
++    })
++    expect(result.hit).toBe(false)
++  })
++
++  test('stat-only hit when size, mtime, and inode all match', async () => {
++    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
++    await recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
++
++    const result = await tryLockfileVerificationCache(cacheDir, {
++      lockfilePath,
++      verifiers: [mraVerifier(60)],
++    })
++    expect(result.hit).toBe(true)
++  })
++
++  test('miss when the file size differs from the cached record', async () => {
++    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
++    await recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
++
++    // Append bytes — size changes, so the fast path bails immediately.
++    await fs.promises.appendFile(lockfilePath, 'extra: bytes\n')
++
++    const result = await tryLockfileVerificationCache(cacheDir, {
++      lockfilePath,
++      verifiers: [mraVerifier(60)],
++    })
++    expect(result.hit).toBe(false)
++  })
++
++  test('hash-fallback hit when size matches but mtime/inode were reset', async () => {
++    // Simulate a CI checkout: same content, fresh inode + mtime.
++    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
++    await recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
++
++    // Write to a different path, unlink the original, rename in. This
++    // guarantees a different inode while keeping the same content.
++    const sibling = path.join(tmpDir, 'pnpm-lock-2.yaml')
++    await fs.promises.writeFile(sibling, 'lockfileVersion: \'9.0\'\n')
++    await fs.promises.rm(lockfilePath)
++    await fs.promises.rename(sibling, lockfilePath)
++
++    const result = await tryLockfileVerificationCache(cacheDir, {
++      lockfilePath,
++      verifiers: [mraVerifier(60)],
++    })
++    expect(result.hit).toBe(true)
++  })
++
++  test('miss when content changed even if size happens to match', async () => {
++    await fs.promises.writeFile(lockfilePath, 'aaaaaaaaaaaa')
++    await recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
++
++    // Same byte length, different content — hash check is what rejects.
++    await fs.promises.rm(lockfilePath)
++    await fs.promises.writeFile(lockfilePath, 'bbbbbbbbbbbb')
++
++    const result = await tryLockfileVerificationCache(cacheDir, {
++      lockfilePath,
++      verifiers: [mraVerifier(60)],
++    })
++    expect(result.hit).toBe(false)
++  })
++
++  test('miss when a verifier rejects the cached policy', async () => {
++    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
++    await recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
++
++    // Today's policy is stricter than the cached one.
++    const result = await tryLockfileVerificationCache(cacheDir, {
++      lockfilePath,
++      verifiers: [mraVerifier(120)],
++    })
++    expect(result.hit).toBe(false)
++  })
++
++  test('hit when a verifier accepts the cached policy', async () => {
++    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
++    await recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(1440)] })
++
++    // Today's policy is weaker — the stricter cached run still covers it.
++    const result = await tryLockfileVerificationCache(cacheDir, {
++      lockfilePath,
++      verifiers: [mraVerifier(60)],
++    })
++    expect(result.hit).toBe(true)
++  })
++
++  test('miss when the cached policy lacks a field the current verifier reads', async () => {
++    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
++    // Seed a record whose policy doesn't have minimumReleaseAge.
++    await recordVerification(cacheDir, {
++      lockfilePath,
++      verifiers: [{
++        policy: { someOther: 'value' },
++        canTrustPastCheck: () => true,
++      }],
++    })
++
++    const result = await tryLockfileVerificationCache(cacheDir, {
++      lockfilePath,
++      verifiers: [mraVerifier(60)],
++    })
++    expect(result.hit).toBe(false)
++  })
++
++  test('hit when every verifier trusts its share of the merged cached policy', async () => {
++    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
++    const verifiers: VerifierCacheIdentity[] = [
++      mraVerifier(60),
++      {
++        policy: { trustedPublishers: ['foo-org'] },
++        canTrustPastCheck: (cached) => Array.isArray(cached.trustedPublishers) &&
++          cached.trustedPublishers.includes('foo-org'),
++      },
++    ]
++    await recordVerification(cacheDir, { lockfilePath, verifiers })
++
++    const result = await tryLockfileVerificationCache(cacheDir, { lockfilePath, verifiers })
++    expect(result.hit).toBe(true)
++  })
++
++  test('miss when the lockfile no longer exists', async () => {
++    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
++    await recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
++    await fs.promises.rm(lockfilePath)
++
++    const result = await tryLockfileVerificationCache(cacheDir, {
++      lockfilePath,
++      verifiers: [mraVerifier(60)],
++    })
++    expect(result.hit).toBe(false)
++  })
++
++  test('latest record per path wins when the cache has multiple appends', async () => {
++    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
++
++    // Earlier record under a stricter cutoff.
++    await recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
++    // Later record under a weaker cutoff that does satisfy 120.
++    await recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(120)] })
++
++    const result = await tryLockfileVerificationCache(cacheDir, {
++      lockfilePath,
++      verifiers: [mraVerifier(120)],
++    })
++    expect(result.hit).toBe(true)
++  })
++
++  test('malformed lines are ignored, not propagated', async () => {
++    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
++    await fs.promises.mkdir(cacheDir, { recursive: true })
++    const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
++    await fs.promises.writeFile(cacheFile, '{not json\n\n')
++
++    await recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
++
++    const result = await tryLockfileVerificationCache(cacheDir, {
++      lockfilePath,
++      verifiers: [mraVerifier(60)],
++    })
++    expect(result.hit).toBe(true)
++  })
++})
++
++describe('recordVerification', () => {
++  test('writes a JSONL record with a merged policy bag', async () => {
++    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
++    await recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
++
++    const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
++    const raw = await fs.promises.readFile(cacheFile, 'utf8')
++    const lines = raw.split('\n').filter(Boolean)
++    expect(lines).toHaveLength(1)
++    const record = JSON.parse(lines[0]) as Record<string, unknown> & {
++      lockfile: Record<string, unknown>
++    }
++    expect(record).toMatchObject({
++      lockfile: { path: lockfilePath },
++      policy: { minimumReleaseAge: 60 },
++    })
++    expect(typeof record.lockfile.hash).toBe('string')
++    expect(typeof record.verifiedAt).toBe('string')
++    expect(typeof record.lockfile.size).toBe('number')
++    expect(typeof record.lockfile.mtimeNs).toBe('string')
++    expect(typeof record.lockfile.inode).toBe('number')
++  })
++
++  test('merges policy fields across verifiers into a single bag', async () => {
++    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
++    await recordVerification(cacheDir, {
++      lockfilePath,
++      verifiers: [
++        mraVerifier(60),
++        {
++          policy: { trustedPublishers: ['foo-org', 'pnpm'] },
++          canTrustPastCheck: () => true,
++        },
++      ],
++    })
++
++    const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
++    const raw = await fs.promises.readFile(cacheFile, 'utf8')
++    const record = JSON.parse(raw.trim()) as { policy: Record<string, unknown> }
++    expect(record.policy).toEqual({
++      minimumReleaseAge: 60,
++      trustedPublishers: ['foo-org', 'pnpm'],
++    })
++  })
++
++  test('shared policy field is stored once, not duplicated', async () => {
++    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
++    // Two verifiers both contribute minimumReleaseAge with the same value
++    // — the merged bag stores it once.
++    await recordVerification(cacheDir, {
++      lockfilePath,
++      verifiers: [mraVerifier(60), mraVerifier(60)],
++    })
++
++    const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
++    const raw = await fs.promises.readFile(cacheFile, 'utf8')
++    const record = JSON.parse(raw.trim()) as { policy: Record<string, unknown> }
++    expect(record.policy).toEqual({ minimumReleaseAge: 60 })
++  })
++
++  test('silently skips when the lockfile is missing', async () => {
++    await expect(
++      recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
++    ).resolves.toBeUndefined()
++    const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
++    await expect(fs.promises.access(cacheFile)).rejects.toThrow()
++  })
++
++  test('appends without rewriting previous lines', async () => {
++    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
++    await recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
++
++    const otherLockfile = path.join(tmpDir, 'other-lockfile.yaml')
++    await fs.promises.writeFile(otherLockfile, 'lockfileVersion: \'9.0\'\n')
++    await recordVerification(cacheDir, {
++      lockfilePath: otherLockfile,
++      verifiers: [mraVerifier(60)],
++    })
++
++    const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
++    const raw = await fs.promises.readFile(cacheFile, 'utf8')
++    const lines = raw.split('\n').filter(Boolean)
++    expect(lines).toHaveLength(2)
++    const paths = lines.map((line) => (JSON.parse(line) as { lockfile: { path: string } }).lockfile.path)
++    expect(paths).toEqual(expect.arrayContaining([lockfilePath, otherLockfile]))
++  })
++})
+diff --git a/installing/deps-installer/test/utils/testDefaults.ts b/installing/deps-installer/test/utils/testDefaults.ts
+index 1df64f7a667..a40d1667ea0 100644
+--- a/installing/deps-installer/test/utils/testDefaults.ts
++++ b/installing/deps-installer/test/utils/testDefaults.ts
+@@ -28,7 +28,7 @@ export function testDefaults<T> (
+     registries: Registries
+     storeController: StoreController
+     storeDir: string
+-    verifyResolution?: ResolutionVerifier
++    resolutionVerifiers: ResolutionVerifier[]
+   } &
+   T {
+   // Forward minimumReleaseAge policy into the Client so it builds the
+@@ -39,7 +39,7 @@ export function testDefaults<T> (
+     ...(opts?.minimumReleaseAgeStrict != null ? { minimumReleaseAgeStrict: opts.minimumReleaseAgeStrict } : {}),
+     ...(opts?.minimumReleaseAgeExclude != null ? { minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude } : {}),
+   }
+-  const { storeController, storeDir, cacheDir, verifyResolution } = createTempStore({
++  const { storeController, storeDir, cacheDir, resolutionVerifiers } = createTempStore({
+     ...opts,
+     clientOptions: {
+       ...(opts?.registries != null ? { registries: opts.registries } : {}),
+@@ -57,7 +57,7 @@ export function testDefaults<T> (
+     },
+     storeController,
+     storeDir,
+-    verifyResolution,
++    resolutionVerifiers,
+     ...opts,
+   } as (
+     InstallOptions &
+@@ -66,7 +66,7 @@ export function testDefaults<T> (
+       registries: Registries
+       storeController: StoreController
+       storeDir: string
+-      verifyResolution?: ResolutionVerifier
++      resolutionVerifiers: ResolutionVerifier[]
+     } &
+     T
+   )
+diff --git a/resolving/default-resolver/src/index.ts b/resolving/default-resolver/src/index.ts
+index a1592c05675..00849f52abb 100644
+--- a/resolving/default-resolver/src/index.ts
++++ b/resolving/default-resolver/src/index.ts
+@@ -157,16 +157,21 @@ export type ResolutionVerifierFactoryOptions =
+   }
+ 
+ /**
+- * Companion to {@link createResolver}. Combines the resolver-specific
+- * verifier factories (today: npm) into a single {@link ResolutionVerifier},
+- * dispatching by resolution shape. Returns `undefined` when none of the
+- * underlying resolvers have any active policy — letting callers cheaply
+- * decide whether to iterate at all.
++ * Companion to {@link createResolver}. Collects the resolver-specific
++ * verifier factories (today: npm) into a list. Returns an empty array
++ * when no policy is active — callers can cheaply decide whether to
++ * iterate at all by checking `verifiers.length`.
++ *
++ * Future protocols (jsr, git, attestation, etc.) plug in here by pushing
++ * their own `ResolutionVerifier` onto the list. Each verifier handles
++ * its own protocol short-circuit inside `verify` (returns `{ ok: true }`
++ * for resolutions outside its scope), so dispatch happens naturally at
++ * the install side — no combinator needed.
+  */
+-export function createResolutionVerifier (
++export function createResolutionVerifiers (
+   fetchFromRegistry: FetchFromRegistry,
+   opts: ResolutionVerifierFactoryOptions
+-): ResolutionVerifier | undefined {
++): ResolutionVerifier[] {
+   const fetchOpts = {
+     fetch: fetchFromRegistry,
+     retry: opts.retry ?? {},
+@@ -174,6 +179,7 @@ export function createResolutionVerifier (
+     fetchWarnTimeoutMs: opts.fetchWarnTimeoutMs ?? 10_000,
+   }
+   const getAuthHeaderValueByURI = createGetAuthHeaderByURI(opts.configByUri ?? {}, opts.registries.default)
++  const verifiers: ResolutionVerifier[] = []
+   const npmVerifier = createNpmResolutionVerifier({
+     minimumReleaseAge: opts.minimumReleaseAge,
+     minimumReleaseAgeStrict: opts.minimumReleaseAgeStrict,
+@@ -185,16 +191,6 @@ export function createResolutionVerifier (
+     cacheDir: opts.cacheDir,
+     now: opts.now,
+   })
+-  // Future protocols (jsr, git, etc.) plug in here. When every sub-verifier
+-  // is undefined, the combined verifier is too — caller short-circuits.
+-  //
+-  // When a second verifier lands, this combinator needs to dispatch by
+-  // resolution shape (so e.g. a git verifier doesn't run on npm-registry
+-  // entries and vice versa). The classification logic should live as a
+-  // shared helper in `@pnpm/resolving.resolver-base` — `pickFetcher` in
+-  // `fetching/pick-fetcher` already classifies the same shape today
+-  // (resolution.type / tarball / gitHosted / integrity); reconcile both
+-  // call sites onto one classifier rather than re-deriving it per verifier.
+-  if (!npmVerifier) return undefined
+-  return async (resolution, ctx) => npmVerifier(resolution, ctx)
++  if (npmVerifier) verifiers.push(npmVerifier)
++  return verifiers
+ }
+diff --git a/resolving/npm-resolver/src/createNpmResolutionVerifier.ts b/resolving/npm-resolver/src/createNpmResolutionVerifier.ts
+index 099c9a71f0c..c105d38da9f 100644
+--- a/resolving/npm-resolver/src/createNpmResolutionVerifier.ts
++++ b/resolving/npm-resolver/src/createNpmResolutionVerifier.ts
+@@ -108,7 +108,9 @@ export function createNpmResolutionVerifier (
+     return promise
+   }
+ 
+-  return async (resolution, { name, version }) => {
++  const minimumReleaseAge = opts.minimumReleaseAge
++
++  const verify: ResolutionVerifier['verify'] = async (resolution, { name, version }) => {
+     if (!isNpmRegistryResolution(resolution)) return { ok: true }
+     // Non-semver versions identify URL tarballs, file: refs, git refs, etc.
+     // The age policy doesn't apply and a registry lookup would 404.
+@@ -157,6 +159,20 @@ export function createNpmResolutionVerifier (
+     }
+     return { ok: true }
+   }
++  return {
++    verify,
++    policy: { minimumReleaseAge },
++    canTrustPastCheck: (cached) => {
++      // A previously cached run under a larger cutoff (stricter window)
++      // is trustworthy under a smaller current one — its set of
++      // accepted versions is a subset of today's. The reverse —
++      // tightening the cutoff — invalidates the cached run: versions
++      // that passed before may now be in-window. Non-number cached
++      // values come from an older record shape and aren't trusted.
++      const past = cached.minimumReleaseAge
++      return typeof past === 'number' && past >= minimumReleaseAge
++    },
++  }
+ }
+ 
+ function pickRegistryForVersion (
+diff --git a/resolving/resolver-base/src/index.ts b/resolving/resolver-base/src/index.ts
+index a7bad9ae86f..3546948904a 100644
+--- a/resolving/resolver-base/src/index.ts
++++ b/resolving/resolver-base/src/index.ts
+@@ -93,19 +93,41 @@ export type ResolutionVerification =
+   | { ok: false, code: string, reason: string }
+ 
+ /**
+- * Optional companion to a resolver factory. Lets each resolver enforce
+- * policies (e.g. minimumReleaseAge for npm) against an already-resolved
+- * entry from a lockfile without re-doing resolution.
++ * Optional companion to a resolver factory.
+  *
+- * The verifier inspects the `resolution` shape to decide whether the entry
++ * `verify` inspects the `resolution` shape to decide whether the entry
+  * is within its protocol; for entries outside its protocol it should
+- * return `{ ok: true }`. Combined verifiers (in default-resolver) dispatch
+- * across underlying resolver-specific verifiers.
++ * return `{ ok: true }`. The install side fans out across the verifier
++ * list rather than asking a combinator to dispatch.
++ *
++ * `policy` and `canTrustPastCheck` describe the verifier's cache
++ * contract. Policies from every active verifier are merged into a
++ * single shared bag stored alongside the lockfile hash; the
++ * install-side verification cache reads them to decide if a previous
++ * run on the same lockfile is still trustworthy under today's policy
++ * without re-issuing the registry round-trips that `verify` would.
++ * Verifiers that check the same logical policy (e.g. minimumReleaseAge
++ * across registries) name it the same and share the cache slot.
+  */
+-export type ResolutionVerifier = (
+-  resolution: Resolution,
+-  ctx: { name: string, version: string }
+-) => Promise<ResolutionVerification>
++export interface ResolutionVerifier {
++  verify: (resolution: Resolution, ctx: { name: string, version: string }) => Promise<ResolutionVerification>
++  /**
++   * Snapshot of the policy fields this verifier enforces. Merged with
++   * every other active verifier's `policy` into the cache record. A
++   * field shared across verifiers (same key) should carry the same
++   * value; if it doesn't, the last verifier in the list wins.
++   */
++  policy: Record<string, unknown>
++  /**
++   * Returns true when the previously cached policy (the merged snapshot
++   * from the last successful run) can be trusted to still satisfy what
++   * this verifier currently demands. Reads whichever fields the
++   * verifier owns; missing or non-conforming values (e.g. an older
++   * record shape) should return false. A loosened policy can trust a
++   * stricter cached run; a tightened policy cannot.
++   */
++  canTrustPastCheck: (cachedPolicy: Record<string, unknown>) => boolean
++}
+ 
+ /** Concrete platform selector used when picking a variant from a VariationsResolution. */
+ export interface PlatformSelector {
+diff --git a/store/connection-manager/src/createNewStoreController.ts b/store/connection-manager/src/createNewStoreController.ts
+index 76a92547616..18a610f459f 100644
+--- a/store/connection-manager/src/createNewStoreController.ts
++++ b/store/connection-manager/src/createNewStoreController.ts
+@@ -63,7 +63,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
+ 
+ export async function createNewStoreController (
+   opts: CreateNewStoreControllerOptions
+-): Promise<{ ctrl: StoreController, dir: string, verifyResolution?: ResolutionVerifier }> {
++): Promise<{ ctrl: StoreController, dir: string, resolutionVerifiers: ResolutionVerifier[] }> {
+   const fullMetadata = opts.fetchFullMetadata ?? (
+     (
+       opts.resolutionMode === 'time-based' ||
+@@ -72,7 +72,7 @@ export async function createNewStoreController (
+   )
+   await fs.mkdir(opts.storeDir, { recursive: true })
+   const storeIndex = new StoreIndex(opts.storeDir)
+-  const { resolve, fetchers, clearResolutionCache, verifyResolution } = createClient({
++  const { resolve, fetchers, clearResolutionCache, resolutionVerifiers } = createClient({
+     customResolvers: opts.hooks?.customResolvers,
+     customFetchers: opts.hooks?.customFetchers,
+     unsafePerm: opts.unsafePerm,
+@@ -145,6 +145,6 @@ export async function createNewStoreController (
+       storeIndex,
+     }),
+     dir: opts.storeDir,
+-    verifyResolution,
++    resolutionVerifiers,
+   }
+ }
+diff --git a/store/connection-manager/src/index.ts b/store/connection-manager/src/index.ts
+index 55d6d008506..46f6728424f 100644
+--- a/store/connection-manager/src/index.ts
++++ b/store/connection-manager/src/index.ts
+@@ -17,7 +17,7 @@ export type CreateStoreControllerOptions = Omit<CreateNewStoreControllerOptions,
+ export interface StoreControllerHandle {
+   ctrl: StoreController
+   dir: string
+-  verifyResolution?: ResolutionVerifier
++  resolutionVerifiers: ResolutionVerifier[]
+ }
+ 
+ export async function createStoreControllerCached (
+diff --git a/testing/temp-store/src/index.ts b/testing/temp-store/src/index.ts
+index d03e8bf2038..9eb0242c770 100644
+--- a/testing/temp-store/src/index.ts
++++ b/testing/temp-store/src/index.ts
+@@ -13,7 +13,7 @@ export interface CreateTempStoreResult {
+   storeController: StoreController
+   storeDir: string
+   cacheDir: string
+-  verifyResolution?: ResolutionVerifier
++  resolutionVerifiers: ResolutionVerifier[]
+ }
+ 
+ export function createTempStore (opts?: {
+@@ -26,7 +26,7 @@ export function createTempStore (opts?: {
+   const cacheDir = path.resolve('cache')
+   const storeDir = opts?.storeDir ?? path.resolve('.store')
+   const storeIndex = new StoreIndex(storeDir)
+-  const { resolve, fetchers, clearResolutionCache, verifyResolution } = createClient({
++  const { resolve, fetchers, clearResolutionCache, resolutionVerifiers } = createClient({
+     configByUri,
+     retry: {
+       retries: 4,
+@@ -60,6 +60,6 @@ export function createTempStore (opts?: {
+     storeController,
+     storeDir,
+     cacheDir,
+-    verifyResolution,
++    resolutionVerifiers,
+   }
+ }

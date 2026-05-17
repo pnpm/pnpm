@@ -40,7 +40,7 @@ function mraVerifier (current: number): VerifierCacheIdentity {
 describe('tryLockfileVerificationCache', () => {
   test('miss when the cache file does not exist', async () => {
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
-    const result = await tryLockfileVerificationCache(cacheDir, {
+    const result = tryLockfileVerificationCache(cacheDir, {
       lockfilePath,
       verifiers: [mraVerifier(60)],
     })
@@ -50,11 +50,11 @@ describe('tryLockfileVerificationCache', () => {
   test('miss when the lockfile path is not in the cache', async () => {
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
     // Seed an unrelated record.
-    await recordVerification(cacheDir, {
+    recordVerification(cacheDir, {
       lockfilePath: path.join(tmpDir, 'other-lockfile.yaml'),
       verifiers: [mraVerifier(60)],
     })
-    const result = await tryLockfileVerificationCache(cacheDir, {
+    const result = tryLockfileVerificationCache(cacheDir, {
       lockfilePath,
       verifiers: [mraVerifier(60)],
     })
@@ -63,9 +63,9 @@ describe('tryLockfileVerificationCache', () => {
 
   test('stat-only hit when size, mtime, and inode all match', async () => {
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
-    await recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
+    recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
 
-    const result = await tryLockfileVerificationCache(cacheDir, {
+    const result = tryLockfileVerificationCache(cacheDir, {
       lockfilePath,
       verifiers: [mraVerifier(60)],
     })
@@ -74,12 +74,12 @@ describe('tryLockfileVerificationCache', () => {
 
   test('miss when the file size differs from the cached record', async () => {
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
-    await recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
+    recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
 
     // Append bytes — size changes, so the fast path bails immediately.
     await fs.promises.appendFile(lockfilePath, 'extra: bytes\n')
 
-    const result = await tryLockfileVerificationCache(cacheDir, {
+    const result = tryLockfileVerificationCache(cacheDir, {
       lockfilePath,
       verifiers: [mraVerifier(60)],
     })
@@ -89,7 +89,7 @@ describe('tryLockfileVerificationCache', () => {
   test('hash-fallback hit when size matches but mtime/inode were reset', async () => {
     // Simulate a CI checkout: same content, fresh inode + mtime.
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
-    await recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
+    recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
 
     // Write to a different path, unlink the original, rename in. This
     // guarantees a different inode while keeping the same content.
@@ -98,7 +98,7 @@ describe('tryLockfileVerificationCache', () => {
     await fs.promises.rm(lockfilePath)
     await fs.promises.rename(sibling, lockfilePath)
 
-    const result = await tryLockfileVerificationCache(cacheDir, {
+    const result = tryLockfileVerificationCache(cacheDir, {
       lockfilePath,
       verifiers: [mraVerifier(60)],
     })
@@ -107,13 +107,13 @@ describe('tryLockfileVerificationCache', () => {
 
   test('miss when content changed even if size happens to match', async () => {
     await fs.promises.writeFile(lockfilePath, 'aaaaaaaaaaaa')
-    await recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
+    recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
 
     // Same byte length, different content — hash check is what rejects.
     await fs.promises.rm(lockfilePath)
     await fs.promises.writeFile(lockfilePath, 'bbbbbbbbbbbb')
 
-    const result = await tryLockfileVerificationCache(cacheDir, {
+    const result = tryLockfileVerificationCache(cacheDir, {
       lockfilePath,
       verifiers: [mraVerifier(60)],
     })
@@ -122,10 +122,10 @@ describe('tryLockfileVerificationCache', () => {
 
   test('miss when a verifier rejects the cached policy', async () => {
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
-    await recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
+    recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
 
     // Today's policy is stricter than the cached one.
-    const result = await tryLockfileVerificationCache(cacheDir, {
+    const result = tryLockfileVerificationCache(cacheDir, {
       lockfilePath,
       verifiers: [mraVerifier(120)],
     })
@@ -134,10 +134,10 @@ describe('tryLockfileVerificationCache', () => {
 
   test('hit when a verifier accepts the cached policy', async () => {
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
-    await recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(1440)] })
+    recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(1440)] })
 
     // Today's policy is weaker — the stricter cached run still covers it.
-    const result = await tryLockfileVerificationCache(cacheDir, {
+    const result = tryLockfileVerificationCache(cacheDir, {
       lockfilePath,
       verifiers: [mraVerifier(60)],
     })
@@ -147,7 +147,7 @@ describe('tryLockfileVerificationCache', () => {
   test('miss when the cached policy lacks a field the current verifier reads', async () => {
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
     // Seed a record whose policy doesn't have minimumReleaseAge.
-    await recordVerification(cacheDir, {
+    recordVerification(cacheDir, {
       lockfilePath,
       verifiers: [{
         policy: { someOther: 'value' },
@@ -155,7 +155,7 @@ describe('tryLockfileVerificationCache', () => {
       }],
     })
 
-    const result = await tryLockfileVerificationCache(cacheDir, {
+    const result = tryLockfileVerificationCache(cacheDir, {
       lockfilePath,
       verifiers: [mraVerifier(60)],
     })
@@ -172,18 +172,18 @@ describe('tryLockfileVerificationCache', () => {
           cached.trustedPublishers.includes('foo-org'),
       },
     ]
-    await recordVerification(cacheDir, { lockfilePath, verifiers })
+    recordVerification(cacheDir, { lockfilePath, verifiers })
 
-    const result = await tryLockfileVerificationCache(cacheDir, { lockfilePath, verifiers })
+    const result = tryLockfileVerificationCache(cacheDir, { lockfilePath, verifiers })
     expect(result.hit).toBe(true)
   })
 
   test('miss when the lockfile no longer exists', async () => {
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
-    await recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
+    recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
     await fs.promises.rm(lockfilePath)
 
-    const result = await tryLockfileVerificationCache(cacheDir, {
+    const result = tryLockfileVerificationCache(cacheDir, {
       lockfilePath,
       verifiers: [mraVerifier(60)],
     })
@@ -194,11 +194,11 @@ describe('tryLockfileVerificationCache', () => {
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
 
     // Earlier record under a stricter cutoff.
-    await recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
+    recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
     // Later record under a weaker cutoff that does satisfy 120.
-    await recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(120)] })
+    recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(120)] })
 
-    const result = await tryLockfileVerificationCache(cacheDir, {
+    const result = tryLockfileVerificationCache(cacheDir, {
       lockfilePath,
       verifiers: [mraVerifier(120)],
     })
@@ -211,9 +211,9 @@ describe('tryLockfileVerificationCache', () => {
     const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
     await fs.promises.writeFile(cacheFile, '{not json\n\n')
 
-    await recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
+    recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
 
-    const result = await tryLockfileVerificationCache(cacheDir, {
+    const result = tryLockfileVerificationCache(cacheDir, {
       lockfilePath,
       verifiers: [mraVerifier(60)],
     })
@@ -224,7 +224,7 @@ describe('tryLockfileVerificationCache', () => {
 describe('recordVerification', () => {
   test('writes a JSONL record with a merged policy bag', async () => {
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
-    await recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
+    recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
 
     const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
     const raw = await fs.promises.readFile(cacheFile, 'utf8')
@@ -246,7 +246,7 @@ describe('recordVerification', () => {
 
   test('merges policy fields across verifiers into a single bag', async () => {
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
-    await recordVerification(cacheDir, {
+    recordVerification(cacheDir, {
       lockfilePath,
       verifiers: [
         mraVerifier(60),
@@ -270,7 +270,7 @@ describe('recordVerification', () => {
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
     // Two verifiers both contribute minimumReleaseAge with the same value
     // — the merged bag stores it once.
-    await recordVerification(cacheDir, {
+    recordVerification(cacheDir, {
       lockfilePath,
       verifiers: [mraVerifier(60), mraVerifier(60)],
     })
@@ -282,20 +282,20 @@ describe('recordVerification', () => {
   })
 
   test('silently skips when the lockfile is missing', async () => {
-    await expect(
+    expect(
       recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
-    ).resolves.toBeUndefined()
+    ).toBeUndefined()
     const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
     await expect(fs.promises.access(cacheFile)).rejects.toThrow()
   })
 
   test('appends without rewriting previous lines', async () => {
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
-    await recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
+    recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
 
     const otherLockfile = path.join(tmpDir, 'other-lockfile.yaml')
     await fs.promises.writeFile(otherLockfile, 'lockfileVersion: \'9.0\'\n')
-    await recordVerification(cacheDir, {
+    recordVerification(cacheDir, {
       lockfilePath: otherLockfile,
       verifiers: [mraVerifier(60)],
     })

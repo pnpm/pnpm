@@ -73,7 +73,7 @@ export async function verifyLockfileResolutions (
   // only reads `resolver`, `policy`, and `canTrustPastCheck`; passing the full
   // ResolutionVerifier list is fine (the extra `verify` field is ignored).
   if (options?.cache) {
-    const { hit } = await tryLockfileVerificationCache(options.cache.cacheDir, {
+    const { hit } = tryLockfileVerificationCache(options.cache.cacheDir, {
       lockfilePath: options.cache.lockfilePath,
       verifiers,
     })
@@ -119,7 +119,7 @@ export async function verifyLockfileResolutions (
   if (violations.length === 0) {
     // Persist the success so the next install can stat-only the lockfile.
     if (options?.cache) {
-      await recordVerification(options.cache.cacheDir, {
+      recordVerification(options.cache.cacheDir, {
         lockfilePath: options.cache.lockfilePath,
         verifiers,
       })

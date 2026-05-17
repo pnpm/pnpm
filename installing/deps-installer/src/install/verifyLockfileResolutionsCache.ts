@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { createHexHashFromFile } from '@pnpm/crypto.hash'
+import { createHexHash } from '@pnpm/crypto.hash'
 import { logger } from '@pnpm/logger'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 
@@ -20,10 +20,17 @@ export type VerifierCacheIdentity = Pick<ResolutionVerifier, 'policy' | 'canTrus
  * lockfile path. Lets repeat installs against an unchanged lockfile skip
  * the per-package registry round trips entirely.
  *
- * Persisted as JSON Lines: each verification appends one record, the latest
- * record per path wins on read. Appends of a single line are atomic on
- * POSIX and NTFS, so parallel pnpm processes (monorepo installs, CI
- * matrices sharing a cache) can write without coordination.
+ * All filesystem operations are synchronous: the cache is consulted once
+ * before verification fan-out and recorded once after — there's no
+ * concurrent install work to overlap with, so blocking the event loop
+ * for the brief read/stat/hash is fine and keeps the call sites
+ * straight-line.
+ *
+ * Persisted as JSON Lines: each verification appends one record, the
+ * latest record per path wins on read. Appends of a single line are
+ * atomic on POSIX and NTFS, so parallel pnpm processes (monorepo
+ * installs, CI matrices sharing a cache) can write without
+ * coordination.
  *
  * Policy-neutral. Every active verifier's `policy` contribution merges
  * into a single `policy` bag on the record; verifiers sharing a logical
@@ -95,11 +102,11 @@ export interface LockfileVerificationCacheKey {
  * line so a malformed line (partial write, disk corruption) doesn't
  * invalidate the rest of the file.
  */
-async function readCache (cacheDir: string): Promise<Map<string, CacheRecord>> {
+function readCache (cacheDir: string): Map<string, CacheRecord> {
   const cacheFilePath = path.join(cacheDir, CACHE_FILE_NAME)
   let contents: string
   try {
-    contents = await fs.promises.readFile(cacheFilePath, 'utf8')
+    contents = fs.readFileSync(cacheFilePath, 'utf8')
   } catch (err: unknown) {
     if (isNodeError(err) && err.code === 'ENOENT') return new Map()
     throw err
@@ -109,10 +116,10 @@ async function readCache (cacheDir: string): Promise<Map<string, CacheRecord>> {
     if (!line) continue
     try {
       const parsed = JSON.parse(line) as Partial<CacheRecord>
-      const path = parsed?.lockfile?.path
-      if (typeof path !== 'string') continue
+      const lockfilePath = parsed?.lockfile?.path
+      if (typeof lockfilePath !== 'string') continue
       // Later records overwrite earlier ones — JSONL semantics.
-      records.set(path, normalizeRecord(parsed))
+      records.set(lockfilePath, normalizeRecord(parsed))
     } catch {
       // Skip malformed lines; the next clean append will still work.
     }
@@ -135,9 +142,9 @@ function normalizeRecord (parsed: Partial<CacheRecord>): CacheRecord {
   }
 }
 
-async function statLockfile (lockfilePath: string): Promise<LockfileStat | null> {
+function statLockfile (lockfilePath: string): LockfileStat | null {
   try {
-    const stat = await fs.promises.stat(lockfilePath, { bigint: true })
+    const stat = fs.statSync(lockfilePath, { bigint: true })
     return {
       size: Number(stat.size),
       mtimeNs: stat.mtimeNs.toString(),
@@ -147,6 +154,13 @@ async function statLockfile (lockfilePath: string): Promise<LockfileStat | null>
     if (isNodeError(err) && err.code === 'ENOENT') return null
     throw err
   }
+}
+
+function hashLockfile (lockfilePath: string): string {
+  // Match createHexHashFromFile: read as UTF-8, normalize CRLF → LF, then
+  // hash. Sync because the cache is consulted on a non-parallel path.
+  const content = fs.readFileSync(lockfilePath, 'utf8').split('\r\n').join('\n')
+  return createHexHash(content)
 }
 
 /**
@@ -163,13 +177,13 @@ async function statLockfile (lockfilePath: string): Promise<LockfileStat | null>
  * trustworthy under what it currently demands; if any rejects, the full
  * gate runs.
  */
-export async function tryLockfileVerificationCache (
+export function tryLockfileVerificationCache (
   cacheDir: string,
   key: LockfileVerificationCacheKey
-): Promise<CacheLookupResult> {
+): CacheLookupResult {
   let cache: Map<string, CacheRecord>
   try {
-    cache = await readCache(cacheDir)
+    cache = readCache(cacheDir)
   } catch (err: unknown) {
     // A corrupt cache file should never block the install; fall through to
     // verification so the gate still runs.
@@ -180,7 +194,7 @@ export async function tryLockfileVerificationCache (
   if (!record) return { hit: false }
   if (!everyVerifierTrustsCachedRun(record, key.verifiers)) return { hit: false }
 
-  const stat = await statLockfile(key.lockfilePath)
+  const stat = statLockfile(key.lockfilePath)
   if (!stat) return { hit: false }
   // Size mismatch is guaranteed-different content; skip the hash entirely.
   if (stat.size !== record.lockfile.size) return { hit: false }
@@ -191,7 +205,7 @@ export async function tryLockfileVerificationCache (
   // confirm via content hash, which is portable across machines.
   let hash: string
   try {
-    hash = await createHexHashFromFile(key.lockfilePath)
+    hash = hashLockfile(key.lockfilePath)
   } catch (err: unknown) {
     logger.debug({ msg: 'lockfile-verified cache: lockfile hash failed', err })
     return { hit: false }
@@ -199,7 +213,7 @@ export async function tryLockfileVerificationCache (
   if (hash !== record.lockfile.hash) return { hit: false }
   // Hash matched — refresh stat fields so the next install on this machine
   // hits the stat-only fast path.
-  await appendRecord(cacheDir, {
+  appendRecord(cacheDir, {
     ...record,
     lockfile: { ...record.lockfile, size: stat.size, mtimeNs: stat.mtimeNs, inode: stat.inode },
   })
@@ -230,16 +244,16 @@ function mergePolicies (verifiers: readonly VerifierCacheIdentity[]): Record<str
  * cache file. If the file is past {@link MAX_CACHE_ENTRIES}, it is
  * rewritten keeping the most recent entries.
  */
-export async function recordVerification (
+export function recordVerification (
   cacheDir: string,
   key: LockfileVerificationCacheKey
-): Promise<void> {
+): void {
   let stat: LockfileStat | null
   let hash: string
   try {
-    stat = await statLockfile(key.lockfilePath)
+    stat = statLockfile(key.lockfilePath)
     if (!stat) return
-    hash = await createHexHashFromFile(key.lockfilePath)
+    hash = hashLockfile(key.lockfilePath)
   } catch (err: unknown) {
     // The gate has already passed; if we can't record the cache entry we
     // just won't get the speedup next time. Not a reason to fail install.
@@ -257,23 +271,23 @@ export async function recordVerification (
     verifiedAt: new Date().toISOString(),
     policy: mergePolicies(key.verifiers),
   }
-  await appendRecord(cacheDir, record)
+  appendRecord(cacheDir, record)
 }
 
-async function appendRecord (cacheDir: string, record: CacheRecord): Promise<void> {
+function appendRecord (cacheDir: string, record: CacheRecord): void {
   const cacheFilePath = path.join(cacheDir, CACHE_FILE_NAME)
   const line = `${JSON.stringify(record)}\n`
   try {
-    await fs.promises.mkdir(cacheDir, { recursive: true })
-    await fs.promises.appendFile(cacheFilePath, line)
+    fs.mkdirSync(cacheDir, { recursive: true })
+    fs.appendFileSync(cacheFilePath, line)
   } catch (err: unknown) {
     logger.debug({ msg: 'lockfile-verified cache: append failed', err })
     return
   }
-  await maybeCompactCache(cacheDir)
+  maybeCompactCache(cacheDir)
 }
 
-async function maybeCompactCache (cacheDir: string): Promise<void> {
+function maybeCompactCache (cacheDir: string): void {
   const cacheFilePath = path.join(cacheDir, CACHE_FILE_NAME)
   // Decide whether to compact from the file size alone — avoids reading
   // and parsing the file on every successful install. Records cluster
@@ -282,8 +296,7 @@ async function maybeCompactCache (cacheDir: string): Promise<void> {
   // every append once we cross the line.
   let size: number
   try {
-    const stat = await fs.promises.stat(cacheFilePath)
-    size = stat.size
+    size = fs.statSync(cacheFilePath).size
   } catch (err: unknown) {
     if (isNodeError(err) && err.code === 'ENOENT') return
     logger.debug({ msg: 'lockfile-verified cache: stat for compaction failed', err })
@@ -293,7 +306,7 @@ async function maybeCompactCache (cacheDir: string): Promise<void> {
 
   let contents: string
   try {
-    contents = await fs.promises.readFile(cacheFilePath, 'utf8')
+    contents = fs.readFileSync(cacheFilePath, 'utf8')
   } catch (err: unknown) {
     if (isNodeError(err) && err.code === 'ENOENT') return
     logger.debug({ msg: 'lockfile-verified cache: read for compaction failed', err })
@@ -309,10 +322,10 @@ async function maybeCompactCache (cacheDir: string): Promise<void> {
     const line = lines[i]
     try {
       const parsed = JSON.parse(line) as Partial<CacheRecord>
-      const path = parsed?.lockfile?.path
-      if (typeof path !== 'string') continue
-      if (seen.has(path)) continue
-      seen.add(path)
+      const lockfilePath = parsed?.lockfile?.path
+      if (typeof lockfilePath !== 'string') continue
+      if (seen.has(lockfilePath)) continue
+      seen.add(lockfilePath)
       reversed.push(line)
     } catch {
       // Skip malformed lines.
@@ -324,8 +337,8 @@ async function maybeCompactCache (cacheDir: string): Promise<void> {
     // Write to a sibling tempfile + rename so a concurrent pnpm process
     // can't observe a half-written file.
     const tmpPath = `${cacheFilePath}.${process.pid}.tmp`
-    await fs.promises.writeFile(tmpPath, kept.map((line) => `${line}\n`).join(''))
-    await fs.promises.rename(tmpPath, cacheFilePath)
+    fs.writeFileSync(tmpPath, kept.map((line) => `${line}\n`).join(''))
+    fs.renameSync(tmpPath, cacheFilePath)
   } catch (err: unknown) {
     logger.debug({ msg: 'lockfile-verified cache: compaction failed', err })
   }
