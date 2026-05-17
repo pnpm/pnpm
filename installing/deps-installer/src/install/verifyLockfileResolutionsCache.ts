@@ -69,9 +69,9 @@ interface CacheRecord {
     /**
      * sha256 hex of the lockfile content — primary cache key. Computed
      * from the parsed in-memory lockfile object (not the raw file
-     * bytes); two on-disk YAML formattings that parse to the same
-     * object share a hash. Same content on disk → same parsed object →
-     * same hash, so worktrees and CI checkouts collide here.
+     * bytes); two YAML layouts that parse to the same object share a
+     * hash. Same content on disk → same parsed object → same hash, so
+     * worktrees and CI checkouts collide here.
      */
     hash: string
     /** Absolute path the cache last saw this content at — secondary index for the stat fast path. */
