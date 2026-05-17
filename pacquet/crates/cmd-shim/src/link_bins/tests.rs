@@ -1206,7 +1206,7 @@ fn link_node_bin_does_not_corrupt_hardlinked_target() {
 /// On Windows the canonical bin dirent for the node runtime is
 /// `<bin_dir>/node.exe` — a hardlink (or copy fallback) of the source
 /// `.exe`. No `.cmd` or `.ps1` shim is emitted, because npm's cmd
-/// shims call `node.exe` from `IF EXIST` blocks that mis-handle a
+/// shims call `node.exe` from `IF EXIST` blocks that mishandle a
 /// `.cmd` redirection.
 #[cfg(windows)]
 #[test]
