@@ -11,8 +11,8 @@ use pacquet_lockfile::{
     LoadLockfileError, Lockfile, SaveLockfileError, StalenessReason, satisfies_package_manifest,
 };
 use pacquet_modules_yaml::{
-    DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, IncludedDependencies, LayoutVersion, Modules,
-    NodeLinker as ModulesNodeLinker, RealApi, WriteModulesError, write_modules_manifest,
+    DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, Host, IncludedDependencies, LayoutVersion, Modules,
+    NodeLinker as ModulesNodeLinker, WriteModulesError, write_modules_manifest,
 };
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
@@ -470,7 +470,7 @@ where
         // directory layout, hoist patterns, included dependency groups,
         // store dir, and registries so a later install (or another
         // tool) can detect a layout change and prune accordingly.
-        write_modules_manifest::<RealApi>(
+        write_modules_manifest::<Host>(
             &config.modules_dir,
             build_modules_manifest(
                 config,

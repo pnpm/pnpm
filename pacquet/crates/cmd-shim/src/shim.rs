@@ -44,10 +44,10 @@ fn extension_program(extension: &str) -> Option<&'static str> {
 /// doesn't fail the whole install. Other IO errors propagate, since pacquet
 /// has already verified the bin path resolves under the package root by
 /// this point and a real failure deserves to surface.
-pub fn search_script_runtime<Api: FsReadHead>(path: &Path) -> io::Result<Option<ScriptRuntime>> {
+pub fn search_script_runtime<Sys: FsReadHead>(path: &Path) -> io::Result<Option<ScriptRuntime>> {
     let extension = path.extension().and_then(|s| s.to_str()).unwrap_or("");
 
-    let runtime_from_shebang = read_shebang::<Api>(path)?;
+    let runtime_from_shebang = read_shebang::<Sys>(path)?;
     if let Some(rt) = runtime_from_shebang {
         return Ok(Some(rt));
     }
@@ -59,9 +59,9 @@ pub fn search_script_runtime<Api: FsReadHead>(path: &Path) -> io::Result<Option<
     Ok(None)
 }
 
-fn read_shebang<Api: FsReadHead>(path: &Path) -> io::Result<Option<ScriptRuntime>> {
+fn read_shebang<Sys: FsReadHead>(path: &Path) -> io::Result<Option<ScriptRuntime>> {
     let mut buffer = [0u8; 512];
-    let read = match read_head_filled::<Api>(path, &mut buffer) {
+    let read = match read_head_filled::<Sys>(path, &mut buffer) {
         Ok(read) => read,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error),
@@ -85,10 +85,10 @@ fn read_shebang<Api: FsReadHead>(path: &Path) -> io::Result<Option<ScriptRuntime
 /// Kept generic over [`FsReadHead`] so tests can plug in a fake that
 /// deliberately returns short and verify the loop accumulates
 /// correctly.
-pub fn read_head_filled<Api: FsReadHead>(path: &Path, buf: &mut [u8]) -> io::Result<usize> {
+pub fn read_head_filled<Sys: FsReadHead>(path: &Path, buf: &mut [u8]) -> io::Result<usize> {
     let mut total = 0;
     while total < buf.len() {
-        match Api::read_head(path, total as u64, &mut buf[total..])? {
+        match Sys::read_head(path, total as u64, &mut buf[total..])? {
             0 => break, // EOF
             n => total += n,
         }

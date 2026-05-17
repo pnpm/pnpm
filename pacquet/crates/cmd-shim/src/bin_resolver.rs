@@ -63,7 +63,7 @@ pub fn pkg_owns_bin(bin_name: &str, pkg_name: &str) -> bool {
 ///   single-character `$`. This is the path-traversal guard.
 /// - Bin path must resolve under `pkg_path`. Prevents a malicious manifest
 ///   from writing shims that exec a sibling package.
-pub fn get_bins_from_package_manifest<Api: FsWalkFiles>(
+pub fn get_bins_from_package_manifest<Sys: FsWalkFiles>(
     manifest: &Value,
     pkg_path: &Path,
 ) -> Vec<Command> {
@@ -74,7 +74,7 @@ pub fn get_bins_from_package_manifest<Api: FsWalkFiles>(
     if let Some(bin_dir_rel) =
         manifest.get("directories").and_then(|d| d.get("bin")).and_then(Value::as_str)
     {
-        return commands_from_directories_bin::<Api>(bin_dir_rel, pkg_path);
+        return commands_from_directories_bin::<Sys>(bin_dir_rel, pkg_path);
     }
     Vec::new()
 }
@@ -87,7 +87,7 @@ pub fn get_bins_from_package_manifest<Api: FsWalkFiles>(
 /// Symlinks are not followed; pnpm uses `tinyglobby` with
 /// `followSymbolicLinks: false`. Missing directory degrades to an empty
 /// list (pnpm's `ENOENT` short-circuit).
-fn commands_from_directories_bin<Api: FsWalkFiles>(
+fn commands_from_directories_bin<Sys: FsWalkFiles>(
     bin_dir_rel: &str,
     pkg_path: &Path,
 ) -> Vec<Command> {
@@ -99,7 +99,7 @@ fn commands_from_directories_bin<Api: FsWalkFiles>(
     // tinyglobby ENOENT short-circuit. The trait's production impl
     // already drops per-entry errors inside its iterator, so an `Err`
     // here only fires when the walker can't even open `bin_dir`.
-    let Ok(paths) = Api::walk_files(&bin_dir) else {
+    let Ok(paths) = Sys::walk_files(&bin_dir) else {
         return Vec::new();
     };
     let mut commands = Vec::new();

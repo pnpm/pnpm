@@ -42,6 +42,17 @@ Before writing code for a feature, bug fix, or behavior change:
    [Reporter / log events](./CODE_STYLE_GUIDE.md#reporter--log-events)
    in the style guide for the convention (channel mapping, threading
    `R: Reporter`, emit-site placement, recording-fake tests).
+7. **Side-effecting code uses the dependency-injection seam.** Any new
+   code that touches the filesystem, environment variables, network,
+   time, or process state goes through a capability trait on the
+   `Host` provider, threaded as `Sys: <Bounds>` through the function
+   signature. See
+   [Dependency injection for tests](./CODE_STYLE_GUIDE.md#dependency-injection-for-tests)
+   in the style guide for the names (`Sys`, `Host`, `Fs*`, `Clock`,
+   `EnvVar`, …), the eight principles, and the `modules-yaml` worked
+   example. The seam exists so unit tests can drive I/O error paths
+   and time-dependent branches the real OS cannot reproduce portably;
+   skipping it leaves those branches untested.
 
 If the pnpm behavior is unclear or looks wrong, stop and ask the user
 rather than guessing.

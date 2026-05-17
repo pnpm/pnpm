@@ -741,7 +741,7 @@ fn now_millis() -> u128 {
 /// Capability for obtaining the host name written into the [bunyan]-shaped
 /// envelope.
 ///
-/// Backed by a real syscall in production via [`RealApi`]. Tests can supply
+/// Backed by a real syscall in production via [`Host`]. Tests can supply
 /// their own implementation when behavior depends on the value.
 ///
 /// [bunyan]: https://github.com/trentm/node-bunyan
@@ -753,9 +753,9 @@ pub trait GetHostName {
 ///
 /// Each trait method calls into the real underlying system facility (for
 /// [`GetHostName`], the `gethostname` syscall via the [`gethostname`] crate).
-pub struct RealApi;
+pub struct Host;
 
-impl GetHostName for RealApi {
+impl GetHostName for Host {
     fn get_host_name() -> String {
         gethostname::gethostname().to_string_lossy().into_owned()
     }
@@ -763,9 +763,9 @@ impl GetHostName for RealApi {
 
 // Process-wide cache of the host name. The value cannot change at runtime,
 // and `gethostname` is one syscall we'd otherwise repeat on every emit.
-// Initialized lazily through `RealApi::get_host_name` so tests that exercise
+// Initialized lazily through `Host::get_host_name` so tests that exercise
 // the capability trait directly can do so without paying for the syscall.
-static HOSTNAME: LazyLock<String> = LazyLock::new(RealApi::get_host_name);
+static HOSTNAME: LazyLock<String> = LazyLock::new(Host::get_host_name);
 
 #[cfg(test)]
 mod tests;
