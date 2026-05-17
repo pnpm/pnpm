@@ -754,16 +754,36 @@ function getWantedPackageManager (manifest: ProjectManifest): { pm?: WantedPacka
   return { warnings }
 }
 
-// Only `pnpm.app` (consumed by `pnpm pack-app`) is still read from package.json.
-// Every other key under `pnpm` was either migrated to pnpm-workspace.yaml or removed in v11.
-const ACTIVELY_READ_PNPM_FIELD_KEYS = new Set<string>(['app'])
+// Settings that used to be read from the `pnpm` field of `package.json` in v10
+// but moved to `pnpm-workspace.yaml` in v11. Keys not in this set (e.g. `app`,
+// or anything set by third-party tooling that piggybacks on the `pnpm` namespace)
+// are left alone to avoid false-positive warnings.
+const MIGRATED_PNPM_FIELD_KEYS = new Set<string>([
+  'allowBuilds',
+  'allowedDeprecatedVersions',
+  'allowUnusedPatches',
+  'auditConfig',
+  'configDependencies',
+  'executionEnv',
+  'ignoredOptionalDependencies',
+  'neverBuiltDependencies',
+  'onlyBuiltDependencies',
+  'onlyBuiltDependenciesFile',
+  'overrides',
+  'packageExtensions',
+  'patchedDependencies',
+  'peerDependencyRules',
+  'requiredScripts',
+  'supportedArchitectures',
+  'updateConfig',
+])
 
 function getIgnoredPnpmFieldKeys (manifest: ProjectManifest): string[] {
   const legacyField = (manifest as { pnpm?: unknown }).pnpm
   if (legacyField == null || typeof legacyField !== 'object' || Array.isArray(legacyField)) {
     return []
   }
-  return Object.keys(legacyField as Record<string, unknown>).filter(k => !ACTIVELY_READ_PNPM_FIELD_KEYS.has(k))
+  return Object.keys(legacyField as Record<string, unknown>).filter(k => MIGRATED_PNPM_FIELD_KEYS.has(k))
 }
 
 export function parsePackageManager (packageManager: string): { name: string, version: string | undefined } {

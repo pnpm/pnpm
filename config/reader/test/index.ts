@@ -1696,6 +1696,19 @@ test('do not return a warning if a package.json "pnpm" field only contains keys 
   expect(warnings).toStrictEqual([])
 })
 
+test('do not return a warning if a package.json "pnpm" field only contains keys unrelated to migrated settings (e.g. set by third-party tooling)', async () => {
+  const prefix = f.find('pkg-with-unknown-pnpm-field')
+  const { warnings } = await getConfig({
+    cliOptions: { dir: prefix },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(warnings).toStrictEqual([])
+})
+
 test('read PNPM_HOME defined in environment variables', async () => {
   const oldEnv = process.env
   const homeDir = './specified-dir'
