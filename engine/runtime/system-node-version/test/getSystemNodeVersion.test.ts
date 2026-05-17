@@ -11,7 +11,7 @@ jest.unstable_mockModule('execa', () => ({
   })),
 }))
 
-const { getSystemNodeVersionNonCached, engineName, findRuntimeNodeVersion } = await import('../lib/index.js')
+const { getSystemNodeVersionNonCached, engineName } = await import('../lib/index.js')
 const execa = await import('execa')
 
 test('getSystemNodeVersion() executed from an executable pnpm CLI', () => {
@@ -57,21 +57,4 @@ test('engineName() falls back to the host Node when no override is provided', ()
   isSea = false
   const major = process.version.replace(/^v/, '').split('.')[0]
   expect(engineName()).toBe(`${process.platform};${process.arch};node${major}`)
-})
-
-test('findRuntimeNodeVersion() pulls the pinned major from a node@runtime: snapshot key', () => {
-  // Mirrors pacquet's `find_runtime_node_major` helper; both must
-  // agree on the version-extraction rule or the two tools would
-  // hash GVS slots under different engine majors for the same
-  // project. The peer-suffixed form must reduce to the same bare
-  // version as the form without a peer suffix.
-  expect(
-    findRuntimeNodeVersion(['leftpad@1.3.0', 'node@runtime:22.11.0'])
-  ).toBe('22.11.0')
-  expect(
-    findRuntimeNodeVersion(['node@runtime:22.11.0(node@22.11.0)'])
-  ).toBe('22.11.0')
-  expect(
-    findRuntimeNodeVersion(['leftpad@1.3.0', 'is-positive@3.1.0'])
-  ).toBeUndefined()
 })

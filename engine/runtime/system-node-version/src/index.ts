@@ -27,8 +27,9 @@ export const getSystemNodeVersion = mem(getSystemNodeVersionNonCached)
  *
  * 1. `nodeVersion` argument when provided. Callers use this to thread
  *    a project-pinned runtime (`engines.runtime` / `devEngines.runtime`)
- *    through to the hash — see {@link findRuntimeNodeVersion} for the
- *    helper that extracts the value from a lockfile.
+ *    through to the hash — see `findRuntimeNodeVersion` /
+ *    `readSnapshotRuntimePin` in `@pnpm/deps.path` for the helpers
+ *    that extract the value from a lockfile or graph node.
  * 2. {@link getSystemNodeVersion} — the `node` on the user's `PATH`,
  *    or `process.version` when not SEA-bundled.
  * 3. `process.version` as a last-resort fallback when the host has
@@ -51,36 +52,4 @@ export function engineName (nodeVersion?: string): string {
   const stripped = version.startsWith('v') ? version.slice(1) : version
   const major = stripped.split('.')[0]
   return `${process.platform};${process.arch};node${major}`
-}
-
-/**
- * Scan an iterable of lockfile snapshot keys for the resolved
- * `engines.runtime` / `devEngines.runtime` Node version and return
- * its bare version string (e.g. `"22.11.0"`), or `undefined` when
- * the project doesn't pin a runtime.
- *
- * Pnpm's runtime resolver writes the pinned Node into the lockfile as
- * a snapshot with key `node@runtime:<version>[(<peers>)]`
- * (see [`engine/runtime/node-resolver/src/index.ts`](https://github.com/pnpm/pnpm/blob/29a42efc3b/engine/runtime/node-resolver/src/index.ts)).
- * The first such key found is treated as authoritative — workspaces
- * with conflicting pins across importers are pathological and the
- * resolver rejects them before they reach the lockfile.
- *
- * Callers typically pass `Object.keys(lockfile.packages ?? {})` — the
- * in-memory `LockfileObject` merges the on-disk `packages:` and
- * `snapshots:` sections under a single `packages` field, so its keys
- * include every snapshot key the install will hash.
- */
-export function findRuntimeNodeVersion (snapshotKeys: Iterable<string>): string | undefined {
-  const prefix = 'node@runtime:'
-  for (const key of snapshotKeys) {
-    if (!key.startsWith(prefix)) continue
-    // Strip peer-context suffix `(...)` — `node@runtime:22.11.0(node@22.11.0)`
-    // resolves to the same Node version as `node@runtime:22.11.0`,
-    // so peer-stripped and peer-bearing keys yield the same answer.
-    const versionWithPeers = key.slice(prefix.length)
-    const parenAt = versionWithPeers.indexOf('(')
-    return parenAt === -1 ? versionWithPeers : versionWithPeers.slice(0, parenAt)
-  }
-  return undefined
 }

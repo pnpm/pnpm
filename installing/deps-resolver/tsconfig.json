@@ -43,9 +43,6 @@
       "path": "../../deps/peer-range"
     },
     {
-      "path": "../../engine/runtime/system-node-version"
-    },
-    {
       "path": "../../fetching/pick-fetcher"
     },
     {

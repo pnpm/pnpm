@@ -6,8 +6,7 @@ import {
   stageLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
-import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
-import { findRuntimeNodeVersion } from '@pnpm/engine.runtime.system-node-version'
+import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
 import { symlinkDependency } from '@pnpm/fs.symlink-dependency'
 import type {
   DependenciesGraph,

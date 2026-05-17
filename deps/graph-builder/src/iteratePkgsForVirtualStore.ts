@@ -4,6 +4,7 @@ import {
   calcGraphNodeHash,
   type DepsGraph,
   type DepsStateCache,
+  findRuntimeNodeVersion,
   type HashedDepPath,
   iterateHashedGraphNodes,
   iteratePkgMeta,
@@ -11,7 +12,6 @@ import {
   type PkgMetaAndSnapshot,
 } from '@pnpm/deps.graph-hasher'
 import * as dp from '@pnpm/deps.path'
-import { findRuntimeNodeVersion } from '@pnpm/engine.runtime.system-node-version'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
