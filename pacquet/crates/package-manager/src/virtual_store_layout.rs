@@ -700,6 +700,6 @@ mod tests {
         );
         let slot_22 = layout.slot_dir(&pins_22);
         let slot_20 = layout.slot_dir(&pins_20);
-        assert_ne!(slot_22, slot_20, "cross-pinning builders must land on distinct GVS slots",);
+        assert_ne!(slot_22, slot_20, "cross-pinning builders must land on distinct GVS slots");
     }
 }
