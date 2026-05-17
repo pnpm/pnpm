@@ -394,10 +394,17 @@ async function resolveNpm (
           // explicit on the next install.
           if (opts.onImmaturePick && opts.publishedBy && opts.currentPkg.publishedAt) {
             const ts = new Date(opts.currentPkg.publishedAt).getTime()
+            // Cover both forms of the exclude policy payload (`true` for full
+            // name, `string[]` for specific versions) so an entry already on
+            // the list doesn't get re-announced as immature.
+            const excludeResult = opts.publishedByExclude?.(manifest.name)
+            const alreadyExcluded =
+              excludeResult === true ||
+              (Array.isArray(excludeResult) && excludeResult.includes(manifest.version))
             if (
               !Number.isNaN(ts) &&
               ts > opts.publishedBy.getTime() &&
-              opts.publishedByExclude?.(manifest.name) !== true
+              !alreadyExcluded
             ) {
               opts.onImmaturePick({ name: manifest.name, version: manifest.version })
             }

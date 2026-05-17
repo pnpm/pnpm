@@ -26,10 +26,12 @@ export interface CreateNpmResolutionVerifierOptions {
    */
   minimumReleaseAge?: number
   /**
-   * Gate the age check on strict mode so the built-in default doesn't
-   * silently enforce for users who never opted in. The verifier factory
-   * returns `undefined` unless both `minimumReleaseAge > 0` and
-   * `minimumReleaseAgeStrict` are set.
+   * Retained on the options bag because the resolver path branches on it
+   * (the lowest-version fallback) and tests forward both fields together.
+   * The verifier itself no longer gates on this flag — once the loose-mode
+   * auto-collect makes every accepted-immature pin explicit in
+   * `minimumReleaseAgeExclude`, running the verifier in loose mode is the
+   * thing that proves the manifest stays in sync with the lockfile.
    */
   minimumReleaseAgeStrict?: boolean
   minimumReleaseAgeExclude?: string[]
@@ -67,7 +69,7 @@ export interface CreateNpmResolutionVerifierOptions {
 export function createNpmResolutionVerifier (
   opts: CreateNpmResolutionVerifierOptions
 ): ResolutionVerifier | undefined {
-  if (!opts.minimumReleaseAge || !opts.minimumReleaseAgeStrict) return undefined
+  if (!opts.minimumReleaseAge) return undefined
 
   const cutoff = (opts.now ?? Date.now()) - opts.minimumReleaseAge * 60 * 1000
   const excludePolicy = opts.minimumReleaseAgeExclude?.length

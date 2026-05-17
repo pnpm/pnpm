@@ -148,7 +148,12 @@ function notifyIfImmature (
   version: string
 ): void {
   if (!pickerOpts.onImmaturePick || !pickerOpts.publishedBy || !meta.time) return
-  if (pickerOpts.publishedByExclude?.(meta.name) === true) return
+  // Cover both forms of `publishedByExclude` payload (full-name match returns
+  // `true`; specific-version matches return `string[]`) so an exclude entry
+  // shaped `pkg@x.y.z` doesn't get re-announced as immature every install.
+  const excludeResult = pickerOpts.publishedByExclude?.(meta.name)
+  if (excludeResult === true) return
+  if (Array.isArray(excludeResult) && excludeResult.includes(version)) return
   const publishedAt = meta.time[version]
   if (!publishedAt) return
   const ts = new Date(publishedAt).getTime()

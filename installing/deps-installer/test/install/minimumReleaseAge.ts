@@ -180,18 +180,37 @@ test('minimumReleaseAge is enforced on pre-existing lockfile entries during pnpm
   ).rejects.toThrow(/minimumReleaseAge/)
 })
 
-test('the lockfile minimumReleaseAge gate is inert when strict mode is off (default-value semantics)', async () => {
+test('the lockfile minimumReleaseAge gate runs in loose mode too', async () => {
   prepareEmpty()
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1.2'], testDefaults())
   expect(manifest.dependencies!['is-odd']).toBe('0.1.2')
 
-  // Without explicit strict mode — the same shape as the CLI built-in default
-  // (1-day release-age window applied without `minimumReleaseAge` being set in
-  // .npmrc) — the revalidation pass stays inert and the locked version
-  // installs cleanly.
+  // Loose mode no longer skips the verifier — once auto-collect makes every
+  // accepted-immature pin explicit in `minimumReleaseAgeExclude`, running
+  // the verifier in loose mode is what keeps the manifest in sync with the
+  // lockfile. A pre-existing immature lockfile entry that isn't yet on the
+  // exclude list is rejected here, same as strict mode.
   await expect(
     install(manifest, testDefaults({ minimumReleaseAge }))
+  ).rejects.toThrow(/minimumReleaseAge/)
+})
+
+test('the lockfile minimumReleaseAge gate accepts loose-mode entries already on the exclude list', async () => {
+  prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1.2'], testDefaults())
+
+  // is-odd@0.1.2 pulls in is-buffer and kind-of transitively. With the exclude
+  // list pre-populated (as the auto-collect would have produced on a previous
+  // install), the loose-mode verifier accepts all three and the install
+  // completes — the steady-state shape this feature is built around.
+  await expect(
+    install(manifest, testDefaults({
+      minimumReleaseAge,
+      minimumReleaseAgeStrict: false,
+      minimumReleaseAgeExclude: ['is-odd@0.1.2', 'is-buffer', 'kind-of'],
+    }))
   ).resolves.toBeDefined()
 })
 
@@ -209,31 +228,6 @@ test('loose mode reports immature fresh picks to onImmaturePick', async () => {
   }))
 
   expect(picks).toContainEqual({ name: 'is-odd', version: '0.1.0' })
-})
-
-test('loose mode reports immature lockfile entries on a follow-up install', async () => {
-  prepareEmpty()
-
-  // Step 1: populate a lockfile without the policy active. The resolver picks
-  // the latest 0.1.x without applying any maturity filter.
-  const { updatedManifest: manifest } = await addDependenciesToPackage(
-    {},
-    ['is-odd@0.1.2'],
-    testDefaults()
-  )
-
-  // Step 2: install again with minimumReleaseAge set and strict mode off.
-  // The peekManifestFromStore fast path would normally silently reuse the
-  // immature 0.1.2 pinned in the lockfile. The new hook surfaces it so the
-  // install layer can persist it to `minimumReleaseAgeExclude`.
-  const picks: Array<{ name: string, version: string }> = []
-  await install(manifest, testDefaults({
-    minimumReleaseAge,
-    minimumReleaseAgeStrict: false,
-    onImmaturePick: (pkg) => picks.push(pkg),
-  }))
-
-  expect(picks).toContainEqual({ name: 'is-odd', version: '0.1.2' })
 })
 
 test('strict mode does not invoke onImmaturePick (resolver throws first)', async () => {

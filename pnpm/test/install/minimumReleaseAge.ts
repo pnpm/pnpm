@@ -120,18 +120,40 @@ describe('lockfile minimumReleaseAge verification', () => {
     )
   })
 
-  test('loose mode lets immature lockfile entries install and auto-adds them to minimumReleaseAgeExclude', () => {
-    // The config reader auto-enables strict mode the moment a user
-    // explicitly sets `minimumReleaseAge`, so opting out requires an
-    // explicit `minimumReleaseAgeStrict: false`. With that, the verifier
-    // doesn't throw — but the install layer still surfaces the immature
-    // picks so they can be persisted to the workspace manifest's exclude
-    // list, making the loose-mode bypass explicit on subsequent installs.
+  test('loose mode rejects immature lockfile entries that are not on minimumReleaseAgeExclude', () => {
+    // The verifier now runs in loose mode too, so a lockfile produced under
+    // no policy that still has immature pins is rejected the same way
+    // strict mode would reject it. The expected workflow is: the loose-mode
+    // auto-collect (during fresh resolution) populates the exclude list, and
+    // subsequent installs run cleanly against that list.
     prepare({
       dependencies: { 'is-odd': '0.1.2' },
     })
     execPnpmSync([PUBLIC_REGISTRY, 'install'], { expectSuccess: true })
 
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: IMMATURE_FOR_EVERYTHING,
+      minimumReleaseAgeStrict: false,
+    })
+
+    const result = execPnpmSync(
+      [PUBLIC_REGISTRY, 'install', '--frozen-lockfile'],
+      omitMinReleaseAgeEnv
+    )
+    expect(result.status).toBe(1)
+    const output = `${result.stdout.toString()}\n${result.stderr.toString()}`
+    expect(output).toContain('ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION')
+    expect(output).toMatch(/is-odd@0\.1\.2/)
+  })
+
+  test('loose mode auto-adds fresh immature picks to minimumReleaseAgeExclude', () => {
+    // Fresh resolution under loose mode: the resolver's lowest-version
+    // fallback picks an immature version, and the install layer surfaces it
+    // to `minimumReleaseAgeExclude`. The verifier sees an empty lockfile at
+    // the start (no entries to reject) and the workspace manifest grows.
+    prepare({
+      dependencies: { 'is-odd': '0.1.2' },
+    })
     writeYamlFileSync('pnpm-workspace.yaml', {
       minimumReleaseAge: IMMATURE_FOR_EVERYTHING,
       minimumReleaseAgeStrict: false,
@@ -179,18 +201,18 @@ describe('lockfile minimumReleaseAge verification', () => {
     expect(workspaceManifest.minimumReleaseAgeExclude).toBeUndefined()
   })
 
-  test('loose-mode auto-exclude preserves entries the user already declared', () => {
+  test('subsequent installs run cleanly once the exclude list is populated', () => {
+    // Round-trip the auto-collect: first install populates the exclude list
+    // from fresh resolution, the next install runs the verifier against the
+    // now-populated list and succeeds without re-announcing anything. The
+    // verifier and the auto-collect together keep the workspace manifest in
+    // sync with the lockfile across installs.
     prepare({
       dependencies: { 'is-odd': '0.1.2' },
     })
-    execPnpmSync([PUBLIC_REGISTRY, 'install'], { expectSuccess: true })
-
-    // Pre-existing user entry must survive the auto-merge; the writer
-    // dedupes against existing values so 'kind-of' is not duplicated.
     writeYamlFileSync('pnpm-workspace.yaml', {
       minimumReleaseAge: IMMATURE_FOR_EVERYTHING,
       minimumReleaseAgeStrict: false,
-      minimumReleaseAgeExclude: ['kind-of'],
     })
 
     execPnpmSync(
@@ -198,11 +220,9 @@ describe('lockfile minimumReleaseAge verification', () => {
       { ...omitMinReleaseAgeEnv, expectSuccess: true }
     )
 
-    const workspaceManifest = readYamlFileSync<{ minimumReleaseAgeExclude?: string[] }>('pnpm-workspace.yaml')
-    const excludes = workspaceManifest.minimumReleaseAgeExclude ?? []
-    expect(excludes).toContain('kind-of')
-    expect(excludes).toContain('is-odd@0.1.2')
-    // No duplicates introduced by the auto-merge.
-    expect(excludes.length).toBe(new Set(excludes).size)
+    execPnpmSync(
+      [PUBLIC_REGISTRY, 'install', '--frozen-lockfile'],
+      { ...omitMinReleaseAgeEnv, expectSuccess: true }
+    )
   })
 })
