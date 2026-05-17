@@ -91,7 +91,12 @@ function decodeBase64Credential (value: string, key: '_auth' | '_password'): str
 }
 
 function normalizeBase64Padding (value: string): string {
-  const valueWithoutPadding = value.replace(/=+$/u, '')
+  let paddingStart = value.length
+  while (paddingStart > 0 && value[paddingStart - 1] === '=') {
+    paddingStart--
+  }
+
+  const valueWithoutPadding = value.slice(0, paddingStart)
   if (!valueWithoutPadding) return value
 
   const remainder = valueWithoutPadding.length % 4
