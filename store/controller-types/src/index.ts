@@ -130,6 +130,14 @@ export interface RequestPackageOptions {
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
   trustPolicyIgnoreAfter?: number
+  /**
+   * Invoked when the resolver installs a version published after the
+   * `publishedBy` cutoff because `minimumReleaseAgeStrict` is off — covers
+   * both the resolver's lowest-version fallback and the lockfile fast path
+   * that reuses immature pinned versions. The install layer wires this to
+   * auto-populate `minimumReleaseAgeExclude` in pnpm-workspace.yaml.
+   */
+  onImmaturePick?: (pkg: { name: string, version: string }) => void
 }
 
 export type BundledManifestFunction = () => Promise<BundledManifest | undefined>

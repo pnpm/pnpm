@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { describe, expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
+import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from '../utils/index.js'
@@ -119,11 +120,13 @@ describe('lockfile minimumReleaseAge verification', () => {
     )
   })
 
-  test('install is unaffected by minimumReleaseAge when strict mode is explicitly off', () => {
+  test('loose mode lets immature lockfile entries install and auto-adds them to minimumReleaseAgeExclude', () => {
     // The config reader auto-enables strict mode the moment a user
     // explicitly sets `minimumReleaseAge`, so opting out requires an
     // explicit `minimumReleaseAgeStrict: false`. With that, the verifier
-    // doesn't construct and the lockfile passes through untouched.
+    // doesn't throw — but the install layer still surfaces the immature
+    // picks so they can be persisted to the workspace manifest's exclude
+    // list, making the loose-mode bypass explicit on subsequent installs.
     prepare({
       dependencies: { 'is-odd': '0.1.2' },
     })
@@ -135,8 +138,71 @@ describe('lockfile minimumReleaseAge verification', () => {
     })
 
     execPnpmSync(
-      [PUBLIC_REGISTRY, 'install', '--frozen-lockfile'],
+      [PUBLIC_REGISTRY, 'install'],
       { ...omitMinReleaseAgeEnv, expectSuccess: true }
     )
+
+    const workspaceManifest = readYamlFileSync<{ minimumReleaseAgeExclude?: string[] }>('pnpm-workspace.yaml')
+    // is-odd@0.1.2 pulls in is-buffer, is-number, and kind-of transitively;
+    // every one of those is immature relative to the (deliberately extreme)
+    // cutoff, so all four end up on the exclude list. Match by package name
+    // (any version) so the test stays stable across npm-registry republishes
+    // that shift the transitive pins.
+    expect(workspaceManifest.minimumReleaseAgeExclude).toEqual(expect.arrayContaining([
+      'is-odd@0.1.2',
+      expect.stringMatching(/^is-buffer@/),
+      expect.stringMatching(/^is-number@/),
+      expect.stringMatching(/^kind-of@/),
+    ]))
+  })
+
+  test('loose-mode auto-exclude is a no-op when no immature picks occur', () => {
+    // is-positive@1.0.0 was published in 2014; with a 1-minute cutoff it
+    // stays mature relative to the policy. Auto-exclude should not touch
+    // the workspace manifest when there's nothing to add.
+    prepare({
+      dependencies: { 'is-positive': '1.0.0' },
+    })
+    execPnpmSync([PUBLIC_REGISTRY, 'install'], { expectSuccess: true })
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: 1,
+      minimumReleaseAgeStrict: false,
+    })
+
+    execPnpmSync(
+      [PUBLIC_REGISTRY, 'install'],
+      { ...omitMinReleaseAgeEnv, expectSuccess: true }
+    )
+
+    const workspaceManifest = readYamlFileSync<{ minimumReleaseAgeExclude?: string[] }>('pnpm-workspace.yaml')
+    expect(workspaceManifest.minimumReleaseAgeExclude).toBeUndefined()
+  })
+
+  test('loose-mode auto-exclude preserves entries the user already declared', () => {
+    prepare({
+      dependencies: { 'is-odd': '0.1.2' },
+    })
+    execPnpmSync([PUBLIC_REGISTRY, 'install'], { expectSuccess: true })
+
+    // Pre-existing user entry must survive the auto-merge; the writer
+    // dedupes against existing values so 'kind-of' is not duplicated.
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: IMMATURE_FOR_EVERYTHING,
+      minimumReleaseAgeStrict: false,
+      minimumReleaseAgeExclude: ['kind-of'],
+    })
+
+    execPnpmSync(
+      [PUBLIC_REGISTRY, 'install'],
+      { ...omitMinReleaseAgeEnv, expectSuccess: true }
+    )
+
+    const workspaceManifest = readYamlFileSync<{ minimumReleaseAgeExclude?: string[] }>('pnpm-workspace.yaml')
+    const excludes = workspaceManifest.minimumReleaseAgeExclude ?? []
+    expect(excludes).toContain('kind-of')
+    expect(excludes).toContain('is-odd@0.1.2')
+    // No duplicates introduced by the auto-merge.
+    expect(excludes.length).toBe(new Set(excludes).size)
   })
 })

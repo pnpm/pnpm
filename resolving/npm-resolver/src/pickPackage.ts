@@ -70,6 +70,7 @@ export interface PickPackageOptions extends PickPackageFromMetaOptions {
   dryRun: boolean
   includeLatestTag?: boolean
   optional?: boolean
+  onImmaturePick?: PickerOptions['onImmaturePick']
 }
 
 interface PickerOptions extends PickPackageFromMetaOptions {
@@ -77,6 +78,15 @@ interface PickerOptions extends PickPackageFromMetaOptions {
   includeLatestTag?: boolean
   strictPublishedByCheck?: boolean
   ignoreMissingTimeField?: boolean
+  /**
+   * Invoked when `pickRespectingMinReleaseAge` falls back to an immature
+   * version because no mature version satisfies the requested range
+   * (loose-mode fallback). The install layer wires this to auto-populate
+   * `minimumReleaseAgeExclude` in pnpm-workspace.yaml so subsequent
+   * installs — including ones run with strict mode enabled — accept the
+   * same versions without surprise.
+   */
+  onImmaturePick?: (pkg: { name: string, version: string }) => void
 }
 
 // When includeLatestTag is set, the "latest" dist-tag is added as a candidate
@@ -113,13 +123,37 @@ function pickRespectingMinReleaseAge (
   spec: RegistryPackageSpec,
   meta: PackageMeta
 ): PackageInRegistry | null {
-  return runPicker(pickerOpts, spec, (targetSpec) => {
+  const picked = runPicker(pickerOpts, spec, (targetSpec) => {
     const highest = pickHighest(pickerOpts, meta, targetSpec)
     if (highest || pickerOpts.strictPublishedByCheck) return highest
     return pickLowest({
       preferredVersionSelectors: pickerOpts.preferredVersionSelectors,
     }, meta, targetSpec)
   })
+  if (picked) notifyIfImmature(pickerOpts, meta, picked.version)
+  return picked
+}
+
+// In loose mode the highest-mature filter falls through to pickLowest, which
+// can land on a version published after the cutoff. The resolver's caller
+// uses this hook to capture (name, version) pairs that bypassed the policy so
+// they can be persisted to `minimumReleaseAgeExclude`. We compare against the
+// metadata's `time` block rather than tracking which fallback ran — the same
+// version can be the *highest mature* AND the *lowest in range* (e.g.
+// single-version spec); only the "actually published after cutoff" check
+// reliably distinguishes the two cases.
+function notifyIfImmature (
+  pickerOpts: PickerOptions,
+  meta: PackageMeta,
+  version: string
+): void {
+  if (!pickerOpts.onImmaturePick || !pickerOpts.publishedBy || !meta.time) return
+  if (pickerOpts.publishedByExclude?.(meta.name) === true) return
+  const publishedAt = meta.time[version]
+  if (!publishedAt) return
+  const ts = new Date(publishedAt).getTime()
+  if (Number.isNaN(ts) || ts <= pickerOpts.publishedBy.getTime()) return
+  pickerOpts.onImmaturePick({ name: meta.name, version })
 }
 
 // When minimumReleaseAge is not active: pick by pickLowestVersion preference.
@@ -194,6 +228,7 @@ export async function pickPackage (
     includeLatestTag: opts.includeLatestTag,
     strictPublishedByCheck: ctx.strictPublishedByCheck,
     ignoreMissingTimeField: ctx.ignoreMissingTimeField,
+    onImmaturePick: opts.onImmaturePick,
   }
 
   validatePackageName(spec.name)

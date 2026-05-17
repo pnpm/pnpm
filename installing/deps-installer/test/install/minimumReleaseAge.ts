@@ -194,3 +194,84 @@ test('the lockfile minimumReleaseAge gate is inert when strict mode is off (defa
     install(manifest, testDefaults({ minimumReleaseAge }))
   ).resolves.toBeDefined()
 })
+
+test('loose mode reports immature fresh picks to onImmaturePick', async () => {
+  prepareEmpty()
+
+  // Every version is younger than the cutoff. With strict mode off the
+  // resolver's lowest-version fallback installs the immature version and
+  // notifies the install layer, which the CLI command wires to the
+  // workspace manifest writer.
+  const picks: Array<{ name: string, version: string }> = []
+  await addDependenciesToPackage({}, ['is-odd@0.1'], testDefaults({
+    minimumReleaseAge: allImmatureMinimumReleaseAge,
+    onImmaturePick: (pkg) => picks.push(pkg),
+  }))
+
+  expect(picks).toContainEqual({ name: 'is-odd', version: '0.1.0' })
+})
+
+test('loose mode reports immature lockfile entries on a follow-up install', async () => {
+  prepareEmpty()
+
+  // Step 1: populate a lockfile without the policy active. The resolver picks
+  // the latest 0.1.x without applying any maturity filter.
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['is-odd@0.1.2'],
+    testDefaults()
+  )
+
+  // Step 2: install again with minimumReleaseAge set and strict mode off.
+  // The peekManifestFromStore fast path would normally silently reuse the
+  // immature 0.1.2 pinned in the lockfile. The new hook surfaces it so the
+  // install layer can persist it to `minimumReleaseAgeExclude`.
+  const picks: Array<{ name: string, version: string }> = []
+  await install(manifest, testDefaults({
+    minimumReleaseAge,
+    minimumReleaseAgeStrict: false,
+    onImmaturePick: (pkg) => picks.push(pkg),
+  }))
+
+  expect(picks).toContainEqual({ name: 'is-odd', version: '0.1.2' })
+})
+
+test('strict mode does not invoke onImmaturePick (resolver throws first)', async () => {
+  prepareEmpty()
+
+  const picks: Array<{ name: string, version: string }> = []
+  await expect(addDependenciesToPackage(
+    {},
+    ['is-odd@0.1'],
+    testDefaults(
+      {
+        minimumReleaseAge: allImmatureMinimumReleaseAge,
+        onImmaturePick: (pkg) => picks.push(pkg),
+      },
+      { strictPublishedByCheck: true }
+    )
+  )).rejects.toThrow(/does not meet the minimumReleaseAge constraint/)
+
+  // Strict mode short-circuits in `pickRespectingMinReleaseAge` before the
+  // fallback that triggers the notification. Verifying the counter stays
+  // at 0 here means callers can safely wire `onImmaturePick` unconditionally
+  // and rely on the resolver to gate.
+  expect(picks).toEqual([])
+})
+
+test('versions excluded via minimumReleaseAgeExclude are not reported', async () => {
+  prepareEmpty()
+
+  const picks: Array<{ name: string, version: string }> = []
+  await addDependenciesToPackage({}, ['is-odd@0.1'], testDefaults({
+    minimumReleaseAge: allImmatureMinimumReleaseAge,
+    minimumReleaseAgeExclude: ['is-odd'],
+    onImmaturePick: (pkg) => picks.push(pkg),
+  }))
+
+  // is-odd is excluded by policy — the install installed 0.1.2 (the highest in
+  // range) treating it as fully trusted. Re-recording it as immature would
+  // create a stuttering loop where every install re-adds the same exclude
+  // entry the user just dismissed.
+  expect(picks.find((p) => p.name === 'is-odd')).toBeUndefined()
+})

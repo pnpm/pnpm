@@ -142,6 +142,12 @@ export interface ResolveDependenciesOptions {
   peersSuffixMaxLength: number
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
+  /**
+   * Callback fired once per immature `(name, version)` selected under loose
+   * minimumReleaseAge mode. Forwarded into the resolution context so the
+   * install layer can record bypass entries to `minimumReleaseAgeExclude`.
+   */
+  onImmaturePick?: (pkg: { name: string, version: string }) => void
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number
@@ -216,6 +222,7 @@ export async function resolveDependencyTree<T> (
     allPeerDepNames: new Set(),
     maximumPublishedBy: publishedBy,
     publishedByExclude,
+    onImmaturePick: opts.onImmaturePick,
     trustPolicy: opts.trustPolicy,
     trustPolicyExclude: opts.trustPolicyExclude ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude') : undefined,
     trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,

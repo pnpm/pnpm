@@ -187,6 +187,15 @@ export interface ResolutionContext {
   hoistPeers?: boolean
   maximumPublishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
+  /**
+   * Invoked once per `(name, version)` whose publish date is newer than
+   * the active `minimumReleaseAge` cutoff but that nonetheless made it
+   * into the install (loose mode: `minimumReleaseAgeStrict` off). The
+   * install layer drains the resulting set into `minimumReleaseAgeExclude`
+   * in pnpm-workspace.yaml so subsequent installs — including ones run in
+   * strict mode — accept the same versions.
+   */
+  onImmaturePick?: (pkg: { name: string, version: string }) => void
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
   trustPolicyIgnoreAfter?: number
@@ -1340,6 +1349,7 @@ async function resolveDependency (
       ignoreScripts: ctx.ignoreScripts,
       publishedBy: options.publishedBy,
       publishedByExclude: ctx.publishedByExclude,
+      onImmaturePick: ctx.onImmaturePick,
       pickLowestVersion: options.pickLowestVersion,
       downloadPriority: -options.currentDepth,
       lockfileDir: ctx.lockfileDir,

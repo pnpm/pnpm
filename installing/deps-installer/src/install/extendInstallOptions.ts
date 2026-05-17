@@ -176,6 +176,16 @@ export interface StrictInstallOptions {
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
   /**
+   * Invoked once per immature `(name, version)` selected while
+   * `minimumReleaseAgeStrict` is off — covers both the resolver's
+   * lowest-version fallback and the `peekManifestFromStore` fast path that
+   * reuses lockfile-pinned versions without re-running the maturity check.
+   * Forwarded down through resolveDependencies / requestPackage. Callers
+   * such as `installDeps.ts` drain the resulting set into the workspace
+   * manifest's `minimumReleaseAgeExclude`.
+   */
+  onImmaturePick?: (pkg: { name: string, version: string }) => void
+  /**
    * Resolver-side verifiers that re-check each lockfile-pinned resolution
    * against policies configured upstream (today: at most one,
    * `npm.minimumReleaseAge` in strict mode). Constructed by `createClient`

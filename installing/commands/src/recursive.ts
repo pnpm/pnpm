@@ -55,6 +55,7 @@ import pLimit from 'p-limit'
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
+import { createImmaturePickCollector, drainImmaturePicks } from './immaturePicks.js'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
@@ -154,6 +155,11 @@ export async function recursive (
 
   const workspacePackages: WorkspacePackages = arrayOfWorkspacePackagesToMap(allProjects) as WorkspacePackages
   const targetDependenciesField = getSaveType(opts)
+  // See `installDeps.ts` for context on the collector; mirrored here so
+  // workspace-recursive installs also persist loose-mode picks. The
+  // workspace manifest writer dedupes against the existing list, so
+  // draining once at the end captures additions across every project.
+  const collectedImmaturePicks = createImmaturePickCollector(opts)
   const installOpts = Object.assign(opts, {
     allProjects: getAllProjects(manifestsByPath, opts.allProjectsGraph, opts.sort),
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
@@ -169,6 +175,7 @@ export async function recursive (
     targetDependenciesField,
     resolutionVerifiers: store.resolutionVerifiers,
     workspacePackages,
+    onImmaturePick: collectedImmaturePicks?.record,
   }) as InstallOptions
 
   const result: RecursiveSummary = {}
@@ -301,6 +308,7 @@ export async function recursive (
       storeController: store.ctrl,
       resolutionVerifiers: store.resolutionVerifiers,
     })
+    const addedMinimumReleaseAgeExcludes = drainImmaturePicks(collectedImmaturePicks)
     if (opts.save !== false) {
       const promises: Array<Promise<void>> = mutatedPkgs.map(async ({ originalManifest, manifest, rootDir }) => {
         return manifestsByPath[rootDir].writeProjectManifest(originalManifest ?? manifest)
@@ -309,8 +317,13 @@ export async function recursive (
         updatedCatalogs,
         cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
         allProjects,
+        addedMinimumReleaseAgeExcludes,
       }))
       await Promise.all(promises)
+    } else if (addedMinimumReleaseAgeExcludes?.length) {
+      await updateWorkspaceManifest(opts.workspaceDir, {
+        addedMinimumReleaseAgeExcludes,
+      })
     }
     await handleIgnoredBuilds(opts, ignoredBuilds)
     return true
@@ -457,6 +470,7 @@ export async function recursive (
     updatedCatalogs,
     cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
     allProjects,
+    addedMinimumReleaseAgeExcludes: drainImmaturePicks(collectedImmaturePicks),
   })
 
   if (

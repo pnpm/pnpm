@@ -40,6 +40,7 @@ import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writ
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
+import { createImmaturePickCollector, drainImmaturePicks } from './immaturePicks.js'
 import {
   type CommandFullName,
   createMatcher,
@@ -267,6 +268,17 @@ export async function installDeps (
     applyRuntimeOnFailOverride(manifest, opts.runtimeOnFail)
   }
 
+  // Loose minimumReleaseAge mode (`minimumReleaseAgeStrict: false`) lets the
+  // resolver install versions newer than the cutoff. We collect those here so
+  // they can be persisted to the workspace manifest's
+  // `minimumReleaseAgeExclude` after the install succeeds; a subsequent
+  // install — including one promoted to strict mode — then accepts the same
+  // versions without prompting the user to manually exclude each one. Stays
+  // inert (no callback fired) when strict mode is on or `minimumReleaseAge`
+  // is unset, because the resolver never picks immature versions in those
+  // modes.
+  const collectedImmaturePicks = createImmaturePickCollector(opts)
+
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
     ...opts,
     // In case installation is done in a multi-package repository
@@ -282,6 +294,7 @@ export async function installDeps (
     resolutionVerifiers: store.resolutionVerifiers,
     workspacePackages,
     preferredVersions: opts.packageVulnerabilityAudit ? preferNonvulnerablePackageVersions(opts.packageVulnerabilityAudit) : undefined,
+    onImmaturePick: collectedImmaturePicks?.record,
   }
 
   let updateMatch: UpdateDepsMatcher | null
@@ -341,6 +354,7 @@ export async function installDeps (
       targetDependenciesField: getSaveType(opts),
     }
     const { updatedCatalogs, updatedProject, ignoredBuilds } = await mutateModulesInSingleProject(mutatedProject, installOpts)
+    const addedMinimumReleaseAgeExcludes = drainImmaturePicks(collectedImmaturePicks)
     if (opts.save !== false) {
       await Promise.all([
         writeProjectManifest(updatedProject.manifest),
@@ -348,6 +362,7 @@ export async function installDeps (
           updatedCatalogs,
           cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
           allProjects: opts.allProjects,
+          addedMinimumReleaseAgeExcludes,
         }),
       ])
     }
@@ -370,6 +385,7 @@ export async function installDeps (
     updatePackageManifest,
     updateMatching,
   })
+  const addedMinimumReleaseAgeExcludes = drainImmaturePicks(collectedImmaturePicks)
   if (opts.update === true && opts.save !== false) {
     await Promise.all([
       writeProjectManifest(updatedManifest),
@@ -377,8 +393,16 @@ export async function installDeps (
         updatedCatalogs,
         cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
         allProjects,
+        addedMinimumReleaseAgeExcludes,
       }),
     ])
+  } else if (addedMinimumReleaseAgeExcludes?.length) {
+    // Plain `pnpm install` (no --update, no params) wouldn't otherwise touch
+    // the workspace manifest. Persist the auto-excludes anyway so the loose
+    // bypass remains explicit on subsequent installs.
+    await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
+      addedMinimumReleaseAgeExcludes,
+    })
   }
   await handleIgnoredBuilds(opts, ignoredBuilds)
 

@@ -303,6 +303,15 @@ export type ResolveFromNpmOptions = {
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
   pinnedVersion?: PinnedVersion
+  /**
+   * Invoked when this resolution would install a version published after the
+   * `publishedBy` cutoff — i.e. an immature pick under the loose
+   * (`minimumReleaseAgeStrict: false`) policy. Covers two paths the strict
+   * verifier doesn't enforce: the resolver's lowest-version fallback in
+   * `pickPackage`, and the `peekManifestFromStore` fast path that reuses a
+   * lockfile-pinned version without re-running the maturity check.
+   */
+  onImmaturePick?: (pkg: { name: string, version: string }) => void
 } & ({
   projectDir?: string
   workspacePackages?: undefined
@@ -378,6 +387,21 @@ async function resolveNpm (
         const id = `${manifest.name}@${manifest.version}` as PkgResolutionId
         // Only return if the ID matches what we have in currentPkg
         if (id === opts.currentPkg.id) {
+          // Loose-mode bypass: a lockfile entry whose publishedAt sits after
+          // the maturity cutoff would have been rejected by the strict verifier
+          // but is silently passed through here. Notify so the install layer
+          // can persist it to `minimumReleaseAgeExclude` and make the bypass
+          // explicit on the next install.
+          if (opts.onImmaturePick && opts.publishedBy && opts.currentPkg.publishedAt) {
+            const ts = new Date(opts.currentPkg.publishedAt).getTime()
+            if (
+              !Number.isNaN(ts) &&
+              ts > opts.publishedBy.getTime() &&
+              opts.publishedByExclude?.(manifest.name) !== true
+            ) {
+              opts.onImmaturePick({ name: manifest.name, version: manifest.version })
+            }
+          }
           return {
             id,
             manifest,
@@ -403,6 +427,7 @@ async function resolveNpm (
       registry,
       includeLatestTag: opts.update === 'latest',
       optional: wantedDependency.optional,
+      onImmaturePick: opts.onImmaturePick,
     })
   } catch (err: any) { // eslint-disable-line
     if ((workspacePackages != null) && opts.projectDir) {
