@@ -816,6 +816,7 @@ export async function mutateModules (
       stats: result.stats,
       depsRequiringBuild: result.depsRequiringBuild,
       ignoredBuilds: result.ignoredBuilds,
+      lockfileResolutionViolations: result.lockfileResolutionViolations,
     }
   }
 
@@ -1234,6 +1235,7 @@ interface InstallFunctionResult {
   stats?: InstallationResultStats
   depsRequiringBuild: DepPath[]
   ignoredBuilds?: IgnoredBuilds
+  lockfileResolutionViolations: LockfileResolutionViolation[]
 }
 
 type InstallFunction = (
@@ -1406,7 +1408,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
       blockExoticSubdeps: opts.blockExoticSubdeps,
       allProjectIds: Object.values(ctx.projects).map((p) => p.id),
-      resolutionVerifiers: opts.resolutionVerifiers,
       onAfterResolveDependencyTree: opts.onAfterResolveDependencyTree,
     }
   )

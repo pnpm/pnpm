@@ -5,7 +5,7 @@ import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
 import type { PatchGroupRecord } from '@pnpm/patching.config'
 import { BUILTIN_NAMED_REGISTRIES } from '@pnpm/resolving.npm-resolver'
-import type { PreferredVersions, Resolution, WorkspacePackages } from '@pnpm/resolving.resolver-base'
+import type { LockfileResolutionViolation, PreferredVersions, Resolution, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type {
   AllowBuild,
@@ -169,6 +169,14 @@ export interface ResolveDependencyTreeResult {
   wantedToBeSkippedPackageIds: Set<string>
   appliedPatches: Set<string>
   time?: Record<string, string>
+  /**
+   * Policy violations collected inline during resolution — the
+   * resolver pushes to this list whenever it picks a package that
+   * trips one of its own checks (today: `minimumReleaseAge`). The
+   * shape mirrors `LockfileResolutionViolation`; downstream callers
+   * filter by `code` to decide what to do.
+   */
+  lockfileResolutionViolations: LockfileResolutionViolation[]
 }
 
 export async function resolveDependencyTree<T> (
@@ -231,6 +239,7 @@ export async function resolveDependencyTree<T> (
     trustPolicyExclude: opts.trustPolicyExclude ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude') : undefined,
     trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
     blockExoticSubdeps: opts.blockExoticSubdeps,
+    lockfileResolutionViolations: [],
   }
 
   const resolveArgs: ImporterToResolve[] = importers.map((importer) => {
@@ -354,6 +363,7 @@ export async function resolveDependencyTree<T> (
     appliedPatches: ctx.appliedPatches,
     time,
     allPeerDepNames: ctx.allPeerDepNames,
+    lockfileResolutionViolations: ctx.lockfileResolutionViolations,
   }
 }
 

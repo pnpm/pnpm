@@ -25,6 +25,7 @@ import { convertEnginesRuntimeToDependencies } from '@pnpm/pkg-manifest.utils'
 import {
   DIRECT_DEP_SELECTOR_WEIGHT,
   type DirectoryResolution,
+  type LockfileResolutionViolation,
   type PkgResolutionId,
   type PreferredVersions,
   type Resolution,
@@ -190,10 +191,21 @@ export interface ResolutionContext {
   /**
    * Forwarded to the npm resolver. When true, strict mode falls back to
    * lowest-version picking like loose mode does — every immature
-   * selection lands in the lockfile so the install layer's
-   * post-resolution scan can surface the full set at once.
+   * selection lands in the lockfile so the install layer's scan
+   * (gathered into `lockfileResolutionViolations` below) can surface
+   * the full set at once.
    */
   deferImmatureDecision?: boolean
+  /**
+   * Shared accumulator the resolver pushes into when an inline policy
+   * check (today: minimumReleaseAge in `npm-resolver`) flags a pick.
+   * resolveDependencyTree hands the populated array back to the install
+   * command via its return so the post-tree gate can prompt / abort /
+   * persist without re-walking the resolved tree. Each verifier code
+   * (`MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`, …) is the
+   * contract surface for downstream UX.
+   */
+  lockfileResolutionViolations: LockfileResolutionViolation[]
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
   trustPolicyIgnoreAfter?: number
@@ -1405,6 +1417,14 @@ async function resolveDependency (
       rawSpec: wantedDependency.bareSpecifier,
     },
   })
+
+  // Resolver-inline policy violations (e.g. minimumReleaseAge) flow up
+  // here; collect them onto the shared context so resolveDependencyTree
+  // can hand the full set to the install command between
+  // resolveDependencyTree and resolvePeers.
+  if (pkgResponse.body.policyViolation) {
+    ctx.lockfileResolutionViolations.push(pkgResponse.body.policyViolation)
+  }
 
   // Check if exotic dependencies are disallowed in subdependencies
   if (

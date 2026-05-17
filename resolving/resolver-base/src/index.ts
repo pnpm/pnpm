@@ -217,6 +217,22 @@ export interface ResolveResult {
   resolvedVia: string
   normalizedBareSpecifier?: string
   alias?: string
+  /**
+   * Set when the resolver picked this version despite a policy
+   * violation (e.g. immature relative to `publishedBy`, trust
+   * downgrade detected by `failIfTrustDowngraded`). The resolver
+   * already has the metadata it needs to decide, so reporting inline
+   * here avoids the install layer having to re-scan the tree and
+   * re-fetch the same metadata. The deps-resolver aggregates these
+   * across every resolve call into a single set the install command
+   * can react to.
+   *
+   * `resolution` on the violation is the same `resolution` field
+   * above — supplied for symmetry with `LockfileResolutionViolation`
+   * entries that flow out of `verifyLockfileResolutions` for
+   * lockfile-only paths.
+   */
+  policyViolation?: LockfileResolutionViolation
 }
 
 export interface WorkspacePackage {

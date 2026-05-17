@@ -1,5 +1,6 @@
 import type {
   DirectoryResolution,
+  LockfileResolutionViolation,
   PkgResolutionId,
   PreferredVersions,
   Resolution,
@@ -162,6 +163,13 @@ export interface PackageResponse {
     // resolved package, it is out-of-date.
     latest?: string
     alias?: string
+    /**
+     * Forwarded from the resolver's `ResolveResult.policyViolation`.
+     * The caller (deps-resolver) aggregates these per-pick into a
+     * single set the install command can react to — see
+     * `LockfileResolutionViolation` in `@pnpm/resolving.resolver-base`.
+     */
+    policyViolation?: LockfileResolutionViolation
   } & (
     {
       isLocal: true

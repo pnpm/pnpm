@@ -16,10 +16,7 @@ import {
   getAllDependenciesFromManifest,
   getSpecFromPackageManifest,
 } from '@pnpm/pkg-manifest.utils'
-import type {
-  LockfileResolutionViolation,
-  ResolutionVerifier,
-} from '@pnpm/resolving.resolver-base'
+import type { LockfileResolutionViolation } from '@pnpm/resolving.resolver-base'
 import {
   type AllowBuild,
   DEPENDENCIES_FIELDS,
@@ -115,13 +112,14 @@ export interface ResolveDependenciesResult {
   waitTillAllFetchingsFinish: () => Promise<void>
   wantedToBeSkippedPackageIds: Set<string>
   /**
-   * Policy violations found by fanning the configured
-   * `ResolutionVerifier`s across the freshly-resolved tree, before
-   * peer-dep resolution runs. The install command reacts via
-   * `onAfterResolveDependencyTree` (prompt / abort) and `mutateModules`
-   * forwards the array out so the auto-persist path at the install's
-   * tail can drain it into the workspace manifest. Empty when no
-   * verifier is active or no entry violates.
+   * Policy violations collected inline during resolution — each
+   * resolver pushes to the list whenever it picks a version that
+   * trips one of its own checks (today: `minimumReleaseAge`). The
+   * install command reacts via `onAfterResolveDependencyTree`
+   * (prompt / abort) and `mutateModules` forwards the array out so
+   * the auto-persist path at the install's tail can drain it into
+   * the workspace manifest. Empty when no policy is active or no
+   * pick violates.
    */
   lockfileResolutionViolations: LockfileResolutionViolation[]
 }
@@ -142,22 +140,14 @@ export async function resolveDependencies (
     enableGlobalVirtualStore?: boolean
     allProjectIds: string[]
     /**
-     * Resolver-side verifiers — one per active policy. The scan
-     * between `resolveDependencyTree` and `resolvePeers` fans across
-     * the list. Each verifier owns its protocol short-circuit inside
-     * `verify`, so dispatch is policy-neutral; new resolvers plug in
-     * by exporting their own verifier factory upstream.
-     */
-    resolutionVerifiers?: readonly ResolutionVerifier[]
-    /**
      * Generic checkpoint invoked between `resolveDependencyTree` and
-     * `resolvePeers` once the verifier scan has gathered any policy
-     * violations from the freshly-resolved tree. Callers can prompt,
-     * persist, or throw based on the violations. Throwing unwinds
-     * before any peer-dep work, lockfile write, package.json update,
-     * or modules-dir change. Intentionally policy-neutral: each
-     * verifier owns its violation codes and the hook implementer
-     * (install command) decides what to do with them.
+     * `resolvePeers` once any inline-collected policy violations have
+     * been gathered. Callers can prompt, persist, or throw based on
+     * the violations. Throwing unwinds before any peer-dep work,
+     * lockfile write, package.json update, or modules-dir change.
+     * Intentionally policy-neutral: each resolver owns its violation
+     * codes and the hook implementer (install command) decides what
+     * to do with them.
      */
     onAfterResolveDependencyTree?: (violations: readonly LockfileResolutionViolation[]) => Promise<void>
   }
@@ -181,20 +171,17 @@ export async function resolveDependencies (
     appliedPatches,
     time,
     allPeerDepNames,
+    lockfileResolutionViolations,
   } = await resolveDependencyTree(projectsToResolve, opts)
 
   // Resolver-policy gate between main resolution and peer-dep
-  // resolution: fan the configured verifiers across the freshly-resolved
-  // tree, hand any violations to the install command's hook. The hook
-  // throws to abort cleanly — nothing on disk has changed yet, and
-  // we haven't paid the cost of peer resolution. The scan reads
-  // `resolution` straight from `resolvedPkgsById`, so verifiers don't
-  // re-fetch what resolution just produced; minimumReleaseAge's layered
-  // lookup hits the local mirror the resolver just populated.
-  const lockfileResolutionViolations = await scanResolvedTreeForViolations(
-    resolvedPkgsById,
-    opts.resolutionVerifiers ?? []
-  )
+  // resolution: every resolver records its own policy violations
+  // inline as it picks each version, and we hand the accumulated
+  // list to the install command's hook. The hook throws to abort
+  // cleanly — nothing on disk has changed yet, and we haven't paid
+  // the cost of peer resolution. Dispatch stays policy-neutral: each
+  // resolver owns its violation codes, and the hook implementer
+  // decides what to do with them.
   await opts.onAfterResolveDependencyTree?.(lockfileResolutionViolations)
 
   opts.storeController.clearResolutionCache()
@@ -407,43 +394,6 @@ export async function resolveDependencies (
     wantedToBeSkippedPackageIds,
     lockfileResolutionViolations,
   }
-}
-
-/**
- * Fans the configured `ResolutionVerifier`s across the freshly-resolved
- * package tree. Each verifier owns its protocol short-circuit, so an
- * npm-only verifier returns `{ ok: true }` for git/file resolutions
- * without the caller having to dispatch. Returns the first failure per
- * entry to keep multi-verifier setups from producing duplicate
- * violations for the same `(name, version)`.
- */
-async function scanResolvedTreeForViolations (
-  resolvedPkgsById: Record<string, ResolvedPackage>,
-  verifiers: readonly ResolutionVerifier[]
-): Promise<LockfileResolutionViolation[]> {
-  if (verifiers.length === 0) return []
-  const violations: LockfileResolutionViolation[] = []
-  for (const pkgId of Object.keys(resolvedPkgsById)) {
-    const pkg = resolvedPkgsById[pkgId]
-    if (!pkg) continue
-    const resolution = pkg.resolution
-    if (resolution == null) continue
-    for (const verifier of verifiers) {
-      // eslint-disable-next-line no-await-in-loop
-      const result = await verifier.verify(resolution, { name: pkg.name, version: pkg.version })
-      if (!result.ok) {
-        violations.push({
-          name: pkg.name,
-          version: pkg.version,
-          resolution,
-          code: result.code,
-          reason: result.reason,
-        })
-        break
-      }
-    }
-  }
-  return violations
 }
 
 function addDirectDependenciesToLockfile (
