@@ -77,20 +77,25 @@ describe('lockfile minimumReleaseAge verification', () => {
   })
 
   test('records the verification cache so a repeat install reuses it', async () => {
-    // Use a permissive cutoff so the gate passes; is-positive@1.0.0 was
-    // published in 2014 and easily clears a 1-minute window.
+    // Step 1: populate the lockfile with no policy. is-positive@1.0.0
+    // was published in 2014, so a 1-minute cutoff later will pass it.
     prepare({
       dependencies: { 'is-positive': '1.0.0' },
     })
+    await execPnpm([PUBLIC_REGISTRY, 'install'])
+
+    // Step 2: turn the policy on. The post-resolution gate now runs
+    // against the existing lockfile and writes a cache record.
     const cacheDir = path.resolve('pnpm-cache')
     writeYamlFileSync('pnpm-workspace.yaml', {
       minimumReleaseAge: 1,
       minimumReleaseAgeStrict: true,
       cacheDir,
     })
-
-    // First install populates the lockfile and writes a cache record.
-    execPnpmSync([PUBLIC_REGISTRY, 'install'], { ...omitMinReleaseAgeEnv, expectSuccess: true })
+    execPnpmSync(
+      [PUBLIC_REGISTRY, 'install', '--frozen-lockfile'],
+      { ...omitMinReleaseAgeEnv, expectSuccess: true }
+    )
 
     const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
     expect(fs.existsSync(cacheFile)).toBe(true)
@@ -104,11 +109,14 @@ describe('lockfile minimumReleaseAge verification', () => {
     expect(record.lockfile.hash).toMatch(/^[a-z0-9+/=]+$/i)
     expect(record.policy).toMatchObject({ minimumReleaseAge: 1 })
 
-    // Second install with the same lockfile + policy succeeds. The cache
+    // Step 3: another install with the same lockfile + policy. The cache
     // short-circuits the gate (asserting that requires registry-call
-    // instrumentation we don't have at this layer, but the install
+    // instrumentation we don't have at this layer, but install
     // completing cleanly is the smoke test).
-    execPnpmSync([PUBLIC_REGISTRY, 'install', '--frozen-lockfile'], { ...omitMinReleaseAgeEnv, expectSuccess: true })
+    execPnpmSync(
+      [PUBLIC_REGISTRY, 'install', '--frozen-lockfile'],
+      { ...omitMinReleaseAgeEnv, expectSuccess: true }
+    )
   })
 
   test('install is unaffected by minimumReleaseAge when strict mode is explicitly off', () => {
