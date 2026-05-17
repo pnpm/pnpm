@@ -145,8 +145,8 @@ export async function handler (
       publishedByExclude,
     })
     // dlx has nowhere to "defer to" — it runs the resolved package directly.
-    // Under strict minimumReleaseAge, treat an immature pick as unrunnable
-    // and throw with the same shape callers used to see from
+    // Under strict minimumReleaseAge, refuse to run an immature pick and
+    // throw with the same shape callers used to see from
     // `NO_MATURE_MATCHING_VERSION`.
     if (strictMinReleaseAge && resolved.policyViolation?.code === 'MINIMUM_RELEASE_AGE_VIOLATION') {
       throw new PnpmError(
