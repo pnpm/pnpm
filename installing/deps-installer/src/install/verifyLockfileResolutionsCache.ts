@@ -7,12 +7,13 @@ import { logger } from '@pnpm/logger'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 
 /**
- * Subset of {@link ResolutionVerifier} the cache layer needs: the slot
- * identity (`resolver`, `policy`) plus the `canTrustPastCheck` comparator.
- * `verify` is intentionally absent — the cache never runs verifiers,
- * it just decides whether a previous run is still trustworthy.
+ * Subset of {@link ResolutionVerifier} the cache layer needs: the
+ * verifier's `policy` contribution plus the `canTrustPastCheck`
+ * comparator. `verify` is intentionally absent — the cache never runs
+ * verifiers, it just decides whether a previous run is still
+ * trustworthy.
  */
-export type VerifierCacheIdentity = Pick<ResolutionVerifier, 'resolver' | 'policy' | 'canTrustPastCheck'>
+export type VerifierCacheIdentity = Pick<ResolutionVerifier, 'policy' | 'canTrustPastCheck'>
 
 /**
  * On-disk cache of verifyLockfileResolutions results, keyed by absolute
@@ -24,9 +25,10 @@ export type VerifierCacheIdentity = Pick<ResolutionVerifier, 'resolver' | 'polic
  * POSIX and NTFS, so parallel pnpm processes (monorepo installs, CI
  * matrices sharing a cache) can write without coordination.
  *
- * Policy-neutral. Each {@link VerifierCacheIdentity} contributes its own
- * slot under `verifiers[resolver]`; future resolvers add their own slot
- * without touching the cache layer.
+ * Policy-neutral. Every active verifier's `policy` contribution merges
+ * into a single `policy` bag on the record; verifiers sharing a logical
+ * policy (same field name) share the slot — no resolver-level
+ * namespacing.
  */
 
 const CACHE_FILE_NAME = 'lockfile-verified.jsonl'
@@ -60,13 +62,13 @@ interface CacheRecord {
   lockfileMtimeNs: string
   lockfileInode: number
   /**
-   * Resolver-keyed policy snapshots that passed when the verification
-   * ran. Each {@link VerifierCacheIdentity} owns its own slot and
-   * decides — via its `canTrustPastCheck` comparator — whether today's policy
-   * can still trust the cached snapshot. Unknown keys are ignored on
-   * read.
+   * Merged policy snapshot that passed when the verification ran. Each
+   * active {@link VerifierCacheIdentity} contributes its fields here;
+   * verifiers checking the same logical policy (same field name) share
+   * the slot. On read, each verifier's `canTrustPastCheck` decides
+   * whether today's policy can still trust this snapshot.
    */
-  verifiers: Record<string, unknown>
+  policy: Record<string, unknown>
 }
 
 interface CacheLookupResult {
@@ -121,7 +123,7 @@ function normalizeRecord (parsed: Partial<CacheRecord>): CacheRecord {
     lockfileFileSize: parsed.lockfileFileSize ?? -1,
     lockfileMtimeNs: parsed.lockfileMtimeNs ?? '',
     lockfileInode: parsed.lockfileInode ?? -1,
-    verifiers: parsed.verifiers && typeof parsed.verifiers === 'object' ? parsed.verifiers : {},
+    policy: parsed.policy && typeof parsed.policy === 'object' ? parsed.policy : {},
   }
 }
 
@@ -149,9 +151,9 @@ async function statLockfile (lockfilePath: string): Promise<LockfileStat | null>
  * unchanged repos. The slow path hashes the lockfile only when stat alone
  * can't decide (typically a CI checkout where mtime/inode got reset).
  *
- * Every active verifier must agree the cached snapshot is still
- * trustworthy under its current policy; if any verifier rejects (or its
- * slot is missing), the full gate runs.
+ * Every active verifier must agree the cached policy snapshot is still
+ * trustworthy under what it currently demands; if any rejects, the full
+ * gate runs.
  */
 export async function tryLockfileVerificationCache (
   cacheDir: string,
@@ -200,12 +202,20 @@ export async function tryLockfileVerificationCache (
 
 function everyVerifierTrustsCachedRun (record: CacheRecord, verifiers: readonly VerifierCacheIdentity[]): boolean {
   for (const verifier of verifiers) {
-    // Missing slot is treated as untrusted — the cached run didn't cover
-    // this resolver's verifier, so we must rerun the gate.
-    if (!(verifier.resolver in record.verifiers)) return false
-    if (!verifier.canTrustPastCheck(record.verifiers[verifier.resolver])) return false
+    if (!verifier.canTrustPastCheck(record.policy)) return false
   }
   return true
+}
+
+function mergePolicies (verifiers: readonly VerifierCacheIdentity[]): Record<string, unknown> {
+  // Later verifiers overwrite earlier ones on conflict — a shared field
+  // should carry the same value across verifiers by convention; mismatch
+  // is a config bug and we don't try to reconcile it here.
+  const merged: Record<string, unknown> = {}
+  for (const verifier of verifiers) {
+    Object.assign(merged, verifier.policy)
+  }
+  return merged
 }
 
 /**
@@ -230,10 +240,6 @@ export async function recordVerification (
     logger.debug({ msg: 'lockfile-verified cache: could not record verification', err })
     return
   }
-  const verifierSlots: Record<string, unknown> = {}
-  for (const verifier of key.verifiers) {
-    verifierSlots[verifier.resolver] = verifier.policy
-  }
   const record: CacheRecord = {
     lockfilePath: key.lockfilePath,
     lockfileHash: hash,
@@ -241,7 +247,7 @@ export async function recordVerification (
     lockfileFileSize: stat.size,
     lockfileMtimeNs: stat.mtimeNs,
     lockfileInode: stat.inode,
-    verifiers: verifierSlots,
+    policy: mergePolicies(key.verifiers),
   }
   await appendRecord(cacheDir, record)
 }

@@ -24,14 +24,16 @@ afterEach(async () => {
   await fs.promises.rm(tmpDir, { recursive: true, force: true })
 })
 
-// Helpers — most tests use the npm.minimumReleaseAge verifier as a
-// concrete stand-in. The cache layer is policy-neutral, so this could be
-// any verifier shape.
+// Helpers — most tests use a stand-in for the npm minimumReleaseAge
+// verifier. The cache layer is policy-neutral, so this could be any
+// verifier shape.
 function mraVerifier (current: number): VerifierCacheIdentity {
   return {
-    resolver: 'npm',
-    policy: current,
-    canTrustPastCheck: (cached) => typeof cached === 'number' && cached >= current,
+    policy: { minimumReleaseAge: current },
+    canTrustPastCheck: (cached) => {
+      const past = cached.minimumReleaseAge
+      return typeof past === 'number' && past >= current
+    },
   }
 }
 
@@ -142,32 +144,32 @@ describe('tryLockfileVerificationCache', () => {
     expect(result.hit).toBe(true)
   })
 
-  test('miss when an active verifier has no slot in the cached record', async () => {
+  test('miss when the cached policy lacks a field the current verifier reads', async () => {
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
-    await recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
+    // Seed a record whose policy doesn't have minimumReleaseAge.
+    await recordVerification(cacheDir, {
+      lockfilePath,
+      verifiers: [{
+        policy: { someOther: 'value' },
+        canTrustPastCheck: () => true,
+      }],
+    })
 
-    // A new verifier has joined since the record was written. The cache
-    // can't tell us anything about it, so we must rerun the gate.
-    const newVerifier: VerifierCacheIdentity = {
-      resolver: 'jsr',
-      policy: ['foo-org'],
-      canTrustPastCheck: () => true,
-    }
     const result = await tryLockfileVerificationCache(cacheDir, {
       lockfilePath,
-      verifiers: [mraVerifier(60), newVerifier],
+      verifiers: [mraVerifier(60)],
     })
     expect(result.hit).toBe(false)
   })
 
-  test('hit when all active verifiers are satisfied', async () => {
+  test('hit when every verifier trusts its share of the merged cached policy', async () => {
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
     const verifiers: VerifierCacheIdentity[] = [
       mraVerifier(60),
       {
-        resolver: 'example',
-        policy: 'x',
-        canTrustPastCheck: (cached) => cached === 'x',
+        policy: { trustedPublishers: ['foo-org'] },
+        canTrustPastCheck: (cached) => Array.isArray(cached.trustedPublishers) &&
+          cached.trustedPublishers.includes('foo-org'),
       },
     ]
     await recordVerification(cacheDir, { lockfilePath, verifiers })
@@ -220,7 +222,7 @@ describe('tryLockfileVerificationCache', () => {
 })
 
 describe('recordVerification', () => {
-  test('writes a JSONL record under <cacheDir>/lockfile-verified.jsonl', async () => {
+  test('writes a JSONL record with a merged policy bag', async () => {
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
     await recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
 
@@ -231,7 +233,7 @@ describe('recordVerification', () => {
     const record = JSON.parse(lines[0]) as Record<string, unknown>
     expect(record).toMatchObject({
       lockfilePath,
-      verifiers: { npm: 60 },
+      policy: { minimumReleaseAge: 60 },
     })
     expect(typeof record.lockfileHash).toBe('string')
     expect(typeof record.verifiedAt).toBe('string')
@@ -240,15 +242,14 @@ describe('recordVerification', () => {
     expect(typeof record.lockfileInode).toBe('number')
   })
 
-  test('records every active verifier slot, keyed by resolver id', async () => {
+  test('merges policy fields across verifiers into a single bag', async () => {
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
     await recordVerification(cacheDir, {
       lockfilePath,
       verifiers: [
         mraVerifier(60),
         {
-          resolver: 'jsr',
-          policy: ['foo-org', 'pnpm'],
+          policy: { trustedPublishers: ['foo-org', 'pnpm'] },
           canTrustPastCheck: () => true,
         },
       ],
@@ -256,11 +257,26 @@ describe('recordVerification', () => {
 
     const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
     const raw = await fs.promises.readFile(cacheFile, 'utf8')
-    const record = JSON.parse(raw.trim()) as { verifiers: Record<string, unknown> }
-    expect(record.verifiers).toEqual({
-      npm: 60,
-      jsr: ['foo-org', 'pnpm'],
+    const record = JSON.parse(raw.trim()) as { policy: Record<string, unknown> }
+    expect(record.policy).toEqual({
+      minimumReleaseAge: 60,
+      trustedPublishers: ['foo-org', 'pnpm'],
     })
+  })
+
+  test('shared policy field is stored once, not duplicated', async () => {
+    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
+    // Two verifiers both contribute minimumReleaseAge with the same value
+    // — the merged bag stores it once.
+    await recordVerification(cacheDir, {
+      lockfilePath,
+      verifiers: [mraVerifier(60), mraVerifier(60)],
+    })
+
+    const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
+    const raw = await fs.promises.readFile(cacheFile, 'utf8')
+    const record = JSON.parse(raw.trim()) as { policy: Record<string, unknown> }
+    expect(record.policy).toEqual({ minimumReleaseAge: 60 })
   })
 
   test('silently skips when the lockfile is missing', async () => {

@@ -160,16 +160,18 @@ export function createNpmResolutionVerifier (
     return { ok: true }
   }
   return {
-    resolver: 'npm',
     verify,
-    policy: minimumReleaseAge,
-    // A previously cached run under a larger cutoff (stricter window)
-    // is trustworthy under a smaller current one — its set of accepted
-    // versions is a subset of today's. The reverse — tightening the
-    // cutoff — invalidates the cached run: versions that passed before
-    // may now be in-window. Non-number cached values come from an older
-    // record shape and aren't trusted.
-    canTrustPastCheck: (cached) => typeof cached === 'number' && cached >= minimumReleaseAge,
+    policy: { minimumReleaseAge },
+    canTrustPastCheck: (cached) => {
+      // A previously cached run under a larger cutoff (stricter window)
+      // is trustworthy under a smaller current one — its set of
+      // accepted versions is a subset of today's. The reverse —
+      // tightening the cutoff — invalidates the cached run: versions
+      // that passed before may now be in-window. Non-number cached
+      // values come from an older record shape and aren't trusted.
+      const past = cached.minimumReleaseAge
+      return typeof past === 'number' && past >= minimumReleaseAge
+    },
   }
 }
 
