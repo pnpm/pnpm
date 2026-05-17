@@ -1,3 +1,6 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { describe, expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
@@ -71,6 +74,41 @@ describe('lockfile minimumReleaseAge verification', () => {
       [PUBLIC_REGISTRY, 'install', '--frozen-lockfile'],
       { ...omitMinReleaseAgeEnv, expectSuccess: true }
     )
+  })
+
+  test('records the verification cache so a repeat install reuses it', async () => {
+    // Use a permissive cutoff so the gate passes; is-positive@1.0.0 was
+    // published in 2014 and easily clears a 1-minute window.
+    prepare({
+      dependencies: { 'is-positive': '1.0.0' },
+    })
+    const cacheDir = path.resolve('pnpm-cache')
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: 1,
+      minimumReleaseAgeStrict: true,
+      cacheDir,
+    })
+
+    // First install populates the lockfile and writes a cache record.
+    execPnpmSync([PUBLIC_REGISTRY, 'install'], { ...omitMinReleaseAgeEnv, expectSuccess: true })
+
+    const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
+    expect(fs.existsSync(cacheFile)).toBe(true)
+    const lines = fs.readFileSync(cacheFile, 'utf8').split('\n').filter(Boolean)
+    expect(lines.length).toBeGreaterThanOrEqual(1)
+    const record = JSON.parse(lines.at(-1)!) as {
+      lockfile: { hash: string, path: string }
+      policy: Record<string, unknown>
+    }
+    expect(record.lockfile.path).toBe(path.resolve('pnpm-lock.yaml'))
+    expect(record.lockfile.hash).toMatch(/^[a-z0-9+/=]+$/i)
+    expect(record.policy).toMatchObject({ minimumReleaseAge: 1 })
+
+    // Second install with the same lockfile + policy succeeds. The cache
+    // short-circuits the gate (asserting that requires registry-call
+    // instrumentation we don't have at this layer, but the install
+    // completing cleanly is the smoke test).
+    execPnpmSync([PUBLIC_REGISTRY, 'install', '--frozen-lockfile'], { ...omitMinReleaseAgeEnv, expectSuccess: true })
   })
 
   test('install is unaffected by minimumReleaseAge when strict mode is explicitly off', () => {
