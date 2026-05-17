@@ -312,8 +312,11 @@ export async function recursive (
       storeController: store.ctrl,
       resolutionVerifiers: store.resolutionVerifiers,
     })
-    const addedMinimumReleaseAgeExcludes = drainImmaturePicks(immaturePicks?.collector)
     if (opts.save !== false) {
+      // Only drain when we'll actually persist. Otherwise the info log
+      // would claim entries were added that the workspace manifest never
+      // saw, and the next install would re-prompt or fail verification.
+      const addedMinimumReleaseAgeExcludes = drainImmaturePicks(immaturePicks?.collector)
       const promises: Array<Promise<void>> = mutatedPkgs.map(async ({ originalManifest, manifest, rootDir }) => {
         return manifestsByPath[rootDir].writeProjectManifest(originalManifest ?? manifest)
       })
@@ -324,10 +327,6 @@ export async function recursive (
         addedMinimumReleaseAgeExcludes,
       }))
       await Promise.all(promises)
-    } else if (addedMinimumReleaseAgeExcludes?.length) {
-      await updateWorkspaceManifest(opts.workspaceDir, {
-        addedMinimumReleaseAgeExcludes,
-      })
     }
     await handleIgnoredBuilds(opts, ignoredBuilds)
     return true

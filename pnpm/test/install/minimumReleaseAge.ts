@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { describe, expect, test } from '@jest/globals'
-import { prepare } from '@pnpm/prepare'
+import { prepare, preparePackages } from '@pnpm/prepare'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
@@ -224,6 +224,31 @@ describe('lockfile minimumReleaseAge verification', () => {
       [PUBLIC_REGISTRY, 'install', '--frozen-lockfile'],
       { ...omitMinReleaseAgeEnv, expectSuccess: true }
     )
+  })
+
+  test('recursive --no-save leaves the workspace manifest untouched even when picks are collected', () => {
+    // Mirror of the single-project --no-save test for the recursive flow:
+    // the same drain-only-when-saving gate has to hold in recursive.ts.
+    preparePackages([
+      {
+        name: 'project-a',
+        version: '1.0.0',
+        dependencies: { 'is-odd': '0.1.2' },
+      },
+    ])
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      packages: ['*'],
+      minimumReleaseAge: IMMATURE_FOR_EVERYTHING,
+      minimumReleaseAgeStrict: false,
+    })
+
+    execPnpmSync(
+      [PUBLIC_REGISTRY, '-r', 'install', '--no-save'],
+      { ...omitMinReleaseAgeEnv, expectSuccess: true }
+    )
+
+    const workspaceManifest = readYamlFileSync<{ minimumReleaseAgeExclude?: string[] }>('pnpm-workspace.yaml')
+    expect(workspaceManifest.minimumReleaseAgeExclude).toBeUndefined()
   })
 
   test('--no-save leaves the workspace manifest untouched even when picks are collected', () => {

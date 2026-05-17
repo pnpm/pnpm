@@ -140,7 +140,6 @@ export function createNpmResolutionVerifier (
     publishedAtCache: new Map(),
     localMetaCache: new Map(),
     fullMetaCache: new Map(),
-    attestationPresentCache: new Map(),
     fullMetaForTrustCache: new Map(),
   }
 
@@ -286,22 +285,19 @@ async function runAgeCheck (
 }
 
 /**
- * Two-layer trust-downgrade check:
+ * Run the resolver-time `failIfTrustDowngraded` check against the
+ * pinned lockfile version. The packument is fetched through a
+ * per-install cache so multiple versions of the same package share
+ * one fetch.
  *
- * 1. **Attestation fast path.** Hit the npm attestation endpoint for
- *    this specific (name, version). If it returns a Rekor-anchored
- *    timestamp, the version itself carries provenance — a downgrade
- *    is by definition weaker evidence than the past, and "any
- *    evidence at all" already clears that bar at the level the
- *    resolver-time check enforces. Skip the history walk.
- * 2. **Full metadata fallback.** When the attestation endpoint
- *    yields nothing (404, no provenance, or registry doesn't expose
- *    the endpoint at all), fall back to the same packument fetch the
- *    resolver path uses and run `failIfTrustDowngraded` against it.
- *
- * Both paths share the per-install caches on `context`, so verifying
- * multiple versions of the same package — or both policies on the
- * same package — pays the disk/network costs at most once.
+ * No attestation fast-path here even though the per-version
+ * attestation endpoint is cheaper than the packument: presence of
+ * provenance on the current version is not sufficient to clear a
+ * downgrade. A package could have shipped earlier versions under a
+ * `trustedPublisher` (the higher-rank evidence) and then dropped
+ * back to plain provenance for the version we're verifying —
+ * `failIfTrustDowngraded` correctly flags that, and a "has any
+ * attestation → pass" shortcut would silently miss it.
  */
 async function runTrustCheck (
   context: PublishedAtLookupContext,
@@ -313,10 +309,6 @@ async function runTrustCheck (
     trustPolicyIgnoreAfter?: number
   }
 ): Promise<{ ok: false, code: string, reason: string } | undefined> {
-  if (await versionHasAttestation(context, registry, name, version)) {
-    return undefined
-  }
-
   let meta: PackageMeta | undefined
   try {
     meta = await fetchFullMetaForTrust(context, registry, name)
@@ -345,24 +337,6 @@ async function runTrustCheck (
     }
   }
   return undefined
-}
-
-function versionHasAttestation (
-  context: PublishedAtLookupContext,
-  registry: string,
-  name: string,
-  version: string
-): Promise<boolean> {
-  const cacheKey = `${registry}\x00${name}\x00${version}`
-  let cachedPromise = context.attestationPresentCache.get(cacheKey)
-  if (cachedPromise == null) {
-    cachedPromise = fetchAttestationPublishedAt(context.fetchOpts, name, version, {
-      registry,
-      authHeaderValue: context.getAuthHeaderValueByURI(registry),
-    }).then((ts) => ts != null)
-    context.attestationPresentCache.set(cacheKey, cachedPromise)
-  }
-  return cachedPromise
 }
 
 function fetchFullMetaForTrust (
@@ -404,7 +378,7 @@ interface PublishedAtLookupContext {
    * ~zero cost. Resolves to the parsed metadata or `undefined` on
    * failure.
    */
-  abbreviatedMetaCache: Map<string, Promise<{ modified?: string } | undefined>>
+  abbreviatedMetaCache: Map<string, Promise<{ modified?: string, versions?: Record<string, unknown> } | undefined>>
   /**
    * Per-(registry+name+version) memo of the final published-at answer
    * the verifier hands to the policy check. One install verifies each
@@ -424,19 +398,11 @@ interface PublishedAtLookupContext {
    */
   fullMetaCache: Map<string, Promise<PublishedAtTimeMap | undefined>>
   /**
-   * Per-(registry+name+version) memo of the "does this version have an
-   * attestation?" check used by the trust policy fast path. The
-   * attestation endpoint returns small payloads (tens of KB), and
-   * presence-of-attestation is enough to clear the trust-downgrade
-   * gate without fetching the full packument.
-   */
-  attestationPresentCache: Map<string, Promise<boolean>>
-  /**
    * Per-(registry+name) memo of the full packument used by the trust
-   * check's slow path (history walk for `failIfTrustDowngraded`). Kept
-   * separate from `fullMetaCache` because the trust check needs the
-   * whole document (`_npmUser`, `dist.attestations` per version) where
-   * the age check only needs `time`.
+   * check (history walk for `failIfTrustDowngraded`). Kept separate
+   * from `fullMetaCache` because the trust check needs the whole
+   * document (`_npmUser`, `dist.attestations` per version) where the
+   * age check only needs `time`.
    */
   fullMetaForTrustCache: Map<string, Promise<PackageMeta | undefined>>
 }
@@ -483,7 +449,7 @@ async function resolvePublishedAt (
   name: string,
   version: string
 ): Promise<string | undefined> {
-  const abbreviatedShortcut = await tryAbbreviatedModifiedShortcut(context, registry, name)
+  const abbreviatedShortcut = await tryAbbreviatedModifiedShortcut(context, registry, name, version)
   if (abbreviatedShortcut != null) return abbreviatedShortcut
 
   const localTime = await readLocalMetaTime(context, registry, name)
@@ -502,18 +468,25 @@ async function resolvePublishedAt (
 /**
  * Returns the abbreviated metadata's `modified` timestamp **iff** it
  * proves the gate would pass — i.e. modified is strictly older than
- * the policy cutoff. In that case every version this package contains
- * predates the cutoff, so the caller can short-circuit with `modified`
- * as a conservative upper-bound publish time.
+ * the policy cutoff *and* the pinned version still exists in the
+ * package's current versions map.
+ *
+ * The version check is the fail-closed contract: an unpublished or
+ * never-published version must not slip through on the package-level
+ * `modified` timestamp. When the version is missing here we fall
+ * through to the later layers so the caller eventually surfaces the
+ * "version not present in registry manifest" violation.
  *
  * Returns `undefined` otherwise (modified is too recent, the metadata
- * lacks a parseable modified field, or the fetch failed) and the
- * caller proceeds with per-version lookups.
+ * lacks a parseable modified field, the version isn't in the abbreviated
+ * form, or the fetch failed) and the caller proceeds with per-version
+ * lookups.
  */
 async function tryAbbreviatedModifiedShortcut (
   context: PublishedAtLookupContext,
   registry: string,
-  name: string
+  name: string,
+  version: string
 ): Promise<string | undefined> {
   const meta = await fetchAbbreviatedMeta(context, registry, name)
   const modified = meta?.modified
@@ -521,6 +494,11 @@ async function tryAbbreviatedModifiedShortcut (
   const modifiedMs = Date.parse(modified)
   if (Number.isNaN(modifiedMs)) return undefined
   if (modifiedMs >= context.cutoffMs) return undefined
+  // The shortcut treats `modified` as an upper bound on every version's
+  // publish time — but only for versions the registry currently lists.
+  // An unpublished or never-published pin would otherwise pass the gate
+  // on a stale package-level timestamp.
+  if (!meta?.versions || !(version in meta.versions)) return undefined
   return modified
 }
 
@@ -528,7 +506,7 @@ function fetchAbbreviatedMeta (
   context: PublishedAtLookupContext,
   registry: string,
   name: string
-): Promise<{ modified?: string } | undefined> {
+): Promise<{ modified?: string, versions?: Record<string, unknown> } | undefined> {
   const cacheKey = `${registry}\x00${name}`
   let cachedPromise = context.abbreviatedMetaCache.get(cacheKey)
   if (cachedPromise == null) {
