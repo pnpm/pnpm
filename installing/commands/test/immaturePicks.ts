@@ -90,7 +90,7 @@ test('setupImmaturePicks returns a plan when ci=false and stdin is a TTY', () =>
   })
 })
 
-test('strict + --no-save refuses up-front instead of prompting for unpersistable approval', async () => {
+test('strict + --no-save refuses up-front instead of prompting for approval it cannot persist', async () => {
   // The prompt promises to write to minimumReleaseAgeExclude, but the
   // install command's `opts.save !== false` gate blocks that under
   // --no-save — accepting the prompt would leave the lockfile holding
