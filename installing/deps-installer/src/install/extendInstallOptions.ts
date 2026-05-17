@@ -27,6 +27,7 @@ import type {
 
 import { pnpmPkgJson } from '../pnpmPkgJson.js'
 import type { ReporterFunction } from '../types.js'
+import type { LockfileResolutionViolation } from './verifyLockfileResolutions.js'
 
 export interface StrictInstallOptions {
   autoConfirmAllPrompts: boolean
@@ -176,33 +177,33 @@ export interface StrictInstallOptions {
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
   /**
-   * Invoked once per immature `(name, version)` selected while
-   * `minimumReleaseAgeStrict` is off — covers both the resolver's
-   * lowest-version fallback and the `peekManifestFromStore` fast path that
-   * reuses lockfile-pinned versions without re-running the maturity check.
-   * Forwarded down through resolveDependencies / requestPackage. Callers
-   * such as `installDeps.ts` drain the resulting set into the workspace
-   * manifest's `minimumReleaseAgeExclude`.
-   */
-  onImmaturePick?: (pkg: { name: string, version: string }) => void
-  /**
    * Forwarded to the npm resolver. When set, strict mode falls back to
-   * lowest-version picking like loose mode (and `onImmaturePick` fires for
-   * every immature selection) instead of throwing
-   * `NO_MATURE_MATCHING_VERSION` on the first one. The install command
-   * sets it together with `confirmImmaturePicks` when an interactive
-   * prompt is available, so users see every immature transitive at once
-   * (#10488) instead of looping through them one-by-one.
+   * lowest-version picking like loose mode does — every immature
+   * selection lands in the lockfile so the post-resolution scan can
+   * surface the whole set at once instead of the resolver throwing on
+   * the first immature pick. The install command flips this on when an
+   * interactive prompt is available, so users see every immature
+   * transitive at once (#10488) instead of looping through them
+   * one-by-one.
    */
   deferImmatureDecision?: boolean
   /**
-   * Checkpoint invoked by `resolveDependencies` between the main
-   * resolution and peer-dep resolution. The install command uses this to
-   * prompt the user with the full set of immature picks and either
-   * approve (the install proceeds) or abort (throws — lockfile,
-   * package.json, and modules dir all stay untouched).
+   * Resolver-agnostic post-resolution gate, invoked after the wanted
+   * lockfile has been fully built (peer deps resolved, afterAllResolved
+   * applied) but before it's written to disk or any modules dir is
+   * touched. Receives the violations the verifier fan-out collected
+   * plus the lockfile itself. Throwing here unwinds the install
+   * cleanly — nothing on disk has changed.
+   *
+   * Intentionally policy-neutral. Each verifier owns its violation
+   * codes (`MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`, …); the
+   * install command filters by code to decide what to do. Future
+   * resolvers can plug verifiers in without touching this signature.
    */
-  confirmImmaturePicks?: () => Promise<void>
+  onAfterResolveDependencyTree?: (
+    violations: LockfileResolutionViolation[],
+    lockfile: LockfileObject
+  ) => Promise<void>
   /**
    * Resolver-side verifiers that re-check each lockfile-pinned resolution
    * against policies configured upstream (today: at most one,

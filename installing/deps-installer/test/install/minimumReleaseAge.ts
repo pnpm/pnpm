@@ -214,92 +214,85 @@ test('the lockfile minimumReleaseAge gate accepts loose-mode entries already on 
   ).resolves.toBeDefined()
 })
 
-test('loose mode reports immature fresh picks to onImmaturePick', async () => {
+test('loose mode surfaces immature fresh picks in the install result', async () => {
   prepareEmpty()
 
   // Every version is younger than the cutoff. With strict mode off the
-  // resolver's lowest-version fallback installs the immature version and
-  // notifies the install layer, which the CLI command wires to the
-  // workspace manifest writer.
-  const picks: Array<{ name: string, version: string }> = []
+  // resolver's lowest-version fallback installs the immature version,
+  // and the post-resolution scan in `mutateModules` reports it back via
+  // `lockfileResolutionViolations`. The CLI command filters by code to
+  // persist the entries to `minimumReleaseAgeExclude`.
   const opts = testDefaults({ minimumReleaseAge: allImmatureMinimumReleaseAge })
-  await addDependenciesToPackage({}, ['is-odd@0.1'], {
-    ...opts,
-    onImmaturePick: (pkg) => void picks.push(pkg),
-  })
+  const result = await addDependenciesToPackage({}, ['is-odd@0.1'], opts)
 
-  expect(picks).toContainEqual({ name: 'is-odd', version: '0.1.0' })
+  expect(result.lockfileResolutionViolations).toContainEqual(
+    expect.objectContaining({
+      name: 'is-odd',
+      version: '0.1.0',
+      code: 'MINIMUM_RELEASE_AGE_VIOLATION',
+    })
+  )
 })
 
-test('strict mode does not invoke onImmaturePick (resolver throws first)', async () => {
+test('strict mode without defer still throws at the resolver before the scan runs', async () => {
   prepareEmpty()
 
-  const picks: Array<{ name: string, version: string }> = []
   const opts = testDefaults(
     { minimumReleaseAge: allImmatureMinimumReleaseAge },
     { strictPublishedByCheck: true }
   )
-  await expect(addDependenciesToPackage(
-    {},
-    ['is-odd@0.1'],
-    { ...opts, onImmaturePick: (pkg) => void picks.push(pkg) }
-  )).rejects.toThrow(/does not meet the minimumReleaseAge constraint/)
-
-  // Strict mode short-circuits in `pickRespectingMinReleaseAge` before the
-  // fallback that triggers the notification. Verifying the counter stays
-  // at 0 here means callers can safely wire `onImmaturePick` unconditionally
-  // and rely on the resolver to gate.
-  expect(picks).toEqual([])
+  // Strict mode short-circuits in `pickRespectingMinReleaseAge` on the
+  // first immature pick. The post-resolution scan never gets to run.
+  await expect(addDependenciesToPackage({}, ['is-odd@0.1'], opts))
+    .rejects.toThrow(/does not meet the minimumReleaseAge constraint/)
 })
 
-test('versions excluded via minimumReleaseAgeExclude are not reported', async () => {
+test('versions excluded via minimumReleaseAgeExclude are not surfaced as violations', async () => {
   prepareEmpty()
 
-  const picks: Array<{ name: string, version: string }> = []
   const opts = testDefaults({
     minimumReleaseAge: allImmatureMinimumReleaseAge,
     minimumReleaseAgeExclude: ['is-odd'],
   })
-  await addDependenciesToPackage({}, ['is-odd@0.1'], {
-    ...opts,
-    onImmaturePick: (pkg) => void picks.push(pkg),
-  })
+  const result = await addDependenciesToPackage({}, ['is-odd@0.1'], opts)
 
   // is-odd is excluded by policy — the install installed 0.1.2 (the highest in
-  // range) treating it as fully trusted. Re-recording it as immature would
-  // create a stuttering loop where every install re-adds the same exclude
-  // entry the user just dismissed.
-  expect(picks.find((p) => p.name === 'is-odd')).toBeUndefined()
+  // range) treating it as fully trusted. The verifier short-circuits on the
+  // excluded entry, so it doesn't end up in the violations array — otherwise
+  // every install would re-add the same exclude entry the user just dismissed.
+  expect(result.lockfileResolutionViolations.find((v) => v.name === 'is-odd')).toBeUndefined()
 })
 
 test('deferImmatureDecision lets strict mode collect every immature pick instead of throwing on the first', async () => {
   // Strict mode normally throws `NO_MATURE_MATCHING_VERSION` on the first
   // immature transitive, forcing the discover-by-loop dance (#10488). With
   // `deferImmatureDecision: true` the resolver falls back to the lowest
-  // matching version like loose mode does, and `onImmaturePick` fires once
-  // per immature pick — so the install command can surface the full set to
-  // the user in one prompt.
+  // matching version like loose mode does — every immature pick lands in
+  // the lockfile, and the post-resolution scan returns the full set to
+  // the install command so it can prompt once.
   prepareEmpty()
-  const picks: Array<{ name: string, version: string }> = []
   const opts = testDefaults(
     { minimumReleaseAge: allImmatureMinimumReleaseAge },
     { strictPublishedByCheck: true }
   )
-  await addDependenciesToPackage({}, ['is-odd@0.1'], {
+  const result = await addDependenciesToPackage({}, ['is-odd@0.1'], {
     ...opts,
     deferImmatureDecision: true,
-    onImmaturePick: (pkg) => void picks.push(pkg),
   })
 
-  expect(picks).toContainEqual({ name: 'is-odd', version: '0.1.0' })
+  expect(result.lockfileResolutionViolations).toContainEqual(
+    expect.objectContaining({
+      name: 'is-odd',
+      version: '0.1.0',
+      code: 'MINIMUM_RELEASE_AGE_VIOLATION',
+    })
+  )
 })
 
-test('confirmImmaturePicks aborts the install before the lockfile is written', async () => {
+test('onAfterResolveDependencyTree throwing aborts the install before the lockfile is written', async () => {
   // Simulates the strict-mode interactive prompt rejecting the immature
-  // picks. The callback throws between main resolution and peer-dep
-  // resolution; `resolveDependencies` unwinds, which leaves the install in
-  // its pre-install state — no lockfile written, no package.json changes,
-  // no node_modules linking.
+  // picks. The hook runs after the new lockfile is built but before it's
+  // written to disk; throwing unwinds the install in its pre-install state.
   prepareEmpty()
   const opts = testDefaults(
     { minimumReleaseAge: allImmatureMinimumReleaseAge },
@@ -308,7 +301,7 @@ test('confirmImmaturePicks aborts the install before the lockfile is written', a
   await expect(addDependenciesToPackage({}, ['is-odd@0.1'], {
     ...opts,
     deferImmatureDecision: true,
-    confirmImmaturePicks: async () => {
+    onAfterResolveDependencyTree: async () => {
       throw new Error('user denied')
     },
   })).rejects.toThrow(/user denied/)
@@ -318,24 +311,22 @@ test('confirmImmaturePicks aborts the install before the lockfile is written', a
   await expect(readWantedLockfile('.', { ignoreIncompatible: false })).resolves.toBeNull()
 })
 
-test('confirmImmaturePicks approval lets the install proceed cleanly', async () => {
+test('onAfterResolveDependencyTree approval lets the install proceed cleanly', async () => {
   prepareEmpty()
-  const picks: Array<{ name: string, version: string }> = []
   const opts = testDefaults(
     { minimumReleaseAge: allImmatureMinimumReleaseAge },
     { strictPublishedByCheck: true }
   )
-  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1'], {
+  const result = await addDependenciesToPackage({}, ['is-odd@0.1'], {
     ...opts,
     deferImmatureDecision: true,
-    onImmaturePick: (pkg) => void picks.push(pkg),
-    confirmImmaturePicks: async () => {
-      // The real install command would surface the gathered set via
-      // enquirer here; in this test we simulate the user clicking
-      // "approve" by simply returning.
+    onAfterResolveDependencyTree: async (violations) => {
+      // The real install command would inspect the violations and run
+      // an enquirer prompt here. The test just confirms the hook gets a
+      // full set and returns to approve.
+      expect(violations.some((v) => v.name === 'is-odd' && v.version === '0.1.0')).toBe(true)
     },
   })
 
-  expect(manifest.dependencies!['is-odd']).toBe('~0.1.0')
-  expect(picks).toContainEqual({ name: 'is-odd', version: '0.1.0' })
+  expect(result.updatedManifest.dependencies!['is-odd']).toBe('~0.1.0')
 })

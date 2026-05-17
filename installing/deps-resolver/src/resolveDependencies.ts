@@ -188,20 +188,10 @@ export interface ResolutionContext {
   maximumPublishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
   /**
-   * Invoked once per `(name, version)` whose publish date is newer than
-   * the active `minimumReleaseAge` cutoff but that nonetheless made it
-   * into the install (loose mode: `minimumReleaseAgeStrict` off). The
-   * install layer drains the resulting set into `minimumReleaseAgeExclude`
-   * in pnpm-workspace.yaml so subsequent installs — including ones run in
-   * strict mode — accept the same versions.
-   */
-  onImmaturePick?: (pkg: { name: string, version: string }) => void
-  /**
    * Forwarded to the npm resolver. When true, strict mode falls back to
-   * lowest-version picking like loose mode does and reports every immature
-   * pick via `onImmaturePick`. The install layer prompts on the aggregate
-   * list before peer resolution runs — see `confirmImmaturePicks` on the
-   * outer `ResolveDependenciesOptions`.
+   * lowest-version picking like loose mode does — every immature
+   * selection lands in the lockfile so the install layer's
+   * post-resolution scan can surface the full set at once.
    */
   deferImmatureDecision?: boolean
   trustPolicy?: TrustPolicy
@@ -1357,7 +1347,6 @@ async function resolveDependency (
       ignoreScripts: ctx.ignoreScripts,
       publishedBy: options.publishedBy,
       publishedByExclude: ctx.publishedByExclude,
-      onImmaturePick: ctx.onImmaturePick,
       deferImmatureDecision: ctx.deferImmatureDecision,
       pickLowestVersion: options.pickLowestVersion,
       downloadPriority: -options.currentDepth,

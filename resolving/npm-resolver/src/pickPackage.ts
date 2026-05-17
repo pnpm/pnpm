@@ -70,7 +70,6 @@ export interface PickPackageOptions extends PickPackageFromMetaOptions {
   dryRun: boolean
   includeLatestTag?: boolean
   optional?: boolean
-  onImmaturePick?: PickerOptions['onImmaturePick']
   deferImmatureDecision?: PickerOptions['deferImmatureDecision']
 }
 
@@ -80,22 +79,13 @@ interface PickerOptions extends PickPackageFromMetaOptions {
   strictPublishedByCheck?: boolean
   ignoreMissingTimeField?: boolean
   /**
-   * Invoked when `pickRespectingMinReleaseAge` falls back to an immature
-   * version because no mature version satisfies the requested range
-   * (loose-mode fallback). The install layer wires this to auto-populate
-   * `minimumReleaseAgeExclude` in pnpm-workspace.yaml so subsequent
-   * installs — including ones run with strict mode enabled — accept the
-   * same versions without surprise.
-   */
-  onImmaturePick?: (pkg: { name: string, version: string }) => void
-  /**
    * When set, `pickRespectingMinReleaseAge` ignores `strictPublishedByCheck`
-   * and uses the lowest-version fallback even in strict mode — every
-   * immature pick is reported via `onImmaturePick`, and a higher layer
-   * decides whether to abort (e.g. an interactive prompt) before the
-   * install proceeds past peer-dep resolution. Lets the install command
-   * surface every immature transitive at once instead of throwing on the
-   * first one and forcing the user into a discover-by-loop dance.
+   * and uses the lowest-version fallback even in strict mode. Every
+   * immature pick still lands in the lockfile; the install layer's
+   * post-resolution scan (see `collectLockfileResolutionViolations` in
+   * `installing/deps-installer`) surfaces the full set at once instead
+   * of the resolver throwing on the first immature pick and forcing the
+   * user into a discover-by-loop dance.
    */
   deferImmatureDecision?: boolean
 }
@@ -135,47 +125,19 @@ function pickRespectingMinReleaseAge (
   meta: PackageMeta
 ): PackageInRegistry | null {
   // `deferImmatureDecision` makes strict mode behave like loose for the
-  // picker: a higher layer (the install command's interactive prompt) gets
-  // the full list of immature picks before deciding to proceed or abort.
-  // Without it, strict mode bails on the first immature pick and forces the
+  // picker: a higher layer (the install command's post-resolution scan +
+  // interactive prompt) sees the full list of immature picks in the
+  // assembled lockfile before deciding to proceed or abort. Without it,
+  // strict mode bails on the first immature pick and forces the
   // discover-by-loop dance (see #10488).
   const strictCheck = pickerOpts.strictPublishedByCheck && !pickerOpts.deferImmatureDecision
-  const picked = runPicker(pickerOpts, spec, (targetSpec) => {
+  return runPicker(pickerOpts, spec, (targetSpec) => {
     const highest = pickHighest(pickerOpts, meta, targetSpec)
     if (highest || strictCheck) return highest
     return pickLowest({
       preferredVersionSelectors: pickerOpts.preferredVersionSelectors,
     }, meta, targetSpec)
   })
-  if (picked) notifyIfImmature(pickerOpts, meta, picked.version)
-  return picked
-}
-
-// In loose mode the highest-mature filter falls through to pickLowest, which
-// can land on a version published after the cutoff. The resolver's caller
-// uses this hook to capture (name, version) pairs that bypassed the policy so
-// they can be persisted to `minimumReleaseAgeExclude`. We compare against the
-// metadata's `time` block rather than tracking which fallback ran — the same
-// version can be the *highest mature* AND the *lowest in range* (e.g.
-// single-version spec); only the "actually published after cutoff" check
-// reliably distinguishes the two cases.
-function notifyIfImmature (
-  pickerOpts: PickerOptions,
-  meta: PackageMeta,
-  version: string
-): void {
-  if (!pickerOpts.onImmaturePick || !pickerOpts.publishedBy || !meta.time) return
-  // Cover both forms of `publishedByExclude` payload (full-name match returns
-  // `true`; specific-version matches return `string[]`) so an exclude entry
-  // shaped `pkg@x.y.z` doesn't get re-announced as immature every install.
-  const excludeResult = pickerOpts.publishedByExclude?.(meta.name)
-  if (excludeResult === true) return
-  if (Array.isArray(excludeResult) && excludeResult.includes(version)) return
-  const publishedAt = meta.time[version]
-  if (!publishedAt) return
-  const ts = new Date(publishedAt).getTime()
-  if (Number.isNaN(ts) || ts <= pickerOpts.publishedBy.getTime()) return
-  pickerOpts.onImmaturePick({ name: meta.name, version })
 }
 
 // When minimumReleaseAge is not active: pick by pickLowestVersion preference.
@@ -250,7 +212,6 @@ export async function pickPackage (
     includeLatestTag: opts.includeLatestTag,
     strictPublishedByCheck: ctx.strictPublishedByCheck,
     ignoreMissingTimeField: ctx.ignoreMissingTimeField,
-    onImmaturePick: opts.onImmaturePick,
     deferImmatureDecision: opts.deferImmatureDecision,
   }
 

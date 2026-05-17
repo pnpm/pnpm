@@ -143,18 +143,13 @@ export interface ResolveDependenciesOptions {
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
   /**
-   * Callback fired once per immature `(name, version)` selected under loose
-   * minimumReleaseAge mode. Forwarded into the resolution context so the
-   * install layer can record bypass entries to `minimumReleaseAgeExclude`.
-   */
-  onImmaturePick?: (pkg: { name: string, version: string }) => void
-  /**
    * Forwarded into the resolution context so the npm resolver knows to
    * fall back to lowest-version picking (instead of throwing
    * `NO_MATURE_MATCHING_VERSION`) when no mature version satisfies the
-   * range in strict mode. Pairs with `confirmImmaturePicks` on the outer
-   * `ResolveDependenciesOptions`, which prompts the user with the full
-   * list of immature picks before peer resolution runs.
+   * range in strict mode. The install layer's post-resolution scan
+   * (see `collectLockfileResolutionViolations` in
+   * `installing/deps-installer`) then surfaces the full set of immature
+   * picks at once.
    */
   deferImmatureDecision?: boolean
   trustPolicy?: TrustPolicy
@@ -231,7 +226,6 @@ export async function resolveDependencyTree<T> (
     allPeerDepNames: new Set(),
     maximumPublishedBy: publishedBy,
     publishedByExclude,
-    onImmaturePick: opts.onImmaturePick,
     deferImmatureDecision: opts.deferImmatureDecision,
     trustPolicy: opts.trustPolicy,
     trustPolicyExclude: opts.trustPolicyExclude ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude') : undefined,

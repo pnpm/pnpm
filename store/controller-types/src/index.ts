@@ -131,20 +131,13 @@ export interface RequestPackageOptions {
   trustPolicyExclude?: PackageVersionPolicy
   trustPolicyIgnoreAfter?: number
   /**
-   * Invoked when the resolver installs a version published after the
-   * `publishedBy` cutoff because `minimumReleaseAgeStrict` is off — covers
-   * both the resolver's lowest-version fallback and the lockfile fast path
-   * that reuses immature pinned versions. The install layer wires this to
-   * auto-populate `minimumReleaseAgeExclude` in pnpm-workspace.yaml.
-   */
-  onImmaturePick?: (pkg: { name: string, version: string }) => void
-  /**
    * When set, the npm resolver picks the lowest matching version (instead
    * of throwing `NO_MATURE_MATCHING_VERSION`) when no mature version
-   * satisfies the range in strict mode. Every immature pick fires
-   * `onImmaturePick`; the install layer enumerates the full set and decides
-   * whether to abort (e.g. an interactive prompt) before the install
-   * proceeds past peer-dep resolution.
+   * satisfies the range in strict mode. Every immature selection still
+   * lands in the lockfile; the install layer's post-resolution scan
+   * (see `collectLockfileResolutionViolations`) enumerates the full set
+   * and decides whether to abort (e.g. an interactive prompt) before
+   * the install completes.
    */
   deferImmatureDecision?: boolean
 }

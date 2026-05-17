@@ -40,7 +40,7 @@ import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writ
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
-import { drainImmaturePicks, setupImmaturePicks } from './immaturePicks.js'
+import { setupImmaturePicks } from './immaturePicks.js'
 import {
   type CommandFullName,
   createMatcher,
@@ -269,13 +269,14 @@ export async function installDeps (
     applyRuntimeOnFailOverride(manifest, opts.runtimeOnFail)
   }
 
-  // `setupImmaturePicks` returns a collector + the wiring needed for the
-  // resolver and the post-resolution prompt. Loose mode (`strict: false`)
-  // auto-persists immature picks silently. Strict mode + a TTY surfaces
-  // every immature transitive at once via a confirm prompt so users escape
-  // the discover-by-loop dance (#10488). Strict mode without a TTY (CI)
-  // returns `undefined` here so the resolver's existing fail-fast path
-  // stays in effect.
+  // `setupImmaturePicks` returns the wiring the install needs for the
+  // resolver-agnostic post-resolution scan: a `deferImmatureDecision`
+  // bool (so strict mode falls back instead of throwing on the first
+  // immature pick) and an `onAfterResolveDependencyTree` callback that
+  // prompts under strict + TTY. Loose mode auto-persists silently
+  // (handled below from the install result). Strict mode without a
+  // TTY (CI) returns `undefined` here so the resolver's existing
+  // fail-fast path stays in effect.
   const immaturePicks = setupImmaturePicks(opts)
 
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
@@ -293,9 +294,8 @@ export async function installDeps (
     resolutionVerifiers: store.resolutionVerifiers,
     workspacePackages,
     preferredVersions: opts.packageVulnerabilityAudit ? preferNonvulnerablePackageVersions(opts.packageVulnerabilityAudit) : undefined,
-    onImmaturePick: immaturePicks?.collector.record,
     deferImmatureDecision: immaturePicks?.deferImmatureDecision,
-    confirmImmaturePicks: immaturePicks?.confirmImmaturePicks,
+    onAfterResolveDependencyTree: immaturePicks?.onAfterResolveDependencyTree,
   }
 
   let updateMatch: UpdateDepsMatcher | null
@@ -354,12 +354,13 @@ export async function installDeps (
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),
     }
-    const { updatedCatalogs, updatedProject, ignoredBuilds } = await mutateModulesInSingleProject(mutatedProject, installOpts)
+    const { updatedCatalogs, updatedProject, ignoredBuilds, lockfileResolutionViolations } = await mutateModulesInSingleProject(mutatedProject, installOpts)
     if (opts.save !== false) {
-      // Only drain when we'll actually persist. Otherwise the info log would
-      // claim we added entries the workspace manifest never saw, and the
-      // next install would re-prompt or fail verification.
-      const addedMinimumReleaseAgeExcludes = drainImmaturePicks(immaturePicks?.collector)
+      // Only pick entries when we'll actually persist. Otherwise the
+      // info log would claim we added entries the workspace manifest
+      // never saw, and the next install would re-prompt or fail
+      // verification.
+      const addedMinimumReleaseAgeExcludes = immaturePicks?.pickEntriesToPersist(lockfileResolutionViolations)
       await Promise.all([
         writeProjectManifest(updatedProject.manifest),
         updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
@@ -384,17 +385,17 @@ export async function installDeps (
     return
   }
 
-  const { updatedCatalogs, updatedManifest, ignoredBuilds } = await install(manifest, {
+  const { updatedCatalogs, updatedManifest, ignoredBuilds, lockfileResolutionViolations } = await install(manifest, {
     ...installOpts,
     updatePackageManifest,
     updateMatching,
   })
   // `opts.save === false` (e.g. `--no-save`) means "don't persist anything
   // from this install" — both package.json and the workspace manifest.
-  // Skip the drain so the info log doesn't claim entries were added that
+  // Skip the pick so the info log doesn't claim entries were added that
   // were never written; the next install will resurface them.
   if (opts.save !== false) {
-    const addedMinimumReleaseAgeExcludes = drainImmaturePicks(immaturePicks?.collector)
+    const addedMinimumReleaseAgeExcludes = immaturePicks?.pickEntriesToPersist(lockfileResolutionViolations)
     if (opts.update === true) {
       await Promise.all([
         writeProjectManifest(updatedManifest),

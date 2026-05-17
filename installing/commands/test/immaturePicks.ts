@@ -1,17 +1,23 @@
 import { expect, jest, test } from '@jest/globals'
+import type { LockfileObject } from '@pnpm/lockfile.types'
 
-import { drainImmaturePicks, setupImmaturePicks } from '../lib/immaturePicks.js'
+import { type ResolverViolation, setupImmaturePicks } from '../lib/immaturePicks.js'
+
+const STUB_LOCKFILE: LockfileObject = { lockfileVersion: '9.0', importers: {} }
+
+function violation (
+  name: string,
+  version: string,
+  code = 'MINIMUM_RELEASE_AGE_VIOLATION'
+): ResolverViolation {
+  return { name, version, code, reason: 'stub reason' }
+}
 
 test('setupImmaturePicks returns undefined when minimumReleaseAge is unset', () => {
   expect(setupImmaturePicks({})).toBeUndefined()
 })
 
 test('setupImmaturePicks returns undefined when strict mode is on and stdin is not a TTY', () => {
-  // Strict mode + non-TTY keeps the resolver's fail-fast behavior:
-  // no prompt available, so a single throw on the first immature pick is
-  // both deterministic and consistent with today's strict mode. Without a
-  // resolution from this factory the resolver never receives
-  // `deferImmatureDecision`, so its existing throw-on-first kicks in.
   const original = process.stdin.isTTY
   Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true })
   try {
@@ -27,9 +33,8 @@ test('setupImmaturePicks returns undefined when strict mode is on and stdin is n
 
 test('setupImmaturePicks returns undefined when ci=true even with stdin a TTY', () => {
   // Some CI runners allocate a TTY but still expect deterministic
-  // non-interactive behavior. The `ci` option (sourced from pnpm's
-  // ci-info-based config) shuts the prompt off independently of the
-  // TTY check.
+  // non-interactive behavior. The `ci` option shuts the prompt off
+  // independently of the TTY check.
   const original = process.stdin.isTTY
   Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true })
   try {
@@ -43,67 +48,52 @@ test('setupImmaturePicks returns undefined when ci=true even with stdin a TTY', 
   }
 })
 
-test('setupImmaturePicks builds a prompting resolution when ci=false and stdin is a TTY', () => {
+test('setupImmaturePicks returns a plan when ci=false and stdin is a TTY', () => {
   const original = process.stdin.isTTY
   Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true })
   try {
-    const resolution = setupImmaturePicks({
+    const plan = setupImmaturePicks({
       minimumReleaseAge: 60,
       minimumReleaseAgeStrict: true,
       ci: false,
     })
-    expect(resolution).toBeDefined()
-    expect(resolution!.deferImmatureDecision).toBe(true)
-    expect(resolution!.collector.promptRequired).toBe(true)
+    expect(plan).toBeDefined()
+    expect(plan!.deferImmatureDecision).toBe(true)
   } finally {
     Object.defineProperty(process.stdin, 'isTTY', { value: original, configurable: true })
   }
 })
 
-test('setupImmaturePicks records and dedupes name@version entries in loose mode', () => {
-  const setup = setupImmaturePicks({ minimumReleaseAge: 60 })!
-  setup.collector.record({ name: 'foo', version: '1.0.0' })
-  setup.collector.record({ name: 'foo', version: '1.0.0' })
-  setup.collector.record({ name: 'bar', version: '2.3.4' })
-
-  expect(setup.collector.versions).toEqual(new Set(['foo@1.0.0', 'bar@2.3.4']))
-  // Loose-mode picks don't require approval — the auto-persist path
-  // writes them to the workspace manifest at the end of the install.
-  expect(setup.collector.promptRequired).toBe(false)
-  expect(setup.deferImmatureDecision).toBe(true)
-})
-
-test('confirmImmaturePicks is a no-op in loose mode regardless of collector contents', async () => {
-  const setup = setupImmaturePicks({ minimumReleaseAge: 60 })!
-  setup.collector.record({ name: 'foo', version: '1.0.0' })
-
-  // Loose mode never prompts. The resolution stays in flight; the install
-  // proceeds and the workspace manifest write happens at the end.
-  await expect(setup.confirmImmaturePicks()).resolves.toBeUndefined()
-})
-
-test('drainImmaturePicks returns sorted entries, clears the set, and logs once', () => {
-  const setup = setupImmaturePicks({ minimumReleaseAge: 60 })!
-  setup.collector.record({ name: 'foo', version: '1.0.0' })
-  setup.collector.record({ name: 'bar', version: '2.3.4' })
+test('loose-mode plan returns sorted unique name@version entries and logs once', () => {
+  const plan = setupImmaturePicks({ minimumReleaseAge: 60 })!
+  const violations = [
+    violation('foo', '1.0.0'),
+    violation('foo', '1.0.0'),
+    violation('bar', '2.3.4'),
+    violation('quux', '0.0.1', 'TRUST_DOWNGRADE'),
+  ]
 
   // Avoid leaking console output in test runs.
   const infoSpy = jest.spyOn(console, 'log').mockImplementation(() => {})
   try {
-    const drained = drainImmaturePicks(setup.collector)
-    expect(drained).toEqual(['bar@2.3.4', 'foo@1.0.0'])
+    const picked = plan.pickEntriesToPersist(violations)
+    expect(picked).toEqual(['bar@2.3.4', 'foo@1.0.0'])
   } finally {
     infoSpy.mockRestore()
   }
-
-  // Subsequent drain returns nothing — important so a follow-up install in
-  // the same process doesn't re-announce entries already persisted.
-  expect(drainImmaturePicks(setup.collector)).toBeUndefined()
 })
 
-test('drainImmaturePicks returns undefined for an empty or absent collector', () => {
-  expect(drainImmaturePicks(undefined)).toBeUndefined()
+test('pickEntriesToPersist returns undefined when no minimumReleaseAge violations are present', () => {
+  const plan = setupImmaturePicks({ minimumReleaseAge: 60 })!
+  expect(plan.pickEntriesToPersist([])).toBeUndefined()
+  // Other policies' violations don't go on the minimumReleaseAge list.
+  expect(plan.pickEntriesToPersist([violation('foo', '1.0.0', 'TRUST_DOWNGRADE')])).toBeUndefined()
+})
 
-  const setup = setupImmaturePicks({ minimumReleaseAge: 60 })!
-  expect(drainImmaturePicks(setup.collector)).toBeUndefined()
+test('onAfterResolveDependencyTree is a no-op in loose mode regardless of violations', async () => {
+  const plan = setupImmaturePicks({ minimumReleaseAge: 60 })!
+  // Loose mode never prompts — picks are persisted from
+  // `pickEntriesToPersist` at the end of the install.
+  await expect(plan.onAfterResolveDependencyTree([violation('foo', '1.0.0')], STUB_LOCKFILE))
+    .resolves.toBeUndefined()
 })

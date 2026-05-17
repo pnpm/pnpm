@@ -1,109 +1,131 @@
 import { PnpmError } from '@pnpm/error'
+import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalInfo } from '@pnpm/logger'
 import { isCI } from 'ci-info'
 import enquirer from 'enquirer'
 
-export interface ImmaturePickCollector {
-  /** Resolver-side callback wired into `opts.onImmaturePick`. */
-  record: (pkg: { name: string, version: string }) => void
-  versions: Set<string>
-  /**
-   * `true` when the install command runs in strict-mode + interactive
-   * (TTY) and the user must approve immature picks before the install
-   * proceeds past peer-dep resolution. `false` in loose mode, where
-   * picks are auto-persisted silently.
-   */
-  promptRequired: boolean
+/**
+ * Shape returned by `installing/deps-installer`'s
+ * `collectLockfileResolutionViolations`. Re-declared locally so the
+ * commands layer can react to the violations without depending on the
+ * deps-installer's private install types.
+ *
+ * Verifier codes are the contract surface for downstream UX —
+ * `MINIMUM_RELEASE_AGE_VIOLATION` and `TRUST_DOWNGRADE` today; new
+ * resolvers / verifiers add their own codes without touching this
+ * file. The install command filters by code to decide what to do
+ * (persist to an exclude list, prompt, log, etc.).
+ */
+export interface ResolverViolation {
+  name: string
+  version: string
+  code: string
+  reason: string
 }
 
-export interface ImmaturePickResolution {
-  collector: ImmaturePickCollector
+const MINIMUM_RELEASE_AGE_CODE = 'MINIMUM_RELEASE_AGE_VIOLATION'
+
+export interface ImmaturePicksPlan {
   /**
-   * Forwarded to the resolver. When set, strict mode behaves like loose
-   * for the picker (fall back to lowest + notify), so the prompt sees
-   * every immature pick at once.
+   * Forwarded to the resolver. When set, strict mode behaves like
+   * loose for picking purposes (fall back to lowest), so the
+   * post-resolution scan sees every immature pick at once instead of
+   * the resolver throwing on the first.
    */
   deferImmatureDecision: boolean
   /**
-   * Forwarded to `resolveDependencies`. Runs between main resolution and
-   * peer-dep resolution: prompts under strict + TTY, no-op in loose mode.
+   * Wires the install command into the resolver-agnostic
+   * `onAfterResolveDependencyTree` checkpoint. Runs the prompt under
+   * strict mode + TTY; a no-op in loose mode (where the persist path
+   * at the end of the install handles the picks). Throws to abort the
+   * install cleanly when the user declines.
    */
-  confirmImmaturePicks: () => Promise<void>
+  onAfterResolveDependencyTree: (
+    violations: readonly ResolverViolation[],
+    lockfile: LockfileObject
+  ) => Promise<void>
+  /**
+   * Filters the install result's violations down to the
+   * `name@version` strings the install command will write into the
+   * workspace manifest's `minimumReleaseAgeExclude`. Returns
+   * `undefined` when nothing needs to be persisted so callers can
+   * skip the workspace manifest update entirely.
+   */
+  pickEntriesToPersist: (violations: readonly ResolverViolation[]) => string[] | undefined
 }
 
 /**
- * Loose minimumReleaseAge mode (`minimumReleaseAgeStrict: false`) lets the
- * resolver install versions newer than the cutoff and the install command
- * auto-persists them to `minimumReleaseAgeExclude`. Strict mode + an
- * interactive TTY surfaces the full set of immature picks (direct AND
- * transitive) at once via a confirm prompt — the install proceeds if the
- * user approves, otherwise it aborts before touching the lockfile or
- * package.json (#10488).
+ * Loose minimumReleaseAge mode (`minimumReleaseAgeStrict: false`)
+ * lets the resolver install versions newer than the cutoff and the
+ * install command auto-persists them to `minimumReleaseAgeExclude`.
+ * Strict mode + an interactive TTY surfaces the full set of immature
+ * picks (direct AND transitive) at once via a confirm prompt — the
+ * install proceeds if the user approves, otherwise it aborts before
+ * touching the lockfile or package.json (#10488).
  *
  * Returns `undefined` when no policy is active or strict mode is on
  * without a TTY — in those cases the resolver's existing behavior
- * (throw on first immature pick) is what we want, and there's no work
- * for this collector to do.
+ * (throw on first immature pick) is what we want, and there's no
+ * work for this plan to do.
  */
 export function setupImmaturePicks (opts: {
   minimumReleaseAge?: number
   minimumReleaseAgeStrict?: boolean
   /**
-   * Override for CI detection. Defaults to `ci-info`'s `isCI` flag. The
-   * pnpm config reader populates `ci` from the same source; install
-   * commands forward `opts.ci` here so a `--config.ci=true` or explicit
-   * CI env var keeps strict mode on the fail-fast path even when stdin
-   * happens to be a TTY.
+   * Override for CI detection. Defaults to `ci-info`'s `isCI` flag.
    */
   ci?: boolean
-}): ImmaturePickResolution | undefined {
+}): ImmaturePicksPlan | undefined {
   if (!opts.minimumReleaseAge) return undefined
   const strictMode = opts.minimumReleaseAgeStrict === true
-  // Two signals to keep CI on the fail-fast path: stdin must be a TTY (no
-  // way to ask otherwise), AND CI detection must not have flagged this run
-  // (some CI runners do allocate a TTY but expect deterministic
-  // non-interactive behavior). Returning `undefined` here makes the
-  // resolver throw on the first immature pick, preserving today's
-  // strict-mode CI semantics.
   const inCi = opts.ci ?? isCI
   const canPrompt = !inCi && Boolean(process.stdin.isTTY)
   if (strictMode && !canPrompt) return undefined
 
-  const versions = new Set<string>()
-  const collector: ImmaturePickCollector = {
-    versions,
-    record: ({ name, version }) => {
-      versions.add(`${name}@${version}`)
-    },
-    promptRequired: strictMode,
-  }
+  const promptRequired = strictMode
   return {
-    collector,
     deferImmatureDecision: true,
-    confirmImmaturePicks: () => promptForImmaturePicksIfNeeded(collector),
+    pickEntriesToPersist: (violations) => pickImmatureEntries(violations, promptRequired),
+    onAfterResolveDependencyTree: async (violations) => {
+      if (!promptRequired) return
+      const immature = filterImmatureViolations(violations)
+      if (immature.length === 0) return
+      await promptForApproval(immature)
+    },
   }
 }
 
-/**
- * Prompts the user with the sorted list of immature picks gathered during
- * resolution. Returns silently when the collector is empty (no immature
- * picks — common loose-mode case) or when no prompt is required.
- *
- * Default answer is `No`: typing nothing aborts. This matches the
- * defensive posture of the minimumReleaseAge policy — a user who didn't
- * mean to approve an immature pin shouldn't fall into approving it by
- * mistake.
- */
-async function promptForImmaturePicksIfNeeded (collector: ImmaturePickCollector): Promise<void> {
-  if (collector.versions.size === 0) return
-  if (!collector.promptRequired) return
+function filterImmatureViolations (violations: readonly ResolverViolation[]): ResolverViolation[] {
+  return violations.filter((v) => v.code === MINIMUM_RELEASE_AGE_CODE)
+}
 
-  const sorted = [...collector.versions].sort()
+function pickImmatureEntries (
+  violations: readonly ResolverViolation[],
+  promptRequired: boolean
+): string[] | undefined {
+  const immature = filterImmatureViolations(violations)
+  if (immature.length === 0) return undefined
+  const sorted = [...new Set(immature.map((v) => `${v.name}@${v.version}`))].sort()
+  // Strict-mode picks already passed through the approval prompt, so
+  // the log here only confirms what was persisted. Loose-mode picks
+  // haven't been announced anywhere else, so the same log doubles as
+  // the discovery notice.
+  const reason = promptRequired
+    ? '(approved at the prompt)'
+    : '(loose mode allowed these immature versions)'
+  globalInfo(
+    `Added ${sorted.length} ${sorted.length === 1 ? 'entry' : 'entries'} to minimumReleaseAgeExclude in pnpm-workspace.yaml ` +
+    `${reason}:\n  ${sorted.join('\n  ')}`
+  )
+  return sorted
+}
+
+async function promptForApproval (immature: readonly ResolverViolation[]): Promise<void> {
+  const sorted = [...immature].sort((a, b) => `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`))
   const message =
     `${sorted.length} ${sorted.length === 1 ? 'version does' : 'versions do'} not meet the minimumReleaseAge constraint:\n` +
-    sorted.map((entry) => `  ${entry}`).join('\n') + '\n' +
+    sorted.map((v) => `  ${v.name}@${v.version}`).join('\n') + '\n' +
     'Add to minimumReleaseAgeExclude in pnpm-workspace.yaml and proceed with the install?'
-
   const answer = await enquirer.prompt<{ confirmed: boolean }>({
     type: 'confirm',
     name: 'confirmed',
@@ -120,35 +142,4 @@ async function promptForImmaturePicksIfNeeded (collector: ImmaturePickCollector)
       }
     )
   }
-}
-
-/**
- * Empties the collector and returns the sorted entries the install command
- * should pass to `updateWorkspaceManifest({ addedMinimumReleaseAgeExcludes })`.
- * Logs a single info message so the user sees what was auto-persisted; the
- * workspace manifest writer itself dedupes against existing entries so
- * repeated drains across recursive iterations don't append duplicates.
- *
- * Clears the underlying Set before returning so a follow-up install issued
- * in the same process doesn't re-announce entries that have already been
- * written.
- */
-export function drainImmaturePicks (
-  collector: ImmaturePickCollector | undefined
-): string[] | undefined {
-  if (!collector || collector.versions.size === 0) return undefined
-  const sorted = [...collector.versions].sort()
-  // Strict-mode picks already passed through the approval prompt, so the
-  // log here only confirms what was persisted. Loose-mode picks haven't
-  // been announced anywhere else, so the same log doubles as the discovery
-  // notice.
-  const reason = collector.promptRequired
-    ? '(approved at the prompt)'
-    : '(loose mode allowed these immature versions)'
-  globalInfo(
-    `Added ${sorted.length} ${sorted.length === 1 ? 'entry' : 'entries'} to minimumReleaseAgeExclude in pnpm-workspace.yaml ` +
-    `${reason}:\n  ${sorted.join('\n  ')}`
-  )
-  collector.versions.clear()
-  return sorted
 }

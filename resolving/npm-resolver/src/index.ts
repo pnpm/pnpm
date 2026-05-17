@@ -304,22 +304,13 @@ export type ResolveFromNpmOptions = {
   calcSpecifier?: boolean
   pinnedVersion?: PinnedVersion
   /**
-   * Invoked when this resolution would install a version published after the
-   * `publishedBy` cutoff — i.e. an immature pick under the loose
-   * (`minimumReleaseAgeStrict: false`) policy. Covers two paths the strict
-   * verifier doesn't enforce: the resolver's lowest-version fallback in
-   * `pickPackage`, and the `peekManifestFromStore` fast path that reuses a
-   * lockfile-pinned version without re-running the maturity check.
-   */
-  onImmaturePick?: (pkg: { name: string, version: string }) => void
-  /**
    * When set, the resolver behaves as if `minimumReleaseAgeStrict: false`
-   * for picking purposes — every immature pick is reported via
-   * `onImmaturePick` and the resolver proceeds. The install command uses
-   * this to surface every immature transitive at once (interactive prompt
-   * before peer resolution) instead of throwing `NO_MATURE_MATCHING_VERSION`
-   * on the first one. Non-interactive (CI) leaves this off, preserving the
-   * fail-fast behavior.
+   * for picking purposes — every immature selection still lands in the
+   * lockfile so the install command's post-resolution scan can surface
+   * the whole set at once (interactive prompt) instead of the resolver
+   * throwing `NO_MATURE_MATCHING_VERSION` on the first one.
+   * Non-interactive (CI) leaves this off, preserving the fail-fast
+   * behavior.
    */
   deferImmatureDecision?: boolean
 } & ({
@@ -397,28 +388,6 @@ async function resolveNpm (
         const id = `${manifest.name}@${manifest.version}` as PkgResolutionId
         // Only return if the ID matches what we have in currentPkg
         if (id === opts.currentPkg.id) {
-          // Loose-mode bypass: a lockfile entry whose publishedAt sits after
-          // the maturity cutoff would have been rejected by the strict verifier
-          // but is silently passed through here. Notify so the install layer
-          // can persist it to `minimumReleaseAgeExclude` and make the bypass
-          // explicit on the next install.
-          if (opts.onImmaturePick && opts.publishedBy && opts.currentPkg.publishedAt) {
-            const ts = new Date(opts.currentPkg.publishedAt).getTime()
-            // Cover both forms of the exclude policy payload (`true` for full
-            // name, `string[]` for specific versions) so an entry already on
-            // the list doesn't get re-announced as immature.
-            const excludeResult = opts.publishedByExclude?.(manifest.name)
-            const alreadyExcluded =
-              excludeResult === true ||
-              (Array.isArray(excludeResult) && excludeResult.includes(manifest.version))
-            if (
-              !Number.isNaN(ts) &&
-              ts > opts.publishedBy.getTime() &&
-              !alreadyExcluded
-            ) {
-              opts.onImmaturePick({ name: manifest.name, version: manifest.version })
-            }
-          }
           return {
             id,
             manifest,
@@ -444,7 +413,6 @@ async function resolveNpm (
       registry,
       includeLatestTag: opts.update === 'latest',
       optional: wantedDependency.optional,
-      onImmaturePick: opts.onImmaturePick,
       deferImmatureDecision: opts.deferImmatureDecision,
     })
   } catch (err: any) { // eslint-disable-line
@@ -688,10 +656,8 @@ async function pickFromSimpleRegistry (
     includeLatestTag: opts.update === 'latest',
     optional: wantedDependency.optional,
     // The named-registry / jsr paths route through this shared shell.
-    // Forward the immature-pick hooks so loose-mode auto-collect and the
-    // strict-mode interactive prompt cover those protocols too, not only
-    // plain npm.
-    onImmaturePick: opts.onImmaturePick,
+    // Forward `deferImmatureDecision` so loose-mode fallback covers those
+    // protocols too, not only plain npm.
     deferImmatureDecision: opts.deferImmatureDecision,
   })
   if (pickedPackage == null) {
