@@ -81,6 +81,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'lockfileDir'
 | 'lockfileOnly'
 | 'agent'
+| 'lockfileStorage'
 | 'production'
 | 'preferWorkspacePackages'
 | 'registries'

@@ -82,6 +82,15 @@
       "path": "../../hooks/pnpmfile"
     },
     {
+      "path": "../../lockfile/filtering"
+    },
+    {
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/pruner"
+    },
+    {
       "path": "../../lockfile/types"
     },
     {
