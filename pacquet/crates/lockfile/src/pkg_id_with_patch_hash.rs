@@ -69,7 +69,7 @@ mod tests {
     fn serde_round_trip_matches_plain_string() {
         let original = PkgIdWithPatchHash::from("foo@1.0.0(patch_hash=abc)");
         let json = serde_json::to_string(&original).unwrap();
-        assert_eq!(json, "\"foo@1.0.0(patch_hash=abc)\"");
+        assert_eq!(json, r#""foo@1.0.0(patch_hash=abc)""#);
         let round_tripped: PkgIdWithPatchHash = serde_json::from_str(&json).unwrap();
         assert_eq!(round_tripped, original);
     }

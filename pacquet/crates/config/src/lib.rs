@@ -86,7 +86,7 @@ impl<'de> serde::Deserialize<'de> for ScriptsPrependNodePath {
         impl<'de> Visitor<'de> for V {
             type Value = ScriptsPrependNodePath;
             fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str("a boolean or the string \"warn-only\"")
+                f.write_str(r#"a boolean or the string "warn-only""#)
             }
             fn visit_bool<E: de::Error>(self, v: bool) -> Result<Self::Value, E> {
                 Ok(if v { ScriptsPrependNodePath::Always } else { ScriptsPrependNodePath::Never })
@@ -96,7 +96,7 @@ impl<'de> serde::Deserialize<'de> for ScriptsPrependNodePath {
                     "warn-only" => Ok(ScriptsPrependNodePath::WarnOnly),
                     other => Err(E::invalid_value(
                         de::Unexpected::Str(other),
-                        &"true, false, or \"warn-only\"",
+                        &r#"true, false, or "warn-only""#,
                     )),
                 }
             }

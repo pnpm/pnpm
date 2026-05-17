@@ -329,7 +329,7 @@ if ($PSVersionTable.PSVersion -lt "6.0" -or $IsWindows) {
 fn relative_target_windows(target_path: &Path, shim_path: &Path) -> String {
     let shim_dir = shim_path.parent().unwrap_or_else(|| Path::new(""));
     let rel = relative_path_from(shim_dir, target_path);
-    rel.to_string_lossy().replace('/', "\\")
+    rel.to_string_lossy().replace('/', r"\")
 }
 
 const SH_SHIM_HEADER: &str = r#"#!/bin/sh

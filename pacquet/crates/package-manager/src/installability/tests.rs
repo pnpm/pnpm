@@ -275,7 +275,7 @@ fn platform_any_sentinel_does_not_count_as_constraint() {
     packages.insert(key, synthetic_metadata(None, Some(&["any"]), Some(&["any"]), Some(&["any"])));
     assert!(
         !any_installability_constraint(&packages),
-        "cpu/os/libc = [\"any\"] should not block the fast path",
+        r#"cpu/os/libc = ["any"] should not block the fast path"#,
     );
 }
 

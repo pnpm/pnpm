@@ -70,7 +70,7 @@ fn writes_child_bins_into_slot_own_package_node_modules() {
     // segments after that (`parent`, `node_modules`, `.bin`); B has
     // two (`child`, `cli.js`). Relative = `../../../child/cli.js`.
     assert!(
-        body.contains("\"$basedir/../../../child/cli.js\""),
+        body.contains(r#""$basedir/../../../child/cli.js""#),
         "shim must reference the sibling child via the right number of `..`s, got:\n{body}",
     );
 }

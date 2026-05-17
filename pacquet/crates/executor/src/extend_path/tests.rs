@@ -125,8 +125,8 @@ fn extra_bin_paths_come_after_bins_and_node_gyp() {
     let parts = segments(&path);
     let bin_idx = parts.iter().position(|p| p.contains("proj") && p.ends_with(".bin")).unwrap();
     let gyp_idx = parts.iter().position(|p| p.contains("node-gyp-bin")).unwrap();
-    let extra1_idx = parts.iter().position(|p| p == "/extra/one" || p == "\\extra\\one").unwrap();
-    let extra2_idx = parts.iter().position(|p| p == "/extra/two" || p == "\\extra\\two").unwrap();
+    let extra1_idx = parts.iter().position(|p| p == "/extra/one" || p == r"\extra\one").unwrap();
+    let extra2_idx = parts.iter().position(|p| p == "/extra/two" || p == r"\extra\two").unwrap();
     assert!(
         bin_idx < gyp_idx && gyp_idx < extra1_idx && extra1_idx < extra2_idx,
         "expected order .bin < nodeGyp < extra1 < extra2; got {parts:?}",

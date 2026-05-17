@@ -79,7 +79,7 @@ fn omits_settings_that_are_none() {
     };
     let serialized = serde_json::to_string(&state).expect("serialize");
     // Only the populated setting should show up.
-    assert!(serialized.contains("\"autoInstallPeers\":true"), "got: {serialized}");
+    assert!(serialized.contains(r#""autoInstallPeers":true"#), "got: {serialized}");
     assert!(!serialized.contains("dedupePeerDependents"), "got: {serialized}");
     assert!(!serialized.contains("nodeLinker"), "got: {serialized}");
     // Top-level optional keys should also be omitted.

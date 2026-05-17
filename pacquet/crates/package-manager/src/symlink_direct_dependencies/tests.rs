@@ -469,7 +469,7 @@ fn unsafe_importer_keys_error_before_filesystem_writes() {
         "../sibling",         // traversal
         "packages/../escape", // mid-string traversal
         "C:/win",             // Windows drive prefix
-        "packages\\web",      // backslash separator
+        r"packages\web",      // backslash separator
     ];
 
     for &importer_id in cases {

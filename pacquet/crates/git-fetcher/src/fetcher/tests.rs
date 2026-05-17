@@ -732,21 +732,21 @@ fn write_git_shim(dir: &Path) -> PathBuf {
     // POSIX `sh` (not bash) — every host has `/bin/sh`. The body
     // is a static string: paths/values come from env vars at run
     // time, so no embedded value can be shell-interpreted.
-    let body = "#!/bin/sh
+    let body = r#"#!/bin/sh
 set -eu
 # Tab-separate each argv, terminating with a newline. The trailing
-# tab in `printf '%s\\t'` becomes a column separator in the log;
-# downstream parsing splits on '\\t' and drops the empty trailing
-# field. Quoting `\"$@\"` and `\"$PACQUET_GIT_SHIM_LOG\"` keeps
+# tab in `printf '%s\t'` becomes a column separator in the log;
+# downstream parsing splits on '\t' and drops the empty trailing
+# field. Quoting `"$@"` and `"$PACQUET_GIT_SHIM_LOG"` keeps
 # whitespace/metachars in arg values from being re-tokenized.
-{ printf '%s\\t' \"$@\"; printf '\\n'; } >> \"$PACQUET_GIT_SHIM_LOG\"
+{ printf '%s\t' "$@"; printf '\n'; } >> "$PACQUET_GIT_SHIM_LOG"
 # `rev-parse HEAD` is the only invocation whose stdout the fetcher
 # actually inspects (to compare against the resolution commit).
-if [ \"$1\" = rev-parse ] && [ \"$2\" = HEAD ]; then
-    printf '%s\\n' \"$PACQUET_GIT_SHIM_FAKE_COMMIT\"
+if [ "$1" = rev-parse ] && [ "$2" = HEAD ]; then
+    printf '%s\n' "$PACQUET_GIT_SHIM_FAKE_COMMIT"
 fi
 exit 0
-";
+"#;
     fs::write(&shim_path, body).unwrap();
     fs::set_permissions(&shim_path, fs::Permissions::from_mode(0o755)).unwrap();
     shim_path

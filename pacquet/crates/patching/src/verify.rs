@@ -32,7 +32,7 @@ pub fn all_patch_keys(patched_dependencies: &PatchGroupRecord) -> impl Iterator<
 #[diagnostic(
     code(ERR_PNPM_UNUSED_PATCH),
     help(
-        "Either remove them from \"patchedDependencies\" or update them to match packages in your dependencies."
+        r#"Either remove them from "patchedDependencies" or update them to match packages in your dependencies."#
     )
 )]
 pub struct UnusedPatchError {
