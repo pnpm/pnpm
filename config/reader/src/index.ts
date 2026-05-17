@@ -404,6 +404,10 @@ export async function getConfig (opts: {
       if (pnpmConfig.rootProjectManifest.workspaces?.length && !pnpmConfig.workspaceDir) {
         warnings.push('The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead.')
       }
+      const ignoredPnpmFieldKeys = getIgnoredPnpmFieldKeys(pnpmConfig.rootProjectManifest)
+      if (ignoredPnpmFieldKeys.length > 0) {
+        warnings.push(`The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: ${ignoredPnpmFieldKeys.map(k => `"pnpm.${k}"`).join(', ')}. See https://pnpm.io/settings for the new home of each setting.`)
+      }
       const wantedPmResult = getWantedPackageManager(pnpmConfig.rootProjectManifest)
       if (wantedPmResult.pm) {
         pnpmConfig.wantedPackageManager = wantedPmResult.pm
@@ -748,6 +752,38 @@ function getWantedPackageManager (manifest: ProjectManifest): { pm?: WantedPacka
     return { pm, warnings }
   }
   return { warnings }
+}
+
+// Settings that used to be read from the `pnpm` field of `package.json` in v10
+// but moved to `pnpm-workspace.yaml` in v11. Keys not in this set (e.g. `app`,
+// or anything set by third-party tooling that piggybacks on the `pnpm` namespace)
+// are left alone to avoid false-positive warnings.
+const MIGRATED_PNPM_FIELD_KEYS = new Set<string>([
+  'allowBuilds',
+  'allowedDeprecatedVersions',
+  'allowUnusedPatches',
+  'auditConfig',
+  'configDependencies',
+  'executionEnv',
+  'ignoredOptionalDependencies',
+  'neverBuiltDependencies',
+  'onlyBuiltDependencies',
+  'onlyBuiltDependenciesFile',
+  'overrides',
+  'packageExtensions',
+  'patchedDependencies',
+  'peerDependencyRules',
+  'requiredScripts',
+  'supportedArchitectures',
+  'updateConfig',
+])
+
+function getIgnoredPnpmFieldKeys (manifest: ProjectManifest): string[] {
+  const legacyField = (manifest as { pnpm?: unknown }).pnpm
+  if (legacyField == null || typeof legacyField !== 'object' || Array.isArray(legacyField)) {
+    return []
+  }
+  return Object.keys(legacyField as Record<string, unknown>).filter(k => MIGRATED_PNPM_FIELD_KEYS.has(k))
 }
 
 export function parsePackageManager (packageManager: string): { name: string, version: string | undefined } {
