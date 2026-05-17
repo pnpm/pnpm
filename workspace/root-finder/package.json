@@ -32,7 +32,7 @@
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
-    "find-up": "catalog:"
+    "empathic": "catalog:"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",

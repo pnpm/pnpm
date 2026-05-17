@@ -1,7 +1,10 @@
+import fs from 'node:fs'
+
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { formatTimeAgo } from '@pnpm/resolving.npm-resolver'
 import chalk from 'chalk'
+import * as pkg from 'empathic/package'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
@@ -22,11 +25,11 @@ export const commandNames = ['view', 'info', 'show', 'v']
 
 export function help (): string {
   return renderHelp({
-    description: 'View package information from the registry without using npm CLI.',
+    description: 'View package information from the registry. If package name is omitted, searches upward for the nearest package.json.',
     usages: [
-      'pnpm view <package-name>',
-      'pnpm view <package-name>@<version>',
-      'pnpm view <package-name> [<field>[.subfield]...]',
+      'pnpm view [package-name]',
+      'pnpm view [package-name@<version>]',
+      'pnpm view [package-name] [<field>[.subfield]...]',
     ],
     descriptionLists: [
       {
@@ -48,10 +51,19 @@ export async function handler (
   },
   params: string[]
 ): Promise<string | void> {
-  const packageSpec = params[0]
+  let packageSpec = params[0]
 
   if (!packageSpec) {
-    throw new PnpmError('MISSING_PACKAGE_NAME', 'Package name is required. Usage: pnpm view <package-name>')
+    const pkgFile = pkg.up()
+    if (pkgFile) {
+      const pkgInfo = JSON.parse(fs.readFileSync(pkgFile, 'utf8'))
+      if (!pkgInfo.name) {
+        throw new PnpmError('INVALID_PACKAGE_JSON', 'Invalid package.json. No "name" field.')
+      }
+      packageSpec = pkgInfo.name
+    } else {
+      throw new PnpmError('MISSING_PACKAGE_NAME', 'Package name is required. Usage: pnpm view <package-name>')
+    }
   }
 
   const fields = params.slice(1)

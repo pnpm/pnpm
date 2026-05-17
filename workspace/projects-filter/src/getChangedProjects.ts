@@ -4,8 +4,8 @@ import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
 import type { ProjectRootDir } from '@pnpm/types'
+import * as find from 'empathic/find'
 import { safeExeca as execa } from 'execa'
-import { findUp } from 'find-up'
 import * as micromatch from 'micromatch'
 
 type ChangeType = 'source' | 'test'
@@ -21,8 +21,8 @@ export async function getChangedProjects (
 ): Promise<[ProjectRootDir[], ProjectRootDir[]]> {
 
   // .git is a directory in regular repos, but a file in worktrees
-  const gitPath = await findUp('.git', { cwd: opts.workspaceDir, type: 'directory' }) ??
-                  await findUp('.git', { cwd: opts.workspaceDir, type: 'file' })
+  const gitPath = find.dir('.git', { cwd: opts.workspaceDir }) ??
+                  find.file('.git', { cwd: opts.workspaceDir })
 
   const repoRoot = path.resolve(gitPath ?? opts.workspaceDir, '..')
 

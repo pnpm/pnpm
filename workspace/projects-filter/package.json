@@ -36,8 +36,8 @@
     "@pnpm/workspace.projects-graph": "workspace:*",
     "@pnpm/workspace.projects-reader": "workspace:*",
     "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
+    "empathic": "catalog:",
     "execa": "catalog:",
-    "find-up": "catalog:",
     "is-subdir": "catalog:",
     "micromatch": "catalog:",
     "ramda": "catalog:"

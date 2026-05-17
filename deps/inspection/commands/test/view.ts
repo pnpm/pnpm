@@ -1,3 +1,7 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import { expect, test } from '@jest/globals'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { view } from '@pnpm/deps.inspection.commands'
@@ -219,4 +223,40 @@ test('view: published info includes publisher when maintainer data is available'
   // Note: is-negative package has maintainer data in the mock registry
   const result = await view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, ['is-negative@1.0.0']) as string
   expect(result).toMatch(/published .* ago by /)
+})
+
+test('view: uses package.json name when no package name provided', async () => {
+  const cwd = process.cwd()
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'view-test-'))
+  const pkgJsonPath = path.join(tmpDir, 'package.json')
+
+  try {
+    fs.writeFileSync(pkgJsonPath, JSON.stringify({ name: 'is-negative' }))
+    process.chdir(tmpDir)
+
+    const result = await view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, [])
+    expect(typeof result).toBe('string')
+    expect(result).toContain('is-negative')
+  } finally {
+    process.chdir(cwd)
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('view: package.json without name field throws error', async () => {
+  const cwd = process.cwd()
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'view-test-'))
+  const pkgJsonPath = path.join(tmpDir, 'package.json')
+
+  try {
+    fs.writeFileSync(pkgJsonPath, JSON.stringify({ version: '1.0.0' }))
+    process.chdir(tmpDir)
+
+    await expect(
+      view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, [])
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_PACKAGE_JSON' })
+  } finally {
+    process.chdir(cwd)
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+  }
 })
