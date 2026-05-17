@@ -155,6 +155,23 @@ pub enum LinkBinsError {
         #[error(source)]
         error: io::Error,
     },
+
+    #[display("Failed to remove stale bin at {path:?}: {error}")]
+    #[diagnostic(code(pacquet_cmd_shim::remove_stale_bin))]
+    RemoveStaleBin {
+        path: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
+
+    #[display("Failed to link node runtime binary {src:?} -> {dst:?}: {error}")]
+    #[diagnostic(code(pacquet_cmd_shim::link_node_bin))]
+    LinkNodeBin {
+        src: PathBuf,
+        dst: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
 }
 
 /// Read `<location>/package.json` for each entry under `modules_dir` and link
@@ -402,6 +419,31 @@ fn write_shim<Api>(target_path: &Path, shim_path: &Path) -> Result<(), LinkBinsE
 where
     Api: FsReadString + FsReadHead + FsWrite + FsSetExecutable + FsEnsureExecutableBits,
 {
+    // The node runtime binary is special: never wrap it in a shell
+    // shim. Mirrors pnpm v11's `cmd.name === 'node'` short-circuit in
+    // [`bins/linker/src/index.ts`](https://github.com/pnpm/pnpm/blob/06d2d3deb2/bins/linker/src/index.ts#L281-L308),
+    // which symlinks the binary on Unix and hardlinks `node.exe` on
+    // Windows.
+    //
+    // Two reasons this matters:
+    //
+    // 1. Parity. pnpm install in the same workspace symlinks `.bin/node`
+    //    to the runtime binary; pacquet must do the same so the
+    //    `same_global_virtual_store_layout_*` checks see the same
+    //    dirent shape.
+    // 2. Robustness against accidental shim-wrapping. The node binary
+    //    itself has no shebang, but a prior bad install may leave a
+    //    cmd-shim text file with `#!/bin/sh` at `<pkg>/bin/node`. If
+    //    pacquet then cmd-shims that file, `search_script_runtime`
+    //    parses the shebang as `prog: "/bin/sh"` and emits a shim
+    //    whose target resolves to a non-existent path
+    //    (`$basedir/../node/bin/../node/bin/node` — the `node` segment
+    //    appears twice). A direct symlink / hardlink bypasses the
+    //    parser entirely.
+    if is_node_bin_name(shim_path) && link_node_bin(target_path, shim_path)? {
+        return Ok(());
+    }
+
     let runtime = search_script_runtime::<Api>(target_path).map_err(|error| {
         LinkBinsError::ProbeShimSource { path: target_path.to_path_buf(), error }
     })?;
@@ -489,6 +531,83 @@ where
     }
 
     Ok(())
+}
+
+/// Whether `shim_path`'s file name is exactly `node` — the trigger for the
+/// node-runtime short-circuit in [`write_shim`]. Lifted out so the check
+/// is unit-testable and the call site reads as a predicate.
+fn is_node_bin_name(shim_path: &Path) -> bool {
+    matches!(shim_path.file_name().and_then(|s| s.to_str()), Some("node"))
+}
+
+/// Link the node runtime binary `target_path` into the bin slot
+/// `shim_path` directly, without a cmd-shim wrapper. Returns `Ok(true)`
+/// when the special case took effect (the caller must skip the regular
+/// shim-writing path) and `Ok(false)` when it didn't apply and the
+/// caller should fall through (Windows non-`.exe` source).
+///
+/// Mirrors the two halves of pnpm's `cmd.name === 'node'` branch:
+///
+/// - **Unix** symlinks `shim_path` → absolute `target_path`. The
+///   existing dirent (if any) is removed first because `fs::symlink`
+///   rejects with `AlreadyExists` and we don't want to silently leave
+///   a stale shim in place.
+/// - **Windows** hardlinks `target_path` to `<shim_path>.exe`, falling
+///   back to `fs::copy` on hardlink failure (cross-device, ACL deny,
+///   …). The source must end in `.exe`; otherwise pnpm falls through
+///   to the cmd-shim path and so do we.
+///
+/// `remove_file` rather than `Api::write`-style truncation is
+/// load-bearing on both platforms: if `shim_path` is currently a
+/// regular file hardlinked to the source binary (a state an earlier
+/// pacquet revision could leave behind), truncating through the
+/// hardlink would corrupt the binary itself. Removing the dirent
+/// leaves the hardlinked content intact.
+#[cfg(unix)]
+fn link_node_bin(target_path: &Path, shim_path: &Path) -> Result<bool, LinkBinsError> {
+    use std::os::unix::fs::symlink;
+    remove_stale_bin(shim_path)?;
+    symlink(target_path, shim_path).map_err(|error| LinkBinsError::LinkNodeBin {
+        src: target_path.to_path_buf(),
+        dst: shim_path.to_path_buf(),
+        error,
+    })?;
+    Ok(true)
+}
+
+#[cfg(windows)]
+fn link_node_bin(target_path: &Path, shim_path: &Path) -> Result<bool, LinkBinsError> {
+    use std::fs;
+    let is_exe = target_path
+        .extension()
+        .and_then(|s| s.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("exe"));
+    if !is_exe {
+        return Ok(false);
+    }
+    let exe_path = with_extension_appended(shim_path, "exe");
+    remove_stale_bin(&exe_path)?;
+    if fs::hard_link(target_path, &exe_path).is_err() {
+        fs::copy(target_path, &exe_path).map_err(|error| LinkBinsError::LinkNodeBin {
+            src: target_path.to_path_buf(),
+            dst: exe_path,
+            error,
+        })?;
+    }
+    Ok(true)
+}
+
+/// Remove an existing dirent at `path`, swallowing `NotFound`. Used by
+/// [`link_node_bin`] to clear any prior shim / symlink / hardlink
+/// before laying down the new one. Any other IO error (PermissionDenied,
+/// EROFS, AppArmor deny, …) surfaces as [`LinkBinsError::RemoveStaleBin`]
+/// so a real failure isn't hidden behind a silent skip.
+fn remove_stale_bin(path: &Path) -> Result<(), LinkBinsError> {
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(LinkBinsError::RemoveStaleBin { path: path.to_path_buf(), error }),
+    }
 }
 
 /// Append `<ext>` to `path` as a *new* extension segment (`foo` becomes

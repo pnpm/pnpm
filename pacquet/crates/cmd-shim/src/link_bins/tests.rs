@@ -1058,3 +1058,226 @@ fn hoisted_origin_loses_to_existing_direct() {
         "Direct incumbent must shut out Hoisted candidate, got body:\n{body}",
     );
 }
+
+/// Mirrors pnpm's `linkBinsOfPackages() symlinks node binary directly
+/// instead of creating a shell shim` at
+/// <https://github.com/pnpm/pnpm/blob/06d2d3deb2/bins/linker/test/index.ts#L643>.
+///
+/// The `node` bin must land as a symlink to the real binary, never a
+/// `/bin/sh`-wrapped shim. Wrapping is the recursion trap described in
+/// [`super::link_node_bin`]'s doc comment.
+#[cfg(unix)]
+#[test]
+fn link_node_bin_symlinks_directly_instead_of_writing_shim() {
+    let tmp = tempdir().unwrap();
+    let bin_target = tmp.path().join("bin_target");
+    let node_dir = tmp.path().join("node_pkg");
+    let node_bin_dir = node_dir.join("bin");
+    create_dir_all(&node_bin_dir).unwrap();
+    write_file(node_bin_dir.join("node"), "fake-node-binary").unwrap();
+    write_file(
+        node_dir.join("package.json"),
+        json!({"name": "node", "version": "20.0.0", "bin": {"node": "bin/node"}}).to_string(),
+    )
+    .unwrap();
+
+    let manifest: Value =
+        serde_json::from_slice(&read_file(node_dir.join("package.json")).unwrap()).unwrap();
+    link_bins_of_packages::<RealApi>(
+        &[PackageBinSource::new(node_dir.clone(), Arc::new(manifest))],
+        &bin_target,
+    )
+    .unwrap();
+
+    let bin_location = bin_target.join("node");
+    let meta = std::fs::symlink_metadata(&bin_location).unwrap();
+    assert!(meta.file_type().is_symlink(), "node bin must be a symlink, not a shim file");
+    assert_eq!(
+        std::fs::canonicalize(&bin_location).unwrap(),
+        std::fs::canonicalize(node_bin_dir.join("node")).unwrap(),
+        "symlink must resolve to the real binary",
+    );
+    // The target binary must not have been mutated to a sh-shim text.
+    assert_eq!(
+        read_to_string(node_bin_dir.join("node")).unwrap(),
+        "fake-node-binary",
+        "node bin special case must not rewrite the underlying binary",
+    );
+}
+
+/// Mirrors pnpm's `linkBinsOfPackages() replaces a dangling symlink
+/// when linking node binary` at
+/// <https://github.com/pnpm/pnpm/blob/06d2d3deb2/bins/linker/test/index.ts#L671>.
+///
+/// A previous install can leave a dangling symlink at `bin/node` when
+/// the prior store entry was pruned. The next install must overwrite
+/// it; `fs::symlink` would otherwise error with `AlreadyExists`.
+#[cfg(unix)]
+#[test]
+fn link_node_bin_replaces_dangling_symlink() {
+    use std::os::unix::fs::symlink;
+    let tmp = tempdir().unwrap();
+    let bin_target = tmp.path().join("bin_target");
+    create_dir_all(&bin_target).unwrap();
+    let dangling_target = tmp.path().join("does_not_exist");
+    symlink(&dangling_target, bin_target.join("node")).unwrap();
+    assert!(
+        std::fs::metadata(bin_target.join("node")).is_err(),
+        "precondition: symlink must be dangling",
+    );
+
+    let node_dir = tmp.path().join("node_pkg");
+    let node_bin_dir = node_dir.join("bin");
+    create_dir_all(&node_bin_dir).unwrap();
+    write_file(node_bin_dir.join("node"), "fake-node-binary").unwrap();
+    write_file(
+        node_dir.join("package.json"),
+        json!({"name": "node", "version": "20.0.0", "bin": {"node": "bin/node"}}).to_string(),
+    )
+    .unwrap();
+
+    let manifest: Value =
+        serde_json::from_slice(&read_file(node_dir.join("package.json")).unwrap()).unwrap();
+    link_bins_of_packages::<RealApi>(
+        &[PackageBinSource::new(node_dir.clone(), Arc::new(manifest))],
+        &bin_target,
+    )
+    .unwrap();
+
+    let stat = std::fs::symlink_metadata(bin_target.join("node")).unwrap();
+    assert!(stat.file_type().is_symlink());
+    assert_eq!(
+        std::fs::canonicalize(bin_target.join("node")).unwrap(),
+        std::fs::canonicalize(node_bin_dir.join("node")).unwrap(),
+    );
+}
+
+/// Regression test for the corruption pattern that motivated the
+/// node-bin short-circuit. Without the special case, if `bin/node` is
+/// hardlinked into a pacquet slot and `<bin_dir>/node` is also a
+/// regular file hardlinked to the same inode (e.g. a prior pacquet
+/// revision left it that way), then `fs::write` truncating the dirent
+/// would rewrite the underlying node binary as a 459-byte
+/// `/bin/sh`-wrapper text file — propagating to every project that
+/// reflinks from the same store.
+///
+/// The fix is `remove_file` followed by `fs::symlink`. `remove_file`
+/// drops only the dirent, leaving the hardlinked content intact.
+#[cfg(unix)]
+#[test]
+fn link_node_bin_does_not_corrupt_hardlinked_target() {
+    let tmp = tempdir().unwrap();
+    let bin_target = tmp.path().join("bin_target");
+    create_dir_all(&bin_target).unwrap();
+
+    let node_dir = tmp.path().join("node_pkg");
+    let node_bin_dir = node_dir.join("bin");
+    create_dir_all(&node_bin_dir).unwrap();
+    write_file(node_bin_dir.join("node"), "fake-node-binary").unwrap();
+    // Hardlink the binary into the would-be bin slot, simulating the
+    // disk state that produced the upstream corruption.
+    std::fs::hard_link(node_bin_dir.join("node"), bin_target.join("node")).unwrap();
+
+    write_file(
+        node_dir.join("package.json"),
+        json!({"name": "node", "version": "20.0.0", "bin": {"node": "bin/node"}}).to_string(),
+    )
+    .unwrap();
+
+    let manifest: Value =
+        serde_json::from_slice(&read_file(node_dir.join("package.json")).unwrap()).unwrap();
+    link_bins_of_packages::<RealApi>(
+        &[PackageBinSource::new(node_dir.clone(), Arc::new(manifest))],
+        &bin_target,
+    )
+    .unwrap();
+
+    assert_eq!(
+        read_to_string(node_bin_dir.join("node")).unwrap(),
+        "fake-node-binary",
+        "real node binary must not be rewritten by the bin linker",
+    );
+}
+
+/// Mirrors pnpm's `linkBinsOfPackages() hardlinks node.exe instead of
+/// creating a cmd-shim` at
+/// <https://github.com/pnpm/pnpm/blob/06d2d3deb2/bins/linker/test/index.ts#L709>.
+///
+/// On Windows the canonical bin dirent for the node runtime is
+/// `<bin_dir>/node.exe` — a hardlink (or copy fallback) of the source
+/// `.exe`. No `.cmd` or `.ps1` shim is emitted, because npm's cmd
+/// shims call `node.exe` from `IF EXIST` blocks that mishandle a
+/// `.cmd` redirection.
+#[cfg(windows)]
+#[test]
+fn link_node_bin_hardlinks_node_exe_on_windows() {
+    let tmp = tempdir().unwrap();
+    let bin_target = tmp.path().join("bin_target");
+    let node_dir = tmp.path().join("node_pkg");
+    create_dir_all(&node_dir).unwrap();
+    write_file(node_dir.join("node.exe"), "fake-node-binary").unwrap();
+    write_file(
+        node_dir.join("package.json"),
+        json!({"name": "node", "version": "20.0.0", "bin": {"node": "node.exe"}}).to_string(),
+    )
+    .unwrap();
+
+    let manifest: Value =
+        serde_json::from_slice(&read_file(node_dir.join("package.json")).unwrap()).unwrap();
+    link_bins_of_packages::<RealApi>(
+        &[PackageBinSource::new(node_dir.clone(), Arc::new(manifest))],
+        &bin_target,
+    )
+    .unwrap();
+
+    let exe = bin_target.join("node.exe");
+    assert!(exe.exists(), "node.exe must be created in the bin dir");
+    assert_eq!(read_to_string(&exe).unwrap(), "fake-node-binary");
+    // No canonical shim, .cmd, or .ps1 should be written.
+    assert!(
+        !bin_target.join("node").exists(),
+        "canonical shim must not be written for the node special case",
+    );
+    assert!(
+        !bin_target.join("node.cmd").exists(),
+        ".cmd shim must not be written for the node special case",
+    );
+    assert!(
+        !bin_target.join("node.ps1").exists(),
+        ".ps1 shim must not be written for the node special case",
+    );
+}
+
+/// Windows-only: when the node manifest declares a non-`.exe` source
+/// (uncommon but possible — e.g. a wrapper script), pnpm falls through
+/// to the regular cmd-shim path. Pacquet must too.
+#[cfg(windows)]
+#[test]
+fn link_node_bin_falls_through_to_cmd_shim_when_source_is_not_exe() {
+    let tmp = tempdir().unwrap();
+    let bin_target = tmp.path().join("bin_target");
+    let node_dir = tmp.path().join("node_pkg");
+    create_dir_all(node_dir.join("bin")).unwrap();
+    write_file(node_dir.join("bin/node"), "#!/usr/bin/env node\nconsole.log(1)\n").unwrap();
+    write_file(
+        node_dir.join("package.json"),
+        json!({"name": "node", "version": "20.0.0", "bin": {"node": "bin/node"}}).to_string(),
+    )
+    .unwrap();
+
+    let manifest: Value =
+        serde_json::from_slice(&read_file(node_dir.join("package.json")).unwrap()).unwrap();
+    link_bins_of_packages::<RealApi>(
+        &[PackageBinSource::new(node_dir.clone(), Arc::new(manifest))],
+        &bin_target,
+    )
+    .unwrap();
+
+    // The non-`.exe` node source falls through to the cmd-shim path,
+    // so the canonical sh shim, `.cmd`, and `.ps1` siblings all land
+    // exactly as for any other bin.
+    assert!(bin_target.join("node").exists());
+    assert!(bin_target.join("node.cmd").exists());
+    assert!(bin_target.join("node.ps1").exists());
+    assert!(!bin_target.join("node.exe").exists());
+}
