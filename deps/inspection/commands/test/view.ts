@@ -243,6 +243,26 @@ test('view: uses package.json name when no package name provided', async () => {
   }
 })
 
+test('view: searches upward for package.json in nested directory', async () => {
+  const cwd = process.cwd()
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'view-test-'))
+  const nestedDir = path.join(tmpDir, 'a', 'b')
+  const pkgJsonPath = path.join(tmpDir, 'package.json')
+
+  try {
+    fs.mkdirSync(nestedDir, { recursive: true })
+    fs.writeFileSync(pkgJsonPath, JSON.stringify({ name: 'is-negative' }))
+    process.chdir(nestedDir)
+
+    const result = await view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, [])
+    expect(typeof result).toBe('string')
+    expect(result).toContain('is-negative')
+  } finally {
+    process.chdir(cwd)
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
 test('view: package.json without name field throws error', async () => {
   const cwd = process.cwd()
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'view-test-'))

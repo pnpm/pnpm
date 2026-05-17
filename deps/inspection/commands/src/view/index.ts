@@ -56,9 +56,14 @@ export async function handler (
   if (!packageSpec) {
     const pkgFile = pkg.up()
     if (pkgFile) {
-      const pkgInfo = JSON.parse(fs.readFileSync(pkgFile, 'utf8'))
-      if (!pkgInfo.name) {
-        throw new PnpmError('INVALID_PACKAGE_JSON', 'Invalid package.json. No "name" field.')
+      let pkgInfo: { name?: unknown }
+      try {
+        pkgInfo = JSON.parse(fs.readFileSync(pkgFile, 'utf8'))
+      } catch {
+        throw new PnpmError('INVALID_PACKAGE_JSON', `Failed to parse package.json at "${pkgFile}".`)
+      }
+      if (!pkgInfo.name || typeof pkgInfo.name !== 'string' || pkgInfo.name === '') {
+        throw new PnpmError('INVALID_PACKAGE_JSON', `Invalid package.json at "${pkgFile}". The "name" field is required and must be a non-empty string.`)
       }
       packageSpec = pkgInfo.name
     } else {
