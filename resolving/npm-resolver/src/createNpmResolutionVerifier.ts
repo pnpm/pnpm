@@ -165,9 +165,19 @@ export function createNpmResolutionVerifier (
     }
     return { ok: true }
   }
+  // Snapshot the exclude list (sorted, deduped) for the cache contract:
+  // the cached run is only trustworthy under today's policy when today's
+  // exclude list is a superset of the cached one. Removing an entry could
+  // expose a violation that was previously allowed, so we must re-verify.
+  const sortedExcludes = opts.minimumReleaseAgeExclude
+    ? [...new Set(opts.minimumReleaseAgeExclude)].sort()
+    : []
   return {
     verify,
-    policy: { minimumReleaseAge },
+    policy: {
+      minimumReleaseAge,
+      minimumReleaseAgeExclude: sortedExcludes,
+    },
     canTrustPastCheck: (cached) => {
       // A previously cached run under a larger cutoff (stricter window)
       // is trustworthy under a smaller current one — its set of
@@ -176,7 +186,24 @@ export function createNpmResolutionVerifier (
       // that passed before may now be in-window. Non-number cached
       // values come from an older record shape and aren't trusted.
       const past = cached.minimumReleaseAge
-      return typeof past === 'number' && past >= minimumReleaseAge
+      if (typeof past !== 'number' || past < minimumReleaseAge) return false
+
+      // Symmetric check for the exclude list: a cached run trusted a
+      // superset of versions, so its result holds for today only if
+      // every entry that was on the cached list is still on today's.
+      // A removed entry could now flag — must re-verify.
+      // Older record shape (no exclude field) only trusted when today's
+      // policy doesn't introduce one either.
+      const pastExcludes = cached.minimumReleaseAgeExclude
+      if (pastExcludes == null) return sortedExcludes.length === 0
+      if (!Array.isArray(pastExcludes)) return false
+      if (sortedExcludes.length === 0) return pastExcludes.length === 0
+      const todayHas = new Set(sortedExcludes)
+      for (const entry of pastExcludes) {
+        if (typeof entry !== 'string') return false
+        if (!todayHas.has(entry)) return false
+      }
+      return true
     },
   }
 }

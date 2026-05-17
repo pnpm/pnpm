@@ -225,4 +225,75 @@ describe('lockfile minimumReleaseAge verification', () => {
       { ...omitMinReleaseAgeEnv, expectSuccess: true }
     )
   })
+
+  test('--no-save leaves the workspace manifest untouched even when picks are collected', () => {
+    // `--no-save` means "don't persist anything from this install" — the
+    // auto-add should obey that. Without the gate, the info log would
+    // claim entries were added that never reached pnpm-workspace.yaml,
+    // and the next install would either re-prompt or fail verification.
+    prepare({
+      dependencies: { 'is-odd': '0.1.2' },
+    })
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: IMMATURE_FOR_EVERYTHING,
+      minimumReleaseAgeStrict: false,
+    })
+
+    // First install resolves and populates the lockfile but not the
+    // workspace manifest (because --no-save).
+    execPnpmSync(
+      [PUBLIC_REGISTRY, 'install', '--no-save'],
+      { ...omitMinReleaseAgeEnv, expectSuccess: true }
+    )
+
+    const workspaceManifest = readYamlFileSync<{ minimumReleaseAgeExclude?: string[] }>('pnpm-workspace.yaml')
+    expect(workspaceManifest.minimumReleaseAgeExclude).toBeUndefined()
+  })
+
+  test('verifier cache invalidates when minimumReleaseAgeExclude is shrunk', async () => {
+    // Removing an entry from the exclude list could expose a violation
+    // that previously passed verification. The cache record snapshots the
+    // exclude list and `canTrustPastCheck` rejects the cached run when
+    // today's list isn't a superset of the cached one — so the next
+    // install re-verifies and the now-uncovered immature lockfile entry
+    // is flagged.
+    prepare({
+      dependencies: { 'is-odd': '0.1.2' },
+    })
+    await execPnpm([PUBLIC_REGISTRY, 'install'])
+
+    const cacheDir = path.resolve('pnpm-cache')
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: IMMATURE_FOR_EVERYTHING,
+      minimumReleaseAgeStrict: true,
+      minimumReleaseAgeExclude: ['is-odd', 'is-buffer', 'is-number', 'kind-of'],
+      cacheDir,
+    })
+    // Step 1: install with the full exclude list — verifier writes a
+    // cache record under that policy.
+    execPnpmSync(
+      [PUBLIC_REGISTRY, 'install', '--frozen-lockfile'],
+      { ...omitMinReleaseAgeEnv, expectSuccess: true }
+    )
+    const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
+    expect(fs.existsSync(cacheFile)).toBe(true)
+
+    // Step 2: drop `is-odd` from the exclude list. The cached record
+    // had it; today doesn't. canTrustPastCheck must reject so the
+    // re-verification flags is-odd@0.1.2 as immature.
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: IMMATURE_FOR_EVERYTHING,
+      minimumReleaseAgeStrict: true,
+      minimumReleaseAgeExclude: ['is-buffer', 'is-number', 'kind-of'],
+      cacheDir,
+    })
+    const result = execPnpmSync(
+      [PUBLIC_REGISTRY, 'install', '--frozen-lockfile'],
+      omitMinReleaseAgeEnv
+    )
+    expect(result.status).toBe(1)
+    const output = `${result.stdout.toString()}\n${result.stderr.toString()}`
+    expect(output).toContain('ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION')
+    expect(output).toMatch(/is-odd@0\.1\.2/)
+  })
 })

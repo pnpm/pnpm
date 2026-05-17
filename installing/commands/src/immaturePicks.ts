@@ -1,5 +1,6 @@
 import { PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
+import { isCI } from 'ci-info'
 import enquirer from 'enquirer'
 
 export interface ImmaturePickCollector {
@@ -47,15 +48,26 @@ export interface ImmaturePickResolution {
 export function setupImmaturePicks (opts: {
   minimumReleaseAge?: number
   minimumReleaseAgeStrict?: boolean
+  /**
+   * Override for CI detection. Defaults to `ci-info`'s `isCI` flag. The
+   * pnpm config reader populates `ci` from the same source; install
+   * commands forward `opts.ci` here so a `--config.ci=true` or explicit
+   * CI env var keeps strict mode on the fail-fast path even when stdin
+   * happens to be a TTY.
+   */
+  ci?: boolean
 }): ImmaturePickResolution | undefined {
   if (!opts.minimumReleaseAge) return undefined
   const strictMode = opts.minimumReleaseAgeStrict === true
-  // process.stdin.isTTY is what `validateModules` checks for the
-  // confirm-modules-purge prompt; mirror it here for consistency. When
-  // strict mode is on but there's no TTY (CI, piped runs), bail out and
-  // let the resolver's existing fail-fast path handle it.
-  const isTTY = Boolean(process.stdin.isTTY)
-  if (strictMode && !isTTY) return undefined
+  // Two signals to keep CI on the fail-fast path: stdin must be a TTY (no
+  // way to ask otherwise), AND CI detection must not have flagged this run
+  // (some CI runners do allocate a TTY but expect deterministic
+  // non-interactive behavior). Returning `undefined` here makes the
+  // resolver throw on the first immature pick, preserving today's
+  // strict-mode CI semantics.
+  const inCi = opts.ci ?? isCI
+  const canPrompt = !inCi && Boolean(process.stdin.isTTY)
+  if (strictMode && !canPrompt) return undefined
 
   const versions = new Set<string>()
   const collector: ImmaturePickCollector = {

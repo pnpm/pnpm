@@ -128,3 +128,37 @@ test('resolveFromJsr() on jsr with packages without scope', async () => {
     code: 'ERR_PNPM_MISSING_JSR_PACKAGE_SCOPE',
   })
 })
+
+test('resolveFromJsr() forwards onImmaturePick when the picked version is past the publishedBy cutoff', async () => {
+  // jsr-rus-greet's 0.0.3 was published 2024-11-16; passing a `publishedBy`
+  // before that makes the version immature relative to the cutoff. With
+  // `deferImmatureDecision: true`, the resolver falls back to the lowest
+  // version instead of throwing and reports the pick to `onImmaturePick`.
+  // This covers the named-registry path in `pickFromSimpleRegistry` —
+  // before forwarding the hooks, loose-mode picks and strict-mode prompts
+  // for JSR / `gh:` / custom-prefix registries weren't being collected.
+  const slash = '%2F'
+  const defaultPool = getMockAgent().get(registries.default.replace(/\/$/, ''))
+  defaultPool.intercept({ path: `/@jsr${slash}rus__greet`, method: 'GET' }).reply(404, {})
+  const jsrPool = getMockAgent().get(registries['@jsr'].replace(/\/$/, ''))
+  jsrPool.intercept({ path: `/@jsr${slash}rus__greet`, method: 'GET' }).reply(200, jsrRusGreetMeta)
+
+  const picks: Array<{ name: string, version: string }> = []
+  const cacheDir = temporaryDirectory()
+  const { resolveFromJsr } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registries,
+  })
+  const result = await resolveFromJsr(
+    { alias: '@rus/greet', bareSpecifier: 'jsr:0.0.3' },
+    {
+      publishedBy: new Date('2020-01-01T00:00:00Z'),
+      onImmaturePick: (pkg) => picks.push(pkg),
+      deferImmatureDecision: true,
+    }
+  )
+
+  expect(result).toMatchObject({ id: '@jsr/rus__greet@0.0.3' })
+  expect(picks).toContainEqual({ name: '@jsr/rus__greet', version: '0.0.3' })
+})

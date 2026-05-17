@@ -123,7 +123,8 @@ export type InstallDepsOptions = Pick<Config,
 | 'rootProjectManifestDir'
 | 'rootProjectManifest'
 | 'selectedProjectsGraph'
-> & CreateStoreControllerOptions & {
+> & Partial<Pick<Config, 'ci'>>
+& CreateStoreControllerOptions & {
   argv: {
     original: string[]
   }
@@ -354,8 +355,11 @@ export async function installDeps (
       targetDependenciesField: getSaveType(opts),
     }
     const { updatedCatalogs, updatedProject, ignoredBuilds } = await mutateModulesInSingleProject(mutatedProject, installOpts)
-    const addedMinimumReleaseAgeExcludes = drainImmaturePicks(immaturePicks?.collector)
     if (opts.save !== false) {
+      // Only drain when we'll actually persist. Otherwise the info log would
+      // claim we added entries the workspace manifest never saw, and the
+      // next install would re-prompt or fail verification.
+      const addedMinimumReleaseAgeExcludes = drainImmaturePicks(immaturePicks?.collector)
       await Promise.all([
         writeProjectManifest(updatedProject.manifest),
         updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
@@ -385,24 +389,30 @@ export async function installDeps (
     updatePackageManifest,
     updateMatching,
   })
-  const addedMinimumReleaseAgeExcludes = drainImmaturePicks(immaturePicks?.collector)
-  if (opts.update === true && opts.save !== false) {
-    await Promise.all([
-      writeProjectManifest(updatedManifest),
-      updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
-        updatedCatalogs,
-        cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
-        allProjects,
+  // `opts.save === false` (e.g. `--no-save`) means "don't persist anything
+  // from this install" — both package.json and the workspace manifest.
+  // Skip the drain so the info log doesn't claim entries were added that
+  // were never written; the next install will resurface them.
+  if (opts.save !== false) {
+    const addedMinimumReleaseAgeExcludes = drainImmaturePicks(immaturePicks?.collector)
+    if (opts.update === true) {
+      await Promise.all([
+        writeProjectManifest(updatedManifest),
+        updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
+          updatedCatalogs,
+          cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+          allProjects,
+          addedMinimumReleaseAgeExcludes,
+        }),
+      ])
+    } else if (addedMinimumReleaseAgeExcludes?.length) {
+      // Plain `pnpm install` (no --update, no params) wouldn't otherwise touch
+      // the workspace manifest. Persist the auto-excludes anyway so the loose
+      // bypass remains explicit on subsequent installs.
+      await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
         addedMinimumReleaseAgeExcludes,
-      }),
-    ])
-  } else if (addedMinimumReleaseAgeExcludes?.length) {
-    // Plain `pnpm install` (no --update, no params) wouldn't otherwise touch
-    // the workspace manifest. Persist the auto-excludes anyway so the loose
-    // bypass remains explicit on subsequent installs.
-    await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
-      addedMinimumReleaseAgeExcludes,
-    })
+      })
+    }
   }
   await handleIgnoredBuilds(opts, ignoredBuilds)
 

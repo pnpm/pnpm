@@ -687,6 +687,12 @@ async function pickFromSimpleRegistry (
     registry,
     includeLatestTag: opts.update === 'latest',
     optional: wantedDependency.optional,
+    // The named-registry / jsr paths route through this shared shell.
+    // Forward the immature-pick hooks so loose-mode auto-collect and the
+    // strict-mode interactive prompt cover those protocols too, not only
+    // plain npm.
+    onImmaturePick: opts.onImmaturePick,
+    deferImmatureDecision: opts.deferImmatureDecision,
   })
   if (pickedPackage == null) {
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })

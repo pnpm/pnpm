@@ -121,6 +121,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   pnpmfile: string[]
 } & Partial<
   Pick<Config,
+| 'ci'
 | 'sort'
 | 'strictDepBuilds'
 | 'workspaceConcurrency'

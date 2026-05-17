@@ -7,7 +7,7 @@ test('setupImmaturePicks returns undefined when minimumReleaseAge is unset', () 
 })
 
 test('setupImmaturePicks returns undefined when strict mode is on and stdin is not a TTY', () => {
-  // Strict mode + non-TTY (CI) keeps the resolver's fail-fast behavior:
+  // Strict mode + non-TTY keeps the resolver's fail-fast behavior:
   // no prompt available, so a single throw on the first immature pick is
   // both deterministic and consistent with today's strict mode. Without a
   // resolution from this factory the resolver never receives
@@ -15,7 +15,46 @@ test('setupImmaturePicks returns undefined when strict mode is on and stdin is n
   const original = process.stdin.isTTY
   Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true })
   try {
-    expect(setupImmaturePicks({ minimumReleaseAge: 60, minimumReleaseAgeStrict: true })).toBeUndefined()
+    expect(setupImmaturePicks({
+      minimumReleaseAge: 60,
+      minimumReleaseAgeStrict: true,
+      ci: false,
+    })).toBeUndefined()
+  } finally {
+    Object.defineProperty(process.stdin, 'isTTY', { value: original, configurable: true })
+  }
+})
+
+test('setupImmaturePicks returns undefined when ci=true even with stdin a TTY', () => {
+  // Some CI runners allocate a TTY but still expect deterministic
+  // non-interactive behavior. The `ci` option (sourced from pnpm's
+  // ci-info-based config) shuts the prompt off independently of the
+  // TTY check.
+  const original = process.stdin.isTTY
+  Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true })
+  try {
+    expect(setupImmaturePicks({
+      minimumReleaseAge: 60,
+      minimumReleaseAgeStrict: true,
+      ci: true,
+    })).toBeUndefined()
+  } finally {
+    Object.defineProperty(process.stdin, 'isTTY', { value: original, configurable: true })
+  }
+})
+
+test('setupImmaturePicks builds a prompting resolution when ci=false and stdin is a TTY', () => {
+  const original = process.stdin.isTTY
+  Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true })
+  try {
+    const resolution = setupImmaturePicks({
+      minimumReleaseAge: 60,
+      minimumReleaseAgeStrict: true,
+      ci: false,
+    })
+    expect(resolution).toBeDefined()
+    expect(resolution!.deferImmatureDecision).toBe(true)
+    expect(resolution!.collector.promptRequired).toBe(true)
   } finally {
     Object.defineProperty(process.stdin, 'isTTY', { value: original, configurable: true })
   }
