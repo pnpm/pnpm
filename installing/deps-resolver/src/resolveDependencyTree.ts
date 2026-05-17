@@ -142,16 +142,6 @@ export interface ResolveDependenciesOptions {
   peersSuffixMaxLength: number
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
-  /**
-   * Forwarded into the resolution context so the npm resolver knows to
-   * fall back to lowest-version picking (instead of throwing
-   * `NO_MATURE_MATCHING_VERSION`) when no mature version satisfies the
-   * range in strict mode. The install layer's post-resolution scan
-   * (see `collectLockfileResolutionViolations` in
-   * `installing/deps-installer`) then surfaces the full set of immature
-   * picks at once.
-   */
-  deferImmatureDecision?: boolean
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number
@@ -234,7 +224,6 @@ export async function resolveDependencyTree<T> (
     allPeerDepNames: new Set(),
     maximumPublishedBy: publishedBy,
     publishedByExclude,
-    deferImmatureDecision: opts.deferImmatureDecision,
     trustPolicy: opts.trustPolicy,
     trustPolicyExclude: opts.trustPolicyExclude ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude') : undefined,
     trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,

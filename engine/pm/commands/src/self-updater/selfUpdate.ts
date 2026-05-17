@@ -83,7 +83,6 @@ export async function handler (
   const { resolve } = createResolver({
     ...opts,
     configByUri: opts.configByUri,
-    strictPublishedByCheck: Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true,
     ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime,
   })
   const pkgName = 'pnpm'
@@ -104,6 +103,17 @@ export async function handler (
   })
   if (!resolution?.manifest) {
     throw new PnpmError('CANNOT_RESOLVE_PNPM', `Cannot find "${bareSpecifier}" version of pnpm`)
+  }
+  // self-update has nowhere to "defer to" either — under strict
+  // minimumReleaseAge, refuse to switch to an immature pnpm version
+  // and report the same shape callers used to see from
+  // `NO_MATURE_MATCHING_VERSION`.
+  const strictMinReleaseAge = Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true
+  if (strictMinReleaseAge && resolution.policyViolation?.code === 'MINIMUM_RELEASE_AGE_VIOLATION') {
+    throw new PnpmError(
+      'NO_MATURE_MATCHING_VERSION',
+      `pnpm@${resolution.policyViolation.version} ${resolution.policyViolation.reason}`
+    )
   }
 
   // Determine the "previous" pnpm version being upgraded FROM. If the

@@ -189,14 +189,6 @@ export interface ResolutionContext {
   maximumPublishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
   /**
-   * Forwarded to the npm resolver. When true, strict mode falls back to
-   * lowest-version picking like loose mode does — every immature
-   * selection lands in the lockfile so the install layer's scan
-   * (gathered into `lockfileResolutionViolations` below) can surface
-   * the full set at once.
-   */
-  deferImmatureDecision?: boolean
-  /**
    * Shared accumulator the resolver pushes into when an inline policy
    * check (today: minimumReleaseAge in `npm-resolver`) flags a pick.
    * resolveDependencyTree hands the populated array back to the install
@@ -1359,7 +1351,6 @@ async function resolveDependency (
       ignoreScripts: ctx.ignoreScripts,
       publishedBy: options.publishedBy,
       publishedByExclude: ctx.publishedByExclude,
-      deferImmatureDecision: ctx.deferImmatureDecision,
       pickLowestVersion: options.pickLowestVersion,
       downloadPriority: -options.currentDepth,
       lockfileDir: ctx.lockfileDir,
@@ -1393,7 +1384,7 @@ async function resolveDependency (
       bareSpecifier: wantedDependency.bareSpecifier,
       version: wantedDependency.alias ? wantedDependency.bareSpecifier : undefined,
     }
-    if (wantedDependency.optional && err.code !== 'ERR_PNPM_TRUST_DOWNGRADE' && err.code !== 'ERR_PNPM_NO_MATURE_MATCHING_VERSION') {
+    if (wantedDependency.optional && err.code !== 'ERR_PNPM_TRUST_DOWNGRADE') {
       skippedOptionalDependencyLogger.debug({
         details: err.toString(),
         package: wantedDependencyDetails,

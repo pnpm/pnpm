@@ -118,7 +118,6 @@ export async function handler (
     configByUri: opts.configByUri,
     fullMetadata,
     filterMetadata: fullMetadata,
-    strictPublishedByCheck: Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true,
     ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime,
     retry: {
       factor: opts.fetchRetryFactor,
@@ -130,6 +129,7 @@ export async function handler (
   })
   const resolvedPkgAliases: string[] = []
   const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
+  const strictMinReleaseAge = Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true
   const resolvedPkgs = await Promise.all(pkgs.map(async (pkg) => {
     const { alias, bareSpecifier } = parseWantedDependency(pkg) || {}
     if (alias == null) return pkg
@@ -144,6 +144,16 @@ export async function handler (
       publishedBy,
       publishedByExclude,
     })
+    // dlx has nowhere to "defer to" — it runs the resolved package directly.
+    // Under strict minimumReleaseAge, treat an immature pick as unrunnable
+    // and throw with the same shape callers used to see from
+    // `NO_MATURE_MATCHING_VERSION`.
+    if (strictMinReleaseAge && resolved.policyViolation?.code === 'MINIMUM_RELEASE_AGE_VIOLATION') {
+      throw new PnpmError(
+        'NO_MATURE_MATCHING_VERSION',
+        `${resolved.policyViolation.name}@${resolved.policyViolation.version} ${resolved.policyViolation.reason}`
+      )
+    }
     return resolved.id
   }))
   let { cacheLink, cacheExists, cachedDir } = findCache({

@@ -176,17 +176,6 @@ export interface StrictInstallOptions {
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
   /**
-   * Forwarded to the npm resolver. When set, strict mode falls back to
-   * lowest-version picking like loose mode does — every immature
-   * selection lands in the lockfile so the post-resolution scan can
-   * surface the whole set at once instead of the resolver throwing on
-   * the first immature pick. The install command flips this on when an
-   * interactive prompt is available, so users see every immature
-   * transitive at once (#10488) instead of looping through them
-   * one-by-one.
-   */
-  deferImmatureDecision?: boolean
-  /**
    * Resolver-agnostic post-tree gate, invoked between
    * `resolveDependencyTree` and `resolvePeers` inside
    * `resolveDependencies`. Receives the violations the verifier

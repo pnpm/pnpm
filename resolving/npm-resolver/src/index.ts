@@ -64,29 +64,16 @@ export interface NoMatchingVersionErrorOptions {
   wantedDependency: WantedDependency
   packageMeta: PackageMeta
   registry: string
-  immatureVersion?: string
-  publishedBy?: Date
 }
 
 export class NoMatchingVersionError extends PnpmError {
   public readonly packageMeta: PackageMeta
-  public readonly immatureVersion?: string
   constructor (opts: NoMatchingVersionErrorOptions) {
     const dep = opts.wantedDependency.alias
       ? `${opts.wantedDependency.alias}@${opts.wantedDependency.bareSpecifier ?? ''}`
       : opts.wantedDependency.bareSpecifier!
-    let errorMessage: string
-    if (opts.publishedBy && opts.immatureVersion && opts.packageMeta.time) {
-      const time = new Date(opts.packageMeta.time[opts.immatureVersion])
-      const releaseAgeText = formatTimeAgo(time) ?? 'just now'
-      const pkgName = opts.wantedDependency.alias ?? opts.packageMeta.name
-      errorMessage = `Version ${opts.immatureVersion} (released ${releaseAgeText}) of ${pkgName} does not meet the minimumReleaseAge constraint`
-    } else {
-      errorMessage = `No matching version found for ${dep} while fetching it from ${opts.registry}`
-    }
-    super(opts.publishedBy ? 'NO_MATURE_MATCHING_VERSION' : 'NO_MATCHING_VERSION', errorMessage)
+    super('NO_MATCHING_VERSION', `No matching version found for ${dep} while fetching it from ${opts.registry}`)
     this.packageMeta = opts.packageMeta
-    this.immatureVersion = opts.immatureVersion
   }
 }
 
@@ -147,7 +134,6 @@ export interface ResolverFactoryOptions {
   namedRegistries?: Record<string, string>
   saveWorkspaceProtocol?: boolean | 'rolling'
   preserveAbsolutePaths?: boolean
-  strictPublishedByCheck?: boolean
   ignoreMissingTimeField?: boolean
   fetchWarnTimeoutMs?: number
   /** Pre-populated metadata cache. When provided, the resolver uses this
@@ -251,7 +237,6 @@ export function createNpmResolver (
       offline: opts.offline,
       preferOffline: opts.preferOffline,
       cacheDir: opts.cacheDir,
-      strictPublishedByCheck: opts.strictPublishedByCheck,
       ignoreMissingTimeField: opts.ignoreMissingTimeField,
     }),
     registries: opts.registries,
@@ -305,16 +290,6 @@ export type ResolveFromNpmOptions = {
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
   pinnedVersion?: PinnedVersion
-  /**
-   * When set, the resolver behaves as if `minimumReleaseAgeStrict: false`
-   * for picking purposes — every immature selection still lands in the
-   * lockfile so the install command's post-resolution scan can surface
-   * the whole set at once (interactive prompt) instead of the resolver
-   * throwing `NO_MATURE_MATCHING_VERSION` on the first one.
-   * Non-interactive (CI) leaves this off, preserving the fail-fast
-   * behavior.
-   */
-  deferImmatureDecision?: boolean
 } & ({
   projectDir?: string
   workspacePackages?: undefined
@@ -428,7 +403,6 @@ async function resolveNpm (
       registry,
       includeLatestTag: opts.update === 'latest',
       optional: wantedDependency.optional,
-      deferImmatureDecision: opts.deferImmatureDecision,
     })
   } catch (err: any) { // eslint-disable-line
     if ((workspacePackages != null) && opts.projectDir) {
@@ -469,22 +443,6 @@ async function resolveNpm (
       }
     }
 
-    if (opts.publishedBy) {
-      const immatureVersion = pickVersionByVersionRange({
-        meta,
-        versionRange: spec.fetchSpec,
-        preferredVersionSelectors: opts.preferredVersions?.[spec.name],
-      })
-      if (immatureVersion) {
-        throw new NoMatchingVersionError({
-          wantedDependency,
-          packageMeta: meta,
-          registry,
-          immatureVersion,
-          publishedBy: opts.publishedBy,
-        })
-      }
-    }
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
   } else if (opts.trustPolicy === 'no-downgrade') {
     failIfTrustDowngraded(meta, pickedPackage.version, opts)
@@ -680,10 +638,6 @@ async function pickFromSimpleRegistry (
     registry,
     includeLatestTag: opts.update === 'latest',
     optional: wantedDependency.optional,
-    // The named-registry / jsr paths route through this shared shell.
-    // Forward `deferImmatureDecision` so loose-mode fallback covers those
-    // protocols too, not only plain npm.
-    deferImmatureDecision: opts.deferImmatureDecision,
   })
   if (pickedPackage == null) {
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })

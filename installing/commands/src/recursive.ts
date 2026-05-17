@@ -177,7 +177,6 @@ export async function recursive (
     targetDependenciesField,
     resolutionVerifiers: store.resolutionVerifiers,
     workspacePackages,
-    deferImmatureDecision: immaturePicks?.deferImmatureDecision,
     onAfterResolveDependencyTree: immaturePicks?.onAfterResolveDependencyTree,
   }) as InstallOptions
 

@@ -26,20 +26,15 @@ const MINIMUM_RELEASE_AGE_CODE = 'MINIMUM_RELEASE_AGE_VIOLATION'
 
 export interface ImmaturePicksPlan {
   /**
-   * Forwarded to the resolver. When set, strict mode behaves like
-   * loose for picking purposes (fall back to lowest), so the
-   * post-resolution scan sees every immature pick at once instead of
-   * the resolver throwing on the first.
-   */
-  deferImmatureDecision: boolean
-  /**
    * Wires the install command into the resolver-agnostic
    * `onAfterResolveDependencyTree` checkpoint, called between
    * `resolveDependencyTree` and `resolvePeers` so the abort happens
-   * before peer-dep work runs. Runs the prompt under strict mode +
-   * TTY; a no-op in loose mode (where the persist path at the end of
-   * the install handles the picks). Throws to abort the install
-   * cleanly when the user declines.
+   * before peer-dep work runs. The handler picks one of three
+   * paths based on mode + TTY: strict + TTY prompts and persists on
+   * approval; strict no-TTY throws with the full violation list;
+   * loose is a no-op (the persist path at the end of the install
+   * handles the picks). Throws to abort the install cleanly when
+   * the user declines or when no prompt is possible.
    */
   onAfterResolveDependencyTree: (
     violations: readonly ResolverViolation[]
@@ -61,12 +56,13 @@ export interface ImmaturePicksPlan {
  * Strict mode + an interactive TTY surfaces the full set of immature
  * picks (direct AND transitive) at once via a confirm prompt — the
  * install proceeds if the user approves, otherwise it aborts before
- * touching the lockfile or package.json (#10488).
+ * touching the lockfile or package.json (#10488). Strict mode in CI
+ * or any other non-TTY context aborts hard with the same violation
+ * list so the failure pinpoints every offending entry, not just the
+ * first one the resolver picked.
  *
- * Returns `undefined` when no policy is active or strict mode is on
- * without a TTY — in those cases the resolver's existing behavior
- * (throw on first immature pick) is what we want, and there's no
- * work for this plan to do.
+ * Returns `undefined` only when no minimumReleaseAge policy is
+ * active — there's no work for the plan to do in that case.
  */
 export function setupImmaturePicks (opts: {
   minimumReleaseAge?: number
@@ -80,19 +76,34 @@ export function setupImmaturePicks (opts: {
   const strictMode = opts.minimumReleaseAgeStrict === true
   const inCi = opts.ci ?? isCI
   const canPrompt = !inCi && Boolean(process.stdin.isTTY)
-  if (strictMode && !canPrompt) return undefined
 
-  const promptRequired = strictMode
   return {
-    deferImmatureDecision: true,
-    pickEntriesToPersist: (violations) => pickImmatureEntries(violations, promptRequired),
+    pickEntriesToPersist: (violations) => pickImmatureEntries(violations, strictMode),
     onAfterResolveDependencyTree: async (violations) => {
-      if (!promptRequired) return
+      if (!strictMode) return
       const immature = filterImmatureViolations(violations)
       if (immature.length === 0) return
-      await promptForApproval(immature)
+      if (canPrompt) {
+        await promptForApproval(immature)
+      } else {
+        throw failOnImmature(immature)
+      }
     },
   }
+}
+
+function failOnImmature (immature: readonly ResolverViolation[]): PnpmError {
+  const sorted = [...immature].sort((a, b) => `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`))
+  const list = sorted.map((v) => `  ${v.name}@${v.version} ${v.reason}`).join('\n')
+  return new PnpmError(
+    'NO_MATURE_MATCHING_VERSION',
+    `${sorted.length} ${sorted.length === 1 ? 'version does' : 'versions do'} not meet the minimumReleaseAge constraint:\n${list}`,
+    {
+      hint: 'Run the install interactively to approve these picks, or add them to ' +
+        'minimumReleaseAgeExclude in pnpm-workspace.yaml, or wait for the packages ' +
+        'to mature past the configured cutoff.',
+    }
+  )
 }
 
 function filterImmatureViolations (violations: readonly ResolverViolation[]): ResolverViolation[] {

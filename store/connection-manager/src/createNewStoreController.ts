@@ -117,7 +117,6 @@ export async function createNewStoreController (
     includeOnlyPackageFiles: !opts.deployAllFiles,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
     preserveAbsolutePaths: opts.preserveAbsolutePaths,
-    strictPublishedByCheck: Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true,
     ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime,
     minimumReleaseAge: opts.minimumReleaseAge,
     minimumReleaseAgeStrict: opts.minimumReleaseAgeStrict,

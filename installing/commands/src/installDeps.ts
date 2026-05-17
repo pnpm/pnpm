@@ -270,13 +270,10 @@ export async function installDeps (
   }
 
   // `setupImmaturePicks` returns the wiring the install needs for the
-  // resolver-agnostic post-resolution scan: a `deferImmatureDecision`
-  // bool (so strict mode falls back instead of throwing on the first
-  // immature pick) and an `onAfterResolveDependencyTree` callback that
-  // prompts under strict + TTY. Loose mode auto-persists silently
-  // (handled below from the install result). Strict mode without a
-  // TTY (CI) returns `undefined` here so the resolver's existing
-  // fail-fast path stays in effect.
+  // resolver-agnostic post-resolution scan. Loose mode auto-persists
+  // silently (handled below from the install result); strict + TTY
+  // prompts; strict no-TTY (CI) throws with the full violation list.
+  // Returns `undefined` only when no minimumReleaseAge policy is active.
   const immaturePicks = setupImmaturePicks(opts)
 
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
@@ -294,7 +291,6 @@ export async function installDeps (
     resolutionVerifiers: store.resolutionVerifiers,
     workspacePackages,
     preferredVersions: opts.packageVulnerabilityAudit ? preferNonvulnerablePackageVersions(opts.packageVulnerabilityAudit) : undefined,
-    deferImmatureDecision: immaturePicks?.deferImmatureDecision,
     onAfterResolveDependencyTree: immaturePicks?.onAfterResolveDependencyTree,
   }
 

@@ -14,7 +14,11 @@ test('setupImmaturePicks returns undefined when minimumReleaseAge is unset', () 
   expect(setupImmaturePicks({})).toBeUndefined()
 })
 
-test('setupImmaturePicks returns undefined when strict mode is on and stdin is not a TTY', () => {
+test('setupImmaturePicks returns a plan even when strict mode is on without a TTY', () => {
+  // Pre-refactor this returned undefined and the resolver did the fail-fast
+  // throw. Now the plan is always returned: the strict-no-TTY case throws
+  // from `onAfterResolveDependencyTree` with the full violation list, not
+  // just the first immature pick the resolver happened to hit.
   const original = process.stdin.isTTY
   Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true })
   try {
@@ -22,24 +26,27 @@ test('setupImmaturePicks returns undefined when strict mode is on and stdin is n
       minimumReleaseAge: 60,
       minimumReleaseAgeStrict: true,
       ci: false,
-    })).toBeUndefined()
+    })).toBeDefined()
   } finally {
     Object.defineProperty(process.stdin, 'isTTY', { value: original, configurable: true })
   }
 })
 
-test('setupImmaturePicks returns undefined when ci=true even with stdin a TTY', () => {
-  // Some CI runners allocate a TTY but still expect deterministic
-  // non-interactive behavior. The `ci` option shuts the prompt off
-  // independently of the TTY check.
+test('strict no-TTY plan throws from onAfterResolveDependencyTree with the full violation list', async () => {
   const original = process.stdin.isTTY
-  Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true })
+  Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true })
   try {
-    expect(setupImmaturePicks({
+    const plan = setupImmaturePicks({
       minimumReleaseAge: 60,
       minimumReleaseAgeStrict: true,
-      ci: true,
-    })).toBeUndefined()
+      ci: false,
+    })!
+    await expect(plan.onAfterResolveDependencyTree([
+      violation('foo', '1.0.0'),
+      violation('bar', '2.3.4'),
+    ])).rejects.toMatchObject({
+      code: 'ERR_PNPM_NO_MATURE_MATCHING_VERSION',
+    })
   } finally {
     Object.defineProperty(process.stdin, 'isTTY', { value: original, configurable: true })
   }
@@ -55,7 +62,6 @@ test('setupImmaturePicks returns a plan when ci=false and stdin is a TTY', () =>
       ci: false,
     })
     expect(plan).toBeDefined()
-    expect(plan!.deferImmatureDecision).toBe(true)
   } finally {
     Object.defineProperty(process.stdin, 'isTTY', { value: original, configurable: true })
   }

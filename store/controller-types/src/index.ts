@@ -131,16 +131,6 @@ export interface RequestPackageOptions {
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
   trustPolicyIgnoreAfter?: number
-  /**
-   * When set, the npm resolver picks the lowest matching version (instead
-   * of throwing `NO_MATURE_MATCHING_VERSION`) when no mature version
-   * satisfies the range in strict mode. Every immature selection still
-   * lands in the lockfile; the install layer's post-resolution scan
-   * (see `collectLockfileResolutionViolations`) enumerates the full set
-   * and decides whether to abort (e.g. an interactive prompt) before
-   * the install completes.
-   */
-  deferImmatureDecision?: boolean
 }
 
 export type BundledManifestFunction = () => Promise<BundledManifest | undefined>

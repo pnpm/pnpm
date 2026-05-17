@@ -70,24 +70,12 @@ export interface PickPackageOptions extends PickPackageFromMetaOptions {
   dryRun: boolean
   includeLatestTag?: boolean
   optional?: boolean
-  deferImmatureDecision?: PickerOptions['deferImmatureDecision']
 }
 
 interface PickerOptions extends PickPackageFromMetaOptions {
   pickLowestVersion?: boolean
   includeLatestTag?: boolean
-  strictPublishedByCheck?: boolean
   ignoreMissingTimeField?: boolean
-  /**
-   * When set, `pickRespectingMinReleaseAge` ignores `strictPublishedByCheck`
-   * and uses the lowest-version fallback even in strict mode. Every
-   * immature pick still lands in the lockfile; the install layer's
-   * post-resolution scan (see `collectLockfileResolutionViolations` in
-   * `installing/deps-installer`) surfaces the full set at once instead
-   * of the resolver throwing on the first immature pick and forcing the
-   * user into a discover-by-loop dance.
-   */
-  deferImmatureDecision?: boolean
 }
 
 // When includeLatestTag is set, the "latest" dist-tag is added as a candidate
@@ -117,23 +105,17 @@ const pickHighest = pickPackageFromMeta.bind(null, pickVersionByVersionRange)
 const pickLowest = pickPackageFromMeta.bind(null, pickLowestVersionByVersionRange)
 
 // When minimumReleaseAge is active: try the highest mature version; if none
-// and strictPublishedByCheck is off, fall back to the lowest version in range
-// without applying the maturity filter.
+// satisfies the range, fall back to the lowest version regardless of maturity
+// so the resolver can report the violation inline and let the install layer
+// (or other caller) decide what to do — never throw at this layer.
 function pickRespectingMinReleaseAge (
   pickerOpts: PickerOptions,
   spec: RegistryPackageSpec,
   meta: PackageMeta
 ): PackageInRegistry | null {
-  // `deferImmatureDecision` makes strict mode behave like loose for the
-  // picker: a higher layer (the install command's post-resolution scan +
-  // interactive prompt) sees the full list of immature picks in the
-  // assembled lockfile before deciding to proceed or abort. Without it,
-  // strict mode bails on the first immature pick and forces the
-  // discover-by-loop dance (see #10488).
-  const strictCheck = pickerOpts.strictPublishedByCheck && !pickerOpts.deferImmatureDecision
   return runPicker(pickerOpts, spec, (targetSpec) => {
     const highest = pickHighest(pickerOpts, meta, targetSpec)
-    if (highest || strictCheck) return highest
+    if (highest) return highest
     return pickLowest({
       preferredVersionSelectors: pickerOpts.preferredVersionSelectors,
     }, meta, targetSpec)
@@ -196,7 +178,6 @@ export async function pickPackage (
     offline?: boolean
     preferOffline?: boolean
     filterMetadata?: boolean
-    strictPublishedByCheck?: boolean
     ignoreMissingTimeField?: boolean
   },
   spec: RegistryPackageSpec,
@@ -210,9 +191,7 @@ export async function pickPackage (
     publishedByExclude: opts.publishedByExclude,
     pickLowestVersion: opts.pickLowestVersion,
     includeLatestTag: opts.includeLatestTag,
-    strictPublishedByCheck: ctx.strictPublishedByCheck,
     ignoreMissingTimeField: ctx.ignoreMissingTimeField,
-    deferImmatureDecision: opts.deferImmatureDecision,
   }
 
   validatePackageName(spec.name)
@@ -298,10 +277,11 @@ export async function pickPackage (
               pickedPackage,
             }
           }
-        } catch (err: unknown) {
-          if (shouldRethrowFromFastPathCache(err, ctx.strictPublishedByCheck)) {
-            throw err
-          }
+        } catch {
+          // Swallow fast-path errors (e.g. ERR_PNPM_MISSING_TIME from
+          // abbreviated meta) and fall through to the network fetch, which
+          // can upgrade to full metadata and run the maturity check on
+          // real `time` data.
         }
       }
     }
@@ -318,10 +298,8 @@ export async function pickPackage (
                 pickedPackage,
               }
             }
-          } catch (err: unknown) {
-            if (shouldRethrowFromFastPathCache(err, ctx.strictPublishedByCheck)) {
-              throw err
-            }
+          } catch {
+            // Same as above — fall through to the network fetch.
           }
         }
       }
@@ -512,14 +490,6 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
     return { meta }
   }
   return { meta: fullFetchResult.meta, upgradedFrom: fullFetchResult }
-}
-
-// Returns true when a fast-path cache catch should rethrow under
-// strictPublishedByCheck. ERR_PNPM_MISSING_TIME is excluded so callers fall
-// through to the network fetch path, which can upgrade abbreviated cached
-// metadata to full and run the maturity check on real `time` data.
-function shouldRethrowFromFastPathCache (err: unknown, strictPublishedByCheck: boolean | undefined): boolean {
-  return strictPublishedByCheck === true && !isMissingTimeError(err)
 }
 
 // Persists upgraded full metadata to the on-disk cache mirror and returns
