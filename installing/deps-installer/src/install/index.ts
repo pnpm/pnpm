@@ -345,10 +345,6 @@ export async function mutateModules (
   // path branches.
   try {
     await verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
-      // Always forward cacheDir + lockfilePath; the function decides
-      // internally whether to consult the cache. Cache slots come from
-      // each verifier's own `policy`/`canTrustPastCheck` —
-      // `verifyLockfileResolutions` pulls them out.
       cacheDir: opts.cacheDir,
       lockfilePath: path.resolve(ctx.lockfileDir, WANTED_LOCKFILE),
     })
