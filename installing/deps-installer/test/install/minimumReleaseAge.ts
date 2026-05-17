@@ -222,10 +222,11 @@ test('loose mode reports immature fresh picks to onImmaturePick', async () => {
   // notifies the install layer, which the CLI command wires to the
   // workspace manifest writer.
   const picks: Array<{ name: string, version: string }> = []
-  await addDependenciesToPackage({}, ['is-odd@0.1'], testDefaults({
-    minimumReleaseAge: allImmatureMinimumReleaseAge,
-    onImmaturePick: (pkg) => picks.push(pkg),
-  }))
+  const opts = testDefaults({ minimumReleaseAge: allImmatureMinimumReleaseAge })
+  await addDependenciesToPackage({}, ['is-odd@0.1'], {
+    ...opts,
+    onImmaturePick: (pkg) => { picks.push(pkg) },
+  })
 
   expect(picks).toContainEqual({ name: 'is-odd', version: '0.1.0' })
 })
@@ -234,16 +235,14 @@ test('strict mode does not invoke onImmaturePick (resolver throws first)', async
   prepareEmpty()
 
   const picks: Array<{ name: string, version: string }> = []
+  const opts = testDefaults(
+    { minimumReleaseAge: allImmatureMinimumReleaseAge },
+    { strictPublishedByCheck: true }
+  )
   await expect(addDependenciesToPackage(
     {},
     ['is-odd@0.1'],
-    testDefaults(
-      {
-        minimumReleaseAge: allImmatureMinimumReleaseAge,
-        onImmaturePick: (pkg) => picks.push(pkg),
-      },
-      { strictPublishedByCheck: true }
-    )
+    { ...opts, onImmaturePick: (pkg) => { picks.push(pkg) } }
   )).rejects.toThrow(/does not meet the minimumReleaseAge constraint/)
 
   // Strict mode short-circuits in `pickRespectingMinReleaseAge` before the
@@ -257,11 +256,14 @@ test('versions excluded via minimumReleaseAgeExclude are not reported', async ()
   prepareEmpty()
 
   const picks: Array<{ name: string, version: string }> = []
-  await addDependenciesToPackage({}, ['is-odd@0.1'], testDefaults({
+  const opts = testDefaults({
     minimumReleaseAge: allImmatureMinimumReleaseAge,
     minimumReleaseAgeExclude: ['is-odd'],
-    onImmaturePick: (pkg) => picks.push(pkg),
-  }))
+  })
+  await addDependenciesToPackage({}, ['is-odd@0.1'], {
+    ...opts,
+    onImmaturePick: (pkg) => { picks.push(pkg) },
+  })
 
   // is-odd is excluded by policy — the install installed 0.1.2 (the highest in
   // range) treating it as fully trusted. Re-recording it as immature would
