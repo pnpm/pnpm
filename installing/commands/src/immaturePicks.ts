@@ -61,6 +61,14 @@ export interface ImmaturePicksPlan {
  * list so the failure pinpoints every offending entry, not just the
  * first one the resolver picked.
  *
+ * Strict mode combined with `--no-save` is rejected up-front — the
+ * approval prompt promises persistence the install command's
+ * `opts.save !== false` gate would block, leaving the lockfile holding
+ * approved-but-unlisted immature picks that the next install would
+ * reject. The user can drop `--no-save` (durable approval) or switch
+ * to loose mode (lockfile re-triggers auto-collect on the next normal
+ * install).
+ *
  * Returns `undefined` only when no minimumReleaseAge policy is
  * active — there's no work for the plan to do in that case.
  */
@@ -68,12 +76,19 @@ export function setupImmaturePicks (opts: {
   minimumReleaseAge?: number
   minimumReleaseAgeStrict?: boolean
   /**
+   * Pass `false` for `--no-save` installs. The plan refuses strict mode
+   * when persistence is off so the prompt never offers approval it
+   * can't honor.
+   */
+  save?: boolean
+  /**
    * Override for CI detection. Defaults to `ci-info`'s `isCI` flag.
    */
   ci?: boolean
 }): ImmaturePicksPlan | undefined {
   if (!opts.minimumReleaseAge) return undefined
   const strictMode = opts.minimumReleaseAgeStrict === true
+  const persistenceEnabled = opts.save !== false
   const inCi = opts.ci ?? isCI
   const canPrompt = !inCi && Boolean(process.stdin.isTTY)
 
@@ -83,6 +98,19 @@ export function setupImmaturePicks (opts: {
       if (!strictMode) return
       const immature = filterImmatureViolations(violations)
       if (immature.length === 0) return
+      if (!persistenceEnabled) {
+        throw new PnpmError(
+          'STRICT_MIN_RELEASE_AGE_REQUIRES_SAVE',
+          'minimumReleaseAgeStrict cannot be combined with --no-save: ' +
+          'approval would require writing to minimumReleaseAgeExclude in pnpm-workspace.yaml, ' +
+          'which --no-save prevents.',
+          {
+            hint: 'Drop --no-save so the exclude list can be persisted, or set ' +
+              'minimumReleaseAgeStrict: false to let the install proceed without prompting ' +
+              '(the lockfile would still trigger the auto-collect on the next normal install).',
+          }
+        )
+      }
       if (canPrompt) {
         await promptForApproval(immature)
       } else {

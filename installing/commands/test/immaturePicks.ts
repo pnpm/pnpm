@@ -90,6 +90,36 @@ test('setupImmaturePicks returns a plan when ci=false and stdin is a TTY', () =>
   })
 })
 
+test('strict + --no-save refuses up-front instead of prompting for unpersistable approval', async () => {
+  // The prompt promises to write to minimumReleaseAgeExclude, but the
+  // install command's `opts.save !== false` gate blocks that under
+  // --no-save — accepting the prompt would leave the lockfile holding
+  // approved-but-unlisted picks that the next install rejects.
+  await withStdinTTY(true, async () => {
+    const plan = setupImmaturePicks({
+      minimumReleaseAge: 60,
+      minimumReleaseAgeStrict: true,
+      save: false,
+      ci: false,
+    })!
+    await expect(plan.onAfterResolveDependencyTree([violation('foo', '1.0.0')]))
+      .rejects.toMatchObject({ code: 'ERR_PNPM_STRICT_MIN_RELEASE_AGE_REQUIRES_SAVE' })
+  })
+})
+
+test('loose + --no-save runs the hook as a no-op (lockfile re-triggers auto-collect later)', async () => {
+  // Loose mode never persists from the hook anyway — `pickEntriesToPersist`
+  // is what writes the exclude list at the install's tail, and the
+  // installDeps / recursive `opts.save !== false` gates already skip that
+  // when --no-save is set.
+  const plan = setupImmaturePicks({
+    minimumReleaseAge: 60,
+    save: false,
+  })!
+  await expect(plan.onAfterResolveDependencyTree([violation('foo', '1.0.0')]))
+    .resolves.toBeUndefined()
+})
+
 test('loose-mode plan returns sorted unique name@version entries and logs once', () => {
   const plan = setupImmaturePicks({ minimumReleaseAge: 60 })!
   const violations = [
