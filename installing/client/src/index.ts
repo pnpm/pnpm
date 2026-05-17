@@ -38,7 +38,14 @@ export type ClientOptions = {
   preserveAbsolutePaths?: boolean
   fetchMinSpeedKiBps?: number
 } & ResolverFactoryOptions & DispatcherOptions
-  & Pick<ResolutionVerifierFactoryOptions, 'minimumReleaseAge' | 'minimumReleaseAgeStrict' | 'minimumReleaseAgeExclude'>
+  & Pick<ResolutionVerifierFactoryOptions,
+  | 'minimumReleaseAge'
+  | 'minimumReleaseAgeStrict'
+  | 'minimumReleaseAgeExclude'
+  | 'trustPolicy'
+  | 'trustPolicyExclude'
+  | 'trustPolicyIgnoreAfter'
+  >
 
 export interface Client {
   fetchers: Fetchers

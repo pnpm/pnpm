@@ -151,6 +151,9 @@ export type ResolutionVerifierFactoryOptions =
   | 'minimumReleaseAge'
   | 'minimumReleaseAgeStrict'
   | 'minimumReleaseAgeExclude'
+  | 'trustPolicy'
+  | 'trustPolicyExclude'
+  | 'trustPolicyIgnoreAfter'
   | 'now'
   > & {
     configByUri?: Record<string, RegistryConfig>
@@ -184,6 +187,9 @@ export function createResolutionVerifiers (
     minimumReleaseAge: opts.minimumReleaseAge,
     minimumReleaseAgeStrict: opts.minimumReleaseAgeStrict,
     minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
+    trustPolicy: opts.trustPolicy,
+    trustPolicyExclude: opts.trustPolicyExclude,
+    trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
     registries: opts.registries,
     namedRegistries: opts.namedRegistries,
     fetchOpts,

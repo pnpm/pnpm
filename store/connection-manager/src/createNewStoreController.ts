@@ -51,6 +51,8 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'saveWorkspaceProtocol'
 | 'strictSsl'
 | 'trustPolicy'
+| 'trustPolicyExclude'
+| 'trustPolicyIgnoreAfter'
 | 'unsafePerm'
 | 'userAgent'
 | 'verifyStoreIntegrity'
@@ -120,6 +122,9 @@ export async function createNewStoreController (
     minimumReleaseAge: opts.minimumReleaseAge,
     minimumReleaseAgeStrict: opts.minimumReleaseAgeStrict,
     minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
+    trustPolicy: opts.trustPolicy,
+    trustPolicyExclude: opts.trustPolicyExclude,
+    trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
     storeIndex,
   })
   return {
