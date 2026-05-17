@@ -84,11 +84,19 @@ export async function verifyLockfileResolutions (
   // `react@18.0.0(peer)(patch_hash=…)`); the same (name, version) pair may
   // therefore appear multiple times. Dedupe so we issue at most one
   // verification per package version.
+  //
+  // Include a serialization of `resolution` in the key so two entries that
+  // share a (name, version) but differ in *what* was resolved (e.g. one
+  // pinned via npm, another via a git URL under the same alias) don't
+  // collapse: if the wrong shape wins the dedup, a protocol-scoped
+  // verifier short-circuits on the surviving entry and the real one is
+  // never checked.
   const candidates = new Map<string, { name: string, version: string, resolution: Resolution }>()
   for (const [depPath, snapshot] of Object.entries(lockfile.packages)) {
     const { name, version } = nameVerFromPkgSnapshot(depPath as DepPath, snapshot)
     if (!name || !version) continue
-    candidates.set(`${name}@${version}`, {
+    const key = `${name}@${version}@${JSON.stringify(snapshot.resolution)}`
+    candidates.set(key, {
       name,
       version,
       resolution: snapshot.resolution as Resolution,

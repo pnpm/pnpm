@@ -117,6 +117,29 @@ test('dedupes peer/patch-suffix variants and invokes the verifier once per (name
   expect(seen).toEqual([{ name: 'react', version: '18.0.0' }])
 })
 
+test('does not collapse same (name, version) with different resolutions', async () => {
+  // Two entries sharing a name@version but pinned via different protocols
+  // (npm registry vs. git). If the dedup key were just `name@version` one
+  // would silently overwrite the other and a protocol-scoped verifier
+  // would short-circuit on the survivor — letting the real entry skip
+  // the gate.
+  const npmResolution = tarballResolution('sha512-a')
+  const gitResolution = { type: 'git', repo: 'x', commit: 'abc' }
+  const lockfile = makeLockfile({
+    'foo@1.0.0': { resolution: npmResolution },
+    'foo@1.0.0(peer-x)': { resolution: gitResolution },
+  })
+  const seenResolutions: unknown[] = []
+  const verifier = wrap(async (resolution) => {
+    seenResolutions.push(resolution)
+    return { ok: true }
+  })
+
+  await verifyLockfileResolutions(lockfile, [verifier])
+  expect(seenResolutions).toEqual(expect.arrayContaining([npmResolution, gitResolution]))
+  expect(seenResolutions).toHaveLength(2)
+})
+
 test('the verifier sees the resolution shape verbatim', async () => {
   const npmResolution = tarballResolution()
   const gitResolution = { type: 'git', repo: 'x', commit: 'abc' }

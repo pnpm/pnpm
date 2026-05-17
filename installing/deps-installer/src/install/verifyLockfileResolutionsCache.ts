@@ -68,7 +68,12 @@ interface CacheRecord {
      * local-dev fast path.
      */
     mtimeNs: string
-    inode: number
+    /**
+     * Stringified — some filesystems (e.g. large network drives) use
+     * inodes that exceed Number.MAX_SAFE_INTEGER, so a plain number
+     * would lose precision and silently invalidate the fast path.
+     */
+    inode: string
   }
   /** ISO-8601 timestamp of when the verification ran. */
   verifiedAt: string
@@ -89,7 +94,7 @@ interface CacheLookupResult {
 interface LockfileStat {
   size: number
   mtimeNs: string
-  inode: number
+  inode: string
 }
 
 export interface LockfileVerificationCacheKey {
@@ -135,7 +140,7 @@ function normalizeRecord (parsed: Partial<CacheRecord>): CacheRecord {
       hash: lockfile.hash ?? '',
       size: lockfile.size ?? -1,
       mtimeNs: lockfile.mtimeNs ?? '',
-      inode: lockfile.inode ?? -1,
+      inode: lockfile.inode ?? '',
     },
     verifiedAt: parsed.verifiedAt ?? '',
     policy: parsed.policy && typeof parsed.policy === 'object' ? parsed.policy : {},
@@ -148,7 +153,7 @@ function statLockfile (lockfilePath: string): LockfileStat | null {
     return {
       size: Number(stat.size),
       mtimeNs: stat.mtimeNs.toString(),
-      inode: Number(stat.ino),
+      inode: stat.ino.toString(),
     }
   } catch (err: unknown) {
     if (isNodeError(err) && err.code === 'ENOENT') return null

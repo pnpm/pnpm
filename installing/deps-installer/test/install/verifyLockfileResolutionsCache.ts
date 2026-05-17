@@ -241,7 +241,7 @@ describe('recordVerification', () => {
     expect(typeof record.verifiedAt).toBe('string')
     expect(typeof record.lockfile.size).toBe('number')
     expect(typeof record.lockfile.mtimeNs).toBe('string')
-    expect(typeof record.lockfile.inode).toBe('number')
+    expect(typeof record.lockfile.inode).toBe('string')
   })
 
   test('merges policy fields across verifiers into a single bag', async () => {
