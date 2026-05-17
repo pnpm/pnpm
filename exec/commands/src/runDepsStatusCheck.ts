@@ -21,7 +21,7 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
   if (upToDate) return
 
   const command = ['install', ...createInstallArgs(workspaceState?.settings)]
-  const install = runPnpmCli.bind(null, command, { cwd: opts.dir, silent: opts.reporter === 'silent' })
+  const install = runPnpmCli.bind(null, command, { cwd: opts.dir, reporter: opts.reporter })
 
   switch (opts.verifyDepsBeforeRun) {
     case 'install':

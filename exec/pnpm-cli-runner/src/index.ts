@@ -4,15 +4,15 @@ import { sync as execSync } from 'execa'
 
 export interface RunPnpmCliOptions {
   cwd: string
-  silent?: boolean
+  reporter?: string
 }
 
-export function runPnpmCli (command: string[], { cwd, silent }: RunPnpmCliOptions): void {
+export function runPnpmCli (command: string[], { cwd, reporter }: RunPnpmCliOptions): void {
   const execOpts = {
     cwd,
-    stdio: silent ? ['inherit', 'ignore', 'inherit'] as const : 'inherit' as const,
+    stdio: 'inherit' as const,
   }
-  const cliCommand = silent ? [...command, '--reporter=silent'] : command
+  const cliCommand = reporter ? [...command, `--reporter=${reporter}`] : command
   const execFileName = path.basename(process.execPath).toLowerCase()
   if (execFileName === 'pnpm' || execFileName === 'pnpm.exe') {
     execSync(process.execPath, cliCommand, execOpts)
