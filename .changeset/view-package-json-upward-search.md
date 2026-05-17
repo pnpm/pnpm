@@ -1,5 +1,7 @@
 ---
 "@pnpm/deps.inspection.commands": minor
+"@pnpm/workspace.projects-filter": patch
+"@pnpm/workspace.root-finder": patch
 "pnpm": minor
 ---
 
