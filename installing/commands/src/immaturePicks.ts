@@ -1,5 +1,4 @@
 import { PnpmError } from '@pnpm/error'
-import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalInfo } from '@pnpm/logger'
 import { isCI } from 'ci-info'
 import enquirer from 'enquirer'
@@ -35,14 +34,15 @@ export interface ImmaturePicksPlan {
   deferImmatureDecision: boolean
   /**
    * Wires the install command into the resolver-agnostic
-   * `onAfterResolveDependencyTree` checkpoint. Runs the prompt under
-   * strict mode + TTY; a no-op in loose mode (where the persist path
-   * at the end of the install handles the picks). Throws to abort the
-   * install cleanly when the user declines.
+   * `onAfterResolveDependencyTree` checkpoint, called between
+   * `resolveDependencyTree` and `resolvePeers` so the abort happens
+   * before peer-dep work runs. Runs the prompt under strict mode +
+   * TTY; a no-op in loose mode (where the persist path at the end of
+   * the install handles the picks). Throws to abort the install
+   * cleanly when the user declines.
    */
   onAfterResolveDependencyTree: (
-    violations: readonly ResolverViolation[],
-    lockfile: LockfileObject
+    violations: readonly ResolverViolation[]
   ) => Promise<void>
   /**
    * Filters the install result's violations down to the

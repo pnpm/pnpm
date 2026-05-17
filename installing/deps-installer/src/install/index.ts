@@ -62,6 +62,7 @@ import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.
 import { createVersionSpecFromResolvedVersion, getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/pkg-manifest.utils'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import type {
+  LockfileResolutionViolation,
   PreferredVersions,
 } from '@pnpm/resolving.resolver-base'
 import type {
@@ -95,11 +96,7 @@ import {
 import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
 import { validateModules } from './validateModules.js'
-import {
-  collectLockfileResolutionViolations,
-  type LockfileResolutionViolation,
-  verifyLockfileResolutions,
-} from './verifyLockfileResolutions.js'
+import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 
 class LockfileConfigMismatchError extends PnpmError {
   constructor (outdatedLockfileSettingName: string) {
@@ -1351,6 +1348,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     peerDependencyIssuesByProjects,
     wantedToBeSkippedPackageIds,
     waitTillAllFetchingsFinish,
+    lockfileResolutionViolations,
   } = await resolveDependencies(
     projects,
     {
@@ -1408,6 +1406,8 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
       blockExoticSubdeps: opts.blockExoticSubdeps,
       allProjectIds: Object.values(ctx.projects).map((p) => p.id),
+      resolutionVerifiers: opts.resolutionVerifiers,
+      onAfterResolveDependencyTree: opts.onAfterResolveDependencyTree,
     }
   )
   if (!opts.include.optionalDependencies || !opts.include.devDependencies || !opts.include.dependencies) {
@@ -1464,16 +1464,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   newLockfile = ((opts.hooks?.afterAllResolved) != null)
     ? await pipeWith(async (f, res) => f(await res), opts.hooks.afterAllResolved as any)(newLockfile) as LockfileObject // eslint-disable-line
     : newLockfile
-
-  // Resolver-agnostic post-resolution gate: fan every active
-  // `ResolutionVerifier` across the freshly-resolved lockfile and
-  // hand the violations to the install command. Today the install
-  // command auto-persists minimumReleaseAge violations to the
-  // workspace manifest and (under strict + TTY) prompts the user;
-  // future resolvers can plug verifiers in without touching this
-  // call site.
-  const lockfileResolutionViolations = await collectLockfileResolutionViolations(newLockfile, opts.resolutionVerifiers)
-  await opts.onAfterResolveDependencyTree?.(lockfileResolutionViolations, newLockfile)
 
   if (opts.updateLockfileMinorVersion) {
     newLockfile.lockfileVersion = LOCKFILE_VERSION

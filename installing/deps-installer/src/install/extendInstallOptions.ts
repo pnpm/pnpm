@@ -11,7 +11,7 @@ import type { ProjectOptions } from '@pnpm/installing.context'
 import type { HoistingLimits } from '@pnpm/installing.deps-restorer'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
-import type { ResolutionVerifier, WorkspacePackages } from '@pnpm/resolving.resolver-base'
+import type { LockfileResolutionViolation, ResolutionVerifier, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type {
   AllowedDeprecatedVersions,
@@ -27,7 +27,6 @@ import type {
 
 import { pnpmPkgJson } from '../pnpmPkgJson.js'
 import type { ReporterFunction } from '../types.js'
-import type { LockfileResolutionViolation } from './verifyLockfileResolutions.js'
 
 export interface StrictInstallOptions {
   autoConfirmAllPrompts: boolean
@@ -188,12 +187,13 @@ export interface StrictInstallOptions {
    */
   deferImmatureDecision?: boolean
   /**
-   * Resolver-agnostic post-resolution gate, invoked after the wanted
-   * lockfile has been fully built (peer deps resolved, afterAllResolved
-   * applied) but before it's written to disk or any modules dir is
-   * touched. Receives the violations the verifier fan-out collected
-   * plus the lockfile itself. Throwing here unwinds the install
-   * cleanly — nothing on disk has changed.
+   * Resolver-agnostic post-tree gate, invoked between
+   * `resolveDependencyTree` and `resolvePeers` inside
+   * `resolveDependencies`. Receives the violations the verifier
+   * fan-out collected from the freshly-resolved tree. Throwing here
+   * unwinds the install before peer-dep resolution runs — nothing on
+   * disk has changed, and the (potentially expensive) peer pass is
+   * skipped on abort.
    *
    * Intentionally policy-neutral. Each verifier owns its violation
    * codes (`MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`, …); the
@@ -201,8 +201,7 @@ export interface StrictInstallOptions {
    * resolvers can plug verifiers in without touching this signature.
    */
   onAfterResolveDependencyTree?: (
-    violations: LockfileResolutionViolation[],
-    lockfile: LockfileObject
+    violations: readonly LockfileResolutionViolation[]
   ) => Promise<void>
   /**
    * Resolver-side verifiers that re-check each lockfile-pinned resolution

@@ -1,9 +1,6 @@
 import { expect, jest, test } from '@jest/globals'
-import type { LockfileObject } from '@pnpm/lockfile.types'
 
 import { type ResolverViolation, setupImmaturePicks } from '../lib/immaturePicks.js'
-
-const STUB_LOCKFILE: LockfileObject = { lockfileVersion: '9.0', importers: {} }
 
 function violation (
   name: string,
@@ -94,6 +91,6 @@ test('onAfterResolveDependencyTree is a no-op in loose mode regardless of violat
   const plan = setupImmaturePicks({ minimumReleaseAge: 60 })!
   // Loose mode never prompts — picks are persisted from
   // `pickEntriesToPersist` at the end of the install.
-  await expect(plan.onAfterResolveDependencyTree([violation('foo', '1.0.0')], STUB_LOCKFILE))
+  await expect(plan.onAfterResolveDependencyTree([violation('foo', '1.0.0')]))
     .resolves.toBeUndefined()
 })

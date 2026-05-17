@@ -2,7 +2,11 @@ import { hashObject } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
-import type { Resolution, ResolutionVerifier } from '@pnpm/resolving.resolver-base'
+import type {
+  LockfileResolutionViolation,
+  Resolution,
+  ResolutionVerifier,
+} from '@pnpm/resolving.resolver-base'
 import type { DepPath } from '@pnpm/types'
 import pLimit from 'p-limit'
 
@@ -11,26 +15,10 @@ import {
   tryLockfileVerificationCache,
 } from './verifyLockfileResolutionsCache.js'
 
-/**
- * One verifier outcome against one lockfile entry. The shape is
- * resolver-agnostic — every verifier reports its own `code` (e.g.
- * `MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`) and the caller
- * decides how to react (throw, prompt, persist, log).
- *
- * Exposed so other resolvers (jsr, git, custom) can have their
- * verifiers participate in the same collect-mode scan the install
- * uses for loose-mode auto-collect and the strict-mode prompt — no
- * minimumReleaseAge-specific plumbing required.
- */
-export interface LockfileResolutionViolation {
-  name: string
-  version: string
-  /** Resolution from the lockfile that the verifier rejected. */
-  resolution: Resolution
-  /** Verifier-defined code. Drives downstream UX (which exclude list to populate, etc.). */
-  code: string
-  reason: string
-}
+// Re-exported for back-compat with the existing import surface.
+// The interface itself lives in resolver-base so deps-resolver can
+// participate in the same shape; see the doc there.
+export type { LockfileResolutionViolation }
 
 // Cap the per-entry breakdown so a verifier rejecting hundreds of entries
 // (e.g. a poisoned lockfile) doesn't flood the terminal / CI log; the full
