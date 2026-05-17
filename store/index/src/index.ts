@@ -17,6 +17,7 @@ const packr = new Packr({
 const SQLITE_BUSY = 5
 const RETRY_DELAY_MS = 50
 const MAX_RETRIES = 100 // ~5 seconds total
+const GET_CACHE_MAX_ENTRIES = 1000
 
 function sqliteRetry<T> (fn: () => T): T {
   for (let attempt = 0; ; attempt++) {
@@ -108,6 +109,7 @@ export function closeAllStoreIndexes (): void {
 export class StoreIndex {
   private db: DatabaseSyncType
   private closed = false
+  private readonly getCache = new Map<string, unknown>()
   private pendingWrites: Array<{ key: string, buffer: Uint8Array }> = []
   private flushScheduled = false
   private stmtGet: StatementSync
@@ -170,6 +172,31 @@ export class StoreIndex {
   }
 
   /**
+   * Get a decoded index entry with read-through caching.
+   * This is intended for read-only hot paths; callers that mutate the returned
+   * value should use get() so each read gets a freshly unpacked object.
+   */
+  getCached (key: string): unknown | undefined {
+    if (this.getCache.has(key)) {
+      const cachedValue = this.getCache.get(key)
+      this.getCache.delete(key)
+      this.getCache.set(key, cachedValue)
+      return cachedValue
+    }
+    const value = this.get(key)
+    if (value !== undefined) {
+      this.getCache.set(key, value)
+      if (this.getCache.size > GET_CACHE_MAX_ENTRIES) {
+        const oldestKey = this.getCache.keys().next().value as string | undefined
+        if (oldestKey != null) {
+          this.getCache.delete(oldestKey)
+        }
+      }
+    }
+    return value
+  }
+
+  /**
    * Get the raw msgpack-encoded buffer for a key without decoding.
    */
   getRaw (key: string): Uint8Array | undefined {
@@ -182,6 +209,7 @@ export class StoreIndex {
     sqliteRetry(() => {
       this.stmtSet.run(key, buffer)
     })
+    this.getCache.delete(key)
   }
 
   delete (key: string): boolean {
@@ -189,6 +217,7 @@ export class StoreIndex {
     sqliteRetry(() => {
       result = this.stmtDel.run(key)
     })
+    this.getCache.delete(key)
     return result.changes > 0
   }
 
@@ -250,6 +279,7 @@ export class StoreIndex {
       sqliteRetry(() => {
         this.stmtSet.run(entries[0].key, entries[0].buffer)
       })
+      this.getCache.delete(entries[0].key)
       return
     }
     sqliteRetry(() => {
@@ -269,6 +299,9 @@ export class StoreIndex {
         }
       }
     })
+    for (const { key } of entries) {
+      this.getCache.delete(key)
+    }
   }
 
   /**
@@ -299,6 +332,9 @@ export class StoreIndex {
         }
       }
     })
+    for (const key of keys) {
+      this.getCache.delete(key)
+    }
     this.db.exec('VACUUM')
   }
 
@@ -315,6 +351,7 @@ export class StoreIndex {
     if (this.closed) return
     this.flush()
     this.closed = true
+    this.getCache.clear()
     openInstances.delete(this)
     process.removeListener('exit', this.exitHandler)
     try {
