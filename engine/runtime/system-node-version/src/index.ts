@@ -116,7 +116,8 @@ export function findRuntimeNodeVersion (snapshotKeys: Iterable<string>): string 
  * for cross-pinning installs.
  */
 export function readSnapshotRuntimePin (
-  children: { node?: string } | undefined
+  children: Record<string, string> | undefined
 ): string | undefined {
-  return children?.node != null ? extractRuntimeNodeVersion(children.node) : undefined
+  const ref = children?.node
+  return ref != null ? extractRuntimeNodeVersion(ref) : undefined
 }

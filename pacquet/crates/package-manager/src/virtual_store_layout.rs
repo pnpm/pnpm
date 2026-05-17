@@ -104,7 +104,7 @@ impl VirtualStoreLayout {
     /// cache key) uses. Snapshots that themselves pin Node via
     /// `engines.runtime` (carried in the lockfile as
     /// `dependencies.node: runtime:<version>`) override the fallback
-    /// per-snapshot through [`find_own_runtime_node_major`] — the
+    /// per-snapshot through `find_own_runtime_node_major` — the
     /// engine portion of the hash then tracks the Node that pnpm's
     /// bin linker would spawn for that pinning package's lifecycle
     /// scripts (see
@@ -200,8 +200,8 @@ impl VirtualStoreLayout {
             // matches whatever the caller used to format the
             // fallback `engine` so the two strings remain comparable
             // across snapshots in one install.
-            let own_engine = find_own_runtime_node_major(snapshot)
-                .map(|major| engine_name(major, None, None));
+            let own_engine =
+                find_own_runtime_node_major(snapshot).map(|major| engine_name(major, None, None));
             let snapshot_engine = own_engine.as_deref().or(engine);
             let hex_digest = calc_graph_node_hash(
                 &graph,
@@ -603,7 +603,8 @@ mod tests {
     /// The bin linker spawns each pinning package's lifecycle scripts
     /// through its own downloaded Node, so anchoring the engine
     /// portion of the hash to a single install-wide value would
-    /// mis-key the side-effects cache for cross-pinning installs.
+    /// produce the wrong side-effects-cache key for cross-pinning
+    /// installs.
     #[test]
     fn cross_pinning_siblings_get_distinct_slots() {
         let config = make_config(
@@ -619,10 +620,22 @@ mod tests {
 
         let mut packages = HashMap::new();
         let integrities = [
-            (pins_22.clone(), "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
-            (pins_20.clone(), "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"),
-            (node22_key.clone(), "sha512-CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"),
-            (node20_key.clone(), "sha512-DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD"),
+            (
+                pins_22.clone(),
+                "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            ),
+            (
+                pins_20.clone(),
+                "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+            ),
+            (
+                node22_key.clone(),
+                "sha512-CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+            ),
+            (
+                node20_key.clone(),
+                "sha512-DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
+            ),
         ];
         for (key, integrity_str) in integrities {
             packages.insert(
@@ -687,9 +700,6 @@ mod tests {
         );
         let slot_22 = layout.slot_dir(&pins_22);
         let slot_20 = layout.slot_dir(&pins_20);
-        assert_ne!(
-            slot_22, slot_20,
-            "cross-pinning builders must land on distinct GVS slots",
-        );
+        assert_ne!(slot_22, slot_20, "cross-pinning builders must land on distinct GVS slots",);
     }
 }

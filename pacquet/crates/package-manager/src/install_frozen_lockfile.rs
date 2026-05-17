@@ -1322,7 +1322,8 @@ fn find_runtime_node_major(snapshots: Option<&HashMap<PackageKey, SnapshotEntry>
 /// package's own downloaded Node (see
 /// [`bins/linker/src/index.ts:229-237`](https://github.com/pnpm/pnpm/blob/29a42efc3b/bins/linker/src/index.ts#L229-L237)).
 /// Anchoring the snapshot's GVS engine hash to an install-wide value
-/// would mis-key the side-effects cache for cross-pinning installs.
+/// would produce the wrong side-effects-cache key for cross-pinning
+/// installs.
 pub(crate) fn find_own_runtime_node_major(snapshot: &SnapshotEntry) -> Option<u32> {
     let deps = snapshot.dependencies.as_ref()?;
     for (alias, dep_ref) in deps {
@@ -1362,8 +1363,7 @@ mod tests {
             PkgName::parse("node").expect("parse pkg name"),
             SnapshotDepRef::Plain("runtime:22.11.0".parse().expect("parse ver-peer")),
         );
-        let snapshot =
-            SnapshotEntry { dependencies: Some(deps), ..SnapshotEntry::default() };
+        let snapshot = SnapshotEntry { dependencies: Some(deps), ..SnapshotEntry::default() };
         assert_eq!(find_own_runtime_node_major(&snapshot), Some(22));
     }
 
@@ -1378,8 +1378,7 @@ mod tests {
             PkgName::parse("node").expect("parse pkg name"),
             SnapshotDepRef::Plain("22.11.0".parse().expect("parse ver-peer")),
         );
-        let snapshot =
-            SnapshotEntry { dependencies: Some(deps), ..SnapshotEntry::default() };
+        let snapshot = SnapshotEntry { dependencies: Some(deps), ..SnapshotEntry::default() };
         assert_eq!(find_own_runtime_node_major(&snapshot), None);
     }
 
@@ -1393,8 +1392,7 @@ mod tests {
             PkgName::parse("@scope/node").expect("parse pkg name"),
             SnapshotDepRef::Plain("runtime:22.11.0".parse().expect("parse ver-peer")),
         );
-        let snapshot =
-            SnapshotEntry { dependencies: Some(deps), ..SnapshotEntry::default() };
+        let snapshot = SnapshotEntry { dependencies: Some(deps), ..SnapshotEntry::default() };
         assert_eq!(find_own_runtime_node_major(&snapshot), None);
     }
 
