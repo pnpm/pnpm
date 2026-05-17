@@ -137,12 +137,9 @@ function mirrorFilesIntoTarget (filesMap: FilesMap, targetDir: string): void {
     const destAbs = path.join(targetDir, relPath)
     try {
       fs.unlinkSync(destAbs)
-    } catch (err: unknown) { // eslint-disable-line @typescript-eslint/no-explicit-any
+    } catch (err: unknown) {
       // Missing dest is fine — we're about to create it. Anything else
-      // (EISDIR, EACCES, etc.) we want to surface. Match other pnpm
-      // call sites (bins.linker, modules-yaml) and access `.code` via
-      // NodeJS.ErrnoException cast — `instanceof Error` is unreliable
-      // across bundler/realm boundaries on some platforms.
+      // (EISDIR, EACCES, etc.) we want to surface.
       if ((err as NodeJS.ErrnoException | null)?.code !== 'ENOENT') throw err
     }
     fs.copyFileSync(srcAbs, destAbs)
