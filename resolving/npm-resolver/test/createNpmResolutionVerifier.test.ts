@@ -14,8 +14,6 @@ const registries: Registries = {
 const fetchFromRegistry = createFetchFromRegistry({})
 const getAuthHeaderValueByURI = (): undefined => undefined
 
-const slash = '%2F'
-
 function makeVerifierOpts (overrides: Partial<Parameters<typeof createNpmResolutionVerifier>[0]> = {}): Parameters<typeof createNpmResolutionVerifier>[0] {
   return {
     registries,
@@ -84,7 +82,7 @@ test('createNpmResolutionVerifier() flags a trustedPublisher → provenance down
     modified: '2025-06-01T00:00:00.000Z',
   }
   const pool = getMockAgent().get('https://registry.npmjs.org')
-  pool.intercept({ path: `/demo`, method: 'GET' }).reply(200, meta).persist()
+  pool.intercept({ path: '/demo', method: 'GET' }).reply(200, meta).persist()
 
   const verifier = createNpmResolutionVerifier(makeVerifierOpts({
     trustPolicy: 'no-downgrade',
@@ -131,7 +129,7 @@ test('createNpmResolutionVerifier() passes a same-evidence-level version', async
     modified: '2025-06-01T00:00:00.000Z',
   }
   const pool = getMockAgent().get('https://registry.npmjs.org')
-  pool.intercept({ path: `/demo`, method: 'GET' }).reply(200, meta).persist()
+  pool.intercept({ path: '/demo', method: 'GET' }).reply(200, meta).persist()
 
   const verifier = createNpmResolutionVerifier(makeVerifierOpts({
     trustPolicy: 'no-downgrade',
@@ -164,8 +162,8 @@ test('createNpmResolutionVerifier() abbreviated shortcut requires the pinned ver
     time: { '0.0.1': '2010-01-01T00:00:00.000Z' },
   }
   const pool = getMockAgent().get('https://registry.npmjs.org')
-  pool.intercept({ path: `/unpublished-pkg`, method: 'GET' }).reply(200, abbreviatedMeta).persist()
-  pool.intercept({ path: `/-/npm/v1/attestations/unpublished-pkg@0.0.2`, method: 'GET' }).reply(404, {}).persist()
+  pool.intercept({ path: '/unpublished-pkg', method: 'GET' }).reply(200, abbreviatedMeta).persist()
+  pool.intercept({ path: '/-/npm/v1/attestations/unpublished-pkg@0.0.2', method: 'GET' }).reply(404, {}).persist()
 
   const verifier = createNpmResolutionVerifier(makeVerifierOpts({
     minimumReleaseAge: 1440, // 1 day
