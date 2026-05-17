@@ -1,9 +1,9 @@
 import type {
   DirectoryResolution,
-  ResolutionPolicyViolation,
   PkgResolutionId,
   PreferredVersions,
   Resolution,
+  ResolutionPolicyViolation,
   WantedDependency,
   WorkspacePackages,
 } from '@pnpm/resolving.resolver-base'
