@@ -46,21 +46,25 @@ const MAX_CACHE_ENTRIES = 1000
 const COMPACT_TRIGGER_BYTES = MAX_CACHE_ENTRIES * 1024 * 3 / 2
 
 interface CacheRecord {
-  lockfilePath: string
-  /** sha256 hex of the lockfile content, normalized to LF. */
-  lockfileHash: string
+  lockfile: {
+    /** Absolute path — the cache key. */
+    path: string
+    /** sha256 hex of the lockfile content, normalized to LF. */
+    hash: string
+    /** Lockfile size in bytes — same-machine fast path. */
+    size: number
+    /**
+     * Lockfile mtime in nanoseconds (stringified — JSON numbers lose ns
+     * precision). Cross-machine values are meaningless; on a CI runner
+     * the fresh checkout resets mtime, so we fall back to hashing. The
+     * hash is the source of truth — these stat fields are the
+     * local-dev fast path.
+     */
+    mtimeNs: string
+    inode: number
+  }
   /** ISO-8601 timestamp of when the verification ran. */
   verifiedAt: string
-  /** Lockfile size in bytes — same machine fast path. */
-  lockfileFileSize: number
-  /**
-   * Lockfile mtime in nanoseconds (stringified — JSON numbers lose ns
-   * precision). Cross-machine values are meaningless; on a CI runner the
-   * fresh checkout resets mtime, so we fall back to hashing. The hash is
-   * the source of truth — these stat fields are the local-dev fast path.
-   */
-  lockfileMtimeNs: string
-  lockfileInode: number
   /**
    * Merged policy snapshot that passed when the verification ran. Each
    * active {@link VerifierCacheIdentity} contributes its fields here;
@@ -105,9 +109,10 @@ async function readCache (cacheDir: string): Promise<Map<string, CacheRecord>> {
     if (!line) continue
     try {
       const parsed = JSON.parse(line) as Partial<CacheRecord>
-      if (typeof parsed?.lockfilePath !== 'string') continue
+      const path = parsed?.lockfile?.path
+      if (typeof path !== 'string') continue
       // Later records overwrite earlier ones — JSONL semantics.
-      records.set(parsed.lockfilePath, normalizeRecord(parsed))
+      records.set(path, normalizeRecord(parsed))
     } catch {
       // Skip malformed lines; the next clean append will still work.
     }
@@ -116,13 +121,16 @@ async function readCache (cacheDir: string): Promise<Map<string, CacheRecord>> {
 }
 
 function normalizeRecord (parsed: Partial<CacheRecord>): CacheRecord {
+  const lockfile: Partial<CacheRecord['lockfile']> = parsed.lockfile ?? {}
   return {
-    lockfilePath: parsed.lockfilePath ?? '',
-    lockfileHash: parsed.lockfileHash ?? '',
+    lockfile: {
+      path: lockfile.path ?? '',
+      hash: lockfile.hash ?? '',
+      size: lockfile.size ?? -1,
+      mtimeNs: lockfile.mtimeNs ?? '',
+      inode: lockfile.inode ?? -1,
+    },
     verifiedAt: parsed.verifiedAt ?? '',
-    lockfileFileSize: parsed.lockfileFileSize ?? -1,
-    lockfileMtimeNs: parsed.lockfileMtimeNs ?? '',
-    lockfileInode: parsed.lockfileInode ?? -1,
     policy: parsed.policy && typeof parsed.policy === 'object' ? parsed.policy : {},
   }
 }
@@ -175,8 +183,8 @@ export async function tryLockfileVerificationCache (
   const stat = await statLockfile(key.lockfilePath)
   if (!stat) return { hit: false }
   // Size mismatch is guaranteed-different content; skip the hash entirely.
-  if (stat.size !== record.lockfileFileSize) return { hit: false }
-  if (stat.mtimeNs === record.lockfileMtimeNs && stat.inode === record.lockfileInode) {
+  if (stat.size !== record.lockfile.size) return { hit: false }
+  if (stat.mtimeNs === record.lockfile.mtimeNs && stat.inode === record.lockfile.inode) {
     return { hit: true }
   }
   // Stat fields drift (CI checkout, file copy, editor write-through);
@@ -188,14 +196,12 @@ export async function tryLockfileVerificationCache (
     logger.debug({ msg: 'lockfile-verified cache: lockfile hash failed', err })
     return { hit: false }
   }
-  if (hash !== record.lockfileHash) return { hit: false }
+  if (hash !== record.lockfile.hash) return { hit: false }
   // Hash matched — refresh stat fields so the next install on this machine
   // hits the stat-only fast path.
   await appendRecord(cacheDir, {
     ...record,
-    lockfileFileSize: stat.size,
-    lockfileMtimeNs: stat.mtimeNs,
-    lockfileInode: stat.inode,
+    lockfile: { ...record.lockfile, size: stat.size, mtimeNs: stat.mtimeNs, inode: stat.inode },
   })
   return { hit: true }
 }
@@ -241,12 +247,14 @@ export async function recordVerification (
     return
   }
   const record: CacheRecord = {
-    lockfilePath: key.lockfilePath,
-    lockfileHash: hash,
+    lockfile: {
+      path: key.lockfilePath,
+      hash,
+      size: stat.size,
+      mtimeNs: stat.mtimeNs,
+      inode: stat.inode,
+    },
     verifiedAt: new Date().toISOString(),
-    lockfileFileSize: stat.size,
-    lockfileMtimeNs: stat.mtimeNs,
-    lockfileInode: stat.inode,
     policy: mergePolicies(key.verifiers),
   }
   await appendRecord(cacheDir, record)
@@ -301,9 +309,10 @@ async function maybeCompactCache (cacheDir: string): Promise<void> {
     const line = lines[i]
     try {
       const parsed = JSON.parse(line) as Partial<CacheRecord>
-      if (typeof parsed?.lockfilePath !== 'string') continue
-      if (seen.has(parsed.lockfilePath)) continue
-      seen.add(parsed.lockfilePath)
+      const path = parsed?.lockfile?.path
+      if (typeof path !== 'string') continue
+      if (seen.has(path)) continue
+      seen.add(path)
       reversed.push(line)
     } catch {
       // Skip malformed lines.

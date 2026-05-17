@@ -230,16 +230,18 @@ describe('recordVerification', () => {
     const raw = await fs.promises.readFile(cacheFile, 'utf8')
     const lines = raw.split('\n').filter(Boolean)
     expect(lines).toHaveLength(1)
-    const record = JSON.parse(lines[0]) as Record<string, unknown>
+    const record = JSON.parse(lines[0]) as Record<string, unknown> & {
+      lockfile: Record<string, unknown>
+    }
     expect(record).toMatchObject({
-      lockfilePath,
+      lockfile: { path: lockfilePath },
       policy: { minimumReleaseAge: 60 },
     })
-    expect(typeof record.lockfileHash).toBe('string')
+    expect(typeof record.lockfile.hash).toBe('string')
     expect(typeof record.verifiedAt).toBe('string')
-    expect(typeof record.lockfileFileSize).toBe('number')
-    expect(typeof record.lockfileMtimeNs).toBe('string')
-    expect(typeof record.lockfileInode).toBe('number')
+    expect(typeof record.lockfile.size).toBe('number')
+    expect(typeof record.lockfile.mtimeNs).toBe('string')
+    expect(typeof record.lockfile.inode).toBe('number')
   })
 
   test('merges policy fields across verifiers into a single bag', async () => {
@@ -302,7 +304,7 @@ describe('recordVerification', () => {
     const raw = await fs.promises.readFile(cacheFile, 'utf8')
     const lines = raw.split('\n').filter(Boolean)
     expect(lines).toHaveLength(2)
-    const paths = lines.map((line) => (JSON.parse(line) as { lockfilePath: string }).lockfilePath)
+    const paths = lines.map((line) => (JSON.parse(line) as { lockfile: { path: string } }).lockfile.path)
     expect(paths).toEqual(expect.arrayContaining([lockfilePath, otherLockfile]))
   })
 })
