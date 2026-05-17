@@ -27,11 +27,19 @@ const MAX_VIOLATIONS_TO_PRINT = 20
 // verification pass doesn't push past what the rest of the install respects.
 const DEFAULT_CONCURRENCY = 16
 
-export interface VerifyLockfileResolutionsCacheOptions {
-  /** pnpm's on-disk cache directory. The lockfile-verification cache file lives directly under it. */
-  cacheDir: string
-  /** Absolute path of the lockfile being verified — the cache key. */
-  lockfilePath: string
+export interface VerifyLockfileResolutionsOptions {
+  concurrency?: number
+  /**
+   * pnpm's on-disk cache directory. When set together with
+   * `lockfilePath`, verification results are memoized in
+   * `<cacheDir>/lockfile-verified.jsonl` and the gate short-circuits on
+   * a repeat run against an unchanged lockfile + same-or-stricter
+   * policy. Omit to disable the cache entirely (every call rehashes
+   * the lockfile and re-verifies).
+   */
+  cacheDir?: string
+  /** Absolute path of the lockfile being verified. Used by the cache's stat shortcut. */
+  lockfilePath?: string
 }
 
 /**
@@ -55,18 +63,27 @@ export interface VerifyLockfileResolutionsCacheOptions {
  *
  * No-op when `verifiers` is empty.
  *
- * When `options.cache` is provided, an unchanged lockfile that has
- * already been verified under the same (or stricter) policy
- * short-circuits the registry round-trip entirely — see
- * {@link tryLockfileVerificationCache} for the lookup logic.
+ * When `options.cacheDir` and `options.lockfilePath` are both
+ * provided, an unchanged lockfile that has already been verified
+ * under the same (or stricter) policy short-circuits the registry
+ * round-trip entirely — see {@link tryLockfileVerificationCache} for
+ * the lookup logic.
  */
 export async function verifyLockfileResolutions (
   lockfile: LockfileObject,
   verifiers: ResolutionVerifier[],
-  options?: { concurrency?: number, cache?: VerifyLockfileResolutionsCacheOptions }
+  options?: VerifyLockfileResolutionsOptions
 ): Promise<void> {
   if (verifiers.length === 0) return
   if (!lockfile.packages) return
+
+  // Caching kicks in only when the caller surfaced both a writable
+  // cache directory and the lockfile's absolute path — that's the
+  // production wiring; unit tests that skip them get the gate without
+  // memoization and still exercise the same code path.
+  const cache = options?.cacheDir && options?.lockfilePath
+    ? { cacheDir: options.cacheDir, lockfilePath: options.lockfilePath }
+    : undefined
 
   // Cache lookup runs before any registry I/O — the fast path is a
   // single stat() of the lockfile when the previous install already
@@ -83,9 +100,9 @@ export async function verifyLockfileResolutions (
     if (cachedHash == null) cachedHash = hashObject(lockfile)
     return cachedHash
   }
-  if (options?.cache) {
-    const result = tryLockfileVerificationCache(options.cache.cacheDir, {
-      lockfilePath: options.cache.lockfilePath,
+  if (cache) {
+    const result = tryLockfileVerificationCache(cache.cacheDir, {
+      lockfilePath: cache.lockfilePath,
       verifiers,
       hashLockfile,
     })
@@ -139,9 +156,9 @@ export async function verifyLockfileResolutions (
 
   if (violations.length === 0) {
     // Persist the success so the next install can stat-only the lockfile.
-    if (options?.cache) {
-      recordVerification(options.cache.cacheDir, {
-        lockfilePath: options.cache.lockfilePath,
+    if (cache) {
+      recordVerification(cache.cacheDir, {
+        lockfilePath: cache.lockfilePath,
         verifiers,
         hashLockfile,
       }, cachePrecomputed)

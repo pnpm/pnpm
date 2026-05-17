@@ -345,17 +345,12 @@ export async function mutateModules (
   // path branches.
   try {
     await verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
-      // The cache short-circuits the per-package registry round trip when
-      // the lockfile and every active verifier's policy haven't moved
-      // since the last successful verification. Cache slots come from
-      // each verifier's own `activeVerifier` — `verifyLockfileResolutions`
-      // pulls them out; we only have to pass the lockfile path + cacheDir.
-      cache: opts.cacheDir
-        ? {
-          cacheDir: opts.cacheDir,
-          lockfilePath: path.resolve(ctx.lockfileDir, WANTED_LOCKFILE),
-        }
-        : undefined,
+      // Always forward cacheDir + lockfilePath; the function decides
+      // internally whether to consult the cache. Cache slots come from
+      // each verifier's own `policy`/`canTrustPastCheck` —
+      // `verifyLockfileResolutions` pulls them out.
+      cacheDir: opts.cacheDir,
+      lockfilePath: path.resolve(ctx.lockfileDir, WANTED_LOCKFILE),
     })
   } catch (err) {
     // verifyLockfileResolutions is the one throw site in this function

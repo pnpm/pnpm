@@ -221,13 +221,13 @@ test('skips the verifier when the cache holds an unchanged lockfile + matching p
 
     // First call has no cache record yet — verifier runs.
     await verifyLockfileResolutions(lockfile, [counting], {
-      cache: { cacheDir, lockfilePath },
+      cacheDir, lockfilePath,
     })
     expect(calls).toBe(1)
 
     // Second call against the same lockfile + policy — cache short-circuit.
     await verifyLockfileResolutions(lockfile, [counting], {
-      cache: { cacheDir, lockfilePath },
+      cacheDir, lockfilePath,
     })
     expect(calls).toBe(1)
   } finally {
@@ -253,7 +253,7 @@ test('does not write a cache record when verification rejects', async () => {
 
     await expect(
       verifyLockfileResolutions(lockfile, [rejecting], {
-        cache: { cacheDir, lockfilePath },
+        cacheDir, lockfilePath,
       })
     ).rejects.toThrow()
 
