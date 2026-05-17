@@ -190,6 +190,36 @@ describe('tryLockfileVerificationCache', () => {
     expect(result.hit).toBe(false)
   })
 
+  test('hit at a new path when the content matches a cached hash (worktree case)', async () => {
+    // First install: lockfile at `lockfilePath` gets verified and cached.
+    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
+    recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)] })
+
+    // Second install: a different worktree with the same lockfile content,
+    // so a different absolute path but identical bytes. The stat shortcut
+    // misses (different path), but the content lookup hits via hash.
+    const worktreeLockfile = path.join(tmpDir, 'worktree', 'pnpm-lock.yaml')
+    await fs.promises.mkdir(path.dirname(worktreeLockfile), { recursive: true })
+    await fs.promises.writeFile(worktreeLockfile, 'lockfileVersion: \'9.0\'\n')
+
+    const result = tryLockfileVerificationCache(cacheDir, {
+      lockfilePath: worktreeLockfile,
+      verifiers: [mraVerifier(60)],
+    })
+    expect(result.hit).toBe(true)
+
+    // The hit appended a refreshed record for the new path, so the next
+    // install on the worktree path takes the stat shortcut (no rehash).
+    // We can't directly observe whether the shortcut fires, but we can
+    // confirm the cache file now has at least one record naming the
+    // worktree path.
+    const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
+    const raw = await fs.promises.readFile(cacheFile, 'utf8')
+    const paths = raw.split('\n').filter(Boolean)
+      .map((line) => (JSON.parse(line) as { lockfile: { path: string } }).lockfile.path)
+    expect(paths).toEqual(expect.arrayContaining([worktreeLockfile]))
+  })
+
   test('latest record per path wins when the cache has multiple appends', async () => {
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
 
