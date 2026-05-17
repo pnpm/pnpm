@@ -8,11 +8,11 @@ import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 
 /**
  * Subset of {@link ResolutionVerifier} the cache layer needs: the slot
- * identity (`resolver`, `policy`) plus the `satisfies` comparator.
+ * identity (`resolver`, `policy`) plus the `canTrustPastCheck` comparator.
  * `verify` is intentionally absent — the cache never runs verifiers,
- * it just decides whether a previous run still applies.
+ * it just decides whether a previous run is still trustworthy.
  */
-export type VerifierCacheIdentity = Pick<ResolutionVerifier, 'resolver' | 'policy' | 'satisfies'>
+export type VerifierCacheIdentity = Pick<ResolutionVerifier, 'resolver' | 'policy' | 'canTrustPastCheck'>
 
 /**
  * On-disk cache of verifyLockfileResolutions results, keyed by absolute
@@ -60,10 +60,11 @@ interface CacheRecord {
   lockfileMtimeNs: string
   lockfileInode: number
   /**
-   * Verifier-keyed policy snapshots that were satisfied when the
-   * verification ran. Each {@link VerifierCacheIdentity} owns its own slot and
-   * decides — via its `satisfies` comparator — whether today's policy can
-   * reuse the cached snapshot. Unknown keys are ignored on read.
+   * Resolver-keyed policy snapshots that passed when the verification
+   * ran. Each {@link VerifierCacheIdentity} owns its own slot and
+   * decides — via its `canTrustPastCheck` comparator — whether today's policy
+   * can still trust the cached snapshot. Unknown keys are ignored on
+   * read.
    */
   verifiers: Record<string, unknown>
 }
@@ -148,9 +149,9 @@ async function statLockfile (lockfilePath: string): Promise<LockfileStat | null>
  * unchanged repos. The slow path hashes the lockfile only when stat alone
  * can't decide (typically a CI checkout where mtime/inode got reset).
  *
- * Every active verifier must agree the cached snapshot still satisfies its
- * current policy; if any verifier rejects (or its slot is missing), the
- * full gate runs.
+ * Every active verifier must agree the cached snapshot is still
+ * trustworthy under its current policy; if any verifier rejects (or its
+ * slot is missing), the full gate runs.
  */
 export async function tryLockfileVerificationCache (
   cacheDir: string,
@@ -167,7 +168,7 @@ export async function tryLockfileVerificationCache (
   }
   const record = cache.get(key.lockfilePath)
   if (!record) return { hit: false }
-  if (!everyVerifierSatisfied(record, key.verifiers)) return { hit: false }
+  if (!everyVerifierTrustsCachedRun(record, key.verifiers)) return { hit: false }
 
   const stat = await statLockfile(key.lockfilePath)
   if (!stat) return { hit: false }
@@ -197,12 +198,12 @@ export async function tryLockfileVerificationCache (
   return { hit: true }
 }
 
-function everyVerifierSatisfied (record: CacheRecord, verifiers: readonly VerifierCacheIdentity[]): boolean {
+function everyVerifierTrustsCachedRun (record: CacheRecord, verifiers: readonly VerifierCacheIdentity[]): boolean {
   for (const verifier of verifiers) {
-    // Missing slot is treated as "not satisfied" — the cached run didn't
-    // cover this resolver's verifier so we must rerun the gate.
+    // Missing slot is treated as untrusted — the cached run didn't cover
+    // this resolver's verifier, so we must rerun the gate.
     if (!(verifier.resolver in record.verifiers)) return false
-    if (!verifier.satisfies(record.verifiers[verifier.resolver])) return false
+    if (!verifier.canTrustPastCheck(record.verifiers[verifier.resolver])) return false
   }
   return true
 }

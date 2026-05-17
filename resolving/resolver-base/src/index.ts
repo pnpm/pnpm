@@ -96,7 +96,7 @@ export type ResolutionVerification =
  * Optional companion to a resolver factory. Each resolver owns at most
  * one verifier — a resolver that needs to enforce multiple policies
  * (e.g. minimumReleaseAge plus a future attestation check) bundles them
- * into a single `policy` object and `satisfies` comparator. The cache
+ * into a single `policy` object and `canTrustPastCheck` comparator. The cache
  * slot is keyed by the resolver itself, so there's no further
  * discriminator to keep in sync.
  *
@@ -105,10 +105,11 @@ export type ResolutionVerification =
  * `{ ok: true }`. The install side fans out across the verifier list
  * rather than asking a combinator to dispatch.
  *
- * `resolver`, `policy`, and `satisfies` describe the verifier's cache
+ * `resolver`, `policy`, and `canTrustPastCheck` describe the verifier's cache
  * identity — the install-side verification cache reads them to decide
- * if a previous run on the same lockfile still covers today's policy
- * without re-issuing the registry round-trips that `verify` would.
+ * if a previous run on the same lockfile is still trustworthy under
+ * today's policy without re-issuing the registry round-trips that
+ * `verify` would.
  */
 export interface ResolutionVerifier {
   /**
@@ -126,13 +127,13 @@ export interface ResolutionVerifier {
    */
   policy: unknown
   /**
-   * Returns true when a cached run under `cachedPolicy` is at least as
-   * strict as today's — i.e. the cached snapshot already covers the
-   * current policy's requirements. A loosened policy can reuse a
+   * Returns true when a cached run under `cachedPolicy` can be trusted
+   * to still satisfy today's policy — i.e. the cached snapshot is at
+   * least as strict as the current one. A loosened policy can trust a
    * stricter cached run; a tightened policy cannot. Non-conforming
    * values (e.g. an older record shape) should return false.
    */
-  satisfies: (cachedPolicy: unknown) => boolean
+  canTrustPastCheck: (cachedPolicy: unknown) => boolean
 }
 
 /** Concrete platform selector used when picking a variant from a VariationsResolution. */

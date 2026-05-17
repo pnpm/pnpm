@@ -21,7 +21,7 @@ const tarballResolution = (integrity: string = 'sha512-deadbeef') => ({ integrit
 const NOOP_SLOT = {
   resolver: 'test-noop',
   policy: 1,
-  satisfies: (cached: unknown) => cached === 1,
+  canTrustPastCheck: (cached: unknown) => cached === 1,
 }
 
 function wrap (
@@ -175,7 +175,7 @@ function exampleSlot (current: number): Omit<ResolutionVerifier, 'verify'> {
   return {
     resolver: 'test-policy',
     policy: current,
-    satisfies: (cached: unknown) => typeof cached === 'number' && cached >= current,
+    canTrustPastCheck: (cached: unknown) => typeof cached === 'number' && cached >= current,
   }
 }
 

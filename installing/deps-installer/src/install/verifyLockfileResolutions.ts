@@ -70,7 +70,7 @@ export async function verifyLockfileResolutions (
   // Cache lookup runs before any registry I/O — the fast path is a single
   // stat() of the lockfile when the previous install already verified it
   // under a policy that's at least as strict as today's. The cache layer
-  // only reads `key`, `policy`, and `satisfies`; passing the full
+  // only reads `resolver`, `policy`, and `canTrustPastCheck`; passing the full
   // ResolutionVerifier list is fine (the extra `verify` field is ignored).
   if (options?.cache) {
     const { hit } = await tryLockfileVerificationCache(options.cache.cacheDir, {

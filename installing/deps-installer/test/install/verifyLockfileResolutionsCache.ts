@@ -31,7 +31,7 @@ function mraVerifier (current: number): VerifierCacheIdentity {
   return {
     resolver: 'npm',
     policy: current,
-    satisfies: (cached) => typeof cached === 'number' && cached >= current,
+    canTrustPastCheck: (cached) => typeof cached === 'number' && cached >= current,
   }
 }
 
@@ -151,7 +151,7 @@ describe('tryLockfileVerificationCache', () => {
     const newVerifier: VerifierCacheIdentity = {
       resolver: 'jsr',
       policy: ['foo-org'],
-      satisfies: () => true,
+      canTrustPastCheck: () => true,
     }
     const result = await tryLockfileVerificationCache(cacheDir, {
       lockfilePath,
@@ -167,7 +167,7 @@ describe('tryLockfileVerificationCache', () => {
       {
         resolver: 'example',
         policy: 'x',
-        satisfies: (cached) => cached === 'x',
+        canTrustPastCheck: (cached) => cached === 'x',
       },
     ]
     await recordVerification(cacheDir, { lockfilePath, verifiers })
@@ -249,7 +249,7 @@ describe('recordVerification', () => {
         {
           resolver: 'jsr',
           policy: ['foo-org', 'pnpm'],
-          satisfies: () => true,
+          canTrustPastCheck: () => true,
         },
       ],
     })
