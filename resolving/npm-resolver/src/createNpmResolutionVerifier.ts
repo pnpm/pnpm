@@ -108,7 +108,9 @@ export function createNpmResolutionVerifier (
     return promise
   }
 
-  return async (resolution, { name, version }) => {
+  const minimumReleaseAge = opts.minimumReleaseAge
+
+  const verify: ResolutionVerifier['verify'] = async (resolution, { name, version }) => {
     if (!isNpmRegistryResolution(resolution)) return { ok: true }
     // Non-semver versions identify URL tarballs, file: refs, git refs, etc.
     // The age policy doesn't apply and a registry lookup would 404.
@@ -156,6 +158,20 @@ export function createNpmResolutionVerifier (
       }
     }
     return { ok: true }
+  }
+  return {
+    verify,
+    policy: { minimumReleaseAge },
+    canTrustPastCheck: (cached) => {
+      // A previously cached run under a larger cutoff (stricter window)
+      // is trustworthy under a smaller current one — its set of
+      // accepted versions is a subset of today's. The reverse —
+      // tightening the cutoff — invalidates the cached run: versions
+      // that passed before may now be in-window. Non-number cached
+      // values come from an older record shape and aren't trusted.
+      const past = cached.minimumReleaseAge
+      return typeof past === 'number' && past >= minimumReleaseAge
+    },
   }
 }
 

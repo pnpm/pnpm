@@ -344,7 +344,10 @@ export async function mutateModules (
   // exactly once, right after the lockfile is loaded from disk, before any
   // path branches.
   try {
-    await verifyLockfileResolutions(ctx.wantedLockfile, opts.verifyResolution)
+    await verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
+      cacheDir: opts.cacheDir,
+      lockfilePath: path.resolve(ctx.lockfileDir, WANTED_LOCKFILE),
+    })
   } catch (err) {
     // verifyLockfileResolutions is the one throw site in this function
     // that's part of normal user-facing operation (a rejected lockfile);

@@ -93,19 +93,41 @@ export type ResolutionVerification =
   | { ok: false, code: string, reason: string }
 
 /**
- * Optional companion to a resolver factory. Lets each resolver enforce
- * policies (e.g. minimumReleaseAge for npm) against an already-resolved
- * entry from a lockfile without re-doing resolution.
+ * Optional companion to a resolver factory.
  *
- * The verifier inspects the `resolution` shape to decide whether the entry
+ * `verify` inspects the `resolution` shape to decide whether the entry
  * is within its protocol; for entries outside its protocol it should
- * return `{ ok: true }`. Combined verifiers (in default-resolver) dispatch
- * across underlying resolver-specific verifiers.
+ * return `{ ok: true }`. The install side fans out across the verifier
+ * list rather than asking a combinator to dispatch.
+ *
+ * `policy` and `canTrustPastCheck` describe the verifier's cache
+ * contract. Policies from every active verifier are merged into a
+ * single shared bag stored alongside the lockfile hash; the
+ * install-side verification cache reads them to decide if a previous
+ * run on the same lockfile is still trustworthy under today's policy
+ * without re-issuing the registry round-trips that `verify` would.
+ * Verifiers that check the same logical policy (e.g. minimumReleaseAge
+ * across registries) name it the same and share the cache slot.
  */
-export type ResolutionVerifier = (
-  resolution: Resolution,
-  ctx: { name: string, version: string }
-) => Promise<ResolutionVerification>
+export interface ResolutionVerifier {
+  verify: (resolution: Resolution, ctx: { name: string, version: string }) => Promise<ResolutionVerification>
+  /**
+   * Snapshot of the policy fields this verifier enforces. Merged with
+   * every other active verifier's `policy` into the cache record. A
+   * field shared across verifiers (same key) should carry the same
+   * value; if it doesn't, the last verifier in the list wins.
+   */
+  policy: Record<string, unknown>
+  /**
+   * Returns true when the previously cached policy (the merged snapshot
+   * from the last successful run) can be trusted to still satisfy what
+   * this verifier currently demands. Reads whichever fields the
+   * verifier owns; missing or non-conforming values (e.g. an older
+   * record shape) should return false. A loosened policy can trust a
+   * stricter cached run; a tightened policy cannot.
+   */
+  canTrustPastCheck: (cachedPolicy: Record<string, unknown>) => boolean
+}
 
 /** Concrete platform selector used when picking a variant from a VariationsResolution. */
 export interface PlatformSelector {

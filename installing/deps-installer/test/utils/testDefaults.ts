@@ -28,7 +28,7 @@ export function testDefaults<T> (
     registries: Registries
     storeController: StoreController
     storeDir: string
-    verifyResolution?: ResolutionVerifier
+    resolutionVerifiers: ResolutionVerifier[]
   } &
   T {
   // Forward minimumReleaseAge policy into the Client so it builds the
@@ -39,7 +39,7 @@ export function testDefaults<T> (
     ...(opts?.minimumReleaseAgeStrict != null ? { minimumReleaseAgeStrict: opts.minimumReleaseAgeStrict } : {}),
     ...(opts?.minimumReleaseAgeExclude != null ? { minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude } : {}),
   }
-  const { storeController, storeDir, cacheDir, verifyResolution } = createTempStore({
+  const { storeController, storeDir, cacheDir, resolutionVerifiers } = createTempStore({
     ...opts,
     clientOptions: {
       ...(opts?.registries != null ? { registries: opts.registries } : {}),
@@ -57,7 +57,7 @@ export function testDefaults<T> (
     },
     storeController,
     storeDir,
-    verifyResolution,
+    resolutionVerifiers,
     ...opts,
   } as (
     InstallOptions &
@@ -66,7 +66,7 @@ export function testDefaults<T> (
       registries: Registries
       storeController: StoreController
       storeDir: string
-      verifyResolution?: ResolutionVerifier
+      resolutionVerifiers: ResolutionVerifier[]
     } &
     T
   )

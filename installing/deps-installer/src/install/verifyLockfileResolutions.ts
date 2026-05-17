@@ -1,9 +1,15 @@
+import { hashObject } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
-import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
+import type { Resolution, ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import type { DepPath } from '@pnpm/types'
 import pLimit from 'p-limit'
+
+import {
+  recordVerification,
+  tryLockfileVerificationCache,
+} from './verifyLockfileResolutionsCache.js'
 
 interface Violation {
   pkgId: string
@@ -21,39 +27,110 @@ const MAX_VIOLATIONS_TO_PRINT = 20
 // verification pass doesn't push past what the rest of the install respects.
 const DEFAULT_CONCURRENCY = 16
 
+export interface VerifyLockfileResolutionsOptions {
+  concurrency?: number
+  /**
+   * pnpm's on-disk cache directory. When set together with
+   * `lockfilePath`, verification results are memoized in
+   * `<cacheDir>/lockfile-verified.jsonl` and the gate short-circuits on
+   * a repeat run against an unchanged lockfile + same-or-stricter
+   * policy. Omit to disable the cache entirely (every call rehashes
+   * the lockfile and re-verifies).
+   */
+  cacheDir?: string
+  /** Absolute path of the lockfile being verified. Used by the cache's stat shortcut. */
+  lockfilePath?: string
+}
+
 /**
- * Policy-neutral pass that asks each resolver-supplied {@link ResolutionVerifier}
- * to check every entry in a lockfile loaded from disk. Iteration runs
- * before resolution decisions are touched and before any tarball is
- * fetched, so a lockfile whose entries were resolved elsewhere (committed
- * to the repo, restored from a cache, etc.) under a weaker or absent
- * policy cannot reach the filesystem. Fresh local resolution is covered
- * by the resolver's own per-version filter.
+ * Policy-neutral pass that asks every resolver-supplied
+ * {@link ResolutionVerifier} to check every entry in a lockfile loaded
+ * from disk. Iteration runs before resolution decisions are touched and
+ * before any tarball is fetched, so a lockfile whose entries were
+ * resolved elsewhere (committed to the repo, restored from a cache,
+ * etc.) under a weaker or absent policy cannot reach the filesystem.
+ * Fresh local resolution is covered by the resolver's own per-version
+ * filter.
  *
- * Designed for fail-closed semantics at the verifier level: a verifier that
- * can't confirm a resolution is expected to return `{ ok: false }` rather
- * than passing silently — otherwise a registry hiccup or an unpublished
- * version would re-open the bypass.
+ * Each verifier handles its own protocol short-circuit inside `verify`
+ * (returning `{ ok: true }` for resolutions outside its scope), so the
+ * fan-out is policy-neutral and dispatch-free at this layer.
  *
- * No-op when `verifyResolution` is undefined (no active policies).
+ * Designed for fail-closed semantics at the verifier level: a verifier
+ * that can't confirm a resolution is expected to return `{ ok: false }`
+ * rather than passing silently — otherwise a registry hiccup or an
+ * unpublished version would re-open the bypass.
+ *
+ * No-op when `verifiers` is empty.
+ *
+ * When `options.cacheDir` and `options.lockfilePath` are both
+ * provided, an unchanged lockfile that has already been verified
+ * under the same (or stricter) policy short-circuits the registry
+ * round-trip entirely — see {@link tryLockfileVerificationCache} for
+ * the lookup logic.
  */
 export async function verifyLockfileResolutions (
   lockfile: LockfileObject,
-  verifyResolution: ResolutionVerifier | undefined,
-  options?: { concurrency?: number }
+  verifiers: ResolutionVerifier[],
+  options?: VerifyLockfileResolutionsOptions
 ): Promise<void> {
-  if (verifyResolution == null) return
+  if (verifiers.length === 0) return
   if (!lockfile.packages) return
+
+  // Caching kicks in only when the caller surfaced both a writable
+  // cache directory and the lockfile's absolute path — that's the
+  // production wiring; unit tests that skip them get the gate without
+  // memoization and still exercise the same code path.
+  const cache = options?.cacheDir && options?.lockfilePath
+    ? { cacheDir: options.cacheDir, lockfilePath: options.lockfilePath }
+    : undefined
+
+  // Cache lookup runs before any registry I/O — the fast path is a
+  // single stat() of the lockfile when the previous install already
+  // verified it under a policy that's at least as strict as today's.
+  // The content key is hashed lazily from the in-memory lockfile (not
+  // the file bytes) so we never read the file a second time. On a
+  // miss the precomputed stat+hash flow to recordVerification.
+  type Precomputed = ReturnType<typeof tryLockfileVerificationCache>['precomputed']
+  let cachePrecomputed: Precomputed | undefined
+  // hashObject is streaming (no "Invalid string length" on huge lockfiles)
+  // and key-order-stable, which JSON.stringify is not.
+  let cachedHash: string | undefined
+  const hashLockfile = (): string => {
+    if (cachedHash == null) cachedHash = hashObject(lockfile)
+    return cachedHash
+  }
+  if (cache) {
+    const result = tryLockfileVerificationCache(cache.cacheDir, {
+      lockfilePath: cache.lockfilePath,
+      verifiers,
+      hashLockfile,
+    })
+    if (result.hit) return
+    cachePrecomputed = result.precomputed
+  }
 
   // depPath can include peer-dependency and patch_hash suffixes (e.g.
   // `react@18.0.0(peer)(patch_hash=…)`); the same (name, version) pair may
   // therefore appear multiple times. Dedupe so we issue at most one
   // verification per package version.
-  const candidates = new Map<string, { name: string, version: string, resolution: unknown }>()
+  //
+  // Include a serialization of `resolution` in the key so two entries that
+  // share a (name, version) but differ in *what* was resolved (e.g. one
+  // pinned via npm, another via a git URL under the same alias) don't
+  // collapse: if the wrong shape wins the dedup, a protocol-scoped
+  // verifier short-circuits on the surviving entry and the real one is
+  // never checked.
+  const candidates = new Map<string, { name: string, version: string, resolution: Resolution }>()
   for (const [depPath, snapshot] of Object.entries(lockfile.packages)) {
     const { name, version } = nameVerFromPkgSnapshot(depPath as DepPath, snapshot)
     if (!name || !version) continue
-    candidates.set(`${name}@${version}`, { name, version, resolution: snapshot.resolution })
+    const key = `${name}@${version}@${JSON.stringify(snapshot.resolution)}`
+    candidates.set(key, {
+      name,
+      version,
+      resolution: snapshot.resolution as Resolution,
+    })
   }
 
   const violations: Violation[] = []
@@ -61,14 +138,33 @@ export async function verifyLockfileResolutions (
   await Promise.all(
     Array.from(candidates.values(), ({ name, version, resolution }) => limit(async () => {
       const pkgId = `${name}@${version}`
-      const result = await verifyResolution(resolution as Parameters<ResolutionVerifier>[0], { name, version })
-      if (!result.ok) {
-        violations.push({ pkgId, code: result.code, reason: result.reason })
+      // Fan out across every active verifier; each handles its own
+      // protocol short-circuit (e.g. the npm verifier returns ok:true for
+      // git resolutions). We stop at the first failure per entry so a
+      // multi-verifier setup doesn't produce duplicate violations for the
+      // same (name, version).
+      for (const verifier of verifiers) {
+        // eslint-disable-next-line no-await-in-loop
+        const result = await verifier.verify(resolution, { name, version })
+        if (!result.ok) {
+          violations.push({ pkgId, code: result.code, reason: result.reason })
+          break
+        }
       }
     }))
   )
 
-  if (violations.length === 0) return
+  if (violations.length === 0) {
+    // Persist the success so the next install can stat-only the lockfile.
+    if (cache) {
+      recordVerification(cache.cacheDir, {
+        lockfilePath: cache.lockfilePath,
+        verifiers,
+        hashLockfile,
+      }, cachePrecomputed)
+    }
+    return
+  }
 
   // Stable order so the error output is deterministic.
   violations.sort((a, b) => a.pkgId.localeCompare(b.pkgId))

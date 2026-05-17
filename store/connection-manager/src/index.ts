@@ -17,7 +17,7 @@ export type CreateStoreControllerOptions = Omit<CreateNewStoreControllerOptions,
 export interface StoreControllerHandle {
   ctrl: StoreController
   dir: string
-  verifyResolution?: ResolutionVerifier
+  resolutionVerifiers: ResolutionVerifier[]
 }
 
 export async function createStoreControllerCached (

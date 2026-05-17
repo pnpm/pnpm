@@ -1,3 +1,6 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { describe, expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
@@ -67,6 +70,49 @@ describe('lockfile minimumReleaseAge verification', () => {
       minimumReleaseAgeExclude: ['is-odd', 'is-buffer', 'is-number', 'kind-of'],
     })
 
+    execPnpmSync(
+      [PUBLIC_REGISTRY, 'install', '--frozen-lockfile'],
+      { ...omitMinReleaseAgeEnv, expectSuccess: true }
+    )
+  })
+
+  test('records the verification cache so a repeat install reuses it', async () => {
+    // Step 1: populate the lockfile with no policy. is-positive@1.0.0
+    // was published in 2014, so a 1-minute cutoff later will pass it.
+    prepare({
+      dependencies: { 'is-positive': '1.0.0' },
+    })
+    await execPnpm([PUBLIC_REGISTRY, 'install'])
+
+    // Step 2: turn the policy on. The post-resolution gate now runs
+    // against the existing lockfile and writes a cache record.
+    const cacheDir = path.resolve('pnpm-cache')
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: 1,
+      minimumReleaseAgeStrict: true,
+      cacheDir,
+    })
+    execPnpmSync(
+      [PUBLIC_REGISTRY, 'install', '--frozen-lockfile'],
+      { ...omitMinReleaseAgeEnv, expectSuccess: true }
+    )
+
+    const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
+    expect(fs.existsSync(cacheFile)).toBe(true)
+    const lines = fs.readFileSync(cacheFile, 'utf8').split('\n').filter(Boolean)
+    expect(lines.length).toBeGreaterThanOrEqual(1)
+    const record = JSON.parse(lines.at(-1)!) as {
+      lockfile: { hash: string, path: string }
+      policy: Record<string, unknown>
+    }
+    expect(record.lockfile.path).toBe(path.resolve('pnpm-lock.yaml'))
+    expect(record.lockfile.hash).toMatch(/^[a-z0-9+/=]+$/i)
+    expect(record.policy).toMatchObject({ minimumReleaseAge: 1 })
+
+    // Step 3: another install with the same lockfile + policy. The cache
+    // short-circuits the gate (asserting that requires registry-call
+    // instrumentation we don't have at this layer, but install
+    // completing cleanly is the smoke test).
     execPnpmSync(
       [PUBLIC_REGISTRY, 'install', '--frozen-lockfile'],
       { ...omitMinReleaseAgeEnv, expectSuccess: true }

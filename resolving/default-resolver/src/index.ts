@@ -157,16 +157,21 @@ export type ResolutionVerifierFactoryOptions =
   }
 
 /**
- * Companion to {@link createResolver}. Combines the resolver-specific
- * verifier factories (today: npm) into a single {@link ResolutionVerifier},
- * dispatching by resolution shape. Returns `undefined` when none of the
- * underlying resolvers have any active policy — letting callers cheaply
- * decide whether to iterate at all.
+ * Companion to {@link createResolver}. Collects the resolver-specific
+ * verifier factories (today: npm) into a list. Returns an empty array
+ * when no policy is active — callers can cheaply decide whether to
+ * iterate at all by checking `verifiers.length`.
+ *
+ * Future protocols (jsr, git, attestation, etc.) plug in here by pushing
+ * their own `ResolutionVerifier` onto the list. Each verifier handles
+ * its own protocol short-circuit inside `verify` (returns `{ ok: true }`
+ * for resolutions outside its scope), so dispatch happens naturally at
+ * the install side — no combinator needed.
  */
-export function createResolutionVerifier (
+export function createResolutionVerifiers (
   fetchFromRegistry: FetchFromRegistry,
   opts: ResolutionVerifierFactoryOptions
-): ResolutionVerifier | undefined {
+): ResolutionVerifier[] {
   const fetchOpts = {
     fetch: fetchFromRegistry,
     retry: opts.retry ?? {},
@@ -174,6 +179,7 @@ export function createResolutionVerifier (
     fetchWarnTimeoutMs: opts.fetchWarnTimeoutMs ?? 10_000,
   }
   const getAuthHeaderValueByURI = createGetAuthHeaderByURI(opts.configByUri ?? {}, opts.registries.default)
+  const verifiers: ResolutionVerifier[] = []
   const npmVerifier = createNpmResolutionVerifier({
     minimumReleaseAge: opts.minimumReleaseAge,
     minimumReleaseAgeStrict: opts.minimumReleaseAgeStrict,
@@ -185,16 +191,6 @@ export function createResolutionVerifier (
     cacheDir: opts.cacheDir,
     now: opts.now,
   })
-  // Future protocols (jsr, git, etc.) plug in here. When every sub-verifier
-  // is undefined, the combined verifier is too — caller short-circuits.
-  //
-  // When a second verifier lands, this combinator needs to dispatch by
-  // resolution shape (so e.g. a git verifier doesn't run on npm-registry
-  // entries and vice versa). The classification logic should live as a
-  // shared helper in `@pnpm/resolving.resolver-base` — `pickFetcher` in
-  // `fetching/pick-fetcher` already classifies the same shape today
-  // (resolution.type / tarball / gitHosted / integrity); reconcile both
-  // call sites onto one classifier rather than re-deriving it per verifier.
-  if (!npmVerifier) return undefined
-  return async (resolution, ctx) => npmVerifier(resolution, ctx)
+  if (npmVerifier) verifiers.push(npmVerifier)
+  return verifiers
 }
