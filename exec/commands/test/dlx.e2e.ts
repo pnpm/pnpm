@@ -482,7 +482,7 @@ test('dlx should fail when the requested package does not meet the minimum age r
         default: 'https://registry.npmjs.org/',
       },
     }, ['shx@0.3.4'])
-  ).rejects.toThrow(/Version 0\.3\.4 \(released .+\) of shx does not meet the minimumReleaseAge constraint/)
+  ).rejects.toThrow(/shx@0\.3\.4 was published.+minimumReleaseAge cutoff/)
 })
 
 test('dlx should respect minimumReleaseAgeExclude', async () => {
