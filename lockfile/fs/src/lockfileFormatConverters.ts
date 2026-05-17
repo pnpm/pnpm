@@ -1,5 +1,5 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { refToRelative, removeSuffix } from '@pnpm/deps.path'
+import { parse, refToRelative, removeSuffix } from '@pnpm/deps.path'
 import type {
   LockfileFile,
   LockfileFileProjectResolvedDependencies,
@@ -144,7 +144,27 @@ export function convertToLockfileObject (lockfile: LockfileFile): LockfileObject
   const packages: PackageSnapshots = {}
   for (const [depPath, pkg] of Object.entries(lockfile.snapshots ?? {})) {
     const pkgId = removeSuffix(depPath)
-    packages[depPath as DepPath] = Object.assign(pkg, lockfile.packages?.[pkgId])
+    const snapshot = Object.assign(pkg, lockfile.packages?.[pkgId])
+    // Peer-variant snapshots (`pkg@file:packages/pkg(peer@1)`) inherit
+    // `resolution` from their base `packages:` entry, merged above via
+    // pkgId. If a pruned lockfile dropped that base entry (older
+    // `turbo prune --docker` — fixed upstream in vercel/turborepo#12819),
+    // synthesize the directory resolution from the `file:` depPath: this
+    // is exactly what pnpm's own writer emits for an injected workspace
+    // dep, so it's reconstruction, not a guess. Doing it here — the single
+    // load-time normalization point — means every downstream reader sees a
+    // complete snapshot (no per-reader guards needed).
+    if (snapshot.resolution == null) {
+      const ref = parse(depPath).nonSemverVersion
+      // Local-directory file: only — never a local tarball
+      // (file:*.tgz/.tar/.tar.gz reach a different code path and must not
+      // get a directory resolution synthesized).
+      if (ref != null && ref.startsWith('file:') &&
+        !(ref.endsWith('.tgz') || ref.endsWith('.tar.gz') || ref.endsWith('.tar'))) {
+        snapshot.resolution = { directory: ref.slice('file:'.length), type: 'directory' }
+      }
+    }
+    packages[depPath as DepPath] = snapshot
     enrichGitHostedFlag(packages[depPath as DepPath]?.resolution as TarballResolution | undefined)
   }
   return {
