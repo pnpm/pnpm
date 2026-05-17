@@ -20,10 +20,11 @@
 //! [`PkgNameVerPeer::to_virtual_store_name`]: pacquet_lockfile::PkgNameVerPeer::to_virtual_store_name
 //! [`pacquet_graph_hasher::format_global_virtual_store_path`]: pacquet_graph_hasher::format_global_virtual_store_path
 
-use crate::AllowBuildPolicy;
+use crate::{AllowBuildPolicy, install_frozen_lockfile::find_own_runtime_node_major};
 use pacquet_config::Config;
 use pacquet_graph_hasher::{
-    DepsGraphNode, DepsStateCache, calc_graph_node_hash, format_global_virtual_store_path,
+    DepsGraphNode, DepsStateCache, calc_graph_node_hash, engine_name,
+    format_global_virtual_store_path,
 };
 use pacquet_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgName, SnapshotDepRef,
@@ -96,10 +97,22 @@ impl VirtualStoreLayout {
     /// internal `HashMap<PackageKey, String>` doesn't mutate after
     /// `new`).
     ///
-    /// `engine` is the `ENGINE_NAME`-style string that
-    /// [`pacquet_graph_hasher::engine_name`] produces; threaded in
-    /// instead of recomputed inside so the value matches whatever the
-    /// rest of the install (notably the side-effects cache key) uses.
+    /// `engine` is the install-wide fallback `ENGINE_NAME`-style
+    /// string that [`pacquet_graph_hasher::engine_name`] produces;
+    /// threaded in instead of recomputed inside so the value matches
+    /// whatever the rest of the install (notably the side-effects
+    /// cache key) uses. Snapshots that themselves pin Node via
+    /// `engines.runtime` (carried in the lockfile as
+    /// `dependencies.node: runtime:<version>`) override the fallback
+    /// per-snapshot through [`find_own_runtime_node_major`] — the
+    /// engine portion of the hash then tracks the Node that pnpm's
+    /// bin linker would spawn for that pinning package's lifecycle
+    /// scripts (see
+    /// [`bins/linker/src/index.ts:229-237`](https://github.com/pnpm/pnpm/blob/29a42efc3b/bins/linker/src/index.ts#L229-L237)).
+    /// Mirrors upstream's
+    /// [`readSnapshotRuntimePin`](https://github.com/pnpm/pnpm/blob/HEAD/engine/runtime/system-node-version/src/index.ts)
+    /// branch in `@pnpm/deps.graph-hasher`.
+    ///
     /// `None` propagates straight into
     /// [`calc_graph_node_hash`]'s `engine` parameter — `None` and
     /// `Some("")` produce *different* GVS hashes (the former omits
@@ -175,12 +188,26 @@ impl VirtualStoreLayout {
         // [`buildRequiredCache`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-hasher/src/index.ts#L113-L114).
         let mut build_required_cache: HashMap<PackageKey, bool> = HashMap::new();
         let mut gvs_suffixes: HashMap<PackageKey, String> = HashMap::with_capacity(snapshots.len());
-        for snapshot_key in snapshots.keys() {
+        for (snapshot_key, snapshot) in snapshots {
+            // Per-snapshot engine resolution: a snapshot that declares
+            // its own `engines.runtime` carries the desugared
+            // `dependencies.node: 'runtime:<version>'` pin, which has
+            // to drive the engine portion of *its* hash rather than
+            // the install-wide fallback. Match upstream's
+            // [`readSnapshotRuntimePin`](https://github.com/pnpm/pnpm/blob/HEAD/engine/runtime/system-node-version/src/index.ts)
+            // precedence: own pin first, install-wide fallback
+            // second. Default host platform / arch (`None`, `None`)
+            // matches whatever the caller used to format the
+            // fallback `engine` so the two strings remain comparable
+            // across snapshots in one install.
+            let own_engine = find_own_runtime_node_major(snapshot)
+                .map(|major| engine_name(major, None, None));
+            let snapshot_engine = own_engine.as_deref().or(engine);
             let hex_digest = calc_graph_node_hash(
                 &graph,
                 &mut cache,
                 snapshot_key,
-                engine,
+                snapshot_engine,
                 built_dep_paths.as_ref(),
                 &mut build_required_cache,
             );
@@ -313,9 +340,10 @@ mod tests {
     use super::VirtualStoreLayout;
     use pacquet_config::Config;
     use pacquet_lockfile::{
-        LockfileResolution, PackageKey, PackageMetadata, RegistryResolution, SnapshotEntry,
+        LockfileResolution, PackageKey, PackageMetadata, PkgName, RegistryResolution,
+        SnapshotDepRef, SnapshotEntry,
     };
-    use pretty_assertions::assert_eq;
+    use pretty_assertions::{assert_eq, assert_ne};
     use std::{collections::HashMap, path::PathBuf};
 
     /// Build a `Config` test-double with the GVS-relevant fields
@@ -564,5 +592,104 @@ mod tests {
         )
         .slot_dir(&key);
         assert_ne!(darwin, linux, "builder snapshot must partition GVS slot by engine string");
+    }
+
+    /// Per-snapshot `engines.runtime` resolution: two builder
+    /// siblings that pin *different* Node majors must land on
+    /// different GVS slots even when given the same install-wide
+    /// fallback engine. Mirrors the upstream behaviour in
+    /// [`@pnpm/deps.graph-hasher`'s `readSnapshotRuntimePin`
+    /// branch](https://github.com/pnpm/pnpm/blob/HEAD/deps/graph-hasher/src/index.ts).
+    /// The bin linker spawns each pinning package's lifecycle scripts
+    /// through its own downloaded Node, so anchoring the engine
+    /// portion of the hash to a single install-wide value would
+    /// mis-key the side-effects cache for cross-pinning installs.
+    #[test]
+    fn cross_pinning_siblings_get_distinct_slots() {
+        let config = make_config(
+            true,
+            PathBuf::from("/tmp/proj/node_modules/.pnpm"),
+            PathBuf::from("/tmp/store/links"),
+        );
+
+        let pins_22: PackageKey = "pins-22@1.0.0".parse().unwrap();
+        let pins_20: PackageKey = "pins-20@1.0.0".parse().unwrap();
+        let node22_key: PackageKey = "node@runtime:22.11.0".parse().unwrap();
+        let node20_key: PackageKey = "node@runtime:20.18.0".parse().unwrap();
+
+        let mut packages = HashMap::new();
+        let integrities = [
+            (pins_22.clone(), "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
+            (pins_20.clone(), "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"),
+            (node22_key.clone(), "sha512-CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"),
+            (node20_key.clone(), "sha512-DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD"),
+        ];
+        for (key, integrity_str) in integrities {
+            packages.insert(
+                key,
+                PackageMetadata {
+                    resolution: LockfileResolution::Registry(RegistryResolution {
+                        integrity: integrity_str.parse().expect("parse integrity"),
+                    }),
+                    engines: None,
+                    cpu: None,
+                    os: None,
+                    libc: None,
+                    deprecated: None,
+                    has_bin: None,
+                    prepare: None,
+                    bundled_dependencies: None,
+                    peer_dependencies: None,
+                    peer_dependencies_meta: None,
+                },
+            );
+        }
+
+        // Two builder siblings, each with `dependencies.node:
+        // runtime:<major>` — the desugared form upstream's resolver
+        // writes for a manifest-level `engines.runtime` declaration.
+        let mut pins_22_deps = HashMap::new();
+        pins_22_deps.insert(
+            PkgName::parse("node").expect("parse pkg name"),
+            SnapshotDepRef::Plain("runtime:22.11.0".parse().expect("parse ver-peer")),
+        );
+        let pins_22_snapshot =
+            SnapshotEntry { dependencies: Some(pins_22_deps), ..SnapshotEntry::default() };
+
+        let mut pins_20_deps = HashMap::new();
+        pins_20_deps.insert(
+            PkgName::parse("node").expect("parse pkg name"),
+            SnapshotDepRef::Plain("runtime:20.18.0".parse().expect("parse ver-peer")),
+        );
+        let pins_20_snapshot =
+            SnapshotEntry { dependencies: Some(pins_20_deps), ..SnapshotEntry::default() };
+
+        let mut snapshots = HashMap::new();
+        snapshots.insert(pins_22.clone(), pins_22_snapshot);
+        snapshots.insert(pins_20.clone(), pins_20_snapshot);
+        snapshots.insert(node22_key.clone(), SnapshotEntry::default());
+        snapshots.insert(node20_key.clone(), SnapshotEntry::default());
+
+        // Both siblings are approved builders so the engine portion
+        // of the hash isn't dropped by the engine-agnostic gating.
+        let allowed: std::collections::HashSet<String> =
+            ["pins-22".to_string(), "pins-20".to_string()].into_iter().collect();
+        let policy = crate::AllowBuildPolicy::new(allowed, std::collections::HashSet::new(), false);
+
+        // Same install-wide fallback for both layout queries — the
+        // divergence has to come from the per-snapshot pin lookup.
+        let layout = VirtualStoreLayout::new(
+            &config,
+            Some("darwin;arm64;node24"),
+            Some(&snapshots),
+            Some(&packages),
+            Some(&policy),
+        );
+        let slot_22 = layout.slot_dir(&pins_22);
+        let slot_20 = layout.slot_dir(&pins_20);
+        assert_ne!(
+            slot_22, slot_20,
+            "cross-pinning builders must land on distinct GVS slots",
+        );
     }
 }

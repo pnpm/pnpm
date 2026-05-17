@@ -1,6 +1,6 @@
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/deps.path'
-import { engineName } from '@pnpm/engine.runtime.system-node-version'
+import { engineName, readSnapshotRuntimePin } from '@pnpm/engine.runtime.system-node-version'
 import type { LockfileObject, LockfileResolution, PackageSnapshot } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { resolvePlatformSelector, selectPlatformVariant } from '@pnpm/resolving.resolver-base'
@@ -31,18 +31,20 @@ export function calcDepState<T extends string> (
     includeDepGraphHash: boolean
     supportedArchitectures?: SupportedArchitectures
     /**
-     * Resolved `engines.runtime` / `devEngines.runtime` Node version
-     * for the project being installed (e.g. `"22.11.0"`). When set,
-     * the side-effects-cache key reflects this script-runner Node
-     * rather than the Node that pnpm itself is running on — see
-     * {@link engineName} for the full resolution order. Typically
-     * computed once per install via {@link findRuntimeNodeVersion}
-     * over the lockfile's snapshot keys.
+     * Install-wide fallback `engines.runtime` / `devEngines.runtime`
+     * Node version (e.g. `"22.11.0"`). Used only when the snapshot at
+     * `depPath` doesn't itself pin a Node: per-snapshot pins take
+     * precedence so the side-effects-cache key reflects the actual
+     * script-runner Node the bin linker would spawn for the package
+     * (see {@link readSnapshotRuntimePin}). Typically computed once
+     * per install via {@link findRuntimeNodeVersion} over the
+     * lockfile's snapshot keys.
      */
     nodeVersion?: string
   }
 ): string {
-  let result = engineName(opts.nodeVersion)
+  const ownPin = readSnapshotRuntimePin(depsGraph[depPath as T]?.children)
+  let result = engineName(ownPin ?? opts.nodeVersion)
   if (opts.includeDepGraphHash) {
     const depGraphHash = calcDepGraphHash(depsGraph, cache, new Set(), depPath, opts.supportedArchitectures)
     result += `;deps=${depGraphHash}`
@@ -108,13 +110,15 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
   allowBuild?: AllowBuild,
   supportedArchitectures?: SupportedArchitectures,
   /**
-   * Resolved `engines.runtime` / `devEngines.runtime` Node version
-   * for the project being installed. Forwarded as-is into each
-   * snapshot's [`calcGraphNodeHash`] call so the engine portion of
-   * the GVS hash reflects the Node that will actually run lifecycle
-   * scripts — typically obtained via [`findRuntimeNodeVersion`]
-   * over the lockfile's snapshot keys. `undefined` falls back to
-   * [`engineName`]'s default (system `node --version`, with
+   * Install-wide fallback `engines.runtime` / `devEngines.runtime`
+   * Node version. Used only for snapshots that don't pin their own
+   * Node; pinning snapshots get resolved per-snapshot via
+   * {@link readSnapshotRuntimePin} so the GVS engine hash matches
+   * the Node the bin linker would actually spawn for each package
+   * (see [`bins/linker/src/index.ts`](https://github.com/pnpm/pnpm/blob/29a42efc3b/bins/linker/src/index.ts)).
+   * Typically obtained via {@link findRuntimeNodeVersion} over the
+   * lockfile's snapshot keys. `undefined` falls back to
+   * {@link engineName}'s default (system `node --version`, with
    * `process.version` as a last resort).
    */
   nodeVersion?: string
@@ -164,7 +168,13 @@ export function calcGraphNodeHash<T extends PkgMeta> (
   // so they survive Node.js upgrades and architecture changes.
   const includeEngine = builtDepPaths === undefined ||
     transitivelyRequiresBuild(graph, builtDepPaths, buildRequiredCache ??= {}, depPath, new Set())
-  const engine = includeEngine ? engineName(nodeVersion) : null
+  // A snapshot that declares `engines.runtime` carries the desugared
+  // `node@runtime:<version>` pin as a child; that's the Node the bin
+  // linker spawns for its lifecycle scripts, so it has to drive the
+  // engine portion of the hash too. Non-pinning siblings fall through
+  // to the install-wide value.
+  const ownPin = readSnapshotRuntimePin(graph[depPath]?.children)
+  const engine = includeEngine ? engineName(ownPin ?? nodeVersion) : null
   const deps = calcDepGraphHash(graph, cache, new Set(), depPath, supportedArchitectures)
   const hexDigest = hashObjectWithoutSorting({ engine, deps }, { encoding: 'hex' })
   return formatGlobalVirtualStorePath(name, version, hexDigest)

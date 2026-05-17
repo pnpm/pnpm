@@ -54,17 +54,35 @@ export function engineName (nodeVersion?: string): string {
 }
 
 /**
+ * Strip the `node@runtime:` prefix and any peer-context suffix `(...)`
+ * from a single snapshot key, returning the bare Node version (e.g.
+ * `"22.11.0"`) — or `undefined` if the key isn't a Node runtime pin.
+ *
+ * Peer-suffixed (`node@runtime:22.11.0(node@22.11.0)`) and bare
+ * (`node@runtime:22.11.0`) forms must reduce to the same answer; the
+ * pacquet side relies on the same rule for GVS-hash parity.
+ */
+function extractRuntimeNodeVersion (snapshotKey: string): string | undefined {
+  const prefix = 'node@runtime:'
+  if (!snapshotKey.startsWith(prefix)) return undefined
+  const versionWithPeers = snapshotKey.slice(prefix.length)
+  const parenAt = versionWithPeers.indexOf('(')
+  return parenAt === -1 ? versionWithPeers : versionWithPeers.slice(0, parenAt)
+}
+
+/**
  * Scan an iterable of lockfile snapshot keys for the resolved
  * `engines.runtime` / `devEngines.runtime` Node version and return
  * its bare version string (e.g. `"22.11.0"`), or `undefined` when
- * the project doesn't pin a runtime.
+ * no snapshot pins a runtime.
  *
  * Pnpm's runtime resolver writes the pinned Node into the lockfile as
  * a snapshot with key `node@runtime:<version>[(<peers>)]`
  * (see [`engine/runtime/node-resolver/src/index.ts`](https://github.com/pnpm/pnpm/blob/29a42efc3b/engine/runtime/node-resolver/src/index.ts)).
- * The first such key found is treated as authoritative — workspaces
- * with conflicting pins across importers are pathological and the
- * resolver rejects them before they reach the lockfile.
+ * The first such key found is treated as authoritative. This is fine
+ * as an install-wide fallback (project-pin in the typical case), but
+ * snapshots that pin their own Node still need
+ * {@link readSnapshotRuntimePin} to get a per-snapshot result.
  *
  * Callers typically pass `Object.keys(lockfile.packages ?? {})` — the
  * in-memory `LockfileObject` merges the on-disk `packages:` and
@@ -72,15 +90,33 @@ export function engineName (nodeVersion?: string): string {
  * include every snapshot key the install will hash.
  */
 export function findRuntimeNodeVersion (snapshotKeys: Iterable<string>): string | undefined {
-  const prefix = 'node@runtime:'
   for (const key of snapshotKeys) {
-    if (!key.startsWith(prefix)) continue
-    // Strip peer-context suffix `(...)` — `node@runtime:22.11.0(node@22.11.0)`
-    // resolves to the same Node version as `node@runtime:22.11.0`,
-    // so peer-stripped and peer-bearing keys yield the same answer.
-    const versionWithPeers = key.slice(prefix.length)
-    const parenAt = versionWithPeers.indexOf('(')
-    return parenAt === -1 ? versionWithPeers : versionWithPeers.slice(0, parenAt)
+    const version = extractRuntimeNodeVersion(key)
+    if (version != null) return version
   }
   return undefined
+}
+
+/**
+ * Read a single graph node's own `engines.runtime` Node pin from its
+ * `children` map. The resolver desugars `engines.runtime` declared on
+ * a dependency's manifest into `dependencies.node: 'runtime:<version>'`
+ * (see [`installing/deps-resolver/src/resolveDependencies.ts`](https://github.com/pnpm/pnpm/blob/29a42efc3b/installing/deps-resolver/src/resolveDependencies.ts)),
+ * which then becomes a `children.node` entry pointing at the
+ * `node@runtime:<version>[(peers)]` snapshot key.
+ *
+ * Returns the bare version (e.g. `"22.11.0"`) when this snapshot pins
+ * its own Node — or `undefined` when it doesn't and the caller should
+ * fall back to the install-wide pin / host probe.
+ *
+ * Per-snapshot resolution matters because the bin linker routes
+ * lifecycle-script spawns for a pinning package through *that
+ * package's* downloaded Node — anchoring the snapshot's GVS engine
+ * hash to an install-wide value would mis-key the side-effects cache
+ * for cross-pinning installs.
+ */
+export function readSnapshotRuntimePin (
+  children: { node?: string } | undefined
+): string | undefined {
+  return children?.node != null ? extractRuntimeNodeVersion(children.node) : undefined
 }

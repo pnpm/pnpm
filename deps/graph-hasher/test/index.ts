@@ -56,6 +56,30 @@ test('calcDepState() when scripts are ignored', () => {
   })).toBe(ENGINE_NAME)
 })
 
+test('calcDepState() uses the snapshot\'s own engines.runtime pin', () => {
+  // A package whose graph node has `children.node = node@runtime:...`
+  // pinned its own Node via `engines.runtime`; the side-effects-cache
+  // key prefix has to encode *that* major (not the install-wide
+  // fallback) because the bin linker spawns lifecycle scripts on the
+  // package's pinned Node, not the install-wide one.
+  const graph = {
+    'pinned@1.0.0': {
+      pkgIdWithPatchHash: 'pinned@1.0.0' as PkgIdWithPatchHash,
+      resolution: { integrity: '900' },
+      children: { node: 'node@runtime:22.11.0' },
+    },
+    'node@runtime:22.11.0': {
+      pkgIdWithPatchHash: 'node@runtime:22.11.0' as PkgIdWithPatchHash,
+      resolution: { integrity: '901' },
+      children: {},
+    },
+  }
+  expect(calcDepState(graph, {}, 'pinned@1.0.0', {
+    includeDepGraphHash: false,
+    nodeVersion: '20.5.0', // install-wide fallback differs from own pin
+  })).toBe(`${process.platform};${process.arch};node22`)
+})
+
 describe('calcGraphNodeHash', () => {
   const graphNodeGraph = {
     'foo@1.0.0': {
