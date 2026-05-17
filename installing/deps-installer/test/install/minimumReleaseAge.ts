@@ -225,7 +225,7 @@ test('loose mode reports immature fresh picks to onImmaturePick', async () => {
   const opts = testDefaults({ minimumReleaseAge: allImmatureMinimumReleaseAge })
   await addDependenciesToPackage({}, ['is-odd@0.1'], {
     ...opts,
-    onImmaturePick: (pkg) => { picks.push(pkg) },
+    onImmaturePick: (pkg) => void picks.push(pkg),
   })
 
   expect(picks).toContainEqual({ name: 'is-odd', version: '0.1.0' })
@@ -242,7 +242,7 @@ test('strict mode does not invoke onImmaturePick (resolver throws first)', async
   await expect(addDependenciesToPackage(
     {},
     ['is-odd@0.1'],
-    { ...opts, onImmaturePick: (pkg) => { picks.push(pkg) } }
+    { ...opts, onImmaturePick: (pkg) => void picks.push(pkg) }
   )).rejects.toThrow(/does not meet the minimumReleaseAge constraint/)
 
   // Strict mode short-circuits in `pickRespectingMinReleaseAge` before the
@@ -262,7 +262,7 @@ test('versions excluded via minimumReleaseAgeExclude are not reported', async ()
   })
   await addDependenciesToPackage({}, ['is-odd@0.1'], {
     ...opts,
-    onImmaturePick: (pkg) => { picks.push(pkg) },
+    onImmaturePick: (pkg) => void picks.push(pkg),
   })
 
   // is-odd is excluded by policy — the install installed 0.1.2 (the highest in
@@ -288,7 +288,7 @@ test('deferImmatureDecision lets strict mode collect every immature pick instead
   await addDependenciesToPackage({}, ['is-odd@0.1'], {
     ...opts,
     deferImmatureDecision: true,
-    onImmaturePick: (pkg) => { picks.push(pkg) },
+    onImmaturePick: (pkg) => void picks.push(pkg),
   })
 
   expect(picks).toContainEqual({ name: 'is-odd', version: '0.1.0' })
@@ -328,7 +328,7 @@ test('confirmImmaturePicks approval lets the install proceed cleanly', async () 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1'], {
     ...opts,
     deferImmatureDecision: true,
-    onImmaturePick: (pkg) => { picks.push(pkg) },
+    onImmaturePick: (pkg) => void picks.push(pkg),
     confirmImmaturePicks: async () => {
       // The real install command would surface the gathered set via
       // enquirer here; in this test we simulate the user clicking
