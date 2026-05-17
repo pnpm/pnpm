@@ -61,9 +61,6 @@
       "path": "../../deps/path"
     },
     {
-      "path": "../../engine/runtime/system-node-version"
-    },
-    {
       "path": "../../exec/lifecycle"
     },
     {

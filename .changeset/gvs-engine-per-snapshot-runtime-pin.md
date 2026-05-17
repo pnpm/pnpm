@@ -1,6 +1,5 @@
 ---
-"@pnpm/deps.graph-hasher": patch
-"@pnpm/engine.runtime.system-node-version": minor
+"@pnpm/deps.graph-hasher": minor
 "pnpm": patch
 ---
 
@@ -10,8 +9,8 @@ Pnpm's resolver desugars a dep's `engines.runtime` into `dependencies.node: 'run
 
 Per-snapshot resolution now matches what `bins/linker` already does on a per-package basis:
 
-- `@pnpm/engine.runtime.system-node-version` adds `readSnapshotRuntimePin(children)` — reads the `node` entry from one snapshot's graph children and extracts the version from a `node@runtime:` value. Pairs with the existing `findRuntimeNodeVersion(snapshotKeys)` install-wide fallback.
-- `@pnpm/deps.graph-hasher`'s `calcDepState` and `calcGraphNodeHash` consult `readSnapshotRuntimePin(graph[depPath].children)` first and only fall back to the install-wide `nodeVersion` parameter when the snapshot doesn't pin its own Node.
+- `@pnpm/deps.graph-hasher` adds `readSnapshotRuntimePin(children)` — reads the `node` entry from one snapshot's graph children and extracts the version from a `node@runtime:` value. Pairs with the existing `findRuntimeNodeVersion(snapshotKeys)` install-wide fallback (also now exported from `@pnpm/deps.graph-hasher` rather than `@pnpm/engine.runtime.system-node-version`, where it was a poor fit — `system-node-version` is about probing the host Node, not parsing lockfile-derived strings).
+- `calcDepState` and `calcGraphNodeHash` consult `readSnapshotRuntimePin(graph[depPath].children)` first and only fall back to the install-wide `nodeVersion` parameter when the snapshot doesn't pin its own Node.
 
 Pacquet mirrors the same precedence at the `calc_graph_node_hash` call site in `package-manager/src/virtual_store_layout.rs` — a new `find_own_runtime_node_major(snapshot)` helper reads each snapshot's `dependencies` for a `node` entry with `Prefix::Runtime` and overrides the install-wide engine when present.
 

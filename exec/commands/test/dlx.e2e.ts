@@ -9,19 +9,15 @@ import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils/index.js'
 const {
   getSystemNodeVersion: originalGetSystemNodeVersion,
   engineName: originalEngineName,
-  findRuntimeNodeVersion: originalFindRuntimeNodeVersion,
-  readSnapshotRuntimePin: originalReadSnapshotRuntimePin,
 } = await import('@pnpm/engine.runtime.system-node-version')
 // Re-export every public symbol the package surfaces so downstream
 // dynamic imports (e.g. `@pnpm/deps.graph-hasher`'s use of
 // `engineName` for the GVS hash) keep working under the mock. Only
 // `getSystemNodeVersion` is wrapped with `jest.fn` for spy-ability;
-// the others delegate straight back to the originals.
+// `engineName` delegates straight back to the original.
 jest.unstable_mockModule('@pnpm/engine.runtime.system-node-version', () => ({
   getSystemNodeVersion: jest.fn(originalGetSystemNodeVersion),
   engineName: originalEngineName,
-  findRuntimeNodeVersion: originalFindRuntimeNodeVersion,
-  readSnapshotRuntimePin: originalReadSnapshotRuntimePin,
 }))
 const installingCommands = await import('@pnpm/installing.commands')
 const { add: originalAdd } = installingCommands

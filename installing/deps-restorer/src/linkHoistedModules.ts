@@ -10,8 +10,7 @@ import type {
   DependenciesGraph,
   DepHierarchy,
 } from '@pnpm/deps.graph-builder'
-import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
-import { findRuntimeNodeVersion } from '@pnpm/engine.runtime.system-node-version'
+import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
 import { logger } from '@pnpm/logger'
 import type {
   PackageFilesResponse,

@@ -1,6 +1,6 @@
 import { describe, expect, test } from '@jest/globals'
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
-import { calcDepState, calcGraphNodeHash } from '@pnpm/deps.graph-hasher'
+import { calcDepState, calcGraphNodeHash, findRuntimeNodeVersion, readSnapshotRuntimePin } from '@pnpm/deps.graph-hasher'
 import { engineName } from '@pnpm/engine.runtime.system-node-version'
 import type { DepPath, PkgIdWithPatchHash } from '@pnpm/types'
 
@@ -54,6 +54,39 @@ test('calcDepState() when scripts are ignored', () => {
   expect(calcDepState(depsGraph, {}, 'foo@1.0.0', {
     includeDepGraphHash: false,
   })).toBe(ENGINE_NAME)
+})
+
+test('findRuntimeNodeVersion() pulls the pinned major from a node@runtime: snapshot key', () => {
+  // Mirrors pacquet's `find_runtime_node_major` helper; both must
+  // agree on the version-extraction rule or the two tools would
+  // hash GVS slots under different engine majors for the same
+  // project. The peer-suffixed form must reduce to the same bare
+  // version as the form without a peer suffix.
+  expect(
+    findRuntimeNodeVersion(['leftpad@1.3.0', 'node@runtime:22.11.0'])
+  ).toBe('22.11.0')
+  expect(
+    findRuntimeNodeVersion(['node@runtime:22.11.0(node@22.11.0)'])
+  ).toBe('22.11.0')
+  expect(
+    findRuntimeNodeVersion(['leftpad@1.3.0', 'is-positive@3.1.0'])
+  ).toBeUndefined()
+})
+
+test('readSnapshotRuntimePin() pulls the own pin from a graph node child', () => {
+  // The resolver desugars a dep's `engines.runtime` into
+  // `dependencies.node: 'runtime:<version>'` and `refToRelative`
+  // encodes that into the `node@runtime:<version>[(peers)]` DepPath
+  // the graph carries as `children.node`. The per-snapshot lookup
+  // reads back the bare version from there. Without this branch
+  // the GVS hash for the pinning snapshot would key under the
+  // install-wide Node, not the Node the bin linker spawns for it.
+  expect(readSnapshotRuntimePin({ node: 'node@runtime:22.11.0' })).toBe('22.11.0')
+  expect(readSnapshotRuntimePin({ node: 'node@runtime:22.11.0(node@22.11.0)' })).toBe('22.11.0')
+  expect(readSnapshotRuntimePin({ node: 'node@22.11.0' })).toBeUndefined()
+  expect(readSnapshotRuntimePin({ leftpad: 'leftpad@1.3.0' })).toBeUndefined()
+  expect(readSnapshotRuntimePin({})).toBeUndefined()
+  expect(readSnapshotRuntimePin(undefined)).toBeUndefined()
 })
 
 test('calcDepState() uses the snapshot\'s own engines.runtime pin', () => {
