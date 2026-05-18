@@ -124,6 +124,44 @@ test('optional subdep matching the current platform is installed and symlinked n
   expect(siblingManifest.version).toBe(subdepVersion)
 })
 
+test('changing only an optional subdep version re-installs and re-symlinks the parent', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  const parentName = '@pnpm.e2e/foo'
+  const parentVersion = '100.0.0'
+  const subdepName = '@pnpm.e2e/bar'
+
+  function buildLockfile (subdepVersion: string): EnvLockfile {
+    const lockfile = createEnvLockfile()
+    const parentKey = `${parentName}@${parentVersion}`
+    lockfile.importers['.'].configDependencies[parentName] = { specifier: parentVersion, version: parentVersion }
+    lockfile.packages[parentKey] = { resolution: { integrity: getIntegrity(parentName, parentVersion) } }
+    lockfile.snapshots[parentKey] = { optionalDependencies: { [subdepName]: subdepVersion } }
+    lockfile.packages[`${subdepName}@${subdepVersion}`] = {
+      resolution: { integrity: getIntegrity(subdepName, subdepVersion) },
+      os: [process.platform],
+      cpu: [process.arch],
+    }
+    return lockfile
+  }
+
+  const installOpts = {
+    registries: { default: registry },
+    rootDir: process.cwd(),
+    store: storeController,
+    storeDir,
+  }
+
+  await installConfigDeps(buildLockfile('100.0.0'), installOpts)
+  const requireBefore = createRequire(path.join(fs.realpathSync(`node_modules/.pnpm-config/${parentName}`), 'package.json'))
+  expect(loadJsonFileSync<{ version: string }>(requireBefore.resolve(`${subdepName}/package.json`)).version).toBe('100.0.0')
+
+  await installConfigDeps(buildLockfile('100.1.0'), installOpts)
+  const requireAfter = createRequire(path.join(fs.realpathSync(`node_modules/.pnpm-config/${parentName}`), 'package.json'))
+  expect(loadJsonFileSync<{ version: string }>(requireAfter.resolve(`${subdepName}/package.json`)).version).toBe('100.1.0')
+})
+
 test('optional subdep that does not match the current platform is skipped', async () => {
   prepareEmpty()
   const { storeController, storeDir } = createTempStore()

@@ -8,7 +8,6 @@ import { calcLeafGlobalVirtualStorePath } from '@pnpm/deps.graph-hasher'
 import { PnpmError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { type EnvLockfile, readEnvLockfile } from '@pnpm/lockfile.fs'
-import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { StoreController } from '@pnpm/store.controller'
 import type { ConfigDependencies, Registries } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
@@ -49,13 +48,6 @@ export async function installConfigDeps (
   const installedConfigDeps: Array<{ name: string, version: string }> = []
   await Promise.all(Object.entries(normalizedDeps).map(async ([pkgName, pkg]) => {
     const configDepPath = path.join(configModulesDir, pkgName)
-    const existingPkgJson = existingConfigDeps.includes(pkgName)
-      ? await safeReadPackageJsonFromDir(configDepPath)
-      : null
-    if (existingPkgJson != null && existingPkgJson.name === pkgName && existingPkgJson.version === pkg.version) {
-      return
-    }
-    installingConfigDepsLogger.debug({ status: 'started' })
     const fullPkgId = `${pkgName}@${pkg.version}:${pkg.resolution.integrity}`
     // The parent's GVS hash must incorporate its optional subdeps; otherwise
     // changing a subdep version while keeping the parent pinned would collide
@@ -66,6 +58,14 @@ export async function installConfigDeps (
     }
     const relPath = calcLeafGlobalVirtualStorePath(fullPkgId, pkgName, pkg.version, optionalSubdepIds)
     const pkgDirInGlobalVirtualStore = path.join(globalVirtualStoreDir, relPath, 'node_modules', pkgName)
+    // The package.json name/version match isn't sufficient: a subdep version
+    // change (or a platform change) keeps name/version stable but moves the
+    // expected leaf. Compare the symlink's realpath against the expected leaf
+    // so we re-install whenever any input that feeds the leaf hash changed.
+    if (existingConfigDeps.includes(pkgName) && await symlinkPointsTo(configDepPath, pkgDirInGlobalVirtualStore)) {
+      return
+    }
+    installingConfigDepsLogger.debug({ status: 'started' })
     if (!fs.existsSync(path.join(pkgDirInGlobalVirtualStore, 'package.json'))) {
       const { fetching } = await opts.store.fetchPackage({
         force: true,
@@ -274,4 +274,13 @@ async function installOptionalSubdeps (opts: InstallOptionalSubdepsOpts): Promis
     await fs.promises.mkdir(path.dirname(linkPath), { recursive: true })
     await symlinkDir(subdepDirInGlobalVirtualStore, linkPath)
   }))
+}
+
+async function symlinkPointsTo (linkPath: string, expectedTarget: string): Promise<boolean> {
+  try {
+    const realPath = await fs.promises.realpath(linkPath)
+    return realPath === expectedTarget
+  } catch {
+    return false
+  }
 }
