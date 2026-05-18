@@ -1,6 +1,7 @@
 use super::{
-    default_child_concurrency_with_parallelism, default_store_dir, default_unsafe_perm,
-    is_unsafe_perm_posix, resolve_child_concurrency, resolve_child_concurrency_with_parallelism,
+    default_cache_dir, default_child_concurrency_with_parallelism, default_store_dir,
+    default_unsafe_perm, is_unsafe_perm_posix, resolve_child_concurrency,
+    resolve_child_concurrency_with_parallelism,
 };
 use crate::api::EnvVar;
 use pacquet_store_dir::StoreDir;
@@ -97,6 +98,51 @@ fn test_default_store_dir_falls_back_to_home_dir() {
         other => panic!("unexpected target OS in test: {other}"),
     };
     assert_eq!(display_store_dir(&store_dir), expected);
+}
+
+/// `$XDG_CACHE_HOME/pnpm` wins the cache-dir resolution chain.
+/// Mirrors upstream
+/// [`getCacheDir`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/dirs.ts#L4-L23):
+/// `XDG_CACHE_HOME` is the first branch and takes precedence over
+/// the platform-default fallback. Exercised through the same
+/// dependency-injection seam `default_store_dir` uses — no
+/// `std::env::set_var`, no `EnvGuard` lock. The home-dir closure
+/// is `unreachable!` because the `XDG_CACHE_HOME` branch short-
+/// circuits before it is consumed.
+#[test]
+fn test_default_cache_dir_with_xdg_cache_home_env() {
+    struct EnvWithXdgCacheHome;
+    impl EnvVar for EnvWithXdgCacheHome {
+        fn var(name: &str) -> Option<String> {
+            (name == "XDG_CACHE_HOME").then(|| "/tmp/xdg-cache-home".to_owned())
+        }
+    }
+    let cache_dir = default_cache_dir::<EnvWithXdgCacheHome, _>(|| {
+        unreachable!("home_dir must not be called when XDG_CACHE_HOME is set")
+    });
+    let display = cache_dir.display().to_string().replace('\\', "/");
+    assert_eq!(display, "/tmp/xdg-cache-home/pnpm");
+}
+
+/// Without `XDG_CACHE_HOME`, the resolver falls back to the
+/// platform default. On macOS that's `~/Library/Caches/pnpm`; on
+/// other Unix-y platforms it's `~/.cache/pnpm`. This test pins
+/// those two branches together — the Windows branch needs
+/// `LOCALAPPDATA` handling that's not portable here and is left to
+/// manual / CI-based verification.
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[test]
+fn test_default_cache_dir_falls_back_to_platform_default() {
+    use std::path::PathBuf;
+
+    let cache_dir =
+        default_cache_dir::<NoEnv, _>(|| Some(PathBuf::from("/home/test-user")));
+    let expected = if cfg!(target_os = "macos") {
+        PathBuf::from("/home/test-user/Library/Caches/pnpm")
+    } else {
+        PathBuf::from("/home/test-user/.cache/pnpm")
+    };
+    assert_eq!(cache_dir, expected);
 }
 
 /// Port of upstream

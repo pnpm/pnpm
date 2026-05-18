@@ -3,6 +3,7 @@ mod defaults;
 mod env_replace;
 pub mod matcher;
 mod npmrc_auth;
+pub mod version_policy;
 mod workspace_yaml;
 
 pub use crate::api::{EnvVar, Host};
@@ -24,10 +25,11 @@ pub use crate::defaults::{
     resolve_child_concurrency,
 };
 use crate::defaults::{
-    default_child_concurrency, default_enable_global_virtual_store, default_fetch_retries,
-    default_fetch_retry_factor, default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout,
-    default_hoist_pattern, default_modules_cache_max_age, default_modules_dir,
-    default_public_hoist_pattern, default_registry, default_store_dir, default_virtual_store_dir,
+    default_cache_dir, default_child_concurrency, default_enable_global_virtual_store,
+    default_fetch_retries, default_fetch_retry_factor, default_fetch_retry_maxtimeout,
+    default_fetch_retry_mintimeout, default_hoist_pattern, default_modules_cache_max_age,
+    default_modules_dir, default_public_hoist_pattern, default_registry, default_store_dir,
+    default_virtual_store_dir,
 };
 pub use workspace_yaml::{
     LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, workspace_root_or,
@@ -48,6 +50,25 @@ pub enum NodeLinker {
     /// Yarn Berry. It is recommended to also set symlink setting to false when using pnp as
     /// your linker.
     Pnp,
+}
+
+/// Supply-chain trust policy applied to lockfile entries.
+///
+/// Mirrors pnpm's
+/// [`TrustPolicy`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/core/types/src/config.ts#L5)
+/// (`'no-downgrade' | 'off'`) and drives the
+/// `pacquet-resolving-npm-resolver` verifier: under
+/// [`TrustPolicy::NoDowngrade`] the verifier rejects any version
+/// whose trust evidence (`_npmUser.trustedPublisher` or
+/// `dist.attestations.provenance`) is weaker than an earlier-published
+/// version's. Defaults to [`TrustPolicy::Off`] so installs without an
+/// explicit policy don't change behavior.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TrustPolicy {
+    #[default]
+    Off,
+    NoDowngrade,
 }
 
 /// Tri-state mirror of `pacquet_executor::ScriptsPrependNodePath`
@@ -627,6 +648,71 @@ pub struct Config {
     /// drift check at
     /// [`getOutdatedLockfileSetting.ts:58-60`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L58-L60).
     pub ignored_optional_dependencies: Option<Vec<String>>,
+
+    /// pnpm's packument cache directory. Used by the lockfile
+    /// verification gate to memoize past results in
+    /// `<cache_dir>/lockfile-verified.jsonl`, and by the npm verifier
+    /// to mirror full-metadata responses for conditional GETs.
+    ///
+    /// Mirrors pnpm's
+    /// [`cacheDir`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L159);
+    /// the default resolution chain ports
+    /// [`getCacheDir`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/dirs.ts#L4-L23).
+    #[default(_code = "default_cache_dir::<Host, _>(home::home_dir)")]
+    pub cache_dir: PathBuf,
+
+    /// Minimum age, in milliseconds, a published version must reach
+    /// before pacquet accepts it. Drives the
+    /// `MINIMUM_RELEASE_AGE_VIOLATION` verifier check on every
+    /// `(name, version)` entry the lockfile loads under this policy.
+    /// `None` disables the check.
+    ///
+    /// Mirrors pnpm's
+    /// [`minimumReleaseAge`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L264)
+    /// in milliseconds, matching the value pnpm forwards through
+    /// `extendInstallOptions` to the verifier.
+    pub minimum_release_age: Option<u64>,
+
+    /// Glob-style `name[@version]` patterns that opt specific packages
+    /// out of the [`minimum_release_age`] check. Empty / `None` means
+    /// no exclusions. Mirrors pnpm's
+    /// [`minimumReleaseAgeExclude`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L265).
+    ///
+    /// [`minimum_release_age`]: Self::minimum_release_age
+    pub minimum_release_age_exclude: Option<Vec<String>>,
+
+    /// When the registry's metadata lacks the per-version `time`
+    /// field (some self-hosted registries strip it), the verifier
+    /// cannot enforce the maturity cutoff. With this flag set,
+    /// uncheckable entries pass with a one-time `globalWarn` instead
+    /// of failing closed. Mirrors pnpm's
+    /// [`minimumReleaseAgeIgnoreMissingTime`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L266).
+    pub minimum_release_age_ignore_missing_time: bool,
+
+    /// When `true`, picks fresher-than-cutoff versions still abort
+    /// rather than auto-collect into [`minimum_release_age_exclude`].
+    /// Used by the resolver path; the verifier itself does not gate
+    /// on this flag. Mirrors pnpm's
+    /// [`minimumReleaseAgeStrict`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L267).
+    pub minimum_release_age_strict: bool,
+
+    /// Trust-evidence policy applied to lockfile entries; see
+    /// [`TrustPolicy`].
+    pub trust_policy: TrustPolicy,
+
+    /// Glob-style `name[@version]` patterns that opt specific packages
+    /// out of the [`trust_policy`] check. Mirrors pnpm's
+    /// [`trustPolicyExclude`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L271).
+    ///
+    /// [`trust_policy`]: Self::trust_policy
+    pub trust_policy_exclude: Option<Vec<String>>,
+
+    /// Cutoff in minutes after which the trust check skips a
+    /// version that's old enough — once a package has been published
+    /// for long enough, the supply-chain assumption is that any
+    /// downgrade would have already surfaced. Mirrors pnpm's
+    /// [`trustPolicyIgnoreAfter`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L272).
+    pub trust_policy_ignore_after: Option<u64>,
 
     /// Per-registry `Authorization` header lookup, populated from
     /// `.npmrc` auth keys (`_auth`, `_authToken`, `username`/`_password`,
