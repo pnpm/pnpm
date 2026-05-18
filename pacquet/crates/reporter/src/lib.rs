@@ -741,8 +741,18 @@ fn now_millis() -> u128 {
 /// Capability for obtaining the host name written into the [bunyan]-shaped
 /// envelope.
 ///
-/// Backed by a real syscall in production via [`Host`]. Tests can supply
-/// their own implementation when behavior depends on the value.
+/// Backed by a real syscall in production via [`Host`]. The envelope itself
+/// reads from a process-cached [`HOSTNAME`] `static` initialized by
+/// [`Host::get_host_name`], so the value is fixed for the lifetime of the
+/// process and the envelope path is **not** currently generic over this
+/// trait. The trait therefore exists for two narrow reasons: to keep the
+/// `gethostname` syscall behind a named seam (so the production call site
+/// is consistent with the rest of `Host`'s capability surface), and so the
+/// capability can be exercised in isolation by unit tests (see
+/// `tests::get_host_name_capability_is_mockable`). Substituting a hostname
+/// per-test in the rendered envelope would require plumbing a `Sys:
+/// GetHostName` generic through the emission site, which has not been
+/// done.
 ///
 /// [bunyan]: https://github.com/trentm/node-bunyan
 pub trait GetHostName {

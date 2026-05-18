@@ -34,8 +34,9 @@ pub trait EnvVar {
     fn var(name: &str) -> Option<String>;
 }
 
-/// Project-wide capability provider. Production code threads
-/// `Host` through generic call sites with an explicit turbofish:
+/// Production provider for the capability traits in this crate.
+/// Production code threads `Host` through generic call sites with an
+/// explicit turbofish:
 ///
 /// ```ignore
 /// let config = Config::current::<Host>(env::current_dir, home::home_dir, Default::default);
