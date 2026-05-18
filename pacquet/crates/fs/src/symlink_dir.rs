@@ -62,16 +62,21 @@ pub fn symlink_dir(original: &Path, link: &Path) -> io::Result<()> {
 /// the relative-target branch would never be taken.
 fn relative_target_for(original: &Path, link: &Path) -> PathBuf {
     let parent = link.parent().unwrap_or_else(|| Path::new(""));
-    #[cfg(windows)]
-    {
-        let original = dunce::simplified(original);
-        let parent = dunce::simplified(parent);
-        if !same_path_root(original, parent) {
-            return original.to_path_buf();
-        }
-        return pathdiff::diff_paths(original, parent).unwrap_or_else(|| original.to_path_buf());
+    relative_target_inner(original, parent)
+}
+
+#[cfg(windows)]
+fn relative_target_inner(original: &Path, parent: &Path) -> PathBuf {
+    let original = dunce::simplified(original);
+    let parent = dunce::simplified(parent);
+    if !same_path_root(original, parent) {
+        return original.to_path_buf();
     }
-    #[cfg(not(windows))]
+    pathdiff::diff_paths(original, parent).unwrap_or_else(|| original.to_path_buf())
+}
+
+#[cfg(not(windows))]
+fn relative_target_inner(original: &Path, parent: &Path) -> PathBuf {
     pathdiff::diff_paths(original, parent).unwrap_or_else(|| original.to_path_buf())
 }
 
