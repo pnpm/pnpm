@@ -11,13 +11,18 @@
 //! a use for yet — those land alongside a real resolver when one
 //! arrives.
 
+mod create_npm_resolution_verifier;
 mod errors;
 mod fetch_attestation_published_at;
 mod fetch_full_metadata;
+mod lookup_context;
 mod named_registry;
 mod trust_checks;
 mod violation_codes;
 
+pub use create_npm_resolution_verifier::{
+    CreateNpmResolutionVerifierOptions, NpmResolutionVerifier, create_npm_resolution_verifier,
+};
 pub use errors::FetchMetadataError;
 pub use fetch_attestation_published_at::{FetchAttestationOptions, fetch_attestation_published_at};
 pub use fetch_full_metadata::{FetchFullMetadataOptions, fetch_full_metadata};
