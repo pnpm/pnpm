@@ -1,5 +1,3 @@
-#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
-#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 //! Pacquet port of pnpm's `@pnpm/crypto.object-hasher` (which itself
 //! wraps npm's `object-hash` library) and `@pnpm/deps.graph-hasher`.
 //!

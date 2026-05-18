@@ -1,5 +1,3 @@
-#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
-#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 //! User-facing log channels for pacquet.
 //!
 //! Pacquet's progress, lifecycle, summary, and similar output is shaped to

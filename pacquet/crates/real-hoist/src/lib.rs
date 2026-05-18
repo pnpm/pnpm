@@ -1,5 +1,3 @@
-#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
-#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 //! Real-directory hoister for the `nodeLinker: hoisted` install layout.
 //!
 //! Ports pnpm v11's [`installing/linking/real-hoist`][upstream-wrapper]
