@@ -136,7 +136,7 @@ fn question_mark_does_not_cross_directory() {
 
     assert!(
         !out.iter().any(|path| path == "a/b/index.js"),
-        "`?` must not match `/`; received {out:?}"
+        "`?` must not match `/`; received {out:?}",
     );
 }
 
