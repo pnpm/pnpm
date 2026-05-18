@@ -99,6 +99,7 @@ import { recordLockfileVerified } from './recordLockfileVerified.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
 import { validateModules } from './validateModules.js'
 import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
+import { writeWantedLockfileAndRecordVerified } from './writeWantedLockfileAndRecordVerified.js'
 
 class LockfileConfigMismatchError extends PnpmError {
   constructor (outdatedLockfileSettingName: string) {
@@ -1747,12 +1748,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     }
   } else {
     if (opts.useLockfile && opts.saveLockfile && !isInstallationOnlyForLockfileCheck) {
-      const written = await writeWantedLockfile(ctx.lockfileDir, newLockfile, lockfileOpts)
-      recordLockfileVerified({
-        cacheDir: opts.cacheDir,
+      await writeWantedLockfileAndRecordVerified({
+        lockfileDir: ctx.lockfileDir,
         lockfilePath: wantedLockfilePath,
-        lockfile: written,
+        lockfile: newLockfile,
+        cacheDir: opts.cacheDir,
         resolutionVerifiers: opts.resolutionVerifiers,
+        ...lockfileOpts,
       })
     }
 
@@ -2301,19 +2303,16 @@ async function installFromPnpmRegistry (
       storeIndex.close()
     }
 
-    const written = await writeWantedLockfile(lockfileDir, lockfile)
     // The agent enforces minimumReleaseAge server-side (and no-downgrade
     // is refused upstream at the agent gate), so the agent-resolved
     // lockfile is policy-clean under the verifiers we'd run locally.
-    const agentLockfileName = await getWantedLockfileName({
+    await writeWantedLockfileAndRecordVerified({
+      lockfileDir,
+      lockfile,
+      cacheDir: opts.cacheDir,
+      resolutionVerifiers: opts.resolutionVerifiers,
       useGitBranchLockfile: opts.useGitBranchLockfile,
       mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
-    })
-    recordLockfileVerified({
-      cacheDir: opts.cacheDir,
-      lockfilePath: path.resolve(lockfileDir, agentLockfileName),
-      lockfile: written,
-      resolutionVerifiers: opts.resolutionVerifiers,
     })
 
     logger.info({
