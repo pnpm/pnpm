@@ -54,7 +54,14 @@ jobs:
           npm_package_name: pnpm
         run: |
           node -e "const f='pnpm/package.json',p=require('./'+f);p.version='11.1.2-canora.16';require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
-          cd pnpm && pnpm pack
+          # Compile gate already built pnpm/dist with the pre-bump version
+          # baked in (esbuild `define` inlines npm_package_version at bundle
+          # time). Incremental tsgo won't rebundle for a package.json-only
+          # change, so force a clean rebundle with the bumped version in env
+          # before packing (mirrors the proven local canora.14/.15 sequence).
+          rm -rf pnpm/dist pnpm/bin/nodes pnpm/*.tsbuildinfo tsconfig.tsbuildinfo
+          export npm_package_version=11.1.2-canora.16 npm_package_name=pnpm
+          cd pnpm && pnpm run prepublishOnly && pnpm pack
           ls -la pnpm-11.1.2-canora.16.tgz
           tar -xzOf pnpm-11.1.2-canora.16.tgz package/dist/pnpm.mjs > /tmp/pnpm.mjs
           if grep -q "11.1.2-canora.16" /tmp/pnpm.mjs; then
