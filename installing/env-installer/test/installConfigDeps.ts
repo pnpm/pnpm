@@ -1,4 +1,6 @@
 import fs from 'node:fs'
+import { createRequire } from 'node:module'
+import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { installConfigDeps } from '@pnpm/installing.env-installer'
@@ -113,9 +115,10 @@ test('optional subdep matching the current platform is installed and symlinked n
 
   expect(fs.existsSync(`node_modules/.pnpm-config/${parentName}/package.json`)).toBe(true)
 
+  // Node-style resolution from inside the parent must find the sibling subdep.
   const parentRealPath = fs.realpathSync(`node_modules/.pnpm-config/${parentName}`)
-  const siblingPkgJsonPath = `${parentRealPath}/../${subdepName}/package.json`
-  expect(fs.existsSync(siblingPkgJsonPath)).toBe(true)
+  const requireFromParent = createRequire(path.join(parentRealPath, 'package.json'))
+  const siblingPkgJsonPath = requireFromParent.resolve(`${subdepName}/package.json`)
   const siblingManifest = loadJsonFileSync<{ name: string, version: string }>(siblingPkgJsonPath)
   expect(siblingManifest.name).toBe(subdepName)
   expect(siblingManifest.version).toBe(subdepVersion)
@@ -152,7 +155,8 @@ test('optional subdep that does not match the current platform is skipped', asyn
   })
 
   const parentRealPath = fs.realpathSync(`node_modules/.pnpm-config/${parentName}`)
-  expect(fs.existsSync(`${parentRealPath}/../${subdepName}`)).toBe(false)
+  const requireFromParent = createRequire(path.join(parentRealPath, 'package.json'))
+  expect(() => requireFromParent.resolve(`${subdepName}/package.json`)).toThrow(/Cannot find/)
 })
 
 test('installation fails if the checksum of the config dependency is invalid', async () => {
