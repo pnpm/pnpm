@@ -16,12 +16,7 @@ export interface WriteLockfilesAndRecordVerifiedOptions {
   resolutionVerifiers: readonly ResolutionVerifier[] | undefined
 }
 
-/**
- * Plural counterpart of {@link writeWantedLockfileAndRecordVerified}.
- * See that for the contract — the record is gated on `cacheDir` plus
- * non-empty `resolutionVerifiers`, and the wanted lockfile name is
- * resolved once and shared with the writer when caching is active.
- */
+/** Plural counterpart of {@link writeWantedLockfileAndRecordVerified}. */
 export async function writeLockfilesAndRecordVerified (
   opts: WriteLockfilesAndRecordVerifiedOptions
 ): Promise<WriteLockfilesResult> {

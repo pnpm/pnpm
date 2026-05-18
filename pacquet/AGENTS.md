@@ -285,6 +285,18 @@ Run `just ready` (full suite) before handing the PR off.
   re-exports such as `pub use submodule::*;` in a `lib.rs`. See the
   "No star imports" section in `CODE_STYLE_GUIDE.md`.
 
+### Comments
+
+Same baseline as [`../AGENTS.md`](../AGENTS.md#comments): write code that explains itself; comments are for the non-obvious *why*, not a translation of the *what*.
+
+Rust-specific defaults:
+
+-   **Doc comments (`///`, `//!`) document the contract.** Preconditions, postconditions, panics, the reason the function exists. They are not a re-narration of the body.
+-   **Do not restate at call sites what the callee's doc comment already says.** If `///` on the function says "no-op when …", the caller should not repeat that. Update the doc once; let every call site benefit.
+-   **`// SAFETY:`, `// TODO:`, and similar prefixes are the exception.** They signal hidden invariants or known follow-ups that a reader cannot recover from the code alone.
+
+Prefer renaming, restructuring, or extracting a helper over leaving a comment. Reach for prose only when the right names and types genuinely cannot carry the information.
+
 ### Preserve existing method chains
 
 When editing existing code, do not break a method chain (including `pipe-trait`

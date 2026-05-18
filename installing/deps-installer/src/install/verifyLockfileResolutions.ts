@@ -97,12 +97,7 @@ export async function verifyLockfileResolutions (
   // miss the precomputed stat+hash flow to recordVerification.
   type Precomputed = ReturnType<typeof tryLockfileVerificationCache>['precomputed']
   let cachePrecomputed: Precomputed | undefined
-  // hashObject is streaming (no "Invalid string length" on huge lockfiles)
-  // and key-order-stable, which JSON.stringify is not. Memoize so we
-  // don't pay for it twice on the miss-then-record path. Safe to hash
-  // the lockfile object directly here: callers pass either the reader's
-  // output (already canonical) or the writer's canonicalized return
-  // value — see writeLockfile for what "canonical" means.
+  // hashObject streams and is key-order-stable, unlike JSON.stringify.
   let cachedHash: string | undefined
   const hashLockfile = (): string => {
     if (cachedHash == null) cachedHash = hashObject(lockfile)

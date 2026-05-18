@@ -361,10 +361,6 @@ export async function mutateModules (
   // resolver's own filters already cover fresh resolution. We run this
   // exactly once, right after the lockfile is loaded from disk, before any
   // path branches.
-  // Resolve the actual lockfile filename so cache records key on the
-  // file the install really reads/writes (under useGitBranchLockfile
-  // that's a branch-suffixed name). Skip the resolution — and its
-  // getCurrentBranch() shell-out — when there's nothing to cache.
   const cacheActive = opts.cacheDir != null && opts.resolutionVerifiers.length > 0
   const wantedLockfilePath = cacheActive
     ? path.resolve(ctx.lockfileDir, await getWantedLockfileName({
@@ -2286,9 +2282,6 @@ async function installFromPnpmRegistry (
       storeIndex.close()
     }
 
-    // The agent enforces minimumReleaseAge server-side (and no-downgrade
-    // is refused upstream at the agent gate), so the agent-resolved
-    // lockfile is policy-clean under the verifiers we'd run locally.
     await writeWantedLockfileAndRecordVerified({
       lockfileDir,
       lockfile,

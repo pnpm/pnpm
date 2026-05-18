@@ -14,13 +14,7 @@ export interface WriteWantedLockfileAndRecordVerifiedOptions {
   mergeGitBranchLockfiles?: boolean
 }
 
-/**
- * Combines {@link writeWantedLockfile} and {@link recordLockfileVerified}
- * — see each for full semantics. The cache record runs only when both
- * `cacheDir` and non-empty `resolutionVerifiers` are wired; in that
- * case `getWantedLockfileName` is resolved once and shared with the
- * writer to avoid a duplicate `getCurrentBranch()` shell-out.
- */
+/** Combines {@link writeWantedLockfile} and {@link recordLockfileVerified} — see each for semantics. */
 export async function writeWantedLockfileAndRecordVerified (
   opts: WriteWantedLockfileAndRecordVerifiedOptions
 ): Promise<LockfileObject> {

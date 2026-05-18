@@ -26,18 +26,19 @@ export function lockfileYamlDump (obj: object): string {
   return yaml.dump(obj, LOCKFILE_YAML_FORMAT)
 }
 
+/**
+ * Returns the canonical post-write lockfile — structurally identical
+ * to what `readWantedLockfile` would parse back. Lets callers like
+ * the verification cache hash the as-saved form without re-reading.
+ */
 export async function writeWantedLockfile (
   pkgPath: string,
   wantedLockfile: LockfileObject,
   opts?: {
     useGitBranchLockfile?: boolean
     mergeGitBranchLockfiles?: boolean
-    /**
-     * Pre-resolved filename. When omitted, computed via
-     * `getWantedLockfileName(opts)`. Pass it when the caller already
-     * resolved the name to avoid a redundant `getCurrentBranch()`
-     * shell-out under `useGitBranchLockfile`.
-     */
+    /** Pre-resolved filename; skips the `getWantedLockfileName` (and
+     *  its `getCurrentBranch`) call when supplied. */
     lockfileName?: string
   }
 ): Promise<LockfileObject> {
@@ -81,14 +82,10 @@ async function writeLockfile (
     await writeFileAtomic(lockfilePath, yamlDoc)
   }
 
-  // Return the canonical "as-saved" lockfile so callers like the
-  // verification cache can hash a value that matches what the next
-  // `readWantedLockfile` will produce. The only divergence between the
-  // in-memory `LockfileFile` and the parsed-on-read form is YAML
-  // dropping `undefined` values (e.g. an unset `settings.dedupePeers`);
-  // a recursive strip captures that. Cheaper than a `yaml.load`
-  // round-trip because the strip rebuilds the object graph from
-  // memory rather than re-parsing the serialized string.
+  // YAML drops undefined on serialize, so the in-memory LockfileFile
+  // can carry fields (like an unset settings.dedupePeers) that won't
+  // survive a round-trip; strip them to mirror what the next reader
+  // will parse back.
   return convertToLockfileObject(stripUndefinedDeep(lockfileToStringify) as LockfileFile)
 }
 
@@ -178,10 +175,7 @@ export async function writeLockfiles (
         }
       })(),
     ])
-    // Both files were written from the same source object — strip
-    // undefined once and reuse. See writeLockfile for why
-    // stripUndefinedDeep is needed instead of reusing
-    // wantedLockfileToStringify directly.
+    // Both files share the same source object; strip once and reuse.
     const normalized = convertToLockfileObject(stripUndefinedDeep(wantedLockfileToStringify) as LockfileFile)
     return {
       wantedLockfile: normalized,
@@ -197,12 +191,8 @@ export async function writeLockfiles (
   const currentLockfileToStringify = convertToLockfileFile(opts.currentLockfile)
   const currentYamlDoc = yamlStringify(currentLockfileToStringify)
 
-  // In the differs branch, the current lockfile can be a filtered
-  // subset of the wanted one (e.g. deps-restorer passes a pruned
-  // current lockfile against a full wanted lockfile). Key the
-  // delete/keep and the return value off `currentLockfile`, not
-  // `wantedLockfile`, so an empty filtered current correctly removes
-  // the on-disk file even when the wanted side is non-empty.
+  // Filtered-current callers (deps-restorer) can pass an empty
+  // current against a non-empty wanted; key off the current.
   const currentIsEmpty = isEmptyLockfile(opts.currentLockfile)
   await Promise.all([
     writeFileAtomic(wantedLockfilePath, wantedYamlDoc),

@@ -17,19 +17,12 @@ export interface RecordLockfileVerifiedOptions {
 }
 
 /**
- * Records a post-resolution lockfile in the verification cache so the
- * next install with an unchanged lockfile takes the stat/hash fast path
- * instead of re-checking every entry against the registry.
- *
- * Safe to call because the lockfile is policy-clean by construction:
- * fresh local resolution passes through the resolver's per-version
- * filter (see `resolving/npm-resolver/src/pickPackage.ts`), and any
- * carried-over entries already passed the gate at the top of
- * `mutateModules`.
- *
- * No-op when the cache isn't wired, no verifiers are active, or the
- * lockfile has no packages — same gating as
- * {@link verifyLockfileResolutions}.
+ * Records the post-resolution lockfile as verified so the next install
+ * skips the registry round-trip. Skipping is safe: fresh local picks
+ * are filtered by the resolver (see
+ * `resolving/npm-resolver/src/pickPackage.ts`) and carried-over entries
+ * already passed the gate at the top of `mutateModules`, so the
+ * recorded lockfile is policy-clean by construction.
  */
 export function recordLockfileVerified (opts: RecordLockfileVerifiedOptions): void {
   if (!opts.cacheDir) return
