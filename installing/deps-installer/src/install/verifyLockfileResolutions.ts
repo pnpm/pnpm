@@ -120,7 +120,11 @@ export async function verifyLockfileResolutions (
   // sees these messages on installs that are doing real work.
   const candidates = collectCandidates(lockfile)
   const startedAt = Date.now()
-  lockfileVerificationLogger.debug({ status: 'started', entries: candidates.size })
+  lockfileVerificationLogger.debug({
+    status: 'started',
+    entries: candidates.size,
+    lockfilePath: options?.lockfilePath,
+  })
   const violations = await iterateLockfileViolations(candidates, verifiers, options?.concurrency)
 
   if (violations.length === 0) {
@@ -128,6 +132,7 @@ export async function verifyLockfileResolutions (
       status: 'done',
       entries: candidates.size,
       elapsedMs: Date.now() - startedAt,
+      lockfilePath: options?.lockfilePath,
     })
     // Persist the success so the next install can stat-only the lockfile.
     if (cache) {

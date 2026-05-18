@@ -132,7 +132,10 @@ export function reporterForClient (
       }),
       reportInstallChecks(log$.installCheck, { cwd }),
       reportInstallingConfigDeps(log$.installingConfigDeps),
-      reportLockfileVerification(log$.lockfileVerification),
+      reportLockfileVerification(log$.lockfileVerification, {
+        cwd,
+        workspaceDir: opts.pnpmConfig?.workspaceDir,
+      }),
       reportScope(log$.scope, { isRecursive: opts.isRecursive, cmd: opts.cmd }),
       reportSkippedOptionalDependencies(log$.skippedOptionalDependency, { cwd }),
       reportHooks(log$.hook, { cwd, isRecursive: opts.isRecursive }),

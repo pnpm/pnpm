@@ -1,14 +1,20 @@
+import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import { expect, test } from '@jest/globals'
 import { toOutput$ } from '@pnpm/cli.default-reporter'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { lockfileVerificationLogger } from '@pnpm/core-loggers'
 import { createStreamParser } from '@pnpm/logger'
 import { firstValueFrom, take, toArray } from 'rxjs'
 
 test('prints lockfile verification in-progress and completion messages', async () => {
+  const cwd = '/repo'
   const output$ = toOutput$({
-    context: { argv: ['install'] },
+    context: {
+      argv: ['install'],
+      config: { dir: cwd } as Config & ConfigContext,
+    },
     streamParser: createStreamParser(),
   })
 
@@ -16,11 +22,13 @@ test('prints lockfile verification in-progress and completion messages', async (
   // done frame in ansi-diff mode.
   const frames = firstValueFrom(output$.pipe(take(2), toArray()))
 
-  lockfileVerificationLogger.debug({ status: 'started', entries: 234 })
+  const lockfilePath = path.join(cwd, 'pnpm-lock.yaml')
+  lockfileVerificationLogger.debug({ status: 'started', entries: 234, lockfilePath })
   lockfileVerificationLogger.debug({
     status: 'done',
     entries: 234,
     elapsedMs: 1234,
+    lockfilePath,
   })
 
   const [started, done] = await frames
@@ -46,4 +54,52 @@ test('uses singular noun for one entry', async () => {
   const [started, done] = await frames
   expect(stripAnsi(started)).toBe('? Verifying lockfile (1 entry)...')
   expect(stripAnsi(done)).toBe('✓ Lockfile verified (1 entry in 42ms)')
+})
+
+test('prints relative path when lockfile lives outside the workspace root', async () => {
+  const cwd = '/repo/packages/app'
+  const workspaceDir = '/repo'
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: cwd, workspaceDir } as Config & ConfigContext,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  const frames = firstValueFrom(output$.pipe(take(2), toArray()))
+
+  // Lockfile lives in a sibling dir, not at the workspace root.
+  const lockfilePath = '/repo/locks/pnpm-lock.yaml'
+  lockfileVerificationLogger.debug({ status: 'started', entries: 5, lockfilePath })
+  lockfileVerificationLogger.debug({
+    status: 'done',
+    entries: 5,
+    elapsedMs: 200,
+    lockfilePath,
+  })
+
+  const [started, done] = await frames
+  expect(stripAnsi(started)).toBe('? Verifying lockfile at ../../locks/pnpm-lock.yaml (5 entries)...')
+  expect(stripAnsi(done)).toBe('✓ Lockfile at ../../locks/pnpm-lock.yaml verified (5 entries in 200ms)')
+})
+
+test('does not print path when running from workspace subdir and lockfile is at workspace root', async () => {
+  const cwd = '/repo/packages/app'
+  const workspaceDir = '/repo'
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: cwd, workspaceDir } as Config & ConfigContext,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  const frames = firstValueFrom(output$.pipe(take(1), toArray()))
+
+  const lockfilePath = path.join(workspaceDir, 'pnpm-lock.yaml')
+  lockfileVerificationLogger.debug({ status: 'started', entries: 10, lockfilePath })
+
+  const [started] = await frames
+  expect(stripAnsi(started)).toBe('? Verifying lockfile (10 entries)...')
 })

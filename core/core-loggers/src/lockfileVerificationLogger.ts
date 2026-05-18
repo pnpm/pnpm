@@ -7,6 +7,12 @@ export const lockfileVerificationLogger = logger<LockfileVerificationMessage>('l
 
 export interface LockfileVerificationMessageBase {
   status: 'started' | 'done'
+  /**
+   * Absolute path of the lockfile being verified. Omitted only when
+   * the verifier is invoked without a path (today only in unit tests
+   * that skip the cache wiring); production code paths always pass it.
+   */
+  lockfilePath?: string
 }
 
 export interface LockfileVerificationStartedMessage extends LockfileVerificationMessageBase {
