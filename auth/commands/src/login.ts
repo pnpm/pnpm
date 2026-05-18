@@ -24,7 +24,10 @@ import { writeIniFile } from 'write-ini-file'
 import { getRegistryConfigKey, safeReadIniFile } from './shared.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
-  return { registry: allTypes.registry }
+  return {
+    registry: allTypes.registry,
+    scope: allTypes.scope,
+  }
 }
 
 export function cliOptionsTypes (): Record<string, unknown> {
@@ -46,11 +49,15 @@ export function help (): string {
             description: 'The registry to log in to',
             name: '--registry <url>',
           },
+          {
+            description: 'Associate an operation with a scope for a scoped registry. The scope-to-registry mapping is recorded so future installs in the same scope use the chosen registry.',
+            name: '--scope <scope>',
+          },
         ],
       },
     ],
     url: docsUrl('login'),
-    usages: ['pnpm login [--registry <url>]'],
+    usages: ['pnpm login [--registry <url>] [--scope <scope>]'],
   })
 }
 
@@ -65,6 +72,7 @@ export type LoginCommandOptions = Pick<Config,
 | 'authConfig'
 > & {
   registry?: string
+  scope?: string
 }
 
 export async function handler (
@@ -202,9 +210,26 @@ export async function login ({ context = DEFAULT_CONTEXT, opts }: LoginParams): 
   const settings = await safeReadIniFile(readIniFile, configPath) as Record<string, unknown>
   const registryConfigKey = getRegistryConfigKey(registry)
   settings[`${registryConfigKey}:_authToken`] = token
+  // Persist the scope → registry mapping next to the auth token so subsequent
+  // installs for `@scope/*` packages route to this registry. `auth.ini` is
+  // already an allowed source of `@scope:registry=` (see config/reader).
+  const scopeKey = normalizeScope(opts.scope)
+  if (scopeKey != null) {
+    settings[`${scopeKey}:registry`] = registry
+  }
   await writeIniFile(configPath, settings)
 
   return `Logged in on ${registry}`
+}
+
+// `--scope foo` and `--scope @foo` should both produce `@foo`. Empty / blank
+// values are treated as unset so accidental whitespace doesn't write a broken
+// `@:registry=` entry.
+function normalizeScope (scope: string | undefined): string | undefined {
+  if (scope == null) return undefined
+  const trimmed = scope.trim()
+  if (trimmed === '' || trimmed === '@') return undefined
+  return trimmed.startsWith('@') ? trimmed : `@${trimmed}`
 }
 
 interface WebLoginParams {
