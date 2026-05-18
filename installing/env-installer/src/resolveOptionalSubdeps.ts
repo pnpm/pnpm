@@ -42,7 +42,10 @@ export async function resolveOptionalSubdeps (
     }
     let resolution
     try {
-      resolution = await opts.resolveFromNpm({ alias: subdepName, bareSpecifier: subdepSpec }, {
+      // `optional: true` opts into full registry metadata so the resolver
+      // returns `libc` (and any other fields the abbreviated metadata strips).
+      // See pnpm/pnpm#9950.
+      resolution = await opts.resolveFromNpm({ alias: subdepName, bareSpecifier: subdepSpec, optional: true }, {
         lockfileDir: opts.lockfileDir,
         preferredVersions: {},
         projectDir: opts.lockfileDir,
