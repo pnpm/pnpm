@@ -385,7 +385,7 @@ fn should_always_exclude(rel: &str) -> bool {
     if rel.split('/').any(|seg| ALWAYS_EXCLUDED_DIR_SEGMENTS.contains(&seg)) {
         return true;
     }
-    ALWAYS_EXCLUDED_SUFFIXES.iter().any(|s| basename.ends_with(s))
+    ALWAYS_EXCLUDED_SUFFIXES.iter().any(|suffix| basename.ends_with(suffix))
 }
 
 /// True when `name` is a safe `bundleDependencies` entry — the join
@@ -435,7 +435,7 @@ fn bundle_dep_names(manifest: &Value) -> Vec<String> {
             manifest
                 .get("dependencies")
                 .and_then(Value::as_object)
-                .map(|m| m.keys().cloned().collect::<Vec<_>>())
+                .map(|map| map.keys().cloned().collect::<Vec<_>>())
                 .unwrap_or_default()
         }
         _ => Vec::new(),

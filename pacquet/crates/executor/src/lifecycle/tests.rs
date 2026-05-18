@@ -100,7 +100,7 @@ fn lifecycle_emits_script_stdio_and_exit_in_order() {
     // race-y (each pumps from its own thread).
     let stdio: Vec<_> = captured
         .iter()
-        .filter_map(|e| match e {
+        .filter_map(|event| match event {
             LogEvent::Lifecycle(l) => match &l.message {
                 LifecycleMessage::Stdio { line, stdio, .. } => Some((stdio, line.as_str())),
                 _ => None,
@@ -173,7 +173,7 @@ fn lifecycle_events_carry_optional_flag() {
     let captured = EVENTS.lock().expect("lock").clone();
     let lifecycle_events: Vec<_> = captured
         .iter()
-        .filter_map(|e| match e {
+        .filter_map(|event| match event {
             LogEvent::Lifecycle(l) => Some(&l.message),
             _ => None,
         })
@@ -181,7 +181,7 @@ fn lifecycle_events_carry_optional_flag() {
     dbg!(&lifecycle_events);
     let script_optional = lifecycle_events
         .iter()
-        .find_map(|m| match m {
+        .find_map(|message| match message {
             LifecycleMessage::Script { optional, .. } => Some(*optional),
             _ => None,
         })
@@ -189,7 +189,7 @@ fn lifecycle_events_carry_optional_flag() {
     assert!(script_optional, "Script event must carry optional=true");
     let exit_optional = lifecycle_events
         .iter()
-        .find_map(|m| match m {
+        .find_map(|message| match message {
             LifecycleMessage::Exit { optional, .. } => Some(*optional),
             _ => None,
         })

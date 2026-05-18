@@ -130,7 +130,7 @@ pub struct RunPostinstallHooks<'a> {
 /// `https://github.com/pnpm/pnpm/blob/80037699fb/exec/lifecycle/src/index.ts`.
 ///
 /// Returns `true` if any script was present and executed.
-pub fn run_postinstall_hooks<R: Reporter>(
+pub fn run_postinstall_hooks<Reporter: self::Reporter>(
     opts: RunPostinstallHooks<'_>,
 ) -> Result<bool, LifecycleScriptError> {
     let manifest = match safe_read_package_json_from_dir(opts.pkg_root) {
@@ -159,7 +159,7 @@ pub fn run_postinstall_hooks<R: Reporter>(
     if let Some(script) = get_script("preinstall")
         && script != "npx only-allow pnpm"
     {
-        run_lifecycle_hook::<R>("preinstall", script, &opts, &manifest, &parent_env)?;
+        run_lifecycle_hook::<Reporter>("preinstall", script, &opts, &manifest, &parent_env)?;
         ran_any = true;
     }
 
@@ -173,14 +173,14 @@ pub fn run_postinstall_hooks<R: Reporter>(
     if let Some(script) = &install_script
         && script != "npx only-allow pnpm"
     {
-        run_lifecycle_hook::<R>("install", script, &opts, &manifest, &parent_env)?;
+        run_lifecycle_hook::<Reporter>("install", script, &opts, &manifest, &parent_env)?;
         ran_any = true;
     }
 
     if let Some(script) = get_script("postinstall")
         && script != "npx only-allow pnpm"
     {
-        run_lifecycle_hook::<R>("postinstall", script, &opts, &manifest, &parent_env)?;
+        run_lifecycle_hook::<Reporter>("postinstall", script, &opts, &manifest, &parent_env)?;
         ran_any = true;
     }
 
@@ -201,7 +201,7 @@ pub fn run_postinstall_hooks<R: Reporter>(
 /// `preparePackage` port) can snapshot once and reuse across stages,
 /// matching upstream's behavior where each stage sees the same parent
 /// env regardless of what siblings wrote into the process's own env.
-pub fn run_lifecycle_hook<R: Reporter>(
+pub fn run_lifecycle_hook<Reporter: self::Reporter>(
     stage: &str,
     script: &str,
     opts: &RunPostinstallHooks<'_>,
@@ -220,7 +220,7 @@ pub fn run_lifecycle_hook<R: Reporter>(
 
     // Mirrors `lifecycleLogger.debug({ depPath, optional, script, stage, wd })`
     // at <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/exec/lifecycle/src/runLifecycleHook.ts#L102>.
-    R::emit(&LogEvent::Lifecycle(LifecycleLog {
+    Reporter::emit(&LogEvent::Lifecycle(LifecycleLog {
         level: LogLevel::Debug,
         message: LifecycleMessage::Script {
             dep_path: opts.dep_path.to_string(),
@@ -252,10 +252,10 @@ pub fn run_lifecycle_hook<R: Reporter>(
         // `EEXIST` swallow at index.js:97-102 doesn't translate.
         // Treat any error here — including `AlreadyExists`, which
         // signals a *file* at that path — as a real spawn failure.
-        fs::create_dir_all(tmpdir).map_err(|e| LifecycleScriptError::Spawn {
+        fs::create_dir_all(tmpdir).map_err(|error| LifecycleScriptError::Spawn {
             dep_path: opts.dep_path.to_string(),
             stage: stage.to_string(),
-            source: e,
+            source: error,
         })?;
     }
 
@@ -292,7 +292,7 @@ pub fn run_lifecycle_hook<R: Reporter>(
     // we set below, and `Command::env` deduplicates them with an
     // unspecified winner.
     let mut child_env = built.env;
-    child_env.retain(|k, _| !k.eq_ignore_ascii_case("PATH"));
+    child_env.retain(|key, _| !key.eq_ignore_ascii_case("PATH"));
     child_env.insert("PATH".to_string(), path_env.to_string_lossy().into_owned());
 
     let mut cmd = Command::new(&shell.program);
@@ -311,26 +311,26 @@ pub fn run_lifecycle_hook<R: Reporter>(
     // way to test it. For now the field signals intent for follow-up.
     let _ = shell.windows_verbatim_args;
 
-    let mut child = cmd.spawn().map_err(|e| LifecycleScriptError::Spawn {
+    let mut child = cmd.spawn().map_err(|error| LifecycleScriptError::Spawn {
         dep_path: opts.dep_path.to_string(),
         stage: stage.to_string(),
-        source: e,
+        source: error,
     })?;
 
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
 
-    let stdout_handle = stdout.map(|s| {
-        spawn_line_pump::<R>(s, LifecycleStdio::Stdout, opts.dep_path, stage, &pkg_root_str)
+    let stdout_handle = stdout.map(|stream| {
+        spawn_line_pump::<Reporter>(stream, LifecycleStdio::Stdout, opts.dep_path, stage, &pkg_root_str)
     });
-    let stderr_handle = stderr.map(|s| {
-        spawn_line_pump::<R>(s, LifecycleStdio::Stderr, opts.dep_path, stage, &pkg_root_str)
+    let stderr_handle = stderr.map(|stream| {
+        spawn_line_pump::<Reporter>(stream, LifecycleStdio::Stderr, opts.dep_path, stage, &pkg_root_str)
     });
 
-    let status = child.wait().map_err(|e| LifecycleScriptError::Wait {
+    let status = child.wait().map_err(|error| LifecycleScriptError::Wait {
         dep_path: opts.dep_path.to_string(),
         stage: stage.to_string(),
-        source: e,
+        source: error,
     })?;
 
     // Joining the pumps after `wait` ensures every line they read is
@@ -344,7 +344,7 @@ pub fn run_lifecycle_hook<R: Reporter>(
 
     // Mirrors `lifecycleLogger.debug({ depPath, exitCode, optional, stage, wd })`
     // at <https://github.com/pnpm/pnpm/blob/80037699fb/exec/lifecycle/src/runLifecycleHook.ts#L165>.
-    R::emit(&LogEvent::Lifecycle(LifecycleLog {
+    Reporter::emit(&LogEvent::Lifecycle(LifecycleLog {
         level: LogLevel::Debug,
         message: LifecycleMessage::Exit {
             dep_path: opts.dep_path.to_string(),
@@ -371,7 +371,7 @@ pub fn run_lifecycle_hook<R: Reporter>(
 /// `LifecycleMessage::Stdio` event per line. Mirrors the per-chunk
 /// logging callback at
 /// <https://github.com/pnpm/pnpm/blob/80037699fb/exec/lifecycle/src/runLifecycleHook.ts#L147>.
-fn spawn_line_pump<R: Reporter>(
+fn spawn_line_pump<Reporter: self::Reporter>(
     reader: impl Read + Send + 'static,
     stdio: LifecycleStdio,
     dep_path: &str,
@@ -391,7 +391,7 @@ fn spawn_line_pump<R: Reporter>(
                 // exit code if the child failed because of them.
                 break;
             };
-            R::emit(&LogEvent::Lifecycle(LifecycleLog {
+            Reporter::emit(&LogEvent::Lifecycle(LifecycleLog {
                 level: LogLevel::Debug,
                 message: LifecycleMessage::Stdio {
                     dep_path: dep_path.clone(),

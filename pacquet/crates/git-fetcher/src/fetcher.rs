@@ -101,11 +101,11 @@ impl<'a> GitFetcher<'a> {
     /// [`tokio::task::block_in_place`] for the git CLI invocations and
     /// the lifecycle-script-running prepare step. Returns the CAS file
     /// map for the prepared sub-directory.
-    pub async fn run<R: Reporter>(self) -> Result<GitFetchOutput, GitFetcherError> {
-        tokio::task::block_in_place(|| self.run_sync::<R>())
+    pub async fn run<Reporter: self::Reporter>(self) -> Result<GitFetchOutput, GitFetcherError> {
+        tokio::task::block_in_place(|| self.run_sync::<Reporter>())
     }
 
-    fn run_sync<R: Reporter>(self) -> Result<GitFetchOutput, GitFetcherError> {
+    fn run_sync<Reporter: self::Reporter>(self) -> Result<GitFetchOutput, GitFetcherError> {
         let temp = tempfile::tempdir().map_err(GitFetcherError::Io)?;
         let temp_location = temp.path();
 
@@ -152,7 +152,7 @@ impl<'a> GitFetcher<'a> {
             extra_env: &empty_env,
         };
         let PreparedPackage { pkg_dir, should_be_built } =
-            match prepare_package::<R>(&prepare_opts, temp_location, self.path) {
+            match prepare_package::<Reporter>(&prepare_opts, temp_location, self.path) {
                 Ok(p) => p,
                 Err(err) => {
                     return Err(wrap_prepare_error(self.repo, err));
@@ -323,7 +323,7 @@ fn exec_git_with(bin: &Path, args: &[&str], cwd: Option<&Path>) -> Result<String
 /// messages. `init` / `clone` / `fetch` / `checkout` / `rev-parse` /
 /// `remote` are the only ones the fetcher invokes.
 fn static_operation_label(args: &[&str]) -> &'static str {
-    let first = args.iter().find(|a| !a.starts_with('-')).copied().unwrap_or("git");
+    let first = args.iter().find(|arg| !arg.starts_with('-')).copied().unwrap_or("git");
     match first {
         "init" => "init",
         "clone" => "clone",

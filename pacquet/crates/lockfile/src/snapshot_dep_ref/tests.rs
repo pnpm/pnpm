@@ -2,16 +2,16 @@ use super::{SnapshotDepRef, looks_like_alias};
 use crate::{PkgName, PkgNameVerPeer, PkgVerPeer};
 use pretty_assertions::assert_eq;
 
-fn pkg_name(s: &str) -> PkgName {
-    PkgName::parse(s).unwrap()
+fn pkg_name(text: &str) -> PkgName {
+    PkgName::parse(text).unwrap()
 }
 
-fn ver_peer(s: &str) -> PkgVerPeer {
-    s.parse().unwrap()
+fn ver_peer(text: &str) -> PkgVerPeer {
+    text.parse().unwrap()
 }
 
-fn key(s: &str) -> PkgNameVerPeer {
-    s.parse().unwrap()
+fn key(text: &str) -> PkgNameVerPeer {
+    text.parse().unwrap()
 }
 
 #[test]

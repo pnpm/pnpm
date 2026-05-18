@@ -374,7 +374,7 @@ async fn fetcher_packs_subfolder_when_path_set() {
     assert!(keys.contains(&"package.json"), "sub-dir manifest must be included: {keys:?}");
     assert!(keys.contains(&"index.js"), "sub-dir main must be included: {keys:?}");
     assert!(
-        !keys.iter().any(|k| k.contains("other") || k.contains("packages/")),
+        !keys.iter().any(|key| key.contains("other") || key.contains("packages/")),
         "sibling-package files must not appear; keys are relative to the sub-dir: {keys:?}",
     );
 }
@@ -762,7 +762,7 @@ fn parse_shim_log(log_path: &Path) -> Vec<Vec<String>> {
         .unwrap()
         .lines()
         .map(|line| {
-            line.split('\t').filter(|s| !s.is_empty()).map(str::to_string).collect::<Vec<_>>()
+            line.split('\t').filter(|part| !part.is_empty()).map(str::to_string).collect::<Vec<_>>()
         })
         .filter(|args| !args.is_empty())
         .collect()

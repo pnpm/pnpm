@@ -336,8 +336,8 @@ pub fn satisfies_package_manifest(
             let parsed = crate::PkgName::parse(*name).ok();
             let importer_spec = parsed
                 .as_ref()
-                .and_then(|n| importer_field.and_then(|m| m.get(n)))
-                .map(|s| s.specifier.as_str());
+                .and_then(|name| importer_field.and_then(|map| map.get(name)))
+                .map(|spec| spec.specifier.as_str());
             match importer_spec {
                 Some(spec) if spec == *manifest_spec => continue,
                 Some(spec) => {

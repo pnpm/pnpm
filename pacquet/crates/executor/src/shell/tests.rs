@@ -2,8 +2,8 @@ use super::{ScriptShellError, SelectedShell, select_shell};
 use pretty_assertions::assert_eq;
 use std::{ffi::OsString, path::Path};
 
-fn os(s: &str) -> OsString {
-    OsString::from(s)
+fn os(text: &str) -> OsString {
+    OsString::from(text)
 }
 
 /// Default on POSIX: `sh -c`, no verbatim args.

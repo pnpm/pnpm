@@ -162,7 +162,7 @@ fn is_stamping_key(key: &str, is_windows: bool) -> bool {
         }
         return ["NODE", "TMPDIR", "INIT_CWD", "PNPM_SCRIPT_SRC_DIR"]
             .iter()
-            .any(|n| key.eq_ignore_ascii_case(n));
+            .any(|name| key.eq_ignore_ascii_case(name));
     }
     if key.starts_with("npm_") {
         return true;
@@ -243,14 +243,18 @@ fn stamp_package(env: &mut HashMap<String, String>, prefix: &str, value: &Value)
 
 /// `(prefix + i).replace(/[^a-zA-Z0-9_]/g, '_')` from index.js:379.
 fn sanitize_env_key(raw: &str) -> String {
-    raw.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' { c } else { '_' }).collect()
+    raw.chars().map(|ch| if ch.is_ascii_alphanumeric() || ch == '_' { ch } else { '_' }).collect()
 }
 
 /// `env[envKey].includes('\n') ? JSON.stringify(env[envKey]) : env[envKey]`
 /// from index.js:406-408. JSON-encode multi-line strings so child
 /// shells don't break on embedded newlines.
-fn escape_newlines(s: &str) -> String {
-    if s.contains('\n') { Value::String(s.to_string()).to_string() } else { s.to_string() }
+fn escape_newlines(text: &str) -> String {
+    if text.contains('\n') {
+        Value::String(text.to_string()).to_string()
+    } else {
+        text.to_string()
+    }
 }
 
 #[cfg(test)]

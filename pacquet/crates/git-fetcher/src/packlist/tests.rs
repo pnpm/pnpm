@@ -134,7 +134,7 @@ fn question_mark_does_not_cross_directory() {
     });
     let out = packlist(root, &manifest).unwrap();
 
-    assert!(!out.iter().any(|p| p == "a/b/index.js"), "`?` must not match `/`; received {out:?}");
+    assert!(!out.iter().any(|path| path == "a/b/index.js"), "`?` must not match `/`; received {out:?}");
 }
 
 #[test]
@@ -354,7 +354,7 @@ fn bundle_dependencies_rejects_path_traversal() {
     let out = packlist(&root, &manifest).unwrap();
 
     assert!(
-        !out.iter().any(|p| p.contains("escape") || p.contains("secret")),
+        !out.iter().any(|path| path.contains("escape") || path.contains("secret")),
         "bundle name traversal must not leak files outside pkg_dir: {out:?}",
     );
 }
