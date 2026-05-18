@@ -123,6 +123,22 @@ test('config dep with no optionalDependencies keeps an empty snapshot', async ()
   expect(envLockfile!.snapshots['@pnpm.e2e/foo@100.0.0']).toStrictEqual({})
 })
 
+test('rejects an optionalDependency declared with a non-exact version', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  // @pnpm.e2e/foobar declares `@pnpm.e2e/bar: "^100.0.0"` — a range, not an exact version.
+  await expect(resolveConfigDeps(['@pnpm.e2e/foobar@100.0.0'], {
+    registries: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    cacheDir: path.resolve('cache'),
+    store: storeController,
+    storeDir,
+  })).rejects.toThrow(/only exact versions are supported/)
+})
+
 test('fails with frozenLockfile', async () => {
   prepareEmpty()
   const { storeController, storeDir } = createTempStore()

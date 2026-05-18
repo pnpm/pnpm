@@ -5,6 +5,7 @@ import type { ResolvedDependencies } from '@pnpm/lockfile.types'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import type { createNpmResolver } from '@pnpm/resolving.npm-resolver'
 import type { DependencyManifest, Registries } from '@pnpm/types'
+import semver from 'semver'
 
 type ResolveFromNpm = ReturnType<typeof createNpmResolver>['resolveFromNpm']
 
@@ -27,6 +28,15 @@ export async function resolveOptionalSubdeps (
 
   const resolved: ResolvedDependencies = {}
   await Promise.all(Object.entries(optionalDeps).map(async ([subdepName, subdepSpec]) => {
+    if (semver.valid(subdepSpec) == null) {
+      // Ranges and tags would let the resolved version drift between machines
+      // even with a stable parent integrity, breaking the lockfile's promise
+      // of reproducible config-dep installs.
+      throw new PnpmError(
+        'CONFIG_DEP_OPTIONAL_NOT_EXACT',
+        `Cannot install "${subdepName}@${subdepSpec}" as an optionalDependency of config dependency "${parentName}": only exact versions are supported (got "${subdepSpec}")`
+      )
+    }
     let resolution
     try {
       resolution = await opts.resolveFromNpm({ alias: subdepName, bareSpecifier: subdepSpec }, {

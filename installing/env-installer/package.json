@@ -56,6 +56,7 @@
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "get-npm-tarball-url": "catalog:",
+    "semver": "catalog:",
     "symlink-dir": "catalog:"
   },
   "peerDependencies": {
@@ -68,6 +69,7 @@
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/testing.temp-store": "workspace:*",
+    "@types/semver": "catalog:",
     "load-json-file": "catalog:",
     "read-yaml-file": "catalog:"
   },
