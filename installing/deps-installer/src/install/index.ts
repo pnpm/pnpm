@@ -95,10 +95,10 @@ import {
   type ProcessedInstallOptions as StrictInstallOptions,
 } from './extendInstallOptions.js'
 import { linkPackages } from './link.js'
-import { recordLockfileVerified } from './recordLockfileVerified.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
 import { validateModules } from './validateModules.js'
 import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
+import { writeLockfilesAndRecordVerified } from './writeLockfilesAndRecordVerified.js'
 import { writeWantedLockfileAndRecordVerified } from './writeWantedLockfileAndRecordVerified.js'
 
 class LockfileConfigMismatchError extends PnpmError {
@@ -1677,24 +1677,15 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     const currentLockfileDir = path.join(ctx.rootModulesDir, '.pnpm')
     await Promise.all([
       opts.useLockfile && opts.saveLockfile
-        ? writeLockfiles({
+        ? writeLockfilesAndRecordVerified({
           currentLockfile: result.currentLockfile,
           currentLockfileDir,
           wantedLockfile: newLockfile,
           wantedLockfileDir: ctx.lockfileDir,
+          wantedLockfilePath,
+          cacheDir: opts.cacheDir,
+          resolutionVerifiers: opts.resolutionVerifiers,
           ...lockfileOpts,
-        }).then((written) => {
-          // Local resolution already enforced the same policy the verifier
-          // would re-check on the next install — record the fresh lockfile
-          // so that next run takes the cache fast path. Hash the writer's
-          // canonical output, not `newLockfile`, so the recorded hash is
-          // provably of what landed on disk.
-          recordLockfileVerified({
-            cacheDir: opts.cacheDir,
-            lockfilePath: wantedLockfilePath,
-            lockfile: written.wantedLockfile,
-            resolutionVerifiers: opts.resolutionVerifiers,
-          })
         })
         : writeCurrentLockfile(ctx.virtualStoreDir, result.currentLockfile),
       (async () => {
