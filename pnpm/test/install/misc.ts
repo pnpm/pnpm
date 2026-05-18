@@ -663,8 +663,13 @@ test('lockfile verifier rejects a trust-downgraded entry that bypassed resolutio
     '--frozen-lockfile',
     '--trust-policy=no-downgrade',
   ])
-  expect(result.status).toBe(1)
   const output = `${result.stdout.toString()}\n${result.stderr.toString()}`
+  if (result.status !== 1) {
+    // Surface the actual install output so a CI failure here points at
+    // the real cause (e.g. the verifier silently passing, or a different
+    // error short-circuiting the install) instead of just "expected 1".
+    throw new Error(`Expected install to fail with ERR_PNPM_TRUST_DOWNGRADE, got status=${result.status}\n--- output ---\n${output}\n--- end output ---`)
+  }
   expect(output).toContain('ERR_PNPM_TRUST_DOWNGRADE')
   expect(output).toMatch(/@pnpm\/e2e\.test-provenance/)
 })
