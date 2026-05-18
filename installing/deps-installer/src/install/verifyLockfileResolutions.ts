@@ -129,18 +129,26 @@ export async function verifyLockfileResolutions (
 
   // Stable order so the error output is deterministic.
   violations.sort((a, b) => `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`))
+  // Pick the throw code: a single-code batch keeps the per-policy code
+  // (so existing handlers / docs / search keywords still route correctly);
+  // a mixed batch (e.g. minimumReleaseAge + trust-downgrade on the same
+  // lockfile) escalates to the generic `LOCKFILE_RESOLUTION_VERIFICATION`
+  // and the per-entry code goes into the breakdown so the user can see
+  // which policy each entry tripped.
+  const distinctCodes = new Set(violations.map((v) => v.code))
+  const isMixed = distinctCodes.size > 1
+  const errorCode = isMixed ? 'LOCKFILE_RESOLUTION_VERIFICATION' : violations[0].code
   const visible = violations.slice(0, MAX_VIOLATIONS_TO_PRINT)
   const omitted = violations.length - visible.length
-  const breakdown = visible.map((v) => `  ${v.name}@${v.version} ${v.reason}`).join('\n')
+  const formatEntry = isMixed
+    ? (v: ResolutionPolicyViolation): string => `  ${v.name}@${v.version} [${v.code}] ${v.reason}`
+    : (v: ResolutionPolicyViolation): string => `  ${v.name}@${v.version} ${v.reason}`
+  const breakdown = visible.map(formatEntry).join('\n')
   const details = omitted > 0
     ? `${breakdown}\n  …and ${omitted} more`
     : breakdown
-  // Use the code of the first violation — all of today's violations are the
-  // same shape (one verifier, one code). If multiple verifiers fire later
-  // with mixed codes, switch to a generic LOCKFILE_RESOLUTION_VERIFICATION
-  // code and list per-entry codes in the breakdown.
   throw new PnpmError(
-    violations[0].code,
+    errorCode,
     `${violations.length} lockfile entries failed verification:\n${details}`,
     {
       hint: 'The lockfile contains entries that the active policies reject. ' +

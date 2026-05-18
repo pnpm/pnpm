@@ -68,6 +68,29 @@ test('throws with the verifier-supplied code and reason on a single failure', as
   })
 })
 
+test('throws a generic code with per-entry codes in the breakdown when violations span policies', async () => {
+  const lockfile = makeLockfile({
+    'is-odd@0.1.2': { resolution: tarballResolution('sha512-a') },
+    'untrusted@1.0.0': { resolution: tarballResolution('sha512-b') },
+  })
+  const verifier = wrap(async (_, { name }) => {
+    if (name === 'is-odd') {
+      return { ok: false, code: 'MINIMUM_RELEASE_AGE_VIOLATION', reason: 'too fresh' }
+    }
+    return { ok: false, code: 'TRUST_DOWNGRADE', reason: 'trust weakened' }
+  })
+
+  await expect(verifyLockfileResolutions(lockfile, [verifier])).rejects.toMatchObject({
+    // Mixed-code batch escalates to the generic LOCKFILE_RESOLUTION_VERIFICATION
+    // code so downstream handlers don't mis-route on whichever entry happened
+    // to land first.
+    code: 'ERR_PNPM_LOCKFILE_RESOLUTION_VERIFICATION',
+    // Per-entry code is included in the breakdown so the user can see
+    // which policy each line tripped.
+    message: expect.stringMatching(/is-odd@0\.1\.2 \[MINIMUM_RELEASE_AGE_VIOLATION\][\s\S]*untrusted@1\.0\.0 \[TRUST_DOWNGRADE\]/),
+  })
+})
+
 test('lists violations in stable order across multiple failures', async () => {
   const lockfile = makeLockfile({
     'fresh-b@2.0.0': { resolution: tarballResolution('sha512-b') },
@@ -157,14 +180,17 @@ test('the verifier sees the resolution shape verbatim', async () => {
   expect(received).toEqual(expect.arrayContaining([npmResolution, gitResolution]))
 })
 
-test('uses the first violation\'s code when multiple verifiers fire', async () => {
+test('keeps the per-policy code when every violation in the batch shares it', async () => {
+  // Same code across all violations → throw with that code so existing
+  // handlers / docs / search routes still match. Mixed-code coverage is
+  // in the dedicated "throws a generic code …" test above.
   const lockfile = makeLockfile({
     'a@1.0.0': { resolution: tarballResolution('sha512-a') },
     'b@1.0.0': { resolution: tarballResolution('sha512-b') },
   })
-  const verifier = wrap(async (_, { name }) => ({
+  const verifier = wrap(async () => ({
     ok: false,
-    code: name === 'a' ? 'POLICY_A' : 'POLICY_B',
+    code: 'POLICY_A',
     reason: 'failed',
   }))
 

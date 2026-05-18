@@ -128,11 +128,16 @@ export async function handler (
     timeout: opts.fetchTimeout,
   })
   // dlx has nowhere to "defer to" — it runs the resolved package directly.
-  // Under strict minimumReleaseAge, wrap the resolver so any policy
-  // violation surfaces as a thrown PnpmError before dlx tries to launch
-  // the immature version.
-  const strictMinReleaseAge = Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true
-  const resolve = strictMinReleaseAge ? makeResolutionStrict(baseResolve) : baseResolve
+  // Wrap the resolver under any policy that wants to reject violations
+  // up-front: strict minimumReleaseAge (refuse immature picks) and
+  // `trustPolicy: 'no-downgrade'` (refuse versions whose trust evidence
+  // weakened). Without the trust-policy arm, a downgraded version would
+  // resolve to a `policyViolation` that dlx silently ignored and then
+  // executed.
+  const strictResolution =
+    (Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true) ||
+    opts.trustPolicy === 'no-downgrade'
+  const resolve = strictResolution ? makeResolutionStrict(baseResolve) : baseResolve
   const resolvedPkgAliases: string[] = []
   const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
   const resolvedPkgs = await Promise.all(pkgs.map(async (pkg) => {

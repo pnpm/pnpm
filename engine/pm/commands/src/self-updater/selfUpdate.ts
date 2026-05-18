@@ -85,12 +85,16 @@ export async function handler (
     configByUri: opts.configByUri,
     ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime,
   })
-  // self-update has nowhere to "defer to" either — under strict
-  // minimumReleaseAge, wrap the resolver so any policy violation
-  // surfaces as a thrown PnpmError before self-update switches to
-  // the immature pnpm version.
-  const strictMinReleaseAge = Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true
-  const resolve = strictMinReleaseAge ? makeResolutionStrict(baseResolve) : baseResolve
+  // self-update has nowhere to "defer to" either — wrap the resolver
+  // under any policy that wants to reject violations up-front. Strict
+  // minimumReleaseAge keeps self-update from switching to an immature
+  // pnpm; `trustPolicy: 'no-downgrade'` keeps it from switching to a
+  // pnpm whose trust evidence weakened relative to the installed
+  // version.
+  const strictResolution =
+    (Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true) ||
+    opts.trustPolicy === 'no-downgrade'
+  const resolve = strictResolution ? makeResolutionStrict(baseResolve) : baseResolve
   const pkgName = 'pnpm'
   const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
   // `pnpm self-update` (no args) defaults to the `latest` dist-tag, but we
