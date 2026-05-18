@@ -117,8 +117,7 @@ allow_branch = "main"
 # nightly toolchain (so `#[expect(perfectionist::lint, reason = "...")]`
 # at use sites compiles cleanly without a wrapper); this `check-cfg`
 # entry tells stable `cargo check` that the cfg name is expected even
-# though it's never set off-dylint. Mirrors the convention in
-# KSXGitHub/parallel-disk-usage's Cargo.toml.
+# though it's never set off-dylint.
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(dylint_lib, values("perfectionist"))'] }
 
