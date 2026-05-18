@@ -35,3 +35,6 @@ pub fn make_file_executable(file: &std::fs::File) -> io::Result<()> {
     #[cfg(windows)]
     return Ok(());
 }
+
+#[cfg(test)]
+mod tests;

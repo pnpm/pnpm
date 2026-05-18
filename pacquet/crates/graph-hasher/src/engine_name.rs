@@ -192,7 +192,7 @@ fn detect_host_libc() -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{engine_name, parse_node_version_output};
+    use super::{detect_node_major, detect_node_version, engine_name, parse_node_version_output};
     use pretty_assertions::assert_eq;
 
     /// Format matches pnpm's `${platform};${arch};node${major}`
@@ -235,5 +235,29 @@ mod tests {
         assert_eq!(parts.len(), 3, "expected three parts, got {name:?}");
         assert!(parts[2].starts_with("node"), "third part must start with `node`: {name:?}");
         assert!(parts[2][4..].parse::<u32>().is_ok(), "node version must be numeric: {name:?}");
+    }
+
+    /// `detect_node_version` returns the full version string with
+    /// the leading `v` stripped. `node` is a hard prerequisite for
+    /// the test suite — if it isn't on `PATH` that's a test-env
+    /// bug, so we `expect` rather than skip.
+    #[test]
+    fn detect_node_version_strips_leading_v() {
+        let version = detect_node_version().expect("`node` must be on PATH for the test suite");
+        assert!(!version.starts_with('v'), "leading `v` must be stripped: {version:?}");
+        let major = version.split('.').next().expect("at least one component");
+        assert!(major.parse::<u32>().is_ok(), "major must be numeric: {version:?}");
+    }
+
+    /// `detect_node_major` round-trips through `detect_node_version` and
+    /// the parser. When both are wired correctly the integer major
+    /// matches the leading component of the full version string.
+    #[test]
+    fn detect_node_major_matches_detect_node_version_leading_component() {
+        let major = detect_node_major().expect("`node` must be on PATH for the test suite");
+        let version = detect_node_version().expect("`node` must be on PATH for the test suite");
+        let leading: u32 =
+            version.split('.').next().expect("non-empty version").parse().expect("major numeric");
+        assert_eq!(major, leading);
     }
 }
