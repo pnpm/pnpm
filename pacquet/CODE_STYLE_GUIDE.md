@@ -46,7 +46,7 @@ Follow [the Rust API guidelines](https://rust-lang.github.io/api-guidelines/nami
 
 ### Module Organization
 
-- Use the flat file pattern (`module.rs`) rather than `module/mod.rs` for submodules. Enforced by [`perfectionist::flat_module_pattern`](https://github.com/KSXGitHub/perfectionist).
+- Use the flat file pattern (`module.rs`) rather than `module/mod.rs` for submodules. Enforced by [`perfectionist::flat_module_pattern`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.15/rules/flat_module_pattern.md).
 - List `pub mod` declarations first, then `pub use` re-exports, then private imports and items.
 - Use `pub use` to re-export key types at the module level for convenience.
 
@@ -114,102 +114,15 @@ pub use load_lockfile::*;
 
 ### Generic Parameter Naming
 
-Use **descriptive names** for type parameters, not single letters:
-
-- `Size`, `Name`, `Manifest`, `Store`, `Reporter`
-
-Single-letter generics are acceptable only in very short, self-contained trait impls.
+Use descriptive names for type parameters (`Size`, `Name`, `Manifest`, `Store`, `Reporter`) instead of single letters. Enforced by [`perfectionist::single_letter_generic`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.15/rules/single_letter_generic.md), which exempts short self-contained trait impls.
 
 ### Variable and Closure Parameter Naming
 
-Use **descriptive names** for variables and closure parameters by default. Single-letter names are permitted only in the specific cases listed below.
+Use descriptive names for variables and closure parameters. Single letters are accepted only where the rules' default allowlists permit them: `n`/`f`/`i`/`j`/`k` for their conventional roles, the `sort_by` / `sort_by_key` / `min_by` / `max_by` / `fold` callback shape, single-expression closure bodies, and `let` bindings in `#[cfg(test)]` code. Multi-line closure bodies and non-test `let` bindings are flagged. Enforced by:
 
-#### When single-letter names are allowed
-
-- **Comparison closures:** `|a, b|` in `sort_by`, `cmp`, or similar two-argument comparison callbacks. This is idiomatic Rust.
-
-  ```rust
-  packages.sort_by(|a, b| a.name.cmp(&b.name));
-  ```
-
-- **Conventional single-letter names:** `n` for a natural number such as an unsigned integer or count, `f` for a `fmt::Formatter`, and similar well-established conventions from math or the Rust standard library. Note: for indices, use `index`, or `*_index` such as `row_index`, not `n`. For `i`/`j`/`k`, see the dedicated rule below.
-
-  ```rust
-  fn with_capacity(n: usize) -> Self { todo!() }
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { todo!() }
-  ```
-
-- **Index variables (`i`, `j`, `k`):** These may only be used in two contexts: short closures, and index-based loops or iterations. The latter is rare in Rust. In all other cases, use `index` or `*_index`.
-
-  ```rust
-  // OK: short closure
-  rows.zip(cols).map(|(i, j)| matrix[i][j])
-
-  // OK: index-based loop
-  for i in 0..len { /* ... */ }
-
-  // Bad: use a descriptive name instead
-  let i = items.iter().position(|item| item.is_active()).unwrap();
-  ```
-
-- **Trivial single-expression closures:** A closure whose body is a single field access, method call, or wrapper may use a single letter when the type and purpose are obvious from context.
-
-  ```rust
-  .pipe(|x| vec![x])
-  ```
-
-- **Fold accumulators:** `acc` for the accumulator and a single letter for the element in trivial folds.
-
-  ```rust
-  .fold(PathBuf::new(), |acc, x| acc.join(x))
-  ```
-
-- **Test fixtures:** `let a`, `let b`, `let c` for interchangeable specimens with identical roles in equality or comparison tests. Do not use single letters when the variables have distinct roles; use `actual`/`expected` or similar descriptive names instead.
-
-  ```rust
-  let a = vec![3, 1, 2].into_iter().collect::<BTreeSet<_>>();
-  let b = vec![2, 3, 1].into_iter().collect::<BTreeSet<_>>();
-  assert_eq!(a, b);
-  ```
-
-#### When single-letter names are NOT allowed
-
-- **Multi-line functions and closures:** Use a descriptive name when a function or closure body spans multiple lines. Examples include a body that contains a `let` binding followed by another expression, or a body with multiple chained operations.
-
-  ```rust
-  // Good
-  .map(|package| {
-      let manifest = package.manifest()?;
-      install(&manifest)
-  })
-
-  // Bad
-  .map(|p| {
-      let manifest = p.manifest()?;
-      install(&manifest)
-  })
-  ```
-
-- **`let` bindings in non-test code:** Always use descriptive names.
-
-  ```rust
-  // Good
-  let manifest = package.manifest()?;
-  // Bad
-  let m = package.manifest()?;
-  ```
-
-- **Function and method parameters:** Always use descriptive names, except for the conventional single-letter names listed above, such as `n` and `f`.
-
-- **Closures with non-obvious context:** When the type or purpose is not immediately clear from the surrounding method chain, use a descriptive name.
-
-  ```rust
-  // Good: descriptive name makes the closure self-documenting
-  .filter(|entry| entry.is_published())
-
-  // Bad: reader must look up what .filter receives
-  .filter(|x| x.is_published())
-  ```
+- [`perfectionist::single_letter_function_param`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.15/rules/single_letter_function_param.md)
+- [`perfectionist::single_letter_closure_param`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.15/rules/single_letter_closure_param.md)
+- [`perfectionist::single_letter_let_binding`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.15/rules/single_letter_let_binding.md)
 
 ### When to use [owned] parameter? When to use [borrowed] parameter?
 
@@ -589,57 +502,7 @@ Do not flatten the tests into a sibling file such as `src/foo_tests.rs`, and do 
 
 ### Cloning `Arc` and `Rc`
 
-Prefer using `Arc::clone` or `Rc::clone` to vague `.clone()` or `Clone::clone`.
-
-**Error resistance:** Explicitly specifying the cloned type would avoid accidentally cloning the wrong type. As seen below:
-
-```rust
-fn my_function(value: Arc<Vec<u8>>) {
-    // ... do many things here
-    let value_clone = value.clone(); // inexpensive clone
-    tokio::task::spawn(async move {
-        // ... do stuff with value_clone
-    });
-}
-```
-
-The above function could easily be refactored into the following code:
-
-```rust
-fn my_function(value: &Vec<u8>) {
-    // ... do many things here
-    let value_clone = value.clone(); // expensive clone, oops
-    tokio::task::spawn(async move {
-        // ... do stuff with value_clone
-    });
-}
-```
-
-With an explicit `Arc::clone`, however, the performance characteristic will never be missed:
-
-```rust
-fn my_function(value: Arc<Vec<u8>>) {
-    // ... do many things here
-    let value_clone = Arc::clone(&value); // no compile error
-    tokio::task::spawn(async move {
-        // ... do stuff with value_clone
-    });
-}
-```
-
-```rust
-fn my_function(value: &Vec<u8>) {
-    // ... do many things here
-    let value_clone = Arc::clone(&value); // compile error
-    tokio::task::spawn(async move {
-        // ... do stuff with value_clone
-    });
-}
-```
-
-The above code is still valid code, and the Rust compiler doesn't error, but it has a different performance characteristic now.
-
-**Readability:** The generic `.clone()` or `Clone::clone` often implies an expensive operation (for example: cloning a `Vec`), but `Arc` and `Rc` are not as expensive as the generic `.clone()`. Explicitly marking the cloned type aids future refactoring.
+Prefer `Arc::clone(&x)` / `Rc::clone(&x)` over `x.clone()` for reference-counted types. The qualified form makes the O(1) refcount bump visible at the call site and fails to compile if a refactor changes the binding's type to something whose `Clone` is an arbitrarily expensive deep copy. Enforced by [`perfectionist::arc_rc_clone`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.15/rules/arc_rc_clone.md).
 
 ### Reporter / log events
 
