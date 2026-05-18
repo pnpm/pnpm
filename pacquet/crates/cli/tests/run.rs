@@ -15,10 +15,16 @@ fn run_executes_declared_script() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let manifest_path = workspace.join("package.json");
     let marker_path = workspace.join("marker.txt");
+    // Path is double-quoted in the shell command so a tempdir
+    // path containing a space (rare on Linux, common on macOS
+    // under `/var/folders/...`) doesn't get split into two
+    // `touch` arguments.
     let manifest = json!({
         "name": "test",
         "version": "0.0.0",
-        "scripts": { "touch-marker": format!("touch {}", marker_path.display()) },
+        "scripts": {
+            "touch-marker": format!(r#"touch "{}""#, marker_path.display()),
+        },
     })
     .to_string();
     fs::write(&manifest_path, manifest).expect("write package.json");
@@ -41,11 +47,19 @@ fn run_passes_extra_arguments_to_the_script() {
     let marker_path = workspace.join("args.txt");
     // `printf %s "$1"` writes the first argument into the marker,
     // letting the assertion below pin the exact argument flow.
+    // Inner sh redirect quotes the temp path so a space in the
+    // path doesn't split the redirect target. Outer single
+    // quotes wrap the inner command; the embedded double quote
+    // around `{}` survives because it's inside the outer single
+    // quotes.
     let manifest = json!({
         "name": "test",
         "version": "0.0.0",
         "scripts": {
-            "echo-args": format!(r#"sh -c 'printf %s "$1" > {}' --"#, marker_path.display()),
+            "echo-args": format!(
+                r#"sh -c 'printf %s "$1" > "{}"' --"#,
+                marker_path.display(),
+            ),
         },
     })
     .to_string();
