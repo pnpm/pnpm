@@ -7,6 +7,7 @@ import { add, remove } from '@pnpm/installing.commands'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import type { ProjectManifest } from '@pnpm/types'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { loadJsonFile } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
 
@@ -409,5 +410,85 @@ describeOnLinuxOnly('filters optional dependencies based on pnpm.supportedArchit
     expect(pkgDirs).toContain('@pnpm.e2e+support-different-architectures@1.0.0')
     expect(pkgDirs).toContain(found)
     expect(pkgDirs).not.toContain(notFound)
+  })
+})
+
+describe('license compliance after add', () => {
+  test('pnpm add fails when a disallowed license is present in strict mode', async () => {
+    prepare()
+
+    await expect(
+      add.handler({
+        ...DEFAULT_OPTIONS,
+        dir: process.cwd(),
+        linkWorkspacePackages: false,
+        licenses: {
+          disallowed: ['MIT'],
+          mode: 'strict',
+        },
+      }, ['is-positive@1.0.0'])
+    ).rejects.toThrow('license violation')
+  })
+
+  test('pnpm add succeeds when licenses.mode is none', async () => {
+    const project = prepare()
+
+    await add.handler({
+      ...DEFAULT_OPTIONS,
+      dir: process.cwd(),
+      linkWorkspacePackages: false,
+      licenses: {
+        disallowed: ['MIT'],
+        mode: 'none',
+      },
+    }, ['is-positive@1.0.0'])
+
+    project.has('is-positive')
+  })
+
+  test('pnpm add succeeds when no licenses config is set', async () => {
+    const project = prepare()
+
+    await add.handler({
+      ...DEFAULT_OPTIONS,
+      dir: process.cwd(),
+      linkWorkspacePackages: false,
+    }, ['is-positive@1.0.0'])
+
+    project.has('is-positive')
+  })
+
+  // Regression test for the post-install license check on rootless workspaces.
+  // preparePackages creates the workspace root without a package.json; recursive
+  // add must not require the root manifest to scan licenses.
+  test('recursive pnpm add succeeds on a rootless workspace with licenses.mode set', async () => {
+    const projects = preparePackages([
+      {
+        name: 'project-1',
+        version: '1.0.0',
+      },
+      {
+        name: 'project-2',
+        version: '1.0.0',
+      },
+    ])
+
+    const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+
+    await add.handler({
+      ...DEFAULT_OPTIONS,
+      allProjects,
+      dir: process.cwd(),
+      linkWorkspacePackages: false,
+      recursive: true,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+      licenses: {
+        mode: 'loose',
+      },
+    }, ['is-positive@1.0.0'])
+
+    projects['project-1'].has('is-positive')
+    projects['project-2'].has('is-positive')
   })
 })

@@ -1,0 +1,77 @@
+import { writeSettings } from '@pnpm/config.writer'
+import { normalizeLicenseArgs } from '@pnpm/deps.compliance.license-checker'
+import { PnpmError } from '@pnpm/error'
+import type { LicensesConfig, ProjectManifest } from '@pnpm/types'
+
+import type { LicensesCommandResult } from './LicensesCommandResult.js'
+
+export interface LicensesDisallowOptions {
+  rootProjectManifest?: ProjectManifest
+  rootProjectManifestDir: string
+  workspaceDir?: string
+  licenses?: LicensesConfig
+}
+
+export async function licensesDisallow (
+  opts: LicensesDisallowOptions,
+  licenses: string[]
+): Promise<LicensesCommandResult> {
+  if (licenses.length === 0) {
+    throw new PnpmError(
+      'LICENSES_DISALLOW_NO_ARGS',
+      'Please specify at least one license to disallow'
+    )
+  }
+
+  if (!opts.workspaceDir) {
+    throw new PnpmError(
+      'LICENSES_NO_WORKSPACE',
+      'Cannot modify license settings outside of a workspace'
+    )
+  }
+
+  const { ids, expanded, unrecognized } = normalizeLicenseArgs(licenses)
+  const currentDisallowed = opts.licenses?.disallowed ?? []
+  const currentAllowed = opts.licenses?.allowed ?? []
+  const newDisallowed = [...new Set([...currentDisallowed, ...ids])]
+  const newAllowed = currentAllowed.filter((l) => !ids.includes(l))
+
+  const updatedConfig: LicensesConfig = {
+    ...opts.licenses,
+    disallowed: newDisallowed,
+  }
+  if (newAllowed.length !== currentAllowed.length) {
+    updatedConfig.allowed = newAllowed.length > 0 ? newAllowed : undefined
+  }
+
+  await writeSettings({
+    ...opts,
+    workspaceDir: opts.workspaceDir,
+    updatedSettings: {
+      licenses: updatedConfig,
+    },
+  })
+
+  const added = ids.filter((l) => !currentDisallowed.includes(l))
+  const lines: string[] = []
+  if (added.length > 0) {
+    lines.push(`Added to disallowed licenses: ${added.join(', ')}`)
+  } else {
+    lines.push('All specified licenses are already in the disallowed list')
+  }
+
+  const removedFromAllowed = currentAllowed.filter((l) => ids.includes(l))
+  if (removedFromAllowed.length > 0) {
+    lines.push(`Removed from allowed licenses: ${removedFromAllowed.join(', ')}`)
+  }
+
+  if (expanded.length > 0) {
+    lines.push(`Expanded to individual license IDs: ${expanded.join(', ')}`)
+  }
+
+  if (unrecognized.length > 0) {
+    lines.push(`Note: could not be parsed as SPDX expressions; will be matched literally: ${unrecognized.join(', ')}`)
+  }
+
+  return { output: lines.join('\n'), exitCode: 0 }
+}

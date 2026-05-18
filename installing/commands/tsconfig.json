@@ -61,6 +61,9 @@
       "path": "../../core/types"
     },
     {
+      "path": "../../deps/compliance/license-checker"
+    },
+    {
       "path": "../../deps/inspection/outdated"
     },
     {

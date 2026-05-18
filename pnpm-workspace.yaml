@@ -287,6 +287,7 @@ catalog:
   shx: ^0.4.0
   socks: ^2.8.1
   sort-keys: ^6.0.0
+  spdx-expression-parse: ^4.0.0
   split-cmd: ^1.1.0
   split2: ^4.2.0
   ssri: 13.0.1
