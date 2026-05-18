@@ -90,7 +90,7 @@ pub struct AddArgs {
 
 impl AddArgs {
     /// Execute the subcommand.
-    pub async fn run<R: Reporter>(self, mut state: State) -> miette::Result<()> {
+    pub async fn run<Reporter: self::Reporter>(self, mut state: State) -> miette::Result<()> {
         // TODO: if a package already exists in another dependency group, don't remove the existing entry.
 
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
@@ -116,7 +116,7 @@ impl AddArgs {
             resolved_packages,
             supported_architectures,
         }
-        .run::<R>()
+        .run::<Reporter>()
         .await
         .wrap_err("adding a new package")
     }

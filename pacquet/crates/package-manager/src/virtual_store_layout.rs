@@ -171,8 +171,8 @@ impl VirtualStoreLayout {
         let built_dep_paths: Option<HashSet<PackageKey>> = allow_build_policy.map(|policy| {
             snapshots
                 .keys()
-                .filter(|k| {
-                    let metadata_key = k.without_peer();
+                .filter(|key| {
+                    let metadata_key = key.without_peer();
                     let name = metadata_key.name.to_string();
                     let version = metadata_key.suffix.version().to_string();
                     policy.check(&name, &version) == Some(true)
@@ -281,7 +281,8 @@ fn lockfile_to_dep_graph(
             let children = collect_children(snapshot);
             let metadata_key = snapshot_key.without_peer();
             let pkg_id_with_patch_hash = PkgIdWithPatchHash::from(metadata_key.to_string());
-            let resolution = packages.and_then(|m| m.get(&metadata_key)).map(|m| &m.resolution);
+            let resolution =
+                packages.and_then(|map| map.get(&metadata_key)).map(|meta| &meta.resolution);
             let full_pkg_id = create_full_pkg_id(&pkg_id_with_patch_hash, resolution);
             (snapshot_key.clone(), DepsGraphNode { full_pkg_id, children })
         })

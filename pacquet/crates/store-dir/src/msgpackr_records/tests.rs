@@ -328,7 +328,8 @@ fn encode_roundtrips_many_files_sharing_one_slot() {
         side_effects: None,
     };
     let bytes = encode_package_files_index(&original).unwrap();
-    let record_def_headers = bytes.windows(2).filter(|w| *w == [0xd4, RECORD_DEF_EXT_TYPE]).count();
+    let record_def_headers =
+        bytes.windows(2).filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE]).count();
     // Exactly two record defs: one for `PackageFilesIndex`, one
     // for the first `CafsFileInfo` instance. The other four
     // `CafsFileInfo` instances must reference that slot.
@@ -383,7 +384,7 @@ fn encode_omits_checked_at_when_none() {
     // `CafsFileInfo` only has `[digest, mode, size]`.
     let needle = b"checkedAt";
     assert!(
-        bytes.windows(needle.len()).all(|w| w != needle),
+        bytes.windows(needle.len()).all(|window| window != needle),
         "checkedAt leaked into output when the field was None: {bytes:02x?}",
     );
     assert_eq!(roundtrip(&original).files.get("f").unwrap().checked_at, None);
@@ -408,7 +409,8 @@ fn encode_allocates_separate_slots_for_distinct_cafs_shapes() {
         side_effects: None,
     };
     let bytes = encode_package_files_index(&original).unwrap();
-    let record_def_headers = bytes.windows(2).filter(|w| *w == [0xd4, RECORD_DEF_EXT_TYPE]).count();
+    let record_def_headers =
+        bytes.windows(2).filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE]).count();
     // Exactly three defs: `PackageFilesIndex`, `CafsFileInfo` with
     // checkedAt, `CafsFileInfo` without checkedAt. The third file
     // (second no-ts instance) shares the no-ts slot, so no fourth
@@ -490,7 +492,7 @@ fn encode_omits_requires_build_when_none() {
     // appear anywhere in the output.
     let needle = b"requiresBuild";
     assert!(
-        bytes.windows(needle.len()).all(|w| w != needle),
+        bytes.windows(needle.len()).all(|window| window != needle),
         "requiresBuild leaked into output when the field was None: {bytes:02x?}",
     );
 }
@@ -537,7 +539,7 @@ fn encode_side_effects_with_only_added_omits_deleted_field() {
     };
     let bytes = encode_package_files_index(&original).unwrap();
     assert!(
-        bytes.windows(7).all(|w| w != b"deleted"),
+        bytes.windows(7).all(|window| window != b"deleted"),
         "`deleted` field name appeared in output when the field was None: {bytes:02x?}",
     );
     assert_eq!(roundtrip(&original), original);
@@ -566,7 +568,8 @@ fn encode_allocates_separate_slots_for_distinct_side_effects_shapes() {
         side_effects: Some(side_effects),
     };
     let bytes = encode_package_files_index(&original).unwrap();
-    let record_def_headers = bytes.windows(2).filter(|w| *w == [0xd4, RECORD_DEF_EXT_TYPE]).count();
+    let record_def_headers =
+        bytes.windows(2).filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE]).count();
     // Three defs: outer `PackageFilesIndex`, `SideEffectsDiff`
     // shape-`added`, `SideEffectsDiff` shape-`deleted`. The inner
     // `CafsFileInfo` adds a fourth.
@@ -640,7 +643,8 @@ fn encode_record_encodes_nested_objects_in_manifest() {
 
     // Outer PackageFilesIndex def + nested manifest object def + nested
     // `bin` object def + nested `directories` object def = 4 defs.
-    let record_defs = bytes.windows(2).filter(|w| *w == [0xd4, RECORD_DEF_EXT_TYPE]).count();
+    let record_defs =
+        bytes.windows(2).filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE]).count();
     assert_eq!(
         record_defs, 4,
         "expected 4 record defs (outer + manifest + bin + directories), got bytes {bytes:02x?}",
@@ -671,7 +675,8 @@ fn encode_shares_slot_for_same_shaped_nested_objects() {
         side_effects: None,
     };
     let bytes = encode_package_files_index(&idx).unwrap();
-    let record_defs = bytes.windows(2).filter(|w| *w == [0xd4, RECORD_DEF_EXT_TYPE]).count();
+    let record_defs =
+        bytes.windows(2).filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE]).count();
     // Outer + manifest + ONE shape `{ cli }` shared by both nested
     // maps = 3 defs. If the encoder allocated a new slot per
     // instance instead of sharing, this would be 4.

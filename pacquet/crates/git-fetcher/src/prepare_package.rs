@@ -75,7 +75,7 @@ pub struct PreparedPackage {
 ///
 /// Mirrors upstream's `preparePackage` at
 /// [`index.ts:29-80`](https://github.com/pnpm/pnpm/blob/94240bc046/exec/prepare-package/src/index.ts#L29-L80).
-pub fn prepare_package<R: Reporter>(
+pub fn prepare_package<Reporter: self::Reporter>(
     opts: &PreparePackageOptions<'_>,
     git_root_dir: &Path,
     sub_dir: Option<&str>,
@@ -133,7 +133,7 @@ pub fn prepare_package<R: Reporter>(
     let install_stage = format!("{}-install", pm.name());
     let install_script = format!("{} install", pm.name());
     inject_script(&mut working_manifest, &install_stage, &install_script);
-    run_lifecycle_hook::<R>(
+    run_lifecycle_hook::<Reporter>(
         &install_stage,
         &install_script,
         &run_opts,
@@ -147,7 +147,7 @@ pub fn prepare_package<R: Reporter>(
             .get("scripts")
             .and_then(|s| s.get(script_name))
             .and_then(Value::as_str)
-            .filter(|s| !s.is_empty())
+            .filter(|script| !script.is_empty())
             .map(str::to_owned)
         else {
             continue;
@@ -160,7 +160,7 @@ pub fn prepare_package<R: Reporter>(
             inject_script(&mut working_manifest, &synthesized_stage, &synthesized);
             (synthesized_stage, synthesized)
         };
-        run_lifecycle_hook::<R>(&stage, &script, &run_opts, &working_manifest, &parent_env)
+        run_lifecycle_hook::<Reporter>(&stage, &script, &run_opts, &working_manifest, &parent_env)
             .map_err(map_lifecycle_err)?;
     }
 
@@ -183,12 +183,12 @@ fn package_should_be_built(manifest: &Value, pkg_dir: &Path) -> bool {
     let Some(scripts) = manifest.get("scripts").and_then(Value::as_object) else {
         return false;
     };
-    if scripts.get("prepare").and_then(Value::as_str).is_some_and(|s| !s.is_empty()) {
+    if scripts.get("prepare").and_then(Value::as_str).is_some_and(|script| !script.is_empty()) {
         return true;
     }
-    let has_prepublish_script = PREPUBLISH_SCRIPTS
-        .iter()
-        .any(|name| scripts.get(*name).and_then(Value::as_str).is_some_and(|s| !s.is_empty()));
+    let has_prepublish_script = PREPUBLISH_SCRIPTS.iter().any(|name| {
+        scripts.get(*name).and_then(Value::as_str).is_some_and(|script| !script.is_empty())
+    });
     if !has_prepublish_script {
         return false;
     }

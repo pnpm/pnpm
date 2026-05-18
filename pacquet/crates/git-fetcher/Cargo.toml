@@ -31,3 +31,6 @@ walkdir     = { workspace = true }
 pacquet-testing-utils = { workspace = true }
 
 pretty_assertions = { workspace = true }
+
+[lints]
+workspace = true

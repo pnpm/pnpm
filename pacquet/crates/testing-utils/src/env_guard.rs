@@ -57,9 +57,9 @@ impl EnvGuard {
     /// current values of `vars`. When the returned guard drops, each
     /// variable is put back to exactly what it was (set to the recorded
     /// value, or removed if it was absent), and the lock is released.
-    pub fn snapshot<I>(vars: I) -> Self
+    pub fn snapshot<Iter>(vars: Iter) -> Self
     where
-        I: IntoIterator<Item = &'static str>,
+        Iter: IntoIterator<Item = &'static str>,
     {
         let lock = env_mutex().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let saved = vars.into_iter().map(|name| (name, env::var_os(name))).collect();

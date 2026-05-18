@@ -64,13 +64,13 @@ pub fn build_deps_graph(
 /// bin linking). Pacquet only uses the graph for cache hashing
 /// today, so the trimmed walk is sound here — same cache keys,
 /// fewer cycles spent.
-pub fn build_deps_subgraph<I>(
+pub fn build_deps_subgraph<Iter>(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     packages: &HashMap<PackageKey, PackageMetadata>,
-    roots: I,
+    roots: Iter,
 ) -> HashMap<PackageKey, DepsGraphNode<PackageKey>>
 where
-    I: IntoIterator<Item = PackageKey>,
+    Iter: IntoIterator<Item = PackageKey>,
 {
     let mut graph: HashMap<PackageKey, DepsGraphNode<PackageKey>> = HashMap::new();
     let mut queue: std::collections::VecDeque<PackageKey> = roots.into_iter().collect();

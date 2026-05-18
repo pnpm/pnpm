@@ -65,15 +65,17 @@ pub fn filter_lockfile_for_current(
         .map(|(id, imp)| (id.clone(), filter_importer(imp, included, &reachable)))
         .collect();
 
-    let snapshots = lockfile.snapshots.as_ref().map(|s| {
-        s.iter()
+    let snapshots = lockfile.snapshots.as_ref().map(|snapshots| {
+        snapshots
+            .iter()
             .filter(|(k, _)| reachable.contains(*k))
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect::<HashMap<_, _>>()
     });
 
-    let packages = lockfile.packages.as_ref().map(|p| {
-        p.iter()
+    let packages = lockfile.packages.as_ref().map(|packages| {
+        packages
+            .iter()
             .filter(|(k, _)| reachable_metadata.contains(*k))
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect::<HashMap<_, _>>()

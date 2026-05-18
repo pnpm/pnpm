@@ -161,7 +161,7 @@ pub fn default_child_concurrency_with_parallelism(parallelism: u32) -> u32 {
 /// [`getAvailableParallelism`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L5-L13).
 /// Floors at 1.
 pub fn available_parallelism() -> u32 {
-    std::thread::available_parallelism().map(|n| n.get() as u32).unwrap_or(1).max(1)
+    std::thread::available_parallelism().map(|count| count.get() as u32).unwrap_or(1).max(1)
 }
 
 /// Resolve `childConcurrency` from a possibly-negative yaml value

@@ -116,7 +116,7 @@ pub enum ImportIndexedDirError {
 /// (hardlink → reflink → copy, etc.), and the per-method
 /// `pnpm:package-import-method` log is emitted via `logged_methods`
 /// the first time each tier is used in this install.
-pub fn import_indexed_dir<R: Reporter>(
+pub fn import_indexed_dir<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
     dir_path: &Path,
@@ -137,7 +137,7 @@ pub fn import_indexed_dir<R: Reporter>(
     match (existing_kind, opts.force) {
         // Fresh target — populate it. Both linkers take this path on
         // first install.
-        (None, _) => populate_dir::<R>(logged_methods, import_method, dir_path, cas_paths),
+        (None, _) => populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths),
         // Existing target with force=false — pnpm's pre-existence
         // short-circuit. The isolated linker relies on this: each
         // virtual-store slot is populated exactly once.
@@ -149,10 +149,10 @@ pub fn import_indexed_dir<R: Reporter>(
             remove_non_dir_dirent(dir_path, file_type).map_err(|error| {
                 ImportIndexedDirError::ClearNonDirEntry { path: dir_path.to_path_buf(), error }
             })?;
-            populate_dir::<R>(logged_methods, import_method, dir_path, cas_paths)
+            populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths)
         }
         // Existing directory with force=true — stage and swap.
-        (Some(_), true) => stage_and_swap::<R>(
+        (Some(_), true) => stage_and_swap::<Reporter>(
             logged_methods,
             import_method,
             dir_path,
@@ -169,7 +169,7 @@ pub fn import_indexed_dir<R: Reporter>(
 /// file imports in parallel. Sorting by length means the recursive
 /// mkdir for a deeper dir always finds its ancestor already on disk,
 /// so each call costs one `mkdirat` instead of walking up.
-fn populate_dir<R: Reporter>(
+fn populate_dir<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
     dir_path: &Path,
@@ -205,12 +205,17 @@ fn populate_dir<R: Reporter>(
     cas_paths
         .par_iter()
         .try_for_each(|(cleaned_entry, store_path)| {
-            link_file::<R>(logged_methods, import_method, store_path, &dir_path.join(cleaned_entry))
+            link_file::<Reporter>(
+                logged_methods,
+                import_method,
+                store_path,
+                &dir_path.join(cleaned_entry),
+            )
         })
         .map_err(ImportIndexedDirError::LinkFile)
 }
 
-fn stage_and_swap<R: Reporter>(
+fn stage_and_swap<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
     dir_path: &Path,
@@ -224,7 +229,7 @@ fn stage_and_swap<R: Reporter>(
     // 1. Populate the staging directory with the new contents. On
     //    failure, the staging directory is the only thing on disk we
     //    own — a blanket rimraf is safe.
-    if let Err(error) = populate_dir::<R>(logged_methods, import_method, &stage, cas_paths) {
+    if let Err(error) = populate_dir::<Reporter>(logged_methods, import_method, &stage, cas_paths) {
         let _ = fs::remove_dir_all(&stage);
         return Err(error);
     }

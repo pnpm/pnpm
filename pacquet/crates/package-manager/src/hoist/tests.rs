@@ -20,16 +20,16 @@ use pretty_assertions::assert_eq;
 use ssri::Integrity;
 use std::collections::{HashMap, HashSet};
 
-fn name(s: &str) -> PkgName {
-    PkgName::parse(s).expect("parse pkg name")
+fn name(text: &str) -> PkgName {
+    PkgName::parse(text).expect("parse pkg name")
 }
 
-fn ver(s: &str) -> PkgVerPeer {
-    s.parse().expect("parse PkgVerPeer")
+fn ver(text: &str) -> PkgVerPeer {
+    text.parse().expect("parse PkgVerPeer")
 }
 
-fn key(n: &str, v: &str) -> PackageKey {
-    PackageKey::new(name(n), ver(v))
+fn key(name_text: &str, version: &str) -> PackageKey {
+    PackageKey::new(name(name_text), ver(version))
 }
 
 fn integrity() -> Integrity {
@@ -54,8 +54,8 @@ fn metadata(has_bin: bool) -> PackageMetadata {
     }
 }
 
-fn pats<const N: usize>(p: [&str; N]) -> Vec<String> {
-    p.iter().map(|s| s.to_string()).collect()
+fn pats<const N: usize>(patterns: [&str; N]) -> Vec<String> {
+    patterns.iter().map(|text| text.to_string()).collect()
 }
 
 /// Helper: build (snapshots, packages) from a flat list of

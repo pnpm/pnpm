@@ -319,8 +319,8 @@ fn is_stamping_key_is_case_insensitive_on_windows() {
 #[test]
 fn escape_newlines_json_encodes_multi_line_only() {
     assert_eq!(escape_newlines("plain"), "plain");
-    assert_eq!(escape_newlines("a\nb"), "\"a\\nb\"");
+    assert_eq!(escape_newlines("a\nb"), r#""a\nb""#);
     // Single-line strings with quotes/backslashes pass through verbatim
     // — matches the JS `s.includes('\n') ? JSON.stringify(s) : s` exactly.
-    assert_eq!(escape_newlines("has \"quotes\""), "has \"quotes\"");
+    assert_eq!(escape_newlines(r#"has "quotes""#), r#"has "quotes""#);
 }

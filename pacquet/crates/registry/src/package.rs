@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{NetworkError, RegistryError, package_version::PackageVersion};
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Package {
     pub name: String,
     #[serde(rename = "dist-tags")]
@@ -65,7 +65,7 @@ impl Package {
         let mut satisfied_versions = self
             .versions
             .values()
-            .filter(|v| v.version.satisfies(&range))
+            .filter(|version| version.version.satisfies(&range))
             .collect::<Vec<&PackageVersion>>();
 
         satisfied_versions.sort_by(|a, b| a.version.partial_cmp(&b.version).unwrap());

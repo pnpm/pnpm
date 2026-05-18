@@ -33,7 +33,7 @@ pub use workspace_yaml::{
     LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, workspace_root_or,
 };
 
-#[derive(Debug, Clone, Copy, Deserialize, Default, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum NodeLinker {
     /// dependencies are symlinked from a virtual store at node_modules/.pnpm.
@@ -75,9 +75,9 @@ pub enum ScriptsPrependNodePath {
 }
 
 impl<'de> serde::Deserialize<'de> for ScriptsPrependNodePath {
-    fn deserialize<D>(d: D) -> Result<Self, D::Error>
+    fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
     where
-        D: serde::Deserializer<'de>,
+        De: serde::Deserializer<'de>,
     {
         use serde::de::{self, Visitor};
         use std::fmt;
@@ -86,22 +86,26 @@ impl<'de> serde::Deserialize<'de> for ScriptsPrependNodePath {
         impl<'de> Visitor<'de> for V {
             type Value = ScriptsPrependNodePath;
             fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str("a boolean or the string \"warn-only\"")
+                f.write_str(r#"a boolean or the string "warn-only""#)
             }
-            fn visit_bool<E: de::Error>(self, v: bool) -> Result<Self::Value, E> {
-                Ok(if v { ScriptsPrependNodePath::Always } else { ScriptsPrependNodePath::Never })
+            fn visit_bool<DeError: de::Error>(self, value: bool) -> Result<Self::Value, DeError> {
+                Ok(if value {
+                    ScriptsPrependNodePath::Always
+                } else {
+                    ScriptsPrependNodePath::Never
+                })
             }
-            fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
-                match v {
+            fn visit_str<DeError: de::Error>(self, value: &str) -> Result<Self::Value, DeError> {
+                match value {
                     "warn-only" => Ok(ScriptsPrependNodePath::WarnOnly),
-                    other => Err(E::invalid_value(
+                    other => Err(DeError::invalid_value(
                         de::Unexpected::Str(other),
-                        &"true, false, or \"warn-only\"",
+                        &r#"true, false, or "warn-only""#,
                     )),
                 }
             }
         }
-        d.deserialize_any(V)
+        deserializer.deserialize_any(V)
     }
 }
 
@@ -855,7 +859,7 @@ impl Config {
         // [`extendInstallOptions.ts:343-355`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/src/install/extendInstallOptions.ts#L343-L355).
         let env_workspace_dir = std::env::var_os("NPM_CONFIG_WORKSPACE_DIR")
             .or_else(|| std::env::var_os("npm_config_workspace_dir"))
-            .filter(|v| !v.is_empty())
+            .filter(|value| !value.is_empty())
             .map(PathBuf::from);
         let workspace_yaml = if let Some(env_dir) = env_workspace_dir {
             // Env-var path: load yaml directly from the env dir. A

@@ -46,7 +46,7 @@ pub const WORKSPACE_MANIFEST_FILENAME: &str = "pnpm-workspace.yaml";
 /// — they belong to Stage 2 of the workspace roadmap. Parsing them now
 /// keeps `pnpm-workspace.yaml` files with catalog entries valid input
 /// to pacquet rather than tripping `deny_unknown_fields`.
-#[derive(Debug, Default, Deserialize, PartialEq)]
+#[derive(Debug, Default, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceManifest {
     /// Glob patterns identifying the workspace's projects, relative to

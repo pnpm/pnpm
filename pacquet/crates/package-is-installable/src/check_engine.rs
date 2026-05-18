@@ -9,7 +9,7 @@ use serde::Serialize;
 /// Wanted engine versions declared by a package's `engines` field.
 ///
 /// Both members are optional and carry npm-style range strings.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize)]
 pub struct WantedEngine {
     pub node: Option<String>,
     pub pnpm: Option<String>,

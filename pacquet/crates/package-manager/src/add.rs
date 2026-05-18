@@ -49,7 +49,7 @@ where
     ListDependencyGroups: Fn() -> DependencyGroupList,
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
-    pub async fn run<R: Reporter>(self) -> Result<(), AddError> {
+    pub async fn run<Reporter: self::Reporter>(self) -> Result<(), AddError> {
         let Add {
             tarball_mem_cache,
             http_client,
@@ -93,7 +93,7 @@ where
             supported_architectures,
             node_linker: config.node_linker,
         }
-        .run::<R>()
+        .run::<Reporter>()
         .await
         .map_err(AddError::Install)?;
 
@@ -119,7 +119,7 @@ where
             .unwrap_or_else(|| manifest.path())
             .to_string_lossy()
             .into_owned();
-        R::emit(&LogEvent::PackageManifest(PackageManifestLog {
+        Reporter::emit(&LogEvent::PackageManifest(PackageManifestLog {
             level: LogLevel::Debug,
             message: PackageManifestMessage::Updated { prefix, updated: manifest.value().clone() },
         }));

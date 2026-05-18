@@ -814,12 +814,12 @@ pub struct CafsFileInfo {
 /// interop reasoning — short version, msgpackr reads `uint 64` as a
 /// `BigInt` and pnpm's integrity check then crashes on Number/BigInt
 /// mixing.
-fn serialize_checked_at<S: serde::Serializer>(
+fn serialize_checked_at<Serializer: serde::Serializer>(
     value: &Option<u64>,
-    serializer: S,
-) -> Result<S::Ok, S::Error> {
+    serializer: Serializer,
+) -> Result<Serializer::Ok, Serializer::Error> {
     match value {
-        Some(v) => serializer.serialize_f64(*v as f64),
+        Some(inner) => serializer.serialize_f64(*inner as f64),
         None => serializer.serialize_none(),
     }
 }

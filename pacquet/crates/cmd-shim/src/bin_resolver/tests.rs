@@ -117,7 +117,7 @@ fn skip_dangerous_bin_names() {
         "version": "1.0.0",
         "bin": {
             "../bad": "./bad",
-            "..\\bad": "./bad",
+            r"..\bad": "./bad",
             "good": "./good",
             "~/bad": "./bad",
         },

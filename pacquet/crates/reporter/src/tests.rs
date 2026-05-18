@@ -776,13 +776,13 @@ fn recording_fake_captures_emitted_events() {
         }
     }
 
-    fn install_step<R: Reporter>() {
-        R::emit(&LogEvent::Stage(StageLog {
+    fn install_step<Reporter: self::Reporter>() {
+        Reporter::emit(&LogEvent::Stage(StageLog {
             level: LogLevel::Debug,
             prefix: "/proj".to_string(),
             stage: Stage::ImportingStarted,
         }));
-        R::emit(&LogEvent::Stage(StageLog {
+        Reporter::emit(&LogEvent::Stage(StageLog {
             level: LogLevel::Debug,
             prefix: "/proj".to_string(),
             stage: Stage::ImportingDone,

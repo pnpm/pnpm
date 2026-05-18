@@ -32,12 +32,14 @@ use std::{
 ///
 /// Stand-alone helper rather than reaching for `serde_with` (not in
 /// the workspace deps) — the body is one line.
-fn deserialize_double_option<'de, T, D>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+fn deserialize_double_option<'de, Value, De>(
+    deserializer: De,
+) -> Result<Option<Option<Value>>, De::Error>
 where
-    T: Deserialize<'de>,
-    D: Deserializer<'de>,
+    Value: Deserialize<'de>,
+    De: Deserializer<'de>,
 {
-    Option::<T>::deserialize(deserializer).map(Some)
+    Option::<Value>::deserialize(deserializer).map(Some)
 }
 
 /// Settings readable from `pnpm-workspace.yaml`.
@@ -67,7 +69,7 @@ where
 /// [`getOptionsFromRootManifest.ts`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/getOptionsFromRootManifest.ts)
 /// is wrapped at that call site, so its `manifestDir` parameter
 /// actually carries the *workspace* dir.
-#[derive(Debug, Default, Deserialize, PartialEq)]
+#[derive(Debug, Default, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct WorkspaceSettings {
     pub hoist: Option<bool>,

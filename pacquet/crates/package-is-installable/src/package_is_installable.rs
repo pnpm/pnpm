@@ -14,7 +14,7 @@ use crate::check_platform::{
 
 /// Inputs from a package manifest (or lockfile metadata row) that
 /// drive the installability check.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct PackageInstallabilityManifest {
     pub engines: Option<WantedEngine>,
     pub cpu: Option<Vec<String>>,
@@ -117,7 +117,7 @@ pub enum InstallabilityVerdict {
 /// All string fields borrow so a caller running through many snapshots
 /// in a row can build the host-derived part of the struct once and
 /// only toggle `optional` per snapshot.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct InstallabilityOptions<'a> {
     pub engine_strict: bool,
     pub optional: bool,

@@ -219,31 +219,31 @@ pub enum HoistError {
 /// and wrong when two structurally-identical nodes come from
 /// different sources and should stay distinct.
 #[derive(Debug)]
-pub struct RcByPtr<T>(pub Rc<T>);
+pub struct RcByPtr<Inner>(pub Rc<Inner>);
 
-impl<T> Clone for RcByPtr<T> {
+impl<Inner> Clone for RcByPtr<Inner> {
     fn clone(&self) -> Self {
         Self(Rc::clone(&self.0))
     }
 }
 
-impl<T> PartialEq for RcByPtr<T> {
+impl<Inner> PartialEq for RcByPtr<Inner> {
     fn eq(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.0, &other.0)
     }
 }
 
-impl<T> Eq for RcByPtr<T> {}
+impl<Inner> Eq for RcByPtr<Inner> {}
 
-impl<T> std::hash::Hash for RcByPtr<T> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+impl<Inner> std::hash::Hash for RcByPtr<Inner> {
+    fn hash<Hasher: std::hash::Hasher>(&self, state: &mut Hasher) {
         (Rc::as_ptr(&self.0) as usize).hash(state);
     }
 }
 
-impl<T> std::ops::Deref for RcByPtr<T> {
-    type Target = T;
-    fn deref(&self) -> &T {
+impl<Inner> std::ops::Deref for RcByPtr<Inner> {
+    type Target = Inner;
+    fn deref(&self) -> &Inner {
         &self.0
     }
 }
@@ -516,9 +516,9 @@ fn collect_snapshot_deps(
 /// confuse `node_modules` directory parsing) and pass the rest
 /// through; if a richer set ever shows up the function can switch
 /// to a full encoder without touching call sites.
-fn percent_encode_path(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for ch in s.chars() {
+fn percent_encode_path(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
         match ch {
             'A'..='Z'
             | 'a'..='z'
@@ -705,7 +705,7 @@ enum AbsorbDecision {
 /// sometimes more nested than pnpm's, never less.
 fn hoist_into_root(root: &Rc<HoisterResult>, root_locator: &str, opts: &HoistOpts) {
     let mut root_index: HashMap<String, RcByPtr<HoisterResult>> =
-        root.dependencies.borrow().iter().map(|d| (d.0.name.clone(), d.clone())).collect();
+        root.dependencies.borrow().iter().map(|dep| (dep.0.name.clone(), dep.clone())).collect();
 
     // Look up the names the caller asked us not to hoist to *this*
     // root. Upstream stores this on each child as `isHoistBorder`
@@ -903,8 +903,8 @@ fn would_shadow_peer(
                 .dependencies
                 .borrow()
                 .iter()
-                .find(|d| d.0.name == *peer_name)
-                .map(|d| d.0.clone());
+                .find(|dep| dep.0.name == *peer_name)
+                .map(|dep| Rc::clone(&dep.0));
 
             match provider_rc {
                 Some(provider) => {

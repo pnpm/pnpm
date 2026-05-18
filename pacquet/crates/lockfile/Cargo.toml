@@ -27,3 +27,6 @@ split-first-char = { workspace = true }
 pretty_assertions = { workspace = true }
 tempfile          = { workspace = true }
 text-block-macros = { workspace = true }
+
+[lints]
+workspace = true

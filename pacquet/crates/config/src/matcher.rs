@@ -278,8 +278,8 @@ impl Glob {
 mod tests {
     use super::{create_matcher, create_matcher_with_index};
 
-    fn pats<const N: usize>(p: [&str; N]) -> Vec<String> {
-        p.iter().map(|s| s.to_string()).collect()
+    fn pats<const N: usize>(patterns: [&str; N]) -> Vec<String> {
+        patterns.iter().map(|pattern| pattern.to_string()).collect()
     }
 
     /// Direct port of upstream's `matcher()` test at

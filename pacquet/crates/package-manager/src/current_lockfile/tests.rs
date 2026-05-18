@@ -26,12 +26,12 @@ fn pkg(name: &str) -> PkgName {
     PkgName::parse(name).expect("parse PkgName")
 }
 
-fn ver(s: &str) -> PkgVerPeer {
-    s.parse().expect("parse PkgVerPeer")
+fn ver(text: &str) -> PkgVerPeer {
+    text.parse().expect("parse PkgVerPeer")
 }
 
-fn key(n: &str, v: &str) -> PackageKey {
-    PackageKey::new(pkg(n), ver(v))
+fn key(name_text: &str, version: &str) -> PackageKey {
+    PackageKey::new(pkg(name_text), ver(version))
 }
 
 fn importer_dep(version: &str) -> ResolvedDependencySpec {

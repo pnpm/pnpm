@@ -470,7 +470,7 @@ gitShallowHosts:
     // Sanity-check the default before applying — `github.com` is the
     // first entry in pnpm's list, and replacement (not merging) is the
     // bit we want to verify.
-    assert!(config.git_shallow_hosts.iter().any(|h| h == "github.com"));
+    assert!(config.git_shallow_hosts.iter().any(|host| host == "github.com"));
 
     settings.apply_to(&mut config, Path::new("/irrelevant"));
 

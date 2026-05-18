@@ -135,10 +135,10 @@ fn write_pair(out: &mut Vec<u8>, key: &str, value: &Value, sort: bool) {
 /// `_string` arm (index.js:304-307). `length` is UTF-16 code units
 /// (JS `.length`), not bytes and not Unicode codepoints. For ASCII
 /// strings all three agree.
-fn serialize_str(out: &mut Vec<u8>, s: &str) {
-    let utf16_len: usize = s.encode_utf16().count();
+fn serialize_str(out: &mut Vec<u8>, text: &str) {
+    let utf16_len: usize = text.encode_utf16().count();
     out.extend_from_slice(b"string:");
     out.extend_from_slice(utf16_len.to_string().as_bytes());
     out.push(b':');
-    out.extend_from_slice(s.as_bytes());
+    out.extend_from_slice(text.as_bytes());
 }

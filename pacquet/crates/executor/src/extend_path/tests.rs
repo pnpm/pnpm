@@ -12,7 +12,7 @@ const SEP: char = ':';
 const SEP: char = ';';
 
 fn segments(path: &OsString) -> Vec<String> {
-    env::split_paths(path).map(|p| p.to_string_lossy().into_owned()).collect()
+    env::split_paths(path).map(|path| path.to_string_lossy().into_owned()).collect()
 }
 
 /// Ports `test('the path to node-gyp should be added after the path
@@ -123,10 +123,13 @@ fn extra_bin_paths_come_after_bins_and_node_gyp() {
     let extra: Vec<PathBuf> = vec![PathBuf::from("/extra/one"), PathBuf::from("/extra/two")];
     let path = extend_path(wd, None, Some(&node_gyp), &extra, ScriptsPrependNodePath::Never, None);
     let parts = segments(&path);
-    let bin_idx = parts.iter().position(|p| p.contains("proj") && p.ends_with(".bin")).unwrap();
-    let gyp_idx = parts.iter().position(|p| p.contains("node-gyp-bin")).unwrap();
-    let extra1_idx = parts.iter().position(|p| p == "/extra/one" || p == "\\extra\\one").unwrap();
-    let extra2_idx = parts.iter().position(|p| p == "/extra/two" || p == "\\extra\\two").unwrap();
+    let bin_idx =
+        parts.iter().position(|part| part.contains("proj") && part.ends_with(".bin")).unwrap();
+    let gyp_idx = parts.iter().position(|part| part.contains("node-gyp-bin")).unwrap();
+    let extra1_idx =
+        parts.iter().position(|part| part == "/extra/one" || part == r"\extra\one").unwrap();
+    let extra2_idx =
+        parts.iter().position(|part| part == "/extra/two" || part == r"\extra\two").unwrap();
     assert!(
         bin_idx < gyp_idx && gyp_idx < extra1_idx && extra1_idx < extra2_idx,
         "expected order .bin < nodeGyp < extra1 < extra2; got {parts:?}",
@@ -164,7 +167,7 @@ fn scripts_prepend_node_path_always_appends_dirname_of_node() {
     let path = extend_path(wd, None, None, &extra, ScriptsPrependNodePath::Always, Some(&node));
     let parts = segments(&path);
     assert!(
-        parts.iter().any(|p| p == "/opt/node/bin"),
+        parts.iter().any(|part| part == "/opt/node/bin"),
         "expected dirname(node) in PATH, got {parts:?}",
     );
 }
@@ -210,7 +213,7 @@ fn scripts_prepend_node_path_never_and_warn_only_do_not_prepend() {
         let path = extend_path(wd, None, None, &extra, variant, Some(&node));
         let parts = segments(&path);
         assert!(
-            !parts.iter().any(|p| p == "/opt/node/bin"),
+            !parts.iter().any(|part| part == "/opt/node/bin"),
             "variant {variant:?} must not prepend dirname(node), got {parts:?}",
         );
     }

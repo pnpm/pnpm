@@ -104,7 +104,7 @@ pub fn read_symlink_dir(link: &Path) -> io::Result<PathBuf> {
 /// had to move an existing non-symlink occupant out of the way to
 /// install the symlink — surface it to the user if your call site
 /// has a reporter.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ForceSymlinkOutcome {
     pub reused: bool,
     pub warning: Option<String>,

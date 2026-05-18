@@ -131,12 +131,12 @@ pub type DirectDepsByImporter = HashMap<String, HashMap<String, PackageKey>>;
 /// `link:` workspace-sibling entries are skipped via
 /// [`pacquet_lockfile::ImporterDepVersion::as_regular`] inside the
 /// loop.
-pub fn build_direct_deps_by_importer<'a, I>(
-    importers: I,
+pub fn build_direct_deps_by_importer<'a, Iter>(
+    importers: Iter,
     dependency_groups: impl IntoIterator<Item = pacquet_package_manifest::DependencyGroup> + Clone,
 ) -> DirectDepsByImporter
 where
-    I: IntoIterator<Item = (&'a String, &'a ProjectSnapshot)>,
+    Iter: IntoIterator<Item = (&'a String, &'a ProjectSnapshot)>,
 {
     let mut result: DirectDepsByImporter = HashMap::new();
     for (importer_id, project_snapshot) in importers {
@@ -334,7 +334,7 @@ pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistR
     let mut hoisted_aliases: HashSet<String> = input
         .direct_deps_by_importer
         .get(".")
-        .map(|m| m.keys().map(|k| k.to_lowercase()).collect())
+        .map(|map| map.keys().map(|k| k.to_lowercase()).collect())
         .unwrap_or_default();
 
     let mut hoisted_dependencies: HoistedDependencies = BTreeMap::new();

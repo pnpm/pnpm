@@ -29,7 +29,7 @@ use serde::{Deserialize, Serialize};
 /// depend on `pacquet-modules-yaml` and adding the dep just for a
 /// rustdoc reference would invert the natural crate ordering.
 #[derive(
-    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, From, Into,
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, From, Into,
 )]
 #[serde(transparent)]
 pub struct PkgIdWithPatchHash(String);
@@ -69,7 +69,7 @@ mod tests {
     fn serde_round_trip_matches_plain_string() {
         let original = PkgIdWithPatchHash::from("foo@1.0.0(patch_hash=abc)");
         let json = serde_json::to_string(&original).unwrap();
-        assert_eq!(json, "\"foo@1.0.0(patch_hash=abc)\"");
+        assert_eq!(json, r#""foo@1.0.0(patch_hash=abc)""#);
         let round_tripped: PkgIdWithPatchHash = serde_json::from_str(&json).unwrap();
         assert_eq!(round_tripped, original);
     }

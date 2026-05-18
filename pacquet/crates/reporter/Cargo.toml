@@ -19,3 +19,6 @@ serde_json  = { workspace = true }
 insta             = { workspace = true }
 pipe-trait        = { workspace = true }
 pretty_assertions = { workspace = true }
+
+[lints]
+workspace = true

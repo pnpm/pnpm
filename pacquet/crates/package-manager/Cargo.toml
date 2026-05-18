@@ -63,3 +63,6 @@ ssri              = { workspace = true }
 tempfile          = { workspace = true }
 text-block-macros = { workspace = true }
 walkdir           = { workspace = true }
+
+[lints]
+workspace = true

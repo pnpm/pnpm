@@ -216,16 +216,16 @@ fn from_config_consumes_allow_builds_and_dangerously_allow_all_builds() {
     assert_eq!(policy.check("@pnpm.e2e/unrelated", "1.0.0"), None);
 }
 
-fn name(s: &str) -> PkgName {
-    PkgName::parse(s).expect("parse pkg name")
+fn name(text: &str) -> PkgName {
+    PkgName::parse(text).expect("parse pkg name")
 }
 
-fn ver(s: &str) -> PkgVerPeer {
-    s.parse().expect("parse PkgVerPeer")
+fn ver(text: &str) -> PkgVerPeer {
+    text.parse().expect("parse PkgVerPeer")
 }
 
-fn key(n: &str, v: &str) -> PackageKey {
-    PackageKey::new(name(n), ver(v))
+fn key(name_text: &str, version: &str) -> PackageKey {
+    PackageKey::new(name(name_text), ver(version))
 }
 
 /// Materialize a `<virtual_store_dir>/<store_name>/node_modules/<pkg_name>/package.json`
@@ -528,7 +528,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
     dbg!(&captured);
     let skipped_event = captured
         .iter()
-        .find_map(|e| match e {
+        .find_map(|event| match event {
             LogEvent::SkippedOptionalDependency(log) => Some(log),
             _ => None,
         })

@@ -235,7 +235,7 @@ fn modules_yaml_records_hoisted_dependencies() {
     // doesn't drag in a YAML parser. Assert the presence rather than
     // exact serialization to keep the test resilient to ordering.
     assert!(
-        modules_yaml_text.contains("\"@pnpm.e2e/hello-world-js-bin@1.0.0\""),
+        modules_yaml_text.contains(r#""@pnpm.e2e/hello-world-js-bin@1.0.0""#),
         "hoistedDependencies should record the transitive dep path; got:\n{modules_yaml_text}",
     );
     // Alias-as-stored is the full scoped name, since that's how the
@@ -243,7 +243,7 @@ fn modules_yaml_records_hoisted_dependencies() {
     // `dependencies` map. Mirrors upstream's
     // `hoistedDependencies[depPath][alias] = kind`.
     assert!(
-        modules_yaml_text.contains("\"@pnpm.e2e/hello-world-js-bin\": \"private\""),
+        modules_yaml_text.contains(r#""@pnpm.e2e/hello-world-js-bin": "private""#),
         "transitive should be marked as `private` hoist; got:\n{modules_yaml_text}",
     );
 

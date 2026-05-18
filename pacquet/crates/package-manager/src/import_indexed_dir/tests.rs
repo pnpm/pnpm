@@ -505,8 +505,8 @@ fn concurrent_force_imports_into_different_targets_do_not_collide() {
     fs::write(target_a.join("stale.txt"), b"stale").unwrap();
     fs::write(target_b.join("stale.txt"), b"stale").unwrap();
 
-    std::thread::scope(|s| {
-        s.spawn(|| {
+    std::thread::scope(|scope| {
+        scope.spawn(|| {
             import_indexed_dir::<SilentReporter>(
                 &AtomicU8::new(0),
                 PackageImportMethod::Copy,
@@ -516,7 +516,7 @@ fn concurrent_force_imports_into_different_targets_do_not_collide() {
             )
             .expect("a should succeed");
         });
-        s.spawn(|| {
+        scope.spawn(|| {
             import_indexed_dir::<SilentReporter>(
                 &AtomicU8::new(0),
                 PackageImportMethod::Copy,

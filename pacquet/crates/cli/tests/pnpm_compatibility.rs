@@ -73,16 +73,16 @@ fn same_file_structure() {
             .into_iter()
             // Per-project metadata that pnpm 11 populates and pacquet doesn't.
             // Doesn't affect the shared-cafs story.
-            .filter(|p| !p.starts_with("v11/projects/"))
+            .filter(|path| !path.starts_with("v11/projects/"))
             // Hoisted-symlinks layout introduced in pnpm 11 — pnpm stores
             // one `node_modules` tree per `<name>/<version>/<hash>/` under
             // `v11/links/` and links the project's `node_modules/X` into there.
             // Pacquet still uses the older per-project `.pnpm/` virtual store,
             // so these paths exist only on the pnpm side.
-            .filter(|p| !p.starts_with("v11/links/"))
+            .filter(|path| !path.starts_with("v11/links/"))
             // SQLite WAL sidecars exist only while a connection holds the
             // journal open. Their presence at compare-time depends on timing.
-            .filter(|p| p != "v11/index.db-wal" && p != "v11/index.db-shm")
+            .filter(|path| path != "v11/index.db-wal" && path != "v11/index.db-shm")
             .collect()
     };
 
@@ -218,7 +218,10 @@ fn pnpm_reads_pacquet_written_rows() {
 /// alongside any inner-shape disagreement instead of being silently
 /// normalized away.
 fn gvs_paths_only(files: Vec<String>) -> Vec<String> {
-    files.into_iter().filter(|p| p.starts_with("links/") || p.starts_with("v11/links/")).collect()
+    files
+        .into_iter()
+        .filter(|path| path.starts_with("links/") || path.starts_with("v11/links/"))
+        .collect()
 }
 
 /// Append GVS opt-in (and any extra fields) to the `pnpm-workspace.yaml`

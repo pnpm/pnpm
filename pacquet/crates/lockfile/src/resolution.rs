@@ -5,7 +5,7 @@ use ssri::Integrity;
 use std::collections::BTreeMap;
 
 /// For tarball hosted remotely or locally.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct TarballResolution {
     pub tarball: String,
@@ -34,21 +34,21 @@ pub struct TarballResolution {
 }
 
 /// For standard package specification, with package name and version range.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct RegistryResolution {
     pub integrity: Integrity,
 }
 
 /// For local directory on a filesystem.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct DirectoryResolution {
     pub directory: String,
 }
 
 /// For git repository.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct GitResolution {
     pub repo: String,
@@ -72,7 +72,7 @@ pub struct GitResolution {
 ///
 /// `BTreeMap` (not `HashMap`) keeps the serialised order stable so a
 /// round-trip through pacquet doesn't churn the lockfile diff.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum BinarySpec {
     /// Single executable. The bin name defaults to the package name
@@ -89,7 +89,7 @@ pub enum BinarySpec {
 /// <https://github.com/pnpm/pnpm/blob/94240bc046/resolving/resolver-base/src/index.ts#L47>.
 /// `tarball` is the common shape for nodejs.org's `.tar.gz` artifacts
 /// (Linux / macOS); `zip` is what Windows Node ships as.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum BinaryArchive {
     Tarball,
@@ -104,7 +104,7 @@ pub enum BinaryArchive {
 /// per-package `ignoreFilePattern` filtering — Node strips bundled
 /// `npm` / `corepack`) and links the executables named in `bin` into
 /// the importer's `node_modules/.bin/`.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct BinaryResolution {
     pub url: String,
@@ -134,7 +134,7 @@ pub struct BinaryResolution {
 /// else. `Option<String>` (rather than `Option<Libc>` enum) keeps
 /// future libc values future-compatible without a churning serde
 /// migration if upstream adds one.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct PlatformAssetTarget {
     pub os: String,
@@ -158,7 +158,7 @@ pub struct PlatformAssetTarget {
 /// each shape independently — no infinite recursion is possible
 /// because the install dispatcher does not call back into
 /// [`select_platform_variant`] for non-`Variations` inputs.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct PlatformAssetResolution {
     pub resolution: LockfileResolution,
@@ -173,7 +173,7 @@ pub struct PlatformAssetResolution {
 /// At install time, the dispatcher walks `variants` in declaration
 /// order and picks the first whose `targets[]` includes the host
 /// triple — see [`select_platform_variant`] in this module.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct VariationsResolution {
     pub variants: Vec<PlatformAssetResolution>,
@@ -244,7 +244,7 @@ pub(crate) fn libc_matches(variant_libc: Option<&str>, requested_libc: Option<&s
 }
 
 /// Represent the resolution object.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, From, TryInto)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, From, TryInto)]
 #[serde(from = "ResolutionSerde", into = "ResolutionSerde")]
 pub enum LockfileResolution {
     Tarball(TarballResolution),
@@ -274,7 +274,7 @@ impl LockfileResolution {
 }
 
 /// Intermediate helper type for serde.
-#[derive(Deserialize, Serialize, From, TryInto)]
+#[derive(Serialize, Deserialize, From, TryInto)]
 #[serde(tag = "type", rename_all = "camelCase")]
 enum TaggedResolution {
     Directory(DirectoryResolution),
@@ -284,7 +284,7 @@ enum TaggedResolution {
 }
 
 /// Intermediate helper type for serde.
-#[derive(Deserialize, Serialize, From, TryInto)]
+#[derive(Serialize, Deserialize, From, TryInto)]
 #[serde(untagged)]
 enum ResolutionSerde {
     Tarball(TarballResolution),

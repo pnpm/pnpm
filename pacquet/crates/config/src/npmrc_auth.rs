@@ -107,7 +107,7 @@ pub(crate) struct NpmrcAuth {
 /// pnpm's
 /// [`RawCreds`](https://github.com/pnpm/pnpm/blob/601317e7a3/config/reader/src/parseCreds.ts#L7-L18).
 /// Each `Option` stores the post-`${VAR}`-substitution value when set.
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub(crate) struct RawCreds {
     /// `_authToken=` value.
     pub auth_token: Option<String>,
@@ -243,7 +243,7 @@ impl NpmrcAuth {
                     };
                     contents
                 } else {
-                    value.replace("\\n", "\n")
+                    value.replace(r"\n", "\n")
                 };
                 let entry = auth.tls_by_uri.entry(uri.to_owned()).or_default();
                 apply_tls_field(entry, field, resolved);
@@ -468,7 +468,7 @@ fn parse_no_proxy(raw: &str) -> NoProxySetting {
         return NoProxySetting::Bypass;
     }
     NoProxySetting::List(
-        raw.split(',').map(str::trim).filter(|s| !s.is_empty()).map(String::from).collect(),
+        raw.split(',').map(str::trim).filter(|item| !item.is_empty()).map(String::from).collect(),
     )
 }
 

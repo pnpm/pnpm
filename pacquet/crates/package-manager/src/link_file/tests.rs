@@ -468,7 +468,7 @@ fn log_method_once_emits_first_call_per_method_only() {
     let captured = EVENTS.lock().unwrap();
     let kinds: Vec<WireImportMethod> = captured
         .iter()
-        .map(|e| match e {
+        .map(|event| match event {
             LogEvent::PackageImportMethod(log) => log.method,
             other => panic!("unexpected event {other:?}"),
         })

@@ -177,9 +177,9 @@ fn is_safe_bin_name(name: &str) -> bool {
     if name.is_empty() {
         return false;
     }
-    name.bytes().all(|b| {
-        b.is_ascii_alphanumeric()
-            || matches!(b, b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')')
+    name.bytes().all(|byte| {
+        byte.is_ascii_alphanumeric()
+            || matches!(byte, b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')')
     })
 }
 

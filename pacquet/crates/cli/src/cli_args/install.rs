@@ -133,7 +133,7 @@ pub struct InstallArgs {
 }
 
 impl InstallArgs {
-    pub async fn run<R: Reporter>(self, state: State) -> miette::Result<()> {
+    pub async fn run<Reporter: self::Reporter>(self, state: State) -> miette::Result<()> {
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &state;
         let InstallArgs {
@@ -178,7 +178,7 @@ impl InstallArgs {
             supported_architectures,
             node_linker,
         }
-        .run::<R>()
+        .run::<Reporter>()
         .await
         .wrap_err("installing dependencies")?;
 

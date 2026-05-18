@@ -108,7 +108,7 @@ impl Clock for Host {
 /// wire format identical to `String` so a `DepPath` round-trips through
 /// JSON / YAML the same way upstream's branded string does.
 #[derive(
-    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, From, Into,
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, From, Into,
 )]
 #[serde(transparent)]
 pub struct DepPath(String);
@@ -137,7 +137,7 @@ impl DepPath {
 /// Every required-by-upstream field carries a `#[serde(default)]` so
 /// legacy manifests written by older pnpm versions still deserialize;
 /// the read path then fills in the modern shape from the legacy fields.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Modules {
     /// Legacy: the v5-era flat alias map, kept for read-side
@@ -230,7 +230,7 @@ pub struct Modules {
 /// Which dependency groups the install pipeline included. Mirrors
 /// upstream's `IncludedDependencies` at
 /// <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L19-L21>.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IncludedDependencies {
     #[serde(default)]
@@ -269,7 +269,7 @@ pub enum NodeLinker {
 /// serde's number deserializer, while the [`TryFrom`] impl owns the
 /// "is this version supported" decision and returns
 /// [`UnsupportedLayoutVersionError`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "u32", into = "u32")]
 pub struct LayoutVersion;
 

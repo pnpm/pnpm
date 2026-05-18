@@ -184,7 +184,7 @@ fn generate_sh_shim_uses_absolute_target_when_no_common_prefix() {
     let runtime = ScriptRuntime { prog: Some("node".into()), args: String::new() };
     let body = generate_sh_shim(target, shim, Some(&runtime));
     assert!(
-        body.contains("\"/abs/elsewhere/cli\""),
+        body.contains(r#""/abs/elsewhere/cli""#),
         "absolute-target branch must skip $basedir prefix, body:\n{body}",
     );
 }
@@ -357,7 +357,7 @@ fn read_head_filled_real_fs_long_file_fills_buffer() {
     use tempfile::tempdir;
     let tmp = tempdir().unwrap();
     let path = tmp.path().join("long");
-    let payload: Vec<u8> = (0..1024).map(|i| (i % 251) as u8).collect();
+    let payload: Vec<u8> = (0..1024).map(|index| (index % 251) as u8).collect();
     std::fs::write(&path, &payload).unwrap();
 
     let mut buf = [0u8; 256];
@@ -501,7 +501,7 @@ fn generate_cmd_shim_emits_direct_exec_when_no_runtime() {
     let shim = Path::new("/p/.bin/cli.cmd");
     let body = generate_cmd_shim(target, shim, None);
     assert!(
-        body.contains("@\"%~dp0\\..\\cli\""),
+        body.contains(r#"@"%~dp0\..\cli""#),
         "no-runtime arm must exec the target directly, body:\n{body}",
     );
 }
@@ -521,7 +521,7 @@ fn generate_pwsh_shim_matches_pnpm_template() {
         body.contains("$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent"),
         "must declare $basedir from MyInvocation",
     );
-    assert!(body.contains("$exe=\".exe\""), "Windows-detection branch must set $exe to .exe");
+    assert!(body.contains(r#"$exe=".exe""#), "Windows-detection branch must set $exe to .exe");
     assert!(
         body.contains(
             "if (Test-Path \"$basedir/node$exe\") {\n  # Support pipeline input\n  if ($MyInvocation.ExpectingInput) {\n    $input | & \"$basedir/node$exe\"  \"$basedir/../typescript/bin/tsc\" $args\n  } else {\n    & \"$basedir/node$exe\"  \"$basedir/../typescript/bin/tsc\" $args\n  }",
@@ -539,7 +539,7 @@ fn generate_pwsh_shim_emits_direct_exec_when_no_runtime() {
     let shim = Path::new("/p/.bin/cli.ps1");
     let body = generate_pwsh_shim(target, shim, None);
     assert!(
-        body.contains("& \"$basedir/../cli\""),
+        body.contains(r#"& "$basedir/../cli""#),
         "no-runtime arm must exec the target directly, body:\n{body}",
     );
     assert!(body.ends_with("exit $LASTEXITCODE\n"));

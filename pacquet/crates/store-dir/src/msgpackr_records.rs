@@ -208,9 +208,9 @@ impl<'a> Reader<'a> {
             .ok_or(DecodeError::UnexpectedEof { offset: self.pos + offset })
     }
     fn read_u8(&mut self) -> Result<u8, DecodeError> {
-        let b = self.peek(0)?;
+        let byte = self.peek(0)?;
         self.pos += 1;
-        Ok(b)
+        Ok(byte)
     }
     fn read_bytes(&mut self, n: usize) -> Result<&'a [u8], DecodeError> {
         let end = self.pos.checked_add(n).ok_or(DecodeError::UnexpectedEof { offset: self.pos })?;
@@ -222,39 +222,39 @@ impl<'a> Reader<'a> {
         Ok(slice)
     }
     fn read_u16(&mut self) -> Result<u16, DecodeError> {
-        let b = self.read_bytes(2)?;
-        Ok(u16::from_be_bytes([b[0], b[1]]))
+        let bytes = self.read_bytes(2)?;
+        Ok(u16::from_be_bytes([bytes[0], bytes[1]]))
     }
     fn read_u32(&mut self) -> Result<u32, DecodeError> {
-        let b = self.read_bytes(4)?;
-        Ok(u32::from_be_bytes([b[0], b[1], b[2], b[3]]))
+        let bytes = self.read_bytes(4)?;
+        Ok(u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
     }
 }
 
 /// Transcode one logical value (which may be a record instance — i.e. a
 /// compound thing spanning a def + N raw values).
 fn transcode_value(
-    r: &mut Reader<'_>,
-    w: &mut Vec<u8>,
+    reader: &mut Reader<'_>,
+    writer: &mut Vec<u8>,
     state: &mut TranscodeState,
 ) -> Result<(), DecodeError> {
-    let start = r.pos;
-    let head = r.peek(0)?;
+    let start = reader.pos;
+    let head = reader.peek(0)?;
 
     // Record reference — only valid after records mode has been entered;
     // in plain MessagePack the same bytes are positive fixints 64–127.
     if state.records_mode && (SLOT_LO..=SLOT_HI).contains(&head) {
-        r.read_u8()?;
+        reader.read_u8()?;
         // `Rc::clone` is a refcount bump — the `Vec<String>` of field
         // names isn't duplicated. We clone instead of borrowing so the
         // recursive `transcode_value` call below can take `&mut state`.
         let fields = Rc::clone(
             state.slots.get(&head).ok_or(DecodeError::UnknownSlot { slot: head, offset: start })?,
         );
-        write_map_header(w, fields.len());
+        write_map_header(writer, fields.len());
         for name in fields.iter() {
-            write_str(w, name);
-            transcode_value(r, w, state)?;
+            write_str(writer, name);
+            transcode_value(reader, writer, state)?;
         }
         return Ok(());
     }
@@ -262,11 +262,11 @@ fn transcode_value(
     // Record definition — fixext1 with ext type 0x72. Followed by the field-name
     // array, then the first instance inlined. Seeing this header flips the
     // stream into records mode from here on.
-    if head == 0xd4 && r.peek(1)? == RECORD_DEF_EXT_TYPE {
-        r.read_u8()?; // 0xd4
-        r.read_u8()?; // 0x72
-        let slot_offset = r.pos;
-        let slot = r.read_u8()?;
+    if head == 0xd4 && reader.peek(1)? == RECORD_DEF_EXT_TYPE {
+        reader.read_u8()?; // 0xd4
+        reader.read_u8()?; // 0x72
+        let slot_offset = reader.pos;
+        let slot = reader.read_u8()?;
         // msgpackr only ever emits slot bytes in 0x40..=0x7f — any value
         // outside that range is either malformed input or a payload we
         // don't understand. Reject rather than silently registering a
@@ -274,13 +274,13 @@ fn transcode_value(
         if !(SLOT_LO..=SLOT_HI).contains(&slot) {
             return Err(DecodeError::SlotOutOfRange { slot, offset: slot_offset });
         }
-        let fields: Rc<[String]> = read_string_array(r)?.into();
+        let fields: Rc<[String]> = read_string_array(reader)?.into();
         state.slots.insert(slot, Rc::clone(&fields));
         state.records_mode = true;
-        write_map_header(w, fields.len());
+        write_map_header(writer, fields.len());
         for name in fields.iter() {
-            write_str(w, name);
-            transcode_value(r, w, state)?;
+            write_str(writer, name);
+            transcode_value(reader, writer, state)?;
         }
         return Ok(());
     }
@@ -292,59 +292,59 @@ fn transcode_value(
         // Positive fixint 0x00..=0x7f. When records mode is active the
         // 0x40..=0x7f slice is trapped above; when it isn't, those bytes
         // are legitimate fixints and pass through.
-        0x00..=0x7f => copy_n(r, w, 1),
+        0x00..=0x7f => copy_n(reader, writer, 1),
 
         // Fixmap 0x80..=0x8f
         0x80..=0x8f => {
             let n = (head & 0x0f) as usize;
-            r.read_u8()?;
-            w.push(head);
-            transcode_pairs(r, w, state, n)
+            reader.read_u8()?;
+            writer.push(head);
+            transcode_pairs(reader, writer, state, n)
         }
         // Fixarray 0x90..=0x9f
         0x90..=0x9f => {
             let n = (head & 0x0f) as usize;
-            r.read_u8()?;
-            w.push(head);
-            transcode_array(r, w, state, n)
+            reader.read_u8()?;
+            writer.push(head);
+            transcode_array(reader, writer, state, n)
         }
         // Fixstr 0xa0..=0xbf
         0xa0..=0xbf => {
             let n = (head & 0x1f) as usize;
-            copy_n(r, w, 1 + n)
+            copy_n(reader, writer, 1 + n)
         }
         // Negative fixint 0xe0..=0xff
-        0xe0..=0xff => copy_n(r, w, 1),
+        0xe0..=0xff => copy_n(reader, writer, 1),
 
-        0xc0 /* nil */ | 0xc2 /* false */ | 0xc3 /* true */ => copy_n(r, w, 1),
+        0xc0 /* nil */ | 0xc2 /* false */ | 0xc3 /* true */ => copy_n(reader, writer, 1),
 
         0xc4 /* bin 8  */ => {
-            let n = r.peek(1)? as usize;
-            copy_n(r, w, 2 + n)
+            let n = reader.peek(1)? as usize;
+            copy_n(reader, writer, 2 + n)
         }
         0xc5 /* bin 16 */ => {
-            let n = u16::from_be_bytes([r.peek(1)?, r.peek(2)?]) as usize;
-            copy_n(r, w, 3 + n)
+            let n = u16::from_be_bytes([reader.peek(1)?, reader.peek(2)?]) as usize;
+            copy_n(reader, writer, 3 + n)
         }
         0xc6 /* bin 32 */ => {
-            let n = u32::from_be_bytes([r.peek(1)?, r.peek(2)?, r.peek(3)?, r.peek(4)?]) as usize;
-            copy_n(r, w, 5 + n)
+            let n = u32::from_be_bytes([reader.peek(1)?, reader.peek(2)?, reader.peek(3)?, reader.peek(4)?]) as usize;
+            copy_n(reader, writer, 5 + n)
         }
 
         // ext 8/16/32 — we've handled records above via fixext1; any other ext
         // just passes through. If a future pnpm release sends something fancier
         // we'll see it here.
         0xc7 => {
-            let n = r.peek(1)? as usize;
-            copy_n(r, w, 3 + n)
+            let n = reader.peek(1)? as usize;
+            copy_n(reader, writer, 3 + n)
         }
         0xc8 => {
-            let n = u16::from_be_bytes([r.peek(1)?, r.peek(2)?]) as usize;
-            copy_n(r, w, 4 + n)
+            let n = u16::from_be_bytes([reader.peek(1)?, reader.peek(2)?]) as usize;
+            copy_n(reader, writer, 4 + n)
         }
         0xc9 => {
-            let n = u32::from_be_bytes([r.peek(1)?, r.peek(2)?, r.peek(3)?, r.peek(4)?]) as usize;
-            copy_n(r, w, 6 + n)
+            let n = u32::from_be_bytes([reader.peek(1)?, reader.peek(2)?, reader.peek(3)?, reader.peek(4)?]) as usize;
+            copy_n(reader, writer, 6 + n)
         }
 
         // msgpackr emits JS Number as float 64 whenever the value exceeds
@@ -358,71 +358,71 @@ fn transcode_value(
         // floats (none appear in `PackageFilesIndex` today, but future
         // fields might) still round-trip.
         0xca /* float 32 */ => {
-            r.read_u8()?;
-            let bits = r.read_bytes(4)?;
-            let v = f32::from_be_bytes([bits[0], bits[1], bits[2], bits[3]]);
-            maybe_narrow_float_to_uint(w, v as f64, 0xca, &[bits[0], bits[1], bits[2], bits[3]]);
+            reader.read_u8()?;
+            let bits = reader.read_bytes(4)?;
+            let value = f32::from_be_bytes([bits[0], bits[1], bits[2], bits[3]]);
+            maybe_narrow_float_to_uint(writer, value as f64, 0xca, &[bits[0], bits[1], bits[2], bits[3]]);
             Ok(())
         }
         0xcb /* float 64 */ => {
-            r.read_u8()?;
-            let bits = r.read_bytes(8)?;
+            reader.read_u8()?;
+            let bits = reader.read_bytes(8)?;
             let arr = [bits[0], bits[1], bits[2], bits[3], bits[4], bits[5], bits[6], bits[7]];
-            let v = f64::from_be_bytes(arr);
-            maybe_narrow_float_to_uint(w, v, 0xcb, &arr);
+            let value = f64::from_be_bytes(arr);
+            maybe_narrow_float_to_uint(writer, value, 0xcb, &arr);
             Ok(())
         }
-        0xcc /* uint 8 */   => copy_n(r, w, 2),
-        0xcd /* uint 16 */  => copy_n(r, w, 3),
-        0xce /* uint 32 */  => copy_n(r, w, 5),
-        0xcf /* uint 64 */  => copy_n(r, w, 9),
-        0xd0 /* int 8 */    => copy_n(r, w, 2),
-        0xd1 /* int 16 */   => copy_n(r, w, 3),
-        0xd2 /* int 32 */   => copy_n(r, w, 5),
-        0xd3 /* int 64 */   => copy_n(r, w, 9),
+        0xcc /* uint 8 */   => copy_n(reader, writer, 2),
+        0xcd /* uint 16 */  => copy_n(reader, writer, 3),
+        0xce /* uint 32 */  => copy_n(reader, writer, 5),
+        0xcf /* uint 64 */  => copy_n(reader, writer, 9),
+        0xd0 /* int 8 */    => copy_n(reader, writer, 2),
+        0xd1 /* int 16 */   => copy_n(reader, writer, 3),
+        0xd2 /* int 32 */   => copy_n(reader, writer, 5),
+        0xd3 /* int 64 */   => copy_n(reader, writer, 9),
 
         // fixext 1/2/4/8/16 — 1 ext-type byte + 2^k payload bytes. 0xd4 + type
         // 0x72 is already handled above as records.
-        0xd4 => copy_n(r, w, 1 + 1 + 1),
-        0xd5 => copy_n(r, w, 1 + 1 + 2),
-        0xd6 => copy_n(r, w, 1 + 1 + 4),
-        0xd7 => copy_n(r, w, 1 + 1 + 8),
-        0xd8 => copy_n(r, w, 1 + 1 + 16),
+        0xd4 => copy_n(reader, writer, 1 + 1 + 1),
+        0xd5 => copy_n(reader, writer, 1 + 1 + 2),
+        0xd6 => copy_n(reader, writer, 1 + 1 + 4),
+        0xd7 => copy_n(reader, writer, 1 + 1 + 8),
+        0xd8 => copy_n(reader, writer, 1 + 1 + 16),
 
         0xd9 /* str 8  */ => {
-            let n = r.peek(1)? as usize;
-            copy_n(r, w, 2 + n)
+            let n = reader.peek(1)? as usize;
+            copy_n(reader, writer, 2 + n)
         }
         0xda /* str 16 */ => {
-            let n = u16::from_be_bytes([r.peek(1)?, r.peek(2)?]) as usize;
-            copy_n(r, w, 3 + n)
+            let n = u16::from_be_bytes([reader.peek(1)?, reader.peek(2)?]) as usize;
+            copy_n(reader, writer, 3 + n)
         }
         0xdb /* str 32 */ => {
-            let n = u32::from_be_bytes([r.peek(1)?, r.peek(2)?, r.peek(3)?, r.peek(4)?]) as usize;
-            copy_n(r, w, 5 + n)
+            let n = u32::from_be_bytes([reader.peek(1)?, reader.peek(2)?, reader.peek(3)?, reader.peek(4)?]) as usize;
+            copy_n(reader, writer, 5 + n)
         }
 
         // array 16 / 32 — emit header, recurse N times.
         0xdc => {
-            let n = u16::from_be_bytes([r.peek(1)?, r.peek(2)?]) as usize;
-            w.extend_from_slice(r.read_bytes(3)?);
-            transcode_array(r, w, state, n)
+            let n = u16::from_be_bytes([reader.peek(1)?, reader.peek(2)?]) as usize;
+            writer.extend_from_slice(reader.read_bytes(3)?);
+            transcode_array(reader, writer, state, n)
         }
         0xdd => {
-            let n = u32::from_be_bytes([r.peek(1)?, r.peek(2)?, r.peek(3)?, r.peek(4)?]) as usize;
-            w.extend_from_slice(r.read_bytes(5)?);
-            transcode_array(r, w, state, n)
+            let n = u32::from_be_bytes([reader.peek(1)?, reader.peek(2)?, reader.peek(3)?, reader.peek(4)?]) as usize;
+            writer.extend_from_slice(reader.read_bytes(5)?);
+            transcode_array(reader, writer, state, n)
         }
         // map 16 / 32
         0xde => {
-            let n = u16::from_be_bytes([r.peek(1)?, r.peek(2)?]) as usize;
-            w.extend_from_slice(r.read_bytes(3)?);
-            transcode_pairs(r, w, state, n)
+            let n = u16::from_be_bytes([reader.peek(1)?, reader.peek(2)?]) as usize;
+            writer.extend_from_slice(reader.read_bytes(3)?);
+            transcode_pairs(reader, writer, state, n)
         }
         0xdf => {
-            let n = u32::from_be_bytes([r.peek(1)?, r.peek(2)?, r.peek(3)?, r.peek(4)?]) as usize;
-            w.extend_from_slice(r.read_bytes(5)?);
-            transcode_pairs(r, w, state, n)
+            let n = u32::from_be_bytes([reader.peek(1)?, reader.peek(2)?, reader.peek(3)?, reader.peek(4)?]) as usize;
+            writer.extend_from_slice(reader.read_bytes(5)?);
+            transcode_pairs(reader, writer, state, n)
         }
 
         // 0xc1 is reserved in the spec — reject rather than silently drop.
@@ -431,33 +431,33 @@ fn transcode_value(
 }
 
 fn transcode_array(
-    r: &mut Reader<'_>,
-    w: &mut Vec<u8>,
+    reader: &mut Reader<'_>,
+    writer: &mut Vec<u8>,
     state: &mut TranscodeState,
     n: usize,
 ) -> Result<(), DecodeError> {
     for _ in 0..n {
-        transcode_value(r, w, state)?;
+        transcode_value(reader, writer, state)?;
     }
     Ok(())
 }
 
 fn transcode_pairs(
-    r: &mut Reader<'_>,
-    w: &mut Vec<u8>,
+    reader: &mut Reader<'_>,
+    writer: &mut Vec<u8>,
     state: &mut TranscodeState,
     n: usize,
 ) -> Result<(), DecodeError> {
     for _ in 0..n {
-        transcode_value(r, w, state)?; // key
-        transcode_value(r, w, state)?; // value
+        transcode_value(reader, writer, state)?; // key
+        transcode_value(reader, writer, state)?; // value
     }
     Ok(())
 }
 
-fn copy_n(r: &mut Reader<'_>, w: &mut Vec<u8>, n: usize) -> Result<(), DecodeError> {
-    let bytes = r.read_bytes(n)?;
-    w.extend_from_slice(bytes);
+fn copy_n(reader: &mut Reader<'_>, writer: &mut Vec<u8>, n: usize) -> Result<(), DecodeError> {
+    let bytes = reader.read_bytes(n)?;
+    writer.extend_from_slice(bytes);
     Ok(())
 }
 
@@ -466,33 +466,33 @@ fn copy_n(r: &mut Reader<'_>, w: &mut Vec<u8>, n: usize) -> Result<(), DecodeErr
 /// defs in the wild are always fixarray, but array16/32 costs nothing to
 /// support and future-proofs against a pnpm release that widens schemas
 /// past 15 fields.
-fn read_string_array(r: &mut Reader<'_>) -> Result<Vec<String>, DecodeError> {
-    let start = r.pos;
-    let head = r.read_u8()?;
+fn read_string_array(reader: &mut Reader<'_>) -> Result<Vec<String>, DecodeError> {
+    let start = reader.pos;
+    let head = reader.read_u8()?;
     let len = match head {
         0x90..=0x9f => (head & 0x0f) as usize,
-        0xdc => r.read_u16()? as usize,
-        0xdd => r.read_u32()? as usize,
+        0xdc => reader.read_u16()? as usize,
+        0xdd => reader.read_u32()? as usize,
         _ => return Err(DecodeError::ExpectedArrayHeader { byte: head, offset: start }),
     };
     let mut out = Vec::with_capacity(len);
     for _ in 0..len {
-        out.push(read_string(r)?);
+        out.push(read_string(reader)?);
     }
     Ok(out)
 }
 
-fn read_string(r: &mut Reader<'_>) -> Result<String, DecodeError> {
-    let start = r.pos;
-    let head = r.read_u8()?;
+fn read_string(reader: &mut Reader<'_>) -> Result<String, DecodeError> {
+    let start = reader.pos;
+    let head = reader.read_u8()?;
     let len = match head {
         0xa0..=0xbf => (head & 0x1f) as usize,
-        0xd9 => r.read_u8()? as usize,
-        0xda => r.read_u16()? as usize,
-        0xdb => r.read_u32()? as usize,
+        0xd9 => reader.read_u8()? as usize,
+        0xda => reader.read_u16()? as usize,
+        0xdb => reader.read_u32()? as usize,
         _ => return Err(DecodeError::ExpectedStringHeader { byte: head, offset: start }),
     };
-    let bytes = r.read_bytes(len)?.to_vec();
+    let bytes = reader.read_bytes(len)?.to_vec();
     String::from_utf8(bytes).map_err(|_| DecodeError::InvalidFieldNameUtf8 { offset: start })
 }
 
@@ -509,53 +509,59 @@ const U64_MAX_EXCLUSIVE_AS_F64: f64 = 18_446_744_073_709_551_616.0;
 /// unchanged. The strict upper bound (`< 2^64`, not `<= u64::MAX as f64`)
 /// prevents silent value corruption at the representable-but-overflowing
 /// edge.
-fn maybe_narrow_float_to_uint(w: &mut Vec<u8>, v: f64, original_head: u8, original_bytes: &[u8]) {
-    if v.is_finite() && (0.0..U64_MAX_EXCLUSIVE_AS_F64).contains(&v) && v.fract() == 0.0 {
-        w.push(0xcf);
-        w.extend_from_slice(&(v as u64).to_be_bytes());
+fn maybe_narrow_float_to_uint(
+    writer: &mut Vec<u8>,
+    value: f64,
+    original_head: u8,
+    original_bytes: &[u8],
+) {
+    if value.is_finite() && (0.0..U64_MAX_EXCLUSIVE_AS_F64).contains(&value) && value.fract() == 0.0
+    {
+        writer.push(0xcf);
+        writer.extend_from_slice(&(value as u64).to_be_bytes());
     } else {
-        w.push(original_head);
-        w.extend_from_slice(original_bytes);
+        writer.push(original_head);
+        writer.extend_from_slice(original_bytes);
     }
 }
 
-fn write_map_header(w: &mut Vec<u8>, n: usize) {
+fn write_map_header(writer: &mut Vec<u8>, n: usize) {
     if n < 16 {
-        w.push(0x80 | (n as u8));
+        writer.push(0x80 | (n as u8));
     } else if n <= u16::MAX as usize {
-        w.push(0xde);
-        w.extend_from_slice(&(n as u16).to_be_bytes());
+        writer.push(0xde);
+        writer.extend_from_slice(&(n as u16).to_be_bytes());
     } else {
         // MessagePack's `map 32` header caps length at `u32::MAX`. On
         // 64-bit hosts a `usize` could in principle exceed that; use
         // a checked conversion so we panic with a clear message
         // rather than silently truncating to a corrupt payload.
         let n = u32::try_from(n).expect("map length exceeds MessagePack's u32::MAX limit");
-        w.push(0xdf);
-        w.extend_from_slice(&n.to_be_bytes());
+        writer.push(0xdf);
+        writer.extend_from_slice(&n.to_be_bytes());
     }
 }
 
-fn write_str(w: &mut Vec<u8>, s: &str) {
-    let bytes = s.as_bytes();
+fn write_str(writer: &mut Vec<u8>, text: &str) {
+    let bytes = text.as_bytes();
     let n = bytes.len();
     if n < 32 {
-        w.push(0xa0 | (n as u8));
+        writer.push(0xa0 | (n as u8));
     } else if n <= u8::MAX as usize {
-        w.push(0xd9);
-        w.push(n as u8);
+        writer.push(0xd9);
+        writer.push(n as u8);
     } else if n <= u16::MAX as usize {
-        w.push(0xda);
-        w.extend_from_slice(&(n as u16).to_be_bytes());
+        writer.push(0xda);
+        writer.extend_from_slice(&(n as u16).to_be_bytes());
     } else {
         // `str 32` tops out at `u32::MAX` bytes. Checked cast to
         // fail loudly rather than silently truncating to a corrupt
         // length prefix.
         let n = u32::try_from(n).expect("string length exceeds MessagePack's u32::MAX limit");
-        w.push(0xdb);
-        w.extend_from_slice(&n.to_be_bytes());
+        writer.push(0xdb);
+        writer.extend_from_slice(&n.to_be_bytes());
     }
-    w.extend_from_slice(bytes);
+    writer.extend_from_slice(bytes);
 }
 
 /// Encode a [`PackageFilesIndex`] to msgpackr-records bytes that match
@@ -738,7 +744,7 @@ fn side_effects_shape(diff: &SideEffectsDiff) -> u8 {
 }
 
 fn encode_pkg_files_index_value(
-    w: &mut Vec<u8>,
+    writer: &mut Vec<u8>,
     state: &mut EncodeState,
     idx: &PackageFilesIndex,
 ) -> Result<(), EncodeError> {
@@ -759,15 +765,15 @@ fn encode_pkg_files_index_value(
         fields.push("sideEffects");
     }
 
-    write_record_def_header(w, PKG_FILES_INDEX_SLOT, &fields);
+    write_record_def_header(writer, PKG_FILES_INDEX_SLOT, &fields);
 
     // Values in the same order as `fields` above.
-    write_str(w, &idx.algo);
+    write_str(writer, &idx.algo);
     if let Some(rb) = idx.requires_build {
-        write_bool(w, rb);
+        write_bool(writer, rb);
     }
     if let Some(manifest) = &idx.manifest {
-        encode_json_value(w, state, manifest)?;
+        encode_json_value(writer, state, manifest)?;
     }
     // Iterate the file map in sorted-key order so the emitted
     // msgpack bytes are byte-stable across runs. `HashMap`'s
@@ -777,16 +783,16 @@ fn encode_pkg_files_index_value(
     // JS effectively delivers via `Object` insertion order on
     // deterministic input (npm tarballs walk files in directory
     // order, which is sorted on most filesystems).
-    write_map_header(w, idx.files.len());
+    write_map_header(writer, idx.files.len());
     for (name, info) in sorted_by_key(&idx.files) {
-        write_str(w, name);
-        encode_cafs_file_info(w, state, info)?;
+        write_str(writer, name);
+        encode_cafs_file_info(writer, state, info)?;
     }
     if let Some(se) = &idx.side_effects {
-        write_map_header(w, se.len());
+        write_map_header(writer, se.len());
         for (platform, diff) in sorted_by_key(se) {
-            write_str(w, platform);
-            encode_side_effects_diff(w, state, diff)?;
+            write_str(writer, platform);
+            encode_side_effects_diff(writer, state, diff)?;
         }
     }
 
@@ -799,8 +805,8 @@ fn encode_pkg_files_index_value(
 /// `SideEffectsDiff.added` — comes out in lexicographic key
 /// order. Without this the row payload depends on
 /// `HashMap`'s randomised iteration and isn't reproducible.
-fn sorted_by_key<V>(map: &HashMap<String, V>) -> Vec<(&String, &V)> {
-    let mut entries: Vec<(&String, &V)> = map.iter().collect();
+fn sorted_by_key<Value>(map: &HashMap<String, Value>) -> Vec<(&String, &Value)> {
+    let mut entries: Vec<(&String, &Value)> = map.iter().collect();
     entries.sort_by(|a, b| a.0.cmp(b.0));
     entries
 }
@@ -816,22 +822,22 @@ fn sorted_by_key<V>(map: &HashMap<String, V>) -> Vec<(&String, &V)> {
 /// `manifest.bin` / `manifest.directories?.bin` via property
 /// access.
 fn encode_json_value(
-    w: &mut Vec<u8>,
+    writer: &mut Vec<u8>,
     state: &mut EncodeState,
     value: &Value,
 ) -> Result<(), EncodeError> {
     match value {
-        Value::Null => w.push(0xc0),
-        Value::Bool(b) => write_bool(w, *b),
-        Value::Number(n) => encode_json_number(w, n),
-        Value::String(s) => write_str(w, s),
+        Value::Null => writer.push(0xc0),
+        Value::Bool(b) => write_bool(writer, *b),
+        Value::Number(n) => encode_json_number(writer, n),
+        Value::String(s) => write_str(writer, s),
         Value::Array(arr) => {
-            write_array_header(w, arr.len());
+            write_array_header(writer, arr.len());
             for item in arr {
-                encode_json_value(w, state, item)?;
+                encode_json_value(writer, state, item)?;
             }
         }
-        Value::Object(obj) => encode_json_object(w, state, obj)?,
+        Value::Object(obj) => encode_json_object(writer, state, obj)?,
     }
     Ok(())
 }
@@ -850,21 +856,21 @@ fn encode_json_value(
 /// insertion order from parsing the original `package.json` — the
 /// same order pnpm itself observes when packing the manifest.
 fn encode_json_object(
-    w: &mut Vec<u8>,
+    writer: &mut Vec<u8>,
     state: &mut EncodeState,
     obj: &serde_json::Map<String, Value>,
 ) -> Result<(), EncodeError> {
     let fields: Vec<String> = obj.keys().cloned().collect();
     if let Some(&slot) = state.json_object_slots.get(&fields) {
-        w.push(slot);
+        writer.push(slot);
     } else {
         let slot = state.allocate_slot()?;
         let field_refs: Vec<&str> = fields.iter().map(String::as_str).collect();
-        write_record_def_header(w, slot, &field_refs);
+        write_record_def_header(writer, slot, &field_refs);
         state.json_object_slots.insert(fields, slot);
     }
     for value in obj.values() {
-        encode_json_value(w, state, value)?;
+        encode_json_value(writer, state, value)?;
     }
     Ok(())
 }
@@ -874,17 +880,17 @@ fn encode_json_object(
 /// itself picks: any integer value first (so a JSON `1.0` parsed as
 /// `Number(1)` stays an integer on the wire), falling through to
 /// `float 64` only when the number genuinely needs the precision.
-fn encode_json_number(w: &mut Vec<u8>, n: &serde_json::Number) {
+fn encode_json_number(writer: &mut Vec<u8>, n: &serde_json::Number) {
     if let Some(u) = n.as_u64() {
-        write_uint(w, u);
+        write_uint(writer, u);
         return;
     }
     if let Some(i) = n.as_i64() {
-        write_int(w, i);
+        write_int(writer, i);
         return;
     }
     if let Some(f) = n.as_f64() {
-        write_float64(w, f);
+        write_float64(writer, f);
     }
     // Unreachable: a `serde_json::Number` is always one of the three
     // cases above. If it isn't (a future serde_json release adds a
@@ -894,13 +900,13 @@ fn encode_json_number(w: &mut Vec<u8>, n: &serde_json::Number) {
 }
 
 fn encode_cafs_file_info(
-    w: &mut Vec<u8>,
+    writer: &mut Vec<u8>,
     state: &mut EncodeState,
     info: &CafsFileInfo,
 ) -> Result<(), EncodeError> {
     let shape = cafs_shape(info);
     if let Some(slot) = state.cafs_slots[shape as usize] {
-        w.push(slot); // bare slot = record reference; no def needed
+        writer.push(slot); // bare slot = record reference; no def needed
     } else {
         // New shape for this stream — allocate a slot and emit a
         // record def inline. `digest`, `mode`, `size` are required;
@@ -915,12 +921,12 @@ fn encode_cafs_file_info(
         } else {
             &["digest", "mode", "size"]
         };
-        write_record_def_header(w, slot, fields);
+        write_record_def_header(writer, slot, fields);
     }
 
-    write_str(w, &info.digest);
-    write_uint(w, info.mode as u64);
-    write_uint(w, info.size);
+    write_str(writer, &info.digest);
+    write_uint(writer, info.mode as u64);
+    write_uint(writer, info.size);
     if let Some(v) = info.checked_at {
         // Float 64 — not uint 64 — because msgpackr decodes `uint 64`
         // as a JS `BigInt`, and pnpm's integrity check does
@@ -929,19 +935,19 @@ fn encode_cafs_file_info(
         // what pnpm writes for the same millisecond-epoch value (JS
         // Number is a double, so msgpackr emits `cb` + 8 bytes for
         // values past int32 range).
-        write_float64(w, v as f64);
+        write_float64(writer, v as f64);
     }
     Ok(())
 }
 
 fn encode_side_effects_diff(
-    w: &mut Vec<u8>,
+    writer: &mut Vec<u8>,
     state: &mut EncodeState,
     diff: &SideEffectsDiff,
 ) -> Result<(), EncodeError> {
     let shape = side_effects_shape(diff);
     if let Some(slot) = state.side_effects_slots[shape as usize] {
-        w.push(slot);
+        writer.push(slot);
     } else {
         // Msgpackr omits absent `added` / `deleted` from the schema
         // rather than writing them as explicit `null`. Match that so
@@ -956,49 +962,49 @@ fn encode_side_effects_diff(
             (false, true) => &["deleted"],
             (false, false) => &[],
         };
-        write_record_def_header(w, slot, fields);
+        write_record_def_header(writer, slot, fields);
     }
 
     if let Some(added) = &diff.added {
-        write_map_header(w, added.len());
+        write_map_header(writer, added.len());
         for (name, info) in sorted_by_key(added) {
-            write_str(w, name);
-            encode_cafs_file_info(w, state, info)?;
+            write_str(writer, name);
+            encode_cafs_file_info(writer, state, info)?;
         }
     }
     if let Some(deleted) = &diff.deleted {
-        write_array_header(w, deleted.len());
+        write_array_header(writer, deleted.len());
         for name in deleted {
-            write_str(w, name);
+            write_str(writer, name);
         }
     }
     Ok(())
 }
 
 /// `d4 72 <slot>` fixext1 header + msgpack array of `fields` as strings.
-fn write_record_def_header(w: &mut Vec<u8>, slot: u8, fields: &[&str]) {
-    w.push(0xd4);
-    w.push(RECORD_DEF_EXT_TYPE);
-    w.push(slot);
-    write_array_header(w, fields.len());
+fn write_record_def_header(writer: &mut Vec<u8>, slot: u8, fields: &[&str]) {
+    writer.push(0xd4);
+    writer.push(RECORD_DEF_EXT_TYPE);
+    writer.push(slot);
+    write_array_header(writer, fields.len());
     for field in fields {
-        write_str(w, field);
+        write_str(writer, field);
     }
 }
 
-fn write_array_header(w: &mut Vec<u8>, n: usize) {
+fn write_array_header(writer: &mut Vec<u8>, n: usize) {
     if n < 16 {
-        w.push(0x90 | (n as u8));
+        writer.push(0x90 | (n as u8));
     } else if n <= u16::MAX as usize {
-        w.push(0xdc);
-        w.extend_from_slice(&(n as u16).to_be_bytes());
+        writer.push(0xdc);
+        writer.extend_from_slice(&(n as u16).to_be_bytes());
     } else {
         // `array 32` tops out at `u32::MAX` entries. Checked cast
         // so an overflow panics with a clear message rather than
         // silently truncating to a corrupt length prefix.
         let n = u32::try_from(n).expect("array length exceeds MessagePack's u32::MAX limit");
-        w.push(0xdd);
-        w.extend_from_slice(&n.to_be_bytes());
+        writer.push(0xdd);
+        writer.extend_from_slice(&n.to_be_bytes());
     }
 }
 
@@ -1009,31 +1015,31 @@ fn write_array_header(w: &mut Vec<u8>, n: usize) {
 /// msgpackr does the same thing under `useRecords: true` for exactly
 /// the same reason. `mode: u32` (e.g. `0o755` = 493) and `size: u64`
 /// round-trip through this.
-fn write_uint(w: &mut Vec<u8>, v: u64) {
-    if v < SLOT_LO as u64 {
+fn write_uint(writer: &mut Vec<u8>, value: u64) {
+    if value < SLOT_LO as u64 {
         // Positive fixint 0x00..=0x3f — below the slot range, safe to
         // emit bare.
-        w.push(v as u8);
-    } else if v <= u8::MAX as u64 {
+        writer.push(value as u8);
+    } else if value <= u8::MAX as u64 {
         // Covers 0x40..=0xff; the 0x40..=0x7f sub-range must use uint 8
         // so the decoder doesn't mistake it for a slot byte.
-        w.push(0xcc);
-        w.push(v as u8);
-    } else if v <= u16::MAX as u64 {
-        w.push(0xcd);
-        w.extend_from_slice(&(v as u16).to_be_bytes());
-    } else if v <= u32::MAX as u64 {
-        w.push(0xce);
-        w.extend_from_slice(&(v as u32).to_be_bytes());
+        writer.push(0xcc);
+        writer.push(value as u8);
+    } else if value <= u16::MAX as u64 {
+        writer.push(0xcd);
+        writer.extend_from_slice(&(value as u16).to_be_bytes());
+    } else if value <= u32::MAX as u64 {
+        writer.push(0xce);
+        writer.extend_from_slice(&(value as u32).to_be_bytes());
     } else {
-        w.push(0xcf);
-        w.extend_from_slice(&v.to_be_bytes());
+        writer.push(0xcf);
+        writer.extend_from_slice(&value.to_be_bytes());
     }
 }
 
-fn write_float64(w: &mut Vec<u8>, v: f64) {
-    w.push(0xcb);
-    w.extend_from_slice(&v.to_be_bytes());
+fn write_float64(writer: &mut Vec<u8>, value: f64) {
+    writer.push(0xcb);
+    writer.extend_from_slice(&value.to_be_bytes());
 }
 
 /// Write a signed integer in the smallest MessagePack encoding.
@@ -1041,29 +1047,29 @@ fn write_float64(w: &mut Vec<u8>, v: f64) {
 /// whose header bytes are outside the records-mode slot range so
 /// they're always safe to emit. Non-negative values delegate to
 /// [`write_uint`] which handles the slot-byte fixint promotion.
-fn write_int(w: &mut Vec<u8>, v: i64) {
-    if v >= 0 {
-        write_uint(w, v as u64);
-    } else if v >= -32 {
+fn write_int(writer: &mut Vec<u8>, value: i64) {
+    if value >= 0 {
+        write_uint(writer, value as u64);
+    } else if value >= -32 {
         // Negative fixint `0xe0..=0xff`; outside slot range.
-        w.push(v as i8 as u8);
-    } else if v >= i8::MIN as i64 {
-        w.push(0xd0);
-        w.push(v as i8 as u8);
-    } else if v >= i16::MIN as i64 {
-        w.push(0xd1);
-        w.extend_from_slice(&(v as i16).to_be_bytes());
-    } else if v >= i32::MIN as i64 {
-        w.push(0xd2);
-        w.extend_from_slice(&(v as i32).to_be_bytes());
+        writer.push(value as i8 as u8);
+    } else if value >= i8::MIN as i64 {
+        writer.push(0xd0);
+        writer.push(value as i8 as u8);
+    } else if value >= i16::MIN as i64 {
+        writer.push(0xd1);
+        writer.extend_from_slice(&(value as i16).to_be_bytes());
+    } else if value >= i32::MIN as i64 {
+        writer.push(0xd2);
+        writer.extend_from_slice(&(value as i32).to_be_bytes());
     } else {
-        w.push(0xd3);
-        w.extend_from_slice(&v.to_be_bytes());
+        writer.push(0xd3);
+        writer.extend_from_slice(&value.to_be_bytes());
     }
 }
 
-fn write_bool(w: &mut Vec<u8>, b: bool) {
-    w.push(if b { 0xc3 } else { 0xc2 });
+fn write_bool(writer: &mut Vec<u8>, value: bool) {
+    writer.push(if value { 0xc3 } else { 0xc2 });
 }
 
 #[cfg(test)]

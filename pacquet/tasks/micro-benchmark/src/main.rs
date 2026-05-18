@@ -17,8 +17,8 @@ struct CliArgs {
     save_baseline: Option<String>,
 }
 
-fn bench_tarball(c: &mut Criterion, server: &mut ServerGuard, fixtures_folder: &Path) {
-    let mut group = c.benchmark_group("tarball");
+fn bench_tarball(criterion: &mut Criterion, server: &mut ServerGuard, fixtures_folder: &Path) {
+    let mut group = criterion.benchmark_group("tarball");
     let file = fs::read(fixtures_folder.join("@fastify+error-3.3.0.tgz")).unwrap();
     server.mock("GET", "/@fastify+error-3.3.0.tgz").with_status(201).with_body(&file).create();
 
@@ -28,8 +28,8 @@ fn bench_tarball(c: &mut Criterion, server: &mut ServerGuard, fixtures_folder: &
     let package_integrity: Integrity = "sha512-dj7vjIn1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w==".parse().expect("parse integrity string");
 
     group.throughput(Throughput::Bytes(file.len() as u64));
-    group.bench_function("download_dependency", |b| {
-        b.to_async(&rt).iter(|| async {
+    group.bench_function("download_dependency", |bencher| {
+        bencher.to_async(&rt).iter(|| async {
             // NOTE: the tempdir is being leaked, meaning the cleanup would be postponed until the end of the benchmark
             let dir = tempdir().unwrap();
             let store_dir =

@@ -6,8 +6,8 @@ use pretty_assertions::assert_eq;
 use ssri::Integrity;
 use std::collections::HashMap;
 
-fn integrity(s: &str) -> Integrity {
-    s.parse().expect("parse integrity string")
+fn integrity(text: &str) -> Integrity {
+    text.parse().expect("parse integrity string")
 }
 
 fn make_package(name: &str, version: &str) -> PackageVersion {

@@ -8,8 +8,8 @@ use pacquet_lockfile::{
 use pacquet_reporter::{LogEvent, ProgressMessage, Reporter};
 use std::{collections::HashMap, sync::Mutex};
 
-fn name(s: &str) -> PkgName {
-    PkgName::parse(s).expect("parse pkg name")
+fn name(text: &str) -> PkgName {
+    PkgName::parse(text).expect("parse pkg name")
 }
 
 fn metadata_with_integrity(integrity: &str) -> PackageMetadata {
@@ -170,12 +170,12 @@ fn integrity_equal_treats_one_sided_missing_as_unequal() {
     assert!(!integrity_equal(Some(&with_integrity), None));
 }
 
-fn ver(s: &str) -> PkgVerPeer {
-    s.parse().expect("parse PkgVerPeer")
+fn ver(text: &str) -> PkgVerPeer {
+    text.parse().expect("parse PkgVerPeer")
 }
 
-fn key(n: &str, v: &str) -> PackageKey {
-    PackageKey::new(name(n), ver(v))
+fn key(name_text: &str, version: &str) -> PackageKey {
+    PackageKey::new(name(name_text), ver(version))
 }
 
 fn git_metadata() -> PackageMetadata {

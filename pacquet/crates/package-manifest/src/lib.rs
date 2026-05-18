@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use strum::IntoStaticStr;
 
-#[derive(Debug, Display, Error, From, Diagnostic)]
+#[derive(Debug, Display, Error, Diagnostic, From)]
 #[non_exhaustive]
 pub enum PackageManifestError {
     #[diagnostic(code(pacquet_package_manifest::serialization_error))]
@@ -54,7 +54,7 @@ pub enum DependencyGroup {
     Peer,
 }
 
-#[derive(Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum BundleDependencies {
     Boolean(bool),
@@ -75,7 +75,7 @@ impl PackageManifest {
             "description": "",
             "main": "index.js",
             "scripts": {
-              "test": "echo \"Error: no test specified\" && exit 1"
+              "test": r#"echo "Error: no test specified" && exit 1"#
             },
             "keywords": [],
             "author": "",
@@ -297,8 +297,9 @@ pub fn convert_engines_runtime_to_dependencies(
             single @ Value::Object(_) => std::slice::from_ref(single),
             _ => continue,
         };
-        let Some(runtime) =
-            runtimes.iter().find(|r| r.get("name").and_then(Value::as_str) == Some(runtime_name))
+        let Some(runtime) = runtimes
+            .iter()
+            .find(|runtime| runtime.get("name").and_then(Value::as_str) == Some(runtime_name))
         else {
             continue;
         };

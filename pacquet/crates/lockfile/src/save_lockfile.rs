@@ -124,7 +124,7 @@ fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> 
     let parent = target.parent().unwrap_or_else(|| Path::new("."));
     let file_name = target
         .file_name()
-        .map(|s| s.to_string_lossy().into_owned())
+        .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_else(|| String::from("lock.yaml"));
 
     let mut last_already_exists: Option<io::Error> = None;

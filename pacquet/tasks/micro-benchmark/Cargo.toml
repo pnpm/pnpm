@@ -30,3 +30,6 @@ pipe-trait   = { workspace = true }
 project-root = { workspace = true }
 ssri         = { workspace = true }
 node-semver  = { workspace = true }
+
+[lints]
+workspace = true

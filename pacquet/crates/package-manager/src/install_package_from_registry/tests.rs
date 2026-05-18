@@ -185,7 +185,7 @@ async fn no_lockfile_install_emits_progress_sequence() {
         .lock()
         .unwrap()
         .iter()
-        .filter_map(|e| match e {
+        .filter_map(|event| match event {
             LogEvent::Progress(log) => Some(log.message.clone()),
             _ => None,
         })
@@ -197,7 +197,7 @@ async fn no_lockfile_install_emits_progress_sequence() {
     // shape so a future re-ordering breaks the test.
     let kinds: Vec<&'static str> = progress
         .iter()
-        .map(|m| match m {
+        .map(|message| match message {
             ProgressMessage::Resolved { .. } => "resolved",
             ProgressMessage::Fetched { .. } => "fetched",
             ProgressMessage::FoundInStore { .. } => "found_in_store",

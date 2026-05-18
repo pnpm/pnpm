@@ -81,12 +81,12 @@ async fn fetch_from_registry_attaches_authorization_header() {
 fn package_with_versions(name: &str, versions: &[&str], latest: &str) -> Package {
     let versions_map = versions
         .iter()
-        .map(|v| {
+        .map(|version| {
             (
-                v.to_string(),
+                version.to_string(),
                 PackageVersion {
                     name: name.to_string(),
-                    version: Version::parse(v).unwrap(),
+                    version: Version::parse(version).unwrap(),
                     dist: PackageDistribution::default(),
                     dependencies: None,
                     dev_dependencies: None,

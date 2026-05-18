@@ -21,3 +21,6 @@ tokio       = { workspace = true }
 mockito           = { workspace = true }
 pretty_assertions = { workspace = true }
 tokio             = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

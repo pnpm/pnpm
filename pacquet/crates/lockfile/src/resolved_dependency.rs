@@ -14,7 +14,7 @@ use std::{
 pub type ResolvedDependencyMap = HashMap<PkgName, ResolvedDependencySpec>;
 
 /// Value type of [`ResolvedDependencyMap`].
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct ResolvedDependencySpec {
     pub specifier: String,
@@ -217,9 +217,9 @@ impl From<ImporterDepVersion> for String {
 }
 
 impl Serialize for ImporterDepVersion {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    fn serialize<Ser>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error>
     where
-        S: serde::Serializer,
+        Ser: serde::Serializer,
     {
         match self {
             ImporterDepVersion::Regular(v) => v.serialize(serializer),
@@ -233,9 +233,9 @@ impl Serialize for ImporterDepVersion {
 }
 
 impl<'de> Deserialize<'de> for ImporterDepVersion {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
     where
-        D: serde::Deserializer<'de>,
+        De: serde::Deserializer<'de>,
     {
         let raw = Cow::<'de, str>::deserialize(deserializer)?;
         raw.parse().map_err(serde::de::Error::custom)

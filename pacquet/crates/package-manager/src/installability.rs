@@ -103,13 +103,13 @@ impl SkippedSnapshots {
     /// (the seed is only consulted by `Set.has(depPath)`; a
     /// nonsense string never matches any current snapshot, so the
     /// orphan is harmless).
-    pub fn from_strings<I>(iter: I) -> Self
+    pub fn from_strings<Iter>(iter: Iter) -> Self
     where
-        I: IntoIterator,
-        I::Item: AsRef<str>,
+        Iter: IntoIterator,
+        Iter::Item: AsRef<str>,
     {
         let installability =
-            iter.into_iter().filter_map(|s| s.as_ref().parse::<PackageKey>().ok()).collect();
+            iter.into_iter().filter_map(|text| text.as_ref().parse::<PackageKey>().ok()).collect();
         Self { installability, ..Self::default() }
     }
 
@@ -286,7 +286,7 @@ impl InstallabilityHost {
 ///      reporter does not yet expose — slice 1 follow-up.
 ///    - `Err(InvalidNodeVersionError)`: surface as
 ///      `ERR_PNPM_INVALID_NODE_VERSION`.
-pub fn compute_skipped_snapshots<R: Reporter>(
+pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     packages: &HashMap<PackageKey, PackageMetadata>,
     host: &InstallabilityHost,
@@ -396,7 +396,7 @@ pub fn compute_skipped_snapshots<R: Reporter>(
             // Dedup events per metadata key, matching upstream's
             // emit-per-pkgId at `index.ts:49-58`.
             if seen_emit.insert(metadata_key.clone()) {
-                emit_skipped::<R>(
+                emit_skipped::<Reporter>(
                     &metadata_key.to_string(),
                     warn.skip_reason(),
                     warn.to_string(),
@@ -451,13 +451,15 @@ pub fn any_installability_constraint(packages: &HashMap<PackageKey, PackageMetad
 /// - `cpu` / `os` / `libc`: a `["any"]` value short-circuits to
 ///   "accept" inside `check_platform`'s `check_list`, and an empty
 ///   list cannot exclude the host either. Treat both as no-constraint.
-fn metadata_has_meaningful_constraint(m: &PackageMetadata) -> bool {
-    let engines_meaningful =
-        m.engines.as_ref().is_some_and(|e| e.contains_key("node") || e.contains_key("pnpm"));
+fn metadata_has_meaningful_constraint(metadata: &PackageMetadata) -> bool {
+    let engines_meaningful = metadata
+        .engines
+        .as_ref()
+        .is_some_and(|engines| engines.contains_key("node") || engines.contains_key("pnpm"));
     engines_meaningful
-        || platform_axis_meaningful(m.cpu.as_deref())
-        || platform_axis_meaningful(m.os.as_deref())
-        || platform_axis_meaningful(m.libc.as_deref())
+        || platform_axis_meaningful(metadata.cpu.as_deref())
+        || platform_axis_meaningful(metadata.os.as_deref())
+        || platform_axis_meaningful(metadata.libc.as_deref())
 }
 
 /// One axis of `cpu` / `os` / `libc` carries no constraint when the
@@ -473,23 +475,28 @@ fn platform_axis_meaningful(axis: Option<&[String]>) -> bool {
 
 fn manifest_from_metadata(metadata: &PackageMetadata) -> PackageInstallabilityManifest {
     PackageInstallabilityManifest {
-        engines: metadata
-            .engines
-            .as_ref()
-            .map(|m| WantedEngine { node: m.get("node").cloned(), pnpm: m.get("pnpm").cloned() }),
+        engines: metadata.engines.as_ref().map(|map| WantedEngine {
+            node: map.get("node").cloned(),
+            pnpm: map.get("pnpm").cloned(),
+        }),
         cpu: metadata.cpu.clone(),
         os: metadata.os.clone(),
         libc: metadata.libc.clone(),
     }
 }
 
-fn emit_skipped<R: Reporter>(pkg_id: &str, reason: SkipReason, details: String, prefix: &str) {
+fn emit_skipped<Reporter: self::Reporter>(
+    pkg_id: &str,
+    reason: SkipReason,
+    details: String,
+    prefix: &str,
+) {
     let (name, version) = split_name_version(pkg_id);
     let wire_reason = match reason {
         SkipReason::UnsupportedEngine => SkippedOptionalReason::UnsupportedEngine,
         SkipReason::UnsupportedPlatform => SkippedOptionalReason::UnsupportedPlatform,
     };
-    R::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
+    Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
         level: LogLevel::Debug,
         details: Some(details),
         package: SkippedOptionalPackage::Installed { id: pkg_id.to_string(), name, version },

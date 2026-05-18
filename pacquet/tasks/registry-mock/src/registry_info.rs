@@ -14,7 +14,7 @@ use std::{
 use sysinfo::{Pid, Signal};
 
 /// Information of a spawned mocked registry server instance.
-#[derive(Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RegistryInfo {
     pub port: u16,
     pub pid: u32,
@@ -28,7 +28,7 @@ impl RegistryInfo {
 
 /// Manage a single shared mocked registry server instance that is spawned by
 /// the CLI command.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PreparedRegistryInfo {
     pub info: RegistryInfo,
 }

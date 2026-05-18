@@ -63,13 +63,13 @@ fn writes_shim_flavors_matching_host_platform() {
         let cmd_body = read_to_string(&cmd).unwrap();
         assert!(cmd_body.starts_with("@SETLOCAL\r\n"), "cmd shim must use CRLF SETLOCAL");
         assert!(
-            cmd_body.contains("\"%~dp0\\..\\foo\\cli.js\""),
+            cmd_body.contains(r#""%~dp0\..\foo\cli.js""#),
             "cmd target should be windows-style",
         );
 
         let ps1_body = read_to_string(&ps1).unwrap();
         assert!(ps1_body.starts_with("#!/usr/bin/env pwsh\n"));
-        assert!(ps1_body.contains("\"$basedir/../foo/cli.js\""));
+        assert!(ps1_body.contains(r#""$basedir/../foo/cli.js""#));
     } else {
         assert!(!cmd.exists(), ".cmd shim must not be written on Unix (pnpm parity)");
         assert!(!ps1.exists(), ".ps1 shim must not be written on Unix (pnpm parity)");
@@ -104,7 +104,7 @@ fn writes_shim_for_bin_string() {
     assert!(shim_path.exists(), "shim should be created");
 
     let body = read_to_string(&shim_path).unwrap();
-    assert!(body.contains("\"$basedir/../foo/bin/cli.js\""), "shim body: {body}");
+    assert!(body.contains(r#""$basedir/../foo/bin/cli.js""#), "shim body: {body}");
     assert!(is_shim_pointing_at(&body, &pkg_dir.join("bin/cli.js")));
 
     #[cfg(unix)]

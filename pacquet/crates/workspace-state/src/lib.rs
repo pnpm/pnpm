@@ -37,7 +37,7 @@ pub fn get_file_path(workspace_dir: &Path) -> PathBuf {
 /// Per-project entry inside [`WorkspaceState::projects`]. Mirrors
 /// upstream's `{ name?, version? }` shape at
 /// <https://github.com/pnpm/pnpm/blob/7ff112bac6/workspace/state/src/types.ts>.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectEntry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -51,7 +51,7 @@ pub struct ProjectEntry {
 /// `lastValidatedTimestamp` is JS `Date.now()` — milliseconds since the
 /// Unix epoch — so pnpm's freshness checks (`mtime > lastValidated`)
 /// stay consistent across the two implementations.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceState {
     pub last_validated_timestamp: i64,
@@ -72,7 +72,7 @@ pub struct WorkspaceState {
 /// `Object.entries(workspaceState.settings)` loop simply skips. Match
 /// what the install actually used — if pacquet's resolved value differs
 /// from pnpm's, pnpm correctly reinstalls.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceStateSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -217,7 +217,10 @@ pub enum LoadWorkspaceStateError {
 /// Truncates to `i64` because the JSON field is signed and the year
 /// 2038-pre-292277026596 range is the only one that matters.
 pub fn now_millis() -> i64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis() as i64)
+        .unwrap_or(0)
 }
 
 #[cfg(test)]

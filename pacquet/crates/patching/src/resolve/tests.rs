@@ -127,6 +127,6 @@ fn range_preserves_user_specified_order() {
 
     let groups = resolve_and_group(workspace.path(), &input).unwrap().unwrap();
     let foo = groups.get("foo").expect("foo group");
-    let versions: Vec<&str> = foo.range.iter().map(|r| r.version.as_str()).collect();
+    let versions: Vec<&str> = foo.range.iter().map(|range| range.version.as_str()).collect();
     assert_eq!(versions, vec!["~1.2.0", "4", ">=5 <6"]);
 }

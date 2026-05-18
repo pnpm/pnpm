@@ -334,7 +334,7 @@ fn write_atomic_rename_failure_surfaces_as_rename_file_error() {
     // not have been left behind.
     let leftovers: Vec<_> = std::fs::read_dir(&virtual_store_dir)
         .unwrap()
-        .map(|e| e.unwrap().file_name())
+        .map(|entry| entry.unwrap().file_name())
         .filter(|name| {
             let s = name.to_string_lossy();
             s != Lockfile::CURRENT_FILE_NAME

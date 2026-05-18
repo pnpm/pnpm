@@ -22,3 +22,6 @@ pipe-trait        = { workspace = true }
 pretty_assertions = { workspace = true }
 tempfile          = { workspace = true }
 insta             = { workspace = true }
+
+[lints]
+workspace = true

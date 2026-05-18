@@ -271,7 +271,7 @@ fn file_equals_bytes_handles_multi_chunk_files() {
     let path = tmp.path().join("big");
 
     // 20 KB: at least three 8 KB chunks.
-    let content: Vec<u8> = (0..20_000).map(|i| (i % 251) as u8).collect();
+    let content: Vec<u8> = (0..20_000).map(|index| (index % 251) as u8).collect();
     fs::write(&path, &content).unwrap();
 
     assert!(file_equals_bytes(&path, &content).unwrap());

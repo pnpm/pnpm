@@ -25,7 +25,7 @@ use pacquet_package_is_installable::SupportedArchitectures;
 /// Flattened into the `InstallArgs` / `AddArgs` clap derives so the
 /// three flags appear under the regular `--help` output. Shared
 /// between the two so the wire shape is identical.
-#[derive(Debug, Args, Default, Clone)]
+#[derive(Debug, Default, Clone, Args)]
 pub struct SupportedArchitecturesArgs {
     /// CPU architectures whose platform-tagged optional dependencies
     /// should be kept. Repeat or comma-separate for multiple values.

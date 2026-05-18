@@ -147,21 +147,21 @@ pub(crate) fn strip_userinfo(mut url: Url) -> (Url, Option<(String, String)>) {
 /// workspace dep because the only call sites are the two halves of a
 /// proxy URL userinfo. The substitution table is exactly the
 /// `%XX → byte` form plus pass-through.
-pub(crate) fn percent_decode_str(s: &str) -> String {
-    let mut out = Vec::with_capacity(s.len());
-    let bytes = s.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'%' && i + 2 < bytes.len() {
-            let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).ok();
-            if let Some(byte) = hex.and_then(|h| u8::from_str_radix(h, 16).ok()) {
+pub(crate) fn percent_decode_str(text: &str) -> String {
+    let mut out = Vec::with_capacity(text.len());
+    let bytes = text.as_bytes();
+    let mut idx = 0;
+    while idx < bytes.len() {
+        if bytes[idx] == b'%' && idx + 2 < bytes.len() {
+            let hex = std::str::from_utf8(&bytes[idx + 1..idx + 3]).ok();
+            if let Some(byte) = hex.and_then(|hex_digits| u8::from_str_radix(hex_digits, 16).ok()) {
                 out.push(byte);
-                i += 3;
+                idx += 3;
                 continue;
             }
         }
-        out.push(bytes[i]);
-        i += 1;
+        out.push(bytes[idx]);
+        idx += 1;
     }
     String::from_utf8_lossy(&out).into_owned()
 }

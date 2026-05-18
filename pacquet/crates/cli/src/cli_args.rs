@@ -52,7 +52,7 @@ pub enum ReporterType {
     Silent,
 }
 
-#[derive(Subcommand, Debug)]
+#[derive(Debug, Subcommand)]
 pub enum CliCommand {
     /// Initialize a package.json
     Init,

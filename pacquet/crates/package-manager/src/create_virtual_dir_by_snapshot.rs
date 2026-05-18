@@ -77,7 +77,7 @@ pub enum CreateVirtualDirError {
 
 impl<'a> CreateVirtualDirBySnapshot<'a> {
     /// Execute the subroutine.
-    pub fn run<R: Reporter>(self) -> Result<(), CreateVirtualDirError> {
+    pub fn run<Reporter: self::Reporter>(self) -> Result<(), CreateVirtualDirError> {
         let CreateVirtualDirBySnapshot {
             layout,
             cas_paths,
@@ -109,7 +109,7 @@ impl<'a> CreateVirtualDirBySnapshot<'a> {
         // current stack frame.
         let (cas_result, symlink_result) = rayon::join(
             || {
-                import_indexed_dir::<R>(
+                import_indexed_dir::<Reporter>(
                     logged_methods,
                     import_method,
                     &save_path,
@@ -145,7 +145,7 @@ impl<'a> CreateVirtualDirBySnapshot<'a> {
         // explicit settings as-is). Refining to per-package resolution
         // would require threading the resolved method back from
         // `link_file`; tracked under #347.
-        R::emit(&LogEvent::Progress(ProgressLog {
+        Reporter::emit(&LogEvent::Progress(ProgressLog {
             level: LogLevel::Debug,
             message: ProgressMessage::Imported {
                 method: optimistic_wire_method(import_method),
