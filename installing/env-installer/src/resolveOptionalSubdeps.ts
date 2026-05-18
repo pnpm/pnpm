@@ -58,7 +58,9 @@ export async function resolveOptionalSubdeps (
         details: util.types.isNativeError(err) ? err.toString() : String(err),
         package: {
           name: subdepName,
-          version: undefined,
+          // No resolved version yet; surface the requested specifier so log
+          // consumers that format `${name}@${version}` don't render `@undefined`.
+          version: subdepSpec,
           bareSpecifier: subdepSpec,
         },
         parents: [{ id: `${parentName}@${parentManifest.version}`, name: parentName, version: parentManifest.version }],

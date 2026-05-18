@@ -1,9 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { packageIsInstallable } from '@pnpm/config.package-is-installable'
+import { checkPackage } from '@pnpm/config.package-is-installable'
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
-import { installingConfigDepsLogger } from '@pnpm/core-loggers'
+import { installingConfigDepsLogger, skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { calcGlobalVirtualStorePathWithSubdeps, calcLeafGlobalVirtualStorePath } from '@pnpm/deps.graph-hasher'
 import { PnpmError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
@@ -88,6 +88,7 @@ export async function installConfigDeps (
     if (pkg.optionalSubdeps?.length) {
       await installOptionalSubdeps({
         parentName: pkgName,
+        parentVersion: pkg.version,
         subdeps: pkg.optionalSubdeps,
         // path.dirname would land in the scope subdir for scoped parents; use
         // the leaf's node_modules root so sibling symlinks resolve correctly.
@@ -233,6 +234,7 @@ function readOptionalSubdepsFromLockfile (
 
 interface InstallOptionalSubdepsOpts {
   parentName: string
+  parentVersion: string
   subdeps: NormalizedSubdep[]
   parentNodeModulesDir: string
   globalVirtualStoreDir: string
@@ -241,13 +243,27 @@ interface InstallOptionalSubdepsOpts {
 }
 
 async function installOptionalSubdeps (opts: InstallOptionalSubdepsOpts): Promise<void> {
+  const parentLogInfo = { id: `${opts.parentName}@${opts.parentVersion}`, name: opts.parentName, version: opts.parentVersion }
   const compatibleSubdeps = opts.subdeps.filter((subdep) => {
     if (!subdep.os && !subdep.cpu && !subdep.libc) return true
-    return packageIsInstallable(
+    // Use checkPackage rather than packageIsInstallable: the latter emits a
+    // user-visible warn for every incompatible variant, which would fire on
+    // every install since the env lockfile records all platform variants for
+    // portability. We log skipped subdeps at debug instead.
+    const error = checkPackage(
       `${subdep.name}@${subdep.version}`,
-      { name: subdep.name, version: subdep.version, os: subdep.os, cpu: subdep.cpu, libc: subdep.libc },
-      { optional: true, lockfileDir: opts.rootDir }
-    ) === true
+      { os: subdep.os, cpu: subdep.cpu, libc: subdep.libc },
+      {}
+    )
+    if (error == null) return true
+    skippedOptionalDependencyLogger.debug({
+      details: error.toString(),
+      package: { id: `${subdep.name}@${subdep.version}`, name: subdep.name, version: subdep.version },
+      parents: [parentLogInfo],
+      prefix: opts.rootDir,
+      reason: error.code === 'ERR_PNPM_UNSUPPORTED_ENGINE' ? 'unsupported_engine' : 'unsupported_platform',
+    })
+    return false
   })
 
   const expectedSiblings = new Set([opts.parentName, ...compatibleSubdeps.map((s) => s.name)])
