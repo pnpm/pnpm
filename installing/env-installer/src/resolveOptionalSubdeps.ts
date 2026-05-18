@@ -1,4 +1,7 @@
+import util from 'node:util'
+
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
+import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
 import type { EnvLockfile } from '@pnpm/lockfile.fs'
 import type { ResolvedDependencies } from '@pnpm/lockfile.types'
@@ -44,8 +47,24 @@ export async function resolveOptionalSubdeps (
         preferredVersions: {},
         projectDir: opts.lockfileDir,
       })
-    } catch {
-      // npm's optionalDependencies semantics: a failed resolution is not fatal.
+    } catch (err: unknown) {
+      // Trust-downgrade is a security signal that must fail the install even
+      // for optional deps; everything else mirrors npm's optionalDependencies
+      // semantics — log and skip.
+      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ERR_PNPM_TRUST_DOWNGRADE') {
+        throw err
+      }
+      skippedOptionalDependencyLogger.debug({
+        details: util.types.isNativeError(err) ? err.toString() : String(err),
+        package: {
+          name: subdepName,
+          version: undefined,
+          bareSpecifier: subdepSpec,
+        },
+        parents: [{ id: `${parentName}@${parentManifest.version}`, name: parentName, version: parentManifest.version }],
+        prefix: opts.lockfileDir,
+        reason: 'resolution_failure',
+      })
       return
     }
     if (
