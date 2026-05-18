@@ -318,8 +318,8 @@ async function runTrustCheck (
     meta = await fetchFullMetaForTrust(context, registry, name)
   } catch (err) {
     // `fetchFullMetadataCached` rejects (network error, 404, etc.); the
-    // verifier fails closed so an unfetchable manifest can't be
-    // mistaken for a passing trust check.
+    // verifier fails closed so a missing manifest can't be mistaken
+    // for a passing trust check.
     return {
       ok: false,
       code: TRUST_DOWNGRADE_VIOLATION_CODE,
