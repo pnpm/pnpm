@@ -79,23 +79,23 @@ impl UnsupportedPlatformError {
     }
 }
 
-fn wanted_json(w: &WantedPlatform) -> String {
+fn wanted_json(wanted: &WantedPlatform) -> String {
     // Mirror upstream's `JSON.stringify(wanted)` shape: only the
     // fields actually set appear, and each is a JSON array.
     let mut parts = Vec::new();
-    if let Some(os) = &w.os {
+    if let Some(os) = &wanted.os {
         parts.push(format!("\"os\":{}", json_string_array(os)));
     }
-    if let Some(cpu) = &w.cpu {
+    if let Some(cpu) = &wanted.cpu {
         parts.push(format!("\"cpu\":{}", json_string_array(cpu)));
     }
-    if let Some(libc) = &w.libc {
+    if let Some(libc) = &wanted.libc {
         parts.push(format!("\"libc\":{}", json_string_array(libc)));
     }
     format!("{{{}}}", parts.join(","))
 }
 
-fn current_json(c: &Platform) -> String {
+fn current_json(current: &Platform) -> String {
     // Upstream constructs `{ os: platform, cpu: arch, libc: currentLibc }`
     // (single strings, not arrays). Mirror that shape.
     fn single(values: &[String]) -> String {
@@ -103,9 +103,9 @@ fn current_json(c: &Platform) -> String {
     }
     format!(
         "{{\"os\":{:?},\"cpu\":{:?},\"libc\":{:?}}}",
-        single(&c.os),
-        single(&c.cpu),
-        single(&c.libc),
+        single(&current.os),
+        single(&current.cpu),
+        single(&current.libc),
     )
 }
 
@@ -146,9 +146,9 @@ pub fn check_platform(
     current_libc: &str,
 ) -> Option<UnsupportedPlatformError> {
     let default_current = vec!["current".to_string()];
-    let os_supp = supported.and_then(|s| s.os.as_ref()).unwrap_or(&default_current);
-    let cpu_supp = supported.and_then(|s| s.cpu.as_ref()).unwrap_or(&default_current);
-    let libc_supp = supported.and_then(|s| s.libc.as_ref()).unwrap_or(&default_current);
+    let os_supp = supported.and_then(|supported| supported.os.as_ref()).unwrap_or(&default_current);
+    let cpu_supp = supported.and_then(|supported| supported.cpu.as_ref()).unwrap_or(&default_current);
+    let libc_supp = supported.and_then(|supported| supported.libc.as_ref()).unwrap_or(&default_current);
 
     let current = Platform {
         os: dedupe_current(current_os, os_supp),
@@ -202,7 +202,7 @@ pub fn check_platform(
 /// concrete host value. Ports upstream's `dedupeCurrent` at
 /// <https://github.com/pnpm/pnpm/blob/94240bc046/config/package-is-installable/src/checkPlatform.ts#L88-L90>.
 fn dedupe_current(current: &str, supported: &[String]) -> Vec<String> {
-    supported.iter().map(|s| if s == "current" { current.to_string() } else { s.clone() }).collect()
+    supported.iter().map(|item| if item == "current" { current.to_string() } else { item.clone() }).collect()
 }
 
 /// Decide whether any element of `value` is allowed by `list`.

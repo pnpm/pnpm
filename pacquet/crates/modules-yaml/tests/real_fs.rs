@@ -129,7 +129,7 @@ fn dep_path_serializes_transparently() {
         "publicHoistPattern": [],
     }));
     assert_eq!(
-        manifest.hoisted_aliases.as_ref().and_then(|m| m.keys().next()),
+        manifest.hoisted_aliases.as_ref().and_then(|map| map.keys().next()),
         Some(&DepPath::from("/accepts/1.3.7".to_string())),
     );
     let expected_ignored: IndexSet<DepPath> =

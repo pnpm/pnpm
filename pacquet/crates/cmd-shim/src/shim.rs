@@ -201,7 +201,7 @@ pub fn generate_sh_shim(
         // emits `exit $?` on this branch for parity with non-execve POSIX
         // shells.
         runtime_opt => {
-            let args = runtime_opt.map(|r| r.args.as_str()).unwrap_or("");
+            let args = runtime_opt.map(|runtime| runtime.args.as_str()).unwrap_or("");
             sh.push_str(&format!("{quoted_target} {args} \"$@\"\nexit $?\n"));
         }
     }
@@ -239,7 +239,7 @@ pub fn generate_cmd_shim(
             ));
         }
         runtime_opt => {
-            let args = runtime_opt.map(|r| r.args.as_str()).unwrap_or("");
+            let args = runtime_opt.map(|runtime| runtime.args.as_str()).unwrap_or("");
             // No runtime detected, so exec the target directly.
             cmd.push_str(&format!("@{quoted_target} {args} %*\r\n"));
         }
@@ -294,7 +294,7 @@ pub fn generate_pwsh_shim(
             writeln!(pwsh, "exit $ret").unwrap();
         }
         runtime_opt => {
-            let args = runtime_opt.map(|r| r.args.as_str()).unwrap_or("");
+            let args = runtime_opt.map(|runtime| runtime.args.as_str()).unwrap_or("");
             writeln!(pwsh).unwrap();
             writeln!(pwsh, "# Support pipeline input").unwrap();
             writeln!(pwsh, "if ($MyInvocation.ExpectingInput) {{").unwrap();

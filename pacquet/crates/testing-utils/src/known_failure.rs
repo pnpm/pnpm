@@ -10,7 +10,7 @@ impl KnownFailure {
     }
 }
 
-pub type KnownResult<T> = Result<T, KnownFailure>;
+pub type KnownResult<Value> = Result<Value, KnownFailure>;
 
 /// Continue a ported test only after the stubbed subject under test is implemented.
 #[macro_export]

@@ -25,7 +25,7 @@ fn expands_packages_glob() {
 
     let names: Vec<String> = projects
         .iter()
-        .map(|p| p.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
+        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
         .collect();
     // Sorted lex by rootDir → root then alpha then beta.
     assert_eq!(names, vec!["root".to_string(), "alpha".to_string(), "beta".to_string()]);
@@ -47,7 +47,7 @@ fn always_includes_workspace_root() {
 
     let names: Vec<String> = projects
         .iter()
-        .map(|p| p.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
+        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
         .collect();
     assert_eq!(names, vec!["root".to_string(), "web".to_string()]);
 }
@@ -67,7 +67,7 @@ fn filters_node_modules() {
 
     let names: Vec<String> = projects
         .iter()
-        .map(|p| p.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
+        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
         .collect();
     assert!(
         !names.contains(&"foo".to_string()),
@@ -97,7 +97,7 @@ fn dedupes_overlapping_patterns() {
 
     let names: Vec<String> = projects
         .iter()
-        .map(|p| p.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
+        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
         .collect();
     assert_eq!(names, vec!["root".to_string(), "alpha".to_string()]);
 }
@@ -113,7 +113,7 @@ fn default_patterns_when_packages_omitted() {
 
     let names: Vec<String> = projects
         .iter()
-        .map(|p| p.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
+        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
         .collect();
     // `.` + `**` enumerates everything.
     assert_eq!(names, vec!["root".to_string(), "web".to_string()]);
@@ -139,7 +139,7 @@ fn empty_patterns_array_enumerates_root_only() {
 
     let names: Vec<String> = projects
         .iter()
-        .map(|p| p.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
+        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
         .collect();
     // Only the workspace root surfaces — `web` is not enumerated.
     assert_eq!(names, vec!["root".to_string()]);

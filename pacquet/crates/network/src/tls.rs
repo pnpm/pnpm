@@ -278,7 +278,7 @@ fn strip_port(url: &str) -> String {
     // IPv6 literals like `[::1]:8080` have `:` inside the brackets;
     // find the port colon only *after* a closing `]` when present.
     let port_colon = if let Some(bracket_end) = host_segment.find(']') {
-        host_segment[bracket_end..].find(':').map(|i| bracket_end + i)
+        host_segment[bracket_end..].find(':').map(|offset| bracket_end + offset)
     } else {
         host_segment.find(':')
     };

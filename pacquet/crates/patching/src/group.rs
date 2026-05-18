@@ -48,11 +48,11 @@ pub struct PatchNonSemverRangeError {
 /// over a later explicit `name@*`: upstream uses the bare-name branch
 /// last, so a bare `name` key overwrites whatever the `*` branch set.
 /// Pacquet matches that behavior.
-pub fn group_patched_dependencies<I>(
-    entries: I,
+pub fn group_patched_dependencies<Iter>(
+    entries: Iter,
 ) -> Result<PatchGroupRecord, PatchNonSemverRangeError>
 where
-    I: IntoIterator<Item = (String, PatchInput)>,
+    Iter: IntoIterator<Item = (String, PatchInput)>,
 {
     let mut result: PatchGroupRecord = PatchGroupRecord::new();
 

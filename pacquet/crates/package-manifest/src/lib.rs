@@ -298,7 +298,7 @@ pub fn convert_engines_runtime_to_dependencies(
             _ => continue,
         };
         let Some(runtime) =
-            runtimes.iter().find(|r| r.get("name").and_then(Value::as_str) == Some(runtime_name))
+            runtimes.iter().find(|runtime| runtime.get("name").and_then(Value::as_str) == Some(runtime_name))
         else {
             continue;
         };

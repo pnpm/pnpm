@@ -52,9 +52,9 @@ pub fn create_hex_hash_from_file(path: &Path) -> Result<String, CalcPatchHashErr
 /// `patchedDependencies` keys (e.g. `lodash@4.17.21`); the values
 /// are absolute patch file paths and are replaced with their
 /// per-file hex digests.
-pub fn calc_patch_hashes<I>(patches: I) -> Result<BTreeMap<String, String>, CalcPatchHashError>
+pub fn calc_patch_hashes<Iter>(patches: Iter) -> Result<BTreeMap<String, String>, CalcPatchHashError>
 where
-    I: IntoIterator<Item = (String, PathBuf)>,
+    Iter: IntoIterator<Item = (String, PathBuf)>,
 {
     let mut result = BTreeMap::new();
     for (key, path) in patches {

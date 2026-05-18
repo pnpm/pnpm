@@ -10,7 +10,7 @@ fn input(hash: &str) -> PatchInput {
 }
 
 fn entries(keys: &[&str]) -> Vec<(String, PatchInput)> {
-    keys.iter().map(|k| (k.to_string(), input(ZERO_HASH))).collect()
+    keys.iter().map(|key| (key.to_string(), input(ZERO_HASH))).collect()
 }
 
 /// `all_patch_keys` iteration order is part of the contract —

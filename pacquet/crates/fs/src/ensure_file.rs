@@ -38,9 +38,9 @@ const ENFILE: i32 = 23;
 /// the helper is a thin pass-through there — the trailing `op()`
 /// after the `cfg(unix)` block is the one and only attempt on that
 /// platform. Pacquet's Windows build path otherwise stays unchanged.
-fn retry_on_fd_pressure<F, T>(mut op: F) -> io::Result<T>
+fn retry_on_fd_pressure<Func, Value>(mut op: Func) -> io::Result<Value>
 where
-    F: FnMut() -> io::Result<T>,
+    Func: FnMut() -> io::Result<Value>,
 {
     #[cfg(unix)]
     {
@@ -482,7 +482,7 @@ fn temp_path_for(file_path: &Path) -> PathBuf {
     let pid = std::process::id();
 
     let parent = file_path.parent().unwrap_or_else(|| Path::new("."));
-    let name = file_path.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+    let name = file_path.file_name().map(|file_name| file_name.to_string_lossy().into_owned()).unwrap_or_default();
     let base = strip_dash_suffix(&name);
 
     parent.join(format!("{base}{pid}{counter}"))

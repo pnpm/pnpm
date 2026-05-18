@@ -65,7 +65,7 @@ impl Package {
         let mut satisfied_versions = self
             .versions
             .values()
-            .filter(|v| v.version.satisfies(&range))
+            .filter(|version| version.version.satisfies(&range))
             .collect::<Vec<&PackageVersion>>();
 
         satisfied_versions.sort_by(|a, b| a.version.partial_cmp(&b.version).unwrap());

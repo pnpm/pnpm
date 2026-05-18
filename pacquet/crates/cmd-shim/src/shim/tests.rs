@@ -358,7 +358,7 @@ fn read_head_filled_real_fs_long_file_fills_buffer() {
     use tempfile::tempdir;
     let tmp = tempdir().unwrap();
     let path = tmp.path().join("long");
-    let payload: Vec<u8> = (0..1024).map(|i| (i % 251) as u8).collect();
+    let payload: Vec<u8> = (0..1024).map(|index| (index % 251) as u8).collect();
     std::fs::write(&path, &payload).unwrap();
 
     let mut buf = [0u8; 256];

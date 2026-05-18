@@ -186,9 +186,9 @@ pub fn find_workspace_projects_no_check(
     // `package.json` the two orderings coincide. Keep the explicit
     // sort below to make the contract visible.
     let mut sorted: Vec<PathBuf> = manifest_paths.into_iter().collect();
-    sorted.sort_by(|a, b| {
-        let dir_a = a.parent().unwrap_or(Path::new(""));
-        let dir_b = b.parent().unwrap_or(Path::new(""));
+    sorted.sort_by(|left, right| {
+        let dir_a = left.parent().unwrap_or(Path::new(""));
+        let dir_b = right.parent().unwrap_or(Path::new(""));
         dir_a.cmp(dir_b)
     });
 
