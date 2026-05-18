@@ -762,7 +762,7 @@ trustPolicyIgnoreAfter: 525600
     assert_eq!(config.minimum_release_age_strict, Some(true));
     assert!(config.resolved_minimum_release_age_strict());
     assert_eq!(config.trust_policy, TrustPolicy::NoDowngrade);
-    assert_eq!(config.trust_policy_exclude.as_deref(), Some(&["@scope/legacy".to_string()][..]),);
+    assert_eq!(config.trust_policy_exclude.as_deref(), Some(&["@scope/legacy".to_string()][..]));
     assert_eq!(config.trust_policy_ignore_after, Some(525_600));
 }
 

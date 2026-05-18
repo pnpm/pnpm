@@ -21,8 +21,8 @@ use std::fs;
 /// `minimumReleaseAge` set to 100 years rejects every version the
 /// mocked registry has ever served. The install fails before any
 /// tarball is fetched; stderr names the
-/// `MINIMUM_RELEASE_AGE_VIOLATION` code so log consumers and
-/// `pnpm errors` URL routing both work.
+/// `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION` code so log consumers
+/// and `pnpm errors` URL routing both work.
 #[test]
 fn install_fails_under_huge_minimum_release_age() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -79,7 +79,7 @@ fn install_fails_under_huge_minimum_release_age() {
     );
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
     assert!(
-        stderr.contains("MINIMUM_RELEASE_AGE_VIOLATION"),
+        stderr.contains("ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION"),
         "stderr must name the upstream-canonical diagnostic code; got:\n{stderr}",
     );
 

@@ -665,13 +665,17 @@ pub struct Config {
     /// before pacquet accepts it. Drives the
     /// `MINIMUM_RELEASE_AGE_VIOLATION` verifier check on every
     /// `(name, version)` entry the lockfile loads under this policy.
-    /// `None` disables the check.
+    /// `None` disables the check entirely.
     ///
+    /// Default: `Some(1440)` (24 hours), matching upstream pnpm's
+    /// built-in at
+    /// [`config/reader/src/index.ts:176`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L176).
     /// Mirrors pnpm's
     /// [`minimumReleaseAge`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L264)
     /// in minutes — the same unit pnpm's CLI / yaml accept and pnpm
     /// forwards verbatim through `extendInstallOptions` to the
     /// verifier.
+    #[default(_code = "Some(24 * 60)")]
     pub minimum_release_age: Option<u64>,
 
     /// Glob-style `name[@version]` patterns that opt specific packages
@@ -740,16 +744,23 @@ impl Config {
     }
 
     /// Effective value of [`Self::minimum_release_age_strict`].
-    /// Mirrors upstream's conditional default at
-    /// [`pnpm.io/settings`](https://pnpm.io/settings#minimumreleaseagestrict):
-    /// when the user did not explicitly set the flag, it defaults to
-    /// `true` if [`Self::minimum_release_age`] is set and `false`
-    /// otherwise. The verifier itself does not gate on this flag —
-    /// it's the resolver path that uses it — so this resolver lives
-    /// on `Config` for callers that eventually want it (today: none,
-    /// since pacquet's resolver isn't ported yet).
+    /// Returns the user-supplied value when set, else `false`.
+    ///
+    /// Upstream pnpm flips this to `true` when the user *explicitly*
+    /// set `minimumReleaseAge` (see
+    /// [`config/reader/src/index.ts`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts)'s
+    /// post-parse hook), but the "explicitly set vs default" check
+    /// relies on the `explicitlySetKeys` tracker pnpm's reader
+    /// maintains, which pacquet's config layer doesn't have yet.
+    /// Without that, distinguishing the built-in 1440-minute default
+    /// from a user-typed `minimumReleaseAge: 1440` isn't possible,
+    /// so this resolver stays conservative: explicit `true` /
+    /// `false` from yaml wins, otherwise `false`. The verifier
+    /// itself doesn't gate on this flag — it's resolver-only — so
+    /// the conservative default is dormant until pacquet ports the
+    /// resolver and the `explicitlySetKeys` mechanism alongside it.
     pub fn resolved_minimum_release_age_strict(&self) -> bool {
-        self.minimum_release_age_strict.unwrap_or_else(|| self.minimum_release_age.is_some())
+        self.minimum_release_age_strict.unwrap_or(false)
     }
 
     /// Whether the install should consult the side-effects cache.

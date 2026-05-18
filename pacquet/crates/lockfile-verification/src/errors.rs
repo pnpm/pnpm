@@ -52,7 +52,7 @@ pub enum VerifyError {
     /// `MINIMUM_RELEASE_AGE_VIOLATION`. Per-policy code preserved so
     /// existing handlers / docs route correctly.
     #[display("{count} lockfile entries failed verification:\n{breakdown}")]
-    #[diagnostic(code(MINIMUM_RELEASE_AGE_VIOLATION), help("{HINT}"))]
+    #[diagnostic(code(ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION), help("{HINT}"))]
     MinimumReleaseAgeViolation {
         #[error(not(source))]
         count: usize,
@@ -61,7 +61,7 @@ pub enum VerifyError {
 
     /// Every violation tripped `TRUST_DOWNGRADE`.
     #[display("{count} lockfile entries failed verification:\n{breakdown}")]
-    #[diagnostic(code(TRUST_DOWNGRADE), help("{HINT}"))]
+    #[diagnostic(code(ERR_PNPM_TRUST_DOWNGRADE), help("{HINT}"))]
     TrustDowngrade {
         #[error(not(source))]
         count: usize,
@@ -73,7 +73,7 @@ pub enum VerifyError {
     /// `LOCKFILE_RESOLUTION_VERIFICATION` and each entry's code goes
     /// into the breakdown.
     #[display("{count} lockfile entries failed verification:\n{breakdown}")]
-    #[diagnostic(code(LOCKFILE_RESOLUTION_VERIFICATION), help("{HINT}"))]
+    #[diagnostic(code(ERR_PNPM_LOCKFILE_RESOLUTION_VERIFICATION), help("{HINT}"))]
     LockfileResolutionVerification {
         #[error(not(source))]
         count: usize,

@@ -1992,6 +1992,13 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
     // Keep retries minimal — 127.0.0.1:1 fails immediately on every
     // try, but a long retry schedule would dominate the test runtime.
     config.fetch_retries = 0;
+    // The lockfile-verification gate is unrelated to what this test
+    // exercises (optional-tarball swallow path). Disable
+    // `minimumReleaseAge` so the gate doesn't try to fetch metadata
+    // for `broken-pkg` against the unreachable default registry
+    // (which would fail closed with a verifier violation and abort
+    // the install before the optional-snapshot code path runs).
+    config.minimum_release_age = None;
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(BROKEN_OPTIONAL_LOCKFILE)
