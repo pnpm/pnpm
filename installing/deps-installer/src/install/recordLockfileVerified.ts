@@ -1,6 +1,3 @@
-import path from 'node:path'
-
-import { WANTED_LOCKFILE } from '@pnpm/constants'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 
@@ -9,7 +6,14 @@ import { recordVerification } from './verifyLockfileResolutionsCache.js'
 
 export interface RecordLockfileVerifiedOptions {
   cacheDir?: string
-  lockfileDir: string
+  /**
+   * Absolute path of the lockfile that was just written. Must match
+   * the path the next install will read from — under
+   * `useGitBranchLockfile` that is the branch-suffixed filename, not
+   * the default `pnpm-lock.yaml`. Resolve via `getWantedLockfileName`
+   * before calling.
+   */
+  lockfilePath: string
   lockfile: LockfileObject
   resolutionVerifiers: readonly ResolutionVerifier[] | undefined
 }
@@ -39,7 +43,7 @@ export function recordLockfileVerified (opts: RecordLockfileVerifiedOptions): vo
   if (!opts.resolutionVerifiers?.length) return
   if (!opts.lockfile.packages) return
   recordVerification(opts.cacheDir, {
-    lockfilePath: path.resolve(opts.lockfileDir, WANTED_LOCKFILE),
+    lockfilePath: opts.lockfilePath,
     verifiers: opts.resolutionVerifiers,
     hashLockfile: () => hashLockfile(opts.lockfile),
   })

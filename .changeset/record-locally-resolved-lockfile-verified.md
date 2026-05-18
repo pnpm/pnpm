@@ -1,5 +1,6 @@
 ---
 "@pnpm/installing.deps-installer": patch
+"@pnpm/lockfile.fs": minor
 "pnpm": patch
 ---
 

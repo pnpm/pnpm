@@ -14,11 +14,13 @@ import { tryLockfileVerificationCache } from '../../src/install/verifyLockfileRe
 let tmpDir!: string
 let cacheDir!: string
 let lockfileDir!: string
+let lockfilePath!: string
 
 beforeEach(async () => {
   tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-record-verified-'))
   cacheDir = path.join(tmpDir, 'cache')
   lockfileDir = path.join(tmpDir, 'project')
+  lockfilePath = path.resolve(lockfileDir, WANTED_LOCKFILE)
   await fs.promises.mkdir(lockfileDir, { recursive: true })
 })
 
@@ -60,7 +62,7 @@ function makeLockfile (): LockfileObject {
 test('no-op when cacheDir is undefined', () => {
   recordLockfileVerified({
     cacheDir: undefined,
-    lockfileDir,
+    lockfilePath,
     lockfile: makeLockfile(),
     resolutionVerifiers: [mraVerifier(60)],
   })
@@ -70,7 +72,7 @@ test('no-op when cacheDir is undefined', () => {
 test('no-op when resolutionVerifiers is empty', () => {
   recordLockfileVerified({
     cacheDir,
-    lockfileDir,
+    lockfilePath,
     lockfile: makeLockfile(),
     resolutionVerifiers: [],
   })
@@ -80,7 +82,7 @@ test('no-op when resolutionVerifiers is empty', () => {
 test('no-op when resolutionVerifiers is undefined', () => {
   recordLockfileVerified({
     cacheDir,
-    lockfileDir,
+    lockfilePath,
     lockfile: makeLockfile(),
     resolutionVerifiers: undefined,
   })
@@ -91,7 +93,7 @@ test('records nothing when the in-memory lockfile has no packages', async () => 
   await writeWantedLockfile(lockfileDir, makeLockfile())
   recordLockfileVerified({
     cacheDir,
-    lockfileDir,
+    lockfilePath,
     lockfile: { lockfileVersion: '9.0', importers: {} } as unknown as LockfileObject,
     resolutionVerifiers: [mraVerifier(60)],
   })
@@ -103,7 +105,7 @@ test('records the load-equivalent hash — matches what the next install compute
   await writeWantedLockfile(lockfileDir, writtenLockfile)
   recordLockfileVerified({
     cacheDir,
-    lockfileDir,
+    lockfilePath,
     lockfile: writtenLockfile,
     resolutionVerifiers: [mraVerifier(60)],
   })
@@ -118,9 +120,31 @@ test('records the load-equivalent hash — matches what the next install compute
 
   const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
   const record = JSON.parse(fs.readFileSync(cacheFile, 'utf8').trim()) as {
-    lockfile: { hash: string }
+    lockfile: { hash: string, path: string }
   }
   expect(record.lockfile.hash).toBe(expectedHash)
+  expect(record.lockfile.path).toBe(lockfilePath)
+})
+
+test('respects the caller-supplied lockfilePath — git-branch lockfiles record under their branch-suffixed filename', async () => {
+  // Simulates `useGitBranchLockfile`: the actual on-disk lockfile is
+  // pnpm-lock.<branch>.yaml, not pnpm-lock.yaml. The helper has no
+  // git logic of its own — it records whatever path the caller hands
+  // it, so cache lookups on the same path will hit.
+  const branchLockfilePath = path.resolve(lockfileDir, 'pnpm-lock.feature-x.yaml')
+  await fs.promises.writeFile(branchLockfilePath, 'lockfileVersion: \'9.0\'\n')
+  const lockfile = makeLockfile()
+  recordLockfileVerified({
+    cacheDir,
+    lockfilePath: branchLockfilePath,
+    lockfile,
+    resolutionVerifiers: [mraVerifier(60)],
+  })
+  const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
+  const record = JSON.parse(fs.readFileSync(cacheFile, 'utf8').trim()) as {
+    lockfile: { path: string }
+  }
+  expect(record.lockfile.path).toBe(branchLockfilePath)
 })
 
 test('records a cache entry that the next install hits on both the stat shortcut and hash fallback paths', async () => {
@@ -128,11 +152,10 @@ test('records a cache entry that the next install hits on both the stat shortcut
   await writeWantedLockfile(lockfileDir, lockfile)
   recordLockfileVerified({
     cacheDir,
-    lockfileDir,
+    lockfilePath,
     lockfile,
     resolutionVerifiers: [mraVerifier(60)],
   })
-  const lockfilePath = path.resolve(lockfileDir, WANTED_LOCKFILE)
   const loaded = (await readWantedLockfile(lockfileDir, { ignoreIncompatible: false }))!
 
   // Stat shortcut: file untouched since record.

@@ -42,6 +42,7 @@ import { writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import {
   type CatalogSnapshots,
   cleanGitBranchLockfiles,
+  getWantedLockfileName,
   type LockfileObject,
   type ProjectSnapshot,
   readWantedLockfile,
@@ -359,10 +360,18 @@ export async function mutateModules (
   // resolver's own filters already cover fresh resolution. We run this
   // exactly once, right after the lockfile is loaded from disk, before any
   // path branches.
+  // Resolve the actual lockfile filename so cache records key on the
+  // file the install really reads/writes — under useGitBranchLockfile
+  // that's a branch-suffixed name, not WANTED_LOCKFILE.
+  const wantedLockfileName = await getWantedLockfileName({
+    useGitBranchLockfile: opts.useGitBranchLockfile,
+    mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+  })
+  const wantedLockfilePath = path.resolve(ctx.lockfileDir, wantedLockfileName)
   try {
     await verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
       cacheDir: opts.cacheDir,
-      lockfilePath: path.resolve(ctx.lockfileDir, WANTED_LOCKFILE),
+      lockfilePath: wantedLockfilePath,
     })
   } catch (err) {
     // verifyLockfileResolutions is the one throw site in this function
@@ -1258,6 +1267,15 @@ type InstallFunction = (
 ) => Promise<InstallFunctionResult>
 
 const _installInContext: InstallFunction = async (projects, ctx, opts) => {
+  // Resolve the actual lockfile path the install will write to, matching
+  // what useGitBranchLockfile picks. Same value is computed by the gate
+  // in mutateModules — recompute here because we're below the call
+  // boundary and don't have it threaded through.
+  const wantedLockfilePath = path.resolve(ctx.lockfileDir, await getWantedLockfileName({
+    useGitBranchLockfile: opts.useGitBranchLockfile,
+    mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+  }))
+
   // The wanted lockfile is mutated during installation. To compare changes, a
   // deep copy before installation is needed. This copy should represent the
   // original wanted lockfile on disk as close as possible.
@@ -1670,7 +1688,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           // so that next run takes the cache fast path.
           recordLockfileVerified({
             cacheDir: opts.cacheDir,
-            lockfileDir: ctx.lockfileDir,
+            lockfilePath: wantedLockfilePath,
             lockfile: newLockfile,
             resolutionVerifiers: opts.resolutionVerifiers,
           })
@@ -1730,7 +1748,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       await writeWantedLockfile(ctx.lockfileDir, newLockfile, lockfileOpts)
       recordLockfileVerified({
         cacheDir: opts.cacheDir,
-        lockfileDir: ctx.lockfileDir,
+        lockfilePath: wantedLockfilePath,
         lockfile: newLockfile,
         resolutionVerifiers: opts.resolutionVerifiers,
       })
@@ -2285,9 +2303,13 @@ async function installFromPnpmRegistry (
     // The agent enforces minimumReleaseAge server-side (and no-downgrade
     // is refused upstream at the agent gate), so the agent-resolved
     // lockfile is policy-clean under the verifiers we'd run locally.
+    const agentLockfileName = await getWantedLockfileName({
+      useGitBranchLockfile: opts.useGitBranchLockfile,
+      mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+    })
     recordLockfileVerified({
       cacheDir: opts.cacheDir,
-      lockfileDir,
+      lockfilePath: path.resolve(lockfileDir, agentLockfileName),
       lockfile,
       resolutionVerifiers: opts.resolutionVerifiers,
     })
