@@ -149,71 +149,35 @@ fn force_symlink_dir_creates_missing_parent_directories() {
     assert_eq!(resolved_link, resolved_target);
 }
 
-/// On Windows, a target and link that live on different drives have
-/// no relative path between them. Node.js's `path.win32.relative`
-/// returns the absolute target in that case, and so must pacquet.
-/// Pre-fix, `pathdiff::diff_paths` would walk the components and emit
-/// a nonsense path that re-anchored mid-string (`..\..\C:\Users\...`),
-/// which Windows rejects with `ERROR_INVALID_PARAMETER` (os error 87).
-/// This is the failure mode CI hits when the workspace lives on `D:`
-/// and the global store (set up by `setup-pnpm`) lives on `C:`.
-///
-/// The test runs as a pure-function check, with no real symlink
-/// created, so it stays portable across hosts. Only the Windows
-/// path-parser arithmetic is being exercised, and `Path` parses
-/// drive-letter prefixes on every target.
+/// Regression for the Windows CI failure where the workspace lives
+/// on `D:` and the global store (installed by `setup-pnpm`) lives on
+/// `C:`: `pathdiff::diff_paths` produced a re-anchored garbage path
+/// that Windows rejected with `ERROR_INVALID_PARAMETER` (os error 87).
 #[cfg(windows)]
 #[test]
 fn windows_cross_drive_symlink_target_falls_back_to_absolute() {
     let target = Path::new(r"C:\Users\runneradmin\setup-pnpm\store\@babel\plugin-x");
     let link = Path::new(r"D:\a\pnpm\pnpm\node_modules\@babel\plugin-x");
 
-    let computed = relative_target_for(target, link);
-
-    assert_eq!(
-        computed, target,
-        "cross-drive target must be passed through as absolute, not a fabricated `..` chain",
-    );
+    assert_eq!(relative_target_for(target, link), target);
 }
 
-/// Sanity-check the same-drive happy path: when target and link share
-/// a drive root, `relative_target_for` still emits a relative path
-/// (the pnpm `symlink-dir` parity that the Unix tests exercise too).
 #[cfg(windows)]
 #[test]
 fn windows_same_drive_symlink_target_stays_relative() {
     let target = Path::new(r"C:\workspace\packages\pkg-a");
     let link = Path::new(r"C:\workspace\app\node_modules\pkg-a");
 
-    let computed = relative_target_for(target, link);
-
-    assert!(
-        computed.is_relative(),
-        "same-drive target should still be encoded relative to the link parent, got {computed:?}",
-    );
+    assert!(relative_target_for(target, link).is_relative());
 }
 
-/// When one side is a verbatim Windows path (`\\?\C:\...`) and the
-/// other is the plain form (`C:\...`), `relative_target_for` must
-/// still recognize them as the same physical drive and emit a
-/// relative target. Pre-fix, `Prefix::VerbatimDisk('C')` and
-/// `Prefix::Disk('C')` compared unequal, so the cross-root fallback
-/// would fire and the symlink would carry an absolute target even
-/// though the two paths share a drive. The `dunce::simplified`
-/// normalization in `relative_target_for` collapses both forms onto
-/// `Prefix::Disk`.
 #[cfg(windows)]
 #[test]
 fn windows_verbatim_and_plain_disk_resolve_to_same_root() {
     let target = Path::new(r"\\?\C:\workspace\packages\pkg-a");
     let link = Path::new(r"C:\workspace\app\node_modules\pkg-a");
 
-    let computed = relative_target_for(target, link);
-
-    assert!(
-        computed.is_relative(),
-        "verbatim and plain disk forms of the same drive must produce a relative target, got {computed:?}",
-    );
+    assert!(relative_target_for(target, link).is_relative());
 }
 
 /// After [`force_symlink_dir`] places a symlink, [`read_symlink_dir`]

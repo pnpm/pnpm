@@ -36,30 +36,10 @@ pub fn symlink_dir(original: &Path, link: &Path) -> io::Result<()> {
 /// link's parent directory to `original`. Mirrors upstream's
 /// `resolveSrcOnTrueSymlink(src, dest) = path.relative(path.dirname(dest), src)`.
 ///
-/// Callers in pacquet always pass absolute paths; if `pathdiff` cannot
-/// produce a relative form (one side is relative, or they live on
-/// different roots), fall back to the absolute `original` so the kernel
-/// still gets a valid path. This matches upstream's behavior when
-/// `path.relative` returns an absolute path because the two arguments
-/// share no common root.
-///
-/// On Windows the "different roots" guard has to be explicit:
-/// `pathdiff::diff_paths` walks components and treats two unequal
-/// `Component::Prefix` values (e.g. `C:` vs. `D:`) as just another
-/// mismatch, producing a path that climbs out with `..` and then
-/// re-anchors with a drive letter (`..\..\C:\Users\...`). Windows
-/// rejects such a target with `ERROR_INVALID_PARAMETER` (os error 87),
-/// which is the failure mode CI on Windows hits when the project lives
-/// on `D:` and the global store (installed by `setup-pnpm`) lives on
-/// `C:`. Node.js's `path.win32.relative` returns the absolute `to`
-/// argument in this case; we do the same.
-///
-/// Inputs are run through [`dunce::simplified`](https://docs.rs/dunce/latest/dunce/fn.simplified.html)
-/// before the prefix comparison so that mixed verbatim and non-verbatim
-/// forms of the same drive (`\\?\C:\foo` and `C:\bar`) normalize to a
-/// common `Prefix::Disk`. Without that, `pathdiff::diff_paths` would
-/// emit garbage even when both paths name the same physical drive, and
-/// the relative-target branch would never be taken.
+/// Returns an absolute path when no relative form exists between the
+/// two arguments. This matches Node.js's `path.win32.relative`, which
+/// returns the absolute `to` argument when the paths share no common
+/// root (different drives, different UNC shares).
 fn relative_target_for(original: &Path, link: &Path) -> PathBuf {
     let parent = link.parent().unwrap_or_else(|| Path::new(""));
     relative_target_inner(original, parent)
@@ -80,25 +60,16 @@ fn relative_target_inner(original: &Path, parent: &Path) -> PathBuf {
     pathdiff::diff_paths(original, parent).unwrap_or_else(|| original.to_path_buf())
 }
 
-/// Whether `a` and `b` share a Windows path root, meaning the same
-/// drive letter, the same UNC share, or both rootless. Drive letters
-/// are uppercased before comparing because NTFS is case-insensitive
-/// and Node.js's `path.win32.relative` lowercases before comparing.
+/// Whether `a` and `b` share a Windows path root: same drive letter
+/// (case-insensitive), same UNC share, or both rootless.
 ///
-/// The comparison is *variant-strict*: `Prefix::Disk('C')` and
-/// `Prefix::VerbatimDisk('C')` are treated as different roots, and
-/// the same goes for `UNC` vs. `VerbatimUNC`. Callers should pre-
-/// simplify inputs with `dunce::simplified` so the common
-/// short-path mixed-form case (e.g., `\\?\C:\foo` paired with
-/// `C:\bar`) collapses onto a common variant before this check.
-/// Collapsing the variants in this function instead would be
-/// unsafe: `pathdiff::diff_paths` itself walks `Component::Prefix`
-/// for equality, so a variant-tolerant `same_path_root` would
-/// declare two paths same-root but the downstream diff would still
-/// emit a re-anchored garbage path on the verbatim-vs-plain pair
-/// `dunce::simplified` declined to simplify (e.g., a verbatim path
-/// past the non-verbatim length limit). Falling back to the
-/// absolute target is the safe outcome in that edge case.
+/// Comparison is variant-strict — `Prefix::Disk` and
+/// `Prefix::VerbatimDisk` (and the UNC analogues) are different roots
+/// here. Collapsing the variants would let `pathdiff::diff_paths`
+/// downstream walk into a verbatim-vs-plain pair it cannot relate,
+/// emitting a re-anchored garbage path. Callers should run inputs
+/// through `dunce::simplified` first to collapse the common
+/// short-path mixed-form case onto a single variant before this check.
 #[cfg(windows)]
 fn same_path_root(a: &Path, b: &Path) -> bool {
     fn first_prefix(path: &Path) -> Option<std::path::Prefix<'_>> {
