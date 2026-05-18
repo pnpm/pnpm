@@ -2,6 +2,7 @@ use crate::apply::{PatchApplyError, apply_patch_to_dir};
 use pretty_assertions::assert_eq;
 use std::fs;
 use tempfile::tempdir;
+use text_block_macros::text_block_fnl;
 
 /// Mirrors the upstream `is-positive` fixture at
 /// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-restorer/test/fixtures/simple-with-patch/patches/is-positive.patch>:
@@ -375,14 +376,14 @@ fn delete_patch_leaving_non_empty_result_errors_without_unlinking() {
     let patch_dir = tempdir().unwrap();
     let patch = write_patch(
         patch_dir.path(),
-        "\
-diff --git a/partial.txt b/partial.txt
-deleted file mode 100644
---- a/partial.txt
-+++ /dev/null
-@@ -1 +0,0 @@
--going away
-",
+        text_block_fnl! {
+            "diff --git a/partial.txt b/partial.txt"
+            "deleted file mode 100644"
+            "--- a/partial.txt"
+            "+++ /dev/null"
+            "@@ -1 +0,0 @@"
+            "-going away"
+        },
     );
 
     let err = apply_patch_to_dir(patched.path(), &patch).expect_err("must refuse partial delete");
@@ -405,12 +406,12 @@ fn rename_operation_errors_as_unsupported() {
     let patch_dir = tempdir().unwrap();
     let patch = write_patch(
         patch_dir.path(),
-        "\
-diff --git a/from.txt b/to.txt
-similarity index 100%
-rename from from.txt
-rename to to.txt
-",
+        text_block_fnl! {
+            "diff --git a/from.txt b/to.txt"
+            "similarity index 100%"
+            "rename from from.txt"
+            "rename to to.txt"
+        },
     );
 
     let err = apply_patch_to_dir(patched.path(), &patch).expect_err("rename must error");
@@ -439,14 +440,14 @@ fn create_with_unwritable_parent_path_errors() {
     let patch_dir = tempdir().unwrap();
     let patch = write_patch(
         patch_dir.path(),
-        "\
-diff --git a/blocker/nested.txt b/blocker/nested.txt
-new file mode 100644
---- /dev/null
-+++ b/blocker/nested.txt
-@@ -0,0 +1 @@
-+hi
-",
+        text_block_fnl! {
+            "diff --git a/blocker/nested.txt b/blocker/nested.txt"
+            "new file mode 100644"
+            "--- /dev/null"
+            "+++ b/blocker/nested.txt"
+            "@@ -0,0 +1 @@"
+            "+hi"
+        },
     );
 
     let err = apply_patch_to_dir(patched.path(), &patch).expect_err("create_dir_all must fail");

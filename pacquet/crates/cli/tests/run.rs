@@ -1,6 +1,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::CommandTempCwd;
+use serde_json::json;
 use std::fs;
 
 /// `pacquet run <script>` looks up the named entry under
@@ -14,14 +15,12 @@ fn run_executes_declared_script() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let manifest_path = workspace.join("package.json");
     let marker_path = workspace.join("marker.txt");
-    let manifest = format!(
-        r#"{{
-            "name": "test",
-            "version": "0.0.0",
-            "scripts": {{ "touch-marker": "touch {marker}" }}
-        }}"#,
-        marker = marker_path.display(),
-    );
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "touch-marker": format!("touch {}", marker_path.display()) },
+    })
+    .to_string();
     fs::write(&manifest_path, manifest).expect("write package.json");
 
     pacquet.with_arg("run").with_arg("touch-marker").assert().success();
@@ -42,14 +41,14 @@ fn run_passes_extra_arguments_to_the_script() {
     let marker_path = workspace.join("args.txt");
     // `printf %s "$1"` writes the first argument into the marker,
     // letting the assertion below pin the exact argument flow.
-    let manifest = format!(
-        r#"{{
-            "name": "test",
-            "version": "0.0.0",
-            "scripts": {{ "echo-args": "sh -c 'printf %s \"$1\" > {marker}' --" }}
-        }}"#,
-        marker = marker_path.display(),
-    );
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": {
+            "echo-args": format!(r#"sh -c 'printf %s "$1" > {}' --"#, marker_path.display()),
+        },
+    })
+    .to_string();
     fs::write(&manifest_path, manifest).expect("write package.json");
 
     pacquet.with_arg("run").with_arg("echo-args").with_arg("hello-world").assert().success();
@@ -67,11 +66,13 @@ fn run_passes_extra_arguments_to_the_script() {
 fn run_errors_on_missing_script_without_if_present() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let manifest_path = workspace.join("package.json");
-    fs::write(
-        &manifest_path,
-        r#"{"name": "test", "version": "0.0.0", "scripts": {"build": "echo built"}}"#,
-    )
-    .expect("write package.json");
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "build": "echo built" },
+    })
+    .to_string();
+    fs::write(&manifest_path, manifest).expect("write package.json");
 
     let output =
         pacquet.with_arg("run").with_arg("nonexistent").output().expect("spawn pacquet run");
@@ -88,11 +89,13 @@ fn run_errors_on_missing_script_without_if_present() {
 fn run_with_if_present_is_a_noop_for_missing_script() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let manifest_path = workspace.join("package.json");
-    fs::write(
-        &manifest_path,
-        r#"{"name": "test", "version": "0.0.0", "scripts": {"build": "echo built"}}"#,
-    )
-    .expect("write package.json");
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "build": "echo built" },
+    })
+    .to_string();
+    fs::write(&manifest_path, manifest).expect("write package.json");
 
     pacquet.with_arg("run").with_arg("--if-present").with_arg("nonexistent").assert().success();
 
