@@ -103,3 +103,48 @@ test('does not print path when running from workspace subdir and lockfile is at 
   const [started] = await frames
   expect(stripAnsi(started)).toBe('? Verifying lockfile against supply-chain policies (10 entries)...')
 })
+
+test('suppresses path when workspaceDir has a trailing separator', async () => {
+  const cwd = '/repo'
+  // Workspace dir with a trailing slash — strict === against
+  // path.dirname(lockfilePath) would mismatch; path.relative normalizes.
+  const workspaceDir = '/repo/'
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: cwd, workspaceDir } as Config & ConfigContext,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  const frames = firstValueFrom(output$.pipe(take(1), toArray()))
+
+  lockfileVerificationLogger.debug({
+    status: 'started',
+    entries: 3,
+    lockfilePath: '/repo/pnpm-lock.yaml',
+  })
+
+  const [started] = await frames
+  expect(stripAnsi(started)).toBe('? Verifying lockfile against supply-chain policies (3 entries)...')
+})
+
+test('emits a brief failure line on failed status', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+  })
+
+  const frames = firstValueFrom(output$.pipe(take(2), toArray()))
+
+  lockfileVerificationLogger.debug({ status: 'started', entries: 12 })
+  lockfileVerificationLogger.debug({
+    status: 'failed',
+    entries: 12,
+    elapsedMs: 800,
+  })
+
+  const [started, failed] = await frames
+  expect(stripAnsi(started)).toBe('? Verifying lockfile against supply-chain policies (12 entries)...')
+  expect(stripAnsi(failed)).toBe('✗ Lockfile failed supply-chain policy check (12 entries in 800ms)')
+})

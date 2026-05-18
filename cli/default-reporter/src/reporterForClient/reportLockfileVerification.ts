@@ -39,6 +39,13 @@ export function reportLockfileVerification (
           return {
             msg: `${chalk.green('✓')} Lockfile${path_} passes supply-chain policies (${entries} in ${prettyMs(log.elapsedMs)})`,
           }
+        case 'failed':
+          // Brief one-liner so the transient `started` frame doesn't
+          // stay on screen above the detailed PnpmError block that the
+          // error reporter prints next.
+          return {
+            msg: `${chalk.red('✗')} Lockfile${path_} failed supply-chain policy check (${entries} in ${prettyMs(log.elapsedMs)})`,
+          }
       }
     })
   ))
@@ -49,12 +56,22 @@ export function reportLockfileVerification (
 // the path is implied and printing it would just add noise to every
 // install. Empty string when the path is omitted or matches the
 // expected location.
+//
+// Uses `path.relative` rather than a strict `===` between
+// `path.dirname(lockfilePath)` and `expectedDir`: relative path
+// computation normalizes slash direction and trailing separators, so
+// a workspaceDir like `C:/repo/` correctly matches a lockfilePath at
+// `C:\repo\pnpm-lock.yaml` on Windows. The lockfile is considered
+// "inside the expected dir" when the relative path is a bare file
+// name (no separator) that doesn't escape upward.
 function formatLockfilePath (
   lockfilePath: string | undefined,
   cwd: string,
   expectedDir: string
 ): string {
   if (lockfilePath == null) return ''
-  if (path.dirname(lockfilePath) === expectedDir) return ''
+  const fromExpected = path.relative(expectedDir, lockfilePath)
+  const isDirectChild = !fromExpected.includes(path.sep) && !fromExpected.startsWith('..')
+  if (isDirectChild) return ''
   return ` at ${normalize(path.relative(cwd, lockfilePath))}`
 }

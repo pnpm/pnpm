@@ -138,26 +138,39 @@ export async function verifyLockfileResolutions (
     entries: candidates.size,
     lockfilePath: options?.lockfilePath,
   })
-  const violations = await iterateLockfileViolations(candidates, verifiers, options?.concurrency)
-
-  if (violations.length === 0) {
+  // Guarantee a terminal `done` or `failed` event on every exit path
+  // that emitted `started`. Without this, an unexpected throw from the
+  // registry fan-out (or the policy-violation throw below) would leave
+  // the transient "Verifying lockfile…" line as the last frame the
+  // reporter rendered for this block, hanging spinner-style above the
+  // failure output.
+  let terminalStatus: 'done' | 'failed' = 'failed'
+  try {
+    const violations = await iterateLockfileViolations(candidates, verifiers, options?.concurrency)
+    if (violations.length === 0) {
+      terminalStatus = 'done'
+      // Persist the success so the next install can stat-only the lockfile.
+      if (cache) {
+        recordVerification(cache.cacheDir, {
+          lockfilePath: cache.lockfilePath,
+          verifiers,
+          hashLockfile,
+        }, cachePrecomputed)
+      }
+      return
+    }
+    throw buildVerificationError(violations)
+  } finally {
     lockfileVerificationLogger.debug({
-      status: 'done',
+      status: terminalStatus,
       entries: candidates.size,
       elapsedMs: Date.now() - startedAt,
       lockfilePath: options?.lockfilePath,
     })
-    // Persist the success so the next install can stat-only the lockfile.
-    if (cache) {
-      recordVerification(cache.cacheDir, {
-        lockfilePath: cache.lockfilePath,
-        verifiers,
-        hashLockfile,
-      }, cachePrecomputed)
-    }
-    return
   }
+}
 
+function buildVerificationError (violations: ResolutionPolicyViolation[]): PnpmError {
   // Stable order so the error output is deterministic.
   violations.sort((a, b) => `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`))
   // Pick the throw code: a single-code batch keeps the per-policy code
@@ -178,7 +191,7 @@ export async function verifyLockfileResolutions (
   const details = omitted > 0
     ? `${breakdown}\n  …and ${omitted} more`
     : breakdown
-  throw new PnpmError(
+  return new PnpmError(
     errorCode,
     `${violations.length} lockfile entries failed verification:\n${details}`,
     {
